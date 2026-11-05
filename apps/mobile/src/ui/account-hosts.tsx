@@ -23,6 +23,7 @@ export function AccountHosts(props: {
   pairing?: string | undefined;
   saved: readonly SavedHost[];
   results: Readonly<Record<string, AccountPairResult>>;
+  failureDetails?: Readonly<Record<string, string>>;
   onPair(hosts: ConnectHost[]): Promise<void>;
 }) {
   const t = useStrings();
@@ -184,7 +185,10 @@ export function AccountHosts(props: {
           : result === 'cancelled'
             ? t.pairAccount.cancelled
             : result && result !== 'added'
-              ? t.pairRefused[result]
+              ? [t.pairRefused[result], props.failureDetails?.[host.id]]
+                  .filter((part) => part !== undefined)
+                  .map((part, index) => (index === 0 ? part : t.pairFailureDetail(part)))
+                  .join('\n')
               : host.online
                 ? t.pairAccount.online
                 : t.pairAccount.offline;

@@ -2443,6 +2443,7 @@ describe('DSH Bot Agent adapter', () => {
       'channel_attachment_save',
       'channel_attachment_import',
       'channel_read_image',
+      'call_frame',
       'list_bot_contacts',
       'group_create',
       'bot_create',
@@ -2550,6 +2551,39 @@ describe('DSH Bot Agent adapter', () => {
         },
       ),
     ).toMatchObject([{ type: 'text' }, { type: 'image' }]);
+    const callFrame = host.scopes
+      .get('orchestrator-ada')
+      ?.tools.find((tool) => tool.name === 'call_frame');
+    expect(callFrame?.parameters).toMatchObject({ required: ['message_id', 'cell'] });
+    expect(
+      callFrame?.output.render(
+        {},
+        { channelId: 'dm-ada', messageId: 'human-1', cell: 2, released: true },
+      ),
+    ).toEqual([{ type: 'text', text: expect.stringContaining('released') }]);
+    expect(
+      callFrame?.output.render(
+        {},
+        {
+          channelId: 'dm-ada',
+          messageId: 'human-1',
+          cell: 2,
+          released: false,
+          cells: 4,
+          source: 'screen',
+          image: {
+            attachmentId: 'sha256:cell',
+            mediaType: 'image/jpeg',
+            bytes: 8,
+            width: 1920,
+            height: 1080,
+          },
+        },
+      ),
+    ).toMatchObject([
+      { type: 'text', text: expect.stringContaining('Cell 2 of 4') },
+      { type: 'image' },
+    ]);
     expect(JSON.stringify(channelSend?.parameters)).not.toMatch(
       /"(?:bot_slug|persona_bot|author)"\s*:/,
     );

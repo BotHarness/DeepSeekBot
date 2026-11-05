@@ -38,13 +38,13 @@ it('invalidates the shared carrier after canonical messages, reads, decisions an
       author: { kind: 'bot', slug: 'ada' },
       body: 'A real persisted reply',
     });
-    await vi.advanceTimersByTimeAsync(1);
+    await vi.advanceTimersByTimeAsync(300);
     expect(snapshots.at(-1)).toContain('unread:reply');
     const unread = core.humanAttention.list({ category: 'unread' }).items[0]!;
     expect(unread).toMatchObject({ channelId: dm.id, messageId: 'reply' });
     expect(unread.sourceEventId).toBeTruthy();
     await core.channels.markRead(dm.id, 'reply');
-    await vi.advanceTimersByTimeAsync(1);
+    await vi.advanceTimersByTimeAsync(300);
     expect(snapshots.at(-1)).not.toContain('unread:reply');
     await core.channels.appendMessage(dm.id, {
       id: 'approval',
@@ -53,16 +53,16 @@ it('invalidates the shared carrier after canonical messages, reads, decisions an
       body: 'Please approve',
       grantRequest: true,
     });
-    await vi.advanceTimersByTimeAsync(1);
+    await vi.advanceTimersByTimeAsync(300);
     const action = core.humanAttention.list({ category: 'action' }).items[0]!;
     expect(snapshots.at(-1)).toContain('action:approval');
     core.humanAttentionDecisions.snooze(action, new Date(Date.now() + 1000).toISOString());
-    await vi.advanceTimersByTimeAsync(1);
+    await vi.advanceTimersByTimeAsync(300);
     expect(snapshots.at(-1)).not.toContain('action:approval');
-    await vi.advanceTimersByTimeAsync(1001);
+    await vi.advanceTimersByTimeAsync(1_300);
     expect(snapshots.at(-1)).toContain('action:approval');
     core.humanAttentionDecisions.dismiss(action);
-    await vi.advanceTimersByTimeAsync(1);
+    await vi.advanceTimersByTimeAsync(300);
     expect(snapshots.at(-1)).not.toContain('action:approval');
     const count = snapshots.length;
     await vi.advanceTimersByTimeAsync(60_000);
@@ -95,7 +95,7 @@ it('coalesces transient request owner signals and cancels queued work when the d
     signal();
     signal();
     expect(changed).not.toHaveBeenCalled();
-    await vi.advanceTimersByTimeAsync(1);
+    await vi.advanceTimersByTimeAsync(300);
     expect(changed).toHaveBeenCalledTimes(1);
     signal();
     core.operationalDatabase.close();

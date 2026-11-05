@@ -111,7 +111,7 @@ function MediaTile({
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const attachment = file.attachment;
-  const source = attachment.source;
+  const source = attachment.thumbnail ?? attachment.source;
   const missing = source === undefined || failed;
   const rowId = file.key.toLowerCase().replace(/[^a-z0-9-]/gu, '-');
   const date = new Date(file.at).toLocaleString();
@@ -177,6 +177,9 @@ function MediaTile({
           source={source}
           recyclingKey={attachment.key}
           cachePolicy="memory-disk"
+          {...(attachment.thumbhash === undefined
+            ? {}
+            : { placeholder: { thumbhash: attachment.thumbhash } })}
           contentFit="cover"
           transition={150}
           onError={() => setFailed(true)}

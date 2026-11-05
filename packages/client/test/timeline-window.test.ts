@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { nearKeys, timelineRuns, windowKeys } from '../src/client/timeline-window.js';
+import { knownHeights, nearKeys, timelineRuns, windowKeys } from '../src/client/timeline-window.js';
 
 const keys = ['a', 'b', 'c', 'd', 'e', 'f'];
 const heights = new Map(keys.map((key) => [key, 100]));
@@ -58,4 +58,39 @@ it('keeps rendering groups after the on-screen groups are removed', () => {
 
 it('does not invent groups while nothing has been measured', () => {
   expect([...windowKeys(keys, new Map(), 1000, 1200)]).toEqual([]);
+});
+
+it('sizes regrouped history from its measured messages so only nearby groups mount', () => {
+  const shares = new Map(Array.from({ length: 40 }, (_, index) => [`m${index}`, 50]));
+  const members = new Map<string, string[]>([['new', ['n0', 'n1']]]);
+  const regrouped: string[] = ['new'];
+  for (let start = 3; start < 40; start += 8) {
+    const ids = Array.from({ length: Math.min(8, 40 - start) }, (_, index) => `m${start + index}`);
+    members.set(ids[0]!, ids);
+    regrouped.push(ids[0]!);
+  }
+  members.set('m0', ['m0', 'm1', 'm2']);
+  regrouped.splice(1, 0, 'm0');
+  const sizes = knownHeights(regrouped, new Map(), members, shares);
+  expect(sizes.has('new')).toBe(false);
+  expect(sizes.get('m0')).toBe(150);
+  expect(sizes.get('m3')).toBe(400);
+  const near = windowKeys(regrouped, sizes, 0, 500);
+  const mounted = timelineRuns(regrouped, sizes, (key) => !sizes.has(key) || near.has(key))
+    .filter((run) => run.kind === 'group')
+    .map((run) => regrouped[run.kind === 'group' ? run.index : 0]);
+  expect(mounted).toEqual(['new', 'm0', 'm3']);
+});
+
+it('prefers a measured group height over the estimate from its messages', () => {
+  const sizes = knownHeights(
+    ['a'],
+    new Map([['a', 120]]),
+    new Map([['a', ['x', 'y']]]),
+    new Map([
+      ['x', 10],
+      ['y', 10],
+    ]),
+  );
+  expect(sizes.get('a')).toBe(120);
 });

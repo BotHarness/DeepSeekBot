@@ -50,6 +50,7 @@ function fixture(holdTeardown = false) {
   const cleanup = deferred<void>();
   const runs: OrchestratorAgentRun[] = [];
   const archived = new Set<string>();
+  const warnings: string[] = [];
   const agents: BotAgentAdapter = {
     async runOrchestrator(run) {
       runs.push(run);
@@ -80,6 +81,7 @@ function fixture(holdTeardown = false) {
     agents,
     ownership,
     sessionArchived: (id) => archived.has(id),
+    warn: (message) => warnings.push(message),
   });
   return {
     runtime,
@@ -94,6 +96,7 @@ function fixture(holdTeardown = false) {
     released,
     cleanup,
     archived,
+    warnings,
   };
 }
 
@@ -196,6 +199,23 @@ describe('native Subagent report admission', () => {
           ),
         ).toBe(false);
         expect(f.runs).toHaveLength(0);
+        expect(f.warnings.map((warning) => JSON.parse(warning) as Record<string, unknown>)).toEqual(
+          [
+            expect.objectContaining({
+              event: 'native-orchestrator-input',
+              phase: 'refused',
+              bot: 'ada',
+              session: 'parent',
+              reason: {
+                'unknown-child': 'foreign-sender',
+                'no-sender': 'no-native-sender',
+                archived: 'no-current-orchestrator',
+                paused: 'bot-paused',
+                aborted: 'aborted',
+              }[caseName],
+            }),
+          ],
+        );
       } finally {
         f.prepared.resolve();
         f.finished.resolve();
@@ -203,6 +223,107 @@ describe('native Subagent report admission', () => {
       }
     },
   );
+
+  it('admits the first Human turn after a restart even though no native sender is present (#3315)', async () => {
+    const f = fixture();
+    try {
+      const dm = f.runtime.admitDmMessage({
+        channelId: f.dm.id,
+        messageId: 'human-after-restart',
+        body: 'First message after restart',
+      });
+      if (!dm.admitted) throw new Error(dm.reason);
+      const run = await f.started.promise;
+      expect(run.sessionId).toBe('parent');
+      f.prepared.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(
+        await f.runtime.prepareNativeOrchestratorStep!('parent', [], new AbortController().signal),
+      ).toBe(true);
+      expect(f.warnings).toEqual([]);
+      f.finished.resolve();
+      await dm.settled;
+      expect(f.runs).toHaveLength(1);
+    } finally {
+      f.prepared.resolve();
+      f.finished.resolve();
+      await f.runtime.whenIdle();
+      await f.runtime.close();
+    }
+  });
+
+  it('keeps a Runtime-driven turn running when a softer fence fails mid-turn (#3315)', async () => {
+    const f = fixture();
+    try {
+      const dm = f.runtime.admitDmMessage({
+        channelId: f.dm.id,
+        messageId: 'human-mid-turn',
+        body: 'Long request',
+      });
+      if (!dm.admitted) throw new Error(dm.reason);
+      await f.started.promise;
+      f.prepared.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      f.archived.add('parent');
+      expect(
+        await f.runtime.prepareNativeOrchestratorStep!('parent', [], new AbortController().signal),
+      ).toBe(true);
+      const aborted = new AbortController();
+      aborted.abort();
+      expect(await f.runtime.prepareNativeOrchestratorStep!('parent', [], aborted.signal)).toBe(
+        false,
+      );
+      expect(f.warnings.map((warning) => JSON.parse(warning) as Record<string, unknown>)).toEqual([
+        expect.objectContaining({
+          event: 'native-orchestrator-input',
+          phase: 'admitted-unavailable',
+          reason: 'no-current-orchestrator',
+        }),
+        expect.objectContaining({ phase: 'refused', reason: 'aborted', executionReady: true }),
+      ]);
+      f.archived.delete('parent');
+      f.finished.resolve();
+      await dm.settled;
+    } finally {
+      f.prepared.resolve();
+      f.finished.resolve();
+      await f.runtime.whenIdle();
+      await f.runtime.close();
+    }
+  });
+
+  it('admits a waiting native step under the same policy when a soft check fails before readiness', async () => {
+    const f = fixture();
+    try {
+      const accepted = f.runtime.prepareNativeOrchestratorStep!(
+        'parent',
+        ['child'],
+        new AbortController().signal,
+      );
+      await f.started.promise;
+      f.archived.add('parent');
+      f.prepared.resolve();
+      expect(await accepted).toBe(true);
+      expect(f.runs[0]!.acceptNativeInput?.()).toBe(true);
+      expect(() => f.runs[0]!.sourcePolicy?.resetAssignmentReport()).not.toThrow();
+      let released = false;
+      void f.released.promise.then(() => (released = true));
+      await Promise.resolve();
+      expect(released).toBe(false);
+      expect(f.warnings.map((warning) => JSON.parse(warning) as Record<string, unknown>)).toEqual([
+        expect.objectContaining({
+          phase: 'admitted-unavailable',
+          reason: 'no-current-orchestrator',
+        }),
+      ]);
+    } finally {
+      f.archived.delete('parent');
+      f.prepared.resolve();
+      f.finished.resolve();
+      await f.runtime.whenIdle();
+      await f.runtime.close();
+    }
+  });
 
   it('cancels while preparing without leaving a waiter or accepting a report', async () => {
     const f = fixture();
@@ -216,6 +337,9 @@ describe('native Subagent report admission', () => {
       await f.started.promise;
       controller.abort();
       expect(await accepted).toBe(false);
+      expect(f.warnings.map((warning) => JSON.parse(warning) as Record<string, unknown>)).toEqual([
+        expect.objectContaining({ event: 'native-orchestrator-input', reason: 'aborted' }),
+      ]);
     } finally {
       f.prepared.resolve();
       f.finished.resolve();

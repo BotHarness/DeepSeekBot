@@ -48,7 +48,7 @@ export const PROMPT_PARTS = [
     kind: 'system',
     section: 'botharness:orchestrator-role',
     defaultText:
-      'A colleague may wake only on mentions, so mention it whenever you hand work over, send work back for another round, or report a result it is waiting for; every @ wakes it again, and a name without @ wakes no one. If bot_send_message returns notWoken, that colleague did not wake: tell the Humans where the work stands and what is needed instead of waiting silently.',
+      'A colleague may wake only on mentions, so mention it whenever you hand work over, send work back for another round, or report a result it is waiting for; every @ wakes it again, and a name without @ wakes no one. If bot_send_message returns notWoken, that colleague did not wake; if it returns refused with collaboration-hop-limit, nothing was sent. In both cases tell the Humans where the work stands and what is needed instead of waiting silently.',
   },
   {
     id: 'schedule-confirmation',
@@ -91,6 +91,20 @@ export const PROMPT_PARTS = [
     section: 'turn',
     defaultText:
       'Decide whether a reply would be useful. You may finish without replying; if you speak in this Bot DM, use bot_send_message with this source_event_id.',
+  },
+  {
+    id: 'voice-call-hint',
+    kind: 'turn',
+    section: 'turn',
+    defaultText:
+      'The Human said this aloud on a live call with you; it is a speech transcript and may contain recognition mistakes. Answer by voice: every bot_send_message during the call, follow-ups included, uses voice: true, short and natural to hear, opening with a short first sentence. Write "voice": true as the first argument, before body (for example {"voice": true, "source_event_id": "…", "body": "…"}): your voice starts playing while you write, but only when voice comes first. If they ask for text only, keep voice off until they ask again. Before slow work (tools, research, an Assignment), first send one short spoken line such as "Let me check, this may take a moment", then do the work and speak the result when it is ready.',
+  },
+  {
+    id: 'voice-call-visual-hint',
+    kind: 'turn',
+    section: 'turn',
+    defaultText:
+      'On this call the Human shares their camera or screen. Each of their spoken messages carries one image of what changed while they spoke: a single keyframe, or a grid of keyframes in time order from top-left to bottom-right, each tile labelled with its number and how many seconds before they finished speaking. Look at the image before you answer; talk about what you see briefly, as speech. When a tile is too small to read, call call_frame with that message and the tile number to see it at full resolution; originals are kept only during the call. Earlier views stay on earlier messages of this DM.',
   },
   {
     id: 'digest-hint',

@@ -1,3 +1,5 @@
+import { createVoiceBridgeMethods, type VoiceBridgeMethods } from '../voice/bridge.js';
+import type { VoiceProviders } from '../voice/providers.js';
 import { networkBotId, type BotContact } from '../runtime/bot-contact-discovery.js';
 import { BotNetworkDeliveryError } from '../runtime/bot-network.js';
 import { join } from 'node:path';
@@ -91,7 +93,7 @@ import {
 } from '../storage/media-cleanup.js';
 import { pairingReviewInput, type PairingRequest } from '../messaging/pairing.js';
 import { senderAccessInput } from '../messaging/sender-access.js';
-import type { GroupMemberWakePolicy } from '../channels/channel.js';
+import type { ChannelTurnStopTarget, GroupMemberWakePolicy } from '../channels/channel.js';
 import {
   parseAllBotMention,
   expandAllBotMention,
@@ -108,6 +110,7 @@ import {
   type UsageOverviewResult,
 } from '../usage/overview.js';
 import { markAllHumanMessagesRead } from '../channels/mark-all-read.js';
+import { channelPreviewMessage } from '../channels/channel-notice.js';
 import { channelBridgeInput, type ChannelBridgeSnapshot } from '../messaging/channel-bridge.js';
 import {
   conversationIngestInput,
@@ -217,7 +220,11 @@ import { randomUUID } from 'node:crypto';
 
 import { z } from 'zod';
 
+import { TakeoverError, type TakeoverHandoff } from '../takeover/contracts.js';
+import type { TakeoverHandoffs } from '../takeover/handoffs.js';
 import {
+  dmChannelId,
+  isChannelCallVisual,
   isValidChannelId,
   isGroupAvatar,
   isReactionEmoji,
@@ -402,6 +409,7 @@ import {
   type HumanAttentionDecisions,
   type HumanAttentionPage,
   type HumanAttentionCategory,
+  type HumanAttentionItem,
 } from '../runtime/human-attention.js';
 import { DirectBotToolError, queryAssignmentDirectory } from '../runtime/bot-runtime.js';
 import type {
@@ -637,6 +645,20 @@ export interface BridgeMethods {
   channelBotStop(
     payload: unknown,
   ): Promise<BridgeResult<{ stopped: { botSlug: string; sessionId: string; messageId: string } }>>;
+  sessionStop(payload: unknown): Promise<
+    BridgeResult<{
+      stopped: import('../runtime/bot-runtime.js').StoppedSessionRef[];
+      alreadyIdle: import('../runtime/bot-runtime.js').StoppedSessionRef[];
+      messageId?: string;
+    }>
+  >;
+  botStop(payload: unknown): Promise<
+    BridgeResult<{
+      stopped: import('../runtime/bot-runtime.js').StoppedSessionRef[];
+      alreadyIdle: import('../runtime/bot-runtime.js').StoppedSessionRef[];
+      messageId?: string;
+    }>
+  >;
   approvalRoute(payload: unknown): Promise<BridgeResult<{ updated: true }>>;
   failureAlertsSet(payload: unknown): Promise<BridgeResult<{ updated: true }>>;
   failureAlertsTest(
@@ -745,6 +767,7 @@ export interface BridgeMethods {
   ): BridgeResult<{ target: { path: string; relativePath: string; kind: 'directory' } }>;
   pause(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   resume(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
+  ping(payload: unknown): BridgeResult<{ ok: true }>;
   humanIdentity(payload: unknown): BridgeResult<LocalHumanIdentity>;
   composerIdentity(payload: unknown): BridgeResult<ComposerRecoveryIdentity>;
   composerValidate(
@@ -810,6 +833,9 @@ export interface BridgeMethods {
   ): BridgeResult<{ channels: Array<{ channelId: string; unreadCount: number }> }>;
   humanAttentionDismiss(payload: unknown): BridgeResult<{ accepted: boolean }>;
   humanAttentionRestore(payload: unknown): BridgeResult<{ accepted: boolean }>;
+  humanAttentionDismissAll(
+    payload: unknown,
+  ): Promise<BridgeResult<{ accepted: boolean; dismissed: number; read: number; more: boolean }>>;
   humanAttentionIgnore(payload: unknown): BridgeResult<{ accepted: boolean }>;
   humanAttentionSnooze(payload: unknown): BridgeResult<{ accepted: boolean }>;
   assignments(payload: unknown): BridgeResult<{ assignments: AssignmentSummary[] }>;
@@ -852,7 +878,7 @@ export interface BridgeMethods {
     payload: unknown,
   ): BridgeResult<{ entries: ToolApprovalHistoryEntry[]; nextCursor?: string }>;
   toolApprovalStatus(payload: unknown): BridgeResult<{
-    status: 'pending' | 'expired';
+    status: 'pending' | 'expired' | 'stopped';
     expiresAt?: string;
     execution?: 'waiting-human' | 'waiting-capacity' | 'running' | 'settled' | 'needs-repair';
   }>;
@@ -963,6 +989,17 @@ export interface BridgeMethods {
     payload: unknown,
   ): BridgeResult<{ template: { name: string }; clearedBots: string[] }>;
   botApprovalTemplateSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
+  voiceProviders: VoiceBridgeMethods['voiceProviders'];
+  voiceProviderAdd: VoiceBridgeMethods['voiceProviderAdd'];
+  voiceProviderRemove: VoiceBridgeMethods['voiceProviderRemove'];
+  voiceProviderTest: VoiceBridgeMethods['voiceProviderTest'];
+  voiceSynthesize: VoiceBridgeMethods['voiceSynthesize'];
+  botVoiceSet: VoiceBridgeMethods['botVoiceSet'];
+  voiceTranscribe: VoiceBridgeMethods['voiceTranscribe'];
+  botAsrSet: VoiceBridgeMethods['botAsrSet'];
+  voiceDefaultSet: VoiceBridgeMethods['voiceDefaultSet'];
+  voiceSpeechThresholdSet: VoiceBridgeMethods['voiceSpeechThresholdSet'];
+  voiceDictation: VoiceBridgeMethods['voiceDictation'];
   approvalReviewerModel(payload?: unknown): Promise<BridgeResult<ApprovalReviewerModelView>>;
   approvalReviewerModelSet(payload: unknown): Promise<BridgeResult<ApprovalReviewerModelView>>;
   idleCompaction(payload?: unknown): BridgeResult<IdleCompactionView>;
@@ -1033,6 +1070,11 @@ export interface BridgeMethods {
   gitStatus(): BridgeResult<GitStatus>;
   gitInstall(): BridgeResult<GitStatus>;
   telemetrySet(payload: unknown): BridgeResult<TelemetryStatus>;
+  takeoverList(payload: unknown): BridgeResult<{ takeovers: TakeoverHandoff[] }>;
+  takeoverStatus(payload: unknown): BridgeResult<{ takeover: TakeoverHandoff }>;
+  takeoverRequest(payload: unknown): Promise<BridgeResult<{ takeover: TakeoverHandoff }>>;
+  takeoverComplete(payload: unknown): Promise<BridgeResult<{ takeover: TakeoverHandoff }>>;
+  takeoverCancel(payload: unknown): Promise<BridgeResult<{ takeover: TakeoverHandoff }>>;
   scheduleList(payload: unknown): BridgeResult<{ schedules: BotSchedule[] }>;
   scheduleCreate(payload: unknown): BridgeResult<{ schedule: BotSchedule }>;
   scheduleUpdate(payload: unknown): BridgeResult<{ schedule: BotSchedule }>;
@@ -1120,6 +1162,8 @@ function storageFailure(
 }
 
 export interface BridgeMethodsDeps {
+  voiceProviders?: VoiceProviders;
+  voiceLog?: (phase: string, fields: Record<string, string | number>) => void;
   botContext?(slug: string): Promise<BotContextWindow>;
   botSystemPrompt?(slug: string): Promise<BotSystemPromptView>;
   prompts?: PromptSettings;
@@ -1172,6 +1216,7 @@ export interface BridgeMethodsDeps {
   attention?: BotAttentionQuery;
   sourcePolicy?: BotSourcePolicyStore;
   schedules?: BotScheduleStore;
+  takeovers?: TakeoverHandoffs;
   humanAttention?: HumanAttentionQuery;
   humanAttentionDecisions?: HumanAttentionDecisions;
   grants?: WorkspaceGrantStore;
@@ -1472,6 +1517,16 @@ function parseScheduleTrigger(value: unknown): BotScheduleTrigger | undefined {
   return undefined;
 }
 
+function takeoverFailure(error: unknown): BridgeResult<never> {
+  if (error instanceof TakeoverError)
+    return { ok: false, error: { code: error.code, message: error.message } };
+  return invalidInput(String(error));
+}
+
+function takeoverSurface(value: unknown): string {
+  return typeof value === 'string' && /^[a-z][a-z0-9-]{0,31}$/u.test(value) ? value : 'client';
+}
+
 function scheduleFailure(error: unknown): BridgeResult<never> {
   if (error instanceof BotScheduleError)
     return { ok: false, error: { code: error.code, message: error.message } };
@@ -1504,6 +1559,10 @@ function templateWriteFailure(
 
 function unknownBot(slug: string): BridgeResult<never> {
   return { ok: false, error: { code: 'not-found', message: `unknown PersonaBot: ${slug}` } };
+}
+
+function botInChannel(channel: ChannelRecord, botSlug: string): boolean {
+  return channel.type === 'group' ? channel.members.includes(botSlug) : channel.botSlug === botSlug;
 }
 
 function unknownChannel(id: string): BridgeResult<never> {
@@ -1545,6 +1604,31 @@ function unknownAssignment(sessionId: string): BridgeResult<never> {
 }
 
 const DIRECT_TOOL_TIMEOUT_MS = 10 * 60_000;
+
+const HUMAN_ATTENTION_DISMISS_LIMIT = 1000;
+const HUMAN_ATTENTION_READ_KINDS: ReadonlySet<string> = new Set([
+  'channel-unread',
+  'channel-reply',
+  'channel-mention',
+]);
+const HUMAN_ATTENTION_DISMISS_KINDS: ReadonlySet<string> = new Set<HumanAttentionItem['kind']>([
+  'group-join-request',
+  'pairing-request',
+  'user-question',
+  'private-input',
+  'takeover-request',
+  'tool-approval',
+  'auto-rejection',
+  'workspace-grant-request',
+  'bot-dm-message',
+  'assignment-waiting-human',
+  'assignment-blocked',
+  'assignment-report',
+  'bot-message-needs-repair',
+  'channel-unread',
+  'channel-reply',
+  'channel-mention',
+]);
 
 function directToolsUnavailable(): BridgeResult<never> {
   return {
@@ -1814,6 +1898,104 @@ function historyPosition(cursor: string): ToolApprovalHistoryPosition | undefine
   }
 }
 export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
+  async function appendStopNotice(
+    channelId: string,
+    botSlug: string,
+    botName: string,
+    sessionId: string,
+    target: ChannelTurnStopTarget,
+  ): Promise<string | undefined> {
+    const human = deps.channels.listHumanMembers(channelId)[0]?.displayName ?? 'Human';
+    const subject =
+      target.scope === 'bot'
+        ? botName
+        : target.role === 'orchestrator'
+          ? `${botName}'s Orchestrator`
+          : `${botName}'s Assignment${target.title ? ` “${target.title}”` : ''}`;
+    const appended = await deps.channels.appendMessage(channelId, {
+      id: `turn-stopped-${randomUUID()}`,
+      at: new Date().toISOString(),
+      author: { kind: 'system' },
+      body: `${human} stopped ${subject}.`,
+      turnStop: {
+        botSlug,
+        botName,
+        humanName: human,
+        sessionId,
+        cause: 'human-stop',
+        target,
+      },
+    });
+    return appended?.id;
+  }
+
+  async function stopBotSessions(
+    source: Record<string, unknown>,
+    botSlug: string,
+    channelId: string | undefined,
+  ): Promise<
+    BridgeResult<{
+      stopped: import('../runtime/bot-runtime.js').StoppedSessionRef[];
+      alreadyIdle: import('../runtime/bot-runtime.js').StoppedSessionRef[];
+      messageId?: string;
+    }>
+  > {
+    const bot = deps.registry.get(botSlug);
+    if (bot === undefined) return unknownBot(botSlug);
+    const autoContinueFor = asNonBlank(source, 'autoContinueFor');
+    if (source['autoContinueFor'] !== undefined && autoContinueFor === undefined)
+      return invalidInput('autoContinueFor must be a message id');
+    if (autoContinueFor !== undefined) {
+      if (channelId === undefined) return invalidInput('autoContinueFor needs a channelId');
+      const cancelled = await deps.runtime?.stopTurn?.(botSlug, { autoContinueFor, channelId });
+      if (cancelled === undefined) return { ok: true, value: { stopped: [], alreadyIdle: [] } };
+      const human = deps.channels.listHumanMembers(channelId)[0]?.displayName ?? 'Human';
+      const appended = await deps.channels.appendMessage(channelId, {
+        id: `turn-stopped-${randomUUID()}`,
+        at: new Date().toISOString(),
+        author: { kind: 'system' },
+        body: `${human} stopped ${bot.displayName}.`,
+        turnStop: {
+          botSlug,
+          botName: bot.displayName,
+          humanName: human,
+          sessionId: cancelled.sessionId,
+        },
+      });
+      return {
+        ok: true,
+        value: {
+          stopped: [{ botSlug, sessionId: cancelled.sessionId, role: 'orchestrator' }],
+          alreadyIdle: [],
+          ...(appended === undefined ? {} : { messageId: appended.id }),
+        },
+      };
+    }
+    if (deps.runtime?.stopAllSessions === undefined) return unavailable();
+    const outcome = await deps.runtime.stopAllSessions(botSlug);
+    const channel = channelId === undefined ? undefined : deps.channels.get(channelId);
+    const noticeSession =
+      outcome.stopped.find((ref) => ref.role === 'orchestrator')?.sessionId ??
+      outcome.stopped[0]?.sessionId;
+    const messageId =
+      noticeSession !== undefined &&
+      channel !== undefined &&
+      !channel.deletedAt &&
+      botInChannel(channel, botSlug)
+        ? await appendStopNotice(channel.id, botSlug, bot.displayName, noticeSession, {
+            scope: 'bot',
+          })
+        : undefined;
+    return {
+      ok: true,
+      value: {
+        stopped: outcome.stopped,
+        alreadyIdle: outcome.alreadyIdle,
+        ...(messageId === undefined ? {} : { messageId }),
+      },
+    };
+  }
+
   const approvalTemplateLibrary = deps.approvalTemplates ?? createApprovalTemplateLibrary();
   const templateUsers = (name: string): string[] =>
     deps.registry
@@ -2076,6 +2258,11 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
   };
 
   return {
+    ...createVoiceBridgeMethods({
+      providers: deps.voiceProviders,
+      registry: deps.registry,
+      log: deps.voiceLog,
+    }),
     channelBridges(payload) {
       const input = z
         .object({ channelId: z.string().min(1).max(128) })
@@ -2899,39 +3086,89 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (channel === undefined || channel.deletedAt) return unknownChannel(channelId);
       const bot = deps.registry.get(botSlug);
       if (bot === undefined) return unknownBot(botSlug);
-      if (
-        channel.type === 'group' ? !channel.members.includes(botSlug) : channel.botSlug !== botSlug
-      )
+      if (!botInChannel(channel, botSlug))
         return invalidInput(`${bot.displayName} is not in this Channel`);
-      const autoContinueFor = asNonBlank(source, 'autoContinueFor');
-      if (source['autoContinueFor'] !== undefined && autoContinueFor === undefined)
-        return invalidInput('autoContinueFor must be a message id');
-      const stopped = await deps.runtime?.stopTurn?.(
-        botSlug,
-        autoContinueFor === undefined ? undefined : { autoContinueFor, channelId },
-      );
-      if (stopped === undefined)
+      const stopped = await stopBotSessions(source, botSlug, channelId);
+      if (!stopped.ok) return stopped;
+      if (stopped.value.messageId === undefined)
         return {
           ok: false,
           error: { code: 'not-working', message: `${bot.displayName} is not working right now` },
         };
-      const human = deps.channels.listHumanMembers(channelId)[0]?.displayName ?? 'Human';
-      const appended = await deps.channels.appendMessage(channelId, {
-        id: `turn-stopped-${randomUUID()}`,
-        at: new Date().toISOString(),
-        author: { kind: 'system' },
-        body: `${human} stopped ${bot.displayName}.`,
-        turnStop: {
-          botSlug,
-          botName: bot.displayName,
-          humanName: human,
-          sessionId: stopped.sessionId,
-        },
-      });
-      if (appended === undefined) return unknownChannel(channelId);
+      const sessionId =
+        stopped.value.stopped.find((ref) => ref.role === 'orchestrator')?.sessionId ??
+        stopped.value.stopped[0]!.sessionId;
       return {
         ok: true,
-        value: { stopped: { botSlug, sessionId: stopped.sessionId, messageId: appended.id } },
+        value: { stopped: { botSlug, sessionId, messageId: stopped.value.messageId } },
+      };
+    },
+    async botStop(payload) {
+      const source = asObject(payload);
+      const botSlug = asNonBlank(source, 'botSlug');
+      if (!botSlug) return invalidInput('botSlug is required');
+      if (deps.registry.get(botSlug) === undefined) return unknownBot(botSlug);
+      const channelId = asNonBlank(source, 'channelId');
+      if (source['channelId'] !== undefined && channelId === undefined)
+        return invalidInput('channelId must be a Channel id');
+      if (channelId !== undefined) {
+        const channel = deps.channels.get(channelId);
+        if (channel === undefined || channel.deletedAt) return unknownChannel(channelId);
+      }
+      return stopBotSessions(source, botSlug, channelId);
+    },
+    async sessionStop(payload) {
+      const source = asObject(payload);
+      const botSlug = asNonBlank(source, 'botSlug');
+      const activityId = asNonBlank(source, 'activityId');
+      if (!botSlug || (source['sessionId'] === undefined) === (activityId === undefined))
+        return invalidInput('botSlug and exactly one of sessionId or activityId are required');
+      const bot = deps.registry.get(botSlug);
+      if (bot === undefined) return unknownBot(botSlug);
+      const channelId = asNonBlank(source, 'channelId');
+      if (source['channelId'] !== undefined && channelId === undefined)
+        return invalidInput('channelId must be a Channel id');
+      if (deps.runtime?.stopSession === undefined) return unavailable();
+      const sessionId =
+        activityId === undefined
+          ? asNonBlank(source, 'sessionId')
+          : deps.states.sessionIdForActivity(botSlug, activityId);
+      if (activityId !== undefined && sessionId === undefined)
+        return { ok: true, value: { stopped: [], alreadyIdle: [] } };
+      if (!sessionId) return invalidInput('sessionId must be a Session id');
+      const outcome = await deps.runtime.stopSession(botSlug, sessionId);
+      if (outcome.outcome === 'refused')
+        return { ok: false, error: { code: outcome.code, message: outcome.message } };
+      const ref = outcome.stopped[0];
+      const channel = channelId === undefined ? undefined : deps.channels.get(channelId);
+      const related =
+        ref !== undefined &&
+        channel !== undefined &&
+        !channel.deletedAt &&
+        (ref.role === 'orchestrator'
+          ? botInChannel(channel, botSlug)
+          : (deps.runtime.listChannelAssignments?.(channel.id) ?? []).some(
+              (assignment) => assignment.sessionId === ref.sessionId,
+            ));
+      const title =
+        ref?.role === 'assignment'
+          ? deps.runtime.getAssignment(botSlug, ref.sessionId)?.title
+          : undefined;
+      const messageId = related
+        ? await appendStopNotice(channel!.id, bot.slug, bot.displayName, ref.sessionId, {
+            scope: 'session',
+            role: ref.role,
+            sessionId: ref.sessionId,
+            ...(title ? { title } : {}),
+          })
+        : undefined;
+      return {
+        ok: true,
+        value: {
+          stopped: outcome.stopped,
+          alreadyIdle: outcome.alreadyIdle,
+          ...(messageId === undefined ? {} : { messageId }),
+        },
       };
     },
     async modelCatalog() {
@@ -4774,6 +5011,9 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       }
       return { ok: true, value: detailOf(result.record) };
     },
+    ping() {
+      return { ok: true, value: { ok: true } };
+    },
     humanIdentity() {
       return { ok: true, value: deps.channels.humanIdentity() };
     },
@@ -4870,7 +5110,8 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         deps.channels.getOrCreateDm(bot.slug, bot.displayName);
       }
       const channels = deps.channels.list().map((channel) => {
-        const latestMessage = deps.channels.latestMessage(channel.id);
+        const latest = deps.channels.latestMessage(channel.id);
+        const latestMessage = latest === undefined ? undefined : channelPreviewMessage(latest);
         return {
           ...channelView(channel),
           ...(latestMessage === undefined ? {} : { latestMessage }),
@@ -5886,6 +6127,20 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         };
       }
       const requestedMessageId = source['messageId'];
+      const rawVoiceCall = source['voiceCall'];
+      let voiceCall: ChannelMessage['voiceCall'];
+      if (rawVoiceCall !== undefined) {
+        const callId =
+          typeof rawVoiceCall === 'object' && rawVoiceCall !== null
+            ? (rawVoiceCall as Record<string, unknown>)['callId']
+            : undefined;
+        if (typeof callId !== 'string' || !/^call-[a-f0-9]{16}$/u.test(callId))
+          return invalidInput('voiceCall must name a call');
+        const visual = (rawVoiceCall as Record<string, unknown>)['visual'];
+        if (visual !== undefined && !isChannelCallVisual(visual))
+          return invalidInput('voiceCall.visual must describe the call grid');
+        voiceCall = visual === undefined ? { callId } : { callId, visual };
+      }
       const rawAssignmentReply = source['assignmentReply'];
       let assignmentReply: ChannelMessage['assignmentReply'];
       if (rawAssignmentReply !== undefined) {
@@ -6052,6 +6307,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         ...(grantRequestResolution === undefined ? {} : { grantRequestResolution }),
         ...(assignmentReply === undefined ? {} : { assignmentReply }),
         ...(memorySwitchTarget === undefined ? {} : { memorySwitchTarget }),
+        ...(voiceCall === undefined ? {} : { voiceCall }),
       };
       if (
         channel.type === 'dm' &&
@@ -6159,6 +6415,133 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         };
       } catch (error) {
         return invalidInput(String(error));
+      }
+    },
+    takeoverList(payload) {
+      const source = asObject(payload);
+      if (deps.takeovers === undefined) return invalidInput('Takeover handoffs are unavailable');
+      const slug = source['slug'];
+      const channelId = source['channelId'];
+      const limit = source['limit'];
+      if (
+        (slug !== undefined && typeof slug !== 'string') ||
+        (channelId !== undefined && typeof channelId !== 'string') ||
+        (limit !== undefined && (typeof limit !== 'number' || !Number.isInteger(limit))) ||
+        (source['pendingOnly'] !== undefined && typeof source['pendingOnly'] !== 'boolean')
+      )
+        return invalidInput('slug, channelId, limit or pendingOnly has the wrong type');
+      if (typeof slug === 'string' && deps.registry.get(slug) === undefined)
+        return unknownBot(slug);
+      try {
+        return {
+          ok: true,
+          value: {
+            takeovers: deps.takeovers.list({
+              ...(slug === undefined ? {} : { botSlug: slug }),
+              ...(channelId === undefined ? {} : { channelId }),
+              ...(limit === undefined ? {} : { limit }),
+              pendingOnly: source['pendingOnly'] === true,
+            }),
+          },
+        };
+      } catch (error) {
+        return takeoverFailure(error);
+      }
+    },
+    takeoverStatus(payload) {
+      const source = asObject(payload);
+      if (deps.takeovers === undefined) return invalidInput('Takeover handoffs are unavailable');
+      if (typeof source['channelId'] !== 'string' || typeof source['messageId'] !== 'string')
+        return invalidInput('channelId and messageId are required');
+      const takeover = deps.takeovers.get(source['channelId'], source['messageId']);
+      return takeover === undefined
+        ? { ok: false, error: { code: 'not-found', message: 'No takeover request with this id' } }
+        : { ok: true, value: { takeover } };
+    },
+    async takeoverRequest(payload) {
+      const source = asObject(payload);
+      const slug = asSlug(payload);
+      if (slug === undefined) return invalidInput('slug is required');
+      const bot = deps.registry.get(slug);
+      if (bot === undefined) return unknownBot(slug);
+      if (bot.paused === true) return invalidInput('The Bot is paused and cannot be woken');
+      if (deps.takeovers === undefined) return invalidInput('Takeover handoffs are unavailable');
+      const channelId = source['channelId'];
+      if (channelId !== undefined && typeof channelId !== 'string')
+        return invalidInput('channelId must be a string');
+      try {
+        return {
+          ok: true,
+          value: {
+            takeover: await deps.takeovers.request({
+              botSlug: slug,
+              channelId: channelId ?? dmChannelId(slug),
+              target: source['target'],
+              title: source['title'],
+              message: source['message'],
+              ...(source['minutes'] === undefined ? {} : { minutes: source['minutes'] }),
+              initiator: 'cli',
+            }),
+          },
+        };
+      } catch (error) {
+        return takeoverFailure(error);
+      }
+    },
+    async takeoverComplete(payload) {
+      const source = asObject(payload);
+      if (deps.takeovers === undefined) return invalidInput('Takeover handoffs are unavailable');
+      const outcome = source['outcome'];
+      if (
+        typeof source['channelId'] !== 'string' ||
+        typeof source['messageId'] !== 'string' ||
+        (outcome !== 'done' && outcome !== 'failed')
+      )
+        return invalidInput('channelId, messageId and outcome done or failed are required');
+      try {
+        return {
+          ok: true,
+          value: {
+            takeover: await deps.takeovers.complete(
+              source['channelId'],
+              source['messageId'],
+              outcome,
+              takeoverSurface(source['surface']),
+            ),
+          },
+        };
+      } catch (error) {
+        return takeoverFailure(error);
+      }
+    },
+    async takeoverCancel(payload) {
+      const source = asObject(payload);
+      if (deps.takeovers === undefined) return invalidInput('Takeover handoffs are unavailable');
+      if (typeof source['channelId'] !== 'string' || typeof source['messageId'] !== 'string')
+        return invalidInput('channelId and messageId are required');
+      try {
+        return {
+          ok: true,
+          value: {
+            takeover:
+              typeof source['bot'] === 'string'
+                ? await deps.takeovers.cancel(
+                    source['channelId'],
+                    source['messageId'],
+                    'bot',
+                    takeoverSurface(source['surface']),
+                    source['bot'],
+                  )
+                : await deps.takeovers.cancel(
+                    source['channelId'],
+                    source['messageId'],
+                    'human',
+                    takeoverSurface(source['surface']),
+                  ),
+          },
+        };
+      } catch (error) {
+        return takeoverFailure(error);
       }
     },
     scheduleList(payload) {
@@ -6592,6 +6975,77 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         )
           return invalidInput('Inbox item is no longer available');
         return { ok: true, value: { accepted: true } };
+      } catch (error) {
+        return invalidInput(String(error));
+      }
+    },
+    async humanAttentionDismissAll(payload) {
+      const source = asObject(payload);
+      const kind = source['kind'];
+      const category = source['category'];
+      const botSlug = source['botSlug'];
+      const channelId = source['channelId'];
+      if (kind !== undefined && !HUMAN_ATTENTION_DISMISS_KINDS.has(kind as string))
+        return invalidInput('kind is not a clearable Activity kind');
+      if (
+        category !== undefined &&
+        category !== 'action' &&
+        category !== 'info' &&
+        category !== 'replies' &&
+        category !== 'unread'
+      )
+        return invalidInput('category must be action, info, replies or unread');
+      if (botSlug !== undefined && (typeof botSlug !== 'string' || !isValidSlug(botSlug)))
+        return invalidInput('invalid Bot filter');
+      if (
+        channelId !== undefined &&
+        (typeof channelId !== 'string' || !isValidChannelId(channelId))
+      )
+        return invalidInput('invalid Channel filter');
+      const query = deps.humanAttention;
+      const decisions = deps.humanAttentionDecisions;
+      if (query === undefined || decisions === undefined)
+        return invalidInput('Activity is unavailable');
+      try {
+        const matches: HumanAttentionItem[] = [];
+        let more = false;
+        for (const section of category === undefined
+          ? (['action', 'info', 'replies', 'unread'] as const)
+          : [category as 'action' | 'info' | 'replies' | 'unread']) {
+          let cursor: string | undefined;
+          do {
+            const page = query.list({
+              category: section,
+              limit: 100,
+              ...(botSlug === undefined ? {} : { botSlug: botSlug as string }),
+              ...(channelId === undefined ? {} : { channelId: channelId as string }),
+              ...(cursor === undefined ? {} : { cursor }),
+            });
+            for (const item of page.items)
+              if (kind === undefined || item.kind === kind) matches.push(item);
+            cursor = page.nextCursor;
+          } while (cursor !== undefined && matches.length < HUMAN_ATTENTION_DISMISS_LIMIT);
+          if (matches.length >= HUMAN_ATTENTION_DISMISS_LIMIT) {
+            more = true;
+            break;
+          }
+        }
+        let dismissed = 0;
+        const unread: Array<{ channelId: string; messageId: string }> = [];
+        for (const item of matches.slice(0, HUMAN_ATTENTION_DISMISS_LIMIT)) {
+          if (decisions.dismiss(item)) dismissed += 1;
+          if (
+            item.channelId !== undefined &&
+            item.messageId !== undefined &&
+            HUMAN_ATTENTION_READ_KINDS.has(item.kind)
+          )
+            unread.push({ channelId: item.channelId, messageId: item.messageId });
+        }
+        let read = 0;
+        for (const target of unread)
+          if ((await deps.channels.markRead(target.channelId, target.messageId)) !== undefined)
+            read += 1;
+        return { ok: true, value: { accepted: true, dismissed, read, more } };
       } catch (error) {
         return invalidInput(String(error));
       }

@@ -101,6 +101,7 @@ export type PushEvent =
       kind: PushKind | 'badge' | 'test' | 'device-paired';
       outcome: 'ok' | 'error';
       code?: string;
+      ageMs?: number;
     }
   | { phase: 'retry'; deviceId: string; attempt: number; code: string }
   | { phase: 'send-failed'; deviceId: string; count: number; code: string }
@@ -194,13 +195,16 @@ function preferencesOf(json: string | undefined): PushPreferences {
   ) as PushPreferences;
 }
 
-const TITLES: Record<PushLocale, Record<PushKind | 'channel-mention', (bot: string) => string>> = {
+type PushCopyKey = PushKind | 'channel-mention' | 'takeover-request';
+
+const TITLES: Record<PushLocale, Record<PushCopyKey, (bot: string) => string>> = {
   en: {
     approval: (bot) => `${bot} needs your approval`,
     question: (bot) => `${bot} has a question for you`,
     'private-input': (bot) => `${bot} needs private input from you`,
     reply: (bot) => `${bot} replied to you`,
     'channel-mention': (bot) => `${bot} mentioned you`,
+    'takeover-request': (bot) => `${bot} needs you to take over`,
   },
   zh: {
     approval: (bot) => `${bot} 需要你审批`,
@@ -208,13 +212,11 @@ const TITLES: Record<PushLocale, Record<PushKind | 'channel-mention', (bot: stri
     'private-input': (bot) => `${bot} 需要你提供私密输入`,
     reply: (bot) => `${bot} 回复了你`,
     'channel-mention': (bot) => `${bot} 提到了你`,
+    'takeover-request': (bot) => `${bot} 需要你接管`,
   },
 };
 
-const LEADS: Record<
-  PushLocale,
-  Record<PushKind | 'channel-mention', (bot: string | undefined) => string>
-> = {
+const LEADS: Record<PushLocale, Record<PushCopyKey, (bot: string | undefined) => string>> = {
   en: {
     approval: (bot) => (bot === undefined ? 'Needs your approval' : `${bot} needs your approval`),
     question: (bot) =>
@@ -223,6 +225,8 @@ const LEADS: Record<
       bot === undefined ? 'Needs private input from you' : `${bot} needs private input from you`,
     reply: (bot) => bot ?? '',
     'channel-mention': (bot) => bot ?? '',
+    'takeover-request': (bot) =>
+      bot === undefined ? 'Needs you to take over' : `${bot} needs you to take over`,
   },
   zh: {
     approval: (bot) => (bot === undefined ? '需要你审批' : `${bot} 需要你审批`),
@@ -231,6 +235,7 @@ const LEADS: Record<
       bot === undefined ? '需要你提供私密输入' : `${bot} 需要你提供私密输入`,
     reply: (bot) => bot ?? '',
     'channel-mention': (bot) => bot ?? '',
+    'takeover-request': (bot) => (bot === undefined ? '需要你接管' : `${bot} 需要你接管`),
   },
 };
 
@@ -266,7 +271,10 @@ function text(
   bot: string,
   locale: PushLocale,
 ): { title: string; body: string; message: string } {
-  const key = candidate.attentionKind === 'channel-mention' ? 'channel-mention' : candidate.kind;
+  const key: PushCopyKey =
+    candidate.attentionKind === 'channel-mention' || candidate.attentionKind === 'takeover-request'
+      ? candidate.attentionKind
+      : candidate.kind;
   const compose = (lead: string): string =>
     candidate.preview === undefined
       ? lead
@@ -358,12 +366,15 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
     device: DeviceRow,
     messages: ExpoMessage[],
     kinds: Array<PushKind | 'badge' | 'test' | 'device-paired'>,
+    createdAt: ReadonlyArray<string | undefined> = [],
   ): Promise<boolean> => {
     for (let start = 0; start < messages.length; start += BATCH) {
       const batch = messages.slice(start, start + BATCH);
       let result: ExpoTicket[] | undefined;
+      let handedAt = now();
       for (let attempt = 1; result === undefined; attempt += 1) {
         try {
+          handedAt = now();
           result = await sender.send(batch);
         } catch (error) {
           const code = error instanceof Error ? error.message : 'send-failed';
@@ -379,14 +390,16 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
       let unregistered = false;
       result.forEach((ticket, index) => {
         const kind = kinds[start + index] ?? 'badge';
+        const created = Date.parse(createdAt[start + index] ?? '');
+        const age = Number.isFinite(created) ? { ageMs: Math.max(0, handedAt - created) } : {};
         if (ticket.status === 'ok') {
-          record({ phase: 'sent', deviceId: device.device_id, kind, outcome: 'ok' });
+          record({ phase: 'sent', deviceId: device.device_id, kind, outcome: 'ok', ...age });
           if (tickets.size < MAX_PENDING_RECEIPTS)
             tickets.set(ticket.id, { deviceId: device.device_id, sentAt: now() });
           return;
         }
         const code = ticket.details?.error ?? 'error';
-        record({ phase: 'sent', deviceId: device.device_id, kind, outcome: 'error', code });
+        record({ phase: 'sent', deviceId: device.device_id, kind, outcome: 'error', code, ...age });
         if (code === 'DeviceNotRegistered') unregistered = true;
       });
       if (unregistered) {
@@ -487,11 +500,12 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
         };
       });
       const kinds: Array<PushKind | 'badge'> = notify.map((item) => item.kind);
+      const created: Array<string | undefined> = notify.map((item) => item.createdAt);
       if (messages.length === 0 && device.badge !== badge) {
         messages.push({ to: device.token, badge, data: { v: 1, hostId } });
         kinds.push('badge');
       }
-      if (messages.length > 0 && (await deliver(device, messages, kinds)))
+      if (messages.length > 0 && (await deliver(device, messages, kinds, created)))
         database.transaction(
           (db) =>
             db

@@ -7,6 +7,7 @@
 | Mobile concurrent paired Hosts, Chats and Activity | only for a reply | shared-device two-Host journey | [phone-multiple-hosts.md](phone-multiple-hosts.md) |
 | Phone long-press Bot/group/section deletion | no | `scripts/e2e-mobile-deletion-web.mjs` | [phone-deletion.md](phone-deletion.md) |
 | Native Subagent presets, live-parent CLI and background wake lifecycle | yes for child results | `verify-app` Bot DM and direct CLI | [subagent-presets.md](subagent-presets.md) |
+| Bot calls: iPhone and Mac or Windows desktop | yes for replies | `scripts/e2e-call-media.mjs`; `scripts/e2e-desktop-call.mjs`; `deepseekbot call-simulate` | [bot-call.md](bot-call.md) |
 | Local Computer video: Windows to physical Android | no | Windows testing-center native journey | [local-computer-video.md](local-computer-video.md) |
 | Bot Marketplace cards, filters, remembered sorting, upload/import and Tob's install review | yes | `verify-app` Bot mode path; `scripts/e2e-install-review.mjs` | [marketplace.md](marketplace.md) |
 | Connect encrypted pairing, resources and native private input | yes for DM/tool/private request | `verify-app` isolated Host and shared native QA | [connect-channel.md](connect-channel.md) |

@@ -92,6 +92,6 @@ it('updates scanned Tailscale addresses over pinned encryption with the existing
       { ...payload, encryption: { ...payload.encryption, publicKey: 'ff'.repeat(32) } },
       raw,
     ),
-  ).toEqual({ ok: false, code: 'channel-authentication-failed' });
+  ).toEqual({ ok: false, code: 'host-key-changed', detail: 'link:host-key-changed' });
   expect(host.routes).toEqual(['https://old.ts.net']);
 });

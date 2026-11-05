@@ -6,7 +6,7 @@ import {
   presentationDragIndicator,
 } from '@expo/ui/swift-ui/modifiers';
 import { useRef, useState } from 'react';
-import { View, useWindowDimensions } from 'react-native';
+import { Modal, View, useWindowDimensions } from 'react-native';
 import { useKeyboardState } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -22,6 +22,7 @@ export function SheetFrame({
   onDismissed,
   children,
   avoidKeyboard,
+  fill,
 }: SheetFrameProps) {
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
@@ -33,6 +34,29 @@ export function SheetFrame({
   const open = useRef(visible);
   open.current = visible;
   if (visible && !shown) setShown(true);
+  if (fill)
+    return (
+      <Modal
+        visible={visible}
+        presentationStyle="pageSheet"
+        animationType="slide"
+        onRequestClose={onClose}
+        onDismiss={onDismissed}
+      >
+        <View
+          accessibilityLabel={label}
+          onAccessibilityEscape={onClose}
+          style={{
+            flex: 1,
+            backgroundColor: theme.overlay.fill,
+            paddingTop: space.x6,
+            paddingBottom: Math.max(insets.bottom, keyboard) + space.x5,
+          }}
+        >
+          {children}
+        </View>
+      </Modal>
+    );
   if (!visible && !shown) return null;
   const room = { window: height, top: insets.top, bottom: insets.bottom, touch: theme.touch };
   return (

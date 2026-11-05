@@ -1,3 +1,4 @@
+import { selectConversationChannel, useClientFields, useClientStore } from './use-client-store.js';
 import { useState, useSyncExternalStore, type ReactElement } from 'react';
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { BridgeActions } from './actions.js';
@@ -6,7 +7,9 @@ import type { BotHarnessTranslate } from './locale.js';
 import { useMessagingSnapshot } from './messaging-store.js';
 import { onboardingFor } from './onboarding.js';
 import { useMountedResource } from './mounted-resource.js';
-import { store } from './store.js';
+
+const ONBOARDING_BINDING_FIELDS = ['bots', 'channels'] as const;
+const ONBOARDING_BINDING_BOT_FIELDS = ['bots'] as const;
 
 function BindingDialog({
   slug,
@@ -20,7 +23,7 @@ function BindingDialog({
   onClose(): void;
 }): ReactElement {
   const { snapshot, refresh, mount } = useMessagingSnapshot(slug, actions);
-  const client = useSyncExternalStore(store.subscribe, store.getSnapshot);
+  const client = useClientFields(ONBOARDING_BINDING_FIELDS);
   const dm = client.channels.find((channel) => channel.type === 'dm' && channel.botSlug === slug);
   const botName = (owner: string): string =>
     client.bots.find((bot) => bot.slug === owner)?.displayName ?? owner;
@@ -69,9 +72,9 @@ export function OnboardingAppBinding({
 }): ReactElement | null {
   const controller = onboardingFor(actions);
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
-  const client = useSyncExternalStore(store.subscribe, store.getSnapshot);
+  const client = useClientFields(ONBOARDING_BINDING_BOT_FIELDS);
   const [open, setOpen] = useState(false);
-  const channel = client.conversation.channel;
+  const channel = useClientStore(selectConversationChannel);
   const experienceMount = useMountedResource<HTMLSpanElement>(() => {
     if (controller.consumeExperience('im')) setOpen(true);
   }, [state.experience]);

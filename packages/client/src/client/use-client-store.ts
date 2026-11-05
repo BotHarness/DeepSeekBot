@@ -84,3 +84,31 @@ export function sameFields<K extends keyof ClientState>(
 }
 
 export const keepClientState = (state: ClientState): ClientState => state;
+export const selectConversationChannel = (state: ClientState) => state.conversation.channel;
+export const selectConversationSending = (state: ClientState) => state.conversation.sending;
+
+const fieldSelections = new WeakMap<
+  readonly (keyof ClientState)[],
+  {
+    select: (state: ClientState) => Partial<ClientState>;
+    equal: (left: Partial<ClientState>, right: Partial<ClientState>) => boolean;
+  }
+>();
+
+export function useClientFields<K extends keyof ClientState>(
+  keys: readonly K[],
+  source: Pick<ClientStore, 'subscribe' | 'getSnapshot'> = store,
+): Pick<ClientState, K> {
+  let selection = fieldSelections.get(keys);
+  if (selection === undefined) {
+    selection = {
+      select: (state) =>
+        Object.fromEntries(
+          keys.flatMap((key) => (state[key] === undefined ? [] : [[key, state[key]]])),
+        ) as Partial<ClientState>,
+      equal: (left, right) => keys.every((key) => left[key] === right[key]),
+    };
+    fieldSelections.set(keys, selection);
+  }
+  return useStoreSlice(source, selection.select, selection.equal) as Pick<ClientState, K>;
+}
