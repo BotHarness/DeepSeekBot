@@ -1236,7 +1236,13 @@ export function WorkspacePanel({
                   testID="drawer-all"
                   label={t.allEnvironmentsRow}
                   selected={!cloudRoute && filter === 'all'}
-                  leading={<ChatsIcon color={theme.color.accent} size={theme.type.body.line} />}
+                  leading={
+                    rows.length > 0 ? (
+                      <StackedHostTiles rows={rows} />
+                    ) : (
+                      <ChatsIcon color={theme.color.accent} size={theme.type.body.line} />
+                    )
+                  }
                   onPress={() => closeThen(() => hostDrawer.selectAll())}
                 />
               </View>
@@ -1261,7 +1267,7 @@ export function WorkspacePanel({
                   overflow: 'hidden',
                 })}
               >
-                {(page || Platform.OS === 'ios') && rows.length > 0 ? (
+                {rows.length > 0 ? (
                   <StackedHostTiles rows={rows} />
                 ) : (
                   <ChatsIcon
