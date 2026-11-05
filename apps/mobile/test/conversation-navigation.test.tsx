@@ -46,10 +46,11 @@ const state = vi.hoisted(() => ({
   glassHeader: true,
 }));
 const navigation = vi.hoisted(() => ({ push: vi.fn(), loadOlder: vi.fn(async () => {}) }));
+type NativeRow = { key: string; kind?: string; message?: { id: string } };
 const nativeList = vi.hoisted(() => ({
   scrollToIndex: vi.fn(),
   scrollToOffset: vi.fn(),
-  rows: [] as Array<{ key: string; kind?: string; message?: { id: string } }>,
+  rows: [] as NativeRow[],
   events: {} as {
     onScrollToIndexFailed?(info: {
       index: number;
@@ -57,7 +58,10 @@ const nativeList = vi.hoisted(() => ({
       averageItemLength: number;
     }): void;
     onContentSizeChange?(width: number, height: number): void;
-    onViewableItemsChanged?(): void;
+    onViewableItemsChanged?(info?: {
+      viewableItems: Array<{ item: NativeRow; isViewable: boolean }>;
+    }): void;
+    maintainVisibleContentPosition?: { minIndexForVisible: number };
     onScrollBeginDrag?(event: unknown): void;
     onScroll?(event: unknown): void;
     onScrollEndDrag?(event: unknown): void;
@@ -432,6 +436,87 @@ it('preserves the reading position on ordinary Back and repositions the same mes
     ),
   );
   expect(nativeList.scrollToIndex).toHaveBeenCalledTimes(2);
+});
+
+it('lets notification focus own Android positioning across cached-to-live layout, then restores anchoring', async () => {
+  const previousOS = Platform.OS;
+  Object.assign(Platform, { OS: 'android' });
+  try {
+    state.active = true;
+    const old = {
+      id: 'old',
+      at: '2026-11-05T04:00:00Z',
+      author: 'human' as const,
+      body: 'old',
+      attachments: [],
+      delivery: 'committed' as const,
+    };
+    state.conversation.messages = [old];
+    state.conversation.fromCache = true;
+    const place: ChatPlace = { kind: 'dm', slug: 'ada' };
+    await render(place);
+    expect(nativeList.events.maintainVisibleContentPosition).toBeDefined();
+    await act(async () =>
+      root!.render(<ConversationScreen place={place} focus="notification" focusRequest="tap-1" />),
+    );
+    const anchorDuringMount = nativeList.events.maintainVisibleContentPosition;
+    let nativeOffset = 0;
+    nativeList.scrollToIndex.mockImplementation(() => {
+      nativeOffset = 0;
+    });
+    state.conversation.messages = [old, { ...old, id: 'notification', body: 'notification' }];
+    state.conversation.fromCache = false;
+    await act(async () =>
+      root!.render(<ConversationScreen place={place} focus="notification" focusRequest="tap-1" />),
+    );
+    expect(nativeList.rows[nativeList.scrollToIndex.mock.lastCall![0].index]?.message?.id).toBe(
+      'notification',
+    );
+    const oldAnchorLayoutDelta = 121.6667;
+    if (anchorDuringMount !== undefined) nativeOffset += oldAnchorLayoutDelta;
+    await act(async () => nativeList.events.onContentSizeChange?.(406.67, 2590.3333));
+    expect(nativeOffset).toBe(0);
+    const target = nativeList.rows.find((row) => row.message?.id === 'notification')!;
+    await act(async () =>
+      nativeList.events.onViewableItemsChanged?.({
+        viewableItems: [{ item: target, isViewable: true }],
+      }),
+    );
+    expect(nativeList.events.maintainVisibleContentPosition).toBeDefined();
+  } finally {
+    Object.assign(Platform, { OS: previousOS });
+  }
+});
+
+it('returns anchor ownership to a user drag while an explicit Android focus is pending', async () => {
+  const previousOS = Platform.OS;
+  Object.assign(Platform, { OS: 'android' });
+  try {
+    state.active = true;
+    const place: ChatPlace = { kind: 'dm', slug: 'ada' };
+    await render(place);
+    await act(async () =>
+      root!.render(<ConversationScreen place={place} focus="not-loaded" focusRequest="tap-1" />),
+    );
+    expect(nativeList.events.maintainVisibleContentPosition).toBeUndefined();
+    await act(async () =>
+      nativeList.events.onScrollBeginDrag?.({
+        nativeEvent: {
+          contentOffset: { y: 100 },
+          contentSize: { height: 2000 },
+          layoutMeasurement: { height: 800 },
+          contentInset: { top: 0, bottom: 0 },
+        },
+      }),
+    );
+    expect(nativeList.events.maintainVisibleContentPosition).toBeDefined();
+    await act(async () =>
+      root!.render(<ConversationScreen place={place} focus="not-loaded" focusRequest="tap-2" />),
+    );
+    expect(nativeList.events.maintainVisibleContentPosition).toBeUndefined();
+  } finally {
+    Object.assign(Platform, { OS: previousOS });
+  }
 });
 
 it('asks the existing history owner for an uncached focus and positions it when the page arrives', async () => {

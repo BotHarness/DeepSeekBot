@@ -535,11 +535,37 @@ function ChatConversation({
   const focusAttempt = useRef<
     { message: string; request: string | undefined; index: number } | undefined
   >(undefined);
+  const [anchoredFocus, setAnchoredFocus] = useState<{
+    message: string | undefined;
+    request: string | undefined;
+  }>();
+  const positioningFocus =
+    android &&
+    focus !== undefined &&
+    (anchoredFocus?.message !== focus || anchoredFocus?.request !== focusRequest);
   const retryFocus = useRef<() => void>(() => undefined);
-  const onFocusViewabilityChange = useCallback(() => {
-    focusNeedsLayout.current = false;
-    retryFocus.current();
-  }, []);
+  const onFocusViewabilityChange = useCallback(
+    (info?: { viewableItems: Array<{ item: Row; isViewable: boolean }> }) => {
+      const attempt = focusAttempt.current;
+      if (
+        android &&
+        attempt !== undefined &&
+        !focusCancelled.current &&
+        attempt.message === focusIntent.current.message &&
+        attempt.request === focusIntent.current.request &&
+        info?.viewableItems.some(
+          ({ item, isViewable }) =>
+            isViewable && item.kind === 'message' && item.message.id === attempt.message,
+        )
+      ) {
+        setAnchoredFocus({ message: attempt.message, request: attempt.request });
+        focusAttempt.current = undefined;
+      }
+      focusNeedsLayout.current = false;
+      retryFocus.current();
+    },
+    [android],
+  );
   const focusIntent = useRef<{
     request: string | undefined;
     message: string | undefined;
@@ -1745,9 +1771,15 @@ function ChatConversation({
                       onStartReachedThreshold={0.5}
                       onEndReachedThreshold={0.5}
                       {...latest.listProps}
+                      maintainVisibleContentPosition={
+                        positioningFocus
+                          ? undefined
+                          : latest.listProps.maintainVisibleContentPosition
+                      }
                       onScrollBeginDrag={(event: ScrollEvent) => {
                         focusCancelled.current = true;
                         focusAttempt.current = undefined;
+                        if (android) setAnchoredFocus({ message: focus, request: focusRequest });
                         pull.onScrollBeginDrag(event);
                         latest.listProps.onScrollBeginDrag();
                       }}
