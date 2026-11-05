@@ -4,6 +4,7 @@ import { SystemSymbol } from '../primitives/system-symbol';
 import type { HeaderActionIcon } from './header-glyph';
 
 const symbols = {
+  archive: { android: 'archive' },
   filter: { android: 'filter_list' },
   search: { android: 'search' },
   settings: { android: 'settings' },

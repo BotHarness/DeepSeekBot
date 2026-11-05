@@ -97,7 +97,7 @@ Each event also carries the common mobile context described in [mobile statistic
 | `model:plan_update`                   | `via`                                                                                 |
 | `notification:push_open`              |                                                                                       |
 | `onboarding:activation_step_complete` | `step`, `channel_kind`                                                                |
-| `pairing:attempt_complete`            | `method`, `attempt_id`, `outcome`, `reason`, `duration_bucket`                        |
+| `pairing:attempt_complete`            | `method`, `attempt_id`, `outcome`, `reason`, `detail`, `duration_bucket`              |
 | `pairing:attempt_start`               | `method`, `attempt_id`                                                                |
 | `search:result_open`                  | `kind`                                                                                |
 | `share:bot_share_send`                | `content`                                                                             |

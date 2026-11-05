@@ -1,5 +1,16 @@
-const { withPodfile } = require('expo/config-plugins');
-module.exports = (config) =>
+const { withInfoPlist, withPodfile } = require('expo/config-plugins');
+
+const withCallBackgroundAudio = (config) =>
+  withInfoPlist(config, (mod) => {
+    const modes = Array.isArray(mod.modResults.UIBackgroundModes)
+      ? mod.modResults.UIBackgroundModes
+      : [];
+    if (!modes.includes('audio')) modes.push('audio');
+    mod.modResults.UIBackgroundModes = modes;
+    return mod;
+  });
+
+const withWebRtcPod = (config) =>
   withPodfile(config, (mod) => {
     const line =
       "  pod 'WebRTC-SDK', :podspec => File.join(__dir__, '../modules/local-computer-video/vendor/WebRTC-SDK.podspec')";
@@ -11,3 +22,5 @@ module.exports = (config) =>
     }
     return mod;
   });
+
+module.exports = (config) => withCallBackgroundAudio(withWebRtcPod(config));

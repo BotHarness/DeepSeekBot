@@ -67,7 +67,7 @@ public final class LanChannelModule: Module {
         self.lock.lock()
         if let pending = self.queued[id] { self.queued[id] = pending - text.utf8.count }
         self.lock.unlock()
-        if error != nil { self.finish(id, "channel-send-failed") }
+        if let error { self.finish(id, Self.failure("channel-send-failed", error)) }
       }
     }
     Function("close") { (id: String) in self.finish(id, "channel-disconnected") }
@@ -98,9 +98,20 @@ public final class LanChannelModule: Module {
       case .success(.string(let text)) where self.valid(text):
         self.emit(id, "message", text)
         self.receive(id, socket)
-      default: self.finish(id, "lan-unreachable")
+      case .failure(let error): self.finish(id, Self.failure("lan-unreachable", error))
+      default: self.finish(id, "channel-frame-invalid")
       }
     }
+  }
+  private static func failure(_ reason: String, _ error: Error) -> String {
+    let ns = error as NSError
+    let path = ns.userInfo["_NSURLErrorNWPathKey"].map { String(describing: $0) } ?? ""
+    if path.localizedCaseInsensitiveContains("local network prohibited") {
+      return "\(reason):local-network-denied"
+    }
+    if ns.domain == NSURLErrorDomain { return "\(reason):nsurl\(ns.code)" }
+    if ns.domain == NSPOSIXErrorDomain { return "\(reason):posix\(ns.code)" }
+    return reason
   }
   private func emit(_ id: String, _ type: String, _ text: String = "") {
     sendEvent("channel", ["id": id, "type": type, "text": text])

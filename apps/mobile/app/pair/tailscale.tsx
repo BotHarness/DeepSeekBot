@@ -8,13 +8,14 @@ import type { PairingMethod } from '../../src/telemetry/schema';
 import { HOST_NAME_MAX } from '../../src/ui/design/host-look';
 import { useDesignTheme } from '../../src/ui/design/theme';
 import { pairingScan, radius, space } from '../../src/ui/design/tokens';
-import { clearsPastedLink, pairingFailureText } from '../../src/ui/pairing-failure';
+import { clearsPastedLink } from '../../src/ui/pairing-failure';
 import { Button } from '../../src/ui/primitives/button';
 import { ConnectionNameField } from '../../src/ui/primitives/connection-name-field';
 import { KeyboardFormScroll } from '../../src/ui/primitives/keyboard-form';
 import { Text } from '../../src/ui/primitives/text';
 import { TextField } from '../../src/ui/primitives/text-field';
 import { DesktopPath } from '../../src/ui/shell/desktop-path';
+import { PairingFailureNotice } from '../../src/ui/shell/pairing-failure-notice';
 import { PairingVerification } from '../../src/ui/shell/pairing-verification';
 import { usePairing } from '../../src/ui/shell/use-pairing';
 import { useStrings } from '../../src/ui/strings';
@@ -171,9 +172,12 @@ export default function PairTailscaleScreen() {
           {t.pairImage[imageError]}
         </Text>
       ) : pairing.error !== undefined ? (
-        <Text accessibilityRole="alert" accessibilityLiveRegion="polite" tone="danger">
-          {pairingFailureText(pairing.error, pairing.method)}
-        </Text>
+        <PairingFailureNotice
+          key={`${pairing.error}:${pairing.errorDetail ?? ''}`}
+          error={pairing.error}
+          detail={pairing.errorDetail}
+          method={pairing.method}
+        />
       ) : null}
       {pairing.canRetry && imageError === undefined ? (
         <Button label={t.retry} disabled={readingImage} onPress={() => void retry()} />

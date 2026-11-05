@@ -244,6 +244,49 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     ]);
   });
 
+  it('dismisses every Inbox item, or every item of one kind, only with --confirm', async () => {
+    const live = await host(() => ({
+      ok: true,
+      value: { accepted: true, dismissed: 3, more: false },
+    }));
+    const all = await invoke(['inbox-dismiss-all', '--confirm'], live.url);
+    expect(all.code).toBe(0);
+    expect(all.json).toEqual({ accepted: true, dismissed: 3, more: false });
+    await invoke(
+      [
+        'inbox-dismiss-all',
+        '--confirm',
+        '--kind',
+        'bot-message-needs-repair',
+        '--category',
+        'action',
+        '--bot',
+        'ada',
+        '--channel',
+        'dm-ada',
+      ],
+      live.url,
+    );
+    for (const argv of [
+      ['inbox-dismiss-all'],
+      ['inbox-dismiss-all', '--confirm', 'extra'],
+      ['inbox-dismiss-all', '--confirm', '--category', 'handled'],
+    ])
+      expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
+    expect(live.calls).toEqual([
+      { method: 'humanAttentionDismissAll', args: {} },
+      {
+        method: 'humanAttentionDismissAll',
+        args: {
+          kind: 'bot-message-needs-repair',
+          category: 'action',
+          botSlug: 'ada',
+          channelId: 'dm-ada',
+        },
+      },
+    ]);
+  });
+
   it('refuses malformed Inbox queries before reaching the Host', async () => {
     const live = await host(echo);
     for (const argv of [
@@ -364,6 +407,63 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
       { method: 'sessionOwner', args: { sessionId: 'sess-1' } },
       { method: 'sessionArchiveSet', args: { slug: 'ada', sessionId: 'sess-1', archived: true } },
       { method: 'sessionArchiveSet', args: { slug: 'ada', sessionId: 'sess-1', archived: false } },
+    ]);
+  });
+
+  it('stops one Assignment Session and prints the Host result', async () => {
+    const result = {
+      stopped: [],
+      alreadyIdle: [{ botSlug: 'ada', sessionId: 'sess-1', role: 'assignment' }],
+    };
+    const live = await host(() => ({ ok: true, value: result }));
+    const stopped = await invoke(['session-stop', 'ada', 'sess-1'], live.url);
+    expect(stopped.code).toBe(0);
+    expect(stopped.json).toEqual(result);
+    expect((await invoke(['session-stop', 'ada', '--activity', 'activity-1'], live.url)).code).toBe(
+      0,
+    );
+    for (const argv of [
+      ['session-stop', 'ada'],
+      ['session-stop', 'ada', 'sess-1', 'extra'],
+      ['session-stop', 'ada', 'sess-1', '--activity', 'activity-1'],
+    ])
+      expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
+    expect(live.calls).toEqual([
+      { method: 'sessionStop', args: { botSlug: 'ada', sessionId: 'sess-1' } },
+      { method: 'sessionStop', args: { botSlug: 'ada', activityId: 'activity-1' } },
+    ]);
+  });
+
+  it('stops the Orchestrator Session from a Channel and every Session of a Bot', async () => {
+    const result = {
+      stopped: [{ botSlug: 'ada', sessionId: 'orch-1', role: 'orchestrator' }],
+      alreadyIdle: [],
+      messageId: 'turn-stopped-1',
+    };
+    const live = await host(() => ({ ok: true, value: result }));
+    const session = await invoke(
+      ['session-stop', 'ada', 'orch-1', '--channel', 'dm-ada'],
+      live.url,
+    );
+    expect(session.code).toBe(0);
+    expect(session.json).toEqual(result);
+    const bot = await invoke(['bot-stop', 'ada', '--channel', 'dm-ada'], live.url);
+    expect(bot.code).toBe(0);
+    expect(bot.json).toEqual(result);
+    expect((await invoke(['bot-stop', 'ada'], live.url)).code).toBe(0);
+    for (const argv of [
+      ['bot-stop'],
+      ['bot-stop', 'ada', 'extra'],
+      ['bot-stop', 'ada', '--channel', ' '],
+    ])
+      expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
+    expect(live.calls).toEqual([
+      {
+        method: 'sessionStop',
+        args: { botSlug: 'ada', sessionId: 'orch-1', channelId: 'dm-ada' },
+      },
+      { method: 'botStop', args: { botSlug: 'ada', channelId: 'dm-ada' } },
+      { method: 'botStop', args: { botSlug: 'ada' } },
     ]);
   });
 

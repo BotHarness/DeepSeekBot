@@ -47,6 +47,10 @@ function fixture(productVersion = '0.1.0-alpha.1') {
         'preload.cjs',
         'renderer.html',
         'renderer.js',
+        'call-main.cjs',
+        'call-preload.cjs',
+        'call-renderer.html',
+        'call-renderer.js',
       ]) {
         writeFileSync(join(dir, 'package/native/local-video', asset), 'fixture media asset');
       }
@@ -363,7 +367,17 @@ describe('reviewed npm prerelease', () => {
   it('rejects a Computer archive missing any lazily loaded native helper asset', () => {
     const artifact = { name: '@botharness/computer', version: '0.1.0-alpha.1' };
     const manifest = { ...artifact, license: 'MIT', main: './dist/index.mjs' };
-    const assets = ['launcher.cs', 'main.cjs', 'preload.cjs', 'renderer.html', 'renderer.js'];
+    const assets = [
+      'launcher.cs',
+      'main.cjs',
+      'preload.cjs',
+      'renderer.html',
+      'renderer.js',
+      'call-main.cjs',
+      'call-preload.cjs',
+      'call-renderer.html',
+      'call-renderer.js',
+    ];
     const files = [
       'package/LICENSE',
       'package/dist/index.mjs',

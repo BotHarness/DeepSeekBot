@@ -70,18 +70,40 @@ it('preserves canonical content and admission snapshots while allowing distinct 
     before,
   );
   port.transaction((db) =>
-    db.prepare("INSERT INTO channel_placements VALUES ('two',1,'source','source')").run(),
+    db
+      .prepare(
+        "INSERT INTO channel_placements (channel_id, revision, source_event_id, message_id) VALUES ('two',1,'source','source')",
+      )
+      .run(),
   );
   expect(port.read((db) => db.prepare('SELECT * FROM source_events').all())).toHaveLength(1);
   expect(
     port.read((db) => db.prepare('SELECT * FROM channel_placements ORDER BY channel_id').all()),
   ).toEqual([
-    { channel_id: 'one', revision: 9, source_event_id: 'source', message_id: 'source' },
-    { channel_id: 'two', revision: 1, source_event_id: 'source', message_id: 'source' },
+    {
+      channel_id: 'one',
+      revision: 9,
+      source_event_id: 'source',
+      message_id: 'source',
+      notice: 0,
+      for_human: 0,
+    },
+    {
+      channel_id: 'two',
+      revision: 1,
+      source_event_id: 'source',
+      message_id: 'source',
+      notice: 0,
+      for_human: 0,
+    },
   ]);
   expect(() =>
     port.transaction((db) =>
-      db.prepare("INSERT INTO channel_placements VALUES ('two',2,'source','source')").run(),
+      db
+        .prepare(
+          "INSERT INTO channel_placements (channel_id, revision, source_event_id, message_id) VALUES ('two',2,'source','source')",
+        )
+        .run(),
     ),
   ).toThrow();
   expect(port.read((db) => db.prepare('PRAGMA foreign_key_check').all())).toEqual([]);

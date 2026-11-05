@@ -1,5 +1,7 @@
 import { swipeReply } from '../design/tokens';
 
+export const horizontalSwipeOwner = 'horizontal-swipe-owner';
+
 export function replyTravel(translationX: number): number {
   'worklet';
   if (translationX <= 0) return 0;

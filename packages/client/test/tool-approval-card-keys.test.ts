@@ -115,6 +115,17 @@ describe('Tool approval card layout', () => {
     ).toEqual(['允许这次', '始终允许', '拒绝']);
     expect(card.querySelector('kbd')).toBeNull();
   });
+  it('closes as Session stopped when the Human stopped the asking Session', async () => {
+    const card = await render(message(), {
+      toolApprovalStatus: async () => 'stopped',
+      toolApprovalState: async () => ({ status: 'stopped' }),
+    } as Partial<BridgeActions>);
+    const done = card.querySelector('.bh-request-done');
+    expect(done?.getAttribute('data-state')).toBe('stopped');
+    expect(done?.textContent).toBe('终端 · 会话已停止');
+    expect(done?.getAttribute('title')).toBe('会话已停止，这次调用不会执行');
+    expect(card.querySelector('.bh-tool-approval-actions')).toBeNull();
+  });
   it('previews the new Bot on a bot_create card', async () => {
     const value = message(
       'bot_create',

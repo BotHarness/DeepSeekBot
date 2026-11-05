@@ -8,6 +8,7 @@ import { ChevronDownIcon } from '../shell/icons';
 import { useStrings } from '../strings';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import { TextField } from '../primitives/text-field';
+import { stacksCardButtons } from './card-buttons';
 
 function Frame({ children }: { children: ReactNode }) {
   return <View style={{ paddingHorizontal: space.x4, paddingTop: space.x3 }}>{children}</View>;
@@ -257,7 +258,11 @@ export function CardField({
 export function CardButtons({ children, stack = false }: { children: ReactNode; stack?: boolean }) {
   return (
     <View
-      style={stack ? { gap: space.x3 } : { flexDirection: 'row', flexWrap: 'wrap', gap: space.x3 }}
+      style={
+        stacksCardButtons(children, stack)
+          ? { gap: space.x3 }
+          : { flexDirection: 'row', flexWrap: 'wrap', gap: space.x3 }
+      }
     >
       {children}
     </View>

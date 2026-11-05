@@ -21,6 +21,7 @@ import type {
 } from './wire';
 
 export type RequestStatus = 'pending' | 'decided' | 'expired';
+export type ApprovalStatus = RequestStatus | 'stopped';
 
 export interface RequestRef {
   channelId: string;
@@ -34,7 +35,7 @@ export interface ApprovalRequest extends RequestRef {
   cwd: string;
   input: string;
   allowAlways: boolean;
-  status: RequestStatus;
+  status: ApprovalStatus;
   outcome?: ToolApprovalOutcome;
   expiresAt?: string;
   execution?: ApprovalExecution;
@@ -110,7 +111,12 @@ export async function loadApproval(client: HostClient, ref: RequestRef): Promise
     cwd: card.cwd,
     input: card.input,
     allowAlways: card.allowAlways === true,
-    status: decision !== undefined ? 'decided' : status === 'pending' ? 'pending' : 'expired',
+    status:
+      decision !== undefined
+        ? 'decided'
+        : status === 'pending' || status === 'stopped'
+          ? status
+          : 'expired',
     ...(decision === undefined ? {} : { outcome: decision.outcome }),
     ...(decision === undefined && typeof expiresAt === 'string' ? { expiresAt } : {}),
     ...(execution === undefined ? {} : { execution }),
@@ -160,7 +166,7 @@ export async function decideApproval(
     if (!(error instanceof MethodRefused)) throw error;
     const now = await loadApproval(client, ref);
     if (now.status === 'pending') throw error;
-    return now.status;
+    return now.status === 'stopped' ? 'expired' : now.status;
   }
 }
 

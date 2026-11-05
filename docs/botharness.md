@@ -161,18 +161,18 @@
 
 ## 8. 风险与开放问题
 
-| 风险                                | 缓解                                                                                                                             |
-| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| DSH preview seam 与实际版本不一致   | #77 在 pinned build 做 PASS/FAIL/UNVERIFIED matrix；adapter 隔离，失败即修正设计                                                 |
-| SQLite 与 DSH/provider 无法原子提交 | minimal stable-id intent、idempotent acceptance、bounded reconciliation、`needs-repair` / `unknown-outcome`；不假装 exactly-once |
-| 多 Host 同时写同一 profile          | OS-backed writer lease；第二 writer fail closed，只允许 diagnostics（ADR-0041）                                                  |
-| 外部消息 edit/recall/乱序/echo      | immutable revision chain、trusted provider identity、unresolved/conflict、provider reconciliation（ADR-0036/0039）               |
-| Bot 循环互相唤醒                    | Bot 消息每轮按 @ 与唤醒策略唤醒，trusted hop limit 32 只防失控；超限保留事实、不唤醒，并以 `notWoken` 告知发送方（ADR-0261）     |
-| 主动外部动作越权                    | capability 与 Human Service Grant 分离，并在 intent/execute 两次校验；credentials 永不进 DB/backup（ADR-0038）                   |
-| Orchestrator 中枢成本与单点         | Attention coalescing、digest、按需 Assignment query；replacement 继承 PersonaBot-scoped authority，不依赖内存句柄                |
-| profile transfer split-brain        | source fencing、Transfer Generation、target activation receipt；Disaster Restore 显式风险确认（ADR-0043）                        |
-| restore 后环境漂移                  | dependency manifest + target-local resolution；cold restore、suspended provider authority、Human activation（ADR-0044）          |
-| 记忆污染 / 私事外泄                 | 显式工具写 + sources + 导出选择；并发写/context injection/promotion 由 #74 继续 focused grill                                    |
-| 本地数据增长                        | SQLite/CAS 可观测指标与实现票基准；保留/purge 是显式 policy，不通过默认自动备份隐藏成本                                          |
+| 风险                                | 缓解                                                                                                                                                                                   |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DSH preview seam 与实际版本不一致   | #77 在 pinned build 做 PASS/FAIL/UNVERIFIED matrix；adapter 隔离，失败即修正设计                                                                                                       |
+| SQLite 与 DSH/provider 无法原子提交 | minimal stable-id intent、idempotent acceptance、bounded reconciliation、`needs-repair` / `unknown-outcome`；不假装 exactly-once                                                       |
+| 多 Host 同时写同一 profile          | OS-backed writer lease；第二 writer fail closed，只允许 diagnostics（ADR-0041）                                                                                                        |
+| 外部消息 edit/recall/乱序/echo      | immutable revision chain、trusted provider identity、unresolved/conflict、provider reconciliation（ADR-0036/0039）                                                                     |
+| Bot 循环互相唤醒                    | Bot 消息每轮按 @ 与唤醒策略唤醒，trusted hop limit（默认 128，「设置 → 消息」可调 1–1000）只防失控；超限的发送在提交前被拒并以 `collaboration-hop-limit` 告知发送方（ADR-0261，#3409） |
+| 主动外部动作越权                    | capability 与 Human Service Grant 分离，并在 intent/execute 两次校验；credentials 永不进 DB/backup（ADR-0038）                                                                         |
+| Orchestrator 中枢成本与单点         | Attention coalescing、digest、按需 Assignment query；replacement 继承 PersonaBot-scoped authority，不依赖内存句柄                                                                      |
+| profile transfer split-brain        | source fencing、Transfer Generation、target activation receipt；Disaster Restore 显式风险确认（ADR-0043）                                                                              |
+| restore 后环境漂移                  | dependency manifest + target-local resolution；cold restore、suspended provider authority、Human activation（ADR-0044）                                                                |
+| 记忆污染 / 私事外泄                 | 显式工具写 + sources + 导出选择；并发写/context injection/promotion 由 #74 继续 focused grill                                                                                          |
+| 本地数据增长                        | SQLite/CAS 可观测指标与实现票基准；保留/purge 是显式 policy，不通过默认自动备份隐藏成本                                                                                                |
 
 **已从 #71 分离的开放设计/验证**：Memory/context delivery 与并发写入（#74）；Inbox/Assignment/recovery UI（#75）；Profile export/restore UX（#76）；DSH runtime seams（#77）；Feishu provider contract（#78）。具体 page size、sort/filter enum 和性能阈值在实现票中用真实数据确定，不再扩张平台级 grill。
