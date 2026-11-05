@@ -341,7 +341,7 @@ describe('Composer dictation', () => {
 
     await press(t.dictate);
     expect(speech.start).toHaveBeenCalledWith(
-      expect.objectContaining({ interimResults: true, continuous: false }),
+      expect.objectContaining({ interimResults: true, continuous: true }),
     );
     expect(field().placeholder).toBe(t.dictationStarting);
     expect(button(t.stopDictation)).not.toBeNull();
@@ -435,6 +435,38 @@ describe('Composer test IDs', () => {
 });
 
 describe('Holding the Android input', () => {
+  it('separates English segments and clears them before a new recording', async () => {
+    await press(t.dictate);
+    await emit('start');
+    await emit('result', result('First sentence.', true));
+    await emit('result', result('Second sentence.', true));
+    expect(field().value).toBe('First sentence. Second sentence.');
+    await press(t.cancelDictation);
+    await emit('end');
+    await press(t.dictate);
+    await emit('start');
+    await emit('result', result('New recording.', false));
+    expect(field().value).toBe('New recording.');
+  });
+  it('keeps the held field stable across final segments, then shows all speech on release', async () => {
+    const input = field();
+    await act(async () => speech.gesture!['start']!());
+    expect(speech.start).toHaveBeenCalledWith(expect.objectContaining({ continuous: true }));
+    await emit('start');
+    await emit('result', result('第一句话。', true));
+    await emit('result', result('第二句话很长，需要继续说下去。', false));
+    expect(status()).toBe('listening');
+    expect(field()).toBe(input);
+    expect(field().value).toBe('');
+    expect(field().placeholder).toBe(t.dictationReleaseHint);
+    expect(speech.stop).not.toHaveBeenCalled();
+    await act(async () => speech.gesture!['stop']!());
+    await emit('result', result('第二句话很长，需要继续说下去。', true));
+    await emit('end');
+    expect(field().value).toBe('第一句话。第二句话很长，需要继续说下去。');
+    expect(speech.stop).toHaveBeenCalledOnce();
+    expect(sent).not.toHaveBeenCalled();
+  });
   it('starts an already-authorized hold without reopening the permission activity', async () => {
     await act(async () => speech.gesture!['start']!());
     expect(speech.start).toHaveBeenCalledOnce();

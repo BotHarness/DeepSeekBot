@@ -1,5 +1,5 @@
 import { TextInput } from '../primitives/system-text';
-import { useState, type ComponentRef, type ReactNode, type Ref } from 'react';
+import { useRef, useState, type ComponentRef, type ReactNode, type Ref } from 'react';
 import {
   Image,
   Platform,
@@ -197,6 +197,12 @@ export function Composer({
   const insets = useSafeAreaInsets();
   const [footerHeight, setFooterHeight] = useState(0);
   const [held, setHeld] = useState(false);
+  const heldValue = useRef(value);
+  const hold = (next: boolean) => {
+    if (next) heldValue.current = value;
+    setHeld(next);
+  };
+  const fieldValue = held ? heldValue.current : value;
   const [editing, setEditing] = useState(false);
   const [contentHeight, setContentHeight] = useState(0);
   const [pill, setPill] = useState({ width: 0, height: 0 });
@@ -287,7 +293,7 @@ export function Composer({
       key="field"
       ref={inputRef}
       testID="composer-input"
-      value={value}
+      value={fieldValue}
       onChangeText={onChange}
       {...(selection === undefined ? {} : { selection })}
       {...(onSelection === undefined
@@ -359,7 +365,7 @@ export function Composer({
         }}
         onStop={onStopDictation}
         onCancel={onCancelDictation}
-        onHeld={setHeld}
+        onHeld={hold}
       />
     ),
   );
@@ -463,7 +469,7 @@ export function Composer({
                 <ComposerHold
                   enabled={canDictate && !disabled && (!listening || held)}
                   onStart={() => {
-                    setHeld(true);
+                    hold(true);
                     onDictate();
                   }}
                   onStop={() => {
@@ -505,7 +511,7 @@ export function Composer({
                 variant="body"
                 onLayout={(event) => setWraps(event.nativeEvent.layout.height > textLine * 1.5)}
               >
-                {value === '' ? ' ' : value}
+                {fieldValue === '' ? ' ' : fieldValue}
               </Text>
             </View>
           ) : null}

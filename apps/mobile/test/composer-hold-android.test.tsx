@@ -18,6 +18,7 @@ vi.mock('react-native-gesture-handler', () => ({
           return gesture;
         },
         minDuration: () => gesture,
+        shouldCancelWhenOutside: () => gesture,
         runOnJS: () => gesture,
         onStart: (fn: () => void) => {
           native.start = fn;

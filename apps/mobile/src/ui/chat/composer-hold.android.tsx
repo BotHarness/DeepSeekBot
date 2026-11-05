@@ -20,6 +20,7 @@ export function ComposerHold({ enabled, onStart, onStop, children }: ComposerHol
     const hold = Gesture.LongPress()
       .enabled(enabled)
       .minDuration(voiceGesture.holdMs)
+      .shouldCancelWhenOutside(false)
       .runOnJS(true)
       .onStart(() => {
         if (!latest.current.enabled) return;
