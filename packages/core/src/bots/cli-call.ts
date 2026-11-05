@@ -344,10 +344,11 @@ async function simulate(
         streamMs += (chunk.length / 16_000) * 1000;
       }
     };
+    let previous = seq;
     for (const [index, step] of steps.entries()) {
       let start = Math.round((step.at * 16_000) / 1000);
       if (step.after === 'playing') {
-        const mark = seq;
+        const mark = previous;
         const deadline = clock.now() + replyWaitMs;
         while (
           !events.some((event) => event.type === 'playing' && event.seq > mark) &&
@@ -362,6 +363,7 @@ async function simulate(
         start = position + start;
       }
       while (position < start) await inject(silence.subarray(0, Math.min(CHUNK, start - position)));
+      previous = seq;
       await inject(step.audio);
     }
     await inject(new Int16Array(24_000));

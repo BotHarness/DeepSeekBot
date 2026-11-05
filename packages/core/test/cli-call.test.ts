@@ -279,6 +279,30 @@ describe('deepseekbot call commands', () => {
     expect(report.events.map((event) => event.type)).toContain('reply-stopped');
   });
 
+  it('barges in when the reply starts while the step before is still streaming its tail', async () => {
+    const root = createTempRoot('cli-call-');
+    const first = wav(root, 'one.wav', concat(speech(1200), silence(4000)));
+    const cut = wav(root, 'cut.wav', speech(1200, { f0: 190 }));
+    const scriptFile = join(root, 'script.json');
+    writeFileSync(
+      scriptFile,
+      JSON.stringify([
+        { at: 0, file: first },
+        { after: 'playing', at: 0, file: cut },
+      ]),
+    );
+    const { run } = host({
+      clip: wavFromPcm16(new Int16Array(16_000 * 8), 16_000),
+      mime: 'audio/wav',
+    });
+    const report = (await run('call-simulate', ['ada'], {
+      script: scriptFile,
+      'reply-wait': '20',
+    })) as { missedSteps?: number[]; bargeIns: { by: string }[] };
+    expect(report.missedSteps).toBeUndefined();
+    expect(report.bargeIns).toEqual([expect.objectContaining({ by: 'duration' })]);
+  });
+
   it('stops waiting when nobody answers and still hangs up', async () => {
     const root = createTempRoot('cli-call-');
     const file = wav(root, 'q.wav', speech(1000));

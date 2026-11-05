@@ -1159,7 +1159,12 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       return;
     reply.done = true;
     forget(call, reply);
-    reply.settleArchive?.(archiveOf(call, reply));
+    reply.settleArchive?.(
+      archiveOf(call, reply).catch((error: unknown) => {
+        if (reply.interrupted) return { interrupted: true };
+        throw error;
+      }),
+    );
     if (!ended(call))
       push(call, {
         type: 'reply-done',
