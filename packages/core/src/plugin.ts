@@ -541,6 +541,7 @@ export interface BotHarnessCore {
   voiceProviders: VoiceProviders;
   voiceMessages: VoiceMessages;
   voiceSpeech: { speak?: Parameters<typeof createVoiceMessages>[0]['speak'] };
+  voiceZoom: { zoom?: VoiceCalls['zoom'] | undefined };
   cloudWork?: CloudWork;
   toolRules: ToolApprovalRuleStore;
   assignmentAccess: AssignmentAccessStore;
@@ -1095,8 +1096,13 @@ export function createCore(
     speak: async (input) => voiceSpeech.speak?.(input),
     ...(options.voiceLog === undefined ? {} : { log: options.voiceLog }),
   });
+  const voiceZoom: { zoom?: VoiceCalls['zoom'] | undefined } = {};
   runtime = createBotRuntime({
     voiceMessages,
+    callFrames: {
+      zoom: (input) =>
+        voiceZoom.zoom?.(input) ?? { released: true, messageId: input.messageId, cell: input.cell },
+    },
     ...(options.botNetwork === undefined ? {} : { botNetwork: options.botNetwork }),
     ...(options.readTurnProgress === undefined
       ? {}
@@ -1222,6 +1228,7 @@ export function createCore(
     voiceProviders,
     voiceMessages,
     voiceSpeech,
+    voiceZoom,
     prompts,
     deletions,
     profileRecovery,
@@ -3136,10 +3143,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   });
   const calls = voiceCalls;
   core.voiceSpeech.speak = (input) => calls.speak(input);
+  core.voiceZoom.zoom = (input) => calls.zoom(input);
   voiceDrafts = (event) => calls.draft(event);
   ctx.effect(
     () => async () => {
       core.voiceSpeech.speak = undefined;
+      core.voiceZoom.zoom = undefined;
       voiceDrafts = () => undefined;
       voiceCalls = undefined;
       await calls.dispose();

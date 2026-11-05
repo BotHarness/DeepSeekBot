@@ -121,6 +121,19 @@ describe('deepseekbot call commands', () => {
       grids: [{ frames: 3, layout: '2x2', messageId: expect.any(String) }],
       failed: [],
     });
+    const gridMessage = (report.visual['grids'] as { messageId: string }[])[0]!.messageId;
+    expect(await run('call-frame', [gridMessage, '2'])).toEqual({
+      released: true,
+      messageId: gridMessage,
+      cell: 2,
+    });
+    for (const [rest, values] of [
+      [[gridMessage], {}],
+      [[gridMessage, '0'], {}],
+      [[gridMessage, '17'], {}],
+      [[gridMessage, '1'], { out: 'relative.jpg' }],
+    ] as const)
+      await expect(run('call-frame', [...rest], values)).rejects.toMatchObject({ code: 'usage' });
     await expect(
       run('call-simulate', ['ada'], { file, video: frames, screen: frames }),
     ).rejects.toMatchObject({ code: 'usage' });

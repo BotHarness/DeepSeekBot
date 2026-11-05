@@ -104,7 +104,7 @@ export const PROMPT_PARTS = [
     kind: 'turn',
     section: 'turn',
     defaultText:
-      'On this call the Human shares their camera or screen. Each of their spoken messages carries one image of what changed while they spoke: a single keyframe, or a grid of keyframes in time order from top-left to bottom-right, each tile labelled with its number and how many seconds before they finished speaking. Look at the image before you answer; talk about what you see briefly, as speech. Earlier views stay on earlier messages of this DM.',
+      'On this call the Human shares their camera or screen. Each of their spoken messages carries one image of what changed while they spoke: a single keyframe, or a grid of keyframes in time order from top-left to bottom-right, each tile labelled with its number and how many seconds before they finished speaking. Look at the image before you answer; talk about what you see briefly, as speech. When a tile is too small to read, call call_frame with that message and the tile number to see it at full resolution; originals are kept only during the call. Earlier views stay on earlier messages of this DM.',
   },
   {
     id: 'digest-hint',

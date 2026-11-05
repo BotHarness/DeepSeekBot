@@ -614,6 +614,11 @@ export interface OrchestratorChannelAccess {
     messageId: string;
     signal?: AbortSignal;
   }): Promise<import('../voice/messages.js').VoiceAttachOutcome>;
+  callFrame?(input: {
+    channelId?: string;
+    messageId: string;
+    cell: number;
+  }): import('../voice/call-contract.js').VoiceCallZoom;
   sendToBot(input: {
     botSlug: string;
     body: string;
@@ -910,6 +915,13 @@ export interface BotRuntimeOptions {
     >;
   attachments?: AttachmentStore;
   voiceMessages?: import('../voice/messages.js').VoiceMessages;
+  callFrames?: {
+    zoom(input: {
+      slug: string;
+      messageId: string;
+      cell: number;
+    }): import('../voice/call-contract.js').VoiceCallZoom;
+  };
 
   ownership?: SessionOwnership;
 
@@ -1539,6 +1551,7 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #memory: BotRuntimeOptions['memory'];
   readonly #attachments: AttachmentStore | undefined;
   readonly #voiceMessages: import('../voice/messages.js').VoiceMessages | undefined;
+  readonly #callFrames: BotRuntimeOptions['callFrames'];
   readonly #originalAttachments = new OriginalAttachmentAccess();
   readonly #saveReportSpill: BotRuntimeOptions['saveReportSpill'];
   readonly #readAssignmentTail: BotRuntimeOptions['readAssignmentTail'];
@@ -1654,6 +1667,7 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#memory = options.memory;
     this.#attachments = options.attachments;
     this.#voiceMessages = options.voiceMessages;
+    this.#callFrames = options.callFrames;
     this.#saveReportSpill = options.saveReportSpill;
     this.#readAssignmentTail = options.readAssignmentTail;
     this.#readAssignmentReportPage = options.readAssignmentReportPage;
@@ -7378,6 +7392,25 @@ class BotRuntimeImplementation implements BotRuntime {
         : {
             attachVoice: (input: { channelId: string; messageId: string; signal?: AbortSignal }) =>
               this.#voiceMessages!.attach({ botSlug, ...input }),
+          }),
+      ...(this.#callFrames === undefined
+        ? {}
+        : {
+            callFrame: (input: { channelId?: string; messageId: string; cell: number }) => {
+              const channel = resolve(input.channelId);
+              const message = this.#channels.message(channel.id, input.messageId);
+              if (message === undefined)
+                throw new Error(`Channel message not found: ${input.messageId}`);
+              if (message.voiceCall?.visual === undefined || 'sameAs' in message.voiceCall.visual)
+                throw new Error(
+                  `Message ${input.messageId} carries no call grid; use the message the grid is attached to.`,
+                );
+              return this.#callFrames!.zoom({
+                slug: botSlug,
+                messageId: input.messageId,
+                cell: input.cell,
+              });
+            },
           }),
       leaveGroup: (input) => {
         requireOrdinaryGroupActor();

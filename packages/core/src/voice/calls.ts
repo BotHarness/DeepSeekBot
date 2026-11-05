@@ -14,6 +14,7 @@ import {
   type VoiceCallRefusal,
   type VoiceCallResult,
   type VoiceCallView,
+  type VoiceCallZoom,
 } from './call-contract.js';
 import type { ChannelDraftEvent } from '../channels/draft.js';
 import type { ChannelVoiceCallRecord } from '../channels/voice-call-record.js';
@@ -181,7 +182,15 @@ interface GridJob {
   readonly id: number;
   readonly source: CallVisualSource;
   readonly frames: VisualFrame[];
+  readonly picked: readonly PreparedFrame[];
   readonly result: Promise<VoiceCallSentVisual | undefined>;
+}
+
+interface KeptGrid {
+  readonly callId: string;
+  readonly slug: string;
+  readonly source: CallVisualSource;
+  readonly cells: readonly PreparedFrame[];
 }
 
 interface Call {
@@ -248,6 +257,7 @@ export interface VoiceCalls {
     body: string;
     signal?: AbortSignal | undefined;
   }): Promise<AudioClip | undefined>;
+  zoom(input: { slug?: string; messageId: string; cell: number }): VoiceCallZoom;
   revoke(deviceId: string): Promise<void>;
   dispose(): Promise<void>;
 }
@@ -308,6 +318,64 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
   let imaging = deps.imaging;
   const images = () => (imaging ??= createCallImaging());
   const calls = new Map<string, Call>();
+  const kept = new Map<string, KeptGrid>();
+  let keptCells = 0;
+
+  const keep = (
+    call: Call,
+    messageId: string,
+    source: CallVisualSource,
+    cells: readonly PreparedFrame[],
+  ) => {
+    if (cells.length === 0) return;
+    kept.set(messageId, { callId: call.id, slug: call.slug, source, cells });
+    keptCells += cells.length;
+    for (const [id, grid] of kept) {
+      if (keptCells <= VOICE_CALL_LIMITS.keptFrames) break;
+      kept.delete(id);
+      keptCells -= grid.cells.length;
+    }
+  };
+
+  const release = (callId: string) => {
+    for (const [id, grid] of kept)
+      if (grid.callId === callId) {
+        kept.delete(id);
+        keptCells -= grid.cells.length;
+      }
+  };
+
+  const zoom = (input: { slug?: string; messageId: string; cell: number }): VoiceCallZoom => {
+    const started = now();
+    const grid = kept.get(input.messageId);
+    if (grid === undefined || (input.slug !== undefined && grid.slug !== input.slug))
+      return { released: true, messageId: input.messageId, cell: input.cell };
+    const frame = grid.cells[input.cell - 1];
+    if (frame === undefined)
+      throw new CallRefusal(
+        'cell-invalid',
+        `That grid has ${grid.cells.length} cell${grid.cells.length === 1 ? '' : 's'}; pick 1 to ${grid.cells.length}.`,
+      );
+    const call = calls.get(grid.callId);
+    if (call !== undefined && !ended(call))
+      push(call, {
+        type: 'frame-zoomed',
+        messageId: input.messageId,
+        cell: input.cell,
+        ms: now() - started,
+      });
+    log('call-frame-zoomed', { call: grid.callId, cell: input.cell, cells: grid.cells.length });
+    return {
+      released: false,
+      messageId: input.messageId,
+      cell: input.cell,
+      cells: grid.cells.length,
+      source: grid.source,
+      jpeg: frame.jpeg,
+      width: frame.width,
+      height: frame.height,
+    };
+  };
   let disposed = false;
 
   const live = (): Call | undefined => [...calls.values()].find((call) => call.phase !== 'ended');
@@ -359,6 +427,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     }
     call.replies = [];
     call.frames = [];
+    release(call.id);
     call.vad.reset();
     dropStream(call);
     if (call.warmed !== undefined) deps.providers.cool?.(call.warmed);
@@ -550,6 +619,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         id,
         source,
         frames,
+        picked: [],
         result: Promise.resolve(
           last !== undefined && last.source === source
             ? { source, sameAs: last.messageId }
@@ -588,7 +658,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         return { source, image, frames: picked.length } as const;
       });
     result.catch(() => undefined);
-    return { id, source, frames, result };
+    return { id, source, frames, picked: picked.map((entry) => entry.frame), result };
   };
 
   const restoreGrid = (call: Call, grid: GridJob | undefined) => {
@@ -700,6 +770,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       }
       if (visual !== undefined && 'image' in visual) {
         call.lastGrid = { source: visual.source, messageId };
+        keep(call, messageId, visual.source, grid?.picked ?? []);
         push(call, {
           type: 'grid-sent',
           grid: grid?.id ?? 0,
@@ -1490,6 +1561,31 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         await Promise.race([call.recorded, new Promise((resolve) => setTimeout(resolve, 3_000))]);
         return { ok: true, call: view(call) };
       }
+      case 'zoom': {
+        const messageId = command['messageId'];
+        const cell = command['cell'];
+        if (typeof messageId !== 'string' || messageId.length === 0 || messageId.length > 150)
+          throw new CallRefusal('invalid-input', 'messageId must name the message with the grid.');
+        if (!Number.isSafeInteger(cell) || (cell as number) < 1 || (cell as number) > 16)
+          throw new CallRefusal('cell-invalid', 'cell must be a grid cell number from 1 to 16.');
+        const result = zoom({ messageId, cell: cell as number });
+        return {
+          ok: true,
+          zoom: result.released
+            ? result
+            : {
+                released: false,
+                messageId: result.messageId,
+                cell: result.cell,
+                cells: result.cells,
+                source: result.source,
+                width: result.width,
+                height: result.height,
+                bytes: result.jpeg.byteLength,
+                jpeg: Buffer.from(result.jpeg).toString('base64'),
+              },
+        };
+      }
       default:
         throw new CallRefusal('invalid-input', 'Unknown call command.');
     }
@@ -1512,6 +1608,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     },
     draft: onDraft,
     speak,
+    zoom,
     async revoke(deviceId) {
       await Promise.all(
         [...calls.values()]
@@ -1528,6 +1625,8 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         new Promise((resolve) => setTimeout(resolve, 2_000).unref?.()),
       ]);
       calls.clear();
+      kept.clear();
+      keptCells = 0;
     },
   };
 }
