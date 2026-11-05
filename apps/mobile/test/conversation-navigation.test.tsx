@@ -265,8 +265,16 @@ vi.mock('../src/ui/chat/conversation-top-bar', () => ({
     <div data-testid="android-conversation-top-bar">
       <span>{title}</span>
       <button onClick={onBack}>Header back</button>
-      {onProfile === undefined ? null : <button onClick={onProfile}>Profile</button>}
-      {onCall === undefined ? null : <button onClick={onCall}>Call</button>}
+      {onProfile === undefined ? null : (
+        <button data-testid="chat-profile-button" onClick={onProfile}>
+          Profile
+        </button>
+      )}
+      {onCall === undefined ? null : (
+        <button data-testid="chat-call-button" onClick={onCall}>
+          Call
+        </button>
+      )}
     </div>
   ),
 }));
@@ -700,6 +708,9 @@ it.each(['ios', 'android'])('shows the %s native Profile entry', async (os) => {
       },
     ];
     const view = await render({ kind: 'dm', slug: 'ada' });
+    if (os === 'android') {
+      expect(view.querySelector('[data-testid="trailing-header"]')!.childElementCount).toBe(0);
+    }
     const button =
       os === 'ios'
         ? view.querySelector<HTMLButtonElement>('[data-testid="trailing-header"] button')
