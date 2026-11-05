@@ -697,13 +697,20 @@ export function createChannelLiveHub(
   ): AsyncGenerator<ChannelLiveFrame> {
     if (typeof channelId !== 'string' || channels.get(channelId) === undefined)
       throw new ChannelLiveRefused('not-found', 'Unknown Channel');
-    if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_MESSAGE_PAGE)
+    if (!Number.isSafeInteger(limit) || limit < 0 || limit > MAX_MESSAGE_PAGE)
       throw new ChannelLiveRefused('invalid', 'Invalid Channel page size');
     if (drafts !== 'full' && drafts !== 'append')
       throw new ChannelLiveRefused('invalid', 'Invalid draft delivery');
     const after = channels.revision(channelId);
-    const page = channels.readHumanJournalPage(channelId, { through: after, limit });
-    if (page === undefined) throw new ChannelLiveRefused('not-found', 'Unknown Channel');
+    const read = channels.readHumanJournalPage(channelId, {
+      through: after,
+      limit: Math.max(limit, 1),
+    });
+    if (read === undefined) throw new ChannelLiveRefused('not-found', 'Unknown Channel');
+    const page =
+      limit === 0
+        ? { entries: [], olderCursor: null, hasOlder: read.entries.length > 0 || read.hasOlder }
+        : read;
     if (signal.aborted) return;
     const queue: ChannelLiveFrame[] = [];
     let ended = false;

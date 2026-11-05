@@ -128,6 +128,7 @@ import { privateInputLog } from './credentials/diagnostics.js';
 import { nativeExecutionRoot } from './workspaces/grant-native-tools.js';
 import { createAttachmentStore, type AttachmentStore } from './attachments/store.js';
 import { startAttachmentSweep } from './attachments/sweep.js';
+import { startMediaBackfill } from './attachments/media-backfill.js';
 import { createStorageCleanup } from './storage/media-cleanup.js';
 import { memoryAttachmentReferences } from './memory/backup.js';
 import { createMemoryImageHttp, MEMORY_IMAGE_PATH } from './memory/image-http.js';
@@ -203,6 +204,8 @@ import { createBotAvatarHttp, botAvatarUrl, BOT_AVATAR_PATH } from './bots/avata
 import { BOT_BANNER_PATH, createBotBannerHttp } from './bots/banner-http.js';
 import { coalesce } from './runtime/coalesce.js';
 import { watchHumanAttention } from './runtime/human-attention-live.js';
+import { createMediaVersions, type MediaVersions } from './attachments/media-versions.js';
+import { loadImageProcessor } from './attachments/thumbnails.js';
 import { createChannelLiveHub, CHANNEL_STREAM_PATH, type ChannelLiveHub } from './channels/live.js';
 import type { ChannelDraftEvent } from './channels/draft.js';
 import { DeveloperModeSkillGate } from './logs/skill.js';
@@ -527,6 +530,7 @@ export interface BotHarnessCore {
   messagePerf: MessagePerfTracker;
   channels: ChannelStore;
   attachments: AttachmentStore;
+  mediaVersions: MediaVersions;
   live: ChannelLiveHub;
   companions: CompanionFeed;
   roster: RosterStore;
@@ -742,6 +746,7 @@ export function createCore(
   const attachments = createAttachmentStore({
     rootDir: join(dshHome, 'botharness', 'attachments'),
   });
+  const mediaVersions = createMediaVersions(attachments, () => loadImageProcessor(options.warn));
   const contentPurge = mountContentPurge({
     dshHome,
     database: operationalDatabase,
@@ -826,6 +831,7 @@ export function createCore(
       return bot !== undefined && bot.paused !== true;
     },
     attachments,
+    mediaVersions,
     botDisplayName: (botSlug) => registry.getHistorical(botSlug)?.displayName,
     rootDir: join(dshHome, 'botharness', 'channels'),
     onCommitted: (commit) => {
@@ -1301,6 +1307,7 @@ export function createCore(
     humanAttention,
     humanAttentionDecisions,
     attachments,
+    mediaVersions,
     live,
     companions,
     roster,
@@ -1728,6 +1735,15 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         log: (message) => ctx.logger.info(message),
       }),
     'botharness: attachment sweep',
+  );
+  ctx.effect(
+    () =>
+      startMediaBackfill({
+        fileIds: () => core.channels.referencedAttachmentHashes(),
+        versions: core.mediaVersions,
+        log: (message) => ctx.logger.info(message),
+      }),
+    'botharness: media backfill',
   );
   let connectAccount: ConnectAccount | undefined;
   let voiceCalls: VoiceCalls | undefined;
@@ -3335,6 +3351,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     followChannel: (channelId, limit, signal, drafts) =>
       core.live.followChannel(channelId, limit, signal, drafts),
     journalPage: (channelId, request) => core.channels.readHumanJournalPage(channelId, request),
+    filesPage: (channelId, request) => core.channels.readHumanFilesPage(channelId, request),
+    changes: (channelId, request) => core.channels.readHumanChanges?.(channelId, request),
+    changeCursor: () => core.channels.changeCursor?.(),
     followCompanion: (resume, lastEventId, signal) =>
       followCompanion((request) => core.companions.open(request), resume, lastEventId, signal),
   });
@@ -3517,6 +3536,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         return downloaded;
       },
       (input) => core.externalMessaging.readChannelMedia(input),
+      core.mediaVersions,
     );
     connectionCtx.effect(
       () =>

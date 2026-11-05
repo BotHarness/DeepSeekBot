@@ -1552,7 +1552,9 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #attachments: AttachmentStore | undefined;
   readonly #voiceMessages: import('../voice/messages.js').VoiceMessages | undefined;
   readonly #callFrames: BotRuntimeOptions['callFrames'];
-  readonly #originalAttachments = new OriginalAttachmentAccess();
+  readonly #originalAttachments = new OriginalAttachmentAccess((fileId) =>
+    this.#channels.recordAttachmentChange?.(fileId),
+  );
   readonly #saveReportSpill: BotRuntimeOptions['saveReportSpill'];
   readonly #readAssignmentTail: BotRuntimeOptions['readAssignmentTail'];
   readonly #readAssignmentReportPage: BotRuntimeOptions['readAssignmentReportPage'];

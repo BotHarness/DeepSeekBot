@@ -192,7 +192,8 @@ it('declares the Channel stream with strict Channel ID and page-size parameters'
   expect(channelId!.parse('c1')).toBe('c1');
   expect(() => channelId!.parse(1)).toThrow('Expected a Channel ID');
   expect(limit!.parse(50)).toBe(50);
-  expect(() => limit!.parse(0)).toThrow('Expected a page size');
+  expect(limit!.parse(0)).toBe(0);
+  expect(() => limit!.parse(-1)).toThrow('Expected a page size');
 });
 
 it('follows a Channel through the official journal stream: replace, append, gap repair and prepend', async () => {

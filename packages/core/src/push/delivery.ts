@@ -101,6 +101,7 @@ export type PushEvent =
       kind: PushKind | 'badge' | 'test' | 'device-paired';
       outcome: 'ok' | 'error';
       code?: string;
+      ageMs?: number;
     }
   | { phase: 'retry'; deviceId: string; attempt: number; code: string }
   | { phase: 'send-failed'; deviceId: string; count: number; code: string }
@@ -365,12 +366,15 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
     device: DeviceRow,
     messages: ExpoMessage[],
     kinds: Array<PushKind | 'badge' | 'test' | 'device-paired'>,
+    createdAt: ReadonlyArray<string | undefined> = [],
   ): Promise<boolean> => {
     for (let start = 0; start < messages.length; start += BATCH) {
       const batch = messages.slice(start, start + BATCH);
       let result: ExpoTicket[] | undefined;
+      let handedAt = now();
       for (let attempt = 1; result === undefined; attempt += 1) {
         try {
+          handedAt = now();
           result = await sender.send(batch);
         } catch (error) {
           const code = error instanceof Error ? error.message : 'send-failed';
@@ -386,14 +390,16 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
       let unregistered = false;
       result.forEach((ticket, index) => {
         const kind = kinds[start + index] ?? 'badge';
+        const created = Date.parse(createdAt[start + index] ?? '');
+        const age = Number.isFinite(created) ? { ageMs: Math.max(0, handedAt - created) } : {};
         if (ticket.status === 'ok') {
-          record({ phase: 'sent', deviceId: device.device_id, kind, outcome: 'ok' });
+          record({ phase: 'sent', deviceId: device.device_id, kind, outcome: 'ok', ...age });
           if (tickets.size < MAX_PENDING_RECEIPTS)
             tickets.set(ticket.id, { deviceId: device.device_id, sentAt: now() });
           return;
         }
         const code = ticket.details?.error ?? 'error';
-        record({ phase: 'sent', deviceId: device.device_id, kind, outcome: 'error', code });
+        record({ phase: 'sent', deviceId: device.device_id, kind, outcome: 'error', code, ...age });
         if (code === 'DeviceNotRegistered') unregistered = true;
       });
       if (unregistered) {
@@ -494,11 +500,12 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
         };
       });
       const kinds: Array<PushKind | 'badge'> = notify.map((item) => item.kind);
+      const created: Array<string | undefined> = notify.map((item) => item.createdAt);
       if (messages.length === 0 && device.badge !== badge) {
         messages.push({ to: device.token, badge, data: { v: 1, hostId } });
         kinds.push('badge');
       }
-      if (messages.length > 0 && (await deliver(device, messages, kinds)))
+      if (messages.length > 0 && (await deliver(device, messages, kinds, created)))
         database.transaction(
           (db) =>
             db

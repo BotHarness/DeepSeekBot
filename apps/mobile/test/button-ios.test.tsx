@@ -16,14 +16,20 @@ vi.mock('@expo/ui', () => ({
     children,
     matchContents,
     colorScheme,
+    ignoreSafeArea,
   }: {
     children: ReactNode;
     matchContents: unknown;
     colorScheme: string;
+    ignoreSafeArea: string;
   }) =>
     createElement(
       'div',
-      { 'data-host': JSON.stringify(matchContents), 'data-scheme': colorScheme },
+      {
+        'data-host': JSON.stringify(matchContents),
+        'data-scheme': colorScheme,
+        'data-safe-area': ignoreSafeArea,
+      },
       children,
     ),
 }));
@@ -62,9 +68,20 @@ vi.mock('@expo/ui/swift-ui', () => ({
     createElement(
       'span',
       {
+        'data-stack': 'h',
         'data-min-height': (modifiers[0]!.frame as { minHeight: number }).minHeight,
         'data-max-width': String((modifiers[0]!.frame as { maxWidth: number }).maxWidth),
         'data-content-shape': modifiers.find((modifier) => modifier.contentShape)?.contentShape,
+      },
+      children,
+    ),
+  VStack: ({ children, modifiers }: { children: ReactNode; modifiers: Modifier[] }) =>
+    createElement(
+      'span',
+      {
+        'data-stack': 'v',
+        'data-min-height': (modifiers[0]!.frame as { minHeight: number }).minHeight,
+        'data-max-width': String((modifiers[0]!.frame as { maxWidth: number }).maxWidth),
       },
       children,
     ),
@@ -94,6 +111,7 @@ vi.mock('@expo/ui/swift-ui/modifiers', () => ({
 
 import { Button, ACTION_SF_SYMBOL } from '../src/ui/primitives/button.ios';
 import { DesignThemeProvider, resolveTheme } from '../src/ui/design/theme';
+import { Dimensions } from './react-native-shim';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -103,6 +121,7 @@ afterEach(() => {
   act(() => root?.unmount());
   root = undefined;
   glass.on = false;
+  vi.restoreAllMocks();
 });
 
 async function render(node: ReactNode, scheme: 'light' | 'dark' = 'light') {
@@ -151,6 +170,11 @@ it.each(['light', 'dark'] as const)(
     expect(JSON.parse(native.dataset.host!)).toEqual({ vertical: true });
   },
 );
+
+it('ignores every safe area so a button under the navigation bar keeps its content in place', async () => {
+  const host = await render(<Button label="Continue" onPress={() => {}} />);
+  expect(host.querySelector<HTMLElement>('[data-host]')!.dataset.safeArea).toBe('all');
+});
 
 it('presses through to the shared callback and exposes its label', async () => {
   const onPress = vi.fn();
@@ -218,3 +242,24 @@ it('keeps a 44pt minimum target and scales its label with Dynamic Type', async (
     expect(JSON.parse(label.dataset.font!)).toMatchObject({ textStyle: 'body' });
   }
 });
+
+it.each([
+  [1, 'h'],
+  [1.24, 'h'],
+  [3.12, 'v'],
+] as const)(
+  'at text scale %s lays the symbol and label out in the %s stack',
+  async (fontScale, stack) => {
+    vi.spyOn(Dimensions, 'get').mockReturnValue({
+      width: 390,
+      height: 844,
+      scale: 3,
+      fontScale,
+    });
+    const host = await render(<Button label="Continue" symbol="refresh" onPress={() => {}} />);
+    const content = host.querySelector<HTMLElement>('button > span')!;
+    expect(content.dataset.stack).toBe(stack);
+    expect(content.dataset).toMatchObject({ minHeight: '28', maxWidth: 'Infinity' });
+    expect(content.querySelector('i')?.dataset.symbol).toBe('arrow.clockwise');
+  },
+);

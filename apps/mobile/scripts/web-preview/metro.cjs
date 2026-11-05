@@ -12,6 +12,10 @@ module.exports = function withWebPreview(config) {
       path.resolve(__dirname, 'interface-preferences.ts'),
     ],
     [
+      path.resolve(__dirname, '../../src/host/native-local-store.ts'),
+      path.resolve(__dirname, 'local-store.ts'),
+    ],
+    [
       path.resolve(__dirname, '../../src/ui/primitives/system-symbol.tsx'),
       path.resolve(__dirname, 'system-symbol.tsx'),
     ],
