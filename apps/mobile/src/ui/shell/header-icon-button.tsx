@@ -62,6 +62,14 @@ const glyphs = {
   call: { Glyph: PhoneIcon, size: (theme) => theme.type.title.line },
 } satisfies Record<HeaderIcon, { Glyph: typeof CloseIcon; size(theme: DesignTheme): number }>;
 
+export function HeaderIconGlyph({ icon, selected }: { icon: HeaderIcon; selected?: boolean }) {
+  const theme = useDesignTheme();
+  const { Glyph, size } = glyphs[icon];
+  const color =
+    selected === true ? theme.color.accent : icon === 'clear' ? theme.color.muted : theme.color.fg;
+  return <Glyph color={color} size={size(theme)} />;
+}
+
 export function HeaderIconButton({
   icon,
   label,
@@ -70,9 +78,6 @@ export function HeaderIconButton({
   onPress,
 }: HeaderIconButtonProps) {
   const theme = useDesignTheme();
-  const { Glyph, size } = glyphs[icon];
-  const color =
-    selected === true ? theme.color.accent : icon === 'clear' ? theme.color.muted : theme.color.fg;
   return (
     <Pressable
       testID={testID}
@@ -89,7 +94,7 @@ export function HeaderIconButton({
         backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
       })}
     >
-      <Glyph color={color} size={size(theme)} />
+      <HeaderIconGlyph icon={icon} selected={selected === true} />
     </Pressable>
   );
 }
