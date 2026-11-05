@@ -435,16 +435,13 @@ export type ChannelCallVisual =
       frames: number;
       layout: '1x1' | '2x2' | '3x3' | '4x4';
       unsaved?: true;
+      unseen?: true;
       records?: string[];
     }
   | {
       source: 'camera' | 'screen';
       sameAs: string;
       records?: string[];
-    }
-  | {
-      source: 'camera' | 'screen';
-      unseen: true;
     };
 
 export const MAX_CALL_VISUAL_RECORDS = 50;
@@ -465,7 +462,6 @@ export function isChannelCallVisual(value: unknown): value is ChannelCallVisual 
     .filter((key) => key !== 'records')
     .sort()
     .join();
-  if (keys === 'source,unseen') return visual['unseen'] === true && visual['records'] === undefined;
   if (keys === 'sameAs,source')
     return (
       typeof visual['sameAs'] === 'string' &&
@@ -473,8 +469,14 @@ export function isChannelCallVisual(value: unknown): value is ChannelCallVisual 
       visual['sameAs'].length <= 150
     );
   return (
-    (keys === 'frames,layout,source' ||
-      (keys === 'frames,layout,source,unsaved' && visual['unsaved'] === true)) &&
+    [
+      'frames,layout,source',
+      'frames,layout,source,unsaved',
+      'frames,layout,source,unseen',
+      'frames,layout,source,unsaved,unseen',
+    ].includes(keys) &&
+    (visual['unsaved'] === undefined || visual['unsaved'] === true) &&
+    (visual['unseen'] === undefined || visual['unseen'] === true) &&
     Number.isSafeInteger(visual['frames']) &&
     (visual['frames'] as number) >= 1 &&
     (visual['frames'] as number) <= 16 &&

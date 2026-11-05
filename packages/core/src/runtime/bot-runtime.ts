@@ -7403,9 +7403,7 @@ class BotRuntimeImplementation implements BotRuntime {
                 throw new Error(`Channel message not found: ${input.messageId}`);
               if (
                 message.voiceCallRecord?.state !== 'frames' &&
-                (message.voiceCall?.visual === undefined ||
-                  'sameAs' in message.voiceCall.visual ||
-                  'unseen' in message.voiceCall.visual)
+                (message.voiceCall?.visual === undefined || 'sameAs' in message.voiceCall.visual)
               )
                 throw new Error(
                   `Message ${input.messageId} carries no call grid; use the message the grid is attached to.`,
@@ -10252,8 +10250,6 @@ export function callVisualNote(
 ): string | undefined {
   const visual = message.voiceCall?.visual;
   if (visual === undefined) return undefined;
-  if ('unseen' in visual)
-    return `[Call ${visual.source} view] The Human is sharing their ${visual.source}, but your current model cannot read images, so this call sends you no pictures. If they ask about what they are showing, tell them you cannot see it with this model and ask them to describe it.`;
   const records =
     visual.records === undefined
       ? ''
@@ -10262,6 +10258,8 @@ export function callVisualNote(
     return `[Call ${visual.source} view] Nothing changed in the Human's ${visual.source} since message ${visual.sameAs}; that message's image is still what they see.${records}`;
   const what =
     visual.frames === 1 ? 'one keyframe' : `a ${visual.layout} grid of ${visual.frames} keyframes`;
+  if (visual.unseen === true)
+    return `[Call ${visual.source} view] The Human is sharing their ${visual.source}, and this message keeps ${what} for the DM history, but your current model cannot read images, so do not open it. If they ask about what they are showing, tell them you cannot see it with this model and ask them to describe it.`;
   if (visual.unsaved === true)
     return `[Call ${visual.source} view] The Human turned off saving call frames, so this message carries no image. To see ${what} from their ${visual.source} for this message, call call_frame with channel_id ${channelId}, message_id ${message.id} and cell 0; it is kept only during the call.${records} ${hint}`;
   const image = message.attachments?.find((ref) => ref.mime === 'image/jpeg');

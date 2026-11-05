@@ -3118,11 +3118,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           frames: visual.frames,
           layout: visual.image.layout,
           ...(visual.saved ? {} : { unsaved: true as const }),
+          ...(visual.unseen === true ? { unseen: true as const } : {}),
           ...records,
         };
-      } else if (visual !== undefined && 'unseen' in visual)
-        meta = { source: visual.source, unseen: true };
-      else if (visual !== undefined)
+      } else if (visual !== undefined)
         meta = { source: visual.source, sameAs: visual.sameAs, ...records };
       const result = await bridgeMethods.channelSend({
         channelId,

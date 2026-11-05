@@ -59,16 +59,12 @@ export type VoiceCallSentVisual =
       readonly image: GridImage;
       readonly frames: number;
       readonly saved: boolean;
+      readonly unseen?: true;
       readonly records?: readonly string[];
     }
   | {
       readonly source: CallVisualSource;
       readonly sameAs: string;
-      readonly records?: readonly string[];
-    }
-  | {
-      readonly source: CallVisualSource;
-      readonly unseen: true;
       readonly records?: readonly string[];
     };
 
@@ -869,10 +865,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         deps.seesImages !== undefined &&
         !(await deps.seesImages(call.slug).catch(() => true));
       if (ended(call)) return;
-      if (grid !== undefined && unseen) {
-        visual = { source: grid.source, unseen: true };
-        log('call-grid-unseen', { call: call.id, source: grid.source });
-      } else if (grid !== undefined && grid.frames.length === 0) {
+      if (grid !== undefined && grid.frames.length === 0) {
         const last = call.lastGrid;
         if (last !== undefined && last.session === grid.session)
           visual = { source: grid.source, sameAs: last.messageId };
@@ -889,7 +882,11 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         waitedMs = now() - waitFrom;
         if (ended(call)) return;
       }
-      const records = visual === undefined || 'unseen' in visual ? [] : call.records.splice(0);
+      if (unseen && visual !== undefined && 'image' in visual) {
+        visual = { ...visual, unseen: true };
+        log('call-grid-unseen', { call: call.id, source: visual.source });
+      }
+      const records = visual === undefined ? [] : call.records.splice(0);
       if (records.length > 0) visual = { ...visual!, records };
       try {
         await deps.send({

@@ -535,7 +535,7 @@ describe('Host call owner with a shared camera or screen', () => {
     expect(h.sent.map((item) => item.visual === undefined)).toEqual([false, true, true]);
   });
 
-  it('tells a Bot whose model cannot read images that a share is on, without a picture', async () => {
+  it('tells a Bot whose model cannot read images that a share is on and keeps the grid for later', async () => {
     const h = host(['你看到什么了', '现在呢'], false);
     const call = await h.ok({ kind: 'open', slug: 'mira', media: 'synthetic' });
     await h.ok({ kind: 'visual', callId: call.callId, source: 'screen' });
@@ -547,10 +547,9 @@ describe('Host call owner with a shared camera or screen', () => {
     });
     await h.say(call.callId);
     await h.say(call.callId);
-    expect(h.sent.map((item) => item.visual)).toEqual([
-      { source: 'screen', unseen: true },
-      { source: 'screen', unseen: true },
-    ]);
+    expect(h.sent[0]!.visual).toMatchObject({ source: 'screen', frames: 1, unseen: true });
+    expect('image' in h.sent[0]!.visual!).toBe(true);
+    expect(h.sent[1]!.visual).toEqual({ source: 'screen', sameAs: h.sent[0]!.messageId });
     expect(
       callVisualNote(
         'dm-mira',
@@ -561,7 +560,7 @@ describe('Host call owner with a shared camera or screen', () => {
           body: '你看到什么了',
           voiceCall: {
             callId: 'call-0123456789abcdef',
-            visual: { source: 'screen', unseen: true },
+            visual: { source: 'screen', frames: 1, layout: '1x1', unseen: true },
           },
         },
         'hint',
@@ -665,9 +664,13 @@ describe('call visuals in Channel messages', () => {
   it('accepts a grid or an unchanged view and refuses anything else', () => {
     expect(isChannelCallVisual({ source: 'camera', frames: 4, layout: '2x2' })).toBe(true);
     expect(isChannelCallVisual({ source: 'screen', sameAs: 'human-1' })).toBe(true);
-    expect(isChannelCallVisual({ source: 'camera', unseen: true })).toBe(true);
-    expect(isChannelCallVisual({ source: 'camera', unseen: false })).toBe(false);
-    expect(isChannelCallVisual({ source: 'camera', unseen: true, records: ['m-1'] })).toBe(false);
+    expect(isChannelCallVisual({ source: 'camera', frames: 1, layout: '1x1', unseen: true })).toBe(
+      true,
+    );
+    expect(isChannelCallVisual({ source: 'camera', frames: 1, layout: '1x1', unseen: false })).toBe(
+      false,
+    );
+    expect(isChannelCallVisual({ source: 'camera', unseen: true })).toBe(false);
     expect(isChannelCallVisual({ source: 'screen', frames: 17, layout: '4x4' })).toBe(false);
     expect(isChannelCallVisual({ source: 'tv', frames: 1, layout: '1x1' })).toBe(false);
     expect(isChannelCallVisual({ source: 'camera', frames: 1, layout: '1x1', extra: 1 })).toBe(
