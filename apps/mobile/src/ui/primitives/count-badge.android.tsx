@@ -40,6 +40,7 @@ export function CountBadge({
   count: number;
   tone: CountBadgeTone;
   label?: string;
+  compact?: boolean;
 }) {
   const theme = useDesignTheme();
   return (

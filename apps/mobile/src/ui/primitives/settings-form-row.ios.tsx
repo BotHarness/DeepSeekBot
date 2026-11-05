@@ -20,10 +20,12 @@ import {
   bold,
   disabled as disabledModifier,
   font,
+  lineLimit,
   listRowBackground,
   foregroundStyle,
   monospacedDigit,
   tint,
+  truncationMode,
 } from '@expo/ui/swift-ui/modifiers';
 import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import type { ColorValue, StyleProp, TextStyle } from 'react-native';
@@ -140,6 +142,8 @@ export function FormSection({ title, footer, children }: SettingsSectionProps) {
 export function FormRow({
   title,
   detail,
+  detailDot,
+  singleLine = false,
   tone = 'fg',
   strong = false,
   icon,
@@ -155,6 +159,7 @@ export function FormRow({
   onPress,
 }: SettingsRowProps) {
   const theme = useDesignTheme();
+  const lines = singleLine ? [lineLimit(1), truncationMode('tail')] : [];
   const symbol =
     icon === undefined
       ? nativeLeading(leading)
@@ -181,14 +186,25 @@ export function FormRow({
           font({ textStyle: 'body' }),
           ...(titleStyle === undefined ? [] : [titleStyle]),
           ...(strong ? [bold()] : []),
+          ...lines,
         ]}
       >
         {title}
       </Text>
-      {detail === undefined ? null : (
-        <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(SECONDARY)]}>
+      {detail === undefined ? null : detailDot === undefined ? (
+        <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(SECONDARY), ...lines]}>
           {detail}
         </Text>
+      ) : (
+        <HStack spacing={space.x3}>
+          <Image
+            systemName="circle.fill"
+            modifiers={[font({ textStyle: 'caption2' }), foregroundStyle(detailDot)]}
+          />
+          <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(SECONDARY), ...lines]}>
+            {detail}
+          </Text>
+        </HStack>
       )}
     </VStack>
   );
