@@ -65,6 +65,11 @@ export type VoiceCallSentVisual =
       readonly source: CallVisualSource;
       readonly sameAs: string;
       readonly records?: readonly string[];
+    }
+  | {
+      readonly source: CallVisualSource;
+      readonly unseen: true;
+      readonly records?: readonly string[];
     };
 
 export interface VoiceCallBot {
@@ -111,6 +116,7 @@ export interface VoiceCallsDeps {
     visual?: VoiceCallSentVisual | undefined;
   }): Promise<void>;
   busy(slug: string): boolean;
+  seesImages?(slug: string): Promise<boolean>;
   imaging?: CallImaging;
   record?(input: {
     slug: string;
@@ -858,7 +864,15 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       if (ended(call)) return;
       let visual: VoiceCallSentVisual | undefined;
       let waitedMs = 0;
-      if (grid !== undefined && grid.frames.length === 0) {
+      const unseen =
+        grid !== undefined &&
+        deps.seesImages !== undefined &&
+        !(await deps.seesImages(call.slug).catch(() => true));
+      if (ended(call)) return;
+      if (grid !== undefined && unseen) {
+        visual = { source: grid.source, unseen: true };
+        log('call-grid-unseen', { call: call.id, source: grid.source });
+      } else if (grid !== undefined && grid.frames.length === 0) {
         const last = call.lastGrid;
         if (last !== undefined && last.session === grid.session)
           visual = { source: grid.source, sameAs: last.messageId };
@@ -875,7 +889,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         waitedMs = now() - waitFrom;
         if (ended(call)) return;
       }
-      const records = visual === undefined ? [] : call.records.splice(0);
+      const records = visual === undefined || 'unseen' in visual ? [] : call.records.splice(0);
       if (records.length > 0) visual = { ...visual!, records };
       try {
         await deps.send({
@@ -917,7 +931,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
           layout: visual.image.layout,
           waitedMs,
         });
-      } else if (visual !== undefined)
+      } else if (visual !== undefined && 'sameAs' in visual)
         push(call, { type: 'grid-unchanged', messageId, sameAs: visual.sameAs });
       call.lastHeardAt = now();
       call.heard += 1;

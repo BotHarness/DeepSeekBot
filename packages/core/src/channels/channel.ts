@@ -441,6 +441,10 @@ export type ChannelCallVisual =
       source: 'camera' | 'screen';
       sameAs: string;
       records?: string[];
+    }
+  | {
+      source: 'camera' | 'screen';
+      unseen: true;
     };
 
 export const MAX_CALL_VISUAL_RECORDS = 50;
@@ -461,6 +465,7 @@ export function isChannelCallVisual(value: unknown): value is ChannelCallVisual 
     .filter((key) => key !== 'records')
     .sort()
     .join();
+  if (keys === 'source,unseen') return visual['unseen'] === true && visual['records'] === undefined;
   if (keys === 'sameAs,source')
     return (
       typeof visual['sameAs'] === 'string' &&

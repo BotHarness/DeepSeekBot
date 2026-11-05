@@ -3085,6 +3085,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   });
   voiceCalls = createVoiceCalls({
     bot: (slug) => core.registry.get(slug),
+    async seesImages(slug) {
+      const route =
+        core.registry.get(slug)?.modelPlan?.orchestrator ?? modelCatalog.defaultRoute?.();
+      if (route === undefined) return true;
+      const info = await ctx.llm.resolveModelInfo(route.provider, route.model);
+      return info.inputModalities === undefined || info.inputModalities.includes('image');
+    },
     providers: core.voiceProviders,
     media: () =>
       (ctx.get('botharnessComputer') as { callMedia?: VoiceCallMedia } | undefined)?.callMedia,
@@ -3113,7 +3120,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           ...(visual.saved ? {} : { unsaved: true as const }),
           ...records,
         };
-      } else if (visual !== undefined)
+      } else if (visual !== undefined && 'unseen' in visual)
+        meta = { source: visual.source, unseen: true };
+      else if (visual !== undefined)
         meta = { source: visual.source, sameAs: visual.sameAs, ...records };
       const result = await bridgeMethods.channelSend({
         channelId,
