@@ -99,7 +99,11 @@ export function createLocalConversationCache(options: {
       const opening = withStore(key);
       if (opening === undefined) return options.legacy?.read(key);
       await pending;
-      const db = await opening;
+      const db = await opening.catch((error: unknown) => {
+        options.warn?.(error);
+        return undefined;
+      });
+      if (db === undefined) return options.legacy?.read(key);
       const mapped = await db.get<{ channel_id: string }>(
         'select channel_id from conversation_keys where key = ?',
         [key],

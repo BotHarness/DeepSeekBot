@@ -323,6 +323,30 @@ describe('conversation tail in the local store', () => {
     expect(await store.all('select key from conversation_keys')).toEqual([{ key }]);
   });
 
+  it('reads the old JSON tail when the store cannot open', async () => {
+    const key = JSON.stringify(['computer', 'host-a', SLUG]);
+    const tail: CachedConversation = {
+      entries: [
+        {
+          channelId: DM,
+          revision: 1,
+          message: { id: 'm1', at: '2026-11-05T00:00:00Z', author: { kind: 'human' }, body: 'old' },
+        },
+      ],
+      hasOlder: false,
+    };
+    const removed: string[] = [];
+    const warnings: unknown[] = [];
+    const cache = createLocalConversationCache({
+      store: () => Promise.reject(new Error('disk full')),
+      legacy: { read: async () => structuredClone(tail), remove: (k) => removed.push(k) },
+      warn: (error) => warnings.push(error),
+    });
+    expect((await cache.read(key))?.entries[0]?.message.body).toBe('old');
+    expect(removed).toEqual([]);
+    expect(warnings).toHaveLength(1);
+  });
+
   it('redacts purged rows and prunes conversations of gone Channels', async () => {
     const store = await openStore(':memory:');
     const cache = createLocalConversationCache({ store: async () => store });
