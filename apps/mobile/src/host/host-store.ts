@@ -8,6 +8,7 @@ export interface HostStoreOpener {
 
 let opener: HostStoreOpener | undefined;
 const stores = new Map<string, Promise<LocalStore>>();
+const deleting = new Map<string, Promise<void>>();
 
 export function installHostStoreOpener(next: HostStoreOpener | undefined): void {
   opener = next;
@@ -19,6 +20,8 @@ export function hostStoreAvailable(): boolean {
 }
 
 export function hostStore(hostId: string): Promise<LocalStore> {
+  const gate = deleting.get(hostId);
+  if (gate !== undefined) return gate.then(() => hostStore(hostId));
   const existing = stores.get(hostId);
   if (existing !== undefined) return existing;
   if (opener === undefined)
@@ -40,9 +43,21 @@ export async function closeHostStore(hostId: string): Promise<void> {
   await store?.close();
 }
 
-export async function deleteHostStore(hostId: string): Promise<void> {
-  await closeHostStore(hostId);
-  await opener?.remove(hostId);
+export function deleteHostStore(hostId: string): Promise<void> {
+  const previous = deleting.get(hostId) ?? Promise.resolve();
+  const removal = previous.then(async () => {
+    await closeHostStore(hostId);
+    await opener?.remove(hostId);
+  });
+  const gate = removal.then(
+    () => undefined,
+    () => undefined,
+  );
+  deleting.set(hostId, gate);
+  void gate.then(() => {
+    if (deleting.get(hostId) === gate) deleting.delete(hostId);
+  });
+  return removal;
 }
 
 export function hostStoreSize(hostId: string): number {

@@ -257,6 +257,50 @@ describe('conversation tail in the local store', () => {
     });
   });
 
+  it('replaces the stored tail and cursor when the Host resets the same epoch', async () => {
+    const host = new FakeHost();
+    const path = file();
+    await warm(host, path);
+    for (const store of stores.splice(0)) await store.close();
+    const seeded = await openStore(path);
+    await seeded.write((tx) =>
+      tx.run(
+        'insert into messages (channel_id, id, revision, entry, purged) values (?, ?, ?, ?, 0)',
+        [
+          DM,
+          'ghost',
+          999,
+          JSON.stringify({
+            channelId: DM,
+            revision: 999,
+            message: {
+              id: 'ghost',
+              at: '2026-11-05T00:00:00Z',
+              author: { kind: 'human' },
+              body: 'x',
+            },
+          }),
+        ],
+      ),
+    );
+    await seeded.close();
+    stores.splice(0);
+    host.log.floor = host.log.seq + 1;
+    const { cache, store } = await phone(path);
+    const again = open(host, cache);
+    await until(again, (s) => s.status === 'live' && !s.fromCache);
+    await settle(cache);
+    const rows = await store.all<{ id: string }>(
+      'select id from messages where channel_id = ? order by revision',
+      [DM],
+    );
+    expect(rows.map((row) => row.id)).toEqual(['m1', 'm2', 'm3', 'm4', 'm5', 'm6']);
+    expect(await store.get('select epoch, seq from cursors where channel_id = ?', [DM])).toEqual({
+      epoch: host.log.epoch,
+      seq: host.log.seq,
+    });
+  });
+
   it('keeps two paired Hosts apart', async () => {
     const pathA = file();
     const pathB = file();
@@ -345,6 +389,36 @@ describe('conversation tail in the local store', () => {
     expect((await cache.read(key))?.entries[0]?.message.body).toBe('old');
     expect(removed).toEqual([]);
     expect(warnings).toHaveLength(1);
+  });
+
+  it('removes the old JSON tail once a fallback read is replaced in the store', async () => {
+    const key = JSON.stringify(['computer', 'host-a', SLUG]);
+    const tail: CachedConversation = {
+      entries: [
+        {
+          channelId: DM,
+          revision: 1,
+          message: { id: 'm1', at: '2026-11-05T00:00:00Z', author: { kind: 'human' }, body: 'old' },
+        },
+      ],
+      hasOlder: false,
+    };
+    const store = await openStore(':memory:');
+    let opens = 0;
+    const removed: string[] = [];
+    const cache = createLocalConversationCache({
+      store: () => (opens++ === 0 ? Promise.reject(new Error('busy')) : Promise.resolve(store)),
+      legacy: { read: async () => structuredClone(tail), remove: (k) => removed.push(k) },
+      warn: () => undefined,
+    });
+    expect((await cache.read(key))?.entries[0]?.message.body).toBe('old');
+    expect(removed).toEqual([]);
+    cache.write(key, tail);
+    await cache.flush();
+    expect(removed).toEqual([key]);
+    cache.write(key, tail);
+    await cache.flush();
+    expect(removed).toEqual([key]);
   });
 
   it('redacts purged rows and prunes conversations of gone Channels', async () => {
