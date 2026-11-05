@@ -424,7 +424,7 @@ export function VoiceProviderSettings({
                 title={provider.name}
                 data={{ 'data-voice-provider': provider.id }}
                 description={[
-                  presetName,
+                  ...(presetName === provider.name ? [] : [presetName]),
                   provider.baseUrl,
                   provider.keySet ? t('voice.provider.keySet') : t('voice.provider.noKey'),
                 ].join(' · ')}
