@@ -8,6 +8,7 @@ export interface CatchUpOptions {
   store(hostId: string): Promise<LocalStore>;
   concurrency?: number;
   maxPages?: number;
+  constrained?(): Promise<boolean>;
 }
 
 export interface CatchUpHost {
@@ -39,7 +40,10 @@ export function createCatchUp(options: CatchUpOptions) {
     }
   };
 
+  const constrained = () => options.constrained?.().catch(() => false) ?? Promise.resolve(false);
+
   const run = async (host: CatchUpHost) => {
+    if (await constrained()) return;
     const db = await options.store(host.hostId);
     const live = new Set(host.liveKeys());
     const rows = await db.all<{ channel_id: string; live: number }>(
@@ -52,8 +56,13 @@ export function createCatchUp(options: CatchUpOptions) {
     );
     const queue = rows.filter((row) => row.live === 0).map((row) => row.channel_id);
     const worker = async () => {
-      for (let channelId = queue.shift(); channelId !== undefined; channelId = queue.shift())
+      for (let channelId = queue.shift(); channelId !== undefined; channelId = queue.shift()) {
+        if (await constrained()) {
+          queue.length = 0;
+          return;
+        }
         await pull(db, host, channelId).catch(() => undefined);
+      }
     };
     await Promise.all(Array.from({ length: concurrency }, worker));
   };

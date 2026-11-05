@@ -1,6 +1,7 @@
 import type { ConversationCache } from './conversation';
 import { deleteHostStore, hostStore, hostStoreAvailable } from './host-store';
 import { createCatchUp } from './catch-up';
+import { powerConstrained } from './native-power';
 import { createLocalConversationCache, pruneLocalConversations } from './local-conversation-cache';
 import {
   clearHostConversationCache,
@@ -46,7 +47,7 @@ export function pruneHostConversations(hostId: string, stale: (key: string) => b
       .catch(() => undefined);
 }
 
-const catchUp = createCatchUp({ store: hostStore });
+const catchUp = createCatchUp({ store: hostStore, constrained: powerConstrained });
 
 export function catchUpHostConversations(
   hostId: string,
