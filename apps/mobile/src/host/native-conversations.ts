@@ -1,5 +1,6 @@
 import type { ConversationCache } from './conversation';
 import { deleteHostStore, hostStore, hostStoreAvailable } from './host-store';
+import { createCatchUp } from './catch-up';
 import { createLocalConversationCache, pruneLocalConversations } from './local-conversation-cache';
 import {
   clearHostConversationCache,
@@ -43,4 +44,14 @@ export function pruneHostConversations(hostId: string, stale: (key: string) => b
     void hostStore(hostId)
       .then((db) => pruneLocalConversations(db, stale))
       .catch(() => undefined);
+}
+
+const catchUp = createCatchUp({ store: hostStore });
+
+export function catchUpHostConversations(
+  hostId: string,
+  call: (method: string, args: Record<string, unknown>) => Promise<unknown>,
+  liveKeys: () => readonly string[],
+): void {
+  if (hostStoreAvailable()) void catchUp.sync({ hostId, call, liveKeys });
 }

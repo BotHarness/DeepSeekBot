@@ -15,6 +15,7 @@ import { useVisibleSnapshot } from './use-visible-snapshot';
 import { hostAvailabilitySource } from './host-availability';
 import { currentHost, selectHost, withHost, withoutHost, type SavedHosts } from './hosts';
 import {
+  catchUpHostConversations,
   conversationCache,
   conversationCacheWaitMs,
   forgetHostConversations,
@@ -179,6 +180,14 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
     if (now && !connected) {
       void pushSession.retryFailed();
       void notificationPreferences.retry().catch(() => undefined);
+      catchUpHostConversations(
+        saved.hostId,
+        (method, args) => client.call(method, args),
+        () =>
+          [...(conversations.get(client)?.keys() ?? [])].map((key) =>
+            JSON.stringify(['computer', saved.hostId, key]),
+          ),
+      );
     }
     connected = now;
     const inputs = snapshot.roster === undefined ? undefined : avatarInputs(snapshot.roster);
