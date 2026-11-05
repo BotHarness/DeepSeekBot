@@ -1,5 +1,6 @@
 import ExpoModulesCore
 import Foundation
+import Network
 
 private final class LanSessionDelegate: NSObject, URLSessionTaskDelegate {
   func urlSession(_ session: URLSession, task: URLSessionTask,
@@ -26,13 +27,7 @@ public final class LanChannelModule: Module {
     Name("LanChannel")
     Events("channel")
     Function("open") { (id: String, address: String, port: Int) in
-      let parts = address.split(separator: ".", omittingEmptySubsequences: false)
-      let numbers = parts.compactMap { Int($0) }
-      guard parts.count == 4, numbers.count == 4,
-        parts.allSatisfy({ $0.count <= 3 && $0.allSatisfy({ $0.isASCII && $0.isNumber }) }),
-        numbers.allSatisfy({ (0...255).contains($0) }),
-        (numbers[0] == 10 || (numbers[0] == 172 && (16...31).contains(numbers[1])) ||
-          (numbers[0] == 192 && numbers[1] == 168)), (1...65535).contains(port),
+      guard Self.privateAddress(address, port),
         let url = URL(string: "ws://\(address):\(port)/botharness-device/channel")
       else { throw NSError(domain: "lan-route-invalid", code: 1) }
       self.lock.lock()
@@ -71,6 +66,32 @@ public final class LanChannelModule: Module {
       }
     }
     Function("close") { (id: String) in self.finish(id, "channel-disconnected") }
+    AsyncFunction("localNetwork") { (address: String, port: Int, promise: Promise) in
+      guard Self.privateAddress(address, port), let target = NWEndpoint.Port(rawValue: UInt16(port))
+      else {
+        promise.resolve("unknown")
+        return
+      }
+      let connection = NWConnection(host: NWEndpoint.Host(address), port: target, using: .tcp)
+      let queue = DispatchQueue(label: "lan-channel.local-network")
+      var settled = false
+      let settle = { (status: String) in
+        guard !settled else { return }
+        settled = true
+        connection.cancel()
+        promise.resolve(status)
+      }
+      let denied = { connection.currentPath?.unsatisfiedReason == .localNetworkDenied }
+      connection.stateUpdateHandler = { state in
+        switch state {
+        case .ready: settle("reachable")
+        case .waiting, .failed: settle(denied() ? "denied" : "unreachable")
+        default: break
+        }
+      }
+      connection.start(queue: queue)
+      queue.asyncAfter(deadline: .now() + 1.5) { settle(denied() ? "denied" : "timeout") }
+    }
     OnDestroy {
       self.lock.lock()
       let ids = Array(self.channels.keys)
@@ -80,6 +101,15 @@ public final class LanChannelModule: Module {
     }
   }
 
+  private static func privateAddress(_ address: String, _ port: Int) -> Bool {
+    let parts = address.split(separator: ".", omittingEmptySubsequences: false)
+    let numbers = parts.compactMap { Int($0) }
+    return parts.count == 4 && numbers.count == 4 &&
+      parts.allSatisfy({ $0.count <= 3 && $0.allSatisfy({ $0.isASCII && $0.isNumber }) }) &&
+      numbers.allSatisfy({ (0...255).contains($0) }) &&
+      (numbers[0] == 10 || (numbers[0] == 172 && (16...31).contains(numbers[1])) ||
+        (numbers[0] == 192 && numbers[1] == 168)) && (1...65535).contains(port)
+  }
   private func socket(_ id: String) -> URLSessionWebSocketTask? {
     lock.lock()
     defer { lock.unlock() }

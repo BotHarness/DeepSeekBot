@@ -10,7 +10,7 @@ import {
 import { isConnectRoute, isEncryptedRoute, isLanRoute } from './route';
 import { channelFailureDetail, joinFailureDetails } from './pairing-detail';
 import type { HostEncryption } from './hosts';
-import type { HostCarrier } from './carrier';
+import type { HostCarrier, LocalNetworkStatus } from './carrier';
 import { checkRoute } from './route';
 import type { ConnectRefusal } from './connect-account';
 import type { SavedHost } from './hosts';
@@ -557,13 +557,33 @@ function redeemEncryptedRoute(
         code: 'offer-expired',
         detail: channelFailureDetail(route, 'offer-deadline'),
       });
+    let probing = false;
+    const fail = (reason: string) => {
+      const probe = options.carrier.localNetworkStatus;
+      if (
+        authenticated ||
+        !isLanRoute(route) ||
+        reason.endsWith(':local-network-denied') ||
+        reason === 'channel-authentication-failed' ||
+        probe === undefined
+      ) {
+        finish(channelFailure(route, reason, authenticated));
+        return;
+      }
+      if (probing) return;
+      probing = true;
+      void probe(route).then(
+        (status) => finish(channelFailure(route, probedReason(reason, status), authenticated)),
+        () => finish(channelFailure(route, reason, authenticated)),
+      );
+    };
     const socket = openNoiseSocket({
       origin: route,
       hostId: payload.host.id,
       encryption,
       raw: options.carrier,
       timeoutMs: isLanRoute(route) ? 2000 : 10_000,
-      closed: (reason) => finish(channelFailure(route, reason, authenticated)),
+      closed: fail,
       message: (value) => {
         if (value['type'] === 'pair-pending') {
           options.onPending?.(noiseFingerprint(noisePublicKey(keyBytes(encryption.deviceKey))));
@@ -622,16 +642,16 @@ function redeemEncryptedRoute(
         authenticated = true;
         submit();
       },
-      (error: unknown) =>
-        finish(
-          channelFailure(
-            route,
-            error instanceof Error ? error.message : 'channel-disconnected',
-            authenticated,
-          ),
-        ),
+      (error: unknown) => fail(error instanceof Error ? error.message : 'channel-disconnected'),
     );
   });
+}
+
+function probedReason(reason: string, status: LocalNetworkStatus): string {
+  if (status === 'denied') return 'lan-unreachable:local-network-denied';
+  if (status === 'unknown' || reason.includes(':')) return reason;
+  const tail = { reachable: 'tcp-open', unreachable: 'tcp-closed', timeout: 'tcp-timeout' }[status];
+  return `${reason}:${tail}`;
 }
 
 export function channelFailure(
