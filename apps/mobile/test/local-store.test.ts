@@ -101,6 +101,40 @@ describe('local store', () => {
     });
   });
 
+  it('closes the connection when opening or a migration fails', async () => {
+    const connection = nodeSqlConnection(scratchFile());
+    await expect(
+      openLocalStore(connection, [...LOCAL_STORE_MIGRATIONS, 'insert into missing values (1)']),
+    ).rejects.toThrow();
+    expect(connection.database.isOpen).toBe(false);
+    const newer = nodeSqlConnection(scratchFile());
+    newer.database.exec('pragma user_version = 99');
+    await expect(openLocalStore(newer)).rejects.toBeInstanceOf(LocalStoreError);
+    expect(newer.database.isOpen).toBe(false);
+  });
+
+  it('reports the original error when the rollback itself fails', async () => {
+    const inner = nodeSqlConnection();
+    const store = await openLocalStore({
+      ...inner,
+      async exec(sql) {
+        if (sql === 'rollback') {
+          await inner.exec(sql);
+          throw new Error('rollback failed');
+        }
+        await inner.exec(sql);
+      },
+    });
+    opened.push(store);
+    await expect(store.write(() => Promise.reject(new Error('root cause')))).rejects.toThrow(
+      'root cause',
+    );
+    await store.write((tx) =>
+      tx.run('insert into channels (id, record) values (?, ?)', ['c', '{}']),
+    );
+    expect(await store.all('select id from channels')).toEqual([{ id: 'c' }]);
+  });
+
   it('commits a write as one transaction and rolls the whole write back on failure', async () => {
     const store = await open();
     await expect(

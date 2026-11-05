@@ -17,7 +17,5 @@ export async function openNativeLocalStore(hostId: string): Promise<LocalStore> 
 }
 
 export async function deleteNativeLocalStore(hostId: string): Promise<void> {
-  try {
-    await deleteDatabaseAsync(localStoreName(hostId));
-  } catch {}
+  await deleteDatabaseAsync(localStoreName(hostId));
 }

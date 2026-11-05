@@ -76,9 +76,6 @@ export async function openLocalStore(
   connection: SqlConnection,
   migrations: readonly string[] = LOCAL_STORE_MIGRATIONS,
 ): Promise<LocalStore> {
-  await connection.exec('pragma journal_mode = wal');
-  await connection.exec('pragma synchronous = normal');
-  await connection.exec('pragma foreign_keys = on');
   const reads = reader(connection);
   let closed = false;
   let queue: Promise<unknown> = Promise.resolve();
@@ -94,26 +91,33 @@ export async function openLocalStore(
         await connection.exec('commit');
         return result;
       } catch (error) {
-        await connection.exec('rollback');
+        await connection.exec('rollback').catch(() => undefined);
         throw error;
       }
     });
     queue = next.catch(() => undefined);
     return next;
   };
-  const current = await schemaVersion(connection);
-  if (current > migrations.length) {
-    await connection.close();
-    throw new LocalStoreError(
-      'local-store/newer-schema',
-      `The local store has schema ${current}, newer than this app's ${migrations.length}.`,
-    );
+  try {
+    await connection.exec('pragma journal_mode = wal');
+    await connection.exec('pragma synchronous = normal');
+    await connection.exec('pragma foreign_keys = on');
+    const current = await schemaVersion(connection);
+    if (current > migrations.length)
+      throw new LocalStoreError(
+        'local-store/newer-schema',
+        `The local store has schema ${current}, newer than this app's ${migrations.length}.`,
+      );
+    for (let version = current + 1; version <= migrations.length; version += 1)
+      await write(async () => {
+        await connection.exec(migrations[version - 1]!);
+        await connection.exec(`pragma user_version = ${version}`);
+      });
+  } catch (error) {
+    closed = true;
+    await connection.close().catch(() => undefined);
+    throw error;
   }
-  for (let version = current + 1; version <= migrations.length; version += 1)
-    await write(async () => {
-      await connection.exec(migrations[version - 1]!);
-      await connection.exec(`pragma user_version = ${version}`);
-    });
   return {
     ...reads,
     version: migrations.length,
