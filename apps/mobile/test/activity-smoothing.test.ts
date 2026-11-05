@@ -55,6 +55,7 @@ describe('smoothed Bot activity on mobile', () => {
     host.push('botharness/followActivity', frame({ state: 'thinking' }));
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(publishes).toBe(0);
+    expect(target.getSnapshot().activity).toBe(thinking.activity);
     expect(target.getSnapshot().roster).toBe(thinking.roster);
     host.push('botharness/followActivity', frame({ state: 'idle' }));
     const idle = await until(target, (s) => s.roster?.bots[0]?.state === 'idle');
@@ -63,6 +64,33 @@ describe('smoothed Bot activity on mobile', () => {
     idle.roster?.bots
       .slice(1)
       .forEach((bot, index) => expect(bot).toBe(thinking.roster?.bots[index + 1]));
+  });
+
+  it('publishes active-flag changes while the displayed state stays waiting', async () => {
+    const host = new FakeHost();
+    const target = createHostClient({
+      routes: ['https://studio.tailnet-example.ts.net'],
+      credential: host.credential,
+      carrier: host.carrier,
+      backoff: () => 5,
+      timeoutMs: 200,
+    });
+    client = target;
+    target.start();
+    await until(target, (s) => s.connection.status === 'connected' && s.roster !== undefined);
+    host.push('botharness/followActivity', frame({ state: 'waiting', active: false }));
+    const waiting = await until(target, (s) => s.activity?.[0]?.active === false);
+    const seen: HostSnapshot[] = [];
+    target.subscribe(() => seen.push(target.getSnapshot()));
+    host.push('botharness/followActivity', frame({ state: 'waiting', active: true }));
+    const active = await until(target, (s) => s.activity?.[0]?.active === true);
+    expect(seen).toContain(active);
+    expect(active.activity).not.toBe(waiting.activity);
+    expect(active.roster).toBe(waiting.roster);
+    host.push('botharness/followActivity', frame({ state: 'waiting', active: false }));
+    const idle = await until(target, (s) => s.activity?.[0]?.active === false);
+    expect(seen).toContain(idle);
+    expect(idle.roster).toBe(waiting.roster);
   });
 
   it('keeps thinking through a short tool call and still settles', async () => {
