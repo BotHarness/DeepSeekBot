@@ -52,6 +52,7 @@
     "apps/mobile/test/share-attachment.test.ts",
     "apps/mobile/test/media-cache.test.ts",
     "apps/mobile/test/share-versioned.test.ts",
+    "apps/mobile/test/purge-caches.test.ts",
     "apps/mobile/test/haptic-feedback.test.ts",
     "apps/mobile/test/native-chat-background.test.ts",
     "apps/mobile/test/inbox-screens.test.ts",

@@ -5,7 +5,8 @@ const MAX_READS = 3;
 export interface MediaStore {
   uri(cacheKey: string): string | undefined;
   write(cacheKey: string, bytes: Uint8Array): Promise<string>;
-  forget(cacheKeyPrefix: string): void;
+  download(cacheKey: string, uri: string, headers: Record<string, string>): Promise<string>;
+  forget(cacheKeyPrefixes: readonly string[]): void;
 }
 
 let store: MediaStore | undefined;
@@ -43,7 +44,7 @@ export function cachedMediaUri(cacheKey: string): string | undefined {
 }
 
 export function cacheMedia(
-  source: RemoteSource & { cacheKey: string; read: NonNullable<RemoteSource['read']> },
+  source: RemoteSource & { cacheKey: string },
   signal: AbortSignal,
 ): Promise<string> {
   const target = store;
@@ -54,6 +55,8 @@ export function cacheMedia(
   if (running !== undefined) return running;
   const operation = slot(async () => {
     signal.throwIfAborted();
+    if (source.read === undefined)
+      return target.download(source.cacheKey, source.uri, source.headers);
     const { bytes } = await source.read(signal);
     return target.write(source.cacheKey, bytes);
   }).finally(() => pending.delete(source.cacheKey));
@@ -61,8 +64,10 @@ export function cacheMedia(
   return operation;
 }
 
-export function forgetMedia(cacheKeyPrefix: string): void {
+export function forgetMedia(cacheKeyPrefixes: string | readonly string[]): void {
+  const prefixes = typeof cacheKeyPrefixes === 'string' ? [cacheKeyPrefixes] : cacheKeyPrefixes;
+  if (prefixes.length === 0) return;
   try {
-    store?.forget(cacheKeyPrefix);
+    store?.forget(prefixes);
   } catch {}
 }

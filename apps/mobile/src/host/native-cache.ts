@@ -59,3 +59,32 @@ export function pruneHostConversationCache(hostId: string, stale: (key: string) 
     }
   } catch {}
 }
+
+export function redactHostConversationCache(
+  hostId: string,
+  purged: (channelId: string, messageId: string) => boolean,
+): void {
+  try {
+    const directory = root();
+    if (!directory.exists) return;
+    for (const entry of directory.list()) {
+      if (!(entry instanceof File) || !cachedForHost(entry.name, hostId)) continue;
+      try {
+        const value = JSON.parse(entry.textSync()) as Partial<CachedConversation>;
+        if (!Array.isArray(value.entries)) continue;
+        let changed = false;
+        const entries = value.entries.map((item) => {
+          if (item.message.contentPurge !== undefined || !purged(item.channelId, item.message.id))
+            return item;
+          changed = true;
+          const { attachments: _attachments, bridgeMedia: _bridgeMedia, ...message } = item.message;
+          return {
+            ...item,
+            message: { ...message, body: '', contentPurge: { actor: 'local-human' } },
+          };
+        });
+        if (changed) entry.writeSync(JSON.stringify({ ...value, entries }));
+      } catch {}
+    }
+  } catch {}
+}

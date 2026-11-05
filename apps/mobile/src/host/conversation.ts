@@ -248,6 +248,7 @@ export interface Conversation {
   retry(messageId: string): void;
   react(messageId: string, emoji: string, active: boolean): Promise<void>;
   wireMessage?(messageId: string): ChannelWireMessage | undefined;
+  redact?(placements: readonly { channelId: string; messageId: string }[]): void;
 }
 
 export interface ConversationOptions {
@@ -405,23 +406,37 @@ function versionedSources(
   version: string,
   image: boolean,
 ): { source: RemoteSource; thumbnail?: RemoteSource; preview?: RemoteSource } {
-  const variant = (name?: string): RemoteSource => ({
-    ...resolve(
+  const variant = (name?: string): RemoteSource => {
+    const resolved = resolve(
       attachmentPath({
         ...owner,
         fileId,
         v: version,
         ...(name === undefined ? {} : { variant: name }),
       }),
-    ),
-    cacheKey: name === undefined ? `${fileId}:${version}` : `${fileId}:${version}:${name}`,
-  });
+    );
+    return {
+      ...resolved,
+      cacheKey: mediaCacheKey(resolved.scope, fileId, version, name),
+    };
+  };
   if (!image) return { source: variant() };
   return {
     source: variant(),
     thumbnail: variant(THUMBNAIL_VARIANT),
     preview: variant(PREVIEW_VARIANT),
   };
+}
+
+export function mediaCacheKey(
+  scope: string | undefined,
+  fileId: string,
+  version?: string,
+  variant?: string,
+): string {
+  const file = `${scope === undefined ? '' : `${scope}/`}${fileId}:`;
+  if (version === undefined) return file;
+  return variant === undefined ? `${file}${version}` : `${file}${version}:${variant}`;
 }
 
 export const THUMBNAIL_VARIANT = '320';
@@ -988,6 +1003,28 @@ export function createConversation(options: ConversationOptions): Conversation {
     getSnapshot: () => snapshot,
     getTimelineSnapshot: () => timelineSnapshot,
     wireMessage: (messageId) => window.find((entry) => entry.message.id === messageId)?.message,
+    redact(placements) {
+      const purged = new Set(
+        placements.map((placement) => `${placement.channelId}\u0000${placement.messageId}`),
+      );
+      let changed = false;
+      window = window.map((entry) => {
+        if (
+          entry.message.contentPurge !== undefined ||
+          !purged.has(`${entry.channelId}\u0000${entry.message.id}`)
+        )
+          return entry;
+        changed = true;
+        const { attachments: _attachments, bridgeMedia: _bridgeMedia, ...message } = entry.message;
+        return {
+          ...entry,
+          message: { ...message, body: '', contentPurge: { actor: 'local-human' } },
+        };
+      });
+      if (!changed) return;
+      publish();
+      persist();
+    },
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);

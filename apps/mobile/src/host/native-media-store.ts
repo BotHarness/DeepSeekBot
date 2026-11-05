@@ -22,14 +22,22 @@ export const nativeMediaStore: MediaStore = {
     await part.move(file);
     return file.uri;
   },
-  forget(cacheKeyPrefix) {
+  async download(cacheKey, uri, headers) {
+    const directory = mediaRoot();
+    if (!directory.exists) directory.create({ intermediates: true, idempotent: true });
+    const file = await File.downloadFileAsync(uri, mediaFile(cacheKey), {
+      headers,
+      idempotent: true,
+    });
+    return file.uri;
+  },
+  forget(cacheKeyPrefixes) {
     const directory = mediaRoot();
     if (!directory.exists) return;
-    for (const entry of directory.list())
-      if (
-        entry instanceof File &&
-        decodeURIComponent(entry.name.replace(/\.part$/u, '')).startsWith(cacheKeyPrefix)
-      )
-        entry.delete();
+    for (const entry of directory.list()) {
+      if (!(entry instanceof File)) continue;
+      const key = decodeURIComponent(entry.name.replace(/\.part$/u, ''));
+      if (cacheKeyPrefixes.some((prefix) => key.startsWith(prefix))) entry.delete();
+    }
   },
 };
