@@ -49,11 +49,14 @@ async function openStore(path: string): Promise<LocalStore> {
   return store;
 }
 
-async function phone(path: string, legacy?: Map<string, CachedConversation>) {
+async function phone(path: string, legacy?: Map<string, CachedConversation>, openDelayMs = 0) {
   const store = await openStore(path);
   const removed: string[] = [];
   const cache = createLocalConversationCache({
-    store: async () => store,
+    store: async () => {
+      if (openDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, openDelayMs));
+      return store;
+    },
     ...(legacy === undefined
       ? {}
       : {
@@ -71,7 +74,11 @@ async function phone(path: string, legacy?: Map<string, CachedConversation>) {
 
 const keyFor = (host: FakeHost) => JSON.stringify(['computer', host.hostId, SLUG]);
 
-function open(host: FakeHost, cache: ReturnType<typeof createLocalConversationCache>) {
+function open(
+  host: FakeHost,
+  cache: ReturnType<typeof createLocalConversationCache>,
+  cacheWaitMs?: number,
+) {
   client ??= createHostClient({
     routes: [ROUTE],
     credential: host.credential,
@@ -87,6 +94,7 @@ function open(host: FakeHost, cache: ReturnType<typeof createLocalConversationCa
     cacheKey: keyFor(host),
     cache,
     pageSize: 10,
+    ...(cacheWaitMs === undefined ? {} : { cacheWaitMs }),
   });
   conversation.start();
   return conversation;
@@ -139,6 +147,27 @@ describe('conversation tail in the local store', () => {
     expect(bodies(live)['m6']).toBe('body 6');
     expect(channel.bodiesSent).toBe(0);
     expect(channel.follows.at(-1)).toMatchObject({ limit: 0 });
+  });
+
+  it('waits for a slow store on a cold start instead of fetching a full page', async () => {
+    const host = new FakeHost();
+    const path = file();
+    const channel = await warm(host, path);
+    for (const store of stores.splice(0)) await store.close();
+    const slow = await phone(path, undefined, 600);
+    const missed = open(host, slow.cache);
+    await until(missed, (s) => s.status === 'live');
+    expect(channel.follows.at(-1)).toMatchObject({ limit: 10 });
+    missed.stop();
+    client?.stop();
+    client = undefined;
+    for (const store of stores.splice(0)) await store.close();
+    const patient = await phone(path, undefined, 600);
+    channel.bodiesSent = 0;
+    const again = open(host, patient.cache, 5000);
+    await until(again, (s) => s.status === 'live' && !s.fromCache);
+    expect(channel.follows.at(-1)).toMatchObject({ limit: 0 });
+    expect(channel.bodiesSent).toBe(0);
   });
 
   it('applies changes made while closed and writes them to rows', async () => {
