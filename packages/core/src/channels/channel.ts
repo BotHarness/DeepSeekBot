@@ -435,6 +435,7 @@ export type ChannelCallVisual =
       frames: number;
       layout: '1x1' | '2x2' | '3x3' | '4x4';
       unsaved?: true;
+      unseen?: true;
       records?: string[];
     }
   | {
@@ -468,8 +469,14 @@ export function isChannelCallVisual(value: unknown): value is ChannelCallVisual 
       visual['sameAs'].length <= 150
     );
   return (
-    (keys === 'frames,layout,source' ||
-      (keys === 'frames,layout,source,unsaved' && visual['unsaved'] === true)) &&
+    [
+      'frames,layout,source',
+      'frames,layout,source,unsaved',
+      'frames,layout,source,unseen',
+      'frames,layout,source,unsaved,unseen',
+    ].includes(keys) &&
+    (visual['unsaved'] === undefined || visual['unsaved'] === true) &&
+    (visual['unseen'] === undefined || visual['unseen'] === true) &&
     Number.isSafeInteger(visual['frames']) &&
     (visual['frames'] as number) >= 1 &&
     (visual['frames'] as number) <= 16 &&

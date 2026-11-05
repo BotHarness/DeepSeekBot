@@ -46,7 +46,7 @@ export interface CallClient {
   visual(
     source: CallVisualSource | 'off',
     save?: boolean,
-    stopped?: boolean,
+    change?: 'stopped' | 'paused' | 'resumed',
   ): Promise<VoiceCallResult | undefined>;
   frame(input: CallClientFrame): Promise<VoiceCallResult | undefined>;
   hangup(): Promise<void>;
@@ -261,7 +261,7 @@ export function createCallClient(options: CallClientOptions): CallClient {
       } catch {}
       if (status() === 'live') live();
     },
-    async visual(source, save = true, stopped = false) {
+    async visual(source, save = true, change) {
       if (status() !== 'live' || call === undefined) return undefined;
       try {
         const result = await options.post({
@@ -269,7 +269,7 @@ export function createCallClient(options: CallClientOptions): CallClient {
           callId: call.callId,
           source,
           save,
-          ...(stopped ? { stopped } : {}),
+          ...(change === undefined ? {} : { [change]: true }),
         });
         if (result.ok) absorb(result.call);
         if (status() === 'live') live();

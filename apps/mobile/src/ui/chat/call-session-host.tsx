@@ -9,6 +9,11 @@ import {
   type CallPost,
 } from '../../../../../packages/core/src/voice/call-client';
 import { VOICE_CALL_PATH } from '../../../../../packages/core/src/voice/call-contract';
+import {
+  PhoneCallCameraFailure,
+  createPhoneCallCamera,
+  type CallCameraPosition,
+} from '../../host/call-camera';
 import { createCallMedia, microphoneAccess, microphoneGranted } from '../../host/call-media';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { callActivityNative, onCallActivityAction } from '../../host/native-call-activity';
@@ -18,12 +23,17 @@ import { locale } from '../strings';
 import { createCallActivity } from './call-activity';
 import { CallBubble } from './call-bubble';
 import { callActivityPhase } from './call-model';
-import { callSessions, type CallSessionSnapshot } from './call-session';
+import {
+  CALL_CAMERA_OFF,
+  callSessions,
+  type CallCameraState,
+  type CallSessionSnapshot,
+} from './call-session';
 
 const testBuild = () =>
   typeof __DEV__ !== 'undefined' && __DEV__ && Application.applicationId?.endsWith('.dev') === true;
 
-type ScriptStep = { at: number; url: string };
+type ScriptStep = { at: number; url?: string; video?: string; camera?: 'off' | 'flip' };
 
 function hostPost(api: ReturnType<typeof useHostSession>['client']): CallPost {
   return async (body) => {
@@ -121,6 +131,12 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
             },
       );
     };
+    let cameraState: CallCameraState = CALL_CAMERA_OFF;
+    const setCamera = (patch: Partial<CallCameraState>) => {
+      cameraState = { ...cameraState, ...patch };
+      if (!cancelled) callSessions.publish(key, { camera: cameraState });
+    };
+    let stopCamera = () => undefined as void;
     const call = createCallClient({
       post: hostPost(client),
       media,
@@ -128,7 +144,14 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
         if (cancelled) return;
         current = next;
         if (next.status === 'live') connectedAt ??= Date.now();
-        if (next.status === 'ended') paused = false;
+        if (next.status === 'ended') {
+          paused = false;
+          if (cameraState.on) {
+            stopCamera();
+            cameraState = CALL_CAMERA_OFF;
+            callSessions.publish(key, { camera: cameraState });
+          }
+        }
         callSessions.publish(key, {
           state: next,
           ...(connectedAt === undefined ? {} : { startedAt: connectedAt }),
@@ -143,10 +166,70 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
         if (next.status === 'ended') writeReport();
       },
     });
+    const camera = createPhoneCallCamera({
+      onKeyframe: async (frame) => {
+        if (cancelled || !cameraState.on) return;
+        setCamera({ keyframes: cameraState.keyframes + 1, keyframeAt: Date.now() });
+        if (testAudio) mark('keyframe', { bytes: frame.bytes, prepareMs: frame.prepareMs });
+        await call.frame(frame);
+      },
+      onPause: (paused) => {
+        if (cancelled || !cameraState.on || cameraState.paused === paused) return;
+        setCamera({ paused });
+        if (testAudio) mark('camera', { paused });
+        void call.visual(paused ? 'off' : 'camera', true, paused ? 'paused' : 'resumed');
+      },
+    });
+    callSessions.publish(key, { cameraSupported: camera !== undefined });
+    stopCamera = () => camera?.stop();
+    const turnCamera = async (on: boolean, position: CallCameraPosition, testVideo?: string) => {
+      if (camera === undefined || current.status !== 'live' || cameraState.starting) return;
+      if (!on) {
+        if (!cameraState.on) return;
+        camera.stop();
+        setCamera({ on: false, paused: false });
+        await call.visual('off');
+        return;
+      }
+      setCamera({ starting: true, error: undefined });
+      const accepted = cameraState.on ? undefined : await call.visual('camera');
+      if (accepted !== undefined && !accepted.ok) {
+        setCamera({ starting: false });
+        return;
+      }
+      try {
+        await camera.start(position, testVideo);
+      } catch (error) {
+        camera.stop();
+        setCamera({
+          ...CALL_CAMERA_OFF,
+          error: error instanceof PhoneCallCameraFailure ? error.code : 'camera-missing',
+        });
+        await call.visual('off');
+        return;
+      }
+      if (cancelled) {
+        camera.stop();
+        return;
+      }
+      setCamera({
+        on: true,
+        starting: false,
+        paused: false,
+        position,
+        ...(cameraState.on ? {} : { keyframes: 0, keyframeAt: undefined }),
+      });
+      if (testAudio) mark('camera', { on: true, position, test: testVideo !== undefined });
+    };
     const detach = callSessions.attach(key, {
       mute: (muted) => void call.mute(muted),
       hangup: () => void call.hangup(),
       choose: async (output, microphone) => (await media.audio?.choose(output, microphone)) ?? null,
+      camera: (on) => void turnCamera(on, cameraState.position),
+      flip: () => {
+        if (cameraState.on)
+          void turnCamera(true, cameraState.position === 'front' ? 'back' : 'front');
+      },
     });
     const removeTap = media.test?.onTap((event) => mark('native', event));
     const removeAudio = media.audio?.onChange((event) => {
@@ -181,22 +264,32 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
         const steps = (await (await fetch(script)).json()) as ScriptStep[];
         const started = Date.now();
         for (const step of steps.slice(0, 20)) {
-          const local = await File.downloadFileAsync(step.url, Paths.cache, {
-            idempotent: true,
-          });
+          const source = step.url ?? step.video;
+          const local =
+            source === undefined
+              ? undefined
+              : await File.downloadFileAsync(source, Paths.cache, { idempotent: true });
           const wait = started + step.at - Date.now();
           if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
           if (cancelled) return;
-          mark('inject', {
-            url: step.url,
-            ok: await media.test.inject(local.uri),
-          });
+          if (step.video !== undefined && local !== undefined) {
+            await turnCamera(true, cameraState.position, local.uri);
+            mark('video', { url: step.video, on: cameraState.on, error: cameraState.error });
+          } else if (step.camera === 'off') await turnCamera(false, cameraState.position);
+          else if (step.camera === 'flip')
+            await turnCamera(true, cameraState.position === 'front' ? 'back' : 'front');
+          else if (step.url !== undefined && local !== undefined)
+            mark('inject', {
+              url: step.url,
+              ok: await media.test.inject(local.uri),
+            });
         }
       } catch (error) {
         mark('script-failed', { error: String(error) });
       }
     })();
     return () => {
+      camera?.stop();
       detach();
       removeTap?.();
       removeAudio?.();

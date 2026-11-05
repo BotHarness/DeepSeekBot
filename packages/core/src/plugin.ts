@@ -3088,6 +3088,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   voiceCalls = createVoiceCalls({
     bot: (slug) => withVoiceDefaults(core.registry.get(slug), () => core.voiceProviders.defaults()),
     speechDbfs: () => core.voiceProviders.speechThreshold().dbfs,
+    async seesImages(slug) {
+      const route =
+        core.registry.get(slug)?.modelPlan?.orchestrator ?? modelCatalog.defaultRoute?.();
+      if (route === undefined) return true;
+      const info = await ctx.llm.resolveModelInfo(route.provider, route.model);
+      return info.inputModalities === undefined || info.inputModalities.includes('image');
+    },
     providers: core.voiceProviders,
     media: () =>
       (ctx.get('botharnessComputer') as { callMedia?: VoiceCallMedia } | undefined)?.callMedia,
@@ -3114,6 +3121,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           frames: visual.frames,
           layout: visual.image.layout,
           ...(visual.saved ? {} : { unsaved: true as const }),
+          ...(visual.unseen === true ? { unseen: true as const } : {}),
           ...records,
         };
       } else if (visual !== undefined)
@@ -3173,8 +3181,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         core.channels.getOrCreateDm(slug, bot?.displayName);
       const appended = await core.channels.appendMessage(channelId, {
         id:
-          record.state === 'share-stopped'
-            ? `voice-call-share-stopped-${record.callId}-${record.atMs}`
+          'atMs' in record
+            ? `voice-call-${record.state}-${record.callId}-${record.atMs}`
             : `voice-call-${record.state}-${record.callId}`,
         at:
           record.state === 'started'

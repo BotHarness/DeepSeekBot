@@ -10258,6 +10258,8 @@ export function callVisualNote(
     return `[Call ${visual.source} view] Nothing changed in the Human's ${visual.source} since message ${visual.sameAs}; that message's image is still what they see.${records}`;
   const what =
     visual.frames === 1 ? 'one keyframe' : `a ${visual.layout} grid of ${visual.frames} keyframes`;
+  if (visual.unseen === true)
+    return `[Call ${visual.source} view] The Human is sharing their ${visual.source}, and this message keeps ${what} for the DM history, but your current model cannot read images, so do not open it. If they ask about what they are showing, tell them you cannot see it with this model and ask them to describe it.`;
   if (visual.unsaved === true)
     return `[Call ${visual.source} view] The Human turned off saving call frames, so this message carries no image. To see ${what} from their ${visual.source} for this message, call call_frame with channel_id ${channelId}, message_id ${message.id} and cell 0; it is kept only during the call.${records} ${hint}`;
   const image = message.attachments?.find((ref) => ref.mime === 'image/jpeg');

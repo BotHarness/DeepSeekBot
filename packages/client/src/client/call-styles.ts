@@ -37,7 +37,7 @@ export const CALL_CSS = `
 .bh-call-camera-save input { margin: 0; accent-color: ${color.accent}; }
 .bh-call-record { display: flex; align-items: center; gap: ${space.x3}; width: fit-content; max-width: min(100%, 320px); margin: ${space.x3} auto; padding: ${space.x2} ${space.x5} ${space.x2} ${space.x2}; border: ${border.hairline} solid ${color.border}; border-radius: ${radius.lg}; background: var(--dsw-alias-bg-module-platform); color: ${color.fg}; box-sizing: border-box; }
 .bh-call-record-icon { flex: none; display: inline-flex; align-items: center; justify-content: center; width: ${size.icon}; height: ${size.icon}; border-radius: ${radius.round}; background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 14%, transparent); color: var(--dsw-alias-state-success-primary); }
-.bh-call-record[data-state='ended'] .bh-call-record-icon, .bh-call-record[data-state='share-stopped'] .bh-call-record-icon { background: ${color.selected}; color: ${color.muted}; }
+.bh-call-record[data-state='ended'] .bh-call-record-icon, .bh-call-record[data-state='share-stopped'] .bh-call-record-icon, .bh-call-record[data-state='share-paused'] .bh-call-record-icon { background: ${color.selected}; color: ${color.muted}; }
 .bh-call-record-text { display: grid; min-width: 0; }
 .bh-call-record-title { overflow: hidden; font-size: ${text.bodySize}; font-weight: ${text.strong}; line-height: ${text.bodyLine}; text-overflow: ellipsis; white-space: nowrap; }
 .bh-call-record-detail { color: ${color.muted}; font-size: ${text.metaSize}; line-height: ${text.metaLine}; font-variant-numeric: tabular-nums; }

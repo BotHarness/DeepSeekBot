@@ -124,6 +124,7 @@ export async function videoKeyframes(
         jpeg = new Uint8Array(await sharp(bytes).jpeg({ quality }).toBuffer());
       }
       if (jpeg.byteLength > VOICE_CALL_LIMITS.frameBytes) {
+        picker.reset();
         skipped += 1;
         continue;
       }

@@ -188,7 +188,7 @@ describe('grid imaging', () => {
   });
 });
 
-function host(transcripts: string[] = ['这是什么', '现在呢', '还是这个吗']) {
+function host(transcripts: string[] = ['这是什么', '现在呢', '还是这个吗'], sees?: boolean) {
   let clock = 2_000_000;
   const sent: Parameters<VoiceCallsDeps['send']>[0][] = [];
   const records: Parameters<NonNullable<VoiceCallsDeps['recordFrames']>>[0][] = [];
@@ -223,6 +223,7 @@ function host(transcripts: string[] = ['这是什么', '现在呢', '还是这�
       sent.push(input);
     },
     busy: () => false,
+    ...(sees === undefined ? {} : { seesImages: async () => sees }),
     now: () => clock,
   });
   cleanup.push(() => calls.dispose());
@@ -534,6 +535,98 @@ describe('Host call owner with a shared camera or screen', () => {
     expect(h.sent.map((item) => item.visual === undefined)).toEqual([false, true, true]);
   });
 
+  it('tells a Bot whose model cannot read images that a share is on and keeps the grid for later', async () => {
+    const h = host(['你看到什么了', '现在呢'], false);
+    const call = await h.ok({ kind: 'open', slug: 'mira', media: 'synthetic' });
+    await h.ok({ kind: 'visual', callId: call.callId, source: 'screen' });
+    await h.ok({
+      kind: 'frame',
+      callId: call.callId,
+      source: 'screen',
+      jpeg: (await jpeg({ r: 0, g: 0, b: 200 })).toString('base64'),
+    });
+    await h.say(call.callId);
+    await h.say(call.callId);
+    expect(h.sent[0]!.visual).toMatchObject({ source: 'screen', frames: 1, unseen: true });
+    expect('image' in h.sent[0]!.visual!).toBe(true);
+    expect(h.sent[1]!.visual).toEqual({ source: 'screen', sameAs: h.sent[0]!.messageId });
+    expect(
+      callVisualNote(
+        'dm-mira',
+        {
+          id: 'human-3',
+          at: '2026-11-04T00:00:00.000Z',
+          author: { kind: 'human' },
+          body: '你看到什么了',
+          voiceCall: {
+            callId: 'call-0123456789abcdef',
+            visual: { source: 'screen', frames: 1, layout: '1x1', unseen: true },
+          },
+        },
+        'hint',
+      ),
+    ).toMatch(/cannot read images/u);
+  });
+
+  it('drops a keyframe still being read when the camera was turned off and on again', async () => {
+    const h = host(['现在看到什么']);
+    const call = await h.ok({ kind: 'open', slug: 'mira', media: 'synthetic' });
+    await h.ok({ kind: 'visual', callId: call.callId, source: 'camera' });
+    const late = h.ok({
+      kind: 'frame',
+      callId: call.callId,
+      source: 'camera',
+      jpeg: (await jpeg({ r: 0, g: 200, b: 0 }, 1920, 1080)).toString('base64'),
+    });
+    await h.ok({ kind: 'visual', callId: call.callId, source: 'off' });
+    await h.ok({ kind: 'visual', callId: call.callId, source: 'camera' });
+    await late;
+    await h.say(call.callId);
+    expect(h.sent).toHaveLength(1);
+    expect(h.sent[0]!.visual).toBeUndefined();
+  });
+
+  it('notes a camera paused in the background and resumed in the foreground', async () => {
+    const h = host();
+    const call = await h.ok({ kind: 'open', slug: 'mira', media: 'synthetic' });
+    await h.ok({ kind: 'visual', callId: call.callId, source: 'camera' });
+    h.advance(20_000);
+    await h.ok({ kind: 'visual', callId: call.callId, source: 'off', paused: true });
+    h.advance(10_000);
+    const back = await h.ok({
+      kind: 'visual',
+      callId: call.callId,
+      source: 'camera',
+      resumed: true,
+    });
+    expect(back.visual).toBe('camera');
+    await vi.waitFor(() =>
+      expect(h.lifecycle.map((record) => record.state)).toEqual([
+        'started',
+        'share-paused',
+        'share-resumed',
+      ]),
+    );
+    const [, paused, resumed] = h.lifecycle;
+    expect(paused).toMatchObject({ source: 'camera' });
+    expect(resumed).toMatchObject({ source: 'camera' });
+    expect(voiceCallRecordBody(paused!)).toContain('went to the background');
+    expect(voiceCallRecordBody(resumed!)).toContain('resumed at');
+    expect(isChannelVoiceCallRecord(resumed)).toBe(true);
+    for (const command of [
+      { source: 'camera', paused: true },
+      { source: 'off', resumed: true },
+      { source: 'off', paused: true, stopped: true },
+      { source: 'off', paused: 'yes' },
+    ])
+      expect(
+        await h.calls.handle(h.phone, { kind: 'visual', callId: call.callId, ...command }),
+      ).toMatchObject({
+        ok: false,
+        code: 'invalid-input',
+      });
+  });
+
   it('notes in the DM when the system stops a share, and only then', async () => {
     const h = host();
     const call = await h.ok({ kind: 'open', slug: 'mira', media: 'synthetic' });
@@ -571,6 +664,13 @@ describe('call visuals in Channel messages', () => {
   it('accepts a grid or an unchanged view and refuses anything else', () => {
     expect(isChannelCallVisual({ source: 'camera', frames: 4, layout: '2x2' })).toBe(true);
     expect(isChannelCallVisual({ source: 'screen', sameAs: 'human-1' })).toBe(true);
+    expect(isChannelCallVisual({ source: 'camera', frames: 1, layout: '1x1', unseen: true })).toBe(
+      true,
+    );
+    expect(isChannelCallVisual({ source: 'camera', frames: 1, layout: '1x1', unseen: false })).toBe(
+      false,
+    );
+    expect(isChannelCallVisual({ source: 'camera', unseen: true })).toBe(false);
     expect(isChannelCallVisual({ source: 'screen', frames: 17, layout: '4x4' })).toBe(false);
     expect(isChannelCallVisual({ source: 'tv', frames: 1, layout: '1x1' })).toBe(false);
     expect(isChannelCallVisual({ source: 'camera', frames: 1, layout: '1x1', extra: 1 })).toBe(

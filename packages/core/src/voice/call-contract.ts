@@ -239,6 +239,8 @@ export type VoiceCallCommand =
       readonly source: CallVisualSource | 'off';
       readonly save?: boolean;
       readonly stopped?: boolean;
+      readonly paused?: boolean;
+      readonly resumed?: boolean;
     }
   | {
       readonly kind: 'frame';

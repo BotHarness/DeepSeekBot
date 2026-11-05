@@ -17,7 +17,10 @@ import {
   type VoiceCallZoom,
 } from './call-contract.js';
 import type { ChannelDraftEvent } from '../channels/draft.js';
-import type { ChannelVoiceCallLifecycle } from '../channels/voice-call-record.js';
+import type {
+  ChannelVoiceCallLifecycle,
+  ChannelVoiceCallShareChange,
+} from '../channels/voice-call-record.js';
 import { createVad, VAD_SAMPLE_RATE, type VadOptions } from './vad.js';
 import { VoiceError, wavFromPcm16 } from './providers.js';
 import type { AsrStream } from './soniox.js';
@@ -56,6 +59,7 @@ export type VoiceCallSentVisual =
       readonly image: GridImage;
       readonly frames: number;
       readonly saved: boolean;
+      readonly unseen?: true;
       readonly records?: readonly string[];
     }
   | {
@@ -108,6 +112,7 @@ export interface VoiceCallsDeps {
     visual?: VoiceCallSentVisual | undefined;
   }): Promise<void>;
   busy(slug: string): boolean;
+  seesImages?(slug: string): Promise<boolean>;
   imaging?: CallImaging;
   record?(input: {
     slug: string;
@@ -195,6 +200,7 @@ interface VisualFrame {
 interface GridJob {
   readonly id: number;
   readonly source: CallVisualSource;
+  readonly session: number;
   readonly frames: VisualFrame[];
   readonly picked: readonly PreparedFrame[];
   readonly result: Promise<VoiceCallSentVisual | undefined>;
@@ -218,12 +224,15 @@ interface Call {
   readonly startedAt: number;
   readonly abort: AbortController;
   visual: CallVisualSource | 'off';
+  visualSession: number;
   saveFrames: boolean;
   records: string[];
   recording: boolean;
   frames: VisualFrame[];
   grids: number;
-  lastGrid?: { readonly source: CallVisualSource; readonly messageId: string } | undefined;
+  lastGrid?:
+    | { readonly source: CallVisualSource; readonly session: number; readonly messageId: string }
+    | undefined;
   readonly vad: ReturnType<typeof createVad>;
   phase: VoiceCallPhase;
   muted: boolean;
@@ -504,19 +513,23 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     recordTail = call.recorded;
   };
 
-  const recordStopped = (call: Call, source: CallVisualSource) => {
+  const recordShare = (
+    call: Call,
+    state: ChannelVoiceCallShareChange,
+    source: CallVisualSource,
+  ) => {
     const started = call.recorded;
     const connectedAt = call.connectedAt;
     if (started === undefined || connectedAt === undefined) return;
     const atMs = Math.max(0, now() - connectedAt);
-    log('call-share-stopped', { call: call.id, source, atMs });
+    log(`call-${state}`, { call: call.id, source, atMs });
     const before = recordTail;
     call.recorded = before.then(async () => {
       const startMessageId = await started;
       await writeRecord(call, {
         callId: call.id,
         botSlug: call.slug,
-        state: 'share-stopped',
+        state,
         startedAt: iso(connectedAt),
         source,
         atMs,
@@ -669,6 +682,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     )
       return;
     const source = call.visual;
+    const session = call.visualSession;
     const taken = call.frames.splice(0, MAX_GRID_FRAMES);
     const base = call.connectedAt ?? call.startedAt;
     const endAt = now();
@@ -703,7 +717,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
           taken.map((entry) => entry.frame),
         );
         call.records.push(messageId);
-        if (call.visual === source) call.lastGrid = { source, messageId };
+        if (call.visualSession === session) call.lastGrid = { source, session, messageId };
         if (call.records.length > MAX_CALL_VISUAL_RECORDS) call.records.shift();
         push(call, {
           type: 'frame-record',
@@ -732,20 +746,13 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
   const takeGrid = (call: Call): GridJob | undefined => {
     if (call.visual === 'off') return undefined;
     const source = call.visual;
+    const session = call.visualSession;
     const frames = call.frames;
     call.frames = [];
     const endAt = now();
     const id = (call.grids += 1);
-    if (frames.length === 0) {
-      const last = call.lastGrid?.source === source ? call.lastGrid.messageId : undefined;
-      return {
-        id,
-        source,
-        frames,
-        picked: [],
-        result: Promise.resolve(last === undefined ? undefined : { source, sameAs: last }),
-      };
-    }
+    if (frames.length === 0)
+      return { id, source, session, frames, picked: [], result: Promise.resolve(undefined) };
     const saved = call.saveFrames;
     const picked = pickGridFrames(frames);
     const started = now();
@@ -778,11 +785,12 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         return { source, image, frames: picked.length, saved } as const;
       });
     result.catch(() => undefined);
-    return { id, source, frames, picked: picked.map((entry) => entry.frame), result };
+    return { id, source, session, frames, picked: picked.map((entry) => entry.frame), result };
   };
 
   const restoreGrid = (call: Call, grid: GridJob | undefined) => {
-    if (grid === undefined || grid.frames.length === 0 || call.visual !== grid.source) return;
+    if (grid === undefined || grid.frames.length === 0 || call.visualSession !== grid.session)
+      return;
     call.frames = [...grid.frames, ...call.frames];
     trimFrames(call);
   };
@@ -853,7 +861,16 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       if (ended(call)) return;
       let visual: VoiceCallSentVisual | undefined;
       let waitedMs = 0;
-      if (grid !== undefined) {
+      const unseen =
+        grid !== undefined &&
+        deps.seesImages !== undefined &&
+        !(await deps.seesImages(call.slug).catch(() => true));
+      if (ended(call)) return;
+      if (grid !== undefined && grid.frames.length === 0) {
+        const last = call.lastGrid;
+        if (last !== undefined && last.session === grid.session)
+          visual = { source: grid.source, sameAs: last.messageId };
+      } else if (grid !== undefined) {
         const waitFrom = now();
         try {
           visual = await grid.result;
@@ -865,6 +882,10 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         }
         waitedMs = now() - waitFrom;
         if (ended(call)) return;
+      }
+      if (unseen && visual !== undefined && 'image' in visual) {
+        visual = { ...visual, unseen: true };
+        log('call-grid-unseen', { call: call.id, source: visual.source });
       }
       const records = visual === undefined ? [] : call.records.splice(0);
       if (records.length > 0) visual = { ...visual!, records };
@@ -892,7 +913,8 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         return;
       }
       if (visual !== undefined && 'image' in visual) {
-        call.lastGrid = { source: visual.source, messageId };
+        if (grid !== undefined && call.visualSession === grid.session)
+          call.lastGrid = { source: visual.source, session: grid.session, messageId };
         keep(
           call,
           messageId,
@@ -907,7 +929,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
           layout: visual.image.layout,
           waitedMs,
         });
-      } else if (visual !== undefined)
+      } else if (visual !== undefined && 'sameAs' in visual)
         push(call, { type: 'grid-unchanged', messageId, sameAs: visual.sameAs });
       call.lastHeardAt = now();
       call.heard += 1;
@@ -1436,6 +1458,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       startedAt,
       abort: new AbortController(),
       visual: 'off',
+      visualSession: 0,
       saveFrames: true,
       records: [],
       recording: false,
@@ -1621,15 +1644,32 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         const save = command['save'] ?? true;
         if (typeof save !== 'boolean')
           throw new CallRefusal('invalid-input', 'save must be true or false.');
-        const stopped = command['stopped'] ?? false;
-        if (typeof stopped !== 'boolean' || (stopped && source !== 'off'))
-          throw new CallRefusal('invalid-input', 'stopped must be true only with source off.');
+        const flags = (['stopped', 'paused', 'resumed'] as const).filter((flag) => {
+          const value = command[flag] ?? false;
+          if (typeof value !== 'boolean')
+            throw new CallRefusal('invalid-input', `${flag} must be true or false.`);
+          return value;
+        });
+        const change = flags[0];
+        if (
+          flags.length > 1 ||
+          ((change === 'stopped' || change === 'paused') && source !== 'off') ||
+          (change === 'resumed' && source === 'off')
+        )
+          throw new CallRefusal(
+            'invalid-input',
+            'stopped and paused go with source off, resumed with camera or screen, one at a time.',
+          );
         if (call.phase === 'ended') throw new CallRefusal('call-ended', 'The call has ended.');
-        if (stopped && call.visual !== 'off') recordStopped(call, call.visual);
+        if (change === 'resumed' && source !== 'off' && call.visual !== source)
+          recordShare(call, 'share-resumed', source);
+        else if (change !== undefined && change !== 'resumed' && call.visual !== 'off')
+          recordShare(call, `share-${change}`, call.visual);
         if (call.visual !== source || call.saveFrames !== save) {
           if (call.visual !== source) {
             call.frames = [];
             call.lastGrid = undefined;
+            call.visualSession += 1;
           }
           call.visual = source;
           call.saveFrames = save;
@@ -1670,6 +1710,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         if (!isJpeg(bytes) || bytes.byteLength > VOICE_CALL_LIMITS.frameBytes)
           throw new CallRefusal('frame-invalid', 'The keyframe must be a JPEG image.');
         const before = call.seq;
+        const session = call.visualSession;
         call.lastHeartbeat = now();
         const started = now();
         let frame: PreparedFrame;
@@ -1681,7 +1722,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
             error instanceof CallFrameError ? error.message : 'The keyframe could not be read.',
           );
         }
-        if (!ended(call) && call.visual === source) {
+        if (!ended(call) && call.visualSession === session) {
           call.frames.push({ at: now(), score, frame });
           trimFrames(call);
           push(call, {

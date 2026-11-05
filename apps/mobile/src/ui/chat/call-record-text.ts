@@ -16,6 +16,11 @@ export type CallCopy = Pick<
   | 'recordShareStoppedCamera'
   | 'recordShareStoppedScreen'
   | 'recordShareStoppedAt'
+  | 'recordSharePausedCamera'
+  | 'recordSharePausedScreen'
+  | 'recordShareResumedCamera'
+  | 'recordShareResumedScreen'
+  | 'recordShareResumedAt'
 >;
 
 function timeLocale(): string {
@@ -47,12 +52,26 @@ export function callRecordLines(
         record.frames,
       ),
     };
-  if (record.state === 'share-stopped')
+  if ('atMs' in record) {
+    const time = voiceCallDuration(record.atMs);
+    const camera = record.source === 'camera';
+    if (record.state === 'share-resumed')
+      return {
+        title: camera ? copy.recordShareResumedCamera : copy.recordShareResumedScreen,
+        detail: copy.recordShareResumedAt(time),
+      };
     return {
       title:
-        record.source === 'camera' ? copy.recordShareStoppedCamera : copy.recordShareStoppedScreen,
-      detail: copy.recordShareStoppedAt(voiceCallDuration(record.atMs)),
+        record.state === 'share-paused'
+          ? camera
+            ? copy.recordSharePausedCamera
+            : copy.recordSharePausedScreen
+          : camera
+            ? copy.recordShareStoppedCamera
+            : copy.recordShareStoppedScreen,
+      detail: copy.recordShareStoppedAt(time),
     };
+  }
   return record.state === 'started'
     ? { title: copy.recordStarted, detail: copy.recordStartedAt(clock(record.startedAt)) }
     : { title: copy.recordEnded, detail: copy.recordLength(voiceCallDuration(record.durationMs)) };
