@@ -36,7 +36,7 @@ function AttachmentImage({
   const theme = useDesignTheme();
   const [attempt, setAttempt] = useState(0);
   const [failed, setFailed] = useState(false);
-  const source = attachment.source;
+  const source = attachment.preview ?? attachment.source;
   const tone = human ? 'onAccent' : 'muted';
   const fill = human ? over(theme.color.selected, theme.color.accent) : theme.layer.raised.inset;
   const box = { width, height, borderRadius: radius.md, backgroundColor: fill };
@@ -67,6 +67,9 @@ function AttachmentImage({
       <Image
         key={attempt}
         source={source}
+        {...(attachment.thumbhash === undefined
+          ? {}
+          : { placeholder: { thumbhash: attachment.thumbhash } })}
         recyclingKey={attachment.key}
         cachePolicy="memory-disk"
         contentFit="cover"

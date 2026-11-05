@@ -228,7 +228,8 @@ describe('Bot working status in the Channel header', () => {
     const live = container.querySelectorAll('.bh-chat-pane > [role="status"][aria-live="polite"]');
     expect(live).toHaveLength(1);
     expect(live[0]?.textContent).toContain('Mira');
-    expect(container.querySelector('.bh-stop-btn')?.getAttribute('aria-label')).toBe('停止 Mira');
+    expect(container.querySelector('.bh-stop-btn')).toBeNull();
+    expect(container.querySelector('.bh-send-btn')).not.toBeNull();
 
     await setBots([bot('mira', 'Mira', 'idle')], dm);
     expect(headerTitle()).toBe('Mira');
@@ -247,9 +248,7 @@ describe('Bot working status in the Channel header', () => {
       bot('kai', 'Kai', 'waiting'),
     ]);
     expect(rowNames()).toEqual(['mira', 'nova']);
-    expect(container.querySelector('.bh-stop-btn')?.getAttribute('aria-label')).toBe(
-      '停止 2 个 Bot',
-    );
+    expect(container.querySelector('.bh-stop-btn')).toBeNull();
     expect(container.querySelectorAll('.bh-group-channel-header .bh-header-working')).toHaveLength(
       1,
     );

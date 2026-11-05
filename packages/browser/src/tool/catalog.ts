@@ -176,40 +176,6 @@ export const BROWSER_TOOLS: readonly BrowserToolSpec[] = [
     },
     audit: (args) => `ms=${str(args, 'ms')}`,
   },
-  {
-    raw: 'takeover',
-    description:
-      'Ask the Human to take over the Bot Browser for a verification step (login, 2FA, CAPTCHA): action request pauses your browser actions and mints a single-use link (10 minute expiry) for the Human; post the returned guiding message to the Human, then call action await with the token. Action await waits for Done, Could-not-finish, or expiry, verifies the page state server-side, and resumes. If await times out, poll action status with the token. Never put secrets in instructions.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        action: { type: 'string', enum: ['request', 'await', 'status'] },
-        instructions: {
-          type: 'string',
-          description:
-            'What the Human should do in the live view, for example which site to log in to',
-        },
-        expectedUrl: {
-          type: 'string',
-          description: 'Optional URL substring the page should show after the Human finishes',
-        },
-        token: {
-          type: 'string',
-          description: 'For action await and status: the token from request',
-        },
-        timeoutMs: {
-          type: 'number',
-          description: 'For action await: how long to wait in ms (default 600000, max 600000)',
-        },
-      },
-      required: ['action'],
-      additionalProperties: false,
-    },
-    audit: (args) =>
-      args['action'] === 'request'
-        ? `request chars=${typeof args['instructions'] === 'string' ? args['instructions'].length : '?'}`
-        : `${str(args, 'action')} token=${str(args, 'token').slice(0, 8)}`,
-  },
 ];
 
 export function browserToolName(raw: string): string {
@@ -226,6 +192,6 @@ You may keep several tabs in your own Bot Browser window with \`browser_tabs\` (
 
 The Human can always operate the local Bot Browser window directly. Pause Bot stops only your browser actions and model-facing screenshots; browser_observe remains available. When Browser Pause refuses an action, wait for the Human to Resume, then re-observe before acting. Never bypass a pause with another tool.
 
-Credentials are the Human's. The Bot Browser has its own persistent profile; when a page asks for a login, call \`browser_takeover\` action request and post its guiding message to the Human, then wait with action await — the Human signs in through the live takeover view. Never type passwords, API keys, or recovery codes.
+Credentials are the Human's. The Bot Browser has its own persistent profile; when a page asks for a login, a verification code or a CAPTCHA, call \`takeover_request\` with target browser, a short title and one sentence saying what the Human should do. A card appears in the conversation and your turn ends; the Human signs in through the live view and their result (done, could not finish, cancelled or expired) wakes you through the Bot Inbox. Then call \`browser_observe\` before acting. Never type passwords, API keys, or recovery codes.
 
 Before an externally visible action (posting, sending, purchasing, deleting), tell the Human what you are about to do in one short message. Browser Authorization lets you act; it is not blanket consent for surprising consequences. When done, report which page you read and what you concluded, and stop acting.`;

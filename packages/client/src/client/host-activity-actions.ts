@@ -59,12 +59,13 @@ export function createHostRequestActions(options: {
     request(() => loadApproval(options.client(), options.ref(channelId, messageId)));
   return {
     async toolApprovalStatus(channelId, messageId) {
-      return (await approval(channelId, messageId)).status === 'pending' ? 'pending' : 'expired';
+      const { status } = await approval(channelId, messageId);
+      return status === 'pending' || status === 'stopped' ? status : 'expired';
     },
     async toolApprovalState(channelId, messageId) {
       const value = await approval(channelId, messageId);
       return {
-        status: value.status === 'pending' ? 'pending' : 'expired',
+        status: value.status === 'pending' || value.status === 'stopped' ? value.status : 'expired',
         ...(value.expiresAt === undefined ? {} : { expiresAt: value.expiresAt }),
       };
     },

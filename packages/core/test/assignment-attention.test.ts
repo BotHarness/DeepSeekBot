@@ -312,6 +312,7 @@ describe('shared informational Assignment attention', () => {
       expect(f.methods.humanAttentionIgnore({ sourceEventId: item.sourceEventId })).toMatchObject({
         ok: true,
       });
+      f.core.states.snapshot('ada');
       expect(events).toHaveLength(1);
       expect(events[0]).toMatchObject({
         revision: f.core.states.version().revision,
@@ -322,6 +323,7 @@ describe('shared informational Assignment attention', () => {
       expect(f.methods.humanAttentionIgnore({ sourceEventId: item.sourceEventId })).toMatchObject({
         ok: true,
       });
+      f.core.states.snapshot('ada');
       expect(events).toHaveLength(1);
       const remaining = f.core.humanAttention
         .list({ category: 'info' })

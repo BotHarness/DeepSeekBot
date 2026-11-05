@@ -698,6 +698,14 @@
       "gap": "Current rc.3 opening verified; close/return, Home and failure-card runtime paths and native Desktop QA pending."
     },
     {
+      "id": "im.apps.bot-eligibility",
+      "label": "Create or bind an IM app using only live unpaused Bots and invalidate deleted selections",
+      "source": "packages/client/src/client/im-apps-section.tsx",
+      "task": 3220,
+      "guide": ".agents/skills/verify-deepseekbot/features/im-bot-pickers.md",
+      "gap": "Create app picker verified in an isolated Host with the dsh-im provider; Bind on a real connected app and native Desktop QA pending."
+    },
+    {
       "id": "orchestrator-model-switch",
       "label": "Orchestrator-only quick model switching with Assignment inheritance",
       "source": "packages/client/src/client/dm-composer-context.tsx",
@@ -907,6 +915,22 @@
       "guide": ".agents/skills/verify-deepseekbot/features/phone-deletion.md",
       "task": 2783,
       "gap": "Expo Web with an isolated Host; iOS/Android native menus and large-text acceptance pending."
+    },
+    {
+      "id": "phone.bot-call",
+      "label": "Call a Bot from iPhone: speech into the DM, spoken replies in the call, busy hint, mute and hang up",
+      "source": "apps/mobile/src/ui/chat/call-screen.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/bot-call.md",
+      "task": 3400,
+      "gap": "Electron helper on Mac/Windows, the iOS native module and physical-device audio are unverified until the device QA run."
+    },
+    {
+      "id": "desktop.bot-call",
+      "label": "Call a Bot from the Mac or Windows desktop: call button and call bar in the chat header, busy hint, mute, hang up, second window refused",
+      "source": "packages/client/src/client/dm-call.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/bot-call.md",
+      "task": 3403,
+      "gap": "The DSH desktop app's microphone permission and the Electron helper on real Mac and Windows Hosts are unverified until the device QA run."
     }
   ],
   "scripts": [
@@ -1751,6 +1775,14 @@
       "sha256": "0202f03deec1f87cdbc5a2221a072b7b50cf11752a8a6ea2c4d248f5c392e8f8"
     },
     {
+      "path": "scripts/e2e-media-thumbnails.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.attachments"],
+      "reason": "#3507 isolated Host: uploads a generated 2400x1600 PNG, waits for the timeline content version, dimensions and thumbhash, and compares original and 96c/320/800 WebP bytes, immutable caching, ETag 304, stale-version 409, and (#3508) a split byte-range resume that rebuilds the original. No model needed.",
+      "task": 3507,
+      "sha256": "f2cb6776c6bc2b0446f893cf0acfc76a05fcebcda491240a14a541a4462f1f18"
+    },
+    {
       "path": "scripts/e2e-memory-restore.mjs",
       "category": "mapped",
       "behaviors": ["desktop.memory.read-restore"],
@@ -2177,9 +2209,9 @@
       "path": "scripts/e2e-llm-scenarios.mjs",
       "category": "mapped",
       "behaviors": ["desktop.dm.reply", "desktop.group.mention"],
-      "reason": "Real model DM/mention scenarios; exact committed DM oracle rejects failure cards; retain full histories and unknown usage for paired send-review evaluation. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification. #2872 re-audit: adds review-rounds (repeated Bot-to-Bot mention wakes) and long-task-reports (receipt, progress and result timing against Memory file writes around a one-minute step) and department-task (four Bots in an all-messages Group start, collaborate to a final plan and go quiet); classification unchanged. #3060 re-audit: adds tob-share-draft-secret (Tob reviews a Share Draft in its DM, asks about a planted key with ask_user_question, drops it on the answer, and the source Memory repository stays unchanged); tolerates messages without an author. #3296 re-audit: adds dm-reply-schema-filled (the model fills every optional bot_send_message field with an empty value; reads the Bot Session tool calls and requires the schema-filled call to commit a DM reply, not be refused); classification unchanged.",
-      "task": 3296,
-      "sha256": "e219ff7df817f120800d15d847c31ba4fd14a4c2b878331004c6cba630aa3fd7"
+      "reason": "Real model DM/mention scenarios; exact committed DM oracle rejects failure cards; retain full histories and unknown usage for paired send-review evaluation. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification. #2872 re-audit: adds review-rounds (repeated Bot-to-Bot mention wakes) and long-task-reports (receipt, progress and result timing against Memory file writes around a one-minute step) and department-task (four Bots in an all-messages Group start, collaborate to a final plan and go quiet); classification unchanged. #3060 re-audit: adds tob-share-draft-secret (Tob reviews a Share Draft in its DM, asks about a planted key with ask_user_question, drops it on the answer, and the source Memory repository stays unchanged); tolerates messages without an author. #3296 re-audit: adds dm-reply-schema-filled (the model fills every optional bot_send_message field with an empty value; reads the Bot Session tool calls and requires the schema-filled call to commit a DM reply, not be refused); classification unchanged. #3377 re-audit: adds browser-youtube-search (Browser Access on, a DM asks the Bot to search YouTube; passes when its current Bot Browser tab is the youtube.com/results page for the query and it replied; keeps browser calls, final tabs and Host logs/diagnostics), marked external so it runs only when named and never in the default or changed-from selection; classification unchanged.",
+      "task": 3377,
+      "sha256": "a5c5b73821d32c7b937001d7f1fd91ddf20d0b3ac671d399e9881a4b8463bebd"
     },
     {
       "path": "scripts/e2e-tob-channel-management.mjs",
@@ -2444,6 +2476,22 @@
       "reason": "Assigned physical iOS QA session only; existing Dev QA chat, actual SpringBoard background then resume without relaunch, known message visibility, composer geometry, draft retention, same Dev PID and an unchanged nonempty static message pixel region, excluding clocks/carets (AX coordinates may change space on resume). Requires caller-owned session/cleanup and screenshot review for real keyboard presence. No build, pairing or message send; no Simulator/Android/performance claim. Native regression goes red on the #2933 keyboard-open blank pane.",
       "task": 2933,
       "sha256": "4288d4ea35c14e25b09c4d4be42927db4a580c45e8151f4f9fd569ec9bebccfc"
+    },
+    {
+      "path": "scripts/e2e-call-media.mjs",
+      "category": "mapped",
+      "behaviors": ["phone.bot-call"],
+      "reason": "Real Chromium WebRTC check of the Host call renderer: audio-only offer with Opus DTX, 16 kHz uplink PCM, packets per second while silent and while talking, downlink playback, failed playback, and close after the 15 s reconnect grace.",
+      "task": 3400,
+      "sha256": "158ff3245f56a2e7f8eed3c9155583b21ea58dd7bbb153db38c5c9c326431aae"
+    },
+    {
+      "path": "scripts/e2e-desktop-call.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.bot-call"],
+      "reason": "Desktop call in Chromium with fake audio capture files: the Client's browser WebRTC (echo cancellation on) against the Host call renderer and the real Host call owner; question, long-task, camera and screen scenarios, cough discarded, reply heard, second window refused, fake camera keyframes reach a sentence grid, a fake screen recording gives one keyframe per window, a system-stopped share falls back to voice, and the Host's sampled media performance (packets/s, kbps, CPU) in the call view.",
+      "task": 3496,
+      "sha256": "7eb4c4bc29d7418005aa5fc04b9d328ac89af5cf2078626eed2f793334e92c5e"
     }
   ],
   "native": [

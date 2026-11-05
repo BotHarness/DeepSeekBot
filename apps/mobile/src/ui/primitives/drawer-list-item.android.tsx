@@ -1,5 +1,12 @@
-import { Host, ListItem, RNHostView, Text } from '@expo/ui/jetpack-compose';
-import { clip, combinedClickable, fillMaxWidth, Shapes } from '@expo/ui/jetpack-compose/modifiers';
+import { Box, Host, ListItem, RNHostView, Row, Text } from '@expo/ui/jetpack-compose';
+import {
+  background,
+  clip,
+  combinedClickable,
+  fillMaxWidth,
+  Shapes,
+  size,
+} from '@expo/ui/jetpack-compose/modifiers';
 import { View } from 'react-native';
 
 import { useDesignTheme } from '../design/theme';
@@ -9,6 +16,8 @@ import type { DrawerListItemProps } from './drawer-list-item';
 export function DrawerListItem({
   label,
   detail,
+  detailDot,
+  singleLine = false,
   accessibilityLabel,
   testID,
   selected = false,
@@ -19,6 +28,7 @@ export function DrawerListItem({
   onLongPress,
 }: DrawerListItemProps) {
   const theme = useDesignTheme();
+  const lines = singleLine ? { maxLines: 1, overflow: 'ellipsis' as const } : {};
   return (
     <View
       accessible
@@ -65,11 +75,30 @@ export function DrawerListItem({
               </ListItem.LeadingContent>
             )}
             <ListItem.HeadlineContent>
-              <Text color={disabled ? theme.color.muted : theme.color.fg}>{label}</Text>
+              <Text color={disabled ? theme.color.muted : theme.color.fg} {...lines}>
+                {label}
+              </Text>
             </ListItem.HeadlineContent>
             {detail && (
               <ListItem.SupportingContent>
-                <Text color={theme.color.muted}>{detail}</Text>
+                {detailDot === undefined ? (
+                  <Text color={theme.color.muted} {...lines}>
+                    {detail}
+                  </Text>
+                ) : (
+                  <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: space.x3 }}>
+                    <Box
+                      modifiers={[
+                        size(space.x3, space.x3),
+                        clip(Shapes.Circle),
+                        background(detailDot),
+                      ]}
+                    />
+                    <Text color={theme.color.muted} {...lines}>
+                      {detail}
+                    </Text>
+                  </Row>
+                )}
               </ListItem.SupportingContent>
             )}
             {trailing && (

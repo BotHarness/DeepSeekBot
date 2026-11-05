@@ -107,6 +107,28 @@ export function clearAttentionItem(client: HostClient, item: HumanAttentionItem)
   });
 }
 
+export async function clearAllAttention(
+  client: HostClient,
+  filter: {
+    kind?: HumanAttentionItem['kind'] | undefined;
+    category: 'action' | 'replies' | 'unread';
+    botSlug?: string | undefined;
+    channelId?: string | undefined;
+  },
+): Promise<{ dismissed: number; more: boolean }> {
+  const value = record(
+    await client.call('humanAttentionDismissAll', {
+      category: filter.category,
+      ...(filter.kind === undefined ? {} : { kind: filter.kind }),
+      ...(filter.botSlug === undefined ? {} : { botSlug: filter.botSlug }),
+      ...(filter.channelId === undefined ? {} : { channelId: filter.channelId }),
+    }),
+  );
+  if (value?.['accepted'] !== true || typeof value['dismissed'] !== 'number')
+    throw new HostAnswerInvalid('The computer did not confirm the change.');
+  return { dismissed: value['dismissed'], more: value['more'] === true };
+}
+
 export function restoreAttentionItem(client: HostClient, item: HumanAttentionItem): Promise<void> {
   return accepted(client, 'humanAttentionRestore', {
     itemId: item.id,

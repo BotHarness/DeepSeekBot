@@ -108,6 +108,60 @@ const notices = (view: HTMLElement, tone: string) =>
   [...view.querySelectorAll(`[data-testid="notice-${tone}"]`)].map((node) => node.textContent);
 
 describe('Storage settings', () => {
+  it('deletes phone media older than the chosen age after confirming the files and space', async () => {
+    const clearOlder = vi.fn(() => ({ files: 2, bytes: 2048 }));
+    const view = await render(
+      <StorageSettings
+        port={port({
+          phone: {
+            usage: () => 4096,
+            previewOlder: () => ({ files: 2, bytes: 2048 }),
+            clearOlder,
+            autoCleanup: () => true,
+            setAutoCleanup: vi.fn(),
+          },
+        })}
+      />,
+    );
+    await press(view, t.storage.phoneOlderAction);
+    expect(clearOlder).not.toHaveBeenCalled();
+    expect(alert.mock.calls.at(-1)![0]).toBe(t.storage.phoneOlderTitle);
+    expect(alert.mock.calls.at(-1)![1]).toBe(t.storage.phoneOlderLead(2, '2.0 KB'));
+    await choose(t.storage.phoneOlderConfirm);
+    expect(clearOlder).toHaveBeenCalledWith(90);
+    expect(notices(view, 'success')).toContain(t.storage.phoneOlderDone(2, '2.0 KB'));
+  });
+
+  it('shows chat history size and clears it after confirming nothing leaves the computer', async () => {
+    let bytes = 64 * 1024;
+    const clear = vi.fn(async () => {
+      bytes = 0;
+    });
+    const view = await render(
+      <StorageSettings
+        port={port({
+          phone: {
+            usage: () => 4096,
+            previewOlder: () => ({ files: 0, bytes: 0 }),
+            clearOlder: () => ({ files: 0, bytes: 0 }),
+            autoCleanup: () => true,
+            setAutoCleanup: vi.fn(),
+            chats: { usage: () => bytes, clear },
+          },
+        })}
+      />,
+    );
+    expect(view.textContent).toContain(t.storage.phoneChats);
+    expect(view.textContent).toContain('64.0 KB');
+    await press(view, t.storage.chatsAction);
+    expect(clear).not.toHaveBeenCalled();
+    expect(alert.mock.calls.at(-1)![0]).toBe(t.storage.chatsConfirmTitle);
+    expect(alert.mock.calls.at(-1)![1]).toBe(t.storage.chatsConfirmBody);
+    await choose(t.storage.chatsConfirm);
+    expect(clear).toHaveBeenCalledTimes(1);
+    expect(notices(view, 'success')).toContain(t.storage.chatsDone);
+  });
+
   it('shows space used and clears the chosen chat media after confirmation', async () => {
     const storage = port();
     const view = await render(<StorageSettings port={storage} />);
@@ -153,7 +207,10 @@ describe('Storage settings', () => {
     await choose(t.storage.confirm);
     expect(notices(view, 'danger')).toEqual([t.storage.stale]);
 
-    await press(view, t.storage.imageCache);
+    await press(view, t.storage.imageCacheAction);
+    expect(alert.mock.calls.at(-1)![0]).toBe(t.storage.imageCacheConfirmTitle);
+    expect(storage.clearImageCache).not.toHaveBeenCalled();
+    await choose(t.storage.imageCacheConfirm);
     expect(storage.clearImageCache).toHaveBeenCalledTimes(1);
     expect(notices(view, 'success')).toEqual([t.storage.imageCacheDone]);
   });

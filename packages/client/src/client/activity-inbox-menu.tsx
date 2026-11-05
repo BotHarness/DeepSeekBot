@@ -7,12 +7,19 @@ import {
   type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { BridgeActions } from './actions.js';
-import { keepClientState, sameBotNames, useClientStore } from './use-client-store.js';
+import { sameBotNames, useClientStore } from './use-client-store.js';
 import type { ClientState } from './store.js';
 import { IconButton } from './ds/icon-button.js';
 import { Tooltip } from './ds/tooltip.js';
-import type { BotHarnessTranslate } from './locale.js';
-import { useActivityFeed, type ActivityQuery } from './activity-feed.js';
+import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
+import {
+  ACTIVITY_SECTIONS,
+  useActivityFeed,
+  type ActivityQuery,
+  type ActivitySection,
+} from './activity-feed.js';
+import { ConfirmDialog } from './ds/form-dialog.js';
+import type { HumanAttentionItem } from './store.js';
 import { useMountedResource } from './mounted-resource.js';
 
 const categories = [
@@ -23,7 +30,12 @@ const categories = [
   ['handled', 'humanInbox.handled'],
 ] as const;
 
-const menuInputs = (left: ClientState, right: ClientState): boolean =>
+type MenuInputs = Pick<ClientState, 'bots' | 'channels'>;
+const selectMenuInputs = (state: ClientState): MenuInputs => ({
+  bots: state.bots,
+  channels: state.channels,
+});
+const menuInputs = (left: MenuInputs, right: MenuInputs): boolean =>
   left.channels === right.channels && sameBotNames(left.bots, right.bots);
 
 export function ActivityInboxMenu({
@@ -33,10 +45,26 @@ export function ActivityInboxMenu({
   actions: BridgeActions;
   t: BotHarnessTranslate;
 }): ReactElement {
-  const { bots, channels } = useClientStore(keepClientState, menuInputs);
-  const { feed, query: inbox } = useActivityFeed(actions);
+  const { bots, channels } = useClientStore(selectMenuInputs, menuInputs);
+  const { feed, query: inbox, pages } = useActivityFeed(actions);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState(false);
+  const [clearing, setClearing] = useState<{ kind: HumanAttentionItem['kind'] | undefined }>();
+  const [clearBusy, setClearBusy] = useState(false);
+  const [clearError, setClearError] = useState<string>();
+  const clearSections: readonly ActivitySection[] =
+    inbox.category === 'handled' || inbox.snoozed
+      ? []
+      : inbox.category === 'all'
+        ? ACTIVITY_SECTIONS
+        : [inbox.category];
+  const clearKinds = [
+    ...new Set(clearSections.flatMap((section) => pages[section].items.map((item) => item.kind))),
+  ];
+  const kindLabel = (kind: HumanAttentionItem['kind'] | undefined): string =>
+    kind === undefined
+      ? t('activityInbox.clearAll')
+      : t(('activityInbox.kind.' + kind) as BotHarnessKey);
   const filter = async (patch: Partial<ActivityQuery>): Promise<void> => {
     feed.setQuery(patch);
   };
@@ -87,6 +115,19 @@ export function ActivityInboxMenu({
     ...(inbox.category === 'unread' || inbox.category === 'handled'
       ? []
       : [{ id: 'snoozed', label: t('humanInbox.snoozed') }]),
+    ...(clearKinds.length === 0
+      ? []
+      : [
+          { type: 'separator' as const, id: 'dismiss-separator' },
+          {
+            id: 'dismiss',
+            label: t('activityInbox.clearItems'),
+            submenu: [
+              { id: 'dismiss:', label: t('activityInbox.clearAll') },
+              ...clearKinds.map((kind) => ({ id: 'dismiss:' + kind, label: kindLabel(kind) })),
+            ],
+          },
+        ]),
     { type: 'separator', id: 'clear-separator' },
     { id: 'clear', label: t('activityInbox.clearFilters') },
     ...(error ? [{ type: 'label' as const, id: 'error', text: t('humanInbox.failed') }] : []),
@@ -108,7 +149,12 @@ export function ActivityInboxMenu({
     else if (id.startsWith('bot:')) operation = filter({ botSlug: id.slice(4) || undefined });
     else if (id.startsWith('channel:')) operation = filter({ channelId: id.slice(8) || undefined });
     else if (id === 'snoozed') operation = filter({ snoozed: !inbox.snoozed });
-    else if (id === 'clear')
+    else if (id.startsWith('dismiss:')) {
+      setClearError(undefined);
+      setClearing({
+        kind: clearKinds.find((kind) => kind === id.slice(8)),
+      });
+    } else if (id === 'clear')
       operation = filter({
         category: 'all',
         botSlug: undefined,
@@ -121,49 +167,87 @@ export function ActivityInboxMenu({
       setOpen(true);
     });
   };
+  const confirmClear = async (): Promise<void> => {
+    if (clearing === undefined) return;
+    setClearBusy(true);
+    setClearError(undefined);
+    try {
+      const result = await actions.dismissAllHumanInbox({
+        kind: clearing.kind,
+        categories: clearSections.filter(
+          (section): section is (typeof ACTIVITY_SECTIONS)[number] => section !== 'handled',
+        ),
+        botSlug: inbox.botSlug,
+        channelId: inbox.channelId,
+      });
+      await feed.refresh();
+      if (result.more)
+        setClearError(t('activityInbox.clearMore', { count: String(result.dismissed) }));
+      else setClearing(undefined);
+    } catch {
+      setClearError(t('humanInbox.failed'));
+    } finally {
+      setClearBusy(false);
+    }
+  };
   return (
-    <Menu
-      open={open}
-      portal
-      dense
-      align="end"
-      items={items}
-      selectedIds={[
-        'category:' + inbox.category,
-        'sort:' + inbox.sort,
-        'bot:' + (inbox.botSlug ?? ''),
-        'channel:' + (inbox.channelId ?? ''),
-        ...(inbox.snoozed ? ['snoozed'] : []),
-      ]}
-      onSelect={select}
-      onClose={() => setOpen(false)}
-      anchor={
-        <Tooltip label={t('activityInbox.settings')} side="bottom">
-          <IconButton
-            aria-label={t('activityInbox.settings')}
-            aria-haspopup="menu"
-            aria-expanded={open}
-            data-active={
-              inbox.category !== 'all' ||
-              inbox.botSlug !== undefined ||
-              inbox.channelId !== undefined ||
-              inbox.snoozed ||
-              inbox.sort !== 'default' ||
-              undefined
-            }
-            onClick={() => setOpen((value) => !value)}
-            onKeyDown={(event) => {
-              if (event.key === 'ArrowDown') {
-                event.preventDefault();
-                setOpen(true);
+    <>
+      {clearing === undefined ? null : (
+        <ConfirmDialog
+          title={t('activityInbox.clearTitle', { scope: kindLabel(clearing.kind) })}
+          labels={{ close: t('common.close'), cancel: t('common.cancel') }}
+          confirmLabel={t('activityInbox.clearConfirm')}
+          busy={clearBusy}
+          error={clearError}
+          onCancel={() => setClearing(undefined)}
+          onConfirm={() => void confirmClear()}
+        >
+          <p>{t('activityInbox.clearBody')}</p>
+        </ConfirmDialog>
+      )}
+      <Menu
+        open={open}
+        portal
+        dense
+        align="end"
+        items={items}
+        selectedIds={[
+          'category:' + inbox.category,
+          'sort:' + inbox.sort,
+          'bot:' + (inbox.botSlug ?? ''),
+          'channel:' + (inbox.channelId ?? ''),
+          ...(inbox.snoozed ? ['snoozed'] : []),
+        ]}
+        onSelect={select}
+        onClose={() => setOpen(false)}
+        anchor={
+          <Tooltip label={t('activityInbox.settings')} side="bottom">
+            <IconButton
+              aria-label={t('activityInbox.settings')}
+              aria-haspopup="menu"
+              aria-expanded={open}
+              data-active={
+                inbox.category !== 'all' ||
+                inbox.botSlug !== undefined ||
+                inbox.channelId !== undefined ||
+                inbox.snoozed ||
+                inbox.sort !== 'default' ||
+                undefined
               }
-            }}
-          >
-            <IconEllipsisOutlineRegular size={16} />
-          </IconButton>
-        </Tooltip>
-      }
-    />
+              onClick={() => setOpen((value) => !value)}
+              onKeyDown={(event) => {
+                if (event.key === 'ArrowDown') {
+                  event.preventDefault();
+                  setOpen(true);
+                }
+              }}
+            >
+              <IconEllipsisOutlineRegular size={16} />
+            </IconButton>
+          </Tooltip>
+        }
+      />
+    </>
   );
 }
 

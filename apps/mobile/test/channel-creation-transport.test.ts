@@ -141,6 +141,7 @@ it('retains the chosen Host artwork, seed and authenticated custom avatar source
       displayName: 'Bo',
       avatarSource: {
         uri: 'https://b.ts.net/botharness-device/avatars/bo.png',
+        scope: 'B',
         headers: { authorization: 'Device credential-B' },
       },
     },

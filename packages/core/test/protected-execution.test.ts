@@ -56,7 +56,65 @@ describe('qualified CLI output boundary', () => {
           { endpoint: canary, api_key: canary, api_secret: canary },
           new AbortController().signal,
         ),
-      ).rejects.toThrow('Protected execution failed or was cancelled');
+      ).rejects.toThrow('The Owner-supplied endpoint is not an https URL');
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+});
+
+describe('http-status-v1 failure reasons', () => {
+  it('says why the API could not be reached instead of an opaque failure', async () => {
+    const canary = 'SYNTHETIC-status-canary-3340';
+    const server = createServer((_request, response) => {
+      response.writeHead(302, { location: 'https://example.invalid/next?k=' + canary });
+      response.end();
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (address === null || typeof address === 'string') throw new Error('missing server');
+    const closed = createServer();
+    await new Promise<void>((resolve) => closed.listen(0, '127.0.0.1', resolve));
+    const closedAddress = closed.address();
+    if (closedAddress === null || typeof closedAddress === 'string')
+      throw new Error('missing server');
+    await new Promise<void>((resolve) => closed.close(() => resolve()));
+    const events: Array<[string, object]> = [];
+    const execution = new ProtectedExecution((phase, details = {}) => {
+      events.push([phase, details]);
+    });
+    executions.push(execution);
+    const secrets = { api_key: canary, api_secret: canary + '-secret' };
+    try {
+      await expect(
+        execution.authenticatedStatus(
+          { endpoint: `http://127.0.0.1:${address.port}/`, ...secrets },
+          new AbortController().signal,
+        ),
+      ).rejects.toThrow('The API answered with a redirect');
+      await expect(
+        execution.authenticatedStatus(
+          { endpoint: `http://127.0.0.1:${closedAddress.port}/`, ...secrets },
+          new AbortController().signal,
+        ),
+      ).rejects.toThrow('This Host could not connect to the API');
+      const cancelled = new AbortController();
+      cancelled.abort();
+      await expect(
+        execution.authenticatedStatus(
+          { endpoint: `http://127.0.0.1:${address.port}/`, ...secrets },
+          cancelled.signal,
+        ),
+      ).rejects.toMatchObject({ reason: 'cancelled' });
+      expect(events).toContainEqual([
+        'credential-cli-unreachable',
+        expect.objectContaining({ program: 'http-status-v1', failure: 'redirect' }),
+      ]);
+      expect(events).toContainEqual([
+        'credential-cli-unreachable',
+        expect.objectContaining({ program: 'http-status-v1', failure: 'connection' }),
+      ]);
+      expect(JSON.stringify(events)).not.toContain(canary);
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }

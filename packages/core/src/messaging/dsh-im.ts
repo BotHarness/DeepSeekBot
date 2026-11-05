@@ -316,7 +316,9 @@ const inboundSchema = z
   .refine(
     (event) =>
       !event.voice ||
-      ((event.channel === 'weixin' || event.channel === 'qq') &&
+      ((event.channel === 'weixin' ||
+        event.channel === 'qq' ||
+        (event.channel === 'feishu' && event.attachments?.length === 1)) &&
         (!event.attachments?.length ||
           (event.attachments.length === 1 &&
             event.attachments[0]?.mediaType?.startsWith('audio/')))),
@@ -354,6 +356,28 @@ function isLarkVideo(event: z.infer<typeof inboundSchema>, images: boolean): boo
           ? item.mediaType === 'video/unknown'
           : images && item.id === video.posterAttachmentId && item.mediaType === 'image/unknown',
     ) && items.some((item) => item.id === video.itemId)
+  );
+}
+
+function isLarkVoice(event: z.infer<typeof inboundSchema>): boolean {
+  const voice = event.voice;
+  const item = event.attachments?.[0];
+  return (
+    voice !== undefined &&
+    event.mentionedAccount &&
+    !!event.reply.parentId &&
+    event.reply.parentId !== event.messageId &&
+    !event.contentParts &&
+    !event.video &&
+    voice.transcript === 'unavailable' &&
+    voice.encodeType === undefined &&
+    voice.sampleRate === undefined &&
+    voice.bitsPerSample === undefined &&
+    event.attachments?.length === 1 &&
+    item !== undefined &&
+    item.id === voice.itemId &&
+    item.messageId === event.reply.parentId &&
+    item.mediaType === 'audio/unknown'
   );
 }
 
@@ -885,6 +909,10 @@ export function createDshImProvider(
               platform === 'feishu' &&
               sourceFiles &&
               info.capabilities.includes('source-video-checked');
+            const larkVoices =
+              platform === 'feishu' &&
+              sourceFiles &&
+              info.capabilities.includes('source-voice-audio-checked');
             const qqDirect =
               platform === 'qq' && info.capabilities.includes('direct-message-consumer');
             return host.consumeInbound!(input.accountRef, {
@@ -903,9 +931,10 @@ export function createDshImProvider(
               info.capabilities.includes('source-voice-transcript-checked')
                 ? { sourceVoiceTranscripts: true }
                 : {}),
-              ...((platform === 'weixin' || platform === 'qq') &&
-              host.fileVersion === 1 &&
-              info.capabilities.includes('source-voice-audio-checked')
+              ...(larkVoices ||
+              ((platform === 'weixin' || platform === 'qq') &&
+                host.fileVersion === 1 &&
+                info.capabilities.includes('source-voice-audio-checked'))
                 ? { sourceVoiceAudio: true }
                 : {}),
               ...(larkVideos ||
@@ -1072,6 +1101,7 @@ export function createDshImProvider(
               onEvent: async (raw, context) => {
                 const parsed = inboundSchema.parse(raw);
                 const larkVideo = larkVideos && isLarkVideo(parsed, sourceImages);
+                const larkVoice = larkVoices && isLarkVoice(parsed);
                 const qqAttachments = parsed.attachments?.every((item) =>
                   item.mediaType?.startsWith('image/')
                     ? sourceImages
@@ -1112,7 +1142,9 @@ export function createDshImProvider(
                     (platform !== 'weixin' ||
                       !info.capabilities.includes('source-quote-checked'))) ||
                   (parsed.voice &&
-                    !info.capabilities.includes('source-voice-transcript-checked')) ||
+                    (platform === 'feishu'
+                      ? !larkVoice
+                      : !info.capabilities.includes('source-voice-transcript-checked'))) ||
                   (parsed.voice &&
                     parsed.attachments?.length &&
                     !info.capabilities.includes('source-voice-audio-checked')) ||
