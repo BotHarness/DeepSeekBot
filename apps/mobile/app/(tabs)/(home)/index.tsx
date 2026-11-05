@@ -95,6 +95,10 @@ type HomeItem = EnvironmentChatItem | { type: 'message-heading'; key: string } |
 import { sectionCollapse, useCollapsedSections } from '../../../src/host/native-section-collapse';
 
 const quickRetryMs = 2_000;
+const firstAttemptFailed = ({ snapshot: { connection } }: ConnectedHost) =>
+  connection.status === 'unreachable' &&
+  connection.attempt < 2 &&
+  (connection.retryDelay ?? Infinity) <= quickRetryMs;
 
 export default function HomeScreen() {
   const focused = useIsFocused();
@@ -404,7 +408,12 @@ const HomeContent = memo(function HomeContent({
         : [],
     [displayed, query, messageItems, t],
   );
-  const connecting = useConnectionProgress(selectedHost?.snapshot.connection.status) !== undefined;
+  const connecting =
+    useConnectionProgress(
+      selectedHost !== undefined && firstAttemptFailed(selectedHost)
+        ? 'reconnecting'
+        : selectedHost?.snapshot.connection.status,
+    ) !== undefined;
   const pickSearch = (key: string) => {
     const message = messageItems.find((entry) => entry.key === key);
     if (message !== undefined) {
@@ -418,10 +427,6 @@ const HomeContent = memo(function HomeContent({
       setActionError(true);
   };
   const includesCloud = environment.kind !== 'computer';
-  const firstAttemptFailed = ({ snapshot: { connection } }: ConnectedHost) =>
-    connection.status === 'unreachable' &&
-    connection.attempt < 2 &&
-    (connection.retryDelay ?? Infinity) <= quickRetryMs;
   const hostFailed =
     selectedHost !== undefined &&
     !firstAttemptFailed(selectedHost) &&

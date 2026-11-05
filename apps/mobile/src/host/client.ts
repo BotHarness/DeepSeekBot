@@ -1223,6 +1223,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
 
   const loop = async (current: number): Promise<void> => {
     while (running && current === generation) {
+      let retryDelay: number | undefined;
       try {
         await connectOnce(current);
         if (!running || current !== generation) return;
@@ -1242,17 +1243,18 @@ export function createHostClient(options: HostClientOptions): HostClient {
           return;
         }
         attempt += 1;
+        retryDelay = backoff(attempt);
         publish({
           status: 'unreachable',
           route,
           attempt,
           reason: error instanceof Error ? error.message : 'The Host could not be reached.',
-          retryDelay: backoff(attempt),
+          retryDelay,
         });
       }
       await new Promise<void>((resolve) => {
         wake = resolve;
-        retryTimer = setTimeout(resolve, backoff(attempt));
+        retryTimer = setTimeout(resolve, retryDelay ?? backoff(attempt));
       });
       wake = undefined;
     }

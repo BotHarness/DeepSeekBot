@@ -632,7 +632,7 @@ describe('Search in the Chats header', () => {
       routes: ['https://studio.tailnet-example.ts.net'],
       credential: transport.credential,
       carrier: transport.carrier,
-      backoff: (attempt) => (attempt === 1 ? 300 : 60_000),
+      backoff: (attempt) => (attempt === 1 ? 1_500 : 60_000),
     });
     hostState.live = client;
     client.start();
@@ -641,11 +641,13 @@ describe('Search in the Chats header', () => {
     await act(async () => conversationFilter.set(computerEnvironmentKey('h1')));
     expect(view.textContent).not.toContain(t.hostListLoadFailed);
     await act(async () => {
-      await vi.waitFor(() =>
-        expect(client.getSnapshot().connection).toMatchObject({
-          status: 'unreachable',
-          attempt: 2,
-        }),
+      await vi.waitFor(
+        () =>
+          expect(client.getSnapshot().connection).toMatchObject({
+            status: 'unreachable',
+            attempt: 2,
+          }),
+        { timeout: 3_000 },
       );
     });
     expect(view.textContent).toContain(t.hostListLoadFailed);
