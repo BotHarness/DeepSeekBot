@@ -150,6 +150,15 @@ export async function applyStoredChanges(
   channelId: string,
   changes: CachedChanges,
 ): Promise<void> {
+  const stored = await tx.get<{ epoch: string; seq: number }>(
+    'select epoch, seq from cursors where channel_id = ?',
+    [channelId],
+  );
+  if (
+    stored !== undefined &&
+    (stored.epoch !== changes.cursor.epoch || changes.cursor.seq <= stored.seq)
+  )
+    return;
   const top = (
     await tx.get<{ top: number | null }>(
       'select max(revision) as top from messages where channel_id = ?',
