@@ -11,7 +11,11 @@ import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.j
 import { BotScheduleError } from '../src/schedules/bot-schedules.js';
 import { SendReviewRequired } from '../src/channels/send-review.js';
 import { isDshGovernedTool, sessionRefusalMessage } from '../src/workspaces/grant-execution.js';
-import type { AssignmentAgentRun, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
+import type {
+  AssignmentAgentRun,
+  AssignmentRequestOutcome,
+  OrchestratorAgentRun,
+} from '../src/runtime/bot-runtime.js';
 import { FakeAgentHost, FAKE_BOT as BOT } from './dsh-agent-host-fixture.js';
 
 const TOB_GROUP_TOOL_CASES = [
@@ -1266,7 +1270,51 @@ describe('DSH Bot Agent adapter', () => {
     }
   });
 
-  it('unarchives an archived Assignment and then delivers the request', async () => {
+  it.each([
+    {
+      name: 'delivers the request',
+      retry: {
+        delivery: 'followup',
+        acceptance: 'pending',
+        assignment: { ...ASSIGNMENT, activity: 'working' },
+      },
+      output: {
+        sessionId: 'assignment-1',
+        activity: 'working',
+        delivery: 'followup',
+        acceptance: 'pending',
+        unarchived: true,
+      },
+    },
+    {
+      name: 'reports a capacity refusal without delivering',
+      retry: {
+        outcome: 'capacity',
+        code: 'assignment-capacity',
+        activeCount: 4,
+        limit: 4,
+        retryable: true,
+        message: 'full',
+        delivery: 'capacity',
+        assignment: { ...ASSIGNMENT, activity: 'idle' },
+      },
+      output: {
+        outcome: 'capacity',
+        code: 'assignment-capacity',
+        activeCount: 4,
+        limit: 4,
+        retryable: true,
+        message: 'full',
+        sessionId: 'assignment-1',
+        activity: 'idle',
+        unarchived: true,
+      },
+    },
+  ] satisfies Array<{
+    name: string;
+    retry: AssignmentRequestOutcome;
+    output: Record<string, unknown>;
+  }>)('unarchives an archived Assignment and then $name', async ({ retry, output }) => {
     const calls: Array<Promise<unknown>> = [];
     const unarchived: string[] = [];
     const requests: unknown[] = [];
@@ -1334,11 +1382,7 @@ describe('DSH Bot Agent adapter', () => {
                   message: 'archived',
                   assignment: { ...ASSIGNMENT, activity: 'idle' },
                 }
-              : {
-                  delivery: 'followup',
-                  acceptance: 'pending',
-                  assignment: { ...ASSIGNMENT, activity: 'working' },
-                };
+              : retry;
           },
           unarchive: async (sessionId) => {
             unarchived.push(sessionId);
@@ -1359,15 +1403,7 @@ describe('DSH Bot Agent adapter', () => {
         expect.objectContaining({ sessionId: 'assignment-1', text: 'Continue A' }),
         expect.objectContaining({ sessionId: 'assignment-1', text: 'Continue A' }),
       ]);
-      expect(outputs).toEqual([
-        {
-          sessionId: 'assignment-1',
-          activity: 'working',
-          delivery: 'followup',
-          acceptance: 'pending',
-          unarchived: true,
-        },
-      ]);
+      expect(outputs).toEqual([output]);
     } finally {
       await adapter.close();
     }
