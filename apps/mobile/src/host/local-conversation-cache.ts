@@ -81,6 +81,23 @@ async function store(tx: SqlWriter, key: string, value: CachedConversation): Pro
   else await saveCursor(tx, channelId, value.changes);
 }
 
+async function replace(
+  tx: SqlWriter,
+  key: string,
+  channelId: string,
+  value: CachedConversation,
+): Promise<void> {
+  await tx.run('delete from messages where channel_id = ?', [channelId]);
+  await tx.run('delete from cursors where channel_id = ?', [channelId]);
+  await tx.run(
+    `insert into conversation_keys (key, channel_id) values (?, ?)
+       on conflict (key) do update set channel_id = excluded.channel_id`,
+    [key, channelId],
+  );
+  for (const entry of value.entries) if (entry.channelId === channelId) await upsert(tx, entry);
+  if (value.changes !== undefined) await saveCursor(tx, channelId, value.changes);
+}
+
 export function createLocalConversationCache(options: {
   store(hostId: string): Promise<LocalStore>;
   legacy?: LegacyConversationCache;
@@ -89,6 +106,11 @@ export function createLocalConversationCache(options: {
   let pending: Promise<unknown> = Promise.resolve();
   const later = (task: () => Promise<unknown>): void => {
     pending = pending.then(task).catch((error: unknown) => options.warn?.(error));
+  };
+  const fallen = new Set<string>();
+  const settle = (key: string): void => {
+    if (!fallen.delete(key)) return;
+    options.legacy?.remove(key);
   };
   const withStore = (key: string) => {
     const hostId = conversationHost(key);
@@ -103,7 +125,11 @@ export function createLocalConversationCache(options: {
         options.warn?.(error);
         return undefined;
       });
-      if (db === undefined) return options.legacy?.read(key);
+      if (db === undefined) {
+        const old = await options.legacy?.read(key);
+        if (old !== undefined) fallen.add(key);
+        return old;
+      }
       const mapped = await db.get<{ channel_id: string }>(
         'select channel_id from conversation_keys where key = ?',
         [key],
@@ -134,7 +160,18 @@ export function createLocalConversationCache(options: {
     write(key, value) {
       const opening = withStore(key);
       if (opening === undefined) return;
-      later(async () => (await opening).write((tx) => store(tx, key, value)));
+      later(async () => {
+        await (await opening).write((tx) => store(tx, key, value));
+        settle(key);
+      });
+    },
+    replace(key, channelId, value) {
+      const opening = withStore(key);
+      if (opening === undefined) return;
+      later(async () => {
+        await (await opening).write((tx) => replace(tx, key, channelId, value));
+        settle(key);
+      });
     },
     applyChanges(key, channelId, changes: CachedChanges) {
       const opening = withStore(key);
