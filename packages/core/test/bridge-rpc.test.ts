@@ -942,6 +942,7 @@ describe('bridge typert service', () => {
       'scheduleRunNow',
       'schedulePreview',
       'channelJournalPage',
+      'channelFilesPage',
       'channelChanges',
       'channelChangeCursor',
       'followRoster',
@@ -974,6 +975,7 @@ describe('bridge typert service', () => {
       'before',
       'limit',
     ]);
+    expect(parameterNames(service.channelFilesPage)).toEqual(['channelId', 'before', 'limit']);
     expect(parameterNames(service.channelChanges)).toEqual([
       'channelId',
       'sinceSeq',

@@ -362,6 +362,7 @@ function stubActions(): BridgeActions {
     dismissAllHumanInbox: vi.fn(async () => ({ dismissed: 0, more: false })),
     allowAutoRejectionOnce: vi.fn(async () => undefined),
     snoozeHumanInbox: vi.fn(async () => undefined),
+    channelFilesPage: vi.fn(async () => ({ entries: [] })),
     humanInboxContextPage: vi.fn(async () => ({
       entries: [],
       olderCursor: null,

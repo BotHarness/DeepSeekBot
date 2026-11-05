@@ -76,6 +76,9 @@ import {
 import {
   DEFAULT_MESSAGE_PAGE,
   MAX_MESSAGE_PAGE,
+  CHANNEL_FILES_LIMIT,
+  CHANNEL_FILES_MAX,
+  CHANNEL_FILES_SCAN,
   CHANNEL_CHANGES_LIMIT,
   CHANNEL_CHANGES_RETAINED_MS,
   CHANNEL_CHANGES_MAX,
@@ -3304,6 +3307,33 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       const member = members.find((entry) => entry.human_id === LOCAL_HUMAN_ID);
       if (channel.type === 'group' && member === undefined) return undefined;
       return timelinePage(id, request, member?.visible_from_revision ?? 0, members);
+    },
+    readHumanFilesPage(id, request) {
+      const channel = readRecord(id);
+      if (channel === undefined || !isValidChannelId(id)) return undefined;
+      const member = humanMembers(id).find((entry) => entry.human_id === LOCAL_HUMAN_ID);
+      if (channel.type === 'group' && member === undefined) return undefined;
+      const visibleFrom = member?.visible_from_revision ?? 0;
+      const head = revisionOf(id);
+      const before = Math.min(request.before ?? head + 1, head + 1);
+      const limit = Math.min(Math.max(request.limit ?? CHANNEL_FILES_LIMIT, 1), CHANNEL_FILES_MAX);
+      const floor = Math.max(visibleFrom, before - CHANNEL_FILES_SCAN, 0);
+      const rows = database.read((db) =>
+        db
+          .prepare(`${PLACEMENT_SELECT}
+             WHERE p.channel_id = ? AND p.revision >= ? AND p.revision < ?
+               AND json_array_length(e.payload_json, '$.attachments') > 0
+             ORDER BY p.revision DESC LIMIT ?`)
+          .all(id, floor, before, limit),
+      ) as unknown as PlacementRow[];
+      const oldest = rows.length === limit ? rows.at(-1)!.revision : floor;
+      const entries = projectRows(id, [...rows].reverse(), visibleFrom)
+        .filter((message) => (message.attachments?.length ?? 0) > 0)
+        .map((message) => ({ channelId: id, message, revision: message.channelRevision! }));
+      return {
+        entries,
+        ...(oldest > Math.max(visibleFrom, 1) ? { nextBefore: oldest } : {}),
+      };
     },
     changeCursor: () => database.read(changeCursorIn),
     readHumanChanges(id, request) {

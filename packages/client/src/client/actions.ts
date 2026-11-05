@@ -285,6 +285,8 @@ import {
   saveMemoryFile,
   repairMemory,
   loadTimelinePage,
+  loadFilesPage,
+  type FilesPage,
   loadReadPosition,
   markReadPosition,
   markAllReadPositions,
@@ -659,6 +661,11 @@ export interface BridgeActions {
     request: TimelinePageRequest,
     signal?: AbortSignal,
   ): Promise<TimelinePage>;
+  channelFilesPage(
+    channelId: string,
+    request: { before?: number; limit?: number },
+    signal?: AbortSignal,
+  ): Promise<FilesPage>;
   ignoreHumanReport(sourceEventId: string): Promise<void>;
   loadMoreBotInbox(slug: string): Promise<void>;
   botInboxPage(slug: string, cursor?: string): Promise<BotAttentionPage>;
@@ -2448,6 +2455,8 @@ export function createActions(
       }
       return { dismissed, more };
     },
+    channelFilesPage: (channelId, request, signal) =>
+      loadFilesPage(call, channelId, request, signal),
     async humanInboxContextPage(channelId, request, signal) {
       const { page } = await loadTimelinePage(call, channelId, request, signal);
       if (
