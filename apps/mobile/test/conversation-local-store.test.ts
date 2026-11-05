@@ -763,4 +763,29 @@ describe('background catch-up', () => {
     expect(channel.bodiesSent).toBe(20);
     expect(new Set(live.messages.map((m) => m.id)).size).toBe(live.messages.length);
   });
+
+  it('keeps the window when a message commits between the open and the change pull', async () => {
+    const host = new FakeHost();
+    const path = file();
+    const channel = fill(host, 1, 40);
+    const first = await session(host, path);
+    await until(first.conversation, (s) => s.status === 'live' && !s.fromCache);
+    await settle(first.cache);
+    fill(host, 41, 50);
+    const changes = (
+      host as unknown as {
+        channelMethod(method: string): (args: Record<string, unknown>) => unknown;
+      }
+    ).channelMethod('channelChanges');
+    host.methods.set('channelChanges', (args) => {
+      if (!channel.messages.some((message) => message.id === 'm51'))
+        channel.append({ id: 'm51', body: 'body 51', author: { kind: 'human' } }, false);
+      return changes(args);
+    });
+    const second = await session(host, path);
+    const live = await until(second.conversation, (s) => s.status === 'live' && !s.fromCache);
+    host.methods.delete('channelChanges');
+    expect(live.messages.at(-1)?.id).toBe('m50');
+    expect(live.messages.length).toBeGreaterThan(10);
+  });
 });

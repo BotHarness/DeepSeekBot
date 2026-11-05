@@ -20,6 +20,7 @@ export function createCatchUp(options: CatchUpOptions) {
   const concurrency = options.concurrency ?? 2;
   const maxPages = options.maxPages ?? 20;
   const running = new Map<string, Promise<void>>();
+  const queued = new Map<string, CatchUpHost>();
 
   const pull = async (db: LocalStore, host: CatchUpHost, channelId: string) => {
     for (let page = 0; page < maxPages; page += 1) {
@@ -58,15 +59,23 @@ export function createCatchUp(options: CatchUpOptions) {
     await Promise.all(Array.from({ length: concurrency }, worker));
   };
 
-  return {
-    sync(host: CatchUpHost): Promise<void> {
-      const existing = running.get(host.hostId);
-      if (existing !== undefined) return existing;
-      const task = run(host)
-        .catch(() => undefined)
-        .finally(() => running.delete(host.hostId));
-      running.set(host.hostId, task);
-      return task;
-    },
+  const sync = (host: CatchUpHost): Promise<void> => {
+    const existing = running.get(host.hostId);
+    if (existing !== undefined) {
+      queued.set(host.hostId, host);
+      return existing.then(() => running.get(host.hostId));
+    }
+    const task = run(host)
+      .catch(() => undefined)
+      .finally(() => {
+        running.delete(host.hostId);
+        const next = queued.get(host.hostId);
+        queued.delete(host.hostId);
+        if (next !== undefined) void sync(next);
+      });
+    running.set(host.hostId, task);
+    return task;
   };
+
+  return { sync };
 }
