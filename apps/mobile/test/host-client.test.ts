@@ -52,6 +52,39 @@ async function until(
 }
 
 describe('Host client', () => {
+  it.each(['channelChangeCursor', 'channelListChanges'])(
+    'connects to an older Host whose optional %s endpoint returns HTTP 404',
+    async (method) => {
+      const store = await openLocalStore(nodeSqlConnection());
+      if (method === 'channelListChanges')
+        await store.write((tx) => tx.run("insert into list_cursor values (1, 'old', 1)"));
+      const host = new FakeHost();
+      client = createHostClient({
+        routes: [ROUTE],
+        credential: host.credential,
+        carrier: {
+          ...host.carrier,
+          request: (url, init) =>
+            url.endsWith(`/${method}`)
+              ? Promise.resolve({ status: 404, text: async () => 'Not Found' })
+              : host.carrier.request(url, init),
+        },
+        localStore: () => Promise.resolve(store),
+        backoff: () => 5,
+        timeoutMs: 200,
+      });
+      try {
+        client.start();
+        const snapshot = await until(client, (state) => state.connection.status === 'connected');
+        expect(snapshot.roster?.bots.length).toBeGreaterThan(0);
+        expect(host.calls.some((call) => call.method === 'channels')).toBe(true);
+      } finally {
+        client.stop();
+        await store.close();
+      }
+    },
+  );
+
   it('preserves the Host-owned Tob marker for deletion menus', async () => {
     const host = new FakeHost();
     host.methods.set('list', () => ({

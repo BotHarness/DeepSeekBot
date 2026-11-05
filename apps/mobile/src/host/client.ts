@@ -221,7 +221,14 @@ function refusalOf(text: string): DeviceRefusal | undefined {
   }
 }
 
-class Unreachable extends Error {}
+class Unreachable extends Error {
+  constructor(
+    message: string,
+    readonly status?: number,
+  ) {
+    super(message);
+  }
+}
 
 const UPLOAD_TOO_LARGE = 'The file is larger than the Host accepts.';
 const uploadTimeoutMs = 120_000;
@@ -640,7 +647,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
         const code = refusalOf(await response.text());
         if (code !== undefined) throw new CredentialRefused(code);
       }
-      if (response.status >= 400) throw new Unreachable(`The Host answered ${response.status}.`);
+      if (response.status >= 400)
+        throw new Unreachable(`The Host answered ${response.status}.`, response.status);
       let envelope: Record<string, unknown>;
       try {
         envelope = record(JSON.parse(await response.text()));
@@ -782,7 +790,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
 
   const unlessRefused = <T>(work: Promise<T>): Promise<T | undefined> =>
     work.catch((error: unknown) => {
-      if (error instanceof MethodRefused) return undefined;
+      if (error instanceof MethodRefused || (error instanceof Unreachable && error.status === 404))
+        return undefined;
       throw error;
     });
 
