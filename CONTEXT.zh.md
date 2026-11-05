@@ -252,6 +252,18 @@ _避免使用_：integration、connector、channel binding
 PersonaBot 长期存在的 dispatch root Session：同时至多一个处于 active，负责消费 Bot Inbox，并决定 reply、dispatch 以及是否创建新 Assignment Session。它的 working directory 始终是 PersonaBot 的 Memory Repository；它是 PersonaBot 的对外发声者，不是由 Human 管理的 Conversation，也不是 Assignment 列表中的一行。普通 Session output 只保留为 execution history；只有从可信 Session ownership 推导身份、并经过 Channel membership 授权的显式 Channel messaging command，才会向 Human-facing Channel 发声。
 _避免使用_：main agent、brain、supervisor
 
+**Session Stop**：
+「停止 Session」。Human 指向一个正在运行的 Orchestrator Session 或 Assignment Session 并结束它：取消当前 turn，其 Subagent 一起停止，它成为 Stopped Session。同一 PersonaBot 的其他 Session 继续运行。除 Bot Stop 外这是唯一的停止方式；输入框没有停止。
+_避免使用_：停止 Bot（指单个 Session 时）、暂停、归档、取消任务、interrupt
+
+**Bot Stop**：
+「停止全部」。一次对某个 PersonaBot 拥有的所有运行中 Session 执行 Session Stop。它按 PersonaBot 进行；群聊没有停止全部成员 Bot 的操作。
+_避免使用_：停止所有 Bot、群停止、暂停、Archived PersonaBot
+
+**Stopped Session**：
+「已停止的 Session」。被 Human 停止的 Session，在它自己的上级再次找它之前不会被自动唤醒：Orchestrator Session 需要 Human 发消息，Assignment Session 需要 Assignment Request。期间到达的事件只排队，不唤醒。停止从不等于归档。
+_避免使用_：已归档 Session、暂停的 Session、失败的 Session
+
 **Idle Compaction**：
 「空闲压缩」。Orchestrator Session 空闲（没有正在运行的 turn，也没有待处理的 Bot Inbox Admission）达到其模型路由预估 prompt cache 寿命的一部分后，由 Host 发起的 DSH compaction，趁长历史仍能按缓存命中价读取时完成压缩。它不会启动 Bot turn，也不会在 Channel 中发声。
 _避免使用_：auto-compact、后台摘要、cache warming
@@ -279,6 +291,10 @@ _避免使用_：driver、backend、computer provider
 **Takeover**：
 Human 对一台 Computer 的排他控制：由某个 Bot Screen 发起，但始终作用于整台 Computer，暂停所有在其上行动的 PersonaBot 的动作与面向模型的截图。观看不授予控制权；释放控制权后 Bot 仍保持暂停，直到 Human 明确恢复。
 _避免使用_：handoff、screen sharing、per-bot takeover
+
+**Takeover Handoff**：
+PersonaBot 异步请求 Human 在它的 Computer 或 Bot Browser 上代做一步它自己不能做的操作，在对话中显示为一张卡片：标题、Bot 的一句话和“接管”按钮。Bot 发出请求后本轮结束；完成、无法完成、取消或过期都会经 Inbox 唤醒它，它先重新观察再行动。交接只负责打开画面：控制权仍来自 Takeover 或 Browser Takeover。
+_避免使用_：blocking takeover、login link、credential request
 
 **Computer Export**：
 一台 Computer 持久卷的可携带归档，由显式导出操作产生，可在另一台 Host 上恢复。它是 profile 级 facet，绝不是 PersonaBot export 的一部分。
@@ -331,7 +347,7 @@ Human 对某一个 PersonaBot 标签的暂停：停止该 PersonaBot 的浏览�
 _避免使用_：Computer Takeover、handoff、screen sharing、access gate
 
 **Browser Takeover**：接管
-Human 经 Viewer 明确接管某一个 PersonaBot 的浏览器画面：暂停该 Bot 的动作并开放 Human 输入；释放后恢复 Bot，除非还有未完成的接管链接。它比 Browser Pause 更窄（是控制，不只是叫停），也比 Computer Takeover 更窄（只是一个 Bot 的画面，永远不是整台机器）。
+Human 经 Viewer 明确接管某一个 PersonaBot 的浏览器画面：暂停该 Bot 的动作并开放 Human 输入；释放后恢复 Bot。它比 Browser Pause 更窄（是控制，不只是叫停），也比 Computer Takeover 更窄（只是一个 Bot 的画面，永远不是整台机器）。
 _避免使用_：Browser Pause、Computer Takeover、handoff、screen sharing
 
 **Browser Watch**：观看
@@ -1090,7 +1106,7 @@ _避免使用_：短网址、UTM 链接、邀请链接
 
 ### Sessions panel（会话面板）
 
-查看已有 Session 的唯一会话 surface（`sessions`，TextQuote 图标）；在两层目标布局中，它是消息面板内的 Channel subpanel（ADR-0221）。PersonaBot 私聊固定查看该 Bot；群聊默认查看「当前频道」，即原始 Source Event 属于该群的 Assignment，跨负责 Bot 展示。Human 可以明确选择可访问的群成员 Bot，查看其 Orchestrator 与 Assignment Session，且不改变当前聊天。范围是按频道保存的本地视图偏好，与历史筛选及工作区分组独立。查看操作不创建 Assignment、不发送执行请求、不改变执行。旧工作面板退役；活动中心仍负责 Human 待处理事项与审批。见 ADR-0220。
+查看已有 Session 的唯一会话 surface（`sessions`，TextQuote 图标）；在两层目标布局中，它是消息面板内的 Channel subpanel（ADR-0221）。PersonaBot 私聊固定查看该 Bot；群聊默认查看「当前频道」，即原始 Source Event 属于该群的 Assignment，跨负责 Bot 展示。Human 可以明确选择可访问的群成员 Bot，查看其 Orchestrator 与 Assignment Session，且不改变当前聊天。范围是按频道保存的本地视图偏好，与历史筛选及工作区分组独立。它不创建 Assignment、不发送执行请求；唯一的执行控制是对运行中行的 Session Stop 和 Bot Stop。旧工作面板退役；活动中心仍负责 Human 待处理事项与审批。见 ADR-0220。
 
 会话面板默认跟随当前频道时不重复显示范围标签；群聊范围选择收进视图选项菜单，仅显式指定 Bot 时在标题栏显示 `Bot · 名称`。
 

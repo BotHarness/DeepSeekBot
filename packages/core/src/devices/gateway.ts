@@ -10,6 +10,12 @@ import {
   type LocalVideoResult,
 } from '../../../computer/src/local-video-contract.js';
 import { DEVICE_ROUTE_HEADER, forwardDeviceRoute, isConnectRequest } from './route-context.js';
+import {
+  VOICE_CALL_CONNECT_REFUSAL,
+  VOICE_CALL_LIMITS,
+  VOICE_CALL_PATH,
+  type VoiceCallResult,
+} from '../voice/call-contract.js';
 import { refuseConnectRpc } from './rpc-policy.js';
 import { connectMux } from './connect-mux.js';
 
@@ -84,6 +90,11 @@ export interface DeviceGatewayOptions {
     command: unknown;
     signal: AbortSignal;
   }) => Promise<LocalVideoResult>;
+  voiceCall?: (request: {
+    deviceId: string;
+    command: unknown;
+    signal: AbortSignal;
+  }) => Promise<VoiceCallResult>;
   activity?: (request: {
     method: string;
     path: string;
@@ -535,6 +546,84 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
     }
   };
 
+  let pendingCalls = 0;
+  const call = async (
+    request: IncomingMessage,
+    response: ServerResponse,
+    admission: Admission,
+  ): Promise<void> => {
+    if (!admission.ok) return refuse(response, 401, admission.code);
+    const send = (result: VoiceCallResult): void => {
+      if (response.destroyed) return;
+      response.writeHead(result.ok ? 200 : 409, {
+        'content-type': 'application/json',
+        'cache-control': 'no-store',
+      });
+      response.end(JSON.stringify(result));
+    };
+    if (isConnectRequest(request)) {
+      request.resume();
+      return send(VOICE_CALL_CONNECT_REFUSAL);
+    }
+    if (request.method !== 'POST') return refuse(response, 404, 'not-found');
+    if (pendingCalls >= VOICE_CALL_LIMITS.pendingRequests) {
+      request.resume();
+      return send({ ok: false, code: 'queue-full', error: 'Too many pending call commands.' });
+    }
+    const cancellation = new AbortController();
+    const timer = setTimeout(() => {
+      cancellation.abort();
+      request.destroy();
+    }, VOICE_CALL_LIMITS.operationTimeoutMs);
+    const detach = pairing.attachStream(admission.device.id, () => {
+      cancellation.abort();
+      request.destroy();
+      response.destroy();
+    });
+    const closed = (): void => {
+      if (!response.writableFinished) cancellation.abort();
+    };
+    response.on('close', closed);
+    pendingCalls += 1;
+    try {
+      const raw = await readSmall(request, VOICE_CALL_LIMITS.requestBytes);
+      if (raw === undefined)
+        return send({
+          ok: false,
+          code: 'request-too-large',
+          error: 'The call command is too large.',
+        });
+      let command: unknown;
+      try {
+        command = JSON.parse(raw) as unknown;
+      } catch {
+        return send({ ok: false, code: 'invalid-input', error: 'The call command must be JSON.' });
+      }
+      if (!pairing.check(admission.device.id).ok || cancellation.signal.aborted)
+        return send({
+          ok: false,
+          code: 'device-revoked',
+          error: 'The device connection is no longer admitted.',
+        });
+      send(
+        options.voiceCall === undefined
+          ? { ok: false, code: 'not-ready', error: 'Calls are not ready on this Host.' }
+          : await options.voiceCall({
+              deviceId: admission.device.id,
+              command,
+              signal: cancellation.signal,
+            }),
+      );
+    } catch {
+      send({ ok: false, code: 'operation-timeout', error: 'The call command did not complete.' });
+    } finally {
+      pendingCalls -= 1;
+      clearTimeout(timer);
+      detach();
+      response.off('close', closed);
+    }
+  };
+
   return {
     async handle(request, response) {
       const path = new URL(request.url ?? '/', 'http://device').pathname;
@@ -573,6 +662,8 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
 
       if (decodedPath === `${DEVICE_GATEWAY_PREFIX}${LOCAL_VIDEO_PATH}`)
         return video(request, response, pairing.admit(header(request, 'authorization')));
+      if (decodedPath === `${DEVICE_GATEWAY_PREFIX}${VOICE_CALL_PATH}`)
+        return call(request, response, pairing.admit(header(request, 'authorization')));
       if (path.startsWith(`${DEVICE_GATEWAY_PREFIX}/api/`))
         return forward(
           request,

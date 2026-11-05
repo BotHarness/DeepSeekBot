@@ -13,11 +13,15 @@ try {
   if (process.argv.length > 2) throw new Error('source policy checker takes no arguments');
   const issues = await scanRepository(root);
   if (issues.length) {
-    console.error('Code comments and React useEffect calls are prohibited:');
+    console.error(
+      'Code comments, React useEffect calls and whole client-store subscriptions are prohibited (docs/agents/ui-state.md):',
+    );
     for (const item of issues) console.error(describe(item));
     process.exitCode = 1;
   } else {
-    console.log('source policy: no code comments or React useEffect calls');
+    console.log(
+      'source policy: no code comments, React useEffect calls or whole client-store subscriptions',
+    );
   }
 } catch (error) {
   console.error(`source policy: ${error.message}`);

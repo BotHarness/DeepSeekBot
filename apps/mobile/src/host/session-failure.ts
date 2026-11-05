@@ -82,7 +82,7 @@ export function createFailureContinuation(
           failureMessageId: failureId,
         }),
       cancelAuto: (channel, botSlug, messageId) =>
-        client.call('channelBotStop', {
+        client.call('botStop', {
           channelId: channel,
           botSlug,
           autoContinueFor: messageId,

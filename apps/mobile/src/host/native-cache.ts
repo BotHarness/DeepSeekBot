@@ -11,9 +11,11 @@ export const nativeConversationCache: ConversationCache = {
     const file = fileFor(key);
     if (!file.exists) return undefined;
     const value = JSON.parse(await file.text()) as Partial<CachedConversation>;
-    return Array.isArray(value.entries) && typeof value.hasOlder === 'boolean'
-      ? { entries: value.entries, hasOlder: value.hasOlder }
-      : undefined;
+    if (!Array.isArray(value.entries) || typeof value.hasOlder !== 'boolean') return undefined;
+    const changes = value.changes;
+    return typeof changes?.epoch === 'string' && typeof changes.seq === 'number'
+      ? { entries: value.entries, hasOlder: value.hasOlder, changes }
+      : { entries: value.entries, hasOlder: value.hasOlder };
   },
   write(key, value) {
     try {
@@ -55,6 +57,35 @@ export function pruneHostConversationCache(hostId: string, stale: (key: string) 
         const name = decodeURIComponent(entry.name.replace(/\.json$/u, ''));
         const key: unknown = JSON.parse(name)[2];
         if (typeof key === 'string' && stale(key)) entry.delete();
+      } catch {}
+    }
+  } catch {}
+}
+
+export function redactHostConversationCache(
+  hostId: string,
+  purged: (channelId: string, messageId: string) => boolean,
+): void {
+  try {
+    const directory = root();
+    if (!directory.exists) return;
+    for (const entry of directory.list()) {
+      if (!(entry instanceof File) || !cachedForHost(entry.name, hostId)) continue;
+      try {
+        const value = JSON.parse(entry.textSync()) as Partial<CachedConversation>;
+        if (!Array.isArray(value.entries)) continue;
+        let changed = false;
+        const entries = value.entries.map((item) => {
+          if (item.message.contentPurge !== undefined || !purged(item.channelId, item.message.id))
+            return item;
+          changed = true;
+          const { attachments: _attachments, bridgeMedia: _bridgeMedia, ...message } = item.message;
+          return {
+            ...item,
+            message: { ...message, body: '', contentPurge: { actor: 'local-human' } },
+          };
+        });
+        if (changed) entry.writeSync(JSON.stringify({ ...value, entries }));
       } catch {}
     }
   } catch {}

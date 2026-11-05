@@ -146,6 +146,36 @@ describe('structured Host events', () => {
     expect(views[1]).toMatchObject({ level: 'warn', fields: { path: '~/x' } });
   });
 
+  it('files a refused Orchestrator turn under its Bot so an exported log names the fence', () => {
+    const rows: LogEntryInput[] = [];
+    const exporter = hostLogExporter((batch) => rows.push(...batch));
+    exporter.export({
+      sn: 1,
+      ts: 10,
+      type: 'warn' as const,
+      level: 1,
+      name: 'botharness',
+      args: [
+        JSON.stringify({
+          event: 'native-orchestrator-input',
+          phase: 'refused',
+          reason: 'not-current-orchestrator',
+          bot: 'ada',
+          session: 'botharness-1',
+          executionReady: true,
+          senders: 0,
+        }),
+      ],
+    });
+    expect(rows[0]).toMatchObject({ owner: 'bot:ada', bot: 'ada' });
+    expect(diagnosticLogView({ id: 1, ts: 10, ...rows[0]! })).toMatchObject({
+      source: 'native-orchestrator-input',
+      code: 'refused',
+      level: 'warn',
+      fields: { reason: 'not-current-orchestrator', session: 'botharness-1', executionReady: true },
+    });
+  });
+
   it('keeps a structured row parseable when its fields would overflow the detail limit', () => {
     const fields = Object.fromEntries(
       Array.from({ length: 24 }, (_, index) => [`f${index}`, '"'.repeat(300)]),

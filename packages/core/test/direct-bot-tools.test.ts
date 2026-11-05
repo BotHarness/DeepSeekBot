@@ -6,6 +6,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { Context } from '@deepseek-ai/cordis';
 import { createBotSubagentModelTools } from '../src/runtime/subagent-model-tools.js';
 import { PRIVATE_INPUT_TOOLS } from '../src/credentials/tool-contract.js';
+import { TAKEOVER_TOOLS } from '../src/takeover/contracts.js';
 
 import { createChannelStore } from '../src/channels/store.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
@@ -146,7 +147,10 @@ describe('direct Bot tool runner', () => {
       botTools
         .filter(
           (name) =>
-            !exempt.includes(name) && name !== 'cloud_work' && !PRIVATE_INPUT_TOOLS.has(name),
+            !exempt.includes(name) &&
+            name !== 'cloud_work' &&
+            !PRIVATE_INPUT_TOOLS.has(name) &&
+            !TAKEOVER_TOOLS.has(name),
         )
         .sort(),
     );

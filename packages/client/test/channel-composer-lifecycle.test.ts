@@ -264,6 +264,48 @@ describe('mounted Channel composer', () => {
     expect(run).not.toHaveBeenCalled();
   });
 
+  it('measures the input once per frame however many keys arrive in it', async () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    function Harness() {
+      const [value, setValue] = useState('');
+      return createElement(ChannelComposer, {
+        value,
+        placeholder: 'Message',
+        sending: false,
+        onChange: setValue,
+        onSubmit: () => undefined,
+      });
+    }
+    await act(async () => root.render(createElement(Harness)));
+    const input = host.querySelector<HTMLTextAreaElement>('textarea')!;
+    let reads = 0;
+    Object.defineProperty(input, 'scrollHeight', {
+      configurable: true,
+      get: () => {
+        reads += 1;
+        return 34;
+      },
+    });
+    await act(async () => frames.splice(0).forEach((callback) => callback(0)));
+    reads = 0;
+    const setValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!;
+    for (const value of ['a', 'ab', 'abc']) {
+      await act(async () => {
+        setValue.call(input, value);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+    }
+    expect(input.value).toBe('abc');
+    expect(reads).toBe(0);
+    expect(frames).toHaveLength(1);
+    await act(async () => frames.splice(0).forEach((callback) => callback(0)));
+    expect(reads).toBe(1);
+  });
+
   it('inserts a new line on Enter and sends on Ctrl/⌘+Enter when that send key is chosen', async () => {
     const onSubmit = vi.fn();
     const attachment = {

@@ -3,6 +3,7 @@ import {
   onOperationalDatabaseClose,
   type OperationalDatabaseOwner,
 } from '../database/owner.js';
+import { coalesce } from './coalesce.js';
 
 const TOPICS = new Set([
   'source-event',
@@ -25,7 +26,6 @@ export function watchHumanAttention(
   if (database.mode !== 'ready') return () => {};
   const port = attachOperationalModule(database, 'human-attention');
   let stopped = false;
-  let queued: ReturnType<typeof setTimeout> | undefined;
   let expiry: ReturnType<typeof setTimeout> | undefined;
   const armExpiry = (): void => {
     clearTimeout(expiry);
@@ -40,15 +40,16 @@ export function watchHumanAttention(
     );
     expiry.unref?.();
   };
-  const invalidate = (): void => {
-    if (stopped || queued !== undefined) return;
-    queued = setTimeout(() => {
-      queued = undefined;
+  const queued = coalesce(
+    () => {
       if (stopped || database.mode !== 'ready') return;
       armExpiry();
       changed();
-    }, 0);
-    queued.unref?.();
+    },
+    { delayMs: 150, maxWaitMs: 1_000 },
+  );
+  const invalidate = (): void => {
+    if (!stopped) queued.schedule();
   };
   const offDatabase = database.subscribe(({ topics }) => {
     if (topics.some((topic) => TOPICS.has(topic))) invalidate();
@@ -58,7 +59,7 @@ export function watchHumanAttention(
   const cleanup = () => {
     if (stopped) return;
     stopped = true;
-    clearTimeout(queued);
+    queued.cancel();
     clearTimeout(expiry);
     offDatabase();
     offRequests();

@@ -144,9 +144,17 @@ export function checkPackage(manifest, artifact, files, inventory) {
   for (const path of [
     ...(manifest.name === '@botharness/core' ? ['./cli/index.mjs'] : []),
     ...(manifest.name === '@botharness/computer'
-      ? ['launcher.cs', 'main.cjs', 'preload.cjs', 'renderer.html', 'renderer.js'].map(
-          (name) => `./native/local-video/${name}`,
-        )
+      ? [
+          'launcher.cs',
+          'main.cjs',
+          'preload.cjs',
+          'renderer.html',
+          'renderer.js',
+          'call-main.cjs',
+          'call-preload.cjs',
+          'call-renderer.html',
+          'call-renderer.js',
+        ].map((name) => `./native/local-video/${name}`)
       : []),
     ...binPaths,
     manifest.main,

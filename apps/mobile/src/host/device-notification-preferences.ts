@@ -35,6 +35,8 @@ export function createDeviceNotificationPreferences(options: {
   const retired = new WeakSet<Promise<PushPreferences>>();
   const pairings = new Map<string, { credential: string }>();
   const failed = new Map<string, string>();
+  const accepted = new Map<string, string>();
+  const pairingKey = (host: SavedHost) => JSON.stringify([host.hostId, host.credential]);
   const clearRetry = () => {
     clearTimeout(retryTimer);
     retryTimer = undefined;
@@ -125,7 +127,13 @@ export function createDeviceNotificationPreferences(options: {
           const preferences = snapshot.preferences;
           if (preferences === undefined || !active())
             throw new Error('notification-preferences-unavailable');
-          await options.push.setPreferences(host, preferences);
+          const key = pairingKey(host);
+          const value = JSON.stringify(preferences);
+          if (accepted.get(key) !== value) {
+            accepted.delete(key);
+            await options.push.setPreferences(host, preferences);
+            if (active()) accepted.set(key, value);
+          }
           if (!active()) throw new Error('notification-preferences-unavailable');
           if (preferences === snapshot.preferences) return preferences;
         }
@@ -156,6 +164,8 @@ export function createDeviceNotificationPreferences(options: {
     });
   const adopt = (next: readonly SavedHost[]) => {
     hosts = next;
+    const currentKeys = new Set(hosts.map(pairingKey));
+    for (const key of accepted.keys()) if (!currentKeys.has(key)) accepted.delete(key);
     for (const [id, pairing] of pairings) {
       if (!hosts.some((host) => host.hostId === id && host.credential === pairing.credential))
         pairings.delete(id);
