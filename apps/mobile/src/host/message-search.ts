@@ -1,6 +1,8 @@
 import { useCallback, useRef, useState } from 'react';
 
 import type { HostClient } from './client';
+import { hostStore, hostStoreAvailable } from './host-store';
+import { searchStoredMessages } from './local-message-search';
 
 export const MESSAGE_SEARCH_DEBOUNCE_MS = 150;
 export const MESSAGE_SEARCH_LIMIT = 20;
@@ -29,6 +31,12 @@ export type MessageSearchState = {
 };
 
 const IDLE: MessageSearchState = { query: '', hits: [], loading: false };
+
+function newestFirst(hits: MessageSearchHit[]): MessageSearchHit[] {
+  return hits
+    .sort((left, right) => Date.parse(right.at) - Date.parse(left.at))
+    .slice(0, MESSAGE_SEARCH_LIMIT);
+}
 
 function hitsOf(hostId: string, value: unknown): MessageSearchHit[] {
   const hits = (value as { hits?: unknown } | null)?.hits;
@@ -71,10 +79,47 @@ export async function searchHostMessages(
       ),
     ),
   );
-  return pages
-    .flatMap((page) => (page.status === 'fulfilled' ? page.value : []))
-    .sort((left, right) => Date.parse(right.at) - Date.parse(left.at))
-    .slice(0, MESSAGE_SEARCH_LIMIT);
+  return newestFirst(pages.flatMap((page) => (page.status === 'fulfilled' ? page.value : [])));
+}
+
+export type LocalMessageSearch = (
+  hostId: string,
+  text: string,
+  limit: number,
+) => Promise<MessageSearchHit[]>;
+
+const storedSearch: LocalMessageSearch = async (hostId, text, limit) => {
+  if (!hostStoreAvailable()) return [];
+  const hits = await searchStoredMessages(await hostStore(hostId), text, limit);
+  return hits.map(({ channelId, entry, snippet }) => ({
+    hostId,
+    channelId,
+    messageId: entry.message.id,
+    at: entry.message.at,
+    author: entry.message.author as MessageSearchAuthor,
+    snippet,
+  }));
+};
+
+export async function searchLocalMessages(
+  hosts: readonly Pick<MessageSearchHost, 'hostId'>[],
+  text: string,
+  search: LocalMessageSearch = storedSearch,
+): Promise<MessageSearchHit[]> {
+  const pages = await Promise.allSettled(
+    hosts.map(({ hostId }) => search(hostId, text, MESSAGE_SEARCH_LIMIT)),
+  );
+  return newestFirst(pages.flatMap((page) => (page.status === 'fulfilled' ? page.value : [])));
+}
+
+export function mergeMessageHits(
+  local: readonly MessageSearchHit[],
+  remote: readonly MessageSearchHit[],
+): MessageSearchHit[] {
+  const key = (hit: MessageSearchHit) =>
+    `${hit.hostId}\u0000${hit.channelId}\u0000${hit.messageId}`;
+  const seen = new Set(remote.map(key));
+  return newestFirst([...remote, ...local.filter((hit) => !seen.has(key(hit)))]);
 }
 
 export function useMessageSearch(): {
@@ -96,8 +141,17 @@ export function useMessageSearch(): {
     setState({ query: trimmed, hits: [], loading: true });
     timer.current = setTimeout(() => {
       timer.current = undefined;
-      void searchHostMessages(hosts, trimmed).then((hits) => {
-        if (current === sequence.current) setState({ query: trimmed, hits, loading: false });
+      let remote: MessageSearchHit[] | undefined;
+      const local = searchLocalMessages(hosts, trimmed).then((hits) => {
+        if (current === sequence.current && remote === undefined)
+          setState({ query: trimmed, hits, loading: true });
+        return hits;
+      });
+      void searchHostMessages(hosts, trimmed).then(async (hits) => {
+        remote = hits;
+        const stored = await local;
+        if (current === sequence.current)
+          setState({ query: trimmed, hits: mergeMessageHits(stored, hits), loading: false });
       });
     }, MESSAGE_SEARCH_DEBOUNCE_MS);
   }, []);

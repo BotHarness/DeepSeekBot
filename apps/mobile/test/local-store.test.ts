@@ -39,14 +39,16 @@ describe('local store', () => {
     const store = await open();
     expect(store.version).toBe(LOCAL_STORE_MIGRATIONS.length);
     const tables = await store.all<{ name: string }>(
-      "select name from sqlite_master where type = 'table' order by name",
+      "select name from sqlite_master where type = 'table' and name not like 'message_text_%' order by name",
     );
     expect(tables.map((table) => table.name)).toEqual([
       'channels',
       'conversation_keys',
       'cursors',
       'gaps',
+      'message_text',
       'messages',
+      'search_rows',
     ]);
     expect(await store.get<{ user_version: number }>('pragma user_version')).toEqual({
       user_version: LOCAL_STORE_MIGRATIONS.length,
