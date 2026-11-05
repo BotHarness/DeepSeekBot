@@ -83,10 +83,17 @@ const mapKey = (tx: SqlWriter, key: string, channelId: string) =>
 async function store(tx: SqlWriter, key: string, value: CachedConversation): Promise<void> {
   const channelId = value.entries[0]?.channelId;
   if (channelId === undefined) return;
-  const previous = await tx.get<{ epoch: string }>(
-    'select epoch from cursors where channel_id = ?',
+  const previous = await tx.get<{ epoch: string; seq: number }>(
+    'select epoch, seq from cursors where channel_id = ?',
     [channelId],
   );
+  if (
+    value.changes !== undefined &&
+    previous !== undefined &&
+    previous.epoch === value.changes.epoch &&
+    value.changes.seq < previous.seq
+  )
+    return;
   if (
     value.changes !== undefined &&
     previous !== undefined &&

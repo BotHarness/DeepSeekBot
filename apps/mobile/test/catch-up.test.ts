@@ -147,4 +147,40 @@ describe('applying change pages out of order', () => {
     );
     expect(await body(store)).toBe('edited');
   });
+
+  it('keeps a purge when an older window snapshot is written after it', async () => {
+    const store = await seeded();
+    const { createLocalConversationCache } = await import('../src/host/local-conversation-cache');
+    const cache = createLocalConversationCache({ store: async () => store });
+    const key = JSON.stringify(['computer', 'h1', 'channel:c1']);
+    cache.write(key, {
+      entries: [entry('m1', 1, 'secret')],
+      hasOlder: false,
+      changes: { epoch: 'e1', seq: 5 },
+    });
+    await cache.flush();
+    await store.write((tx) =>
+      applyStoredChanges(tx, 'c1', {
+        upserts: [],
+        tombstones: ['m1'],
+        removed: [],
+        cursor: { epoch: 'e1', seq: 9 },
+      }),
+    );
+    cache.write(key, {
+      entries: [entry('m1', 1, 'secret')],
+      hasOlder: false,
+      changes: { epoch: 'e1', seq: 7 },
+    });
+    await cache.flush();
+    expect(await body(store)).toBe('');
+    expect(await cursor(store)).toEqual({ epoch: 'e1', seq: 9 });
+    cache.write(key, {
+      entries: [entry('m1', 1, 'current')],
+      hasOlder: false,
+      changes: { epoch: 'e1', seq: 9 },
+    });
+    await cache.flush();
+    expect(await body(store)).toBe('current');
+  });
 });
