@@ -456,3 +456,91 @@ describe('conversation tail in the local store', () => {
     expect(await cache.read(groupKey)).toBeUndefined();
   });
 });
+
+async function scrollToTop(target: Conversation): Promise<ConversationSnapshot> {
+  let snapshot = await until(target, (s) => s.status === 'live' && !s.fromCache);
+  while (snapshot.hasOlder) {
+    const before = snapshot.messages.length;
+    await target.loadOlder();
+    snapshot = target.getSnapshot();
+    if (snapshot.messages.length === before && snapshot.hasOlder) throw new Error('stuck');
+  }
+  return snapshot;
+}
+
+async function session(host: FakeHost, path: string) {
+  for (const store of stores.splice(0)) await store.close();
+  conversation?.stop();
+  client?.stop();
+  client = undefined;
+  const { cache, store } = await phone(path);
+  return { cache, store, conversation: open(host, cache) };
+}
+
+function fill(host: FakeHost, from: number, to: number) {
+  const channel = host.channel(DM);
+  for (let index = from; index <= to; index += 1)
+    channel.append({ id: `m${index}`, body: `body ${index}`, author: { kind: 'human' } }, false);
+  return channel;
+}
+
+describe('older history in the local store', () => {
+  it('scrolls back over synced history without Host requests, with edits and purges applied', async () => {
+    const host = new FakeHost();
+    const path = file();
+    const channel = fill(host, 1, 120);
+    const first = await session(host, path);
+    expect((await scrollToTop(first.conversation)).messages).toHaveLength(120);
+    await settle(first.cache);
+    channel.edit('m5', { body: 'edited while away' });
+    channel.purge('m3');
+    const second = await session(host, path);
+    await until(second.conversation, (s) => s.status === 'live' && !s.fromCache);
+    channel.bodiesSent = 0;
+    const top = await scrollToTop(second.conversation);
+    expect(channel.bodiesSent).toBe(0);
+    expect(top.messages).toHaveLength(120);
+    expect(bodies(top)).toMatchObject({ m3: '', m5: 'edited while away', m120: 'body 120' });
+  });
+
+  it('fills a gap in the middle from the Host once and keeps it', async () => {
+    const host = new FakeHost();
+    const path = file();
+    const channel = fill(host, 1, 60);
+    const first = await session(host, path);
+    await scrollToTop(first.conversation);
+    await settle(first.cache);
+    fill(host, 61, 400);
+    const second = await session(host, path);
+    await until(second.conversation, (s) => s.status === 'live' && !s.fromCache);
+    channel.bodiesSent = 0;
+    const top = await scrollToTop(second.conversation);
+    expect(top.messages.map((message) => message.id)).toEqual(
+      Array.from({ length: 400 }, (_, index) => `m${index + 1}`),
+    );
+    expect(channel.bodiesSent).toBe(330);
+    await settle(second.cache);
+    const spans = await second.store.all('select from_revision, to_revision from gaps');
+    expect(spans).toEqual([{ from_revision: 1, to_revision: 400 }]);
+    const third = await session(host, path);
+    await until(third.conversation, (s) => s.status === 'live' && !s.fromCache);
+    channel.bodiesSent = 0;
+    expect((await scrollToTop(third.conversation)).messages).toHaveLength(400);
+    expect(channel.bodiesSent).toBe(0);
+  });
+
+  it('fetches older history from the Host when the store has no range for it', async () => {
+    const host = new FakeHost();
+    const path = file();
+    const channel = fill(host, 1, 40);
+    const store = await openStore(path);
+    const cache = createLocalConversationCache({ store: async () => store });
+    const key = keyFor(host);
+    expect(await cache.readOlder!(key, 30, 10)).toBeUndefined();
+    const live = open(host, cache);
+    channel.bodiesSent = 0;
+    const top = await scrollToTop(live);
+    expect(top.messages).toHaveLength(40);
+    expect(channel.bodiesSent).toBe(40);
+  });
+});

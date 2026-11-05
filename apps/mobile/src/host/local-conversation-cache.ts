@@ -4,6 +4,7 @@ import type {
   CachedConversation,
   ChangeCursor,
   ConversationCache,
+  OlderPage,
 } from './conversation';
 import type { LocalStore, SqlWriter } from './local-store';
 
@@ -46,6 +47,39 @@ const saveCursor = (tx: SqlWriter, channelId: string, cursor: ChangeCursor) =>
     [channelId, cursor.epoch, cursor.seq],
   );
 
+async function cover(tx: SqlWriter, channelId: string, from: number, to: number): Promise<void> {
+  if (to < from) return;
+  const touching = await tx.all<{ from_revision: number; to_revision: number }>(
+    `select from_revision, to_revision from gaps
+       where channel_id = ? and from_revision <= ? and to_revision >= ?`,
+    [channelId, to + 1, from - 1],
+  );
+  const start = Math.min(from, ...touching.map((span) => span.from_revision));
+  const end = Math.max(to, ...touching.map((span) => span.to_revision));
+  await tx.run(
+    'delete from gaps where channel_id = ? and from_revision <= ? and to_revision >= ?',
+    [channelId, to + 1, from - 1],
+  );
+  await tx.run('insert into gaps (channel_id, from_revision, to_revision) values (?, ?, ?)', [
+    channelId,
+    start,
+    end,
+  ]);
+}
+
+const coverTail = (tx: SqlWriter, channelId: string, value: CachedConversation) => {
+  const revisions = value.entries.map((entry) => entry.revision);
+  if (revisions.length === 0) return Promise.resolve();
+  return cover(tx, channelId, value.hasOlder ? Math.min(...revisions) : 1, Math.max(...revisions));
+};
+
+const mapKey = (tx: SqlWriter, key: string, channelId: string) =>
+  tx.run(
+    `insert into conversation_keys (key, channel_id) values (?, ?)
+       on conflict (key) do update set channel_id = excluded.channel_id`,
+    [key, channelId],
+  );
+
 async function store(tx: SqlWriter, key: string, value: CachedConversation): Promise<void> {
   const channelId = value.entries[0]?.channelId;
   if (channelId === undefined) return;
@@ -57,13 +91,11 @@ async function store(tx: SqlWriter, key: string, value: CachedConversation): Pro
     value.changes !== undefined &&
     previous !== undefined &&
     previous.epoch !== value.changes.epoch
-  )
+  ) {
     await tx.run('delete from messages where channel_id = ?', [channelId]);
-  await tx.run(
-    `insert into conversation_keys (key, channel_id) values (?, ?)
-       on conflict (key) do update set channel_id = excluded.channel_id`,
-    [key, channelId],
-  );
+    await tx.run('delete from gaps where channel_id = ?', [channelId]);
+  }
+  await mapKey(tx, key, channelId);
   const revisions = value.entries.map((entry) => entry.revision);
   await tx.run(
     `delete from messages where channel_id = ? and revision between ? and ?
@@ -76,6 +108,7 @@ async function store(tx: SqlWriter, key: string, value: CachedConversation): Pro
     ],
   );
   for (const entry of value.entries) if (entry.channelId === channelId) await upsert(tx, entry);
+  await coverTail(tx, channelId, value);
   if (value.changes === undefined)
     await tx.run('delete from cursors where channel_id = ?', [channelId]);
   else await saveCursor(tx, channelId, value.changes);
@@ -89,13 +122,27 @@ async function replace(
 ): Promise<void> {
   await tx.run('delete from messages where channel_id = ?', [channelId]);
   await tx.run('delete from cursors where channel_id = ?', [channelId]);
-  await tx.run(
-    `insert into conversation_keys (key, channel_id) values (?, ?)
-       on conflict (key) do update set channel_id = excluded.channel_id`,
-    [key, channelId],
-  );
+  await tx.run('delete from gaps where channel_id = ?', [channelId]);
+  await mapKey(tx, key, channelId);
   for (const entry of value.entries) if (entry.channelId === channelId) await upsert(tx, entry);
+  await coverTail(tx, channelId, value);
   if (value.changes !== undefined) await saveCursor(tx, channelId, value.changes);
+}
+
+async function storeOlder(
+  tx: SqlWriter,
+  key: string,
+  channelId: string,
+  before: number,
+  page: OlderPage,
+): Promise<void> {
+  await mapKey(tx, key, channelId);
+  const entries = page.entries.filter(
+    (entry) => entry.channelId === channelId && entry.revision < before,
+  );
+  for (const entry of entries) await upsert(tx, entry);
+  const from = !page.hasOlder ? 1 : entries[0]?.revision;
+  if (from !== undefined) await cover(tx, channelId, from, before - 1);
 }
 
 export function createLocalConversationCache(options: {
@@ -194,6 +241,42 @@ export function createLocalConversationCache(options: {
             await tx.run('delete from messages where channel_id = ? and id = ?', [channelId, id]);
           await saveCursor(tx, channelId, changes.cursor);
         }),
+      );
+    },
+    async readOlder(key, before, limit) {
+      const opening = withStore(key);
+      if (opening === undefined) return undefined;
+      await pending;
+      const db = await opening.catch(() => undefined);
+      if (db === undefined) return undefined;
+      const mapped = await db.get<{ channel_id: string }>(
+        'select channel_id from conversation_keys where key = ?',
+        [key],
+      );
+      if (mapped === undefined) return undefined;
+      const span = await db.get<{ from_revision: number }>(
+        `select from_revision from gaps
+           where channel_id = ? and from_revision <= ? and to_revision >= ?`,
+        [mapped.channel_id, before - 1, before - 1],
+      );
+      if (span === undefined) return undefined;
+      const rows = await db.all<{ entry: string }>(
+        `select entry from messages where channel_id = ? and revision between ? and ?
+           order by revision desc limit ?`,
+        [mapped.channel_id, span.from_revision, before - 1, limit + 1],
+      );
+      const entries = rows
+        .slice(0, limit)
+        .reverse()
+        .map((row) => JSON.parse(row.entry) as JournalEntry);
+      if (entries.length === 0 && span.from_revision > 1) return undefined;
+      return { entries, hasOlder: rows.length > limit || span.from_revision > 1 };
+    },
+    writeOlder(key, channelId, before, page) {
+      const opening = withStore(key);
+      if (opening === undefined) return;
+      later(async () =>
+        (await opening).write((tx) => storeOlder(tx, key, channelId, before, page)),
       );
     },
     flush: async () => {

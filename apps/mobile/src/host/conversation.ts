@@ -254,11 +254,18 @@ export interface CachedChanges {
   cursor: ChangeCursor;
 }
 
+export interface OlderPage {
+  entries: JournalEntry[];
+  hasOlder: boolean;
+}
+
 export interface ConversationCache {
   read(key: string): Promise<CachedConversation | undefined>;
   write(key: string, value: CachedConversation): void;
   applyChanges?(key: string, channelId: string, changes: CachedChanges): void;
   replace?(key: string, channelId: string, value: CachedConversation): void;
+  readOlder?(key: string, before: number, limit: number): Promise<OlderPage | undefined>;
+  writeOlder?(key: string, channelId: string, before: number, page: OlderPage): void;
 }
 
 export interface SendObservation {
@@ -1216,9 +1223,26 @@ export function createConversation(options: ConversationOptions): Conversation {
       olderError = false;
       publish();
       try {
+        const local =
+          cacheKey === undefined
+            ? undefined
+            : await options.cache
+                ?.readOlder?.(cacheKey, before, olderPageSize)
+                .catch(() => undefined);
+        if (current !== session || first() !== before) return;
+        if (local !== undefined) {
+          window = [...local.entries, ...window];
+          hasOlder = local.hasOlder;
+          return;
+        }
         const page = await readPage(last(), before, olderPageSize);
         if (current !== session || first() !== before) return;
         const entries = page.entries.filter((entry) => entry.revision < before);
+        if (cacheKey !== undefined && channelId !== undefined)
+          options.cache?.writeOlder?.(cacheKey, channelId, before, {
+            entries,
+            hasOlder: page.hasOlder,
+          });
         if (entries.length > 0 && entries.at(-1)!.revision === before - 1) {
           window = [...entries, ...window];
           hasOlder = page.hasOlder;
