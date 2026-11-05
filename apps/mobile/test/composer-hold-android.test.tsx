@@ -30,8 +30,8 @@ vi.mock('react-native-gesture-handler', () => ({
       };
       return gesture;
     },
-    Native: () => ({}),
-    Exclusive: (...gestures: unknown[]) => gestures,
+    Native: () => ({ shouldActivateOnStart: () => ({}) }),
+    Simultaneous: (...gestures: unknown[]) => gestures,
   },
   GestureDetector: ({ children }: { children: React.ReactNode }) => children,
 }));
@@ -100,4 +100,29 @@ it('stops a held recording when the input leaves the screen', async () => {
   await act(() => root!.unmount());
   root = undefined;
   expect(stop).toHaveBeenCalledOnce();
+});
+
+it('keeps a held recording across rerenders and releases through the current callback', async () => {
+  const start = vi.fn();
+  const previousStop = vi.fn();
+  const currentStop = vi.fn();
+  root = createRoot(container);
+  const render = (onStop: () => void) => (
+    <ComposerHold enabled onStart={start} onStop={onStop}>
+      <textarea defaultValue="Keep this draft" />
+    </ComposerHold>
+  );
+  await act(() => root!.render(render(previousStop)));
+  const input = container.querySelector('textarea');
+  await act(() => native.start());
+  await act(() => root!.render(render(currentStop)));
+  expect(start).toHaveBeenCalledOnce();
+  expect(previousStop).not.toHaveBeenCalled();
+  expect(currentStop).not.toHaveBeenCalled();
+  expect(container.querySelector('textarea')).toBe(input);
+  await act(() => native.finish());
+  await act(() => native.finish());
+  expect(currentStop).toHaveBeenCalledOnce();
+  expect(previousStop).not.toHaveBeenCalled();
+  expect(input?.value).toBe('Keep this draft');
 });

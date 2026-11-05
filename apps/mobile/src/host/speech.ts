@@ -14,6 +14,8 @@ import { useMounted } from '../ui/mounted';
 
 async function permitted(): Promise<'denied' | 'unavailable' | undefined> {
   if (!ExpoSpeechRecognitionModule.isRecognitionAvailable()) return 'unavailable';
+  const current = await ExpoSpeechRecognitionModule.getPermissionsAsync();
+  if (current.granted) return undefined;
   const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
   return permission.granted ? undefined : 'denied';
 }

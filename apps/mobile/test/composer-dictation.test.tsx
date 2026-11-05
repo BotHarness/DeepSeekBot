@@ -149,8 +149,11 @@ vi.mock('expo-router', () => ({ usePreventRemove: () => {} }));
 vi.mock('expo-speech-recognition', () => ({
   ExpoSpeechRecognitionModule: {
     isRecognitionAvailable: () => speech.available,
-    requestPermissionsAsync: () =>
-      speech.permission ?? Promise.resolve({ granted: speech.granted }),
+    getPermissionsAsync: () =>
+      Promise.resolve({ granted: speech.granted && speech.permission === undefined }),
+    requestPermissionsAsync: vi.fn(
+      () => speech.permission ?? Promise.resolve({ granted: speech.granted }),
+    ),
     start: speech.start,
     stop: speech.stop,
     abort: speech.abort,
@@ -162,6 +165,7 @@ vi.mock('expo-speech-recognition', () => ({
 
 const { Composer } = await import('../src/ui/chat/composer');
 const { useDictation } = await import('../src/host/speech');
+const { ExpoSpeechRecognitionModule } = await import('expo-speech-recognition');
 const { t } = await import('../src/ui/strings');
 const { played } = await import('./expo-haptics-shim');
 const { setHapticsEnabled } = await import('../src/ui/haptics');
@@ -431,6 +435,14 @@ describe('Composer test IDs', () => {
 });
 
 describe('Holding the Android input', () => {
+  it('starts an already-authorized hold without reopening the permission activity', async () => {
+    await act(async () => speech.gesture!['start']!());
+    expect(speech.start).toHaveBeenCalledOnce();
+    expect(ExpoSpeechRecognitionModule.requestPermissionsAsync).not.toHaveBeenCalled();
+    expect(status()).toBe('starting');
+    expect(sent).not.toHaveBeenCalled();
+  });
+
   it('clears the held hint after native end before finger release without losing the draft', async () => {
     await act(async () => speech.gesture!['start']!());
     await emit('start');

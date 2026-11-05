@@ -27,7 +27,7 @@ export function ComposerHold({ enabled, onStart, onStop, children }: ComposerHol
         latest.current.onStart();
       })
       .onFinalize(stop);
-    return Gesture.Exclusive(hold, Gesture.Native());
+    return Gesture.Simultaneous(hold, Gesture.Native().shouldActivateOnStart(true));
   }, [enabled]);
   return (
     <View ref={mounted} style={{ flex: 1 }}>
