@@ -63,7 +63,11 @@ try {
   const get = (query, headers = {}) =>
     page.evaluate(
       async ({ query, headers }) => {
-        const response = await fetch(`/api/botharness/attachment?${query}`, { headers });
+        const started = performance.now();
+        const response = await fetch(`/api/botharness/attachment?${query}`, {
+          headers,
+          cache: 'no-store',
+        });
         const bytes = response.status === 200 ? (await response.arrayBuffer()).byteLength : 0;
         return {
           status: response.status,
@@ -71,6 +75,7 @@ try {
           type: response.headers.get('content-type'),
           cache: response.headers.get('cache-control'),
           etag: response.headers.get('etag'),
+          ms: Math.round(performance.now() - started),
         };
       },
       { query, headers },
@@ -119,6 +124,30 @@ try {
   const revalidated = await get(`${base}&v=${attachment.version}&variant=320`, {
     'if-none-match': variants['320'].etag,
   });
+  const resume = await page.evaluate(
+    async ({ query, size }) => {
+      const part = async (range) => {
+        const response = await fetch(`/api/botharness/attachment?${query}`, { headers: { range } });
+        return {
+          status: response.status,
+          range: response.headers.get('content-range'),
+          bytes: new Uint8Array(await response.arrayBuffer()),
+        };
+      };
+      const whole = new Uint8Array(
+        await (await fetch(`/api/botharness/attachment?${query}`)).arrayBuffer(),
+      );
+      const half = Math.floor(size / 2);
+      const first = await part(`bytes=0-${half - 1}`);
+      const second = await part(`bytes=${half}-`);
+      const joined = new Uint8Array(first.bytes.length + second.bytes.length);
+      joined.set(first.bytes);
+      joined.set(second.bytes, first.bytes.length);
+      const same = joined.length === whole.length && joined.every((byte, i) => byte === whole[i]);
+      return { statuses: [first.status, second.status], range: second.range, same };
+    },
+    { query: `${base}&v=${attachment.version}`, size: original.bytes },
+  );
   const stale = await get(`${base}&v=${'0'.repeat(32)}&variant=320`);
 
   expect(legacy.status === 200 && legacy.cache === 'no-store', 'unversioned original changed');
@@ -128,6 +157,10 @@ try {
     expect(response.cache?.includes('immutable'), `${variant} not immutable`);
     expect(response.bytes < original.bytes / 10, `${variant} is not much smaller`);
   }
+  expect(
+    resume.statuses.every((status) => status === 206) && resume.same,
+    'range resume did not rebuild the original',
+  );
   expect(revalidated.status === 304, 'ETag revalidation did not return 304');
   expect(stale.status === 409 && stale.cache === 'no-store', 'stale version not refused');
 
@@ -142,7 +175,9 @@ try {
           320: variants['320'].bytes,
           800: variants['800'].bytes,
         },
-        statuses: { revalidated: revalidated.status, stale: stale.status },
+        ms: { original: original.ms, 800: variants['800'].ms, revalidated: revalidated.ms },
+        statuses: { revalidated: revalidated.status, stale: stale.status, resume: resume.statuses },
+        resumeRange: resume.range,
       },
       null,
       2,

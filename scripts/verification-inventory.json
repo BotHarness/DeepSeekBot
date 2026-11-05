@@ -1778,9 +1778,9 @@
       "path": "scripts/e2e-media-thumbnails.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.attachments"],
-      "reason": "#3507 isolated Host: uploads a generated 2400x1600 PNG, waits for the timeline content version, dimensions and thumbhash, and compares original and 96c/320/800 WebP bytes, immutable caching, ETag 304 and stale-version 409. No model needed.",
+      "reason": "#3507 isolated Host: uploads a generated 2400x1600 PNG, waits for the timeline content version, dimensions and thumbhash, and compares original and 96c/320/800 WebP bytes, immutable caching, ETag 304, stale-version 409, and (#3508) a split byte-range resume that rebuilds the original. No model needed.",
       "task": 3507,
-      "sha256": "08828ba9489725f8980c131ef41e29ce12ba6ca5ea36a0d8fc352fcbdbbe27b6"
+      "sha256": "f2cb6776c6bc2b0446f893cf0acfc76a05fcebcda491240a14a541a4462f1f18"
     },
     {
       "path": "scripts/e2e-memory-restore.mjs",

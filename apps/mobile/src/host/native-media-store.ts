@@ -11,18 +11,25 @@ export const nativeMediaStore: MediaStore = {
     const file = mediaFile(cacheKey);
     return file.exists ? file.uri : undefined;
   },
-  write(cacheKey, bytes) {
+  async write(cacheKey, bytes) {
     const directory = mediaRoot();
     if (!directory.exists) directory.create({ intermediates: true, idempotent: true });
+    const part = new File(directory, `${encodeURIComponent(cacheKey)}.part`);
+    if (part.exists) part.delete();
+    await part.write(bytes);
     const file = mediaFile(cacheKey);
-    file.write(bytes);
+    if (file.exists) file.delete();
+    await part.move(file);
     return file.uri;
   },
   forget(cacheKeyPrefix) {
     const directory = mediaRoot();
     if (!directory.exists) return;
     for (const entry of directory.list())
-      if (entry instanceof File && decodeURIComponent(entry.name).startsWith(cacheKeyPrefix))
+      if (
+        entry instanceof File &&
+        decodeURIComponent(entry.name.replace(/\.part$/u, '')).startsWith(cacheKeyPrefix)
+      )
         entry.delete();
   },
 };
