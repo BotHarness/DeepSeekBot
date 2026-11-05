@@ -247,6 +247,21 @@ export class GroupSendReview {
     });
   }
 
+  stopOwner(owner: string): void {
+    this.database.transaction((db) => {
+      const rows = db
+        .prepare(`SELECT record_json FROM group_send_review_drafts
+        WHERE owner = ? AND json_extract(record_json, '$.state') IN ('held', 'requires-review')`)
+        .all(owner);
+      for (const row of rows) {
+        const draft = JSON.parse(String(row.record_json)) as ReviewDraft;
+        draft.state = 'dropped';
+        draft.terminationReason = 'stopped';
+        this.#save(db, draft);
+      }
+    });
+  }
+
   drop(
     owner: string,
     channelId: string,

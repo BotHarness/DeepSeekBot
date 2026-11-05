@@ -52,6 +52,14 @@ class FakeSource {
       }),
     );
   }
+  appendDraft(id: string, append: string, base: number, offset: number): void {
+    this.draftRevision += 1;
+    this.listeners.get('channel/draft-append')?.(
+      new MessageEvent('channel/draft-append', {
+        data: JSON.stringify({ draftId: id, revision: this.draftRevision, base, offset, append }),
+      }),
+    );
+  }
   endDraft(id: string, abandoned = false): void {
     this.draftRevision += 1;
     const name = abandoned ? 'channel/draft-abandoned' : 'channel/draft-settled';
@@ -522,6 +530,23 @@ describe('Channel live Client', () => {
     expect(sources).toHaveLength(2);
     store.setMode('dsh');
     expect(sources[1]?.closed).toBe(true);
+    dispose();
+  });
+
+  it('asks for appended draft text and extends the draft it continues', async () => {
+    const { store, sources, dispose, refresh } = setup();
+    expect(new URL(sources[0]!.url, 'http://localhost').searchParams.get('drafts')).toBe('append');
+    sources[0]?.baseline();
+    sources[0]?.emitDraft('attempt:call', '你');
+    sources[0]?.appendDraft('attempt:call', '好', 1, 1);
+    sources[0]?.appendDraft('attempt:call', '，世界', 2, 2);
+    expect(store.getSnapshot().conversation.drafts).toMatchObject([
+      { body: '你好，世界', revision: 3 },
+    ]);
+    sources[0]?.appendDraft('attempt:call', '？', 2, 5);
+    await vi.waitFor(() => expect(sources).toHaveLength(2));
+    expect(refresh).toHaveBeenCalledWith(CHANNEL.id);
+    expect(store.getSnapshot().conversation.drafts).toEqual([]);
     dispose();
   });
 

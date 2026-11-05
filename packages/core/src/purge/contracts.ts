@@ -140,6 +140,7 @@ export interface PurgedPlacement {
   sourceEventId: string;
   channelId: string;
   messageId: string;
+  fileIds?: string[];
 }
 
 export class ContentPurgeError extends Error {

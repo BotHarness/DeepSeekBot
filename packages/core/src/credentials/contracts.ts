@@ -46,6 +46,22 @@ export interface PrivateRevocationResult {
   completed: number;
   uncertain: number;
 }
+export const PRIVATE_SUBMISSION_REFUSALS = [
+  'not-owner',
+  'not-pending',
+  'busy',
+  'invalid-fields',
+  'store-unavailable',
+  'expired',
+  'version-changed',
+  'save-failed',
+  'not-committed',
+] as const;
+export type PrivateSubmissionRefusal = (typeof PRIVATE_SUBMISSION_REFUSALS)[number];
+export interface PrivateSubmissionResult {
+  accepted: boolean;
+  reason?: PrivateSubmissionRefusal;
+}
 export interface PrivateInputResult {
   status: 'configured' | 'cancelled' | 'expired';
   account: string;

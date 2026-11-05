@@ -2,6 +2,7 @@ import type { ChannelActivity } from '../../host/channel-activity';
 import type { RosterView } from '../../host/client';
 import type { ConversationMessage } from '../../host/conversation';
 import { t } from '../strings';
+import { callRecordLines } from './call-record-text';
 
 export type ActivityTarget =
   | { pathname: '/channel/[id]'; params: { id: string; focus: string; focusWindow: 'latest' } }
@@ -134,7 +135,36 @@ export function activityText(
         name: activity.displayName,
         verb: activity.departureType === 'removed' ? copy.removed : copy.left,
       };
-    case 'turn-stop':
-      return { name: activity.humanName, verb: copy.stopped(activity.botName) };
+    case 'voice-call': {
+      const { title, detail } = callRecordLines(activity.record);
+      return { name: title, verb: '', detail };
+    }
+    case 'turn-stop': {
+      if (activity.cause === 'failures')
+        return {
+          botSlug: activity.botSlug,
+          name: activity.botName,
+          verb: copy.stoppedFailures(activity.failures ?? 0),
+          detail: copy.stoppedRetry,
+        };
+      const target = activity.target;
+      const session = target?.scope === 'session' ? target : undefined;
+      return {
+        name: activity.humanName,
+        verb:
+          target?.scope === 'bot'
+            ? copy.stoppedBot(activity.botName)
+            : session?.role === 'orchestrator'
+              ? copy.stoppedOrchestrator(activity.botName)
+              : session?.role === 'assignment'
+                ? copy.stoppedAssignment(activity.botName, session.title)
+                : copy.stopped(activity.botName),
+        ...(session?.role === 'orchestrator'
+          ? { detail: copy.stoppedOrchestratorHeld }
+          : activity.held === true
+            ? { detail: copy.stoppedHeld }
+            : {}),
+      };
+    }
   }
 }

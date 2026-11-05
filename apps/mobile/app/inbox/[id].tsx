@@ -31,6 +31,7 @@ type Params = {
   summary?: string;
   channelId?: string;
   messageId?: string;
+  clearOnOpen?: string;
 };
 
 export default function InboxItemScreen() {
@@ -158,6 +159,7 @@ export default function InboxItemScreen() {
           else setOpenNotice(snapshot.roster ? t.noChannel : t.channelOpeningNotReady);
         }}
         fallback={fallback}
+        clearOnOpen={params.clearOnOpen === '1'}
       />
     );
   else body = fallback;

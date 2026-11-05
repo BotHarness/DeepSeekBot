@@ -28,7 +28,12 @@ import { DesktopViewError, createDesktopView, parseDesktopInput } from './deskto
 import { createComputerPauseStore, createLocalVideoOwner } from './local-video-owner.js';
 import { createMacScroll } from './macos-scroll.js';
 import { createLocalVideoHttp } from './local-video-http.js';
-import { LOCAL_VIDEO_PATH, LocalVideoError } from './local-video-contract.js';
+import {
+  LOCAL_VIDEO_PATH,
+  LocalVideoError,
+  type LocalDesktopControl,
+} from './local-video-contract.js';
+import { createCallMedia } from './media/call-supervisor.js';
 import { createLocalVideoMedia } from './media/supervisor.js';
 import { resolveDshHome } from '../../core/src/im/config-store.js';
 import type { ComputerSettings } from './settings.js';
@@ -451,9 +456,13 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
     onEvent: (detail) => diagnostics.record('lifecycle', detail),
   });
   service.localVideo = localVideo;
+  service.callMedia = createCallMedia({
+    onEvent: (detail) => diagnostics.record('lifecycle', detail),
+  });
   ctx.effect(
     () => async () => {
       service.localVideo = undefined;
+      service.callMedia = undefined;
       await localVideo.dispose();
     },
     'botharness-computer: Local video owner',
@@ -468,6 +477,13 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
     driver,
     isComputerRunning: () => runtime.isRunning(),
     isPaused: () => (migratedLocal() ? localVideo.isPaused() : desktopView.isPaused()),
+    isBotPaused: (slug) => {
+      if (!migratedLocal()) return false;
+      const browser = ctx.get('botharnessBrowserTools') as unknown as
+        | { sharesLocalDesktop?: () => boolean; isTakeover?: (slug: string) => boolean }
+        | undefined;
+      return browser?.sharesLocalDesktop?.() === true && browser.isTakeover?.(slug) === true;
+    },
     runBotOperation: (operation, signal) =>
       migratedLocal() ? localVideo.runBotOperation(() => operation()) : operation(signal),
     authorizationScope,
@@ -487,6 +503,11 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
     },
   });
   ctx.provide('botharnessComputerTools', {
+    desktopControl: (): LocalDesktopControl => ({
+      desktop: migratedLocal(),
+      held: migratedLocal() && runtime.isRunning() && localVideo.isPaused(),
+      epoch: localVideo.controlEpoch(),
+    }),
     reconcileBot: (slug: string) => toolProvider.reconcileBot(slug),
     ownsTool: (name: string) => ownsComputerTool(name),
     approvalScope: () => savedTargetScope.current(),

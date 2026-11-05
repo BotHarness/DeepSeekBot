@@ -9,7 +9,24 @@ import type { HostCarrier, HostSocket } from './carrier';
 import { rosterSortingOf, type RosterSorting } from './roster-sorting';
 import { DEVICE_PREFIX } from './pairing';
 import { checkRoute, isConnectRoute, isEncryptedRoute, isLanRoute, socketOrigin } from './route';
+import {
+  readChannelList,
+  readListBots,
+  saveListBots,
+  syncChannelList,
+  type ChannelListChanges,
+  type ChannelListCursor,
+} from './channel-list-store';
+import type { LocalStore } from './local-store';
 import { LOCAL_VIDEO_PATH } from '../../../../packages/computer/src/local-video-contract';
+import {
+  isChannelVoiceCallRecord,
+  type ChannelVoiceCallRecord,
+} from '../../../../packages/core/src/channels/voice-call-record';
+import {
+  VOICE_CALL_CONNECT_REFUSAL,
+  VOICE_CALL_PATH,
+} from '../../../../packages/core/src/voice/call-contract';
 import { secretRouteRefusal } from '../../../../packages/core/src/bridge/secret-route';
 import {
   REMOTE_STREAM_MUX_PATH,
@@ -59,6 +76,7 @@ export interface RosterBot {
   paused: boolean;
   dmChannelId?: string;
   preview?: string;
+  previewCall?: ChannelVoiceCallRecord;
   previewAt?: string;
   latestMessageId?: string;
   previewAuthor?: WireAuthor;
@@ -74,6 +92,7 @@ export interface RosterChannel {
   pendingInvites?: Array<{ id: string; botSlug: string }>;
   pendingJoins?: Array<{ id: string; botSlug: string }>;
   preview?: string;
+  previewCall?: ChannelVoiceCallRecord;
   previewAt?: string;
   latestMessageId?: string;
   previewAuthor?: WireAuthor;
@@ -121,6 +140,8 @@ export interface RemoteSource {
   read?: (signal: AbortSignal) => Promise<{ bytes: Uint8Array; mime: string }>;
   uri: string;
   headers: Record<string, string>;
+  cacheKey?: string;
+  scope?: string;
 }
 
 export interface StreamHandlers {
@@ -161,6 +182,7 @@ export interface HostApiAnswer {
 
 export interface HostClientOptions {
   onRoutesChanged?: (routes: string[]) => Promise<void>;
+  onPurged?: (placements: unknown) => void;
   hostId?: string;
   encryption?: HostEncryption;
   telemetry?: ConnectionTelemetry;
@@ -169,6 +191,7 @@ export interface HostClientOptions {
   carrier: HostCarrier;
   backoff?: (attempt: number) => number;
   timeoutMs?: number;
+  localStore?: () => Promise<LocalStore | undefined>;
 }
 
 export type DeviceRefusal = 'device-revoked' | 'device-unknown' | 'device-credential-missing';
@@ -236,14 +259,19 @@ function record(value: unknown): Record<string, unknown> {
 
 function previewOf(channel: ChannelListItem | undefined): {
   preview?: string;
+  previewCall?: ChannelVoiceCallRecord;
   previewAt?: string;
   latestMessageId?: string;
   previewAuthor?: WireAuthor;
 } {
   const message = channel?.latestMessage;
   if (message === undefined) return {};
+  const call = record(message).voiceCallRecord;
   return {
     preview: message.body.replace(/\s+/gu, ' ').trim().slice(0, 140),
+    ...(message.author?.kind === 'system' && isChannelVoiceCallRecord(call)
+      ? { previewCall: call }
+      : {}),
     previewAt: message.at,
     latestMessageId: message.id,
     ...(message.author === undefined ? {} : { previewAuthor: message.author }),
@@ -311,6 +339,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
   let bots: PersonaBotSummary[] | undefined;
   let computerAvailable: boolean | undefined;
   let channels = new Map<string, ChannelListItem>();
+  let channelsLoaded = false;
+  let savedBots: string | undefined;
   let states = new Map<string, WireBotActivity>();
   let rawStates = new Map<string, WireBotActivity>();
   const smoother = new ActivitySmoother<WireBotActivity>();
@@ -335,16 +365,62 @@ export function createHostClient(options: HostClientOptions): HostClient {
   let liveSocket: { generation: number; send(frame: MuxClientFrame): void } | undefined;
   let streams = new Map<string, { item(value: unknown): void; end(frame: MuxServerFrame): void }>();
 
+  const shared = new Map<string, { json: string; value: unknown }>();
+  const share = <T>(key: string, value: T): T => {
+    const json = JSON.stringify(value);
+    const previous = shared.get(key);
+    if (previous?.json === json) return previous.value as T;
+    shared.set(key, { json, value });
+    return value;
+  };
+  const sameList = <T>(next: readonly T[], previous: readonly T[] | undefined): boolean =>
+    previous !== undefined &&
+    next.length === previous.length &&
+    next.every((item, index) => item === previous[index]);
+  const shareRoster = (next: RosterView, previous: RosterView | undefined): RosterView => {
+    const bots = next.bots.map((bot) => share(`bot:${bot.slug}`, bot));
+    const channels = next.channels.map((channel) => share(`channel:${channel.id}`, channel));
+    const roster: RosterView = {
+      ...next,
+      bots: sameList(bots, previous?.bots) ? previous!.bots : bots,
+      channels: sameList(channels, previous?.channels) ? previous!.channels : channels,
+      ...(next.activityChannels === undefined
+        ? {}
+        : {
+            activityChannels: sameList(next.activityChannels, previous?.activityChannels)
+              ? previous!.activityChannels!
+              : next.activityChannels,
+          }),
+    };
+    return previous !== undefined &&
+      (Object.keys(roster) as (keyof RosterView)[]).every((key) => roster[key] === previous[key]) &&
+      Object.keys(previous).length === Object.keys(roster).length
+      ? previous
+      : roster;
+  };
+
   const publish = (connection?: ConnectionState): void => {
-    snapshot = {
-      routes: routes.map((url) => ({
-        url,
-        status: routeChecks.get(url) ?? 'unchecked',
-      })),
+    const nextRoutes: NonNullable<HostSnapshot['routes']> = routes.map((url) => ({
+      url,
+      status: routeChecks.get(url) ?? 'unchecked',
+    }));
+    const roster = bots === undefined ? undefined : shareRoster(view(bots), snapshot.roster);
+    const next: HostSnapshot = {
+      routes:
+        snapshot.routes !== undefined &&
+        JSON.stringify(nextRoutes) === JSON.stringify(snapshot.routes)
+          ? snapshot.routes
+          : nextRoutes,
       connection: connection ?? snapshot.connection,
       ...(computerAvailable === undefined ? {} : { computerAvailable }),
-      ...(bots === undefined ? {} : { roster: view(bots) }),
+      ...(roster === undefined ? {} : { roster }),
     };
+    const unchanged =
+      connection === undefined &&
+      Object.keys(next).length === Object.keys(snapshot).length &&
+      (Object.keys(next) as (keyof HostSnapshot)[]).every((key) => next[key] === snapshot[key]);
+    if (unchanged) return;
+    snapshot = next;
     if (connection !== undefined)
       options.telemetry?.update(
         connection.status,
@@ -429,11 +505,13 @@ export function createHostClient(options: HostClientOptions): HostClient {
   const absolute = (path: string): string =>
     path.startsWith('/') ? `${route}${DEVICE_PREFIX}${path}` : path;
 
+  const scope = options.hostId ? { scope: options.hostId } : {};
   const resource = (path: string): RemoteSource => {
     if (checkRoute(route).ok && !isEncryptedRoute(route, options.encryption))
-      return { uri: absolute(path), headers: authorization };
+      return { uri: absolute(path), headers: authorization, ...scope };
     const origin = route;
     return {
+      ...scope,
       uri: `connect-resource:${options.hostId ?? ''}:${path}`,
       headers: {},
       read: async (signal) => {
@@ -620,6 +698,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
             error: 'Local Computer video requires the paired LAN route.',
           },
         };
+      if (isConnectRoute(route) && path === VOICE_CALL_PATH)
+        return { status: 409, body: VOICE_CALL_CONNECT_REFUSAL };
       if (
         isEncryptedRoute(route, options.encryption) &&
         /^\/api\/(?:browser|computer)\//u.test(path) &&
@@ -697,12 +777,76 @@ export function createHostClient(options: HostClientOptions): HostClient {
     }
   };
 
+  const fullChannelList = (): Promise<ChannelListItem[]> =>
+    call<{ channels: ChannelListItem[] }>('channels').then((result) => result.channels);
+
+  const unlessRefused = <T>(work: Promise<T>): Promise<T | undefined> =>
+    work.catch((error: unknown) => {
+      if (error instanceof MethodRefused) return undefined;
+      throw error;
+    });
+
+  const openLocalStore = (): Promise<LocalStore | undefined> =>
+    options.localStore?.().catch(() => undefined) ?? Promise.resolve(undefined);
+
+  const loadChannels = async (): Promise<ChannelListItem[]> => {
+    const store = await openLocalStore();
+    if (store === undefined) return fullChannelList();
+    try {
+      return await syncChannelList(store, {
+        channels: fullChannelList,
+        cursor: () => unlessRefused(call<ChannelListCursor>('channelChangeCursor')),
+        changes: (cursor) =>
+          unlessRefused(
+            call<ChannelListChanges>('channelListChanges', {
+              sinceSeq: cursor.seq,
+              epoch: cursor.epoch,
+            }),
+          ),
+      });
+    } catch (error) {
+      if (
+        error instanceof Unreachable ||
+        error instanceof MethodRefused ||
+        error instanceof CredentialRefused
+      )
+        throw error;
+      return fullChannelList();
+    }
+  };
+
+  const paintStoredChannels = async (): Promise<void> => {
+    const store = await openLocalStore();
+    if (store === undefined || channelsLoaded) return;
+    const [stored, storedBots] = await Promise.all([
+      readChannelList(store),
+      readListBots<PersonaBotSummary>(store),
+    ]).catch(() => [undefined, undefined] as const);
+    if (stored === undefined || storedBots === undefined || channelsLoaded) return;
+    savedBots = JSON.stringify(storedBots);
+    bots = storedBots;
+    channels = new Map(stored.channels.map((channel) => [channel.id, channel]));
+    publish();
+  };
+
+  const keepBots = (list: PersonaBotSummary[]): void => {
+    const json = JSON.stringify(list);
+    if (json === savedBots) return;
+    void openLocalStore()
+      .then(async (store) => {
+        if (store === undefined) return;
+        await saveListBots(store, list);
+        savedBots = json;
+      })
+      .catch(() => undefined);
+  };
+
   const reloadOnce = async (): Promise<void> => {
     void discoverComputer();
     void discoverRoutes();
     const [list, channelList, rosterArrangement, rosterSorting] = await Promise.all([
       call<{ bots: PersonaBotSummary[] }>('list'),
-      call<{ channels: ChannelListItem[] }>('channels'),
+      loadChannels(),
       call<unknown>('rosterGet').then(arrangementOf, (error: unknown) => {
         if (error instanceof MethodRefused) return undefined;
         throw error;
@@ -710,7 +854,9 @@ export function createHostClient(options: HostClientOptions): HostClient {
       call<unknown>('settings/describe').then(rosterSortingOf),
     ]);
     bots = list.bots;
-    channels = new Map(channelList.channels.map((channel) => [channel.id, channel]));
+    channels = new Map(channelList.map((channel) => [channel.id, channel]));
+    channelsLoaded = true;
+    keepBots(list.bots);
     arrangement = rosterArrangement;
     sorting = rosterSorting;
     publish();
@@ -926,6 +1072,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
           };
           follow('botharness/followRoster', (value) => {
             const frame = value as RosterLiveFrame;
+            if (frame.type === 'baseline' || frame.type === 'purged')
+              options.onPurged?.(frame.placements);
             if (frame.type === 'baseline') {
               baselines.roster = true;
               if (baselines.activity) resolveReady();
@@ -992,7 +1140,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     publish({ status: 'connected', route });
     const health = setInterval(() => {
       void discoverRoutes();
-      void refreshConnected(() => call('list')).catch(() => undefined);
+      void refreshConnected(probeHost).catch(() => undefined);
     }, 20_000);
     try {
       await closed;
@@ -1002,6 +1150,22 @@ export function createHostClient(options: HostClientOptions): HostClient {
     }
   };
 
+  let pingAvailable = true;
+  const probeHost = async (): Promise<unknown> => {
+    if (pingAvailable)
+      try {
+        return await call('ping');
+      } catch (error) {
+        if (
+          error instanceof Unreachable ||
+          error instanceof CredentialRefused ||
+          error instanceof ConnectRefused
+        )
+          throw error;
+        pingAvailable = false;
+      }
+    return call('list');
+  };
   const refreshConnected = async (read: () => Promise<unknown> = reload): Promise<void> => {
     const disconnect = disconnectCurrent;
     try {
@@ -1125,6 +1289,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
           ? { status: 'reconnecting', route, attempt: Math.max(attempt, 1) }
           : { status: 'connecting', route },
       );
+      void paintStoredChannels();
       void loop(generation);
     },
     stop() {

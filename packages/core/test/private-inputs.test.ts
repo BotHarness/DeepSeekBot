@@ -835,9 +835,13 @@ describe('private input native authority and reference contract', () => {
         result.references,
         consume,
       ),
-    ).rejects.toThrow(/unavailable/);
+    ).rejects.toThrow(/live main conversation Session of a PersonaBot/);
     expect(consume).not.toHaveBeenCalled();
     expect(await f.owner.submit(true, { channelId: 'dm-ada', messageId, values })).toBe(false);
+    expect(await f.owner.submission(true, { channelId: 'dm-ada', messageId, values })).toEqual({
+      accepted: false,
+      reason: 'not-pending',
+    });
     expect(
       (await f.credentials.listRecords()).filter((entry) =>
         entry.key.startsWith('botharness-private/grant-'),
@@ -1188,6 +1192,84 @@ describe('private input native authority and reference contract', () => {
       await replacement.close();
       await f.close();
       await lost;
+    }
+  });
+});
+
+describe('private input failure reasons', () => {
+  it('names why a submission was not received and logs the stage without values', async () => {
+    let failWrites = false;
+    let failReads = false;
+    const f = await fixture(true, undefined, {
+      credentials: () =>
+        new Proxy(f.credentials, {
+          get(target, key, receiver) {
+            const value = Reflect.get(target, key, receiver) as unknown;
+            if (key === 'modifyRecord' && failWrites)
+              return () => Promise.reject(new Error('disk full'));
+            if (key === 'readRecord' && failReads) return () => Promise.reject(new Error('locked'));
+            return typeof value === 'function' ? value.bind(target) : value;
+          },
+        }),
+    });
+    try {
+      const asked = f.owner.ask(f.agent, declaration, new AbortController().signal);
+      await vi.waitFor(() => expect(f.channels.readMessages('dm-ada')).toHaveLength(1));
+      const messageId = f.channels.readMessages('dm-ada')[0]!.id;
+      expect(
+        await f.owner.submission(true, {
+          channelId: 'dm-ada',
+          messageId,
+          values: { api_key: 'only-one' },
+        }),
+      ).toEqual({ accepted: false, reason: 'invalid-fields' });
+      failWrites = true;
+      expect(await f.owner.submission(true, { channelId: 'dm-ada', messageId, values })).toEqual({
+        accepted: false,
+        reason: 'save-failed',
+      });
+      expect((await asked).status).toBe('expired');
+      const log = (f.owner as unknown as { deps: { log: ReturnType<typeof vi.fn> } }).deps.log;
+      expect(log).toHaveBeenCalledWith(
+        'submit-refused',
+        expect.objectContaining({ reason: 'invalid-fields', requestId: messageId }),
+      );
+      expect(log).toHaveBeenCalledWith(
+        'submit-failed',
+        expect.objectContaining({ reason: 'save-failed', errorName: 'Error' }),
+      );
+      expect(JSON.stringify(log.mock.calls)).not.toContain(values.api_key);
+
+      failWrites = false;
+      const second = f.owner.ask(f.agent, declaration, new AbortController().signal);
+      await vi.waitFor(() => expect(f.channels.readMessages('dm-ada').length).toBeGreaterThan(2));
+      const next = f.channels.readMessages('dm-ada')[0]!.id;
+      expect(next).not.toBe(messageId);
+      expect(
+        await f.owner.submission(true, { channelId: 'dm-ada', messageId: next, values }),
+      ).toEqual({ accepted: true });
+      const configured = await second;
+      await expect(
+        f.owner.consume(f.agent, declaration.account, configured.references, async () => {
+          throw new TypeError('boom');
+        }),
+      ).rejects.toThrow('Protected credential consumer failed (TypeError)');
+      failReads = true;
+      await expect(
+        f.owner.consume(f.agent, declaration.account, configured.references, async () => 'ok'),
+      ).rejects.toThrow(/could not read the saved private information/);
+      expect(log).toHaveBeenCalledWith(
+        'consume-refused',
+        expect.objectContaining({ reason: 'store-unreadable' }),
+      );
+      expect(log).toHaveBeenCalledWith(
+        'consume-failed',
+        expect.objectContaining({ reason: 'consumer-error', errorName: 'TypeError' }),
+      );
+      expect(JSON.stringify(log.mock.calls)).not.toContain(values.api_key);
+    } finally {
+      failReads = false;
+      await f.close();
     }
   });
 });
