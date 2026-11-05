@@ -1,4 +1,13 @@
-import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, join } from 'node:path';
 
 import { ATTACHMENT_FILE_ID_PATTERN } from './ref.js';
@@ -104,6 +113,9 @@ export function createMediaVersions(
     const temp = join(file.root, `facts.${process.pid}.${Date.now()}.tmp`);
     writeFileSync(temp, JSON.stringify(facts));
     renameSync(temp, join(file.root, 'facts.json'));
+    for (const name of readdirSync(file.root))
+      if (/^[0-9a-f]{32}-.+\.webp$/u.test(name) && !name.startsWith(`${facts.version}-`))
+        rmSync(join(file.root, name), { force: true });
     changed?.(fileId);
     return publicFacts(facts);
   };
