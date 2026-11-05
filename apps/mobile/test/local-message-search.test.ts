@@ -96,6 +96,36 @@ describe('local message search', () => {
     expect(await store.all('select n from search_rows order by n')).toHaveLength(3);
   });
 
+  it('re-indexes a row only when its entry or purge state changes', async () => {
+    const { store, cache } = await seeded();
+    const mark = () =>
+      store.write((tx) =>
+        tx.run(
+          `update message_text set body = 'sentinel'
+             where rowid = (select n from search_rows where channel_id = ? and id = ?)`,
+          [CHANNEL, 'm2'],
+        ),
+      );
+    const marked = async () =>
+      (await store.all('select rowid from message_text where message_text match ?', ['sentinel']))
+        .length;
+    await mark();
+    cache.write(KEY, {
+      entries: [entry(2, 'm2', 'Release notes are in the shared folder')],
+      hasOlder: true,
+    });
+    await cache.flush();
+    expect(await marked()).toBe(1);
+    cache.write(KEY, { entries: [entry(2, 'm2', 'Release notes moved')], hasOlder: true });
+    await cache.flush();
+    expect(await marked()).toBe(0);
+    expect(ids(await searchStoredMessages(store, 'moved', 20))).toEqual(['m2']);
+    await mark();
+    await redactLocalConversations(store, [{ channelId: CHANNEL, messageId: 'm2' }]);
+    expect(await marked()).toBe(0);
+    expect(ids(await searchStoredMessages(store, 'moved', 20))).toEqual([]);
+  });
+
   it('indexes rows stored before the search migration', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'message-search-'));
     directories.push(directory);

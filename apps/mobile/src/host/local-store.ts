@@ -87,7 +87,8 @@ export const LOCAL_STORE_MIGRATIONS: readonly string[] = [
       where channel_id = new.channel_id and id = new.id and new.purged = 0
         and coalesce(json_extract(new.entry, '$.message.body'), '') <> '';
   end;
-  create trigger messages_text_update after update on messages begin
+  create trigger messages_text_update after update on messages
+    when old.entry is not new.entry or old.purged is not new.purged begin
     delete from message_text
       where rowid = (select n from search_rows where channel_id = old.channel_id and id = old.id);
     insert into search_rows (channel_id, id)
