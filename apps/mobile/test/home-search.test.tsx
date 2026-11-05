@@ -1048,6 +1048,21 @@ describe('Search in the Chats header', () => {
     });
   });
 
+  it('does not send a pending message search after leaving Home', async () => {
+    vi.useFakeTimers();
+    try {
+      const view = await home();
+      await type(view, 'launch');
+      expect(call.mock.calls.filter(([method]) => method === 'messageSearch')).toEqual([]);
+      await act(async () => root?.unmount());
+      root = undefined;
+      await act(async () => vi.advanceTimersByTimeAsync(150));
+      expect(call.mock.calls.filter(([method]) => method === 'messageSearch')).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('lists matching messages under the Chats and opens the conversation at that message', async () => {
     vi.useFakeTimers();
     try {
