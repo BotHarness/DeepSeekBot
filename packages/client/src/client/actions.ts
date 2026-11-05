@@ -364,14 +364,21 @@ import {
   type SubmissionAttempt,
   type SubmissionSnapshot,
 } from './composer-submission-store.js';
+import { createVoiceDictationPort } from './composer-dictation.js';
 import {
   addVoiceProvider,
   loadVoiceProviders,
   removeVoiceProvider,
+  setBotAsr,
   setBotVoice,
+  setSpeechThreshold,
+  setVoiceDefault,
   synthesizeVoice,
   testVoiceProvider,
+  type BotAsrView,
   type BotVoiceView,
+  type VoiceDefaultsView,
+  type VoiceSpeechThresholdView,
   type VoiceProviderAddInput,
   type VoiceProviderHealthView,
   type VoiceProvidersView,
@@ -867,6 +874,7 @@ export interface BridgeActions {
   setBotApprovalTemplate?(slug: string, template: string | null): Promise<void>;
   approvalReviewerModel?(): Promise<ApprovalReviewerModelView>;
   voiceProviders?(slug?: string): Promise<VoiceProvidersView>;
+  dictationPort?(slug?: string): import('./composer-dictation.js').VoiceDictationPort;
   addVoiceProvider?(input: VoiceProviderAddInput): Promise<VoiceProviderView>;
   removeVoiceProvider?(id: string): Promise<string[]>;
   testVoiceProvider?(id: string, voiceId?: string): Promise<VoiceProviderHealthView>;
@@ -881,6 +889,13 @@ export interface BridgeActions {
     providerId: string | null,
     voiceId?: string,
   ): Promise<BotVoiceView | null>;
+  setBotAsr?(slug: string, providerId: string | null): Promise<BotAsrView | null>;
+  setVoiceDefault?(
+    kind: 'tts' | 'asr',
+    providerId: string | null,
+    voiceId?: string,
+  ): Promise<VoiceDefaultsView>;
+  setSpeechThreshold?(dbfs: number | null): Promise<VoiceSpeechThresholdView>;
   setApprovalReviewerModel?(model: ModelRouteView | null): Promise<ApprovalReviewerModelView>;
   revokeToolApprovalRule(slug: string, id: string): Promise<void>;
   toolApprovalStatus(
@@ -1995,11 +2010,16 @@ export function createActions(
     setBotApprovalTemplate: (slug, template) => setBotApprovalTemplate(call, slug, template),
     approvalReviewerModel: () => loadApprovalReviewerModel(call),
     voiceProviders: (slug) => loadVoiceProviders(call, slug),
+    dictationPort: (slug) => createVoiceDictationPort(call, { slug }),
     addVoiceProvider: (input) => addVoiceProvider(call, input),
     removeVoiceProvider: (id) => removeVoiceProvider(call, id),
     testVoiceProvider: (id, voiceId) => testVoiceProvider(call, id, voiceId),
     synthesizeVoice: (input) => synthesizeVoice(call, input),
     setBotVoice: (slug, providerId, voiceId) => setBotVoice(call, slug, providerId, voiceId),
+    setBotAsr: (slug, providerId) => setBotAsr(call, slug, providerId),
+    setVoiceDefault: (kind, providerId, voiceId) =>
+      setVoiceDefault(call, kind, providerId, voiceId),
+    setSpeechThreshold: (dbfs) => setSpeechThreshold(call, dbfs),
     setApprovalReviewerModel: (model) => setApprovalReviewerModel(call, model),
     revokeToolApprovalRule: (slug, id) => revokeToolApprovalRule(call, slug, id),
     toolApprovalStatus: (channelId, messageId) =>

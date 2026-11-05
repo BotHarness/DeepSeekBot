@@ -1,0 +1,91 @@
+diff --git a/android/src/main/java/expo/modules/ReactActivityDelegateWrapper.kt b/android/src/main/java/expo/modules/ReactActivityDelegateWrapper.kt
+index aa8f2f542..4418a5a2b 100644
+--- a/android/src/main/java/expo/modules/ReactActivityDelegateWrapper.kt
++++ b/android/src/main/java/expo/modules/ReactActivityDelegateWrapper.kt
+@@ -218,7 +218,7 @@ class ReactActivityDelegateWrapper(
+   override fun onDestroy() {
+     // Note: use our `coroutineScope` for onDestroy here
+     // because the lifecycleScope destroyed before the executions.
+-    applicationCoroutineScope.launch {
++    applicationCoroutineScope.launch(start = CoroutineStart.UNDISPATCHED) {
+       mutex.withLock {
+         loadAppReady.await()
+         reactActivityLifecycleListeners.forEach { listener ->
+diff --git a/android/src/test/java/expo/modules/ReactActivityDelegateWrapperTest.kt b/android/src/test/java/expo/modules/ReactActivityDelegateWrapperTest.kt
+index ba9a317c1..c78c62e98 100644
+--- a/android/src/test/java/expo/modules/ReactActivityDelegateWrapperTest.kt
++++ b/android/src/test/java/expo/modules/ReactActivityDelegateWrapperTest.kt
+@@ -15,6 +15,14 @@ import io.mockk.mockk
+ import io.mockk.mockkObject
+ import io.mockk.unmockkAll
+ import io.mockk.verify
++import io.mockk.verifyOrder
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.ExperimentalCoroutinesApi
++import kotlinx.coroutines.test.StandardTestDispatcher
++import kotlinx.coroutines.test.resetMain
++import kotlinx.coroutines.test.runCurrent
++import kotlinx.coroutines.test.runTest
++import kotlinx.coroutines.test.setMain
+ import org.junit.After
+ import org.junit.Before
+ import org.junit.Test
+@@ -44,6 +52,58 @@ internal class ReactActivityDelegateWrapperTest {
+     unmockkAll()
+   }
+
++  @OptIn(ExperimentalCoroutinesApi::class)
++  @Test
++  fun `loaded onDestroy calls listeners and delegate before returning`() = runTest {
++    Dispatchers.setMain(StandardTestDispatcher(testScheduler))
++    try {
++      val delegateWrapper = ReactActivityDelegateWrapper(activity, delegate)
++      delegateWrapper.setLoadAppReadyForTesting()
++
++      delegateWrapper.onDestroy()
++
++      verifyOrder {
++        mockPackage0.reactActivityLifecycleListener.onDestroy(activity)
++        mockPackage1.reactActivityLifecycleListener.onDestroy(activity)
++        delegate.onDestroy()
++      }
++      runCurrent()
++      verify(exactly = 1) { mockPackage0.reactActivityLifecycleListener.onDestroy(activity) }
++      verify(exactly = 1) { mockPackage1.reactActivityLifecycleListener.onDestroy(activity) }
++      verify(exactly = 1) { delegate.onDestroy() }
++    } finally {
++      Dispatchers.resetMain()
++    }
++  }
++
++  @OptIn(ExperimentalCoroutinesApi::class)
++  @Test
++  fun `onDestroy still waits for app readiness`() = runTest {
++    Dispatchers.setMain(StandardTestDispatcher(testScheduler))
++    try {
++      val delegateWrapper = ReactActivityDelegateWrapper(activity, delegate)
++
++      delegateWrapper.onDestroy()
++      runCurrent()
++      verify(exactly = 0) { mockPackage0.reactActivityLifecycleListener.onDestroy(activity) }
++      verify(exactly = 0) { mockPackage1.reactActivityLifecycleListener.onDestroy(activity) }
++      verify(exactly = 0) { delegate.onDestroy() }
++
++      delegateWrapper.setLoadAppReadyForTesting()
++      runCurrent()
++      verifyOrder {
++        mockPackage0.reactActivityLifecycleListener.onDestroy(activity)
++        mockPackage1.reactActivityLifecycleListener.onDestroy(activity)
++        delegate.onDestroy()
++      }
++      verify(exactly = 1) { mockPackage0.reactActivityLifecycleListener.onDestroy(activity) }
++      verify(exactly = 1) { mockPackage1.reactActivityLifecycleListener.onDestroy(activity) }
++      verify(exactly = 1) { delegate.onDestroy() }
++    } finally {
++      Dispatchers.resetMain()
++    }
++  }
++
+   @Test
+   fun `onBackPressed should call each handler's callback just once`() {
+     val delegateWrapper = ReactActivityDelegateWrapper(activity, delegate)

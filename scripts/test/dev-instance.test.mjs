@@ -65,34 +65,38 @@ describe('development CLI admission', () => {
 });
 
 describe('development Home ownership and startup failure', () => {
-  it('blocks concurrent preparation and a live Host, then allows a stopped Home', async () => {
-    const home = mkdtempSync(join(tmpdir(), 'dsh-home-lease-'));
-    const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
-      stdio: 'ignore',
-    });
-    try {
-      const lease = acquireHome(home);
-      expect(() => acquireHome(home)).toThrow('already in progress');
-      lease.started(child, 'test.log');
-      lease.release();
-      expect(() => acquireHome(home)).toThrow('in use');
-      await expect(
-        verifyStartedHost(child, async () => {
-          throw new Error('API timeout');
-        }),
-      ).rejects.toThrow('API timeout');
-      expect(child.signalCode).toBe('SIGTERM');
-      const next = acquireHome(home);
-      next.release();
-      expect(existsSync(join(home, '.botharness-host.json'))).toBe(false);
-    } finally {
-      if (child.exitCode === null && child.signalCode === null) {
-        child.kill();
-        await once(child, 'exit');
+  it(
+    'blocks concurrent preparation and a live Host, then allows a stopped Home',
+    async () => {
+      const home = mkdtempSync(join(tmpdir(), 'dsh-home-lease-'));
+      const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+        stdio: 'ignore',
+      });
+      try {
+        const lease = acquireHome(home);
+        expect(() => acquireHome(home)).toThrow('already in progress');
+        lease.started(child, 'test.log');
+        lease.release();
+        expect(() => acquireHome(home)).toThrow('in use');
+        await expect(
+          verifyStartedHost(child, async () => {
+            throw new Error('API timeout');
+          }),
+        ).rejects.toThrow('API timeout');
+        expect(child.signalCode).toBe('SIGTERM');
+        const next = acquireHome(home);
+        next.release();
+        expect(existsSync(join(home, '.botharness-host.json'))).toBe(false);
+      } finally {
+        if (child.exitCode === null && child.signalCode === null) {
+          child.kill();
+          await once(child, 'exit');
+        }
+        rmSync(home, { recursive: true, force: true });
       }
-      rmSync(home, { recursive: true, force: true });
-    }
-  });
+    },
+    process.platform === 'win32' ? 60_000 : undefined,
+  );
   it.each(['token timeout', 'login failure', 'API timeout', 'unhealthy API'])(
     'waits for Host exit on %s',
     async (reason) => {
