@@ -224,6 +224,7 @@ import { TakeoverError, type TakeoverHandoff } from '../takeover/contracts.js';
 import type { TakeoverHandoffs } from '../takeover/handoffs.js';
 import {
   dmChannelId,
+  isChannelCallVisual,
   isValidChannelId,
   isGroupAvatar,
   isReactionEmoji,
@@ -6135,7 +6136,10 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
             : undefined;
         if (typeof callId !== 'string' || !/^call-[a-f0-9]{16}$/u.test(callId))
           return invalidInput('voiceCall must name a call');
-        voiceCall = { callId };
+        const visual = (rawVoiceCall as Record<string, unknown>)['visual'];
+        if (visual !== undefined && !isChannelCallVisual(visual))
+          return invalidInput('voiceCall.visual must describe the call grid');
+        voiceCall = visual === undefined ? { callId } : { callId, visual };
       }
       const rawAssignmentReply = source['assignmentReply'];
       let assignmentReply: ChannelMessage['assignmentReply'];

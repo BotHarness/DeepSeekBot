@@ -334,6 +334,7 @@ const BOT_TOOL_NAMES = new Set([
   'inbox_ignore',
   'inbox_history',
   'channel_read_image',
+  'call_frame',
   'channel_attachment_save',
   'channel_attachment_import',
   'list_bot_contacts',
