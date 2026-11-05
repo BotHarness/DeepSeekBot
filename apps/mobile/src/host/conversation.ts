@@ -258,6 +258,7 @@ export interface ConversationCache {
   read(key: string): Promise<CachedConversation | undefined>;
   write(key: string, value: CachedConversation): void;
   applyChanges?(key: string, channelId: string, changes: CachedChanges): void;
+  replace?(key: string, channelId: string, value: CachedConversation): void;
 }
 
 export interface SendObservation {
@@ -823,7 +824,14 @@ export function createConversation(options: ConversationOptions): Conversation {
         return;
       }
       if (pulled.reset) {
-        if (await reloadTail(current, through)) changeCursor = pulled.cursor;
+        if (!(await reloadTail(current, through))) return;
+        changeCursor = pulled.cursor;
+        if (cacheKey !== undefined && channelId !== undefined)
+          options.cache?.replace?.(cacheKey, channelId, {
+            entries: window.slice(-cachedEntries),
+            hasOlder: hasOlder || window.length > cachedEntries,
+            changes: pulled.cursor,
+          });
         return;
       }
       if (cacheKey !== undefined && channelId !== undefined)
