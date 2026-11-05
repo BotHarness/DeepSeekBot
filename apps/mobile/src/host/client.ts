@@ -360,6 +360,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
   let reloadAgain = false;
   let disconnectCurrent: ((reason: string) => void) | undefined;
   let activeRequests = 0;
+  let resumeRequested = false;
   let checkingPreferred = false;
   let preferredSwitchAt = 0;
   const followers = new Set<Follower>();
@@ -1255,12 +1256,30 @@ export function createHostClient(options: HostClientOptions): HostClient {
           reason: error instanceof Error ? error.message : 'The Host could not be reached.',
         });
       }
+      if (resumeRequested) {
+        resumeRequested = false;
+        continue;
+      }
       await new Promise<void>((resolve) => {
         wake = resolve;
         retryTimer = setTimeout(resolve, backoff(attempt));
       });
       wake = undefined;
     }
+  };
+
+  const resumeLive = (): void => {
+    if (
+      !resumeRequested ||
+      !running ||
+      activeRequests > 0 ||
+      snapshot.connection.status !== 'connected'
+    )
+      return;
+    const disconnect = disconnectCurrent;
+    disconnectCurrent = undefined;
+    publish({ status: 'reconnecting', route, attempt: Math.max(attempt, 1) });
+    disconnect?.('resuming');
   };
 
   return {
@@ -1289,6 +1308,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     start() {
       if (running) return;
       running = true;
+      resumeRequested = false;
       generation += 1;
       publish(
         everConnected
@@ -1300,6 +1320,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     },
     stop() {
       running = false;
+      resumeRequested = false;
       disconnectCurrent?.('stopped');
       interruptFollowers('stopped');
       generation += 1;
@@ -1319,6 +1340,11 @@ export function createHostClient(options: HostClientOptions): HostClient {
       if (!running) return;
       options.telemetry?.begin(trigger);
       if (snapshot.connection.status === 'connected') {
+        if (trigger === 'resume') {
+          resumeRequested = true;
+          resumeLive();
+          return;
+        }
         void refreshConnected().then(
           () => {
             if (running && snapshot.connection.status === 'connected')
@@ -1343,6 +1369,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
         throw error;
       } finally {
         activeRequests -= 1;
+        resumeLive();
       }
     },
     async api(path, init) {
@@ -1354,6 +1381,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
         throw error;
       } finally {
         activeRequests -= 1;
+        resumeLive();
       }
     },
     async upload(name, data) {
@@ -1362,6 +1390,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
         return await upload(name, data);
       } finally {
         activeRequests -= 1;
+        resumeLive();
       }
     },
     resource,
