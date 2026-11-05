@@ -1,4 +1,4 @@
-# ADR-0286: Attachments are content-versioned, cached as immutable, and served with thumbnails
+# ADR-0292: Attachments are content-versioned, cached as immutable, and served with thumbnails
 
 - Status: Accepted
 - Date: 2026-11-05
