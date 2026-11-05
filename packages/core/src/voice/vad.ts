@@ -1,4 +1,11 @@
 export const VAD_SAMPLE_RATE = 16_000;
+export const DEFAULT_SPEECH_DBFS = -50;
+export const SPEECH_DBFS_RANGE = { min: -70, max: -20 } as const;
+
+export function clampSpeechDbfs(value: number): number {
+  const rounded = Math.round(value);
+  return Math.min(SPEECH_DBFS_RANGE.max, Math.max(SPEECH_DBFS_RANGE.min, rounded));
+}
 const FRAME = 320;
 const FRAME_MS = 20;
 const MIN_LAG = Math.floor(VAD_SAMPLE_RATE / 400);
@@ -12,6 +19,9 @@ export interface VadOptions {
   preRollMs?: number;
   tailMs?: number;
   maxUtteranceMs?: number;
+  stream?: boolean;
+  segmentSilenceMs?: number;
+  minSegmentVoicedMs?: number;
   activeDb?: number;
   minActiveDbfs?: number;
   periodicity?: number;
@@ -20,6 +30,7 @@ export interface VadOptions {
 
 export type VadEvent =
   | { type: 'speech-start'; atMs: number }
+  | { type: 'audio'; pcm: Int16Array }
   | {
       type: 'utterance';
       pcm: Int16Array;
@@ -27,7 +38,9 @@ export type VadEvent =
       endMs: number;
       voicedMs: number;
       cut: boolean;
+      segmentedSamples: number;
     }
+  | { type: 'segment'; pcm: Int16Array; startMs: number; endMs: number }
   | { type: 'noise'; startMs: number; durationMs: number }
   | { type: 'voiced'; voicedMs: number; atMs: number };
 
@@ -87,10 +100,13 @@ export function createVad(options: VadOptions = {}): Vad {
   const tail = frames(options.tailMs ?? 200);
   const maxFrames = frames(options.maxUtteranceMs ?? 30_000);
   const activeDb = options.activeDb ?? 12;
-  const minActiveDbfs = options.minActiveDbfs ?? -50;
+  const minActiveDbfs = options.minActiveDbfs ?? DEFAULT_SPEECH_DBFS;
   const periodicityNeeded = options.periodicity ?? 0.55;
   const marks = [...new Set((options.voicedMarksMs ?? []).map(frames))].sort((a, b) => a - b);
   let raised = 0;
+  const segmentSilence =
+    options.segmentSilenceMs === undefined ? undefined : frames(options.segmentSilenceMs);
+  const minSegmentVoiced = frames(options.minSegmentVoicedMs ?? 200);
 
   let pending = new Int16Array(0);
   let frameIndex = 0;
@@ -106,10 +122,16 @@ export function createVad(options: VadOptions = {}): Vad {
   let activeRun = 0;
   let quiet = 0;
   let lastActive = 0;
+  let segmentStart = 0;
+  let segmentVoiced = 0;
+  let paused = false;
 
   const clear = () => {
     state = 'silence';
     current = [];
+    segmentStart = 0;
+    segmentVoiced = 0;
+    paused = false;
     voiced = 0;
     activeRun = 0;
     quiet = 0;
@@ -137,6 +159,7 @@ export function createVad(options: VadOptions = {}): Vad {
         endMs: startMs + keep * FRAME_MS,
         voicedMs: voiced * FRAME_MS,
         cut,
+        segmentedSamples: Math.min(segmentStart, keep) * FRAME,
       });
     else events.push({ type: 'noise', startMs, durationMs: keep * FRAME_MS });
     clear();
@@ -179,14 +202,17 @@ export function createVad(options: VadOptions = {}): Vad {
       lastActive = index;
       if (isVoiced) {
         voiced += 1;
+        segmentVoiced += 1;
         mark(events, index);
       }
+      paused = false;
     } else quiet += 1;
 
     if (state === 'candidate') {
       if (voiced >= startVoiced) {
         state = 'speech';
         events.push({ type: 'speech-start', atMs: startFrame * FRAME_MS });
+        if (options.stream === true) events.push({ type: 'audio', pcm: join(current) });
       } else if (quiet >= candidateGap || current.length >= candidateLimit) {
         if (activeRun >= 2)
           events.push({
@@ -198,6 +224,24 @@ export function createVad(options: VadOptions = {}): Vad {
         clear();
       }
       return;
+    }
+    if (options.stream === true) events.push({ type: 'audio', pcm: samples });
+    if (quiet < endSilence && segmentSilence !== undefined) {
+      const pause = !paused && quiet >= segmentSilence;
+      if (pause && segmentVoiced >= minSegmentVoiced) {
+        const end = Math.min(current.length, lastActive - startFrame + 1 + tail);
+        if (end > segmentStart) {
+          events.push({
+            type: 'segment',
+            pcm: join(current.slice(segmentStart, end)),
+            startMs: (startFrame + segmentStart) * FRAME_MS,
+            endMs: (startFrame + end) * FRAME_MS,
+          });
+          segmentStart = end;
+          segmentVoiced = 0;
+        }
+      }
+      if (pause) paused = true;
     }
     if (quiet >= endSilence) {
       finish(events, false);

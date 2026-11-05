@@ -1,4 +1,5 @@
-import { UnreadCount } from './unread-count.js';
+import { UnreadCount, unreadCountLabel } from './unread-count.js';
+import { observeHumanAttention } from './messaging-defaults-live.js';
 export { unreadCountLabel } from './unread-count.js';
 import { Menu } from './appearance-primitives.js';
 import { ALL_HOSTS, remoteHosts } from './remote-hosts.js';
@@ -20,7 +21,6 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
   type MouseEvent as ReactMouseEvent,
   type ReactElement,
   type ReactNode,
@@ -115,6 +115,7 @@ import {
 import { ungroupedLabel } from './labels.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { turnStopText } from './turn-stop.js';
+import { voiceCallRecordText } from './voice-call-record.js';
 import { toolApprovalText } from './approval-text.js';
 import { personaBotActivity } from './persona-activity.js';
 import { CreatePersonaBotModal } from './persona-bot-create.js';
@@ -202,26 +203,22 @@ import { rememberModelPlan } from './model-plan-store.js';
 import { applyBotModelRoute, botModelMenuGroups, type BotModelGroup } from './bot-model-route.js';
 import { useMountedResource } from './mounted-resource.js';
 import { onCreationRequest } from './create-request.js';
-import { keepClientState, sameFields, useClientStore } from './use-client-store.js';
+import { useClientFields, useClientStore } from './use-client-store.js';
 import { shallowEqual } from '@deepseek-ai/dsh-client-store';
 
-const rosterInputs = sameFields([
+const SIDEBAR_FIELDS = [
   'activitySync',
   'bots',
   'channels',
   'config',
   'error',
   'git',
-  'humanInbox',
   'query',
   'roster',
   'selection',
   'status',
-]);
-
-export function useClientState(): ClientState {
-  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
-}
+] as const;
+const selectChannelUnread = (state: ClientState) => state.humanInbox.channelUnread;
 
 export interface BotPanelEntryProps {
   size: number;
@@ -267,7 +264,7 @@ export function BotPanelIcon({
     ...(state.humanInbox.unreadCount > 0
       ? [
           t('humanInbox.unreadCount', {
-            count: String(state.humanInbox.unreadCount),
+            count: unreadCountLabel(state.humanInbox.unreadCount),
           }),
         ]
       : []),
@@ -275,8 +272,7 @@ export function BotPanelIcon({
   ].join(' · ');
   const entryMount = useMountedResource<HTMLElement>(() => {
     void refreshStatus();
-    const timer = window.setInterval(() => void refreshStatus(), 10_000);
-    return () => window.clearInterval(timer);
+    return observeHumanAttention(() => void refreshStatus());
   }, [refreshStatus]);
 
   const glyphMount = useMountedResource<HTMLSpanElement>(
@@ -391,7 +387,7 @@ export function BotPanelIcon({
                 <InboxIcon size={16} />
                 {state.humanInbox.unreadCount > 0 ? (
                   <span className="bh-human-inbox-count">
-                    {state.humanInbox.unreadCount > 99 ? '99+' : state.humanInbox.unreadCount}
+                    {unreadCountLabel(state.humanInbox.unreadCount)}
                   </span>
                 ) : null}
               </span>
@@ -556,6 +552,7 @@ function channelPreview(
   if (message?.contentPurged) return t('purge.purged');
   if (message === undefined) return t('rail.noMessages');
   if (message.turnStop !== undefined) return turnStopText(message.turnStop, t);
+  if (message.voiceCallRecord !== undefined) return voiceCallRecordText(message.voiceCallRecord, t);
   if (message.memberDeparture !== undefined)
     return t(
       message.memberDeparture.departureType === 'removed' ? 'member.removed' : 'member.left',
@@ -1038,12 +1035,12 @@ export function BotSidebar({
   dockPanels,
   t,
 }: SidebarProps): ReactElement {
-  const state = useClientStore(keepClientState, rosterInputs);
+  const state = useClientFields(SIDEBAR_FIELDS);
   const hostTabs = useChannelDockActive();
   const [addingRemote, setAddingRemote] = useState(false);
   const remoteHostsState = useRemoteHosts();
   const remoteOpen = hostTabs && remoteHostsState.open !== undefined;
-  const channelUnread = state.humanInbox.channelUnread;
+  const channelUnread = useClientStore(selectChannelUnread);
   const mutedChannelSet = new Set(state.roster.muted);
   const prefs = useBotModePrefs((value) => value);
   const [menuOpen, setMenuOpen] = useState(false);

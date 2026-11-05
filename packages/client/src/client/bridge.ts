@@ -6,6 +6,7 @@ import { parseFailureAutoContinue, parseFailureProgress } from '../shared/turn-c
 import { isPixelBannerRecipe, type PixelBannerRecipe } from '@botharness/pixel-banner';
 import { clientLog } from './diagnostic-log.js';
 import { parseToolApprovalActor } from '../../../core/src/workspaces/tool-approval-actor.js';
+import { isChannelVoiceCallRecord } from '../../../core/src/channels/voice-call-record.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import type { PairingRequest, PairingReviewInput } from '../../../core/src/messaging/pairing.js';
 import type { SenderAccessInput } from '../../../core/src/messaging/sender-access.js';
@@ -955,18 +956,41 @@ export function parseChannelAttachment(value: unknown): ChannelAttachmentRef | u
     size < 0
   )
     return undefined;
-  return typeof fileId === 'string'
-    ? { fileId, name, mime, size }
-    : { hash: hash as string, name, mime, size };
+  if (typeof fileId !== 'string') return { hash: hash as string, name, mime, size };
+  const { version, width, height, thumbhash } = record;
+  const dimension = (value: unknown) =>
+    typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+  return {
+    fileId,
+    name,
+    mime,
+    size,
+    ...(typeof version === 'string' && /^[0-9a-f]{32}$/u.test(version) ? { version } : {}),
+    ...(dimension(width) && dimension(height)
+      ? { width: width as number, height: height as number }
+      : {}),
+    ...(typeof thumbhash === 'string' && thumbhash.length <= 100 ? { thumbhash } : {}),
+  };
 }
+
+export type AttachmentVariant = '96c' | '320' | '800';
 
 export function channelAttachmentUrl(
   ref: ChannelAttachmentRef,
   owner: { channelId: string; messageId: string },
+  variant?: AttachmentVariant,
 ): string {
   if (owner === undefined) throw new Error('Message ownership is required for attachments');
   if (ref.fileId !== undefined) {
-    return './api/botharness/attachment?' + new URLSearchParams({ ...owner, fileId: ref.fileId });
+    return (
+      './api/botharness/attachment?' +
+      new URLSearchParams({
+        ...owner,
+        fileId: ref.fileId,
+        ...(ref.version === undefined ? {} : { v: ref.version }),
+        ...(ref.version === undefined || variant === undefined ? {} : { variant }),
+      })
+    );
   }
   return (
     './api/botharness/attachment?' +
@@ -1179,7 +1203,12 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
   let turnStop: ChannelMessage['turnStop'];
   let toolAutoApproval: ChannelMessage['toolAutoApproval'];
   let toolAutoApprovalPause: ChannelMessage['toolAutoApprovalPause'];
-  if (record['toolAutoApprovalPause'] !== undefined) {
+  let voiceCallRecord: ChannelMessage['voiceCallRecord'];
+  if (record['voiceCallRecord'] !== undefined) {
+    if (author.kind !== 'system' || !isChannelVoiceCallRecord(record['voiceCallRecord']))
+      return undefined;
+    voiceCallRecord = record['voiceCallRecord'];
+  } else if (record['toolAutoApprovalPause'] !== undefined) {
     const pause = asRecord(record['toolAutoApprovalPause']);
     if (
       pause === undefined ||
@@ -1254,9 +1283,24 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       typeof stop['humanName'] !== 'string'
     )
       return undefined;
+    const target = asRecord(stop['target']);
     turnStop = {
       botName: stop['botName'],
       humanName: stop['humanName'],
+      ...(target?.['scope'] === 'bot'
+        ? { target: { scope: 'bot' as const } }
+        : target?.['scope'] === 'session' &&
+            (target['role'] === 'orchestrator' || target['role'] === 'assignment')
+          ? {
+              target: {
+                scope: 'session' as const,
+                role: target['role'],
+                ...(typeof target['title'] === 'string' && target['title'] !== ''
+                  ? { title: target['title'] }
+                  : {}),
+              },
+            }
+          : {}),
       ...(stop['held'] === true ? { held: true } : {}),
       ...(stop['cause'] === 'failures' || stop['cause'] === 'human-stop'
         ? { cause: stop['cause'] }
@@ -1727,6 +1771,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     ...(memoryCommit === undefined ? {} : { memoryCommit }),
     ...(memberDeparture === undefined ? {} : { memberDeparture }),
     ...(turnStop === undefined ? {} : { turnStop }),
+    ...(voiceCallRecord === undefined ? {} : { voiceCallRecord }),
     ...(toolAutoApproval === undefined ? {} : { toolAutoApproval }),
     ...(toolAutoApprovalPause === undefined ? {} : { toolAutoApprovalPause }),
     ...(toolApprovalRequest === undefined ? {} : { toolApprovalRequest }),
@@ -3779,6 +3824,33 @@ export function parseJournalPage(value: unknown): JournalPage | undefined {
   };
 }
 
+export interface FilesPage {
+  entries: JournalEntry[];
+  nextBefore?: number;
+}
+
+export async function loadFilesPage(
+  call: BridgeCall,
+  channelId: string,
+  request: { before?: number; limit?: number },
+  signal?: AbortSignal,
+): Promise<FilesPage> {
+  const raw = asRecord(await unwrap(call, 'channelFilesPage', { channelId, ...request }, signal));
+  const entries = raw?.['entries'];
+  const nextBefore = raw?.['nextBefore'];
+  const parsed = Array.isArray(entries) ? entries.map((entry) => parseJournalEntry(entry)) : [];
+  if (
+    !Array.isArray(entries) ||
+    parsed.some((entry) => entry === undefined) ||
+    !(nextBefore === undefined || (Number.isSafeInteger(nextBefore) && Number(nextBefore) > 0))
+  )
+    throw new Error('invalid channelFilesPage response');
+  return {
+    entries: parsed as JournalEntry[],
+    ...(nextBefore === undefined ? {} : { nextBefore: nextBefore as number }),
+  };
+}
+
 export async function loadJournalPage(
   call: BridgeCall,
   channelId: string,
@@ -4205,14 +4277,20 @@ export async function revokeToolApprovalRule(
     throw new Error('invalid toolApprovalRuleRevoke response');
 }
 
+export type ToolApprovalStatus = 'pending' | 'expired' | 'stopped';
+
+function isToolApprovalStatus(value: unknown): value is ToolApprovalStatus {
+  return value === 'pending' || value === 'expired' || value === 'stopped';
+}
+
 export async function loadToolApprovalStatus(
   call: BridgeCall,
   channelId: string,
   messageId: string,
-): Promise<'pending' | 'expired'> {
+): Promise<ToolApprovalStatus> {
   const response = asRecord(await unwrap(call, 'toolApprovalStatus', { channelId, messageId }));
   const status = response?.['status'];
-  if (status !== 'pending' && status !== 'expired') {
+  if (!isToolApprovalStatus(status)) {
     throw new Error('invalid toolApprovalStatus response');
   }
   return status;
@@ -4222,10 +4300,10 @@ export async function loadToolApprovalState(
   call: BridgeCall,
   channelId: string,
   messageId: string,
-): Promise<{ status: 'pending' | 'expired'; expiresAt?: string }> {
+): Promise<{ status: ToolApprovalStatus; expiresAt?: string }> {
   const response = asRecord(await unwrap(call, 'toolApprovalStatus', { channelId, messageId }));
   const status = response?.['status'];
-  if (status !== 'pending' && status !== 'expired') {
+  if (!isToolApprovalStatus(status)) {
     throw new Error('invalid toolApprovalStatus response');
   }
   const expiresAt = response?.['expiresAt'];
@@ -4997,6 +5075,57 @@ export async function setSessionArchived(
 ): Promise<boolean> {
   const value = asRecord(await unwrap(call, 'sessionArchiveSet', { slug, sessionId, archived }));
   return value?.['archived'] === true;
+}
+
+export interface StoppedSessionRef {
+  botSlug: string;
+  sessionId: string;
+  role: 'orchestrator' | 'assignment';
+}
+
+export interface SessionStopResult {
+  stopped: StoppedSessionRef[];
+  alreadyIdle: StoppedSessionRef[];
+  messageId?: string;
+}
+
+function parseSessionStopResult(value: unknown): SessionStopResult {
+  const record = asRecord(value);
+  const refs = (key: string): StoppedSessionRef[] => {
+    const list = record?.[key];
+    return Array.isArray(list) ? (list as StoppedSessionRef[]) : [];
+  };
+  const messageId = record?.['messageId'];
+  return {
+    stopped: refs('stopped'),
+    alreadyIdle: refs('alreadyIdle'),
+    ...(typeof messageId === 'string' ? { messageId } : {}),
+  };
+}
+
+export async function stopSession(
+  call: BridgeCall,
+  botSlug: string,
+  session: string | { activityId: string },
+  channelId?: string,
+): Promise<SessionStopResult> {
+  return parseSessionStopResult(
+    await unwrap(call, 'sessionStop', {
+      botSlug,
+      ...(typeof session === 'string' ? { sessionId: session } : session),
+      ...(channelId === undefined ? {} : { channelId }),
+    }),
+  );
+}
+
+export async function stopBot(
+  call: BridgeCall,
+  botSlug: string,
+  channelId?: string,
+): Promise<SessionStopResult> {
+  return parseSessionStopResult(
+    await unwrap(call, 'botStop', { botSlug, ...(channelId === undefined ? {} : { channelId }) }),
+  );
 }
 
 export async function moveMemoryLocation(

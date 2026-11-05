@@ -18,9 +18,11 @@ final class CallAttempt: NSObject, RTCPeerConnectionDelegate {
   private var factory: RTCPeerConnectionFactory?
   private var peer: RTCPeerConnection?
   private var track: RTCAudioTrack?
+  private var music = false
   private var remoteTrack: RTCAudioTrack?
   private var answered: ((Result<String, CallError>) -> Void)?
   private var settleScheduled = false
+  private var sampling = false
   private let started = CACurrentMediaTime()
   private let onState: (String, String?) -> Void
   let tap: CallAudioTap?
@@ -37,24 +39,6 @@ final class CallAttempt: NSObject, RTCPeerConnectionDelegate {
 
   private var ended: Bool { lock.lock(); defer { lock.unlock() }; return closed }
 
-  /// Configures the shared audio session for a voice call: play and record, voice-chat
-  /// mode (system echo cancellation and gain control), loudspeaker by default.
-  static func configureSession() -> Bool {
-    let session = RTCAudioSession.sharedInstance()
-    session.lockForConfiguration()
-    defer { session.unlockForConfiguration() }
-    let config = RTCAudioSessionConfiguration.webRTC()
-    config.category = AVAudioSession.Category.playAndRecord.rawValue
-    config.mode = AVAudioSession.Mode.voiceChat.rawValue
-    config.categoryOptions = [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP]
-    do {
-      try session.setConfiguration(config, active: true)
-      return true
-    } catch {
-      return false
-    }
-  }
-
   static func releaseSession() {
     let session = RTCAudioSession.sharedInstance()
     session.lockForConfiguration()
@@ -69,8 +53,10 @@ final class CallAttempt: NSObject, RTCPeerConnectionDelegate {
       _ = Self.ssl
       let processing = RTCDefaultAudioProcessingModule()
       processing.capturePostProcessingDelegate = tap?.capture
+      // The AudioEngine module can turn Apple's voice processing off at runtime, which
+      // music mode needs for A2DP output and for other apps' audio to keep playing.
       factory = RTCPeerConnectionFactory(
-        audioDeviceModuleType: .platformDefault,
+        audioDeviceModuleType: .audioEngine,
         bypassVoiceProcessing: false,
         encoderFactory: nil,
         decoderFactory: nil,
@@ -89,19 +75,8 @@ final class CallAttempt: NSObject, RTCPeerConnectionDelegate {
       // Echo cancellation keeps the Bot's own reply on the speaker out of the uplink.
       // A test build forces software processing so the capture hook that replaces
       // the microphone with injected audio runs; platform voice processing skips it.
-      let options: RTCAudioProcessingOptions
-      if tap != nil {
-        let software = { RTCAudioProcessingComponentOptions(enabled: true, mode: .software) }
-        options = RTCAudioProcessingOptions(
-          echoCancellationOptions: software(), noiseSuppressionOptions: software(),
-          autoGainControlOptions: software(), highPassFilterOptions: software())
-      } else {
-        options = RTCAudioProcessingOptions(
-          echoCancellation: true, noiseSuppression: true, autoGainControl: true, highPassFilter: true)
-      }
-      let applied = microphone.setAudioProcessingOptions(options)
-      tap?.note("processing-options", ["code": applied.code.rawValue, "message": applied.message])
       track = microphone
+      applyProcessing()
       peer.setRemoteDescription(RTCSessionDescription(type: .offer, sdp: offer)) { [weak self] error in
         guard let self else { return }
         self.queue.async { [self] in
@@ -150,6 +125,34 @@ final class CallAttempt: NSObject, RTCPeerConnectionDelegate {
     finish(.success(description.sdp))
   }
 
+  /// Music mode runs without Apple's voice processing, so Bluetooth headphones play over
+  /// A2DP and other apps keep playing; WebRTC's software echo canceller and noise
+  /// suppressor take over on the microphone.
+  func setMusicMode(_ on: Bool) {
+    queue.async { [self] in
+      guard !ended, music != on else { return }
+      music = on
+      applyProcessing()
+    }
+  }
+
+  private func applyProcessing() {
+    guard let factory, let track else { return }
+    _ = factory.audioDeviceModule.setPlatformVoiceProcessingAllowed(!music)
+    let options: RTCAudioProcessingOptions
+    if tap != nil || music {
+      let software = { RTCAudioProcessingComponentOptions(enabled: true, mode: .software) }
+      options = RTCAudioProcessingOptions(
+        echoCancellationOptions: software(), noiseSuppressionOptions: software(),
+        autoGainControlOptions: software(), highPassFilterOptions: software())
+    } else {
+      options = RTCAudioProcessingOptions(
+        echoCancellation: true, noiseSuppression: true, autoGainControl: true, highPassFilter: true)
+    }
+    let applied = track.setAudioProcessingOptions(options)
+    tap?.note("processing-options", ["music": music, "code": applied.code.rawValue, "message": applied.message])
+  }
+
   func mute(_ muted: Bool) {
     queue.async { [self] in
       track?.isEnabled = !muted
@@ -176,6 +179,42 @@ final class CallAttempt: NSObject, RTCPeerConnectionDelegate {
     }
   }
 
+  /// Test builds sample media counters, process CPU time and the thermal state every
+  /// five seconds into the call report, so a before/after run can compare phone cost.
+  private func samplePerf() {
+    guard let tap, let peer, !ended else { return }
+    peer.statistics { report in
+      var detail: [String: Any] = [:]
+      func copy(_ values: [String: NSObject], _ key: String, _ out: String? = nil, scale: Double = 1) {
+        if let value = values[key] as? NSNumber { detail[out ?? key] = value.doubleValue * scale }
+      }
+      for stats in report.statistics.values {
+        let values = stats.values
+        let audio = (values["kind"] as? String) == "audio"
+        switch stats.type {
+        case "inbound-rtp" where audio:
+          for key in ["packetsReceived", "bytesReceived", "packetsLost", "concealedSamples", "totalSamplesReceived"] { copy(values, key) }
+          copy(values, "jitter", "jitterMs", scale: 1000)
+        case "outbound-rtp" where audio:
+          copy(values, "packetsSent"); copy(values, "bytesSent")
+        case "candidate-pair" where (values["nominated"] as? NSNumber)?.boolValue == true:
+          copy(values, "currentRoundTripTime", "rttMs", scale: 1000)
+        default: break
+        }
+      }
+      var usage = rusage()
+      if getrusage(RUSAGE_SELF, &usage) == 0 {
+        let user = Double(usage.ru_utime.tv_sec) * 1000 + Double(usage.ru_utime.tv_usec) / 1000
+        let system = Double(usage.ru_stime.tv_sec) * 1000 + Double(usage.ru_stime.tv_usec) / 1000
+        detail["cpuMs"] = user + system
+      }
+      detail["thermal"] = ProcessInfo.processInfo.thermalState.rawValue
+      detail["lowPower"] = ProcessInfo.processInfo.isLowPowerModeEnabled
+      tap.note("perf", detail)
+    }
+    queue.asyncAfter(deadline: .now() + 5) { [weak self] in self?.samplePerf() }
+  }
+
   private func state(_ value: String, _ code: String? = nil) {
     DispatchQueue.main.async { [weak self] in
       guard let self, !self.ended else { return }
@@ -200,6 +239,11 @@ final class CallAttempt: NSObject, RTCPeerConnectionDelegate {
           "agc": processing.autoGainControl.effective.rawValue,
           "hpf": processing.highPassFilter.effective.rawValue,
         ])
+      }
+      queue.async { [self] in
+        guard tap != nil, !sampling else { return }
+        sampling = true
+        samplePerf()
       }
     case .failed, .closed: state("failed", "connection-lost")
     default: break

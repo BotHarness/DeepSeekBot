@@ -39,7 +39,7 @@ import {
   backgroundImageUri,
 } from '../../host/native-chat-background';
 import { ChatBackground } from './chat-background';
-import type { HostClient } from '../../host/client';
+import type { HostClient, RosterBot } from '../../host/client';
 import { visibleDmActivity } from '../../host/dm-activity';
 import { latestTurnMessageId } from '../../host/session-failure';
 import { useHiddenDmActivity } from '../../host/native-dm-activity';
@@ -89,17 +89,25 @@ import { GrantRequestCard } from './grant-request-card';
 import { PrivateInputCard } from './private-input-card';
 import { TakeoverCard } from './takeover-card';
 import { ActivityRow } from './activity-row';
+import { CallRecordBubble } from './call-record';
 import type { BubbleGroup } from './bubble-shape';
 import { botBusy } from './bot-tone';
 import { ChannelTitle } from './channel-title';
 import { WorkingStatus } from './working-status';
 import { ChatTitle } from './chat-title';
-import { HeaderIconButton } from '../shell/header-icon-button';
+import { ChatHeaderActions } from './chat-header-actions';
+import { ConversationTopBar } from './conversation-top-bar';
 import { Composer, type ComposerInput } from './composer';
 import { GroupUnavailable } from './group-unavailable';
 import { DraftSaveNotice } from './draft-save-notice';
 import { ClipboardImageOffer, useClipboardImage } from './clipboard-image';
-import { EdgeFade, HeaderBackButton, titleChipFill, useChatHeaderHeight } from './header-chrome';
+import {
+  EdgeFade,
+  HeaderActionGroup,
+  HeaderBackButton,
+  titleChipFill,
+  useChatHeaderHeight,
+} from './header-chrome';
 import { useStackRoot } from '../shell/stack-root';
 import {
   barLabelStyle,
@@ -123,6 +131,7 @@ import { useBotNames } from './use-bot-names';
 import { ImageViewer } from './image-viewer';
 import { JumpToLatest } from './jump-to-latest';
 import { DeliverySheet } from './delivery-sheet';
+import { ChatOffline } from './chat-offline';
 import { MessageActions, type MessageMenuTarget } from './message-actions';
 import {
   activeMentionQuery,
@@ -198,9 +207,10 @@ export function ConversationScreen({
   const focused = routeFocused && active && (presentation?.active ?? true);
   const roster = useHostSnapshot(client, focused).roster;
   const navigation = useNavigationContainerRef();
+  const identityBots = useIdentityBots(roster?.bots);
   const identities = useMemo(
     () => ({
-      bots: roster?.bots ?? [],
+      bots: identityBots ?? [],
       openBot: (slug: string) =>
         saved &&
         navigateChannel(navigation, {
@@ -208,7 +218,7 @@ export function ConversationScreen({
           params: { slug, hostId: saved.hostId },
         }),
     }),
-    [roster?.bots, navigation, saved],
+    [identityBots, navigation, saved],
   );
   const bot =
     place.kind === 'dm' ? roster?.bots.find((entry) => entry.slug === place.slug) : undefined;
@@ -382,9 +392,10 @@ function ChatConversation({
   const headerOverlap = useHeaderOverlap();
   const nativeHeaderPadding = useHeaderPadding();
   const inlineHeaderHeight = useChatHeaderHeight();
+  const [measuredHeaderHeight, setMeasuredHeaderHeight] = useState(0);
   const insets = useSafeAreaInsets();
   const android = Platform.OS === 'android';
-  const headerPadding = android ? inlineHeaderHeight : nativeHeaderPadding;
+  const headerPadding = android ? measuredHeaderHeight || inlineHeaderHeight : nativeHeaderPadding;
   const [profileOpen, setProfileOpen] = useState(false);
   const nestedChange = presentation?.onNestedChange;
   useLayoutEffect(() => {
@@ -465,7 +476,9 @@ function ChatConversation({
   const receipts = receiptPreference.loaded && receiptPreference.enabled;
   const playback = useStreamPlayback(conversation, display.loaded && display.mode === 'streaming');
   const snapshot = useConversationTimelineSnapshot(conversation, playback, focused);
-  const shownDrafts = display.loaded && display.mode === 'streaming' ? snapshot.drafts : NO_DRAFTS;
+  const shownDrafts = useDraftSlots(
+    display.loaded && display.mode === 'streaming' ? snapshot.drafts : NO_DRAFTS,
+  );
   const draftKey = hostDraftKey(
     saved?.hostId ?? '',
     place.kind,
@@ -627,7 +640,8 @@ function ChatConversation({
   const composerInput = useRef<ComposerInput>(null);
   const [typing, setTyping] = useState(false);
   const clipboard = useClipboardImage(typing && files.length < MAX_PICKED);
-  const composable = !botDm && conversation !== undefined && host.connection.status === 'connected';
+  const online = host.connection.status === 'connected';
+  const composable = !botDm && conversation !== undefined && online;
   const { jumpToLatest } = latest;
   const compose = useCallback(() => {
     jumpToLatest();
@@ -957,8 +971,13 @@ function ChatConversation({
     [conversation],
   );
 
-  const roster = host.roster;
-  const botName = useBotNames(roster?.bots);
+  const liveRoster = host.roster;
+  const identityBots = useIdentityBots(liveRoster?.bots);
+  const roster = useMemo(
+    () => (liveRoster === undefined ? undefined : { ...liveRoster, bots: identityBots ?? [] }),
+    [identityBots, liveRoster?.channels, liveRoster?.activityChannels],
+  );
+  const botName = useBotNames(identityBots);
   const reading = useMemo(() => readingBots(snapshot.messages), [snapshot.messages]);
   const [deliveryFor, setDeliveryFor] = useState<string>();
   const openDelivery = useCallback(
@@ -1023,6 +1042,8 @@ function ChatConversation({
         </MessageSelectionRow>
       );
 
+      if (item.message.activity?.kind === 'voice-call')
+        return wrap(<CallRecordBubble record={item.message.activity.record} />);
       if (item.message.activity !== undefined)
         return wrap(
           <ActivityRow
@@ -1146,7 +1167,7 @@ function ChatConversation({
           onShare={share}
           onLongPress={openActions}
           lifted={Platform.OS === 'web' && item.message.id === actionsFor?.message.id}
-          {...(botDm ? {} : { onReact: react })}
+          {...(botDm || !online ? {} : { onReact: react })}
           {...(composable && selected === undefined ? { onReply: startReply } : {})}
           {...(receipts ? { onOpenDelivery: openDelivery } : {})}
           readers={reading.get(item.message.id)}
@@ -1180,6 +1201,7 @@ function ChatConversation({
       actionsFor,
       share,
       react,
+      online,
       botName,
       speakerOf,
       roster,
@@ -1328,24 +1350,41 @@ function ChatConversation({
     canOpenProfile && dm && bot !== undefined ? client : undefined,
     slug,
     saved?.hostId,
+    host.connection.status === 'connected',
+    focused,
   );
-  const profileButton = canOpenProfile ? (
-    <HeaderIconButton
-      icon="more"
-      label={t.openProfile}
-      testID="chat-profile-button"
-      onPress={openProfile}
-    />
-  ) : null;
   const ios = Platform.OS === 'ios';
   const headerGap = glassPress.gap;
+  const headerActions = canOpenProfile ? (
+    <HeaderActionGroup
+      actions={[
+        ...(placeCall === undefined
+          ? []
+          : [
+              {
+                icon: 'call' as const,
+                label: t.call.button,
+                testID: 'chat-call-button',
+                onPress: placeCall,
+              },
+            ]),
+        { icon: 'more', label: t.openProfile, testID: 'chat-profile-button', onPress: openProfile },
+      ]}
+    />
+  ) : null;
   const titleWidth = Math.max(
     0,
     windowWidth -
       insets.left -
       insets.right -
-      (theme.touch + space.x5 + headerGap) * 2 -
-      (ios && placeCall !== undefined ? (theme.touch + headerGap) * 2 : 0) -
+      space.x5 * 2 -
+      theme.touch -
+      headerGap * 2 -
+      (ios && glassHeader && canOpenProfile && placeCall !== undefined
+        ? theme.touch * 2
+        : (theme.touch +
+            (ios ? Math.min(space.x3, Math.max(0, (theme.fontScale - 1) * space.x3)) : 0)) *
+          (canOpenProfile && placeCall !== undefined ? 2 : 1)) -
       (ios && glassHeader ? space.x4 * 2 : 0),
   );
   const back = <HeaderBackButton plain={!headerIslands} onPress={leave} />;
@@ -1454,7 +1493,7 @@ function ChatConversation({
   const fadeColor = background.kind === 'color' ? background.color : theme.color.base;
 
   return (
-    <>
+    <ChatOffline value={!online}>
       {paging === undefined && presentation === undefined ? (
         <Stack.Screen
           options={{
@@ -1477,30 +1516,55 @@ function ChatConversation({
                   headerTitle: '',
                   headerBackVisible: canGoBack && !headerIslands,
                   unstable_headerRightItems: () =>
-                    canOpenProfile
-                      ? [
-                          ...(placeCall === undefined
-                            ? []
-                            : [
-                                { type: 'spacing' as const, spacing: headerGap },
-                                {
-                                  type: 'button' as const,
-                                  label: t.call.button,
-                                  identifier: 'chat-call-button',
-                                  icon: { type: 'sfSymbol' as const, name: 'phone' as const },
-                                  onPress: placeCall,
-                                },
-                              ]),
-                          { type: 'spacing' as const, spacing: headerGap },
-                          {
-                            type: 'button' as const,
-                            label: t.openProfile,
-                            identifier: 'chat-profile-button',
-                            icon: { type: 'sfSymbol' as const, name: 'ellipsis' as const },
-                            onPress: openProfile,
-                          },
-                        ]
-                      : [],
+                    !canOpenProfile
+                      ? []
+                      : glassHeader && placeCall !== undefined
+                        ? [
+                            {
+                              type: 'custom' as const,
+                              hidesSharedBackground: true,
+                              element: (
+                                <ChatHeaderActions
+                                  actions={[
+                                    {
+                                      icon: 'call',
+                                      label: t.call.button,
+                                      testID: 'chat-call-button',
+                                      onPress: placeCall,
+                                    },
+                                    {
+                                      icon: 'more',
+                                      label: t.openProfile,
+                                      testID: 'chat-profile-button',
+                                      onPress: openProfile,
+                                    },
+                                  ]}
+                                />
+                              ),
+                            },
+                          ]
+                        : [
+                            {
+                              type: 'button' as const,
+                              label: t.openProfile,
+                              identifier: 'chat-profile-button',
+                              icon: { type: 'sfSymbol' as const, name: 'ellipsis' as const },
+                              sharesBackground: placeCall !== undefined,
+                              onPress: openProfile,
+                            },
+                            ...(placeCall === undefined
+                              ? []
+                              : [
+                                  {
+                                    type: 'button' as const,
+                                    label: t.call.button,
+                                    identifier: 'chat-call-button',
+                                    icon: { type: 'sfSymbol' as const, name: 'phone' as const },
+                                    sharesBackground: true,
+                                    onPress: placeCall,
+                                  },
+                                ]),
+                          ],
                   unstable_headerLeftItems: () => [
                     ...(headerIslands
                       ? [{ type: 'custom' as const, element: back }]
@@ -1523,13 +1587,16 @@ function ChatConversation({
                 }
               : {
                   headerTitleAlign: 'left' as const,
-                  headerRight: () => profileButton,
+                  headerRight: () => headerActions,
                   headerTitle: () => (
                     <View
                       key={`${theme.scheme}:${theme.fontScale}:${bot?.displayName ?? channel?.name ?? ''}`}
                       style={{
                         width: dm || botDm ? undefined : windowWidth - (theme.touch + space.x5) * 2,
-                        maxWidth: windowWidth - (theme.touch + space.x5) * 2,
+                        maxWidth:
+                          windowWidth -
+                          (theme.touch + space.x5) * 2 -
+                          (placeCall === undefined || !canOpenProfile ? 0 : theme.touch),
                         marginHorizontal: space.x3,
                       }}
                     >
@@ -1894,25 +1961,20 @@ function ChatConversation({
           )}
         </KeyboardChatFrame>
         {android ? (
-          <View
-            pointerEvents="box-none"
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              height: inlineHeaderHeight,
-              paddingTop: insets.top,
-              paddingHorizontal: space.x4,
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: headerGap,
-            }}
-          >
-            {back}
-            <View style={{ flex: 1, minWidth: 0 }}>{title}</View>
-            {profileButton}
-          </View>
+          <ConversationTopBar
+            title={
+              dm
+                ? (bot?.displayName ?? slug ?? '')
+                : botDm
+                  ? botDmName
+                  : `#${channel?.name ?? channelName ?? t.groupInfo}`
+            }
+            connectionLabel={connectionLabel}
+            onBack={leave}
+            onProfile={canOpenProfile ? openProfile : undefined}
+            onCall={canOpenProfile ? placeCall : undefined}
+            onHeight={setMeasuredHeaderHeight}
+          />
         ) : null}
       </EndSheet>
       {!android && paging === undefined ? (
@@ -1965,7 +2027,7 @@ function ChatConversation({
       />
       <MessageActions
         target={actionsFor}
-        readOnly={botDm}
+        readOnly={botDm || !online}
         onClose={() => setActionsFor(undefined)}
         onReact={(message, emoji, active) => react(message.id, emoji, active)}
         onCopy={copyMessage}
@@ -1988,6 +2050,36 @@ function ChatConversation({
           }
         />
       )}
-    </>
+    </ChatOffline>
   );
+}
+
+function useIdentityBots(bots: readonly RosterBot[] | undefined): RosterBot[] | undefined {
+  const last = useRef<{ key: string; bots: RosterBot[] | undefined }>(undefined);
+  const key = JSON.stringify(
+    bots?.map(
+      ({
+        state: _state,
+        activity: _activity,
+        sessions: _sessions,
+        preview: _preview,
+        previewAt: _previewAt,
+        previewAuthor: _previewAuthor,
+        latestMessageId: _latestMessageId,
+        ...identity
+      }) => identity,
+    ),
+  );
+  if (last.current === undefined || last.current.key !== key)
+    last.current = { key, bots: bots === undefined ? undefined : [...bots] };
+  return last.current.bots;
+}
+
+function useDraftSlots<T extends { draftId: string; botSlug: string }>(
+  drafts: readonly T[],
+): readonly T[] {
+  const last = useRef<{ key: string; drafts: readonly T[] }>(undefined);
+  const key = drafts.map((draft) => `${draft.draftId}\u0000${draft.botSlug}`).join('\u0001');
+  if (last.current?.key !== key) last.current = { key, drafts };
+  return last.current.drafts;
 }

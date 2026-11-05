@@ -8,15 +8,28 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
-import type { VoiceCallEvent, VoiceCallResult, VoiceCallView } from '../src/voice/call-contract.js';
+import type {
+  VoiceCallEvent,
+  VoiceCallMediaStats,
+  VoiceCallResult,
+  VoiceCallView,
+} from '../src/voice/call-contract.js';
 import { VOICE_CALL_HOST_OWNER } from '../src/voice/call-contract.js';
+import {
+  isChannelVoiceCallRecord,
+  voiceCallDuration,
+  voiceCallRecordBody,
+  type ChannelVoiceCallRecord,
+} from '../src/channels/voice-call-record.js';
 import {
   createVoiceCalls,
   type CallSpeech,
+  joinTranscripts,
   type VoiceCallBot,
   type VoiceCallMedia,
   type VoiceCallsDeps,
 } from '../src/voice/calls.js';
+import { createVoiceCallHttp } from '../src/voice/call-http.js';
 import { VoiceProviders } from '../src/voice/providers.js';
 import { joinAudio, type AudioClip } from '../src/voice/speech.js';
 import { createTempRoot } from './helpers.js';
@@ -96,6 +109,7 @@ function fakeMedia(availability: Awaited<ReturnType<VoiceCallMedia['availability
     closed: 0,
     gains: [] as number[],
     playDelay: undefined as Promise<void> | undefined,
+    stats: undefined as VoiceCallMediaStats | undefined,
   };
   const media: VoiceCallMedia = {
     availability: async () => availability,
@@ -128,6 +142,9 @@ function fakeMedia(availability: Awaited<ReturnType<VoiceCallMedia['availability
         async setGain(gain) {
           state.gains.push(gain);
         },
+        async stats() {
+          return state.stats;
+        },
         async close() {
           state.closed += 1;
         },
@@ -146,10 +163,13 @@ function harness(
     send?: VoiceCallsDeps['send'];
     transcripts?: string[];
     bargeIn?: VoiceCallsDeps['bargeIn'];
+    record?: VoiceCallsDeps['record'];
   } = {},
 ) {
   let clock = 1_000_000;
   const sent: { body: string; callId: string; channelId: string; messageId: string }[] = [];
+  const log: string[] = [];
+  const records: ChannelVoiceCallRecord[] = [];
   const bot: VoiceCallBot | undefined =
     'bot' in options
       ? options.bot
@@ -180,6 +200,15 @@ function harness(
       options.send ??
       (async (input) => {
         sent.push(input);
+        log.push(`sent:${input.body}`);
+      }),
+    record:
+      options.record ??
+      (async ({ channelId, record }) => {
+        expect(channelId).toBe('dm-mira');
+        records.push(record);
+        log.push(`record:${record.state}`);
+        return `voice-call-${record.state}-${record.callId}`;
       }),
     busy: options.busy ?? (() => false),
     now: () => clock,
@@ -195,6 +224,8 @@ function harness(
   return {
     calls,
     sent,
+    log,
+    records,
     transcribed,
     synthesized,
     phone,
@@ -369,6 +400,39 @@ describe('Host call owner', () => {
     expect(types(after.events)).toContain('idle');
   });
 
+  it('does not show busy for the turn the call itself started', async () => {
+    let busy = false;
+    const { media, state } = fakeMedia();
+    const h = harness({ media, busy: () => busy });
+    const callId = await connected(h);
+    h.feed(state.onPcm!, concat(silence(300), speech(1000), silence(900)));
+    await settled();
+    expect(h.sent).toHaveLength(1);
+    busy = true;
+    const answering = await view(h, callId);
+    expect(answering.busy).toBe(false);
+    expect(types(answering.events)).not.toContain('busy');
+    busy = false;
+    expect((await view(h, callId)).busy).toBe(false);
+    busy = true;
+    const other = await view(h, callId, answering.lastSeq);
+    expect(other.busy).toBe(true);
+    expect(types(other.events)).toContain('busy');
+  });
+
+  it('shows busy again when the own turn never starts', async () => {
+    let busy = false;
+    const { media, state } = fakeMedia();
+    const h = harness({ media, busy: () => busy });
+    const callId = await connected(h);
+    h.feed(state.onPcm!, concat(silence(300), speech(1000), silence(900)));
+    await settled();
+    expect(h.sent).toHaveLength(1);
+    h.advance(11_000);
+    busy = true;
+    expect((await view(h, callId)).busy).toBe(true);
+  });
+
   it('mute stops hearing until unmuted', async () => {
     const { media, state } = fakeMedia();
     const h = harness({ media });
@@ -436,6 +500,53 @@ describe('Host call owner', () => {
     expect(h.sent).toHaveLength(1);
   });
 
+  it('samples media stats every five seconds and reports per-direction rates in the call view', async () => {
+    const { media, state } = fakeMedia();
+    const base = {
+      uplinkPackets: 100,
+      uplinkBytes: 10_000,
+      uplinkLost: 0,
+      concealedSamples: 0,
+      receivedSamples: 48_000,
+      downlinkPackets: 50,
+      downlinkBytes: 5_000,
+      helperCpuPct: 4,
+    };
+    state.stats = base;
+    const h = harness({ media });
+    const callId = await connected(h);
+    expect((await view(h, callId)).perf).toBeUndefined();
+    state.stats = {
+      ...base,
+      uplinkPackets: 129,
+      uplinkBytes: 12_500,
+      uplinkLost: 1,
+      receivedSamples: 288_000,
+      concealedSamples: 2_400,
+      downlinkPackets: 300,
+      downlinkBytes: 30_000,
+      rttMs: 12,
+    };
+    h.advance(5_000);
+    await view(h, callId);
+    await settled();
+    const perf = (await view(h, callId)).perf!;
+    expect(perf.samples).toBe(1);
+    expect(perf.last).toMatchObject({
+      atMs: 5_000,
+      uplinkPps: 5.8,
+      uplinkKbps: 4,
+      uplinkLossPct: 3.3,
+      concealedPct: 1,
+      downlinkPps: 50,
+      downlinkKbps: 40,
+      rttMs: 12,
+      helperCpuPct: 4,
+    });
+    expect(perf.uplinkPps).toEqual({ avg: 5.8, max: 5.8 });
+    expect(typeof perf.hostCpuPct.avg).toBe('number');
+  });
+
   it('ends the call when the media fails', async () => {
     const { media, state } = fakeMedia();
     const h = harness({ media });
@@ -461,6 +572,21 @@ describe('Host call owner', () => {
       ok: false,
       code: 'asr-not-configured',
     });
+    const off = harness({
+      media: fakeMedia().media,
+      providers: {
+        has: () => true,
+        localServiceOff: async (_id, kind) => kind === 'asr',
+        async transcribe() {
+          return { text: '', latencyMs: 1 };
+        },
+        synthesize: async () => ({ audio: new Uint8Array(), mime: 'audio/mpeg' }),
+      },
+    });
+    expect((await off.ok({ kind: 'readiness', slug: 'mira' })).readiness).toMatchObject({
+      ready: false,
+      missing: ['local-voice-off'],
+    });
     const noMedia = harness({ media: undefined });
     expect(await noMedia.calls.handle(noMedia.phone, { kind: 'open', slug: 'mira' })).toMatchObject(
       { ok: false, code: 'media-unsupported' },
@@ -482,6 +608,78 @@ describe('Host call owner', () => {
     expect(await view(h, first)).toMatchObject({ phase: 'ended', endReason: 'replaced' });
   });
 
+  it('treats each desktop window as its own caller and refuses the second one', async () => {
+    const { media } = fakeMedia();
+    const h = harness({ media });
+    const mac = { deviceId: VOICE_CALL_HOST_OWNER, client: 'window-mac-0001' };
+    const other = { deviceId: VOICE_CALL_HOST_OWNER, client: 'window-win-0002' };
+    const opened = await h.ok({ kind: 'open', slug: 'mira' }, mac);
+    const callId = opened.call!.callId;
+    expect(await h.calls.handle(other, { kind: 'readiness', slug: 'mira' })).toMatchObject({
+      readiness: { activeCallId: null, callElsewhere: true },
+    });
+    expect(await h.ok({ kind: 'readiness', slug: 'mira' }, mac)).toMatchObject({
+      readiness: { activeCallId: callId, callElsewhere: false },
+    });
+    expect(await h.calls.handle(other, { kind: 'open', slug: 'mira' })).toMatchObject({
+      ok: false,
+      code: 'call-active',
+    });
+    expect(await h.calls.handle(h.phone, { kind: 'open', slug: 'mira' })).toMatchObject({
+      ok: false,
+      code: 'call-active',
+    });
+    expect(await h.calls.handle(other, { kind: 'mute', callId, muted: true })).toMatchObject({
+      ok: false,
+      code: 'call-not-found',
+    });
+    const kept = await h.ok({ kind: 'heartbeat', callId }, mac);
+    expect(kept.call!.phase).not.toBe('ended');
+    const replaced = await h.ok({ kind: 'open', slug: 'mira' }, mac);
+    expect(replaced.call!.callId).not.toBe(callId);
+  });
+
+  it('a phone call refuses a desktop window', async () => {
+    const { media } = fakeMedia();
+    const h = harness({ media });
+    await connected(h);
+    const mac = { deviceId: VOICE_CALL_HOST_OWNER, client: 'window-mac-0001' };
+    expect(await h.ok({ kind: 'readiness', slug: 'mira' }, mac)).toMatchObject({
+      readiness: { callElsewhere: true, activeCallId: null },
+    });
+    expect(await h.calls.handle(mac, { kind: 'open', slug: 'mira' })).toMatchObject({
+      ok: false,
+      code: 'call-active',
+    });
+  });
+
+  it('reads the Client window id on the Host-owner route', async () => {
+    const seen: unknown[] = [];
+    const route = createVoiceCallHttp(() => ({
+      handle: async (caller) => {
+        seen.push(caller);
+        return { ok: true };
+      },
+      draft: () => undefined,
+      speak: async () => undefined,
+      zoom: ({ messageId, cell }) => ({ released: true, messageId, cell }),
+      revoke: async () => undefined,
+      dispose: async () => undefined,
+    }));
+    const post = (body: unknown) =>
+      route(
+        new Request('http://host/api/voice/call', { method: 'POST', body: JSON.stringify(body) }),
+      );
+    await post({ kind: 'status', client: 'window-mac-0001' });
+    await post({ kind: 'status', client: 'bad id!' });
+    await post({ kind: 'status' });
+    expect(seen).toEqual([
+      { deviceId: VOICE_CALL_HOST_OWNER, client: 'window-mac-0001' },
+      { deviceId: VOICE_CALL_HOST_OWNER, client: undefined },
+      { deviceId: VOICE_CALL_HOST_OWNER, client: undefined },
+    ]);
+  });
+
   it('lets the Host owner see and end any call, but not mute it', async () => {
     const { media } = fakeMedia();
     const h = harness({ media });
@@ -500,6 +698,57 @@ describe('Host call owner', () => {
     });
     expect(await h.calls.handle(owner, { kind: 'hangup', callId })).toMatchObject({ ok: true });
     expect(await view(h, callId)).toMatchObject({ phase: 'ended', endReason: 'hangup' });
+  });
+
+  it('recognizes each piece after a short pause while the caller keeps talking', async () => {
+    const { media, state } = fakeMedia();
+    const h = harness({ media });
+    const callId = await connected(h);
+    h.feed(state.onPcm!, concat(silence(300), speech(1200), silence(350)));
+    await settled();
+    expect(h.transcribed).toHaveLength(1);
+    expect(h.sent).toEqual([]);
+    expect((await view(h, callId)).events.at(-1)).toMatchObject({
+      type: 'hearing',
+      text: '帮我查一下明天的天气',
+    });
+    h.feed(state.onPcm!, concat(speech(1000, { seed: 5 }), silence(900)));
+    await settled();
+    expect(h.transcribed).toHaveLength(2);
+    expect(h.sent.map((item) => item.body)).toEqual(['帮我查一下明天的天气第二句话']);
+    expect((await view(h, callId)).events.at(-1)).toMatchObject({ type: 'sent', segments: 2 });
+    expect(h.transcribed.every((wav) => wav.every((byte) => byte === 0))).toBe(true);
+  });
+
+  it('joins pieces with a space except next to Chinese or Japanese text', () => {
+    expect(joinTranscripts(['明天上海', '会下雨吗？'])).toBe('明天上海会下雨吗？');
+    expect(joinTranscripts(['今日は', 'いい天気'])).toBe('今日はいい天気');
+    expect(joinTranscripts(['Hello.', 'How are you?'])).toBe('Hello. How are you?');
+    expect(joinTranscripts(['저는', '학생입니다.'])).toBe('저는 학생입니다.');
+    expect(joinTranscripts(['Привет,', 'как дела?'])).toBe('Привет, как дела?');
+    expect(joinTranscripts(['打开', 'GitHub'])).toBe('打开GitHub');
+  });
+
+  it('joins English pieces with a space, also after punctuation', async () => {
+    const { media, state } = fakeMedia();
+    const texts = ['Hello.', 'What is the weather tomorrow?'];
+    const h = harness({
+      media,
+      providers: {
+        has: (id, kind) => id.startsWith(kind),
+        async transcribe() {
+          return { text: texts.shift() ?? '', latencyMs: 1 };
+        },
+        synthesize: async () => ({ audio: MP3, mime: 'audio/mpeg' }),
+      },
+    });
+    await connected(h);
+    h.feed(
+      state.onPcm!,
+      concat(speech(1000), silence(350), speech(1000, { seed: 6 }), silence(900)),
+    );
+    await settled();
+    expect(h.sent.map((item) => item.body)).toEqual(['Hello. What is the weather tomorrow?']);
   });
 
   it('a synthetic call takes injected PCM without WebRTC', async () => {
@@ -568,6 +817,159 @@ describe('Host call owner', () => {
   });
 });
 
+describe('call records in the DM (#3483)', () => {
+  it("writes a start notice when the call connects and an end notice with its length after the call's messages", async () => {
+    const { media, state } = fakeMedia();
+    const h = harness({ media });
+    const opened = (await h.ok({ kind: 'open', slug: 'mira' })).call!;
+    h.advance(2_000);
+    expect(h.records).toEqual([]);
+    await h.ok({
+      kind: 'signal',
+      callId: opened.callId,
+      answer: { type: 'answer', sdp: 'v=0\r\n' },
+    });
+    await settled();
+    const connectedAt = new Date(1_002_000).toISOString();
+    expect(h.records).toEqual([
+      { callId: opened.callId, botSlug: 'mira', state: 'started', startedAt: connectedAt },
+    ]);
+    h.feed(state.onPcm!, concat(silence(300), speech(1000), silence(900)));
+    await h.ok({ kind: 'hangup', callId: opened.callId });
+    await settled();
+    const end = h.records[1]!;
+    expect(end).toMatchObject({
+      callId: opened.callId,
+      botSlug: 'mira',
+      state: 'ended',
+      startedAt: connectedAt,
+      reason: 'hangup',
+      startMessageId: `voice-call-started-${opened.callId}`,
+    });
+    expect(end.state === 'ended' && end.durationMs).toBe(
+      Date.parse(end.state === 'ended' ? end.endedAt : '') - 1_002_000,
+    );
+    expect(isChannelVoiceCallRecord(end)).toBe(true);
+    expect(h.log.at(0)).toBe('record:started');
+    expect(h.log.at(-1)).toBe('record:ended');
+  });
+
+  it('counts the sentences the call sent to the DM', async () => {
+    const { media, state } = fakeMedia();
+    const h = harness({ media });
+    const callId = await connected(h);
+    h.feed(state.onPcm!, concat(silence(300), speech(1000), silence(900)));
+    await settled();
+    h.advance(65_000);
+    await h.ok({ kind: 'heartbeat', callId });
+    await h.ok({ kind: 'hangup', callId });
+    await settled();
+    expect(h.log).toEqual(['record:started', 'sent:帮我查一下明天的天气', 'record:ended']);
+    expect(h.records[1]).toMatchObject({ state: 'ended', heard: 1, reason: 'hangup' });
+  });
+
+  it('keeps an earlier call end notice ahead of the next call when its last sentence is still transcribing', async () => {
+    let release: (() => void) | undefined;
+    const { media, state } = fakeMedia();
+    const h = harness({
+      media,
+      providers: {
+        has: (id, kind) => id.startsWith(kind),
+        async transcribe() {
+          await new Promise<void>((resolve) => {
+            release = resolve;
+          });
+          return { text: '最后一句', latencyMs: 5 };
+        },
+        async synthesize({ text }) {
+          return { audio: clipFor(text), mime: 'audio/mpeg' };
+        },
+      },
+    });
+    const first = await connected(h);
+    h.feed(state.onPcm!, concat(silence(300), speech(1000), silence(900)));
+    await settled();
+    expect(release).toBeDefined();
+    const hungUp = h.ok({ kind: 'hangup', callId: first });
+    await settled();
+    const second = await connected(h);
+    await h.ok({ kind: 'hangup', callId: second });
+    await settled();
+    expect(h.records.map((record) => `${record.state}:${record.callId}`)).toEqual([
+      `started:${first}`,
+    ]);
+    release!();
+    await hungUp;
+    await settled();
+    expect(h.records.map((record) => `${record.state}:${record.callId}`)).toEqual([
+      `started:${first}`,
+      `ended:${first}`,
+      `started:${second}`,
+      `ended:${second}`,
+    ]);
+  });
+
+  it('leaves no record for a call that never connected', async () => {
+    const { media } = fakeMedia();
+    const h = harness({ media });
+    const opened = (await h.ok({ kind: 'open', slug: 'mira' })).call!;
+    await h.ok({ kind: 'hangup', callId: opened.callId });
+    await settled();
+    expect(h.records).toEqual([]);
+  });
+
+  it('keeps the call going when the notice cannot be written', async () => {
+    const h = harness({
+      media: undefined,
+      record: async () => {
+        throw new Error('disk full');
+      },
+    });
+    const call = (await h.ok({ kind: 'open', slug: 'mira', media: 'synthetic' })).call!;
+    const audio = concat(silence(300), speech(1200), silence(900));
+    for (let offset = 0; offset < audio.length; offset += 16_000) {
+      const part = audio.slice(offset, offset + 16_000);
+      h.advance(1_000);
+      await h.ok({
+        kind: 'inject',
+        callId: call.callId,
+        pcm: Buffer.from(part.buffer, part.byteOffset, part.byteLength).toString('base64'),
+      });
+    }
+    await settled();
+    expect(h.sent.map((item) => item.body)).toEqual(['帮我查一下明天的天气']);
+    expect((await view(h, call.callId)).phase).not.toBe('ended');
+  });
+
+  it('formats the length and a body the Bot can search', () => {
+    expect(voiceCallDuration(0)).toBe('0:00');
+    expect(voiceCallDuration(65_400)).toBe('1:05');
+    expect(voiceCallDuration(3_725_000)).toBe('1:02:05');
+    const body = voiceCallRecordBody({
+      callId: 'call-0123456789abcdef',
+      botSlug: 'mira',
+      state: 'ended',
+      startedAt: '2026-11-04T10:00:00.000Z',
+      endedAt: '2026-11-04T10:12:04.000Z',
+      durationMs: 724_000,
+      reason: 'hangup',
+      heard: 6,
+    });
+    expect(body.toLowerCase()).toContain('voice call');
+    expect(body).toContain('12:04');
+    expect(body).toContain('2026-11-04T10:00:00.000Z');
+    expect(
+      isChannelVoiceCallRecord({
+        callId: 'call-0123456789abcdef',
+        botSlug: 'mira',
+        state: 'started',
+        startedAt: '2026-11-04T10:00:00.000Z',
+        extra: 1,
+      }),
+    ).toBe(false);
+  });
+});
+
 describe('streamed voice replies', () => {
   function stream(h: ReturnType<typeof harness>, draftId = 'a1:c1') {
     const attemptId = draftId.split(':')[0]!;
@@ -602,7 +1004,7 @@ describe('streamed voice replies', () => {
   }
 
   async function heardQuestion(h: ReturnType<typeof harness>, onPcm: (pcm: Int16Array) => void) {
-    h.feed(onPcm, concat(silence(300), speech(1200), silence(900)));
+    h.feed(onPcm, concat(silence(300), speech(1200), silence(800)));
     await settled();
   }
 

@@ -101,6 +101,7 @@ export interface ChannelWireMessage extends WireMessage {
   botCreateAction?: unknown;
   memberDeparture?: unknown;
   turnStop?: unknown;
+  voiceCallRecord?: unknown;
 }
 
 export interface WireMessageVoice {
@@ -124,6 +125,10 @@ export interface AttachmentRef {
   size: number;
   fileId?: string;
   hash?: string;
+  version?: string;
+  width?: number;
+  height?: number;
+  thumbhash?: string;
 }
 
 export interface JournalEntry {
@@ -585,7 +590,7 @@ export interface TimelinePage {
   entries: TimelineMessage[];
 }
 
-export type ToolApprovalStatus = 'pending' | 'expired';
+export type ToolApprovalStatus = 'pending' | 'expired' | 'stopped';
 export type UserQuestionStatus = 'pending' | 'submitted' | 'answered' | 'expired';
 
 export type UsagePeriod = 'today' | 'week' | 'month' | 'quarter';

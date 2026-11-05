@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import type { CallClientState } from '../../../packages/core/src/voice/call-client';
-import type { VoiceCallView } from '../../../packages/core/src/voice/call-contract';
-import { callScreenModel, formatCallDuration, readinessMessage } from '../src/ui/chat/call-model';
+import type {
+  VoiceCallReadiness,
+  VoiceCallView,
+} from '../../../packages/core/src/voice/call-contract';
+import {
+  callConfigured,
+  callScreenModel,
+  formatCallDuration,
+  microphoneRecovery,
+  readinessMessage,
+} from '../src/ui/chat/call-model';
 import { callLinkRedirect } from '../src/ui/chat/call-link';
 import { callStrings } from '../src/ui/strings';
 
@@ -62,6 +71,42 @@ describe('call screen model', () => {
     ).toBeUndefined();
   });
 
+  it('shows live text while speaking, then the sent text for a few seconds', () => {
+    const at = (seq: number, ms: number) => ({ seq, at: ms });
+    const speaking = [
+      { ...at(1, 8_000), type: 'speech-start' as const },
+      { ...at(2, 8_500), type: 'hearing' as const, text: '明天上海' },
+    ];
+    expect(callScreenModel(zh, live({}, { events: speaking } as never)).heard).toEqual({
+      text: '明天上海',
+      final: false,
+    });
+    const sent = [
+      ...speaking,
+      { ...at(3, 9_000), type: 'transcribing' as const, audioMs: 1_000 },
+      {
+        ...at(4, 9_300),
+        type: 'sent' as const,
+        messageId: 'human-1',
+        text: '明天上海会下雨吗？',
+        asrMs: 200,
+        streamed: true,
+      },
+    ];
+    expect(callScreenModel(zh, live({}, { events: sent } as never)).heard).toEqual({
+      text: '明天上海会下雨吗？',
+      final: true,
+    });
+    expect(
+      callScreenModel(zh, live({ durationMs: 20_000 }, { events: sent } as never)).heard,
+    ).toBeUndefined();
+    const missed = [
+      ...speaking,
+      { ...at(3, 9_000), type: 'asr-failed' as const, code: 'x', message: 'x' },
+    ];
+    expect(callScreenModel(zh, live({}, { events: missed } as never)).heard).toBeUndefined();
+  });
+
   it('ends clearly and keeps Connect separate', () => {
     expect(
       callScreenModel(en, { status: 'ended', reason: 'connection-lost', events: [] }),
@@ -103,11 +148,23 @@ describe('call screen model', () => {
       ttsProviderId: null,
       media: 'ready' as const,
       activeCallId: null,
+      callElsewhere: false,
     };
     expect(readinessMessage(en, readiness)).toBe(
       [en.call.missing.asr, en.call.missing.tts].join('\n'),
     );
     expect(readinessMessage(en, { ...readiness, ready: true, missing: [] })).toBeUndefined();
+  });
+
+  it('offers a way back when the microphone is off', () => {
+    expect(microphoneRecovery(en, 'granted')).toBeUndefined();
+    expect(microphoneRecovery(en, undefined)).toBeUndefined();
+    expect(microphoneRecovery(en, 'denied')).toEqual({
+      message: 'Calls need the microphone.',
+      action: 'ask',
+    });
+    expect(microphoneRecovery(en, 'blocked')?.action).toBe('settings');
+    expect(microphoneRecovery(zh, 'blocked')?.message).toContain('麦克风');
   });
 
   it('formats call time', () => {
@@ -125,5 +182,33 @@ describe('call links', () => {
     expect(callLinkRedirect('/call/mira', false)).toBe('/dm/mira');
     expect(callLinkRedirect('deepseekbot-dev://call/mira?script=x', true)).toBeUndefined();
     expect(callLinkRedirect('/dm/mira', false)).toBeUndefined();
+  });
+});
+
+describe('callConfigured', () => {
+  const readiness = (missing: VoiceCallReadiness['missing']): VoiceCallReadiness => ({
+    slug: 'mira',
+    ready: missing.length === 0,
+    missing,
+    asrProviderId: missing.includes('asr') ? null : 'asr',
+    ttsProviderId: missing.includes('tts') ? null : 'tts',
+    media: 'ready',
+    activeCallId: null,
+    callElsewhere: false,
+  });
+  it('offers a call only when the Host has both ASR and TTS for the Bot', () => {
+    expect(callConfigured(readiness([]))).toBe(true);
+    expect(callConfigured(readiness(['asr']))).toBe(false);
+    expect(callConfigured(readiness(['tts']))).toBe(false);
+    expect(callConfigured(readiness(['bot']))).toBe(false);
+  });
+  it('keeps the button when only call media is missing, so the tap explains it', () => {
+    expect(callConfigured(readiness(['media-helper-missing']))).toBe(true);
+  });
+  it('hides the button when the Host refuses the readiness check', () => {
+    expect(callConfigured({ code: 'not-found', error: 'no' })).toBe(false);
+  });
+  it('keeps the button on a Connect route so the tap explains the transport', () => {
+    expect(callConfigured({ code: 'connect-carrier-required', error: 'connect' })).toBe(true);
   });
 });

@@ -24,11 +24,9 @@ import {
   IconCloseOutlineRegular,
   IconPaperclipOutlineRegular,
   IconSendOutlineRegular,
-  IconStopFillRegular,
   ImageLightbox,
   fileSizeText,
 } from '@deepseek-ai/dsh-client-ui-primitives';
-import { Tooltip } from './ds/tooltip.js';
 import { createPortal } from 'react-dom';
 
 import { PersonaBotAvatar, type PersonaBotFacepileItem } from './avatar.js';
@@ -70,14 +68,14 @@ export interface ChannelComposerActivity {
 }
 
 import { zhTranslate, type BotHarnessTranslate } from './locale.js';
+import type { DictationMic, VoiceDictationPort } from './composer-dictation.js';
+import {
+  ComposerMicButton,
+  composerVoicePlaceholder,
+  composerVoiceStatus,
+  useComposerVoice,
+} from './composer-voice.js';
 import { useMountedResource } from './mounted-resource.js';
-
-export interface ChannelComposerStop {
-  label?: string | undefined;
-  stopping: boolean;
-  notice?: string | undefined;
-  onStop(): void;
-}
 
 export interface ChannelComposerUpload {
   id: string;
@@ -93,6 +91,10 @@ export interface ChannelComposerProps {
   sendKey?: ComposerSendKey | undefined;
   value: string;
   placeholder: string;
+  holdPlaceholder?: string | undefined;
+  dictation?: VoiceDictationPort | undefined;
+  dictating?: { current: boolean } | undefined;
+  dictationMic?: DictationMic | undefined;
   sending: boolean;
   focusSignal?: number;
   attachments?: readonly ChannelComposerUpload[] | undefined;
@@ -100,7 +102,6 @@ export interface ChannelComposerProps {
   onRetryAttachment?(id: string): void;
   onRemoveAttachment?(id: string): void;
   allBotNotice?: string | undefined;
-  stop?: ChannelComposerStop | undefined;
   allBotPreview?: AllBotPreview | undefined;
   mentionCandidates?: readonly BotSummary[] | undefined;
   mentions?: readonly SelectedMention[] | undefined;
@@ -376,7 +377,11 @@ export function ChannelComposer({
   context,
   sendKey = 'enter',
   value,
-  placeholder,
+  placeholder: basePlaceholder,
+  holdPlaceholder,
+  dictation,
+  dictating,
+  dictationMic,
   sending,
   focusSignal = 0,
   attachments = [],
@@ -384,7 +389,6 @@ export function ChannelComposer({
   onRetryAttachment,
   onRemoveAttachment,
   allBotNotice,
-  stop,
   allBotPreview,
   mentionCandidates = [],
   mentions = [],
@@ -397,6 +401,23 @@ export function ChannelComposer({
   onRecall,
   onSubmit,
 }: ChannelComposerProps): ReactElement {
+  const voice = useComposerVoice({
+    port: dictation,
+    value,
+    disabled: sending,
+    mic: dictationMic,
+    selection: () => selectionOffsets(),
+    apply: (next, caret) => {
+      requestedCaret.current = caret;
+      onChange(
+        next,
+        rebaseMentions(value, next, mentions),
+        rebaseChannelRefs(value, next, channelRefs),
+      );
+    },
+  });
+  if (dictating !== undefined) dictating.current = voice.active;
+  const placeholder = composerVoicePlaceholder(voice, basePlaceholder, holdPlaceholder, t);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const richRef = useRef<HTMLDivElement | null>(null);
   const requestedCaret = useRef<number | undefined>(undefined);
@@ -448,7 +469,7 @@ export function ChannelComposer({
     setSlashQuery(undefined);
   };
   const chooseShortcut = (shortcut: ComposerShortcut): void => {
-    if (shortcut.disabled) return;
+    if (shortcut.disabled || voice.active) return;
     clearShortcut();
     shortcut.run();
   };
@@ -486,7 +507,7 @@ export function ChannelComposer({
           )
           .slice(0, 8);
   const chooseChannel = (channel: ChannelSummary): void => {
-    if (channelQuery === undefined) return;
+    if (channelQuery === undefined || voice.active) return;
     const selected = selectChannelRef(value, channelRefs, channelQuery, channel.id, channel.name);
     onChange(selected.value, rebaseMentions(value, selected.value, mentions), selected.refs);
     setChannelQuery(undefined);
@@ -500,7 +521,7 @@ export function ChannelComposer({
     });
   };
   const chooseMention = (bot: BotSummary | { preview: AllBotPreview }): void => {
-    if (mentionQuery === undefined) return;
+    if (mentionQuery === undefined || voice.active) return;
     if ('preview' in bot && bot.preview.recipients.length === 0) return;
     const selected =
       'preview' in bot
@@ -537,6 +558,7 @@ export function ChannelComposer({
     });
   };
   const addFilesAtSelection = (files: File[], selection = selectionOffsets()): void => {
+    if (voice.active) return;
     const caret = onAddFiles?.(files, selection);
     if (caret === undefined) return;
     requestedCaret.current = caret;
@@ -546,6 +568,11 @@ export function ChannelComposer({
     });
   };
   const handleFilePaste = (event: ClipboardEvent<HTMLElement>): boolean => {
+    if (voice.active) {
+      event.preventDefault();
+      event.stopPropagation();
+      return true;
+    }
     const clipboard = event.clipboardData;
     const listed = Array.from(clipboard.files);
     const files =
@@ -620,6 +647,7 @@ export function ChannelComposer({
     .join('|');
   const renderedAttachmentKey = useRef('');
   const referenceAttachment = (item: ChannelComposerUpload): void => {
+    if (voice.active) return;
     const selected = insertAttachmentReferences(value, [item], selectionOffsets());
     requestedCaret.current = selected.caret;
     onChange(
@@ -693,6 +721,12 @@ export function ChannelComposer({
   const textareaMount = useMountedResource<HTMLTextAreaElement>(
     (element) => {
       textareaRef.current = element;
+      const caret = requestedCaret.current;
+      if (caret !== undefined && richRef.current === null) {
+        requestedCaret.current = undefined;
+        const at = Math.min(caret, element.value.length);
+        element.setSelectionRange(at, at);
+      }
       setAvatarMounts((current) => (current.length === 0 ? current : []));
       setAttachmentMounts((current) => (current.length === 0 ? current : []));
       scheduleSync(element);
@@ -741,6 +775,10 @@ export function ChannelComposer({
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>): void => {
+    if (voice.active && event.key === 'Enter') {
+      event.preventDefault();
+      return;
+    }
     if (
       hasShortcutArgument &&
       shortcutOptions.length === 0 &&
@@ -904,6 +942,7 @@ export function ChannelComposer({
     }
     if (
       (event.key === 'ArrowUp' || event.key === 'ArrowDown') &&
+      !voice.active &&
       !event.nativeEvent.isComposing &&
       !event.shiftKey &&
       !event.altKey &&
@@ -929,14 +968,14 @@ export function ChannelComposer({
 
   return (
     <div className="bh-composer-shell" data-bh-tour="composer" data-companion-avoid>
+      {dictation === undefined ? null : (
+        <span className="bh-sr-only" role="status" aria-live="polite">
+          {composerVoiceStatus(voice, t) ?? ''}
+        </span>
+      )}
       {allBotNotice === undefined ? null : (
         <div className="bh-muted" role="status">
           {allBotNotice}
-        </div>
-      )}
-      {stop?.notice === undefined ? null : (
-        <div className="bh-muted" role="status">
-          {stop.notice}
         </div>
       )}
       {channelQuery !== undefined && channelOptions.length > 0 ? (
@@ -1058,8 +1097,9 @@ export function ChannelComposer({
         </div>
       ) : null}
       <div
-        className={`bh-composer ${fit.expanded ? 'bh-composer-expanded' : 'bh-composer-compact'}${fit.animateFirstExpand ? ' bh-composer-first-expand' : ''}${reply === undefined ? '' : ' bh-composer-replying'}${hasFooter ? ' bh-composer-with-footer' : ''}`}
+        className={`bh-composer ${fit.expanded ? 'bh-composer-expanded' : 'bh-composer-compact'}${fit.animateFirstExpand ? ' bh-composer-first-expand' : ''}${reply === undefined ? '' : ' bh-composer-replying'}${hasFooter ? ' bh-composer-with-footer' : ''}${voice.ready ? ' bh-composer-has-mic' : ''}`}
         data-layout={fit.expanded ? 'expanded' : 'compact'}
+        data-dictation={voice.snapshot.status}
         style={{ '--bh-composer-body-height': `${fit.height}px` } as CSSProperties}
       >
         {reply === undefined ? null : (
@@ -1090,9 +1130,11 @@ export function ChannelComposer({
                   ordinal={index + 1}
                   t={t}
                   onRetry={() => onRetryAttachment?.(item.id)}
-                  onRemove={() => onRemoveAttachment?.(item.id)}
+                  onRemove={() => {
+                    if (!voice.active) onRemoveAttachment?.(item.id);
+                  }}
                   onReference={() => referenceAttachment(item)}
-                  sending={sending}
+                  sending={sending || voice.active}
                 />
               ) : (
                 <ComposerFileAttachment
@@ -1101,25 +1143,33 @@ export function ChannelComposer({
                   ordinal={index + 1}
                   t={t}
                   onRetry={() => onRetryAttachment?.(item.id)}
-                  onRemove={() => onRemoveAttachment?.(item.id)}
+                  onRemove={() => {
+                    if (!voice.active) onRemoveAttachment?.(item.id);
+                  }}
                   onReference={() => referenceAttachment(item)}
-                  sending={sending}
+                  sending={sending || voice.active}
                 />
               ),
             )}
           </div>
         ) : null}
-        <div ref={bodyMount} className="bh-composer-body">
+        <div
+          ref={bodyMount}
+          className="bh-composer-body"
+          onPointerDown={voice.holdHandlers.onPointerDown}
+          onContextMenu={voice.holdHandlers.onContextMenu}
+        >
           {rich ? (
             <div
               ref={richMount}
               className="bh-composer-input bh-composer-rich-input"
               role="textbox"
-              aria-label={placeholder}
+              aria-label={basePlaceholder}
               aria-multiline="true"
               aria-disabled={sending}
+              aria-readonly={voice.active || undefined}
               data-placeholder={placeholder}
-              contentEditable={!sending}
+              contentEditable={!sending && !voice.active}
               suppressContentEditableWarning
               onClick={(event) => {
                 const target = event.target;
@@ -1145,6 +1195,7 @@ export function ChannelComposer({
               }}
               onDrop={(event) => {
                 event.preventDefault();
+                if (voice.active) return;
                 const text = event.dataTransfer.getData('text/plain');
                 if (text.length > 0) {
                   insertRichPlainText(event.currentTarget, text.replace(/\r\n?/gu, '\n'));
@@ -1159,8 +1210,10 @@ export function ChannelComposer({
               className="bh-composer-input"
               rows={1}
               placeholder={placeholder}
+              aria-label={basePlaceholder}
               value={value}
               disabled={sending}
+              readOnly={voice.active}
               onChange={(event) => {
                 scheduleSync(event.currentTarget);
                 const next = event.target.value;
@@ -1230,7 +1283,7 @@ export function ChannelComposer({
           type="button"
           className="bh-composer-add-file"
           aria-label={t('composer.addAttachment')}
-          disabled={sending || attachments.length >= 10}
+          disabled={sending || voice.active || attachments.length >= 10}
           onMouseDown={() => {
             savedFileSelection.current = selectionOffsets();
           }}
@@ -1241,47 +1294,35 @@ export function ChannelComposer({
         >
           <IconPaperclipOutlineRegular size={16} />
         </button>
+        {voice.mounts.map((mount, index) => (
+          <span key={index} ref={mount} hidden />
+        ))}
+
         <div className="bh-composer-footer">
-          {stop?.label !== undefined &&
-          !hasVisibleText(value) &&
-          attachments.length === 0 &&
-          shortcutOptions.length === 0 ? (
-            <Tooltip label={stop.label} side="top" portal delayMs={350}>
-              <Button
-                className="bh-send-btn bh-stop-btn"
-                variant="primary"
-                size="sm"
-                icon={<IconStopFillRegular size={14} />}
-                aria-label={stop.stopping ? t('composer.stopping') : stop.label}
-                aria-busy={stop.stopping || undefined}
-                disabled={stop.stopping}
-                onClick={stop.onStop}
-              />
-            </Tooltip>
-          ) : (
-            <Button
-              className="bh-send-btn"
-              variant="primary"
-              size="sm"
-              icon={<IconSendOutlineRegular size={16} />}
-              aria-label={sending ? t('message.sending') : t('composer.send')}
-              disabled={
-                (!hasVisibleText(value) && attachments.length === 0) ||
-                sending ||
-                mentions.some(
-                  (item) => item.kind === 'all-bots' && item.preview.recipients.length === 0,
-                ) ||
-                attachments.length > 10 ||
-                attachments.some((item) => item.status !== 'ready')
-              }
-              onClick={() => {
-                if (shortcutOptions.length > 0) {
-                  const shortcut = shortcutOptions[shortcutIndex % shortcutOptions.length];
-                  if (shortcut !== undefined) chooseShortcut(shortcut);
-                } else if (!hasShortcutArgument) void onSubmit();
-              }}
-            />
-          )}
+          {voice.ready ? <ComposerMicButton voice={voice} disabled={sending} t={t} /> : null}
+          <Button
+            className="bh-send-btn"
+            variant="primary"
+            size="sm"
+            icon={<IconSendOutlineRegular size={16} />}
+            aria-label={sending ? t('message.sending') : t('composer.send')}
+            disabled={
+              (!hasVisibleText(value) && attachments.length === 0) ||
+              sending ||
+              voice.active ||
+              mentions.some(
+                (item) => item.kind === 'all-bots' && item.preview.recipients.length === 0,
+              ) ||
+              attachments.length > 10 ||
+              attachments.some((item) => item.status !== 'ready')
+            }
+            onClick={() => {
+              if (shortcutOptions.length > 0) {
+                const shortcut = shortcutOptions[shortcutIndex % shortcutOptions.length];
+                if (shortcut !== undefined) chooseShortcut(shortcut);
+              } else if (!hasShortcutArgument) void onSubmit();
+            }}
+          />
         </div>
       </div>
       {context?.content}

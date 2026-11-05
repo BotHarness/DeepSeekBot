@@ -1,10 +1,12 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createHostClient, type HostClient, type HostSnapshot } from '../src/host/client';
 import { parsePairingLink, redeemPairing } from '../src/host/pairing';
 import { checkRoute } from '../src/host/route';
 import { SECRET_ROUTE_METHODS } from '../../../packages/core/src/bridge/secret-route';
+import { openLocalStore, type LocalStore } from '../src/host/local-store';
 import { FakeHost } from './fake-host';
+import { nodeSqlConnection } from './node-sql-connection';
 import wire from './fixtures/host-wire.json';
 
 const ROUTE = 'https://studio.tailnet-example.ts.net';
@@ -127,6 +129,82 @@ describe('Host client', () => {
     expect(snapshot.roster?.activityChannels).toEqual(wire.activityJournal.channels);
     expect(snapshot.roster?.channels.map((channel) => channel.id)).toEqual(['group-research']);
   });
+  it('keeps the channel list in the local store and later asks only for what changed (C3)', async () => {
+    const store: LocalStore = await openLocalStore(nodeSqlConnection());
+    const host = new FakeHost();
+    const channels = wire.activityJournal.channels;
+    host.methods.set('channels', () => ({ channels }));
+    host.methods.set('channelChangeCursor', () => ({ epoch: 'e', seq: 5 }));
+    host.methods.set('channelListChanges', () => ({
+      channels: [{ ...channels.find((item) => item.id === 'group-research')!, name: 'Renamed' }],
+      removed: [],
+      cursor: { epoch: 'e', seq: 7 },
+    }));
+    const localStore = () => Promise.resolve(store);
+    const first = createHostClient({
+      routes: [ROUTE],
+      credential: host.credential,
+      carrier: host.carrier,
+      backoff: () => 5,
+      timeoutMs: 200,
+      localStore,
+    });
+    first.start();
+    await until(first, (state) => state.connection.status === 'connected');
+    first.stop();
+    expect(host.calls.map((call) => call.method)).toContain('channels');
+    await vi.waitFor(async () =>
+      expect(await store.get('select record from list_bots')).toBeDefined(),
+    );
+    host.calls.length = 0;
+    host.up = false;
+    client = createHostClient({
+      routes: [ROUTE],
+      credential: host.credential,
+      carrier: host.carrier,
+      backoff: () => 5,
+      timeoutMs: 200,
+      localStore,
+    });
+    client.start();
+    const painted = await until(client, (state) => state.roster !== undefined, 50);
+    expect(painted.connection.status).not.toBe('connected');
+    expect(painted.roster?.channels.map((channel) => channel.id)).toEqual(['group-research']);
+    expect(painted.roster?.bots.length).toBeGreaterThan(0);
+    host.up = true;
+    const synced = await until(
+      client,
+      (state) => state.roster?.channels.some((channel) => channel.name === 'Renamed') === true,
+    );
+    expect(synced.roster?.channels.map((channel) => channel.id)).toEqual(['group-research']);
+    expect(host.calls.map((call) => call.method)).not.toContain('channels');
+    expect(host.calls.find((call) => call.method === 'channelListChanges')?.args).toEqual({
+      sinceSeq: 5,
+      epoch: 'e',
+    });
+    client.stop();
+    await store.close();
+  });
+
+  it('still lists channels from the Host when the local store fails', async () => {
+    const store = await openLocalStore(nodeSqlConnection());
+    await store.close();
+    const host = new FakeHost();
+    host.methods.set('channels', () => ({ channels: wire.activityJournal.channels }));
+    host.methods.set('channelChangeCursor', () => ({ epoch: 'e', seq: 5 }));
+    client = createHostClient({
+      routes: [ROUTE],
+      credential: host.credential,
+      carrier: host.carrier,
+      backoff: () => 5,
+      timeoutMs: 200,
+      localStore: () => Promise.resolve(store),
+    });
+    client.start();
+    const snapshot = await until(client, (state) => state.connection.status === 'connected');
+    expect(snapshot.roster?.channels.map((channel) => channel.id)).toEqual(['group-research']);
+  });
+
   it('calls the device gateway with its credential and renders the recorded Roster', async () => {
     const host = new FakeHost();
     const target = connect(host);
@@ -410,7 +488,7 @@ describe('pairing', () => {
     });
     expect(
       await redeemPairing({ payload: parsed.payload, deviceName: 'iPhone', carrier: host.carrier }),
-    ).toEqual({ ok: false, code: 'offer-invalid' });
+    ).toEqual({ ok: false, code: 'offer-invalid', detail: 'remote:refused-offer-invalid' });
   });
 });
 

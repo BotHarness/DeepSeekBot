@@ -1,6 +1,9 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 
+import { VOICE_DICTATION_LIMITS } from '../voice/dictation.js';
+import { readWavAs16kMono } from '../voice/wav.js';
+import { LocalVoiceKitError, writeLocalVoiceKit, type LocalVoiceKit } from '../voice/local-kit.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
 
@@ -16,6 +19,7 @@ export const VOICE_OPTIONS = {
 } as const;
 
 export interface VoiceValues {
+  dir?: string;
   bot?: string;
   provider?: string;
   model?: string;
@@ -41,7 +45,7 @@ export const VOICE_COMMANDS = [
   {
     command: 'voice-provider-add',
     description:
-      'add a TTS Provider from a preset (custom, fish-audio, elevenlabs, openai), or with --kind asr a speech recognition Provider (custom, openai, groq; --language); key only from --key-stdin',
+      'add a TTS Provider from a preset (local, custom, fish-audio, elevenlabs, openai), or with --kind asr a speech recognition Provider (custom, local, openai, groq, or soniox which streams while the caller speaks; --language); key only from --key-stdin',
   },
   {
     command: 'voice-provider-remove',
@@ -63,9 +67,34 @@ export const VOICE_COMMANDS = [
       "bind a Bot's speech recognition for calls: <bot> <asr-provider-id> [--language <code>], or <bot> off",
   },
   {
+    command: 'voice-defaults',
+    description:
+      'show the Host-wide default TTS and speech recognition Providers that every Bot without its own binding uses',
+  },
+  {
+    command: 'voice-default-set',
+    description:
+      'set the Host-wide default: tts <provider-id> [--voice <id>], asr <provider-id> [--language <code>], or <tts|asr> off',
+  },
+  {
+    command: 'voice-vad-set',
+    description:
+      'set the Host-wide speech detection threshold in dBFS (-70 to -20; lower hears quieter microphones), or default; put -- before a negative value (voice-vad-set -- -55); affects pause-cut dictation and calls, not Soniox dictation',
+  },
+  {
     command: 'voice-transcribe',
     description:
       'transcribe a test recording --file <absolute audio file> with a Bot binding (--bot) or an ASR Provider (--provider); the audio is not stored',
+  },
+  {
+    command: 'voice-dictate',
+    description:
+      'run composer dictation on a WAV recording --file <absolute .wav>: streams it in 200 ms chunks through the same Host session the composer mic uses (Bot binding with --bot, a Provider with --provider, or the Host default) and prints the live and final text; the audio is not stored',
+  },
+  {
+    command: 'voice-local-kit',
+    description:
+      'write the local speech service script (SenseVoice + Kokoro, OpenAI-compatible) into --dir <absolute folder> and print the macOS and Windows steps; works offline',
   },
   {
     command: 'voice-synthesize',
@@ -78,6 +107,26 @@ type Command = (typeof VOICE_COMMANDS)[number]['command'];
 
 export function isVoiceCommand(command: string): command is Command {
   return VOICE_COMMANDS.some((entry) => entry.command === command);
+}
+
+export const VOICE_LOCAL_KIT_HELP = {
+  command: 'voice-local-kit',
+  usage: 'deepseekbot voice-local-kit --dir <absolute folder>',
+  description:
+    'Writes botharness_voice.py (SenseVoice + Kokoro, OpenAI-compatible on 127.0.0.1:8790) into the folder and prints the macOS and Windows steps. Needs no Host; works in a Bot shell.',
+} as const;
+
+export function runVoiceLocalKit(rest: string[], values: { dir?: unknown }): LocalVoiceKit {
+  if (rest.length !== 0) usage('voice-local-kit takes no positional arguments; use --dir.');
+  const dir = values.dir;
+  if (typeof dir !== 'string' || !isAbsolute(dir))
+    usage('voice-local-kit needs --dir <absolute folder>.');
+  try {
+    return writeLocalVoiceKit(dir);
+  } catch (error) {
+    if (error instanceof LocalVoiceKitError) throw new CliLiveError(error.code, error.message);
+    throw error;
+  }
 }
 
 function usage(message: string): never {
@@ -97,6 +146,7 @@ export async function runVoiceCommand(
   io: Pick<BotCreateCliIo, 'readStdin'>,
   connect: () => Promise<Rpc>,
 ): Promise<unknown> {
+  if (command === 'voice-local-kit') return runVoiceLocalKit(rest, values);
   if (command === 'voice-providers') {
     positionals(command, rest, 0, 'no positional arguments');
     const rpc = await connect();
@@ -173,6 +223,50 @@ export async function runVoiceCommand(
       ...(values.language === undefined ? {} : { language: values.language }),
     });
   }
+  if (command === 'voice-defaults') {
+    positionals(command, rest, 0, 'no positional arguments');
+    const rpc = await connect();
+    const view = (await rpc('voiceProviders', {})) as {
+      defaults?: unknown;
+      speechThreshold?: unknown;
+    };
+    return {
+      defaults: view.defaults ?? { tts: null, asr: null },
+      ...(view.speechThreshold === undefined ? {} : { speechThreshold: view.speechThreshold }),
+    };
+  }
+  if (command === 'voice-vad-set') {
+    const [value] = positionals(
+      command,
+      rest,
+      1,
+      'a threshold in dBFS after -- such as -- -55, or default',
+    );
+    if (value !== 'default' && !/^-?\d+(?:\.\d+)?$/u.test(value!))
+      usage(
+        'The threshold is a number in dBFS, written after -- such as `voice-vad-set -- -55`, or default.',
+      );
+    const rpc = await connect();
+    return rpc('voiceSpeechThresholdSet', { dbfs: value === 'default' ? null : Number(value) });
+  }
+  if (command === 'voice-default-set') {
+    const [kind, target] = positionals(command, rest, 2, 'tts or asr, and a Provider id (or off)');
+    if (kind !== 'tts' && kind !== 'asr') usage('The first argument is tts or asr.');
+    if (kind === 'tts' && values.language !== undefined)
+      usage('--language applies to the asr default.');
+    if (kind === 'asr' && values.voice !== undefined) usage('--voice applies to the tts default.');
+    const off = target === 'off';
+    if (off && (values.voice !== undefined || values.language !== undefined))
+      usage('--voice and --language do not apply to `off`.');
+    const rpc = await connect();
+    return rpc('voiceDefaultSet', {
+      kind,
+      providerId: off ? null : target,
+      ...(values.voice === undefined ? {} : { voiceId: values.voice }),
+      ...(values.language === undefined ? {} : { language: values.language }),
+    });
+  }
+  if (command === 'voice-dictate') return runVoiceDictate(rest, values, connect);
   if (command === 'voice-transcribe') {
     positionals(command, rest, 0, 'no positional arguments; use --bot or --provider');
     const bot = values.bot?.trim();
@@ -223,4 +317,80 @@ export async function runVoiceCommand(
   }
   const { audio: _audio, ...summary } = result;
   return { ...summary, out };
+}
+
+const DICTATE_CHUNK_SAMPLES = 3_200;
+const DICTATE_SAMPLE_RATE = 16_000;
+
+async function runVoiceDictate(
+  rest: string[],
+  values: VoiceValues,
+  connect: () => Promise<Rpc>,
+): Promise<unknown> {
+  positionals('voice-dictate', rest, 0, 'no positional arguments; use --file');
+  if (values.file === undefined || !isAbsolute(values.file))
+    usage('voice-dictate needs --file <absolute .wav file>.');
+  let pcm: Int16Array;
+  try {
+    pcm = readWavAs16kMono(readFileSync(values.file));
+  } catch (error) {
+    throw new CliLiveError(
+      'invalid-input',
+      error instanceof Error && !('code' in error) ? error.message : `Cannot read ${values.file}.`,
+    );
+  }
+  if (pcm.length > (VOICE_DICTATION_LIMITS.maxMs / 1000) * DICTATE_SAMPLE_RATE)
+    throw new CliLiveError(
+      'invalid-input',
+      `voice-dictate takes at most ${VOICE_DICTATION_LIMITS.maxMs / 1000} s of audio.`,
+    );
+  const target = {
+    ...(values.bot?.trim() ? { slug: values.bot.trim() } : {}),
+    ...(values.provider?.trim() ? { providerId: values.provider.trim() } : {}),
+    ...(values.language === undefined ? {} : { language: values.language }),
+  };
+  const rpc = await connect();
+  const opened = (await rpc('voiceDictation', { kind: 'open', ...target })) as {
+    dictation?: { id?: unknown };
+  };
+  const id = opened?.dictation?.id;
+  if (typeof id !== 'string') throw new CliLiveError('invalid-response', 'No dictation id.');
+  const heard: string[] = [];
+  try {
+    for (let offset = 0; offset < pcm.length; offset += DICTATE_CHUNK_SAMPLES) {
+      const chunk = pcm.subarray(offset, offset + DICTATE_CHUNK_SAMPLES);
+      const pushed = (await rpc('voiceDictation', {
+        kind: 'push',
+        id,
+        pcm: Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength).toString('base64'),
+      })) as { dictation?: { text?: unknown; state?: unknown } };
+      const text = pushed?.dictation?.text;
+      if (typeof text === 'string' && text !== '' && heard.at(-1) !== text) heard.push(text);
+      if (pushed?.dictation?.state !== 'listening') break;
+    }
+  } catch (error) {
+    await rpc('voiceDictation', { kind: 'cancel', id }).catch(() => undefined);
+    throw error;
+  }
+  const stopped = (await rpc('voiceDictation', { kind: 'stop', id })) as {
+    dictation?: Record<string, unknown> & {
+      state?: unknown;
+      text?: unknown;
+      error?: { code?: unknown; message?: unknown };
+    };
+  };
+  const final = stopped?.dictation;
+  if (final?.state === 'failed')
+    throw new CliLiveError(
+      typeof final.error?.code === 'string' ? final.error.code : 'asr-failed',
+      typeof final.error?.message === 'string' ? final.error.message : 'Dictation failed.',
+    );
+  if (final?.state === 'cancelled')
+    throw new CliLiveError(
+      'dictation-cancelled',
+      'The Host ended the dictation before it finished, so the transcript is incomplete.',
+    );
+  if (typeof final?.text === 'string' && final.text !== '' && heard.at(-1) !== final.text)
+    heard.push(final.text);
+  return { ...final, heard };
 }

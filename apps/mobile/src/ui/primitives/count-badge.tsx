@@ -1,6 +1,6 @@
 import { View } from 'react-native';
 
-import { radius, space } from '../design/tokens';
+import { cornerBadge, radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { badgeCount } from './badge-count';
 import { Text } from './text';
@@ -11,10 +11,12 @@ export function CountBadge({
   count,
   tone,
   label,
+  compact = false,
 }: {
   count: number;
   tone: CountBadgeTone;
   label?: string;
+  compact?: boolean;
 }) {
   const theme = useDesignTheme();
   const fill =
@@ -33,19 +35,20 @@ export function CountBadge({
     <View
       accessibilityLabel={label}
       style={{
-        minHeight: theme.type.meta.line + space.x3,
-        paddingVertical: space.x2,
-        minWidth: theme.type.meta.line + space.x3,
+        minHeight: theme.type.meta.line + (compact ? space.x1 : space.x3),
+        paddingVertical: compact ? 0 : space.x2,
+        minWidth: theme.type.meta.line + (compact ? space.x1 : space.x3),
         alignItems: 'center',
         justifyContent: 'center',
-        paddingHorizontal: space.x3,
-        borderRadius: radius.sm,
+        paddingHorizontal: compact ? space.x2 : space.x3,
+        borderRadius: compact ? radius.round : radius.sm,
         backgroundColor: fill,
       }}
     >
       <Text
         variant="meta"
         strong
+        {...(compact ? { maxFontSizeMultiplier: cornerBadge.maxTextScale } : {})}
         style={{ color: ink, textAlign: 'center', fontVariant: ['tabular-nums'] }}
       >
         {badgeCount(count)}

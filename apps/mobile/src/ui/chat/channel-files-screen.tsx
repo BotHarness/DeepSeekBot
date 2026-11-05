@@ -373,7 +373,7 @@ export function useChannelFilesList(
         attachment={preview}
         onClose={() => setPreviewKey(undefined)}
         onShare={share}
-        cachePolicy="none"
+        cachePolicy={preview?.source?.cacheKey === undefined ? 'none' : 'memory-disk'}
       />
     ),
   };

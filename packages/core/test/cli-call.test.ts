@@ -1,4 +1,6 @@
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
+
+import sharp from 'sharp';
 import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
@@ -86,6 +88,108 @@ function wav(root: string, name: string, samples: Int16Array, rate = 16_000) {
 }
 
 describe('deepseekbot call commands', () => {
+  it('call-simulate --video shares the keyframes a client would pick and reports the grids', async () => {
+    const root = createTempRoot('cli-call-');
+    const file = wav(root, 'q.wav', concat(silence(300), speech(2600), silence(200)));
+    const frames = join(root, 'frames');
+    mkdirSync(frames);
+    const colors = [
+      [200, 0, 0],
+      [200, 0, 0],
+      [0, 0, 200],
+      [0, 0, 200],
+      [0, 200, 0],
+      [0, 200, 0],
+    ] as const;
+    for (const [index, [r, g, b]] of colors.entries())
+      await sharp({ create: { width: 320, height: 180, channels: 3, background: { r, g, b } } })
+        .jpeg()
+        .toFile(join(frames, `${index + 1}.jpg`));
+    const { run, posts } = host();
+    const report = (await run('call-simulate', ['ada'], {
+      file,
+      video: frames,
+      'reply-wait': '20',
+    })) as { visual: Record<string, unknown> };
+    expect(posts[1]).toMatchObject({ kind: 'visual', source: 'camera' });
+    expect(posts.filter((post) => post['kind'] === 'frame')).toHaveLength(3);
+    expect(report.visual).toMatchObject({
+      source: 'camera',
+      samples: 6,
+      keyframes: 3,
+      sentFrames: 3,
+      grids: [{ frames: 3, layout: '2x2', messageId: expect.any(String) }],
+      failed: [],
+    });
+    const gridMessage = (report.visual['grids'] as { messageId: string }[])[0]!.messageId;
+    expect(await run('call-frame', [gridMessage, '2'])).toEqual({
+      released: true,
+      messageId: gridMessage,
+      cell: 2,
+    });
+    for (const [rest, values] of [
+      [[gridMessage], {}],
+      [[gridMessage, '-1'], {}],
+      [[gridMessage, '17'], {}],
+      [[gridMessage, '1'], { out: 'relative.jpg' }],
+    ] as const)
+      await expect(run('call-frame', [...rest], values)).rejects.toMatchObject({ code: 'usage' });
+    await expect(
+      run('call-simulate', ['ada'], { file, video: frames, screen: frames }),
+    ).rejects.toMatchObject({ code: 'usage' });
+    const unsaved = (await run('call-simulate', ['ada'], {
+      file,
+      screen: frames,
+      'no-save': true,
+      'reply-wait': '20',
+    })) as { visual: Record<string, unknown> };
+    expect(posts.at(-1)).toBeDefined();
+    expect(posts.find((post) => post['kind'] === 'visual' && post['save'] === false)).toMatchObject(
+      {
+        source: 'screen',
+      },
+    );
+    expect(unsaved.visual).toMatchObject({ saved: false, records: [], grids: [{ frames: 3 }] });
+    await expect(run('call-simulate', ['ada'], { file, 'no-save': true })).rejects.toMatchObject({
+      code: 'usage',
+    });
+    const ended = (await run('call-simulate', ['ada'], {
+      file,
+      screen: frames,
+      'share-ends-at': '1200',
+      'reply-wait': '20',
+    })) as { visual: Record<string, unknown> };
+    expect(
+      posts.find((post) => post['kind'] === 'visual' && post['stopped'] === true),
+    ).toMatchObject({ source: 'off' });
+    expect(ended.visual['shareEndedAtMs']).toBeGreaterThanOrEqual(1200);
+    expect(ended.visual['sentFrames']).toBeLessThan(3);
+    const paused = (await run('call-simulate', ['ada'], {
+      file,
+      video: frames,
+      'share-pause': '600-1800',
+      'reply-wait': '20',
+    })) as { visual: Record<string, unknown> };
+    expect(
+      posts.find((post) => post['kind'] === 'visual' && post['paused'] === true),
+    ).toMatchObject({ source: 'off' });
+    expect(
+      posts.find((post) => post['kind'] === 'visual' && post['resumed'] === true),
+    ).toMatchObject({ source: 'camera' });
+    expect(paused.visual['pausedAtMs']).toBeGreaterThanOrEqual(600);
+    expect(paused.visual['resumedAtMs']).toBeGreaterThanOrEqual(1800);
+    for (const values of [
+      { file, 'share-pause': '1-2' },
+      { file, video: frames, 'share-pause': '900-100' },
+      { file, 'share-ends-at': '100' },
+      { file, screen: frames, 'share-ends-at': 'soon' },
+    ])
+      await expect(run('call-simulate', ['ada'], values)).rejects.toMatchObject({ code: 'usage' });
+    await expect(run('call-simulate', ['ada'], { file, screen: 'relative' })).rejects.toMatchObject(
+      { code: 'usage' },
+    );
+  });
+
   it('call-simulate plays a WAV into a synthetic call and reports heard text and reply timing', async () => {
     const root = createTempRoot('cli-call-');
     const file = wav(root, 'q.wav', concat(silence(300), speech(1400), silence(200)));

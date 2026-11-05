@@ -175,4 +175,37 @@ describe('Channel activity on mobile', () => {
       expect(shownInChat(presented({ ...message, body: 'fallback text' }))).toBe(true);
     }
   });
+  it('names the stopped Session or the whole Bot in the stop notice', () => {
+    const notice = (target: unknown): ChannelWireMessage =>
+      ({
+        id: 'turn-stopped-1',
+        at: '2026-11-04T00:00:00.000Z',
+        author: { kind: 'system' },
+        body: 'Human stopped Ada.',
+        turnStop: {
+          botSlug: 'ada',
+          botName: 'Ada',
+          humanName: 'Human',
+          sessionId: 's-1',
+          cause: 'human-stop',
+          target,
+        },
+      }) as unknown as ChannelWireMessage;
+    const text = (target: unknown) => {
+      const message = presented(notice(target));
+      return activityText(message, message.activity!, undefined, 1, activityStrings.zh);
+    };
+    expect(text({ scope: 'bot' })).toEqual(
+      expect.objectContaining({ verb: '停止了 Ada 的全部 Session' }),
+    );
+    expect(text({ scope: 'bot' })).not.toHaveProperty('detail');
+    expect(text({ scope: 'session', role: 'orchestrator', sessionId: 's-1' })).toMatchObject({
+      verb: '停止了 Ada 的 Orchestrator',
+      detail: 'Assignment 继续运行',
+    });
+    expect(
+      text({ scope: 'session', role: 'assignment', sessionId: 's-2', title: 'Crawl' }).verb,
+    ).toBe('停止了 Ada 的 Assignment「Crawl」');
+    expect(activityOf(notice({ scope: 'other' }))).not.toHaveProperty('target');
+  });
 });

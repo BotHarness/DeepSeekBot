@@ -48,4 +48,25 @@ describe('searchHostMessages', () => {
     ]);
     expect(found[0]).toMatchObject({ snippet: 'about w1', author: { kind: 'human' } });
   });
+
+  it('does not ask an offline Host', async () => {
+    const calls: string[] = [];
+    const found = await searchHostMessages(
+      [
+        {
+          hostId: 'away',
+          offline: true,
+          client: {
+            call: async <T>(method: string) => {
+              calls.push(method);
+              return { hits: [hit('dm-ada', 'a1', '2026-10-01T00:00:00.000Z')] } as T;
+            },
+          },
+        },
+      ],
+      'release',
+    );
+    expect(calls).toEqual([]);
+    expect(found).toEqual([]);
+  });
 });

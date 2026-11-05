@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { use, useState } from 'react';
 import { ResourceImage as Image } from '../primitives/resource-image';
 import { Pressable, View } from 'react-native';
 
@@ -10,6 +10,7 @@ import { Text } from '../primitives/text';
 import { FileIcon, PhotoIcon } from '../shell/icons';
 import { useStrings } from '../strings';
 import { LoadingIndicator } from '../primitives/loading-indicator';
+import { ChatOffline } from './chat-offline';
 
 export function fileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -34,30 +35,45 @@ function AttachmentImage({
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
+  const offline = use(ChatOffline);
   const [attempt, setAttempt] = useState(0);
   const [failed, setFailed] = useState(false);
-  const source = attachment.source;
+  const source = attachment.preview ?? attachment.source;
   const tone = human ? 'onAccent' : 'muted';
   const fill = human ? over(theme.color.selected, theme.color.accent) : theme.layer.raised.inset;
   const box = { width, height, borderRadius: radius.md, backgroundColor: fill };
-  if (source === undefined || failed)
+  if (source === undefined || failed) {
+    const fallback =
+      source === undefined
+        ? t.attachmentElsewhere
+        : offline
+          ? t.imageNeedsConnection
+          : t.imageUnavailable;
     return (
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${attachment.name}, ${t.imageUnavailable}`}
-        disabled={source === undefined}
+        accessibilityLabel={`${attachment.name}, ${fallback}`}
+        disabled={source === undefined || offline}
         onPress={() => {
           setFailed(false);
           setAttempt((value) => value + 1);
         }}
-        style={{ ...box, alignItems: 'center', justifyContent: 'center', gap: space.x2 }}
+        style={{
+          ...box,
+          height: undefined,
+          minHeight: height,
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: space.x2,
+        }}
       >
         <PhotoIcon color={theme.color[tone]} size={theme.type.title.line} />
-        <Text variant="meta" tone={tone} numberOfLines={2} style={{ textAlign: 'center' }}>
-          {source === undefined ? t.attachmentElsewhere : t.imageUnavailable}
+        <Text variant="meta" tone={tone} style={{ textAlign: 'center' }}>
+          {fallback}
         </Text>
       </Pressable>
     );
+  }
   return (
     <Pressable
       accessibilityRole="imagebutton"
@@ -67,6 +83,9 @@ function AttachmentImage({
       <Image
         key={attempt}
         source={source}
+        {...(attachment.thumbhash === undefined
+          ? {}
+          : { placeholder: { thumbhash: attachment.thumbhash } })}
         recyclingKey={attachment.key}
         cachePolicy="memory-disk"
         contentFit="cover"

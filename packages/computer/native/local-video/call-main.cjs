@@ -132,6 +132,12 @@ const OPS = {
   stats: () => 'window.callStats()',
 };
 
+function helperCpu() {
+  let total = 0;
+  for (const metric of app.getAppMetrics()) total += metric.cpu?.percentCPUUsage ?? 0;
+  return Math.round(total * 10) / 10;
+}
+
 function command(message) {
   if (
     !message ||
@@ -153,7 +159,11 @@ function command(message) {
   queue = queue.then(async () => {
     try {
       const value = await window.webContents.executeJavaScript(OPS[message.op](message), true);
-      write({ id: message.id, ok: true, value: value ?? null });
+      write({
+        id: message.id,
+        ok: true,
+        value: message.op === 'stats' ? { ...value, cpuPercent: helperCpu() } : (value ?? null),
+      });
     } catch {
       write({ id: message.id, ok: false, code: 'helper-failed' });
       if (message.op === 'offer' || message.op === 'answer') stop();

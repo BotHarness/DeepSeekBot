@@ -165,6 +165,23 @@ vi.mock('../src/ui/chat/native-header', () => ({
   useHeaderPadding: () => 0,
 }));
 vi.mock('../src/ui/chat/header-chrome', () => ({
+  HeaderActionGroup: ({
+    actions,
+  }: {
+    actions: readonly { label: string; testID: string; onPress(): void }[];
+  }) => (
+    <span>
+      {actions.map((action) => (
+        <button
+          key={action.testID}
+          type="button"
+          data-testid={action.testID}
+          aria-label={action.label}
+          onClick={action.onPress}
+        />
+      ))}
+    </span>
+  ),
   useChatHeaderHeight: () => 56,
   HeaderCircleButton: ({ label, onPress }: { label: string; onPress(): void }) => (
     <button onClick={onPress}>{label}</button>
