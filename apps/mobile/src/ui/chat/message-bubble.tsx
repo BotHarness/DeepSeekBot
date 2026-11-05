@@ -58,6 +58,7 @@ import {
 } from './bubble-shape';
 import { DeliveryReceiptButton, ReadingBadge } from './delivery-stack';
 import { MessageAttachments } from './message-attachments';
+import { VoiceBar } from './voice-bar';
 import { openMessageMenu } from './message-menu';
 import { ReactionChips } from './message-reactions';
 import { ReplyQuote } from './reply-quote';
@@ -162,6 +163,7 @@ export function BubbleBody({
         />
       ) : null}
       {quote}
+      {message.voice === undefined ? null : <VoiceBar voice={message.voice} />}
       <MessageBody message={message} streaming={streaming} />
       {message.attachments.length > 0 ? (
         <MessageAttachments

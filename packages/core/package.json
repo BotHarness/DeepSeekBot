@@ -23,8 +23,11 @@
     "@noble/hashes": "2.4.0",
     "@resvg/resvg-js": "2.6.2",
     "css-tree": "3.2.1",
+    "opus-decoder": "0.7.12",
     "saxes": "6.0.0",
+    "sharp": "0.35.4",
     "silk-wasm": "3.7.1",
+    "thumbhash": "0.1.1",
     "uqr": "0.1.3",
     "ws": "8.21.3"
   },

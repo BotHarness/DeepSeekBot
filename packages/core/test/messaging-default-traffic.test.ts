@@ -1197,6 +1197,36 @@ it('QQ retains an unknown native reply outcome across restart and never blindly 
   expect(fx.core.externalMessaging.history('ada')[0]?.state).toBe('unknown-outcome');
 });
 
+it('a Bot stop leaves an in-flight external reply delivery-unknown and never resends it', async () => {
+  const fx = await fixture('qq');
+  let sends = 0;
+  let release!: () => void;
+  const provider = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  fx.service.replyChecked = async () => {
+    sends++;
+    await provider;
+    throw Object.assign(new Error('uncertain'), { code: 'reply-result-unknown' });
+  };
+  await fx.receive(qqMention('stopped-mid-send'));
+  const id = fx.sourceId('om-stopped-mid-send');
+  const reply = fx.core.externalMessaging.reply('ada', id, 'one answer');
+  await vi.waitFor(() => expect(sends).toBe(1));
+
+  await fx.core.runtime.stopTurn!('ada');
+  release();
+  const outcome = await reply;
+  expect(outcome.state).toBe('unknown-outcome');
+  await fx.core.runtime.whenIdle();
+  await fx.settle();
+
+  expect(sends).toBe(1);
+  expect(fx.core.externalMessaging.history('ada')[0]?.state).toBe('unknown-outcome');
+  expect(await fx.core.externalMessaging.reply('ada', id, 'one answer')).toEqual(outcome);
+  expect(sends).toBe(1);
+});
+
 it('keeps /pair with pairing and admits nothing for it', async () => {
   const fx = await fixture();
   await fx.receive(dm('pair', { text: '/pair' }));

@@ -255,7 +255,39 @@ vi.mock('../src/ui/shell/swipe-open', () => ({
     </div>
   ),
 }));
+vi.mock('../src/ui/chat/conversation-top-bar', () => ({
+  ConversationTopBar: ({
+    title,
+    onBack,
+    onProfile,
+    onCall,
+  }: import('../src/ui/chat/conversation-top-bar').ConversationTopBarProps) => (
+    <div data-testid="android-conversation-top-bar">
+      <span>{title}</span>
+      <button onClick={onBack}>Header back</button>
+      {onProfile === undefined ? null : <button onClick={onProfile}>Profile</button>}
+      {onCall === undefined ? null : <button onClick={onCall}>Call</button>}
+    </div>
+  ),
+}));
 vi.mock('../src/ui/chat/header-chrome', () => ({
+  HeaderActionGroup: ({
+    actions,
+  }: {
+    actions: readonly { label: string; testID: string; onPress(): void }[];
+  }) => (
+    <span>
+      {actions.map((action) => (
+        <button
+          key={action.testID}
+          type="button"
+          data-testid={action.testID}
+          aria-label={action.label}
+          onClick={action.onPress}
+        />
+      ))}
+    </span>
+  ),
   titleChipFill: () => ({}),
   useChatHeaderHeight: () => 56,
   HeaderCircleButton: ({ label, onPress }: { label: string; onPress(): void }) => (

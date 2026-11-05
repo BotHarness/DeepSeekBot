@@ -14,6 +14,7 @@ interface UnreadCounts {
   channels: Array<{ channelId: string; unreadCount: number }>;
 }
 
+const LIVE_REFRESH_DELAY_MS = 250;
 const LIMITS: Record<InboxSection, number> = { action: 100, replies: 30, unread: 30, handled: 30 };
 
 export interface InboxQuery {
@@ -222,7 +223,17 @@ export function createInbox(
     if (connected && !wasConnected) background();
     wasConnected = connected;
   });
-  const offLive = client.onLive(background);
+  let liveTimer: ReturnType<typeof setTimeout> | undefined;
+  const offLive = client.onLive(() => {
+    if (reading !== undefined) {
+      readAgain = true;
+      return;
+    }
+    liveTimer ??= setTimeout(() => {
+      liveTimer = undefined;
+      background();
+    }, LIVE_REFRESH_DELAY_MS);
+  });
   background();
   wasConnected = client.getSnapshot().connection.status === 'connected';
 
@@ -274,6 +285,7 @@ export function createInbox(
       stopped = true;
       offClient();
       offLive();
+      if (liveTimer !== undefined) clearTimeout(liveTimer);
     },
   };
 }

@@ -31,6 +31,7 @@ import { ComposeTreeContext } from '../primitives/compose-tree';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import { ROW_ICON_SOURCES } from '../primitives/row-icon-source.android';
 import { useStrings } from '../strings';
+import { stacksCardButtons } from './card-buttons';
 import type {
   ActionCard as SharedActionCard,
   CardField as SharedCardField,
@@ -197,7 +198,7 @@ export function CardField({
 }
 
 export function CardButtons({ children, stack = false }: { children: ReactNode; stack?: boolean }) {
-  return stack ? (
+  return stacksCardButtons(children, stack) ? (
     <ComposeTreeContext.Provider value={{ fill: true }}>
       <Column verticalArrangement={{ spacedBy: space.x3 }} modifiers={[fillMaxWidth()]}>
         {children}

@@ -1,10 +1,11 @@
-import { useState, type ReactElement } from 'react';
+import { useRef, useState, type ReactElement } from 'react';
 
 import { Button, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { PrivateAccountSummary } from '../../../core/src/credentials/contracts.js';
 import { useClientStore } from './use-client-store.js';
 import { shallowEqual } from '@deepseek-ai/dsh-client-store';
+import type { ClientState } from './store.js';
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
 import { channelSettings } from './channel-settings-state.js';
 import { formatRelativeTime } from './labels.js';
@@ -28,11 +29,19 @@ const STATUS_TONE = {
 function PrivateAccountsPanel({ botSlug, actions, t }: ChannelSidebarEntryProps): ReactElement {
   const channel = useClientStore((state) => state.conversation.channel);
   const conversationRevision = useClientStore((state) => state.conversation.revision);
-  const inputRequests = useClientStore(
-    (state) =>
-      state.conversation.messages.filter((message) => message.privateInputRequest !== undefined),
-    shallowEqual,
-  );
+  const requestCache = useRef<{
+    messages: ClientState['conversation']['messages'];
+    requests: ClientState['conversation']['messages'];
+  }>(undefined);
+  const inputRequests = useClientStore((state) => {
+    const messages = state.conversation.messages;
+    if (requestCache.current?.messages !== messages)
+      requestCache.current = {
+        messages,
+        requests: messages.filter((message) => message.privateInputRequest !== undefined),
+      };
+    return requestCache.current.requests;
+  }, shallowEqual);
   const revision =
     channel?.type === 'dm' && channel.botSlug === botSlug ? conversationRevision : undefined;
   const [load, setLoad] = useState<Load>({ status: 'loading' });
@@ -111,7 +120,10 @@ function PrivateAccountsPanel({ botSlug, actions, t }: ChannelSidebarEntryProps)
     });
   const openRequest = (row: PrivateAccountSummary) => {
     channelSettings.close();
-    void actions.openChannelAtMessage(row.channelId!, row.messageId!);
+    void actions.openChannelAtMessage(
+      row.channelId!,
+      row.status === 'replacing' ? (row.replacementMessageId ?? row.messageId!) : row.messageId!,
+    );
   };
 
   const now = Date.now();
@@ -121,9 +133,12 @@ function PrivateAccountsPanel({ botSlug, actions, t }: ChannelSidebarEntryProps)
     unavailable: t('privateAccounts.status.unavailable'),
   } as const;
   const replacementCard = (row: PrivateAccountSummary) => {
-    const message = inputRequests.find((candidate) => candidate.id === row.replacementMessageId);
+    const message =
+      channel?.id === row.channelId
+        ? inputRequests.find((candidate) => candidate.id === row.replacementMessageId)
+        : undefined;
     return message?.privateInputRequest === undefined ? null : (
-      <PrivateInputCard message={message} actions={actions} t={t} />
+      <PrivateInputCard message={message} actions={actions} channelId={row.channelId} t={t} />
     );
   };
 

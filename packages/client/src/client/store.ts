@@ -11,7 +11,7 @@ import type { RosterConfig } from './roster-config.js';
 import type { RosterSection, TopOrderEntry } from './roster.js';
 import type { PurgedPlacement } from '../../../core/src/purge/contracts.js';
 import type { PixelBannerRecipe } from '@botharness/pixel-banner';
-import { createContentRedactions } from './content-redactions.js';
+import { createContentRedactions, sameItems } from './content-redactions.js';
 import { ActivitySmoother } from './activity-smoothing.js';
 
 export type ClientMode = 'dsh' | 'bot';
@@ -117,10 +117,15 @@ export interface ChannelReplyPreview {
   body: string;
 }
 
-export type ChannelAttachmentRef = { name: string; mime: string; size: number } & (
-  | { fileId: string; hash?: never }
-  | { hash: string; fileId?: never }
-);
+export type ChannelAttachmentRef = {
+  name: string;
+  mime: string;
+  size: number;
+  version?: string;
+  width?: number;
+  height?: number;
+  thumbhash?: string;
+} & ({ fileId: string; hash?: never } | { hash: string; fileId?: never });
 
 export interface BotCreatePreview {
   memoryFolder: string;
@@ -244,8 +249,18 @@ export interface ChannelMessage {
     files: Array<{ path: string; added: number | null; deleted: number | null }>;
     moreFiles: number;
   };
-  turnStop?: { botName: string; humanName: string };
+  turnStop?: {
+    botName: string;
+    humanName: string;
+    target?:
+      | { scope: 'bot' }
+      | { scope: 'session'; role: 'orchestrator' | 'assignment'; title?: string };
+    held?: boolean;
+    cause?: 'human-stop' | 'failures';
+    failures?: number;
+  };
   toolAutoApproval?: import('../../../core/src/channels/channel.js').ChannelToolAutoApproval;
+  voiceCallRecord?: import('../../../core/src/channels/voice-call-record.js').ChannelVoiceCallRecord;
   toolAutoApprovalPause?: import('../../../core/src/channels/channel.js').ChannelToolAutoApprovalPause;
   memberDeparture?: {
     memberKind: 'bot' | 'human';
@@ -264,7 +279,10 @@ export interface ChannelMessage {
   userQuestionResolution?: UserQuestionResolution;
   privateInputRequest?: import('../../../core/src/credentials/contracts.js').PrivateInputCard;
   privateInputResolution?: import('../../../core/src/credentials/contracts.js').PrivateInputResolution;
+  takeoverRequest?: import('../../../core/src/takeover/contracts.js').TakeoverRequestCard;
+  takeoverResolution?: import('../../../core/src/takeover/contracts.js').TakeoverResolution;
   attachments?: ChannelAttachmentRef[];
+  voice?: import('../../../core/src/channels/channel.js').ChannelMessageVoice;
   clearedAttachments?: import('../../../core/src/attachments/ref.js').ChannelClearedAttachment[];
   format?: 'markdown' | 'text';
   replyTo?: string;
@@ -319,8 +337,10 @@ export interface HumanAttentionItem {
   category: HumanInboxCategory;
   kind:
     | 'group-join-request'
+    | 'pairing-request'
     | 'user-question'
     | 'private-input'
+    | 'takeover-request'
     | 'tool-approval'
     | 'auto-rejection'
     | 'workspace-grant-request'
@@ -499,6 +519,17 @@ export interface RosterState {
   readOnly: boolean;
 }
 
+export const CONVERSATION_STATE_KEYS = [
+  'bots',
+  'channels',
+  'selection',
+  'conversation',
+  'memoryCommitIntent',
+  'contentPurgeRevision',
+  'composerIdentity',
+] as const;
+export type ConversationStateView = Pick<ClientState, (typeof CONVERSATION_STATE_KEYS)[number]>;
+
 export interface ClientState {
   contentPurgeRevision?: number;
   composerIdentity?:
@@ -565,6 +596,22 @@ export interface ClientStore {
   setSessions(patch: Partial<SessionsState>): void;
   setBotInbox(patch: Partial<BotInboxState>): void;
   setHumanInbox(patch: Partial<HumanInboxState>): void;
+}
+
+export function keepUnchanged<T>(
+  previous: readonly T[],
+  next: readonly T[],
+  key: (item: T) => string,
+): readonly T[] {
+  const before = new Map(previous.map((item) => [key(item), item]));
+  let same = previous.length === next.length;
+  const kept = next.map((item, index) => {
+    const old = before.get(key(item));
+    const reused = old !== undefined && JSON.stringify(old) === JSON.stringify(item) ? old : item;
+    if (reused !== previous[index]) same = false;
+    return reused;
+  });
+  return same ? previous : kept;
 }
 
 function initialConversation(): ConversationState {
@@ -649,6 +696,31 @@ function sameActivity(
     JSON.stringify([left.activity, left.attention, left.sessions]) ===
       JSON.stringify([right.activity, right.attention, right.sessions])
   );
+}
+
+function sameValue(left: unknown, right: unknown): boolean {
+  if (left === right) return true;
+  if (Array.isArray(left) && Array.isArray(right)) return sameItems(left, right);
+  if (
+    typeof left !== 'object' ||
+    typeof right !== 'object' ||
+    left === null ||
+    right === null ||
+    Array.isArray(left) ||
+    Array.isArray(right)
+  )
+    return false;
+  const leftKeys = Object.keys(left);
+  return (
+    leftKeys.length === Object.keys(right).length &&
+    leftKeys.every(
+      (key) => (left as Record<string, unknown>)[key] === (right as Record<string, unknown>)[key],
+    )
+  );
+}
+
+function samePatch<T extends object>(current: T, patch: Partial<T>): boolean {
+  return (Object.keys(patch) as (keyof T)[]).every((key) => sameValue(current[key], patch[key]));
 }
 
 export function createStore({
@@ -774,10 +846,18 @@ export function createStore({
   };
 
   const update = (patch: Partial<ClientState>): void => {
+    const previous = state;
+    const redactedChannels = patch.channels?.map(redactions.channel);
     state = {
       ...state,
       ...patch,
-      ...(patch.channels === undefined ? {} : { channels: patch.channels.map(redactions.channel) }),
+      ...(patch.channels === undefined || redactedChannels === undefined
+        ? {}
+        : {
+            channels: sameItems(redactedChannels, patch.channels)
+              ? patch.channels
+              : redactedChannels,
+          }),
       ...(patch.conversation === undefined
         ? {}
         : { conversation: redactions.conversation(patch.conversation) }),
@@ -795,19 +875,27 @@ export function createStore({
         ? { ...channel, name: bot.displayName }
         : channel;
     };
+    if (patch.bots !== undefined || patch.channels !== undefined) {
+      const channels = state.channels.map(presentChannel);
+      if (channels.some((channel, index) => channel !== state.channels[index]))
+        state.channels = channels;
+    }
     if (
       patch.bots !== undefined ||
       patch.channels !== undefined ||
       patch.conversation !== undefined
     ) {
-      const channels = state.channels.map(presentChannel);
-      if (channels.some((channel, index) => channel !== state.channels[index]))
-        state.channels = channels;
       if (state.conversation.channel) {
         const channel = presentChannel(state.conversation.channel);
         if (channel !== state.conversation.channel)
           state.conversation = { ...state.conversation, channel };
       }
+    }
+    if (
+      (Object.keys(state) as (keyof ClientState)[]).every((key) => state[key] === previous[key])
+    ) {
+      state = previous;
+      return;
     }
     for (const listener of listeners) listener();
   };
@@ -858,10 +946,18 @@ export function createStore({
       update({ status, error });
     },
     setRoster(bots, channels) {
-      update({ bots: bots.map(withActivity), channels, status: 'ready', error: undefined });
+      update({
+        bots: keepUnchanged(state.bots, bots.map(withActivity), (bot) => bot.slug),
+        channels: keepUnchanged(state.channels, channels, (channel) => channel.id),
+        status: 'ready',
+        error: undefined,
+      });
     },
     setRosterPreviews(bots, channels) {
-      update({ bots: bots.map(withActivity), channels });
+      update({
+        bots: keepUnchanged(state.bots, bots.map(withActivity), (bot) => bot.slug),
+        channels: keepUnchanged(state.channels, channels, (channel) => channel.id),
+      });
     },
     applyActivity(snapshot) {
       if (activity?.generation === snapshot.generation && snapshot.revision <= activity.revision)
@@ -950,9 +1046,11 @@ export function createStore({
       update({ sessions: { ...state.sessions, ...patch } });
     },
     setBotInbox(patch) {
+      if (samePatch(state.botInbox, patch)) return;
       update({ botInbox: { ...state.botInbox, ...patch } });
     },
     setHumanInbox(patch) {
+      if (samePatch(state.humanInbox, patch)) return;
       update({ humanInbox: { ...state.humanInbox, ...patch } });
     },
   };

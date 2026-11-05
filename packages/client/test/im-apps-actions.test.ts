@@ -17,6 +17,7 @@ import { createImApps, ImAppsSection, type ImAppsFace } from '../src/client/im-a
 import { zhTranslate } from '../src/client/locale.js';
 import { BotSettings } from '../src/client/bot-settings.js';
 import { createStore } from '../src/client/store.js';
+import { ProviderAppSetup } from '../src/client/provider-app-setup.js';
 import { chooseOption, comboboxOption, dialog, openCombobox } from './primitive-mocks.js';
 
 let host: HTMLDivElement;
@@ -59,7 +60,7 @@ function store() {
   return value;
 }
 
-async function render(face: Partial<ImAppsFace>): Promise<void> {
+async function render(face: Partial<ImAppsFace>, clientStore = store()): Promise<void> {
   const imApps: ImAppsFace = {
     load: async () => ({ apps: [], setups: [] }),
     manage: () => undefined,
@@ -70,7 +71,9 @@ async function render(face: Partial<ImAppsFace>): Promise<void> {
     ...face,
   };
   await act(async () => {
-    root.render(createElement(ImAppsSection, { imApps, store: store(), t: zhTranslate } as never));
+    root.render(
+      createElement(ImAppsSection, { imApps, store: clientStore, t: zhTranslate } as never),
+    );
   });
 }
 
@@ -82,6 +85,76 @@ function button(label: string, scope: ParentNode = document): HTMLButtonElement 
   if (found === undefined) throw new Error(`No button ${label}`);
   return found;
 }
+
+it.each([
+  { deleted: false, paused: false, offered: true },
+  { deleted: false, paused: true, offered: false },
+  { deleted: true, paused: true, offered: false },
+])(
+  'offers only bindable Bots when creating an IM app; deleted=$deleted paused=$paused',
+  async ({ deleted, paused, offered }) => {
+    const clientStore = store();
+    clientStore.setRoster(
+      clientStore
+        .getSnapshot()
+        .bots.map((bot) => (bot.slug === 'bo' ? { ...bot, deleted, paused } : bot)),
+      [],
+    );
+    await render(
+      {
+        load: async () => ({
+          apps: [],
+          setups: [
+            {
+              version: 1,
+              providerId: 'dsh-im/feishu',
+              platform: 'feishu',
+              kind: 'credentials',
+              endpoint: 'dsh-im/app-setup',
+            },
+          ],
+        }),
+        appSetup: new ProviderAppSetup({
+          call: async () => {
+            throw new Error('Unexpected app setup RPC before choosing a Bot');
+          },
+        }),
+      },
+      clientStore,
+    );
+    await act(async () => button('创建应用').click());
+    await openCombobox('Bot', dialog());
+
+    expect(comboboxOption('bo') !== undefined).toBe(offered);
+    expect(comboboxOption('ada')?.textContent).toContain('Ada');
+  },
+);
+
+it('removes a Bot deleted while the IM bind picker is open', async () => {
+  const clientStore = store();
+  await render(
+    { load: async () => ({ apps: [app({ ref: 'a', name: 'Lark Sales' })], setups: [] }) },
+    clientStore,
+  );
+  await act(async () => button('绑定 Lark Sales').click());
+  await chooseOption('Bot', 'bo', dialog());
+  expect(button('绑定', dialog()).disabled).toBe(false);
+  await openCombobox('Bot', dialog());
+  expect(comboboxOption('bo')).toBeDefined();
+
+  await act(async () => {
+    clientStore.setRoster(
+      clientStore
+        .getSnapshot()
+        .bots.map((bot) => (bot.slug === 'bo' ? { ...bot, deleted: true, paused: true } : bot)),
+      [],
+    );
+  });
+
+  expect(comboboxOption('bo')).toBeUndefined();
+  expect(comboboxOption('ada')).toBeDefined();
+  expect(button('绑定', dialog()).disabled).toBe(true);
+});
 
 it('binds an unbound App to a chosen PersonaBot and reloads the list', async () => {
   let bound = false;

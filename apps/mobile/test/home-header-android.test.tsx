@@ -4,9 +4,10 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
 const device = vi.hoisted(() => ({ fontScale: 1, scheme: 'light' }));
+const platform = vi.hoisted(() => ({ OS: 'android' }));
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
-  Platform: { OS: 'android' },
+  Platform: platform,
   useColorScheme: () => device.scheme,
   useWindowDimensions: () => ({ width: 390, height: 844, scale: 3, fontScale: device.fontScale }),
   Dimensions: {
@@ -37,7 +38,8 @@ vi.mock('../src/ui/shell/host-drawer', () => ({
   focusOn: () => {},
 }));
 vi.mock('../src/ui/primitives/text', () => ({
-  Text: ({ children }: { children: ReactNode }) => children,
+  Text: ({ children, numberOfLines }: { children: ReactNode; numberOfLines?: number }) =>
+    createElement('span', { 'data-lines': numberOfLines }, children),
 }));
 vi.mock('../src/ui/shell/icons', async () => ({
   ...(await import('./shell-icons-shim')),
@@ -196,6 +198,33 @@ describe('Android Chats header', () => {
       expect(icons.map((icon) => icon.style.width)).toEqual(['24px', '24px']);
       expect(icons.map((icon) => icon.style.height)).toEqual(['24px', '24px']);
       expect(icons[0]!.style.color).toBe(icons[1]!.style.color);
+    },
+  );
+});
+
+describe('Chats header Host name', () => {
+  it.each(['ios', 'android'])(
+    'keeps the Host name on one line at accessibility text sizes on %s',
+    (os) => {
+      platform.OS = os;
+      device.fontScale = 3.12;
+      try {
+        const view = document.createElement('div');
+        view.innerHTML = renderToStaticMarkup(
+          <HomeHeader
+            environment={{ kind: 'computer', key: 'h1', title: 'DoodleBeardeMacBook-Air' }}
+          >
+            <div>Conversations</div>
+          </HomeHeader>,
+        );
+        const name = [...view.querySelectorAll<HTMLElement>('span')].find(
+          (node) => node.textContent === 'DoodleBeardeMacBook-Air',
+        )!;
+        expect(name.dataset.lines).toBe('1');
+      } finally {
+        platform.OS = 'android';
+        device.fontScale = 1;
+      }
     },
   );
 });

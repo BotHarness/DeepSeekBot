@@ -38,7 +38,7 @@ export function PreferenceRow<T extends string>({
         label={
           <Label
             title={title}
-            systemImage={rowSymbol(icon).ios}
+            {...(icon === undefined ? {} : { systemImage: rowSymbol(icon).ios })}
             modifiers={[foregroundStyle({ type: 'hierarchical', style: 'primary' })]}
           />
         }
@@ -67,7 +67,7 @@ export function PreferenceRow<T extends string>({
               <SettingsRow
                 on={on}
                 title={title}
-                icon={icon}
+                {...(icon === undefined ? {} : { icon })}
                 trailing={
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}>
                     <RowText tone="muted" numberOfLines={1}>

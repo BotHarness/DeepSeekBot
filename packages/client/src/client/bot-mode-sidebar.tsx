@@ -14,7 +14,8 @@ import type { BridgeActions } from './actions.js';
 import { BotIcon } from './bot-icon.js';
 import type { BotModePrefsSnapshot } from './bot-mode-prefs.js';
 import { BotSidebar } from './bot-sidebar.js';
-import { keepClientState, useClientStore } from './use-client-store.js';
+import { useClientStore } from './use-client-store.js';
+import { shallowEqual } from '@deepseek-ai/dsh-client-store';
 import type { ClientState } from './store.js';
 import type { ChannelSidebarRegistry } from './channel-sidebar.js';
 import { ACTIVITY_CENTER_PANEL, type DockPanelRegistry } from './dock-panels.js';
@@ -29,6 +30,7 @@ import { OnboardingLauncher } from './onboarding-checklist-view.js';
 import { PinnedPanelCards } from './pinned-panel-cards.js';
 import type { QuickSwitcherSettings } from './quick-switcher.js';
 import type { ShortcutBindings } from './shortcut-bindings.js';
+import { unreadCountLabel } from './unread-count.js';
 import type { WindowCompanions } from './window-companions.js';
 
 export interface BotModeSidebarProps {
@@ -49,26 +51,24 @@ export interface BotModeSidebarProps {
   t: BotHarnessTranslate;
 }
 
-function sameSidebarNavigation(left: ClientState, right: ClientState): boolean {
-  return (
-    left.humanInbox.unreadCount === right.humanInbox.unreadCount &&
-    left.humanInbox.hasAction === right.humanInbox.hasAction &&
-    (left.selection?.kind === 'inbox') === (right.selection?.kind === 'inbox')
-  );
-}
+const selectSidebarNavigation = (state: ClientState) => ({
+  unreadCount: state.humanInbox.unreadCount,
+  hasAction: state.humanInbox.hasAction,
+  inboxCurrent: state.selection?.kind === 'inbox',
+});
 
 export function BotModeSidebar(props: BotModeSidebarProps): ReactElement {
   const { collapsed, actions, useBotModePrefs, t } = props;
   const wide = !collapsed;
   const icon = useBotModePrefs((prefs) => prefs.botIcon);
-  const state = useClientStore(keepClientState, sameSidebarNavigation);
-  const unread = state.humanInbox.unreadCount;
+  const navigation = useClientStore(selectSidebarNavigation, shallowEqual);
+  const unread = navigation.unreadCount;
   const inboxNotes = [
-    ...(unread > 0 ? [t('humanInbox.unreadCount', { count: String(unread) })] : []),
-    ...(state.humanInbox.hasAction ? [t('humanInbox.action')] : []),
+    ...(unread > 0 ? [t('humanInbox.unreadCount', { count: unreadCountLabel(unread) })] : []),
+    ...(navigation.hasAction ? [t('humanInbox.action')] : []),
   ];
   const inboxLabel = [t('activityCenter.title'), ...inboxNotes].join(' · ');
-  const inboxCurrent = state.selection?.kind === 'inbox';
+  const inboxCurrent = navigation.inboxCurrent;
   const toggleLabel = t(collapsed ? 'panel.sidebar.open' : 'panel.sidebar.collapse');
   const darwin = isDarwinDesktop();
   const exitLabel = t('panel.exit');
@@ -176,10 +176,10 @@ export function BotModeSidebar(props: BotModeSidebarProps): ReactElement {
             {
               tour: 'inbox',
               current: inboxCurrent,
-              dot: unread > 0 || state.humanInbox.hasAction,
+              dot: unread > 0 || navigation.hasAction,
               trailing:
                 unread > 0 ? (
-                  <span {...stylex.props(styles.count)}>{unread > 99 ? '99+' : unread}</span>
+                  <span {...stylex.props(styles.count)}>{unreadCountLabel(unread)}</span>
                 ) : null,
             },
           )}
@@ -193,7 +193,7 @@ export function BotModeSidebar(props: BotModeSidebarProps): ReactElement {
             id === ACTIVITY_CENTER_PANEL
               ? {
                   count: unread,
-                  dot: state.humanInbox.hasAction,
+                  dot: navigation.hasAction,
                   label: inboxNotes.length === 0 ? undefined : inboxNotes.join(' · '),
                 }
               : undefined

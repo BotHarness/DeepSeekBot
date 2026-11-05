@@ -333,10 +333,12 @@ const HomeContent = memo(function HomeContent({
     .map((host) => ({ hostId: host.saved.hostId, client: host.client }));
   const searchScope = searchHosts.map((host) => host.hostId).join('|');
   const scheduleMessageSearch = messageSearch.schedule;
+  const cancelMessageSearch = messageSearch.cancel;
   useFocusEffect(
     useCallback(() => {
       scheduleMessageSearch(query, searchHosts);
-    }, [scheduleMessageSearch, query, searchScope]),
+      return cancelMessageSearch;
+    }, [scheduleMessageSearch, cancelMessageSearch, query, searchScope]),
   );
   const onQuery = (value: string) => setQuery(value);
   const conversationIndex = useMemo(() => {

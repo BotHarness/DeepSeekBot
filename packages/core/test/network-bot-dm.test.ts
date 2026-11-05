@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { isBotNetworkMembership } from '../src/channels/channel.js';
+import { DEFAULT_BOT_HOP_LIMIT, isBotNetworkMembership } from '../src/channels/channel.js';
 import { join } from 'node:path';
 import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
@@ -128,7 +128,7 @@ it('commits a remote Bot DM to the existing Channel and recipient Inbox exactly 
   await channels.appendMessageOnce(dm.id, {
     ...message,
     id: 'hop-limit',
-    botCausation: { ...message.botCausation, hop: 33 },
+    botCausation: { ...message.botCausation, hop: DEFAULT_BOT_HOP_LIMIT + 1 },
   });
   expect(channels.message(dm.id, 'hop-limit')?.deliveries).toBeUndefined();
   expect(channels.message(dm.id, 'hop-limit')?.body).toBe(message.body);

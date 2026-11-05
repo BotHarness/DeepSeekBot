@@ -40,6 +40,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
 }));
 
 import type { BridgeActions } from '../src/client/actions.js';
+import { BridgeCallError } from '../src/client/bridge.js';
 import { ChannelMessageBody, MessageDeveloperMode } from '../src/client/channel-message-body.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { store, type ChannelMessage } from '../src/client/store.js';
@@ -320,6 +321,24 @@ describe('private input card', () => {
       true,
     );
     expect(container.textContent).toContain('未能完成请求');
+    expect(container.textContent).not.toContain('synthetic secret');
+  });
+
+  it('shows the reason code when the Host did not receive a submission', async () => {
+    const actions = {
+      privateInputStatus: vi.fn().mockResolvedValue('pending'),
+      privateInputSubmit: vi.fn().mockRejectedValue(
+        new BridgeCallError('private-input-not-accepted', 'Private input was not accepted', {
+          reason: 'store-unavailable',
+        }),
+      ),
+    } as unknown as BridgeActions;
+    await act(async () => render(actions, undefined, card));
+    for (const input of container.querySelectorAll('input')) input.value = 'synthetic secret';
+    await act(async () => button('私密提交')?.click());
+    expect(container.textContent).toContain('原因代码 store-unavailable');
+    expect(container.textContent).toContain('Host 的凭据存储不可用');
+    expect(container.textContent).not.toContain('未能完成请求');
     expect(container.textContent).not.toContain('synthetic secret');
   });
 

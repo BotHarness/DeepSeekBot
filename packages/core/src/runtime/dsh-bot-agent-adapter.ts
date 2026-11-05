@@ -54,6 +54,7 @@ import {
   type AssignmentRequestDelivery,
   type BotAgentAdapter,
   type DirectBotToolSpec,
+  type InterruptedToolCall,
   type OrchestratorAgentRun,
 } from './bot-runtime.js';
 import { DEFAULT_PROMPT_TEXT, type PromptText } from '../prompts/prompt-parts.js';
@@ -63,6 +64,7 @@ export const TURN_ONLY_BOT_TOOLS: ReadonlySet<string> = new Set([
   'send_assignment_request',
   'wait_for_assignment',
   'channel_read_image',
+  'call_frame',
   'channel_attachment_open',
   'memory_switch_branch',
   'memory_continue_from_commit',
@@ -423,6 +425,47 @@ class PreparationStopped extends Error {
   }
 }
 
+function interruptedToolCalls(
+  handle: AgentHandle,
+  fromSeq: SessionLogOffset,
+  stopSeq: number | undefined,
+): InterruptedToolCall[] {
+  if (stopSeq === undefined) return [];
+  const started = new Map<string, InterruptedToolCall>();
+  const asked = new Map<string, string>();
+  const awaitingApproval = new Set<string>();
+  for (const event of handle.agent.session.snapshotEvents(fromSeq)) {
+    if (Number(event.seq) >= stopSeq) break;
+    if (event.type === 'approval/asked') {
+      const data = event.data as { id: string; callId?: string };
+      if (data.callId !== undefined) {
+        asked.set(String(data.id), String(data.callId));
+        awaitingApproval.add(String(data.callId));
+      }
+      continue;
+    }
+    if (event.type === 'approval/decided') {
+      const data = event.data as { id: string };
+      const callId = asked.get(String(data.id));
+      if (callId !== undefined) awaitingApproval.delete(callId);
+      continue;
+    }
+    if (event.type === 'tool/call') {
+      const data = event.data as { callId: string; name: string; arguments: string };
+      started.set(String(data.callId), {
+        callId: String(data.callId),
+        name: data.name,
+        arguments: data.arguments,
+      });
+    } else if (event.type === 'tool/result') {
+      const data = event.data as { message?: { source?: { callId?: string } } };
+      const callId = data.message?.source?.callId;
+      if (callId !== undefined) started.delete(String(callId));
+    }
+  }
+  return [...started.values()].filter((call) => !awaitingApproval.has(call.callId));
+}
+
 function turnAborted(handle: AgentHandle, fromSeq: SessionLogOffset): boolean {
   const turnEnd = handle.agent.session
     .snapshotEvents(fromSeq)
@@ -466,6 +509,8 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   readonly #stopping = new Set<string>();
   readonly #stoppedBots = new Set<string>();
   readonly #humanStops = new Set<string>();
+  readonly #stopSeqs = new Map<string, number>();
+  readonly #abandons = new Map<string, () => void>();
   readonly #preparations = new Map<string, AbortController>();
   readonly #preparationTimeoutMs: number;
   readonly #observePreparation: DshBotAgentAdapterOptions['observePreparation'];
@@ -533,11 +578,32 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     return true;
   }
 
+  #abandonable(sessionId: string): { abandoned: Promise<'abandoned'>; release(): void } {
+    let abandon!: () => void;
+    const abandoned = new Promise<'abandoned'>((resolve) => {
+      abandon = () => resolve('abandoned');
+    });
+    this.#abandons.set(sessionId, abandon);
+    return {
+      abandoned,
+      release: () => {
+        if (this.#abandons.get(sessionId) === abandon) this.#abandons.delete(sessionId);
+      },
+    };
+  }
+
+  #markStop(sessionId: string, handle: AgentHandle | undefined): void {
+    if (handle === undefined || this.#stopSeqs.has(sessionId)) return;
+    this.#stopSeqs.set(sessionId, Number(handle.agent.session.seq));
+  }
+
   async runOrchestrator(run: OrchestratorAgentRun): Promise<void> {
     this.#assertOpen();
     if (this.#stoppedBots.has(run.bot.slug)) throw new Error('PersonaBot is deleted');
     const entry: ActiveRun = { role: 'orchestrator', run };
     this.#runs.set(run.sessionId, entry);
+    this.#stopSeqs.delete(run.sessionId);
+    const abandonable = this.#abandonable(run.sessionId);
     const access = new Map<string, boolean>();
     if (run.inboundChannelId !== undefined)
       this.#drafts.begin(run.sessionId, {
@@ -611,7 +677,16 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             source: { kind: 'user' },
           }),
         );
-      await handle.agent.whenIdle();
+      const idle = await Promise.race([handle.agent.whenIdle(), abandonable.abandoned]);
+      if (this.#humanStops.has(run.sessionId)) {
+        const interrupted = interruptedToolCalls(
+          handle,
+          fromSeq,
+          this.#stopSeqs.get(run.sessionId),
+        );
+        if (interrupted.length > 0) run.toolsInterrupted?.(interrupted);
+      }
+      if (idle === 'abandoned') return;
       if (this.#humanStops.has(run.sessionId) && turnAborted(handle, fromSeq)) return;
       const provider = selection?.current?.provider;
       requireCompletedTurn(
@@ -625,8 +700,10 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         this.#turnRefusal?.(run.sessionId),
       );
     } finally {
-      this.#humanStops.delete(run.sessionId);
-      this.#drafts.end(run.sessionId);
+      abandonable.release();
+      this.#stopSeqs.delete(run.sessionId);
+      if (this.#humanStops.delete(run.sessionId)) this.#drafts.interrupt(run.sessionId);
+      else this.#drafts.end(run.sessionId);
       if (this.#runs.get(run.sessionId) === entry) {
         this.#runs.delete(run.sessionId);
         run.setExecutionReady?.(false);
@@ -645,6 +722,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       const handle = this.#handles.get(sessionId);
       if (handle === undefined) return undefined;
       this.#humanStops.add(sessionId);
+      this.#markStop(sessionId, handle);
       handle.agent.cancel({ kind: 'user' });
       return sessionId;
     }
@@ -712,6 +790,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   requestAssignment(run: AssignmentAgentRun): AssignmentRequestDelivery {
     this.#assertOpen();
     if (this.#stoppedBots.has(run.bot.slug)) throw new Error('PersonaBot is deleted');
+    this.#stopping.delete(run.sessionId);
     const handle = this.#handles.get(run.sessionId);
     const active = this.#runs.get(run.sessionId);
     if (handle !== undefined && active?.role === 'assignment') {
@@ -757,6 +836,18 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     }
   }
 
+  async abandonSession(sessionId: string): Promise<void> {
+    const active = this.#runs.get(sessionId);
+    if (active?.role === 'orchestrator') this.#humanStops.add(sessionId);
+    else this.#stopping.add(sessionId);
+    this.#abortPreparation(sessionId);
+    this.#abandons.get(sessionId)?.();
+    const handle = this.#handles.get(sessionId);
+    if (handle === undefined) return;
+    this.#forgetHandle(sessionId);
+    void handle.dispose().catch(() => undefined);
+  }
+
   async releaseSession(sessionId: string): Promise<void> {
     if (this.#runs.has(sessionId)) return;
     const handle = this.#handles.get(sessionId);
@@ -770,6 +861,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#abortPreparation(sessionId);
     const handle = this.#handles.get(sessionId);
     if (handle !== undefined && this.#runs.get(sessionId)?.role === 'assignment') {
+      this.#markStop(sessionId, handle);
       handle.agent.cancel({ kind: 'user' });
       await handle.agent.whenIdle();
     }
@@ -779,6 +871,8 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     if (this.#stoppedBots.has(run.bot.slug)) throw new Error('PersonaBot is deleted');
     const entry: ActiveRun = { role: 'assignment', run, reported: false };
     this.#runs.set(run.sessionId, entry);
+    this.#stopSeqs.delete(run.sessionId);
+    const abandonable = this.#abandonable(run.sessionId);
     try {
       const handle = await this.#prepare(run.sessionId, async () => {
         await this.#prepareModelRoute?.(run.bot.slug, 'assignment', run.modelRoute);
@@ -798,8 +892,18 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         throw new AssignmentInboxAcceptanceUncertainError(error);
       }
       accepted?.();
-      await handle.agent.whenIdle();
-      if (this.#stopping.has(run.sessionId) || this.#stoppedBots.has(run.bot.slug)) return;
+      run.accepted?.();
+      const idle = await Promise.race([handle.agent.whenIdle(), abandonable.abandoned]);
+      if (this.#stopping.has(run.sessionId) || this.#stoppedBots.has(run.bot.slug)) {
+        const interrupted = interruptedToolCalls(
+          handle,
+          fromSeq,
+          this.#stopSeqs.get(run.sessionId),
+        );
+        if (interrupted.length > 0) run.toolsInterrupted?.(interrupted);
+        return;
+      }
+      if (idle === 'abandoned') return;
       const provider = this.#assignmentSelections.get(run.sessionId)?.current?.provider;
       const completion = requireCompletedTurn(
         handle,
@@ -817,6 +921,8 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         throw new Error('Assignment finished without report_to_orchestrator');
       }
     } finally {
+      abandonable.release();
+      this.#stopSeqs.delete(run.sessionId);
       if (this.#runs.get(run.sessionId) === entry) this.#runs.delete(run.sessionId);
     }
   }
@@ -2193,7 +2299,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       defineTool({
         name: 'channel_read',
         description:
-          'Read actionable joined Channel messages as bounded JSON (at most 12000 characters). Follow nextCursor with unchanged filters. For an oversized message, use message_id alone and follow contentCursor; concatenate JSON fragments to retrieve complete content. Omitted or partially read messages remain pending.',
+          'Read actionable joined Channel messages as bounded JSON (at most 12000 characters). Follow nextCursor with unchanged filters. For an oversized message, use message_id alone and follow contentCursor; concatenate JSON fragments to retrieve complete content. Omitted or partially read messages remain pending. A voice call in a DM leaves system notices with voiceCallRecord at its start and end; text "voice call" with author_kind system finds them, and from/to set to the call\'s startedAt/endedAt reads what was said on it.',
         parameters: {
           channel_id: {
             type: 'string',
@@ -2745,6 +2851,133 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             ...(result.ref.fileId === undefined
               ? { hash: result.ref.hash }
               : { fileId: result.ref.fileId }),
+            image,
+          };
+        },
+      }),
+    );
+    registerTool(
+      defineTool({
+        name: 'call_frame',
+        description:
+          "Zoom into one cell of a call grid: returns that keyframe at its original resolution when the grid's small tiles are hard to read. Pass message_id of the Human call message or frame record that carries the grid and cell, the tile number printed on it (a single-frame view is cell 1). Originals live only in Host memory for the most recent 64 keyframes of a running call; after the call ends or newer keyframes replace them the result says released, so answer from the grid itself.",
+        parameters: {
+          channel_id: {
+            type: 'string',
+            description: 'Channel id; defaults to the inbound Channel.',
+          },
+          message_id: {
+            type: 'string',
+            required: true,
+            description: 'The Human call message that carries the grid image.',
+          },
+          cell: {
+            type: 'integer',
+            required: true,
+            description:
+              'Tile number printed on the grid, from 1; 0 returns the whole grid of a message whose frames were not saved.',
+          },
+        },
+        output: {
+          schema: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              channelId: { type: 'string', required: true },
+              messageId: { type: 'string', required: true },
+              cell: { type: 'integer', required: true },
+              released: { type: 'boolean', required: true },
+              cells: { type: 'integer' },
+              source: { type: 'string', enum: ['camera', 'screen'] },
+              image: {
+                type: 'object',
+                additionalProperties: false,
+                properties: {
+                  attachmentId: { type: 'string', required: true },
+                  mediaType: {
+                    type: 'string',
+                    enum: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
+                    required: true,
+                  },
+                  bytes: { type: 'integer', required: true },
+                  width: { type: 'integer', required: true },
+                  height: { type: 'integer', required: true },
+                  name: { type: 'string' },
+                  originalDimensions: {
+                    type: 'object',
+                    additionalProperties: false,
+                    properties: {
+                      width: { type: 'integer', required: true },
+                      height: { type: 'integer', required: true },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          render: (_args, value) => {
+            const image = value.image;
+            if (value.released || image === undefined)
+              return [
+                {
+                  type: 'text',
+                  text: `The original keyframes of the grid on message ${value.messageId} are released: the call ended or newer keyframes replaced them. Answer from the grid image itself.`,
+                },
+              ];
+            return [
+              {
+                type: 'text',
+                text: `Cell ${value.cell} of ${value.cells ?? value.cell} from the ${value.source ?? 'call'} grid on message ${value.messageId}, at its original resolution`,
+              },
+              {
+                type: 'image',
+                attachment: {
+                  attachmentId: AttachmentId(image.attachmentId),
+                  mediaType: image.mediaType,
+                  bytes: image.bytes,
+                  width: image.width,
+                  height: image.height,
+                  ...(image.name === undefined ? {} : { name: image.name }),
+                  ...(image.originalDimensions === undefined
+                    ? {}
+                    : { originalDimensions: { ...image.originalDimensions } }),
+                },
+              },
+            ];
+          },
+        },
+        execute: async (args) => {
+          const active = this.#runs.get(run.sessionId);
+          if (active?.role !== 'orchestrator') {
+            throw new Error('call_frame: Orchestrator run is unavailable');
+          }
+          const zoom = active.run.channels.callFrame;
+          if (zoom === undefined) throw new Error('call_frame: calls are unavailable on this Host');
+          const channelId = args.channel_id ?? active.run.inboundChannelId;
+          if (channelId === undefined) throw new Error('call_frame: explicit Channel required');
+          const result = zoom({
+            ...(args.channel_id === undefined ? {} : { channelId: args.channel_id }),
+            messageId: args.message_id,
+            cell: args.cell,
+          });
+          if (result.released)
+            return { channelId, messageId: args.message_id, cell: args.cell, released: true };
+          const hostAttachments = agentCtx.get('attachments');
+          if (hostAttachments === undefined) {
+            throw new Error('call_frame: DSH attachment service is unavailable');
+          }
+          const image = await hostAttachments.saveImage({
+            data: result.jpeg,
+            mediaType: 'image/jpeg',
+            name: `call-${result.source}-cell-${result.cell}.jpg`,
+          });
+          return {
+            channelId,
+            messageId: args.message_id,
+            cell: result.cell,
+            released: false,
+            cells: result.cells,
+            source: result.source,
             image,
           };
         },

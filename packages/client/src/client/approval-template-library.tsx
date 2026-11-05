@@ -1,4 +1,5 @@
-import { useState, useSyncExternalStore, type ReactElement } from 'react';
+import { useClientFields } from './use-client-store.js';
+import { useState, type ReactElement } from 'react';
 import { Button, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import * as stylex from '@stylexjs/stylex';
 
@@ -22,6 +23,8 @@ import type { BotHarnessTranslate } from './locale.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
 import { useMountedResource } from './mounted-resource.js';
 import type { ClientStore } from './store.js';
+
+const TEMPLATE_LIBRARY_FIELDS = ['bots'] as const;
 
 const NAME = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/u;
 
@@ -68,7 +71,7 @@ export function ApprovalTemplateLibrarySettings({
   const [deleting, setDeleting] = useState<ApprovalTemplateView>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  useSyncExternalStore(store.subscribe, store.getSnapshot);
+  useClientFields(TEMPLATE_LIBRARY_FIELDS, store);
 
   const reload = async (): Promise<void> => {
     const next = await loadApprovalTemplates(call);

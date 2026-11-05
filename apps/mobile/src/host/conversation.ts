@@ -15,13 +15,14 @@ import type {
   WireDraft,
   WireDelivery,
   WireDraftAppend,
+  WireMessageVoice,
   WireReaction,
   WireReplyPreview,
 } from './wire';
 
 export type DeliveryState = 'pending' | 'committed' | 'failed';
 
-export type CardKind = 'tool-approval' | 'user-question' | 'private-input' | 'grant';
+export type CardKind = 'tool-approval' | 'user-question' | 'private-input' | 'grant' | 'takeover';
 
 export interface MessageCard {
   kind: CardKind;
@@ -29,13 +30,15 @@ export interface MessageCard {
   subject?: string;
   command?: string;
   resolved?: true;
+  takeover?: { target: 'computer' | 'browser'; title: string; expiresAt: string };
 }
 
 export type CardResolution =
   | { kind: 'tool-approval'; outcome: ToolApprovalOutcome }
   | { kind: 'user-question'; state: 'answered' | 'cancelled' }
   | { kind: 'grant' }
-  | { kind: 'private-input' };
+  | { kind: 'private-input' }
+  | { kind: 'takeover'; outcome: 'done' | 'failed' | 'cancelled' | 'expired' };
 
 export interface MessageAttachment {
   key: string;
@@ -45,6 +48,11 @@ export interface MessageAttachment {
   mime?: string;
   size?: number;
   source?: RemoteSource;
+  thumbnail?: RemoteSource;
+  preview?: RemoteSource;
+  thumbhash?: string;
+  width?: number;
+  height?: number;
   local: boolean;
   cleared?: true;
 }
@@ -111,6 +119,7 @@ export function shownInChat(message: ConversationMessage): boolean {
     resolution?.kind === 'tool-approval' ||
     resolution?.kind === 'grant' ||
     resolution?.kind === 'private-input' ||
+    resolution?.kind === 'takeover' ||
     (resolution?.kind === 'user-question' && resolution.state === 'cancelled')
   )
     return false;
@@ -126,8 +135,15 @@ export function shownInChat(message: ConversationMessage): boolean {
   );
 }
 
+export interface MessageVoice {
+  state: 'pending' | 'ready' | 'failed';
+  audio?: MessageAttachment;
+  error?: string;
+}
+
 export interface ConversationMessage {
   source?: JournalEntry;
+  voice?: MessageVoice;
   sessionFailure?: import('./session-failure').SessionFailure;
   id: string;
   revision?: number;
@@ -206,7 +222,39 @@ function timelineOf(
   };
 }
 
+export interface ChangeCursor {
+  epoch: string;
+  seq: number;
+}
+
 export interface CachedConversation {
+  entries: JournalEntry[];
+  hasOlder: boolean;
+  changes?: ChangeCursor;
+}
+
+type ChangePull =
+  | { reset: true; cursor: ChangeCursor }
+  | {
+      reset?: never;
+      upserts: JournalEntry[];
+      tombstones: string[];
+      removed: string[];
+      cursor: ChangeCursor;
+      hasMore: boolean;
+    };
+
+const MAX_CHANGE_PAGES = 20;
+const CACHE_WAIT_MS = 200;
+
+export interface CachedChanges {
+  upserts: readonly JournalEntry[];
+  tombstones: readonly string[];
+  removed: readonly string[];
+  cursor: ChangeCursor;
+}
+
+export interface OlderPage {
   entries: JournalEntry[];
   hasOlder: boolean;
 }
@@ -214,6 +262,10 @@ export interface CachedConversation {
 export interface ConversationCache {
   read(key: string): Promise<CachedConversation | undefined>;
   write(key: string, value: CachedConversation): void;
+  applyChanges?(key: string, channelId: string, changes: CachedChanges): void;
+  replace?(key: string, channelId: string, value: CachedConversation): void;
+  readOlder?(key: string, before: number, limit: number): Promise<OlderPage | undefined>;
+  writeOlder?(key: string, channelId: string, before: number, page: OlderPage): void;
 }
 
 export interface SendObservation {
@@ -232,6 +284,7 @@ export interface Conversation {
   retry(messageId: string): void;
   react(messageId: string, emoji: string, active: boolean): Promise<void>;
   wireMessage?(messageId: string): ChannelWireMessage | undefined;
+  redact?(placements: readonly { channelId: string; messageId: string }[]): void;
 }
 
 export interface ConversationOptions {
@@ -247,6 +300,7 @@ export interface ConversationOptions {
   cachedEntries?: number;
   messageId?: () => string;
   draftDelayMs?: number;
+  cacheWaitMs?: number;
 }
 
 const MAX_PAGE = 200;
@@ -321,6 +375,18 @@ function cardOf(channelId: string, message: ChannelWireMessage): MessageCard | u
     const subject = text(field(message.privateInputRequest, 'purpose'));
     return { kind: 'private-input', channelId, ...(subject === undefined ? {} : { subject }) };
   }
+  if (message.takeoverRequest !== undefined && message.author.kind === 'bot') {
+    const target = field(message.takeoverRequest, 'target');
+    const title = text(field(message.takeoverRequest, 'title'));
+    const expiresAt = text(field(message.takeoverRequest, 'expiresAt'));
+    if ((target === 'computer' || target === 'browser') && title !== undefined && expiresAt)
+      return {
+        kind: 'takeover',
+        channelId,
+        subject: message.body,
+        takeover: { target, title, expiresAt },
+      };
+  }
   if (message.grantRequest === true)
     return {
       kind: 'grant',
@@ -354,6 +420,13 @@ function resolvesOf(message: ChannelWireMessage): ConversationMessage['resolves'
     return { requestId: answered, resolution: { kind: 'user-question', state } };
   const granted = text(field(message.grantRequestResolution, 'requestMessageId'));
   if (granted !== undefined) return { requestId: granted, resolution: { kind: 'grant' } };
+  const handed = text(field(message.takeoverResolution, 'requestMessageId'));
+  const ended = field(message.takeoverResolution, 'outcome');
+  if (
+    handed !== undefined &&
+    (ended === 'done' || ended === 'failed' || ended === 'cancelled' || ended === 'expired')
+  )
+    return { requestId: handed, resolution: { kind: 'takeover', outcome: ended } };
   const provided = text(field(message.privateInputResolution, 'requestMessageId'));
   if (provided !== undefined) return { requestId: provided, resolution: { kind: 'private-input' } };
   return undefined;
@@ -362,6 +435,49 @@ function resolvesOf(message: ChannelWireMessage): ConversationMessage['resolves'
 function attachmentPath(params: Record<string, string>): string {
   return `${ATTACHMENT_PATH}?${new URLSearchParams(params)}`;
 }
+
+function versionedSources(
+  resolve: (path: string) => RemoteSource,
+  owner: { channelId: string; messageId: string },
+  fileId: string,
+  version: string,
+  image: boolean,
+): { source: RemoteSource; thumbnail?: RemoteSource; preview?: RemoteSource } {
+  const variant = (name?: string): RemoteSource => {
+    const resolved = resolve(
+      attachmentPath({
+        ...owner,
+        fileId,
+        v: version,
+        ...(name === undefined ? {} : { variant: name }),
+      }),
+    );
+    return {
+      ...resolved,
+      cacheKey: mediaCacheKey(resolved.scope, fileId, version, name),
+    };
+  };
+  if (!image) return { source: variant() };
+  return {
+    source: variant(),
+    thumbnail: variant(THUMBNAIL_VARIANT),
+    preview: variant(PREVIEW_VARIANT),
+  };
+}
+
+export function mediaCacheKey(
+  scope: string | undefined,
+  fileId: string,
+  version?: string,
+  variant?: string,
+): string {
+  const file = `${scope === undefined ? '' : `${scope}/`}${fileId}:`;
+  if (version === undefined) return file;
+  return variant === undefined ? `${file}${version}` : `${file}${version}:${variant}`;
+}
+
+export const THUMBNAIL_VARIANT = '320';
+export const PREVIEW_VARIANT = '800';
 
 export function attachmentsOf(
   entry: JournalEntry,
@@ -379,17 +495,23 @@ export function attachmentsOf(
       name: ref.name,
       mime: ref.mime,
       size: ref.size,
-      ...(file?.uri === undefined
-        ? {
-            source: resolve(
-              attachmentPath(
-                ref.fileId === undefined
-                  ? { hash: ref.hash ?? '', name: ref.name, ...owner }
-                  : { ...owner, fileId: ref.fileId },
+      ...(file?.uri !== undefined
+        ? { source: { uri: file.uri, headers: {} } }
+        : ref.fileId !== undefined && ref.version !== undefined
+          ? versionedSources(resolve, owner, ref.fileId, ref.version, PREVIEWABLE.has(ref.mime))
+          : {
+              source: resolve(
+                attachmentPath(
+                  ref.fileId === undefined
+                    ? { hash: ref.hash ?? '', name: ref.name, ...owner }
+                    : { ...owner, fileId: ref.fileId },
+                ),
               ),
-            ),
-          }
-        : { source: { uri: file.uri, headers: {} } }),
+            }),
+      ...(ref.thumbhash === undefined ? {} : { thumbhash: ref.thumbhash }),
+      ...(ref.width === undefined || ref.height === undefined
+        ? {}
+        : { width: ref.width, height: ref.height }),
       local: file?.uri !== undefined,
     };
   });
@@ -427,6 +549,26 @@ export function attachmentsOf(
   return [...stored, ...cleared, ...bridged];
 }
 
+export function voiceOf(
+  message: ChannelWireMessage,
+  attachments: MessageAttachment[],
+): { attachments: MessageAttachment[]; voice?: MessageVoice } {
+  const voice = message.author.kind === 'bot' ? message.voice : undefined;
+  if (voice === undefined) return { attachments };
+  const audio =
+    voice.attachment === undefined
+      ? undefined
+      : attachments.find((attachment) => attachment.identity === voice.attachment);
+  return {
+    attachments: audio === undefined ? attachments : attachments.filter((item) => item !== audio),
+    voice: {
+      state: voice.state,
+      ...(audio === undefined ? {} : { audio: { ...audio, kind: 'audio' } }),
+      ...(voice.error === undefined ? {} : { error: voice.error }),
+    },
+  };
+}
+
 function present(
   entry: JournalEntry,
   resolve: (path: string) => RemoteSource,
@@ -438,6 +580,7 @@ function present(
   const resolves = resolvesOf(message);
   const activity = activityOf(message);
   const failure = kind === 'bot' ? sessionFailure(message.sessionFailure) : undefined;
+  const { attachments, voice } = voiceOf(message, attachmentsOf(entry, resolve, picked));
   return {
     id: message.id,
     source: entry,
@@ -450,7 +593,8 @@ function present(
     ...(message.replyTo === undefined
       ? {}
       : { replyTo: message.replyTo, replyPreview: message.replyToPreview ?? null }),
-    attachments: attachmentsOf(entry, resolve, picked),
+    attachments,
+    ...(voice === undefined ? {} : { voice }),
     ...(card === undefined ? {} : { card }),
     ...(resolves === undefined ? {} : { resolves }),
     ...(activity === undefined ? {} : { activity }),
@@ -499,6 +643,10 @@ export function createConversation(options: ConversationOptions): Conversation {
   let snapshot: ConversationSnapshot = build(true);
   let timelineSnapshot = timelineOf(snapshot);
   let cacheTimer: ReturnType<typeof setTimeout> | undefined;
+  let changeCursor: ChangeCursor | undefined;
+  let changesSupported = true;
+  let bareOpen = false;
+  let windowGeneration = 0;
   let draftTimer: ReturnType<typeof setTimeout> | undefined;
 
   function build(withMessages: boolean): ConversationSnapshot {
@@ -597,6 +745,7 @@ export function createConversation(options: ConversationOptions): Conversation {
       cache.write(cacheKey, {
         entries: tail,
         hasOlder: hasOlder || tail.length < window.length,
+        ...(changeCursor === undefined ? {} : { changes: changeCursor }),
       });
     }, 300);
   };
@@ -641,6 +790,86 @@ export function createConversation(options: ConversationOptions): Conversation {
     merge(tail);
   };
 
+  const blank = (entry: JournalEntry): JournalEntry => {
+    const { attachments: _attachments, bridgeMedia: _bridgeMedia, ...message } = entry.message;
+    return { ...entry, message: { ...message, body: '', contentPurge: { actor: 'local-human' } } };
+  };
+
+  const changeCall = async <T>(
+    current: number,
+    method: string,
+    args: Record<string, unknown>,
+  ): Promise<T | undefined> => {
+    try {
+      return await options.host.call<T>(method, args);
+    } catch {
+      if (current === session) {
+        changesSupported = false;
+        changeCursor = undefined;
+      }
+      return undefined;
+    }
+  };
+
+  const reloadTail = async (current: number, through: number): Promise<boolean> => {
+    windowGeneration += 1;
+    const fresh = await readPage(through, undefined, pageSize);
+    if (current !== session) return false;
+    window = [...fresh.entries];
+    hasOlder = fresh.hasOlder;
+    windowGeneration += 1;
+    return true;
+  };
+
+  const pullChanges = async (current: number, through: number): Promise<void> => {
+    for (let page = 0; page < MAX_CHANGE_PAGES && changeCursor !== undefined; page += 1) {
+      const pulled = await changeCall<ChangePull>(current, 'channelChanges', {
+        channelId,
+        sinceSeq: changeCursor.seq,
+        epoch: changeCursor.epoch,
+      });
+      if (current !== session) return;
+      if (pulled === undefined) {
+        await reloadTail(current, through);
+        return;
+      }
+      if (pulled.reset) {
+        if (!(await reloadTail(current, through))) return;
+        changeCursor = pulled.cursor;
+        if (cacheKey !== undefined && channelId !== undefined)
+          options.cache?.replace?.(cacheKey, channelId, {
+            entries: window.slice(-cachedEntries),
+            hasOlder: hasOlder || window.length > cachedEntries,
+            changes: pulled.cursor,
+          });
+        return;
+      }
+      if (cacheKey !== undefined && channelId !== undefined)
+        options.cache?.applyChanges?.(cacheKey, channelId, pulled);
+      const tombstones = new Set(pulled.tombstones);
+      const removed = new Set(pulled.removed);
+      const updates = new Map(
+        pulled.upserts
+          .filter((entry) => entry.revision >= first() && entry.revision <= last())
+          .map((entry) => [entry.revision, entry]),
+      );
+      window = window.flatMap((entry) =>
+        removed.has(entry.message.id)
+          ? []
+          : tombstones.has(entry.message.id)
+            ? [blank(entry)]
+            : [updates.get(entry.revision) ?? entry],
+      );
+      changeCursor = pulled.cursor;
+      if (pulled.upserts.length + pulled.tombstones.length + pulled.removed.length > 0)
+        windowGeneration += 1;
+      if (!pulled.hasMore) return;
+    }
+    if (current !== session || changeCursor === undefined) return;
+    changeCursor = undefined;
+    await reloadTail(current, through);
+  };
+
   const clearDrafts = (): void => {
     drafts.clear();
     draftRevisions.clear();
@@ -662,6 +891,25 @@ export function createConversation(options: ConversationOptions): Conversation {
       };
     });
     return true;
+  };
+
+  const setVoice = (
+    messageId: string,
+    voice: WireMessageVoice,
+    attachments: readonly AttachmentRef[],
+  ): void => {
+    window = window.map((entry) =>
+      entry.message.id !== messageId || entry.message.author.kind !== 'bot'
+        ? entry
+        : {
+            ...entry,
+            message: {
+              ...entry.message,
+              voice,
+              ...(attachments.length === 0 ? {} : { attachments: [...attachments] }),
+            },
+          },
+    );
   };
 
   const setDeliveries = (messageId: string, deliveries: readonly WireDelivery[]): boolean => {
@@ -686,6 +934,9 @@ export function createConversation(options: ConversationOptions): Conversation {
     if (notification.kind === 'reaction') {
       if (notification.channelId === channelId)
         setReactions(notification.messageId, notification.reactions);
+    } else if (notification.kind === 'voice') {
+      if (notification.channelId === channelId)
+        setVoice(notification.messageId, notification.voice, notification.attachments);
     } else if (notification.kind === 'draft-baseline') {
       clearDrafts();
       for (const draft of notification.drafts) upsertDraft(draft);
@@ -721,7 +972,15 @@ export function createConversation(options: ConversationOptions): Conversation {
     if (current !== session) return;
     if (frame.type === 'opened') {
       openedSession = current;
-      await advance(frame.cursor, frame.page);
+      const bare = bareOpen && (frame.page?.entries.length ?? 0) === 0;
+      const page =
+        bare && frame.cursor > 0 && (window.length === 0 || frame.cursor - last() > MAX_PAGE)
+          ? await readPage(frame.cursor, undefined, pageSize)
+          : frame.page;
+      if (current !== session) return;
+      await advance(frame.cursor, page);
+      if (current !== session) return;
+      if (bare) await pullChanges(current, frame.cursor);
       if (current !== session) return;
       fromCache = false;
       status = 'live';
@@ -746,7 +1005,7 @@ export function createConversation(options: ConversationOptions): Conversation {
       const admitted = applyNotification(frame.notification, current);
       const kind = frame.notification.kind;
       if (kind === 'draft' || kind === 'draft-append') return publishDrafts();
-      if (kind !== 'reaction' && !admitted) return publish(false);
+      if (kind !== 'reaction' && kind !== 'voice' && !admitted) return publish(false);
     }
     settleOutgoing();
     publish();
@@ -805,9 +1064,19 @@ export function createConversation(options: ConversationOptions): Conversation {
       return;
     }
     if (current !== session) return;
+    bareOpen = changesSupported && changeCursor !== undefined && window.length > 0;
+    if (!bareOpen && changesSupported) {
+      const cursor = await changeCall<ChangeCursor>(current, 'channelChangeCursor', {});
+      if (current !== session) return;
+      changeCursor = cursor;
+    }
     unfollow = options.host.follow(
       'botharness/followChannel',
-      { channelId: id, limit: pageSize, ...(appendDrafts ? { drafts: 'append' } : {}) },
+      {
+        channelId: id,
+        limit: bareOpen ? 0 : pageSize,
+        ...(appendDrafts ? { drafts: 'append' } : {}),
+      },
       {
         item: (value) => enqueue(value as ChannelLiveFrame, current),
         interrupted: (why) => {
@@ -824,6 +1093,15 @@ export function createConversation(options: ConversationOptions): Conversation {
           if (current !== session) return;
           if (appendDrafts && error.code === 'gateway/arguments-invalid') {
             appendDrafts = false;
+            refollow(current);
+            return;
+          }
+          if (
+            bareOpen &&
+            (error.code === 'invalid' || error.code === 'gateway/arguments-invalid')
+          ) {
+            changesSupported = false;
+            changeCursor = undefined;
             refollow(current);
             return;
           }
@@ -874,6 +1152,28 @@ export function createConversation(options: ConversationOptions): Conversation {
     getSnapshot: () => snapshot,
     getTimelineSnapshot: () => timelineSnapshot,
     wireMessage: (messageId) => window.find((entry) => entry.message.id === messageId)?.message,
+    redact(placements) {
+      const purged = new Set(
+        placements.map((placement) => `${placement.channelId}\u0000${placement.messageId}`),
+      );
+      let changed = false;
+      window = window.map((entry) => {
+        if (
+          entry.message.contentPurge !== undefined ||
+          !purged.has(`${entry.channelId}\u0000${entry.message.id}`)
+        )
+          return entry;
+        changed = true;
+        const { attachments: _attachments, bridgeMedia: _bridgeMedia, ...message } = entry.message;
+        return {
+          ...entry,
+          message: { ...message, body: '', contentPurge: { actor: 'local-human' } },
+        };
+      });
+      if (!changed) return;
+      publish();
+      persist();
+    },
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
@@ -889,17 +1189,25 @@ export function createConversation(options: ConversationOptions): Conversation {
         (cacheKey === undefined
           ? undefined
           : options.cache?.read(cacheKey).catch(() => undefined)) ?? Promise.resolve(undefined);
+      let going = false;
+      const go = (): void => {
+        if (going || current !== session) return;
+        going = true;
+        void open(current);
+      };
       void cached.then((value) => {
-        if (current !== session || openedSession === current) return;
+        if (current !== session || openedSession === current) return go();
         if (value !== undefined && window.length === 0 && value.entries.length > 0) {
           window = [];
           merge(value.entries);
           hasOlder = value.hasOlder || hasOlder;
+          changeCursor = value.changes;
           fromCache = true;
           publish();
         }
+        go();
       });
-      void open(current);
+      setTimeout(go, options.cacheWaitMs ?? CACHE_WAIT_MS);
     },
     stop() {
       running = false;
@@ -916,13 +1224,33 @@ export function createConversation(options: ConversationOptions): Conversation {
       if (status !== 'live') return;
       const current = session;
       const before = first();
+      const generation = windowGeneration;
+      const stale = () =>
+        current !== session || first() !== before || generation !== windowGeneration;
       loadingOlderSession = current;
       olderError = false;
       publish();
       try {
+        const local =
+          cacheKey === undefined
+            ? undefined
+            : await options.cache
+                ?.readOlder?.(cacheKey, before, olderPageSize)
+                .catch(() => undefined);
+        if (stale()) return;
+        if (local !== undefined) {
+          window = [...local.entries, ...window];
+          hasOlder = local.hasOlder;
+          return;
+        }
         const page = await readPage(last(), before, olderPageSize);
-        if (current !== session || first() !== before) return;
+        if (stale()) return;
         const entries = page.entries.filter((entry) => entry.revision < before);
+        if (cacheKey !== undefined && channelId !== undefined)
+          options.cache?.writeOlder?.(cacheKey, channelId, before, {
+            entries,
+            hasOlder: page.hasOlder,
+          });
         if (entries.length > 0 && entries.at(-1)!.revision === before - 1) {
           window = [...entries, ...window];
           hasOlder = page.hasOlder;

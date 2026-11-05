@@ -78,6 +78,7 @@ import { ZipArchiveError, writeZip, type ZipEntry } from './zip-archive.js';
 import { INBOX_HOST_COMMANDS } from './cli-inbox.js';
 import { CliLiveError, LIVE_COMMANDS, LIVE_OPTIONS, runLiveCli } from './cli-live.js';
 import { hasAgentCliContext, runAgentCli } from './cli-agent.js';
+import { runVoiceLocalKit, VOICE_LOCAL_KIT_HELP } from './cli-voice.js';
 import { runSshCli, SSH_COMMANDS, SSH_OPTIONS } from './cli-ssh.js';
 import { PROFILE_ONLINE_COMMANDS } from './cli-profile.js';
 import {
@@ -316,6 +317,8 @@ Usage:
   tobs inbox-status
   tobs inbox-dismiss <item-id> [--source-key <source-event-id>]
   tobs inbox-restore <item-id> [--source-key <source-event-id>]
+  tobs inbox-dismiss-all --confirm [--kind <kind>] [--category action|info|unread|replies]
+                    [--bot <id>] [--channel <id>]
   tobs inbox-allow-once <autoreject:item-id>
   tobs inbox-snooze <item-id> [--source-key <source-event-id>] (--until <ISO time> | --clear)
   tobs inbox-ignore <source-event-id>
@@ -325,6 +328,8 @@ Usage:
   tobs session-ids
   tobs session-owner <session-id>
   tobs session-archive-set <id> --session <session-id> (--archived | --unarchived)
+  tobs session-stop <id> <session-id> [--channel <channel-id>]
+  tobs bot-stop <id> [--channel <channel-id>]
   tobs tool-approval-rules <id>
   tobs tool-approval-history <id> [--limit <1-100>] [--cursor <cursor>]
   tobs tool-approval-rule-revoke <id> --rule <rule-id> --confirm
@@ -2614,6 +2619,16 @@ export async function runBotCreateCli(
     });
     const [command, ...rest] = positionals;
     compactOutput = values.compact === true;
+    if (command === 'voice-local-kit') {
+      out.stdout(
+        JSON.stringify(
+          values.help === true ? VOICE_LOCAL_KIT_HELP : runVoiceLocalKit(rest, values),
+          null,
+          2,
+        ),
+      );
+      return 0;
+    }
     if (hasAgentCliContext(io.env)) {
       out.stdout(JSON.stringify(await runAgentCli(command, rest, values, io), null, 2));
       return 0;

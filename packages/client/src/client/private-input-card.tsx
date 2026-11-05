@@ -9,9 +9,24 @@ import { Input, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { BridgeActions } from './actions.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { store, type ChannelMessage } from './store.js';
-import type { PrivateInputStatus } from '../../../core/src/credentials/contracts.js';
+import type {
+  PrivateInputStatus,
+  PrivateSubmissionRefusal,
+} from '../../../core/src/credentials/contracts.js';
 import { PrivateAccountControls } from './private-account-controls.js';
 import { MessagingHelp } from './messaging-help.js';
+
+const PRIVATE_SUBMISSION_REFUSALS: readonly string[] = [
+  'not-owner',
+  'not-pending',
+  'busy',
+  'invalid-fields',
+  'store-unavailable',
+  'expired',
+  'version-changed',
+  'save-failed',
+  'not-committed',
+] satisfies readonly PrivateSubmissionRefusal[];
 
 type PrivateCardMount = {
   node: HTMLFormElement;
@@ -50,6 +65,7 @@ export function PrivateInputCard({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const [routeRefused, setRouteRefused] = useState(false);
+  const [refusal, setRefusal] = useState<string>();
   const connectBlocked =
     (host !== undefined &&
       (host.client.secretInputAllowed?.() === false ||
@@ -70,7 +86,10 @@ export function PrivateInputCard({
       submitting.current = false;
       setStatus('loading');
       setBusy(false);
-      if (replacing) setError(false);
+      if (replacing) {
+        setError(false);
+        setRefusal(undefined);
+      }
       let timer: ReturnType<typeof setTimeout> | undefined;
       const poll = () => {
         void actions.privateInputStatus?.(channelId, message.id).then(
@@ -98,11 +117,14 @@ export function PrivateInputCard({
     [actions, channelId, message.id, retry],
   );
   const disabled = status !== 'pending' || busy || actions.privateInputSubmit === undefined;
+  const refusalShown = refusal !== undefined && status !== 'configured';
   const details = [
     request.replacesMessageId === undefined ? undefined : t('privateInput.replacementNote'),
     request.expiresAt === undefined
       ? undefined
-      : t('privateInput.expiresAt', { time: new Date(request.expiresAt).toLocaleString() }),
+      : t('privateInput.expiresAt', {
+          time: new Date(request.expiresAt).toLocaleString(),
+        }),
     t('privateInput.note'),
     status === 'configured' ? t('privateInput.configured') : undefined,
   ]
@@ -123,6 +145,7 @@ export function PrivateInputCard({
     submitting.current = true;
     setBusy(true);
     setError(false);
+    setRefusal(undefined);
     const values: Record<string, string> = {};
     try {
       if (cancel) await actions.privateInputCancel?.(channelId, message.id);
@@ -143,6 +166,16 @@ export function PrivateInputCard({
         failure.code === 'secret-route-refused'
       )
         setRouteRefused(true);
+      if (
+        lease.active &&
+        failure instanceof BridgeCallError &&
+        failure.code === 'private-input-not-accepted'
+      ) {
+        const reason = (failure.details as { reason?: unknown } | undefined)?.reason;
+        setRefusal(
+          typeof reason === 'string' && /^[a-z-]{1,40}$/.test(reason) ? reason : 'unknown',
+        );
+      }
       if (lease.active && lease.terminal === undefined) {
         setError(true);
         setRetry((value) => value + 1);
@@ -228,7 +261,6 @@ export function PrivateInputCard({
           <ActionButton
             icon="x"
             type="button"
-
             size="sm"
             disabled={disabled}
             onClick={() => void settle(true)}
@@ -237,7 +269,17 @@ export function PrivateInputCard({
           </ActionButton>
         </div>
       ) : null}
-      {error && !routeRefused ? (
+      {refusalShown ? (
+        <div className="bh-error" role="alert">
+          {t('privateInput.refused', {
+            reason: refusal,
+            detail: PRIVATE_SUBMISSION_REFUSALS.includes(refusal)
+              ? t(`privateInput.refused.${refusal as PrivateSubmissionRefusal}`)
+              : t('privateInput.refused.unknown'),
+          })}
+        </div>
+      ) : null}
+      {error && !routeRefused && !refusalShown ? (
         <div className="bh-error" role="alert">
           {t('privateInput.error')}{' '}
           <ActionButton

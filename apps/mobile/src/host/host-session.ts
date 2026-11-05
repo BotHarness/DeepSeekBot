@@ -1,3 +1,4 @@
+import { hostStore, hostStoreAvailable } from './host-store';
 import type { AccountOwner } from './account-owner';
 import { removeAccountConnections } from './account-connections';
 import { sourceDrafts } from './native-source-drafts';
@@ -14,10 +15,13 @@ import { useVisibleSnapshot } from './use-visible-snapshot';
 import { hostAvailabilitySource } from './host-availability';
 import { currentHost, selectHost, withHost, withoutHost, type SavedHosts } from './hosts';
 import {
-  clearHostConversationCache,
-  pruneHostConversationCache,
-  nativeConversationCache,
-} from './native-cache';
+  conversationCache,
+  conversationCacheWaitMs,
+  forgetHostConversations,
+  pruneHostConversations,
+  warmHostConversations,
+} from './native-conversations';
+import { purgeCaches } from './purge-caches';
 import { watchDisbandedGroups } from './disbanded-groups';
 import { conversationFilter } from './native-conversation-filter';
 import { computerEnvironmentKey } from './conversation-environments';
@@ -216,6 +220,12 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
   deviceAlerts.paired(saved.hostId);
   const client = createHostClient({
     ...saved,
+    onPurged: (placements) => {
+      const fresh = purgeCaches.apply(saved.hostId, placements);
+      if (fresh.length === 0) return;
+      for (const conversation of conversations.get(client)?.values() ?? [])
+        conversation.redact?.(fresh);
+    },
     onRoutesChanged: (routes) =>
       serialize(async () => {
         const existing = stored.hosts.find((host) => host.hostId === saved.hostId);
@@ -231,9 +241,11 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
     routes: saved.routes,
     credential: saved.credential,
     carrier: nativeCarrier(),
+    localStore: () => (hostStoreAvailable() ? hostStore(saved.hostId) : Promise.resolve(undefined)),
     telemetry: createConnectionTelemetry(mobileTelemetry, trigger),
   });
   clientHosts.set(client, saved.hostId);
+  warmHostConversations(saved.hostId);
   const inbox = createInbox(client, { notifications: connectionMode.supported });
   const offInbox = inbox.subscribe(() => {
     reflectInbox(saved.hostId, inbox);
@@ -241,6 +253,7 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
   });
 
   let connected = false;
+  let revoked = false;
   let avatars: string | undefined;
   let avatarRetryAt = Infinity;
   const disbanded = watchDisbandedGroups();
@@ -260,7 +273,21 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
         live?.delete(key);
       }
       if (saved !== null && change.stale !== undefined)
-        pruneHostConversationCache(saved.hostId, change.stale);
+        pruneHostConversations(saved.hostId, change.stale);
+    }
+    if (
+      snapshot.connection.status === 'refused' &&
+      snapshot.connection.code === 'device-revoked' &&
+      !revoked
+    ) {
+      revoked = true;
+      const live = conversations.get(client);
+      for (const conversation of live?.values() ?? []) conversation.stop();
+      live?.clear();
+      try {
+        forgetHostConversations(saved.hostId);
+      } catch {}
+      purgeCaches.forgetHost(saved.hostId);
     }
     const now = snapshot.connection.status === 'connected';
     if (now && !connected) {
@@ -491,7 +518,8 @@ export const hostSession = {
               return false;
             }
           });
-          clearHostConversationCache(host.hostId);
+          forgetHostConversations(host.hostId);
+          purgeCaches.forgetHost(host.hostId);
           await forgetRecentChats(host.hostId);
           await conversationFilter.clearPersisted(computerEnvironmentKey(host.hostId));
           await pushSession.forget(host).catch(() => undefined);
@@ -520,7 +548,8 @@ export const hostSession = {
       await clearPresentations(host);
       await commit(withoutHost(stored, host.hostId));
       try {
-        clearHostConversationCache(host.hostId);
+        forgetHostConversations(host.hostId);
+        purgeCaches.forgetHost(host.hostId);
       } catch {}
       void forgetRecentChats(host.hostId).catch(() => undefined);
       void conversationFilter.ready.then(() => {
@@ -670,10 +699,13 @@ function conversationFor(
   }
   const existing = byKey.get(key);
   if (existing !== undefined) return existing;
+  const cacheWaitMs = conversationCacheWaitMs();
+  const cacheWait = cacheWaitMs === undefined ? {} : { cacheWaitMs };
   const inner = createConversation({
     host: client,
     ...options,
-    cache: nativeConversationCache,
+    cache: conversationCache(),
+    ...cacheWait,
     cacheKey: JSON.stringify(['computer', clientHosts.get(client), key]),
     telemetry: { send: () => mobileTelemetry.send(options.botSlug === undefined ? 'group' : 'dm') },
   });

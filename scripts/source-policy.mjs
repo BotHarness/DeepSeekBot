@@ -6,6 +6,10 @@ import { parse as parseAstro } from '@astrojs/compiler';
 import { parse as parseJavaScript } from '@babel/parser';
 import postcss from 'postcss';
 import { findReactEffects } from './react-effect-policy.mjs';
+import {
+  appliesToStoreSubscriptions,
+  findStoreSubscriptions,
+} from './store-subscription-policy.mjs';
 
 const codeExtensions = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.mts', '.cts']);
 const sourceExtensions = new Set([...codeExtensions, '.astro', '.css']);
@@ -109,6 +113,17 @@ function scanScript(path, fragment, source, baseOffset) {
       ),
     );
   }
+  if (appliesToStoreSubscriptions(path))
+    for (const node of findStoreSubscriptions(parsed, path))
+      found.push(
+        issue(
+          path,
+          source,
+          'store-subscription',
+          baseOffset + node.start,
+          fragment.slice(node.start, node.end),
+        ),
+      );
   if (fragment.startsWith('#!')) {
     found.push(
       issue(path, source, 'comment', baseOffset, fragment.split('\n', 1)[0].replace(/\r$/, '')),
