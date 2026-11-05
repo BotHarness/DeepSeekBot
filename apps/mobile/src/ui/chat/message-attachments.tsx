@@ -42,28 +42,38 @@ function AttachmentImage({
   const tone = human ? 'onAccent' : 'muted';
   const fill = human ? over(theme.color.selected, theme.color.accent) : theme.layer.raised.inset;
   const box = { width, height, borderRadius: radius.md, backgroundColor: fill };
-  if (source === undefined || failed)
+  if (source === undefined || failed) {
+    const fallback =
+      source === undefined
+        ? t.attachmentElsewhere
+        : offline
+          ? t.imageNeedsConnection
+          : t.imageUnavailable;
     return (
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${attachment.name}, ${offline ? t.imageNeedsConnection : t.imageUnavailable}`}
+        accessibilityLabel={`${attachment.name}, ${fallback}`}
         disabled={source === undefined || offline}
         onPress={() => {
           setFailed(false);
           setAttempt((value) => value + 1);
         }}
-        style={{ ...box, alignItems: 'center', justifyContent: 'center', gap: space.x2 }}
+        style={{
+          ...box,
+          height: undefined,
+          minHeight: height,
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: space.x2,
+        }}
       >
         <PhotoIcon color={theme.color[tone]} size={theme.type.title.line} />
-        <Text variant="meta" tone={tone} numberOfLines={2} style={{ textAlign: 'center' }}>
-          {source === undefined
-            ? t.attachmentElsewhere
-            : offline
-              ? t.imageNeedsConnection
-              : t.imageUnavailable}
+        <Text variant="meta" tone={tone} style={{ textAlign: 'center' }}>
+          {fallback}
         </Text>
       </Pressable>
     );
+  }
   return (
     <Pressable
       accessibilityRole="imagebutton"

@@ -69,4 +69,21 @@ describe('image attachments while offline', () => {
     const view = await brokenImage(false);
     expect(view.textContent).toContain(t.imageUnavailable);
   });
+
+  it('labels an image with no source the way it reads, even offline', async () => {
+    const view = await render(
+      <ChatOffline value>
+        <MessageAttachments
+          attachments={[{ ...image, source: undefined } as unknown as MessageAttachment]}
+          human={false}
+          onOpenImage={() => undefined}
+          onShare={async () => undefined}
+        />
+      </ChatOffline>,
+    );
+    expect(view.textContent).toContain(t.attachmentElsewhere);
+    expect(view.querySelector('[aria-label]')?.getAttribute('aria-label')).toBe(
+      `photo.png, ${t.attachmentElsewhere}`,
+    );
+  });
 });
