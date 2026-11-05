@@ -1266,6 +1266,106 @@ describe('DSH Bot Agent adapter', () => {
     }
   });
 
+  it('unarchives an archived Assignment and then delivers the request', async () => {
+    const calls: Array<Promise<unknown>> = [];
+    const unarchived: string[] = [];
+    let archived = true;
+    const host = new FakeAgentHost(
+      { kind: 'completed' },
+      {
+        onAgentCreated: () => {
+          const tools = host.scopes.get('orchestrator-ada')?.tools ?? [];
+          for (const [name, args] of [
+            ['send_assignment_request', { session_id: 'assignment-1', text: 'Continue A' }],
+          ] as const) {
+            const tool = tools.find((tool) => tool.name === name);
+            if (tool === undefined) throw new Error(`Missing Tool ${name}`);
+            calls.push(tool.execute(args, {} as ToolRunContext));
+          }
+        },
+      },
+    );
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+    });
+    try {
+      await adapter.runOrchestrator({
+        sessionId: 'orchestrator-ada',
+        resume: false,
+        bot: BOT,
+        inboundChannelId: 'dm-test',
+        inbox: '',
+        message: 'Continue A',
+        channels: {
+          ...groupTools,
+          contacts: async () => ({ outputLimit: 12_000, contacts: [] }),
+          sendToBot: async () => {
+            throw new Error('unexpected Bot DM');
+          },
+          ignore: () => ({
+            sourceEventId: 'source-1',
+            ignoredAt: BOT.createdAt,
+            alreadyIgnored: false,
+          }),
+          read: () => [],
+          requestGrant: async () => {
+            throw new Error('unexpected Grant request');
+          },
+          send: async (input) => ({
+            id: 'bot-1',
+            at: BOT.createdAt,
+            author: { kind: 'bot', slug: BOT.slug },
+            body: input.body,
+          }),
+        },
+        assignments: {
+          create: () => ({ outcome: 'key-busy', message: 'unused' }),
+          request: () =>
+            archived
+              ? {
+                  outcome: 'refused',
+                  code: 'assignment-ended',
+                  delivery: 'refused',
+                  message: 'archived',
+                  assignment: { ...ASSIGNMENT, activity: 'idle' },
+                }
+              : {
+                  delivery: 'followup',
+                  acceptance: 'pending',
+                  assignment: { ...ASSIGNMENT, activity: 'working' },
+                },
+          unarchive: async (sessionId) => {
+            unarchived.push(sessionId);
+            archived = false;
+            return { outcome: 'unarchived', assignment: { ...ASSIGNMENT, activity: 'idle' } };
+          },
+          grants: () => [],
+          list: () => [],
+          inspect: () => undefined,
+          stop: async () => {
+            throw new Error('unexpected stop');
+          },
+        },
+      });
+      const outputs = (await Promise.all(calls)).map((output) => JSON.parse(String(output)));
+      expect(unarchived).toEqual(['assignment-1']);
+      expect(outputs).toEqual([
+        {
+          sessionId: 'assignment-1',
+          activity: 'working',
+          delivery: 'followup',
+          acceptance: 'pending',
+          unarchived: true,
+        },
+      ]);
+    } finally {
+      await adapter.close();
+    }
+  });
+
   it('rechecks source authority for native tools on the current Orchestrator turn', async () => {
     const denials: Array<string | undefined> = [];
     let invalid = false;
