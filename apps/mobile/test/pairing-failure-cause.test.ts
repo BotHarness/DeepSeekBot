@@ -268,6 +268,24 @@ describe('encrypted redemption', () => {
     ).toMatchObject({ detail: 'lan:channel-handshake-failed:tcp-closed,connect:socket-error' });
   });
 
+  it('keeps a failed local handshake key check as an authentication failure', async () => {
+    const { carrier } = closingCarrier({
+      [LAN]: 'channel-authentication-failed',
+      [CONNECT]: 'socket error',
+    });
+    const probe = vi.fn(async () => 'reachable' as const);
+    expect(
+      await redeemPairing({
+        payload: payload([LAN, CONNECT]),
+        deviceName: 'Phone',
+        carrier: { ...carrier, localNetworkStatus: probe },
+        lanRetryDelayMs: 1,
+        confirmFingerprint: async () => true,
+      }),
+    ).toMatchObject({ code: 'channel-authentication-failed' });
+    expect(probe).not.toHaveBeenCalled();
+  });
+
   it('does not retry the local path after an ordinary local failure', async () => {
     const { carrier, opened } = closingCarrier({
       [LAN]: 'channel-timeout',

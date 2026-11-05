@@ -564,6 +564,7 @@ function redeemEncryptedRoute(
         authenticated ||
         !isLanRoute(route) ||
         reason.endsWith(':local-network-denied') ||
+        reason === 'channel-authentication-failed' ||
         probe === undefined
       ) {
         finish(channelFailure(route, reason, authenticated));
@@ -649,7 +650,8 @@ function redeemEncryptedRoute(
 function probedReason(reason: string, status: LocalNetworkStatus): string {
   if (status === 'denied') return 'lan-unreachable:local-network-denied';
   if (status === 'unknown' || reason.includes(':')) return reason;
-  return `${reason}:${status === 'reachable' ? 'tcp-open' : 'tcp-closed'}`;
+  const tail = { reachable: 'tcp-open', unreachable: 'tcp-closed', timeout: 'tcp-timeout' }[status];
+  return `${reason}:${tail}`;
 }
 
 export function channelFailure(

@@ -68,7 +68,10 @@ export async function localNetworkStatus(origin: string): Promise<LocalNetworkSt
   const url = new URL(origin);
   try {
     const status = await native.localNetwork(url.hostname, Number(url.port || 80));
-    return status === 'denied' || status === 'reachable' || status === 'unreachable'
+    return status === 'denied' ||
+      status === 'reachable' ||
+      status === 'unreachable' ||
+      status === 'timeout'
       ? status
       : 'unknown';
   } catch {

@@ -24,7 +24,7 @@ export interface HostSocket {
   close(): void;
 }
 
-export type LocalNetworkStatus = 'denied' | 'reachable' | 'unreachable' | 'unknown';
+export type LocalNetworkStatus = 'denied' | 'reachable' | 'unreachable' | 'timeout' | 'unknown';
 
 export interface HostCarrier {
   randomBytes?(): Uint8Array;
