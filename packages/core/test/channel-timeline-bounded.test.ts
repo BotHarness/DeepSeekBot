@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createAttachmentStore } from '../src/attachments/store.js';
 import { isChannelMessage, type ChannelMessage } from '../src/channels/channel.js';
+import { CHANNEL_NOTICE_FIELDS } from '../src/channels/channel-notice.js';
 import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
 import { pageChannelTimeline, type ChannelTimelineRequest } from '../src/channels/timeline.js';
 import {
@@ -29,11 +30,25 @@ function fixture() {
   );
   const database = attachOperationalModule(owner, 'channels');
   const files = createAttachmentStore({ rootDir: join(root, 'attachments') });
-  const metrics = { reads: 0, rows: 0 };
+  const metrics = { reads: 0, rows: 0, statements: [] as string[] };
   const observed: OperationalDatabaseModulePort = {
     module: database.module,
     read(query) {
-      const result = database.read(query);
+      const result = database.read((db) =>
+        query(
+          new Proxy(db, {
+            get(target, key) {
+              if (key === 'prepare')
+                return (sql: string) => {
+                  metrics.statements.push(sql);
+                  return target.prepare(sql);
+                };
+              const value = Reflect.get(target, key) as unknown;
+              return typeof value === 'function' ? value.bind(target) : value;
+            },
+          }),
+        ),
+      );
       metrics.reads++;
       metrics.rows += Array.isArray(result) ? result.length : Number(result !== undefined);
       return result;
@@ -48,6 +63,7 @@ function fixture() {
   const channel = channels.createGroup({ name: 'Bounded timeline', members: ['ada'] });
   let revision = 0;
   const seed = (...entries: ChannelMessage[]) => {
+    revision = channels.revision(channel.id);
     database.transaction((db) => {
       const event = db.prepare(`
         INSERT INTO source_events
@@ -433,5 +449,252 @@ describe('SQLite bounded timeline hydration', () => {
         pageChannelTimeline(current.channel.id, all, request),
       );
     }
+  });
+
+  it('keeps message lookup, page reads, journal pages, tail commits and appends flat as history grows', async () => {
+    const current = fixture();
+    const samples: { reads: number; rows: number }[][] = [];
+    for (const count of [50, 240, 2000]) {
+      current.seed(
+        ...Array.from({ length: count }, (_, index) =>
+          message(`grow-${count}-${index}`, index === 0 ? {} : { replyTo: `grow-${count}-0` }),
+        ),
+      );
+      const revision = current.channels.revision(current.channel.id);
+      const measure = (run: () => unknown) => {
+        current.metrics.reads = 0;
+        current.metrics.rows = 0;
+        run();
+        return { reads: current.metrics.reads, rows: current.metrics.rows };
+      };
+      samples.push([
+        measure(() =>
+          expect(current.channels.message(current.channel.id, `grow-${count}-1`)).toBeDefined(),
+        ),
+        measure(() =>
+          expect(current.channels.readMessages(current.channel.id, { limit: 50 })).toHaveLength(50),
+        ),
+        measure(() =>
+          expect(
+            current.channels.readMessages(current.channel.id, {
+              before: `grow-${count}-30`,
+              limit: 20,
+            }),
+          ).toHaveLength(20),
+        ),
+        measure(() =>
+          expect(
+            current.channels.readHumanJournalPage(current.channel.id, {
+              through: revision,
+              limit: 50,
+            })?.entries,
+          ).toHaveLength(50),
+        ),
+        measure(() =>
+          expect(current.channels.messagesAfter(current.channel.id, revision - 3)).toHaveLength(3),
+        ),
+      ]);
+      current.metrics.reads = 0;
+      current.metrics.rows = 0;
+      await current.channels.appendMessage(current.channel.id, {
+        id: `append-${count}`,
+        at: timestamp,
+        author: { kind: 'bot', slug: 'ada' },
+        body: 'tail',
+        replyTo: `grow-${count}-0`,
+      });
+      samples.at(-1)!.push({ reads: current.metrics.reads, rows: current.metrics.rows });
+      expect(
+        current.channels.message(current.channel.id, `append-${count}`)?.replyToPreview,
+      ).toMatchObject({ body: `grow-${count}-0` });
+    }
+    for (const sample of samples.slice(1))
+      sample.forEach((cost, index) => {
+        expect(cost.reads).toBeLessThanOrEqual(samples[0]![index]!.reads + 2);
+        expect(cost.rows).toBeLessThanOrEqual(samples[0]![index]!.rows + 2);
+      });
+    for (const cost of samples.flat()) expect(cost.rows).toBeLessThanOrEqual(120);
+  });
+
+  it('matches timeline projection for lookups, page reads, journal pages and tail commits', () => {
+    const current = fixture();
+    current.seed(
+      ...Array.from({ length: 260 }, (_, index) =>
+        message(`entry-${index}`, {
+          at: new Date(Date.parse(timestamp) - (index % 7) * 1000).toISOString(),
+          ...(index % 13 === 0 ? { botCreateAction: { botSlug: 'bea', displayName: 'Bea' } } : {}),
+          ...(index % 17 === 0 ? { replyTo: 'entry-1' } : {}),
+          ...(index % 41 === 5 ? { grantRequest: true } : {}),
+        }),
+      ),
+      message('resolution', {
+        author: { kind: 'human' },
+        replyTo: 'entry-5',
+        grantRequestResolution: { requestMessageId: 'entry-5', grantId: 'grant-5' },
+      }),
+    );
+    current.database.transaction((db) =>
+      db
+        .prepare('UPDATE source_events SET payload_json = ? WHERE message_id = ?')
+        .run('null', 'entry-27'),
+    );
+    const all: ChannelMessage[] = [];
+    let page = current.channels.readTimeline(current.channel.id, { limit: 37 })!;
+    for (;;) {
+      all.unshift(...page.entries);
+      if (!page.hasOlder) break;
+      page = current.channels.readTimeline(current.channel.id, {
+        direction: 'older',
+        cursor: page.olderCursor!,
+        limit: 37,
+      })!;
+    }
+    expect(all).toHaveLength(261);
+    expect(all.find((entry) => entry.id === 'entry-5')?.grantRequestResolved).toBe(true);
+    expect(all.find((entry) => entry.id === 'entry-46')?.grantRequestResolved).toBe(false);
+    for (const entry of all)
+      expect(current.channels.message(current.channel.id, entry.id)).toEqual(entry);
+    expect(current.projectedHistory()).toEqual(all);
+    const revision = current.channels.revision(current.channel.id);
+    const journal: ChannelMessage[] = [];
+    let before: number | undefined;
+    for (;;) {
+      const entries = current.channels.readHumanJournalPage(current.channel.id, {
+        through: revision,
+        limit: 37,
+        ...(before === undefined ? {} : { before }),
+      })!;
+      for (const entry of entries.entries)
+        expect(entry.revision).toBe(entry.message.channelRevision);
+      journal.unshift(...entries.entries.map((entry) => entry.message));
+      if (!entries.hasOlder) break;
+      before = entries.entries[0]!.revision;
+    }
+    expect(journal).toEqual(all);
+    expect(
+      current.channels.messagesAfter(current.channel.id, 0)?.map((entry) => entry.message),
+    ).toEqual(all);
+    expect(current.channels.messagesAfter(current.channel.id, revision)).toEqual([]);
+    expect(current.channels.messagesAfter(current.channel.id, revision + 1)).toBeUndefined();
+    expect(
+      current.channels.readHumanJournalPage(current.channel.id, { through: revision + 1 }),
+    ).toBeUndefined();
+    expect(current.channels.readMessages(current.channel.id, { before: 'missing' })).toEqual([]);
+    expect(current.channels.message(current.channel.id, 'missing')).toBeUndefined();
+    expect(current.channels.readMessages(current.channel.id, { limit: 2.5 })).toEqual(
+      all.slice(-3).reverse(),
+    );
+  });
+
+  it('resolves grant requests only from resolutions placed in the same Channel', () => {
+    const current = fixture();
+    current.seed(message('grant', { grantRequest: true }));
+    const other = current.channels.createGroup({ name: 'Other', members: ['ada'] });
+    const resolution = (id: string) =>
+      message(id, {
+        author: { kind: 'human' },
+        replyTo: 'grant',
+        grantRequestResolution: { requestMessageId: 'grant', grantId: 'grant-id' },
+      });
+    current.database.transaction((db) => {
+      const { body, ...envelope } = resolution('elsewhere');
+      db.prepare(`INSERT INTO source_events
+        (source_event_id, source_kind, channel_id, message_id, body, created_at, payload_json)
+        VALUES ('elsewhere-source', 'human-message', ?, 'elsewhere', ?, ?, ?)`).run(
+        other.id,
+        body,
+        timestamp,
+        JSON.stringify(envelope),
+      );
+      db.prepare(`INSERT INTO channel_placements (channel_id, revision, source_event_id, message_id)
+        VALUES (?, 1, 'elsewhere-source', 'elsewhere')`).run(other.id);
+    });
+    expect(current.channels.message(current.channel.id, 'grant')?.grantRequestResolved).toBe(false);
+    expect(current.channels.grantRequestResolution?.(current.channel.id, 'grant')).toBeUndefined();
+    current.seed(resolution('here'));
+    expect(current.channels.message(current.channel.id, 'grant')?.grantRequestResolved).toBe(true);
+    expect(current.channels.grantRequestResolution?.(current.channel.id, 'grant')?.id).toBe('here');
+  });
+
+  it('finds the latest message past any number of trailing notices with one indexed row', () => {
+    const current = fixture();
+    current.seed(message('real'));
+    for (const count of [50, 2000]) {
+      current.seed(
+        ...Array.from({ length: count }, (_, index) =>
+          message(`post-${count}-${index}`, {
+            botChannelPost: { channelId: current.channel.id, messageId: 'real' },
+          }),
+        ),
+      );
+      current.metrics.statements.length = 0;
+      expect(current.channels.latestMessage(current.channel.id)?.id).toBe('real');
+    }
+    const latest = current.metrics.statements.find((sql) =>
+      sql.includes('ORDER BY p.revision DESC'),
+    );
+    expect(
+      current.database.read((db) =>
+        db
+          .prepare(`EXPLAIN QUERY PLAN ${latest!}`)
+          .all()
+          .map((row) => String((row as { detail: string }).detail)),
+      ),
+    ).toContainEqual(expect.stringContaining('USING INDEX channel_placements_latest_message'));
+  });
+
+  it('marks every notice field and payload rewrite on the placement', () => {
+    const current = fixture();
+    const notices = {
+      botDmAction: { channelId: current.channel.id, messageId: 'm', recipientBotSlug: 'bea' },
+      botCreateAction: { botSlug: 'bea', displayName: 'Bea' },
+      botChannelPost: { channelId: current.channel.id, messageId: 'm' },
+      memoryCommit: { botSlug: 'ada', sha: 'a'.repeat(40), message: 'm', files: [] },
+      toolAutoApproval: { outcome: 'approved' },
+      toolAutoApprovalPause: { until: timestamp },
+    } satisfies Record<(typeof CHANNEL_NOTICE_FIELDS)[number], object>;
+    expect(Object.keys(notices).sort()).toEqual([...CHANNEL_NOTICE_FIELDS].sort());
+    const flags = () =>
+      Object.fromEntries(
+        (
+          current.database.read((db) =>
+            db
+              .prepare('SELECT message_id, notice FROM channel_placements WHERE channel_id = ?')
+              .all(current.channel.id),
+          ) as Array<{ message_id: string; notice: number }>
+        ).map((row) => [row.message_id, row.notice]),
+      );
+    current.database.transaction((db) => {
+      const event = db.prepare(`INSERT INTO source_events
+        (source_event_id, source_kind, channel_id, message_id, body, created_at, payload_json)
+        VALUES (?, 'bot-message', ?, ?, '', ?, ?)`);
+      const placement = db.prepare(`INSERT INTO channel_placements
+        (channel_id, revision, source_event_id, message_id) VALUES (?, ?, ?, ?)`);
+      [...Object.entries(notices), ['plain', undefined] as const].forEach(
+        ([field, value], index) => {
+          event.run(
+            `${field}-source`,
+            current.channel.id,
+            field,
+            timestamp,
+            JSON.stringify({
+              author: { kind: 'bot', slug: 'ada' },
+              ...(value ? { [field]: value } : {}),
+            }),
+          );
+          placement.run(current.channel.id, index + 1, `${field}-source`, field);
+        },
+      );
+    });
+    expect(flags()).toEqual({
+      ...Object.fromEntries(CHANNEL_NOTICE_FIELDS.map((field) => [field, 1])),
+      plain: 0,
+    });
+    current.database.transaction((db) =>
+      db
+        .prepare('UPDATE source_events SET payload_json = ? WHERE message_id = ?')
+        .run('{"botCreateAction":null}', 'botCreateAction'),
+    );
+    expect(flags().botCreateAction).toBe(0);
   });
 });

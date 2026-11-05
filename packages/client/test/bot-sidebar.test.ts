@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { act, createElement, Profiler, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -13,6 +13,7 @@ const captured = vi.hoisted(() => ({
     point?: { x: number; y: number };
   }>,
   uploads: [] as Array<{ initialSlug?: string | undefined; onListed: () => void }>,
+  tooltipLabels: [] as string[],
   avatarEditors: [] as Array<{
     bot: { slug: string };
     channelId: string;
@@ -26,6 +27,17 @@ vi.mock('../src/client/avatar-appearance-editor.js', () => ({
     return null;
   },
 }));
+
+vi.mock('../src/client/ds/tooltip.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/client/ds/tooltip.js')>();
+  return {
+    ...actual,
+    Tooltip: (props: Parameters<typeof actual.Tooltip>[0]) => {
+      if (typeof props.label === 'string') captured.tooltipLabels.push(props.label);
+      return actual.Tooltip(props);
+    },
+  };
+});
 
 vi.mock('../src/client/market-upload.js', () => ({
   MarketUploadDialog: (props: { initialSlug?: string | undefined; onListed: () => void }) => {
@@ -350,6 +362,7 @@ function stubActions(): BridgeActions {
     dismissAllHumanInbox: vi.fn(async () => ({ dismissed: 0, more: false })),
     allowAutoRejectionOnce: vi.fn(async () => undefined),
     snoozeHumanInbox: vi.fn(async () => undefined),
+    channelFilesPage: vi.fn(async () => ({ entries: [] })),
     humanInboxContextPage: vi.fn(async () => ({
       entries: [],
       olderCursor: null,
@@ -376,6 +389,7 @@ function stubActions(): BridgeActions {
     readSessions: vi.fn(async () => []),
     refreshSessions: vi.fn(async () => undefined),
     setSessionArchived: vi.fn(async () => undefined),
+    stopSession: vi.fn(async () => undefined),
     messageAttachmentTarget: vi.fn(async () => ({
       path: '/attachment',
       relativePath: 'attachment',
@@ -624,6 +638,7 @@ let prefs: BotModePrefsSnapshot = {
   streamReplies: false,
   autoAcceptGroupInvites: true,
   assignmentConcurrencyLimit: 3,
+  botHopLimit: 128,
   developerMode: false,
   showBotSessions: false,
   showApprovalReviewSessions: false,
@@ -697,6 +712,7 @@ beforeEach(() => {
     streamReplies: false,
     autoAcceptGroupInvites: true,
     assignmentConcurrencyLimit: 3,
+    botHopLimit: 128,
     developerMode: false,
     showBotSessions: false,
     showApprovalReviewSessions: false,
@@ -819,6 +835,103 @@ describe('bot sidebar rows', () => {
       await act(() => root.unmount());
       node.remove();
       companion.dispose();
+    }
+  });
+
+  it('re-renders only the Bot row whose conversation changed while another Bot streams', async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const nova: BotSummary = { ...BOT, slug: 'nova', displayName: 'Nova' };
+    const novaDm: ChannelSummary = {
+      ...DM_CHANNEL,
+      id: 'dm-nova',
+      name: 'Nova',
+      members: ['nova'],
+      botSlug: 'nova',
+    };
+    store.setRoster([BOT, nova], [DM_CHANNEL, novaDm]);
+    const node = document.createElement('div');
+    document.body.append(node);
+    const root = createRoot(node);
+    try {
+      await act(() =>
+        root.render(
+          createElement(BotSidebar, {
+            wide: true,
+            actions: stubActions(),
+            useBotModePrefs: ((selector: (snapshot: BotModePrefsSnapshot) => unknown) =>
+              selector(prefs)) as never,
+            setSortMode,
+            setSectionSortMode,
+            t: zhTranslate,
+          }),
+        ),
+      );
+      captured.tooltipLabels.length = 0;
+      for (const body of ['写', '写到', '写到一半']) {
+        await act(() =>
+          store.setRoster(
+            [BOT, nova],
+            [
+              DM_CHANNEL,
+              {
+                ...novaDm,
+                latestMessage: {
+                  id: 'nova-reply',
+                  at: AT,
+                  author: { kind: 'bot', slug: 'nova' },
+                  body,
+                },
+              },
+            ],
+          ),
+        );
+      }
+      expect(captured.tooltipLabels.filter((label) => label.startsWith('Nova ·'))).toHaveLength(3);
+      expect(captured.tooltipLabels.filter((label) => label.startsWith('Atlas ·'))).toEqual([]);
+    } finally {
+      await act(() => root.unmount());
+      node.remove();
+    }
+  });
+
+  it('does not re-render on Inbox, conversation or session writes it does not show', async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    store.setRoster([BOT], [DM_CHANNEL]);
+    const node = document.createElement('div');
+    document.body.append(node);
+    const root = createRoot(node);
+    let commits = 0;
+    try {
+      await act(() =>
+        root.render(
+          createElement(
+            Profiler,
+            { id: 'sidebar', onRender: () => (commits += 1) },
+            createElement(BotSidebar, {
+              wide: true,
+              actions: stubActions(),
+              useBotModePrefs: ((selector: (snapshot: BotModePrefsSnapshot) => unknown) =>
+                selector(prefs)) as never,
+              setSortMode,
+              setSectionSortMode,
+              t: zhTranslate,
+            }),
+          ),
+        ),
+      );
+      commits = 0;
+      for (let n = 0; n < 5; n++)
+        await act(() => {
+          store.setHumanInbox({ status: n % 2 === 0 ? 'ready' : 'loading', items: [] });
+          store.setConversation({ revision: n + 1 });
+          store.setSessions({ ...store.getSnapshot().sessions });
+        });
+      expect(commits).toBe(0);
+      await act(() => store.setHumanInbox({ channelUnread: { [DM_CHANNEL.id]: 3 } }));
+      expect(commits).toBeGreaterThan(0);
+    } finally {
+      await act(() => root.unmount());
+      node.remove();
     }
   });
 
@@ -1486,6 +1599,7 @@ describe('bot sidebar rows', () => {
       streamReplies: false,
       autoAcceptGroupInvites: true,
       assignmentConcurrencyLimit: 3,
+      botHopLimit: 128,
       developerMode: false,
       showBotSessions: false,
       showApprovalReviewSessions: false,
@@ -1544,6 +1658,7 @@ describe('bot sidebar rows', () => {
       streamReplies: false,
       autoAcceptGroupInvites: true,
       assignmentConcurrencyLimit: 3,
+      botHopLimit: 128,
       developerMode: false,
       showBotSessions: false,
       showApprovalReviewSessions: false,
@@ -1639,6 +1754,7 @@ describe('bot sidebar rows', () => {
       streamReplies: false,
       autoAcceptGroupInvites: true,
       assignmentConcurrencyLimit: 3,
+      botHopLimit: 128,
       developerMode: false,
       showBotSessions: false,
       showApprovalReviewSessions: false,
@@ -1660,6 +1776,7 @@ describe('bot sidebar rows', () => {
       streamReplies: false,
       autoAcceptGroupInvites: true,
       assignmentConcurrencyLimit: 3,
+      botHopLimit: 128,
       developerMode: false,
       showBotSessions: false,
       showApprovalReviewSessions: false,
@@ -1697,6 +1814,7 @@ describe('bot sidebar rows', () => {
       streamReplies: false,
       autoAcceptGroupInvites: true,
       assignmentConcurrencyLimit: 3,
+      botHopLimit: 128,
       developerMode: false,
       showBotSessions: false,
       showApprovalReviewSessions: false,
@@ -1719,6 +1837,7 @@ describe('bot sidebar rows', () => {
       streamReplies: false,
       autoAcceptGroupInvites: true,
       assignmentConcurrencyLimit: 3,
+      botHopLimit: 128,
       developerMode: false,
       showBotSessions: false,
       showApprovalReviewSessions: false,

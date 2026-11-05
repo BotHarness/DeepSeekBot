@@ -162,6 +162,12 @@ export interface LocalVideoMediaPeer {
   close(): Promise<void>;
 }
 
+export interface LocalDesktopControl {
+  readonly desktop: boolean;
+  readonly held: boolean;
+  readonly epoch: number;
+}
+
 export interface LocalVideoOwner {
   handle(
     caller: LocalVideoCaller,
@@ -170,6 +176,7 @@ export interface LocalVideoOwner {
   ): Promise<LocalVideoState>;
   runBotOperation<T>(operation: () => Promise<T>): Promise<T>;
   isPaused(): boolean;
+  controlEpoch(): number;
   revoke(deviceId: string): Promise<void>;
   resetRuntime(): Promise<void>;
   dispose(): Promise<void>;

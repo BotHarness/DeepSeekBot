@@ -15,6 +15,7 @@ import {
   useState,
   memo,
   type ReactElement,
+  type RefObject,
 } from 'react';
 import { AccessibilityInfo, Platform, Pressable, View } from 'react-native';
 import Animated, { FadeOut, LinearTransition } from 'react-native-reanimated';
@@ -484,6 +485,9 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
   const [searchFocused, setSearchFocused] = useState(false);
   const [sort, setSort] = useState<ActivitySort>('default');
   const [filtering, setFiltering] = useState(false);
+  const clearRef = useRef<(() => void) | undefined>(undefined);
+  const [clearable, setClearable] = useState(false);
+  const openClear = useCallback(() => clearRef.current?.(), []);
   const [notice, setNotice] = useState<UndoNotice>();
   const noticeCount = useRef(0);
   const noticeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -535,6 +539,8 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
             <ActivityPage
               {...props}
               onNotice={showNotice}
+              clearRef={clearRef}
+              onClearable={setClearable}
               section={filter.section}
               filterBot={filter.bot}
               filterChannel={filter.channel}
@@ -564,6 +570,7 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
           options={filterOptions}
           onSearch={setSearch}
           onFilter={() => setFiltering(true)}
+          onClear={clearable && props.unavailable === undefined ? openClear : undefined}
           onHeight={setHeaderHeight}
         />
       </FixedToolbar>
@@ -640,7 +647,11 @@ const ActivityPage = memo(function ActivityPage({
   searchFocused,
   dismissSearch,
   onNotice,
+  clearRef,
+  onClearable,
 }: ActivityFeedProps & {
+  clearRef: RefObject<(() => void) | undefined>;
+  onClearable(clearable: boolean): void;
   section: ActivityFilter['section'];
   filterBot: ActivityFilter['bot'];
   filterChannel: ActivityFilter['channel'];
@@ -950,6 +961,12 @@ const ActivityPage = memo(function ActivityPage({
         onPress: () => void clearMany(kind),
       })),
     ]);
+  useLayoutEffect(() => {
+    clearRef.current = chooseClear;
+  });
+  const clearable = visible.status === 'ready' && clearKinds.length > 0;
+  useLayoutEffect(() => onClearable(clearable), [clearable, onClearable]);
+  useLayoutEffect(() => () => onClearable(false), [onClearable]);
   const refresh = () => {
     setRefreshing(true);
     setHeld([]);
@@ -1005,22 +1022,6 @@ const ActivityPage = memo(function ActivityPage({
                         </View>
                       ) : null}
                       {visible.status === 'loading' ? <ListSkeleton /> : null}
-                      {visible.status === 'ready' && clearKinds.length > 0 ? (
-                        <View
-                          style={{
-                            flexDirection: 'row',
-                            justifyContent: 'flex-end',
-                            paddingHorizontal: space.x5,
-                          }}
-                        >
-                          <Button
-                            label={t.activityClearMany}
-                            variant="text"
-                            testID="activity-clear-many"
-                            onPress={chooseClear}
-                          />
-                        </View>
-                      ) : null}
                       {visible.status === 'ready' &&
                       Object.values(visible.cursors ?? {}).some(Boolean) ? (
                         <Text variant="meta" tone="muted" style={{ paddingHorizontal: space.x5 }}>

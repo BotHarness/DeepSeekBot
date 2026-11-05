@@ -17,6 +17,7 @@ import { join } from 'node:path';
 
 import { isValidSlug } from '../bots/slug.js';
 import { ChannelAttachmentError, type AttachmentStore } from '../attachments/store.js';
+import type { MediaVersions } from '../attachments/media-versions.js';
 import {
   attachmentIdentity,
   attachmentIntent,
@@ -38,6 +39,7 @@ import {
   type BotCreateAction,
   type ChannelMemoryCommit,
   type ChannelMessage,
+  type ChannelMessageVoice,
   type ChannelReaction,
   type ChannelRecord,
   type GroupInvitation,
@@ -47,10 +49,17 @@ import {
   type BotMessageCausation,
 } from './channel.js';
 import {
+  CHANNEL_FILES_LIMIT,
+  CHANNEL_FILES_MAX,
   DEFAULT_MESSAGE_PAGE,
   MAX_MESSAGE_PAGE,
   pageChannelJournal,
   pageChannelTimeline,
+  type ChannelFilesPage,
+  type ChannelFilesRequest,
+  type ChannelChangeCursor,
+  type ChannelChanges,
+  type ChannelChangesRequest,
   type ChannelJournalPage,
   type ChannelJournalRequest,
   type ChannelTimelinePage,
@@ -62,12 +71,14 @@ export { DEFAULT_MESSAGE_PAGE, MAX_MESSAGE_PAGE } from './timeline.js';
 export interface ChannelStoreOptions {
   rootDir: string;
   attachments?: AttachmentStore;
+  mediaVersions?: Pick<MediaVersions, 'describe'>;
   now?: () => Date;
   onCommitted?: (commit: ChannelMessageCommit) => void;
   onRecordChanged?: () => void;
   onAdmissionChanged?: (channelId: string, messageId: string, message: ChannelMessage) => void;
   onHumanReadChanged?: (channelId: string, humanId: string, revision: number) => void;
   onReactionChanged?: (channelId: string, messageId: string, reactions: ChannelReaction[]) => void;
+  onVoiceChanged?: (channelId: string, messageId: string, message: ChannelMessage) => void;
   warn?: (message: string) => void;
   isBotActive?: (botSlug: string) => boolean;
   botDisplayName?: (botSlug: string) => string | undefined;
@@ -465,11 +476,23 @@ export interface ChannelStore {
   readTimeline(id: string, request?: ChannelTimelineRequest): ChannelTimelinePage | undefined;
   readHumanTimeline(id: string, request?: ChannelTimelineRequest): ChannelTimelinePage | undefined;
   readHumanJournalPage(id: string, request: ChannelJournalRequest): ChannelJournalPage | undefined;
+  readHumanFilesPage(id: string, request: ChannelFilesRequest): ChannelFilesPage | undefined;
+  readHumanChanges?(id: string, request: ChannelChangesRequest): ChannelChanges | undefined;
+  changeCursor?(): ChannelChangeCursor;
+  recordAttachmentChange?(fileId: string): number;
+  rotateChangeEpoch?(): ChannelChangeCursor;
   revision(id: string): number;
   messagesAfter(id: string, revision: number): ChannelMessageCommit[] | undefined;
   admissionChanged?(channelId: string, messageId: string): void;
+  setMessageVoice?(
+    channelId: string,
+    messageId: string,
+    voice: ChannelMessageVoice,
+    attachment?: ChannelAttachmentRef,
+  ): ChannelMessage | undefined;
 
   latestBotActivity?(): ReadonlyMap<string, number>;
+  privateInputRequests?(): Array<{ channelId: string; messageId: string }>;
   humanMessageCounts?(
     from: string,
     to: string,
@@ -1097,6 +1120,23 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
       const channel = this.get(id);
       if (channel === undefined) return undefined;
       return this.readTimeline(id, request);
+    },
+    readHumanFilesPage(id, request) {
+      if (this.get(id) === undefined) return undefined;
+      const limit = Math.min(Math.max(request.limit ?? CHANNEL_FILES_LIMIT, 1), CHANNEL_FILES_MAX);
+      const entries = readValidMessages(id)
+        .map((message, index) => ({ channelId: id, message, revision: index + 1 }))
+        .filter(
+          (entry) =>
+            (request.before === undefined || entry.revision < request.before) &&
+            (entry.message.attachments?.length ?? 0) > 0,
+        );
+      const page = entries.slice(-limit);
+      const oldest = page[0]?.revision;
+      return {
+        entries: page,
+        ...(entries.length > limit && oldest !== undefined ? { nextBefore: oldest } : {}),
+      };
     },
     readHumanJournalPage(id, request) {
       if (this.get(id) === undefined) return undefined;

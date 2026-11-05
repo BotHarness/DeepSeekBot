@@ -148,6 +148,8 @@ function harness(options: {
   profile?: Parameters<typeof createBrowserToolProvider>[0]['profile'];
   borrowed?: Parameters<typeof createBrowserToolProvider>[0]['borrowed'];
   takeover?: Parameters<typeof createBrowserToolProvider>[0]['takeover'];
+  desktopControl?: Parameters<typeof createBrowserToolProvider>[0]['desktopControl'];
+  note?: (detail: string) => void;
 }): Harness {
   const { scope, state } = fakeScope();
   const runtime = fakeRuntime();
@@ -184,6 +186,8 @@ function harness(options: {
     ...(options.borrowed === undefined ? {} : { borrowed: options.borrowed }),
     takeover: options.takeover ?? (() => takeovers),
     takeoverUrlFor: () => '/botharness-browser/viewer/local/?slug=bot-a',
+    ...(options.desktopControl === undefined ? {} : { desktopControl: options.desktopControl }),
+    ...(options.note === undefined ? {} : { note: options.note }),
     audit: (event) => audits.push(event),
     core: () => ({
       registry: {
@@ -377,7 +381,6 @@ describe('per-PersonaBot registration, authorization, and tabs', () => {
       'browser_screenshot',
       'browser_scroll',
       'browser_tabs',
-      'browser_takeover',
       'browser_type',
       'browser_upload',
       'browser_wait',
@@ -397,6 +400,43 @@ describe('per-PersonaBot registration, authorization, and tabs', () => {
     expect(h.runtime.open).not.toHaveBeenCalled();
     h.provider.markAuthorized('session-a');
     expect(h.provider.needsAuthorization('session-a')).toBe(false);
+  });
+
+  it('follows the Local Computer control owner: refuses while held, re-observes after hand-back (#3378)', async () => {
+    const desktop = { held: false, epoch: 0 };
+    const notes: string[] = [];
+    const h = harness({
+      access: true,
+      auto: true,
+      desktopControl: () => desktop,
+      note: (detail) => notes.push(detail),
+    });
+    await h.provider.runDirect('bot-a', 'browser_open', { url: 'https://example.com' });
+    await h.provider.runDirect('bot-a', 'observe', {});
+    await h.provider.runDirect('bot-a', 'click', { ref: 'e1' });
+    expect(h.runtime.click).toHaveBeenCalledTimes(1);
+
+    desktop.held = true;
+    desktop.epoch = 1;
+    for (const [tool, args] of [
+      ['click', { ref: 'e1' }],
+      ['observe', {}],
+      ['browser_open', { url: 'https://example.com' }],
+    ] as const)
+      await expect(h.provider.runDirect('bot-a', tool, args)).rejects.toThrow(
+        'The Human holds the Computer',
+      );
+    expect(notes).toContain('phase=control-refused owner=computer-pause slug=bot-a tool=click');
+
+    desktop.held = false;
+    desktop.epoch = 2;
+    await expect(h.provider.runDirect('bot-a', 'click', { ref: 'e1' })).rejects.toThrow(
+      'The Human used the Computer since your last browser_observe',
+    );
+    expect(h.runtime.click).toHaveBeenCalledTimes(1);
+    await h.provider.runDirect('bot-a', 'observe', {});
+    await h.provider.runDirect('bot-a', 'click', { ref: 'e1' });
+    expect(h.runtime.click).toHaveBeenCalledTimes(2);
   });
 
   it('runs the same tools directly for the Owner without a Session, model or approval card', async () => {
@@ -1055,39 +1095,10 @@ describe('per-PersonaBot registration, authorization, and tabs', () => {
     ).rejects.toThrow(/ref from browser_observe or x\/y/);
   });
 
-  it('runs a takeover handoff: request pauses, await verifies state and resumes', async () => {
+  it('no longer offers the blocking browser_takeover tool', () => {
     const h = harness({ access: true, auto: true });
     h.created();
-    const call = (name: string, args: Record<string, unknown>) =>
-      h.state.definitions.get(name)!.execute(args, execution(name)) as Promise<{
-        content: { text?: string }[];
-      }>;
-    await call('browser_open', { url: 'https://example.com' });
-    const requested = await call('browser_takeover', {
-      action: 'request',
-      instructions: 'Log in to Example',
-    });
-    const text = requested.content.map((part) => part.text ?? '').join('\n');
-    expect(text).toContain('Takeover link (single-use');
-    expect(text).toContain('Post this guiding message to the Human now:');
-    expect(h.provider.isTakeover('bot-a')).toBe(true);
-    expect(h.audits.at(-1)?.summary).toContain('chars=');
-    expect(JSON.stringify(h.audits)).not.toContain('Log in to Example');
-    const token = /takeover=([0-9a-f]+)/u.exec(text)?.[1] ?? '';
-    expect(token).not.toBe('');
-    h.takeovers.accept(token);
-    h.takeovers.complete(token, 'done');
-    const waited = await call('browser_takeover', { action: 'await', token });
-    const doneText = waited.content.map((part) => part.text ?? '').join('\n');
-    expect(doneText).toContain('Human finished (done)');
-    expect(doneText).toContain('https://example.com/');
-    expect(doneText).toContain('Call browser_observe before acting.');
-    expect(h.provider.isTakeover('bot-a')).toBe(false);
-    const status = await call('browser_takeover', { action: 'status', token });
-    expect(status.content.map((part) => part.text ?? '').join()).toContain('completed');
-    await expect(call('browser_takeover', { action: 'await', token: 'nope' })).rejects.toThrow(
-      /Unknown takeover token/,
-    );
+    expect(h.state.definitions.has('browser_takeover')).toBe(false);
   });
 
   it('keeps the current tab on recoverable errors and drops it on dead targets', async () => {

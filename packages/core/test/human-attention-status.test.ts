@@ -7,6 +7,7 @@ import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import {
   createHumanAttentionDecisions,
   createHumanAttentionQuery,
+  UNREAD_COUNT_LIMIT,
 } from '../src/runtime/human-attention.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
@@ -66,9 +67,9 @@ describe('Human attention status parity', () => {
       }
     });
     expect(current.query.status(true)).toEqual({
-      unreadCount: 2000,
+      unreadCount: UNREAD_COUNT_LIMIT,
       hasAction: false,
-      messageCounts: { replies: 0, other: 2000 },
+      messageCounts: { replies: 0, other: UNREAD_COUNT_LIMIT },
     });
   });
 

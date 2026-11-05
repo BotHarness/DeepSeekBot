@@ -39,7 +39,7 @@ import {
   backgroundImageUri,
 } from '../../host/native-chat-background';
 import { ChatBackground } from './chat-background';
-import type { HostClient } from '../../host/client';
+import type { HostClient, RosterBot } from '../../host/client';
 import { visibleDmActivity } from '../../host/dm-activity';
 import { latestTurnMessageId } from '../../host/session-failure';
 import { useHiddenDmActivity } from '../../host/native-dm-activity';
@@ -87,18 +87,26 @@ import { botColor } from '../bot-color';
 import { ApprovalCard } from './approval-card';
 import { GrantRequestCard } from './grant-request-card';
 import { PrivateInputCard } from './private-input-card';
+import { TakeoverCard } from './takeover-card';
 import { ActivityRow } from './activity-row';
+import { CallRecordBubble } from './call-record';
 import type { BubbleGroup } from './bubble-shape';
 import { botBusy } from './bot-tone';
 import { ChannelTitle } from './channel-title';
 import { WorkingStatus } from './working-status';
 import { ChatTitle } from './chat-title';
-import { HeaderIconButton } from '../shell/header-icon-button';
+import { ChatHeaderActions } from './chat-header-actions';
 import { Composer, type ComposerInput } from './composer';
 import { GroupUnavailable } from './group-unavailable';
 import { DraftSaveNotice } from './draft-save-notice';
 import { ClipboardImageOffer, useClipboardImage } from './clipboard-image';
-import { EdgeFade, HeaderBackButton, titleChipFill, useChatHeaderHeight } from './header-chrome';
+import {
+  EdgeFade,
+  HeaderActionGroup,
+  HeaderBackButton,
+  titleChipFill,
+  useChatHeaderHeight,
+} from './header-chrome';
 import { useStackRoot } from '../shell/stack-root';
 import {
   barLabelStyle,
@@ -154,6 +162,7 @@ import { useStrings } from '../strings';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import { ListSkeleton } from '../primitives/list-skeleton';
 import { Button } from '../primitives/button';
+import { useBotCall } from './call-button';
 
 type Row = ChatRow | { kind: 'draft'; key: string; draft: ConversationDraftReference };
 const NO_DRAFTS: ConversationDraftReference[] = [];
@@ -196,9 +205,10 @@ export function ConversationScreen({
   const focused = routeFocused && active && (presentation?.active ?? true);
   const roster = useHostSnapshot(client, focused).roster;
   const navigation = useNavigationContainerRef();
+  const identityBots = useIdentityBots(roster?.bots);
   const identities = useMemo(
     () => ({
-      bots: roster?.bots ?? [],
+      bots: identityBots ?? [],
       openBot: (slug: string) =>
         saved &&
         navigateChannel(navigation, {
@@ -206,7 +216,7 @@ export function ConversationScreen({
           params: { slug, hostId: saved.hostId },
         }),
     }),
-    [roster?.bots, navigation, saved],
+    [identityBots, navigation, saved],
   );
   const bot =
     place.kind === 'dm' ? roster?.bots.find((entry) => entry.slug === place.slug) : undefined;
@@ -296,6 +306,18 @@ const RequestCard = memo(function RequestCard({
   );
 
   const subject = card.subject === undefined ? {} : { subject: card.subject };
+  if (card.kind === 'takeover' && card.takeover !== undefined)
+    return (
+      <TakeoverCard
+        client={client}
+        target={ref}
+        takeover={card.takeover}
+        sentence={card.subject ?? message.body}
+        outcome={resolution?.kind === 'takeover' ? resolution.outcome : undefined}
+        focused={focused}
+        group={group}
+      />
+    );
   if (card.kind === 'private-input')
     return (
       <PrivateInputCard
@@ -451,7 +473,9 @@ function ChatConversation({
   const receipts = receiptPreference.loaded && receiptPreference.enabled;
   const playback = useStreamPlayback(conversation, display.loaded && display.mode === 'streaming');
   const snapshot = useConversationTimelineSnapshot(conversation, playback, focused);
-  const shownDrafts = display.loaded && display.mode === 'streaming' ? snapshot.drafts : NO_DRAFTS;
+  const shownDrafts = useDraftSlots(
+    display.loaded && display.mode === 'streaming' ? snapshot.drafts : NO_DRAFTS,
+  );
   const draftKey = hostDraftKey(
     saved?.hostId ?? '',
     place.kind,
@@ -943,8 +967,13 @@ function ChatConversation({
     [conversation],
   );
 
-  const roster = host.roster;
-  const botName = useBotNames(roster?.bots);
+  const liveRoster = host.roster;
+  const identityBots = useIdentityBots(liveRoster?.bots);
+  const roster = useMemo(
+    () => (liveRoster === undefined ? undefined : { ...liveRoster, bots: identityBots ?? [] }),
+    [identityBots, liveRoster?.channels, liveRoster?.activityChannels],
+  );
+  const botName = useBotNames(identityBots);
   const reading = useMemo(() => readingBots(snapshot.messages), [snapshot.messages]);
   const [deliveryFor, setDeliveryFor] = useState<string>();
   const openDelivery = useCallback(
@@ -1009,6 +1038,8 @@ function ChatConversation({
         </MessageSelectionRow>
       );
 
+      if (item.message.activity?.kind === 'voice-call')
+        return wrap(<CallRecordBubble record={item.message.activity.record} />);
       if (item.message.activity !== undefined)
         return wrap(
           <ActivityRow
@@ -1100,6 +1131,7 @@ function ChatConversation({
         (item.message.card?.kind === 'tool-approval' ||
           item.message.card?.kind === 'user-question' ||
           item.message.card?.kind === 'grant' ||
+          item.message.card?.kind === 'takeover' ||
           item.message.card?.kind === 'private-input')
       )
         return wrap(
@@ -1309,22 +1341,45 @@ function ChatConversation({
     />
   );
   const canOpenProfile = saved !== undefined && !hostRefused && !missing && selected === undefined;
-  const profileButton = canOpenProfile ? (
-    <HeaderIconButton
-      icon="more"
-      label={t.openProfile}
-      testID="chat-profile-button"
-      onPress={openProfile}
-    />
-  ) : null;
+  const placeCall = useBotCall(
+    canOpenProfile && dm && bot !== undefined ? client : undefined,
+    slug,
+    saved?.hostId,
+    host.connection.status === 'connected',
+    focused,
+  );
   const ios = Platform.OS === 'ios';
   const headerGap = glassPress.gap;
+  const headerActions = canOpenProfile ? (
+    <HeaderActionGroup
+      actions={[
+        ...(placeCall === undefined
+          ? []
+          : [
+              {
+                icon: 'call' as const,
+                label: t.call.button,
+                testID: 'chat-call-button',
+                onPress: placeCall,
+              },
+            ]),
+        { icon: 'more', label: t.openProfile, testID: 'chat-profile-button', onPress: openProfile },
+      ]}
+    />
+  ) : null;
   const titleWidth = Math.max(
     0,
     windowWidth -
       insets.left -
       insets.right -
-      (theme.touch + space.x5 + headerGap) * 2 -
+      space.x5 * 2 -
+      theme.touch -
+      headerGap * 2 -
+      (ios && glassHeader && canOpenProfile && placeCall !== undefined
+        ? theme.touch * 2
+        : (theme.touch +
+            (ios ? Math.min(space.x3, Math.max(0, (theme.fontScale - 1) * space.x3)) : 0)) *
+          (canOpenProfile && placeCall !== undefined ? 2 : 1)) -
       (ios && glassHeader ? space.x4 * 2 : 0),
   );
   const back = <HeaderBackButton plain={!headerIslands} onPress={leave} />;
@@ -1456,18 +1511,55 @@ function ChatConversation({
                   headerTitle: '',
                   headerBackVisible: canGoBack && !headerIslands,
                   unstable_headerRightItems: () =>
-                    canOpenProfile
-                      ? [
-                          { type: 'spacing' as const, spacing: headerGap },
-                          {
-                            type: 'button' as const,
-                            label: t.openProfile,
-                            identifier: 'chat-profile-button',
-                            icon: { type: 'sfSymbol' as const, name: 'ellipsis' as const },
-                            onPress: openProfile,
-                          },
-                        ]
-                      : [],
+                    !canOpenProfile
+                      ? []
+                      : glassHeader && placeCall !== undefined
+                        ? [
+                            {
+                              type: 'custom' as const,
+                              hidesSharedBackground: true,
+                              element: (
+                                <ChatHeaderActions
+                                  actions={[
+                                    {
+                                      icon: 'call',
+                                      label: t.call.button,
+                                      testID: 'chat-call-button',
+                                      onPress: placeCall,
+                                    },
+                                    {
+                                      icon: 'more',
+                                      label: t.openProfile,
+                                      testID: 'chat-profile-button',
+                                      onPress: openProfile,
+                                    },
+                                  ]}
+                                />
+                              ),
+                            },
+                          ]
+                        : [
+                            {
+                              type: 'button' as const,
+                              label: t.openProfile,
+                              identifier: 'chat-profile-button',
+                              icon: { type: 'sfSymbol' as const, name: 'ellipsis' as const },
+                              sharesBackground: placeCall !== undefined,
+                              onPress: openProfile,
+                            },
+                            ...(placeCall === undefined
+                              ? []
+                              : [
+                                  {
+                                    type: 'button' as const,
+                                    label: t.call.button,
+                                    identifier: 'chat-call-button',
+                                    icon: { type: 'sfSymbol' as const, name: 'phone' as const },
+                                    sharesBackground: true,
+                                    onPress: placeCall,
+                                  },
+                                ]),
+                          ],
                   unstable_headerLeftItems: () => [
                     ...(headerIslands
                       ? [{ type: 'custom' as const, element: back }]
@@ -1490,13 +1582,16 @@ function ChatConversation({
                 }
               : {
                   headerTitleAlign: 'left' as const,
-                  headerRight: () => profileButton,
+                  headerRight: () => headerActions,
                   headerTitle: () => (
                     <View
                       key={`${theme.scheme}:${theme.fontScale}:${bot?.displayName ?? channel?.name ?? ''}`}
                       style={{
                         width: dm || botDm ? undefined : windowWidth - (theme.touch + space.x5) * 2,
-                        maxWidth: windowWidth - (theme.touch + space.x5) * 2,
+                        maxWidth:
+                          windowWidth -
+                          (theme.touch + space.x5) * 2 -
+                          (placeCall === undefined || !canOpenProfile ? 0 : theme.touch),
                         marginHorizontal: space.x3,
                       }}
                     >
@@ -1878,7 +1973,7 @@ function ChatConversation({
           >
             {back}
             <View style={{ flex: 1, minWidth: 0 }}>{title}</View>
-            {profileButton}
+            {headerActions}
           </View>
         ) : null}
       </EndSheet>
@@ -1917,7 +2012,9 @@ function ChatConversation({
           onClose={() => setImageSelection(undefined)}
         />
       ) : null}
-      <ImageViewer attachment={viewing} onClose={() => setViewing(undefined)} onShare={share} />
+      {viewing === undefined ? null : (
+        <ImageViewer attachment={viewing} onClose={() => setViewing(undefined)} onShare={share} />
+      )}
       <DeliverySheet
         message={
           deliveryFor === undefined
@@ -1946,8 +2043,43 @@ function ChatConversation({
               ? { label: t.openProfile, testID: 'chat-profile-button', onPress: openProfile }
               : undefined
           }
+          call={
+            placeCall === undefined
+              ? undefined
+              : { label: t.call.button, testID: 'chat-call-button', onPress: placeCall }
+          }
         />
       )}
     </>
   );
+}
+
+function useIdentityBots(bots: readonly RosterBot[] | undefined): RosterBot[] | undefined {
+  const last = useRef<{ key: string; bots: RosterBot[] | undefined }>(undefined);
+  const key = JSON.stringify(
+    bots?.map(
+      ({
+        state: _state,
+        activity: _activity,
+        sessions: _sessions,
+        preview: _preview,
+        previewAt: _previewAt,
+        previewAuthor: _previewAuthor,
+        latestMessageId: _latestMessageId,
+        ...identity
+      }) => identity,
+    ),
+  );
+  if (last.current === undefined || last.current.key !== key)
+    last.current = { key, bots: bots === undefined ? undefined : [...bots] };
+  return last.current.bots;
+}
+
+function useDraftSlots<T extends { draftId: string; botSlug: string }>(
+  drafts: readonly T[],
+): readonly T[] {
+  const last = useRef<{ key: string; drafts: readonly T[] }>(undefined);
+  const key = drafts.map((draft) => `${draft.draftId}\u0000${draft.botSlug}`).join('\u0001');
+  if (last.current?.key !== key) last.current = { key, drafts };
+  return last.current.drafts;
 }

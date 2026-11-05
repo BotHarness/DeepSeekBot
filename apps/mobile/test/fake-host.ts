@@ -13,12 +13,33 @@ function recorded(method: Rpc): unknown {
 
 type Socket = { events: HostSocketEvents; streams: Map<string, string>; device: boolean };
 
+export class ChangeLog {
+  epoch = 'epoch-1';
+  floor = 0;
+  rows: Array<{ seq: number; channelId: string; messageId: string | null }> = [];
+  get seq(): number {
+    return this.rows.at(-1)?.seq ?? this.floor;
+  }
+  record(channelId: string, messageId: string | null): void {
+    this.rows.push({ seq: this.seq + 1, channelId, messageId });
+  }
+  rotate(): void {
+    this.floor = this.seq;
+    this.rows = [];
+    this.epoch = `${this.epoch}+`;
+  }
+}
+
 export class FakeChannel {
   readonly messages: ChannelMessage[] = [];
+  bodiesSent = 0;
   private followers = new Map<string, { entry: Socket; streamId: string }>();
   readonly follows: Array<Record<string, unknown>> = [];
   baselineDrafts: WireDraft[] = [];
-  constructor(readonly id: string) {}
+  constructor(
+    readonly id: string,
+    readonly log = new ChangeLog(),
+  ) {}
 
   get revision(): number {
     return this.messages.length;
@@ -32,6 +53,7 @@ export class FakeChannel {
       ...message,
     } as ChannelMessage);
     const revision = this.messages.length;
+    this.log.record(this.id, message.id);
     if (notify)
       this.emit({
         type: 'entry',
@@ -41,13 +63,39 @@ export class FakeChannel {
   }
 
   page(through: number, before?: number, limit?: number) {
-    return pageChannelJournal(this.id, this.messages, { through, before, limit });
+    const page = pageChannelJournal(this.id, this.messages, { through, before, limit });
+    this.bodiesSent += page?.entries.length ?? 0;
+    return page;
+  }
+
+  edit(messageId: string, patch: Partial<ChannelMessage>): void {
+    const index = this.messages.findIndex((message) => message.id === messageId);
+    this.messages[index] = { ...this.messages[index]!, ...patch };
+    this.log.record(this.id, messageId);
+  }
+
+  purge(messageId: string): void {
+    const index = this.messages.findIndex((message) => message.id === messageId);
+    const { attachments: _attachments, ...message } = this.messages[index]!;
+    this.messages[index] = {
+      ...message,
+      body: '',
+      contentPurge: { actor: 'local-human' },
+    } as ChannelMessage;
+    this.log.record(this.id, messageId);
   }
 
   follow(entry: Socket, streamId: string, limit: number): void {
     this.followers.set(streamId, { entry, streamId });
     const cursor = this.revision;
-    this.send(streamId, { type: 'opened', cursor, page: this.page(cursor, undefined, limit)! });
+    this.send(streamId, {
+      type: 'opened',
+      cursor,
+      page:
+        limit === 0
+          ? { entries: [], olderCursor: null, hasOlder: this.messages.length > 0 }
+          : this.page(cursor, undefined, limit)!,
+    });
     this.send(streamId, {
       type: 'notification',
       notification: {
@@ -100,6 +148,12 @@ export class FakeHost {
   revoked = false;
   up = true;
   olderHost = false;
+  changes = true;
+  refusesEmptyPage = false;
+  changesFail = false;
+  changesStall = false;
+  changesHeld: Promise<void> | undefined;
+  readonly log = new ChangeLog();
   deviceSnapshot: unknown;
   private sockets = new Set<Socket>();
   readonly requests: string[] = [];
@@ -108,6 +162,7 @@ export class FakeHost {
   readonly calls: Array<{ method: string; args: Record<string, unknown> }> = [];
   readonly channels = new Map<string, FakeChannel>();
   readonly methods = new Map<string, (args: Record<string, unknown>) => unknown>([
+    ['ping', () => ({ ok: true })],
     [
       'settings/describe',
       () => ({
@@ -121,7 +176,7 @@ export class FakeHost {
   channel(id: string): FakeChannel {
     let channel = this.channels.get(id);
     if (channel === undefined) {
-      channel = new FakeChannel(id);
+      channel = new FakeChannel(id, this.log);
       this.channels.set(id, channel);
     }
     return channel;
@@ -268,6 +323,14 @@ export class FakeHost {
                     error: { code: 'not-found', message: 'Unknown Channel', details: {} },
                   }),
                 );
+              else if (this.refusesEmptyPage && args.limit === 0)
+                entry.events.message(
+                  JSON.stringify({
+                    type: 'error',
+                    streamId: frame.streamId,
+                    error: { code: 'invalid', message: 'Invalid Channel page size', details: {} },
+                  }),
+                );
               else channel.follow(entry, frame.streamId, args.limit);
             } else
               entry.events.message(
@@ -302,6 +365,62 @@ export class FakeHost {
       return (args) => {
         const channel = this.channel(`dm-${String(args['slug'])}`);
         return { channel: { id: channel.id, type: 'dm', botSlug: args['slug'] } };
+      };
+    if (method === 'channelChangeCursor')
+      return () => {
+        if (!this.changes) throw Object.assign(new Error('Unknown method'), { code: 'not-found' });
+        return { epoch: this.log.epoch, seq: this.log.seq };
+      };
+    if (method === 'channelChanges')
+      return async (args) => {
+        const held = this.changesHeld;
+        this.changesHeld = undefined;
+        if (held !== undefined) {
+          await held;
+          throw new Error('Host busy');
+        }
+        if (!this.changes) throw Object.assign(new Error('Unknown method'), { code: 'not-found' });
+        if (this.changesFail) throw new Error('Host busy');
+        const channel = this.channels.get(String(args['channelId']));
+        if (channel === undefined) throw new Error('Unknown Channel');
+        const since = args['sinceSeq'] as number;
+        if (this.changesStall)
+          return {
+            upserts: [],
+            tombstones: [],
+            removed: [],
+            channelChanged: false,
+            readChanged: false,
+            cursor: { epoch: this.log.epoch, seq: since },
+            hasMore: true,
+          };
+        const cursor = { epoch: this.log.epoch, seq: this.log.seq };
+        if (args['epoch'] !== this.log.epoch || since < this.log.floor || since > cursor.seq)
+          return { reset: true, cursor };
+        const limit = (args['limit'] as number | undefined) ?? 200;
+        const rows = this.log.rows.filter((row) => row.channelId === channel.id && row.seq > since);
+        const page = rows.slice(0, limit);
+        const ids = [
+          ...new Set(page.flatMap((row) => (row.messageId === null ? [] : [row.messageId]))),
+        ];
+        const entries = ids.flatMap((id) => {
+          const index = channel.messages.findIndex((message) => message.id === id);
+          return index < 0
+            ? []
+            : [{ channelId: channel.id, message: channel.messages[index]!, revision: index + 1 }];
+        });
+        channel.bodiesSent += entries.length;
+        const purged = (entry: (typeof entries)[number]) =>
+          (entry.message as { contentPurge?: unknown }).contentPurge !== undefined;
+        return {
+          upserts: entries.filter((entry) => !purged(entry)),
+          tombstones: entries.filter(purged).map((entry) => entry.message.id),
+          removed: ids.filter((id) => !channel.messages.some((message) => message.id === id)),
+          channelChanged: false,
+          readChanged: false,
+          cursor: { epoch: cursor.epoch, seq: rows.length > limit ? page.at(-1)!.seq : cursor.seq },
+          hasMore: rows.length > limit,
+        };
       };
     if (method === 'channelJournalPage')
       return (args) => {

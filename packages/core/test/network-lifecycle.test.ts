@@ -77,6 +77,7 @@ it.skipIf(!aliases)(
         cores.push(
           createCore({
             dshHome: createTempRoot('network-lifecycle-'),
+            botHopLimit: () => 32,
             botNetwork: bridge,
             agents: createDshBotAgentAdapter({
               agents: new FakeAgentHost({ kind: 'completed' }),
@@ -188,7 +189,7 @@ it.skipIf(!aliases)(
         const to = from === 2 ? 1 : 2;
         const source = inbound(from, previousBody);
         const body = `Cycle hop ${hop}`;
-        await cores[from]!.runtime.runDirectBotTool!(
+        const result = await cores[from]!.runtime.runDirectBotTool!(
           from === 2 ? 'bot' : 'replacement',
           'bot_send_message',
           { bot_id: to === 1 ? 'remote:b:replacement' : 'remote:c:bot', body },
@@ -204,18 +205,26 @@ it.skipIf(!aliases)(
         const message = cores[to]!.channels.readMessages(channel.id).find(
           (item) => item.body === body,
         )!;
+        if (hop === 33) {
+          expect(result.result).toMatchObject({
+            status: 'refused',
+            reason: 'collaboration-hop-limit',
+            hop: 33,
+            hopLimit: 32,
+          });
+          expect(message).toBeUndefined();
+          break;
+        }
         expect(message.botCausation).toEqual({
           rootSourceEventId: root,
           parentSourceEventId: source,
           hop,
         });
-        if (hop === 33) expect(message.deliveries).toBeUndefined();
-        else
-          expect(message.deliveries).toEqual(
-            expect.arrayContaining([
-              expect.objectContaining({ botSlug: to === 1 ? 'replacement' : 'bot' }),
-            ]),
-          );
+        expect(message.deliveries).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ botSlug: to === 1 ? 'replacement' : 'bot' }),
+          ]),
+        );
         previousBody = body;
       }
       await expect(

@@ -90,6 +90,8 @@ interface Harness {
   setAccess(enabled: boolean): void;
   setRunning(running: boolean): void;
   setPaused(paused: boolean): void;
+  setBrowserPaused(paused: boolean): void;
+  readonly notes: string[];
   setAuto(allow: boolean): void;
 }
 
@@ -105,6 +107,8 @@ function harness(options: {
   let access = options.access;
   let running = options.running;
   let paused = false;
+  let browserPaused = false;
+  const notes: string[] = [];
   let auto = options.auto ?? false;
   const handlers = new Map<string, (this: unknown, payload: { agent: Agent }) => unknown>();
   const slots: string[] = [];
@@ -131,6 +135,8 @@ function harness(options: {
     driver,
     isComputerRunning: () => running,
     isPaused: () => paused,
+    isBotPaused: (slug) => slug === 'bot-a' && browserPaused,
+    note: (detail) => notes.push(detail),
     isAutoAllowed: () => auto,
     authorizationScope: options.authorizationScope,
     audit: (event) => audits.push(event),
@@ -162,6 +168,10 @@ function harness(options: {
     setPaused: (next) => {
       paused = next;
     },
+    setBrowserPaused: (next) => {
+      browserPaused = next;
+    },
+    notes,
     setAuto: (next) => {
       auto = next;
     },
@@ -480,6 +490,24 @@ describe('per-PersonaBot registration and authorization', () => {
     await expect(h.provider.runDirect('bot-a', 'click', { pid: 7 })).rejects.toThrow(
       'Computer Access is off',
     );
+    expect(h.driver.call).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses Computer actions while the Human holds the same Bot Browser (#3378)', async () => {
+    const h = harness({ access: true, running: true, auto: true });
+    h.setBrowserPaused(true);
+    await expect(h.provider.runDirect('bot-a', 'click', { pid: 7 })).rejects.toThrow(
+      'Browser Pause is active for this PersonaBot',
+    );
+    h.created({ agent });
+    await vi.waitFor(() => expect(h.state.registered()).toHaveLength(10));
+    await expect(
+      h.state.definitions.get('computer_click')!.execute({ pid: 7 }, execution('computer_click')),
+    ).rejects.toThrow('Browser Pause is active for this PersonaBot');
+    expect(h.driver.call).not.toHaveBeenCalled();
+    expect(h.notes).toContain('phase=control-refused owner=browser-pause slug=bot-a');
+    h.setBrowserPaused(false);
+    await h.provider.runDirect('bot-a', 'click', { pid: 7 });
     expect(h.driver.call).toHaveBeenCalledTimes(1);
   });
 
