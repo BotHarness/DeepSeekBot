@@ -176,7 +176,7 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 const sent = vi.fn();
 
-function Harness({ disabled = false }: { disabled?: boolean }) {
+function Harness({ disabled = false, caret }: { disabled?: boolean; caret?: number }) {
   const [draft, setDraft] = useState('');
   const dictation = useDictation(setDraft);
   return (
@@ -201,7 +201,9 @@ function Harness({ disabled = false }: { disabled?: boolean }) {
         onSend={() => sent(draft)}
         onPick={() => undefined}
         onRemove={() => undefined}
-        onDictate={dictation.start}
+        onDictate={() =>
+          dictation.start({ text: draft, ...(caret === undefined ? {} : { caret }) })
+        }
         onStopDictation={dictation.stop}
         onCancelDictation={dictation.cancel}
       />
@@ -435,6 +437,40 @@ describe('Composer test IDs', () => {
 });
 
 describe('Holding the Android input', () => {
+  it.each([
+    [undefined, '@Mika Hello again'],
+    [1, '@Hello againMika '],
+  ])('inserts streaming speech into existing text at caret %s', async (caret, expected) => {
+    await act(async () => root!.render(<Harness {...(caret === undefined ? {} : { caret })} />));
+    await press('Pick Mika');
+    const input = field();
+    await act(async () => speech.gesture!['start']!());
+    await emit('start');
+    await emit('result', result('Hel', false));
+    await emit('result', result('Hello', true));
+    await emit('result', result('again', false));
+    expect(field()).toBe(input);
+    expect(field().value).toBe(expected);
+    expect(status()).toBe('listening');
+    await act(async () => speech.gesture!['stop']!());
+    await emit('result', result('again', true));
+    await emit('end');
+    expect(field().value).toBe(expected);
+    expect(sent).not.toHaveBeenCalled();
+  });
+
+  it('cancels only the inserted speech and restores the original draft', async () => {
+    await act(async () => root!.render(<Harness caret={1} />));
+    await press('Pick Mika');
+    await act(async () => speech.gesture!['start']!());
+    await emit('start');
+    await emit('result', result('temporary', false));
+    expect(field().value).toBe('@temporaryMika ');
+    await act(async () => speech.gesture!['stop']!());
+    await press(t.cancelDictation);
+    await emit('end');
+    expect(field().value).toBe('@Mika ');
+  });
   it('separates English segments and clears them before a new recording', async () => {
     await press(t.dictate);
     await emit('start');
@@ -448,7 +484,7 @@ describe('Holding the Android input', () => {
     await emit('result', result('New recording.', false));
     expect(field().value).toBe('New recording.');
   });
-  it('keeps the held field stable across final segments, then shows all speech on release', async () => {
+  it('streams final and interim segments into the same held field until release', async () => {
     const input = field();
     await act(async () => speech.gesture!['start']!());
     expect(speech.start).toHaveBeenCalledWith(expect.objectContaining({ continuous: true }));
@@ -457,7 +493,7 @@ describe('Holding the Android input', () => {
     await emit('result', result('第二句话很长，需要继续说下去。', false));
     expect(status()).toBe('listening');
     expect(field()).toBe(input);
-    expect(field().value).toBe('');
+    expect(field().value).toBe('第一句话。第二句话很长，需要继续说下去。');
     expect(field().placeholder).toBe(t.dictationReleaseHint);
     expect(speech.stop).not.toHaveBeenCalled();
     await act(async () => speech.gesture!['stop']!());

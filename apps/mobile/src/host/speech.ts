@@ -20,9 +20,10 @@ async function permitted(): Promise<'denied' | 'unavailable' | undefined> {
   return permission.granted ? undefined : 'denied';
 }
 
-export function useDictation(onText: (text: string) => void) {
+export function useDictation(onText: (text: string, caret?: number) => void) {
   const current = useRef<Dictation>(idleDictation);
   const finalized = useRef('');
+  const insertion = useRef({ before: '', after: '' });
   const [state, setState] = useState(idleDictation);
   const apply = (event: DictationEvent) => {
     const next = dictate(current.current, event);
@@ -44,7 +45,8 @@ export function useDictation(onText: (text: string) => void) {
     const next = apply({ kind: 'heard', transcript });
     if (next !== before) {
       if (Platform.OS === 'android' && event.isFinal) finalized.current = next.heard;
-      onText(next.heard);
+      const { before, after } = insertion.current;
+      onText(before + next.heard + after, before.length + next.heard.length);
     }
   });
   useSpeechRecognitionEvent('error', (event) => apply({ kind: 'error', code: event.error }));
@@ -58,8 +60,11 @@ export function useDictation(onText: (text: string) => void) {
     [],
   );
 
-  const start = () => {
+  const start = (draft?: { text: string; caret?: number }) => {
     if (dictating(current.current.status)) return;
+    const text = draft?.text ?? '';
+    const caret = Math.max(0, Math.min(text.length, draft?.caret ?? text.length));
+    insertion.current = { before: text.slice(0, caret), after: text.slice(caret) };
     finalized.current = '';
     apply({ kind: 'press' });
     permitted()
@@ -89,7 +94,7 @@ export function useDictation(onText: (text: string) => void) {
     apply({ kind: 'cancel' });
     if (dictating(was)) {
       ExpoSpeechRecognitionModule.abort();
-      onText('');
+      onText(insertion.current.before + insertion.current.after, insertion.current.before.length);
     }
   };
 

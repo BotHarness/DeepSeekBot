@@ -510,7 +510,13 @@ function ChatConversation({
   }>();
   const [files, setFiles] = useState<PickedFile[]>([]);
   const [attachError, setAttachError] = useState(false);
-  const dictation = useDictation(setDraft);
+  const dictation = useDictation((text, nextCaret) => {
+    setDraft(text);
+    if (nextCaret !== undefined) {
+      setCaret(nextCaret);
+      setSelection({ start: nextCaret, end: nextCaret });
+    }
+  });
   const [shareError, setShareError] = useState(false);
   const [viewing, setViewing] = useState<MessageAttachment>();
   const [actionsFor, setActionsFor] = useState<MessageMenuTarget>();
@@ -1741,7 +1747,7 @@ function ChatConversation({
                     }
                     onDictate={() => {
                       setAttachError(false);
-                      dictation.start();
+                      dictation.start({ text: draft, ...(typing ? { caret } : {}) });
                     }}
                     onStopDictation={dictation.stop}
                     onCancelDictation={dictation.cancel}
