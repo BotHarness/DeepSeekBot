@@ -789,17 +789,27 @@ export function createHostClient(options: HostClientOptions): HostClient {
   const loadChannels = async (): Promise<ChannelListItem[]> => {
     const store = await openLocalStore();
     if (store === undefined) return fullChannelList();
-    return syncChannelList(store, {
-      channels: fullChannelList,
-      cursor: () => unlessRefused(call<ChannelListCursor>('channelChangeCursor')),
-      changes: (cursor) =>
-        unlessRefused(
-          call<ChannelListChanges>('channelListChanges', {
-            sinceSeq: cursor.seq,
-            epoch: cursor.epoch,
-          }),
-        ),
-    });
+    try {
+      return await syncChannelList(store, {
+        channels: fullChannelList,
+        cursor: () => unlessRefused(call<ChannelListCursor>('channelChangeCursor')),
+        changes: (cursor) =>
+          unlessRefused(
+            call<ChannelListChanges>('channelListChanges', {
+              sinceSeq: cursor.seq,
+              epoch: cursor.epoch,
+            }),
+          ),
+      });
+    } catch (error) {
+      if (
+        error instanceof Unreachable ||
+        error instanceof MethodRefused ||
+        error instanceof CredentialRefused
+      )
+        throw error;
+      return fullChannelList();
+    }
   };
 
   const paintStoredChannels = async (): Promise<void> => {

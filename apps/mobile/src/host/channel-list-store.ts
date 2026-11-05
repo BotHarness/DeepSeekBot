@@ -36,7 +36,7 @@ const upsert = (tx: SqlWriter, channel: ChannelListItem) =>
   );
 
 async function removeChannel(tx: SqlWriter, id: string): Promise<void> {
-  for (const table of ['messages', 'cursors', 'gaps'])
+  for (const table of ['messages', 'cursors', 'gaps', 'conversation_keys'])
     await tx.run(`delete from ${table} where channel_id = ?`, [id]);
   await tx.run('delete from channels where id = ?', [id]);
 }

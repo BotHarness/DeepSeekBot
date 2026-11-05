@@ -10,7 +10,11 @@ export interface PurgedPlacement {
 export interface PurgeTargets {
   forgetMedia(prefixes: readonly string[]): void;
   forgetShared(prefixes: readonly string[]): void;
-  redactTail(hostId: string, purged: (channelId: string, messageId: string) => boolean): void;
+  redactTail(
+    hostId: string,
+    purged: (channelId: string, messageId: string) => boolean,
+    placements: readonly { channelId: string; messageId: string }[],
+  ): void;
 }
 
 const text = (value: unknown): value is string => typeof value === 'string' && value !== '';
@@ -56,8 +60,10 @@ export function createPurgeCaches(target: () => PurgeTargets | undefined) {
       const purged = new Set(
         fresh.map((placement) => `${placement.channelId}\u0000${placement.messageId}`),
       );
-      targets.redactTail(hostId, (channelId, messageId) =>
-        purged.has(`${channelId}\u0000${messageId}`),
+      targets.redactTail(
+        hostId,
+        (channelId, messageId) => purged.has(`${channelId}\u0000${messageId}`),
+        fresh,
       );
       for (const placement of fresh) seen.add(placement.sourceEventId);
       return fresh;

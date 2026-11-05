@@ -183,6 +183,25 @@ describe('Host client', () => {
     await store.close();
   });
 
+  it('still lists channels from the Host when the local store fails', async () => {
+    const store = await openLocalStore(nodeSqlConnection());
+    await store.close();
+    const host = new FakeHost();
+    host.methods.set('channels', () => ({ channels: wire.activityJournal.channels }));
+    host.methods.set('channelChangeCursor', () => ({ epoch: 'e', seq: 5 }));
+    client = createHostClient({
+      routes: [ROUTE],
+      credential: host.credential,
+      carrier: host.carrier,
+      backoff: () => 5,
+      timeoutMs: 200,
+      localStore: () => Promise.resolve(store),
+    });
+    client.start();
+    const snapshot = await until(client, (state) => state.connection.status === 'connected');
+    expect(snapshot.roster?.channels.map((channel) => channel.id)).toEqual(['group-research']);
+  });
+
   it('calls the device gateway with its credential and renders the recorded Roster', async () => {
     const host = new FakeHost();
     const target = connect(host);

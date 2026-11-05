@@ -43,6 +43,7 @@ describe('local store', () => {
     );
     expect(tables.map((table) => table.name)).toEqual([
       'channels',
+      'conversation_keys',
       'cursors',
       'gaps',
       'list_cursor',
