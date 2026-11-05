@@ -48,6 +48,7 @@ export interface PhoneStoragePort {
   clearOlder(days: number): { files: number; bytes: number };
   autoCleanup(): boolean;
   setAutoCleanup(enabled: boolean): void;
+  chats?: { usage(): number; clear(): Promise<void> };
 }
 
 const PHONE_AGES = ['30', '90', '180', '365'] as const;
@@ -75,6 +76,7 @@ export function StorageSettings({ port }: { port: StorageSettingsPort }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ tone: 'success' | 'danger'; text: string }>();
   const [phoneBytes, setPhoneBytes] = useState(() => port.phone?.usage());
+  const [chatBytes, setChatBytes] = useState(() => port.phone?.chats?.usage());
   const [phoneAge, setPhoneAge] = useState<(typeof PHONE_AGES)[number]>('90');
   const [autoCleanup, setAutoCleanupState] = useState(() => port.phone?.autoCleanup() ?? false);
 
@@ -205,6 +207,24 @@ export function StorageSettings({ port }: { port: StorageSettingsPort }) {
         setPhoneBytes(port.phone?.usage());
       },
       (reason: unknown) => setNotice({ tone: 'danger', text: errorText(reason) }),
+    );
+  };
+  const clearChats = () => {
+    const chats = port.phone?.chats;
+    if (chats === undefined) return;
+    confirmDestructive(
+      t.storage.chatsConfirmTitle,
+      t.storage.chatsConfirmBody,
+      t.storage.chatsConfirm,
+      () => {
+        chats.clear().then(
+          () => {
+            setNotice({ tone: 'success', text: t.storage.chatsDone });
+            setChatBytes(chats.usage());
+          },
+          (reason: unknown) => setNotice({ tone: 'danger', text: errorText(reason) }),
+        );
+      },
     );
   };
   const clearPhoneOlder = (days: number) => {
@@ -422,6 +442,13 @@ export function StorageSettings({ port }: { port: StorageSettingsPort }) {
               control={{ kind: 'value', text: storageSize(phoneBytes) }}
             />
           )}
+          {chatBytes === undefined ? null : (
+            <SettingsRow
+              on="raised"
+              title={t.storage.phoneChats}
+              control={{ kind: 'value', text: storageSize(chatBytes) }}
+            />
+          )}
           {port.phone === undefined ? null : (
             <SettingsRow
               on="raised"
@@ -469,6 +496,15 @@ export function StorageSettings({ port }: { port: StorageSettingsPort }) {
             testID="storage-phone-clear"
             onPress={clearImageCache}
           />
+          {port.phone?.chats === undefined ? null : (
+            <SettingsRow
+              on="raised"
+              title={t.storage.chatsAction}
+              tone="danger"
+              testID="storage-phone-chats-clear"
+              onPress={clearChats}
+            />
+          )}
         </SettingsSection>
       </SettingsForm>
     </View>

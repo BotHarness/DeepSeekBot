@@ -132,6 +132,36 @@ describe('Storage settings', () => {
     expect(notices(view, 'success')).toContain(t.storage.phoneOlderDone(2, '2.0 KB'));
   });
 
+  it('shows chat history size and clears it after confirming nothing leaves the computer', async () => {
+    let bytes = 64 * 1024;
+    const clear = vi.fn(async () => {
+      bytes = 0;
+    });
+    const view = await render(
+      <StorageSettings
+        port={port({
+          phone: {
+            usage: () => 4096,
+            previewOlder: () => ({ files: 0, bytes: 0 }),
+            clearOlder: () => ({ files: 0, bytes: 0 }),
+            autoCleanup: () => true,
+            setAutoCleanup: vi.fn(),
+            chats: { usage: () => bytes, clear },
+          },
+        })}
+      />,
+    );
+    expect(view.textContent).toContain(t.storage.phoneChats);
+    expect(view.textContent).toContain('64.0 KB');
+    await press(view, t.storage.chatsAction);
+    expect(clear).not.toHaveBeenCalled();
+    expect(alert.mock.calls.at(-1)![0]).toBe(t.storage.chatsConfirmTitle);
+    expect(alert.mock.calls.at(-1)![1]).toBe(t.storage.chatsConfirmBody);
+    await choose(t.storage.chatsConfirm);
+    expect(clear).toHaveBeenCalledTimes(1);
+    expect(notices(view, 'success')).toContain(t.storage.chatsDone);
+  });
+
   it('shows space used and clears the chosen chat media after confirmation', async () => {
     const storage = port();
     const view = await render(<StorageSettings port={storage} />);
