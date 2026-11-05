@@ -250,12 +250,16 @@
     },
     {
       "id": "voice",
-      "description": "TTS Providers (add, test, remove) and each Bot's voice binding and preview.",
+      "description": "TTS and ASR Providers (add, test, remove), the Host-wide default for each, the speech threshold with its microphone test (the live level meter itself is browser-only; voice-dictate covers the capture path), and each Bot's voice and speech recognition override and preview.",
       "scope": "Host",
       "surfaces": [
-        "setting:packages/client/src/client/voice-settings.tsx:{t('voice.providers.new')}",
+        "setting:packages/client/src/client/voice-settings.tsx:{kind === 'tts' ? t('voice.providers.new') : t('voice.asr.new')}",
+        "setting:packages/client/src/client/voice-settings.tsx:{t('voice.default.title')}",
+        "setting:packages/client/src/client/voice-mic-test.tsx:{t('voice.mic.title')}",
+        "setting:packages/client/src/client/voice-mic-test.tsx:{t('voice.mic.threshold')}",
         "setting:packages/client/src/client/voice-settings.tsx:{provider.name}",
         "setting:packages/client/src/client/voice-settings.tsx:{t('voice.bot.provider')}",
+        "setting:packages/client/src/client/voice-settings.tsx:{t('voice.bot.asr')}",
         "setting:packages/client/src/client/voice-settings.tsx:{t('voice.bot.voiceId')}",
         "setting:packages/client/src/client/voice-settings.tsx:{t('voice.bot.preview')}"
       ],
@@ -265,6 +269,11 @@
         "voice-provider-remove",
         "voice-provider-test",
         "voice-set",
+        "voice-asr-set",
+        "voice-defaults",
+        "voice-default-set",
+        "voice-vad-set",
+        "voice-dictate",
         "voice-synthesize",
         "voice-local-kit"
       ]
@@ -509,6 +518,18 @@
         "route:packages/todo/src/index.ts:path"
       ],
       "commands": ["todos", "todo-add", "todo-update", "todo-remove", "todo-tool"]
+    },
+    {
+      "id": "ui-mic-device",
+      "description": "The microphone this browser uses for dictation, the microphone test and desktop or Web calls.",
+      "scope": "Client device preference",
+      "surfaces": [
+        "setting:packages/client/src/client/voice-mic-test.tsx:{t('voice.mic.device')}",
+        "storage:packages/client/src/client/mic-device.ts:removeItem(MIC_DEVICE_STORAGE_KEY)",
+        "storage:packages/client/src/client/mic-device.ts:setItem(MIC_DEVICE_STORAGE_KEY)"
+      ],
+      "exemption": "Microphone device ids come from enumerateDevices in one browser profile on one machine and mean nothing to the Host or another Client, so no Host CLI can list or set them. The Host-side capture path is covered by voice-dictate.",
+      "configurable": false
     },
     {
       "id": "ui-drafts",
