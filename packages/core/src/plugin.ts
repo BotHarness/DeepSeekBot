@@ -3341,6 +3341,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     followChannel: (channelId, limit, signal, drafts) =>
       core.live.followChannel(channelId, limit, signal, drafts),
     journalPage: (channelId, request) => core.channels.readHumanJournalPage(channelId, request),
+    changes: (channelId, request) => core.channels.readHumanChanges?.(channelId, request),
+    changeCursor: () => core.channels.changeCursor?.(),
     followCompanion: (resume, lastEventId, signal) =>
       followCompanion((request) => core.companions.open(request), resume, lastEventId, signal),
   });

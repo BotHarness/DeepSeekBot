@@ -53,6 +53,9 @@ import {
   MAX_MESSAGE_PAGE,
   pageChannelJournal,
   pageChannelTimeline,
+  type ChannelChangeCursor,
+  type ChannelChanges,
+  type ChannelChangesRequest,
   type ChannelJournalPage,
   type ChannelJournalRequest,
   type ChannelTimelinePage,
@@ -469,6 +472,10 @@ export interface ChannelStore {
   readTimeline(id: string, request?: ChannelTimelineRequest): ChannelTimelinePage | undefined;
   readHumanTimeline(id: string, request?: ChannelTimelineRequest): ChannelTimelinePage | undefined;
   readHumanJournalPage(id: string, request: ChannelJournalRequest): ChannelJournalPage | undefined;
+  readHumanChanges?(id: string, request: ChannelChangesRequest): ChannelChanges | undefined;
+  changeCursor?(): ChannelChangeCursor;
+  recordAttachmentChange?(fileId: string): number;
+  rotateChangeEpoch?(): ChannelChangeCursor;
   revision(id: string): number;
   messagesAfter(id: string, revision: number): ChannelMessageCommit[] | undefined;
   admissionChanged?(channelId: string, messageId: string): void;
