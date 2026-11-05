@@ -66,11 +66,20 @@ export async function decodeSilkVoice(bytes: Uint8Array, signal: AbortSignal): P
   if (!bytes.length || bytes.length > MAX_VOICE_INPUT_BYTES)
     throw new MessagingError('audio-too-large');
   silkFrames(bytes);
-  const moduleUrl = pathToFileURL(createRequire(import.meta.url).resolve('silk-wasm')).href;
+  return decodeInWorker(DECODE_WORKER, { module: 'silk-wasm', bytes }, signal);
+}
+
+export function decodeInWorker(
+  source: string,
+  data: { module: string } & Record<string, unknown>,
+  signal: AbortSignal,
+): Promise<Uint8Array> {
+  const { module, ...rest } = data;
+  const moduleUrl = pathToFileURL(createRequire(import.meta.url).resolve(module)).href;
   return new Promise((resolve, reject) => {
-    const worker = new Worker(DECODE_WORKER, {
+    const worker = new Worker(source, {
       eval: true,
-      workerData: { moduleUrl, bytes, maxBytes: MAX_VOICE_PCM_BYTES },
+      workerData: { ...rest, moduleUrl, maxBytes: MAX_VOICE_PCM_BYTES },
       resourceLimits: { maxOldGenerationSizeMb: 64, maxYoungGenerationSizeMb: 16 },
     });
     let settled = false;

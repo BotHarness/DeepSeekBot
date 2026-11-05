@@ -113,6 +113,7 @@ type Pending = {
 
 export const AUTO_APPROVAL_CONSECUTIVE_REJECTIONS = 3;
 export const AUTO_APPROVAL_SESSION_REJECTIONS = 20;
+const STOPPED_REQUEST_MEMORY = 500;
 
 type Breaker = {
   botSlug: string;
@@ -181,6 +182,7 @@ export class ChannelToolApproval {
   readonly #askChannel: ((sessionId: string) => string | undefined) | undefined;
   readonly #tracked = new Map<string, TrackedCall>();
   readonly #pending = new Map<string, Pending>();
+  readonly #stopped = new Set<string>();
   readonly #listeners = new Set<
     (notice: ToolApprovalNotice, status: 'pending' | ApprovalOutcome) => void
   >();
@@ -543,8 +545,26 @@ export class ChannelToolApproval {
     return [...this.#pending.values()].map((pending) => pending.sessionId);
   }
 
-  status(botSlug: string, messageId: string): 'pending' | 'expired' {
-    return this.#pending.get(messageId)?.botSlug === botSlug ? 'pending' : 'expired';
+  status(botSlug: string, messageId: string): 'pending' | 'expired' | 'stopped' {
+    if (this.#pending.get(messageId)?.botSlug === botSlug) return 'pending';
+    return this.#stopped.has(messageId) ? 'stopped' : 'expired';
+  }
+
+  closeSessions(sessionIds: readonly string[]): string[] {
+    const ids = new Set(sessionIds);
+    const closed: string[] = [];
+    for (const [messageId, pending] of this.#pending) {
+      if (!ids.has(pending.sessionId)) continue;
+      this.#stopped.add(messageId);
+      while (this.#stopped.size > STOPPED_REQUEST_MEMORY) {
+        const oldest = this.#stopped.values().next().value;
+        if (oldest === undefined) break;
+        this.#stopped.delete(oldest);
+      }
+      closed.push(messageId);
+      this.#settle(messageId, 'cancelled');
+    }
+    return closed;
   }
 
   expiresAt(botSlug: string, messageId: string): string | undefined {

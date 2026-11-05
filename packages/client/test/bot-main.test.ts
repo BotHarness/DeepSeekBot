@@ -14,6 +14,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
   return {
     IconWarningTriangleOutlineRegular: () => null,
     IconCodeOutlineRegular: () => null,
+    IconStopFillRegular: () => null,
     IconBranchOutlineRegular: () => null,
     Button: stub,
     Toast: stub,
@@ -1679,6 +1680,114 @@ describe('return to latest messages', () => {
       await act(async () => button()!.click());
       expect(viewport.scrollTop).toBe(2000);
       expect(button()).toBeNull();
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+      store.setRoster(previous.bots, previous.channels);
+      store.select(previous.selection);
+      store.setConversation(previous.conversation);
+    }
+  });
+
+  it('stays where a small upward scroll leaves it while a Bot reply grows', async () => {
+    const previous = store.getSnapshot();
+    const bot = {
+      slug: 'timeline-hold',
+      displayName: 'Timeline hold',
+      roles: [],
+      aggregateState: 'idle',
+      workspaces: [],
+      createdAt: '2026-10-24T00:00:00.000Z',
+    };
+    const channel = {
+      id: 'dm-timeline-hold',
+      type: 'dm' as const,
+      name: bot.displayName,
+      members: [bot.slug],
+      botSlug: bot.slug,
+      createdAt: bot.createdAt,
+      updatedAt: bot.createdAt,
+    };
+    const message = (id: string): ChannelMessage => ({
+      id,
+      at: bot.createdAt,
+      author: { kind: 'bot', slug: bot.slug },
+      body: id,
+    });
+    const actions = {
+      profileActivity: async () => ({
+        slug: bot.slug,
+        modelUsageStatus: 'ready',
+        modelUsageRows: [],
+      }),
+      modelPlanState: async () => ({}),
+      modelCatalog: async () => ({ models: [] }),
+      listWorkspaceGrants: async () => [],
+      botSourcePolicies: async () => [],
+      markRead: async () => undefined,
+      ...inertSubmissionActions,
+    } as unknown as BridgeActions;
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    store.setRoster([bot], [channel]);
+    store.select({ kind: 'bot', slug: bot.slug });
+    store.setConversation({
+      status: 'ready',
+      channel,
+      messages: [message('first')],
+      revision: 1,
+      sending: false,
+    });
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    try {
+      await act(async () =>
+        root.render(createElement(BotMain, { actions, channelSidebar: sidebarRegistry() })),
+      );
+      const viewport = container.querySelector<HTMLElement>('.bh-chat-body')!;
+      Object.defineProperties(viewport, {
+        scrollHeight: { value: 2000 },
+        clientHeight: { value: 500 },
+      });
+      await act(async () => {
+        viewport.scrollTop = 1500;
+        viewport.dispatchEvent(new Event('scroll'));
+      });
+      await act(async () => {
+        viewport.scrollTop = 1460;
+        viewport.dispatchEvent(new Event('scroll'));
+      });
+      await act(async () => {
+        store.setConversation({ messages: [message('first'), message('second')], revision: 2 });
+      });
+      expect(viewport.scrollTop).toBe(1460);
+      await act(async () => {
+        viewport.scrollTop = 1500;
+        viewport.dispatchEvent(new Event('scroll'));
+      });
+      await act(async () => {
+        viewport.dispatchEvent(new WheelEvent('wheel', { deltaY: -10, bubbles: true }));
+        store.setConversation({
+          messages: [message('first'), message('second'), message('third')],
+          revision: 3,
+        });
+      });
+      expect(viewport.scrollTop).toBe(1500);
+      await act(async () => {
+        viewport.scrollTop = 1490;
+        viewport.dispatchEvent(new Event('scroll'));
+      });
+      await act(async () => {
+        viewport.scrollTop = 1495;
+        viewport.dispatchEvent(new Event('scroll'));
+      });
+      await act(async () => {
+        store.setConversation({
+          messages: [message('first'), message('second'), message('third'), message('fourth')],
+          revision: 4,
+        });
+      });
+      expect(viewport.scrollTop).toBe(2000);
     } finally {
       await act(async () => root.unmount());
       container.remove();

@@ -15,6 +15,7 @@ export const ArrowBackIcon = () => null;
 export const ChevronRightIcon = () => null;
 export const ChevronUpIcon = () => null;
 export const TobModeIcon = () => null;
+export const PhoneIcon = () => null;
 export const LockIcon = () => null;
 export const ArrowUpIcon = () => null;
 export const PlusIcon = () => null;

@@ -417,6 +417,46 @@ describe('message states', () => {
     expect(draft).not.toContain(t.typing);
   });
 
+  it('shows a Bot voice bar above the text, and the text alone when the voice failed', () => {
+    const audio = {
+      key: 'computer:c:m:voice',
+      identity: 'voice-hash',
+      kind: 'audio' as const,
+      name: 'voice-m.mp3',
+      mime: 'audio/mpeg',
+      size: 4096,
+      local: false,
+      source: { uri: 'https://computer.test/attachment', headers: {} },
+    };
+    const ready = renderToStaticMarkup(
+      <MessageBubble
+        message={human({
+          author: 'bot',
+          bot: 'ada',
+          body: 'All checks passed.',
+          voice: { state: 'ready', audio },
+        })}
+      />,
+    );
+    expect(ready).toContain(`data-accessibilitylabel="${t.playVoice}"`);
+    expect(ready.indexOf(t.playVoice)).toBeLessThan(ready.indexOf('All checks passed.'));
+    expect(ready).not.toContain('voice-m.mp3');
+
+    const failed = renderToStaticMarkup(
+      <MessageBubble
+        message={human({
+          author: 'bot',
+          bot: 'ada',
+          body: 'Still here.',
+          voice: { state: 'failed', error: 'The voice service is busy.' },
+        })}
+      />,
+    );
+    expect(failed).toContain('Still here.');
+    expect(failed).toContain(t.voiceFailed('The voice service is busy.'));
+    expect(failed).not.toContain(t.playVoice);
+  });
+
   it('names a group Channel Bot above its first bubble and puts its avatar at the last one', () => {
     const bot = human({ author: 'bot', bot: 'ada', body: 'On it' });
     const speaker = { name: 'Ada', bot: undefined, group: 'g' };

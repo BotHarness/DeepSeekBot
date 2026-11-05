@@ -53,7 +53,7 @@ it('publishes only complete notification discovery and restarts a scan invalidat
       return () => {};
     },
     onLive: (listener) => {
-      live = () => listener('activity');
+      live = () => listener('roster');
       return () => {};
     },
     call: call as HostClient['call'],
