@@ -278,3 +278,19 @@ it('guards every table that feeds the message projection with a change trigger',
   ])
     expect(triggered, table).toContain(table);
 });
+
+it('prunes change rows older than 30 days at startup and resets cursors below the floor', async () => {
+  const { port, group, since, changes } = await scene();
+  const before = since();
+  expect(changes({ ...before, seq: 0 }).reset).toBeUndefined();
+  const later = createSqliteChannelStore({
+    database: port,
+    rootDir: join(createTempRoot('channel-changes-later-'), 'channels'),
+    databaseOwnerReady: true,
+    now: () => new Date(Date.now() + 31 * 24 * 60 * 60 * 1000),
+  });
+  expect(later.readHumanChanges!(group.id, { sinceSeq: 0, epoch: before.epoch })!.reset).toBe(true);
+  expect(
+    later.readHumanChanges!(group.id, { sinceSeq: before.seq, epoch: before.epoch })!.reset,
+  ).toBeUndefined();
+});

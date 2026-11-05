@@ -2880,9 +2880,11 @@ const CHANNEL_CHANGE_LOG_MIGRATION: SchemaMigration = {
         seq INTEGER PRIMARY KEY AUTOINCREMENT,
         channel_id TEXT NOT NULL,
         message_id TEXT,
-        kind TEXT NOT NULL CHECK (kind IN ('message', 'removed', 'channel', 'read'))
+        kind TEXT NOT NULL CHECK (kind IN ('message', 'removed', 'channel', 'read')),
+        changed_at INTEGER NOT NULL DEFAULT (CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER))
       );
       CREATE INDEX channel_changes_channel ON channel_changes (channel_id, seq);
+      CREATE INDEX channel_changes_changed_at ON channel_changes (changed_at);
       CREATE INDEX source_events_reply_target
         ON source_events (json_extract(payload_json, '$.replyTo'))
         WHERE json_valid(payload_json) AND json_extract(payload_json, '$.replyTo') IS NOT NULL;

@@ -77,7 +77,7 @@ import {
   DEFAULT_MESSAGE_PAGE,
   MAX_MESSAGE_PAGE,
   CHANNEL_CHANGES_LIMIT,
-  CHANNEL_CHANGES_RETAINED,
+  CHANNEL_CHANGES_RETAINED_MS,
   CHANNEL_CHANGES_MAX,
   pageChannelJournalRange,
   type ChannelChangeCursor,
@@ -1592,8 +1592,13 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     database.transaction(
       (db) => {
         if (!changeLogIn(db)) return;
-        const head = changeCursorIn(db).seq;
-        const floor = head - CHANNEL_CHANGES_RETAINED;
+        const floor = Number(
+          (
+            db
+              .prepare('SELECT max(seq) AS seq FROM channel_changes WHERE changed_at < ?')
+              .get(now().getTime() - CHANNEL_CHANGES_RETAINED_MS) as { seq: number | null }
+          ).seq ?? 0,
+        );
         if (floor > 0) {
           db.prepare('DELETE FROM channel_changes WHERE seq <= ?').run(floor);
           db.prepare(

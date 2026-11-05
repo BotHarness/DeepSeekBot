@@ -106,7 +106,7 @@ export type ChannelChanges =
 
 export const CHANNEL_CHANGES_LIMIT = 200;
 export const CHANNEL_CHANGES_MAX = 1000;
-export const CHANNEL_CHANGES_RETAINED = 200_000;
+export const CHANNEL_CHANGES_RETAINED_MS = 30 * 24 * 60 * 60 * 1000;
 
 export interface ChannelJournalRequest {
   through: number;
