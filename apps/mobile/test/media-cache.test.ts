@@ -27,6 +27,9 @@ vi.mock('expo-file-system', () => {
     get uri() {
       return `file:///cache/${this.name}`;
     }
+    get size() {
+      return disk.get(this.name)?.length ?? 0;
+    }
     async write(bytes: Uint8Array) {
       disk.set(this.name, bytes);
     }
@@ -41,7 +44,7 @@ vi.mock('expo-file-system', () => {
   return { Directory, File, Paths: { cache: 'cache' } };
 });
 
-const { cachedMediaUri, cacheMedia, forgetMedia, installMediaStore } =
+const { cachedMediaUri, cacheMedia, forgetMedia, installMediaStore, mediaUsage } =
   await import('../src/host/media-cache');
 const { nativeMediaStore } = await import('../src/host/native-media-store');
 installMediaStore(nativeMediaStore);
@@ -91,6 +94,14 @@ describe('versioned media cache on the phone', () => {
     ]);
     expect(read).toHaveBeenCalledTimes(7);
     expect(peak).toBeLessThanOrEqual(3);
+  });
+
+  it('does not count or serve an unfinished .part write', async () => {
+    disk.set(`${encodeURIComponent('file:a:v1:800')}.part`, new Uint8Array([1, 2, 3, 4]));
+    expect(cachedMediaUri('file:a:v1:800')).toBeUndefined();
+    expect(mediaUsage()).toBe(0);
+    await cacheMedia(source('file:a:v1:800'), new AbortController().signal);
+    expect(mediaUsage()).toBe(1);
   });
 
   it('forgets every cached variant of a file', async () => {

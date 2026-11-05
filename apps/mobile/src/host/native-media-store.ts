@@ -37,7 +37,7 @@ export const nativeMediaStore: MediaStore = {
     const directory = mediaRoot();
     if (!directory.exists) return [];
     return directory.list().flatMap((entry) =>
-      entry instanceof File
+      entry instanceof File && !entry.name.endsWith('.part')
         ? [
             {
               key: decodeURIComponent(entry.name),
