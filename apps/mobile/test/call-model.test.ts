@@ -208,4 +208,7 @@ describe('callConfigured', () => {
   it('hides the button when the Host refuses the readiness check', () => {
     expect(callConfigured({ code: 'not-found', error: 'no' })).toBe(false);
   });
+  it('keeps the button on a Connect route so the tap explains the transport', () => {
+    expect(callConfigured({ code: 'connect-carrier-required', error: 'connect' })).toBe(true);
+  });
 });

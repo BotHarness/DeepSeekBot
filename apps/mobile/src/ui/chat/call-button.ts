@@ -14,6 +14,8 @@ type Readiness = Awaited<ReturnType<typeof readCallReadiness>>;
 
 const configured = new Map<string, boolean>();
 const listeners = new Set<() => void>();
+const pendingReads = new Map<string, number>();
+let reads = 0;
 
 function publish(key: string, value: boolean) {
   if (configured.get(key) === value) return;
@@ -46,13 +48,19 @@ export function useBotCall(
   const subscribe = useCallback(
     (listener: () => void) => {
       listeners.add(listener);
-      if (enabled && connected && focused)
+      const read = ++reads;
+      if (enabled && connected && focused) {
+        pendingReads.set(key, read);
         readiness(client, slug).then(
-          (result) => publish(key, callConfigured(result)),
+          (result) => {
+            if (pendingReads.get(key) === read) publish(key, callConfigured(result));
+          },
           () => undefined,
         );
+      }
       return () => {
         listeners.delete(listener);
+        if (pendingReads.get(key) === read) pendingReads.delete(key);
       };
     },
     [enabled, client, slug, key, connected, focused],

@@ -154,7 +154,7 @@ function refusalMessage(t: Strings, code: string | undefined): string {
 export function callConfigured(
   readiness: VoiceCallReadiness | { readonly code: string; readonly error: string },
 ): boolean {
-  if ('code' in readiness) return false;
+  if ('code' in readiness) return readiness.code === 'connect-carrier-required';
   return !readiness.missing.some(
     (missing) => missing === 'bot' || missing === 'asr' || missing === 'tts',
   );
