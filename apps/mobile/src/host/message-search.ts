@@ -80,10 +80,16 @@ export async function searchHostMessages(
 export function useMessageSearch(): {
   state: MessageSearchState;
   schedule(text: string, hosts: readonly MessageSearchHost[]): void;
+  cancel(): void;
 } {
   const [state, setState] = useState<MessageSearchState>(IDLE);
   const sequence = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const cancel = useCallback(() => {
+    if (timer.current !== undefined) clearTimeout(timer.current);
+    timer.current = undefined;
+    sequence.current++;
+  }, []);
   const schedule = useCallback((text: string, hosts: readonly MessageSearchHost[]) => {
     if (timer.current !== undefined) clearTimeout(timer.current);
     timer.current = undefined;
@@ -101,5 +107,5 @@ export function useMessageSearch(): {
       });
     }, MESSAGE_SEARCH_DEBOUNCE_MS);
   }, []);
-  return { state, schedule };
+  return { state, schedule, cancel };
 }
