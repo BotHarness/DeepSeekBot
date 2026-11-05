@@ -38,6 +38,12 @@ import { CliLiveError } from './cli-live-error.js';
 import { CONNECTION_COMMANDS, runConnectionCommand } from './cli-connection.js';
 import { BOT_TOOL_COMMANDS, runBotToolCommand } from './cli-bot-tool.js';
 import {
+  TAKEOVER_COMMANDS,
+  TAKEOVER_OPTIONS,
+  isTakeoverCommand,
+  runTakeoverCommand,
+} from './cli-takeover.js';
+import {
   channelOperationKey,
   CHANNEL_COMMANDS,
   CHANNEL_OPTIONS,
@@ -129,6 +135,20 @@ import {
   type ApprovalReviewerValues,
 } from './cli-approval-reviewer.js';
 import {
+  VOICE_COMMANDS,
+  VOICE_OPTIONS,
+  isVoiceCommand,
+  runVoiceCommand,
+  type VoiceValues,
+} from './cli-voice.js';
+import {
+  CALL_COMMANDS,
+  CALL_OPTIONS,
+  CALL_PATH,
+  isCallCommand,
+  runCallCommand,
+} from './cli-call.js';
+import {
   isStorageCommand,
   runStorageCommand,
   STORAGE_COMMANDS,
@@ -175,12 +195,15 @@ export const LIVE_OPTIONS = {
   ...SHARE_DRAFT_OPTIONS,
   ...INBOX_OPTIONS,
   ...SCHEDULE_OPTIONS,
+  ...TAKEOVER_OPTIONS,
   ...BROWSER_COMPUTER_OPTIONS,
   ...PROFILE_OPTIONS,
   ...TODO_OPTIONS,
   ...APPROVAL_TEMPLATE_OPTIONS,
   ...PROMPT_PRESET_OPTIONS,
   ...APPROVAL_REVIEWER_OPTIONS,
+  ...VOICE_OPTIONS,
+  ...CALL_OPTIONS,
   ...STORAGE_OPTIONS,
   host: { type: 'string' },
   'token-file': { type: 'string' },
@@ -306,10 +329,13 @@ export const LIVE_COMMANDS = [
   ...BROWSER_COMPUTER_COMMANDS,
   ...PROFILE_COMMANDS,
   ...BOT_TOOL_COMMANDS,
+  ...TAKEOVER_COMMANDS,
   ...TODO_COMMANDS,
   ...APPROVAL_TEMPLATE_COMMANDS,
   ...PROMPT_PRESET_COMMANDS,
   ...APPROVAL_REVIEWER_COMMANDS,
+  ...VOICE_COMMANDS,
+  ...CALL_COMMANDS,
   ...IDLE_COMPACTION_COMMANDS,
   ...STORAGE_COMMANDS,
   {
@@ -569,7 +595,8 @@ interface LiveValues
     ProfileValues,
     TodoValues,
     ApprovalTemplateValues,
-    ApprovalReviewerValues {
+    ApprovalReviewerValues,
+    VoiceValues {
   'new-home'?: string;
   'client-id'?: string;
   'device-file'?: string;
@@ -1041,6 +1068,28 @@ export async function runLiveCli(
       const signal = AbortSignal.timeout(timeoutMs(values.timeout));
       return (await connectLiveHost(values, io, signal)).rpc;
     });
+  if (isVoiceCommand(command))
+    return runVoiceCommand(command, rest, values, io, async () => {
+      const signal = AbortSignal.timeout(timeoutMs(values.timeout));
+      return (await connectLiveHost(values, io, signal)).rpc;
+    });
+  if (isCallCommand(command))
+    return runCallCommand(command, rest, values, async () => {
+      const signal = AbortSignal.timeout(
+        values.timeout === undefined && command === 'call-simulate'
+          ? 600_000
+          : timeoutMs(values.timeout),
+      );
+      const { http } = await connectLiveHost(values, io, signal);
+      return async (body) => {
+        const { bytes } = await http(CALL_PATH, body);
+        try {
+          return record(JSON.parse(new TextDecoder().decode(bytes)));
+        } catch {
+          throw new CliLiveError('host-protocol-error', 'The Host returned no JSON for the call.');
+        }
+      };
+    });
   if (isApprovalReviewerCommand(command))
     return runApprovalReviewerCommand(command, rest, values, async () => {
       const signal = AbortSignal.timeout(timeoutMs(values.timeout));
@@ -1068,6 +1117,10 @@ export async function runLiveCli(
     });
   if (isTodoCommand(command))
     return runTodoCommand(command, rest, values, io, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
+  if (isTakeoverCommand(command))
+    return runTakeoverCommand(command, rest, values, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
   if (BOT_TOOL_COMMANDS.some((entry) => entry.command === command))
@@ -1238,6 +1291,7 @@ export async function runLiveCli(
   const signal = AbortSignal.timeout(duration);
   const { rpc } = await connectLiveHost(values, io, signal);
   if (command.startsWith('ask-secret-')) {
+    let refusal: unknown;
     try {
       if (command === 'ask-secret-accounts') {
         const result = await rpc<{
@@ -1342,22 +1396,27 @@ export async function runLiveCli(
         };
       }
       const method = command === 'ask-secret-submit' ? 'privateInputSubmit' : 'privateInputCancel';
-      const result = await rpc<{ accepted?: unknown }>(method, {
+      const result = await rpc<{ accepted?: unknown; reason?: unknown }>(method, {
         channelId: target,
         messageId,
         ...(confidential === undefined ? {} : { values: confidential }),
       });
-      if (result.accepted !== true) throw new Error('Private request was not accepted');
-      return { accepted: true };
+      if (result.accepted !== true) refusal = result.reason;
+      else return { accepted: true };
     } catch {
-      throw new CliLiveError(
-        'private-input-not-accepted',
-        'Private input operation was not accepted. Check Owner authentication and request status before retrying.',
-      );
+      refusal = undefined;
     } finally {
       if (confidential !== undefined)
         for (const key of Object.keys(confidential)) delete confidential[key];
     }
+    throw new CliLiveError(
+      'private-input-not-accepted',
+      'Private input operation was not accepted' +
+        (typeof refusal === 'string' && /^[a-z-]{1,40}$/.test(refusal)
+          ? ` (reason: ${refusal})`
+          : '') +
+        '. Check Owner authentication and request status before retrying.',
+    );
   }
   if (command === 'send') {
     const channelId = dmChannelId(target);

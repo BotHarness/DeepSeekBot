@@ -81,6 +81,8 @@ function SettingsRowByPlace(props: SettingsRowProps) {
 function ReactNativeSettingsRow({
   title,
   detail,
+  detailDot,
+  singleLine = false,
   tone = 'fg',
   strong = false,
   icon,
@@ -132,13 +134,35 @@ function ReactNativeSettingsRow({
       )}
       {leading}
       <View style={{ flex: 1, minWidth: 0, gap: space.x1 }}>
-        <Text variant="body" tone={tone} strong={strong}>
+        <Text
+          variant="body"
+          tone={tone}
+          strong={strong}
+          {...(singleLine ? { numberOfLines: 1 } : {})}
+        >
           {title}
         </Text>
         {detail === undefined ? null : (
-          <Text variant="meta" tone="muted">
-            {detail}
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
+            {detailDot === undefined ? null : (
+              <View
+                style={{
+                  width: space.x3,
+                  height: space.x3,
+                  borderRadius: radius.round,
+                  backgroundColor: detailDot,
+                }}
+              />
+            )}
+            <Text
+              variant="meta"
+              tone="muted"
+              {...(singleLine ? { numberOfLines: 1 } : {})}
+              style={{ flexShrink: 1 }}
+            >
+              {detail}
+            </Text>
+          </View>
         )}
       </View>
       {trailing ??

@@ -2632,6 +2632,433 @@ const QUESTION_MESSAGING_MIGRATION: SchemaMigration = {
   },
 };
 
+const TAKEOVER_ATTENTION_INDEX_MIGRATION: SchemaMigration = {
+  generation: 117,
+  module: 'messaging',
+  description: 'Index Takeover Handoff requests without scanning ordinary history',
+  migrate(database) {
+    database.exec(`
+      CREATE INDEX source_events_attention_takeover ON source_events (message_id, source_event_id)
+        WHERE source_kind = 'bot-message'
+          AND json_extract(payload_json, '$.takeoverRequest') IS NOT NULL;
+    `);
+  },
+};
+
+const VOICE_PROVIDER_MIGRATION: SchemaMigration = {
+  generation: 118,
+  module: 'voice',
+  description: 'Store TTS Providers; their keys stay in the credentials service',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE voice_providers (
+        id TEXT PRIMARY KEY,
+        body TEXT NOT NULL CHECK (json_valid(body)),
+        created_at TEXT NOT NULL
+      );
+    `);
+  },
+};
+
+const GRANT_RESOLUTION_INDEX_MIGRATION: SchemaMigration = {
+  generation: 119,
+  module: 'messaging',
+  description: 'Index grant request resolutions without scanning Channel history',
+  migrate(database) {
+    database.exec(`
+      CREATE INDEX source_events_grant_resolution
+        ON source_events (json_extract(payload_json, '$.grantRequestResolution.requestMessageId'))
+        WHERE json_extract(payload_json, '$.grantRequestResolution.requestMessageId') IS NOT NULL;
+    `);
+  },
+};
+
+const OUTPUT_REQUEST_INDEX_MIGRATION: SchemaMigration = {
+  generation: 120,
+  module: 'messaging',
+  description: 'Index Bot output lookups by the request that caused them',
+  migrate(database) {
+    database.exec(`
+      CREATE INDEX channel_output_origins_request ON channel_output_origins (request_source_event_id);
+    `);
+  },
+};
+
+const SESSION_PARENT_INDEX_MIGRATION: SchemaMigration = {
+  generation: 121,
+  module: 'session-ownership',
+  description: 'Index child Sessions by parent without scanning every Session',
+  migrate(database) {
+    database.exec(`
+      CREATE INDEX session_ownership_parent ON session_ownership (parent_session_id);
+    `);
+  },
+};
+
+const NEEDS_REPAIR_INDEX_MIGRATION: SchemaMigration = {
+  generation: 122,
+  module: 'bot-inbox',
+  description: 'Index Admissions that need repair without scanning Inbox history',
+  migrate(database) {
+    database.exec(`
+      CREATE INDEX inbox_admissions_needs_repair ON inbox_admissions (source_event_id, bot_slug)
+        WHERE attempt_state = 'needs-repair';
+    `);
+  },
+};
+
+const PLACEMENT_NOTICE_MIGRATION: SchemaMigration = {
+  generation: 123,
+  module: 'messaging',
+  description: 'Mark notice placements so the latest message is found without walking notices',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE channel_placements ADD COLUMN notice INTEGER NOT NULL DEFAULT 0;
+      UPDATE channel_placements SET notice = 1 WHERE source_event_id IN (
+        SELECT source_event_id FROM source_events
+         WHERE CASE WHEN json_valid(payload_json) THEN coalesce(json_type(payload_json, '$.botDmAction') = 'object' OR json_type(payload_json, '$.botCreateAction') = 'object' OR json_type(payload_json, '$.botChannelPost') = 'object' OR json_type(payload_json, '$.memoryCommit') = 'object' OR json_type(payload_json, '$.toolAutoApproval') = 'object' OR json_type(payload_json, '$.toolAutoApprovalPause') = 'object', 0) ELSE 0 END
+      );
+      CREATE INDEX channel_placements_latest_message ON channel_placements (channel_id, revision)
+        WHERE notice = 0;
+      CREATE TRIGGER channel_placements_notice_insert AFTER INSERT ON channel_placements
+        BEGIN
+          UPDATE channel_placements SET notice = coalesce((
+            SELECT CASE WHEN json_valid(payload_json) THEN coalesce(json_type(payload_json, '$.botDmAction') = 'object' OR json_type(payload_json, '$.botCreateAction') = 'object' OR json_type(payload_json, '$.botChannelPost') = 'object' OR json_type(payload_json, '$.memoryCommit') = 'object' OR json_type(payload_json, '$.toolAutoApproval') = 'object' OR json_type(payload_json, '$.toolAutoApprovalPause') = 'object', 0) ELSE 0 END FROM source_events
+             WHERE source_event_id = NEW.source_event_id
+          ), 0)
+           WHERE channel_id = NEW.channel_id AND revision = NEW.revision;
+        END;
+      CREATE TRIGGER channel_placements_notice_update AFTER UPDATE OF payload_json ON source_events
+        BEGIN
+          UPDATE channel_placements SET notice = CASE WHEN json_valid(NEW.payload_json) THEN coalesce(json_type(NEW.payload_json, '$.botDmAction') = 'object' OR json_type(NEW.payload_json, '$.botCreateAction') = 'object' OR json_type(NEW.payload_json, '$.botChannelPost') = 'object' OR json_type(NEW.payload_json, '$.memoryCommit') = 'object' OR json_type(NEW.payload_json, '$.toolAutoApproval') = 'object' OR json_type(NEW.payload_json, '$.toolAutoApprovalPause') = 'object', 0) ELSE 0 END
+           WHERE source_event_id = NEW.source_event_id;
+        END;
+    `);
+  },
+};
+
+const PLACEMENT_HUMAN_REPLY_MIGRATION: SchemaMigration = {
+  generation: 124,
+  module: 'messaging',
+  description:
+    'Mark Bot replies and mentions for the Human so the replies list skips other history',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE channel_placements ADD COLUMN for_human INTEGER NOT NULL DEFAULT 0;
+      UPDATE channel_placements SET for_human = 1 WHERE (
+        SELECT CASE WHEN json_valid(e.payload_json) AND json_extract(e.payload_json, '$.author.kind') = 'bot' THEN coalesce(json_array_length(e.payload_json, '$.humanMentions') > 0 OR EXISTS (SELECT 1 FROM channel_placements o JOIN source_events t ON t.source_event_id = o.source_event_id WHERE o.channel_id = channel_placements.channel_id AND o.message_id = json_extract(e.payload_json, '$.replyTo') AND json_valid(t.payload_json) AND json_extract(t.payload_json, '$.author.kind') = 'human'), 0) ELSE 0 END FROM source_events e WHERE e.source_event_id = channel_placements.source_event_id
+      ) = 1;
+      CREATE INDEX channel_placements_for_human ON channel_placements (channel_id, revision)
+        WHERE for_human = 1;
+      CREATE TRIGGER channel_placements_for_human_insert AFTER INSERT ON channel_placements
+        BEGIN
+          UPDATE channel_placements SET for_human = coalesce((
+            SELECT CASE WHEN json_valid(e.payload_json) AND json_extract(e.payload_json, '$.author.kind') = 'bot' THEN coalesce(json_array_length(e.payload_json, '$.humanMentions') > 0 OR EXISTS (SELECT 1 FROM channel_placements o JOIN source_events t ON t.source_event_id = o.source_event_id WHERE o.channel_id = NEW.channel_id AND o.message_id = json_extract(e.payload_json, '$.replyTo') AND json_valid(t.payload_json) AND json_extract(t.payload_json, '$.author.kind') = 'human'), 0) ELSE 0 END FROM source_events e WHERE e.source_event_id = NEW.source_event_id
+          ), 0)
+           WHERE channel_id = NEW.channel_id AND revision = NEW.revision;
+        END;
+      CREATE TRIGGER channel_placements_for_human_update AFTER UPDATE OF payload_json ON source_events
+        BEGIN
+          UPDATE channel_placements SET for_human = coalesce((
+            SELECT CASE WHEN json_valid(e.payload_json) AND json_extract(e.payload_json, '$.author.kind') = 'bot' THEN coalesce(json_array_length(e.payload_json, '$.humanMentions') > 0 OR EXISTS (SELECT 1 FROM channel_placements o JOIN source_events t ON t.source_event_id = o.source_event_id WHERE o.channel_id = channel_placements.channel_id AND o.message_id = json_extract(e.payload_json, '$.replyTo') AND json_valid(t.payload_json) AND json_extract(t.payload_json, '$.author.kind') = 'human'), 0) ELSE 0 END FROM source_events e WHERE e.source_event_id = NEW.source_event_id
+          ), 0)
+           WHERE source_event_id = NEW.source_event_id;
+        END;
+    `);
+  },
+};
+
+const BOUNDED_RANGE_INDEX_MIGRATION: SchemaMigration = {
+  generation: 125,
+  module: 'messaging',
+  description:
+    'Index message time, outbound attempts, outbound receipts and external message ids for bounded lookups',
+  migrate(database) {
+    database.exec(`
+      CREATE INDEX source_events_created ON source_events (created_at);
+      CREATE INDEX messaging_outbox_attempts_started ON messaging_outbox_attempts (started_at);
+      CREATE INDEX messaging_outbox_receipt
+        ON messaging_outbox (bot_slug, json_extract(body, '$.receipt.messageId'));
+      CREATE INDEX source_events_external_message
+        ON source_events (bot_slug, json_extract(payload_json, '$.external.event.messageId'))
+        WHERE source_kind = 'bridge-message';
+    `);
+  },
+};
+
+const ATTENTION_RESOLUTION_INDEX_MIGRATION: SchemaMigration = {
+  generation: 126,
+  module: 'messaging',
+  description: 'Index attention resolutions and admission activity time for bounded lookups',
+  migrate(database) {
+    database.exec(`
+      CREATE INDEX source_events_question_resolution
+        ON source_events (json_extract(payload_json, '$.userQuestionResolution.requestMessageId'))
+        WHERE json_extract(payload_json, '$.userQuestionResolution.requestMessageId') IS NOT NULL;
+      CREATE INDEX source_events_approval_decision
+        ON source_events (json_extract(payload_json, '$.toolApprovalDecision.requestMessageId'))
+        WHERE json_extract(payload_json, '$.toolApprovalDecision.requestMessageId') IS NOT NULL;
+      CREATE INDEX source_events_approval_override
+        ON source_events (json_extract(payload_json, '$.toolAutoApprovalOverride.recordMessageId'))
+        WHERE json_extract(payload_json, '$.toolAutoApprovalOverride.recordMessageId') IS NOT NULL;
+      CREATE INDEX source_events_private_resolution
+        ON source_events (json_extract(payload_json, '$.privateInputResolution.requestMessageId'))
+        WHERE json_extract(payload_json, '$.privateInputResolution.requestMessageId') IS NOT NULL;
+      CREATE INDEX inbox_admissions_activity
+        ON inbox_admissions (bot_slug, coalesce(observed_at, handled_at))
+        WHERE ignored_at IS NULL;
+    `);
+  },
+};
+
+const CAUSAL_PURGE_TOMBSTONE_MIGRATION: SchemaMigration = {
+  generation: 127,
+  module: 'messaging-purge',
+  description: 'Allow a Source Event canonical tombstone when its causal ancestors are purged',
+  migrate(database) {
+    database.exec(`
+      DROP TRIGGER messaging_purge_source_update;
+      CREATE TRIGGER messaging_purge_source_update BEFORE UPDATE ON source_events
+        WHEN EXISTS (SELECT 1 FROM messaging_purge_facts f WHERE
+          ((f.source_event_id IN (OLD.source_event_id, NEW.source_event_id)
+            OR (f.channel_id = NEW.channel_id AND f.message_id = NEW.message_id))
+           AND (NEW.source_event_id != f.source_event_id OR NEW.channel_id IS NOT f.channel_id
+             OR NEW.message_id IS NOT f.message_id OR NEW.body != '' OR NEW.payload_json IS NOT f.tombstone_json))
+          OR (f.source_event_id IN (json_extract(NEW.payload_json, '$.botCausation.rootSourceEventId'),
+            json_extract(NEW.payload_json, '$.botCausation.parentSourceEventId'))
+            AND NEW.payload_json IS NOT f.tombstone_json AND NEW.payload_json IS NOT OLD.payload_json
+            AND NOT EXISTS (SELECT 1 FROM messaging_purge_facts own
+              WHERE own.source_event_id = NEW.source_event_id
+                AND own.channel_id IS NEW.channel_id AND own.message_id IS NEW.message_id
+                AND NEW.body = '' AND own.tombstone_json IS NEW.payload_json)))
+        BEGIN SELECT RAISE(ABORT, 'content purged'); END;
+    `);
+  },
+};
+
+const VOICE_DEFAULTS_MIGRATION: SchemaMigration = {
+  generation: 128,
+  module: 'voice',
+  description: 'Store the Host-wide default TTS and ASR Provider every Bot falls back to',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE voice_defaults (
+        kind TEXT PRIMARY KEY CHECK (kind IN ('tts', 'asr')),
+        body TEXT NOT NULL CHECK (json_valid(body))
+      );
+    `);
+  },
+};
+
+const VOICE_SETTINGS_MIGRATION: SchemaMigration = {
+  generation: 129,
+  module: 'voice',
+  description: 'Store Host-wide voice tuning such as the speech detection threshold',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE voice_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL CHECK (json_valid(value))
+      );
+    `);
+  },
+};
+
+const CHANNEL_CHANGE_LOG_MIGRATION: SchemaMigration = {
+  generation: 130,
+  module: 'messaging',
+  description: 'Record every change to what a placed message renders in a global change log',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE channel_change_epoch (
+        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+        epoch TEXT NOT NULL,
+        floor_seq INTEGER NOT NULL DEFAULT 0
+      );
+      INSERT INTO channel_change_epoch (singleton, epoch) VALUES (1, lower(hex(randomblob(8))));
+      CREATE TABLE channel_changes (
+        seq INTEGER PRIMARY KEY AUTOINCREMENT,
+        channel_id TEXT NOT NULL,
+        message_id TEXT,
+        kind TEXT NOT NULL CHECK (kind IN ('message', 'removed', 'channel', 'read')),
+        changed_at INTEGER NOT NULL DEFAULT (CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER))
+      );
+      CREATE INDEX channel_changes_channel ON channel_changes (channel_id, seq);
+      CREATE INDEX channel_changes_changed_at ON channel_changes (changed_at);
+      CREATE INDEX source_events_reply_target
+        ON source_events (json_extract(payload_json, '$.replyTo'))
+        WHERE json_valid(payload_json) AND json_extract(payload_json, '$.replyTo') IS NOT NULL;
+      CREATE INDEX source_events_post_target
+        ON source_events (json_extract(payload_json, '$.botChannelPost.messageId'))
+        WHERE json_valid(payload_json)
+          AND json_extract(payload_json, '$.botChannelPost.messageId') IS NOT NULL;
+
+      CREATE TRIGGER channel_change_placement_insert AFTER INSERT ON channel_placements
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind)
+            VALUES (NEW.channel_id, NEW.message_id, 'message');
+          INSERT INTO channel_changes (channel_id, message_id, kind)
+            SELECT NEW.channel_id, json_extract(e.payload_json, '$.grantRequestResolution.requestMessageId'), 'message'
+              FROM source_events e
+             WHERE e.source_event_id = NEW.source_event_id AND json_valid(e.payload_json)
+               AND json_extract(e.payload_json, '$.grantRequestResolution.requestMessageId') IS NOT NULL;
+        END;
+      CREATE TRIGGER channel_change_placement_delete AFTER DELETE ON channel_placements
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind)
+            VALUES (OLD.channel_id, OLD.message_id, 'removed');
+        END;
+      CREATE TRIGGER channel_change_source_update AFTER UPDATE OF body, payload_json ON source_events
+        WHEN OLD.body IS NOT NEW.body
+          OR (CASE WHEN json_valid(OLD.payload_json)
+                THEN json_remove(OLD.payload_json, '$.feedback', '$.external.contextReads')
+                ELSE OLD.payload_json END)
+             IS NOT (CASE WHEN json_valid(NEW.payload_json)
+                THEN json_remove(NEW.payload_json, '$.feedback', '$.external.contextReads')
+                ELSE NEW.payload_json END)
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind)
+            SELECT channel_id, message_id, 'message' FROM channel_placements
+             WHERE source_event_id = NEW.source_event_id;
+          INSERT INTO channel_changes (channel_id, message_id, kind)
+            SELECT r.channel_id, r.message_id, 'message'
+              FROM channel_placements p
+              JOIN source_events re
+                ON json_valid(re.payload_json) AND json_extract(re.payload_json, '$.replyTo') = p.message_id
+              JOIN channel_placements r
+                ON r.source_event_id = re.source_event_id AND r.channel_id = p.channel_id
+             WHERE p.source_event_id = NEW.source_event_id;
+          INSERT INTO channel_changes (channel_id, message_id, kind)
+            SELECT r.channel_id, r.message_id, 'message'
+              FROM channel_placements p
+              JOIN source_events re
+                ON json_valid(re.payload_json)
+               AND json_extract(re.payload_json, '$.botChannelPost.messageId') = p.message_id
+               AND json_extract(re.payload_json, '$.botChannelPost.channelId') = p.channel_id
+              JOIN channel_placements r ON r.source_event_id = re.source_event_id
+             WHERE p.source_event_id = NEW.source_event_id;
+          INSERT INTO channel_changes (channel_id, message_id, kind)
+            SELECT p.channel_id, json_extract(x.payload, '$.grantRequestResolution.requestMessageId'), 'message'
+              FROM channel_placements p,
+                   (SELECT OLD.payload_json AS payload UNION ALL SELECT NEW.payload_json) x
+             WHERE p.source_event_id = NEW.source_event_id AND json_valid(x.payload)
+               AND json_extract(x.payload, '$.grantRequestResolution.requestMessageId') IS NOT NULL;
+        END;
+      CREATE TRIGGER channel_change_admission_insert AFTER INSERT ON inbox_admissions
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind)
+            SELECT channel_id, message_id, 'message' FROM channel_placements
+             WHERE source_event_id = NEW.source_event_id;
+        END;
+      CREATE TRIGGER channel_change_admission_update AFTER UPDATE ON inbox_admissions
+        WHEN OLD.attempt_state IS NOT NEW.attempt_state OR OLD.handled_at IS NOT NEW.handled_at
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind)
+            SELECT channel_id, message_id, 'message' FROM channel_placements
+             WHERE source_event_id = NEW.source_event_id;
+        END;
+      CREATE TRIGGER channel_change_admission_delete AFTER DELETE ON inbox_admissions
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind)
+            SELECT channel_id, message_id, 'message' FROM channel_placements
+             WHERE source_event_id = OLD.source_event_id;
+        END;
+      CREATE TRIGGER channel_change_reaction_insert AFTER INSERT ON channel_reactions
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind)
+            VALUES (NEW.channel_id, NEW.message_id, 'message');
+        END;
+      CREATE TRIGGER channel_change_reaction_delete AFTER DELETE ON channel_reactions
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind)
+            VALUES (OLD.channel_id, OLD.message_id, 'message');
+        END;
+      CREATE TRIGGER channel_change_binding_insert AFTER INSERT ON attachment_file_bindings
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind)
+            SELECT channel_id, message_id, 'message' FROM channel_placements
+             WHERE source_event_id = NEW.source_event_id;
+        END;
+      CREATE TRIGGER channel_change_binding_update AFTER UPDATE ON attachment_file_bindings
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind)
+            SELECT channel_id, message_id, 'message' FROM channel_placements
+             WHERE source_event_id = NEW.source_event_id;
+        END;
+      CREATE TRIGGER channel_change_binding_delete AFTER DELETE ON attachment_file_bindings
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind)
+            SELECT channel_id, message_id, 'message' FROM channel_placements
+             WHERE source_event_id = OLD.source_event_id;
+        END;
+      CREATE TRIGGER channel_change_request_assignment_insert AFTER INSERT ON request_assignments
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind)
+            SELECT channel_id, message_id, 'message' FROM channel_placements
+             WHERE source_event_id = NEW.request_source_event_id;
+        END;
+      CREATE TRIGGER channel_change_request_assignment_delete AFTER DELETE ON request_assignments
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind)
+            SELECT channel_id, message_id, 'message' FROM channel_placements
+             WHERE source_event_id = OLD.request_source_event_id;
+        END;
+      CREATE TRIGGER channel_change_read_insert AFTER INSERT ON channel_read_positions
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES (NEW.channel_id, NULL, 'read');
+        END;
+      CREATE TRIGGER channel_change_read_update AFTER UPDATE ON channel_read_positions
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES (NEW.channel_id, NULL, 'read');
+        END;
+      CREATE TRIGGER channel_change_record_insert AFTER INSERT ON channel_records
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES (NEW.channel_id, NULL, 'channel');
+        END;
+      CREATE TRIGGER channel_change_record_update AFTER UPDATE ON channel_records
+        WHEN (CASE WHEN json_valid(OLD.record_json)
+                THEN json_remove(OLD.record_json, '$.updatedAt') ELSE OLD.record_json END)
+          IS NOT (CASE WHEN json_valid(NEW.record_json)
+                THEN json_remove(NEW.record_json, '$.updatedAt') ELSE NEW.record_json END)
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES (NEW.channel_id, NULL, 'channel');
+        END;
+      CREATE TRIGGER channel_change_nickname_insert AFTER INSERT ON channel_human_nicknames
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES (NEW.channel_id, NULL, 'channel');
+        END;
+      CREATE TRIGGER channel_change_nickname_update AFTER UPDATE ON channel_human_nicknames
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES (NEW.channel_id, NULL, 'channel');
+        END;
+      CREATE TRIGGER channel_change_nickname_delete AFTER DELETE ON channel_human_nicknames
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES (OLD.channel_id, NULL, 'channel');
+        END;
+      CREATE TRIGGER channel_change_member_insert AFTER INSERT ON channel_human_members
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES (NEW.channel_id, NULL, 'channel');
+        END;
+      CREATE TRIGGER channel_change_member_update AFTER UPDATE ON channel_human_members
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES (NEW.channel_id, NULL, 'channel');
+        END;
+      CREATE TRIGGER channel_change_member_delete AFTER DELETE ON channel_human_members
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES (OLD.channel_id, NULL, 'channel');
+        END;
+      CREATE TRIGGER channel_change_name_insert AFTER INSERT ON local_human_names
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES ('*', NULL, 'channel');
+        END;
+      CREATE TRIGGER channel_change_name_update AFTER UPDATE ON local_human_names
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES ('*', NULL, 'channel');
+        END;
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2748,4 +3175,18 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   HUMAN_ATTENTION_CANDIDATE_INDEX_MIGRATION,
   BOT_LAN_ADMISSION_MIGRATION,
   QUESTION_MESSAGING_MIGRATION,
+  TAKEOVER_ATTENTION_INDEX_MIGRATION,
+  VOICE_PROVIDER_MIGRATION,
+  GRANT_RESOLUTION_INDEX_MIGRATION,
+  OUTPUT_REQUEST_INDEX_MIGRATION,
+  SESSION_PARENT_INDEX_MIGRATION,
+  NEEDS_REPAIR_INDEX_MIGRATION,
+  PLACEMENT_NOTICE_MIGRATION,
+  PLACEMENT_HUMAN_REPLY_MIGRATION,
+  BOUNDED_RANGE_INDEX_MIGRATION,
+  ATTENTION_RESOLUTION_INDEX_MIGRATION,
+  CAUSAL_PURGE_TOMBSTONE_MIGRATION,
+  VOICE_DEFAULTS_MIGRATION,
+  VOICE_SETTINGS_MIGRATION,
+  CHANNEL_CHANGE_LOG_MIGRATION,
 ]);

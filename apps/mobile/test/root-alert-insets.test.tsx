@@ -80,6 +80,19 @@ vi.mock('../src/ui/primitives/use-system-reduced-motion', () => ({
   useSystemReducedMotion: () => undefined,
 }));
 vi.mock('../src/ui/chat/profile-presentation', () => ({ profileScreenOptions: () => ({}) }));
+vi.mock('../src/ui/chat/call-session-host', () => ({ CallSessionHost: () => null }));
+vi.mock('../src/host/native-media-store', () => ({ nativeMediaStore: undefined }));
+vi.mock('../src/host/native-local-store', () => ({ nativeHostStoreOpener: undefined }));
+vi.mock('../src/host/native-purge-targets', () => ({ nativePurgeTargets: undefined }));
+vi.mock('../src/host/media-cache', () => ({
+  installMediaStore: () => undefined,
+  runAutoCleanup: () => undefined,
+}));
+vi.mock('../src/host/host-store', () => ({
+  installHostStoreOpener: () => undefined,
+  retryHostStoreDeletes: async () => undefined,
+}));
+vi.mock('../src/host/purge-caches', () => ({ installPurgeTargets: () => undefined }));
 vi.mock('../src/host/native-haptic-feedback', () => ({}));
 vi.mock('../src/ui/shell/channel-navigation', () => ({
   channelRouteId: () => '',

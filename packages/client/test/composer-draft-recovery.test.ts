@@ -35,13 +35,13 @@ function state() {
     [{ id: 'group', type: 'group', name: 'Group', members: [], createdAt: '', updatedAt: '' }],
   );
   client.select({ kind: 'channel', channelId: 'group' });
-  return client.getSnapshot();
+  return client;
 }
 
 describe('composer recovery integration', () => {
   it('keeps text but disables restored references until canonical validation, then warns about lost targets', async () => {
     const current = state();
-    const scope = conversationDraftKey(current)!;
+    const scope = conversationDraftKey(current.getSnapshot())!;
     new ComposerDraftStore(localStorage, 'previous-page').update(scope, {
       text: '@Gone #Gone',
       mentions: [{ botSlug: 'gone', label: 'Gone', start: 0, end: 5 }],
@@ -60,7 +60,7 @@ describe('composer recovery integration', () => {
     );
     const actions = { validateComposerDraft: validate } as unknown as BridgeActions;
     function View() {
-      const recovery = useComposerRecovery(scope, current, actions);
+      const recovery = useComposerRecovery(scope, current.getSnapshot, actions);
       return createElement(
         'div',
         { ref: recovery.mount, 'data-blocked': recovery.blocked, 'data-notice': recovery.notice },
@@ -77,7 +77,7 @@ describe('composer recovery integration', () => {
   });
   it('surfaces remote conflicts through storage events without replacing the current editor', async () => {
     const current = state();
-    const scope = conversationDraftKey(current)!;
+    const scope = conversationDraftKey(current.getSnapshot())!;
     const second = new ComposerDraftStore(localStorage, 'second-tab');
     second.read(scope);
     const actions = {
@@ -85,7 +85,7 @@ describe('composer recovery integration', () => {
     } as unknown as BridgeActions;
     let edit: (() => void) | undefined;
     function View() {
-      const recovery = useComposerRecovery(scope, current, actions);
+      const recovery = useComposerRecovery(scope, current.getSnapshot, actions);
       edit = () => {
         recovery.setEditing(true);
         recovery.update({ text: 'current editor' });

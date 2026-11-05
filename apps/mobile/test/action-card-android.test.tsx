@@ -127,6 +127,25 @@ describe('ActionCard on Android', () => {
     });
   });
 
+  it('stacks three or more decisions full width, looking through fragments', async () => {
+    const view = await mount(
+      <ActionCard category="Run failed" title="Details">
+        <CardButtons>
+          <Button label="Continue" tone="primary" onPress={() => {}} />
+          <>
+            <Button label="Compact" onPress={() => {}} />
+            <Button label="New session" onPress={() => {}} />
+          </>
+          {null}
+          <Button label="Report" onPress={() => {}} />
+        </CardButtons>
+      </ActionCard>,
+    );
+    expect(all(view, 'FlowRow')).toHaveLength(1);
+    for (const button of all(view, 'FilledTonalButton'))
+      expect(modifiers(button)).toContainEqual({ fillMaxWidth: true });
+  });
+
   it('opens Details in place and shows each argument', async () => {
     const view = await mount(
       <ActionCard

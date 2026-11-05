@@ -1,6 +1,6 @@
 import type { ChannelMessage } from './channel.js';
 
-const CHANNEL_NOTICE_FIELDS = [
+export const CHANNEL_NOTICE_FIELDS = [
   'botDmAction',
   'botCreateAction',
   'botChannelPost',
@@ -27,4 +27,16 @@ export function notChannelNoticeSql(payloadColumn: string): string {
   return CHANNEL_NOTICE_FIELDS.map(
     (field) => `json_type(${payloadColumn}, '$.${field}') IS NULL`,
   ).join(' AND ');
+}
+
+export function channelPreviewMessage<
+  T extends { deliveries?: unknown; humanReceipts?: unknown; reactions?: unknown },
+>(message: T): Omit<T, 'deliveries' | 'humanReceipts' | 'reactions'> {
+  const {
+    deliveries: _deliveries,
+    humanReceipts: _receipts,
+    reactions: _reactions,
+    ...preview
+  } = message;
+  return preview;
 }

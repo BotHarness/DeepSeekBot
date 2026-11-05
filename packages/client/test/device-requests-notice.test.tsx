@@ -67,3 +67,33 @@ it('shows a persistent request entry without opening a modal; closing leaves the
     vi.unstubAllGlobals();
   }
 });
+
+it('polls pairing requests once for every mounted notice and stops with the last one', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  vi.useFakeTimers();
+  const fetcher = vi.fn<typeof fetch>(async () => Response.json({ pendingKeys: [] }));
+  vi.stubGlobal('fetch', fetcher);
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  try {
+    await act(async () =>
+      root.render(
+        <>
+          <DeviceRequestsNotice t={t} />
+          <DeviceRequestsNotice t={t} />
+        </>,
+      ),
+    );
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    await act(async () => vi.advanceTimersByTimeAsync(3_000));
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    await act(async () => root.unmount());
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  } finally {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    host.remove();
+  }
+});

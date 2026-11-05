@@ -250,8 +250,10 @@ describe('private input committed attention and admission', () => {
         privateInputRequest: { ...declaration, sessionId: 'lost-session' },
       });
       const replacement = f.replacement();
+      const scanned = vi.spyOn(f.core.channels, 'queryMessages');
       try {
         await replacement.recover();
+        expect(scanned).not.toHaveBeenCalled();
         expect(replacement.status(a.channelId, lostId)).toBe('expired');
         expect(f.core.humanAttention.actionSummary().count).toBe(0);
         const expired = f.core.channels.message(a.channelId, 'private-resolution-' + lostId)!;

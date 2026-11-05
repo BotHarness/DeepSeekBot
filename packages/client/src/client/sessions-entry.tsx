@@ -4,7 +4,13 @@ import type { SessionsState } from './store.js';
 import { useState, useSyncExternalStore, type ReactElement } from 'react';
 
 import * as stylex from '@stylexjs/stylex';
-import { Tag, type MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives';
+import {
+  Checkbox,
+  IconStopFillRegular,
+  Tag,
+  type MenuEntry,
+} from '@deepseek-ai/dsh-client-ui-primitives';
+import { ConfirmDialog } from './ds/form-dialog.js';
 import { Tooltip } from './ds/tooltip.js';
 
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
@@ -90,6 +96,7 @@ function useSessionViewPreference(botSlug: string) {
 
 function SessionsPanel({
   botSlug,
+  channelId,
   actions,
   t,
   nativeSessions,
@@ -99,6 +106,7 @@ function SessionsPanel({
   assignmentLimit?: number | undefined;
 }): ReactElement {
   const [archiving, setArchiving] = useState<string>();
+  const [stopping, setStopping] = useState<ReadonlySet<string>>(() => new Set());
   const [subagentsOpen, setSubagentsOpen] = useState<ReadonlySet<string>>(() => new Set());
   const toggleSubagents = (sessionId: string): void =>
     setSubagentsOpen((current) => {
@@ -107,6 +115,8 @@ function SessionsPanel({
       return next;
     });
   const [archiveError, setArchiveError] = useState<string>();
+  const [confirmStop, setConfirmStop] = useState<{ sessionId: string; title: string }>();
+  const [stopAll, setStopAll] = useState(false);
   const [work, setWork] = useState<{ sessionId: string; title: string }>();
   const groupBot = useClientStore((state) => state.conversation.channel?.type === 'group');
   const sessions = useClientStore((state) => state.sessions);
@@ -174,6 +184,29 @@ function SessionsPanel({
     idle: t('sessions.status.idle'),
     unavailable: t('sessions.status.unavailable'),
   } as const;
+  const runningAssignments = personaBotSessionRows(owned.items, native.byId, 'all').filter(
+    (row) => row.role === 'assignment' && row.status === 'running',
+  ).length;
+  const runStop = (slug: string, sessionId: string, all: boolean): void => {
+    setStopping((current) => new Set(current).add(sessionId));
+    setArchiveError(undefined);
+    const stop =
+      all && channelId !== undefined
+        ? actions.stopBot(channelId, slug)
+        : actions.stopSession(slug, sessionId, channelId);
+    void Promise.resolve(stop)
+      .catch((error: unknown) =>
+        setArchiveError(error instanceof Error ? error.message : String(error)),
+      )
+      .finally(() => {
+        setStopping((current) => {
+          const next = new Set(current);
+          next.delete(sessionId);
+          return next;
+        });
+        setReload((value) => value + 1);
+      });
+  };
   const renderRow = (
     row: PersonaBotSessionRow,
     showWorkspace: boolean,
@@ -185,6 +218,9 @@ function SessionsPanel({
       row.subagentCount === undefined || botSlug === undefined ? undefined : row.subagentCount;
     const subagentsExpanded = subagents !== undefined && subagentsOpen.has(row.sessionId);
     const workable = row.role === 'assignment' && botSlug !== undefined;
+    const locallyStopping = stopping.has(row.sessionId);
+    const status = locallyStopping ? 'stopping' : row.status;
+    const stoppable = botSlug !== undefined && (status === 'running' || status === 'stopping');
     const archivable = !(
       row.role !== 'assignment' ||
       row.section === 'working' ||
@@ -216,7 +252,7 @@ function SessionsPanel({
         title={row.title}
         hint={[row.description, row.cwd].filter(Boolean).join('\n') || undefined}
         mainClassName="bh-session-row"
-        state={row.status}
+        state={status}
         muted={native.byId[row.sessionId] === undefined}
         disabled={native.byId[row.sessionId] === undefined}
         onClick={() => void actions.openSession(row.sessionId)}
@@ -227,11 +263,11 @@ function SessionsPanel({
             <Tag tone={row.needs === 'error' || row.needs === 'failed' ? 'danger' : 'warning'}>
               {t(`sessions.needs.${row.needs}`)}
             </Tag>
-          ) : implied === 'any' || row.status === implied ? undefined : (
-            <Tag tone={STATUS_TONE[row.status]}>{statusLabel[row.status]}</Tag>
+          ) : implied === 'any' || status === implied ? undefined : (
+            <Tag tone={STATUS_TONE[status]}>{statusLabel[status]}</Tag>
           )
         }
-        {...(!archivable && !workable && subagents === undefined
+        {...(!archivable && !workable && !stoppable && subagents === undefined
           ? {}
           : {
               trailing: (
@@ -252,6 +288,24 @@ function SessionsPanel({
                       t={t}
                     />
                   )}
+                  {stoppable ? (
+                    <Tooltip label={t('sessions.stop')} side="top" portal delayMs={400}>
+                      <IconButton
+                        size="inline"
+                        data-session-stop=""
+                        disabled={status === 'stopping'}
+                        aria-label={t('sessions.stopNamed', { title: row.title })}
+                        onClick={() => {
+                          if (row.role === 'orchestrator' && runningAssignments > 0) {
+                            setStopAll(false);
+                            setConfirmStop({ sessionId: row.sessionId, title: row.title });
+                          } else runStop(botSlug, row.sessionId, false);
+                        }}
+                      >
+                        <IconStopFillRegular size={12} />
+                      </IconButton>
+                    </Tooltip>
+                  ) : null}
                   {archivable ? (
                     <Tooltip
                       label={t(row.archived === true ? 'sessions.unarchive' : 'sessions.archive')}
@@ -448,6 +502,25 @@ function SessionsPanel({
           })
         )}
       </div>
+      {confirmStop === undefined || botSlug === undefined ? null : (
+        <ConfirmDialog
+          title={t('sessions.stopOrchestratorTitle', { title: confirmStop.title })}
+          description={t('sessions.stopOrchestratorBody')}
+          labels={{ close: t('common.close'), cancel: t('common.cancel') }}
+          confirmLabel={t('sessions.stop')}
+          onCancel={() => setConfirmStop(undefined)}
+          onConfirm={() => {
+            setConfirmStop(undefined);
+            runStop(botSlug, confirmStop.sessionId, stopAll);
+          }}
+        >
+          <Checkbox
+            checked={stopAll}
+            onChange={setStopAll}
+            label={t('sessions.stopAlsoAssignments', { count: runningAssignments })}
+          />
+        </ConfirmDialog>
+      )}
       {work === undefined || botSlug === undefined ? null : (
         <AssignmentWorkDialog
           actions={actions}
