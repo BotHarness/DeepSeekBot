@@ -1165,8 +1165,8 @@ const en = {
   activityClearAllItems: 'Clear all items',
   activityClearKind: (kind: string) => `Clear ${kind}`,
   activityClearAllTitle: 'Clear all items?',
-  activityClearManyTitle:
-    'Clear from Activity? Unread conversations are marked read. Nothing is deleted; you can restore items from Cleared.',
+  activityClearAllBody:
+    'Unread conversations are marked read. Nothing is deleted; you can restore items from Cleared.',
   activityClearedCount: (count: number) =>
     count === 1 ? 'Cleared 1 item' : `Cleared ${count} items`,
   activityClearedMore: (count: number) => `Cleared ${count} items. Clear again for the rest.`,
@@ -3387,8 +3387,7 @@ const zh: typeof en = {
   activityClearAllItems: '清理全部条目',
   activityClearKind: (kind: string) => `清理「${kind}」`,
   activityClearAllTitle: '清理全部条目？',
-  activityClearManyTitle:
-    '从活动中清理？未读会话会标为已读。不会删除任何内容，可在「已清理」中恢复。',
+  activityClearAllBody: '未读会话会标为已读。不会删除任何内容，可在「已清理」中恢复。',
   activityClearedCount: (count: number) => `已清理 ${count} 条`,
   activityClearedMore: (count: number) => `已清理 ${count} 条，再清理一次可处理剩余条目。`,
   activitySnoozedNotice: (time: string) => `已延后到 ${time}`,

@@ -1032,7 +1032,7 @@ const ActivityPage = memo(function ActivityPage({
       else if (key === 'clear:')
         confirmDestructive(
           t.activityClearAllTitle,
-          t.activityClearManyTitle,
+          t.activityClearAllBody,
           t.activityClearAllItems,
           () => void clearMany(undefined),
         );

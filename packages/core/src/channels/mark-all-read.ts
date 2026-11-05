@@ -36,10 +36,12 @@ export async function markAllHumanMessagesRead(
   let channels = 0;
   for (const head of heads) {
     if (!visible(head.channelId)) continue;
+    const before = store.readPosition(head.channelId);
     const position = await store.markRead(head.channelId, head.messageId);
     if (position === undefined && visible(head.channelId))
       throw new Error('Channel read position could not be confirmed');
-    if (position !== undefined) channels++;
+    if (position !== undefined && (before === undefined || position.revision > before.revision))
+      channels++;
   }
   return { channels };
 }

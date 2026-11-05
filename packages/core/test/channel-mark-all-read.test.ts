@@ -153,6 +153,13 @@ it("marks only the chosen Channel, or only the chosen Bot's Channels", async () 
     });
     expect(core.channels.readPosition(ada.id)).toBeDefined();
     expect(core.channels.readPosition(team.id)?.messageId).toBe('head-' + team.id);
+    expect(await methods.channelMarkAllRead({ botSlug: 'ada' })).toEqual({
+      ok: true,
+      value: { channels: 0 },
+    });
+    expect(await methods.channelMarkAllRead({ channelId: 'grp-missing' })).toMatchObject({
+      ok: false,
+    });
     expect(await methods.channelMarkAllRead({ channelId: '../x' })).toMatchObject({
       ok: false,
       error: { code: 'invalid-input' },

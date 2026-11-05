@@ -6025,6 +6025,8 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         return invalidInput('invalid Channel filter');
       if (botSlug !== undefined && (typeof botSlug !== 'string' || !isValidSlug(botSlug)))
         return invalidInput('invalid Bot filter');
+      if (channelId !== undefined && deps.channels.get(channelId as string) === undefined)
+        return unknownChannel(channelId as string);
       try {
         return {
           ok: true,
