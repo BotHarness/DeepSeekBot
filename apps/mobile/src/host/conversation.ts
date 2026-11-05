@@ -1220,8 +1220,8 @@ export function createConversation(options: ConversationOptions): Conversation {
       draftTimer = undefined;
     },
     async loadOlder() {
-      if (loadingOlderSession === session || !hasOlder || window.length === 0 || fromCache) return;
-      if (status !== 'live') return;
+      if (loadingOlderSession === session || !hasOlder || window.length === 0) return;
+      const offline = fromCache || status !== 'live';
       const current = session;
       const before = first();
       const generation = windowGeneration;
@@ -1243,6 +1243,7 @@ export function createConversation(options: ConversationOptions): Conversation {
           hasOlder = local.hasOlder;
           return;
         }
+        if (offline) return;
         const page = await readPage(last(), before, olderPageSize);
         if (stale()) return;
         const entries = page.entries.filter((entry) => entry.revision < before);

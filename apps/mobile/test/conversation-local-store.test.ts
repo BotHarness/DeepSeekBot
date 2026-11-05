@@ -630,3 +630,33 @@ describe('older history in the local store', () => {
     );
   });
 });
+
+describe('reading synced conversations offline', () => {
+  it('opens a synced conversation and its older history without the Host, then catches up once', async () => {
+    const host = new FakeHost();
+    const path = file();
+    const channel = fill(host, 1, 120);
+    const synced = await session(host, path);
+    await scrollToTop(synced.conversation);
+    await settle(synced.cache);
+    host.kill();
+    const offline = await session(host, path);
+    const cached = await until(offline.conversation, (s) => s.messages.length > 0);
+    expect(cached.messages.at(-1)?.id).toBe('m120');
+    for (let tries = 0; tries < 20 && offline.conversation.getSnapshot().hasOlder; tries += 1)
+      await offline.conversation.loadOlder();
+    const all = offline.conversation.getSnapshot();
+    expect(all.messages).toHaveLength(120);
+    expect(all.hasOlder).toBe(false);
+    channel.edit('m3', { body: 'edited while offline' });
+    channel.append({ id: 'm121', body: 'new while offline', author: { kind: 'human' } }, false);
+    host.restart();
+    const live = await until(
+      offline.conversation,
+      (s) => s.status === 'live' && s.messages.some((message) => message.id === 'm121'),
+    );
+    expect(bodies(live)).toMatchObject({ m3: 'edited while offline', m121: 'new while offline' });
+    expect(live.messages.filter((message) => message.id === 'm121')).toHaveLength(1);
+    expect(new Set(live.messages.map((message) => message.id)).size).toBe(live.messages.length);
+  });
+});
