@@ -125,6 +125,10 @@ export interface AttachmentRef {
   size: number;
   fileId?: string;
   hash?: string;
+  version?: string;
+  width?: number;
+  height?: number;
+  thumbhash?: string;
 }
 
 export interface JournalEntry {

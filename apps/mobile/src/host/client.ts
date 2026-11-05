@@ -131,6 +131,7 @@ export interface RemoteSource {
   read?: (signal: AbortSignal) => Promise<{ bytes: Uint8Array; mime: string }>;
   uri: string;
   headers: Record<string, string>;
+  cacheKey?: string;
 }
 
 export interface StreamHandlers {

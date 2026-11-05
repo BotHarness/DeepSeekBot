@@ -203,6 +203,8 @@ import { createBotAvatarHttp, botAvatarUrl, BOT_AVATAR_PATH } from './bots/avata
 import { BOT_BANNER_PATH, createBotBannerHttp } from './bots/banner-http.js';
 import { coalesce } from './runtime/coalesce.js';
 import { watchHumanAttention } from './runtime/human-attention-live.js';
+import { createMediaVersions, type MediaVersions } from './attachments/media-versions.js';
+import { loadImageProcessor } from './attachments/thumbnails.js';
 import { createChannelLiveHub, CHANNEL_STREAM_PATH, type ChannelLiveHub } from './channels/live.js';
 import type { ChannelDraftEvent } from './channels/draft.js';
 import { DeveloperModeSkillGate } from './logs/skill.js';
@@ -527,6 +529,7 @@ export interface BotHarnessCore {
   messagePerf: MessagePerfTracker;
   channels: ChannelStore;
   attachments: AttachmentStore;
+  mediaVersions: MediaVersions;
   live: ChannelLiveHub;
   companions: CompanionFeed;
   roster: RosterStore;
@@ -742,6 +745,7 @@ export function createCore(
   const attachments = createAttachmentStore({
     rootDir: join(dshHome, 'botharness', 'attachments'),
   });
+  const mediaVersions = createMediaVersions(attachments, () => loadImageProcessor(options.warn));
   const contentPurge = mountContentPurge({
     dshHome,
     database: operationalDatabase,
@@ -826,6 +830,7 @@ export function createCore(
       return bot !== undefined && bot.paused !== true;
     },
     attachments,
+    mediaVersions,
     botDisplayName: (botSlug) => registry.getHistorical(botSlug)?.displayName,
     rootDir: join(dshHome, 'botharness', 'channels'),
     onCommitted: (commit) => {
@@ -1301,6 +1306,7 @@ export function createCore(
     humanAttention,
     humanAttentionDecisions,
     attachments,
+    mediaVersions,
     live,
     companions,
     roster,
@@ -3517,6 +3523,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         return downloaded;
       },
       (input) => core.externalMessaging.readChannelMedia(input),
+      core.mediaVersions,
     );
     connectionCtx.effect(
       () =>
