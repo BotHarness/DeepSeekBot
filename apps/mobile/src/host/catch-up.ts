@@ -56,9 +56,12 @@ export function createCatchUp(options: CatchUpOptions) {
       [JSON.stringify([...live])],
     );
     const queue = rows.filter((row) => row.live === 0).map((row) => row.channel_id);
+    let stopped = false;
     const worker = async () => {
       for (let channelId = queue.shift(); channelId !== undefined; channelId = queue.shift()) {
-        if (await constrained()) {
+        const limited = await constrained();
+        if (stopped || limited) {
+          stopped = true;
           queue.length = 0;
           return;
         }

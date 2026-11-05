@@ -8,10 +8,8 @@ const battery = vi.hoisted(() => ({
   lowPower: false,
   level: 0.5,
   state: 1,
-  broken: false,
 }));
 vi.mock('expo-battery', () => {
-  if (battery.broken) throw new Error('native module missing');
   return {
     BatteryState: { UNKNOWN: 0, UNPLUGGED: 1, CHARGING: 2, FULL: 3 },
     isLowPowerModeEnabledAsync: async () => battery.lowPower,
@@ -23,7 +21,7 @@ vi.mock('expo-battery', () => {
 const stores: LocalStore[] = [];
 afterEach(async () => {
   for (const store of stores.splice(0)) await store.close();
-  Object.assign(battery, { lowPower: false, level: 0.5, state: 1, broken: false });
+  Object.assign(battery, { lowPower: false, level: 0.5, state: 1 });
   vi.resetModules();
 });
 
@@ -80,6 +78,24 @@ describe('catch-up power gate', () => {
     expect(calls).toHaveLength(1);
   });
 
+  it('does not pull once another worker has seen the constraint', async () => {
+    const store = await storeWith(['c1', 'c2', 'c3', 'c4']);
+    const calls: string[] = [];
+    let checks = 0;
+    await createCatchUp({
+      store: async () => store,
+      concurrency: 2,
+      constrained: async () => {
+        checks += 1;
+        if (checks === 1) return false;
+        if (checks === 2) return true;
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        return false;
+      },
+    }).sync(host(calls));
+    expect(calls).toEqual([]);
+  });
+
   it('keeps going when the power check fails', async () => {
     const store = await storeWith(['c1', 'c2']);
     const calls: string[] = [];
@@ -108,10 +124,16 @@ describe('native power reading', () => {
     expect(await read()).toBe(false);
   });
 
-  it('is not constrained when the level is unknown or the module is missing', async () => {
+  it('is not constrained when the level is unknown', async () => {
     battery.level = -1;
     expect(await read()).toBe(false);
-    battery.broken = true;
+  });
+
+  it('is not constrained when the native module is missing', async () => {
+    battery.lowPower = true;
+    vi.doMock('expo-battery', () => {
+      throw new Error('native module missing');
+    });
     vi.resetModules();
     expect(await read()).toBe(false);
   });
