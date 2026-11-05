@@ -960,8 +960,9 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     audioMs: number,
     segmentedSamples: number,
     grid: GridJob | undefined,
-    gated = false,
+    gate: 'words' | 'filler' | undefined = undefined,
   ) => {
+    const gated = gate === 'words';
     const stream = call.stream;
     const segments = call.segments;
     call.stream = undefined;
@@ -1012,6 +1013,11 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       }
       const asrMs = now() - started;
       if (ended(call)) return;
+      if (gate === 'filler' && contentWords(text, deps.bot(call.slug)?.asr?.language) === 0) {
+        restoreGrid(call, grid);
+        dismiss(call, 'filler');
+        return;
+      }
       if (gated) {
         if (contentWords(text, deps.bot(call.slug)?.asr?.language) < barge.confirmWords) {
           restoreGrid(call, grid);
@@ -1234,7 +1240,10 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
   };
 
   const confirm = (call: Call, by: 'duration' | 'words') => {
-    if (by === 'duration') call.barge = { state: 'confirmed' };
+    if (by === 'duration') {
+      call.barge = { state: 'confirmed' };
+      call.vad.linger(barge.pauseMs);
+    }
     const stopped = [...call.replies];
     call.ackStop?.abort();
     for (const reply of stopped) interrupt(call, reply);
@@ -1609,17 +1618,18 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         if (suspected) dismiss(call, 'ended');
       } else {
         const suspected = call.barge?.state === 'suspected';
+        const confirmed = call.barge?.state === 'confirmed';
         const gated = suspected && talking(call);
         call.barge = undefined;
         if (suspected && !gated) setGain(call, 1);
-        if (!gated) acknowledge(call);
+        if (!gated && !confirmed) acknowledge(call);
         transcribe(
           call,
           event.pcm,
           event.endMs - event.startMs,
           event.segmentedSamples,
           takeGrid(call),
-          gated,
+          gated ? 'words' : suspected ? 'filler' : undefined,
         );
       }
     }

@@ -48,6 +48,7 @@ export interface Vad {
   push(samples: Int16Array): VadEvent[];
   reset(): void;
   raise(db: number): void;
+  linger(ms: number): void;
   timeMs(): number;
   readonly speaking: boolean;
 }
@@ -104,6 +105,7 @@ export function createVad(options: VadOptions = {}): Vad {
   const periodicityNeeded = options.periodicity ?? 0.55;
   const marks = [...new Set((options.voicedMarksMs ?? []).map(frames))].sort((a, b) => a - b);
   let raised = 0;
+  let lingerFrames = 0;
   const segmentSilence =
     options.segmentSilenceMs === undefined ? undefined : frames(options.segmentSilenceMs);
   const minSegmentVoiced = frames(options.minSegmentVoicedMs ?? 200);
@@ -135,6 +137,7 @@ export function createVad(options: VadOptions = {}): Vad {
     voiced = 0;
     activeRun = 0;
     quiet = 0;
+    lingerFrames = 0;
   };
 
   const join = (parts: Int16Array[]) => {
@@ -226,7 +229,8 @@ export function createVad(options: VadOptions = {}): Vad {
       return;
     }
     if (options.stream === true) events.push({ type: 'audio', pcm: samples });
-    if (quiet < endSilence && segmentSilence !== undefined) {
+    const ending = Math.max(endSilence, lingerFrames);
+    if (quiet < ending && segmentSilence !== undefined) {
       const pause = !paused && quiet >= segmentSilence;
       if (pause && segmentVoiced >= minSegmentVoiced) {
         const end = Math.min(current.length, lastActive - startFrame + 1 + tail);
@@ -243,7 +247,7 @@ export function createVad(options: VadOptions = {}): Vad {
       }
       if (pause) paused = true;
     }
-    if (quiet >= endSilence) {
+    if (quiet >= ending) {
       finish(events, false);
       history = [];
       return;
@@ -261,6 +265,9 @@ export function createVad(options: VadOptions = {}): Vad {
     timeMs: () => frameIndex * FRAME_MS,
     raise(db) {
       raised = Number.isFinite(db) && db > 0 ? db : 0;
+    },
+    linger(ms) {
+      if (state !== 'silence') lingerFrames = Math.max(lingerFrames, frames(ms));
     },
     push(samples) {
       const events: VadEvent[] = [];

@@ -32,6 +32,7 @@ export interface VoiceCallBargeIn {
   readonly echoGuardMs: number;
   readonly echoDelayMs: number;
   readonly echoGuardDb: number;
+  readonly pauseMs: number;
 }
 
 export const VOICE_CALL_BARGE_IN: VoiceCallBargeIn = {
@@ -42,6 +43,7 @@ export const VOICE_CALL_BARGE_IN: VoiceCallBargeIn = {
   echoGuardMs: 300,
   echoDelayMs: 200,
   echoGuardDb: 14,
+  pauseMs: 1_200,
 };
 export interface VoiceCallMediaStats {
   readonly uplinkPackets: number;
