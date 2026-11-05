@@ -531,6 +531,7 @@ function ChatConversation({
   const focusPage = useRef<string | undefined>(undefined);
   const focusCancelled = useRef(false);
   const focusNeedsLayout = useRef(false);
+  const focusHasLiveLayout = useRef(false);
   const focusEstimate = useRef<string | undefined>(undefined);
   const focusAttempt = useRef<
     { message: string; request: string | undefined; index: number } | undefined
@@ -549,6 +550,7 @@ function ChatConversation({
       const attempt = focusAttempt.current;
       if (
         android &&
+        focusHasLiveLayout.current &&
         attempt !== undefined &&
         !focusCancelled.current &&
         attempt.message === focusIntent.current.message &&
@@ -830,6 +832,7 @@ function ChatConversation({
       focusPage.current = undefined;
       focusCancelled.current = false;
       focusNeedsLayout.current = false;
+      focusHasLiveLayout.current = false;
       focusEstimate.current = undefined;
       focusAttempt.current = undefined;
     }
@@ -1794,6 +1797,11 @@ function ChatConversation({
                       onContentSizeChange={(width: number, height: number) => {
                         latest.listProps.onContentSizeChange(width, height);
                         focusNeedsLayout.current = false;
+                        if (positioningFocus && !focusCancelled.current) {
+                          focusHasLiveLayout.current =
+                            snapshot.status === 'live' && !snapshot.fromCache;
+                          jumped.current = undefined;
+                        }
                         jump();
                       }}
                       scrollEventThrottle={Platform.OS === 'android' && !latest.ready ? 16 : 32}

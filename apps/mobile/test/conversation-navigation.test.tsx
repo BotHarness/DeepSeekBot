@@ -488,6 +488,61 @@ it('lets notification focus own Android positioning across cached-to-live layout
   }
 });
 
+it('keeps Android notification positioning pending when viewability precedes live content layout', async () => {
+  const previousOS = Platform.OS;
+  Object.assign(Platform, { OS: 'android' });
+  try {
+    state.active = true;
+    state.conversation.status = 'opening';
+    state.conversation.fromCache = true;
+    state.conversation.messages = [
+      {
+        id: 'notification',
+        at: '2026-11-05T04:00:00Z',
+        author: 'human',
+        body: 'notification',
+        attachments: [],
+        delivery: 'committed',
+      },
+    ];
+    const place: ChatPlace = { kind: 'dm', slug: 'ada' };
+    await render(place);
+    await act(async () =>
+      root!.render(<ConversationScreen place={place} focus="notification" focusRequest="tap-1" />),
+    );
+    const target = nativeList.rows.find((row) => row.message?.id === 'notification')!;
+    await act(async () =>
+      nativeList.events.onViewableItemsChanged?.({
+        viewableItems: [{ item: target, isViewable: true }],
+      }),
+    );
+    expect(nativeList.events.maintainVisibleContentPosition).toBeUndefined();
+    nativeList.scrollToIndex.mockClear();
+    state.conversation.status = 'live';
+    state.conversation.fromCache = false;
+    await act(async () =>
+      root!.render(<ConversationScreen place={place} focus="notification" focusRequest="tap-1" />),
+    );
+    await act(async () => nativeList.events.onContentSizeChange?.(406.67, 1266));
+    expect(nativeList.scrollToIndex).toHaveBeenCalled();
+    expect(nativeList.rows[nativeList.scrollToIndex.mock.lastCall![0].index]?.message?.id).toBe(
+      'notification',
+    );
+    expect(nativeList.events.maintainVisibleContentPosition).toBeUndefined();
+    await act(async () =>
+      nativeList.events.onViewableItemsChanged?.({
+        viewableItems: [{ item: target, isViewable: true }],
+      }),
+    );
+    expect(nativeList.events.maintainVisibleContentPosition).toBeDefined();
+    nativeList.scrollToIndex.mockClear();
+    await act(async () => nativeList.events.onContentSizeChange?.(406.67, 1400));
+    expect(nativeList.scrollToIndex).not.toHaveBeenCalled();
+  } finally {
+    Object.assign(Platform, { OS: previousOS });
+  }
+});
+
 it('returns anchor ownership to a user drag while an explicit Android focus is pending', async () => {
   const previousOS = Platform.OS;
   Object.assign(Platform, { OS: 'android' });
@@ -510,6 +565,9 @@ it('returns anchor ownership to a user drag while an explicit Android focus is p
       }),
     );
     expect(nativeList.events.maintainVisibleContentPosition).toBeDefined();
+    nativeList.scrollToIndex.mockClear();
+    await act(async () => nativeList.events.onContentSizeChange?.(406.67, 2200));
+    expect(nativeList.scrollToIndex).not.toHaveBeenCalled();
     await act(async () =>
       root!.render(<ConversationScreen place={place} focus="not-loaded" focusRequest="tap-2" />),
     );
