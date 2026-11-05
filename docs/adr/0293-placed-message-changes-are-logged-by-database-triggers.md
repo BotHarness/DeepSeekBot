@@ -12,7 +12,7 @@ A client that caches a conversation tail must learn what changed while it was cl
 
 The Host keeps one global, monotonic change log, `channel_changes(seq, channel_id, message_id, kind)`, and an epoch row. SQLite triggers on every table that feeds the message projection append rows inside the same transaction as the write: placements (insert, delete), `source_events` (body or payload, ignoring the unrendered `$.feedback` and `$.external.contextReads`), `inbox_admissions` (rendered state), reactions, attachment bindings, request assignments, read positions, Channel records (ignoring `updatedAt`), nicknames, members and the Human's default name. Triggers also fan out to messages whose rendering depends on another message: replies (`$.replyTo`), Bot-post notices (`$.botChannelPost`) and grant requests. Code adds rows only for what the database cannot see: an edited original file, and a restored profile, which rotates the epoch. A test fails when a projection table has no trigger.
 
-`channelChanges` returns the current projection of the changed messages, purged ones as tombstones, removed ids, Channel-level and read flags, and the next cursor, paged by change rows. A different epoch, a cursor above the head or below the pruned floor returns `reset`. The newest 200,000 rows are kept.
+`channelChanges` returns the current projection of the changed messages, purged ones as tombstones, removed ids, Channel-level and read flags, and the next cursor, paged by change rows. A different epoch, a cursor above the head or below the pruned floor returns `reset`. Rows older than 30 days are deleted at Host startup, and the floor rises to the newest deleted row.
 
 ## Consequences
 
