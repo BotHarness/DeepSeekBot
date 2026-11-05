@@ -17,6 +17,7 @@ import { APPEARANCE_CONTROL_PATH, createAppearanceControl } from './appearance/c
 import { VoiceProviders } from './voice/providers.js';
 import { createVoiceMessages, type VoiceMessages } from './voice/messages.js';
 import { createVoiceCalls, type VoiceCallMedia, type VoiceCalls } from './voice/calls.js';
+import { withVoiceDefaults } from './voice/defaults.js';
 import { voiceCallRecordBody } from './channels/voice-call-record.js';
 import { VOICE_CALL_PATH } from './voice/call-contract.js';
 import { createVoiceCallHttp } from './voice/call-http.js';
@@ -324,7 +325,8 @@ import {
 } from './runtime/assignment-tail.js';
 import type { DshSessionEvent, DshSessionStore } from './sessions/source.js';
 import { turnProgress } from './bots/tool-trace.js';
-import type { SessionFailureProgress } from './channels/channel.js';
+import type { ChannelCallVisual, SessionFailureProgress } from './channels/channel.js';
+import type { ChannelAttachmentRef } from './attachments/ref.js';
 import { DEFAULT_BOT_HOP_LIMIT, isBotHopLimit } from './channels/channel.js';
 import {
   createBotStateTracker,
@@ -400,7 +402,9 @@ export interface CompactionRefreshSink {
   memory: {
     refreshPersonaAfterCompaction(botSlug: string, sessionId: string): { refreshed: boolean };
   };
-  prompts?: { refreshAfterCompaction(sessionId: string): { refreshed: boolean } };
+  prompts?: {
+    refreshAfterCompaction(sessionId: string): { refreshed: boolean };
+  };
   warn(message: string): void;
 }
 
@@ -543,6 +547,7 @@ export interface BotHarnessCore {
   voiceProviders: VoiceProviders;
   voiceMessages: VoiceMessages;
   voiceSpeech: { speak?: Parameters<typeof createVoiceMessages>[0]['speak'] };
+  voiceZoom: { zoom?: VoiceCalls['zoom'] | undefined };
   cloudWork?: CloudWork;
   toolRules: ToolApprovalRuleStore;
   assignmentAccess: AssignmentAccessStore;
@@ -677,7 +682,12 @@ export function createCore(
         for (const slot of Object.keys(PART_SLOTS) as PartSlot[]) {
           const part = wornAvatarPart(recipe, slot);
           if (part)
-            partLibrary.add({ part, name: '', origin: 'imported-bot', author: record.displayName });
+            partLibrary.add({
+              part,
+              name: '',
+              origin: 'imported-bot',
+              author: record.displayName,
+            });
         }
       },
       onDisplayNameChanged: () => {
@@ -901,7 +911,10 @@ export function createCore(
         humanAttention.durableAttention().filter((row) => registry.get(row.botSlug) !== undefined),
       );
     refreshDurableAttention();
-    const durableAttention = coalesce(refreshDurableAttention, { delayMs: 100, maxWaitMs: 500 });
+    const durableAttention = coalesce(refreshDurableAttention, {
+      delayMs: 100,
+      maxWaitMs: 500,
+    });
     states.syncDurableAttentionWith(durableAttention.flush);
     onOperationalDatabaseClose(operationalDatabase, () => {
       states.syncDurableAttentionWith(() => {});
@@ -1035,7 +1048,9 @@ export function createCore(
     ...(options.warn === undefined ? {} : { log: options.warn }),
   });
   const zipImports = createBotZipImport({
-    uploads: createBotZipUploads({ rootDir: join(dshHome, 'botharness', 'zip-uploads') }),
+    uploads: createBotZipUploads({
+      rootDir: join(dshHome, 'botharness', 'zip-uploads'),
+    }),
     imports: createBotImports(creations),
     registry,
     log: (event) => options.warn?.(JSON.stringify(event)),
@@ -1090,17 +1105,24 @@ export function createCore(
     ...(options.voiceFetch === undefined ? {} : { fetch: options.voiceFetch }),
     ...(options.voiceLog === undefined ? {} : { log: options.voiceLog }),
   });
-  const voiceSpeech: { speak?: Parameters<typeof createVoiceMessages>[0]['speak'] } = {};
+  const voiceSpeech: {
+    speak?: Parameters<typeof createVoiceMessages>[0]['speak'];
+  } = {};
   const voiceMessages = createVoiceMessages({
     providers: voiceProviders,
-    bot: (slug) => registry.get(slug),
+    bot: (slug) => withVoiceDefaults(registry.get(slug), () => voiceProviders.defaults()),
     channels,
     attachments: () => attachments,
     speak: async (input) => voiceSpeech.speak?.(input),
     ...(options.voiceLog === undefined ? {} : { log: options.voiceLog }),
   });
+  const voiceZoom: { zoom?: VoiceCalls['zoom'] | undefined } = {};
   runtime = createBotRuntime({
     voiceMessages,
+    callFrames: {
+      zoom: (input) =>
+        voiceZoom.zoom?.(input) ?? { released: true, messageId: input.messageId, cell: input.cell },
+    },
     ...(options.botNetwork === undefined ? {} : { botNetwork: options.botNetwork }),
     ...(options.readTurnProgress === undefined
       ? {}
@@ -1226,6 +1248,7 @@ export function createCore(
     voiceProviders,
     voiceMessages,
     voiceSpeech,
+    voiceZoom,
     prompts,
     deletions,
     profileRecovery,
@@ -1299,7 +1322,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     profile === undefined ? [] : [profile.installAnchor, join(profile.dir, 'package.json')];
   installedPackage.identity(releaseAnchors);
   const dshHome = resolveDshHome();
-  applyPendingDataReset({ dshHome, home: homedir(), log: (message) => ctx.logger.info(message) });
+  applyPendingDataReset({
+    dshHome,
+    home: homedir(),
+    log: (message) => ctx.logger.info(message),
+  });
   mountClientDiagnostics(ctx, dshHome);
   let clientIssues: ClientIssueReporter | undefined;
   const diagnosticEvents = mountDiagnosticLog(ctx, {
@@ -1343,10 +1370,17 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   deliverPendingExceptions(telemetry, telemetryDir);
   if (telemetryState.lockedBy === undefined)
     ctx.effect(
-      () => installExceptionCapture({ dataDir: telemetryDir, enabled: () => telemetry.enabled }),
+      () =>
+        installExceptionCapture({
+          dataDir: telemetryDir,
+          enabled: () => telemetry.enabled,
+        }),
       'botharness: telemetry exceptions',
     );
-  const git = createGitService({ dshHome, log: (message) => ctx.logger.info(message) });
+  const git = createGitService({
+    dshHome,
+    log: (message) => ctx.logger.info(message),
+  });
   const resolvedGit = git.resolve();
   ctx.logger.info(
     resolvedGit.available
@@ -1376,7 +1410,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       settings: () =>
         (
           ctx.get('settings') as unknown as
-            | { describe(options: { redactSecrets: boolean }): { ns: string; value: unknown }[] }
+            | {
+                describe(options: { redactSecrets: boolean }): { ns: string; value: unknown }[];
+              }
             | undefined
         )?.describe({ redactSecrets: true }) ?? [],
       describe: async (ref) => {
@@ -1609,16 +1645,28 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         | {
             saveText(input: {
               owner: { sessionId: string };
-              source: { kind: 'session-reference'; sessionId: string; label: string };
+              source: {
+                kind: 'session-reference';
+                sessionId: string;
+                label: string;
+              };
               suggestedName: string;
               content: string;
-            }): Promise<{ locator: string; bytes: number; retrievalHint: string }>;
+            }): Promise<{
+              locator: string;
+              bytes: number;
+              retrievalHint: string;
+            }>;
           }
         | undefined;
       if (spillStore === undefined) throw new Error('DSH Spill service is unavailable');
       return spillStore.saveText({
         owner: { sessionId },
-        source: { kind: 'session-reference', sessionId, label: 'Assignment report' },
+        source: {
+          kind: 'session-reference',
+          sessionId,
+          label: 'Assignment report',
+        },
         suggestedName: 'assignment-report.txt',
         content,
       });
@@ -1630,7 +1678,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     },
     readTurnProgress: async (sessionId) => {
       const query = ctx.get('sessionQuery') as unknown as
-        | { readSession(id: string): Promise<{ events: readonly DshSessionEvent[] }> }
+        | {
+            readSession(id: string): Promise<{ events: readonly DshSessionEvent[] }>;
+          }
         | undefined;
       if (query === undefined) return undefined;
       return turnProgress((await query.readSession(sessionId)).events);
@@ -1658,7 +1708,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     try {
       voiceDrafts(event);
     } catch (error) {
-      diagnosticEvents.record('voice', 'call-draft-failed', { error: String(error).slice(0, 200) });
+      diagnosticEvents.record('voice', 'call-draft-failed', {
+        error: String(error).slice(0, 200),
+      });
     }
   };
   ctx.effect(() => () => core.operationalDatabase.close(), 'botharness: operational database');
@@ -1906,9 +1958,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     const fallback = original.bind(engine);
     const compactToTarget = createTargetCompaction({
       measure: (session) =>
-        (ctx.get('tokenMeter') as unknown as { measure(session: unknown): PricedSurface }).measure(
-          session,
-        ),
+        (
+          ctx.get('tokenMeter') as unknown as {
+            measure(session: unknown): PricedSurface;
+          }
+        ).measure(session),
       prune: (session) =>
         (
           ctx.get('toolResultPruner') as unknown as
@@ -1959,7 +2013,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     const headroomTokens = policy.headroomTokens ?? compactionBaseConfig['headroomTokens'];
     if (config['thresholdRatio'] === thresholdRatio && config['headroomTokens'] === headroomTokens)
       return;
-    engine.config = Object.freeze({ ...compactionBaseConfig, thresholdRatio, headroomTokens });
+    engine.config = Object.freeze({
+      ...compactionBaseConfig,
+      thresholdRatio,
+      headroomTokens,
+    });
   };
   installNativeSubagentWake(ctx, core.runtime);
   applyCompactionPolicy();
@@ -2078,7 +2136,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const compactBot = (slug: string) =>
     core.runtime.compactOrchestrator
       ? core.runtime.compactOrchestrator(slug, compactReservedSession)
-      : Promise.resolve({ outcome: 'not-loaded' as const, tokensBefore: null, tokensAfter: null });
+      : Promise.resolve({
+          outcome: 'not-loaded' as const,
+          tokensBefore: null,
+          tokensAfter: null,
+        });
   let reviewLogs: LogDatabase | undefined;
   try {
     reviewLogs = openLogDatabase({ dir: join(dshHome, 'botharness') });
@@ -2289,7 +2351,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           };
         const authorizationScope = computerTools.authorizationScope?.();
         if (!computerTools.approvalScope || !computerTools.authorizeCall)
-          return { kind: 'deny', reason: 'Computer approval Provider is unavailable' };
+          return {
+            kind: 'deny',
+            reason: 'Computer approval Provider is unavailable',
+          };
         const computerApproval = ctx.get('approval') as ApprovalService | undefined;
         const untrackComputer = toolApproval.track(
           execution,
@@ -2302,7 +2367,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           },
         );
         if (computerApproval === undefined || untrackComputer === undefined) {
-          return { kind: 'deny', reason: 'The tool call cannot be presented for Human approval' };
+          return {
+            kind: 'deny',
+            reason: 'The tool call cannot be presented for Human approval',
+          };
         }
         try {
           const outcome = await computerApproval.request({
@@ -2333,7 +2401,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
             };
           const guard = toolApproval.executionGuard(agent, execution.callId);
           if (!guard || !guard(execution.name, execution.arguments))
-            return { kind: 'deny', reason: 'Approval authority changed before execution' };
+            return {
+              kind: 'deny',
+              reason: 'Approval authority changed before execution',
+            };
           if (toolApproval.usesStandingRule(agent, execution.callId))
             deviceCallReleases.set(
               execution.token,
@@ -2363,7 +2434,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       if (browserTools?.ownsTool?.(execution.name) === true) {
         const browserSignal = browserTools.executionSignal?.(agent.session.id);
         if (browserTools.executionSignal !== undefined && browserSignal === undefined)
-          return { kind: 'deny', reason: 'Browser Access is off for this PersonaBot' };
+          return {
+            kind: 'deny',
+            reason: 'Browser Access is off for this PersonaBot',
+          };
         const browserAuthorization = deviceToolAuthorization(
           browserTools,
           agent.session.id,
@@ -2378,7 +2452,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           };
         const browserAuthorizationScope = browserTools.authorizationScope?.(agent.session.id);
         if (!browserTools.approvalScope || !browserTools.authorizeCall)
-          return { kind: 'deny', reason: 'Browser approval Provider is unavailable' };
+          return {
+            kind: 'deny',
+            reason: 'Browser approval Provider is unavailable',
+          };
         const browserApproval = ctx.get('approval') as ApprovalService | undefined;
         const untrackBrowser = toolApproval.track(
           execution,
@@ -2391,7 +2468,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           },
         );
         if (browserApproval === undefined || untrackBrowser === undefined) {
-          return { kind: 'deny', reason: 'The tool call cannot be presented for Human approval' };
+          return {
+            kind: 'deny',
+            reason: 'The tool call cannot be presented for Human approval',
+          };
         }
         try {
           const outcome = await browserApproval.request({
@@ -2422,7 +2502,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
             };
           const guard = toolApproval.executionGuard(agent, execution.callId);
           if (!guard || !guard(execution.name, execution.arguments))
-            return { kind: 'deny', reason: 'Approval authority changed before execution' };
+            return {
+              kind: 'deny',
+              reason: 'Approval authority changed before execution',
+            };
           if (toolApproval.usesStandingRule(agent, execution.callId))
             deviceCallReleases.set(
               execution.token,
@@ -2461,7 +2544,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           : undefined,
       );
       if (approval === undefined || untrack === undefined) {
-        return { kind: 'deny', reason: 'The tool call cannot be presented for Human approval' };
+        return {
+          kind: 'deny',
+          reason: 'The tool call cannot be presented for Human approval',
+        };
       }
       try {
         const outcome = eachUse
@@ -2507,7 +2593,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         if (toolApproval.remembered(agent, execution.callId)) rememberedStarts.add(execution.token);
         const guard = toolApproval.executionGuard(agent, execution.callId);
         if (!guard || !guard(execution.name, execution.arguments))
-          return { kind: 'deny', reason: 'Approval authority changed before execution' };
+          return {
+            kind: 'deny',
+            reason: 'Approval authority changed before execution',
+          };
         approvedCalls.set(execution.token, guard);
         return await next();
       } catch {
@@ -2529,7 +2618,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       const decision = await next();
       if (reason === undefined || decision.kind !== 'accept' || decision.value !== undefined)
         return decision;
-      const note = { type: 'text' as const, text: reviewerRejectionText(reason) };
+      const note = {
+        type: 'text' as const,
+        text: reviewerRejectionText(reason),
+      };
       return {
         ...decision,
         content: result.isError ? [note] : [...(decision.content ?? result.content), note],
@@ -2647,7 +2739,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       return () => developerModeTarget.gate?.set(false);
     }, 'botharness: developer mode settings');
   });
-  const releaseInstaller: { current: ReleaseInstaller | undefined } = { current: undefined };
+  const releaseInstaller: { current: ReleaseInstaller | undefined } = {
+    current: undefined,
+  };
   ctx.inject(['pluginManager'], (managerCtx) => {
     managerCtx.effect(() => {
       releaseInstaller.current = (
@@ -2658,7 +2752,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       };
     }, 'botharness: release installer');
   });
-  const releaseRestarter: { current: ReleaseRestarter | undefined } = { current: undefined };
+  const releaseRestarter: { current: ReleaseRestarter | undefined } = {
+    current: undefined,
+  };
   ctx.inject(['appExit'], (exitCtx) => {
     exitCtx.effect(() => {
       releaseRestarter.current = createProcessRestarter({
@@ -2697,7 +2793,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     version: () => runningRelease.version,
     ...(profile === undefined
       ? {}
-      : { profileId: createHash('sha256').update(profile.dir).digest('hex').slice(0, 24) }),
+      : {
+          profileId: createHash('sha256').update(profile.dir).digest('hex').slice(0, 24),
+        }),
     identity: () =>
       installedPackage.identity(releaseAnchors, loadedReleaseComponents(ctx.registry.values())),
     ledgers: () => runningRelease.ledgers,
@@ -2749,6 +2847,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   });
   const bridgeMethods = createBridgeMethods({
     voiceProviders: core.voiceProviders,
+    voiceLog: (phase, fields) => diagnosticEvents.record('voice', phase, fields),
     prompts: core.prompts,
     botContext: async (slug) => {
       const sessionId = core.runtime.currentOrchestratorSessionId?.(slug) ?? null;
@@ -2784,7 +2883,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       const agent = sessionId === null ? undefined : liveAgent(sessionId);
       if (agent === undefined) {
         const query = ctx.get('sessionQuery') as unknown as
-          | { readSession(id: string): Promise<{ events: readonly DshSessionEvent[] }> }
+          | {
+              readSession(id: string): Promise<{ events: readonly DshSessionEvent[] }>;
+            }
           | undefined;
         const logged =
           sessionId === null || query === undefined
@@ -2815,7 +2916,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         next: {
           text,
           sections: assembly.sections.map(({ name, text }) => ({ name, text })),
-          contexts: renderContextSections(assembly).map(({ name, text }) => ({ name, text })),
+          contexts: renderContextSections(assembly).map(({ name, text }) => ({
+            name,
+            text,
+          })),
         },
         pending:
           core.prompts.pending(slug, sessionId ?? undefined) ||
@@ -2903,14 +3007,18 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     readUsageSessionLog: async (sessionId) => {
       const query = ctx.get('sessionQuery') as unknown as
         | {
-            readSession(
-              id: string,
-            ): Promise<{ events: readonly DshSessionEvent[]; inheritedEventCount?: number }>;
+            readSession(id: string): Promise<{
+              events: readonly DshSessionEvent[];
+              inheritedEventCount?: number;
+            }>;
           }
         | undefined;
       if (query === undefined) return undefined;
       const snapshot = await query.readSession(sessionId);
-      return { events: snapshot.events, inheritedEventCount: snapshot.inheritedEventCount ?? 0 };
+      return {
+        events: snapshot.events,
+        inheritedEventCount: snapshot.inheritedEventCount ?? 0,
+      };
     },
     roster: core.roster,
     runtime: core.runtime,
@@ -3084,7 +3192,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     bridge: () => bridgeMethods,
     isProtectedBot: (slug) => core.tob.isTob(slug),
   });
-  const tobShareDraftOperations = createTobShareDraftOperations({ bridge: () => bridgeMethods });
+  const tobShareDraftOperations = createTobShareDraftOperations({
+    bridge: () => bridgeMethods,
+  });
   const tobChannelOperations = createTobChannelOperations({
     management: core.channelManagement,
     channels: core.channels,
@@ -3092,27 +3202,112 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     isProtectedBot: (slug) => core.tob.isTob(slug),
   });
   voiceCalls = createVoiceCalls({
-    bot: (slug) => core.registry.get(slug),
+    bot: (slug) => withVoiceDefaults(core.registry.get(slug), () => core.voiceProviders.defaults()),
+    speechDbfs: () => core.voiceProviders.speechThreshold().dbfs,
+    async seesImages(slug) {
+      const route =
+        core.registry.get(slug)?.modelPlan?.orchestrator ?? modelCatalog.defaultRoute?.();
+      if (route === undefined) return true;
+      const info = await ctx.llm.resolveModelInfo(route.provider, route.model);
+      return info.inputModalities === undefined || info.inputModalities.includes('image');
+    },
     providers: core.voiceProviders,
     media: () =>
       (ctx.get('botharnessComputer') as { callMedia?: VoiceCallMedia } | undefined)?.callMedia,
-    async send({ channelId, messageId, body, callId }) {
+    async send({ channelId, messageId, body, callId, visual }) {
+      let attachments: ChannelAttachmentRef[] | undefined;
+      let meta: ChannelCallVisual | undefined;
+      const records =
+        visual?.records === undefined || visual.records.length === 0
+          ? {}
+          : { records: [...visual.records] };
+      if (visual !== undefined && 'image' in visual) {
+        const image = visual.image.jpeg;
+        if (visual.saved)
+          attachments = [
+            await core.attachments.upload({
+              data: (async function* () {
+                yield image;
+              })(),
+              name: `call-${visual.source}-${messageId.slice(-12)}.jpg`,
+            }),
+          ];
+        meta = {
+          source: visual.source,
+          frames: visual.frames,
+          layout: visual.image.layout,
+          ...(visual.saved ? {} : { unsaved: true as const }),
+          ...(visual.unseen === true ? { unseen: true as const } : {}),
+          ...records,
+        };
+      } else if (visual !== undefined)
+        meta = { source: visual.source, sameAs: visual.sameAs, ...records };
       const result = await bridgeMethods.channelSend({
         channelId,
         messageId,
         body,
-        voiceCall: { callId },
+        ...(attachments === undefined ? {} : { attachments }),
+        voiceCall: meta === undefined ? { callId } : { callId, visual: meta },
       });
       if (!result.ok)
-        throw Object.assign(new Error(result.error.message), { code: result.error.code });
+        throw Object.assign(new Error(result.error.message), {
+          code: result.error.code,
+        });
+    },
+    async recordFrames({
+      slug,
+      channelId,
+      callId,
+      startedAt,
+      source,
+      image,
+      frames,
+      fromMs,
+      toMs,
+    }) {
+      if (core.channels.get(channelId) === undefined) return undefined;
+      const record = {
+        callId,
+        botSlug: slug,
+        state: 'frames' as const,
+        startedAt,
+        source,
+        frames,
+        layout: image.layout,
+        fromMs,
+        toMs,
+      };
+      const attachment = await core.attachments.upload({
+        data: (async function* () {
+          yield image.jpeg;
+        })(),
+        name: `call-${source}-record-${Math.round(toMs / 1000)}s.jpg`,
+      });
+      const appended = await core.channels.appendMessage(channelId, {
+        id: `voice-call-frames-${callId}-${toMs}`,
+        at: new Date().toISOString(),
+        author: { kind: 'system' },
+        body: voiceCallRecordBody(record),
+        attachments: [attachment],
+        voiceCallRecord: record,
+      });
+      return appended?.id;
     },
     async record({ slug, channelId, record }) {
       const bot = core.registry.get(slug);
       if (core.channels.get(channelId) === undefined)
         core.channels.getOrCreateDm(slug, bot?.displayName);
       const appended = await core.channels.appendMessage(channelId, {
-        id: `voice-call-${record.state}-${record.callId}`,
-        at: record.state === 'started' ? record.startedAt : record.endedAt,
+        id:
+          'atMs' in record
+            ? `voice-call-${record.state}-${record.callId}-${record.atMs}`
+            : `voice-call-${record.state}-${record.callId}`,
+        at:
+          record.state === 'started'
+            ? record.startedAt
+            : record.state === 'ended'
+              ? record.endedAt
+              : new Date(Date.parse(record.startedAt) + record.atMs).toISOString(),
         author: { kind: 'system' },
         body: voiceCallRecordBody(record),
         voiceCallRecord: record,
@@ -3133,10 +3328,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   });
   const calls = voiceCalls;
   core.voiceSpeech.speak = (input) => calls.speak(input);
+  core.voiceZoom.zoom = (input) => calls.zoom(input);
   voiceDrafts = (event) => calls.draft(event);
   ctx.effect(
     () => async () => {
       core.voiceSpeech.speak = undefined;
+      core.voiceZoom.zoom = undefined;
       voiceDrafts = () => undefined;
       voiceCalls = undefined;
       await calls.dispose();
@@ -3432,7 +3629,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         readDeliveries: async (slug) => (await core.externalMessaging.snapshot(slug)).intents,
         readSession: async (sessionId) => {
           const query = ctx.get('sessionQuery') as unknown as
-            | { readSession(id: string): Promise<{ events: readonly DshSessionEvent[] }> }
+            | {
+                readSession(id: string): Promise<{ events: readonly DshSessionEvent[] }>;
+              }
             | undefined;
           if (query !== undefined) return (await query.readSession(sessionId)).events;
           return dshSessions.get(sessionId)?.snapshotEvents();
@@ -3535,6 +3734,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         .list()
         .some((agent) => agent.session.id === sessionId && agent.status === 'running'),
     describeCall: (sessionId, name, args) => describeToolCall(ctx, sessionId, name, args),
+    assignmentTitle: (botSlug, sessionId) => core.runtime.getAssignment(botSlug, sessionId)?.title,
   });
   ctx.effect(() =>
     core.states.onActivity((event) => ctx.emit('botharness/personabot/activity', event)),

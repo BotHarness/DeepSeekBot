@@ -76,6 +76,27 @@ function parameterNames(method: (...args: never[]) => unknown): string[] {
 }
 
 describe('bridge typert service', () => {
+  it('declares every remote method with plain identifier parameters', () => {
+    const { service } = setup();
+    const prototype = Object.getPrototypeOf(service) as Record<string, unknown>;
+    const descriptor = prototype['@deepseek-ai/dsh-typert-protocol/remote-methods'] as {
+      methods: { method: string }[];
+    };
+    const offenders = descriptor.methods
+      .map((entry) => entry.method)
+      .filter((name) => {
+        const source = Function.prototype.toString.call(prototype[name]);
+        const open = source.indexOf('(');
+        const close = source.indexOf(')', open + 1);
+        return source
+          .slice(open + 1, close)
+          .split(',')
+          .map((part) => part.trim())
+          .some((part) => part !== '' && !/^[A-Za-z_$][\w$]*$/u.test(part));
+      });
+    expect(offenders).toEqual([]);
+  });
+
   it('refuses workspace authorization without an authenticated Owner invocation', () => {
     const { service, methods } = setup();
     const approve = vi.spyOn(methods, 'grantRequestApprove');
@@ -854,6 +875,9 @@ describe('bridge typert service', () => {
       'botVoiceSet',
       'voiceTranscribe',
       'botAsrSet',
+      'voiceDefaultSet',
+      'voiceSpeechThresholdSet',
+      'voiceDictation',
       'idleCompaction',
       'idleCompactionSet',
       'idleCompactionCacheLifetimeSet',
