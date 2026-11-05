@@ -73,8 +73,6 @@ export function Button({
   const [height, setHeight] = useState<number>();
   const style = nativeStyle({ tone, variant }, glass);
   const bezel = style !== 'borderless';
-  // At accessibility text sizes the symbol moves above the label, so the label gets the
-  // button's full width and wraps between words instead of inside one ("Continu/e").
   const Stack = theme.largeText ? VStack : HStack;
   return (
     <Host
