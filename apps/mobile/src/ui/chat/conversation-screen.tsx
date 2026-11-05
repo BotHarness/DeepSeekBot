@@ -1582,26 +1582,33 @@ function ChatConversation({
                     { type: 'custom' as const, element: titleItem },
                   ],
                 }
-              : {
-                  headerTitleAlign: 'left' as const,
-                  headerRight: () => headerActions,
-                  headerTitle: () => (
-                    <View
-                      key={`${theme.scheme}:${theme.fontScale}:${bot?.displayName ?? channel?.name ?? ''}`}
-                      style={{
-                        width: dm || botDm ? undefined : windowWidth - (theme.touch + space.x5) * 2,
-                        maxWidth:
-                          windowWidth -
-                          (theme.touch + space.x5) * 2 -
-                          (placeCall === undefined || !canOpenProfile ? 0 : theme.touch),
-                        marginHorizontal: space.x3,
-                      }}
-                    >
-                      {title}
-                    </View>
-                  ),
-                  ...(canGoBack && !floatingHeader ? {} : { headerLeft: () => back }),
-                }),
+              : android
+                ? {
+                    headerLeft: () => null,
+                    headerRight: () => null,
+                    headerTitle: () => null,
+                  }
+                : {
+                    headerTitleAlign: 'left' as const,
+                    headerRight: () => headerActions,
+                    headerTitle: () => (
+                      <View
+                        key={`${theme.scheme}:${theme.fontScale}:${bot?.displayName ?? channel?.name ?? ''}`}
+                        style={{
+                          width:
+                            dm || botDm ? undefined : windowWidth - (theme.touch + space.x5) * 2,
+                          maxWidth:
+                            windowWidth -
+                            (theme.touch + space.x5) * 2 -
+                            (placeCall === undefined || !canOpenProfile ? 0 : theme.touch),
+                          marginHorizontal: space.x3,
+                        }}
+                      >
+                        {title}
+                      </View>
+                    ),
+                    ...(canGoBack && !floatingHeader ? {} : { headerLeft: () => back }),
+                  }),
           }}
         />
       ) : null}
