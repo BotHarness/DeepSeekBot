@@ -1,11 +1,12 @@
 import { requireOptionalNativeModule } from 'expo';
-import type { HostSocket, HostSocketEvents } from './carrier';
+import type { HostSocket, HostSocketEvents, LocalNetworkStatus } from './carrier';
 import { isLanRoute } from './route';
 
 interface LanModule {
   open(id: string, address: string, port: number): void;
   send(id: string, text: string): void;
   close(id: string): void;
+  localNetwork?(address: string, port: number): Promise<string>;
   addListener(
     name: 'channel',
     listener: (event: { id: string; type: string; text: string }) => void,
@@ -47,4 +48,19 @@ export function openLanSocket(url: string, events: HostSocketEvents): HostSocket
     throw error;
   }
   return { send: (text) => native.send(id, text), close: () => finish('channel-disconnected') };
+}
+
+export async function localNetworkStatus(origin: string): Promise<LocalNetworkStatus> {
+  if (!isLanRoute(origin)) return 'unknown';
+  const native = requireOptionalNativeModule<LanModule>('LanChannel');
+  if (!native?.localNetwork) return 'unknown';
+  const url = new URL(origin);
+  try {
+    const status = await native.localNetwork(url.hostname, Number(url.port || 80));
+    return status === 'denied' || status === 'reachable' || status === 'unreachable'
+      ? status
+      : 'unknown';
+  } catch {
+    return 'unknown';
+  }
 }

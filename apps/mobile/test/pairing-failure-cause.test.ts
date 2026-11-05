@@ -212,6 +212,46 @@ describe('encrypted redemption', () => {
     });
   });
 
+  it('asks the phone whether Local Network is denied when the local handshake fails', async () => {
+    const { carrier, opened } = closingCarrier({
+      [LAN]: 'channel-handshake-failed',
+      [CONNECT]: 'socket error',
+    });
+    const probe = vi.fn(async () => 'denied' as const);
+    expect(
+      await redeemPairing({
+        payload: payload([LAN, CONNECT]),
+        deviceName: 'Phone',
+        carrier: { ...carrier, localNetworkStatus: probe },
+        lanRetryDelayMs: 1,
+        confirmFingerprint: async () => true,
+      }),
+    ).toMatchObject({ ok: false, code: 'lan-permission-denied' });
+    expect(probe).toHaveBeenCalledWith(LAN);
+    expect(opened).toEqual([LAN, CONNECT, LAN]);
+  });
+
+  it('keeps the ordinary local failure when Local Network is allowed', async () => {
+    const { carrier, opened } = closingCarrier({
+      [LAN]: 'channel-handshake-failed',
+      [CONNECT]: 'socket error',
+    });
+    expect(
+      await redeemPairing({
+        payload: payload([LAN, CONNECT]),
+        deviceName: 'Phone',
+        carrier: { ...carrier, localNetworkStatus: async () => 'reachable' as const },
+        lanRetryDelayMs: 1,
+        confirmFingerprint: async () => true,
+      }),
+    ).toEqual({
+      ok: false,
+      code: 'unreachable',
+      detail: 'lan:channel-handshake-failed,connect:socket-error',
+    });
+    expect(opened).toEqual([LAN, CONNECT]);
+  });
+
   it('does not retry the local path after an ordinary local failure', async () => {
     const { carrier, opened } = closingCarrier({
       [LAN]: 'channel-timeout',
