@@ -1091,6 +1091,19 @@ describe('Search in the Chats header', () => {
     expect(rows(view)).toEqual([]);
     expect(view.textContent).toContain(t.searchNoMatch('zed'));
   });
+  it('drops a pending message search when the screen goes away', async () => {
+    vi.useFakeTimers();
+    try {
+      const view = await home();
+      await type(view, 'zed');
+      act(() => root?.unmount());
+      root = undefined;
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(call).not.toHaveBeenCalledWith('messageSearch', expect.anything());
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   it('wraps the list in the last-chat swipe, off while searching', async () => {
     const view = await home();
     const swipe = () => view.querySelector<HTMLElement>('[data-testid="last-chat-swipe"]')!;

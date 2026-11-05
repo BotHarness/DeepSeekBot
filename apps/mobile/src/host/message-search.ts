@@ -131,6 +131,7 @@ export function mergeMessageHits(
 export function useMessageSearch(): {
   state: MessageSearchState;
   schedule(text: string, hosts: readonly MessageSearchHost[]): void;
+  cancel(): void;
 } {
   const [state, setState] = useState<MessageSearchState>(IDLE);
   const sequence = useRef(0);
@@ -161,5 +162,10 @@ export function useMessageSearch(): {
       });
     }, MESSAGE_SEARCH_DEBOUNCE_MS);
   }, []);
-  return { state, schedule };
+  const cancel = useCallback(() => {
+    if (timer.current !== undefined) clearTimeout(timer.current);
+    timer.current = undefined;
+    sequence.current += 1;
+  }, []);
+  return { state, schedule, cancel };
 }
