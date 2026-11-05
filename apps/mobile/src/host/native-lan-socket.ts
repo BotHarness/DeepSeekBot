@@ -35,11 +35,17 @@ export function openLanSocket(url: string, events: HostSocketEvents): HostSocket
     native.close(id);
     events.closed(reason);
   };
-  const subscription = native.addListener('channel', (event) => {
-    if (event.id !== id || done) return;
+  let early: { type: string; text: string }[] | undefined = [];
+  const handle = (event: { type: string; text: string }) => {
+    if (done) return;
     if (event.type === 'open') events.open();
     else if (event.type === 'message') events.message(event.text);
     else if (event.type === 'closed') finish(event.text);
+  };
+  const subscription = native.addListener('channel', (event) => {
+    if (event.id !== id) return;
+    if (early) early.push(event);
+    else handle(event);
   });
   try {
     native.open(id, parsed.hostname, Number(parsed.port));
@@ -47,6 +53,11 @@ export function openLanSocket(url: string, events: HostSocketEvents): HostSocket
     subscription.remove();
     throw error;
   }
+  queueMicrotask(() => {
+    const queued = early ?? [];
+    early = undefined;
+    queued.forEach(handle);
+  });
   return { send: (text) => native.send(id, text), close: () => finish('channel-disconnected') };
 }
 
