@@ -1180,6 +1180,92 @@ describe('DSH Bot Agent adapter', () => {
     }
   });
 
+  it('returns the assignment-ended refusal for a request to an archived Assignment', async () => {
+    const calls: Array<Promise<unknown>> = [];
+    const host = new FakeAgentHost(
+      { kind: 'completed' },
+      {
+        onAgentCreated: () => {
+          const tools = host.scopes.get('orchestrator-ada')?.tools ?? [];
+          for (const [name, args] of [
+            ['send_assignment_request', { session_id: 'assignment-1', text: 'Continue A' }],
+          ] as const) {
+            const tool = tools.find((tool) => tool.name === name);
+            if (tool === undefined) throw new Error(`Missing Tool ${name}`);
+            calls.push(tool.execute(args, {} as ToolRunContext));
+          }
+        },
+      },
+    );
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+    });
+    try {
+      await adapter.runOrchestrator({
+        sessionId: 'orchestrator-ada',
+        resume: false,
+        bot: BOT,
+        inboundChannelId: 'dm-test',
+        inbox: '',
+        message: 'Continue A',
+        channels: {
+          ...groupTools,
+          contacts: async () => ({ outputLimit: 12_000, contacts: [] }),
+          sendToBot: async () => {
+            throw new Error('unexpected Bot DM');
+          },
+          ignore: () => ({
+            sourceEventId: 'source-1',
+            ignoredAt: BOT.createdAt,
+            alreadyIgnored: false,
+          }),
+          read: () => [],
+          requestGrant: async () => {
+            throw new Error('unexpected Grant request');
+          },
+          send: async (input) => ({
+            id: 'bot-1',
+            at: BOT.createdAt,
+            author: { kind: 'bot', slug: BOT.slug },
+            body: input.body,
+          }),
+        },
+        assignments: {
+          create: () => ({ outcome: 'key-busy', message: 'unused' }),
+          request: () => ({
+            outcome: 'refused',
+            code: 'assignment-ended',
+            delivery: 'refused',
+            message:
+              'Assignment Session assignment-1 is archived (resolved); nothing was delivered.',
+            assignment: { ...ASSIGNMENT, activity: 'idle' },
+          }),
+          grants: () => [],
+          list: () => [],
+          inspect: () => undefined,
+          stop: async () => {
+            throw new Error('unexpected stop');
+          },
+        },
+      });
+      const outputs = (await Promise.all(calls)).map((output) => JSON.parse(String(output)));
+      expect(outputs).toEqual([
+        {
+          outcome: 'refused',
+          code: 'assignment-ended',
+          message: 'Assignment Session assignment-1 is archived (resolved); nothing was delivered.',
+          sessionId: 'assignment-1',
+          activity: 'idle',
+        },
+      ]);
+    } finally {
+      await adapter.close();
+    }
+  });
+
   it('rechecks source authority for native tools on the current Orchestrator turn', async () => {
     const denials: Array<string | undefined> = [];
     let invalid = false;
