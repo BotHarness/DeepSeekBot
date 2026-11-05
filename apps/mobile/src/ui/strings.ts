@@ -767,12 +767,17 @@ const en = {
     imageCache: 'Clear saved media',
     imageCacheHint: 'Images saved on this phone download again when you open them.',
     imageCacheDone: 'Saved media cleared.',
+    imageCacheConfirmTitle: 'Clear saved media?',
+    imageCacheConfirmBody:
+      'Images and files saved on this phone from this computer are deleted. They download again when you open them. Nothing is deleted on the computer.',
+    imageCacheConfirm: 'Clear',
     imageCacheFailed: 'Could not clear the image cache. Try again.',
     phoneSaved: 'Saved from this computer',
     phoneAuto: 'Delete media not opened for 30 days',
     phoneAutoHint:
       'Images and files saved on this phone download again from the computer when you open them. Nothing is deleted on the computer.',
     phoneOlder: 'Delete saved media not opened for',
+    phoneOlderAction: 'Delete unopened media…',
     phoneOlderDone: (files: number, size: string) =>
       files === 0 ? 'Nothing to delete.' : `Deleted ${fileCount(files)} and freed ${size}.`,
     target: 'Clear',
@@ -2963,12 +2968,17 @@ const zh: typeof en = {
     imageCache: '清除已保存的媒体',
     imageCacheHint: '保存在这台手机上的图片，下次打开时会重新下载。',
     imageCacheDone: '已保存的媒体已清除。',
+    imageCacheConfirmTitle: '清除已保存的媒体？',
+    imageCacheConfirmBody:
+      '会删除这台手机上从这台电脑保存的图片和文件，再次打开时会重新下载。电脑上的内容不受影响。',
+    imageCacheConfirm: '清除',
     imageCacheFailed: '没能清除图片缓存，再试一次。',
     phoneSaved: '从这台电脑保存的内容',
     phoneAuto: '自动删除 30 天未打开的媒体',
     phoneAutoHint:
       '保存在这台手机上的图片和文件，再次打开时会从电脑重新下载。电脑上的内容不会被删除。',
     phoneOlder: '删除多久未打开的已保存媒体',
+    phoneOlderAction: '删除未打开的媒体…',
     phoneOlderDone: (files: number, size: string) =>
       files === 0 ? '没有可删除的内容。' : `已删除 ${files} 个文件，释放 ${size}。`,
     target: '清理内容',

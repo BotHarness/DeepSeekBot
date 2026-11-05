@@ -21,7 +21,8 @@ import { chart } from './design/chart';
 import { radius, space } from './design/tokens';
 import { useDesignTheme } from './design/theme';
 import { useMounted } from './mounted';
-import { confirmDestructive, showAppDialog } from './primitives/app-dialog';
+import { confirmDestructive, showActionMenu, showAppDialog } from './primitives/app-dialog';
+import { TrashIcon } from './shell/icons';
 import { SettingsRow, SettingsSection } from './primitives/settings-row';
 import { Text } from './primitives/text';
 import { ActionButton, LoadFailed, Loading, Notice, errorText } from './request-parts';
@@ -187,7 +188,14 @@ export function StorageSettings({ port }: { port: StorageSettingsPort }) {
     }, failed);
   };
 
-  const clearImageCache = () => {
+  const clearImageCache = () =>
+    confirmDestructive(
+      t.storage.imageCacheConfirmTitle,
+      t.storage.imageCacheConfirmBody,
+      t.storage.imageCacheConfirm,
+      runClearImageCache,
+    );
+  const runClearImageCache = () => {
     port.clearImageCache().then(
       () => {
         setNotice({ tone: 'success', text: t.storage.imageCacheDone });
@@ -400,6 +408,24 @@ export function StorageSettings({ port }: { port: StorageSettingsPort }) {
             }}
           />
         )}
+        {port.phone === undefined ? null : (
+          <SettingsRow
+            on="raised"
+            title={t.storage.phoneOlderAction}
+            tone="danger"
+            testID="storage-phone-older"
+            onPress={() =>
+              showActionMenu(
+                t.storage.phoneOlder,
+                PHONE_AGES.map((days) => ({
+                  text: t.storage.age[days],
+                  icon: TrashIcon,
+                  onPress: () => clearPhoneOlder(Number(days)),
+                })),
+              )
+            }
+          />
+        )}
         <SettingsRow
           on="raised"
           title={t.storage.imageCache}
@@ -409,19 +435,6 @@ export function StorageSettings({ port }: { port: StorageSettingsPort }) {
           onPress={clearImageCache}
         />
       </SettingsSection>
-      {port.phone === undefined ? null : (
-        <SettingsSection on="raised" title={t.storage.phoneOlder}>
-          {PHONE_AGES.map((days) => (
-            <SettingsRow
-              on="raised"
-              key={days}
-              title={t.storage.age[days]}
-              tone="accent"
-              onPress={() => clearPhoneOlder(Number(days))}
-            />
-          ))}
-        </SettingsSection>
-      )}
     </ScrollView>
   );
 }
