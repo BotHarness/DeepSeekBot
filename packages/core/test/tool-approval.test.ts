@@ -408,6 +408,24 @@ describe('Channel tool approval', () => {
     untrack?.();
   });
 
+  it('closes the approval cards of a stopped Session as stopped and refuses a late decision', async () => {
+    const state = fixture();
+    const untrack = state.broker.track(state.execution());
+    const answer = state.broker.ask({ agent: state.agent, toolName: 'bash', callId: 'call-1' });
+    await vi.waitFor(() => expect(state.messages).toHaveLength(1));
+    const requestId = state.messages[0]!.id;
+
+    expect(state.broker.closeSessions(['botharness-other-session'])).toEqual([]);
+    expect(state.broker.status(botSlug, requestId)).toBe('pending');
+    expect(state.broker.closeSessions([sessionId])).toEqual([requestId]);
+
+    expect(await answer).toBe('cancelled');
+    expect(state.broker.status(botSlug, requestId)).toBe('stopped');
+    expect(state.broker.activeMessageIds()).toEqual([]);
+    expect(await state.broker.decide(botSlug, requestId, 'allowed-once')).toBe(false);
+    untrack?.();
+  });
+
   it('expires a pending native approval when its Workspace Grant is revoked', async () => {
     const state = fixture();
     let grantActive = true;

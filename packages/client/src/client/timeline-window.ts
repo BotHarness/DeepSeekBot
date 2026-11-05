@@ -76,11 +76,56 @@ export interface TimelineWindow {
   rootRef(node: HTMLElement | null): void;
 }
 
+export function knownHeights(
+  keys: readonly string[],
+  measured: ReadonlyMap<string, number>,
+  members: ReadonlyMap<string, readonly string[]>,
+  shares: ReadonlyMap<string, number>,
+): Map<string, number> {
+  const known = new Map<string, number>();
+  for (const key of keys) {
+    const height = measured.get(key);
+    if (height !== undefined) {
+      known.set(key, height);
+      continue;
+    }
+    const ids = members.get(key);
+    if (ids === undefined || ids.length === 0) continue;
+    let total = 0;
+    for (const id of ids) {
+      const share = shares.get(id);
+      if (share === undefined) {
+        total = NaN;
+        break;
+      }
+      total += share;
+    }
+    if (Number.isFinite(total)) known.set(key, total);
+  }
+  return known;
+}
+
 export function useTimelineWindow(
   keys: readonly string[],
   pinned: ReadonlySet<string>,
+  members: ReadonlyMap<string, readonly string[]> = new Map(),
 ): TimelineWindow {
-  const heights = useRef(new Map<string, number>());
+  const measured = useRef(new Map<string, number>());
+  const shares = useRef(new Map<string, number>());
+  const swept = useRef<{
+    keys?: readonly string[];
+    members?: ReadonlyMap<string, readonly string[]>;
+  }>({});
+  const latestMembers = useRef(members);
+  latestMembers.current = members;
+  const record = (key: string, height: number): void => {
+    measured.current.set(key, height);
+    const ids = latestMembers.current.get(key);
+    if (ids !== undefined && ids.length > 0)
+      for (const id of ids) shares.current.set(id, height / ids.length);
+  };
+  const knownSizes = (): Map<string, number> =>
+    knownHeights(latestKeys.current, measured.current, latestMembers.current, shares.current);
   const nodes = useRef(new Map<string, HTMLElement>());
   const refs = useRef(new Map<string, (node: HTMLElement | null) => void>());
   const root = useRef<HTMLElement | null>(null);
@@ -101,6 +146,7 @@ export function useTimelineWindow(
     const element = root.current;
     if (element === null || element.clientHeight === 0) return;
     const order = latestKeys.current;
+    const sizes = knownSizes();
     let origin: number | undefined;
     let y = 0;
     for (const key of order) {
@@ -109,23 +155,23 @@ export function useTimelineWindow(
         origin = node.offsetTop - y;
         break;
       }
-      y += heights.current.get(key) ?? 0;
+      y += sizes.get(key) ?? 0;
     }
     if (origin === undefined) return;
     const keep = element.clientHeight * KEEP_RENDERED_VIEWPORTS;
     const top = element.scrollTop - origin - keep;
     const bottom = element.scrollTop - origin + element.clientHeight + keep;
-    const next = nearKeys(order, heights.current, top, bottom);
+    const next = nearKeys(order, sizes, top, bottom);
     if (
       !reported.current &&
       order.length > 0 &&
       order.every((key) => range.current.keys.has(key)) &&
-      nearKeys(order, heights.current, range.current.top, range.current.bottom).size === 0
+      nearKeys(order, sizes, range.current.top, range.current.bottom).size === 0
     ) {
       reported.current = true;
       reportInvariant('timeline-window-lost-groups', 'timeline window lost its rendered groups', {
         groups: order.length,
-        measured: order.filter((key) => heights.current.has(key)).length,
+        measured: order.filter((key) => sizes.has(key)).length,
         rendered: nodes.current.size,
         previous: { top: range.current.top, bottom: range.current.bottom },
         next: { top, bottom },
@@ -136,7 +182,7 @@ export function useTimelineWindow(
     }
     range.current = { keys: new Set(order), top, bottom };
     setView((current) =>
-      sameKeys(windowKeys(order, heights.current, current.top, current.bottom), next) &&
+      sameKeys(windowKeys(order, sizes, current.top, current.bottom), next) &&
       sameKeys(current.seen, new Set(order))
         ? current
         : { seen: new Set(order), top, bottom },
@@ -165,8 +211,8 @@ export function useTimelineWindow(
           if (key === undefined || !entry.target.isConnected) continue;
           const height =
             entry.borderBoxSize?.[0]?.blockSize ?? entry.target.getBoundingClientRect().height;
-          if (height > 0 && heights.current.get(key) !== height) {
-            heights.current.set(key, height);
+          if (height > 0 && measured.current.get(key) !== height) {
+            record(key, height);
             changed = true;
           }
         }
@@ -187,7 +233,7 @@ export function useTimelineWindow(
         if (node === null) return;
         nodes.current.set(key, node);
         const height = node.getBoundingClientRect().height;
-        if (height > 0) heights.current.set(key, height);
+        if (height > 0) record(key, height);
         observer()?.observe(node);
         schedule();
       };
@@ -213,16 +259,27 @@ export function useTimelineWindow(
     [onScroll, schedule],
   );
 
-  const known = new Set(keys);
-  for (const key of [...heights.current.keys()]) if (!known.has(key)) heights.current.delete(key);
-  for (const key of [...refs.current.keys()]) if (!known.has(key)) refs.current.delete(key);
+  if (swept.current.keys !== keys) {
+    swept.current.keys = keys;
+    const known = new Set(keys);
+    for (const key of [...measured.current.keys()])
+      if (!known.has(key)) measured.current.delete(key);
+    for (const key of [...refs.current.keys()]) if (!known.has(key)) refs.current.delete(key);
+  }
+  if (members.size > 0 && swept.current.members !== members) {
+    swept.current.members = members;
+    const ids = new Set<string>();
+    for (const list of members.values()) for (const id of list) ids.add(id);
+    for (const id of [...shares.current.keys()]) if (!ids.has(id)) shares.current.delete(id);
+  }
 
-  const near = windowKeys(keys, heights.current, view.top, view.bottom);
+  const sizes = knownSizes();
+  const near = windowKeys(keys, sizes, view.top, view.bottom);
   return {
     runs: timelineRuns(
       keys,
-      heights.current,
-      (key) => !view.seen.has(key) || near.has(key) || pinned.has(key),
+      sizes,
+      (key) => (!view.seen.has(key) && !sizes.has(key)) || near.has(key) || pinned.has(key),
     ),
     blockRef,
     rootRef,

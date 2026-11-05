@@ -18,6 +18,7 @@ import {
   pruneHostConversationCache,
   nativeConversationCache,
 } from './native-cache';
+import { purgeCaches } from './purge-caches';
 import { watchDisbandedGroups } from './disbanded-groups';
 import { conversationFilter } from './native-conversation-filter';
 import { computerEnvironmentKey } from './conversation-environments';
@@ -186,6 +187,12 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
   deviceAlerts.paired(saved.hostId);
   const client = createHostClient({
     ...saved,
+    onPurged: (placements) => {
+      const fresh = purgeCaches.apply(saved.hostId, placements);
+      if (fresh.length === 0) return;
+      for (const conversation of conversations.get(client)?.values() ?? [])
+        conversation.redact?.(fresh);
+    },
     onRoutesChanged: (routes) =>
       serialize(async () => {
         const existing = stored.hosts.find((host) => host.hostId === saved.hostId);
@@ -211,6 +218,7 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
   });
 
   let connected = false;
+  let revoked = false;
   let avatars: string | undefined;
   let avatarRetryAt = Infinity;
   const disbanded = watchDisbandedGroups();
@@ -227,6 +235,14 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
       }
       if (saved !== null && change.stale !== undefined)
         pruneHostConversationCache(saved.hostId, change.stale);
+    }
+    if (
+      snapshot.connection.status === 'refused' &&
+      snapshot.connection.code === 'device-revoked' &&
+      !revoked
+    ) {
+      revoked = true;
+      purgeCaches.forgetHost(saved.hostId);
     }
     const now = snapshot.connection.status === 'connected';
     if (now && !connected) {
@@ -451,6 +467,7 @@ export const hostSession = {
             }
           });
           clearHostConversationCache(host.hostId);
+          purgeCaches.forgetHost(host.hostId);
           await forgetRecentChats(host.hostId);
           await conversationFilter.clearPersisted(computerEnvironmentKey(host.hostId));
           await pushSession.forget(host).catch(() => undefined);
@@ -480,6 +497,7 @@ export const hostSession = {
       await commit(withoutHost(stored, host.hostId));
       try {
         clearHostConversationCache(host.hostId);
+        purgeCaches.forgetHost(host.hostId);
       } catch {}
       void forgetRecentChats(host.hostId).catch(() => undefined);
       void conversationFilter.ready.then(() => {

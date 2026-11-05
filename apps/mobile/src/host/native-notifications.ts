@@ -72,7 +72,9 @@ export function nativeNotifications(
       return (await Notifications.getExpoPushTokenAsync({ projectId: id })).data;
     },
     onTokenChanged(listener) {
-      const subscription = Notifications.addPushTokenListener(() => listener());
+      const subscription = Notifications.addPushTokenListener((event) =>
+        listener(typeof event.data === 'string' ? event.data : undefined),
+      );
       return () => subscription.remove();
     },
     async setBadge(count) {

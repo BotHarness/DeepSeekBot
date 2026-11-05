@@ -165,6 +165,25 @@ export function IllustratedAvatar(props: IllustratedAvatarProps): ReactElement {
   );
 }
 
+const STATIC_AVATAR_CACHE_LIMIT = 128;
+const staticAvatarMarkup = new Map<string, string>();
+
+export function cachedStaticAvatarSvg(
+  recipe: AvatarRecipe,
+  surface: 'portrait' | 'companion',
+): string {
+  const key = `${surface}:${JSON.stringify(recipe)}`;
+  const cached = staticAvatarMarkup.get(key);
+  if (cached !== undefined) return cached;
+  const markup = avatarSvg(recipe, { surface });
+  if (staticAvatarMarkup.size >= STATIC_AVATAR_CACHE_LIMIT) {
+    const oldest = staticAvatarMarkup.keys().next().value;
+    if (oldest !== undefined) staticAvatarMarkup.delete(oldest);
+  }
+  staticAvatarMarkup.set(key, markup);
+  return markup;
+}
+
 function StaticIllustratedAvatar({
   recipe,
   facing,
@@ -172,11 +191,11 @@ function StaticIllustratedAvatar({
 }: IllustratedAvatarProps): ReactElement {
   const markup = useMemo(
     () =>
-      avatarSvg(
+      cachedStaticAvatarSvg(
         facing !== undefined && recipe.family === 'illustrated' && recipe.pose !== facing
           ? { ...recipe, pose: facing }
           : recipe,
-        { surface },
+        surface,
       ),
     [recipe, facing, surface],
   );

@@ -268,6 +268,20 @@ _本节图片为旧版 Profile 布局；现在配对从右侧侧栏的「外部�
 
 [查看深色恢复截图](/guides/lark/pairing/integrated-recovered-dark.jpg)。
 
+## 新的 Lark 用户上手：从第一次私聊到受限执行
+
+这是一个从未和 Bot 对话过的人的完整、已验证路径。
+
+1. **限制陌生发送者。** 在 Bot 私聊中打开「频道侧栏 → 外部身份 → IM 配对」，新建角色（例如「Tester」），并开启受限发送者。CLI：`deepseekbot sender-access <bot-id> --input-stdin`，分别传入 `{"kind":"create-role",…}` 和 `{"kind":"policy","restricted":true,…}`。
+2. **对方发出第一条私聊。** 该消息不会执行；Lark 会回复申请编号和 10 分钟有效期。
+3. **在 Activity Center 批准。** 申请会出现在「需要你」中，标题为「BearDoodle asks to chat with Lark Helper」（中文界面为「BearDoodle 申请与 Lark Helper 对话」）。选择角色后点「同意」，或「拒绝」。`/pair` 管理申请同样会出现在这里，只是改为勾选能力。CLI：`deepseekbot inbox --category action`，然后 `deepseekbot pairing-review <bot-id> <pairing-id> --decision approve --role <role-id> --confirm`。
+4. **只限制这个人。** 先创建行为权限（例如「运行命令」和「分享记忆文件」），再建一个只包含此人的权限组：允许前者、禁止后者。禁止优先于任何角色或其它权限组。
+5. **对方重新提问。** Lark 会告知配对已批准，之前的消息不会执行；之后的提问在私聊中得到回答。
+6. **执行仍需你批准。** 需要更高权限的命令会在 Activity Center（以及已配置的管理私聊）出现审批；点「允许一次」后，结果回到对方私聊。
+7. **被禁止的行为会被拒绝。** 请求被禁止的内容时，Bot 会拒绝并说明对应规则。
+
+行为权限是 Bot 通过发送者权限工具读取的指令，不是沙箱；审批工具等能力由 Host 强制执行。目前针对单个人的行为限制通过“只含一人的权限组”实现。
+
 ## 常见问题
 
 | 现象                          | 优先检查                                                                                                                          |
@@ -472,3 +486,7 @@ Human 查看图片不会让 Bot 获得图片理解能力，也不改变其注意
 本片仍是视频草稿候选。真实入站、实际解码播放、安装包 E2E、明暗截图和 Human 反馈待[验收检查点](dev/verification/lark-1023-channel-video.md)补齐。音频、直接媒体消息、运行时转码、生成封面和模型转写未在本片交付；移动端目前提供原件文件操作。
 
 打开 Bot Inbox 的来源详情不会取回此视频或封面；详情中保留明确的原件下载操作，播放请从 Channel 气泡准备。
+
+## Channel 历史中的引用语音
+
+被真正 @ Bot 的文字请求引用的 Lark 语音，会在 Channel 气泡中显示为音频卡片，提供「准备播放」和原件下载。准备操作在同一来源授权下取得语音（不超过 1 MiB），由 Host 将 Opus 音频转为 WAV；之后需手动点击播放。飞书不提供转写，气泡会标明转写不可用；已知时长显示为平台时长。非 Ogg Opus 格式会被拒绝，原件仍可下载。暂停、解绑和撤销遵守上方文件规则。Bot Inbox 来源详情同样只在明确操作后准备音频。

@@ -56,10 +56,12 @@ export function MessageAttachment({
   actions,
   compact = false,
   trailingAction,
+  displayName,
   t,
 }: {
   attachment: ChannelAttachmentRef;
   compact?: boolean;
+  displayName?: string | undefined;
   trailingAction?: ReactNode;
   channelId?: string | undefined;
   messageId: string;
@@ -96,10 +98,16 @@ export function MessageAttachment({
   const id = ref.fileId;
   const image = inlineImageAttachment(ref.mime);
   const resource = useMessageResource(
-    channelId !== undefined ? channelAttachmentUrl(ref, { channelId, messageId }) : undefined,
+    channelId !== undefined
+      ? channelAttachmentUrl(ref, { channelId, messageId }, image ? '800' : undefined)
+      : undefined,
     image,
   );
   const { url } = resource;
+  const original =
+    host === undefined && channelId !== undefined
+      ? channelAttachmentUrl(ref, { channelId, messageId })
+      : url;
   const audio = ref.mime.startsWith('audio/');
   if (resource.failed)
     return (
@@ -118,7 +126,7 @@ export function MessageAttachment({
         onKeyDown={id === undefined ? undefined : (event) => menu.onKey(id, event)}
       >
         <MessageAudio
-          name={ref.name}
+          name={displayName ?? ref.name}
           size={ref.size}
           url={url}
           onPrepare={host === undefined ? undefined : resource.prepare}
@@ -226,7 +234,11 @@ export function MessageAttachment({
                   className="bh-message-image-link"
                   aria-label={t('message.image.open', { name: ref.name })}
                   onClick={() => {
-                    const item = { key: galleryImageKey(messageId, ref), src: url, alt: ref.name };
+                    const item = {
+                      key: galleryImageKey(messageId, ref),
+                      src: original ?? url,
+                      alt: ref.name,
+                    };
                     if (gallery === undefined) openAlone(item);
                     else gallery.open(item.key, item);
                   }}
@@ -256,7 +268,11 @@ export function MessageAttachment({
                   className="bh-message-file-main"
                   aria-label={t('message.image.open', { name: ref.name })}
                   onClick={() =>
-                    openAlone({ key: galleryImageKey(messageId, ref), src: url, alt: ref.name })
+                    openAlone({
+                      key: galleryImageKey(messageId, ref),
+                      src: original ?? url,
+                      alt: ref.name,
+                    })
                   }
                 >
                   {contents}

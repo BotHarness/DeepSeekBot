@@ -2,6 +2,7 @@ import { readIngest } from './conversation-ingest.js';
 import { isChannelNotice } from '../channels/channel-notice.js';
 import { sourceContentPurged } from '../purge/fence.js';
 import { effectiveDmControls } from './dm-controls.js';
+import { decodeLarkVoice } from '../attachments/lark-audio.js';
 import { decodeQqVoice } from '../attachments/qq-audio.js';
 import type { ToolApprovalActor } from '../workspaces/tool-approval-actor.js';
 import {
@@ -316,7 +317,7 @@ export interface OutboundMessaging {
     botSlug: string,
     sourceEventId: string,
     requestId: string,
-    webUrl: string,
+    webUrl: string | undefined,
     authority: import('../credentials/im-origin.js').PrivateReplyAuthority,
   ): Promise<OutboxIntent>;
   acquireFile(
@@ -751,12 +752,14 @@ export function createOutboundMessaging(options: {
       message.userQuestionResolution ||
       message.privateInputRequest ||
       message.privateInputResolution ||
+      message.takeoverResolution ||
       message.sessionFailure ||
       message.grantRequest ||
       message.grantRequestResolution ||
       message.onboardingWelcome ||
       message.memberDeparture ||
       message.turnStop ||
+      message.voiceCallRecord ||
       message.toolAutoApprovalOverride
     )
       return undefined;
@@ -1872,7 +1875,9 @@ export function createOutboundMessaging(options: {
         throw new MessagingError('source-unavailable');
       const source = inbound.read(botSlug, sourceEventId);
       if (
-        (source.platform !== 'weixin' && source.platform !== 'qq') ||
+        (source.platform !== 'weixin' &&
+          source.platform !== 'qq' &&
+          source.platform !== 'feishu') ||
         !source.event.voice ||
         !source.event.attachments?.some(
           (file) => file.id === attachmentId && file.mediaType?.startsWith('audio/'),
@@ -1928,7 +1933,11 @@ export function createOutboundMessaging(options: {
               sourceEventId,
               attachmentId,
               source.event.voice,
-              source.platform === 'qq' ? 'qq-silk-wav-v1' : 'silk-wav-v1',
+              source.platform === 'qq'
+                ? 'qq-silk-wav-v1'
+                : source.platform === 'feishu'
+                  ? 'lark-opus-wav-v1'
+                  : 'silk-wav-v1',
             ]),
           )
           .digest('hex')
@@ -1948,7 +1957,9 @@ export function createOutboundMessaging(options: {
             const wav =
               source.platform === 'qq'
                 ? await decodeQqVoice(bytes, combined)
-                : await decodeWeChatVoice(bytes, source.event.voice!, combined);
+                : source.platform === 'feishu'
+                  ? await decodeLarkVoice(bytes, combined)
+                  : await decodeWeChatVoice(bytes, source.event.voice!, combined);
             validate();
             return (async function* () {
               validate();
@@ -2012,13 +2023,14 @@ export function createOutboundMessaging(options: {
       if (!/^[0-9a-f-]{36}$/.test(requestId)) throw new MessagingError('source-unavailable');
       if (authority.signal.aborted || !authority.current())
         throw new MessagingError('source-unavailable');
-      const url = new URL(webUrl);
+      const url = webUrl === undefined ? undefined : new URL(webUrl);
       if (
-        !['http:', 'https:'].includes(url.protocol) ||
-        url.username ||
-        url.password ||
-        url.search ||
-        !url.hash.startsWith('#botharness-private-input=')
+        url !== undefined &&
+        (!['http:', 'https:'].includes(url.protocol) ||
+          url.username ||
+          url.password ||
+          url.search ||
+          !url.hash.startsWith('#botharness-private-input='))
       )
         throw new MessagingError('source-unavailable');
       const noticeId = 'private-input-' + requestId;
@@ -2027,8 +2039,10 @@ export function createOutboundMessaging(options: {
         const result = await routedReply(
           botSlug,
           sourceEventId,
-          'Owner action needed. Open the private input card in Web Chat. Do not send private values here.\n' +
-            url.href,
+          url === undefined
+            ? "Owner action needed. Open this Bot's Chat in Web Chat or the app and fill in the private input card there. Do not send private values here."
+            : 'Owner action needed. Open the private input card in Web Chat. Do not send private values here.\n' +
+                url.href,
           noticeId,
         );
         if (result.state !== 'provider-accepted') throw new MessagingError('source-unavailable');

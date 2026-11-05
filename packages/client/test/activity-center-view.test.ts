@@ -246,10 +246,27 @@ it('keeps a newer unread query when read reconciliation returns an older snapsho
   }, store);
   const reading = actions.markAllRead();
   await started;
-  await actions.refreshHumanInboxStatus();
+  const refreshing = actions.refreshHumanInboxStatus();
   release?.();
-  await reading;
+  await Promise.all([reading, refreshing]);
+  expect(statusQueries).toBe(2);
   expect(store.getSnapshot().humanInbox.unreadCount).toBe(1);
+});
+
+it('runs one status read at a time and one more for refreshes that arrive meanwhile', async () => {
+  let statusQueries = 0;
+  const actions = createActions(async (endpoint) => {
+    if (endpoint === 'humanAttentionStatus') {
+      statusQueries++;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      return { ok: true, value: { unreadCount: statusQueries, hasAction: false } };
+    }
+    if (endpoint === 'channelUnreadCounts') return { ok: true, value: { channels: [] } };
+    throw new Error(endpoint);
+  }, store);
+  await Promise.all(Array.from({ length: 5 }, () => actions.refreshHumanInboxStatus()));
+  expect(statusQueries).toBe(2);
+  expect(store.getSnapshot().humanInbox.unreadCount).toBe(2);
 });
 
 it('keeps the loaded empty panel DOM stable during a background request', async () => {

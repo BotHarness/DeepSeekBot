@@ -253,6 +253,18 @@ _Avoid_: integration, connector, channel binding
 The PersonaBot's long-lived dispatch root Session: at most one is active, consuming the Bot Inbox and deciding replies, dispatch, and new Assignment Sessions. Its working directory is always the PersonaBot's Memory Repository; it is the PersonaBot's social voice, not a Human-managed Conversation or an Assignment row. Ordinary Session output remains execution history; only an explicit Channel messaging command authorized from trusted Session ownership and Channel membership speaks to a Human-facing Channel.
 _Avoid_: main agent, brain, supervisor
 
+**Session Stop**:
+A Human ending one running Orchestrator Session or Assignment Session by pointing at it: its current turn is cancelled, its Subagents stop with it, and it becomes a Stopped Session. Other Sessions of the same PersonaBot keep running. It is the only kind of stop besides Bot Stop; the composer has no Stop.
+_Avoid_: stopping the Bot (for one Session), pause, archive, cancel task, interrupt
+
+**Bot Stop**:
+A Session Stop applied at once to every running Session one PersonaBot owns. It is per PersonaBot; a Group Channel has no stop for all its member Bots.
+_Avoid_: stop all Bots, Group stop, pause, Archived PersonaBot
+
+**Stopped Session**:
+A Session a Human stopped, which nothing wakes automatically until its own principal addresses it again: a Human message for an Orchestrator Session, an Assignment Request for an Assignment Session. Events that arrive meanwhile wait unwoken, and stopping is never archiving.
+_Avoid_: archived Session, paused Session, failed Session
+
 **Idle Compaction**:
 Host-initiated DSH compaction of an Orchestrator Session after it has been idle (no running turn, no pending Bot Inbox Admission) for part of its model route's estimated prompt-cache lifetime, so the long history is condensed while it can still be read at the cache-hit price. It never starts a Bot turn and never speaks in a Channel.
 _Avoid_: auto-compact, background summary, cache warming
@@ -282,6 +294,10 @@ _Avoid_: driver, backend, computer provider
 **Takeover**:
 A Human's exclusive control of a Computer, initiated from a Bot Screen but applying to the whole Computer and pausing every PersonaBot's actions and model-facing screenshots there. Watching grants no control; releasing control leaves the Bots paused until the Human explicitly resumes them.
 _Avoid_: handoff, screen sharing, per-bot takeover
+
+**Takeover Handoff**:
+A PersonaBot's asynchronous request that the Human operate its Computer or Bot Browser for one step it must not do itself, shown in the conversation as a card with a title, the Bot's sentence and a Take over button. The Bot's turn ends when it asks; Done, Could not finish, cancel or expiry wakes it through its Inbox, and it re-observes before acting. The handoff only opens the view: control still comes from Takeover or Browser Takeover.
+_Avoid_: blocking takeover, login link, credential request
 
 **Computer Export**:
 A portable archive of one Computer's persistent volume, produced by an explicit export action and restorable on another Host. It is a profile-scoped facet, never part of a PersonaBot export.
@@ -334,7 +350,7 @@ A Human pause on one PersonaBot's tabs that stops that PersonaBot's browser acti
 _Avoid_: Computer Takeover, handoff, screen sharing, access gate
 
 **Browser Takeover**:
-A Human explicitly taking control of one PersonaBot's browser viewport through the viewer: it pauses that PersonaBot's actions and enables Human input for its duration. Releasing resumes the Bot unless a handoff link is still pending. It is narrower than Browser Pause (control, not just a stop) and narrower than Computer Takeover (one Bot's viewport, never the whole machine).
+A Human explicitly taking control of one PersonaBot's browser viewport through the viewer: it pauses that PersonaBot's actions and enables Human input for its duration. Releasing resumes the Bot. It is narrower than Browser Pause (control, not just a stop) and narrower than Computer Takeover (one Bot's viewport, never the whole machine).
 _Avoid_: Browser Pause, Computer Takeover, handoff, screen sharing
 
 **Browser Watch**:
@@ -1093,7 +1109,7 @@ _Avoid_: short URL, UTM link, referral link
 
 ### Sessions panel
 
-The single Sessions surface (`sessions`, TextQuote icon) for inspecting existing Sessions; in the two-level target it is a Channel subpanel inside Messages (ADR-0221). In a PersonaBot DM its scope is that Bot. In a Group Channel its default scope is **Current channel**: Assignments whose original Source Event belongs to that Group, across responsible Bots. The Human can explicitly select an accessible member Bot to inspect that Bot's owned Orchestrator and Assignment Sessions without changing the active conversation. Scope is a per-Channel local view preference, separate from history and workspace grouping. It does not create Assignments, send requests, or change execution. The former Work panel is retired; Activity Center still owns Human attention and approval. See ADR-0220.
+The single Sessions surface (`sessions`, TextQuote icon) for inspecting existing Sessions; in the two-level target it is a Channel subpanel inside Messages (ADR-0221). In a PersonaBot DM its scope is that Bot. In a Group Channel its default scope is **Current channel**: Assignments whose original Source Event belongs to that Group, across responsible Bots. The Human can explicitly select an accessible member Bot to inspect that Bot's owned Orchestrator and Assignment Sessions without changing the active conversation. Scope is a per-Channel local view preference, separate from history and workspace grouping. It does not create Assignments or send requests; its only execution control is Session Stop and Bot Stop on running rows. The former Work panel is retired; Activity Center still owns Human attention and approval. See ADR-0220.
 
 Default-following Sessions headers omit a redundant scope label. Group scope choices live in the existing view-options menu; only an explicit member-Bot override shows `Bot · name` in the header.
 

@@ -71,6 +71,8 @@ export default function ActivityScreen() {
       if (!source) return;
       const opensChannel = [
         'channel-unread',
+        'channel-reply',
+        'channel-mention',
         'tool-approval',
         'user-question',
         'workspace-grant-request',
@@ -78,7 +80,18 @@ export default function ActivityScreen() {
       const destination = opensChannel
         ? channelDestination(source.hostId, item, source.roster)
         : undefined;
-      if (destination && navigateChannel(navigation, destination)) return;
+      if (destination && navigateChannel(navigation, destination)) {
+        if (
+          (item.kind === 'channel-reply' || item.kind === 'channel-mention') &&
+          item.isUnread === true &&
+          item.channelId !== undefined &&
+          item.messageId !== undefined
+        )
+          void source.client
+            .call('channelMarkRead', { channelId: item.channelId, messageId: item.messageId })
+            .catch(() => undefined);
+        return;
+      }
       router.push({
         pathname: '/inbox/[id]',
         params: {
@@ -89,6 +102,7 @@ export default function ActivityScreen() {
           summary: item.summary,
           ...(item.channelId === undefined ? {} : { channelId: item.channelId }),
           ...(item.messageId === undefined ? {} : { messageId: item.messageId }),
+          ...(item.kind === 'bot-message-needs-repair' ? { clearOnOpen: '1' } : {}),
         },
       });
     },
