@@ -410,7 +410,7 @@ describe('pairing', () => {
     });
     expect(
       await redeemPairing({ payload: parsed.payload, deviceName: 'iPhone', carrier: host.carrier }),
-    ).toEqual({ ok: false, code: 'offer-invalid' });
+    ).toEqual({ ok: false, code: 'offer-invalid', detail: 'remote:refused-offer-invalid' });
   });
 });
 

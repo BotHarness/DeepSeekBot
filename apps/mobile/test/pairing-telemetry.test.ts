@@ -34,8 +34,12 @@ it('counts a submitted invalid link once and requires saved-Host persistence for
         expiresAt: '2099-01-01T00:00:00Z',
       }),
     ).toString('base64url');
-  expect(await pairHost({ ...base, text })).toEqual({ ok: false, code: 'storage-failure' });
-  expect(finish).toHaveBeenLastCalledWith('failed', 'storage-failure');
+  expect(await pairHost({ ...base, text })).toEqual({
+    ok: false,
+    code: 'storage-failure',
+    detail: 'app:storage-error',
+  });
+  expect(finish).toHaveBeenLastCalledWith('failed', 'storage-failure', 'app:storage-error');
   host.offer = 'offer-1';
   save.mockResolvedValueOnce(undefined);
   expect(await pairHost({ ...base, method: 'qr', text })).toEqual({ ok: true });

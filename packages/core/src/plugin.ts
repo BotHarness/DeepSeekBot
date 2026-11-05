@@ -17,6 +17,7 @@ import { APPEARANCE_CONTROL_PATH, createAppearanceControl } from './appearance/c
 import { VoiceProviders } from './voice/providers.js';
 import { createVoiceMessages, type VoiceMessages } from './voice/messages.js';
 import { createVoiceCalls, type VoiceCallMedia, type VoiceCalls } from './voice/calls.js';
+import { withVoiceDefaults } from './voice/defaults.js';
 import { voiceCallRecordBody } from './channels/voice-call-record.js';
 import { VOICE_CALL_PATH } from './voice/call-contract.js';
 import { createVoiceCallHttp } from './voice/call-http.js';
@@ -1087,7 +1088,7 @@ export function createCore(
   const voiceSpeech: { speak?: Parameters<typeof createVoiceMessages>[0]['speak'] } = {};
   const voiceMessages = createVoiceMessages({
     providers: voiceProviders,
-    bot: (slug) => registry.get(slug),
+    bot: (slug) => withVoiceDefaults(registry.get(slug), () => voiceProviders.defaults()),
     channels,
     attachments: () => attachments,
     speak: async (input) => voiceSpeech.speak?.(input),
@@ -2733,6 +2734,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   });
   const bridgeMethods = createBridgeMethods({
     voiceProviders: core.voiceProviders,
+    voiceLog: (phase, fields) => diagnosticEvents.record('voice', phase, fields),
     prompts: core.prompts,
     botContext: async (slug) => {
       const sessionId = core.runtime.currentOrchestratorSessionId?.(slug) ?? null;
@@ -3076,7 +3078,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     isProtectedBot: (slug) => core.tob.isTob(slug),
   });
   voiceCalls = createVoiceCalls({
-    bot: (slug) => core.registry.get(slug),
+    bot: (slug) => withVoiceDefaults(core.registry.get(slug), () => core.voiceProviders.defaults()),
+    speechDbfs: () => core.voiceProviders.speechThreshold().dbfs,
     providers: core.voiceProviders,
     media: () =>
       (ctx.get('botharnessComputer') as { callMedia?: VoiceCallMedia } | undefined)?.callMedia,
