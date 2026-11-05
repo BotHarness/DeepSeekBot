@@ -74,6 +74,25 @@ export function mediaUsage(hostId?: string): number {
   }
 }
 
+const staleEntries = (options: { olderThan: number; hostId?: string }): MediaEntry[] =>
+  (store?.entries() ?? []).filter(
+    (entry) =>
+      (options.hostId === undefined || entry.key.startsWith(hostPrefix(options.hostId))) &&
+      (accessed.get(entry.key) ?? entry.modified) < options.olderThan,
+  );
+
+export function previewMediaEviction(options: { olderThan: number; hostId?: string }): {
+  files: number;
+  bytes: number;
+} {
+  try {
+    const stale = staleEntries(options);
+    return { files: stale.length, bytes: stale.reduce((total, entry) => total + entry.size, 0) };
+  } catch {
+    return { files: 0, bytes: 0 };
+  }
+}
+
 export function evictMedia(options: { olderThan: number; hostId?: string }): number {
   if (store === undefined) return 0;
   try {
