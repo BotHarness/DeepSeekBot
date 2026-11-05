@@ -92,6 +92,7 @@ type MessageItem = {
   conversation: Conversation;
 };
 type HomeItem = EnvironmentChatItem | { type: 'message-heading'; key: string } | MessageItem;
+import type { ConnectionState } from '../../../src/host/client';
 import { sectionCollapse, useCollapsedSections } from '../../../src/host/native-section-collapse';
 
 const quickRetryMs = 2_000;
@@ -408,12 +409,17 @@ const HomeContent = memo(function HomeContent({
         : [],
     [displayed, query, messageItems, t],
   );
-  const connecting =
-    useConnectionProgress(
-      selectedHost !== undefined && firstAttemptFailed(selectedHost)
-        ? 'reconnecting'
-        : selectedHost?.snapshot.connection.status,
-    ) !== undefined;
+  const selectedConnection: ConnectionState | undefined =
+    selectedHost === undefined
+      ? undefined
+      : firstAttemptFailed(selectedHost)
+        ? {
+            status: 'reconnecting',
+            route: selectedHost.snapshot.connection.route,
+            attempt: 1,
+          }
+        : selectedHost.snapshot.connection;
+  const connecting = useConnectionProgress(selectedConnection?.status) !== undefined;
   const pickSearch = (key: string) => {
     const message = messageItems.find((entry) => entry.key === key);
     if (message !== undefined) {
@@ -559,7 +565,7 @@ const HomeContent = memo(function HomeContent({
       <HostDrawerEdge anywhere enabled={showWorkspaces === undefined}>
         <HomeHeader
           environment={environment}
-          connection={selectedHost?.snapshot.connection}
+          connection={selectedConnection}
           onWorkspaces={showWorkspaces}
           bar={
             Platform.OS === 'android' ? (
