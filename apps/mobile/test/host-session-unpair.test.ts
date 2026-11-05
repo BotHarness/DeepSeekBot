@@ -227,6 +227,21 @@ it('starts deleting the store even when the old chat files fail to clear', async
   await vi.waitFor(() => expect(remove).toHaveBeenCalledWith('old'));
 });
 
+it('finishes revocation when the old chat files fail to clear', async () => {
+  await session('old', ['old']);
+  const { purgeCaches } = await import('../src/host/purge-caches');
+  const forgetHost = vi.spyOn(purgeCaches, 'forgetHost');
+  clearCache.mockImplementationOnce(() => {
+    throw new Error('disk');
+  });
+  connection.snapshot = {
+    connection: { status: 'refused', route: '', code: 'device-revoked' },
+  };
+  for (const listener of [...connection.listeners]) expect(() => listener()).not.toThrow();
+  expect(clearCache).toHaveBeenCalledWith('old');
+  expect(forgetHost).toHaveBeenCalledWith('old');
+});
+
 it('refreshes push credentials after approved replacement without changing the selected Computer', async () => {
   const { hostSession } = await session('new');
   syncPush.mockClear();
