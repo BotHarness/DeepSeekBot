@@ -623,6 +623,7 @@ export function createConversation(options: ConversationOptions): Conversation {
   let hasOlder = false;
   let loadingOlderSession: number | undefined;
   let olderError = false;
+  let olderOffline = false;
   let fromCache = false;
   let status: ConversationStatus = 'opening';
   let reason: string | undefined;
@@ -984,6 +985,7 @@ export function createConversation(options: ConversationOptions): Conversation {
       if (current !== session) return;
       fromCache = false;
       status = 'live';
+      if (olderOffline) olderError = olderOffline = false;
       reason = undefined;
     } else if (frame.type === 'entry') {
       const entry = frame.entry;
@@ -1243,7 +1245,10 @@ export function createConversation(options: ConversationOptions): Conversation {
           hasOlder = local.hasOlder;
           return;
         }
-        if (offline) return;
+        if (offline) {
+          olderError = olderOffline = true;
+          return;
+        }
         const page = await readPage(last(), before, olderPageSize);
         if (stale()) return;
         const entries = page.entries.filter((entry) => entry.revision < before);

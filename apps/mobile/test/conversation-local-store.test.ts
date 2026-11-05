@@ -659,4 +659,26 @@ describe('reading synced conversations offline', () => {
     expect(live.messages.filter((message) => message.id === 'm121')).toHaveLength(1);
     expect(new Set(live.messages.map((message) => message.id)).size).toBe(live.messages.length);
   });
+
+  it('stops automatic paging after an offline miss until the Host is back', async () => {
+    const host = new FakeHost();
+    const path = file();
+    fill(host, 1, 60);
+    const synced = await session(host, path);
+    await until(synced.conversation, (s) => s.status === 'live' && !s.fromCache);
+    await settle(synced.cache);
+    host.kill();
+    const offline = await session(host, path);
+    await until(offline.conversation, (s) => s.messages.length > 0);
+    await offline.conversation.loadOlder();
+    const missed = offline.conversation.getSnapshot();
+    expect(missed).toMatchObject({ hasOlder: true, loadingOlder: false, olderError: true });
+    host.restart();
+    const live = await until(offline.conversation, (s) => s.status === 'live' && !s.fromCache);
+    expect(live.olderError).toBeUndefined();
+    await offline.conversation.loadOlder();
+    expect(offline.conversation.getSnapshot().messages.length).toBeGreaterThan(
+      missed.messages.length,
+    );
+  });
 });
