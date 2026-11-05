@@ -1,4 +1,5 @@
-import { writeFileSync } from 'node:fs';
+import { readdirSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import sharp from 'sharp';
 import { afterEach, expect, it } from 'vitest';
 
@@ -86,6 +87,7 @@ it('serves a versioned thumbnail as immutable WebP and revalidates by ETag', asy
 it('gives an edited original a new version and refuses the old one with the current version', async () => {
   const { core, ref, get, attachment } = await fixture();
   const before = (await core.mediaVersions.ensure(ref.fileId!))!.version;
+  expect((await get(`&v=${before}&variant=320`)).status).toBe(200);
   writeFileSync(core.attachments.fileTarget(ref.fileId!).path, await png(600, 900, 20));
   const after = (await core.mediaVersions.ensure(ref.fileId!))!.version;
   expect(after).not.toBe(before);
