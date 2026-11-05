@@ -4,7 +4,7 @@ const MAX_READS = 3;
 
 export interface MediaStore {
   uri(cacheKey: string): string | undefined;
-  write(cacheKey: string, bytes: Uint8Array): string;
+  write(cacheKey: string, bytes: Uint8Array): Promise<string>;
   download(cacheKey: string, uri: string, headers: Record<string, string>): Promise<string>;
   forget(cacheKeyPrefixes: readonly string[]): void;
   entries(): MediaEntry[];
