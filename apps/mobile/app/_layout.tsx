@@ -28,12 +28,24 @@ import { noteTouch } from '../src/ui/primitives/touch-anchor';
 import { sheetScreenOptions } from '../src/ui/primitives/sheet-screen';
 import { useSystemReducedMotion } from '../src/ui/primitives/use-system-reduced-motion';
 import { profileScreenOptions } from '../src/ui/chat/profile-presentation';
+import { CallSessionHost } from '../src/ui/chat/call-session-host';
 import { swipeEntryListeners, swipeEntryOptions } from '../src/ui/shell/swipe-entry';
+import { installMediaStore, runAutoCleanup } from '../src/host/media-cache';
+import { nativeMediaStore } from '../src/host/native-media-store';
+import { installPurgeTargets } from '../src/host/purge-caches';
+import { nativePurgeTargets } from '../src/host/native-purge-targets';
 import { HostAccentProvider } from '../src/ui/shell/host-accent-provider';
 import { useDesignTheme } from '../src/ui/design/theme';
 import { useStrings } from '../src/ui/strings';
 import { useTheme } from '../src/ui/theme';
 import { useNativeInterfacePreferences } from '../src/ui/native-interface-preferences';
+
+installMediaStore(nativeMediaStore);
+installPurgeTargets(nativePurgeTargets);
+setTimeout(() => {
+  runAutoCleanup();
+  setInterval(() => runAutoCleanup(), 24 * 60 * 60 * 1000);
+}, 5000);
 
 export const unstable_settings = { initialRouteName: '(tabs)' };
 
@@ -126,7 +138,7 @@ function RootNavigator() {
                     dangerouslySingular={channelRouteId}
                     options={({ route }) => ({
                       title: '',
-                      fullScreenGestureEnabled: false,
+                      fullScreenGestureEnabled: true,
                       ...swipeEntryOptions(route),
                     })}
                     listeners={swipeEntryListeners('default')}
@@ -136,7 +148,7 @@ function RootNavigator() {
                     dangerouslySingular={channelRouteId}
                     options={({ route }) => ({
                       title: '',
-                      fullScreenGestureEnabled: false,
+                      fullScreenGestureEnabled: true,
                       ...swipeEntryOptions(route),
                     })}
                     listeners={swipeEntryListeners('default')}
@@ -293,6 +305,7 @@ function RootNavigator() {
                 </Stack>
               </SafeAreaProvider>
             </View>
+            <CallSessionHost />
             <BotCreationNotice />
             <ChannelCreationNotice />
             <StatisticsNotice />

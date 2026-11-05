@@ -27,6 +27,14 @@ vi.mock('react-native', async () => ({
     },
   },
 }));
+vi.mock('../src/ui/chat/call-session-host', () => ({ CallSessionHost: () => null }));
+vi.mock('../src/host/media-cache', () => ({
+  installMediaStore: () => {},
+  runAutoCleanup: () => {},
+}));
+vi.mock('../src/host/native-media-store', () => ({ nativeMediaStore: {} }));
+vi.mock('../src/host/purge-caches', () => ({ installPurgeTargets: () => {} }));
+vi.mock('../src/host/native-purge-targets', () => ({ nativePurgeTargets: {} }));
 vi.mock('expo-status-bar', () => ({ StatusBar: () => null }));
 vi.mock('react-native-gesture-handler', () => ({
   GestureHandlerRootView: ({ children }: { children: ReactNode }) => children,

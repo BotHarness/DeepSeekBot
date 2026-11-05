@@ -6,6 +6,7 @@ function a11y(props: Props): Record<string, unknown> {
   const state = (props['accessibilityState'] ?? {}) as Record<string, unknown>;
   return {
     ...(props['testID'] === undefined ? {} : { 'data-testid': props['testID'] }),
+    ...(props['nativeID'] === undefined ? {} : { 'data-native-id': props['nativeID'] }),
     ...(props['accessibilityRole'] === undefined ? {} : { role: props['accessibilityRole'] }),
     ...(props['accessibilityLabel'] === undefined
       ? {}

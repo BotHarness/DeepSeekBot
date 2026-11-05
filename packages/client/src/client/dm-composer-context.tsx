@@ -49,6 +49,11 @@ import { ChipButton } from './ds/chip-button.js';
 const subscribeUnavailable = (): (() => void) => () => {};
 const unavailableSnapshot = () => undefined;
 
+const compactTokens = new Intl.NumberFormat('en', {
+  notation: 'compact',
+  maximumFractionDigits: 1,
+});
+
 export function useDmComposerContext({
   bot,
   channelId,
@@ -400,11 +405,7 @@ function DmComposerContextView({
         ? t('composerContext.loading')
         : profileTokenSummaryText(activity, t),
   });
-  const shortTokens = (tokens: number) =>
-    new Intl.NumberFormat('en', {
-      notation: 'compact',
-      maximumFractionDigits: 1,
-    }).format(tokens);
+  const shortTokens = (tokens: number) => compactTokens.format(tokens);
   const compactUsage =
     context === undefined
       ? '— / —'
