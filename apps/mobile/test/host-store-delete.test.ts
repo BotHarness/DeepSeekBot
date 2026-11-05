@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { deleteHostStore, hostStore, installHostStoreOpener } from '../src/host/host-store';
+import {
+  deleteHostStore,
+  hostStore,
+  installHostStoreOpener,
+  retryHostStoreDeletes,
+} from '../src/host/host-store';
 import type { LocalStore } from '../src/host/local-store';
 
 afterEach(() => installHostStoreOpener(undefined));
@@ -42,5 +47,30 @@ describe('host store deletion', () => {
     await expect(deleteHostStore('h1')).rejects.toThrow('locked');
     await hostStore('h1');
     expect(events).toEqual(['remove h1', 'open h1']);
+  });
+
+  it('keeps a failed delete pending and retries it at the next start', async () => {
+    let pending: readonly string[] = [];
+    let failing = true;
+    const removed: string[] = [];
+    const port = {
+      open: async () => ({ close: async () => undefined }) as unknown as LocalStore,
+      remove: async (hostId: string) => {
+        if (failing) throw new Error('locked');
+        removed.push(hostId);
+      },
+      pending: {
+        read: () => [...pending],
+        write: (hostIds: readonly string[]) => (pending = hostIds),
+      },
+    };
+    installHostStoreOpener(port);
+    await expect(deleteHostStore('h1')).rejects.toThrow('locked');
+    expect(pending).toEqual(['h1']);
+    failing = false;
+    installHostStoreOpener(port);
+    await retryHostStoreDeletes();
+    expect(removed).toEqual(['h1']);
+    expect(pending).toEqual([]);
   });
 });

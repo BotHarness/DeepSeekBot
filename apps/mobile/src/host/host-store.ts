@@ -4,6 +4,7 @@ export interface HostStoreOpener {
   open(hostId: string): Promise<LocalStore>;
   remove(hostId: string): Promise<void>;
   size?(hostId: string): number;
+  pending?: { read(): string[]; write(hostIds: readonly string[]): void };
 }
 
 let opener: HostStoreOpener | undefined;
@@ -46,8 +47,14 @@ export async function closeHostStore(hostId: string): Promise<void> {
 export function deleteHostStore(hostId: string): Promise<void> {
   const previous = deleting.get(hostId) ?? Promise.resolve();
   const removal = previous.then(async () => {
-    await closeHostStore(hostId);
-    await opener?.remove(hostId);
+    try {
+      await closeHostStore(hostId);
+      await opener?.remove(hostId);
+    } catch (error) {
+      notePendingDelete(hostId, true);
+      throw error;
+    }
+    notePendingDelete(hostId, false);
   });
   const gate = removal.then(
     () => undefined,
@@ -66,4 +73,26 @@ export function hostStoreSize(hostId: string): number {
   } catch {
     return 0;
   }
+}
+
+function notePendingDelete(hostId: string, failed: boolean): void {
+  const pending = opener?.pending;
+  if (pending === undefined) return;
+  try {
+    const hostIds = new Set(pending.read());
+    if (failed === hostIds.has(hostId)) return;
+    if (failed) hostIds.add(hostId);
+    else hostIds.delete(hostId);
+    pending.write([...hostIds]);
+  } catch {}
+}
+
+export async function retryHostStoreDeletes(): Promise<void> {
+  let hostIds: string[];
+  try {
+    hostIds = opener?.pending?.read() ?? [];
+  } catch {
+    return;
+  }
+  await Promise.all(hostIds.map((hostId) => deleteHostStore(hostId).catch(() => undefined)));
 }

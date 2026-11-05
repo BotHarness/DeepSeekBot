@@ -167,6 +167,9 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
       !revoked
     ) {
       revoked = true;
+      const live = conversations.get(client);
+      for (const conversation of live?.values() ?? []) conversation.stop();
+      live?.clear();
       forgetHostConversations(saved.hostId);
       purgeCaches.forgetHost(saved.hostId);
     }

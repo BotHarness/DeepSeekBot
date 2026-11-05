@@ -186,6 +186,47 @@ it('clears the saved chats when the Computer revokes this phone', async () => {
   expect(clearCache).toHaveBeenCalledWith('old');
 });
 
+it('stops the revoked Host conversations so no write recreates its store', async () => {
+  const { hostSession } = await session('old', ['old']);
+  const { createConversation } = await import('../src/host/conversation');
+  const stop = vi.fn();
+  vi.mocked(createConversation).mockReturnValue({
+    start: () => undefined,
+    stop,
+    subscribe: () => () => {},
+    getSnapshot: () => ({}),
+  } as never);
+  connection.snapshot = {
+    connection: { status: 'connected', route: '' },
+    roster: { bots: [], channels: [{ id: 'g1' }] },
+  } as never;
+  const { prepareConversation } = await import('../src/host/host-session');
+  prepareConversation(hostSession.getState().client!, 'old', { channelId: 'g1' });
+  expect(createConversation).toHaveBeenCalled();
+  connection.snapshot = {
+    connection: { status: 'refused', route: '', code: 'device-revoked' },
+  };
+  for (const listener of [...connection.listeners]) listener();
+  expect(stop).toHaveBeenCalled();
+});
+
+it('starts deleting the store even when the old chat files fail to clear', async () => {
+  const { installHostStoreOpener } = await import('../src/host/host-store');
+  const remove = vi.fn(async () => undefined);
+  installHostStoreOpener({
+    open: async () => {
+      throw new Error('closed');
+    },
+    remove,
+  });
+  clearCache.mockImplementationOnce(() => {
+    throw new Error('disk');
+  });
+  const { forgetHostConversations } = await import('../src/host/native-conversations');
+  expect(() => forgetHostConversations('old')).toThrow('disk');
+  await vi.waitFor(() => expect(remove).toHaveBeenCalledWith('old'));
+});
+
 it('refreshes push credentials after approved replacement without changing the selected Computer', async () => {
   const { hostSession } = await session('new');
   syncPush.mockClear();

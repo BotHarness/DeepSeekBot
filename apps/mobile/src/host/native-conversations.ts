@@ -28,8 +28,8 @@ export function warmHostConversations(hostId: string): void {
 }
 
 export function forgetHostConversations(hostId: string): void {
-  clearHostConversationCache(hostId);
   void deleteHostStore(hostId).catch(() => undefined);
+  clearHostConversationCache(hostId);
 }
 
 export async function clearHostConversations(hostId: string): Promise<void> {
