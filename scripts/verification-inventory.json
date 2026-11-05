@@ -2473,17 +2473,17 @@
       "path": "scripts/e2e-call-media.mjs",
       "category": "mapped",
       "behaviors": ["phone.bot-call"],
-      "reason": "Real Chromium WebRTC check of the Host call renderer: audio-only offer, 16 kHz uplink PCM, downlink playback, failed playback and close.",
+      "reason": "Real Chromium WebRTC check of the Host call renderer: audio-only offer with Opus DTX, 16 kHz uplink PCM, packets per second while silent and while talking, downlink playback, failed playback, and close after the 15 s reconnect grace.",
       "task": 3400,
-      "sha256": "36f8cb22ef88046af0e7c7ce7be4af62dab402281b0262405cc9d9fd96c23b46"
+      "sha256": "158ff3245f56a2e7f8eed3c9155583b21ea58dd7bbb153db38c5c9c326431aae"
     },
     {
       "path": "scripts/e2e-desktop-call.mjs",
       "category": "mapped",
       "behaviors": ["desktop.bot-call"],
-      "reason": "Desktop call in Chromium with fake audio capture files: the Client's browser WebRTC (echo cancellation on) against the Host call renderer and the real Host call owner; question, long-task, camera and screen scenarios, cough discarded, reply heard, second window refused, fake camera keyframes reach a sentence grid, a fake screen recording gives one keyframe per window and a system-stopped share falls back to voice.",
+      "reason": "Desktop call in Chromium with fake audio capture files: the Client's browser WebRTC (echo cancellation on) against the Host call renderer and the real Host call owner; question, long-task, camera and screen scenarios, cough discarded, reply heard, second window refused, fake camera keyframes reach a sentence grid, a fake screen recording gives one keyframe per window, a system-stopped share falls back to voice, and the Host's sampled media performance (packets/s, kbps, CPU) in the call view.",
       "task": 3496,
-      "sha256": "03992ec0bcd32f48bc17bddfea805a392267fd08a9997cca78e8c1deead48a3a"
+      "sha256": "7eb4c4bc29d7418005aa5fc04b9d328ac89af5cf2078626eed2f793334e92c5e"
     }
   ],
   "native": [

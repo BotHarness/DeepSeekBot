@@ -21,7 +21,57 @@ export const VOICE_CALL_LIMITS = {
   events: 256,
   maxUtteranceMs: 30_000,
   playbackTailMs: 300,
+  perfSampleMs: 5_000,
 } as const;
+
+export interface VoiceCallMediaStats {
+  readonly uplinkPackets: number;
+  readonly uplinkBytes: number;
+  readonly uplinkLost: number;
+  readonly concealedSamples: number;
+  readonly receivedSamples: number;
+  readonly downlinkPackets: number;
+  readonly downlinkBytes: number;
+  readonly jitterMs?: number;
+  readonly rttMs?: number;
+  readonly helperCpuPct?: number;
+  readonly disconnects?: number;
+}
+
+export interface VoiceCallPerfSample {
+  readonly atMs: number;
+  readonly uplinkPps: number;
+  readonly uplinkKbps: number;
+  readonly uplinkLossPct: number;
+  readonly concealedPct: number;
+  readonly downlinkPps: number;
+  readonly downlinkKbps: number;
+  readonly jitterMs?: number;
+  readonly rttMs?: number;
+  readonly helperCpuPct?: number;
+  readonly disconnects?: number;
+  readonly hostCpuPct: number;
+}
+
+export interface VoiceCallPerfRange {
+  readonly avg: number;
+  readonly max: number;
+}
+
+export interface VoiceCallPerf {
+  readonly samples: number;
+  readonly sampleMs: number;
+  readonly last?: VoiceCallPerfSample;
+  readonly uplinkPps: VoiceCallPerfRange;
+  readonly downlinkPps: VoiceCallPerfRange;
+  readonly uplinkKbps: VoiceCallPerfRange;
+  readonly downlinkKbps: VoiceCallPerfRange;
+  readonly hostCpuPct: VoiceCallPerfRange;
+  readonly helperCpuPct?: VoiceCallPerfRange;
+  readonly rttMs?: VoiceCallPerfRange;
+  readonly uplinkLossPct: number;
+  readonly disconnects?: number;
+}
 
 export type VoiceCallPhase =
   | 'connecting'
@@ -194,6 +244,7 @@ export interface VoiceCallView {
   readonly offer?: VoiceCallDescription;
   readonly events: readonly VoiceCallEvent[];
   readonly lastSeq: number;
+  readonly perf?: VoiceCallPerf;
 }
 
 export type VoiceCallMissing =

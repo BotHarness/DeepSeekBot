@@ -8,6 +8,7 @@ import {
   type VoiceCallDescription,
   type VoiceCallEndReason,
   type VoiceCallEvent,
+  type VoiceCallMediaStats,
   type VoiceCallMissing,
   type VoiceCallPhase,
   type VoiceCallReadiness,
@@ -21,6 +22,7 @@ import type {
   ChannelVoiceCallLifecycle,
   ChannelVoiceCallShareChange,
 } from '../channels/voice-call-record.js';
+import { createCallPerf, perfFields, type CallPerf } from './call-perf.js';
 import { createVad, VAD_SAMPLE_RATE, type VadOptions } from './vad.js';
 import { VoiceError, wavFromPcm16 } from './providers.js';
 import type { AsrStream } from './soniox.js';
@@ -50,6 +52,7 @@ export interface VoiceCallMediaPeer {
   readonly offer?: VoiceCallDescription;
   answer(answer: VoiceCallDescription, signal?: AbortSignal): Promise<void>;
   play(audio: Uint8Array, mime: string, signal: AbortSignal): Promise<void>;
+  stats?(): Promise<VoiceCallMediaStats | undefined>;
   close(): Promise<void>;
 }
 
@@ -131,6 +134,7 @@ export interface VoiceCallsDeps {
     toMs: number;
   }): Promise<string | undefined>;
   now?: () => number;
+  cpuMs?: () => number;
   vad?: VadOptions;
   speechDbfs?: () => number;
   log?: (phase: string, fields: Record<string, string | number>) => void;
@@ -269,6 +273,9 @@ interface Call {
     | undefined;
   replies: Reply[];
   replyCount: number;
+  perf: CallPerf;
+  perfAt: number;
+  sampling: boolean;
   stoppedDrafts: Set<string>;
   ack?: AudioClip | undefined;
 }
@@ -342,6 +349,12 @@ interface Reply {
 export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
   const now = deps.now ?? (() => Date.now());
   const log = deps.log ?? (() => undefined);
+  const cpuMs =
+    deps.cpuMs ??
+    (() => {
+      const usage = process.cpuUsage();
+      return (usage.user + usage.system) / 1000;
+    });
   let imaging = deps.imaging;
   const images = () => (imaging ??= createCallImaging());
   const calls = new Map<string, Call>();
@@ -440,7 +453,30 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     ...(call.offer === undefined || call.connected ? {} : { offer: call.offer }),
     events: call.events.filter((event) => event.seq > after),
     lastSeq: call.seq,
+    ...perfView(call),
   });
+
+  const perfView = (call: Call) => {
+    const perf = call.perf.view();
+    return perf === undefined ? {} : { perf };
+  };
+
+  const samplePerf = async (call: Call, at: number) => {
+    const peer = call.peer;
+    if (peer?.stats === undefined || call.sampling) return;
+    call.sampling = true;
+    call.perfAt = at;
+    try {
+      const stats = await peer.stats();
+      if (stats === undefined || call.phase === 'ended') return;
+      const sample = call.perf.sample(stats, now() - call.startedAt, cpuMs());
+      if (sample !== undefined) log('call-media-stats', { call: call.id, ...perfFields(sample) });
+    } catch {
+      log('call-media-stats-failed', { call: call.id });
+    } finally {
+      call.sampling = false;
+    }
+  };
 
   const settle = (call: Call) => {
     if (call.phase === 'ended' || call.phase === 'connecting') return;
@@ -474,6 +510,25 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     push(call, { type: 'ended', reason });
     log('call-ended', { call: call.id, bot: call.slug, reason, ms: call.endedAt - call.startedAt });
     recordEnd(call, reason);
+    const perf = call.perf.view();
+    if (perf === undefined && call.connected && call.peer?.stats !== undefined)
+      log('call-media-summary', { call: call.id, samples: 0 });
+    else if (perf !== undefined)
+      log('call-media-summary', {
+        call: call.id,
+        samples: perf.samples,
+        uplinkPpsAvg: perf.uplinkPps.avg,
+        uplinkPpsMax: perf.uplinkPps.max,
+        downlinkPpsAvg: perf.downlinkPps.avg,
+        downlinkPpsMax: perf.downlinkPps.max,
+        uplinkKbpsAvg: perf.uplinkKbps.avg,
+        downlinkKbpsAvg: perf.downlinkKbps.avg,
+        uplinkLossPct: perf.uplinkLossPct,
+        hostCpuPctAvg: perf.hostCpuPct.avg,
+        ...(perf.helperCpuPct === undefined ? {} : { helperCpuPctAvg: perf.helperCpuPct.avg }),
+        ...(perf.rttMs === undefined ? {} : { rttMsAvg: perf.rttMs.avg }),
+        ...(perf.disconnects === undefined ? {} : { disconnects: perf.disconnects }),
+      });
     await call.peer?.close().catch(() => undefined);
     setTimeout(() => {
       if (calls.get(call.id) === call) calls.delete(call.id);
@@ -1342,6 +1397,8 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       void end(call, 'bot-unavailable');
       return;
     }
+    if (call.connected && at - call.perfAt >= VOICE_CALL_LIMITS.perfSampleMs)
+      void samplePerf(call, at);
     const running = deps.busy(call.slug);
     if (call.ownTurn === 'sent' && at - call.ownTurnAt > OWN_TURN_START_MS) call.ownTurn = 'none';
     else if (call.ownTurn === 'sent' && running) call.ownTurn = 'running';
@@ -1489,6 +1546,9 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       replies: [],
       replyCount: 0,
       stoppedDrafts: new Set(),
+      perf: createCallPerf(VOICE_CALL_LIMITS.perfSampleMs),
+      perfAt: 0,
+      sampling: false,
     };
     calls.set(call.id, call);
     if (!segmented && deps.providers.warm !== undefined) {
@@ -1506,6 +1566,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       if (call.busy) push(call, { type: 'busy' });
       prepareAck(call);
       log('call-connected', { call: call.id, ms: now() - call.startedAt });
+      void samplePerf(call, now());
     };
     if (kind === 'synthetic') {
       connected();
