@@ -1,7 +1,14 @@
 import type { ComponentProps } from 'react';
 import { useState } from 'react';
 import { Host } from '@expo/ui';
-import { Button as NativeButton, HStack, Image, ProgressView, Text } from '@expo/ui/swift-ui';
+import {
+  Button as NativeButton,
+  HStack,
+  Image,
+  ProgressView,
+  Text,
+  VStack,
+} from '@expo/ui/swift-ui';
 import {
   accessibilityHidden,
   accessibilityLabel,
@@ -66,10 +73,11 @@ export function Button({
   const [height, setHeight] = useState<number>();
   const style = nativeStyle({ tone, variant }, glass);
   const bezel = style !== 'borderless';
+  const Stack = theme.largeText ? VStack : HStack;
   return (
     <Host
       matchContents={{ vertical: true }}
-      ignoreSafeArea="keyboard"
+      ignoreSafeArea="all"
       colorScheme={theme.scheme}
       seedColor={theme.color.accent}
       style={{ alignSelf: 'stretch', flexGrow: 1, maxHeight: height }}
@@ -88,8 +96,8 @@ export function Button({
           ...(busy ? [accessibilityValue(t.loading)] : []),
         ]}
       >
-        <HStack
-          spacing={space.x3}
+        <Stack
+          spacing={theme.largeText ? space.x2 : space.x3}
           modifiers={[
             frame({ maxWidth: Infinity, minHeight: bezel ? theme.touch - space.x5 : theme.touch }),
             ...(bezel ? [] : [contentShape(shapes.rectangle())]),
@@ -111,7 +119,7 @@ export function Button({
           >
             {controlCase(label)}
           </Text>
-        </HStack>
+        </Stack>
       </NativeButton>
     </Host>
   );

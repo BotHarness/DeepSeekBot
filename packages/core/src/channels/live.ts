@@ -1,6 +1,6 @@
 import type { PersonaBotActivitySnapshot } from '../state/bot-state.js';
 import type { PurgedPlacement } from '../purge/contracts.js';
-import { isChannelNotice } from './channel-notice.js';
+import { channelPreviewMessage, isChannelNotice } from './channel-notice.js';
 import type { ChannelDraft, ChannelDraftEvent } from './draft.js';
 import type { ChannelMessage, ChannelReaction } from './channel.js';
 import type { ChannelMessageCommit, ChannelStore } from './store.js';
@@ -11,6 +11,7 @@ export const CHANNEL_COMMIT_EVENT = 'channel/message';
 export const CHANNEL_ADMISSION_EVENT = 'channel/admission';
 export const CHANNEL_HUMAN_READ_EVENT = 'channel/human-read';
 export const CHANNEL_REACTION_EVENT = 'channel/reaction';
+export const CHANNEL_VOICE_EVENT = 'channel/voice';
 export const CHANNEL_DRAFT_EVENT = 'channel/draft';
 export const CHANNEL_DRAFT_APPEND_EVENT = 'channel/draft-append';
 export const CHANNEL_DRAFT_BASELINE_EVENT = 'channel/draft-baseline';
@@ -52,6 +53,7 @@ interface Subscriber {
   pushAdmission(messageId: string, message: ChannelMessage): void;
   pushHumanRead(humanId: string, revision: number): void;
   pushReaction(messageId: string, reactions: ChannelReaction[]): void;
+  pushVoice(messageId: string, message: ChannelMessage): void;
   close(): void;
 }
 
@@ -76,6 +78,13 @@ export type ChannelLiveNotification =
     }
   | { kind: 'human-read'; channelId: string; humanId: string; revision: number }
   | { kind: 'reaction'; channelId: string; messageId: string; reactions: ChannelReaction[] }
+  | {
+      kind: 'voice';
+      channelId: string;
+      messageId: string;
+      voice: NonNullable<ChannelMessage['voice']>;
+      attachments: NonNullable<ChannelMessage['attachments']>;
+    }
   | { kind: 'draft-baseline'; channelId: string; revision: number; drafts: PublishedDraft[] }
   | { kind: 'draft'; draft: PublishedDraft }
   | { kind: 'draft-append'; append: PublishedDraftAppend }
@@ -118,6 +127,10 @@ function encodeChannelFrame(frame: ChannelLiveFrame): string {
     const { kind: _kind, ...data } = notification;
     return `event: ${CHANNEL_REACTION_EVENT}\ndata: ${JSON.stringify(data)}\n\n`;
   }
+  if (notification.kind === 'voice') {
+    const { kind: _kind, ...data } = notification;
+    return `event: ${CHANNEL_VOICE_EVENT}\ndata: ${JSON.stringify(data)}\n\n`;
+  }
   if (notification.kind === 'draft-baseline') {
     const { kind: _kind, ...data } = notification;
     return `event: ${CHANNEL_DRAFT_BASELINE_EVENT}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -156,6 +169,7 @@ export interface ChannelLiveHub {
   publishAdmission(channelId: string, messageId: string, message: ChannelMessage): void;
   publishHumanRead(channelId: string, humanId: string, revision: number): void;
   publishReaction(channelId: string, messageId: string, reactions: ChannelReaction[]): void;
+  publishVoice(channelId: string, messageId: string, message: ChannelMessage): void;
   publishDraft(event: ChannelDraftEvent): void;
   publishRosterCommitted(): void;
   publishContentPurged(): void;
@@ -170,7 +184,7 @@ function parseRevision(value: string | null): number | undefined {
 
 interface ActivitySource {
   snapshot(): PersonaBotActivitySnapshot;
-  onChange(listener: () => void): () => void;
+  onChange(listener: (change?: unknown) => void): () => void;
 }
 
 function combineLiveResponses(channel: Response, roster: Response): Response {
@@ -236,6 +250,16 @@ export function createChannelLiveHub(
   const drafts = new Map<string, Map<string, PublishedDraft>>();
   const draftRevisions = new Map<string, number>();
   const activitySubscribers = new Set<{ close(): void }>();
+  let activityFrame:
+    | { change: unknown; snapshot: PersonaBotActivitySnapshot; data: string }
+    | undefined;
+  const currentActivity = (source: ActivitySource, change?: unknown) => {
+    if (change === undefined || activityFrame?.change !== change) {
+      const snapshot = source.snapshot();
+      activityFrame = { change, snapshot, data: JSON.stringify(snapshot) };
+    }
+    return activityFrame;
+  };
   const openActivity = (): Response => {
     if (activity === undefined) return new Response('Activity unavailable', { status: 503 });
     const encoder = new TextEncoder();
@@ -245,6 +269,7 @@ export function createChannelLiveHub(
       start(controller) {
         let ended = false;
         let pending = false;
+        let sent: string | undefined;
         let unsubscribe: (() => void) | undefined;
         let heartbeat: ReturnType<typeof setInterval> | undefined;
         const subscriber = {
@@ -259,19 +284,18 @@ export function createChannelLiveHub(
             } catch {}
           },
         };
-        const send = (): void => {
+        const send = (change?: unknown): void => {
           if (ended) return;
           if ((controller.desiredSize ?? 0) <= 0) {
             pending = true;
             return;
           }
           pending = false;
+          const { data } = currentActivity(activity, change);
+          if (data === sent) return;
+          sent = data;
           try {
-            controller.enqueue(
-              encoder.encode(
-                `event: activity/snapshot\ndata: ${JSON.stringify(activity.snapshot())}\n\n`,
-              ),
-            );
+            controller.enqueue(encoder.encode(`event: activity/snapshot\ndata: ${data}\n\n`));
           } catch {
             subscriber.close();
           }
@@ -327,20 +351,20 @@ export function createChannelLiveHub(
       start(controller) {
         let ended = false;
         let pendingActivity = false;
+        let sentActivity: string | undefined;
         let offActivity: (() => void) | undefined;
-        const sendActivity = (): void => {
+        const sendActivity = (change?: unknown): void => {
           if (ended || activity === undefined) return;
           if ((controller.desiredSize ?? 0) <= 0) {
             pendingActivity = true;
             return;
           }
           pendingActivity = false;
+          const { data } = currentActivity(activity, change);
+          if (data === sentActivity) return;
+          sentActivity = data;
           try {
-            controller.enqueue(
-              encoder.encode(
-                `event: activity/snapshot\ndata: ${JSON.stringify(activity.snapshot())}\n\n`,
-              ),
-            );
+            controller.enqueue(encoder.encode(`event: activity/snapshot\ndata: ${data}\n\n`));
           } catch {
             subscriber?.close();
           }
@@ -464,7 +488,13 @@ export function createChannelLiveHub(
         const stale = queue.findIndex(
           (frame) => frame.type === 'latest' && frame.channelId === channelId,
         );
-        if (stale !== -1) queue.splice(stale, 1);
+        const dropped = stale === -1 ? undefined : queue.splice(stale, 1)[0];
+        if (
+          dropped?.type === 'latest' &&
+          dropped.message.author.kind === 'bot' &&
+          (message.author.kind !== 'bot' || message.author.slug !== dropped.message.author.slug)
+        )
+          this.push();
         queue.push({ type: 'latest', channelId, message });
         if (queue.length > ROSTER_LIVE_QUEUE_LIMIT) this.close();
         wake?.();
@@ -499,6 +529,7 @@ export function createChannelLiveHub(
     if (activity === undefined) throw new LiveUnavailable('Activity unavailable');
     let ended = signal.aborted;
     let pending = false;
+    let lastChange: unknown;
     let wake: (() => void) | undefined;
     const subscriber = {
       close(): void {
@@ -512,19 +543,24 @@ export function createChannelLiveHub(
     signal.addEventListener('abort', abort, { once: true });
     const unsubscribe = ended
       ? undefined
-      : activity.onChange(() => {
+      : activity.onChange((change) => {
+          lastChange = change;
           pending = true;
           wake?.();
         });
     if (!ended) activitySubscribers.add(subscriber);
     try {
       if (ended) return;
-      yield { type: 'baseline', snapshot: activity.snapshot() };
+      let sent = currentActivity(activity);
+      yield { type: 'baseline', snapshot: sent.snapshot };
       for (;;) {
         if (ended) return;
         if (pending) {
           pending = false;
-          yield { type: 'changed', snapshot: activity.snapshot() };
+          const next = currentActivity(activity, lastChange);
+          if (next.data === sent.data) continue;
+          sent = next;
+          yield { type: 'changed', snapshot: next.snapshot };
           continue;
         }
         await new Promise<void>((resolve) => {
@@ -592,6 +628,19 @@ export function createChannelLiveHub(
           notification: { kind: 'reaction', channelId, messageId, reactions },
         });
       },
+      pushVoice(messageId, message) {
+        if (message.voice === undefined) return;
+        emit({
+          type: 'notification',
+          notification: {
+            kind: 'voice',
+            channelId,
+            messageId,
+            voice: message.voice,
+            attachments: message.attachments ?? [],
+          },
+        });
+      },
       pushDraft(event) {
         emit({
           type: 'notification',
@@ -648,13 +697,20 @@ export function createChannelLiveHub(
   ): AsyncGenerator<ChannelLiveFrame> {
     if (typeof channelId !== 'string' || channels.get(channelId) === undefined)
       throw new ChannelLiveRefused('not-found', 'Unknown Channel');
-    if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_MESSAGE_PAGE)
+    if (!Number.isSafeInteger(limit) || limit < 0 || limit > MAX_MESSAGE_PAGE)
       throw new ChannelLiveRefused('invalid', 'Invalid Channel page size');
     if (drafts !== 'full' && drafts !== 'append')
       throw new ChannelLiveRefused('invalid', 'Invalid draft delivery');
     const after = channels.revision(channelId);
-    const page = channels.readHumanJournalPage(channelId, { through: after, limit });
-    if (page === undefined) throw new ChannelLiveRefused('not-found', 'Unknown Channel');
+    const read = channels.readHumanJournalPage(channelId, {
+      through: after,
+      limit: Math.max(limit, 1),
+    });
+    if (read === undefined) throw new ChannelLiveRefused('not-found', 'Unknown Channel');
+    const page =
+      limit === 0
+        ? { entries: [], olderCursor: null, hasOlder: read.entries.length > 0 || read.hasOlder }
+        : read;
     if (signal.aborted) return;
     const queue: ChannelLiveFrame[] = [];
     let ended = false;
@@ -718,6 +774,9 @@ export function createChannelLiveHub(
         return new Response('Unknown Channel', { status: 404 });
       }
       const query = url.searchParams.get('after');
+      const drafts = url.searchParams.get('drafts') ?? 'full';
+      if (drafts !== 'full' && drafts !== 'append')
+        return new Response('Invalid draft delivery', { status: 400 });
       const lastEventId = request.headers.get('Last-Event-ID');
       const requested = query === null ? 0 : parseRevision(query);
       const resumed = lastEventId === null ? 0 : parseRevision(lastEventId);
@@ -725,7 +784,7 @@ export function createChannelLiveHub(
         return new Response('Invalid Channel revision', { status: 400 });
       }
       const after = Math.max(requested, resumed);
-      if (channels.messagesAfter(channelId, after) === undefined) {
+      if (after > channels.revision(channelId)) {
         return new Response('Channel revision is ahead of the log', { status: 409 });
       }
 
@@ -744,6 +803,7 @@ export function createChannelLiveHub(
                 controller.close();
               } catch {}
             },
+            drafts,
           );
           heartbeat = setInterval(() => {
             try {
@@ -767,11 +827,11 @@ export function createChannelLiveHub(
     },
     publishCommitted(commit) {
       for (const subscriber of subscribers.get(commit.channelId) ?? []) subscriber.push(commit);
-      if (!isChannelNotice(commit.message))
-        for (const subscriber of rosterSubscribers)
-          subscriber.latest(commit.channelId, commit.message);
+      if (!isChannelNotice(commit.message)) {
+        const preview = channelPreviewMessage(commit.message);
+        for (const subscriber of rosterSubscribers) subscriber.latest(commit.channelId, preview);
+      }
       if (commit.message.author.kind !== 'bot') return;
-      if (!isChannelNotice(commit.message)) this.publishRosterCommitted();
       const botSlug = commit.message.author.slug;
       const candidates = [...(drafts.get(commit.channelId)?.values() ?? [])].filter(
         (draft) => draft.botSlug === botSlug,
@@ -799,6 +859,10 @@ export function createChannelLiveHub(
       for (const subscriber of subscribers.get(channelId) ?? [])
         subscriber.pushReaction(messageId, reactions);
     },
+    publishVoice(channelId, messageId, message) {
+      for (const subscriber of subscribers.get(channelId) ?? [])
+        subscriber.pushVoice(messageId, message);
+    },
     publishDraft(event) {
       const channelId = event.type === 'update' ? event.draft.channelId : event.channelId;
       if (channels.get(channelId) === undefined) return;
@@ -810,8 +874,16 @@ export function createChannelLiveHub(
           group = new Map();
           drafts.set(channelId, group);
         }
-        const draft = { ...event.draft, revision };
-        const previous = group.get(draft.draftId);
+        const { voice: _voice, bodyComplete: _bodyComplete, ...visible } = event.draft;
+        const previous = group.get(visible.draftId);
+        if (
+          previous?.attemptId === visible.attemptId &&
+          previous.botSlug === visible.botSlug &&
+          previous.channelId === visible.channelId &&
+          previous.body === visible.body
+        )
+          return;
+        const draft = { ...visible, revision };
         group.set(draft.draftId, draft);
         published =
           previous?.attemptId === draft.attemptId &&

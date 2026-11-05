@@ -29,6 +29,8 @@ export async function approveTobCliOperation(options: {
     (command.startsWith('model-plan-') ||
       command === 'model-preset-apply' ||
       command.startsWith('bot-') ||
+      command === 'voice-set' ||
+      command === 'voice-asr-set' ||
       ['update', 'pause', 'resume'].includes(command))
       ? `bot:${operation.target}`
       : 'global';

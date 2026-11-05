@@ -30,6 +30,10 @@ import expo.modules.kotlin.views.ExpoView
 import kotlin.math.abs
 import kotlin.math.max
 
+internal const val HORIZONTAL_SWIPE_OWNER = "horizontal-swipe-owner"
+
+internal fun ownsHorizontalSwipe(nativeId: Any?): Boolean = nativeId == HORIZONTAL_SWIPE_OWNER
+
 internal fun startsEndDrag(dx: Float, dy: Float, slop: Int): Boolean =
   dx < -slop && abs(dx) > abs(dy) * 2
 
@@ -246,6 +250,8 @@ private fun horizontalTarget(view: View, x: Float, y: Float): Boolean {
   view.getLocationOnScreen(at)
   if (x < at[0] || x >= at[0] + view.width || y < at[1] || y >= at[1] + view.height) return false
   if (view is EditText || view.canScrollHorizontally(-1) || view.canScrollHorizontally(1)) return true
+  // A replyable message row owns its swipe left; the sheet opens from anywhere else.
+  if (ownsHorizontalSwipe(view.getTag(com.facebook.react.R.id.view_tag_native_id))) return true
   // The pager owns enabled/disabled scroll state. Its Compose implementation reports
   // semantics at the previous DOWN position; inspect public page views instead.
   if (view is ComposePagerView) {

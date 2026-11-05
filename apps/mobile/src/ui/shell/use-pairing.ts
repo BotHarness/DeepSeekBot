@@ -42,6 +42,8 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
     confirm(matches: boolean): void;
   }>();
   const [error, setError] = useState<PairingFailure | undefined>();
+  const [errorDetail, setErrorDetail] = useState<string | undefined>();
+  const lastDetail = useRef<string | undefined>(undefined);
   const lastMethod = useRef<PairingMethod>('paste');
   const pending = useRef<AbortController | undefined>(undefined);
   const handled = useRef<string | undefined>(undefined);
@@ -64,6 +66,8 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
     setComputerName('');
     setBusy(true);
     setError(undefined);
+    setErrorDetail(undefined);
+    lastDetail.current = undefined;
     let accountPair: { accountOwner: AccountOwner; sessionKey: string } | undefined;
     const startingHosts = hostSession.getState().hosts;
     const result = await pairHost({
@@ -144,6 +148,8 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
     if (!result.ok) {
       if (clearsPastedLink(result.code, method)) handled.current = undefined;
       setError(result.code);
+      setErrorDetail(result.detail);
+      lastDetail.current = result.detail;
       return result.code;
     }
     if (!options.stayOnPage && !finishSetup()) router.dismissTo('/');
@@ -157,6 +163,8 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
     verification,
     computerName,
     error,
+    errorDetail,
+    lastFailureDetail: () => lastDetail.current,
     method: lastMethod.current,
     connectionName,
     setConnectionName,

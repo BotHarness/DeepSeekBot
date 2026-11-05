@@ -6,6 +6,7 @@ import { WINDOW_COMPANION_CSS } from './window-companion-styles.js';
 import { COMBOBOX_CSS } from './combobox.js';
 import { CHANNEL_DOCK_CSS } from './channel-dock-styles.js';
 import { GENERATED_FILES_CSS } from './generated-files-styles.js';
+import { CALL_CSS } from './call-styles.js';
 import { DEEPSEEKBOT_TRANSPARENT_DATA_URI } from './bot-icon-assets.js';
 import { ACTIVITY_INBOX_CSS } from './activity-inbox-styles.js';
 import { MOBILE_APPS_CSS } from './mobile-apps-styles.js';
@@ -19,6 +20,7 @@ export const CSS =
   WINDOW_COMPANION_CSS +
   CHANNEL_DOCK_CSS +
   GENERATED_FILES_CSS +
+  CALL_CSS +
   ACTIVITY_INBOX_CSS +
   MOBILE_APPS_CSS +
   `
@@ -3665,9 +3667,6 @@ html[data-botharness-motion='reduce'] .bh-message-group-enter .bh-message-group-
   --bh-bubble-radius: ${radius.lg};
   border-radius: var(--bh-bubble-radius);
 }
-.bh-bubble:has(> .bh-bubble-body) {
-  --bh-bubble-radius: 20px;
-}
 .bh-bubble[data-group-position='solo'],
 .bh-bubble[data-group-position='last'] {
   border-bottom-left-radius: ${radius.sm};
@@ -3701,6 +3700,11 @@ html[data-botharness-motion='reduce'] .bh-message-group-enter .bh-message-group-
   border-bottom-left-radius: var(--bh-bubble-radius);
   border-top-right-radius: ${radius.sm};
   border-bottom-right-radius: ${radius.sm};
+}
+/* Same rule as mobile: a lone single-line bubble is a pill on every corner; inside a
+   group a single-line bubble keeps the multi-line radius so the stack reads as one shape. */
+.bh-bubble.bh-bubble[data-single-line][data-group-position='solo'] {
+  border-radius: 999px;
 }
 /* Reactions and live reading avatars hang over the bubble's bottom edge:
    reactions on the author's side, readers on the other. */
@@ -3857,6 +3861,10 @@ html[data-botharness-motion='reduce'] [data-badge-motion='leave'] { animation-na
 .bh-message-file-more { flex: none; color: inherit; }
 /* Bound intrinsic attachment width too, so long filenames do not widen the bubble. */
 .bh-message-attachments { display: grid; max-width: 320px; gap: ${space.x3}; margin-top: ${space.x3}; }
+.bh-message-voice { max-width: 320px; margin-bottom: ${space.x3}; }
+.bh-message-voice .bh-message-audio { width: 100%; box-sizing: border-box; }
+.bh-message-voice-note { display: block; color: var(--dsw-alias-label-secondary); font-size: ${text.metaSize}; line-height: ${text.metaLine}; }
+.bh-message-voice[data-voice-state='failed'] .bh-message-voice-note { color: var(--dsw-alias-label-tertiary); }
 .bh-message-perf { margin-top: ${space.x2}; color: var(--dsw-alias-label-tertiary); font-size: ${text.metaSize}; line-height: ${text.metaLine}; font-variant-numeric: tabular-nums; }
 .bh-bridge-media-content { white-space: pre-wrap; }
 .bh-bridge-image { max-width: min(100%, 320px); }
@@ -4416,7 +4424,9 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
     color-mix(in srgb, var(--dsw-alias-label-primary) 9%, transparent);
   transition:
     padding 220ms var(--ds-ease-in-out),
-    border-radius 220ms var(--ds-ease-in-out);
+    border-radius 220ms var(--ds-ease-in-out),
+    border-color 160ms var(--ds-ease-in-out),
+    box-shadow 160ms var(--ds-ease-in-out);
 }
 .bh-composer-expanded {
   padding-top: ${space.x3};
@@ -4601,6 +4611,83 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   padding: 0;
   border-radius: ${radius.round};
 }
+.bh-composer-has-mic { --bh-composer-compact-padding-right: 92px; }
+.bh-composer-has-mic .bh-composer-footer { gap: ${space.x2}; }
+.bh-composer-mic {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: ${border.hairline} solid ${color.border};
+  border-radius: ${radius.round};
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.bh-composer-mic:hover { background: var(--dsw-alias-interactive-bg-active); color: var(--dsw-alias-label-primary); }
+.bh-composer-mic:focus-visible { outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 2px; }
+.bh-composer-mic:disabled { opacity: .5; cursor: default; }
+.bh-composer-mic[data-state='starting'] { color: var(--dsw-alias-state-business-primary); background: var(--dsw-alias-interactive-bg-active); }
+.bh-composer-mic[data-state='toggle'],
+.bh-composer-mic[data-state='hold'] {
+  border-color: transparent;
+  background: var(--dsw-alias-state-business-primary);
+  color: var(--dsw-alias-label-primary-foreground);
+  position: relative;
+  isolation: isolate;
+  animation: bh-dictation-pulse 1.6s var(--ds-ease-in-out) infinite;
+}
+.bh-composer-mic[data-state='toggle']::before,
+.bh-composer-mic[data-state='hold']::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: ${radius.round};
+  pointer-events: none;
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 40%, transparent);
+  opacity: calc(0.2 + var(--bh-dictation-level, 0) * 0.6);
+  transform: scale(calc(1 + var(--bh-dictation-level, 0) * 0.85));
+  transition: transform 60ms linear, opacity 60ms linear;
+}
+@keyframes bh-dictation-pulse {
+  0% {
+    box-shadow:
+      0 0 0 0 color-mix(in srgb, var(--dsw-alias-state-business-primary) 45%, transparent),
+      0 0 0 0 color-mix(in srgb, var(--dsw-alias-state-business-primary) 30%, transparent);
+  }
+  100% {
+    box-shadow:
+      0 0 0 8px transparent,
+      0 0 0 14px transparent;
+  }
+}
+.bh-composer[data-dictation='starting'],
+.bh-composer[data-dictation='listening'],
+.bh-composer[data-dictation='finishing'] {
+  border-color: var(--dsw-alias-state-business-primary);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--dsw-alias-state-business-primary) 18%, transparent),
+    0 8px 24px color-mix(in srgb, var(--dsw-alias-state-business-primary) 16%, transparent);
+}
+.bh-composer[data-dictation='listening'] .bh-composer-input,
+.bh-composer[data-dictation='finishing'] .bh-composer-input { caret-color: var(--dsw-alias-state-business-primary); }
+.bh-composer[data-dictation='denied'] .bh-composer-input::placeholder,
+.bh-composer[data-dictation='missing'] .bh-composer-input::placeholder,
+.bh-composer[data-dictation='failed'] .bh-composer-input::placeholder { color: var(--dsw-alias-state-error-primary); }
+html[data-botharness-motion='reduce'] .bh-composer-mic { animation: none; }
+html[data-botharness-motion='reduce'] .bh-composer-mic::before { transform: none; transition: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--dsw-alias-state-business-primary) calc(20% + var(--bh-dictation-level, 0) * 60%), transparent); }
+.bh-composer[data-dictation='starting'] .bh-composer-rich-input[contenteditable='false'],
+.bh-composer[data-dictation='listening'] .bh-composer-rich-input[contenteditable='false'],
+.bh-composer[data-dictation='finishing'] .bh-composer-rich-input[contenteditable='false'] { color: var(--dsw-alias-label-primary); }
+.bh-composer[data-dictation='denied'] .bh-composer-rich-input:empty::before,
+.bh-composer[data-dictation='missing'] .bh-composer-rich-input:empty::before,
+.bh-composer[data-dictation='failed'] .bh-composer-rich-input:empty::before { color: var(--dsw-alias-state-error-primary); }
 html[data-botharness-motion='reduce'] .bh-composer,
 html[data-botharness-motion='reduce'] .bh-composer-body,
 html[data-botharness-motion='reduce'] .bh-composer-add-file,

@@ -62,14 +62,15 @@ async function host(
 
 async function invoke(argv: string[], url: string, stdin = '') {
   const stdout: string[] = [];
+  const stderr: string[] = [];
   const code = await runBotCreateCli(argv, {
     env: { DEEPSEEKBOT_HOST: url, DEEPSEEKBOT_HOST_TOKEN: 'private-test-token' },
     stdout: (text) => stdout.push(text),
-    stderr: () => undefined,
+    stderr: (text) => stderr.push(text),
     readStdin: async () => stdin,
   });
   expect(stdout).toHaveLength(1);
-  return { code, json: JSON.parse(stdout.join('')) };
+  return { code, json: JSON.parse(stdout.join('')), stderr };
 }
 
 const ok = (method: string, args: Record<string, unknown>) => ({
@@ -460,6 +461,9 @@ describe('Channel and group CLI commands', () => {
       [['channel-history']],
       [['channel-history-sources', 'grp-1', '--before', '42']],
       [['channel-journal', 'grp-1', '--through', '9', '--before', '5', '--limit', '3']],
+      [['channel-files', 'grp-1', '--before', '7', '--limit', '30']],
+      [['channel-changes', 'grp-1', '--since', '12', '--epoch', 'ab12', '--limit', '50']],
+      [['channel-changes', 'grp-1']],
       [
         [
           'channel-timeline',
@@ -549,6 +553,12 @@ describe('Channel and group CLI commands', () => {
         method: 'channelJournalPage',
         args: { channelId: 'grp-1', through: 9, before: 5, limit: 3 },
       },
+      { method: 'channelFilesPage', args: { channelId: 'grp-1', before: 7, limit: 30 } },
+      {
+        method: 'channelChanges',
+        args: { channelId: 'grp-1', sinceSeq: 12, epoch: 'ab12', limit: 50 },
+      },
+      { method: 'channelChangeCursor', args: {} },
       {
         method: 'channelTimeline',
         args: { channelId: 'grp-1', direction: 'around', around: 'm-1', olderLimit: 0 },
@@ -622,6 +632,8 @@ describe('Channel and group CLI commands', () => {
       [['group-wake-set', 'grp-1', '--bot', 'ada', '--mode', 'all', '--count', '0']],
       [['group-wake-set', 'grp-1', '--bot', 'ada', '--mode', 'all', '--interval', '1.5']],
       [['channel-journal', 'grp-1']],
+      [['channel-files', 'grp-1', '--limit', '101']],
+      [['channel-changes', 'grp-1', '--since', '-1']],
       [['channel-timeline', 'grp-1', '--direction', 'sideways']],
       [['channel-timeline', 'grp-1', '--direction', 'around']],
       [['channel-history-sources', 'grp-1', '--before', 'abc']],
@@ -664,6 +676,8 @@ describe('Channel and group CLI commands', () => {
       error: { code: 'not-working', message: 'Ada is not working right now' },
     }));
     const result = await invoke(['channel-bot-stop', 'dm-ada', '--bot', 'ada'], live.url);
+    expect(result.stderr.join('')).toContain('channel-bot-stop is deprecated');
+    expect(result.stderr.join('')).toContain('bot-stop <bot> --channel <channel-id>');
     expect(result.code).not.toBe(0);
     expect(result.json.error).toEqual({
       code: 'not-working',

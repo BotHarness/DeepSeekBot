@@ -21,11 +21,15 @@ export function ActivityHeaderActions({
   searching,
   onFilter,
   onSearch,
+  onClear,
 }: ActivityHeaderActionsProps) {
   const t = useStrings();
   const theme = useDesignTheme();
   const glass = Number.parseInt(String(Platform.Version), 10) >= 26;
-  const glyph = (name: 'line.3.horizontal.decrease' | 'magnifyingglass', on: boolean) => (
+  const glyph = (
+    name: 'archivebox' | 'line.3.horizontal.decrease' | 'magnifyingglass',
+    on: boolean,
+  ) => (
     <Image
       systemName={name}
       modifiers={[
@@ -46,6 +50,18 @@ export function ActivityHeaderActions({
           frame({ height: theme.touch }),
         ]}
       >
+        {onClear ? (
+          <Button
+            onPress={onClear}
+            modifiers={[
+              buttonStyle('plain'),
+              accessibilityLabel(t.activityClearMany),
+              accessibilityIdentifier('activity-clear-many'),
+            ]}
+          >
+            {glyph('archivebox', false)}
+          </Button>
+        ) : null}
         <Button
           onPress={onFilter}
           modifiers={[
