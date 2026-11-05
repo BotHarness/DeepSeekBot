@@ -188,7 +188,14 @@ export function StorageSettings({ port }: { port: StorageSettingsPort }) {
     }, failed);
   };
 
-  const clearImageCache = () => {
+  const clearImageCache = () =>
+    confirmDestructive(
+      t.storage.imageCacheConfirmTitle,
+      t.storage.imageCacheConfirmBody,
+      t.storage.imageCacheConfirm,
+      runClearImageCache,
+    );
+  const runClearImageCache = () => {
     port.clearImageCache().then(
       () => {
         setNotice({ tone: 'success', text: t.storage.imageCacheDone });

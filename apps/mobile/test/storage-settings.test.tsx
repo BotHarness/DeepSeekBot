@@ -176,6 +176,9 @@ describe('Storage settings', () => {
     expect(notices(view, 'danger')).toEqual([t.storage.stale]);
 
     await press(view, t.storage.imageCache);
+    expect(alert.mock.calls.at(-1)![0]).toBe(t.storage.imageCacheConfirmTitle);
+    expect(storage.clearImageCache).not.toHaveBeenCalled();
+    await choose(t.storage.imageCacheConfirm);
     expect(storage.clearImageCache).toHaveBeenCalledTimes(1);
     expect(notices(view, 'success')).toEqual([t.storage.imageCacheDone]);
   });
