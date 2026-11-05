@@ -50,7 +50,7 @@
         }
       ],
       "expo-secure-store",
-      "expo-notifications",
+      ["expo-notifications", { "enableBackgroundRemoteNotifications": true }],
       "@bacons/apple-targets",
       [
         "expo-camera",

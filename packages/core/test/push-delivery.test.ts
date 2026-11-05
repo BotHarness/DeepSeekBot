@@ -228,7 +228,7 @@ describe('Push delivery', () => {
     expect(f.events.at(-1)).toEqual({
       phase: 'sent',
       deviceId: phone.device.id,
-      kind: 'badge',
+      kind: 'resolve',
       outcome: 'ok',
     });
   });
@@ -375,7 +375,12 @@ describe('Push delivery', () => {
     f.setInbox([approval('approval:2', f.at(0))]);
     await f.push.reconcile();
     expect(f.expo.sent.at(-1)).toEqual([
-      { to: TOKEN_A, badge: 1, data: { v: 1, hostId: f.pairing.host().id } },
+      {
+        to: TOKEN_A,
+        badge: 1,
+        _contentAvailable: true,
+        data: { v: 1, hostId: f.pairing.host().id, resolved: ['approval:1'] },
+      },
     ]);
 
     f.advance(1000);
@@ -385,6 +390,31 @@ describe('Push delivery', () => {
     expect(f.expo.flat().filter((message) => message.title !== undefined)).toHaveLength(2);
     expect(f.expo.flat().at(-1)?.badge).toBe(0);
     expect(f.expo.sent).toHaveLength(3);
+  });
+
+  it('tells an Android device that draws its own notifications which items were resolved, and an Android device the system draws only the badge', async () => {
+    const f = fixture();
+    const drawn = f.device('Drawn');
+    const stock = f.device('Stock');
+    f.push.register(drawn.device.id, { token: TOKEN_A, platform: 'android', render: 'app' });
+    f.push.register(stock.device.id, { token: TOKEN_B, platform: 'android' });
+    f.advance(1000);
+    f.setInbox([approval('approval:1', f.at(0))]);
+    await f.push.reconcile();
+    const before = f.expo.flat().length;
+    f.setInbox([], 0);
+    await f.push.reconcile();
+    const after = f.expo.flat().slice(before);
+    expect(after).toContainEqual({
+      to: TOKEN_A,
+      priority: 'high',
+      data: { v: 1, hostId: f.pairing.host().id, resolved: ['approval:1'] },
+    });
+    expect(after).toContainEqual({
+      to: TOKEN_B,
+      badge: 0,
+      data: { v: 1, hostId: f.pairing.host().id },
+    });
   });
 
   it('respects per-kind preferences without flooding when a kind is turned back on', async () => {
