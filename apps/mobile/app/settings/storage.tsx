@@ -10,6 +10,8 @@ import {
   previewMediaEviction,
   setAutoCleanup,
 } from '../../src/host/media-cache';
+import { hostStoreAvailable, hostStoreSize } from '../../src/host/host-store';
+import { clearHostConversations } from '../../src/host/native-conversations';
 import { forgetSharedCopies } from '../../src/host/share-attachment';
 import {
   confirmStorageCleanup,
@@ -50,6 +52,14 @@ export default function StorageScreen() {
                     },
                     autoCleanup: autoCleanupEnabled,
                     setAutoCleanup,
+                    ...(hostStoreAvailable()
+                      ? {
+                          chats: {
+                            usage: () => hostStoreSize(hostId),
+                            clear: () => clearHostConversations(hostId),
+                          },
+                        }
+                      : {}),
                   },
                 }),
             usage: () => loadStorageUsage(client),
