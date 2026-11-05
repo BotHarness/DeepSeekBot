@@ -1,6 +1,6 @@
 import { View } from 'react-native';
 
-import { radius, space } from '../design/tokens';
+import { cornerBadge, radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { badgeCount } from './badge-count';
 import { Text } from './text';
@@ -48,6 +48,7 @@ export function CountBadge({
       <Text
         variant="meta"
         strong
+        {...(compact ? { maxFontSizeMultiplier: cornerBadge.maxTextScale } : {})}
         style={{ color: ink, textAlign: 'center', fontVariant: ['tabular-nums'] }}
       >
         {badgeCount(count)}

@@ -19,6 +19,7 @@ import {
   accessibilityValue,
   bold,
   disabled as disabledModifier,
+  dynamicTypeSize,
   font,
   lineLimit,
   listRowBackground,
@@ -196,10 +197,14 @@ export function FormRow({
           {detail}
         </Text>
       ) : (
-        <HStack spacing={space.x3}>
+        <HStack spacing={space.x2}>
           <Image
             systemName="circle.fill"
-            modifiers={[font({ textStyle: 'caption2' }), foregroundStyle(detailDot)]}
+            modifiers={[
+              font({ textStyle: 'caption2' }),
+              dynamicTypeSize('large'),
+              foregroundStyle(detailDot),
+            ]}
           />
           <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(SECONDARY), ...lines]}>
             {detail}
