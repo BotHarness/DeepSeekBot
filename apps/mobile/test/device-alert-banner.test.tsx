@@ -3,7 +3,37 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 
-const native = vi.hoisted(() => ({ reduced: false }));
+type PanEvent = {
+  translationX: number;
+  translationY: number;
+  velocityX: number;
+  velocityY: number;
+};
+type Pan = { end(event: PanEvent, success?: boolean): void; finalize(): void };
+const native = vi.hoisted(() => ({ reduced: false, pans: [] as Pan[] }));
+vi.mock('react-native-worklets', () => ({ scheduleOnRN: (callback: () => void) => callback() }));
+vi.mock('react-native-gesture-handler', () => ({
+  GestureDetector: ({ children }: { children: ReactNode }) => children,
+  Gesture: {
+    Pan: () => {
+      const pan: Pan = { end() {}, finalize() {} };
+      native.pans.push(pan);
+      const builder = {
+        minDistance: () => builder,
+        onUpdate: () => builder,
+        onEnd: (run: Pan['end']) => {
+          pan.end = (event, success = true) => run(event, success);
+          return builder;
+        },
+        onFinalize: (run: Pan['finalize']) => {
+          pan.finalize = run;
+          return builder;
+        },
+      };
+      return builder;
+    },
+  },
+}));
 vi.mock('../src/host/host-session', () => ({
   useHostSessions: () => [
     {
@@ -43,7 +73,8 @@ vi.mock('react-native-safe-area-context', async () => ({
   SafeAreaView: (await import('./react-native-shim')).View,
   useSafeAreaInsets: () => ({ top: 30, bottom: 20, left: 0, right: 0 }),
 }));
-vi.mock('react-native-reanimated', () => ({
+vi.mock('react-native-reanimated', async () => ({
+  ...(await import('./reanimated-shim')),
   default: {
     View: ({ children, entering }: { children: ReactNode; entering?: unknown }) =>
       createElement('div', { 'data-motion': entering ? 'slide' : 'none' }, children),
@@ -54,10 +85,19 @@ vi.mock('../src/ui/primitives/use-system-reduced-motion', () => ({
   useSystemReducedMotion: () => native.reduced,
 }));
 vi.mock('../src/ui/design/theme', () => ({
-  useDesignTheme: () => ({ color: { elevated: 'white' } }),
+  useDesignTheme: () => ({ color: { elevated: 'white', fg: 'black' } }),
+  pressTint: (color: string) => color,
 }));
-vi.mock('../src/ui/primitives/text', async () => ({
-  Text: (await import('./react-native-shim')).Text,
+vi.mock('../src/ui/primitives/text', () => ({
+  Text: ({
+    children,
+    numberOfLines,
+    testID,
+  }: {
+    children: ReactNode;
+    numberOfLines?: number;
+    testID?: string;
+  }) => createElement('span', { 'data-testid': testID, 'data-lines': numberOfLines }, children),
 }));
 vi.mock('../src/ui/primitives/button', () => ({
   Button: ({ label, onPress, testID }: { label: string; onPress(): void; testID: string }) =>
@@ -70,6 +110,55 @@ import { interfacePreferences } from '../src/ui/interface-preferences';
 import { alertBanners } from '../src/host/alert-banners';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+
+it.each(['inline', 'overlay'] as const)(
+  '%s opens a compact long-message preview directly without expanding it',
+  async (placement) => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const opened = vi.fn();
+    const off = alertBanners.onOpen(opened);
+    const alert = {
+      title: '长群名称'.repeat(30),
+      body: '完整消息预览'.repeat(20),
+      data: {
+        v: 1 as const,
+        hostId: 'studio',
+        itemId: `compact-${placement}`,
+        kind: 'channel-reply',
+        botSlug: 'test',
+        channelId: 'group',
+        messageId: 'compact-message',
+        sender: 'Bot',
+        text: 'Full message',
+      },
+    };
+    try {
+      interfacePreferences.setInAppAlerts(true);
+      interfacePreferences.setInAppAlertStyle(placement);
+      alertBanners.reconcile('studio', [alert.data.itemId], [alert]);
+      await act(async () => root.render(<DeviceAlertBanner placement={placement} />));
+      expect(
+        host.querySelector('[data-testid="device-alert-title"]')?.getAttribute('data-lines'),
+      ).toBe('1');
+      expect(
+        host.querySelector('[data-testid="device-alert-preview-text"]')?.getAttribute('data-lines'),
+      ).toBe('2');
+      expect(host.querySelector('[data-testid="channel-avatar"]')).not.toBeNull();
+      expect(host.querySelector('[data-testid="device-alert-open"]')).toBeNull();
+      expect(host.querySelector('[data-testid="device-alert-dismiss"]')).toBeNull();
+      await act(async () =>
+        host.querySelector<HTMLButtonElement>('[data-testid="device-alert-preview"]')!.click(),
+      );
+      expect(opened).toHaveBeenCalledExactlyOnceWith(alert.data);
+      expect(host.querySelector('[data-testid="device-alert-banner"]')).toBeNull();
+    } finally {
+      off();
+      await act(async () => root.unmount());
+      alertBanners.clear();
+    }
+  },
+);
 
 function InsetOwner() {
   const inline = useDeviceAlert('inline');
@@ -128,7 +217,7 @@ it('moves one alert between inserted and overlay slots without consuming it; ope
     await act(async () => interfacePreferences.setAppearance('dark'));
     expect(host.querySelector('[data-motion="none"]')).not.toBeNull();
     await act(async () =>
-      host.querySelector<HTMLButtonElement>('[data-testid="device-alert-open"]')!.click(),
+      host.querySelector<HTMLButtonElement>('[data-testid="device-alert-preview"]')!.click(),
     );
     expect(opened).toHaveBeenCalledExactlyOnceWith(alert.data);
     expect(host.querySelector('[data-testid="device-alert-banner"]')).toBeNull();
@@ -141,7 +230,7 @@ it('moves one alert between inserted and overlay slots without consuming it; ope
       'true',
     );
     await act(async () =>
-      host.querySelector<HTMLButtonElement>('[data-testid="device-alert-dismiss"]')!.click(),
+      native.pans.at(-1)!.end({ translationX: -80, translationY: 0, velocityX: 0, velocityY: 0 }),
     );
     expect(interfacePreferences.getSnapshot().inAppAlerts).toBe(true);
     expect(host.querySelector('[data-testid="inset-owner"]')?.getAttribute('data-consumed')).toBe(
@@ -214,6 +303,94 @@ it.each(['inline', 'overlay'] as const)(
       expect(host.querySelector('[data-testid="channel-avatar"]')).toBeNull();
       expect(host.querySelector('[data-testid="bot-avatar"]')).toBeNull();
     } finally {
+      await act(async () => root.unmount());
+      alertBanners.clear();
+    }
+  },
+);
+
+it.each(['inline', 'overlay'] as const)(
+  '%s swipes dismiss only the current notification; short, down and cancelled drags retain it',
+  async (placement) => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const opened = vi.fn();
+    const off = alertBanners.onOpen(opened);
+    const data = {
+      v: 1 as const,
+      hostId: 'studio',
+      itemId: 'swipe',
+      kind: 'channel-reply',
+      botSlug: 'test',
+      channelId: 'group',
+      messageId: 'm1',
+      sender: 'Bot',
+      text: 'Message',
+    };
+    const alert = { title: 'Channel', body: 'Message', data };
+    try {
+      interfacePreferences.setInAppAlerts(true);
+      interfacePreferences.setInAppAlertStyle(placement);
+      alertBanners.reconcile('studio', ['swipe'], [alert]);
+      await act(async () => root.render(<DeviceAlertBanner placement={placement} />));
+      for (const [translationX, translationY] of [
+        [5, 0],
+        [0, 80],
+        [20, 0],
+      ]) {
+        await act(async () =>
+          native.pans.at(-1)!.end({
+            translationX: translationX!,
+            translationY: translationY!,
+            velocityX: 0,
+            velocityY: 0,
+          }),
+        );
+        expect(alertBanners.getSnapshot()?.data).toEqual(data);
+      }
+      await act(async () => {
+        native.pans
+          .at(-1)!
+          .end({ translationX: 80, translationY: 0, velocityX: 900, velocityY: 0 }, false);
+        native.pans.at(-1)!.finalize();
+      });
+      expect(alertBanners.getSnapshot()?.data).toEqual(data);
+      for (const [translationX, translationY, velocityX, velocityY] of [
+        [80, 0, 0, 0],
+        [-80, 0, 0, 0],
+        [0, -80, 0, 0],
+        [16, 0, 900, 0],
+      ]) {
+        await act(async () =>
+          alertBanners.reconcile(
+            'studio',
+            ['swipe', 'next'],
+            [alert, { ...alert, data: { ...data, itemId: 'next' } }],
+          ),
+        );
+        const pan = native.pans.at(-1)!;
+        await act(async () =>
+          pan.end({
+            translationX: translationX!,
+            translationY: translationY!,
+            velocityX: velocityX!,
+            velocityY: velocityY!,
+          }),
+        );
+        expect(alertBanners.getSnapshot()?.data.itemId).toBe('next');
+        await act(async () =>
+          pan.end({ translationX: 80, translationY: 0, velocityX: 0, velocityY: 0 }),
+        );
+        expect(alertBanners.getSnapshot()?.data.itemId).toBe('next');
+        await act(async () => {
+          alertBanners.clear();
+          alertBanners.reconcile('studio', ['swipe'], [alert]);
+        });
+      }
+      expect(opened).not.toHaveBeenCalled();
+      expect(interfacePreferences.getSnapshot().inAppAlerts).toBe(true);
+    } finally {
+      off();
       await act(async () => root.unmount());
       alertBanners.clear();
     }

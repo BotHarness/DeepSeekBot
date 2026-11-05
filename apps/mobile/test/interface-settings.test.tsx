@@ -94,7 +94,7 @@ it('updates mounted settings and theme immediately and preserves unrelated state
       language: 'zh',
       appearance: 'dark',
       inAppAlerts: true,
-      inAppAlertStyle: 'inline',
+      inAppAlertStyle: 'overlay',
     });
     expect(host.querySelector('input')).toBe(field);
     expect(field.value).toBe('unsent draft');
