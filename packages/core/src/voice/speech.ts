@@ -146,3 +146,117 @@ export function joinAudio(clips: readonly AudioClip[]): AudioClip | undefined {
   }
   return undefined;
 }
+
+const MP3_BITRATES: Record<string, readonly number[]> = {
+  '1': [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320],
+  '2': [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160],
+};
+const MP3_RATES: Record<number, readonly number[]> = {
+  3: [44_100, 48_000, 32_000],
+  2: [22_050, 24_000, 16_000],
+  0: [11_025, 12_000, 8_000],
+};
+
+function mp3Walk(
+  bytes: Uint8Array,
+  limitMs = Infinity,
+): { ms: number; end: number; frames: number } {
+  let offset = id3Length(bytes);
+  let seconds = 0;
+  let frames = 0;
+  while (offset + 4 <= bytes.length && seconds * 1000 < limitMs) {
+    const b1 = bytes[offset + 1]!;
+    if (bytes[offset] !== 0xff || (b1 & 0xe0) !== 0xe0) {
+      offset += 1;
+      continue;
+    }
+    const version = (b1 >> 3) & 0x03;
+    const layer = (b1 >> 1) & 0x03;
+    const b2 = bytes[offset + 2]!;
+    const bitrate = MP3_BITRATES[version === 3 ? '1' : '2']![(b2 >> 4) & 0x0f] ?? 0;
+    const rate = MP3_RATES[version]?.[(b2 >> 2) & 0x03];
+    if (layer !== 1 || version === 1 || bitrate === 0 || rate === undefined) {
+      offset += 1;
+      continue;
+    }
+    const samples = version === 3 ? 1152 : 576;
+    const length = Math.floor((samples / 8) * ((bitrate * 1000) / rate)) + ((b2 >> 1) & 0x01);
+    if (length < 4) break;
+    seconds += samples / rate;
+    frames += 1;
+    offset += length;
+  }
+  return { ms: seconds * 1000, end: Math.min(offset, bytes.length), frames };
+}
+
+function mp3DurationMs(bytes: Uint8Array): number | undefined {
+  const walk = mp3Walk(bytes);
+  return walk.frames === 0 ? undefined : walk.ms;
+}
+
+export function trimAudio(clip: AudioClip, ms: number): AudioClip | undefined {
+  if (!(ms > 0)) return undefined;
+  if (ms >= clipDurationMs(clip)) return { audio: clip.audio, mime: clip.mime };
+  if (clip.mime === 'audio/wav') {
+    const parts = wavParts(clip.audio);
+    if (parts === undefined || parts.format.length < 16) return undefined;
+    const view = new DataView(parts.format.buffer, parts.format.byteOffset);
+    const byteRate = view.getUint32(8, true);
+    const block = Math.max(1, view.getUint16(12, true));
+    const cut = Math.floor((ms * byteRate) / 1000 / block) * block;
+    if (cut <= 0) return undefined;
+    return {
+      audio: joinWav([{ format: parts.format, data: parts.data.subarray(0, cut) }]),
+      mime: clip.mime,
+    };
+  }
+  if (clip.mime === 'audio/mpeg') {
+    const walk = mp3Walk(clip.audio, ms);
+    return walk.frames === 0
+      ? undefined
+      : { audio: clip.audio.slice(0, walk.end), mime: clip.mime };
+  }
+  return undefined;
+}
+
+function oggDurationMs(bytes: Uint8Array): number | undefined {
+  const text = Buffer.from(bytes.subarray(0, Math.min(bytes.length, 256))).toString('latin1');
+  let rate = 48_000;
+  const vorbis = text.indexOf('\u0001vorbis');
+  if (vorbis >= 0 && vorbis + 16 <= bytes.length)
+    rate = new DataView(bytes.buffer, bytes.byteOffset).getUint32(vorbis + 12, true) || rate;
+  let granule = -1;
+  let skip = 0;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  for (let offset = 0; offset + 27 <= bytes.length;) {
+    if (view.getUint32(offset) !== 0x4f676753) {
+      offset += 1;
+      continue;
+    }
+    const position = Number(view.getBigInt64(offset + 6, true));
+    if (position >= 0) granule = position;
+    const segments = bytes[offset + 26]!;
+    const packet = offset + 27 + segments;
+    if (skip === 0 && packet + 12 <= bytes.length && text.slice(packet, packet + 8) === 'OpusHead')
+      skip = view.getUint16(packet + 10, true);
+    let length = 27 + segments;
+    for (let index = 0; index < segments && offset + 27 + index < bytes.length; index += 1)
+      length += bytes[offset + 27 + index]!;
+    offset += length;
+  }
+  return granule <= 0 ? undefined : (Math.max(0, granule - skip) / rate) * 1000;
+}
+
+export function clipDurationMs(clip: AudioClip): number {
+  let ms: number | undefined;
+  if (clip.mime === 'audio/wav') {
+    const parts = wavParts(clip.audio);
+    if (parts !== undefined && parts.format.length >= 16) {
+      const view = new DataView(parts.format.buffer, parts.format.byteOffset);
+      const byteRate = view.getUint32(8, true);
+      if (byteRate > 0) ms = (parts.data.length / byteRate) * 1000;
+    }
+  } else if (clip.mime === 'audio/mpeg') ms = mp3DurationMs(clip.audio);
+  else if (clip.mime === 'audio/ogg') ms = oggDurationMs(clip.audio);
+  return Math.round(ms ?? (clip.audio.byteLength / 16_000) * 1000);
+}

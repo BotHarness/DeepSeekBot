@@ -124,6 +124,11 @@ const OPS = {
       throw new Error('stop');
     return `window.callStop(${JSON.stringify(message.playback)})`;
   },
+  gain: (message) => {
+    if (typeof message.gain !== 'number' || !(message.gain >= 0 && message.gain <= 1))
+      throw new Error('gain');
+    return `window.callGain(${JSON.stringify(message.gain)})`;
+  },
   stats: () => 'window.callStats()',
 };
 

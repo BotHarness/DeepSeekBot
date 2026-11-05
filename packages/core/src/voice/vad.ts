@@ -25,6 +25,7 @@ export interface VadOptions {
   activeDb?: number;
   minActiveDbfs?: number;
   periodicity?: number;
+  voicedMarksMs?: readonly number[];
 }
 
 export type VadEvent =
@@ -40,11 +41,14 @@ export type VadEvent =
       segmentedSamples: number;
     }
   | { type: 'segment'; pcm: Int16Array; startMs: number; endMs: number }
-  | { type: 'noise'; startMs: number; durationMs: number };
+  | { type: 'noise'; startMs: number; durationMs: number }
+  | { type: 'voiced'; voicedMs: number; atMs: number };
 
 export interface Vad {
   push(samples: Int16Array): VadEvent[];
   reset(): void;
+  raise(db: number): void;
+  linger(ms: number): void;
   timeMs(): number;
   readonly speaking: boolean;
 }
@@ -99,6 +103,9 @@ export function createVad(options: VadOptions = {}): Vad {
   const activeDb = options.activeDb ?? 12;
   const minActiveDbfs = options.minActiveDbfs ?? DEFAULT_SPEECH_DBFS;
   const periodicityNeeded = options.periodicity ?? 0.55;
+  const marks = [...new Set((options.voicedMarksMs ?? []).map(frames))].sort((a, b) => a - b);
+  let raised = 0;
+  let lingerFrames = 0;
   const segmentSilence =
     options.segmentSilenceMs === undefined ? undefined : frames(options.segmentSilenceMs);
   const minSegmentVoiced = frames(options.minSegmentVoicedMs ?? 200);
@@ -130,6 +137,7 @@ export function createVad(options: VadOptions = {}): Vad {
     voiced = 0;
     activeRun = 0;
     quiet = 0;
+    lingerFrames = 0;
   };
 
   const join = (parts: Int16Array[]) => {
@@ -160,9 +168,14 @@ export function createVad(options: VadOptions = {}): Vad {
     clear();
   };
 
+  const mark = (events: VadEvent[], index: number) => {
+    if (marks.includes(voiced))
+      events.push({ type: 'voiced', voicedMs: voiced * FRAME_MS, atMs: (index + 1) * FRAME_MS });
+  };
+
   const frame = (samples: Int16Array, events: VadEvent[]) => {
     const facts = frameFacts(samples);
-    const active = facts.db > Math.max(floor + activeDb, minActiveDbfs);
+    const active = facts.db > Math.max(floor + activeDb, minActiveDbfs) + raised;
     const isVoiced = active && facts.periodicity >= periodicityNeeded;
     levels.push(facts.db);
     if (levels.length > floorWindow) levels.shift();
@@ -178,6 +191,7 @@ export function createVad(options: VadOptions = {}): Vad {
       current = [...history];
       startFrame = index - (current.length - 1);
       voiced = isVoiced ? 1 : 0;
+      if (isVoiced) mark(events, index);
       activeRun = 1;
       quiet = 0;
       lastActive = index;
@@ -192,6 +206,7 @@ export function createVad(options: VadOptions = {}): Vad {
       if (isVoiced) {
         voiced += 1;
         segmentVoiced += 1;
+        mark(events, index);
       }
       paused = false;
     } else quiet += 1;
@@ -214,7 +229,8 @@ export function createVad(options: VadOptions = {}): Vad {
       return;
     }
     if (options.stream === true) events.push({ type: 'audio', pcm: samples });
-    if (quiet < endSilence && segmentSilence !== undefined) {
+    const ending = Math.max(endSilence, lingerFrames);
+    if (quiet < ending && segmentSilence !== undefined) {
       const pause = !paused && quiet >= segmentSilence;
       if (pause && segmentVoiced >= minSegmentVoiced) {
         const end = Math.min(current.length, lastActive - startFrame + 1 + tail);
@@ -231,7 +247,7 @@ export function createVad(options: VadOptions = {}): Vad {
       }
       if (pause) paused = true;
     }
-    if (quiet >= endSilence) {
+    if (quiet >= ending) {
       finish(events, false);
       history = [];
       return;
@@ -247,6 +263,12 @@ export function createVad(options: VadOptions = {}): Vad {
       return state === 'speech';
     },
     timeMs: () => frameIndex * FRAME_MS,
+    raise(db) {
+      raised = Number.isFinite(db) && db > 0 ? db : 0;
+    },
+    linger(ms) {
+      if (state !== 'silence') lingerFrames = Math.max(lingerFrames, frames(ms));
+    },
     push(samples) {
       const events: VadEvent[] = [];
       let input = samples;

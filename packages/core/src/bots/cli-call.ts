@@ -55,7 +55,7 @@ export const CALL_COMMANDS = [
   {
     command: 'call-simulate',
     description:
-      'call a Bot with synthetic audio: plays --file <abs.wav> (or a --script <abs.json> timeline) into a Host call without a phone, optionally sharing --video (camera) or --screen <abs video file or JPEG folder> as keyframes (--no-save keeps grids out of the DM; --share-ends-at <ms> ends the share as the system would, leaving the call voice only; --share-pause <from>-<to> pauses it as a phone app in the background does), waits for the spoken reply and reports event timings',
+      'call a Bot with synthetic audio: plays --file <abs.wav> (or a --script <abs.json> timeline, where a step can wait for the Bot to start speaking to test barge-in) into a Host call without a phone, optionally sharing --video (camera) or --screen <abs video file or JPEG folder> as keyframes (--no-save keeps grids out of the DM; --share-ends-at <ms> ends the share as the system would, leaving the call voice only; --share-pause <from>-<to> pauses it as a phone app in the background does), waits for the spoken reply and reports event timings',
   },
 ] as const;
 
@@ -81,6 +81,7 @@ function result(value: Record<string, unknown>): Record<string, unknown> {
 interface ScriptEntry {
   at: number;
   file: string;
+  after?: 'playing';
 }
 
 function script(values: CallValues): ScriptEntry[] {
@@ -111,10 +112,17 @@ function script(values: CallValues): ScriptEntry[] {
       entry['at'] < 0 ||
       entry['at'] > 600_000 ||
       typeof entry['file'] !== 'string' ||
-      !isAbsolute(entry['file'])
+      !isAbsolute(entry['file']) ||
+      (entry['after'] !== undefined && entry['after'] !== 'playing')
     )
-      usage('Each script step needs "at" (ms from call start) and an absolute "file".');
-    return { at: entry['at'], file: entry['file'] };
+      usage(
+        'Each script step needs "at" (ms from call start, or from the next reply audio with "after": "playing") and an absolute "file".',
+      );
+    return {
+      at: entry['at'],
+      file: entry['file'],
+      ...(entry['after'] === 'playing' ? { after: 'playing' as const } : {}),
+    };
   });
 }
 
@@ -162,20 +170,20 @@ async function simulate(
   post: CallPost,
   clock: { now(): number; sleep(ms: number): Promise<void> },
 ): Promise<unknown> {
-  const steps = script(values)
-    .map((step) => {
-      let audio: Int16Array;
-      try {
-        audio = readWavAs16kMono(readFileSync(step.file));
-      } catch (error) {
-        throw new CliLiveError(
-          'invalid-input',
-          `${step.file}: ${error instanceof Error ? error.message : 'cannot read'}`,
-        );
-      }
-      return { ...step, audio };
-    })
-    .sort((left, right) => left.at - right.at);
+  const parsed = script(values).map((step) => {
+    let audio: Int16Array;
+    try {
+      audio = readWavAs16kMono(readFileSync(step.file));
+    } catch (error) {
+      throw new CliLiveError(
+        'invalid-input',
+        `${step.file}: ${error instanceof Error ? error.message : 'cannot read'}`,
+      );
+    }
+    return { ...step, audio };
+  });
+  const relative = parsed.some((step) => step.after !== undefined);
+  const steps = relative ? parsed : parsed.sort((left, right) => left.at - right.at);
   const replyWaitMs = Number(values['reply-wait'] ?? 90) * 1000;
   if (!Number.isFinite(replyWaitMs) || replyWaitMs < 1_000 || replyWaitMs > 540_000)
     usage('--reply-wait must be 1–540 seconds.');
@@ -193,27 +201,23 @@ async function simulate(
       : { from: Number(pauseMatch[1]), to: Number(pauseMatch[2]) };
   if (sharePause !== undefined && sharePause.to <= sharePause.from)
     usage('--share-pause must end after it starts.');
-  const timeline: Int16Array[] = [];
   let end = 0;
+  let audioMs = 1_500;
   for (const step of steps) {
+    audioMs += (step.audio.length / 16_000) * 1000 + (step.after === undefined ? 0 : step.at);
+    if (step.after !== undefined) {
+      end = Number.POSITIVE_INFINITY;
+      continue;
+    }
     const start = Math.round((step.at * 16_000) / 1000);
     if (start < end)
       usage('Script steps must not overlap: each "at" must come after the previous file ends.');
-    if (start > end) timeline.push(new Int16Array(start - end));
-    timeline.push(step.audio);
     end = start + step.audio.length;
+    audioMs = Math.max(audioMs, (end / 16_000) * 1000 + 1_500);
   }
-  timeline.push(new Int16Array(24_000));
-  const total = timeline.reduce((sum, part) => sum + part.length, 0);
-  if ((total / 16_000) * 1000 + replyWaitMs > SIMULATION_BUDGET_MS)
+  if (audioMs + replyWaitMs * (relative ? 2 : 1) > SIMULATION_BUDGET_MS)
     usage('The audio timeline plus --reply-wait must fit in 9 minutes.');
   const visual = await loadVisual(values);
-  const audio = new Int16Array(total);
-  let offset = 0;
-  for (const part of timeline) {
-    audio.set(part, offset);
-    offset += part.length;
-  }
   const opened = result(await post({ kind: 'open', slug, media: 'synthetic' }));
   const call = opened['call'] as VoiceCallView;
   const callId = call.callId;
@@ -229,9 +233,12 @@ async function simulate(
   };
   const heartbeat = async () =>
     collect(result(await post({ kind: 'heartbeat', callId, after: seq }))['call'] as VoiceCallView);
-  const CHUNK = 16_000;
-  const silence = new Int16Array(CHUNK);
+  const CHUNK = 3_200;
+  const TICK = 1_600;
+  const silence = new Int16Array(16_000);
   let streamMs = 0;
+  let position = 0;
+  const missed: number[] = [];
   let shareEndedAt: number | undefined;
   let pausedAt: number | undefined;
   let resumedAt: number | undefined;
@@ -321,25 +328,55 @@ async function simulate(
           }),
         )['call'] as VoiceCallView,
       );
-    for (let position = 0; position < audio.length; position += CHUNK) {
-      const due = started + (position / 16_000) * 1000;
-      const wait = due - clock.now();
-      if (wait > 0) await clock.sleep(wait);
-      await shareDue();
-      const chunk = audio.slice(position, position + CHUNK);
-      collect(
-        result(await post({ kind: 'inject', callId, pcm: pcmBase64(chunk), after: seq }))[
-          'call'
-        ] as VoiceCallView,
-      );
-      streamMs += (chunk.length / 16_000) * 1000;
+    const inject = async (samples: Int16Array) => {
+      for (let offset = 0; offset < samples.length; offset += CHUNK) {
+        const due = started + (position / 16_000) * 1000;
+        const wait = due - clock.now();
+        if (wait > 0) await clock.sleep(wait);
+        await shareDue();
+        const chunk = samples.subarray(offset, offset + CHUNK);
+        collect(
+          result(await post({ kind: 'inject', callId, pcm: pcmBase64(chunk), after: seq }))[
+            'call'
+          ] as VoiceCallView,
+        );
+        position += chunk.length;
+        streamMs += (chunk.length / 16_000) * 1000;
+      }
+    };
+    let previous = seq;
+    for (const [index, step] of steps.entries()) {
+      let start = Math.round((step.at * 16_000) / 1000);
+      if (step.after === 'playing') {
+        const mark = previous;
+        const deadline = clock.now() + replyWaitMs;
+        while (
+          !events.some((event) => event.type === 'playing' && event.seq > mark) &&
+          !events.some((event) => event.type === 'ended') &&
+          clock.now() < deadline
+        )
+          await inject(silence.subarray(0, TICK));
+        if (!events.some((event) => event.type === 'playing' && event.seq > mark)) {
+          missed.push(index);
+          continue;
+        }
+        start = position + start;
+      }
+      while (position < start) await inject(silence.subarray(0, Math.min(CHUNK, start - position)));
+      previous = seq;
+      await inject(step.audio);
     }
+    await inject(new Int16Array(24_000));
     const deadline = clock.now() + replyWaitMs;
     const count = (...types: VoiceCallEvent['type'][]) =>
       events.filter((event) => types.includes(event.type)).length;
+    const filtered = () =>
+      events.filter((event) => event.type === 'barge-dismissed' && event.reason === 'filler')
+        .length;
     const settled = () =>
       count('speech-start') <= count('transcribing', 'noise-discarded') &&
-      count('transcribing') <= count('sent', 'asr-failed', 'send-failed', 'nothing-heard') &&
+      count('transcribing') <=
+        count('sent', 'asr-failed', 'send-failed', 'nothing-heard') + filtered() &&
       count('reply-done') >= count('sent');
     while (clock.now() < deadline) {
       await clock.sleep(1_000);
@@ -476,6 +513,14 @@ async function simulate(
         : { audioBeforeCommit: entry.firstAudioAt! < entry.committedAt }),
     })),
     ackMs: ack?.ms ?? null,
+    bargeIns: events
+      .filter(
+        (event): event is Extract<VoiceCallEvent, { type: 'barge-in' }> =>
+          event.type === 'barge-in',
+      )
+      .map((event) => ({ at: event.at, by: event.by, replyIds: event.replyIds })),
+    bargeDismissed: events.filter((event) => event.type === 'barge-dismissed').length,
+    ...(missed.length === 0 ? {} : { missedSteps: missed }),
     firstTextMs: first('textMs'),
     firstAudioMs: first('responseMs'),
     answered:

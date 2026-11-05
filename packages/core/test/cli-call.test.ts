@@ -17,7 +17,7 @@ afterEach(async () => {
   for (const close of cleanup.splice(0).reverse()) await close();
 });
 
-function host(options: { reply?: boolean } = {}) {
+function host(options: { reply?: boolean; clip?: Uint8Array; mime?: string } = {}) {
   let clock = 5_000_000;
   const posts: Record<string, unknown>[] = [];
   const transcripts = ['what is on my calendar', 'and tomorrow'];
@@ -33,10 +33,10 @@ function host(options: { reply?: boolean } = {}) {
     providers: {
       has: () => true,
       transcribe: async () => ({ text: transcripts.shift() ?? '', latencyMs: 3 }),
-      synthesize: async () => ({
-        audio: new Uint8Array([0x49, 0x44, 0x33, 1, 2, 3]),
-        mime: 'audio/mpeg',
-      }),
+      synthesize: async ({ text }) =>
+        options.clip !== undefined && !/^(嗯|Mm)/u.test(text)
+          ? { audio: options.clip, mime: options.mime ?? 'audio/wav' }
+          : { audio: new Uint8Array([0x49, 0x44, 0x33, 1, 2, 3]), mime: 'audio/mpeg' },
     },
     media: () => undefined,
     async send({ slug, channelId, messageId }) {
@@ -249,6 +249,58 @@ describe('deepseekbot call commands', () => {
       'and tomorrow',
     ]);
     expect(report.events.map((event) => event.type)).toContain('noise-discarded');
+  });
+
+  it('barges in once the Bot starts speaking and reports the stop', async () => {
+    const root = createTempRoot('cli-call-');
+    const first = wav(root, 'one.wav', concat(speech(1200), silence(200)));
+    const cut = wav(root, 'cut.wav', speech(1200, { f0: 190 }));
+    const scriptFile = join(root, 'script.json');
+    writeFileSync(
+      scriptFile,
+      JSON.stringify([
+        { at: 0, file: first },
+        { after: 'playing', at: 600, file: cut },
+      ]),
+    );
+    const { run } = host({
+      clip: wavFromPcm16(new Int16Array(16_000 * 3), 16_000),
+      mime: 'audio/wav',
+    });
+    const report = (await run('call-simulate', ['ada'], {
+      script: scriptFile,
+      'reply-wait': '20',
+    })) as { heard: { text: string }[]; bargeIns: { by: string }[]; events: { type: string }[] };
+    expect(report.bargeIns).toEqual([expect.objectContaining({ by: 'duration' })]);
+    expect(report.heard.map((item) => item.text)).toEqual([
+      'what is on my calendar',
+      'and tomorrow',
+    ]);
+    expect(report.events.map((event) => event.type)).toContain('reply-stopped');
+  });
+
+  it('barges in when the reply starts while the step before is still streaming its tail', async () => {
+    const root = createTempRoot('cli-call-');
+    const first = wav(root, 'one.wav', concat(speech(1200), silence(4000)));
+    const cut = wav(root, 'cut.wav', speech(1200, { f0: 190 }));
+    const scriptFile = join(root, 'script.json');
+    writeFileSync(
+      scriptFile,
+      JSON.stringify([
+        { at: 0, file: first },
+        { after: 'playing', at: 0, file: cut },
+      ]),
+    );
+    const { run } = host({
+      clip: wavFromPcm16(new Int16Array(16_000 * 8), 16_000),
+      mime: 'audio/wav',
+    });
+    const report = (await run('call-simulate', ['ada'], {
+      script: scriptFile,
+      'reply-wait': '20',
+    })) as { missedSteps?: number[]; bargeIns: { by: string }[] };
+    expect(report.missedSteps).toBeUndefined();
+    expect(report.bargeIns).toEqual([expect.objectContaining({ by: 'duration' })]);
   });
 
   it('stops waiting when nobody answers and still hangs up', async () => {

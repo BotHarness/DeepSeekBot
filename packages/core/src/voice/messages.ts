@@ -5,6 +5,7 @@ import type { ChannelMessageVoice } from '../channels/channel.js';
 import type { ChannelStore } from '../channels/store.js';
 import { audioExtension, VoiceError, type VoiceProviders } from './providers.js';
 import { speakableText } from './speakable.js';
+import type { CallSpeech } from './calls.js';
 import type { AudioClip } from './speech.js';
 
 export type VoiceAttachOutcome =
@@ -14,6 +15,10 @@ export type VoiceAttachOutcome =
       mime: string;
       bytes: number;
       latencyMs: number;
+    }
+  | {
+      status: 'speaking';
+      message: string;
     }
   | { status: 'failed'; code: string; message: string };
 
@@ -29,7 +34,7 @@ export interface VoiceMessagesDeps {
     at: string;
     body: string;
     signal?: AbortSignal | undefined;
-  }) => Promise<AudioClip | undefined>;
+  }) => Promise<CallSpeech | undefined>;
   log?: (phase: string, fields: Record<string, string | number>) => void;
 }
 
@@ -107,42 +112,17 @@ export function createVoiceMessages(deps: VoiceMessagesDeps) {
           'too-many-attachments',
           'The message already holds ten attachments.',
         );
-      record(channelId, messageId, { state: 'pending' });
-      try {
-        const started = performance.now();
-        let spoken: AudioClip | undefined;
-        try {
-          spoken = await deps.speak?.({
-            slug: botSlug,
-            channelId,
-            messageId,
-            at: message.at,
-            body: message.body,
-            signal: input.signal,
-          });
-        } catch (error) {
-          if (input.signal?.aborted) throw error;
-          log('voice-call-speech-failed', {
-            channel: channelId,
-            message: messageId,
-            code: error instanceof VoiceError ? error.code : 'synthesis-failed',
-          });
-        }
-        const result =
-          spoken === undefined
-            ? await deps.providers.synthesize({
-                providerId: binding.providerId,
-                voiceId: binding.voiceId,
-                text,
-                signal: input.signal,
-              })
-            : { ...spoken, latencyMs: Math.round(performance.now() - started) };
+      const upload = async (
+        result: AudioClip & { latencyMs: number },
+        source: 'whole' | 'call',
+        signal?: AbortSignal,
+      ): Promise<VoiceAttachOutcome> => {
         const ref = await store.upload({
           data: (async function* () {
             yield result.audio;
           })(),
           name: `voice-${messageId.replace(/[^A-Za-z0-9-]/gu, '').slice(0, 40)}.${audioExtension(result.mime)}`,
-          ...(input.signal === undefined ? {} : { signal: input.signal }),
+          ...(signal === undefined ? {} : { signal }),
         });
         const identity = attachmentIdentity(ref);
         record(channelId, messageId, { state: 'ready', attachment: identity }, ref);
@@ -151,7 +131,7 @@ export function createVoiceMessages(deps: VoiceMessagesDeps) {
           message: messageId,
           bytes: result.audio.byteLength,
           ms: result.latencyMs,
-          source: spoken === undefined ? 'whole' : 'call',
+          source,
         });
         return {
           status: 'ready',
@@ -160,13 +140,79 @@ export function createVoiceMessages(deps: VoiceMessagesDeps) {
           bytes: ref.size,
           latencyMs: result.latencyMs,
         };
+      };
+      const whole = async (signal?: AbortSignal): Promise<VoiceAttachOutcome> => {
+        try {
+          const result = await deps.providers.synthesize({
+            providerId: binding.providerId,
+            voiceId: binding.voiceId,
+            text,
+            signal,
+          });
+          return await upload(result, 'whole', signal);
+        } catch (error) {
+          if (error instanceof VoiceError)
+            return fail(channelId, messageId, error.code, error.message);
+          if (signal?.aborted)
+            return fail(channelId, messageId, 'cancelled', 'Synthesis was cancelled.');
+          return fail(channelId, messageId, 'synthesis-failed');
+        }
+      };
+      const started = performance.now();
+      let call: CallSpeech | undefined;
+      try {
+        call = await deps.speak?.({
+          slug: botSlug,
+          channelId,
+          messageId,
+          at: message.at,
+          body: message.body,
+          signal: input.signal,
+        });
       } catch (error) {
-        if (error instanceof VoiceError)
-          return fail(channelId, messageId, error.code, error.message);
-        if (input.signal?.aborted)
-          return fail(channelId, messageId, 'cancelled', 'Synthesis was cancelled.');
-        return fail(channelId, messageId, 'synthesis-failed');
+        log('voice-call-speech-failed', {
+          channel: channelId,
+          message: messageId,
+          code: error instanceof VoiceError ? error.code : 'synthesis-failed',
+        });
       }
+      if (call === undefined) {
+        record(channelId, messageId, { state: 'pending' });
+        return whole(input.signal);
+      }
+      void call.archive
+        .then(
+          async ({ clip, interrupted }) => {
+            if (clip === undefined) {
+              if (!interrupted) return whole();
+              log('voice-interrupted', { channel: channelId, message: messageId, kept: 0 });
+              return;
+            }
+            await upload({ ...clip, latencyMs: Math.round(performance.now() - started) }, 'call');
+            if (interrupted)
+              log('voice-interrupted', {
+                channel: channelId,
+                message: messageId,
+                bytes: clip.audio.byteLength,
+              });
+          },
+          async (error: unknown) => {
+            log('voice-call-speech-failed', {
+              channel: channelId,
+              message: messageId,
+              code: error instanceof VoiceError ? error.code : 'synthesis-failed',
+            });
+            await whole();
+          },
+        )
+        .catch(() => {
+          fail(channelId, messageId, 'archive-failed', 'The call voice could not be saved.');
+        });
+      return {
+        status: 'speaking',
+        message:
+          'Playing in the live call; the voice bar is saved when playback ends, with only what the Human heard if they cut in.',
+      };
     },
   };
 }

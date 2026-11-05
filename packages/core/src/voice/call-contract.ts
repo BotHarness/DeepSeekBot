@@ -24,6 +24,27 @@ export const VOICE_CALL_LIMITS = {
   perfSampleMs: 5_000,
 } as const;
 
+export interface VoiceCallBargeIn {
+  readonly suspectMs: number;
+  readonly confirmMs: number;
+  readonly confirmWords: number;
+  readonly duckGain: number;
+  readonly echoGuardMs: number;
+  readonly echoDelayMs: number;
+  readonly echoGuardDb: number;
+  readonly pauseMs: number;
+}
+
+export const VOICE_CALL_BARGE_IN: VoiceCallBargeIn = {
+  suspectMs: 200,
+  confirmMs: 500,
+  confirmWords: 2,
+  duckGain: 0.3,
+  echoGuardMs: 300,
+  echoDelayMs: 200,
+  echoGuardDb: 14,
+  pauseMs: 1_200,
+};
 export interface VoiceCallMediaStats {
   readonly uplinkPackets: number;
   readonly uplinkBytes: number;
@@ -146,13 +167,14 @@ export type VoiceCallEvent =
       messageId: string;
       reused: number;
       synthesized: number;
+      interrupted?: true;
     }
   | {
       seq: number;
       at: number;
       type: 'reply-stopped';
       replyId: string;
-      reason: 'abandoned' | 'revised' | 'replaced';
+      reason: 'abandoned' | 'revised' | 'replaced' | 'interrupted';
     }
   | {
       seq: number;
@@ -162,6 +184,15 @@ export type VoiceCallEvent =
       messageId: string;
       sentences: number;
     }
+  | { seq: number; at: number; type: 'barge-suspected' }
+  | {
+      seq: number;
+      at: number;
+      type: 'barge-in';
+      by: 'duration' | 'words';
+      replyIds: readonly string[];
+    }
+  | { seq: number; at: number; type: 'barge-dismissed'; reason: 'ended' | 'filler' }
   | { seq: number; at: number; type: 'busy' }
   | { seq: number; at: number; type: 'idle' }
   | { seq: number; at: number; type: 'muted' }

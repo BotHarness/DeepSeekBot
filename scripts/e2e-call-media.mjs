@@ -212,6 +212,53 @@ try {
     ok: false,
   });
 
+  const level = async (from) => {
+    const levels = await phone.evaluate((start) => window.__phone.levels.slice(start), from);
+    const values = levels.map((entry) => entry.rms).sort((x, y) => x - y);
+    return values[Math.floor(values.length / 2)] ?? 0;
+  };
+  const load = async (playback, seconds) => {
+    const data = wav(seconds, 440).toString('base64');
+    for (let offset = 0; offset < data.length; offset += 48 * 1024)
+      await host.evaluate(
+        ([id, part]) => window.callAudio(id, part),
+        [playback, data.slice(offset, offset + 48 * 1024)],
+      );
+  };
+  await load('p3', 3);
+  await host.evaluate(() => window.callPlay('p3', 'audio/wav'));
+  await host.waitForTimeout(500);
+  let mark = await phone.evaluate(() => window.__phone.levels.length);
+  await host.waitForTimeout(600);
+  const full = await level(mark);
+  await host.evaluate(() => window.callGain(0.3));
+  await host.waitForTimeout(250);
+  mark = await phone.evaluate(() => window.__phone.levels.length);
+  await host.waitForTimeout(600);
+  const ducked = await level(mark);
+  await host.evaluate(() => window.callGain(1));
+  await host.waitForTimeout(250);
+  mark = await phone.evaluate(() => window.__phone.levels.length);
+  await host.waitForTimeout(500);
+  const restored = await level(mark);
+  await host.waitForFunction(() => window.__events.played.length === 3, null, { timeout: 5_000 });
+  assert.ok(
+    ducked < full * 0.5 && ducked > full * 0.1,
+    `barge-in duck lowers the Bot to about 30% (${full.toFixed(3)} → ${ducked.toFixed(3)})`,
+  );
+  assert.ok(restored > full * 0.7, `the volume comes back (${restored.toFixed(3)})`);
+
+  await load('p4', 0.6);
+  await load('p5', 0.6);
+  await host.evaluate(() => window.callPlay('p4', 'audio/wav'));
+  await host.waitForFunction(() => window.__events.played.length === 4, null, { timeout: 5_000 });
+  await host.evaluate(() => window.callPlay('p5', 'audio/wav'));
+  await host.waitForFunction(() => window.__events.played.length === 5, null, { timeout: 5_000 });
+  assert.deepEqual(
+    (await host.evaluate(() => window.__events.played)).slice(2),
+    ['p3', 'p4', 'p5'].map((playback) => ({ playback, ok: true })),
+    'clips play back to back',
+  );
   const rate = async (ms) => {
     const sent = () =>
       host.evaluate(async () => {
@@ -283,6 +330,11 @@ try {
     offerSections: sections.length,
     uplink: { frames: uplink.frames, rms: Number(uplinkRms.toFixed(3)) },
     downlink: { rms: Number(downlinkRms.toFixed(3)) },
+    duck: {
+      full: Number(full.toFixed(3)),
+      ducked: Number(ducked.toFixed(3)),
+      restored: Number(restored.toFixed(3)),
+    },
     packetsPerSecond: { quiet: quietRate, talking: talkingRate },
     timings,
     stats: {
