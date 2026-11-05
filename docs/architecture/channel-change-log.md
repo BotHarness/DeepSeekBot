@@ -38,4 +38,4 @@ Rows are written by SQLite triggers (migration generation 130), so a new write p
 | 52           | Rename, avatar, wake policy, invites, joins          | `channel_records` update trigger (ignoring `updatedAt`) → `channelChanged`                                      | Channel-level                        |
 | 54           | Host upgrade changing the projection                 | new epoch when the projection changes (bump by migration)                                                       | epoch reset                          |
 
-Approval, question, private-input and takeover requests are resolved by placing a resolution message (insert trigger); the client pairs them, so nothing changes in memory. Rows beyond the newest 200,000 are pruned at start and `floor_seq` rises, so a cursor older than the floor gets `reset`.
+Approval, question, private-input and takeover requests are resolved by placing a resolution message (insert trigger); the client pairs them, so nothing changes in memory. Rows older than 30 days are pruned at start and `floor_seq` rises, so a cursor below the floor gets `reset`.
