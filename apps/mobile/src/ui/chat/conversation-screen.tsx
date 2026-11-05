@@ -131,6 +131,7 @@ import { useBotNames } from './use-bot-names';
 import { ImageViewer } from './image-viewer';
 import { JumpToLatest } from './jump-to-latest';
 import { DeliverySheet } from './delivery-sheet';
+import { ChatOffline } from './chat-offline';
 import { MessageActions, type MessageMenuTarget } from './message-actions';
 import {
   activeMentionQuery,
@@ -667,7 +668,8 @@ function ChatConversation({
   const composerInput = useRef<ComposerInput>(null);
   const [typing, setTyping] = useState(false);
   const clipboard = useClipboardImage(typing && files.length < MAX_PICKED);
-  const composable = !botDm && conversation !== undefined && host.connection.status === 'connected';
+  const online = host.connection.status === 'connected';
+  const composable = !botDm && conversation !== undefined && online;
   const { jumpToLatest } = latest;
   const compose = useCallback(() => {
     jumpToLatest();
@@ -1194,7 +1196,7 @@ function ChatConversation({
           onShare={share}
           onLongPress={openActions}
           lifted={Platform.OS === 'web' && item.message.id === actionsFor?.message.id}
-          {...(botDm ? {} : { onReact: react })}
+          {...(botDm || !online ? {} : { onReact: react })}
           {...(composable && selected === undefined ? { onReply: startReply } : {})}
           {...(receipts ? { onOpenDelivery: openDelivery } : {})}
           readers={reading.get(item.message.id)}
@@ -1228,6 +1230,7 @@ function ChatConversation({
       actionsFor,
       share,
       react,
+      online,
       botName,
       speakerOf,
       roster,
@@ -1519,7 +1522,7 @@ function ChatConversation({
   const fadeColor = background.kind === 'color' ? background.color : theme.color.base;
 
   return (
-    <>
+    <ChatOffline value={!online}>
       {paging === undefined && presentation === undefined ? (
         <Stack.Screen
           options={{
@@ -2071,7 +2074,7 @@ function ChatConversation({
       />
       <MessageActions
         target={actionsFor}
-        readOnly={botDm}
+        readOnly={botDm || !online}
         onClose={() => setActionsFor(undefined)}
         onReact={(message, emoji, active) => react(message.id, emoji, active)}
         onCopy={copyMessage}
@@ -2094,7 +2097,7 @@ function ChatConversation({
           }
         />
       )}
-    </>
+    </ChatOffline>
   );
 }
 

@@ -71,6 +71,46 @@ export const LOCAL_STORE_MIGRATIONS: readonly string[] = [
     singleton integer primary key check (singleton = 1),
     record text not null
   );`,
+  `create table search_rows (
+    n integer primary key,
+    channel_id text not null,
+    id text not null,
+    unique (channel_id, id)
+  );
+  create virtual table message_text using fts5(body, tokenize = 'trigram');
+  create trigger messages_text_insert after insert on messages begin
+    insert into search_rows (channel_id, id)
+      select new.channel_id, new.id where not exists
+        (select 1 from search_rows where channel_id = new.channel_id and id = new.id);
+    insert into message_text (rowid, body)
+      select n, json_extract(new.entry, '$.message.body') from search_rows
+      where channel_id = new.channel_id and id = new.id and new.purged = 0
+        and coalesce(json_extract(new.entry, '$.message.body'), '') <> '';
+  end;
+  create trigger messages_text_update after update on messages
+    when old.entry is not new.entry or old.purged is not new.purged begin
+    delete from message_text
+      where rowid = (select n from search_rows where channel_id = old.channel_id and id = old.id);
+    insert into search_rows (channel_id, id)
+      select new.channel_id, new.id where not exists
+        (select 1 from search_rows where channel_id = new.channel_id and id = new.id);
+    insert into message_text (rowid, body)
+      select n, json_extract(new.entry, '$.message.body') from search_rows
+      where channel_id = new.channel_id and id = new.id and new.purged = 0
+        and coalesce(json_extract(new.entry, '$.message.body'), '') <> '';
+  end;
+  create trigger messages_text_delete after delete on messages begin
+    delete from message_text
+      where rowid = (select n from search_rows where channel_id = old.channel_id and id = old.id);
+    delete from search_rows where channel_id = old.channel_id and id = old.id;
+  end;
+  insert into search_rows (channel_id, id) select channel_id, id from messages;
+  insert into message_text (rowid, body)
+    select search_rows.n, json_extract(messages.entry, '$.message.body')
+    from messages join search_rows
+      on search_rows.channel_id = messages.channel_id and search_rows.id = messages.id
+    where messages.purged = 0
+      and coalesce(json_extract(messages.entry, '$.message.body'), '') <> '';`,
 ];
 
 const reader = (connection: SqlConnection): SqlReader => ({

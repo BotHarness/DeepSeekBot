@@ -328,10 +328,14 @@ const HomeContent = memo(function HomeContent({
     collapsed,
     query.trim() !== '',
   );
-  const searchHosts = (selectedHost ? [selectedHost] : effectiveFilter === 'all' ? hosts : [])
-    .filter((host) => host.snapshot.connection.status === 'connected')
-    .map((host) => ({ hostId: host.saved.hostId, client: host.client }));
-  const searchScope = searchHosts.map((host) => host.hostId).join('|');
+  const searchHosts = (selectedHost ? [selectedHost] : effectiveFilter === 'all' ? hosts : []).map(
+    (host) => ({
+      hostId: host.saved.hostId,
+      client: host.client,
+      offline: host.snapshot.connection.status !== 'connected',
+    }),
+  );
+  const searchScope = searchHosts.map((host) => `${host.hostId}:${host.offline ? 0 : 1}`).join('|');
   const scheduleMessageSearch = messageSearch.schedule;
   const cancelMessageSearch = messageSearch.cancel;
   useFocusEffect(
