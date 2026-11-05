@@ -640,6 +640,7 @@ describe('Search in the Chats header', () => {
     const view = await home();
     await act(async () => conversationFilter.set(computerEnvironmentKey('h1')));
     expect(view.textContent).not.toContain(t.hostListLoadFailed);
+    expect(view.textContent).not.toContain(t.cloudChannels.empty);
     await act(async () => {
       await vi.waitFor(
         () =>
