@@ -7,6 +7,7 @@ import {
   type OperationalDatabaseOwner,
 } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
+import { defineSchemaPlan, type SchemaPlan } from '../src/database/schema.js';
 import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
 import { mountContentPurge } from '../src/purge/owner.js';
 import { createAttachmentStore } from '../src/attachments/store.js';
@@ -18,9 +19,9 @@ afterEach(() => {
   while (owners.length) owners.pop()!.close();
 });
 
-async function seeded() {
+async function seeded(schemaPlan: SchemaPlan = BOT_HARNESS_SCHEMA_PLAN, members: string[] = []) {
   const home = createTempRoot('group-disband-');
-  const database = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
+  const database = mountOperationalDatabase({ dshHome: home, schemaPlan });
   owners.push(database);
   const purge = mountContentPurge({ dshHome: home, database });
   const port = attachOperationalModule(database, 'messaging');
@@ -40,7 +41,7 @@ async function seeded() {
     memoryReferences: () => [],
   });
   const dm = channels.getOrCreateDm('ada', 'Ada')!;
-  const group = channels.createGroup({ name: 'Trip', members: [] });
+  const group = channels.createGroup({ name: 'Trip', members });
   channels.setGroupAvatar(group.id, 'data:image/png;base64,iVBORw0KGgo=');
   const send = (channelId: string, id: string, body: string) =>
     channels.appendMessage(channelId, {
@@ -69,7 +70,7 @@ async function seeded() {
       )
       .run(dm.id, source('shared'), 'shared-in-dm'),
   );
-  return { purge, port, channels, storage, dm, group, source };
+  return { home, database, purge, port, channels, storage, dm, group, source };
 }
 
 const body = (core: Awaited<ReturnType<typeof seeded>>, messageId: string) =>
@@ -78,6 +79,76 @@ const body = (core: Awaited<ReturnType<typeof seeded>>, messageId: string) =>
   );
 
 describe('Group Disband (ADR-0274)', () => {
+  const addReply = async (core: Awaited<ReturnType<typeof seeded>>) => {
+    const parent = core.source('plan');
+    await core.channels.appendMessage(core.group.id, {
+      id: 'reply',
+      at: '2026-10-01T00:00:01.000Z',
+      author: { kind: 'bot', slug: 'ada' },
+      body: 'A reply to the plan',
+      botCausation: { rootSourceEventId: parent, parentSourceEventId: parent, hop: 1 },
+    });
+  };
+
+  it('purges a reply after its causal parent without allowing content resurrection', async () => {
+    const core = await seeded(BOT_HARNESS_SCHEMA_PLAN, ['ada']);
+    await addReply(core);
+    core.channels.deleteGroup(core.group.id);
+    for (const message of ['plan', 'reply']) {
+      const ids = [core.source(message)];
+      const preview = core.purge.preview(core.group.id, ids);
+      expect(core.purge.confirm(core.group.id, ids, preview.token)).toEqual({ accepted: 1 });
+      expect(body(core, message)).toBe('');
+    }
+    expect(core.database.mode).toBe('ready');
+    expect(() =>
+      core.port.transaction((db) =>
+        db
+          .prepare('UPDATE source_events SET body = ? WHERE source_event_id = ?')
+          .run('resurrected', core.source('reply')),
+      ),
+    ).toThrow();
+    expect(body(core, 'dm-only')).toBe('just the DM');
+  });
+
+  it('migrates and replays an already accepted causal purge after recovery', async () => {
+    const oldPlan = defineSchemaPlan(
+      BOT_HARNESS_SCHEMA_PLAN.migrations.filter((m) => m.generation <= 126),
+    );
+    const core = await seeded(oldPlan, ['ada']);
+    await addReply(core);
+    core.channels.deleteGroup(core.group.id);
+    const parent = [core.source('plan')];
+    core.purge.confirm(core.group.id, parent, core.purge.preview(core.group.id, parent).token);
+    const child = [core.source('reply')];
+    const token = core.purge.preview(core.group.id, child).token;
+    expect(() => core.purge.confirm(core.group.id, child, token)).toThrow();
+    expect(core.database.mode).toBe('recovery');
+    core.database.close();
+
+    const reopened = mountOperationalDatabase({
+      dshHome: core.home,
+      schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
+    });
+    owners.push(reopened);
+    const purge = mountContentPurge({ dshHome: core.home, database: reopened });
+    expect(reopened.mode).toBe('ready');
+    const port = attachOperationalModule(reopened, 'messaging');
+    for (const id of ['plan', 'reply'])
+      expect(
+        port.read(
+          (db) => db.prepare('SELECT body FROM source_events WHERE message_id = ?').get(id)?.body,
+        ),
+      ).toBe('');
+    expect(purge.checkpoint().facts).toHaveLength(2);
+    expect(
+      port.read(
+        (db) =>
+          db.prepare('SELECT body FROM source_events WHERE message_id = ?').get('dm-only')?.body,
+      ),
+    ).toBe('just the DM');
+  });
+
   it('deletes the group content no other Channel shares and keeps only its identity', async () => {
     const core = await seeded();
     core.channels.deleteGroup(core.group.id);

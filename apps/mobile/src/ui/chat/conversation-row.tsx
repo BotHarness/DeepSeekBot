@@ -22,6 +22,7 @@ import {
   type RowStatus,
 } from './conversations';
 import { RowStatusGlyph } from './row-status-glyph';
+import { callRecordPreview } from './call-record-text';
 import {
   AvatarSlot,
   CONVERSATION_AVATAR as AVATAR,
@@ -62,7 +63,9 @@ export function ConversationRow({
   const title = titleOf(row);
   const status = rowStatus(row, now);
   const latest = row.kind === 'bot' ? row.bot.preview : row.channel.preview;
-  const preview = previewText(latest, copy);
+  const call = row.kind === 'bot' ? row.bot.previewCall : row.channel.previewCall;
+  const preview =
+    call === undefined ? previewText(latest, copy) : callRecordPreview(call, copy.call);
   const badge = countBadge(row);
   const time = shortTime(row.at ?? row.createdAt, now);
   const description = rowLabel(row, title, status, preview);

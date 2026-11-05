@@ -5,7 +5,13 @@ import type {
   VoiceSynthesisView,
   VoiceTranscriptionView,
 } from '../voice/bridge.js';
-import type { ProviderHealth, VoiceProviderView } from '../voice/providers.js';
+import type { VoiceDictationReadiness, VoiceDictationView } from '../voice/dictation.js';
+import type {
+  ProviderHealth,
+  VoiceDefaults,
+  VoiceProviderView,
+  VoiceSpeechThreshold,
+} from '../voice/providers.js';
 import type { PersonaBotAsr, PersonaBotVoice } from '../bots/persona-bot.js';
 import type { CloudManagementInput, CloudManagementResult } from '../cloud/management.js';
 import type { ChannelManagementResult } from '../channels/management.js';
@@ -725,8 +731,8 @@ export class BotharnessBridgeService extends TypertRemoteService {
       }),
     );
   }
-  telemetryEvent(event: string, properties: Record<string, string | boolean> = {}): null {
-    return unwrap(this.methods.telemetryEvent({ event, properties }));
+  telemetryEvent(event: string, properties?: Record<string, string | boolean>): null {
+    return unwrap(this.methods.telemetryEvent({ event, properties: properties ?? {} }));
   }
   modelPlanInherit(slug: string, expectedRevision: number): { revision: number } {
     return unwrap(this.methods.modelPlanInherit({ slug, expectedRevision }));
@@ -1362,6 +1368,30 @@ export class BotharnessBridgeService extends TypertRemoteService {
     language?: string,
   ): { slug: string; asr: PersonaBotAsr | null } {
     return unwrap(this.methods.botAsrSet({ slug, providerId, language }));
+  }
+
+  voiceDefaultSet(
+    kind: string,
+    providerId: string | null,
+    voiceId?: string,
+    language?: string,
+  ): { defaults: VoiceDefaults } {
+    return unwrap(this.methods.voiceDefaultSet({ kind, providerId, voiceId, language }));
+  }
+
+  voiceSpeechThresholdSet(dbfs: number | null): { speechThreshold: VoiceSpeechThreshold } {
+    return unwrap(this.methods.voiceSpeechThresholdSet({ dbfs }));
+  }
+
+  voiceDictation(
+    kind: string,
+    id?: string,
+    pcm?: string,
+    slug?: string,
+    providerId?: string,
+    language?: string,
+  ): Promise<{ readiness: VoiceDictationReadiness } | { dictation: VoiceDictationView }> {
+    return unwrapAsync(this.methods.voiceDictation({ kind, id, pcm, slug, providerId, language }));
   }
 
   approvalReviewerModel(): Promise<ApprovalReviewerModelView> {
@@ -2932,6 +2962,9 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'botVoiceSet',
   'voiceTranscribe',
   'botAsrSet',
+  'voiceDefaultSet',
+  'voiceSpeechThresholdSet',
+  'voiceDictation',
   'idleCompaction',
   'idleCompactionSet',
   'idleCompactionCacheLifetimeSet',

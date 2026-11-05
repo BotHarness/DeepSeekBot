@@ -13,6 +13,7 @@ import { useTimelineWindow } from './timeline-window.js';
 import { OnboardingOverlay } from './onboarding-view.js';
 import { BotIntro } from './bot-intro.js';
 import type { Wallpaper } from './wallpaper.js';
+import type { VoiceDictationPort } from './composer-dictation.js';
 import {
   ChannelMark,
   ChannelMenuCaret,
@@ -238,6 +239,7 @@ import {
 import { inlineImageAttachment } from './message-attachment.js';
 import { channelAttachmentUrl } from './bridge.js';
 import { turnStopText } from './turn-stop.js';
+import { VoiceCallRecordBubble } from './voice-call-record.js';
 
 export function committedMessageIds(messages: readonly ChannelMessage[]): Set<string> {
   return new Set(
@@ -1370,6 +1372,14 @@ function ConversationView({
     useScopedState<GroupProfileActivity>(scopeKey);
   const conversation = state.conversation;
   const channel = conversation.channel;
+  const dictationSlug = channel?.type === 'dm' ? channel.botSlug : undefined;
+  const dictationPort = useMemo(() => {
+    const port: unknown = actions.dictationPort?.(dictationSlug);
+    if (port instanceof Promise) port.catch(() => undefined);
+    return typeof (port as VoiceDictationPort | undefined)?.readiness === 'function'
+      ? (port as VoiceDictationPort)
+      : undefined;
+  }, [actions, dictationSlug]);
   const botNames = new Map(state.bots.map((member) => [member.slug, member.displayName]));
   const dmBotSlug = channel?.type === 'dm' ? channel.botSlug : undefined;
   const hiddenActions = useSyncExternalStore(
@@ -1545,6 +1555,7 @@ function ConversationView({
       item.memoryCommit === undefined &&
       item.memberDeparture === undefined &&
       item.turnStop === undefined &&
+      item.voiceCallRecord === undefined &&
       item.toolAutoApproval === undefined &&
       item.toolAutoApprovalPause === undefined,
   );
@@ -2448,6 +2459,7 @@ function ConversationView({
     return selected.caret;
   };
 
+  const dictating = useRef(false);
   const fileDrop = useConversationFileDrop(
     !readOnlyDm &&
       !conversation.sending &&
@@ -2455,6 +2467,7 @@ function ConversationView({
       activeMemoryView === undefined &&
       selectedIds === undefined,
     (files) => {
+      if (dictating.current) return;
       addFiles(files);
       setRestoreFocusSignal((value) => value + 1);
     },
@@ -3046,6 +3059,12 @@ function ConversationView({
                         bots={state.bots}
                         t={t}
                       />
+                    ) : first.voiceCallRecord !== undefined ? (
+                      <VoiceCallRecordBubble
+                        messageId={first.id}
+                        record={first.voiceCallRecord}
+                        t={t}
+                      />
                     ) : first.turnStop !== undefined ? (
                       <div className="bh-member-departure" data-message-id={first.id}>
                         <span>{turnStopText(first.turnStop, t)}</span>
@@ -3384,6 +3403,9 @@ function ConversationView({
                         : []
                   }
                   placeholder={t('composer.placeholder', { name: title })}
+                  holdPlaceholder={t('composer.holdToTalk', { name: title })}
+                  dictation={dictationPort}
+                  dictating={dictating}
                   sending={conversation.sending || recovery.blocked}
                   focusSignal={restoreFocusSignal}
                   attachments={uploadItems}

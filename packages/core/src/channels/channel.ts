@@ -3,8 +3,10 @@ import { parseToolApprovalActor } from '../workspaces/tool-approval-actor.js';
 import { createHash } from 'node:crypto';
 import { isValidSlug } from '../bots/slug.js';
 import { isChannelTurnStopTarget, type ChannelTurnStopTarget } from './turn-stop.js';
+import { isChannelVoiceCallRecord, type ChannelVoiceCallRecord } from './voice-call-record.js';
 
 export { isChannelTurnStopTarget, type ChannelTurnStopTarget };
+export { isChannelVoiceCallRecord, type ChannelVoiceCallRecord };
 
 import {
   isChannelAttachmentRef,
@@ -484,6 +486,7 @@ export interface ChannelMessage {
   clearedAttachments?: ChannelClearedAttachment[];
   voice?: ChannelMessageVoice;
   voiceCall?: { callId: string };
+  voiceCallRecord?: ChannelVoiceCallRecord;
   bridgeMedia?: {
     voice?: Pick<import('../messaging/provider.js').MessagingVoice, 'transcript' | 'durationMs'>;
     video?: { attachmentId: string; durationMs?: number; posterAttachmentId?: string };
@@ -1075,6 +1078,12 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
       (stop['failures'] !== undefined &&
         (typeof stop['failures'] !== 'number' || !Number.isInteger(stop['failures']))) ||
       (stop['target'] !== undefined && !isChannelTurnStopTarget(stop['target']))
+    )
+      return false;
+  } else if (message['voiceCallRecord'] !== undefined) {
+    if (
+      (message['author'] as ChannelMessageAuthor)?.kind !== 'system' ||
+      !isChannelVoiceCallRecord(message['voiceCallRecord'])
     )
       return false;
   } else if (message['toolAutoApproval'] !== undefined) {

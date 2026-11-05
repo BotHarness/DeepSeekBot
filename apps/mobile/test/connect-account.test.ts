@@ -174,6 +174,7 @@ describe('phone Connect account', () => {
     expect(await offline.account.offer('hstudio', 'iPhone')).toEqual({
       ok: false,
       code: 'host-offline',
+      detail: 'relay:host-offline',
     });
 
     const cancelled = fakeRelay();

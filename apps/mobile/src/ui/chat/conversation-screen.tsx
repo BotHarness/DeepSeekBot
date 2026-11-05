@@ -89,6 +89,7 @@ import { GrantRequestCard } from './grant-request-card';
 import { PrivateInputCard } from './private-input-card';
 import { TakeoverCard } from './takeover-card';
 import { ActivityRow } from './activity-row';
+import { CallRecordBubble } from './call-record';
 import type { BubbleGroup } from './bubble-shape';
 import { botBusy } from './bot-tone';
 import { ChannelTitle } from './channel-title';
@@ -472,7 +473,9 @@ function ChatConversation({
   const receipts = receiptPreference.loaded && receiptPreference.enabled;
   const playback = useStreamPlayback(conversation, display.loaded && display.mode === 'streaming');
   const snapshot = useConversationTimelineSnapshot(conversation, playback, focused);
-  const shownDrafts = display.loaded && display.mode === 'streaming' ? snapshot.drafts : NO_DRAFTS;
+  const shownDrafts = useDraftSlots(
+    display.loaded && display.mode === 'streaming' ? snapshot.drafts : NO_DRAFTS,
+  );
   const draftKey = hostDraftKey(
     saved?.hostId ?? '',
     place.kind,
@@ -1035,6 +1038,8 @@ function ChatConversation({
         </MessageSelectionRow>
       );
 
+      if (item.message.activity?.kind === 'voice-call')
+        return wrap(<CallRecordBubble record={item.message.activity.record} />);
       if (item.message.activity !== undefined)
         return wrap(
           <ActivityRow
@@ -2068,4 +2073,13 @@ function useIdentityBots(bots: readonly RosterBot[] | undefined): RosterBot[] | 
   if (last.current === undefined || last.current.key !== key)
     last.current = { key, bots: bots === undefined ? undefined : [...bots] };
   return last.current.bots;
+}
+
+function useDraftSlots<T extends { draftId: string; botSlug: string }>(
+  drafts: readonly T[],
+): readonly T[] {
+  const last = useRef<{ key: string; drafts: readonly T[] }>(undefined);
+  const key = drafts.map((draft) => `${draft.draftId}\u0000${draft.botSlug}`).join('\u0001');
+  if (last.current?.key !== key) last.current = { key, drafts };
+  return last.current.drafts;
 }
