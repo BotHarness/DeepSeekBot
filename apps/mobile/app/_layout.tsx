@@ -31,6 +31,8 @@ import { swipeEntryListeners, swipeEntryOptions } from '../src/ui/shell/swipe-en
 import { installMediaStore, runAutoCleanup } from '../src/host/media-cache';
 import { nativeMediaStore } from '../src/host/native-media-store';
 import { installPurgeTargets } from '../src/host/purge-caches';
+import { installHostStoreOpener, retryHostStoreDeletes } from '../src/host/host-store';
+import { nativeHostStoreOpener } from '../src/host/native-local-store';
 import { nativePurgeTargets } from '../src/host/native-purge-targets';
 import { HostAccentProvider } from '../src/ui/shell/host-accent-provider';
 import { useDesignTheme } from '../src/ui/design/theme';
@@ -39,6 +41,8 @@ import { useTheme } from '../src/ui/theme';
 import { useNativeInterfacePreferences } from '../src/ui/native-interface-preferences';
 
 installMediaStore(nativeMediaStore);
+installHostStoreOpener(nativeHostStoreOpener);
+void retryHostStoreDeletes();
 installPurgeTargets(nativePurgeTargets);
 setTimeout(() => {
   runAutoCleanup();

@@ -143,6 +143,7 @@ import type {
   BridgeMethods,
   BridgeResult,
   ChannelListItem,
+  ChannelListChanges,
   MessagingAppsView,
   PersonaBotDetail,
   ApprovalTemplateEntry,
@@ -1524,6 +1525,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
 
   async channels(): Promise<{ channels: ChannelListItem[] }> {
     return unwrap(await this.methods.channels({}));
+  }
+
+  async channelListChanges(sinceSeq: number, epoch?: string): Promise<ChannelListChanges> {
+    return unwrap(await this.methods.channelListChanges({ sinceSeq, epoch }));
   }
 
   channelDm(slug: string, displayName?: string): { channel: ChannelRecord } {
@@ -3072,6 +3077,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'channelFilesPage',
   'channelChanges',
   'channelChangeCursor',
+  'channelListChanges',
 ]);
 markRemoteStreams(BotharnessBridgeService.prototype, [
   'followRoster',

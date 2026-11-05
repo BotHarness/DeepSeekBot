@@ -316,3 +316,23 @@ it('the iOS workspace page draws its own title and lists environments as native 
   act(() => panel.unmount());
   page.remove();
 });
+
+it('environment rows show only the name and status; addresses stay on the connection page', async () => {
+  await act(async () => hostDrawer.open());
+  const row = node.querySelector('[data-testid="drawer-host-b"]');
+  expect(row?.textContent).toContain('B');
+  expect(row?.textContent).toMatch(
+    new RegExp([t.hostOnline, t.hostOffline, t.hostChecking].join('|')),
+  );
+  expect(node.textContent).not.toContain('a.test');
+  expect(node.textContent).not.toContain('b.test');
+
+  const page = document.createElement('div');
+  document.body.append(page);
+  const panel = createRoot(page);
+  await act(async () => panel.render(<WorkspacePanel page active />));
+  expect(page.querySelector('[data-testid="drawer-host-b"]')).not.toBeNull();
+  expect(page.textContent).not.toContain('b.test');
+  act(() => panel.unmount());
+  page.remove();
+});
