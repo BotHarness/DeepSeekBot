@@ -93,10 +93,6 @@ export function createDshActivityProjection(options: {
     name: string,
     args: unknown,
   ): { name: string; view?: ToolCallView; publicDetail?: string } | undefined;
-  /**
-   * The Assignment title the Orchestrator set for an Assignment Session. A Session is reused
-   * for later requests, so its DSH title goes stale; the Assignment title wins when present.
-   */
   assignmentTitle?(botSlug: string, sessionId: string): string | undefined;
 }): DshActivityProjection {
   const { ownership, states } = options;

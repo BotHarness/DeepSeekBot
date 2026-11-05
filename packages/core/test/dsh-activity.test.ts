@@ -384,7 +384,6 @@ it('names an Assignment Session by its Assignment title, falling back to the DSH
   expect(name('legacy')).toBe('Inspect the export handler');
   expect(name('root')).toBe('Inspect the export handler');
 
-  // A later request renames the DSH Session; the Assignment title stays.
   projection.handleSessionEvent('task', title('Reply to follow-up question'));
   projection.handleSessionEvent('task', event('step/start'));
   expect(name('task')).toBe('Fix Safari export button');
