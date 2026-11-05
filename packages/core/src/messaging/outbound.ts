@@ -752,12 +752,14 @@ export function createOutboundMessaging(options: {
       message.userQuestionResolution ||
       message.privateInputRequest ||
       message.privateInputResolution ||
+      message.takeoverResolution ||
       message.sessionFailure ||
       message.grantRequest ||
       message.grantRequestResolution ||
       message.onboardingWelcome ||
       message.memberDeparture ||
       message.turnStop ||
+      message.voiceCallRecord ||
       message.toolAutoApprovalOverride
     )
       return undefined;

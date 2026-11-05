@@ -2,7 +2,6 @@ import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { describe, expect, it } from 'vitest';
 
-import { MAX_BOT_HOPS } from '../src/channels/channel.js';
 import { createCore } from '../src/plugin.js';
 import { createBotMessageTool } from '../src/runtime/bot-message-tool.js';
 import type { BotAgentAdapter, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
@@ -19,12 +18,13 @@ function adapter(onRun: (run: OrchestratorAgentRun) => Promise<void>): BotAgentA
   };
 }
 
-async function reviewRounds(rounds: number) {
+async function reviewRounds(rounds: number, botHopLimit?: number) {
   const runs: string[] = [];
   const receipts: Array<Record<string, unknown>> = [];
   let groupId = '';
   const core = createCore({
     dshHome: createTempRoot('bh-review-rounds-'),
+    ...(botHopLimit === undefined ? {} : { botHopLimit: () => botHopLimit }),
     agents: adapter(async (run) => {
       runs.push(run.bot.slug);
       const turn = runs.filter((slug) => slug === run.bot.slug).length;
@@ -73,16 +73,26 @@ describe('Bot-to-Bot review rounds in one Group', () => {
     expect(receipts.every((receipt) => receipt['notWoken'] === undefined)).toBe(true);
   });
 
-  it('tells the sender when the hop limit stops the colleague from waking', async () => {
-    const { runs, receipts } = await reviewRounds(MAX_BOT_HOPS);
-    const lastRound = Math.ceil(MAX_BOT_HOPS / 2) + 1;
+  it('refuses the send past the hop limit and tells the sender why', async () => {
+    const limit = 8;
+    const { runs, receipts } = await reviewRounds(limit, limit);
+    const lastRound = limit / 2 + 1;
     expect(runs.filter((slug) => slug === 'aura')).toHaveLength(lastRound - 1);
     expect(receipts).toHaveLength(lastRound);
-    expect(receipts.slice(0, -1).every((receipt) => receipt['notWoken'] === undefined)).toBe(true);
+    expect(receipts.slice(0, -1).every((receipt) => receipt['status'] === 'committed')).toBe(true);
     expect(receipts.at(-1)).toMatchObject({
-      status: 'committed',
-      notWoken: [{ botId: 'aura', reason: 'collaboration-hop-limit' }],
+      status: 'refused',
+      reason: 'collaboration-hop-limit',
+      hop: limit + 1,
+      hopLimit: limit,
     });
+    expect(receipts.at(-1)?.['messageId']).toBeUndefined();
+  });
+
+  it('runs 20 review rounds (40 hops) under the default limit', async () => {
+    const { runs, receipts } = await reviewRounds(20);
+    expect(runs.filter((slug) => slug === 'aura')).toHaveLength(20);
+    expect(receipts.every((receipt) => receipt['status'] === 'committed')).toBe(true);
   });
 });
 

@@ -8,7 +8,9 @@ export interface NotificationsPort {
   permission(): Promise<PermissionState>;
   request(): Promise<PermissionState>;
   token(): Promise<string>;
-  onTokenChanged(listener: (resolveToken: () => Promise<string>) => void): () => void;
+  onTokenChanged(
+    listener: (resolveToken: () => Promise<string>, nativeToken?: string) => void,
+  ): () => void;
   setBadge(count: number): Promise<void>;
   presented(): Promise<Array<{ id: string; data: unknown }>>;
   dismiss(id: string): Promise<void>;
@@ -54,6 +56,8 @@ export function createPushSession(options: {
   let generation = 0;
   let stopped = false;
   let granted = false;
+  let fetching = 0;
+  let seenToken: string | undefined;
   const registrations = new Map<string, Promise<unknown>>();
 
   const publish = (next: PushStatus): void => {
@@ -79,6 +83,7 @@ export function createPushSession(options: {
     let token: string;
     try {
       let timer: ReturnType<typeof setTimeout> | undefined;
+      fetching++;
       token = await Promise.race([
         resolveToken(),
         new Promise<never>((_, reject) => {
@@ -87,7 +92,10 @@ export function createPushSession(options: {
             options.tokenTimeoutMs ?? TOKEN_TIMEOUT_MS,
           );
         }),
-      ]).finally(() => clearTimeout(timer));
+      ]).finally(() => {
+        fetching--;
+        clearTimeout(timer);
+      });
     } catch (error) {
       if (!current()) return;
       publish({
@@ -127,7 +135,13 @@ export function createPushSession(options: {
       publish({ status: 'on', failed: results.flatMap((id) => (id === undefined ? [] : [id])) });
   };
 
-  const offToken = notifications.onTokenChanged((resolveToken) => {
+  const offToken = notifications.onTokenChanged((resolveToken, nativeToken) => {
+    const unchanged = nativeToken !== undefined && nativeToken === seenToken;
+    const replaced =
+      nativeToken !== undefined && seenToken !== undefined && nativeToken !== seenToken;
+    if (nativeToken !== undefined) seenToken = nativeToken;
+    if (fetching > 0 && nativeToken !== undefined && !replaced) return;
+    if (unchanged && snapshot.status !== 'unavailable') return;
     if (granted && !stopped) void registerAll(latest, resolveToken);
   });
 

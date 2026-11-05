@@ -32,7 +32,7 @@ const flush = async () => {
 afterEach(() => vi.useRealTimers());
 
 function fixture(token: () => Promise<string> = async () => 'A') {
-  let listener: (resolveToken: () => Promise<string>) => void = () => {};
+  let listener: (resolveToken: () => Promise<string>, nativeToken?: string) => void = () => {};
   const off = vi.fn();
   const notifications: NotificationsPort = {
     permission: async () => 'granted',
@@ -68,7 +68,8 @@ function fixture(token: () => Promise<string> = async () => 'A') {
     register,
     notifications,
     off,
-    change: (resolveToken: () => Promise<string>) => listener(resolveToken),
+    change: (resolveToken: () => Promise<string>, nativeToken?: string) =>
+      listener(resolveToken, nativeToken),
   };
 }
 
@@ -226,3 +227,18 @@ it.each(['event', 'sync'] as const)(
     f.session.stop();
   },
 );
+
+it('supersedes a pending fetch when an identified native token actually rotates', async () => {
+  const a = deferred<string>();
+  const f = fixture(() => a.promise);
+  const initial = f.session.sync([host]);
+  await flush();
+  f.change(() => a.promise, 'native-A');
+  f.change(async () => 'B', 'native-B');
+  await flush();
+  expect(f.register.mock.calls.map(([, r]) => r.token)).toEqual(['B']);
+  a.resolve('A');
+  await initial;
+  expect(f.register.mock.calls.map(([, r]) => r.token)).toEqual(['B']);
+  f.session.stop();
+});

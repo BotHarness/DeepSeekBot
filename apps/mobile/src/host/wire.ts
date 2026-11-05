@@ -68,6 +68,7 @@ export interface ChannelWireMessage extends WireMessage {
   reactions?: WireReaction[];
   deliveries?: WireDelivery[];
   attachments?: readonly AttachmentRef[];
+  voice?: WireMessageVoice;
   clearedAttachments?: readonly {
     name: string;
     mime: string;
@@ -82,6 +83,8 @@ export interface ChannelWireMessage extends WireMessage {
   toolApprovalRequest?: unknown;
   userQuestionRequest?: unknown;
   privateInputRequest?: unknown;
+  takeoverRequest?: unknown;
+  takeoverResolution?: unknown;
   sessionFailure?: unknown;
   grantRequest?: true;
   grantRequestResolved?: boolean;
@@ -98,6 +101,15 @@ export interface ChannelWireMessage extends WireMessage {
   botCreateAction?: unknown;
   memberDeparture?: unknown;
   turnStop?: unknown;
+  voiceCallRecord?: unknown;
+}
+
+export interface WireMessageVoice {
+  state: 'pending' | 'ready' | 'failed';
+  attachment?: string;
+  durationMs?: number;
+  code?: string;
+  error?: string;
 }
 
 export interface BridgeMediaItem {
@@ -113,6 +125,10 @@ export interface AttachmentRef {
   size: number;
   fileId?: string;
   hash?: string;
+  version?: string;
+  width?: number;
+  height?: number;
+  thumbhash?: string;
 }
 
 export interface JournalEntry {
@@ -157,6 +173,13 @@ export type ChannelNotification =
       channelId: string;
       messageId: string;
       reactions: WireReaction[];
+    }
+  | {
+      kind: 'voice';
+      channelId: string;
+      messageId: string;
+      voice: WireMessageVoice;
+      attachments: readonly AttachmentRef[];
     }
   | {
       kind: 'draft-baseline';
@@ -567,7 +590,7 @@ export interface TimelinePage {
   entries: TimelineMessage[];
 }
 
-export type ToolApprovalStatus = 'pending' | 'expired';
+export type ToolApprovalStatus = 'pending' | 'expired' | 'stopped';
 export type UserQuestionStatus = 'pending' | 'submitted' | 'answered' | 'expired';
 
 export type UsagePeriod = 'today' | 'week' | 'month' | 'quarter';

@@ -74,7 +74,7 @@ it('parses where the turn stopped and continues it through channelRetry', async 
   });
   const waiting = createFailureContinuation({ call }, 'dm-ada', 'failure-2', failure);
   await waiting.cancelAuto();
-  expect(call).toHaveBeenLastCalledWith('channelBotStop', {
+  expect(call).toHaveBeenLastCalledWith('botStop', {
     channelId: 'dm-ada',
     botSlug: 'ada',
     autoContinueFor: 'm',

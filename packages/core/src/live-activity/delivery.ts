@@ -180,22 +180,30 @@ export function createActivityDelivery(options: {
     });
   };
   let reconciliation: Promise<void> | undefined;
+  let reconcileAgain = false;
   const reconcile = (): Promise<void> => {
     if (disposed) return Promise.resolve();
-    if (reconciliation) return reconciliation;
+    if (reconciliation) {
+      reconcileAgain = true;
+      return reconciliation;
+    }
     reconciliation = (async () => {
-      for (const row of rows()) {
-        if (disposed) break;
-        await serial(() => reconcileRow(row.client_id));
-      }
-      if (disposed) return;
-      database.transaction((db) => {
-        db.prepare('DELETE FROM device_live_activities WHERE terminal = 1 AND expires_at < ?').run(
-          now() - 24 * 60 * 60_000,
-        );
-      });
+      do {
+        reconcileAgain = false;
+        for (const row of rows()) {
+          if (disposed) break;
+          await serial(() => reconcileRow(row.client_id));
+        }
+        if (disposed) return;
+        database.transaction((db) => {
+          db.prepare(
+            'DELETE FROM device_live_activities WHERE terminal = 1 AND expires_at < ?',
+          ).run(now() - 24 * 60 * 60_000);
+        });
+      } while (reconcileAgain);
     })().finally(() => {
       reconciliation = undefined;
+      reconcileAgain = false;
     });
     return reconciliation;
   };

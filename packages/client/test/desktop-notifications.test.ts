@@ -155,7 +155,6 @@ describe('desktop notifier', () => {
       },
       title: (kind, source) => `${kind}:${source.botSlug}`,
       open,
-      intervalMs: 1_000,
     });
     return {
       fake,
@@ -187,7 +186,7 @@ describe('desktop notifier', () => {
         sourceEventId: 'e1',
       }),
     ]);
-    await vi.advanceTimersByTimeAsync(1_000);
+    await env.fire();
     expect(env.fake.shown.map((entry) => entry.title)).toEqual(['approval:ada', 'bot-reply:ada']);
     expect(env.fake.shown[0]?.body).toBe('Delete build/');
     expect(env.fake.shown[0]?.tag).toBe('botharness:approval:new');
