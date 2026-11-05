@@ -14,7 +14,47 @@ function clock(at: string, t: BotHarnessTranslate): string {
   });
 }
 
+function recordLines(record: CallRecord, t: BotHarnessTranslate): [string, string] {
+  if (record.state === 'frames')
+    return [
+      t(record.source === 'camera' ? 'call.recordCamera' : 'call.recordScreen'),
+      t('call.recordFrames', {
+        from: voiceCallDuration(record.fromMs),
+        to: voiceCallDuration(record.toMs),
+        frames: String(record.frames),
+      }),
+    ];
+  if ('atMs' in record) {
+    const time = voiceCallDuration(record.atMs);
+    const camera = record.source === 'camera';
+    if (record.state === 'share-resumed')
+      return [
+        t(camera ? 'call.recordShareResumedCamera' : 'call.recordShareResumedScreen'),
+        t('call.recordShareResumedAt', { time }),
+      ];
+    return [
+      t(
+        record.state === 'share-paused'
+          ? camera
+            ? 'call.recordSharePausedCamera'
+            : 'call.recordSharePausedScreen'
+          : camera
+            ? 'call.recordShareStoppedCamera'
+            : 'call.recordShareStoppedScreen',
+      ),
+      t('call.recordShareStoppedAt', { time }),
+    ];
+  }
+  return record.state === 'started'
+    ? [t('call.recordStarted'), t('call.recordStartedAt', { time: clock(record.startedAt, t) })]
+    : [
+        t('call.recordEnded'),
+        t('call.recordLength', { time: voiceCallDuration(record.durationMs) }),
+      ];
+}
+
 export function voiceCallRecordText(record: CallRecord, t: BotHarnessTranslate): string {
+  if (record.state === 'frames' || 'atMs' in record) return recordLines(record, t).join(' · ');
   return record.state === 'started'
     ? `${t('call.recordStarted')} · ${t('call.recordStartedAt', { time: clock(record.startedAt, t) })}`
     : `${t('call.recordEnded')} · ${t('call.recordLength', { time: voiceCallDuration(record.durationMs) })}`;
@@ -30,10 +70,7 @@ export function VoiceCallRecordBubble({
   t: BotHarnessTranslate;
 }): ReactElement {
   const started = record.state === 'started';
-  const title = t(started ? 'call.recordStarted' : 'call.recordEnded');
-  const detail = started
-    ? t('call.recordStartedAt', { time: clock(record.startedAt, t) })
-    : t('call.recordLength', { time: voiceCallDuration(record.durationMs) });
+  const [title, detail] = recordLines(record, t);
   return (
     <div
       className="bh-call-record"
@@ -43,7 +80,19 @@ export function VoiceCallRecordBubble({
       aria-label={`${title}, ${detail}`}
     >
       <span className="bh-call-record-icon" aria-hidden="true">
-        <ChannelSidebarIcon name={started ? 'phone' : 'phone-off'} />
+        <ChannelSidebarIcon
+          name={
+            record.state === 'frames' || 'atMs' in record
+              ? record.source === 'camera'
+                ? record.state === 'frames' || record.state === 'share-resumed'
+                  ? 'video'
+                  : 'video-off'
+                : 'monitor'
+              : started
+                ? 'phone'
+                : 'phone-off'
+          }
+        />
       </span>
       <span className="bh-call-record-text">
         <span className="bh-call-record-title">{title}</span>

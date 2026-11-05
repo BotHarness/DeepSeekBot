@@ -1,5 +1,6 @@
 import {
   VOICE_CALL_LIMITS,
+  type CallVisualSource,
   type VoiceCallEndReason,
   type VoiceCallEvent,
   type VoiceCallReadiness,
@@ -42,8 +43,21 @@ export interface CallClient {
   readonly state: () => CallClientState;
   open(slug: string): Promise<void>;
   mute(muted: boolean): Promise<void>;
+  visual(
+    source: CallVisualSource | 'off',
+    save?: boolean,
+    change?: 'stopped' | 'paused' | 'resumed',
+  ): Promise<VoiceCallResult | undefined>;
+  frame(input: CallClientFrame): Promise<VoiceCallResult | undefined>;
   hangup(): Promise<void>;
   dispose(): void;
+}
+
+export interface CallClientFrame {
+  readonly source: CallVisualSource;
+  readonly jpeg: string;
+  readonly score: number;
+  readonly skipped: number;
 }
 
 export interface CallClientOptions {
@@ -246,6 +260,42 @@ export function createCallClient(options: CallClientOptions): CallClient {
         if (result.ok) absorb(result.call);
       } catch {}
       if (status() === 'live') live();
+    },
+    async visual(source, save = true, change) {
+      if (status() !== 'live' || call === undefined) return undefined;
+      try {
+        const result = await options.post({
+          kind: 'visual',
+          callId: call.callId,
+          source,
+          save,
+          ...(change === undefined ? {} : { [change]: true }),
+        });
+        if (result.ok) absorb(result.call);
+        if (status() === 'live') live();
+        return result;
+      } catch {
+        return undefined;
+      }
+    },
+    async frame(input) {
+      if (status() !== 'live' || call === undefined) return undefined;
+      try {
+        const result = await options.post({
+          kind: 'frame',
+          callId: call.callId,
+          source: input.source,
+          jpeg: input.jpeg,
+          score: input.score,
+          skipped: input.skipped,
+          after: seq,
+        });
+        if (result.ok) absorb(result.call);
+        if (status() === 'live') live();
+        return result;
+      } catch {
+        return undefined;
+      }
     },
     async hangup() {
       if (status() === 'ended' || status() === 'idle') return;
