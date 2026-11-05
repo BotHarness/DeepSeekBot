@@ -615,6 +615,7 @@ describe('Host call owner', () => {
       },
       draft: () => undefined,
       speak: async () => undefined,
+      zoom: ({ messageId, cell }) => ({ released: true, messageId, cell }),
       revoke: async () => undefined,
       dispose: async () => undefined,
     }));

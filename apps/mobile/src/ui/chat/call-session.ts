@@ -6,6 +6,28 @@ import type {
 } from '../../host/call-audio-route';
 import type { MicrophoneAccess } from '../../host/call-media';
 
+export type CallCameraPosition = 'front' | 'back';
+
+export type PhoneCallCameraError = 'camera-denied' | 'camera-missing';
+
+export type CallCameraState = {
+  on: boolean;
+  starting: boolean;
+  position: CallCameraPosition;
+  paused: boolean;
+  keyframes: number;
+  keyframeAt?: number | undefined;
+  error?: PhoneCallCameraError | undefined;
+};
+
+export const CALL_CAMERA_OFF: CallCameraState = {
+  on: false,
+  starting: false,
+  position: 'front',
+  paused: false,
+  keyframes: 0,
+};
+
 export type CallRequest = {
   slug: string;
   hostId?: string | undefined;
@@ -25,6 +47,8 @@ export type CallSessionSnapshot = {
   supported: boolean;
   audioRoutes: boolean;
   audioRoute?: CallAudioRouteState | undefined;
+  cameraSupported: boolean;
+  camera: CallCameraState;
 };
 
 export interface CallControls {
@@ -34,6 +58,8 @@ export interface CallControls {
     output: CallAudioOutputId,
     microphone: CallMicrophoneId,
   ): Promise<CallAudioRouteState | null>;
+  camera(on: boolean): void;
+  flip(): void;
 }
 
 export type CallSessionPatch = Partial<
@@ -47,6 +73,8 @@ export type CallSessionPatch = Partial<
     | 'supported'
     | 'audioRoutes'
     | 'audioRoute'
+    | 'cameraSupported'
+    | 'camera'
   >
 >;
 
@@ -93,6 +121,8 @@ export function createCallSessions() {
         interrupted: false,
         supported: true,
         audioRoutes: false,
+        cameraSupported: false,
+        camera: CALL_CAMERA_OFF,
       });
       return 'started';
     },
@@ -125,6 +155,7 @@ export function createCallSessions() {
         startedAt: undefined,
         microphone: undefined,
         interrupted: false,
+        camera: CALL_CAMERA_OFF,
       });
     },
     publish(key: number, patch: CallSessionPatch) {
