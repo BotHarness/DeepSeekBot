@@ -125,6 +125,12 @@ Notification settings use `SettingsForm` and declarative `SettingsRow` controls:
 
 References: [Apple toolbars](https://developer.apple.com/design/human-interface-guidelines/toolbars), [Apple sheets](https://developer.apple.com/design/human-interface-guidelines/sheets), [Material bottom sheets](https://m3.material.io/components/bottom-sheets/guidelines), [Android radio selection](https://developer.android.com/develop/ui/compose/components/radio-button).
 
+## Android chat top bar and composer
+
+Android conversations use a native Compose `TopAppBar` with a native text title and standard Back, Call and Profile icon buttons. A native progress indicator announces reconnection alongside the title. The measured native bar height reserves the list's top space, including system insets; do not overlay a JavaScript imitation app bar or identity chip.
+
+Attachment, microphone and Send controls sit inside the message field's inset on Android as on iOS. The attachment button uses a separate inset surface; microphone and Send use the primary fill. Long-pressing the Android input area starts dictation after the hold threshold. Releasing or cancelling the gesture stops recognition and retains the transcript for explicit Send. There is no upward lock gesture or lock hint. Tapping the microphone starts recognition; tapping Stop ends it. Plain taps still focus the native input, and typing, selection, multiline scrolling and attachment menus remain reachable.
+
 ## Chats source navigation (#2194)
 
 The conversation header has a native three-dot Profile button at the trailing edge on iOS and Android (#3191). Tap it or the identity Chip to open the same Profile destination as a left swipe. This directly opens the profile rather than a menu; the accessible label names the destination. The Bot profile's Files tab holds the DM's files. Bot-to-Bot Channels open the same full-screen page with only Files, without group management. iOS request tracking lives in the Bot Profile and retains explicit confirmation and its request scope. Back preserves the existing chat route, draft and reading position. Connection progress remains after the Chip name. The new detail actions reuse the native SwiftUI/Compose button adapter already used by creation; file browsing and permissions keep their existing owners (#2857).

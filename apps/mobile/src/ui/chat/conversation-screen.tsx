@@ -96,6 +96,7 @@ import { ChannelTitle } from './channel-title';
 import { WorkingStatus } from './working-status';
 import { ChatTitle } from './chat-title';
 import { ChatHeaderActions } from './chat-header-actions';
+import { ConversationTopBar } from './conversation-top-bar';
 import { Composer, type ComposerInput } from './composer';
 import { GroupUnavailable } from './group-unavailable';
 import { DraftSaveNotice } from './draft-save-notice';
@@ -390,9 +391,10 @@ function ChatConversation({
   const headerOverlap = useHeaderOverlap();
   const nativeHeaderPadding = useHeaderPadding();
   const inlineHeaderHeight = useChatHeaderHeight();
+  const [measuredHeaderHeight, setMeasuredHeaderHeight] = useState(0);
   const insets = useSafeAreaInsets();
   const android = Platform.OS === 'android';
-  const headerPadding = android ? inlineHeaderHeight : nativeHeaderPadding;
+  const headerPadding = android ? measuredHeaderHeight || inlineHeaderHeight : nativeHeaderPadding;
   const [profileOpen, setProfileOpen] = useState(false);
   const nestedChange = presentation?.onNestedChange;
   useLayoutEffect(() => {
@@ -1956,25 +1958,20 @@ function ChatConversation({
           )}
         </KeyboardChatFrame>
         {android ? (
-          <View
-            pointerEvents="box-none"
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              height: inlineHeaderHeight,
-              paddingTop: insets.top,
-              paddingHorizontal: space.x4,
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: headerGap,
-            }}
-          >
-            {back}
-            <View style={{ flex: 1, minWidth: 0 }}>{title}</View>
-            {headerActions}
-          </View>
+          <ConversationTopBar
+            title={
+              dm
+                ? (bot?.displayName ?? slug ?? '')
+                : botDm
+                  ? botDmName
+                  : `#${channel?.name ?? channelName ?? t.groupInfo}`
+            }
+            connectionLabel={connectionLabel}
+            onBack={leave}
+            onProfile={canOpenProfile ? openProfile : undefined}
+            onCall={canOpenProfile ? placeCall : undefined}
+            onHeight={setMeasuredHeaderHeight}
+          />
         ) : null}
       </EndSheet>
       {!android && paging === undefined ? (
