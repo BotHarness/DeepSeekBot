@@ -746,7 +746,12 @@ export function createCore(
   const attachments = createAttachmentStore({
     rootDir: join(dshHome, 'botharness', 'attachments'),
   });
-  const mediaVersions = createMediaVersions(attachments, () => loadImageProcessor(options.warn));
+  let changedFiles: ((fileId: string) => void) | undefined;
+  const mediaVersions = createMediaVersions(
+    attachments,
+    () => loadImageProcessor(options.warn),
+    (fileId) => changedFiles?.(fileId),
+  );
   const contentPurge = mountContentPurge({
     dshHome,
     database: operationalDatabase,
@@ -880,8 +885,11 @@ export function createCore(
       live?.publishReaction(channelId, messageId, reactions),
     onVoiceChanged: (channelId, messageId, message) =>
       live?.publishVoice(channelId, messageId, message),
+    onAttachmentsChanged: (channelId, messageId, message) =>
+      live?.publishAttachments(channelId, messageId, message),
     ...(options.warn === undefined ? {} : { warn: options.warn }),
   });
+  changedFiles = (fileId) => channels.recordAttachmentChange?.(fileId);
   const attention = createBotAttentionQuery(
     attachOperationalModule(operationalDatabase, 'messaging'),
     channels,
@@ -1724,6 +1732,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       core.registry.listHistorical().flatMap((bot) => core.registry.memoryDirFor(bot.slug) ?? []),
     memoryReferences: () => memoryAttachmentReferences(core.registry, core.deletions),
     botName: (slug) => core.registry.get(slug)?.displayName,
+    cleared: (placements) => {
+      for (const { channelId, messageId } of placements) {
+        const message = core.channels.message(channelId, messageId);
+        if (message !== undefined) core.live.publishAttachments(channelId, messageId, message);
+      }
+    },
   });
   ctx.effect(
     () =>

@@ -52,7 +52,9 @@ async function fixture() {
     attachOperationalModule(database, 'test').transaction((db) =>
       db.prepare("UPDATE inbox_admissions SET attempt_state = 'handled'").run(),
     );
+  const clearedPlacements: { channelId: string; messageId: string }[] = [];
   const storage = createStorageCleanup({
+    cleared: (placements) => clearedPlacements.push(...placements),
     dshHome: home,
     database,
     attachments,
@@ -62,7 +64,7 @@ async function fixture() {
     botName: () => 'Ada',
     now: () => new Date('2026-10-20T00:00:00.000Z'),
   });
-  return { attachments, channels, upload, send, settle, storage };
+  return { attachments, channels, upload, send, settle, storage, clearedPlacements };
 }
 
 describe('storage media cleanup', () => {
@@ -117,6 +119,7 @@ describe('storage media cleanup', () => {
       removedFiles: 1,
       pendingFiles: 0,
     });
+    expect(f.clearedPlacements).toEqual([{ channelId: 'dm-ada', messageId: old!.id }]);
     const after = f.channels.readMessages('dm-ada');
     const cleared = after.find((item) => item.id === old!.id)!;
     expect(cleared.body).toBe('message 1');

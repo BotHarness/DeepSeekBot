@@ -31,12 +31,16 @@ Rows are written by SQLite triggers (migration generation 130), so a new write p
 | 44           | Reply target changed                                 | source update trigger fans out to replies (indexed `$.replyTo`)                                                 | body rewrite bumps reply             |
 | 45           | Bot-post target purged                               | source update trigger fans out across Channels (indexed `$.botChannelPost.messageId`)                           | — (cross-Channel fan-out in trigger) |
 | 46           | Bot edits an original                                | `OriginalAttachmentAccess` compares size and mtime; `recordAttachmentChange(fileId)`                            | edited original                      |
-| 47           | Human edits a file in a local app                    | on the media stack, the S1 content-version check calls `recordAttachmentChange` (wired when the stacks meet)    | —                                    |
+| 47           | Human edits a file in a local app                    | the content-version check calls `recordAttachmentChange`                                                        | edited outside the app               |
 | 48           | Legacy hash→file migration                           | `attachment_file_bindings` insert/update triggers                                                               | —                                    |
 | 49, 50       | Bridged media acquired, reviewed file purge          | not rendered beyond #2/#3                                                                                       | —                                    |
 | 51           | Reaction toggled                                     | `channel_reactions` insert/delete triggers                                                                      | reaction                             |
 | 52           | Rename, avatar, wake policy, invites, joins          | `channel_records` update trigger (ignoring `updatedAt`) → `channelChanged`                                      | Channel-level                        |
 | 54           | Host upgrade changing the projection                 | new epoch when the projection changes (bump by migration)                                                       | epoch reset                          |
+
+## Live attachment updates
+
+`recordAttachmentChange` (rows #46, #47) and Storage media cleanup (row #2) also push a `kind: 'attachments'` live notification (`channel/attachments` over SSE) with the message's current `attachments` and `clearedAttachments`, so an open conversation shows the new version or the cleared file without reopening. The phone forgets cached copies of any file version a message no longer references.
 
 ## Phone open (#3511)
 

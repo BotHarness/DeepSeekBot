@@ -144,6 +144,8 @@ export function createAttachmentHttp(
             ? { uploadId: url.searchParams.get('uploadId') ?? '' }
             : {}),
         });
+        if (mediaVersions !== undefined && ref.fileId !== undefined)
+          await mediaVersions.ensure(ref.fileId).catch(() => undefined);
         return Response.json(
           { attachment: ref },
           {

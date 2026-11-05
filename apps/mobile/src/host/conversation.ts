@@ -1,4 +1,5 @@
 import type { HostClient, RemoteSource } from './client';
+import { forgetMedia } from './media-cache';
 import { sessionFailure } from './session-failure';
 import { activityOf, type ChannelActivity } from './channel-activity';
 import { approvalCommand } from './requests';
@@ -732,10 +733,29 @@ export function createConversation(options: ConversationOptions): Conversation {
     }, 300);
   };
 
+  const forgetReplaced = (before: JournalEntry | undefined, after: JournalEntry): void => {
+    if (before === undefined || before.message.attachments === after.message.attachments) return;
+    const kept = new Set(
+      (after.message.attachments ?? []).map((ref) => `${ref.fileId}:${ref.version}`),
+    );
+    const scope = options.host.resource('/').scope;
+    const stale = (before.message.attachments ?? []).flatMap((ref) =>
+      ref.fileId === undefined ||
+      ref.version === undefined ||
+      kept.has(`${ref.fileId}:${ref.version}`)
+        ? []
+        : [mediaCacheKey(scope, ref.fileId, ref.version)],
+    );
+    if (stale.length > 0) forgetMedia(stale);
+  };
+
   const merge = (entries: readonly JournalEntry[]): void => {
     if (entries.length === 0) return;
     const byRevision = new Map(window.map((entry) => [entry.revision, entry]));
-    for (const entry of entries) byRevision.set(entry.revision, entry);
+    for (const entry of entries) {
+      forgetReplaced(byRevision.get(entry.revision), entry);
+      byRevision.set(entry.revision, entry);
+    }
     const sorted = [...byRevision.values()].sort((a, b) => a.revision - b.revision);
     let start = sorted.length - 1;
     while (start > 0 && sorted[start - 1]!.revision === sorted[start]!.revision - 1) start -= 1;
@@ -824,13 +844,14 @@ export function createConversation(options: ConversationOptions): Conversation {
           .filter((entry) => entry.revision >= first() && entry.revision <= last())
           .map((entry) => [entry.revision, entry]),
       );
-      window = window.flatMap((entry) =>
-        removed.has(entry.message.id)
-          ? []
-          : tombstones.has(entry.message.id)
-            ? [blank(entry)]
-            : [updates.get(entry.revision) ?? entry],
-      );
+      window = window.flatMap((entry) => {
+        if (removed.has(entry.message.id)) return [];
+        if (tombstones.has(entry.message.id)) return [blank(entry)];
+        const update = updates.get(entry.revision);
+        if (update === undefined) return [entry];
+        forgetReplaced(entry, update);
+        return [update];
+      });
       changeCursor = pulled.cursor;
       if (!pulled.hasMore) return;
     }
@@ -881,6 +902,27 @@ export function createConversation(options: ConversationOptions): Conversation {
     );
   };
 
+  const setAttachments = (
+    messageId: string,
+    attachments: readonly AttachmentRef[],
+    cleared: NonNullable<ChannelWireMessage['clearedAttachments']>,
+  ): void => {
+    window = window.map((entry) => {
+      if (entry.message.id !== messageId) return entry;
+      const { attachments: _attachments, clearedAttachments: _cleared, ...message } = entry.message;
+      const next = {
+        ...entry,
+        message: {
+          ...message,
+          ...(attachments.length === 0 ? {} : { attachments: [...attachments] }),
+          ...(cleared.length === 0 ? {} : { clearedAttachments: [...cleared] }),
+        },
+      };
+      forgetReplaced(entry, next);
+      return next;
+    });
+  };
+
   const setDeliveries = (messageId: string, deliveries: readonly WireDelivery[]): boolean => {
     const signature = (list: readonly WireDelivery[] | undefined) =>
       (list ?? []).map((delivery) => delivery.botSlug + ':' + delivery.state).join('|');
@@ -906,6 +948,13 @@ export function createConversation(options: ConversationOptions): Conversation {
     } else if (notification.kind === 'voice') {
       if (notification.channelId === channelId)
         setVoice(notification.messageId, notification.voice, notification.attachments);
+    } else if (notification.kind === 'attachments') {
+      if (notification.channelId === channelId)
+        setAttachments(
+          notification.messageId,
+          notification.attachments,
+          notification.clearedAttachments,
+        );
     } else if (notification.kind === 'draft-baseline') {
       clearDrafts();
       for (const draft of notification.drafts) upsertDraft(draft);
@@ -974,7 +1023,8 @@ export function createConversation(options: ConversationOptions): Conversation {
       const admitted = applyNotification(frame.notification, current);
       const kind = frame.notification.kind;
       if (kind === 'draft' || kind === 'draft-append') return publishDrafts();
-      if (kind !== 'reaction' && kind !== 'voice' && !admitted) return publish(false);
+      if (kind !== 'reaction' && kind !== 'voice' && kind !== 'attachments' && !admitted)
+        return publish(false);
     }
     settleOutgoing();
     publish();
