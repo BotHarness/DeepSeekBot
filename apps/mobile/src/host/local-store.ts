@@ -62,6 +62,15 @@ export const LOCAL_STORE_MIGRATIONS: readonly string[] = [
     channel_id text not null
   ) without rowid;
   create index conversation_keys_by_channel on conversation_keys (channel_id);`,
+  `create table list_cursor (
+    singleton integer primary key check (singleton = 1),
+    epoch text not null,
+    seq integer not null
+  );
+  create table list_bots (
+    singleton integer primary key check (singleton = 1),
+    record text not null
+  );`,
 ];
 
 const reader = (connection: SqlConnection): SqlReader => ({

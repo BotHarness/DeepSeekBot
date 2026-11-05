@@ -40,4 +40,4 @@ Options considered:
 
 - Adding expo-sqlite is a native change, so installed development builds must be rebuilt.
 - Swapping in op-sqlite later only replaces the adapter. That happens if C0's device timings miss the target of a first paint from local rows under 100 ms.
-- Schema version 1 holds `channels`, `messages`, `cursors` and `gaps`. The FTS table and the channel-list cursor arrive with their slices (C6, C3) as new migrations.
+- Schema version 1 holds `channels`, `messages`, `cursors` and `gaps`. Version 2 adds `conversation_keys`, which maps a cached conversation key to its Channel (C1). Version 3 adds `list_cursor`, the channel-list cursor, and `list_bots`, the last Bot list (C3). The FTS table arrives with C6 as a new migration.

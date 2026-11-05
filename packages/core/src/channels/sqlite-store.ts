@@ -83,7 +83,9 @@ import {
   CHANNEL_CHANGES_RETAINED_MS,
   CHANNEL_CHANGES_MAX,
   pageChannelJournalRange,
+  type ChangedChannels,
   type ChannelChangeCursor,
+  type ChannelChangesRequest,
   pageChannelTimeline,
   timelineCursorAnchor,
   type ChannelTimelinePage,
@@ -719,6 +721,27 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       epoch: epoch?.epoch ?? 'none',
       seq: Math.max(Number(head?.seq ?? 0), Number(epoch?.floor_seq ?? 0)),
     };
+  };
+
+  const changeWindowIn = (
+    db: DatabaseSync,
+    cursor: ChannelChangeCursor,
+    request: Omit<ChannelChangesRequest, 'limit'>,
+  ): boolean => {
+    if (!changeLogIn(db)) return false;
+    const floor = Number(
+      (
+        db.prepare('SELECT floor_seq FROM channel_change_epoch WHERE singleton = 1').get() as
+          | { floor_seq: number }
+          | undefined
+      )?.floor_seq ?? 0,
+    );
+    return (
+      (request.epoch === undefined || request.epoch === cursor.epoch) &&
+      Number.isSafeInteger(request.sinceSeq) &&
+      request.sinceSeq >= floor &&
+      request.sinceSeq <= cursor.seq
+    );
   };
 
   const placementsById = (
@@ -3336,6 +3359,22 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       };
     },
     changeCursor: () => database.read(changeCursorIn),
+    readChangedChannels(request): ChangedChannels {
+      return database.read((db) => {
+        const cursor = changeCursorIn(db);
+        if (!changeWindowIn(db, cursor, request)) return { reset: true, cursor };
+        const ids = (
+          db
+            .prepare('SELECT DISTINCT channel_id FROM channel_changes WHERE seq > ? AND seq <= ?')
+            .all(request.sinceSeq, cursor.seq) as { channel_id: string }[]
+        ).map((row) => row.channel_id);
+        return {
+          channelIds: ids.filter((id) => id !== '*'),
+          all: ids.includes('*'),
+          cursor,
+        };
+      });
+    },
     readHumanChanges(id, request) {
       const channel = readRecord(id);
       if (channel === undefined || !isValidChannelId(id)) return undefined;
@@ -3348,21 +3387,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       );
       const read = database.read((db) => {
         const cursor = changeCursorIn(db);
-        if (!changeLogIn(db)) return { cursor, rows: undefined };
-        const floor = Number(
-          (
-            db.prepare('SELECT floor_seq FROM channel_change_epoch WHERE singleton = 1').get() as
-              | { floor_seq: number }
-              | undefined
-          )?.floor_seq ?? 0,
-        );
-        if (
-          (request.epoch !== undefined && request.epoch !== cursor.epoch) ||
-          !Number.isSafeInteger(request.sinceSeq) ||
-          request.sinceSeq < floor ||
-          request.sinceSeq > cursor.seq
-        )
-          return { cursor, rows: undefined };
+        if (!changeWindowIn(db, cursor, request)) return { cursor, rows: undefined };
         const rows = db
           .prepare(
             `SELECT seq, message_id, kind FROM channel_changes

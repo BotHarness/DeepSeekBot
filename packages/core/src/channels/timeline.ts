@@ -117,6 +117,10 @@ export type ChannelChanges =
       hasMore: boolean;
     };
 
+export type ChangedChannels =
+  | { reset: true; cursor: ChannelChangeCursor }
+  | { reset?: never; channelIds: string[]; all: boolean; cursor: ChannelChangeCursor };
+
 export const CHANNEL_CHANGES_LIMIT = 200;
 export const CHANNEL_CHANGES_MAX = 1000;
 export const CHANNEL_CHANGES_RETAINED_MS = 30 * 24 * 60 * 60 * 1000;

@@ -14,6 +14,8 @@ The Host keeps one global, monotonic change log, `channel_changes(seq, channel_i
 
 `channelChanges` returns the current projection of the changed messages, purged ones as tombstones, removed ids, Channel-level and read flags, and the next cursor, paged by change rows. A different epoch, a cursor above the head or below the pruned floor returns `reset`. Rows older than 30 days are deleted at Host startup, and the floor rises to the newest deleted row.
 
+The channel list reads the same log (#3553). `channelListChanges(sinceSeq, epoch?)` returns the full list item, the same as `channels` returns, for every Channel that has a change row after the cursor, the ids of changed Channels that are no longer listed as `removed`, and the head cursor, or `reset`. A row for every Channel (`*`, the Human's default name) returns every Channel. Channels with a remote Bot are always returned, because their availability is live Host state that is not logged. The result has one item per Channel, so it is not paged.
+
 ## Consequences
 
 Any write path, including future ones, is reflected without a call-site change, and a reconnecting client asks only for what changed. Writes to these tables do slightly more work; the fan-out queries use two new expression indexes. A trigger can record a change that does not alter the rendering (for example the WeChat mirror flag); the client then refetches one message. Live frames still drive open conversations; the phone switching its open path to the cursor is the next slice (#3511).
