@@ -247,9 +247,17 @@ type ChangePull =
 const MAX_CHANGE_PAGES = 20;
 const CACHE_WAIT_MS = 200;
 
+export interface CachedChanges {
+  upserts: readonly JournalEntry[];
+  tombstones: readonly string[];
+  removed: readonly string[];
+  cursor: ChangeCursor;
+}
+
 export interface ConversationCache {
   read(key: string): Promise<CachedConversation | undefined>;
   write(key: string, value: CachedConversation): void;
+  applyChanges?(key: string, channelId: string, changes: CachedChanges): void;
 }
 
 export interface SendObservation {
@@ -817,6 +825,8 @@ export function createConversation(options: ConversationOptions): Conversation {
         if (await reloadTail(current, through)) changeCursor = pulled.cursor;
         return;
       }
+      if (cacheKey !== undefined && channelId !== undefined)
+        options.cache?.applyChanges?.(cacheKey, channelId, pulled);
       const tombstones = new Set(pulled.tombstones);
       const removed = new Set(pulled.removed);
       const updates = new Map(

@@ -26,6 +26,13 @@ export const nativeConversationCache: ConversationCache = {
   },
 };
 
+export function removeCachedConversation(key: string): void {
+  try {
+    const file = fileFor(key);
+    if (file.exists) file.delete();
+  } catch {}
+}
+
 export function cachedForHost(fileName: string, hostId: string): boolean {
   const prefix = JSON.stringify(['computer', hostId]).slice(0, -1) + ',';
   let name = fileName;

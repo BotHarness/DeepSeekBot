@@ -1,0 +1,331 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { afterEach, describe, expect, it } from 'vitest';
+
+import { createHostClient, type HostClient } from '../src/host/client';
+import {
+  createConversation,
+  type CachedConversation,
+  type Conversation,
+  type ConversationSnapshot,
+} from '../src/host/conversation';
+import {
+  createLocalConversationCache,
+  pruneLocalConversations,
+  redactLocalConversations,
+} from '../src/host/local-conversation-cache';
+import { openLocalStore, type LocalStore } from '../src/host/local-store';
+import { FakeHost } from './fake-host';
+import { nodeSqlConnection } from './node-sql-connection';
+
+const ROUTE = 'https://studio.tailnet-example.ts.net';
+const SLUG = 'bot-59296301f8d044d2b022d8784c5ed3fe';
+const DM = `dm-${SLUG}`;
+
+let client: HostClient | undefined;
+let conversation: Conversation | undefined;
+const stores: LocalStore[] = [];
+const directories: string[] = [];
+afterEach(async () => {
+  conversation?.stop();
+  client?.stop();
+  client = undefined;
+  for (const store of stores.splice(0)) await store.close();
+  for (const directory of directories.splice(0))
+    rmSync(directory, { recursive: true, force: true });
+});
+
+function file(): string {
+  const directory = mkdtempSync(join(tmpdir(), 'conversation-store-'));
+  directories.push(directory);
+  return join(directory, 'host.db');
+}
+
+async function openStore(path: string): Promise<LocalStore> {
+  const store = await openLocalStore(nodeSqlConnection(path));
+  stores.push(store);
+  return store;
+}
+
+async function phone(path: string, legacy?: Map<string, CachedConversation>) {
+  const store = await openStore(path);
+  const removed: string[] = [];
+  const cache = createLocalConversationCache({
+    store: async () => store,
+    ...(legacy === undefined
+      ? {}
+      : {
+          legacy: {
+            read: async (key: string) => structuredClone(legacy.get(key)),
+            remove: (key: string) => {
+              removed.push(key);
+              legacy.delete(key);
+            },
+          },
+        }),
+  });
+  return { store, cache, removed };
+}
+
+const keyFor = (host: FakeHost) => JSON.stringify(['computer', host.hostId, SLUG]);
+
+function open(host: FakeHost, cache: ReturnType<typeof createLocalConversationCache>) {
+  client ??= createHostClient({
+    routes: [ROUTE],
+    credential: host.credential,
+    carrier: host.carrier,
+    backoff: () => 5,
+    timeoutMs: 200,
+  });
+  client.start();
+  conversation = createConversation({
+    host: client,
+    botSlug: SLUG,
+    channelId: DM,
+    cacheKey: keyFor(host),
+    cache,
+    pageSize: 10,
+  });
+  conversation.start();
+  return conversation;
+}
+
+async function until(
+  target: Conversation,
+  accept: (snapshot: ConversationSnapshot) => boolean,
+): Promise<ConversationSnapshot> {
+  for (let tries = 0; tries < 400; tries += 1) {
+    const snapshot = target.getSnapshot();
+    if (accept(snapshot)) return snapshot;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  throw new Error(`timed out; last snapshot ${JSON.stringify(target.getSnapshot())}`);
+}
+
+const settle = async (cache: ReturnType<typeof createLocalConversationCache>) => {
+  await new Promise((resolve) => setTimeout(resolve, 450));
+  await cache.flush();
+};
+
+const bodies = (snapshot: ConversationSnapshot) =>
+  Object.fromEntries(snapshot.messages.map((message) => [message.id, message.body]));
+
+async function warm(host: FakeHost, path: string, count = 6) {
+  const channel = host.channel(DM);
+  for (let index = 1; index <= count; index += 1)
+    channel.append({ id: `m${index}`, body: `body ${index}`, author: { kind: 'human' } }, false);
+  const { cache } = await phone(path);
+  const first = open(host, cache);
+  await until(first, (s) => s.status === 'live' && s.messages.length === count);
+  await settle(cache);
+  first.stop();
+  client?.stop();
+  client = undefined;
+  return channel;
+}
+
+describe('conversation tail in the local store', () => {
+  it('reopens after an app restart from local rows, with the saved cursor and no bodies', async () => {
+    const host = new FakeHost();
+    const path = file();
+    const channel = await warm(host, path);
+    for (const store of stores.splice(0)) await store.close();
+    const { cache } = await phone(path);
+    channel.bodiesSent = 0;
+    const again = open(host, cache);
+    const live = await until(again, (s) => s.status === 'live' && !s.fromCache);
+    expect(bodies(live)['m6']).toBe('body 6');
+    expect(channel.bodiesSent).toBe(0);
+    expect(channel.follows.at(-1)).toMatchObject({ limit: 0 });
+  });
+
+  it('applies changes made while closed and writes them to rows', async () => {
+    const host = new FakeHost();
+    const path = file();
+    const channel = await warm(host, path);
+    channel.edit('m2', { body: 'edited while away' });
+    channel.edit('m3', {
+      reactions: [{ emoji: '👍', actor: { kind: 'human' }, at: '2026-11-05T00:00:00Z' }],
+    } as never);
+    channel.purge('m4');
+    channel.append({ id: 'm7', body: 'new while away', author: { kind: 'human' } }, false);
+    for (const store of stores.splice(0)) await store.close();
+    const { cache, store } = await phone(path);
+    const again = open(host, cache);
+    const snapshot = await until(
+      again,
+      (s) => s.status === 'live' && !s.fromCache && s.messages.some((m) => m.id === 'm7'),
+    );
+    expect(bodies(snapshot)).toMatchObject({
+      m2: 'edited while away',
+      m4: '',
+      m7: 'new while away',
+    });
+    await settle(cache);
+    const rows = await store.all<{ id: string; purged: number; entry: string }>(
+      'select id, purged, entry from messages order by revision',
+    );
+    expect(rows.map((row) => row.id)).toEqual(['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7']);
+    expect(rows.find((row) => row.id === 'm4')?.purged).toBe(1);
+    expect(JSON.parse(rows.find((row) => row.id === 'm2')!.entry).message.body).toBe(
+      'edited while away',
+    );
+    expect(JSON.parse(rows.find((row) => row.id === 'm3')!.entry).message.reactions).toHaveLength(
+      1,
+    );
+  });
+
+  it('updates stored rows older than the open window from the change log', async () => {
+    const host = new FakeHost();
+    const path = file();
+    const channel = await warm(host, path, 3);
+    for (const store of stores.splice(0)) await store.close();
+    const { cache, store } = await phone(path);
+    await store.write(async (tx) => {
+      await tx.run(
+        "update messages set entry = json_set(entry, '$.message.body', 'stale') where id = 'm1'",
+      );
+    });
+    cache.applyChanges!(keyFor(host), DM, {
+      upserts: [
+        { channelId: DM, revision: 1, message: { ...channel.messages[0]!, body: 'fresh' } },
+      ],
+      tombstones: ['m2'],
+      removed: ['m3'],
+      cursor: { epoch: host.log.epoch, seq: 99 },
+    });
+    await cache.flush();
+    const rows = await store.all<{ id: string; purged: number; entry: string }>(
+      'select id, purged, entry from messages order by revision',
+    );
+    expect(rows.map((row) => row.id)).toEqual(['m1', 'm2']);
+    expect(JSON.parse(rows[0]!.entry).message.body).toBe('fresh');
+    expect(rows[1]!.purged).toBe(1);
+    expect(JSON.parse(rows[1]!.entry).message.body).toBe('');
+    expect(await store.get('select seq from cursors where channel_id = ?', [DM])).toEqual({
+      seq: 99,
+    });
+  });
+
+  it('drops old rows and refetches the tail when the Host starts a new epoch', async () => {
+    const host = new FakeHost();
+    const path = file();
+    const channel = await warm(host, path);
+    channel.edit('m1', { body: 'changed before the reset' });
+    host.log.rotate();
+    for (const store of stores.splice(0)) await store.close();
+    const { cache, store } = await phone(path);
+    const again = open(host, cache);
+    await until(
+      again,
+      (s) => s.status === 'live' && !s.fromCache && bodies(s)['m1'] === 'changed before the reset',
+    );
+    await settle(cache);
+    expect(await store.get('select epoch from cursors where channel_id = ?', [DM])).toEqual({
+      epoch: host.log.epoch,
+    });
+  });
+
+  it('keeps two paired Hosts apart', async () => {
+    const pathA = file();
+    const pathB = file();
+    const a = await openStore(pathA);
+    const b = await openStore(pathB);
+    const cache = createLocalConversationCache({
+      store: async (hostId) => (hostId === 'host-a' ? a : b),
+    });
+    const entry = (body: string) => ({
+      channelId: DM,
+      revision: 1,
+      message: { id: 'm1', at: '2026-11-05T00:00:00Z', author: { kind: 'human' as const }, body },
+    });
+    cache.write(JSON.stringify(['computer', 'host-a', SLUG]), {
+      entries: [entry('from a')],
+      hasOlder: false,
+    });
+    cache.write(JSON.stringify(['computer', 'host-b', SLUG]), {
+      entries: [entry('from b')],
+      hasOlder: false,
+    });
+    await cache.flush();
+    expect(
+      (await cache.read(JSON.stringify(['computer', 'host-a', SLUG])))?.entries[0]?.message.body,
+    ).toBe('from a');
+    expect(
+      (await cache.read(JSON.stringify(['computer', 'host-b', SLUG])))?.entries[0]?.message.body,
+    ).toBe('from b');
+    expect(await a.all('select id from messages')).toHaveLength(1);
+    expect(await b.all('select id from messages')).toHaveLength(1);
+  });
+
+  it('imports an old JSON tail once and keeps its cursor', async () => {
+    const host = new FakeHost();
+    const key = keyFor(host);
+    const legacy = new Map<string, CachedConversation>([
+      [
+        key,
+        {
+          entries: [
+            {
+              channelId: DM,
+              revision: 1,
+              message: {
+                id: 'm1',
+                at: '2026-11-05T00:00:00Z',
+                author: { kind: 'human' },
+                body: 'old',
+              },
+            },
+          ],
+          hasOlder: false,
+          changes: { epoch: 'e-old', seq: 7 },
+        },
+      ],
+    ]);
+    const { cache, removed, store } = await phone(file(), legacy);
+    expect((await cache.read(key))?.changes).toEqual({ epoch: 'e-old', seq: 7 });
+    expect(removed).toEqual([key]);
+    expect(legacy.size).toBe(0);
+    const again = await cache.read(key);
+    expect(again?.entries[0]?.message.body).toBe('old');
+    expect(again?.changes).toEqual({ epoch: 'e-old', seq: 7 });
+    expect(await store.all('select key from conversation_keys')).toEqual([{ key }]);
+  });
+
+  it('redacts purged rows and prunes conversations of gone Channels', async () => {
+    const store = await openStore(':memory:');
+    const cache = createLocalConversationCache({ store: async () => store });
+    const groupKey = JSON.stringify(['computer', 'host-a', 'channel:g1']);
+    const entry = (channelId: string, id: string) => ({
+      channelId,
+      revision: 1,
+      message: {
+        id,
+        at: '2026-11-05T00:00:00Z',
+        author: { kind: 'human' as const },
+        body: 'secret',
+      },
+    });
+    cache.write(JSON.stringify(['computer', 'host-a', SLUG]), {
+      entries: [entry(DM, 'm1')],
+      hasOlder: false,
+    });
+    cache.write(groupKey, { entries: [entry('g1', 'g-1')], hasOlder: false });
+    await cache.flush();
+    await redactLocalConversations(store, [{ channelId: DM, messageId: 'm1' }]);
+    const redacted = await store.get<{ purged: number; entry: string }>(
+      'select purged, entry from messages where id = ?',
+      ['m1'],
+    );
+    expect(redacted?.purged).toBe(1);
+    expect(JSON.parse(redacted!.entry).message).toMatchObject({
+      body: '',
+      contentPurge: { actor: 'local-human' },
+    });
+    await pruneLocalConversations(store, (key) => key === 'channel:g1');
+    expect(await store.all("select id from messages where channel_id = 'g1'")).toEqual([]);
+    expect(await cache.read(groupKey)).toBeUndefined();
+  });
+});
