@@ -21,6 +21,8 @@ export type SettingsRowControl =
 export type SettingsRowProps = {
   title: string;
   detail?: string | undefined;
+  detailDot?: string | undefined;
+  singleLine?: boolean | undefined;
   tone?: ColorRole;
   strong?: boolean;
   icon?: RowIconName | undefined;

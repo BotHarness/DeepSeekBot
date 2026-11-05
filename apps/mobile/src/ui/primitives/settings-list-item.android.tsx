@@ -1,4 +1,5 @@
 import {
+  Box,
   CircularProgressIndicator,
   Host,
   Icon,
@@ -8,7 +9,14 @@ import {
   Switch,
   Text,
 } from '@expo/ui/jetpack-compose';
-import { clickable, size, toggleable } from '@expo/ui/jetpack-compose/modifiers';
+import {
+  background,
+  clickable,
+  clip,
+  Shapes,
+  size,
+  toggleable,
+} from '@expo/ui/jetpack-compose/modifiers';
 import { View } from 'react-native';
 
 import { settingsColors } from '../design/controls';
@@ -57,6 +65,8 @@ export function SettingsListItem(props: SettingsRowProps) {
   const {
     title,
     detail,
+    detailDot,
+    singleLine = false,
     tone = 'fg',
     strong = false,
     icon,
@@ -123,6 +133,7 @@ export function SettingsListItem(props: SettingsRowProps) {
             <ListItem.HeadlineContent>
               <Text
                 {...(headline === undefined ? {} : { color: headline })}
+                {...(singleLine ? { maxLines: 1, overflow: 'ellipsis' as const } : {})}
                 style={strong ? { fontWeight: 'bold' } : {}}
               >
                 {title}
@@ -130,7 +141,24 @@ export function SettingsListItem(props: SettingsRowProps) {
             </ListItem.HeadlineContent>
             {detail === undefined ? null : (
               <ListItem.SupportingContent>
-                <Text>{detail}</Text>
+                {detailDot === undefined ? (
+                  <Text {...(singleLine ? { maxLines: 1, overflow: 'ellipsis' as const } : {})}>
+                    {detail}
+                  </Text>
+                ) : (
+                  <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: space.x3 }}>
+                    <Box
+                      modifiers={[
+                        size(space.x3, space.x3),
+                        clip(Shapes.Circle),
+                        background(detailDot),
+                      ]}
+                    />
+                    <Text {...(singleLine ? { maxLines: 1, overflow: 'ellipsis' as const } : {})}>
+                      {detail}
+                    </Text>
+                  </Row>
+                )}
               </ListItem.SupportingContent>
             )}
             {icon === undefined && leading === undefined ? null : (

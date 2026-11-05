@@ -80,6 +80,51 @@ export interface ChannelJournalPage {
   hasOlder: boolean;
 }
 
+export interface ChannelFilesRequest {
+  before?: number | undefined;
+  limit?: number | undefined;
+}
+
+export interface ChannelFilesPage {
+  entries: ChannelJournalEntry[];
+  nextBefore?: number;
+}
+
+export const CHANNEL_FILES_LIMIT = 50;
+export const CHANNEL_FILES_MAX = 100;
+export const CHANNEL_FILES_SCAN = 2000;
+export interface ChannelChangesRequest {
+  sinceSeq: number;
+  epoch?: string | undefined;
+  limit?: number | undefined;
+}
+
+export interface ChannelChangeCursor {
+  epoch: string;
+  seq: number;
+}
+
+export type ChannelChanges =
+  | { reset: true; cursor: ChannelChangeCursor }
+  | {
+      reset?: never;
+      upserts: ChannelJournalEntry[];
+      removed: string[];
+      tombstones: string[];
+      channelChanged: boolean;
+      readChanged: boolean;
+      cursor: ChannelChangeCursor;
+      hasMore: boolean;
+    };
+
+export type ChangedChannels =
+  | { reset: true; cursor: ChannelChangeCursor }
+  | { reset?: never; channelIds: string[]; all: boolean; cursor: ChannelChangeCursor };
+
+export const CHANNEL_CHANGES_LIMIT = 200;
+export const CHANNEL_CHANGES_MAX = 1000;
+export const CHANNEL_CHANGES_RETAINED_MS = 30 * 24 * 60 * 60 * 1000;
+
 export interface ChannelJournalRequest {
   through: number;
   before?: number | undefined;

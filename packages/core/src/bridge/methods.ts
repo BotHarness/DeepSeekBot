@@ -224,6 +224,7 @@ import { TakeoverError, type TakeoverHandoff } from '../takeover/contracts.js';
 import type { TakeoverHandoffs } from '../takeover/handoffs.js';
 import {
   dmChannelId,
+  isChannelCallVisual,
   isValidChannelId,
   isGroupAvatar,
   isReactionEmoji,
@@ -284,7 +285,7 @@ import type {
 } from '../channels/store.js';
 import { groupProfileActivity, type GroupProfileActivity } from '../channels/profile-activity.js';
 import { channelActivityToday, type ChannelActivityToday } from '../channels/activity-today.js';
-import type { ChannelTimelinePage } from '../channels/timeline.js';
+import type { ChannelChangeCursor, ChannelTimelinePage } from '../channels/timeline.js';
 import type {
   CreatePersonaBotResult,
   PersonaBotPatch,
@@ -587,6 +588,10 @@ export interface ChannelListItem extends ChannelRecord {
   latestMessage?: ChannelMessage;
 }
 
+export type ChannelListChanges =
+  | { reset: true; cursor: ChannelChangeCursor }
+  | { reset?: never; channels: ChannelListItem[]; removed: string[]; cursor: ChannelChangeCursor };
+
 export interface OwnedSessionSummary {
   sessionId: string;
   role: SessionRootRole;
@@ -775,6 +780,7 @@ export interface BridgeMethods {
   humanNameSet(payload: unknown): BridgeResult<LocalHumanIdentity>;
   channelHumanNameSet(payload: unknown): BridgeResult<{ channel: ChannelListItem }>;
   channels(payload: unknown): Promise<BridgeResult<{ channels: ChannelListItem[] }>>;
+  channelListChanges(payload: unknown): Promise<BridgeResult<ChannelListChanges>>;
   channelDm(payload: unknown): BridgeResult<{ channel: ChannelRecord }>;
   channelGet(payload: unknown): BridgeResult<ChannelManagementResult>;
   channelCreate(
@@ -2053,6 +2059,20 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           }),
       ...(remoteContact === undefined ? {} : { remoteContact }),
       ...(humanNickname === undefined ? {} : { humanNickname }),
+    };
+  };
+  const listedChannels = async (): Promise<ChannelRecord[]> => {
+    if (deps.channels.list().some((channel) => channel.remoteBot !== undefined))
+      await deps.runtime?.refreshBotContacts?.();
+    for (const bot of deps.registry.list()) deps.channels.getOrCreateDm(bot.slug, bot.displayName);
+    return deps.channels.list();
+  };
+  const listItem = (channel: ChannelRecord): ChannelListItem => {
+    const latest = deps.channels.latestMessage(channel.id);
+    const latestMessage = latest === undefined ? undefined : channelPreviewMessage(latest);
+    return {
+      ...channelView(channel),
+      ...(latestMessage === undefined ? {} : { latestMessage }),
     };
   };
   const marketplaceCall = async <T>(
@@ -5103,20 +5123,41 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       }
     },
     async channels() {
-      if (deps.channels.list().some((channel) => channel.remoteBot !== undefined))
-        await deps.runtime?.refreshBotContacts?.();
-      for (const bot of deps.registry.list()) {
-        deps.channels.getOrCreateDm(bot.slug, bot.displayName);
-      }
-      const channels = deps.channels.list().map((channel) => {
-        const latest = deps.channels.latestMessage(channel.id);
-        const latestMessage = latest === undefined ? undefined : channelPreviewMessage(latest);
+      return { ok: true, value: { channels: (await listedChannels()).map(listItem) } };
+    },
+    async channelListChanges(payload) {
+      const source = asObject(payload);
+      const sinceSeq = source['sinceSeq'];
+      const epoch = source['epoch'];
+      if (!Number.isSafeInteger(sinceSeq) || (sinceSeq as number) < 0)
+        return invalidInput('sinceSeq must be a nonnegative integer');
+      if (epoch !== undefined && typeof epoch !== 'string')
+        return invalidInput('epoch must be a string');
+      if (deps.channels.readChangedChannels === undefined)
         return {
-          ...channelView(channel),
-          ...(latestMessage === undefined ? {} : { latestMessage }),
+          ok: false,
+          error: { code: 'unavailable', message: 'Channel list changes are unavailable' },
         };
+      const listed = await listedChannels();
+      const changed = deps.channels.readChangedChannels({
+        sinceSeq: sinceSeq as number,
+        ...(epoch === undefined ? {} : { epoch }),
       });
-      return { ok: true, value: { channels } };
+      if (changed.reset === true) return { ok: true, value: changed };
+      const ids = new Set(changed.channelIds);
+      const present = new Set(listed.map((channel) => channel.id));
+      return {
+        ok: true,
+        value: {
+          channels: listed
+            .filter(
+              (channel) => changed.all || ids.has(channel.id) || channel.remoteBot !== undefined,
+            )
+            .map(listItem),
+          removed: changed.channelIds.filter((id) => !present.has(id)),
+          cursor: changed.cursor,
+        },
+      };
     },
     channelDm(payload) {
       const source = asObject(payload);
@@ -6135,7 +6176,10 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
             : undefined;
         if (typeof callId !== 'string' || !/^call-[a-f0-9]{16}$/u.test(callId))
           return invalidInput('voiceCall must name a call');
-        voiceCall = { callId };
+        const visual = (rawVoiceCall as Record<string, unknown>)['visual'];
+        if (visual !== undefined && !isChannelCallVisual(visual))
+          return invalidInput('voiceCall.visual must describe the call grid');
+        voiceCall = visual === undefined ? { callId } : { callId, visual };
       }
       const rawAssignmentReply = source['assignmentReply'];
       let assignmentReply: ChannelMessage['assignmentReply'];

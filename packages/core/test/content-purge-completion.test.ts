@@ -154,6 +154,7 @@ it('removes exclusive actual files after acceptance and reapplies destination un
       sourceEventId: core.source.sourceEventId,
       channelId: core.channel.id,
       messageId: core.source.messageId,
+      fileIds: [core.file.fileId],
     },
   ]);
   const checkpoint = current.purge.checkpoint();
@@ -341,11 +342,13 @@ it('uses each shared placement message identity for reads and post-commit purge 
   });
   expect(reply()?.body).toBe('retained reply');
   expect(reply()?.replyToPreview?.body).toBe('');
-  expect(core.purge.redactions()).toContainEqual({
-    sourceEventId: core.source.sourceEventId,
-    channelId: active.id,
-    messageId: 'shared-message',
-  });
+  expect(core.purge.redactions()).toContainEqual(
+    expect.objectContaining({
+      sourceEventId: core.source.sourceEventId,
+      channelId: active.id,
+      messageId: 'shared-message',
+    }),
+  );
 });
 
 it('reports a recorded Memory derivative through a deleted identity locator and retains its actual Git bytes', async () => {

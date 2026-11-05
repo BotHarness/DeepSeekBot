@@ -6,9 +6,12 @@ import android.media.AudioDeviceInfo
 import android.media.AudioFocusRequest
 import android.media.AudioFormat
 import android.media.AudioManager
+import android.os.BatteryManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
+import android.os.Process
 import android.os.SystemClock
 import org.webrtc.AudioSource
 import org.webrtc.AudioTrack
@@ -66,6 +69,7 @@ class CallAttempt(
   private var remoteTrack: AudioTrack? = null
   private var answered: ((Result<String>) -> Unit)? = null
   private var settleScheduled = false
+  private var sampling = false
 
   private fun enqueue(delayMs: Long = 0, action: () -> Unit) {
     if (closed.get()) return
@@ -158,7 +162,10 @@ class CallAttempt(
       when (state) {
         PeerConnection.IceConnectionState.CONNECTED, PeerConnection.IceConnectionState.COMPLETED -> {
           state("connected")
-          enqueue { noteProcessing() }
+          enqueue {
+            noteProcessing()
+            if (tap != null && !sampling) { sampling = true; samplePerf() }
+          }
         }
         PeerConnection.IceConnectionState.FAILED, PeerConnection.IceConnectionState.CLOSED ->
           state("failed", "connection-lost")
@@ -215,6 +222,48 @@ class CallAttempt(
       "platformAec" to platform?.echoCancellation?.isActive,
       "platformNs" to platform?.noiseSuppression?.isActive,
     ))
+  }
+
+  /**
+   * Test builds sample media counters, process CPU time, the thermal status and the
+   * battery current every five seconds into the call report, so a before/after run can
+   * compare phone cost.
+   */
+  private fun samplePerf() {
+    val tap = tap ?: return
+    val connection = peer ?: return
+    connection.getStats { report ->
+      val detail = mutableMapOf<String, Any?>()
+      fun copy(members: Map<String, Any>, key: String, out: String = key, scale: Double = 1.0) {
+        (members[key] as? Number)?.let { detail[out] = it.toDouble() * scale }
+      }
+      for (stats in report.statsMap.values) {
+        val members = stats.members
+        val audio = members["kind"] == "audio"
+        when {
+          stats.type == "inbound-rtp" && audio -> {
+            listOf("packetsReceived", "bytesReceived", "packetsLost", "concealedSamples", "totalSamplesReceived")
+              .forEach { copy(members, it) }
+            copy(members, "jitter", "jitterMs", 1000.0)
+          }
+          stats.type == "outbound-rtp" && audio -> { copy(members, "packetsSent"); copy(members, "bytesSent") }
+          stats.type == "candidate-pair" && members["nominated"] == true ->
+            copy(members, "currentRoundTripTime", "rttMs", 1000.0)
+        }
+      }
+      detail["cpuMs"] = Process.getElapsedCpuTime().toDouble()
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        (context.getSystemService(Context.POWER_SERVICE) as? PowerManager)?.let { detail["thermal"] = it.currentThermalStatus }
+      }
+      (context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager)?.let {
+        val level = it.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+        if (level != Int.MIN_VALUE) detail["batteryPct"] = level
+        val current = it.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)
+        if (current != Int.MIN_VALUE) detail["batteryCurrentUa"] = current
+      }
+      tap.note("perf", detail)
+    }
+    enqueue(5_000) { samplePerf() }
   }
 
   private fun finish(result: Result<String>) {

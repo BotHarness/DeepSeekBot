@@ -956,18 +956,41 @@ export function parseChannelAttachment(value: unknown): ChannelAttachmentRef | u
     size < 0
   )
     return undefined;
-  return typeof fileId === 'string'
-    ? { fileId, name, mime, size }
-    : { hash: hash as string, name, mime, size };
+  if (typeof fileId !== 'string') return { hash: hash as string, name, mime, size };
+  const { version, width, height, thumbhash } = record;
+  const dimension = (value: unknown) =>
+    typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+  return {
+    fileId,
+    name,
+    mime,
+    size,
+    ...(typeof version === 'string' && /^[0-9a-f]{32}$/u.test(version) ? { version } : {}),
+    ...(dimension(width) && dimension(height)
+      ? { width: width as number, height: height as number }
+      : {}),
+    ...(typeof thumbhash === 'string' && thumbhash.length <= 100 ? { thumbhash } : {}),
+  };
 }
+
+export type AttachmentVariant = '96c' | '320' | '800';
 
 export function channelAttachmentUrl(
   ref: ChannelAttachmentRef,
   owner: { channelId: string; messageId: string },
+  variant?: AttachmentVariant,
 ): string {
   if (owner === undefined) throw new Error('Message ownership is required for attachments');
   if (ref.fileId !== undefined) {
-    return './api/botharness/attachment?' + new URLSearchParams({ ...owner, fileId: ref.fileId });
+    return (
+      './api/botharness/attachment?' +
+      new URLSearchParams({
+        ...owner,
+        fileId: ref.fileId,
+        ...(ref.version === undefined ? {} : { v: ref.version }),
+        ...(ref.version === undefined || variant === undefined ? {} : { variant }),
+      })
+    );
   }
   return (
     './api/botharness/attachment?' +
@@ -3798,6 +3821,33 @@ export function parseJournalPage(value: unknown): JournalPage | undefined {
     entries: parsed as JournalEntry[],
     olderCursor: raw['olderCursor'] as string | null,
     hasOlder: raw['hasOlder'],
+  };
+}
+
+export interface FilesPage {
+  entries: JournalEntry[];
+  nextBefore?: number;
+}
+
+export async function loadFilesPage(
+  call: BridgeCall,
+  channelId: string,
+  request: { before?: number; limit?: number },
+  signal?: AbortSignal,
+): Promise<FilesPage> {
+  const raw = asRecord(await unwrap(call, 'channelFilesPage', { channelId, ...request }, signal));
+  const entries = raw?.['entries'];
+  const nextBefore = raw?.['nextBefore'];
+  const parsed = Array.isArray(entries) ? entries.map((entry) => parseJournalEntry(entry)) : [];
+  if (
+    !Array.isArray(entries) ||
+    parsed.some((entry) => entry === undefined) ||
+    !(nextBefore === undefined || (Number.isSafeInteger(nextBefore) && Number(nextBefore) > 0))
+  )
+    throw new Error('invalid channelFilesPage response');
+  return {
+    entries: parsed as JournalEntry[],
+    ...(nextBefore === undefined ? {} : { nextBefore: nextBefore as number }),
   };
 }
 

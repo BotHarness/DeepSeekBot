@@ -22,6 +22,7 @@ final class CallAttempt: NSObject, RTCPeerConnectionDelegate {
   private var remoteTrack: RTCAudioTrack?
   private var answered: ((Result<String, CallError>) -> Void)?
   private var settleScheduled = false
+  private var sampling = false
   private let started = CACurrentMediaTime()
   private let onState: (String, String?) -> Void
   let tap: CallAudioTap?
@@ -178,6 +179,42 @@ final class CallAttempt: NSObject, RTCPeerConnectionDelegate {
     }
   }
 
+  /// Test builds sample media counters, process CPU time and the thermal state every
+  /// five seconds into the call report, so a before/after run can compare phone cost.
+  private func samplePerf() {
+    guard let tap, let peer, !ended else { return }
+    peer.statistics { report in
+      var detail: [String: Any] = [:]
+      func copy(_ values: [String: NSObject], _ key: String, _ out: String? = nil, scale: Double = 1) {
+        if let value = values[key] as? NSNumber { detail[out ?? key] = value.doubleValue * scale }
+      }
+      for stats in report.statistics.values {
+        let values = stats.values
+        let audio = (values["kind"] as? String) == "audio"
+        switch stats.type {
+        case "inbound-rtp" where audio:
+          for key in ["packetsReceived", "bytesReceived", "packetsLost", "concealedSamples", "totalSamplesReceived"] { copy(values, key) }
+          copy(values, "jitter", "jitterMs", scale: 1000)
+        case "outbound-rtp" where audio:
+          copy(values, "packetsSent"); copy(values, "bytesSent")
+        case "candidate-pair" where (values["nominated"] as? NSNumber)?.boolValue == true:
+          copy(values, "currentRoundTripTime", "rttMs", scale: 1000)
+        default: break
+        }
+      }
+      var usage = rusage()
+      if getrusage(RUSAGE_SELF, &usage) == 0 {
+        let user = Double(usage.ru_utime.tv_sec) * 1000 + Double(usage.ru_utime.tv_usec) / 1000
+        let system = Double(usage.ru_stime.tv_sec) * 1000 + Double(usage.ru_stime.tv_usec) / 1000
+        detail["cpuMs"] = user + system
+      }
+      detail["thermal"] = ProcessInfo.processInfo.thermalState.rawValue
+      detail["lowPower"] = ProcessInfo.processInfo.isLowPowerModeEnabled
+      tap.note("perf", detail)
+    }
+    queue.asyncAfter(deadline: .now() + 5) { [weak self] in self?.samplePerf() }
+  }
+
   private func state(_ value: String, _ code: String? = nil) {
     DispatchQueue.main.async { [weak self] in
       guard let self, !self.ended else { return }
@@ -202,6 +239,11 @@ final class CallAttempt: NSObject, RTCPeerConnectionDelegate {
           "agc": processing.autoGainControl.effective.rawValue,
           "hpf": processing.highPassFilter.effective.rawValue,
         ])
+      }
+      queue.async { [self] in
+        guard tap != nil, !sampling else { return }
+        sampling = true
+        samplePerf()
       }
     case .failed, .closed: state("failed", "connection-lost")
     default: break

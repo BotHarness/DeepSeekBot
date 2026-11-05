@@ -97,6 +97,7 @@ import { WorkingStatus } from './working-status';
 import { ChatTitle } from './chat-title';
 import { runningSessionCount } from '../../host/session-stop';
 import { ChatHeaderActions } from './chat-header-actions';
+import { ConversationTopBar } from './conversation-top-bar';
 import { Composer, type ComposerInput } from './composer';
 import { GroupUnavailable } from './group-unavailable';
 import { DraftSaveNotice } from './draft-save-notice';
@@ -131,6 +132,7 @@ import { useBotNames } from './use-bot-names';
 import { ImageViewer } from './image-viewer';
 import { JumpToLatest } from './jump-to-latest';
 import { DeliverySheet } from './delivery-sheet';
+import { ChatOffline } from './chat-offline';
 import { MessageActions, type MessageMenuTarget } from './message-actions';
 import {
   activeMentionQuery,
@@ -391,9 +393,10 @@ function ChatConversation({
   const headerOverlap = useHeaderOverlap();
   const nativeHeaderPadding = useHeaderPadding();
   const inlineHeaderHeight = useChatHeaderHeight();
+  const [measuredHeaderHeight, setMeasuredHeaderHeight] = useState(0);
   const insets = useSafeAreaInsets();
   const android = Platform.OS === 'android';
-  const headerPadding = android ? inlineHeaderHeight : nativeHeaderPadding;
+  const headerPadding = android ? measuredHeaderHeight || inlineHeaderHeight : nativeHeaderPadding;
   const [profileOpen, setProfileOpen] = useState(false);
   const nestedChange = presentation?.onNestedChange;
   useLayoutEffect(() => {
@@ -638,7 +641,8 @@ function ChatConversation({
   const composerInput = useRef<ComposerInput>(null);
   const [typing, setTyping] = useState(false);
   const clipboard = useClipboardImage(typing && files.length < MAX_PICKED);
-  const composable = !botDm && conversation !== undefined && host.connection.status === 'connected';
+  const online = host.connection.status === 'connected';
+  const composable = !botDm && conversation !== undefined && online;
   const { jumpToLatest } = latest;
   const compose = useCallback(() => {
     jumpToLatest();
@@ -1164,7 +1168,7 @@ function ChatConversation({
           onShare={share}
           onLongPress={openActions}
           lifted={Platform.OS === 'web' && item.message.id === actionsFor?.message.id}
-          {...(botDm ? {} : { onReact: react })}
+          {...(botDm || !online ? {} : { onReact: react })}
           {...(composable && selected === undefined ? { onReply: startReply } : {})}
           {...(receipts ? { onOpenDelivery: openDelivery } : {})}
           readers={reading.get(item.message.id)}
@@ -1198,6 +1202,7 @@ function ChatConversation({
       actionsFor,
       share,
       react,
+      online,
       botName,
       speakerOf,
       roster,
@@ -1490,7 +1495,7 @@ function ChatConversation({
   const fadeColor = background.kind === 'color' ? background.color : theme.color.base;
 
   return (
-    <>
+    <ChatOffline value={!online}>
       {paging === undefined && presentation === undefined ? (
         <Stack.Screen
           options={{
@@ -1958,25 +1963,20 @@ function ChatConversation({
           )}
         </KeyboardChatFrame>
         {android ? (
-          <View
-            pointerEvents="box-none"
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              height: inlineHeaderHeight,
-              paddingTop: insets.top,
-              paddingHorizontal: space.x4,
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: headerGap,
-            }}
-          >
-            {back}
-            <View style={{ flex: 1, minWidth: 0 }}>{title}</View>
-            {headerActions}
-          </View>
+          <ConversationTopBar
+            title={
+              dm
+                ? (bot?.displayName ?? slug ?? '')
+                : botDm
+                  ? botDmName
+                  : `#${channel?.name ?? channelName ?? t.groupInfo}`
+            }
+            connectionLabel={connectionLabel}
+            onBack={leave}
+            onProfile={canOpenProfile ? openProfile : undefined}
+            onCall={canOpenProfile ? placeCall : undefined}
+            onHeight={setMeasuredHeaderHeight}
+          />
         ) : null}
       </EndSheet>
       {!android && paging === undefined ? (
@@ -2029,7 +2029,7 @@ function ChatConversation({
       />
       <MessageActions
         target={actionsFor}
-        readOnly={botDm}
+        readOnly={botDm || !online}
         onClose={() => setActionsFor(undefined)}
         onReact={(message, emoji, active) => react(message.id, emoji, active)}
         onCopy={copyMessage}
@@ -2052,7 +2052,7 @@ function ChatConversation({
           }
         />
       )}
-    </>
+    </ChatOffline>
   );
 }
 

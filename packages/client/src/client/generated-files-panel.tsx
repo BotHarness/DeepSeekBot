@@ -1,11 +1,12 @@
 import {
+  Button,
   IconPaperclipOutlineRegular,
   IconCheckOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives';
 import { Tooltip } from './ds/tooltip.js';
 import { IconButton } from './ds/icon-button.js';
 import { PanelEmptyState } from './ds/empty-state.js';
-import { createContext, useContext, useState, type ReactElement } from 'react';
+import { createContext, useContext, useRef, useState, type ReactElement } from 'react';
 import { attachmentIdentity } from '../../../core/src/attachments/ref.js';
 import type { BridgeActions } from './actions.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -14,6 +15,8 @@ import { useMountedResource } from './mounted-resource.js';
 import { store, type ChannelAttachmentRef } from './store.js';
 import { createGeneratedFilesHistory, type GeneratedFile } from './generated-files-history.js';
 import { subscribeMessagingDefaults } from './messaging-defaults-live.js';
+
+const FILES_PAGE = 50;
 
 export const GeneratedFilesContext = createContext<
   | {
@@ -39,6 +42,8 @@ export function ChannelFiles({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
   const [retry, setRetry] = useState(0);
+  const [nextBefore, setNextBefore] = useState<number>();
+  const loadOlder = useRef<() => void>(() => undefined);
   const mount = useMountedResource<HTMLDivElement>(() => {
     setHistory([]);
     setError(undefined);
@@ -72,28 +77,41 @@ export function ChannelFiles({
       },
     );
     reconcile();
-    setLoading(true);
-    void (async () => {
-      let cursor: string | undefined;
-      do {
-        const page = await actions.humanInboxContextPage(
+    setNextBefore(undefined);
+    let busy = false;
+    const load = (before?: number): void => {
+      if (busy) return;
+      busy = true;
+      setLoading(true);
+      setError(undefined);
+      void actions
+        .channelFilesPage(
           channelId,
-          { limit: 200, ...(cursor === undefined ? {} : { direction: 'older', cursor }) },
+          { limit: FILES_PAGE, ...(before === undefined ? {} : { before }) },
           controller.signal,
-        );
-        if (controller.signal.aborted) return;
-        cache.accept(page.entries, 'history');
-        setHistory(cache.files());
-        cursor = page.hasOlder ? (page.olderCursor ?? undefined) : undefined;
-      } while (cursor !== undefined);
-    })()
-      .catch((reason: unknown) => {
-        if (!controller.signal.aborted)
-          setError(reason instanceof Error ? reason.message : String(reason));
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
+        )
+        .then((page) => {
+          if (controller.signal.aborted) return;
+          cache.accept(
+            page.entries.map((entry) => entry.message),
+            'history',
+          );
+          setHistory(cache.files());
+          setNextBefore(page.nextBefore);
+          loadOlder.current = () => load(page.nextBefore);
+        })
+        .catch((reason: unknown) => {
+          if (!controller.signal.aborted) {
+            setError(reason instanceof Error ? reason.message : String(reason));
+            loadOlder.current = () => load(before);
+          }
+        })
+        .finally(() => {
+          busy = false;
+          if (!controller.signal.aborted) setLoading(false);
+        });
+    };
+    load();
     return () => {
       controller.abort();
       unsubscribe();
@@ -161,6 +179,13 @@ export function ChannelFiles({
           </li>
         ))}
       </ul>
+      {nextBefore !== undefined && !loading && error === undefined ? (
+        <div className="bh-generated-files-older">
+          <Button type="button" variant="toolbar" size="sm" onClick={() => loadOlder.current()}>
+            {t('generatedFiles.older')}
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

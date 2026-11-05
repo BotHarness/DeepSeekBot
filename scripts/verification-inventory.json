@@ -1775,6 +1775,14 @@
       "sha256": "0202f03deec1f87cdbc5a2221a072b7b50cf11752a8a6ea2c4d248f5c392e8f8"
     },
     {
+      "path": "scripts/e2e-media-thumbnails.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.attachments"],
+      "reason": "#3507 isolated Host: uploads a generated 2400x1600 PNG, waits for the timeline content version, dimensions and thumbhash, and compares original and 96c/320/800 WebP bytes, immutable caching, ETag 304, stale-version 409, and (#3508) a split byte-range resume that rebuilds the original. No model needed.",
+      "task": 3507,
+      "sha256": "f2cb6776c6bc2b0446f893cf0acfc76a05fcebcda491240a14a541a4462f1f18"
+    },
+    {
       "path": "scripts/e2e-memory-restore.mjs",
       "category": "mapped",
       "behaviors": ["desktop.memory.read-restore"],
@@ -2473,17 +2481,17 @@
       "path": "scripts/e2e-call-media.mjs",
       "category": "mapped",
       "behaviors": ["phone.bot-call"],
-      "reason": "Real Chromium WebRTC check of the Host call renderer: audio-only offer, 16 kHz uplink PCM, downlink playback, failed playback and close.",
+      "reason": "Real Chromium WebRTC check of the Host call renderer: audio-only offer with Opus DTX, 16 kHz uplink PCM, packets per second while silent and while talking, downlink playback, failed playback, and close after the 15 s reconnect grace.",
       "task": 3400,
-      "sha256": "36f8cb22ef88046af0e7c7ce7be4af62dab402281b0262405cc9d9fd96c23b46"
+      "sha256": "158ff3245f56a2e7f8eed3c9155583b21ea58dd7bbb153db38c5c9c326431aae"
     },
     {
       "path": "scripts/e2e-desktop-call.mjs",
       "category": "mapped",
       "behaviors": ["desktop.bot-call"],
-      "reason": "Desktop call in Chromium with fake audio capture files: the Client's browser WebRTC (echo cancellation on) against the Host call renderer and the real Host call owner; question and long-task scenarios, cough discarded, reply heard, second window refused.",
-      "task": 3403,
-      "sha256": "2741ed9bd207a242307b768606ddb8c71a580abd12af80b614d7936ea1d9e7de"
+      "reason": "Desktop call in Chromium with fake audio capture files: the Client's browser WebRTC (echo cancellation on) against the Host call renderer and the real Host call owner; question, long-task, camera and screen scenarios, cough discarded, reply heard, second window refused, fake camera keyframes reach a sentence grid, a fake screen recording gives one keyframe per window, a system-stopped share falls back to voice, and the Host's sampled media performance (packets/s, kbps, CPU) in the call view.",
+      "task": 3496,
+      "sha256": "7eb4c4bc29d7418005aa5fc04b9d328ac89af5cf2078626eed2f793334e92c5e"
     }
   ],
   "native": [
