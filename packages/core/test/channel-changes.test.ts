@@ -187,6 +187,30 @@ describe('global change log for placed messages', () => {
     expect(result.channelChanged).toBe(true);
   });
 
+  it('lists the Channels whose summary changed since a cursor, for the channel list (C3)', async () => {
+    const { since, channels, group, post } = await scene();
+    const other = channels.createGroup({ name: 'Quiet', members: [] });
+    const changed = (from: { epoch: string; seq: number }) =>
+      channels.readChangedChannels!({ sinceSeq: from.seq, epoch: from.epoch });
+    let cursor = since();
+    expect(changed(cursor)).toEqual({ channelIds: [], all: false, cursor });
+    await post('m4');
+    await channels.markRead(group.id, 'm4');
+    channels.rename(other.id, 'Loud');
+    let result = changed(cursor);
+    if (result.reset) throw new Error('unexpected reset');
+    expect(result.channelIds.sort()).toEqual([group.id, other.id].sort());
+    expect(result.all).toBe(false);
+    expect(result.cursor).toEqual(since());
+    cursor = since();
+    channels.setHumanDefaultName('Vain');
+    result = changed(cursor);
+    if (result.reset) throw new Error('unexpected reset');
+    expect(result).toMatchObject({ channelIds: [], all: true });
+    expect(changed({ ...cursor, epoch: 'other' }).reset).toBe(true);
+    expect(channels.readChangedChannels!({ sinceSeq: cursor.seq + 50 }).reset).toBe(true);
+  });
+
   it('records an edited original for every message that holds the file (#46, #47)', async () => {
     const { since, changes, channels, port, sourceOf } = await scene();
     const fileId = 'file:6a1f3c2e-1b2c-4d3e-8f40-123456789abc';

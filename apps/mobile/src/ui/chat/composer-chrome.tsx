@@ -25,6 +25,7 @@ export function ComposerCircleButton({
   label,
   testID,
   size,
+  embedded = false,
   onPress,
   children,
 }: {
@@ -51,7 +52,7 @@ export function ComposerCircleButton({
         overflow: 'hidden',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: theme.layer.raised.fill,
+        backgroundColor: embedded ? theme.layer.raised.inset : theme.layer.raised.fill,
       }}
     >
       {children}

@@ -1,3 +1,4 @@
+import { hostStore, hostStoreAvailable } from './host-store';
 import type { AccountOwner } from './account-owner';
 import { removeAccountConnections } from './account-connections';
 import { sourceDrafts } from './native-source-drafts';
@@ -130,6 +131,7 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
     routes: saved.routes,
     credential: saved.credential,
     carrier: nativeCarrier(),
+    localStore: () => (hostStoreAvailable() ? hostStore(saved.hostId) : Promise.resolve(undefined)),
     telemetry: createConnectionTelemetry(mobileTelemetry, trigger),
   });
   clientHosts.set(client, saved.hostId);
