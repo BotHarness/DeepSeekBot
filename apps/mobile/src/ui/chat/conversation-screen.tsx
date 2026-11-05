@@ -98,6 +98,7 @@ import { ChatTitle } from './chat-title';
 import { runningSessionCount } from '../../host/session-stop';
 import { ChatHeaderActions } from './chat-header-actions';
 import { ConversationTopBar } from './conversation-top-bar';
+import { ChatBackdrop } from './chat-backdrop';
 import { Composer, type ComposerInput } from './composer';
 import { GroupUnavailable } from './group-unavailable';
 import { DraftSaveNotice } from './draft-save-notice';
@@ -394,6 +395,7 @@ function ChatConversation({
   const nativeHeaderPadding = useHeaderPadding();
   const inlineHeaderHeight = useChatHeaderHeight();
   const [measuredHeaderHeight, setMeasuredHeaderHeight] = useState(0);
+  const blurTarget = useRef<ViewInstance>(null);
   const insets = useSafeAreaInsets();
   const android = Platform.OS === 'android';
   const headerPadding = android ? measuredHeaderHeight || inlineHeaderHeight : nativeHeaderPadding;
@@ -1587,26 +1589,33 @@ function ChatConversation({
                     { type: 'custom' as const, element: titleItem },
                   ],
                 }
-              : {
-                  headerTitleAlign: 'left' as const,
-                  headerRight: () => headerActions,
-                  headerTitle: () => (
-                    <View
-                      key={`${theme.scheme}:${theme.fontScale}:${bot?.displayName ?? channel?.name ?? ''}`}
-                      style={{
-                        width: dm || botDm ? undefined : windowWidth - (theme.touch + space.x5) * 2,
-                        maxWidth:
-                          windowWidth -
-                          (theme.touch + space.x5) * 2 -
-                          (placeCall === undefined || !canOpenProfile ? 0 : theme.touch),
-                        marginHorizontal: space.x3,
-                      }}
-                    >
-                      {title}
-                    </View>
-                  ),
-                  ...(canGoBack && !floatingHeader ? {} : { headerLeft: () => back }),
-                }),
+              : android
+                ? {
+                    headerLeft: () => null,
+                    headerRight: () => null,
+                    headerTitle: () => null,
+                  }
+                : {
+                    headerTitleAlign: 'left' as const,
+                    headerRight: () => headerActions,
+                    headerTitle: () => (
+                      <View
+                        key={`${theme.scheme}:${theme.fontScale}:${bot?.displayName ?? channel?.name ?? ''}`}
+                        style={{
+                          width:
+                            dm || botDm ? undefined : windowWidth - (theme.touch + space.x5) * 2,
+                          maxWidth:
+                            windowWidth -
+                            (theme.touch + space.x5) * 2 -
+                            (placeCall === undefined || !canOpenProfile ? 0 : theme.touch),
+                          marginHorizontal: space.x3,
+                        }}
+                      >
+                        {title}
+                      </View>
+                    ),
+                    ...(canGoBack && !floatingHeader ? {} : { headerLeft: () => back }),
+                  }),
           }}
         />
       ) : null}
@@ -1640,330 +1649,337 @@ function ChatConversation({
           ) : null
         }
       >
-        <KeyboardChatFrame
-          onMount={screenRef}
-          backgroundColor={background.kind === 'color' ? background.color : theme.color.base}
-          background={
-            background.kind === 'image' ? (
-              <ChatBackground choice={background} imageUri={backgroundImageUri} />
-            ) : undefined
-          }
-          onComposerLayout={latest.onComposerLayout}
-          composer={
-            <>
-              {android ? noticeView : null}
-              {missingGroup ? null : selected !== undefined ? (
-                <SelectionBar
-                  count={selected.length}
-                  onCancel={() => setPicked(undefined)}
-                  onCopy={() => copyMessage(selectionText(selected, visible))}
-                  onScreenshot={() =>
-                    setImageSelection({
-                      scope: selectionScope,
-                      messages: visible.filter((m) => selected.includes(m.id)),
-                    })
-                  }
-                />
-              ) : botDm ? (
-                <View style={{ padding: space.x5, alignItems: 'center' }}>
-                  <Text variant="meta" tone="muted">
-                    {t.activityRow.botDm}
-                  </Text>
-                </View>
-              ) : (
-                <Composer
-                  value={draft}
-                  placeholder={
-                    bot !== undefined
-                      ? t.messageBot(bot.displayName)
-                      : channel !== undefined
-                        ? t.messageBot(`#${channel.name}`)
-                        : t.messagePlaceholder
-                  }
-                  disabled={
-                    conversation === undefined ||
-                    host.connection.status !== 'connected' ||
-                    !draftPersistence.loaded ||
-                    draftPersistence.failed
-                  }
-                  files={files}
-                  canAttach={files.length < MAX_PICKED}
-                  dictation={dictation.state.status}
-                  canDictate={conversation !== undefined}
-                  onChange={edit}
-                  selection={selection}
-                  onSelection={(next) => {
-                    setSelection(undefined);
-                    setCaret(next);
-                  }}
-                  above={
-                    <>
-                      {replyTarget === undefined ? null : (
-                        <ReplyBar
-                          message={replyTarget}
-                          botName={botName}
-                          onCancel={() => setReplying(undefined)}
-                        />
-                      )}
-                      {draftPersistence.failed ? (
-                        <DraftSaveNotice busy={retryingDraft} onRetry={() => void retryDraft()} />
-                      ) : null}
-                      {candidates.length > 0 ? (
-                        <MentionSuggestions candidates={candidates} onChoose={mention} />
-                      ) : clipboard.offered ? (
-                        <ClipboardImageOffer
-                          onUnreadable={clipboard.used}
-                          onPaste={(data) => {
-                            clipboard.used();
-                            setAttachError(false);
-                            setFiles((current) =>
-                              [...current, fromClipboardImage(data)].slice(0, MAX_PICKED),
-                            );
-                          }}
-                        />
-                      ) : null}
-                    </>
-                  }
-                  onSend={send}
-                  onPick={pick}
-                  onRemove={(id) => setFiles((current) => current.filter((file) => file.id !== id))}
-                  onDictate={() => {
-                    setAttachError(false);
-                    dictation.start();
-                  }}
-                  onStopDictation={dictation.stop}
-                  onCancelDictation={dictation.cancel}
-                  inputRef={composerInput}
-                  onFocusChange={setTyping}
-                />
-              )}
-            </>
-          }
-        >
-          {android ? null : noticeView}
-          {missingGroup ? (
-            <View
-              style={{
-                flex: 1,
-                paddingTop: headerOverlap + headerPadding,
-                paddingBottom: insets.bottom,
-              }}
-            >
-              <GroupUnavailable onBack={backToChats} />
-            </View>
-          ) : (
-            <SwipeOpen
-              testID="chat-profile-swipe"
-              enabled={!android && paging === undefined && canSwipeProfile}
-              travel={profileTravel}
-              onOpen={swipeProfile}
-            >
-              <Animated.View
-                style={{ flex: 1, marginTop: android ? headerPadding : 0 }}
-                onLayout={latest.onViewportLayout}
+        <ChatBackdrop ref={blurTarget} style={{ flex: 1 }}>
+          <KeyboardChatFrame
+            onMount={screenRef}
+            backgroundColor={background.kind === 'color' ? background.color : theme.color.base}
+            background={
+              background.kind === 'image' ? (
+                <ChatBackground choice={background} imageUri={backgroundImageUri} />
+              ) : undefined
+            }
+            onComposerLayout={latest.onComposerLayout}
+            composer={
+              <>
+                {android ? noticeView : null}
+                {missingGroup ? null : selected !== undefined ? (
+                  <SelectionBar
+                    count={selected.length}
+                    onCancel={() => setPicked(undefined)}
+                    onCopy={() => copyMessage(selectionText(selected, visible))}
+                    onScreenshot={() =>
+                      setImageSelection({
+                        scope: selectionScope,
+                        messages: visible.filter((m) => selected.includes(m.id)),
+                      })
+                    }
+                  />
+                ) : botDm ? (
+                  <View style={{ padding: space.x5, alignItems: 'center' }}>
+                    <Text variant="meta" tone="muted">
+                      {t.activityRow.botDm}
+                    </Text>
+                  </View>
+                ) : (
+                  <Composer
+                    value={draft}
+                    placeholder={
+                      bot !== undefined
+                        ? t.messageBot(bot.displayName)
+                        : channel !== undefined
+                          ? t.messageBot(`#${channel.name}`)
+                          : t.messagePlaceholder
+                    }
+                    disabled={
+                      conversation === undefined ||
+                      host.connection.status !== 'connected' ||
+                      !draftPersistence.loaded ||
+                      draftPersistence.failed
+                    }
+                    files={files}
+                    canAttach={files.length < MAX_PICKED}
+                    dictation={dictation.state.status}
+                    canDictate={conversation !== undefined}
+                    onChange={edit}
+                    selection={selection}
+                    onSelection={(next) => {
+                      setSelection(undefined);
+                      setCaret(next);
+                    }}
+                    above={
+                      <>
+                        {replyTarget === undefined ? null : (
+                          <ReplyBar
+                            message={replyTarget}
+                            botName={botName}
+                            onCancel={() => setReplying(undefined)}
+                          />
+                        )}
+                        {draftPersistence.failed ? (
+                          <DraftSaveNotice busy={retryingDraft} onRetry={() => void retryDraft()} />
+                        ) : null}
+                        {candidates.length > 0 ? (
+                          <MentionSuggestions candidates={candidates} onChoose={mention} />
+                        ) : clipboard.offered ? (
+                          <ClipboardImageOffer
+                            onUnreadable={clipboard.used}
+                            onPaste={(data) => {
+                              clipboard.used();
+                              setAttachError(false);
+                              setFiles((current) =>
+                                [...current, fromClipboardImage(data)].slice(0, MAX_PICKED),
+                              );
+                            }}
+                          />
+                        ) : null}
+                      </>
+                    }
+                    onSend={send}
+                    onPick={pick}
+                    onRemove={(id) =>
+                      setFiles((current) => current.filter((file) => file.id !== id))
+                    }
+                    onDictate={() => {
+                      setAttachError(false);
+                      dictation.start();
+                    }}
+                    onStopDictation={dictation.stop}
+                    onCancelDictation={dictation.cancel}
+                    inputRef={composerInput}
+                    onFocusChange={setTyping}
+                  />
+                )}
+              </>
+            }
+          >
+            {android ? null : noticeView}
+            {missingGroup ? (
+              <View
+                style={{
+                  flex: 1,
+                  paddingTop: headerOverlap + headerPadding,
+                  paddingBottom: insets.bottom,
+                }}
               >
-                <MarkdownViewportContext.Provider value={markdownViewport}>
-                  <SpeakerStageContext.Provider value={dm ? undefined : stage}>
-                    <Animated.FlatList
-                      inverted={android}
-                      {...(android
-                        ? { initialNumToRender: 6, maxToRenderPerBatch: 6, windowSize: 5 }
-                        : {})}
-                      ref={attachList}
-                      renderScrollComponent={latest.renderScrollComponent}
-                      removeClippedSubviews={false}
-                      CellRendererComponentStyle={cellLayer}
-                      style={{
-                        flex: 1,
-                        opacity: latest.ready || rows.length === 0 ? 1 : 0,
-                      }}
-                      pointerEvents={!latest.ready && rows.length > 0 ? 'none' : 'auto'}
-                      accessibilityElementsHidden={!latest.ready && rows.length > 0}
-                      importantForAccessibility={
-                        !latest.ready && rows.length > 0 ? 'no-hide-descendants' : 'auto'
-                      }
-                      contentInsetAdjustmentBehavior="automatic"
-                      contentInset={{ bottom: -listSafeArea }}
-                      automaticallyAdjustsScrollIndicatorInsets
-                      scrollToOverflowEnabled
-                      contentContainerStyle={{
-                        minHeight: Math.max(
-                          0,
-                          viewportHeight -
-                            (notice === undefined ? headerOverlap : 0) +
-                            (Platform.OS === 'android' ? edge.hairline : 0),
-                        ),
-                        justifyContent: android ? 'flex-start' : 'flex-end',
-                        paddingTop: android ? composerHeight + edgeFade.bottom : space.x3 + listTop,
-                        paddingBottom: android
-                          ? space.x3 + listTop
-                          : composerHeight + edgeFade.bottom,
-                      }}
-                      data={rows}
-                      keyExtractor={(row) => row.key}
-                      renderItem={renderItem}
-                      onViewableItemsChanged={onFocusViewabilityChange}
-                      onScrollToIndexFailed={(info) => {
-                        const attempt = focusAttempt.current;
-                        if (
-                          focusCancelled.current ||
-                          attempt === undefined ||
-                          attempt.index !== info.index ||
-                          attempt.message !== focusIntent.current.message ||
-                          attempt.request !== focusIntent.current.request
-                        )
-                          return;
-                        focusNeedsLayout.current = true;
-                        jumped.current = undefined;
-                        focusAttempt.current = undefined;
-                        const estimate = `${info.index}:${info.highestMeasuredFrameIndex}:${info.averageItemLength}`;
-                        if (focusEstimate.current === estimate) return;
-                        focusEstimate.current = estimate;
-                        list.current?.scrollToOffset({
-                          offset: info.averageItemLength * info.index,
-                          animated: false,
-                        });
-                      }}
-                      {...(latest.ready && latest.browsed && !snapshot.olderError
-                        ? {
-                            [android ? 'onEndReached' : 'onStartReached']: () =>
-                              void conversation?.loadOlder(),
-                          }
-                        : {})}
-                      onStartReachedThreshold={0.5}
-                      onEndReachedThreshold={0.5}
-                      {...latest.listProps}
-                      onScrollBeginDrag={(event: ScrollEvent) => {
-                        focusCancelled.current = true;
-                        focusAttempt.current = undefined;
-                        pull.onScrollBeginDrag(event);
-                        latest.listProps.onScrollBeginDrag();
-                      }}
-                      onScroll={(event: ScrollEvent) => {
-                        latest.listProps.onScroll(event);
-                        pull.onScroll(event);
-                      }}
-                      onScrollEndDrag={(event: ScrollEvent) => {
-                        latest.listProps.onScrollEndDrag(event);
-                        pull.onScrollEndDrag(event);
-                      }}
-                      onContentSizeChange={(width: number, height: number) => {
-                        latest.listProps.onContentSizeChange(width, height);
-                        focusNeedsLayout.current = false;
-                        jump();
-                      }}
-                      scrollEventThrottle={Platform.OS === 'android' && !latest.ready ? 16 : 32}
-                      keyboardDismissMode={ios ? 'interactive' : 'on-drag'}
-                      keyboardShouldPersistTaps="handled"
-                      {...{
-                        [android ? 'ListFooterComponent' : 'ListHeaderComponent']:
-                          snapshot.loadingOlder || snapshot.olderError ? (
-                            <View style={{ padding: space.x4, gap: space.x2 }}>
-                              <Text variant="meta" tone="muted" accessibilityLiveRegion="polite">
-                                {snapshot.loadingOlder ? t.olderLoading : t.olderLoadFailed}
-                              </Text>
-                              <Button
-                                label={t.retry}
-                                variant="text"
-                                busy={snapshot.loadingOlder}
-                                testID="history-retry"
-                                onPress={() => void conversation?.loadOlder()}
-                              />
-                            </View>
-                          ) : !snapshot.hasOlder && snapshot.status === 'live' ? (
-                            <Text
-                              variant="meta"
-                              tone="muted"
-                              style={{ textAlign: 'center', padding: space.x5 }}
-                            >
-                              {dm ? t.beginning : t.beginningChannel}
-                            </Text>
-                          ) : undefined,
-                      }}
-                    />
-                  </SpeakerStageContext.Provider>
-                </MarkdownViewportContext.Provider>
+                <GroupUnavailable onBack={backToChats} />
+              </View>
+            ) : (
+              <SwipeOpen
+                testID="chat-profile-swipe"
+                enabled={!android && paging === undefined && canSwipeProfile}
+                travel={profileTravel}
+                onOpen={swipeProfile}
+              >
                 <Animated.View
-                  ref={viewport}
-                  collapsable={false}
-                  pointerEvents="box-none"
-                  style={[
-                    { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-                    latest.overlayStyle,
-                  ]}
-                  onLayout={() => {
-                    viewportLayout.value += 1;
-                  }}
+                  style={{ flex: 1, marginTop: android ? headerPadding : 0 }}
+                  onLayout={latest.onViewportLayout}
                 >
-                  {!missing &&
-                  ((!latest.ready && rows.length > 0) ||
-                    (snapshot.status === 'opening' && rows.length === 0)) ? (
-                    <View
-                      pointerEvents={latest.canRetry ? 'auto' : 'none'}
-                      style={{
-                        position: 'absolute',
-                        top: listTop,
-                        bottom: composerHeight + edgeFade.bottom,
-                        left: 0,
-                        right: 0,
-                        justifyContent: 'flex-end',
-                      }}
-                    >
-                      <ListSkeleton layout="messages" />
-                      {latest.canRetry ? (
-                        <Button
-                          label={t.retry}
-                          variant="text"
-                          testID="history-loading-retry"
-                          onPress={latest.retry}
-                        />
-                      ) : null}
-                    </View>
-                  ) : null}
-                  {topFade > 0 ? (
+                  <MarkdownViewportContext.Provider value={markdownViewport}>
+                    <SpeakerStageContext.Provider value={dm ? undefined : stage}>
+                      <Animated.FlatList
+                        inverted={android}
+                        {...(android
+                          ? { initialNumToRender: 6, maxToRenderPerBatch: 6, windowSize: 5 }
+                          : {})}
+                        ref={attachList}
+                        renderScrollComponent={latest.renderScrollComponent}
+                        removeClippedSubviews={false}
+                        CellRendererComponentStyle={cellLayer}
+                        style={{
+                          flex: 1,
+                          opacity: latest.ready || rows.length === 0 ? 1 : 0,
+                        }}
+                        pointerEvents={!latest.ready && rows.length > 0 ? 'none' : 'auto'}
+                        accessibilityElementsHidden={!latest.ready && rows.length > 0}
+                        importantForAccessibility={
+                          !latest.ready && rows.length > 0 ? 'no-hide-descendants' : 'auto'
+                        }
+                        contentInsetAdjustmentBehavior="automatic"
+                        contentInset={{ bottom: -listSafeArea }}
+                        automaticallyAdjustsScrollIndicatorInsets
+                        scrollToOverflowEnabled
+                        contentContainerStyle={{
+                          minHeight: Math.max(
+                            0,
+                            viewportHeight -
+                              (notice === undefined ? headerOverlap : 0) +
+                              (Platform.OS === 'android' ? edge.hairline : 0),
+                          ),
+                          justifyContent: android ? 'flex-start' : 'flex-end',
+                          paddingTop: android
+                            ? composerHeight + edgeFade.bottom
+                            : space.x3 + listTop,
+                          paddingBottom: android
+                            ? space.x3 + listTop
+                            : composerHeight + edgeFade.bottom,
+                        }}
+                        data={rows}
+                        keyExtractor={(row) => row.key}
+                        renderItem={renderItem}
+                        onViewableItemsChanged={onFocusViewabilityChange}
+                        onScrollToIndexFailed={(info) => {
+                          const attempt = focusAttempt.current;
+                          if (
+                            focusCancelled.current ||
+                            attempt === undefined ||
+                            attempt.index !== info.index ||
+                            attempt.message !== focusIntent.current.message ||
+                            attempt.request !== focusIntent.current.request
+                          )
+                            return;
+                          focusNeedsLayout.current = true;
+                          jumped.current = undefined;
+                          focusAttempt.current = undefined;
+                          const estimate = `${info.index}:${info.highestMeasuredFrameIndex}:${info.averageItemLength}`;
+                          if (focusEstimate.current === estimate) return;
+                          focusEstimate.current = estimate;
+                          list.current?.scrollToOffset({
+                            offset: info.averageItemLength * info.index,
+                            animated: false,
+                          });
+                        }}
+                        {...(latest.ready && latest.browsed && !snapshot.olderError
+                          ? {
+                              [android ? 'onEndReached' : 'onStartReached']: () =>
+                                void conversation?.loadOlder(),
+                            }
+                          : {})}
+                        onStartReachedThreshold={0.5}
+                        onEndReachedThreshold={0.5}
+                        {...latest.listProps}
+                        onScrollBeginDrag={(event: ScrollEvent) => {
+                          focusCancelled.current = true;
+                          focusAttempt.current = undefined;
+                          pull.onScrollBeginDrag(event);
+                          latest.listProps.onScrollBeginDrag();
+                        }}
+                        onScroll={(event: ScrollEvent) => {
+                          latest.listProps.onScroll(event);
+                          pull.onScroll(event);
+                        }}
+                        onScrollEndDrag={(event: ScrollEvent) => {
+                          latest.listProps.onScrollEndDrag(event);
+                          pull.onScrollEndDrag(event);
+                        }}
+                        onContentSizeChange={(width: number, height: number) => {
+                          latest.listProps.onContentSizeChange(width, height);
+                          focusNeedsLayout.current = false;
+                          jump();
+                        }}
+                        scrollEventThrottle={Platform.OS === 'android' && !latest.ready ? 16 : 32}
+                        keyboardDismissMode={ios ? 'interactive' : 'on-drag'}
+                        keyboardShouldPersistTaps="handled"
+                        {...{
+                          [android ? 'ListFooterComponent' : 'ListHeaderComponent']:
+                            snapshot.loadingOlder || snapshot.olderError ? (
+                              <View style={{ padding: space.x4, gap: space.x2 }}>
+                                <Text variant="meta" tone="muted" accessibilityLiveRegion="polite">
+                                  {snapshot.loadingOlder ? t.olderLoading : t.olderLoadFailed}
+                                </Text>
+                                <Button
+                                  label={t.retry}
+                                  variant="text"
+                                  busy={snapshot.loadingOlder}
+                                  testID="history-retry"
+                                  onPress={() => void conversation?.loadOlder()}
+                                />
+                              </View>
+                            ) : !snapshot.hasOlder && snapshot.status === 'live' ? (
+                              <Text
+                                variant="meta"
+                                tone="muted"
+                                style={{ textAlign: 'center', padding: space.x5 }}
+                              >
+                                {dm ? t.beginning : t.beginningChannel}
+                              </Text>
+                            ) : undefined,
+                        }}
+                      />
+                    </SpeakerStageContext.Provider>
+                  </MarkdownViewportContext.Provider>
+                  <Animated.View
+                    ref={viewport}
+                    collapsable={false}
+                    pointerEvents="box-none"
+                    style={[
+                      { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+                      latest.overlayStyle,
+                    ]}
+                    onLayout={() => {
+                      viewportLayout.value += 1;
+                    }}
+                  >
+                    {!missing &&
+                    ((!latest.ready && rows.length > 0) ||
+                      (snapshot.status === 'opening' && rows.length === 0)) ? (
+                      <View
+                        pointerEvents={latest.canRetry ? 'auto' : 'none'}
+                        style={{
+                          position: 'absolute',
+                          top: listTop,
+                          bottom: composerHeight + edgeFade.bottom,
+                          left: 0,
+                          right: 0,
+                          justifyContent: 'flex-end',
+                        }}
+                      >
+                        <ListSkeleton layout="messages" />
+                        {latest.canRetry ? (
+                          <Button
+                            label={t.retry}
+                            variant="text"
+                            testID="history-loading-retry"
+                            onPress={latest.retry}
+                          />
+                        ) : null}
+                      </View>
+                    ) : null}
+                    {topFade > 0 ? (
+                      <EdgeFade
+                        edge="top"
+                        height={topFade + (glassHeader ? space.x6 : edgeFade.reach)}
+                        cover={glassHeader ? 0 : topFade}
+                        color={fadeColor}
+                      />
+                    ) : null}
                     <EdgeFade
-                      edge="top"
-                      height={topFade + (glassHeader ? space.x6 : edgeFade.reach)}
-                      cover={glassHeader ? 0 : topFade}
+                      edge="bottom"
+                      height={composerCover + edgeFade.bottom}
+                      cover={composerCover}
+                      solid={composerCover}
                       color={fadeColor}
                     />
-                  ) : null}
-                  <EdgeFade
-                    edge="bottom"
-                    height={composerCover + edgeFade.bottom}
-                    cover={composerCover}
-                    solid={composerCover}
-                    color={fadeColor}
-                  />
-                  {(composable || stackRoot) && Platform.OS === 'ios' ? (
-                    <PullToComposeHint
-                      progress={pull.progress}
-                      ready={pull.ready}
-                      bottom={composerHeight + space.x3}
-                      leaves={stackRoot}
-                    />
-                  ) : null}
-                  {latest.away ? (
-                    <View
-                      pointerEvents="box-none"
-                      style={{
-                        position: 'absolute',
-                        bottom: composerHeight + space.x2,
-                        left: 0,
-                        right: space.x4,
-                        alignItems: 'flex-end',
-                      }}
-                    >
-                      <JumpToLatest unseen={latest.unseen} onPress={latest.jumpToLatest} />
-                    </View>
-                  ) : null}
+                    {(composable || stackRoot) && Platform.OS === 'ios' ? (
+                      <PullToComposeHint
+                        progress={pull.progress}
+                        ready={pull.ready}
+                        bottom={composerHeight + space.x3}
+                        leaves={stackRoot}
+                      />
+                    ) : null}
+                    {latest.away ? (
+                      <View
+                        pointerEvents="box-none"
+                        style={{
+                          position: 'absolute',
+                          bottom: composerHeight + space.x2,
+                          left: 0,
+                          right: space.x4,
+                          alignItems: 'flex-end',
+                        }}
+                      >
+                        <JumpToLatest unseen={latest.unseen} onPress={latest.jumpToLatest} />
+                      </View>
+                    ) : null}
+                  </Animated.View>
                 </Animated.View>
-              </Animated.View>
-            </SwipeOpen>
-          )}
-        </KeyboardChatFrame>
+              </SwipeOpen>
+            )}
+          </KeyboardChatFrame>
+        </ChatBackdrop>
         {android ? (
           <ConversationTopBar
+            blurTarget={blurTarget}
             title={
               dm
                 ? (bot?.displayName ?? slug ?? '')

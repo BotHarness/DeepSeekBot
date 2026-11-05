@@ -309,10 +309,15 @@ export function Composer({
             ? t.dictationStarting
             : listening
               ? t.dictationListening
-              : placeholder
+              : Platform.OS === 'android' && canDictate && !disabled
+                ? t.composerInputHint
+                : placeholder
       }
       placeholderTextColor={theme.color.subtle}
       accessibilityLabel={placeholder}
+      accessibilityHint={
+        Platform.OS === 'android' && canDictate && !disabled ? t.composerInputHint : undefined
+      }
       multiline
       editable={!listening}
       onContentSizeChange={(event) => setContentHeight(event.nativeEvent.contentSize.height)}
