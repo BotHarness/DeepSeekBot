@@ -1269,6 +1269,7 @@ describe('DSH Bot Agent adapter', () => {
   it('unarchives an archived Assignment and then delivers the request', async () => {
     const calls: Array<Promise<unknown>> = [];
     const unarchived: string[] = [];
+    const requests: unknown[] = [];
     let archived = true;
     const host = new FakeAgentHost(
       { kind: 'completed' },
@@ -1323,8 +1324,9 @@ describe('DSH Bot Agent adapter', () => {
         },
         assignments: {
           create: () => ({ outcome: 'key-busy', message: 'unused' }),
-          request: () =>
-            archived
+          request: (input) => {
+            requests.push(input);
+            return archived
               ? {
                   outcome: 'refused',
                   code: 'assignment-ended',
@@ -1336,7 +1338,8 @@ describe('DSH Bot Agent adapter', () => {
                   delivery: 'followup',
                   acceptance: 'pending',
                   assignment: { ...ASSIGNMENT, activity: 'working' },
-                },
+                };
+          },
           unarchive: async (sessionId) => {
             unarchived.push(sessionId);
             archived = false;
@@ -1352,6 +1355,10 @@ describe('DSH Bot Agent adapter', () => {
       });
       const outputs = (await Promise.all(calls)).map((output) => JSON.parse(String(output)));
       expect(unarchived).toEqual(['assignment-1']);
+      expect(requests).toEqual([
+        expect.objectContaining({ sessionId: 'assignment-1', text: 'Continue A' }),
+        expect.objectContaining({ sessionId: 'assignment-1', text: 'Continue A' }),
+      ]);
       expect(outputs).toEqual([
         {
           sessionId: 'assignment-1',

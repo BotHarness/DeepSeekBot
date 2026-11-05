@@ -1725,8 +1725,8 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             assignments.unarchive !== undefined
           ) {
             await assignments.unarchive(args.session_id);
-            unarchived = true;
             outcome = send();
+            unarchived = outcome.delivery !== 'refused';
           }
           const restored = unarchived ? { unarchived: true } : {};
           if (outcome.delivery === 'refused') {
