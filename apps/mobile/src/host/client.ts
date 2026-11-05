@@ -413,7 +413,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
           ? snapshot.routes
           : nextRoutes,
       connection: connection ?? snapshot.connection,
-      activity: [...rawStates.values()],
+      activity: share('activity', [...rawStates.values()]),
       ...(computerAvailable === undefined ? {} : { computerAvailable }),
       ...(roster === undefined ? {} : { roster }),
     };
