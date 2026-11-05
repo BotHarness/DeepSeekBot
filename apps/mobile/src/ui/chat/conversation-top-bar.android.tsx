@@ -9,14 +9,17 @@ import {
 } from '@expo/ui/jetpack-compose';
 import { fillMaxWidth, semantics, size, testID, weight } from '@expo/ui/jetpack-compose/modifiers';
 import { View } from 'react-native';
+import { useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useDesignTheme } from '../design/theme';
 import { materialIconButton, space } from '../design/tokens';
 import { useStrings } from '../strings';
 import type { ConversationTopBarProps } from './conversation-top-bar';
+import { ChatHeaderSurface } from './chat-header-surface.android';
 
 export function ConversationTopBar({
+  blurTarget,
   title,
   connectionLabel,
   onBack,
@@ -27,6 +30,7 @@ export function ConversationTopBar({
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const t = useStrings();
+  const [height, setHeight] = useState(0);
   const action = (id: string, label: string, source: number, onClick: () => void) => (
     <IconButton
       onClick={onClick}
@@ -37,7 +41,11 @@ export function ConversationTopBar({
   );
   return (
     <View
-      onLayout={(event) => onHeight(event.nativeEvent.layout.height)}
+      onLayout={(event) => {
+        const next = event.nativeEvent.layout.height;
+        setHeight(next);
+        onHeight(next);
+      }}
       style={{
         position: 'absolute',
         top: 0,
@@ -46,9 +54,13 @@ export function ConversationTopBar({
         paddingTop: insets.top,
         paddingLeft: insets.left,
         paddingRight: insets.right,
-        backgroundColor: theme.color.base,
       }}
     >
+      <ChatHeaderSurface
+        target={blurTarget}
+        height={height || insets.top + theme.touch + space.x4}
+        solid={insets.top}
+      />
       <Host
         matchContents={{ vertical: true }}
         colorScheme={theme.scheme}
@@ -59,7 +71,7 @@ export function ConversationTopBar({
           windowInsets={{}}
           modifiers={[fillMaxWidth()]}
           colors={{
-            containerColor: theme.color.base,
+            containerColor: 'transparent',
             titleContentColor: theme.color.fg,
             navigationIconContentColor: theme.color.fg,
             actionIconContentColor: theme.color.fg,
