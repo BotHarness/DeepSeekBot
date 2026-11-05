@@ -1,4 +1,11 @@
 export const VAD_SAMPLE_RATE = 16_000;
+export const DEFAULT_SPEECH_DBFS = -50;
+export const SPEECH_DBFS_RANGE = { min: -70, max: -20 } as const;
+
+export function clampSpeechDbfs(value: number): number {
+  const rounded = Math.round(value);
+  return Math.min(SPEECH_DBFS_RANGE.max, Math.max(SPEECH_DBFS_RANGE.min, rounded));
+}
 const FRAME = 320;
 const FRAME_MS = 20;
 const MIN_LAG = Math.floor(VAD_SAMPLE_RATE / 400);
@@ -90,7 +97,7 @@ export function createVad(options: VadOptions = {}): Vad {
   const tail = frames(options.tailMs ?? 200);
   const maxFrames = frames(options.maxUtteranceMs ?? 30_000);
   const activeDb = options.activeDb ?? 12;
-  const minActiveDbfs = options.minActiveDbfs ?? -50;
+  const minActiveDbfs = options.minActiveDbfs ?? DEFAULT_SPEECH_DBFS;
   const periodicityNeeded = options.periodicity ?? 0.55;
   const segmentSilence =
     options.segmentSilenceMs === undefined ? undefined : frames(options.segmentSilenceMs);
