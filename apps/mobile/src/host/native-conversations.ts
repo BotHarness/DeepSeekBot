@@ -22,6 +22,11 @@ export function forgetHostConversations(hostId: string): void {
   void deleteHostStore(hostId).catch(() => undefined);
 }
 
+export async function clearHostConversations(hostId: string): Promise<void> {
+  clearHostConversationCache(hostId);
+  await deleteHostStore(hostId);
+}
+
 export function pruneHostConversations(hostId: string, stale: (key: string) => boolean): void {
   pruneHostConversationCache(hostId, stale);
   if (hostStoreAvailable())

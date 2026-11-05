@@ -162,6 +162,7 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
       !revoked
     ) {
       revoked = true;
+      forgetHostConversations(saved.hostId);
       purgeCaches.forgetHost(saved.hostId);
     }
     const now = snapshot.connection.status === 'connected';

@@ -11,6 +11,12 @@ const clearCache = vi.hoisted(() => vi.fn((hostId: string) => void clearedCaches
 const clearDrafts = vi.hoisted(() => vi.fn(async () => {}));
 const clientStops = vi.hoisted(() => vi.fn());
 const syncPush = vi.hoisted(() => vi.fn(async (_hosts: unknown) => {}));
+const connection = vi.hoisted(() => ({
+  snapshot: { connection: { status: 'connecting', route: '' } } as {
+    connection: { status: string; route: string; code?: string };
+  },
+  listeners: new Set<() => void>(),
+}));
 let beforeRead: ((key: string) => Promise<void>) | undefined;
 let beforeSave: ((key: string, value: string) => Promise<void>) | undefined;
 let savedFilter = 'all';
@@ -97,8 +103,11 @@ vi.mock('../src/host/client', () => ({
     start() {},
     stop: clientStops,
     retryNow() {},
-    subscribe: () => () => {},
-    getSnapshot: () => ({ connection: { status: 'connecting', route: '' } }),
+    subscribe: (listener: () => void) => {
+      connection.listeners.add(listener);
+      return () => connection.listeners.delete(listener);
+    },
+    getSnapshot: () => connection.snapshot,
   }),
 }));
 vi.mock('../src/host/inbox', () => ({
@@ -162,7 +171,19 @@ beforeEach(() => {
   beforeSave = undefined;
   beforeRead = undefined;
   savedFilter = 'all';
+  connection.snapshot = { connection: { status: 'connecting', route: '' } };
+  connection.listeners.clear();
   vi.resetModules();
+});
+
+it('clears the saved chats when the Computer revokes this phone', async () => {
+  await session('old', ['old']);
+  clearCache.mockClear();
+  connection.snapshot = {
+    connection: { status: 'refused', route: '', code: 'device-revoked' },
+  };
+  for (const listener of [...connection.listeners]) listener();
+  expect(clearCache).toHaveBeenCalledWith('old');
 });
 
 it('refreshes push credentials after approved replacement without changing the selected Computer', async () => {

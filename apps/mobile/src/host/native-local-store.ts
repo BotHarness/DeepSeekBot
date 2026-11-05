@@ -1,4 +1,5 @@
-import { deleteDatabaseAsync, openDatabaseAsync } from 'expo-sqlite';
+import { File } from 'expo-file-system';
+import { defaultDatabaseDirectory, deleteDatabaseAsync, openDatabaseAsync } from 'expo-sqlite';
 
 import { localStoreName, openLocalStore, type LocalStore, type SqlValue } from './local-store';
 
@@ -20,7 +21,18 @@ export async function deleteNativeLocalStore(hostId: string): Promise<void> {
   await deleteDatabaseAsync(localStoreName(hostId));
 }
 
+function nativeLocalStoreSize(hostId: string): number {
+  const directory = String(defaultDatabaseDirectory);
+  const root = directory.startsWith('file:') ? directory : `file://${directory}`;
+  const name = localStoreName(hostId);
+  return ['', '-wal', '-shm'].reduce((total, suffix) => {
+    const file = new File(root, name + suffix);
+    return total + (file.exists ? (file.size ?? 0) : 0);
+  }, 0);
+}
+
 export const nativeHostStoreOpener = {
   open: openNativeLocalStore,
   remove: deleteNativeLocalStore,
+  size: nativeLocalStoreSize,
 };

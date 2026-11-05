@@ -3,6 +3,7 @@ import { LocalStoreError, type LocalStore } from './local-store';
 export interface HostStoreOpener {
   open(hostId: string): Promise<LocalStore>;
   remove(hostId: string): Promise<void>;
+  size?(hostId: string): number;
 }
 
 let opener: HostStoreOpener | undefined;
@@ -42,4 +43,12 @@ export async function closeHostStore(hostId: string): Promise<void> {
 export async function deleteHostStore(hostId: string): Promise<void> {
   await closeHostStore(hostId);
   await opener?.remove(hostId);
+}
+
+export function hostStoreSize(hostId: string): number {
+  try {
+    return opener?.size?.(hostId) ?? 0;
+  } catch {
+    return 0;
+  }
 }
