@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { MAX_BOT_HOPS, type ChannelMessage } from '../src/channels/channel.js';
+import type { ChannelMessage } from '../src/channels/channel.js';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { createCore } from '../src/plugin.js';
 import type { BotAgentAdapter, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
@@ -23,6 +23,7 @@ async function groupScenario(input: {
   bots: { slug: string; displayName: string; member?: boolean; paused?: boolean }[];
   kickoff: string[];
   scripts: Record<string, Script>;
+  botHopLimit?: number;
 }) {
   const home = createTempRoot('botharness-bot-mention-text-');
   let groupId = '';
@@ -30,6 +31,7 @@ async function groupScenario(input: {
   const errors: string[] = [];
   const core = createCore({
     dshHome: home,
+    ...(input.botHopLimit === undefined ? {} : { botHopLimit: () => input.botHopLimit! }),
     agents: adapter(async (run) => {
       wakes.push({ bot: run.bot.slug, message: run.message });
       const script = input.scripts[run.bot.slug];
@@ -324,7 +326,8 @@ describe('Bot-to-Bot mention wakes within one Human kickoff', () => {
     ).toHaveLength(2);
   });
 
-  it('stops two Bots that keep mentioning each other at the hop limit', async () => {
+  it('stops two Bots that keep mentioning each other at the configured hop limit', async () => {
+    const limit = 8;
     const pingPong =
       (other: string): Script =>
       async (run, groupId) => {
@@ -337,12 +340,14 @@ describe('Bot-to-Bot mention wakes within one Human kickoff', () => {
       ],
       kickoff: ['ping'],
       scripts: { ping: pingPong('Pong'), pong: pingPong('Ping') },
+      botHopLimit: limit,
     });
     expect(result.wakes.map((wake) => wake.bot)).toEqual([
       'ping',
-      ...Array.from({ length: MAX_BOT_HOPS }, (_, hop) => (hop % 2 === 0 ? 'pong' : 'ping')),
+      ...Array.from({ length: limit }, (_, hop) => (hop % 2 === 0 ? 'pong' : 'ping')),
     ]);
-    expect(result.byAuthor('ping')).toHaveLength(MAX_BOT_HOPS / 2 + 1);
-    expect(result.byAuthor('pong')).toHaveLength(MAX_BOT_HOPS / 2);
+    expect(result.byAuthor('ping')).toHaveLength(limit / 2);
+    expect(result.byAuthor('pong')).toHaveLength(limit / 2);
+    expect(result.errors).toEqual([expect.stringContaining('hop limit reached (9 > 8)')]);
   }, 45_000);
 });

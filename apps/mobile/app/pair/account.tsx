@@ -22,6 +22,7 @@ export default function PairAccountScreen() {
   const [progress, setProgress] = useState<string>();
   const [current, setCurrent] = useState<string>();
   const [results, setResults] = useState<Record<string, AccountPairResult>>({});
+  const [details, setDetails] = useState<Record<string, string>>({});
   const add = async (hosts: ConnectHost[]) => {
     if (batch.current) return;
     const operation = new AbortController();
@@ -40,6 +41,12 @@ export default function PairAccountScreen() {
         result: (host, result) => {
           setCurrent(undefined);
           setResults((old) => ({ ...old, [host.id]: result }));
+          const detail =
+            result === 'added' || !host.online ? undefined : pairing.lastFailureDetail();
+          setDetails((old) => {
+            const { [host.id]: _previous, ...rest } = old;
+            return detail === undefined ? rest : { ...rest, [host.id]: detail };
+          });
         },
       });
       if (!operation.signal.aborted) pairing.finishSetup();
@@ -56,6 +63,7 @@ export default function PairAccountScreen() {
     useCallback(() => {
       let live = true;
       setResults({});
+      setDetails({});
       if (typeof params.account === 'string' && !requested.current) {
         requested.current = true;
         void connectAccount
@@ -87,6 +95,7 @@ export default function PairAccountScreen() {
           pairing={current}
           saved={session.hosts}
           results={results}
+          failureDetails={details}
           onPair={add}
         />
       </View>

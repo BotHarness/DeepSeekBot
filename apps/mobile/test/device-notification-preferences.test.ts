@@ -101,6 +101,38 @@ describe('phone-owned notification preferences', () => {
       vi.useRealTimers();
     }
   });
+  it('sends each pairing a copy once and retries only the Host that missed it', async () => {
+    vi.useFakeTimers();
+    const f = fixture(DEFAULT_NOTIFICATION_PREFERENCES);
+    const sentTo = () => f.options.push.setPreferences.mock.calls.map(([entry]) => entry.hostId);
+    try {
+      f.prefs.setForeground(true);
+      f.offline.add('b');
+      await f.prefs.sync([host('a'), host('b')]);
+      expect(sentTo()).toEqual(['a', 'b']);
+      await f.prefs.retry();
+      await f.prefs.sync([host('a'), host('b')]);
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(sentTo().filter((id) => id === 'a')).toEqual(['a']);
+      f.offline.clear();
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(f.prefs.getSnapshot().failed).toEqual([]);
+      const settled = sentTo().length;
+      await f.prefs.retry();
+      expect(sentTo()).toHaveLength(settled);
+      await f.prefs.set({ reply: false });
+      expect(sentTo().slice(settled).sort()).toEqual(['a', 'b']);
+      expect(f.copies.get('a')?.reply).toBe(false);
+      await f.prefs.sync([host('a', 'repaired'), host('b')]);
+      expect(sentTo().at(-1)).toBe('a');
+      expect(f.copies.get('repaired')?.reply).toBe(false);
+      await f.prefs.prepare(host('a', 'repaired'));
+      expect(sentTo().at(-1)).toBe('a');
+    } finally {
+      f.prefs.setForeground(false);
+      vi.useRealTimers();
+    }
+  });
   it('seeds once from existing switches and copies every change to every pairing', async () => {
     const f = fixture();
     await f.prefs.sync([host('a'), host('b')]);

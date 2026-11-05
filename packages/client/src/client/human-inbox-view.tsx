@@ -21,7 +21,7 @@ import {
 import { zhTranslate, type BotHarnessTranslate } from './locale.js';
 import type { ClientState, HumanAttentionItem } from './store.js';
 import { useMountedResource } from './mounted-resource.js';
-import { keepClientState, sameBotFaces, useClientStore } from './use-client-store.js';
+import { sameBotFaces, useClientStore } from './use-client-store.js';
 import { webModalOpen } from './channel-shortcuts.js';
 import { HumanInboxReply } from './human-inbox-reply.js';
 import { HumanInboxDismiss } from './human-inbox-detail-controls.js';
@@ -42,9 +42,16 @@ const categoryCopy = {
   handled: { title: 'humanInbox.handled', empty: 'humanInbox.empty.handled' },
 } as const;
 
-const overrideInputs = (left: ClientState, right: ClientState): boolean =>
+type InboxInputs = Pick<ClientState, 'bots' | 'channels' | 'humanInbox'>;
+type OverrideInputs = Pick<ClientState, 'bots' | 'channels'>;
+const selectInboxInputs = (state: ClientState): InboxInputs => ({
+  bots: state.bots,
+  channels: state.channels,
+  humanInbox: state.humanInbox,
+});
+const overrideInputs = (left: OverrideInputs, right: OverrideInputs): boolean =>
   left.channels === right.channels && sameBotFaces(left.bots, right.bots);
-const inboxInputs = (left: ClientState, right: ClientState): boolean =>
+const inboxInputs = (left: InboxInputs, right: InboxInputs): boolean =>
   left.humanInbox === right.humanInbox && overrideInputs(left, right);
 
 const itemKey = (item: HumanAttentionItem): string =>
@@ -104,11 +111,12 @@ export function HumanInboxView({
   | { actions: BridgeActions; hostSource?: never }
   | { actions?: never; hostSource: HumanInboxSource }
 )): ReactElement {
-  const state = useClientStore(
-    keepClientState,
+  const inboxState = useClientStore(
+    selectInboxInputs,
     inboxOverride === undefined ? inboxInputs : overrideInputs,
   );
-  const inbox = inboxOverride ?? state.humanInbox;
+  const state: OverrideInputs = inboxState;
+  const inbox = inboxOverride ?? inboxState.humanInbox;
   const [selectionMode, setSelectionMode] = useState(false);
   const detailId = useId();
   const [busyId, setBusyId] = useState<string>();
@@ -148,7 +156,7 @@ export function HumanInboxView({
       void hostSource.open(item).catch(() => setActionError(t('humanInbox.failed')));
       return;
     }
-    if (item.kind === 'private-input') {
+    if (item.kind === 'private-input' || item.kind === 'takeover-request') {
       void commands
         .openChannelAtMessage(item.channelId!, item.messageId!)
         .catch(() => setActionError(t('humanInbox.failed')));
@@ -363,37 +371,39 @@ export function HumanInboxView({
           })
         : item.kind === 'private-input'
           ? t('humanInbox.privateInput', { bot: botName(item.botSlug) })
-          : item.kind === 'user-question'
-            ? t('humanInbox.question', { bot: botName(item.botSlug) })
-            : item.kind === 'tool-approval'
-              ? t('humanInbox.approval', { bot: botName(item.botSlug) })
-              : item.kind === 'auto-rejection'
-                ? t('humanInbox.autoRejection', { bot: botName(item.botSlug) })
-                : item.kind === 'pairing-request'
-                  ? t(
-                      item.summary.startsWith('conversation')
-                        ? 'humanInbox.pairingConversation'
-                        : 'humanInbox.pairingManagement',
-                      {
-                        bot: botName(item.botSlug),
-                        name: item.summary.split(' · ')[1] || t('pairing.unknownName'),
-                      },
-                    )
-                  : item.kind === 'workspace-grant-request'
-                    ? t('humanInbox.grant', { bot: botName(item.botSlug) })
-                    : item.kind === 'assignment-waiting-human'
-                      ? t('humanInbox.assignmentWaiting', { bot: botName(item.botSlug) })
-                      : item.kind === 'assignment-blocked'
-                        ? t('humanInbox.assignmentBlocked', {
-                            bot: botName(item.botSlug),
-                          })
-                        : item.kind === 'assignment-report'
-                          ? t('humanInbox.assignmentReport', {
+          : item.kind === 'takeover-request'
+            ? t('humanInbox.takeover', { bot: botName(item.botSlug) })
+            : item.kind === 'user-question'
+              ? t('humanInbox.question', { bot: botName(item.botSlug) })
+              : item.kind === 'tool-approval'
+                ? t('humanInbox.approval', { bot: botName(item.botSlug) })
+                : item.kind === 'auto-rejection'
+                  ? t('humanInbox.autoRejection', { bot: botName(item.botSlug) })
+                  : item.kind === 'pairing-request'
+                    ? t(
+                        item.summary.startsWith('conversation')
+                          ? 'humanInbox.pairingConversation'
+                          : 'humanInbox.pairingManagement',
+                        {
+                          bot: botName(item.botSlug),
+                          name: item.summary.split(' · ')[1] || t('pairing.unknownName'),
+                        },
+                      )
+                    : item.kind === 'workspace-grant-request'
+                      ? t('humanInbox.grant', { bot: botName(item.botSlug) })
+                      : item.kind === 'assignment-waiting-human'
+                        ? t('humanInbox.assignmentWaiting', { bot: botName(item.botSlug) })
+                        : item.kind === 'assignment-blocked'
+                          ? t('humanInbox.assignmentBlocked', {
                               bot: botName(item.botSlug),
                             })
-                          : item.kind === 'bot-message-needs-repair'
-                            ? t('humanInbox.repair', { bot: botName(item.botSlug) })
-                            : botName(item.botSlug);
+                          : item.kind === 'assignment-report'
+                            ? t('humanInbox.assignmentReport', {
+                                bot: botName(item.botSlug),
+                              })
+                            : item.kind === 'bot-message-needs-repair'
+                              ? t('humanInbox.repair', { bot: botName(item.botSlug) })
+                              : botName(item.botSlug);
 
   const renderSource = (source: HumanAttentionItem, onClose: () => void): ReactElement =>
     hostSource !== undefined ? (
@@ -714,6 +724,7 @@ export function HumanInboxView({
                       item.kind === 'bot-dm-message' ||
                       item.kind === 'user-question' ||
                       item.kind === 'private-input' ||
+                      item.kind === 'takeover-request' ||
                       item.kind === 'tool-approval' ||
                       item.kind === 'workspace-grant-request' ||
                       item.kind === 'assignment-waiting-human' ||
@@ -782,6 +793,7 @@ export function HumanInboxView({
                           item.kind === 'tool-approval' ||
                           item.kind === 'user-question' ||
                           item.kind === 'private-input' ||
+                          item.kind === 'takeover-request' ||
                           item.kind === 'workspace-grant-request' ||
                           item.kind === 'assignment-waiting-human' ||
                           item.kind === 'assignment-blocked' ? (
@@ -807,14 +819,16 @@ export function HumanInboxView({
                                       ? 'humanInbox.approval.handle'
                                       : item.kind === 'private-input'
                                         ? 'humanInbox.privateInput.handle'
-                                        : item.kind === 'user-question'
-                                          ? 'humanInbox.question.handle'
-                                          : item.kind === 'workspace-grant-request'
-                                            ? 'humanInbox.grant.handle'
-                                            : item.kind === 'assignment-waiting-human' ||
-                                                item.kind === 'assignment-blocked'
-                                              ? 'humanInbox.assignment.handle'
-                                              : 'humanInbox.reply',
+                                        : item.kind === 'takeover-request'
+                                          ? 'humanInbox.takeover.handle'
+                                          : item.kind === 'user-question'
+                                            ? 'humanInbox.question.handle'
+                                            : item.kind === 'workspace-grant-request'
+                                              ? 'humanInbox.grant.handle'
+                                              : item.kind === 'assignment-waiting-human' ||
+                                                  item.kind === 'assignment-blocked'
+                                                ? 'humanInbox.assignment.handle'
+                                                : 'humanInbox.reply',
                               )}
                             </Button>
                           )

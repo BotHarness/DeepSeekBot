@@ -153,10 +153,48 @@ describe('navigation Activity count', () => {
     ).rejects.toThrow('HOST_VERSION');
   });
 
+  it('counts again only when the inbox publishes a new ready snapshot', async () => {
+    const prefs = preferences();
+    await prefs.ready;
+    let changed = () => {};
+    let current: typeof ready | { status: 'loading' } = ready;
+    const client = { call: vi.fn(async () => page([item('a')])) };
+    const observer = observeActivityCount(
+      client,
+      {
+        getSnapshot: () => current as typeof ready,
+        subscribe(listener) {
+          changed = listener;
+          return () => {};
+        },
+      },
+      prefs,
+    );
+    const off = observer.subscribe(() => {});
+    await vi.waitFor(() => expect(observer.getSnapshot().count).toBe(1));
+    const reads = client.call.mock.calls.length;
+    changed();
+    current = { status: 'loading' };
+    changed();
+    current = { ...ready, loadingMore: ['replies'] };
+    changed();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(client.call).toHaveBeenCalledTimes(reads);
+    current = { ...ready, sections: { ...ready.sections } };
+    changed();
+    await vi.waitFor(() => expect(client.call.mock.calls.length).toBeGreaterThan(reads));
+    off();
+  });
+
   it('keeps cached data on refresh failure, replaces stale selection and stops with its subscriber', async () => {
     const prefs = preferences();
     await prefs.ready;
     let changed = () => {};
+    let current = ready;
+    const publish = () => {
+      current = { ...ready, sections: { ...ready.sections } };
+      changed();
+    };
     let fail = false;
     const stop = vi.fn();
     const client = {
@@ -169,7 +207,7 @@ describe('navigation Activity count', () => {
     const observer = observeActivityCount(
       client,
       {
-        getSnapshot: () => ready,
+        getSnapshot: () => current,
         subscribe(listener) {
           changed = listener;
           return stop;
@@ -180,14 +218,14 @@ describe('navigation Activity count', () => {
     const off = observer.subscribe(() => {});
     await vi.waitFor(() => expect(observer.getSnapshot().count).toBe(3));
     fail = true;
-    changed();
+    publish();
     await vi.waitFor(() => expect(observer.getSnapshot()).toEqual({ count: 3, stale: true }));
     prefs.setKinds(['questions']);
     await vi.waitFor(() =>
       expect(observer.getSnapshot()).toEqual({ count: undefined, stale: true }),
     );
     fail = false;
-    changed();
+    publish();
     await vi.waitFor(() => expect(observer.getSnapshot().count).toBe(2));
     prefs.setKinds([]);
     await vi.waitFor(() => expect(observer.getSnapshot().count).toBe(0));

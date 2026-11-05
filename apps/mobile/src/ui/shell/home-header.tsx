@@ -129,7 +129,8 @@ export function HomeHeader({
                 variant="title"
                 strong
                 accessibilityRole="header"
-                numberOfLines={Platform.OS === 'android' ? 1 : undefined}
+                numberOfLines={1}
+                ellipsizeMode="tail"
                 style={{ flexShrink: 1 }}
               >
                 {environment.title}

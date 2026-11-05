@@ -207,6 +207,32 @@ describe('Push delivery', () => {
     expect(JSON.stringify(f.events)).not.toMatch(/ExponentPushToken/u);
   });
 
+  it('records how long after its item was created each push reached Expo', async () => {
+    const f = fixture();
+    const phone = f.device('Phone');
+    f.push.register(phone.device.id, { token: TOKEN_A, platform: 'ios' });
+    f.advance(1000);
+    f.setInbox([approval('approval:1', f.at(0))]);
+    f.advance(2500);
+    await f.push.reconcile();
+    expect(f.events).toContainEqual({
+      phase: 'sent',
+      deviceId: phone.device.id,
+      kind: 'approval',
+      outcome: 'ok',
+      ageMs: 2500,
+    });
+
+    f.setInbox([], 0);
+    await f.push.reconcile();
+    expect(f.events.at(-1)).toEqual({
+      phase: 'sent',
+      deviceId: phone.device.id,
+      kind: 'badge',
+      outcome: 'ok',
+    });
+  });
+
   it('titles a notification with its Channel and puts the request and its content below', async () => {
     const f = fixture();
     const phone = f.device('Phone');

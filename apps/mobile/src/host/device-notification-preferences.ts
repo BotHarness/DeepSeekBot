@@ -30,6 +30,14 @@ export function createDeviceNotificationPreferences(options: {
   let foreground = false;
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
   let retryDelay = 1000;
+  const accepted = new Map<string, string>();
+  const pairing = (host: SavedHost) => JSON.stringify([host.hostId, host.credential]);
+  const send = async (host: SavedHost, preferences: PushPreferences) => {
+    const value = JSON.stringify(preferences);
+    accepted.delete(pairing(host));
+    await options.push.setPreferences(host, preferences);
+    accepted.set(pairing(host), value);
+  };
   const clearRetry = () => {
     clearTimeout(retryTimer);
     retryTimer = undefined;
@@ -87,8 +95,9 @@ export function createDeviceNotificationPreferences(options: {
       const results = await Promise.all(
         hosts.map(async (host) => {
           if (preferences === undefined) return host.hostId;
+          if (accepted.get(pairing(host)) === JSON.stringify(preferences)) return undefined;
           try {
-            await options.push.setPreferences(host, preferences);
+            await send(host, preferences);
             return undefined;
           } catch {
             return host.hostId;
@@ -112,7 +121,11 @@ export function createDeviceNotificationPreferences(options: {
     },
     sync(next: readonly SavedHost[]) {
       hosts = next;
-      return enqueue(sync);
+      return enqueue(async () => {
+        const current = new Set(hosts.map(pairing));
+        for (const key of accepted.keys()) if (!current.has(key)) accepted.delete(key);
+        await sync();
+      });
     },
     retry() {
       return enqueue(sync);
@@ -131,7 +144,7 @@ export function createDeviceNotificationPreferences(options: {
           )
         )
           throw new Error('notification-preferences-unavailable');
-        await options.push.setPreferences(host, preferences);
+        await send(host, preferences);
       });
     },
     set(patch: Partial<PushPreferences>) {

@@ -18,12 +18,16 @@ import { deriveAvatarAppearance } from './avatar-snapshot.js';
 import {
   isPersonaBotAvatar,
   isPersonaBotRecord,
+  isPersonaBotAsr,
+  isPersonaBotVoice,
   isUsableAvatarAppearance,
   type CreatePersonaBotInput,
   type CreatePersonaBotResult,
   type MarketplaceListingRef,
   type PersonaBotPatch,
   type PersonaBotRecord,
+  type PersonaBotAsr,
+  type PersonaBotVoice,
   type RemovePersonaBotOptions,
   type UpdatePersonaBotResult,
 } from './persona-bot.js';
@@ -129,6 +133,8 @@ export interface PersonaBotRegistry {
   setBrowserAccess(slug: string, enabled: boolean): UpdatePersonaBotResult;
   setBrowserProfile(slug: string, profile: string): UpdatePersonaBotResult;
   setApprovalTemplate(slug: string, template: string | undefined): UpdatePersonaBotResult;
+  setVoice(slug: string, voice: PersonaBotVoice | undefined): UpdatePersonaBotResult;
+  setAsr(slug: string, asr: PersonaBotAsr | undefined): UpdatePersonaBotResult;
   setMarketplaceListing(slug: string, listing: MarketplaceListingRef): UpdatePersonaBotResult;
   setPromptSettings(
     slug: string,
@@ -238,6 +244,8 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       if (record[key] !== undefined) Object.assign(result, { [key]: record[key] });
     }
     if (record.primaryColor !== undefined) result.primaryColor = { ...record.primaryColor };
+    if (record.voice !== undefined) result.voice = { ...record.voice };
+    if (record.asr !== undefined) result.asr = { ...record.asr };
     if (record.promptOverrides !== undefined) {
       const overrides = parsePromptPartOverrides(record.promptOverrides);
       if (overrides !== undefined && Object.keys(overrides).length > 0)
@@ -857,6 +865,33 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       if (record === undefined) return { ok: false, reason: 'not-found' };
       if (template === undefined) delete record.approvalTemplate;
       else record.approvalTemplate = template;
+      write(record);
+      return { ok: true, record };
+    },
+    setVoice(slug, voice) {
+      const record = active(slug);
+      if (record === undefined) return { ok: false, reason: 'not-found' };
+      if (voice !== undefined && !isPersonaBotVoice(voice))
+        return { ok: false, reason: 'invalid-input' };
+      if (voice === undefined) delete record.voice;
+      else
+        record.voice = {
+          providerId: voice.providerId,
+          ...(voice.voiceId === undefined ? {} : { voiceId: voice.voiceId.trim() }),
+        };
+      write(record);
+      return { ok: true, record };
+    },
+    setAsr(slug, asr) {
+      const record = active(slug);
+      if (record === undefined) return { ok: false, reason: 'not-found' };
+      if (asr !== undefined && !isPersonaBotAsr(asr)) return { ok: false, reason: 'invalid-input' };
+      if (asr === undefined) delete record.asr;
+      else
+        record.asr = {
+          providerId: asr.providerId,
+          ...(asr.language === undefined ? {} : { language: asr.language }),
+        };
       write(record);
       return { ok: true, record };
     },

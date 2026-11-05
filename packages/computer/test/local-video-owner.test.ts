@@ -164,6 +164,23 @@ function harness(
 }
 
 describe('Local Computer owner authority', () => {
+  it('advances the control epoch on takeover and hand-back so the Bot Browser re-observes (#3378)', async () => {
+    const h = harness({});
+    const binding = await h.connect();
+    const before = h.owner.controlEpoch();
+    const { grant } = await h.take(binding);
+    const held = h.owner.controlEpoch();
+    expect(held).toBeGreaterThan(before);
+    await h.owner.handle(caller, {
+      kind: 'resume',
+      runtimeId: binding.runtimeId,
+      binding,
+      generation: grant!.generation,
+    });
+    expect(h.owner.isPaused()).toBe(false);
+    expect(h.owner.controlEpoch()).toBeGreaterThan(held);
+  });
+
   it('preserves Retina video pixels for the Mac driver after validating logical geometry', async () => {
     const h = harness({ points: true });
     h.geometry.width = 960;
