@@ -774,6 +774,13 @@ const en = {
     imageCacheConfirm: 'Clear',
     imageCacheFailed: 'Could not clear the image cache. Try again.',
     phoneSaved: 'Saved from this computer',
+    phoneChats: 'Chat history',
+    chatsAction: 'Clear chat history on this phone…',
+    chatsConfirmTitle: 'Clear chat history?',
+    chatsConfirmBody:
+      'Messages saved on this phone from this computer are deleted. They load again from the computer when you open a chat. Nothing is deleted on the computer.',
+    chatsConfirm: 'Clear',
+    chatsDone: 'Chat history cleared.',
     phoneAuto: 'Delete media not opened for 30 days',
     phoneAutoHint:
       'Images and files saved on this phone download again from the computer when you open them. Nothing is deleted on the computer.',
@@ -3001,6 +3008,13 @@ const zh: typeof en = {
     imageCacheConfirm: '清除',
     imageCacheFailed: '没能清除图片缓存，再试一次。',
     phoneSaved: '从这台电脑保存的内容',
+    phoneChats: '聊天记录',
+    chatsAction: '清除这台手机上的聊天记录…',
+    chatsConfirmTitle: '清除聊天记录？',
+    chatsConfirmBody:
+      '会删除这台手机上从这台电脑保存的聊天消息，再次打开聊天时会从电脑重新加载。电脑上的内容不受影响。',
+    chatsConfirm: '清除',
+    chatsDone: '聊天记录已清除。',
     phoneAuto: '自动删除 30 天未打开的媒体',
     phoneAutoHint:
       '保存在这台手机上的图片和文件，再次打开时会从电脑重新下载。电脑上的内容不会被删除。',
