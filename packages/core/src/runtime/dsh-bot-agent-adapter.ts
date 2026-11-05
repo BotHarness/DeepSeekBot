@@ -2860,7 +2860,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       defineTool({
         name: 'call_frame',
         description:
-          "Zoom into one cell of a call grid: returns that keyframe at its original resolution when the grid's small tiles are hard to read. Pass message_id of the Human call message that carries the grid and cell, the tile number printed on it (a single-frame view is cell 1). Originals live only in Host memory for the most recent 64 keyframes of a running call; after the call ends or newer keyframes replace them the result says released, so answer from the grid itself.",
+          "Zoom into one cell of a call grid: returns that keyframe at its original resolution when the grid's small tiles are hard to read. Pass message_id of the Human call message or frame record that carries the grid and cell, the tile number printed on it (a single-frame view is cell 1). Originals live only in Host memory for the most recent 64 keyframes of a running call; after the call ends or newer keyframes replace them the result says released, so answer from the grid itself.",
         parameters: {
           channel_id: {
             type: 'string',
@@ -2874,7 +2874,8 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           cell: {
             type: 'integer',
             required: true,
-            description: 'Tile number printed on the grid, from 1.',
+            description:
+              'Tile number printed on the grid, from 1; 0 returns the whole grid of a message whose frames were not saved.',
           },
         },
         output: {

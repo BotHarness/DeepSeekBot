@@ -24,7 +24,20 @@ export type ChannelVoiceCallRecord =
       reason: ChannelVoiceCallEndReason;
       heard: number;
       startMessageId?: string;
+    }
+  | {
+      callId: string;
+      botSlug: string;
+      state: 'frames';
+      startedAt: string;
+      source: 'camera' | 'screen';
+      frames: number;
+      layout: '1x1' | '2x2' | '3x3' | '4x4';
+      fromMs: number;
+      toMs: number;
     };
+
+export type ChannelVoiceCallLifecycle = Exclude<ChannelVoiceCallRecord, { state: 'frames' }>;
 
 const CALL_ID = /^call-[a-f0-9]{16}$/u;
 const SLUG = /^[a-z0-9][a-z0-9-]{0,63}$/u;
@@ -55,6 +68,18 @@ export function isChannelVoiceCallRecord(value: unknown): value is ChannelVoiceC
   )
     return false;
   if (record['state'] === 'started') return Object.keys(record).length === 4;
+  if (record['state'] === 'frames')
+    return (
+      Object.keys(record).length === 9 &&
+      (record['source'] === 'camera' || record['source'] === 'screen') &&
+      count(record['frames']) &&
+      (record['frames'] as number) >= 1 &&
+      (record['frames'] as number) <= 16 &&
+      ['1x1', '2x2', '3x3', '4x4'].includes(record['layout'] as string) &&
+      count(record['fromMs']) &&
+      count(record['toMs']) &&
+      (record['toMs'] as number) >= (record['fromMs'] as number)
+    );
   if (record['state'] !== 'ended') return false;
   return (
     time(record['endedAt']) &&
@@ -80,6 +105,8 @@ export function voiceCallDuration(ms: number): string {
 }
 
 export function voiceCallRecordBody(record: ChannelVoiceCallRecord): string {
+  if (record.state === 'frames')
+    return `${record.source === 'camera' ? 'Camera' : 'Screen'} record of call ${record.callId} from ${voiceCallDuration(record.fromMs)} to ${voiceCallDuration(record.toMs)} while the Human was silent: ${record.frames === 1 ? 'one keyframe' : `a ${record.layout} grid of ${record.frames} keyframes`}, oldest first.`;
   return record.state === 'started'
     ? `Voice call ${record.callId} started at ${record.startedAt}.`
     : `Voice call ${record.callId} ended at ${record.endedAt} after ${voiceCallDuration(record.durationMs)} (${record.reason}). Messages from ${record.startedAt} to ${record.endedAt} in this DM are from that call.`;

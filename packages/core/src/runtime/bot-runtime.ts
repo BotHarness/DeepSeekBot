@@ -7401,7 +7401,10 @@ class BotRuntimeImplementation implements BotRuntime {
               const message = this.#channels.message(channel.id, input.messageId);
               if (message === undefined)
                 throw new Error(`Channel message not found: ${input.messageId}`);
-              if (message.voiceCall?.visual === undefined || 'sameAs' in message.voiceCall.visual)
+              if (
+                message.voiceCallRecord?.state !== 'frames' &&
+                (message.voiceCall?.visual === undefined || 'sameAs' in message.voiceCall.visual)
+              )
                 throw new Error(
                   `Message ${input.messageId} carries no call grid; use the message the grid is attached to.`,
                 );
@@ -10247,11 +10250,17 @@ export function callVisualNote(
 ): string | undefined {
   const visual = message.voiceCall?.visual;
   if (visual === undefined) return undefined;
+  const records =
+    visual.records === undefined
+      ? ''
+      : ` Before this message, while the Human was silent, the call saved ${visual.records.length === 1 ? 'one frame record' : `${visual.records.length} frame records`} in this DM (message ${visual.records.join(', ')}), oldest first; each carries a grid image you can open with channel_read_image to follow what happened.`;
   if ('sameAs' in visual)
-    return `[Call ${visual.source} view] Nothing changed in the Human's ${visual.source} since message ${visual.sameAs}; that message's image is still what they see.`;
-  const image = message.attachments?.find((ref) => ref.mime === 'image/jpeg');
-  if (image === undefined) return undefined;
+    return `[Call ${visual.source} view] Nothing changed in the Human's ${visual.source} since message ${visual.sameAs}; that message's image is still what they see.${records}`;
   const what =
     visual.frames === 1 ? 'one keyframe' : `a ${visual.layout} grid of ${visual.frames} keyframes`;
-  return `[Call ${visual.source} view] This message carries ${what} from the Human's ${visual.source}: channel_read_image with channel_id ${channelId}, message_id ${message.id} and attachment_id ${attachmentIdentity(image)}. ${hint}`;
+  if (visual.unsaved === true)
+    return `[Call ${visual.source} view] The Human turned off saving call frames, so this message carries no image. To see ${what} from their ${visual.source} for this message, call call_frame with channel_id ${channelId}, message_id ${message.id} and cell 0; it is kept only during the call.${records} ${hint}`;
+  const image = message.attachments?.find((ref) => ref.mime === 'image/jpeg');
+  if (image === undefined) return undefined;
+  return `[Call ${visual.source} view] This message carries ${what} from the Human's ${visual.source}: channel_read_image with channel_id ${channelId}, message_id ${message.id} and attachment_id ${attachmentIdentity(image)}.${records} ${hint}`;
 }

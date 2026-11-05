@@ -3094,18 +3094,30 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     async send({ channelId, messageId, body, callId, visual }) {
       let attachments: ChannelAttachmentRef[] | undefined;
       let meta: ChannelCallVisual | undefined;
+      const records =
+        visual?.records === undefined || visual.records.length === 0
+          ? {}
+          : { records: [...visual.records] };
       if (visual !== undefined && 'image' in visual) {
         const image = visual.image.jpeg;
-        attachments = [
-          await core.attachments.upload({
-            data: (async function* () {
-              yield image;
-            })(),
-            name: `call-${visual.source}-${messageId.slice(-12)}.jpg`,
-          }),
-        ];
-        meta = { source: visual.source, frames: visual.frames, layout: visual.image.layout };
-      } else if (visual !== undefined) meta = { source: visual.source, sameAs: visual.sameAs };
+        if (visual.saved)
+          attachments = [
+            await core.attachments.upload({
+              data: (async function* () {
+                yield image;
+              })(),
+              name: `call-${visual.source}-${messageId.slice(-12)}.jpg`,
+            }),
+          ];
+        meta = {
+          source: visual.source,
+          frames: visual.frames,
+          layout: visual.image.layout,
+          ...(visual.saved ? {} : { unsaved: true as const }),
+          ...records,
+        };
+      } else if (visual !== undefined)
+        meta = { source: visual.source, sameAs: visual.sameAs, ...records };
       const result = await bridgeMethods.channelSend({
         channelId,
         messageId,
@@ -3115,6 +3127,45 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       });
       if (!result.ok)
         throw Object.assign(new Error(result.error.message), { code: result.error.code });
+    },
+    async recordFrames({
+      slug,
+      channelId,
+      callId,
+      startedAt,
+      source,
+      image,
+      frames,
+      fromMs,
+      toMs,
+    }) {
+      if (core.channels.get(channelId) === undefined) return undefined;
+      const record = {
+        callId,
+        botSlug: slug,
+        state: 'frames' as const,
+        startedAt,
+        source,
+        frames,
+        layout: image.layout,
+        fromMs,
+        toMs,
+      };
+      const attachment = await core.attachments.upload({
+        data: (async function* () {
+          yield image.jpeg;
+        })(),
+        name: `call-${source}-record-${Math.round(toMs / 1000)}s.jpg`,
+      });
+      const appended = await core.channels.appendMessage(channelId, {
+        id: `voice-call-frames-${callId}-${toMs}`,
+        at: new Date().toISOString(),
+        author: { kind: 'system' },
+        body: voiceCallRecordBody(record),
+        attachments: [attachment],
+        voiceCallRecord: record,
+      });
+      return appended?.id;
     },
     async record({ slug, channelId, record }) {
       const bot = core.registry.get(slug);

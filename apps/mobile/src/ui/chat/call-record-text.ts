@@ -6,7 +6,13 @@ import { locale, t as defaultStrings } from '../strings';
 
 export type CallCopy = Pick<
   typeof defaultStrings.call,
-  'recordStarted' | 'recordEnded' | 'recordStartedAt' | 'recordLength'
+  | 'recordStarted'
+  | 'recordEnded'
+  | 'recordStartedAt'
+  | 'recordLength'
+  | 'recordCamera'
+  | 'recordScreen'
+  | 'recordFrames'
 >;
 
 function timeLocale(): string {
@@ -29,6 +35,15 @@ export function callRecordLines(
   record: ChannelVoiceCallRecord,
   copy: CallCopy = defaultStrings.call,
 ): { title: string; detail: string } {
+  if (record.state === 'frames')
+    return {
+      title: record.source === 'camera' ? copy.recordCamera : copy.recordScreen,
+      detail: copy.recordFrames(
+        voiceCallDuration(record.fromMs),
+        voiceCallDuration(record.toMs),
+        record.frames,
+      ),
+    };
   return record.state === 'started'
     ? { title: copy.recordStarted, detail: copy.recordStartedAt(clock(record.startedAt)) }
     : { title: copy.recordEnded, detail: copy.recordLength(voiceCallDuration(record.durationMs)) };

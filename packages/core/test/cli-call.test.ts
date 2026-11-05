@@ -129,7 +129,7 @@ describe('deepseekbot call commands', () => {
     });
     for (const [rest, values] of [
       [[gridMessage], {}],
-      [[gridMessage, '0'], {}],
+      [[gridMessage, '-1'], {}],
       [[gridMessage, '17'], {}],
       [[gridMessage, '1'], { out: 'relative.jpg' }],
     ] as const)
@@ -137,6 +137,22 @@ describe('deepseekbot call commands', () => {
     await expect(
       run('call-simulate', ['ada'], { file, video: frames, screen: frames }),
     ).rejects.toMatchObject({ code: 'usage' });
+    const unsaved = (await run('call-simulate', ['ada'], {
+      file,
+      screen: frames,
+      'no-save': true,
+      'reply-wait': '20',
+    })) as { visual: Record<string, unknown> };
+    expect(posts.at(-1)).toBeDefined();
+    expect(posts.find((post) => post['kind'] === 'visual' && post['save'] === false)).toMatchObject(
+      {
+        source: 'screen',
+      },
+    );
+    expect(unsaved.visual).toMatchObject({ saved: false, records: [], grids: [{ frames: 3 }] });
+    await expect(run('call-simulate', ['ada'], { file, 'no-save': true })).rejects.toMatchObject({
+      code: 'usage',
+    });
     await expect(run('call-simulate', ['ada'], { file, screen: 'relative' })).rejects.toMatchObject(
       { code: 'usage' },
     );

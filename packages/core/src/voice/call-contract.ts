@@ -116,7 +116,13 @@ export type VoiceCallEvent =
   | { seq: number; at: number; type: 'idle' }
   | { seq: number; at: number; type: 'muted' }
   | { seq: number; at: number; type: 'unmuted' }
-  | { seq: number; at: number; type: 'visual'; source: CallVisualSource | 'off' }
+  | {
+      seq: number;
+      at: number;
+      type: 'visual';
+      source: CallVisualSource | 'off';
+      unsaved?: true;
+    }
   | {
       seq: number;
       at: number;
@@ -153,6 +159,19 @@ export type VoiceCallEvent =
   | { seq: number; at: number; type: 'grid-unchanged'; messageId: string; sameAs: string }
   | { seq: number; at: number; type: 'grid-failed'; message: string }
   | { seq: number; at: number; type: 'frame-zoomed'; messageId: string; cell: number; ms: number }
+  | {
+      seq: number;
+      at: number;
+      type: 'frame-record';
+      messageId: string;
+      source: CallVisualSource;
+      frames: number;
+      layout: CallGridLayout;
+      bytes: number;
+      composeMs: number;
+      fromMs: number;
+      toMs: number;
+    }
   | { seq: number; at: number; type: 'ended'; reason: VoiceCallEndReason };
 
 export interface VoiceCallDescription {
@@ -218,6 +237,7 @@ export type VoiceCallCommand =
       readonly kind: 'visual';
       readonly callId: string;
       readonly source: CallVisualSource | 'off';
+      readonly save?: boolean;
     }
   | {
       readonly kind: 'frame';
