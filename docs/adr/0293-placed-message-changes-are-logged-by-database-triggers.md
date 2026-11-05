@@ -1,4 +1,4 @@
-# ADR-0287: Changes to placed messages are logged by database triggers
+# ADR-0293: Changes to placed messages are logged by database triggers
 
 - Status: Accepted
 - Date: 2026-11-05
