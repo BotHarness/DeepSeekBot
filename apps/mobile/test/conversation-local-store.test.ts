@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { createCatchUp } from '../src/host/catch-up';
 import { createHostClient, type HostClient } from '../src/host/client';
 import {
   createConversation,
@@ -503,7 +504,7 @@ describe('older history in the local store', () => {
     expect(bodies(top)).toMatchObject({ m3: '', m5: 'edited while away', m120: 'body 120' });
   });
 
-  it('fills a gap in the middle from the Host once and keeps it', async () => {
+  it('stores messages that arrived while closed from the change pull, with no refetch', async () => {
     const host = new FakeHost();
     const path = file();
     const channel = fill(host, 1, 60);
@@ -518,7 +519,7 @@ describe('older history in the local store', () => {
     expect(top.messages.map((message) => message.id)).toEqual(
       Array.from({ length: 400 }, (_, index) => `m${index + 1}`),
     );
-    expect(channel.bodiesSent).toBe(330);
+    expect(channel.bodiesSent).toBe(0);
     await settle(second.cache);
     const spans = await second.store.all('select from_revision, to_revision from gaps');
     expect(spans).toEqual([{ from_revision: 1, to_revision: 400 }]);
@@ -680,5 +681,66 @@ describe('reading synced conversations offline', () => {
     expect(offline.conversation.getSnapshot().messages.length).toBeGreaterThan(
       missed.messages.length,
     );
+  });
+});
+
+describe('background catch-up', () => {
+  function caller(host: FakeHost) {
+    const background = createHostClient({
+      routes: [ROUTE],
+      credential: host.credential,
+      carrier: host.carrier,
+      backoff: () => 5,
+      timeoutMs: 200,
+    });
+    background.start();
+    return background;
+  }
+
+  it('stores changes for closed conversations so the next open fetches no bodies', async () => {
+    const host = new FakeHost();
+    const path = file();
+    const channel = fill(host, 1, 40);
+    const first = await session(host, path);
+    await until(first.conversation, (s) => s.status === 'live' && !s.fromCache);
+    await settle(first.cache);
+    first.conversation.stop();
+    fill(host, 41, 70);
+    channel.edit('m35', { body: 'edited while closed' });
+    channel.purge('m33');
+    const background = caller(host);
+    const catchUp = createCatchUp({ store: async () => first.store });
+    await catchUp.sync({
+      hostId: host.hostId,
+      call: (method, args) => background.call(method, args),
+      liveKeys: () => [],
+    });
+    background.stop();
+    const second = await session(host, path);
+    channel.bodiesSent = 0;
+    const live = await until(
+      second.conversation,
+      (s) => s.status === 'live' && !s.fromCache && s.messages.some((m) => m.id === 'm70'),
+    );
+    expect(channel.bodiesSent).toBe(0);
+    expect(bodies(live)).toMatchObject({ m33: '', m35: 'edited while closed', m70: 'body 70' });
+  });
+
+  it('leaves conversations that are open to their own change pull', async () => {
+    const host = new FakeHost();
+    const path = file();
+    fill(host, 1, 20);
+    const first = await session(host, path);
+    await until(first.conversation, (s) => s.status === 'live' && !s.fromCache);
+    await settle(first.cache);
+    const before = host.calls.filter((call) => call.method === 'channelChanges').length;
+    const background = caller(host);
+    await createCatchUp({ store: async () => first.store }).sync({
+      hostId: host.hostId,
+      call: (method, args) => background.call(method, args),
+      liveKeys: () => [keyFor(host)],
+    });
+    background.stop();
+    expect(host.calls.filter((call) => call.method === 'channelChanges').length).toBe(before);
   });
 });

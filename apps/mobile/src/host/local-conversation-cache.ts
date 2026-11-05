@@ -145,6 +145,50 @@ async function storeOlder(
   if (from !== undefined) await cover(tx, channelId, from, before - 1);
 }
 
+export async function applyStoredChanges(
+  tx: SqlWriter,
+  channelId: string,
+  changes: CachedChanges,
+): Promise<void> {
+  const top = (
+    await tx.get<{ top: number | null }>(
+      'select max(revision) as top from messages where channel_id = ?',
+      [channelId],
+    )
+  )?.top;
+  const known =
+    top !== null &&
+    top !== undefined &&
+    (await tx.get(
+      'select 1 from gaps where channel_id = ? and from_revision <= ? and to_revision >= ?',
+      [channelId, top, top],
+    )) !== undefined;
+  let newest = top ?? 0;
+  for (const entry of changes.upserts) {
+    if (known && entry.revision > top) {
+      if (entry.channelId !== channelId) continue;
+      await upsert(tx, entry);
+      newest = Math.max(newest, entry.revision);
+      continue;
+    }
+    await tx.run(
+      'update messages set revision = ?, entry = ?, purged = ? where channel_id = ? and id = ?',
+      [
+        entry.revision,
+        JSON.stringify(entry),
+        entry.message.contentPurge === undefined ? 0 : 1,
+        channelId,
+        entry.message.id,
+      ],
+    );
+  }
+  for (const id of changes.tombstones) await tx.run(REDACT, [channelId, id]);
+  for (const id of changes.removed)
+    await tx.run('delete from messages where channel_id = ? and id = ?', [channelId, id]);
+  if (known && newest > top) await cover(tx, channelId, top + 1, newest);
+  await saveCursor(tx, channelId, changes.cursor);
+}
+
 export function createLocalConversationCache(options: {
   store(hostId: string): Promise<LocalStore>;
   legacy?: LegacyConversationCache;
@@ -223,25 +267,7 @@ export function createLocalConversationCache(options: {
     applyChanges(key, channelId, changes: CachedChanges) {
       const opening = withStore(key);
       if (opening === undefined) return;
-      later(async () =>
-        (await opening).write(async (tx) => {
-          for (const entry of changes.upserts)
-            await tx.run(
-              'update messages set revision = ?, entry = ?, purged = ? where channel_id = ? and id = ?',
-              [
-                entry.revision,
-                JSON.stringify(entry),
-                entry.message.contentPurge === undefined ? 0 : 1,
-                channelId,
-                entry.message.id,
-              ],
-            );
-          for (const id of changes.tombstones) await tx.run(REDACT, [channelId, id]);
-          for (const id of changes.removed)
-            await tx.run('delete from messages where channel_id = ? and id = ?', [channelId, id]);
-          await saveCursor(tx, channelId, changes.cursor);
-        }),
-      );
+      later(async () => (await opening).write((tx) => applyStoredChanges(tx, channelId, changes)));
     },
     async readOlder(key, before, limit) {
       const opening = withStore(key);
