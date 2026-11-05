@@ -337,10 +337,12 @@ const HomeContent = memo(function HomeContent({
   );
   const searchScope = searchHosts.map((host) => `${host.hostId}:${host.offline ? 0 : 1}`).join('|');
   const scheduleMessageSearch = messageSearch.schedule;
+  const cancelMessageSearch = messageSearch.cancel;
   useFocusEffect(
     useCallback(() => {
       scheduleMessageSearch(query, searchHosts);
-    }, [scheduleMessageSearch, query, searchScope]),
+      return cancelMessageSearch;
+    }, [scheduleMessageSearch, cancelMessageSearch, query, searchScope]),
   );
   const onQuery = (value: string) => setQuery(value);
   const conversationIndex = useMemo(() => {
