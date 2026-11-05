@@ -7,6 +7,7 @@ import { frosted, pressTint, useDesignTheme, type DesignTheme } from '../design/
 import { edge, glassPress, radius, space } from '../design/tokens';
 import { DrawerMaterial, EdgeMaterial, useLiquidGlass } from '../primitives/drawer-material';
 import { BackIcon } from '../shell/back-icon';
+import { HeaderIconGlyph, type HeaderIcon } from '../shell/header-icon-button';
 import { glassHeader, headerIslands } from './header-kind';
 import { useStrings } from '../strings';
 import { edgeFadeStops } from './edge-fade';
@@ -64,6 +65,51 @@ export function HeaderCircleButton({
       {glass && !plain ? <DrawerMaterial /> : null}
       {children}
     </Pressable>
+  );
+}
+
+export type HeaderAction = {
+  icon: HeaderIcon;
+  label: string;
+  testID: string;
+  onPress(): void;
+};
+
+export function HeaderActionGroup({ actions }: { actions: readonly HeaderAction[] }) {
+  const theme = useDesignTheme();
+  const glass = useLiquidGlass();
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        height: theme.touch,
+        borderRadius: radius.round,
+        overflow: 'hidden',
+        ...headerGlassFill(theme, glass, false),
+      }}
+    >
+      {glass ? <DrawerMaterial /> : null}
+      {actions.map((action) => (
+        <Pressable
+          key={action.testID}
+          testID={action.testID}
+          accessibilityRole="button"
+          accessibilityLabel={action.label}
+          onPress={action.onPress}
+          style={({ pressed }) => ({
+            width: theme.touch,
+            height: theme.touch,
+            borderRadius: radius.round,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: pressed ? theme.layer.raised.pressed : undefined,
+          })}
+        >
+          <HeaderIconGlyph icon={action.icon} />
+        </Pressable>
+      ))}
+    </View>
   );
 }
 

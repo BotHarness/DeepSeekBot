@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { CallClientState } from '../../../packages/core/src/voice/call-client';
-import type { VoiceCallView } from '../../../packages/core/src/voice/call-contract';
+import type {
+  VoiceCallReadiness,
+  VoiceCallView,
+} from '../../../packages/core/src/voice/call-contract';
 import {
+  callConfigured,
   callScreenModel,
   formatCallDuration,
   microphoneRecovery,
@@ -178,5 +182,33 @@ describe('call links', () => {
     expect(callLinkRedirect('/call/mira', false)).toBe('/dm/mira');
     expect(callLinkRedirect('deepseekbot-dev://call/mira?script=x', true)).toBeUndefined();
     expect(callLinkRedirect('/dm/mira', false)).toBeUndefined();
+  });
+});
+
+describe('callConfigured', () => {
+  const readiness = (missing: VoiceCallReadiness['missing']): VoiceCallReadiness => ({
+    slug: 'mira',
+    ready: missing.length === 0,
+    missing,
+    asrProviderId: missing.includes('asr') ? null : 'asr',
+    ttsProviderId: missing.includes('tts') ? null : 'tts',
+    media: 'ready',
+    activeCallId: null,
+    callElsewhere: false,
+  });
+  it('offers a call only when the Host has both ASR and TTS for the Bot', () => {
+    expect(callConfigured(readiness([]))).toBe(true);
+    expect(callConfigured(readiness(['asr']))).toBe(false);
+    expect(callConfigured(readiness(['tts']))).toBe(false);
+    expect(callConfigured(readiness(['bot']))).toBe(false);
+  });
+  it('keeps the button when only call media is missing, so the tap explains it', () => {
+    expect(callConfigured(readiness(['media-helper-missing']))).toBe(true);
+  });
+  it('hides the button when the Host refuses the readiness check', () => {
+    expect(callConfigured({ code: 'not-found', error: 'no' })).toBe(false);
+  });
+  it('keeps the button on a Connect route so the tap explains the transport', () => {
+    expect(callConfigured({ code: 'connect-carrier-required', error: 'connect' })).toBe(true);
   });
 });

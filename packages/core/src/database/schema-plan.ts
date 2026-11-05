@@ -2811,6 +2811,59 @@ const ATTENTION_RESOLUTION_INDEX_MIGRATION: SchemaMigration = {
   },
 };
 
+const CAUSAL_PURGE_TOMBSTONE_MIGRATION: SchemaMigration = {
+  generation: 127,
+  module: 'messaging-purge',
+  description: 'Allow a Source Event canonical tombstone when its causal ancestors are purged',
+  migrate(database) {
+    database.exec(`
+      DROP TRIGGER messaging_purge_source_update;
+      CREATE TRIGGER messaging_purge_source_update BEFORE UPDATE ON source_events
+        WHEN EXISTS (SELECT 1 FROM messaging_purge_facts f WHERE
+          ((f.source_event_id IN (OLD.source_event_id, NEW.source_event_id)
+            OR (f.channel_id = NEW.channel_id AND f.message_id = NEW.message_id))
+           AND (NEW.source_event_id != f.source_event_id OR NEW.channel_id IS NOT f.channel_id
+             OR NEW.message_id IS NOT f.message_id OR NEW.body != '' OR NEW.payload_json IS NOT f.tombstone_json))
+          OR (f.source_event_id IN (json_extract(NEW.payload_json, '$.botCausation.rootSourceEventId'),
+            json_extract(NEW.payload_json, '$.botCausation.parentSourceEventId'))
+            AND NEW.payload_json IS NOT f.tombstone_json AND NEW.payload_json IS NOT OLD.payload_json
+            AND NOT EXISTS (SELECT 1 FROM messaging_purge_facts own
+              WHERE own.source_event_id = NEW.source_event_id
+                AND own.channel_id IS NEW.channel_id AND own.message_id IS NEW.message_id
+                AND NEW.body = '' AND own.tombstone_json IS NEW.payload_json)))
+        BEGIN SELECT RAISE(ABORT, 'content purged'); END;
+    `);
+  },
+};
+
+const VOICE_DEFAULTS_MIGRATION: SchemaMigration = {
+  generation: 128,
+  module: 'voice',
+  description: 'Store the Host-wide default TTS and ASR Provider every Bot falls back to',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE voice_defaults (
+        kind TEXT PRIMARY KEY CHECK (kind IN ('tts', 'asr')),
+        body TEXT NOT NULL CHECK (json_valid(body))
+      );
+    `);
+  },
+};
+
+const VOICE_SETTINGS_MIGRATION: SchemaMigration = {
+  generation: 129,
+  module: 'voice',
+  description: 'Store Host-wide voice tuning such as the speech detection threshold',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE voice_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL CHECK (json_valid(value))
+      );
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2937,4 +2990,7 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   PLACEMENT_HUMAN_REPLY_MIGRATION,
   BOUNDED_RANGE_INDEX_MIGRATION,
   ATTENTION_RESOLUTION_INDEX_MIGRATION,
+  CAUSAL_PURGE_TOMBSTONE_MIGRATION,
+  VOICE_DEFAULTS_MIGRATION,
+  VOICE_SETTINGS_MIGRATION,
 ]);
