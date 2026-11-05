@@ -40,6 +40,7 @@ export function CountBadge({
   count: number;
   tone: CountBadgeTone;
   label?: string;
+  maxFontSizeMultiplier?: number | undefined;
 }) {
   const theme = useDesignTheme();
   return (

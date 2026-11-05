@@ -71,7 +71,7 @@ export function ActivityRow({
               : activity.kind === 'voice-call'
                 ? PhoneIcon
                 : StopCircleIcon;
-  const size = theme.type.meta.line;
+  const size = theme.type.meta.line * theme.fontScale;
   const hit = Math.max(0, (theme.touch - size) / 2);
   const open = () => {
     ref.current?.measureInWindow((x, y, width, height) => {

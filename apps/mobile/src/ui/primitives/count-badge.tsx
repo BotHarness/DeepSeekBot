@@ -11,10 +11,12 @@ export function CountBadge({
   count,
   tone,
   label,
+  maxFontSizeMultiplier,
 }: {
   count: number;
   tone: CountBadgeTone;
   label?: string;
+  maxFontSizeMultiplier?: number | undefined;
 }) {
   const theme = useDesignTheme();
   const fill =
@@ -46,6 +48,7 @@ export function CountBadge({
       <Text
         variant="meta"
         strong
+        {...(maxFontSizeMultiplier === undefined ? {} : { maxFontSizeMultiplier })}
         style={{ color: ink, textAlign: 'center', fontVariant: ['tabular-nums'] }}
       >
         {badgeCount(count)}
