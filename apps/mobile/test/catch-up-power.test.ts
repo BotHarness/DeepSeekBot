@@ -76,6 +76,15 @@ describe('catch-up power gate', () => {
       constrained: async () => ++checks > 2,
     }).sync(host(calls));
     expect(calls).toHaveLength(1);
+    const cursors = await store.all<{ channel_id: string; seq: number }>(
+      'select channel_id, seq from cursors order by channel_id',
+    );
+    expect(cursors).toEqual(
+      ['c1', 'c2', 'c3'].map((channelId) => ({
+        channel_id: channelId,
+        seq: channelId === calls[0] ? 2 : 1,
+      })),
+    );
   });
 
   it('does not pull once another worker has seen the constraint', async () => {

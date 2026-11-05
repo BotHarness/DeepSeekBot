@@ -10,6 +10,10 @@ const forgotten = vi.hoisted(() => [] as string[]);
 const clearCache = vi.hoisted(() => vi.fn((hostId: string) => void clearedCaches.push(hostId)));
 const clearDrafts = vi.hoisted(() => vi.fn(async () => {}));
 const clientStops = vi.hoisted(() => vi.fn());
+const clientCalls = vi.hoisted(() => vi.fn(async () => ({})));
+const catchUpCalls = vi.hoisted(
+  () => [] as Array<(method: string, args: Record<string, unknown>) => Promise<unknown>>,
+);
 const syncPush = vi.hoisted(() => vi.fn(async (_hosts: unknown) => {}));
 const connection = vi.hoisted(() => ({
   snapshot: { connection: { status: 'connecting', route: '' } } as {
@@ -102,6 +106,7 @@ vi.mock('../src/host/client', () => ({
   createHostClient: () => ({
     start() {},
     stop: clientStops,
+    call: clientCalls,
     retryNow() {},
     subscribe: (listener: () => void) => {
       connection.listeners.add(listener);
@@ -240,6 +245,28 @@ it('finishes revocation when the old chat files fail to clear', async () => {
   for (const listener of [...connection.listeners]) expect(() => listener()).not.toThrow();
   expect(clearCache).toHaveBeenCalledWith('old');
   expect(forgetHost).toHaveBeenCalledWith('old');
+});
+
+it('stops background catch-up from calling a Computer after its session ends', async () => {
+  vi.doMock('../src/host/native-conversations', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('../src/host/native-conversations')>()),
+    catchUpHostConversations: (
+      _hostId: string,
+      call: (method: string, args: Record<string, unknown>) => Promise<unknown>,
+    ) => void catchUpCalls.push(call),
+  }));
+  const { hostSession } = await session('new');
+  catchUpCalls.length = 0;
+  clientCalls.mockClear();
+  connection.snapshot = { connection: { status: 'connected', route: '' } };
+  for (const listener of [...connection.listeners]) listener();
+  expect(catchUpCalls.length).toBeGreaterThan(0);
+  await hostSession.unpair('old');
+  await hostSession.unpair('new');
+  for (const call of catchUpCalls)
+    await expect(call('channelChanges', { channelId: 'g1' })).rejects.toThrow();
+  expect(clientCalls).not.toHaveBeenCalled();
+  vi.doUnmock('../src/host/native-conversations');
 });
 
 it('refreshes push credentials after approved replacement without changing the selected Computer', async () => {
