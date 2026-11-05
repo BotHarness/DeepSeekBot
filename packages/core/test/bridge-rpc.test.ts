@@ -943,6 +943,8 @@ describe('bridge typert service', () => {
       'schedulePreview',
       'channelJournalPage',
       'channelFilesPage',
+      'channelChanges',
+      'channelChangeCursor',
       'followRoster',
       'followActivity',
       'followChannel',
@@ -974,6 +976,12 @@ describe('bridge typert service', () => {
       'limit',
     ]);
     expect(parameterNames(service.channelFilesPage)).toEqual(['channelId', 'before', 'limit']);
+    expect(parameterNames(service.channelChanges)).toEqual([
+      'channelId',
+      'sinceSeq',
+      'epoch',
+      'limit',
+    ]);
     expect(parameterNames(service.followCompanion)).toEqual(['resume', 'lastEventId', 'signal']);
     expect(parameterNames(service.botToolRun)).toEqual([
       'slug',

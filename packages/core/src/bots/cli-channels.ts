@@ -19,6 +19,8 @@ export const CHANNEL_OPTIONS = {
   'older-limit': { type: 'string' },
   'newer-limit': { type: 'string' },
   through: { type: 'string' },
+  since: { type: 'string' },
+  epoch: { type: 'string' },
   'source-event': { type: 'string', multiple: true },
   confirm: { type: 'boolean' },
   emoji: { type: 'string' },
@@ -93,6 +95,10 @@ export const CHANNEL_COMMANDS = [
   {
     command: 'channel-files',
     description: "page a Channel's messages with files, newest first",
+  },
+  {
+    command: 'channel-changes',
+    description: 'list what changed in a Channel since a change cursor, or the current cursor',
   },
   {
     command: 'channel-timeline',
@@ -172,6 +178,8 @@ interface ChannelValues {
   'older-limit'?: string;
   'newer-limit'?: string;
   through?: string;
+  since?: string;
+  epoch?: string;
   'source-event'?: string[];
   confirm?: boolean;
   emoji?: string;
@@ -389,6 +397,23 @@ export async function runChannelCommand(
       args = {
         channelId,
         ...(before === undefined ? {} : { before }),
+        ...(limit === undefined ? {} : { limit }),
+      };
+      break;
+    }
+    case 'channel-changes': {
+      if (values.since === undefined) {
+        method = 'channelChangeCursor';
+        args = {};
+        break;
+      }
+      method = 'channelChanges';
+      const sinceSeq = integer(values.since, '--since', 0, 2 ** 53 - 1)!;
+      const limit = integer(values.limit, '--limit', 1, 1000);
+      args = {
+        channelId,
+        sinceSeq,
+        ...(values.epoch === undefined ? {} : { epoch: values.epoch }),
         ...(limit === undefined ? {} : { limit }),
       };
       break;

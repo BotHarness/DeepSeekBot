@@ -45,6 +45,9 @@ import { LiveRefused } from '../channels/live-frames.js';
 import type {
   ChannelFilesPage,
   ChannelFilesRequest,
+  ChannelChangeCursor,
+  ChannelChanges,
+  ChannelChangesRequest,
   ChannelJournalPage,
   ChannelJournalRequest,
 } from '../channels/timeline.js';
@@ -261,6 +264,8 @@ export interface BridgeLive {
   ): AsyncIterable<ChannelLiveFrame>;
   journalPage(channelId: string, request: ChannelJournalRequest): ChannelJournalPage | undefined;
   filesPage(channelId: string, request: ChannelFilesRequest): ChannelFilesPage | undefined;
+  changes(channelId: string, request: ChannelChangesRequest): ChannelChanges | undefined;
+  changeCursor(): ChannelChangeCursor | undefined;
   followCompanion(
     resume: string,
     lastEventId: string,
@@ -364,6 +369,25 @@ export class BotharnessBridgeService extends TypertRemoteService {
         message: 'Channel files page is unavailable',
       });
     return page;
+  }
+
+  channelChanges(
+    channelId: string,
+    sinceSeq: number,
+    epoch?: string,
+    limit?: number,
+  ): ChannelChanges {
+    const changes = this.live?.changes(channelId, { sinceSeq, epoch, limit });
+    if (changes === undefined)
+      throw toRemoteError({ code: 'not-found', message: 'Channel changes are unavailable' });
+    return changes;
+  }
+
+  channelChangeCursor(): ChannelChangeCursor {
+    const cursor = this.live?.changeCursor();
+    if (cursor === undefined)
+      throw toRemoteError({ code: 'unavailable', message: 'Channel changes are unavailable' });
+    return cursor;
   }
 
   async *followChannel(
@@ -3046,6 +3070,8 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'schedulePreview',
   'channelJournalPage',
   'channelFilesPage',
+  'channelChanges',
+  'channelChangeCursor',
 ]);
 markRemoteStreams(BotharnessBridgeService.prototype, [
   'followRoster',

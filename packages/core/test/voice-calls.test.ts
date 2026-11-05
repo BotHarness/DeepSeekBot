@@ -8,7 +8,12 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
-import type { VoiceCallEvent, VoiceCallResult, VoiceCallView } from '../src/voice/call-contract.js';
+import type {
+  VoiceCallEvent,
+  VoiceCallMediaStats,
+  VoiceCallResult,
+  VoiceCallView,
+} from '../src/voice/call-contract.js';
 import { VOICE_CALL_HOST_OWNER } from '../src/voice/call-contract.js';
 import {
   isChannelVoiceCallRecord,
@@ -102,6 +107,7 @@ function fakeMedia(availability: Awaited<ReturnType<VoiceCallMedia['availability
     stopped: 0,
     closed: 0,
     playDelay: undefined as Promise<void> | undefined,
+    stats: undefined as VoiceCallMediaStats | undefined,
   };
   const media: VoiceCallMedia = {
     availability: async () => availability,
@@ -130,6 +136,9 @@ function fakeMedia(availability: Awaited<ReturnType<VoiceCallMedia['availability
               resolve();
             });
           });
+        },
+        async stats() {
+          return state.stats;
         },
         async close() {
           state.closed += 1;
@@ -498,6 +507,53 @@ describe('Host call owner', () => {
     expect(ended.calls?.[0]).toMatchObject({ phase: 'ended', endReason: 'connection-lost' });
     expect(state.closed).toBe(1);
     expect(h.sent).toHaveLength(1);
+  });
+
+  it('samples media stats every five seconds and reports per-direction rates in the call view', async () => {
+    const { media, state } = fakeMedia();
+    const base = {
+      uplinkPackets: 100,
+      uplinkBytes: 10_000,
+      uplinkLost: 0,
+      concealedSamples: 0,
+      receivedSamples: 48_000,
+      downlinkPackets: 50,
+      downlinkBytes: 5_000,
+      helperCpuPct: 4,
+    };
+    state.stats = base;
+    const h = harness({ media });
+    const callId = await connected(h);
+    expect((await view(h, callId)).perf).toBeUndefined();
+    state.stats = {
+      ...base,
+      uplinkPackets: 129,
+      uplinkBytes: 12_500,
+      uplinkLost: 1,
+      receivedSamples: 288_000,
+      concealedSamples: 2_400,
+      downlinkPackets: 300,
+      downlinkBytes: 30_000,
+      rttMs: 12,
+    };
+    h.advance(5_000);
+    await view(h, callId);
+    await settled();
+    const perf = (await view(h, callId)).perf!;
+    expect(perf.samples).toBe(1);
+    expect(perf.last).toMatchObject({
+      atMs: 5_000,
+      uplinkPps: 5.8,
+      uplinkKbps: 4,
+      uplinkLossPct: 3.3,
+      concealedPct: 1,
+      downlinkPps: 50,
+      downlinkKbps: 40,
+      rttMs: 12,
+      helperCpuPct: 4,
+    });
+    expect(perf.uplinkPps).toEqual({ avg: 5.8, max: 5.8 });
+    expect(typeof perf.hostCpuPct.avg).toBe('number');
   });
 
   it('ends the call when the media fails', async () => {

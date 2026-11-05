@@ -873,6 +873,8 @@ describe('plugin entry', () => {
       'schedulePreview',
       'channelJournalPage',
       'channelFilesPage',
+      'channelChanges',
+      'channelChangeCursor',
       'followRoster',
       'followActivity',
       'followChannel',

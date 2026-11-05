@@ -40,7 +40,8 @@ export const CALL_COMMANDS = [
   },
   {
     command: 'call-status',
-    description: "show this caller's calls with their phase, busy state and recent events",
+    description:
+      "show this caller's calls with their phase, busy state, recent events and media performance (packets/s, kbps, loss, RTT and CPU per direction)",
   },
   {
     command: 'call-hangup',
