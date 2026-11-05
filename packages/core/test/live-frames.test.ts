@@ -378,8 +378,14 @@ describe('live frames on the native stream carrier', () => {
         [Symbol.asyncIterator]()
         .next();
     await expect(refused('missing', 50)).rejects.toMatchObject({ code: 'not-found' });
-    await expect(refused(group.id, 0)).rejects.toMatchObject({ code: 'invalid' });
+    await expect(refused(group.id, -1)).rejects.toMatchObject({ code: 'invalid' });
     await expect(refused(group.id, 9999)).rejects.toMatchObject({ code: 'invalid' });
+    const bare = await refused(group.id, 0);
+    expect(bare.value).toMatchObject({
+      type: 'opened',
+      cursor: store.revision(group.id),
+      page: { entries: [], olderCursor: null, hasOlder: true },
+    });
   });
 
   it('streams drafts as appended text to followers that ask, rebuilding the same bodies', async () => {

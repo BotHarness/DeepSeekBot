@@ -11,9 +11,11 @@ export const nativeConversationCache: ConversationCache = {
     const file = fileFor(key);
     if (!file.exists) return undefined;
     const value = JSON.parse(await file.text()) as Partial<CachedConversation>;
-    return Array.isArray(value.entries) && typeof value.hasOlder === 'boolean'
-      ? { entries: value.entries, hasOlder: value.hasOlder }
-      : undefined;
+    if (!Array.isArray(value.entries) || typeof value.hasOlder !== 'boolean') return undefined;
+    const changes = value.changes;
+    return typeof changes?.epoch === 'string' && typeof changes.seq === 'number'
+      ? { entries: value.entries, hasOlder: value.hasOlder, changes }
+      : { entries: value.entries, hasOlder: value.hasOlder };
   },
   write(key, value) {
     try {
