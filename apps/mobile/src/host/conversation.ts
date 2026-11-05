@@ -646,6 +646,7 @@ export function createConversation(options: ConversationOptions): Conversation {
   let changeCursor: ChangeCursor | undefined;
   let changesSupported = true;
   let bareOpen = false;
+  let windowGeneration = 0;
   let draftTimer: ReturnType<typeof setTimeout> | undefined;
 
   function build(withMessages: boolean): ConversationSnapshot {
@@ -811,10 +812,12 @@ export function createConversation(options: ConversationOptions): Conversation {
   };
 
   const reloadTail = async (current: number, through: number): Promise<boolean> => {
+    windowGeneration += 1;
     const fresh = await readPage(through, undefined, pageSize);
     if (current !== session) return false;
     window = [...fresh.entries];
     hasOlder = fresh.hasOlder;
+    windowGeneration += 1;
     return true;
   };
 
@@ -858,6 +861,8 @@ export function createConversation(options: ConversationOptions): Conversation {
             : [updates.get(entry.revision) ?? entry],
       );
       changeCursor = pulled.cursor;
+      if (pulled.upserts.length + pulled.tombstones.length + pulled.removed.length > 0)
+        windowGeneration += 1;
       if (!pulled.hasMore) return;
     }
     if (current !== session || changeCursor === undefined) return;
@@ -1219,6 +1224,9 @@ export function createConversation(options: ConversationOptions): Conversation {
       if (status !== 'live') return;
       const current = session;
       const before = first();
+      const generation = windowGeneration;
+      const stale = () =>
+        current !== session || first() !== before || generation !== windowGeneration;
       loadingOlderSession = current;
       olderError = false;
       publish();
@@ -1229,14 +1237,14 @@ export function createConversation(options: ConversationOptions): Conversation {
             : await options.cache
                 ?.readOlder?.(cacheKey, before, olderPageSize)
                 .catch(() => undefined);
-        if (current !== session || first() !== before) return;
+        if (stale()) return;
         if (local !== undefined) {
           window = [...local.entries, ...window];
           hasOlder = local.hasOlder;
           return;
         }
         const page = await readPage(last(), before, olderPageSize);
-        if (current !== session || first() !== before) return;
+        if (stale()) return;
         const entries = page.entries.filter((entry) => entry.revision < before);
         if (cacheKey !== undefined && channelId !== undefined)
           options.cache?.writeOlder?.(cacheKey, channelId, before, {

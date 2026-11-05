@@ -543,4 +543,90 @@ describe('older history in the local store', () => {
     expect(top.messages).toHaveLength(40);
     expect(channel.bodiesSent).toBe(40);
   });
+
+  async function heldOlderPage(host: FakeHost) {
+    const channel = host.channel(DM);
+    let release!: () => void;
+    let enter!: () => void;
+    const released = new Promise<void>((resolve) => (release = resolve));
+    const entered = new Promise<void>((resolve) => (enter = resolve));
+    host.methods.set('channelJournalPage', async (args) => {
+      const page = channel.page(
+        args['through'] as number,
+        args['before'] as number | undefined,
+        args['limit'] as number | undefined,
+      );
+      if (args['before'] === undefined) return page;
+      enter();
+      await released;
+      return page;
+    });
+    return { entered, release, restore: () => host.methods.delete('channelJournalPage') };
+  }
+
+  const changesCalls = (host: FakeHost) =>
+    host.calls.filter((call) => call.method === 'channelChanges').length;
+
+  it('drops an older page that a change pull made stale while it was loading', async () => {
+    const host = new FakeHost();
+    const path = file();
+    const channel = fill(host, 1, 40);
+    const synced = await session(host, path);
+    await until(synced.conversation, (s) => s.status === 'live' && !s.fromCache);
+    await settle(synced.cache);
+    const first = await session(host, path);
+    await until(first.conversation, (s) => s.status === 'live' && !s.fromCache);
+    const held = await heldOlderPage(host);
+    const loading = first.conversation.loadOlder();
+    await held.entered;
+    channel.edit('m25', { body: 'edited during the load' });
+    const pulls = changesCalls(host);
+    host.kill();
+    host.restart();
+    for (let tries = 0; tries < 400 && changesCalls(host) === pulls; tries += 1)
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(changesCalls(host)).toBeGreaterThan(pulls);
+    await until(first.conversation, (s) => s.status === 'live');
+    held.release();
+    await loading;
+    held.restore();
+    await scrollToTop(first.conversation);
+    expect(bodies(first.conversation.getSnapshot())['m25']).toBe('edited during the load');
+    await settle(first.cache);
+    const row = await first.store.get<{ entry: string }>(
+      'select entry from messages where channel_id = ? and id = ?',
+      [DM, 'm25'],
+    );
+    expect(JSON.parse(row!.entry).message.body).toBe('edited during the load');
+  });
+
+  it('drops an older page that a tail reload replaced while it was loading', async () => {
+    const host = new FakeHost();
+    const path = file();
+    fill(host, 1, 40);
+    const synced = await session(host, path);
+    await until(synced.conversation, (s) => s.status === 'live' && !s.fromCache);
+    await settle(synced.cache);
+    const first = await session(host, path);
+    await until(first.conversation, (s) => s.status === 'live' && !s.fromCache);
+    const held = await heldOlderPage(host);
+    const loading = first.conversation.loadOlder();
+    await held.entered;
+    host.log.rotate();
+    const pulls = changesCalls(host);
+    host.kill();
+    host.restart();
+    for (let tries = 0; tries < 400 && changesCalls(host) === pulls; tries += 1)
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(changesCalls(host)).toBeGreaterThan(pulls);
+    await until(first.conversation, (s) => s.status === 'live');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const reloaded = first.conversation.getSnapshot().messages.map((message) => message.id);
+    held.release();
+    await loading;
+    held.restore();
+    expect(first.conversation.getSnapshot().messages.map((message) => message.id)).toEqual(
+      reloaded,
+    );
+  });
 });
