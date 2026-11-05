@@ -344,10 +344,12 @@ describe('push registration with a real Host gateway', () => {
       },
     };
     const phone = fakeNotifications('granted');
-    const listeners = new Set<(token: string | undefined) => void>();
+    const listeners = new Set<
+      (resolveToken: () => Promise<string>, nativeToken?: string) => void
+    >();
     let device = 'device-token-1';
     const emit = () => {
-      for (const listener of listeners) listener(device);
+      for (const listener of listeners) listener(() => fetchToken(), device);
     };
     const fetchToken = phone.port.token;
     phone.port.token = async () => {
@@ -387,10 +389,11 @@ describe('push registration with a real Host gateway', () => {
       return fetchToken();
     };
     await session.sync([h.saved]);
-    await vi.waitFor(() => expect(registrations).toBe(4));
+    await vi.waitFor(() => expect(registrations).toBe(3));
     await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(registrations).toBe(4);
+    expect(registrations).toBe(3);
     session.stop();
+    h.owner.close();
   });
 
   it('registers replacement credentials without asking permission again after revoking the old device', async () => {

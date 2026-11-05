@@ -174,9 +174,12 @@ export const pushSession = createPushSession({
     reject: t.reject,
     'remove-device': t.removeDevice,
   }),
-  hostPush,
-  beforeRegister: () => notificationPreferences.retry(),
-  prepareRegistration: (host) => notificationPreferences.prepare(host),
+  hostPush: {
+    ...hostPush,
+    register: (host, registration) =>
+      notificationPreferences.withPrepared(host, () => hostPush.register(host, registration)),
+  },
+  beforeRegister: () => notificationPreferences.ready,
   platform: Platform.OS === 'android' ? 'android' : 'ios',
   locale: locale === 'zh' ? 'zh' : 'en',
 });
@@ -418,7 +421,7 @@ AppState.addEventListener('change', (next) => {
   void connectionMode.resume().catch(() => undefined);
   void notificationPreferences.retry().catch(() => undefined);
   pushSession.reflectAgain();
-  void pushSession.retryFailed();
+  void pushSession.refreshPermission();
   for (const { host } of sessions.values()) {
     host.client.retryNow('resume');
     if (host.client.getSnapshot().connection.status === 'connected') void host.inbox.refresh();
