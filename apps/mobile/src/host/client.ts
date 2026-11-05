@@ -49,7 +49,7 @@ export type ConnectionState =
   | { status: 'connecting'; route: string }
   | { status: 'connected'; route: string }
   | { status: 'reconnecting'; route: string; attempt: number }
-  | { status: 'unreachable'; route: string; attempt: number; reason: string }
+  | { status: 'unreachable'; route: string; attempt: number; reason: string; retryDelay?: number }
   | { status: 'refused'; route: string; code: DeviceRefusal; reason: string }
   | { status: 'stopped'; route: string };
 
@@ -1247,6 +1247,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
           route,
           attempt,
           reason: error instanceof Error ? error.message : 'The Host could not be reached.',
+          retryDelay: backoff(attempt),
         });
       }
       await new Promise<void>((resolve) => {

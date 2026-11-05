@@ -63,6 +63,16 @@ function record(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
 }
 
+export function pairingLinkMode(encoded: string, now = Date.now()): 'lan' | undefined {
+  const parsed = parsePairingLink(`deepseekbot://pair?p=${encodeURIComponent(encoded)}`, now);
+  if (!parsed.ok) return undefined;
+  const { routes } = parsed.payload;
+  return routes.some(isLanRoute) &&
+    !routes.some((route) => new URL(route).hostname.endsWith('.ts.net'))
+    ? 'lan'
+    : undefined;
+}
+
 export function parsePairingLink(text: string, now = Date.now()): ParsedLink {
   let encoded: string | null;
   try {
