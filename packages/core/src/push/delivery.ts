@@ -371,8 +371,10 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
     for (let start = 0; start < messages.length; start += BATCH) {
       const batch = messages.slice(start, start + BATCH);
       let result: ExpoTicket[] | undefined;
+      let handedAt = now();
       for (let attempt = 1; result === undefined; attempt += 1) {
         try {
+          handedAt = now();
           result = await sender.send(batch);
         } catch (error) {
           const code = error instanceof Error ? error.message : 'send-failed';
@@ -386,7 +388,6 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
         }
       }
       let unregistered = false;
-      const handedAt = now();
       result.forEach((ticket, index) => {
         const kind = kinds[start + index] ?? 'badge';
         const created = Date.parse(createdAt[start + index] ?? '');

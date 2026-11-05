@@ -121,9 +121,11 @@ export function createDeviceNotificationPreferences(options: {
     },
     sync(next: readonly SavedHost[]) {
       hosts = next;
-      const current = new Set(next.map(pairing));
-      for (const key of accepted.keys()) if (!current.has(key)) accepted.delete(key);
-      return enqueue(sync);
+      return enqueue(async () => {
+        const current = new Set(hosts.map(pairing));
+        for (const key of accepted.keys()) if (!current.has(key)) accepted.delete(key);
+        await sync();
+      });
     },
     retry() {
       return enqueue(sync);
