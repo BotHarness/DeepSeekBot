@@ -474,7 +474,13 @@ export const MessageBubble = memo(function MessageBubble({
         pop.style,
       ]}
     >
-      {content}
+      {onReply === undefined ? (
+        content
+      ) : (
+        <ReplySwipe enabled={!streaming && replyable(message)} onReply={() => onReply(message)}>
+          {content}
+        </ReplySwipe>
+      )}
       {badged ? (
         <View
           pointerEvents="box-none"
@@ -575,12 +581,7 @@ export const MessageBubble = memo(function MessageBubble({
     ) : (
       <View style={row}>{surface}</View>
     );
-  if (onReply === undefined) return placed;
-  return (
-    <ReplySwipe enabled={!streaming && replyable(message)} onReply={() => onReply(message)}>
-      {placed}
-    </ReplySwipe>
-  );
+  return placed;
 });
 
 export const DraftBubble = memo(function DraftBubble({
