@@ -16,14 +16,20 @@ vi.mock('@expo/ui', () => ({
     children,
     matchContents,
     colorScheme,
+    ignoreSafeArea,
   }: {
     children: ReactNode;
     matchContents: unknown;
     colorScheme: string;
+    ignoreSafeArea: string;
   }) =>
     createElement(
       'div',
-      { 'data-host': JSON.stringify(matchContents), 'data-scheme': colorScheme },
+      {
+        'data-host': JSON.stringify(matchContents),
+        'data-scheme': colorScheme,
+        'data-safe-area': ignoreSafeArea,
+      },
       children,
     ),
 }));
@@ -164,6 +170,11 @@ it.each(['light', 'dark'] as const)(
     expect(JSON.parse(native.dataset.host!)).toEqual({ vertical: true });
   },
 );
+
+it('ignores every safe area so a button under the navigation bar keeps its content in place', async () => {
+  const host = await render(<Button label="Continue" onPress={() => {}} />);
+  expect(host.querySelector<HTMLElement>('[data-host]')!.dataset.safeArea).toBe('all');
+});
 
 it('presses through to the shared callback and exposes its label', async () => {
   const onPress = vi.fn();

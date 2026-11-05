@@ -77,7 +77,7 @@ export function Button({
   return (
     <Host
       matchContents={{ vertical: true }}
-      ignoreSafeArea="keyboard"
+      ignoreSafeArea="all"
       colorScheme={theme.scheme}
       seedColor={theme.color.accent}
       style={{ alignSelf: 'stretch', flexGrow: 1, maxHeight: height }}
