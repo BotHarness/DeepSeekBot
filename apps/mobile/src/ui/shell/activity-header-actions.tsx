@@ -1,6 +1,8 @@
 import type { ActivityFilter, ActivitySort } from './activity-filters';
 import { useStrings } from '../strings';
+import { showActionMenu } from '../primitives/app-dialog';
 import { HeaderAction } from './header-action';
+import { ArchiveIcon, CheckIcon } from './icons';
 
 export type ActivityOptions = {
   bots: ReadonlyArray<{ slug: string; name: string }>;
@@ -11,13 +13,25 @@ export type ActivityOptions = {
   onSort(next: ActivitySort): void;
 };
 
+export type ActivityManageItem = {
+  key: string;
+  label: string;
+  icon: 'read' | 'clear';
+  destructive?: boolean;
+};
+
+export type ActivityManage = {
+  items: readonly ActivityManageItem[];
+  run(key: string): void;
+};
+
 export type ActivityHeaderActionsProps = {
   filtered: boolean;
   searching: boolean;
   options: ActivityOptions;
   onFilter(): void;
   onSearch(): void;
-  onClear?: (() => void) | undefined;
+  manage?: ActivityManage | undefined;
 };
 
 export function ActivityHeaderActions({
@@ -25,17 +39,27 @@ export function ActivityHeaderActions({
   searching,
   onFilter,
   onSearch,
-  onClear,
+  manage,
 }: ActivityHeaderActionsProps) {
   const t = useStrings();
   return (
     <>
-      {onClear ? (
+      {manage ? (
         <HeaderAction
-          icon="archive"
-          label={t.activityClearMany}
-          testID="activity-clear-many"
-          onPress={onClear}
+          icon="more"
+          label={t.activityMore}
+          testID="activity-more"
+          onPress={() =>
+            showActionMenu(
+              t.activityMore,
+              manage.items.map((item) => ({
+                text: item.label,
+                icon: item.icon === 'read' ? CheckIcon : ArchiveIcon,
+                ...(item.destructive === true ? { style: 'destructive' as const } : {}),
+                onPress: () => manage.run(item.key),
+              })),
+            )
+          }
         />
       ) : null}
       <HeaderAction

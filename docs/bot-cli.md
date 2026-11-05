@@ -222,7 +222,7 @@ deepseekbot group-delete <channel> --confirm
 deepseekbot channel-timeline <channel> [--direction older|newer|around] [--cursor <cursor>] [--around <message-id>] [--limit <n>] [--older-limit <n>] [--newer-limit <n>]
 deepseekbot channel-journal <channel> --through <revision> [--before <position>] [--limit <n>]
 deepseekbot channel-mark-read <channel> --message-id <message-id>
-deepseekbot channel-mark-all-read
+deepseekbot channel-mark-all-read [--channel <channel>] [--bot <bot-id>]
 deepseekbot channel-react <channel> --message-id <message-id> --emoji 👍 [--remove]
 deepseekbot channel-search <channel> --query <text> [--cursor <cursor>] [--limit <n>]
 deepseekbot message-search --query <text> [--cursor <cursor>] [--limit <n>]

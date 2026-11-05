@@ -129,6 +129,7 @@ it('clears every Activity item of one kind from the menu after confirmation', as
     );
     const option = (id: string) =>
       document.querySelector<HTMLButtonElement>(`[data-id="${id}"]`) ?? undefined;
+    expect(option('mark-read')?.textContent).toBe('全部标为已读');
     expect(option('dismiss:')?.textContent).toBe('全部条目');
     expect(option('dismiss:bot-message-needs-repair')?.textContent).toBe('处理中断');
     expect(option('dismiss:channel-reply')?.textContent).toBe('回复');
@@ -153,6 +154,69 @@ it('clears every Activity item of one kind from the menu after confirmation', as
     expect(feed.getSnapshot().pages.action.items).toEqual([]);
     expect(feed.getSnapshot().pages.replies.items).toHaveLength(1);
   } finally {
+    await act(async () => root.unmount());
+    release();
+    container.remove();
+  }
+});
+
+it('marks the filtered conversation read from the menu without clearing its items', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const calls: Array<{ endpoint: string; payload: Record<string, unknown> }> = [];
+  let read = false;
+  const call: BridgeCall = async (endpoint, payload) => {
+    calls.push({ endpoint, payload });
+    if (endpoint === 'humanAttention')
+      return {
+        ok: true,
+        value: {
+          queryVersion: 1,
+          items: payload.category === 'replies' ? [{ ...reply, isUnread: !read }] : [],
+        },
+      };
+    if (endpoint === 'humanAttentionStatus')
+      return { ok: true, value: { unreadCount: read ? 0 : 1, hasAction: false } };
+    if (endpoint === 'channelMarkAllRead') {
+      read = true;
+      return { ok: true, value: { channels: 1 } };
+    }
+    return { ok: true, value: {} };
+  };
+  const actions = createActions(call, store);
+  const feed = activityFeedFor(actions);
+  const release = feed.acquire();
+  feed.setQuery({ channelId: 'group-qa' });
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  const settle = async () => {
+    for (let i = 0; i < 5; i++) await act(async () => new Promise((r) => setTimeout(r, 0)));
+  };
+  try {
+    await settle();
+    await act(async () =>
+      root.render(createElement(ActivityInboxMenu, { actions, t: zhTranslate })),
+    );
+    await settle();
+    const open = () =>
+      act(async () =>
+        container.querySelector<HTMLButtonElement>('[aria-haspopup="menu"]')!.click(),
+      );
+    const option = (id: string) =>
+      document.querySelector<HTMLButtonElement>(`[data-id="${id}"]`) ?? undefined;
+    await open();
+    await act(async () => option('mark-read')!.click());
+    await settle();
+    expect(
+      calls.filter((entry) => entry.endpoint === 'channelMarkAllRead').map((e) => e.payload),
+    ).toEqual([{ channelId: 'group-qa' }]);
+    expect(calls.some((entry) => entry.endpoint === 'humanAttentionDismissAll')).toBe(false);
+    expect(feed.getSnapshot().pages.replies.items).toHaveLength(1);
+    expect(feed.getSnapshot().pages.replies.items[0]?.isUnread).toBe(false);
+    await open();
+    expect(option('mark-read')).toBeUndefined();
+  } finally {
+    feed.setQuery({ channelId: undefined });
     await act(async () => root.unmount());
     release();
     container.remove();

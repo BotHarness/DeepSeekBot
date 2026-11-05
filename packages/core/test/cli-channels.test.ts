@@ -481,6 +481,8 @@ describe('Channel and group CLI commands', () => {
       [['channel-timeline', 'grp-1', '--cursor', 'c-1', '--limit', '20']],
       [['channel-mark-read', 'grp-1', '--message-id', 'm-1']],
       [['channel-mark-all-read']],
+      [['channel-mark-all-read', '--channel', 'grp-1']],
+      [['channel-mark-all-read', '--bot', 'ada']],
       [['channel-react', 'grp-1', '--message-id', 'm-1', '--emoji', '👍']],
       [['channel-react', 'grp-1', '--message-id', 'm-1', '--emoji', '👍', '--remove']],
       [['channel-search', 'grp-1', '--query', 'launch', '--cursor', 'c-2', '--limit', '5']],
@@ -570,6 +572,8 @@ describe('Channel and group CLI commands', () => {
       { method: 'channelTimeline', args: { channelId: 'grp-1', cursor: 'c-1', limit: 20 } },
       { method: 'channelMarkRead', args: { channelId: 'grp-1', messageId: 'm-1' } },
       { method: 'channelMarkAllRead', args: {} },
+      { method: 'channelMarkAllRead', args: { channelId: 'grp-1' } },
+      { method: 'channelMarkAllRead', args: { botSlug: 'ada' } },
       {
         method: 'channelReact',
         args: { channelId: 'grp-1', messageId: 'm-1', emoji: '👍', active: true },

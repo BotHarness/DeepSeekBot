@@ -113,7 +113,10 @@ export const CHANNEL_COMMANDS = [
     command: 'channel-mark-read',
     description: 'mark a Channel read through one message',
   },
-  { command: 'channel-mark-all-read', description: 'mark every Channel read' },
+  {
+    command: 'channel-mark-all-read',
+    description: "mark every Channel read, or only one Channel or one Bot's Channels",
+  },
   {
     command: 'channel-react',
     description: 'add or remove your emoji reaction on one Channel message',
@@ -156,6 +159,7 @@ type ChannelCommand = (typeof CHANNEL_COMMANDS)[number]['command'];
 
 interface ChannelValues {
   'operation-key'?: string;
+  channel?: string;
   'expected-channel'?: string;
   timeout?: string;
   name?: string;
@@ -486,6 +490,8 @@ export async function runChannelCommand(
     case 'channel-mark-all-read':
       method = 'channelMarkAllRead';
       args = {};
+      if (values.channel !== undefined) args.channelId = required(values.channel, '--channel');
+      if (values.bot !== undefined) args.botSlug = required(values.bot, '--bot');
       break;
     case 'channel-unread':
       method = 'channelUnreadCounts';

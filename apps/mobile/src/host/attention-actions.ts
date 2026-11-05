@@ -129,6 +129,44 @@ export async function clearAllAttention(
   return { dismissed: value['dismissed'], more: value['more'] === true };
 }
 
+export const READABLE_ATTENTION_KINDS: ReadonlySet<HumanAttentionItem['kind']> = new Set([
+  'channel-unread',
+  'channel-reply',
+  'channel-mention',
+]);
+
+export function attentionItemUnread(item: HumanAttentionItem): boolean {
+  return (
+    READABLE_ATTENTION_KINDS.has(item.kind) &&
+    item.channelId !== undefined &&
+    item.messageId !== undefined &&
+    item.isUnread !== false
+  );
+}
+
+export async function markAttentionItemRead(
+  client: HostClient,
+  item: HumanAttentionItem,
+): Promise<void> {
+  if (item.channelId === undefined || item.messageId === undefined) return;
+  await client.call('channelMarkRead', { channelId: item.channelId, messageId: item.messageId });
+}
+
+export async function markAllAttentionRead(
+  client: HostClient,
+  filter: { botSlug?: string | undefined; channelId?: string | undefined },
+): Promise<{ channels: number }> {
+  const value = record(
+    await client.call('channelMarkAllRead', {
+      ...(filter.botSlug === undefined ? {} : { botSlug: filter.botSlug }),
+      ...(filter.channelId === undefined ? {} : { channelId: filter.channelId }),
+    }),
+  );
+  if (typeof value?.['channels'] !== 'number')
+    throw new HostAnswerInvalid('The computer did not confirm the change.');
+  return { channels: value['channels'] };
+}
+
 export function restoreAttentionItem(client: HostClient, item: HumanAttentionItem): Promise<void> {
   return accepted(client, 'humanAttentionRestore', {
     itemId: item.id,

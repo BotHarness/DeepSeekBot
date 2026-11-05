@@ -6014,9 +6014,27 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         return invalidInput((error as Error).message.replace(/^message_search: /u, ''));
       }
     },
-    async channelMarkAllRead() {
+    async channelMarkAllRead(payload) {
+      const source = asObject(payload);
+      const channelId = source['channelId'];
+      const botSlug = source['botSlug'];
+      if (
+        channelId !== undefined &&
+        (typeof channelId !== 'string' || !isValidChannelId(channelId))
+      )
+        return invalidInput('invalid Channel filter');
+      if (botSlug !== undefined && (typeof botSlug !== 'string' || !isValidSlug(botSlug)))
+        return invalidInput('invalid Bot filter');
+      if (channelId !== undefined && deps.channels.get(channelId as string) === undefined)
+        return unknownChannel(channelId as string);
       try {
-        return { ok: true, value: await markAllHumanMessagesRead(deps.channels) };
+        return {
+          ok: true,
+          value: await markAllHumanMessagesRead(deps.channels, {
+            ...(channelId === undefined ? {} : { channelId: channelId as string }),
+            ...(botSlug === undefined ? {} : { botSlug: botSlug as string }),
+          }),
+        };
       } catch (error) {
         return invalidInput(String(error));
       }

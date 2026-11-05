@@ -12,6 +12,7 @@ vi.mock('react-native-svg', () => ({
   Defs: () => null,
   LinearGradient: () => null,
   Rect: () => null,
+  Circle: () => null,
   Stop: () => null,
 }));
 vi.mock('react-native-safe-area-context', () => ({

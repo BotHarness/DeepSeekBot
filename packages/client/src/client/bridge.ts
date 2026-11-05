@@ -6746,8 +6746,16 @@ export async function loadChannelActivityToday(call: BridgeCall): Promise<Channe
   return data as unknown as ChannelActivityToday;
 }
 
-export async function markAllReadPositions(call: BridgeCall): Promise<void> {
-  const row = asRecord(await unwrap(call, 'channelMarkAllRead', {}));
+export async function markAllReadPositions(
+  call: BridgeCall,
+  scope: { channelId?: string | undefined; botSlug?: string | undefined } = {},
+): Promise<void> {
+  const row = asRecord(
+    await unwrap(call, 'channelMarkAllRead', {
+      ...(scope.channelId === undefined ? {} : { channelId: scope.channelId }),
+      ...(scope.botSlug === undefined ? {} : { botSlug: scope.botSlug }),
+    }),
+  );
   if (!row || !Number.isSafeInteger(row['channels']) || (row['channels'] as number) < 0)
     throw new Error('invalid all-read result');
 }
