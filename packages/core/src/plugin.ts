@@ -128,6 +128,7 @@ import { privateInputLog } from './credentials/diagnostics.js';
 import { nativeExecutionRoot } from './workspaces/grant-native-tools.js';
 import { createAttachmentStore, type AttachmentStore } from './attachments/store.js';
 import { startAttachmentSweep } from './attachments/sweep.js';
+import { startMediaBackfill } from './attachments/media-backfill.js';
 import { createStorageCleanup } from './storage/media-cleanup.js';
 import { memoryAttachmentReferences } from './memory/backup.js';
 import { createMemoryImageHttp, MEMORY_IMAGE_PATH } from './memory/image-http.js';
@@ -1734,6 +1735,15 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         log: (message) => ctx.logger.info(message),
       }),
     'botharness: attachment sweep',
+  );
+  ctx.effect(
+    () =>
+      startMediaBackfill({
+        fileIds: () => core.channels.referencedAttachmentHashes(),
+        versions: core.mediaVersions,
+        log: (message) => ctx.logger.info(message),
+      }),
+    'botharness: media backfill',
   );
   let connectAccount: ConnectAccount | undefined;
   let voiceCalls: VoiceCalls | undefined;
