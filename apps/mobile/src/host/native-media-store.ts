@@ -6,6 +6,8 @@ const mediaRoot = (): Directory => new Directory(Paths.cache, 'deepseekbot-media
 
 const mediaFile = (cacheKey: string): File => new File(mediaRoot(), encodeURIComponent(cacheKey));
 
+const settingsFile = (): File => new File(Paths.document, 'deepseekbot-media-settings.json');
+
 export const nativeMediaStore: MediaStore = {
   uri(cacheKey) {
     const file = mediaFile(cacheKey);
@@ -30,6 +32,34 @@ export const nativeMediaStore: MediaStore = {
       idempotent: true,
     });
     return file.uri;
+  },
+  entries() {
+    const directory = mediaRoot();
+    if (!directory.exists) return [];
+    return directory.list().flatMap((entry) =>
+      entry instanceof File && !entry.name.endsWith('.part')
+        ? [
+            {
+              key: decodeURIComponent(entry.name),
+              size: entry.size ?? 0,
+              modified: entry.modificationTime ?? 0,
+            },
+          ]
+        : [],
+    );
+  },
+  remove(cacheKeys) {
+    for (const key of cacheKeys) {
+      const file = mediaFile(key);
+      if (file.exists) file.delete();
+    }
+  },
+  readSettings() {
+    const file = settingsFile();
+    return file.exists ? file.textSync() : undefined;
+  },
+  writeSettings(text) {
+    settingsFile().write(text);
   },
   forget(cacheKeyPrefixes) {
     const directory = mediaRoot();

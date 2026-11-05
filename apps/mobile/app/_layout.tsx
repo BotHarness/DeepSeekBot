@@ -28,7 +28,7 @@ import { useSystemReducedMotion } from '../src/ui/primitives/use-system-reduced-
 import { profileScreenOptions } from '../src/ui/chat/profile-presentation';
 import { CallSessionHost } from '../src/ui/chat/call-session-host';
 import { swipeEntryListeners, swipeEntryOptions } from '../src/ui/shell/swipe-entry';
-import { installMediaStore } from '../src/host/media-cache';
+import { installMediaStore, runAutoCleanup } from '../src/host/media-cache';
 import { nativeMediaStore } from '../src/host/native-media-store';
 import { installPurgeTargets } from '../src/host/purge-caches';
 import { nativePurgeTargets } from '../src/host/native-purge-targets';
@@ -40,6 +40,10 @@ import { useNativeInterfacePreferences } from '../src/ui/native-interface-prefer
 
 installMediaStore(nativeMediaStore);
 installPurgeTargets(nativePurgeTargets);
+setTimeout(() => {
+  runAutoCleanup();
+  setInterval(() => runAutoCleanup(), 24 * 60 * 60 * 1000);
+}, 5000);
 
 export const unstable_settings = { initialRouteName: '(tabs)' };
 
