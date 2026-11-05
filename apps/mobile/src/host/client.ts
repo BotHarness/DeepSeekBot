@@ -9,6 +9,15 @@ import type { HostCarrier, HostSocket } from './carrier';
 import { rosterSortingOf, type RosterSorting } from './roster-sorting';
 import { DEVICE_PREFIX } from './pairing';
 import { checkRoute, isConnectRoute, isEncryptedRoute, isLanRoute, socketOrigin } from './route';
+import {
+  readChannelList,
+  readListBots,
+  saveListBots,
+  syncChannelList,
+  type ChannelListChanges,
+  type ChannelListCursor,
+} from './channel-list-store';
+import type { LocalStore } from './local-store';
 import { LOCAL_VIDEO_PATH } from '../../../../packages/computer/src/local-video-contract';
 import {
   isChannelVoiceCallRecord,
@@ -182,6 +191,7 @@ export interface HostClientOptions {
   carrier: HostCarrier;
   backoff?: (attempt: number) => number;
   timeoutMs?: number;
+  localStore?: () => Promise<LocalStore | undefined>;
 }
 
 export type DeviceRefusal = 'device-revoked' | 'device-unknown' | 'device-credential-missing';
@@ -329,6 +339,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
   let bots: PersonaBotSummary[] | undefined;
   let computerAvailable: boolean | undefined;
   let channels = new Map<string, ChannelListItem>();
+  let channelsLoaded = false;
+  let savedBots: string | undefined;
   let states = new Map<string, WireBotActivity>();
   let rawStates = new Map<string, WireBotActivity>();
   const smoother = new ActivitySmoother<WireBotActivity>();
@@ -765,12 +777,76 @@ export function createHostClient(options: HostClientOptions): HostClient {
     }
   };
 
+  const fullChannelList = (): Promise<ChannelListItem[]> =>
+    call<{ channels: ChannelListItem[] }>('channels').then((result) => result.channels);
+
+  const unlessRefused = <T>(work: Promise<T>): Promise<T | undefined> =>
+    work.catch((error: unknown) => {
+      if (error instanceof MethodRefused) return undefined;
+      throw error;
+    });
+
+  const openLocalStore = (): Promise<LocalStore | undefined> =>
+    options.localStore?.().catch(() => undefined) ?? Promise.resolve(undefined);
+
+  const loadChannels = async (): Promise<ChannelListItem[]> => {
+    const store = await openLocalStore();
+    if (store === undefined) return fullChannelList();
+    try {
+      return await syncChannelList(store, {
+        channels: fullChannelList,
+        cursor: () => unlessRefused(call<ChannelListCursor>('channelChangeCursor')),
+        changes: (cursor) =>
+          unlessRefused(
+            call<ChannelListChanges>('channelListChanges', {
+              sinceSeq: cursor.seq,
+              epoch: cursor.epoch,
+            }),
+          ),
+      });
+    } catch (error) {
+      if (
+        error instanceof Unreachable ||
+        error instanceof MethodRefused ||
+        error instanceof CredentialRefused
+      )
+        throw error;
+      return fullChannelList();
+    }
+  };
+
+  const paintStoredChannels = async (): Promise<void> => {
+    const store = await openLocalStore();
+    if (store === undefined || channelsLoaded) return;
+    const [stored, storedBots] = await Promise.all([
+      readChannelList(store),
+      readListBots<PersonaBotSummary>(store),
+    ]).catch(() => [undefined, undefined] as const);
+    if (stored === undefined || storedBots === undefined || channelsLoaded) return;
+    savedBots = JSON.stringify(storedBots);
+    bots = storedBots;
+    channels = new Map(stored.channels.map((channel) => [channel.id, channel]));
+    publish();
+  };
+
+  const keepBots = (list: PersonaBotSummary[]): void => {
+    const json = JSON.stringify(list);
+    if (json === savedBots) return;
+    void openLocalStore()
+      .then(async (store) => {
+        if (store === undefined) return;
+        await saveListBots(store, list);
+        savedBots = json;
+      })
+      .catch(() => undefined);
+  };
+
   const reloadOnce = async (): Promise<void> => {
     void discoverComputer();
     void discoverRoutes();
     const [list, channelList, rosterArrangement, rosterSorting] = await Promise.all([
       call<{ bots: PersonaBotSummary[] }>('list'),
-      call<{ channels: ChannelListItem[] }>('channels'),
+      loadChannels(),
       call<unknown>('rosterGet').then(arrangementOf, (error: unknown) => {
         if (error instanceof MethodRefused) return undefined;
         throw error;
@@ -778,7 +854,9 @@ export function createHostClient(options: HostClientOptions): HostClient {
       call<unknown>('settings/describe').then(rosterSortingOf),
     ]);
     bots = list.bots;
-    channels = new Map(channelList.channels.map((channel) => [channel.id, channel]));
+    channels = new Map(channelList.map((channel) => [channel.id, channel]));
+    channelsLoaded = true;
+    keepBots(list.bots);
     arrangement = rosterArrangement;
     sorting = rosterSorting;
     publish();
@@ -1211,6 +1289,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
           ? { status: 'reconnecting', route, attempt: Math.max(attempt, 1) }
           : { status: 'connecting', route },
       );
+      void paintStoredChannels();
       void loop(generation);
     },
     stop() {

@@ -875,6 +875,7 @@ describe('plugin entry', () => {
       'channelFilesPage',
       'channelChanges',
       'channelChangeCursor',
+      'channelListChanges',
       'followRoster',
       'followActivity',
       'followChannel',
