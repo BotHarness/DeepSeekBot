@@ -14,6 +14,7 @@ import {
   GitCommitIcon,
   MessageIcon,
   PersonIcon,
+  PhoneIcon,
   PlusIcon,
   StopCircleIcon,
 } from '../shell/icons';
@@ -67,7 +68,9 @@ export function ActivityRow({
             ? PlusIcon
             : activity.kind === 'departure'
               ? PersonIcon
-              : StopCircleIcon;
+              : activity.kind === 'voice-call'
+                ? PhoneIcon
+                : StopCircleIcon;
   const size = theme.type.meta.line;
   const hit = Math.max(0, (theme.touch - size) / 2);
   const open = () => {

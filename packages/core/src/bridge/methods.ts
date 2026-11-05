@@ -996,6 +996,9 @@ export interface BridgeMethods {
   botVoiceSet: VoiceBridgeMethods['botVoiceSet'];
   voiceTranscribe: VoiceBridgeMethods['voiceTranscribe'];
   botAsrSet: VoiceBridgeMethods['botAsrSet'];
+  voiceDefaultSet: VoiceBridgeMethods['voiceDefaultSet'];
+  voiceSpeechThresholdSet: VoiceBridgeMethods['voiceSpeechThresholdSet'];
+  voiceDictation: VoiceBridgeMethods['voiceDictation'];
   approvalReviewerModel(payload?: unknown): Promise<BridgeResult<ApprovalReviewerModelView>>;
   approvalReviewerModelSet(payload: unknown): Promise<BridgeResult<ApprovalReviewerModelView>>;
   idleCompaction(payload?: unknown): BridgeResult<IdleCompactionView>;
@@ -1159,6 +1162,7 @@ function storageFailure(
 
 export interface BridgeMethodsDeps {
   voiceProviders?: VoiceProviders;
+  voiceLog?: (phase: string, fields: Record<string, string | number>) => void;
   botContext?(slug: string): Promise<BotContextWindow>;
   botSystemPrompt?(slug: string): Promise<BotSystemPromptView>;
   prompts?: PromptSettings;
@@ -2253,7 +2257,11 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
   };
 
   return {
-    ...createVoiceBridgeMethods({ providers: deps.voiceProviders, registry: deps.registry }),
+    ...createVoiceBridgeMethods({
+      providers: deps.voiceProviders,
+      registry: deps.registry,
+      log: deps.voiceLog,
+    }),
     channelBridges(payload) {
       const input = z
         .object({ channelId: z.string().min(1).max(128) })

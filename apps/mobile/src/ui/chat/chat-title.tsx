@@ -53,6 +53,7 @@ export function ChatTitle({
       onPress={press}
       style={({ pressed }) => ({
         flexShrink: 1,
+        width: '100%',
         flexDirection: 'row',
         alignItems: 'center',
         gap: space.x3,
@@ -73,7 +74,12 @@ export function ChatTitle({
       ) : (
         <View style={{ width: AVATAR, height: AVATAR }} />
       )}
-      <Text {...barLabelProps} strong numberOfLines={1} style={[{ flexShrink: 1 }, barLabelStyle]}>
+      <Text
+        {...barLabelProps}
+        strong
+        numberOfLines={1}
+        style={[{ flex: 1, minWidth: 0 }, barLabelStyle]}
+      >
         {activity ?? name}
       </Text>
       <SessionCountChip count={sessions} />

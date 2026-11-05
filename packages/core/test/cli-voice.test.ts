@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
@@ -14,6 +14,7 @@ import { createVoiceBridgeMethods } from '../src/voice/bridge.js';
 import { VoiceProviders } from '../src/voice/providers.js';
 import { createTempRoot, FIXED_NOW, trackTestOwner } from './helpers.js';
 import { createTestRegistry } from './registry-fixture.js';
+import { concat, silence, speech } from './voice-audio-fixtures.js';
 
 const WAV = Buffer.concat([
   Buffer.from('RIFF'),
@@ -227,5 +228,118 @@ describe('deepseekbot voice commands', () => {
       await expect(run(command, [...rest], values as VoiceValues)).rejects.toMatchObject({
         code: 'usage',
       });
+  });
+
+  it('sets and shows the Host-wide default TTS and ASR Providers', async () => {
+    const { run } = await host();
+    expect(await run('voice-defaults', [])).toMatchObject({ defaults: { tts: null, asr: null } });
+    const asr = (await run('voice-provider-add', ['local'], { kind: 'asr' })) as {
+      provider: { id: string };
+    };
+    const tts = (await run('voice-provider-add', ['local'])) as { provider: { id: string } };
+    expect(await run('voice-default-set', ['asr', asr.provider.id], { language: 'zh' })).toEqual({
+      defaults: {
+        tts: { providerId: tts.provider.id },
+        asr: { providerId: asr.provider.id, language: 'zh' },
+      },
+    });
+    await run('voice-default-set', ['tts', tts.provider.id], { voice: 'zm_009' });
+    expect(await run('voice-defaults', [])).toMatchObject({
+      defaults: {
+        tts: { providerId: tts.provider.id, voiceId: 'zm_009' },
+        asr: { providerId: asr.provider.id, language: 'zh' },
+      },
+    });
+    expect(await run('voice-vad-set', ['-58'])).toMatchObject({
+      speechThreshold: { dbfs: -58, custom: true },
+    });
+    expect(await run('voice-defaults', [])).toMatchObject({ speechThreshold: { dbfs: -58 } });
+    expect(await run('voice-vad-set', ['default'])).toMatchObject({
+      speechThreshold: { dbfs: -50, custom: false },
+    });
+    await expect(run('voice-vad-set', ['loud'])).rejects.toMatchObject({ code: 'usage' });
+    await expect(run('voice-vad-set', [])).rejects.toMatchObject({ code: 'usage' });
+    expect(await run('voice-default-set', ['tts', 'off'])).toMatchObject({
+      defaults: { tts: null },
+    });
+    for (const [rest, values] of [
+      [['call', 'off'], {}],
+      [['tts', tts.provider.id], { language: 'zh' }],
+      [['asr', asr.provider.id], { voice: 'x' }],
+      [['asr', 'off'], { language: 'zh' }],
+      [['asr'], {}],
+    ] as const)
+      await expect(
+        run('voice-default-set', [...rest], values as VoiceValues),
+      ).rejects.toMatchObject({ code: 'usage' });
+  });
+
+  it('dictates a WAV through the composer dictation session', async () => {
+    const { run, calls, seen, root, url } = await host();
+    const added = (await run(
+      'voice-provider-add',
+      ['groq'],
+      { kind: 'asr', 'base-url': `${url}/openai/v1`, 'key-stdin': true },
+      'gsk-secret-0123456789\n',
+    )) as { provider: { id: string } };
+    const file = join(root, 'dictate.wav');
+    const { wavFromPcm16 } = await import('../src/voice/providers.js');
+    (await import('node:fs')).writeFileSync(
+      file,
+      wavFromPcm16(concat(silence(300), speech(1_000), silence(300)), 16_000),
+    );
+    const result = (await run('voice-dictate', [], { file })) as Record<string, unknown>;
+    expect(result).toMatchObject({
+      providerId: added.provider.id,
+      mode: 'segments',
+      state: 'done',
+      text: 'call me back tomorrow',
+      audioMs: 1_600,
+    });
+    expect((result['heard'] as string[]).at(-1)).toBe('call me back tomorrow');
+    expect(seen.filter((entry) => entry.url.endsWith('/audio/transcriptions'))).toHaveLength(1);
+    expect(calls.map(([method, payload]) => `${method}:${String(payload['kind'])}`)).toEqual([
+      'voiceProviderAdd:asr',
+      'voiceDictation:open',
+      ...Array.from({ length: 8 }, () => 'voiceDictation:push'),
+      'voiceDictation:stop',
+    ]);
+    await expect(run('voice-dictate', [], { file: 'relative.wav' })).rejects.toMatchObject({
+      code: 'usage',
+    });
+  });
+
+  it('refuses a WAV over the dictation limit and reports a failed stop', async () => {
+    const root = createTempRoot('cli-dictate-');
+    const { wavFromPcm16 } = await import('../src/voice/providers.js');
+    const long = join(root, 'long.wav');
+    writeFileSync(long, wavFromPcm16(new Int16Array(16_000 * 121), 16_000));
+    const short = join(root, 'short.wav');
+    writeFileSync(short, wavFromPcm16(new Int16Array(6_400), 16_000));
+    const kinds: string[] = [];
+    const connect = async () => async (_method: string, payload: Record<string, unknown>) => {
+      kinds.push(String(payload['kind']));
+      if (payload['kind'] === 'open') return { dictation: { id: 'dict-0000000000000001' } };
+      if (payload['kind'] === 'push') return { dictation: { state: 'listening', text: '' } };
+      return {
+        dictation: { state: 'failed', text: '', error: { code: 'asr-failed', message: 'down' } },
+      };
+    };
+    const dictate = (file: string) =>
+      runVoiceCommand('voice-dictate', [], { file }, {}, connect as never);
+    await expect(dictate(long)).rejects.toMatchObject({ code: 'invalid-input' });
+    expect(kinds).toEqual([]);
+    await expect(dictate(short)).rejects.toMatchObject({ code: 'asr-failed', message: 'down' });
+    expect(kinds).toEqual(['open', 'push', 'push', 'stop']);
+    kinds.length = 0;
+    const cancelled = async () => async (_method: string, payload: Record<string, unknown>) => {
+      kinds.push(String(payload['kind']));
+      if (payload['kind'] === 'open') return { dictation: { id: 'dict-0000000000000002' } };
+      return { dictation: { state: 'cancelled', text: 'half' } };
+    };
+    await expect(
+      runVoiceCommand('voice-dictate', [], { file: short }, {}, cancelled as never),
+    ).rejects.toMatchObject({ code: 'dictation-cancelled' });
+    expect(kinds).toEqual(['open', 'push', 'stop']);
   });
 });

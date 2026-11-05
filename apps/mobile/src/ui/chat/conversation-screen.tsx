@@ -89,18 +89,25 @@ import { GrantRequestCard } from './grant-request-card';
 import { PrivateInputCard } from './private-input-card';
 import { TakeoverCard } from './takeover-card';
 import { ActivityRow } from './activity-row';
+import { CallRecordBubble } from './call-record';
 import type { BubbleGroup } from './bubble-shape';
 import { botBusy } from './bot-tone';
 import { ChannelTitle } from './channel-title';
 import { WorkingStatus } from './working-status';
 import { ChatTitle } from './chat-title';
 import { runningSessionCount } from '../../host/session-stop';
-import { HeaderIconButton } from '../shell/header-icon-button';
+import { ChatHeaderActions } from './chat-header-actions';
 import { Composer, type ComposerInput } from './composer';
 import { GroupUnavailable } from './group-unavailable';
 import { DraftSaveNotice } from './draft-save-notice';
 import { ClipboardImageOffer, useClipboardImage } from './clipboard-image';
-import { EdgeFade, HeaderBackButton, titleChipFill, useChatHeaderHeight } from './header-chrome';
+import {
+  EdgeFade,
+  HeaderActionGroup,
+  HeaderBackButton,
+  titleChipFill,
+  useChatHeaderHeight,
+} from './header-chrome';
 import { useStackRoot } from '../shell/stack-root';
 import {
   barLabelStyle,
@@ -1032,6 +1039,8 @@ function ChatConversation({
         </MessageSelectionRow>
       );
 
+      if (item.message.activity?.kind === 'voice-call')
+        return wrap(<CallRecordBubble record={item.message.activity.record} />);
       if (item.message.activity !== undefined)
         return wrap(
           <ActivityRow
@@ -1338,33 +1347,41 @@ function ChatConversation({
     canOpenProfile && dm && bot !== undefined ? client : undefined,
     slug,
     saved?.hostId,
+    host.connection.status === 'connected',
+    focused,
   );
-  const profileButton = canOpenProfile ? (
-    <HeaderIconButton
-      icon="more"
-      label={t.openProfile}
-      testID="chat-profile-button"
-      onPress={openProfile}
-    />
-  ) : null;
   const ios = Platform.OS === 'ios';
   const headerGap = glassPress.gap;
-  const callButton =
-    !ios && placeCall !== undefined ? (
-      <HeaderIconButton
-        icon="call"
-        label={t.call.button}
-        testID="chat-call-button"
-        onPress={placeCall}
-      />
-    ) : null;
+  const headerActions = canOpenProfile ? (
+    <HeaderActionGroup
+      actions={[
+        ...(placeCall === undefined
+          ? []
+          : [
+              {
+                icon: 'call' as const,
+                label: t.call.button,
+                testID: 'chat-call-button',
+                onPress: placeCall,
+              },
+            ]),
+        { icon: 'more', label: t.openProfile, testID: 'chat-profile-button', onPress: openProfile },
+      ]}
+    />
+  ) : null;
   const titleWidth = Math.max(
     0,
     windowWidth -
       insets.left -
       insets.right -
-      (theme.touch + space.x5 + headerGap) * 2 -
-      (ios && placeCall !== undefined ? (theme.touch + headerGap) * 2 : 0) -
+      space.x5 * 2 -
+      theme.touch -
+      headerGap * 2 -
+      (ios && glassHeader && canOpenProfile && placeCall !== undefined
+        ? theme.touch * 2
+        : (theme.touch +
+            (ios ? Math.min(space.x3, Math.max(0, (theme.fontScale - 1) * space.x3)) : 0)) *
+          (canOpenProfile && placeCall !== undefined ? 2 : 1)) -
       (ios && glassHeader ? space.x4 * 2 : 0),
   );
   const back = <HeaderBackButton plain={!headerIslands} onPress={leave} />;
@@ -1496,30 +1513,55 @@ function ChatConversation({
                   headerTitle: '',
                   headerBackVisible: canGoBack && !headerIslands,
                   unstable_headerRightItems: () =>
-                    canOpenProfile
-                      ? [
-                          ...(placeCall === undefined
-                            ? []
-                            : [
-                                { type: 'spacing' as const, spacing: headerGap },
-                                {
-                                  type: 'button' as const,
-                                  label: t.call.button,
-                                  identifier: 'chat-call-button',
-                                  icon: { type: 'sfSymbol' as const, name: 'phone' as const },
-                                  onPress: placeCall,
-                                },
-                              ]),
-                          { type: 'spacing' as const, spacing: headerGap },
-                          {
-                            type: 'button' as const,
-                            label: t.openProfile,
-                            identifier: 'chat-profile-button',
-                            icon: { type: 'sfSymbol' as const, name: 'ellipsis' as const },
-                            onPress: openProfile,
-                          },
-                        ]
-                      : [],
+                    !canOpenProfile
+                      ? []
+                      : glassHeader && placeCall !== undefined
+                        ? [
+                            {
+                              type: 'custom' as const,
+                              hidesSharedBackground: true,
+                              element: (
+                                <ChatHeaderActions
+                                  actions={[
+                                    {
+                                      icon: 'call',
+                                      label: t.call.button,
+                                      testID: 'chat-call-button',
+                                      onPress: placeCall,
+                                    },
+                                    {
+                                      icon: 'more',
+                                      label: t.openProfile,
+                                      testID: 'chat-profile-button',
+                                      onPress: openProfile,
+                                    },
+                                  ]}
+                                />
+                              ),
+                            },
+                          ]
+                        : [
+                            {
+                              type: 'button' as const,
+                              label: t.openProfile,
+                              identifier: 'chat-profile-button',
+                              icon: { type: 'sfSymbol' as const, name: 'ellipsis' as const },
+                              sharesBackground: placeCall !== undefined,
+                              onPress: openProfile,
+                            },
+                            ...(placeCall === undefined
+                              ? []
+                              : [
+                                  {
+                                    type: 'button' as const,
+                                    label: t.call.button,
+                                    identifier: 'chat-call-button',
+                                    icon: { type: 'sfSymbol' as const, name: 'phone' as const },
+                                    sharesBackground: true,
+                                    onPress: placeCall,
+                                  },
+                                ]),
+                          ],
                   unstable_headerLeftItems: () => [
                     ...(headerIslands
                       ? [{ type: 'custom' as const, element: back }]
@@ -1542,15 +1584,7 @@ function ChatConversation({
                 }
               : {
                   headerTitleAlign: 'left' as const,
-                  headerRight: () =>
-                    callButton === null ? (
-                      profileButton
-                    ) : (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: headerGap }}>
-                        {callButton}
-                        {profileButton}
-                      </View>
-                    ),
+                  headerRight: () => headerActions,
                   headerTitle: () => (
                     <View
                       key={`${theme.scheme}:${theme.fontScale}:${bot?.displayName ?? channel?.name ?? ''}`}
@@ -1559,7 +1593,7 @@ function ChatConversation({
                         maxWidth:
                           windowWidth -
                           (theme.touch + space.x5) * 2 -
-                          (callButton === null ? 0 : theme.touch + headerGap),
+                          (placeCall === undefined || !canOpenProfile ? 0 : theme.touch),
                         marginHorizontal: space.x3,
                       }}
                     >
@@ -1941,8 +1975,7 @@ function ChatConversation({
           >
             {back}
             <View style={{ flex: 1, minWidth: 0 }}>{title}</View>
-            {callButton}
-            {profileButton}
+            {headerActions}
           </View>
         ) : null}
       </EndSheet>

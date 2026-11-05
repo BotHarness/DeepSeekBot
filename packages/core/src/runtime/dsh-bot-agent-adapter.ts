@@ -2298,7 +2298,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       defineTool({
         name: 'channel_read',
         description:
-          'Read actionable joined Channel messages as bounded JSON (at most 12000 characters). Follow nextCursor with unchanged filters. For an oversized message, use message_id alone and follow contentCursor; concatenate JSON fragments to retrieve complete content. Omitted or partially read messages remain pending.',
+          'Read actionable joined Channel messages as bounded JSON (at most 12000 characters). Follow nextCursor with unchanged filters. For an oversized message, use message_id alone and follow contentCursor; concatenate JSON fragments to retrieve complete content. Omitted or partially read messages remain pending. A voice call in a DM leaves system notices with voiceCallRecord at its start and end; text "voice call" with author_kind system finds them, and from/to set to the call\'s startedAt/endedAt reads what was said on it.',
         parameters: {
           channel_id: {
             type: 'string',
