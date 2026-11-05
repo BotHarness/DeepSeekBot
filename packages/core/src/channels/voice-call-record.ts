@@ -35,6 +35,14 @@ export type ChannelVoiceCallRecord =
       layout: '1x1' | '2x2' | '3x3' | '4x4';
       fromMs: number;
       toMs: number;
+    }
+  | {
+      callId: string;
+      botSlug: string;
+      state: 'share-stopped';
+      startedAt: string;
+      source: 'camera' | 'screen';
+      atMs: number;
     };
 
 export type ChannelVoiceCallLifecycle = Exclude<ChannelVoiceCallRecord, { state: 'frames' }>;
@@ -80,6 +88,12 @@ export function isChannelVoiceCallRecord(value: unknown): value is ChannelVoiceC
       count(record['toMs']) &&
       (record['toMs'] as number) >= (record['fromMs'] as number)
     );
+  if (record['state'] === 'share-stopped')
+    return (
+      Object.keys(record).length === 6 &&
+      (record['source'] === 'camera' || record['source'] === 'screen') &&
+      count(record['atMs'])
+    );
   if (record['state'] !== 'ended') return false;
   return (
     time(record['endedAt']) &&
@@ -107,6 +121,8 @@ export function voiceCallDuration(ms: number): string {
 export function voiceCallRecordBody(record: ChannelVoiceCallRecord): string {
   if (record.state === 'frames')
     return `${record.source === 'camera' ? 'Camera' : 'Screen'} record of call ${record.callId} from ${voiceCallDuration(record.fromMs)} to ${voiceCallDuration(record.toMs)} while the Human was silent: ${record.frames === 1 ? 'one keyframe' : `a ${record.layout} grid of ${record.frames} keyframes`}, oldest first.`;
+  if (record.state === 'share-stopped')
+    return `${record.source === 'camera' ? 'The camera' : 'Screen sharing'} in call ${record.callId} stopped at ${voiceCallDuration(record.atMs)} without the Human turning it off; the call went on with voice only.`;
   return record.state === 'started'
     ? `Voice call ${record.callId} started at ${record.startedAt}.`
     : `Voice call ${record.callId} ended at ${record.endedAt} after ${voiceCallDuration(record.durationMs)} (${record.reason}). Messages from ${record.startedAt} to ${record.endedAt} in this DM are from that call.`;

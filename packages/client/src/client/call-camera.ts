@@ -7,8 +7,14 @@ import { VOICE_CALL_LIMITS } from '../../../core/src/voice/call-contract.js';
 
 export const CALL_FRAME_LONG_EDGE = 1280;
 
+export type CallCaptureErrorCode =
+  | 'camera-denied'
+  | 'camera-missing'
+  | 'screen-cancelled'
+  | 'screen-missing';
+
 export class CallCameraError extends Error {
-  constructor(readonly code: 'camera-denied' | 'camera-missing') {
+  constructor(readonly code: CallCaptureErrorCode) {
     super(code);
   }
 }
@@ -24,13 +30,16 @@ export interface CallCameraKeyframe {
 
 export interface CallCamera {
   start(): Promise<MediaStream>;
+  run(): void;
   stop(): void;
   stream(): MediaStream | undefined;
+  label(): string | undefined;
 }
 
 export interface CallCameraOptions {
   readonly source?: CallVisualSource;
   readonly onKeyframe: (frame: CallCameraKeyframe) => void | Promise<void>;
+  readonly onEnded?: () => void;
   readonly devices?: () => MediaDevices | undefined;
   readonly now?: () => number;
 }
@@ -51,6 +60,33 @@ function canvas(width: number, height: number): HTMLCanvasElement {
 
 function encode(element: HTMLCanvasElement, quality: number): Promise<Blob | null> {
   return new Promise((done) => element.toBlob(done, 'image/jpeg', quality));
+}
+
+async function captureCamera(media: MediaDevices | undefined): Promise<MediaStream> {
+  if (media?.getUserMedia === undefined) throw new CallCameraError('camera-missing');
+  try {
+    return await media.getUserMedia({
+      audio: false,
+      video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 15 } },
+    });
+  } catch (error) {
+    const name = (error as { name?: unknown } | undefined)?.name;
+    throw new CallCameraError(
+      name === 'NotAllowedError' || name === 'SecurityError' ? 'camera-denied' : 'camera-missing',
+    );
+  }
+}
+
+async function captureScreen(media: MediaDevices | undefined): Promise<MediaStream> {
+  if (media?.getDisplayMedia === undefined) throw new CallCameraError('screen-missing');
+  try {
+    return await media.getDisplayMedia({ audio: false, video: { frameRate: { ideal: 5 } } });
+  } catch (error) {
+    const name = (error as { name?: unknown } | undefined)?.name;
+    throw new CallCameraError(
+      name === 'NotAllowedError' || name === 'AbortError' ? 'screen-cancelled' : 'screen-missing',
+    );
+  }
 }
 
 export function createBrowserCallCamera(options: CallCameraOptions): CallCamera {
@@ -142,39 +178,36 @@ export function createBrowserCallCamera(options: CallCameraOptions): CallCamera 
     async start() {
       stop();
       const media = devices();
-      if (media?.getUserMedia === undefined) throw new CallCameraError('camera-missing');
-      let stream: MediaStream;
-      try {
-        stream = await media.getUserMedia({
-          audio: false,
-          video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 15 } },
-        });
-      } catch (error) {
-        const name = (error as { name?: unknown } | undefined)?.name;
-        throw new CallCameraError(
-          name === 'NotAllowedError' || name === 'SecurityError'
-            ? 'camera-denied'
-            : 'camera-missing',
-        );
-      }
+      const stream = source === 'screen' ? await captureScreen(media) : await captureCamera(media);
       if (stream.getVideoTracks().length === 0) {
         for (const track of stream.getTracks()) track.stop();
-        throw new CallCameraError('camera-missing');
+        throw new CallCameraError(source === 'screen' ? 'screen-missing' : 'camera-missing');
       }
       current = stream;
+      for (const track of stream.getVideoTracks())
+        track.addEventListener('ended', () => {
+          if (current !== stream) return;
+          stop();
+          options.onEnded?.();
+        });
       const element = document.createElement('video');
       element.muted = true;
       element.playsInline = true;
       element.srcObject = stream;
       video = element;
       await element.play().catch(() => undefined);
-      const picker = createKeyframePicker(settings);
+      return stream;
+    },
+    run() {
+      const element = video;
+      if (element === undefined || timer !== undefined) return;
+      const active = createKeyframePicker(settings);
       skipped = 0;
       startedAt = now();
-      timer = setInterval(() => void sample(picker, element), 1000 / settings.sampleFps);
-      return stream;
+      timer = setInterval(() => void sample(active, element), 1000 / settings.sampleFps);
     },
     stop,
     stream: () => current,
+    label: () => current?.getVideoTracks()[0]?.label || undefined,
   };
 }

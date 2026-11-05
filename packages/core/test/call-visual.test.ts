@@ -1,5 +1,5 @@
 import sharp from 'sharp';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { isChannelCallVisual, isChannelMessage } from '../src/channels/channel.js';
 import {
@@ -192,7 +192,12 @@ function host(transcripts: string[] = ['这是什么', '现在呢', '还是这�
   let clock = 2_000_000;
   const sent: Parameters<VoiceCallsDeps['send']>[0][] = [];
   const records: Parameters<NonNullable<VoiceCallsDeps['recordFrames']>>[0][] = [];
+  const lifecycle: Parameters<NonNullable<VoiceCallsDeps['record']>>[0]['record'][] = [];
   const calls = createVoiceCalls({
+    async record({ record }) {
+      lifecycle.push(record);
+      return `lifecycle-${lifecycle.length}`;
+    },
     async recordFrames(input) {
       records.push(input);
       return `record-${records.length}`;
@@ -245,6 +250,7 @@ function host(transcripts: string[] = ['这是什么', '现在呢', '还是这�
     calls,
     sent,
     records,
+    lifecycle,
     ok,
     say,
     phone,
@@ -526,6 +532,38 @@ describe('Host call owner with a shared camera or screen', () => {
     await h.ok({ kind: 'visual', callId: call.callId, source: 'camera' });
     await h.say(call.callId);
     expect(h.sent.map((item) => item.visual === undefined)).toEqual([false, true, true]);
+  });
+
+  it('notes in the DM when the system stops a share, and only then', async () => {
+    const h = host();
+    const call = await h.ok({ kind: 'open', slug: 'mira', media: 'synthetic' });
+    await h.ok({ kind: 'visual', callId: call.callId, source: 'screen' });
+    await h.ok({ kind: 'visual', callId: call.callId, source: 'off' });
+    await h.ok({ kind: 'visual', callId: call.callId, source: 'screen' });
+    h.advance(65_000);
+    const stopped = await h.ok({
+      kind: 'visual',
+      callId: call.callId,
+      source: 'off',
+      stopped: true,
+    });
+    expect(stopped.visual).toBe('off');
+    await h.ok({ kind: 'visual', callId: call.callId, source: 'off', stopped: true });
+    await vi.waitFor(() =>
+      expect(h.lifecycle.map((record) => record.state)).toEqual(['started', 'share-stopped']),
+    );
+    const record = h.lifecycle[1]!;
+    expect(record).toMatchObject({ callId: call.callId, source: 'screen' });
+    expect(record.state === 'share-stopped' && record.atMs).toBeGreaterThanOrEqual(65_000);
+    expect(isChannelVoiceCallRecord(record)).toBe(true);
+    expect(voiceCallRecordBody(record)).toContain('Screen sharing in call');
+    const refused = await h.calls.handle(h.phone, {
+      kind: 'visual',
+      callId: call.callId,
+      source: 'camera',
+      stopped: true,
+    });
+    expect(refused).toMatchObject({ ok: false, code: 'invalid-input' });
   });
 });
 

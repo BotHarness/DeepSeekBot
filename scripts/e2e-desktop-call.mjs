@@ -183,7 +183,49 @@ const SCENARIOS = {
     expectHeard: 1,
     expectNoise: false,
   },
+  screen: {
+    screen: true,
+    steps: [{ at: 11_000, audio: host.speech(1_400, { seed: 9 }) }],
+    transcripts: ['What does the terminal say?'],
+    replies: () => [{ delayMs: 500, text: 'The build failed at the link step.' }],
+    expectHeard: 1,
+    expectNoise: false,
+  },
 };
+
+const screenWindows = [
+  { seconds: 4, background: 'white', lines: '0x9aa3b2', top: 60 },
+  { seconds: 4, background: '0x1b1f27', lines: '0x4cc38a', top: 120 },
+  { seconds: 16, background: '0xeef3fb', lines: '0x1f7a52', top: 200 },
+];
+
+function screenVideo(path) {
+  const inputs = screenWindows.flatMap((window) => [
+    '-f',
+    'lavfi',
+    '-t',
+    String(window.seconds),
+    '-i',
+    `color=c=${window.background}:s=1280x720:r=15`,
+  ]);
+  const drawn = screenWindows.map((window, index) => {
+    const boxes = Array.from(
+      { length: 8 },
+      (_, line) =>
+        `drawbox=x=${80 + (line % 3) * 40}:y=${window.top + line * 48}:w=${640 - (line % 4) * 90}:h=18:color=${window.lines}:t=fill`,
+    ).join(',');
+    return `[${index}:v]${boxes}[w${index}]`;
+  });
+  execSync(
+    [
+      'ffmpeg -hide_banner -loglevel error -y',
+      ...inputs.map((part) => (part.includes('=') ? JSON.stringify(part) : part)),
+      `-filter_complex "${drawn.join(';')};${screenWindows.map((_, index) => `[w${index}]`).join('')}concat=n=${screenWindows.length}:v=1:a=0[v]"`,
+      '-map "[v]" -pix_fmt yuv420p',
+      JSON.stringify(path),
+    ].join(' '),
+  );
+}
 
 function cameraVideo(path) {
   const scenes = ['red', 'blue', 'green', 'yellow', 'white', 'purple'];
@@ -275,6 +317,7 @@ async function runScenario(name, scenario) {
   writeFileSync(capture, wavBytes(timelineAudio(scenario.steps), CAPTURE_RATE));
   const video = join(work, `${name}.y4m`);
   if (scenario.camera) cameraVideo(video);
+  if (scenario.screen) screenVideo(video);
   const sent = [];
   const transcripts = [...scenario.transcripts];
   const asrAudio = [];
@@ -326,11 +369,11 @@ async function runScenario(name, scenario) {
   });
   const desktopBrowser = await chromium.launch({
     args: [
-      ...(wavMic && !scenario.camera
+      ...(wavMic && !scenario.camera && !scenario.screen
         ? []
         : ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream']),
       ...(wavMic ? [] : [`--use-file-for-fake-audio-capture=${capture}%noloop`]),
-      ...(scenario.camera ? [`--use-file-for-fake-video-capture=${video}`] : []),
+      ...(scenario.camera || scenario.screen ? [`--use-file-for-fake-video-capture=${video}`] : []),
       '--autoplay-policy=no-user-gesture-required',
       '--disable-features=WebRtcHideLocalIpsWithMdns',
     ],
@@ -341,6 +384,11 @@ async function runScenario(name, scenario) {
       const devices = navigator.mediaDevices;
       const native = devices.getUserMedia.bind(devices);
       window.__micConstraints = [];
+      devices.getDisplayMedia = async () => {
+        const stream = await native({ video: { width: 1280, height: 720 } });
+        window.__screenStream = stream;
+        return stream;
+      };
       devices.getUserMedia = async (constraints) => {
         if (constraints?.video) return native(constraints);
         window.__micConstraints.push(constraints);
@@ -452,6 +500,14 @@ async function runScenario(name, scenario) {
       });
       assert.deepEqual(visual, { source: 'camera', error: null }, 'the camera is on');
     }
+    if (scenario.screen) {
+      await window1.evaluate(() => window.__desktopCall.screen(true));
+      const visual = await window1.evaluate(() => {
+        const current = window.__desktopCall.snapshot().visual;
+        return { source: current.source, error: current.error ?? null };
+      });
+      assert.deepEqual(visual, { source: 'screen', error: null }, 'the screen is shared');
+    }
 
     const other = await (await desktopContext()).newPage();
     await other.goto(`${base}/desktop.html`);
@@ -521,6 +577,60 @@ async function runScenario(name, scenario) {
         grid: sent[0].visual,
         composeMs: built.composeMs,
         waitedMs: gridSent.waitedMs,
+      };
+    }
+    if (scenario.screen) {
+      const received = events.filter((event) => event.type === 'frame-received');
+      const built = events.find((event) => event.type === 'grid-built');
+      const gridSent = events.find((event) => event.type === 'grid-sent');
+      assert.equal(
+        received.length,
+        screenWindows.length,
+        `one keyframe per window and none for a still page: ${received.length}`,
+      );
+      assert.ok(
+        built !== undefined && gridSent?.grid === built.grid,
+        `a grid was sent: ${types.join(',')}`,
+      );
+      assert.deepEqual(
+        sent[0]?.visual && { source: sent[0].visual.source, frames: sent[0].visual.frames },
+        { source: 'screen', frames: screenWindows.length },
+        'the sentence carried the three windows',
+      );
+      await window1.evaluate(() =>
+        window.__screenStream.getVideoTracks()[0].dispatchEvent(new Event('ended')),
+      );
+      const stopped = await window1.evaluate(() => {
+        const current = window.__desktopCall.snapshot();
+        return {
+          source: current.visual.source,
+          error: current.visual.error,
+          status: current.state.status,
+        };
+      });
+      assert.deepEqual(
+        stopped,
+        { source: 'off', error: 'screen-stopped', status: 'live' },
+        'a share stopped by the system falls back to voice only',
+      );
+      const after = Date.now() + 3_000;
+      let hostVisual;
+      while (Date.now() < after) {
+        hostVisual = (await calls.handle({ deviceId: 'host-owner' }, { kind: 'status' })).calls.at(
+          -1,
+        ).visual;
+        if (hostVisual === 'off') break;
+        await new Promise((wait) => setTimeout(wait, 100));
+      }
+      assert.equal(hostVisual, 'off', 'the Host call is voice only');
+      result.screen = {
+        received: received.length,
+        frameBytes: received.map((event) => event.bytes),
+        prepareMs: received.map((event) => event.prepareMs),
+        grid: sent[0].visual,
+        composeMs: built.composeMs,
+        waitedMs: gridSent.waitedMs,
+        stopped: stopped.error,
       };
     }
 

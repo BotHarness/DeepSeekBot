@@ -1621,6 +1621,9 @@ const en = {
     recordScreen: 'Screen while you were silent',
     recordFrames: (from: string, to: string, frames: number) =>
       `${from}–${to} · ${frames} ${frames === 1 ? 'keyframe' : 'keyframes'}`,
+    recordShareStoppedCamera: 'Camera disconnected',
+    recordShareStoppedScreen: 'Screen sharing stopped',
+    recordShareStoppedAt: (time: string) => `Voice only from ${time}`,
     title: 'Call',
     connecting: 'Connecting…',
     listening: 'Listening',
@@ -3765,6 +3768,9 @@ const zh: typeof en = {
     recordScreen: '你沉默时的屏幕画面',
     recordFrames: (from: string, to: string, frames: number) =>
       `${from}–${to} · ${frames} 个关键帧`,
+    recordShareStoppedCamera: '摄像头已断开',
+    recordShareStoppedScreen: '屏幕共享已停止',
+    recordShareStoppedAt: (time: string) => `${time} 起仅语音`,
     title: '通话',
     connecting: '正在接通…',
     listening: '在听',

@@ -2481,9 +2481,9 @@
       "path": "scripts/e2e-desktop-call.mjs",
       "category": "mapped",
       "behaviors": ["desktop.bot-call"],
-      "reason": "Desktop call in Chromium with fake audio capture files: the Client's browser WebRTC (echo cancellation on) against the Host call renderer and the real Host call owner; question, long-task and camera scenarios, cough discarded, reply heard, second window refused, fake camera keyframes reach a sentence grid.",
-      "task": 3495,
-      "sha256": "9f893a5a17bf26dad454506ee032dd5252cd83c9e373d0a3b4c72852f2e4f7aa"
+      "reason": "Desktop call in Chromium with fake audio capture files: the Client's browser WebRTC (echo cancellation on) against the Host call renderer and the real Host call owner; question, long-task, camera and screen scenarios, cough discarded, reply heard, second window refused, fake camera keyframes reach a sentence grid, a fake screen recording gives one keyframe per window and a system-stopped share falls back to voice.",
+      "task": 3496,
+      "sha256": "03992ec0bcd32f48bc17bddfea805a392267fd08a9997cca78e8c1deead48a3a"
     }
   ],
   "native": [

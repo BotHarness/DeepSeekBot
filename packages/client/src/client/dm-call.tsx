@@ -45,6 +45,8 @@ export function DmCallControl({
   if (view !== undefined) {
     const time = formatCallDuration(view.durationMs);
     const camera = snapshot.visual.source === 'camera';
+    const screen = snapshot.visual.source === 'screen';
+    const sharing = snapshot.state.status !== 'live' || snapshot.visual.starting;
     return (
       <span ref={anchor} className={wrap} data-variant={variant}>
         <div
@@ -63,10 +65,18 @@ export function DmCallControl({
           <IconButton
             aria-label={camera ? t('call.cameraOff') : t('call.cameraOn')}
             aria-pressed={camera}
-            disabled={snapshot.state.status !== 'live' || snapshot.visual.starting}
+            disabled={sharing}
             onClick={() => void call.camera(!camera)}
           >
             <ChannelSidebarIcon name={camera ? 'video' : 'video-off'} />
+          </IconButton>
+          <IconButton
+            aria-label={screen ? t('call.screenOff') : t('call.screenOn')}
+            aria-pressed={screen}
+            disabled={sharing}
+            onClick={() => void call.screen(!screen)}
+          >
+            <ChannelSidebarIcon name="monitor" />
           </IconButton>
           <IconButton
             aria-label={view.muted ? t('call.unmute') : t('call.mute')}
@@ -86,13 +96,14 @@ export function DmCallControl({
             <ChannelSidebarIcon name="phone-off" />
           </button>
         </div>
-        {camera || snapshot.visual.error !== undefined
+        {camera || screen || snapshot.visual.error !== undefined
           ? createPortal(
               <CallCameraPanel
                 visual={snapshot.visual}
                 t={t}
                 place={panelPlace(anchor.current)}
                 onSave={(save) => void call.saveFrames(save)}
+                onClose={() => call.dismissVisual()}
               />,
               document.body,
             )
@@ -156,16 +167,26 @@ function panelPlace(element: HTMLElement | null): { top: number; right: number }
   return { top: rect.bottom + 8, right: Math.max(8, window.innerWidth - rect.right) };
 }
 
+const VISUAL_ERRORS = {
+  'camera-denied': 'call.cameraDenied',
+  'camera-missing': 'call.cameraMissing',
+  'camera-stopped': 'call.cameraStopped',
+  'screen-missing': 'call.screenMissing',
+  'screen-stopped': 'call.screenStopped',
+} as const satisfies Record<NonNullable<DesktopCallVisual['error']>, string>;
+
 export function CallCameraPanel({
   visual,
   t,
   place,
   onSave,
+  onClose,
 }: {
   visual: DesktopCallVisual;
   t: BotHarnessTranslate;
   place: { top: number; right: number } | undefined;
   onSave: (save: boolean) => void;
+  onClose: () => void;
 }): ReactElement {
   const attach = (element: HTMLVideoElement | null) => {
     const stream = visual.stream ?? null;
@@ -179,13 +200,21 @@ export function CallCameraPanel({
   if (visual.error !== undefined && visual.source === 'off')
     return (
       <div className="bh-call-camera" role="alert" style={place}>
-        <p className="bh-call-camera-error">
-          {t(visual.error === 'camera-denied' ? 'call.cameraDenied' : 'call.cameraMissing')}
-        </p>
+        <p className="bh-call-camera-error">{t(VISUAL_ERRORS[visual.error])}</p>
+        <button type="button" className="bh-call-camera-close" onClick={onClose}>
+          {t('call.close')}
+        </button>
       </div>
     );
+  const screen = visual.source === 'screen';
   return (
-    <div className="bh-call-camera" role="group" aria-label={t('call.cameraPreview')} style={place}>
+    <div
+      className="bh-call-camera"
+      role="group"
+      aria-label={t(screen ? 'call.screenPreview' : 'call.cameraPreview')}
+      data-source={visual.source}
+      style={place}
+    >
       <div className="bh-call-camera-frame">
         <video ref={attach} className="bh-call-camera-video" muted playsInline autoPlay />
         <span
@@ -195,6 +224,13 @@ export function CallCameraPanel({
           aria-hidden="true"
         />
       </div>
+      {screen ? (
+        <p className="bh-call-camera-label">
+          {visual.label === undefined
+            ? t('call.screenSharingUnnamed')
+            : t('call.screenSharing', { name: visual.label })}
+        </p>
+      ) : null}
       <p className="bh-call-camera-meta" role="status" aria-live="polite">
         {visual.keyframes > 0
           ? t('call.cameraKeyframes', { count: String(visual.keyframes) })
