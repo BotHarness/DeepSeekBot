@@ -18,7 +18,7 @@ export function ChatHeaderSurface({
 }) {
   const theme = useDesignTheme();
   const fadeHeight = height + chatHeaderSurface.fade;
-  const mask = <EdgeFade edge="top" height={fadeHeight} cover={height} solid={solid} />;
+  const mask = <EdgeFade edge="top" height={fadeHeight} cover={height} solid={height} />;
   return (
     <View
       pointerEvents="none"

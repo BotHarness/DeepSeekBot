@@ -209,7 +209,7 @@ export const glass = {
   saturate: 180,
 } as const;
 
-export const chatHeaderSurface = { fade: 24, intensity: 45 } as const;
+export const chatHeaderSurface = { fade: 24, intensity: 70 } as const;
 
 export const edgeFade = {
   bottom: 24,
