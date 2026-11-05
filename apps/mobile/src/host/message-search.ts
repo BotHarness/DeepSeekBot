@@ -22,7 +22,11 @@ export type MessageSearchHit = {
   snippet: string;
 };
 
-export type MessageSearchHost = { hostId: string; client: Pick<HostClient, 'call'> };
+export type MessageSearchHost = {
+  hostId: string;
+  client: Pick<HostClient, 'call'>;
+  offline?: boolean;
+};
 
 export type MessageSearchState = {
   query: string;
@@ -72,12 +76,14 @@ export async function searchHostMessages(
   text: string,
 ): Promise<MessageSearchHit[]> {
   const pages = await Promise.allSettled(
-    hosts.map(async ({ hostId, client }) =>
-      hitsOf(
-        hostId,
-        await client.call<unknown>('messageSearch', { text, limit: MESSAGE_SEARCH_LIMIT }),
+    hosts
+      .filter((host) => host.offline !== true)
+      .map(async ({ hostId, client }) =>
+        hitsOf(
+          hostId,
+          await client.call<unknown>('messageSearch', { text, limit: MESSAGE_SEARCH_LIMIT }),
+        ),
       ),
-    ),
   );
   return newestFirst(pages.flatMap((page) => (page.status === 'fulfilled' ? page.value : [])));
 }
