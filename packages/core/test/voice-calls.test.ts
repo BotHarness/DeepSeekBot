@@ -1377,6 +1377,26 @@ describe('barge-in while the Bot speaks', () => {
     expect(h.sent.at(-1)?.body).toBe('等等别说了');
   });
 
+  it('restores the volume and forgets a suspected cut-in when the Human mutes', async () => {
+    const { media, state } = fakeMedia();
+    const h = harness({ media });
+    const callId = await speaking(h, state);
+    const before = (await view(h, callId)).lastSeq;
+    h.feed(state.onPcm!, concat(silence(600), speech(300)));
+    await settled();
+    expect(state.gains).toEqual([0.3]);
+    await h.ok({ kind: 'mute', callId, muted: true });
+    expect(state.gains).toEqual([0.3, 1]);
+    await h.ok({ kind: 'mute', callId, muted: false });
+    h.feed(state.onPcm!, concat(silence(600), speech(300)));
+    await settled();
+    const events = (await view(h, callId, before)).events;
+    expect(types(events)).not.toContain('barge-in');
+    expect(types(events).filter((type) => type === 'barge-suspected')).toHaveLength(2);
+    expect(state.gains).toEqual([0.3, 1, 0.3]);
+    expect(state.stopped).toBe(0);
+  });
+
   it('keeps talking through coughs, knocks, short noise and a murmured "嗯嗯", and nothing reaches the DM', async () => {
     const { media, state } = fakeMedia();
     const h = harness({ media, transcripts: ['你好', '嗯嗯'] });

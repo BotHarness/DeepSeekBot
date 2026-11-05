@@ -184,6 +184,7 @@ export function createVoiceMessages(deps: VoiceMessagesDeps) {
         .then(
           async ({ clip, interrupted }) => {
             if (clip === undefined) {
+              if (!interrupted) return whole();
               log('voice-interrupted', { channel: channelId, message: messageId, kept: 0 });
               return;
             }

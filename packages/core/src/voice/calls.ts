@@ -1909,6 +1909,10 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
           if (call.muted) {
             call.vad.reset();
             dropStream(call);
+            if (call.barge !== undefined) {
+              call.barge = undefined;
+              setGain(call, 1);
+            }
           }
           push(call, { type: call.muted ? 'muted' : 'unmuted' });
           settle(call);

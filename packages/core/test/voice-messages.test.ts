@@ -213,6 +213,17 @@ describe('Bot voice messages', () => {
     expect(spoken).toEqual(['明天会下雨。']);
   });
 
+  it('synthesizes the whole message when an uninterrupted call ends without a clip', async () => {
+    const { send, bind, channels, dm, spoken } = await setup(200, async () => ({
+      archive: Promise.resolve({ interrupted: false }),
+    }));
+    await bind();
+    const sent = await send({ voice: true, body: '明天会下雨。' });
+    const messageId = (sent.result as { messageId: string }).messageId;
+    await eventually(() => channels.message(dm.id, messageId)!.voice?.state === 'ready');
+    expect(spoken).toEqual(['明天会下雨。']);
+  });
+
   it('sends exactly as before when voice is false', async () => {
     const { send, bind, channels, dm, spoken } = await setup();
     await bind();
