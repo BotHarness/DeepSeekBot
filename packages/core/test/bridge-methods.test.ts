@@ -2302,6 +2302,52 @@ describe('bridge methods', () => {
     ]);
   });
 
+  it('returns only the changed channel summaries and the removed ids since a cursor (C3)', async () => {
+    const { methods, channels } = setup();
+    methods.create({ slug: 'ada', displayName: 'Ada' });
+    const team = channels.createGroup({ name: 'Team', members: ['ada'] });
+    expect(await methods.channelListChanges({ sinceSeq: 0 })).toMatchObject({
+      ok: false,
+      error: { code: 'unavailable' },
+    });
+    const cursor = { epoch: 'e1', seq: 9 };
+    const requests: unknown[] = [];
+    let next: ReturnType<NonNullable<ChannelStore['readChangedChannels']>> = {
+      channelIds: ['dm-ada', 'gone'],
+      all: false,
+      cursor,
+    };
+    channels.readChangedChannels = (request) => {
+      requests.push(request);
+      return next;
+    };
+    const result = await methods.channelListChanges({ sinceSeq: 3, epoch: 'e1' });
+    expect(requests).toEqual([{ sinceSeq: 3, epoch: 'e1' }]);
+    expect(result.ok && result.value).toEqual({
+      channels: [expect.objectContaining({ id: 'dm-ada', name: 'Ada' })],
+      removed: ['gone'],
+      cursor,
+    });
+    next = { channelIds: [], all: true, cursor };
+    const all = await methods.channelListChanges({ sinceSeq: 9 });
+    expect(
+      all.ok && !all.value.reset && all.value.channels.map((channel) => channel.id).sort(),
+    ).toEqual(['dm-ada', team.id].sort());
+    next = { reset: true, cursor };
+    expect(await methods.channelListChanges({ sinceSeq: 9 })).toEqual({
+      ok: true,
+      value: { reset: true, cursor },
+    });
+    expect(await methods.channelListChanges({ sinceSeq: -1 })).toMatchObject({
+      ok: false,
+      error: { code: 'invalid-input' },
+    });
+    expect(await methods.channelListChanges({ sinceSeq: 1, epoch: 2 })).toMatchObject({
+      ok: false,
+      error: { code: 'invalid-input' },
+    });
+  });
+
   it('rejects malformed channel payloads with stable error codes', async () => {
     const { methods } = setup();
     methods.channelDm({ slug: 'ada', displayName: 'Ada' });

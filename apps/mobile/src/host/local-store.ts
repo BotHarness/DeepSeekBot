@@ -57,6 +57,11 @@ export const LOCAL_STORE_MIGRATIONS: readonly string[] = [
     to_revision integer not null,
     primary key (channel_id, from_revision)
   ) without rowid;`,
+  `create table list_cursor (
+    singleton integer primary key check (singleton = 1),
+    epoch text not null,
+    seq integer not null
+  );`,
 ];
 
 const reader = (connection: SqlConnection): SqlReader => ({
