@@ -31,7 +31,7 @@ export function createDeviceNotificationPreferences(options: {
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
   let retryDelay = 1000;
   const accepted = new Map<string, string>();
-  const pairing = (host: SavedHost) => `${host.hostId}:${host.credential}`;
+  const pairing = (host: SavedHost) => JSON.stringify([host.hostId, host.credential]);
   const send = async (host: SavedHost, preferences: PushPreferences) => {
     const value = JSON.stringify(preferences);
     accepted.delete(pairing(host));
