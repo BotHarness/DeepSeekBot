@@ -201,6 +201,15 @@ export function PhoneOffIcon(props: IconProps) {
   );
 }
 
+export function ScreenIcon(props: IconProps) {
+  return (
+    <Glyph
+      {...props}
+      d="M4 4h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Zm4 16h8m-4-4v4"
+    />
+  );
+}
+
 export function BrowserIcon(props: IconProps) {
   return (
     <Glyph
