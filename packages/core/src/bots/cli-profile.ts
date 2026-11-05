@@ -67,6 +67,7 @@ export const PROFILE_COMMANDS = [
     command: 'roster-top-reorder',
     description: 'set the top-level sidebar order of sections and Channels',
   },
+  { command: 'host-ping', description: 'check that the Host answers, with no payload' },
   { command: 'human-identity', description: "read the Human's id and display name" },
   { command: 'part-library', description: 'list the Custom Part Library' },
   { command: 'part-library-add', description: 'save a Custom Part JSON from stdin to the library' },
@@ -341,6 +342,9 @@ export async function profileCall(
       });
       return ['topReorder', { order }];
     }
+    case 'host-ping':
+      noArguments(command, rest);
+      return ['ping', {}];
     case 'human-identity':
       noArguments(command, rest);
       return ['humanIdentity', {}];

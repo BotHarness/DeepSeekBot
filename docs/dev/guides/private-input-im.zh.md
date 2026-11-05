@@ -1,6 +1,8 @@
 # 从 IM 请求私密输入，在 Web Chat 完成
 
-设置了 `privateInputWebUrl` 的 Profile 支持真实 PersonaBot 从已授权 IM 请求发起私密输入：Owner 在既有 Web 私聊多字段卡片提交，固定消费者在现有执行审批后使用引用，Bot 将非私密结果回帖到原 IM 会话。首次真实 Provider 验证使用独立 Lark QA2 私聊；不新增原生 IM 私密表单，也不代表任意 CLI/MCP 都能安全消费秘密。
+Profile 支持真实 PersonaBot 从已授权 IM 请求发起私密输入：Owner 在既有 Web 私聊多字段卡片提交，固定消费者在现有执行审批后使用引用，Bot 将非私密结果回帖到原 IM 会话。首次真实 Provider 验证使用独立 Lark QA2 私聊；不新增原生 IM 私密表单，也不代表任意 CLI/MCP 都能安全消费秘密。
+
+未设置 `privateInputWebUrl` 时流程照常可用：卡片仍在该 PersonaBot 的 Chat 中打开，IM 通知会提示 Owner 去那里填写，只是不带链接。设置 Web origin 只是给通知加上链接（[#3340](https://github.com/BotHarness/DeepSeekBot/issues/3340)）。
 
 密钥输入本身不需要额外配置（见[普通 Profile 指南](private-input-ordinary.zh.md)）。这条流程当初是在需要 Docker 的受保护 Profile 中验证的，该模式已删除（[ADR-0192](../../adr/0192-the-docker-protected-profile-is-removed.md)），之后还没有用真实 IM App 重新跑过。按[测试 App 指南](../../agents/im-test-apps.md)配置独立 App 并通过现有 Provider 绑定真实 Bot。不要为其他 Host 正在使用的 App 启动第二个接收器，QA1 与生产 Profile 保持独立。
 

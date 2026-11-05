@@ -95,6 +95,7 @@ describe("generated developer reference", () => {
       { name: "agent/inbox/claimed", direction: "consumes", operation: "on" },
       { name: "agent/inbox/discarded", direction: "consumes", operation: "on" },
       { name: "agent/pre-step", direction: "consumes", operation: "on" },
+      { name: "agent/request-error", direction: "consumes", operation: "on" },
       { name: "agent/status", direction: "consumes", operation: "on" },
       { name: "agent/status", direction: "consumes", operation: "on" },
       { name: "approval/request", direction: "consumes", operation: "on" },

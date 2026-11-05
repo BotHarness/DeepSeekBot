@@ -27,6 +27,8 @@ import { join } from 'node:path';
 import type { Duplex } from 'node:stream';
 import type { LocalVideoOwner } from '../../../computer/src/local-video-contract.js';
 import { localVideoCommand } from '../../../computer/src/local-video-http.js';
+import type { VoiceCallResult } from '../voice/call-contract.js';
+import type { VoiceCalls } from '../voice/calls.js';
 
 import { attachOperationalModule, type OperationalDatabaseOwner } from '../database/owner.js';
 import { openLogDatabase, type LogDatabase } from '../logs/log-db.js';
@@ -52,8 +54,10 @@ import {
 import { createExpoSender } from '../push/expo-sender.js';
 import { createDevicePushHttp } from '../push/http.js';
 import type { TelemetryService } from '../telemetry/service.js';
+import { coalesce } from '../runtime/coalesce.js';
 
 const PUSH_SETTLE_MS = 500;
+const SETTLE_MAX_WAIT_MS = 2_000;
 const PUSH_SWEEP_MS = 60_000;
 
 export interface DevicePushOptions {
@@ -127,6 +131,7 @@ export function mountDevicePairing(
     packageAnchors?: readonly string[];
     onAccount?: (account: ConnectAccount | undefined) => void;
     telemetry?: Pick<TelemetryService, 'capture'>;
+    calls?: () => VoiceCalls | undefined;
     botNetwork?: {
       registry: PersonaBotRegistry;
       channels: ChannelStore;
@@ -154,6 +159,14 @@ export function mountDevicePairing(
   let activity: ActivityDelivery | undefined;
   const videoOwner = (): LocalVideoOwner | undefined =>
     (ctx.get('botharnessComputer') as { localVideo?: LocalVideoOwner } | undefined)?.localVideo;
+  const voiceCall = async (
+    caller: { deviceId: string },
+    command: unknown,
+    signal: AbortSignal,
+  ): Promise<VoiceCallResult> =>
+    options.calls?.() === undefined
+      ? { ok: false, code: 'not-ready', error: 'Calls are not ready on this Host.' }
+      : options.calls()!.handle(caller, command, signal);
   const pairing = createDevicePairing({
     database: attachOperationalModule(options.database, 'device-pairing'),
     hostName: hostname().replace(/\.local$/u, ''),
@@ -171,6 +184,10 @@ export function mountDevicePairing(
           ),
         );
 
+      void options
+        .calls?.()
+        ?.revoke(deviceId)
+        .catch(() => write('voice', 'call-revoke-failed', 'voice-call phase=revoke-failed'));
       void videoOwner()
         ?.revoke(deviceId)
         .catch(() =>
@@ -306,12 +323,9 @@ export function mountDevicePairing(
           ctx.logger.warn(`push phase=reconcile-failed error=${String(error)}`),
         );
     };
-    let settle: ReturnType<typeof setTimeout> | undefined;
+    const settle = coalesce(reconcile, { delayMs: PUSH_SETTLE_MS, maxWaitMs: SETTLE_MAX_WAIT_MS });
     ctx.effect(() => {
-      const off = watched.watch(() => {
-        clearTimeout(settle);
-        settle = setTimeout(reconcile, PUSH_SETTLE_MS);
-      });
+      const off = watched.watch(settle.schedule);
       const sweep = setInterval(() => {
         reconcile();
         void delivery.checkReceipts();
@@ -319,7 +333,7 @@ export function mountDevicePairing(
       reconcile();
       return () => {
         off();
-        clearTimeout(settle);
+        settle.cancel();
         clearInterval(sweep);
       };
     }, 'botharness: push delivery');
@@ -386,6 +400,7 @@ export function mountDevicePairing(
           route: 'lan',
           localVideo: ({ deviceId, command, signal }) =>
             localVideoCommand(videoOwner(), { deviceId }, command, signal),
+          voiceCall: ({ deviceId, command, signal }) => voiceCall({ deviceId }, command, signal),
           log: (phase) => write('device-lan', phase, `device-lan phase=${phase}`),
         }),
       ...(options.botNetwork === undefined
@@ -629,7 +644,6 @@ export function mountDevicePairing(
       });
       const delivery = activity;
       webCtx.effect(() => {
-        let settle: ReturnType<typeof setTimeout> | undefined;
         const reconcile = () => {
           const started = Date.now();
           void delivery
@@ -642,15 +656,19 @@ export function mountDevicePairing(
               ),
             );
         };
-        const off = options.database.subscribe(({ module }) => {
-          if (module === 'live-activity') return;
-          clearTimeout(settle);
-          settle = setTimeout(reconcile, 500);
+        const settle = coalesce(reconcile, {
+          delayMs: PUSH_SETTLE_MS,
+          maxWaitMs: SETTLE_MAX_WAIT_MS,
+        });
+        const off = options.database.subscribe(({ module, topics }) => {
+          if (module === 'live-activity' || module === 'telemetry') return;
+          if (topics.length > 0 && topics.every((topic) => topic === 'usage')) return;
+          settle.schedule();
         });
         const sweep = setInterval(reconcile, 60_000);
         return () => {
           off();
-          clearTimeout(settle);
+          settle.cancel();
           clearInterval(sweep);
           delivery.dispose();
           activity = undefined;
@@ -769,6 +787,7 @@ export function mountDevicePairing(
       log: (message) => ctx.logger.info(message),
       localVideo: ({ deviceId, command, signal }) =>
         localVideoCommand(videoOwner(), { deviceId }, command, signal),
+      voiceCall: ({ deviceId, command, signal }) => voiceCall({ deviceId }, command, signal),
       ...(push === undefined ? {} : { push: createDevicePushHttp(push) }),
       ...(activity === undefined ? {} : { activity: activity.handle }),
       connectOffer: (body, signature) => account.verifyOffer(body, signature),

@@ -154,6 +154,7 @@ it('removes exclusive actual files after acceptance and reapplies destination un
       sourceEventId: core.source.sourceEventId,
       channelId: core.channel.id,
       messageId: core.source.messageId,
+      fileIds: [core.file.fileId],
     },
   ]);
   const checkpoint = current.purge.checkpoint();
@@ -281,7 +282,9 @@ it('previews a live shared placement and invalidates consent when its references
   const share = () =>
     core.port.transaction((db) =>
       db
-        .prepare('INSERT INTO channel_placements VALUES (?, ?, ?, ?)')
+        .prepare(
+          'INSERT INTO channel_placements (channel_id, revision, source_event_id, message_id) VALUES (?, ?, ?, ?)',
+        )
         .run(active.id, 1, core.source.sourceEventId, core.source.messageId),
     );
   share();
@@ -307,7 +310,9 @@ it('uses each shared placement message identity for reads and post-commit purge 
   const active = core.channels.createGroup({ name: 'Shared identity', members: [] });
   core.port.transaction((db) =>
     db
-      .prepare('INSERT INTO channel_placements VALUES (?, 1, ?, ?)')
+      .prepare(
+        'INSERT INTO channel_placements (channel_id, revision, source_event_id, message_id) VALUES (?, 1, ?, ?)',
+      )
       .run(active.id, core.source.sourceEventId, 'shared-message'),
   );
   expect(core.channels.readMessages(active.id)[0]?.id).toBe('shared-message');
@@ -337,11 +342,13 @@ it('uses each shared placement message identity for reads and post-commit purge 
   });
   expect(reply()?.body).toBe('retained reply');
   expect(reply()?.replyToPreview?.body).toBe('');
-  expect(core.purge.redactions()).toContainEqual({
-    sourceEventId: core.source.sourceEventId,
-    channelId: active.id,
-    messageId: 'shared-message',
-  });
+  expect(core.purge.redactions()).toContainEqual(
+    expect.objectContaining({
+      sourceEventId: core.source.sourceEventId,
+      channelId: active.id,
+      messageId: 'shared-message',
+    }),
+  );
 });
 
 it('reports a recorded Memory derivative through a deleted identity locator and retains its actual Git bytes', async () => {

@@ -22,6 +22,7 @@ export type ActivityToolbarProps = {
   onSearch(value: string): void;
   onSearchFocus(focused: boolean): void;
   onFilter(): void;
+  onClear?: (() => void) | undefined;
   onHeight(height: number): void;
 };
 
@@ -34,6 +35,7 @@ export function ActivityToolbar({
   onSearch,
   onSearchFocus,
   onFilter,
+  onClear,
   onHeight,
 }: ActivityToolbarProps) {
   const t = useStrings();
@@ -107,6 +109,7 @@ export function ActivityToolbar({
                   searching={search !== ''}
                   options={options}
                   onFilter={onFilter}
+                  onClear={onClear}
                   onSearch={() => {
                     onSearchFocus(true);
                     setSearching(true);

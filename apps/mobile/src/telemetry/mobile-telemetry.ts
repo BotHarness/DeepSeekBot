@@ -1,3 +1,4 @@
+import { isPairingFailureDetail } from '../host/pairing-detail';
 import {
   durationBucket,
   isUuid,
@@ -288,7 +289,7 @@ export function createMobileTelemetry(options: TelemetryOptions) {
       let finished = false;
       capture('pairing:attempt_start', { method, attempt_id });
       return {
-        finish(outcome: PairingOutcome, reason: PairingReason = 'none') {
+        finish(outcome: PairingOutcome, reason: PairingReason = 'none', detail?: string) {
           if (finished || !allowed || current !== generation) return;
           finished = true;
           capture('pairing:attempt_complete', {
@@ -296,6 +297,7 @@ export function createMobileTelemetry(options: TelemetryOptions) {
             attempt_id,
             outcome,
             reason,
+            ...(detail !== undefined && isPairingFailureDetail(detail) ? { detail } : {}),
             duration_bucket: durationBucket(options.monotonic() - start),
           });
         },

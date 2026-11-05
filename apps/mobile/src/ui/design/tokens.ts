@@ -54,6 +54,14 @@ export const stateRing = {
   segment: 0.26,
   period: 1300,
 } as const;
+export const callBubble = {
+  avatarScale: 1.25,
+  badge: 20,
+  capsuleOverlap: 8,
+  pulsePeriod: 1400,
+  pulseGrowth: 0.35,
+  maxTextScale: 1.4,
+} as const;
 export const rowGlyph = { size: 16, period: 900 } as const;
 export const accountActionIcon = {
   slot: 28,
@@ -281,6 +289,7 @@ export const doubleTap = { window: 300, emoji: '👍' } as const;
 export const recentChats = { limit: 3 } as const;
 
 export const workspaceStack = { max: 3, tile: 28, overlap: 10, ring: 2 } as const;
+export const cornerBadge = { maxTextScale: 1.2, materialLabel: 11 } as const;
 
 export const swipeOpen = {
   start: 24,
@@ -298,6 +307,7 @@ export const swipeOpen = {
 export const swipeReply = {
   start: 12,
   verticalFail: 10,
+  backFail: 8,
   commit: 56,
   reach: 72,
   icon: 28,

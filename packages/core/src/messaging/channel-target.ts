@@ -74,6 +74,8 @@ export function bridgeAttachmentKind(
     if (attachment.mediaType === undefined) return 'file';
     if (source.event.video?.itemId === attachment.id && attachment.mediaType === 'video/unknown')
       return 'video';
+    if (source.event.voice?.itemId === attachment.id && attachment.mediaType === 'audio/unknown')
+      return 'audio';
   }
   return undefined;
 }
@@ -129,7 +131,7 @@ export function projectBridgeMessage(
                   ];
             }),
             ...(source.event.contentParts ? { parts: source.event.contentParts } : {}),
-            ...(source.platform === 'qq' && source.event.voice
+            ...((source.platform === 'qq' || source.platform === 'feishu') && source.event.voice
               ? {
                   voice: {
                     transcript: source.event.voice.transcript,

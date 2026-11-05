@@ -8,6 +8,7 @@ import { parseContentRedactions } from './content-redactions.js';
 import {
   parseChannelMessage,
   parseStoredChannelMessage,
+  parseMessageVoice,
   parseReactions,
   type JournalEntry,
   type JournalPage,
@@ -19,7 +20,9 @@ const EVENT_NAME = 'channel/message';
 const ADMISSION_EVENT = 'channel/admission';
 const HUMAN_READ_EVENT = 'channel/human-read';
 const REACTION_EVENT = 'channel/reaction';
+const VOICE_EVENT = 'channel/voice';
 const DRAFT_EVENT = 'channel/draft';
+const DRAFT_APPEND_EVENT = 'channel/draft-append';
 const DRAFT_BASELINE_EVENT = 'channel/draft-baseline';
 const DRAFT_SETTLED_EVENT = 'channel/draft-settled';
 const DRAFT_ABANDONED_EVENT = 'channel/draft-abandoned';
@@ -79,6 +82,34 @@ function parseDraft(value: unknown): ChannelDraft | undefined {
     revision: item['revision'],
     botSlug: item['botSlug'],
     body: item['body'],
+  };
+}
+
+interface DraftAppend {
+  draftId: string;
+  revision: number;
+  base: number;
+  offset: number;
+  append: string;
+}
+
+function parseDraftAppend(value: unknown): DraftAppend | undefined {
+  const decoded = decode(value);
+  if (typeof decoded !== 'object' || decoded === null) return undefined;
+  const item = decoded as Record<string, unknown>;
+  const counts = ['revision', 'base', 'offset'].map((key) => item[key]);
+  if (
+    typeof item['draftId'] !== 'string' ||
+    typeof item['append'] !== 'string' ||
+    counts.some((count) => typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0)
+  )
+    return undefined;
+  return {
+    draftId: item['draftId'],
+    revision: item['revision'] as number,
+    base: item['base'] as number,
+    offset: item['offset'] as number,
+    append: item['append'],
   };
 }
 
@@ -282,6 +313,7 @@ export function mountChannelLive(
     const query = new URLSearchParams({
       channelId: channel.id,
       after: String(snapshot.conversation.revision),
+      drafts: 'append',
     });
     const onEntry = (data: unknown): void => {
       const frame = parseFrame(data);
@@ -379,6 +411,35 @@ export function mountChannelLive(
         }),
       });
     };
+    const onVoice = (data: unknown): void => {
+      const payload = decode(data);
+      if (typeof payload !== 'object' || payload === null) return;
+      const item = payload as Record<string, unknown>;
+      const voice = parseMessageVoice(item['voice']);
+      const attachments = item['attachments'];
+      if (
+        item['channelId'] !== activeChannelId ||
+        typeof item['messageId'] !== 'string' ||
+        voice === undefined ||
+        !Array.isArray(attachments)
+      )
+        return;
+      const latest = store.getSnapshot();
+      if (latest.conversation.channel?.id !== activeChannelId) return;
+      store.setConversation({
+        messages: latest.conversation.messages.map((message) =>
+          message.id !== item['messageId']
+            ? message
+            : {
+                ...message,
+                voice,
+                ...(attachments.length === 0
+                  ? {}
+                  : { attachments: attachments as NonNullable<typeof message.attachments> }),
+              },
+        ),
+      });
+    };
     const onHumanRead = (data: unknown): void => {
       const payload = decode(data);
       if (typeof payload !== 'object' || payload === null) return;
@@ -441,6 +502,23 @@ export function mountChannelLive(
       activeAttempts.set(draft.botSlug, draft.attemptId);
       visibleDrafts = [...visibleDrafts.filter((item) => item.draftId !== draft.draftId), draft];
       store.setConversation({ draftNotice: undefined });
+      scheduleDrafts();
+    };
+    const onDraftAppend = (data: unknown): void => {
+      const append = parseDraftAppend(data);
+      if (append === undefined || activeChannelId === undefined) return;
+      const previous = visibleDrafts.find((item) => item.draftId === append.draftId);
+      if (
+        previous === undefined ||
+        previous.revision !== append.base ||
+        previous.body.length !== append.offset
+      ) {
+        void recover(activeChannelId);
+        return;
+      }
+      if (!acceptRevision(previous.channelId, append.revision)) return;
+      const draft = { ...previous, body: previous.body + append.append, revision: append.revision };
+      visibleDrafts = visibleDrafts.map((item) => (item.draftId === draft.draftId ? draft : item));
       scheduleDrafts();
     };
     const onLifecycle = (data: unknown, abandoned: boolean): void => {
@@ -514,12 +592,19 @@ export function mountChannelLive(
           if (change.type !== 'notification') return;
           const notification = change.notification;
           if (typeof notification !== 'object' || notification === null) return;
-          const item = notification as { kind?: unknown; draft?: unknown; event?: unknown };
+          const item = notification as {
+            kind?: unknown;
+            draft?: unknown;
+            append?: unknown;
+            event?: unknown;
+          };
           if (item.kind === 'admission') onAdmission(notification);
           else if (item.kind === 'human-read') onHumanRead(notification);
           else if (item.kind === 'reaction') onReaction(notification);
+          else if (item.kind === 'voice') onVoice(notification);
           else if (item.kind === 'draft-baseline') onDraftBaseline(notification);
           else if (item.kind === 'draft') onDraft(item.draft);
+          else if (item.kind === 'draft-append') onDraftAppend(item.append);
           else if (item.kind === 'draft-settled') onLifecycle(item.event, false);
           else if (item.kind === 'draft-abandoned') onLifecycle(item.event, true);
         },
@@ -567,8 +652,10 @@ export function mountChannelLive(
     next.addEventListener(ADMISSION_EVENT, data(onAdmission));
     next.addEventListener(HUMAN_READ_EVENT, data(onHumanRead));
     next.addEventListener(REACTION_EVENT, data(onReaction));
+    next.addEventListener(VOICE_EVENT, data(onVoice));
     next.addEventListener(DRAFT_BASELINE_EVENT, data(onDraftBaseline));
     next.addEventListener(DRAFT_EVENT, data(onDraft));
+    next.addEventListener(DRAFT_APPEND_EVENT, data(onDraftAppend));
     next.addEventListener(
       DRAFT_SETTLED_EVENT,
       data((value) => onLifecycle(value, false)),

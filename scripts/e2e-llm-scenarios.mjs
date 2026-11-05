@@ -24,7 +24,9 @@ from the Host's usage records, so a design change can be judged on cost as well 
 Options:
   --name <n>            verify-app instance to use (default llm-e2e).
   --launch              Launch that instance first (after pnpm build) and stop it afterwards.
-  --scenario <id>       Run only this scenario (repeatable). Default: all.
+  --scenario <id>       Run only this scenario (repeatable). Default: every scenario except
+                        the external ones (real websites such as YouTube), which run only
+                        when named here and need a Host whose Bot Browser can reach them.
   --changed-from <ref>  Run only scenarios whose areas changed since this Git ref.
   --attempts <n>        Attempts per scenario, 1-5 (default 2). A scenario passes when any
                         attempt passes; the report keeps every attempt so flakiness stays visible.
@@ -501,10 +503,19 @@ export const SCENARIOS = [
               const wanted = aboutSecret ? /drop|删|移除|不分享/iu : /keep|保留/iu;
               const pick = options.find((label) => wanted.test(label));
               return pick === undefined
-                ? { id: question.id, selected: [], custom: aboutSecret ? '删掉这个文件' : '保留' }
+                ? {
+                    id: question.id,
+                    selected: [],
+                    custom: aboutSecret ? '删掉这个文件' : '保留',
+                  }
                 : { id: question.id, selected: [pick] };
             });
-            ctx.note({ [`question-${message.id}`]: { questions: request.questions, answers } });
+            ctx.note({
+              [`question-${message.id}`]: {
+                questions: request.questions,
+                answers,
+              },
+            });
             await ctx.host('userQuestionAnswer', {
               channelId: tob,
               messageId: message.id,
@@ -524,7 +535,71 @@ export const SCENARIOS = [
       ctx.note({ draft: draft.summary });
     },
   },
+  {
+    id: 'browser-youtube-search',
+    summary:
+      'A Human asks a Bot with Browser Access to search YouTube; its current Bot Browser tab ends on the results page for that query (#3377).',
+    areas: [
+      'packages/browser/',
+      'packages/computer/',
+      'packages/core/src/runtime/',
+      'scripts/e2e-llm-scenarios.mjs',
+    ],
+    bots: ['aura'],
+    external: true,
+    async run(ctx) {
+      const slug = ctx.slug('aura');
+      await ctx.host('browserAccessSet', { slug, enabled: true });
+      const query = 'lofi hip hop';
+      const dm = await ctx.dm('aura');
+      await ctx.humanSend(
+        dm,
+        `打开 YouTube（https://www.youtube.com），在页面的搜索框里搜索「${query}」，停在搜索结果页，然后告诉我前三个视频的标题。`,
+      );
+      try {
+        const observed = await ctx.waitFor(
+          'The current Bot Browser tab is a YouTube results page for the query and the Bot replied',
+          async () => {
+            const observation = await ctx.browserObservation(slug).catch(() => undefined);
+            const tab = (observation?.tabs ?? []).find((entry) => entry.current);
+            const onResults =
+              tab !== undefined && youtubeResultsQuery(tab.url) === query.toLowerCase();
+            const replied = ctx.messages(dm).some((message) => ctx.isBot(message, 'aura'));
+            return onResults && replied ? { url: tab.url, title: tab.title } : undefined;
+          },
+        );
+        ctx.note({ result: observed });
+      } finally {
+        const calls = await ctx.toolCalls('aura').catch(() => []);
+        ctx.note({
+          finalBrowser: await ctx.browserObservation(slug).catch((error) => String(error)),
+          browserCalls: calls
+            .filter((call) => call.name.startsWith('browser_'))
+            .map((call) => ({
+              name: call.name,
+              isError: call.isError,
+              arguments: call.arguments,
+              result: call.isError ? call.result.slice(0, 400) : undefined,
+            })),
+        });
+        await ctx.noteDiagnostics('aura');
+      }
+    },
+  },
 ];
+
+export function youtubeResultsQuery(url) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return undefined;
+  }
+  if (!/(^|\.)youtube\.com$/u.test(parsed.hostname) || parsed.pathname !== '/results')
+    return undefined;
+  const value = parsed.searchParams.get('search_query');
+  return value === null ? undefined : value.trim().replace(/\s+/gu, ' ').toLowerCase();
+}
 
 export function parseScenarioArgs(argv) {
   const options = {
@@ -642,9 +717,9 @@ export function modelLabel(route) {
 }
 
 export function selectScenarios(options, changedFiles) {
-  let selected = SCENARIOS;
+  let selected = SCENARIOS.filter((scenario) => scenario.external !== true);
   if (options.scenarios.length > 0)
-    selected = selected.filter((scenario) => options.scenarios.includes(scenario.id));
+    selected = SCENARIOS.filter((scenario) => options.scenarios.includes(scenario.id));
   if (changedFiles !== undefined)
     selected = selected.filter((scenario) =>
       changedFiles.some((file) => scenario.areas.some((area) => file.startsWith(area))),
@@ -666,7 +741,9 @@ const delay = (ms) => new Promise((done) => setTimeout(done, ms));
 export const TOKEN_BUCKETS = ['inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens'];
 
 export function sumHostRows(rows) {
-  const usage = { routes: [...new Set(rows.map((row) => `${row.provider}/${row.model}`))].sort() };
+  const usage = {
+    routes: [...new Set(rows.map((row) => `${row.provider}/${row.model}`))].sort(),
+  };
   for (const bucket of [...TOKEN_BUCKETS, 'totalTokens'])
     usage[bucket] = rows.some(
       (row) => typeof row[bucket] !== 'number' || (row.unknownBuckets?.[bucket] ?? 0) > 0,
@@ -677,7 +754,12 @@ export function sumHostRows(rows) {
 }
 
 export function sumSessionTotals(records, slugs) {
-  const usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
+  const usage = {
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+  };
   const routes = new Set();
   let sessions = 0;
   for (const record of records) {
@@ -844,7 +926,12 @@ async function sessionSnapshot(instance, sessionId) {
             streamId: crypto.randomUUID(),
             endpoint: 'session/follow',
             payload: {
-              args: { request: { address: { kind: 'session', sessionId }, maxMessages: 100 } },
+              args: {
+                request: {
+                  address: { kind: 'session', sessionId },
+                  maxMessages: 100,
+                },
+              },
             },
           }),
         ),
@@ -929,6 +1016,31 @@ export function createContext(instance, scenario, timeoutSeconds, log, presetId)
     },
     slug: (key) => slugs[key],
     host: call,
+    async hostGet(path) {
+      const origin = new URL(instance.url).origin;
+      const response = await fetch(`${origin}${path}`, {
+        signal: AbortSignal.timeout(30_000),
+        headers: { connection: 'close', cookie: cookieFor(instance.home) },
+      });
+      if (response.status !== 200) throw new Error(`GET ${path} HTTP ${response.status}`);
+      return response.json();
+    },
+    async browserObservation(slug) {
+      const { frame: _frame, ...observation } = await ctx.hostGet(
+        `/api/browser/observation?slug=${encodeURIComponent(slug)}`,
+      );
+      return observation;
+    },
+    async noteDiagnostics(key) {
+      const owner = encodeURIComponent(`bot:${slugs[key]}`);
+      const read = (path) => ctx.hostGet(path).catch((error) => ({ error: String(error) }));
+      ctx.note({
+        diagnostics: {
+          botLogs: await read(`/api/computer/logs?owner=${owner}&limit=200`),
+          computer: await read('/api/computer/diagnostics'),
+        },
+      });
+    },
     async toolCalls(key) {
       const { sessions } = await call('sessions', { slug: slugs[key] });
       const calls = [];
@@ -1085,7 +1197,10 @@ export function createContext(instance, scenario, timeoutSeconds, log, presetId)
             channelId,
             messageId: message.id,
             outcome: 'allowed-once',
-          }).catch((error) => ({ accepted: false, error: String(error?.message ?? error) }));
+          }).catch((error) => ({
+            accepted: false,
+            error: String(error?.message ?? error),
+          }));
           log.approvals.push({
             botSlug: message.author.slug,
             toolName: message.toolApprovalRequest.toolName,
@@ -1302,7 +1417,10 @@ async function main() {
       comparison =
         baseline === undefined
           ? undefined
-          : { baselineCommit: baseline.commit, rows: compareReports(baseline, report) };
+          : {
+              baselineCommit: baseline.commit,
+              rows: compareReports(baseline, report),
+            };
       if (comparison !== undefined) report.comparison = comparison;
       writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
       writeFileSync(summaryPath, renderMarkdown(report, comparison));
