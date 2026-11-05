@@ -1770,10 +1770,7 @@ function ChatConversation({
                 travel={profileTravel}
                 onOpen={swipeProfile}
               >
-                <Animated.View
-                  style={{ flex: 1, marginTop: android ? headerPadding : 0 }}
-                  onLayout={latest.onViewportLayout}
-                >
+                <Animated.View style={{ flex: 1 }} onLayout={latest.onViewportLayout}>
                   <MarkdownViewportContext.Provider value={markdownViewport}>
                     <SpeakerStageContext.Provider value={dm ? undefined : stage}>
                       <Animated.FlatList
@@ -1810,7 +1807,7 @@ function ChatConversation({
                             ? composerHeight + edgeFade.bottom
                             : space.x3 + listTop,
                           paddingBottom: android
-                            ? space.x3 + listTop
+                            ? space.x3 + headerPadding
                             : composerHeight + edgeFade.bottom,
                         }}
                         data={rows}
