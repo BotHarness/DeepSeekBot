@@ -41,13 +41,17 @@ vi.mock('expo-file-system', () => {
     get size() {
       return disk.get(this.path)?.length ?? 0;
     }
-    write(bytes: Uint8Array) {
+    async write(bytes: Uint8Array) {
       disk.set(this.path, bytes);
+    }
+    async move(target: File) {
+      disk.set(target.path, disk.get(this.path)!);
+      disk.delete(this.path);
     }
     delete() {
       disk.delete(this.path);
     }
-    copy(target: File) {
+    async copy(target: File) {
       disk.set(target.path, disk.get(this.path)!);
     }
     static async downloadFileAsync(_uri: string, target: File) {

@@ -27,8 +27,12 @@ vi.mock('expo-file-system', () => {
     get uri() {
       return `file:///cache/${this.name}`;
     }
-    write(bytes: Uint8Array) {
+    async write(bytes: Uint8Array) {
       disk.set(this.name, bytes);
+    }
+    async move(target: File) {
+      disk.set(target.name, disk.get(this.name)!);
+      disk.delete(this.name);
     }
     delete() {
       disk.delete(this.name);

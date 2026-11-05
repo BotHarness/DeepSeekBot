@@ -309,7 +309,11 @@ export function createAttachmentHttp(
         if (request.headers.get('if-none-match') === etag)
           return new Response(null, { status: 304, headers: { etag, ...IMMUTABLE } });
         try {
-          const range = parseRange(request.headers.get('range'));
+          const ifRange = request.headers.get('if-range');
+          const range =
+            ifRange !== null && ifRange !== etag
+              ? undefined
+              : parseRange(request.headers.get('range'));
           if (range !== undefined) {
             const { path } = files.target(channelId, messageId, fileId);
             const size = statSync(path).size;
@@ -320,8 +324,11 @@ export function createAttachmentHttp(
                 headers: { 'content-range': `bytes */${size}`, 'cache-control': 'no-store' },
               });
             const ref = store.current({ fileId, name: '', mime: '', size: 0 });
-            const stream = createReadStream(path, { start: slice.start, end: slice.end });
-            request.signal.addEventListener('abort', () => stream.destroy(), { once: true });
+            const stream = createReadStream(path, {
+              start: slice.start,
+              end: slice.end,
+              signal: request.signal,
+            });
             return new Response(Readable.toWeb(stream) as ReadableStream<Uint8Array>, {
               status: 206,
               headers: {
