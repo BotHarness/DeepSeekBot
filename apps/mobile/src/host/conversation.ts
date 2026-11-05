@@ -863,7 +863,10 @@ export function createConversation(options: ConversationOptions): Conversation {
       );
       if (window.length > 0) {
         const newer = pulled.upserts
-          .filter((entry) => entry.channelId === channelId && entry.revision > last())
+          .filter(
+            (entry) =>
+              entry.channelId === channelId && entry.revision > last() && entry.revision <= through,
+          )
           .sort((a, b) => a.revision - b.revision);
         for (const entry of newer) {
           if (entry.revision !== last() + 1) break;
