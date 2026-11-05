@@ -195,6 +195,47 @@ describe('Human attention projection', () => {
     }
   });
 
+  it('sends a bounded summary for long messages while search still reads the full body', async () => {
+    const core = createCore({ dshHome: createTempRoot('activity-summary-'), agents: adapter() });
+    try {
+      core.registry.create({ slug: 'ada', displayName: 'Ada' });
+      const group = core.channels.createGroup({ name: 'Design', members: ['ada'] });
+      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+      const long = `${'😀'.repeat(300)} tail-needle`;
+      await core.channels.appendMessage(group.id, {
+        id: 'human',
+        at: '2026-10-01T00:00:00Z',
+        author: { kind: 'human' },
+        body: 'Review',
+      });
+      await core.channels.appendMessage(group.id, {
+        id: 'long-reply',
+        at: '2026-10-01T00:01:00Z',
+        author: { kind: 'bot', slug: 'ada' },
+        body: long,
+        replyTo: 'human',
+      });
+      await core.channels.appendMessage(dm.id, {
+        id: 'long-dm',
+        at: '2026-10-01T00:02:00Z',
+        author: { kind: 'bot', slug: 'ada' },
+        body: long,
+      });
+      const expected = `${'😀'.repeat(279)}…`;
+      const replies = core.humanAttention.list({ category: 'replies' }).items;
+      const unread = core.humanAttention.list({ category: 'unread' }).items;
+      expect(replies.map((item) => item.messageId)).toContain('long-reply');
+      expect(unread.map((item) => item.messageId)).toContain('long-dm');
+      for (const item of [...replies, ...unread]) expect(item.summary).toBe(expected);
+      expect(
+        core.humanAttention.list({ category: 'unread', search: 'tail-needle' }).items.length,
+      ).toBeGreaterThan(0);
+    } finally {
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    }
+  });
+
   it('filters unread by Bot before choosing the Channel count and source anchor', async () => {
     const core = createCore({
       dshHome: createTempRoot('botharness-human-unread-bot-'),

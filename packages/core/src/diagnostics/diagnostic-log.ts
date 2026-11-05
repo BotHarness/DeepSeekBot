@@ -340,7 +340,7 @@ function structuredEvent(message: Message, home: string | undefined): LogEntryIn
     return;
   }
   if (value === undefined) return;
-  const { event, phase } = value;
+  const { event, phase, bot } = value;
   if (typeof event !== 'string' || typeof phase !== 'string') return;
   const fields: DiagnosticEventFields = {};
   for (const [key, raw] of Object.entries(value))
@@ -353,6 +353,7 @@ function structuredEvent(message: Message, home: string | undefined): LogEntryIn
       fields[key] = raw;
   return diagnosticEventRow(event, phase, fields, {
     ts: message.ts,
+    ...(typeof bot === 'string' ? { bot } : {}),
     ...(home === undefined ? {} : { home }),
     ...(message.type === 'error' ? { level: 'warn' as const } : {}),
   });

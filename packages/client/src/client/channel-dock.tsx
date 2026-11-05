@@ -212,7 +212,7 @@ export interface ChannelHeaderView {
   label?: ReactNode;
   status?: ReactNode;
   icon?: ReactNode;
-  profile?: { label: string; open(): void } | undefined;
+  profile?: { label: string; open(): void; expanded?: boolean | undefined } | undefined;
   actions: ReactNode;
 }
 
@@ -253,6 +253,7 @@ interface DockContextValue {
   visible: ReadonlySet<string>;
   runtimes: ReadonlyMap<string, EntryRuntime>;
   setRuntime(entryId: string, next: Partial<EntryRuntime>): void;
+  open(panelId: string): void;
   close(panelId: string): void;
   simple: boolean;
   t: BotHarnessTranslate;
@@ -338,6 +339,13 @@ function ChannelBreadcrumb(): ReactElement | null {
         <button
           type="button"
           data-channel-header-profile=""
+          {...(header.profile.expanded === undefined
+            ? {}
+            : {
+                'data-session-stop-opener': '',
+                'aria-haspopup': 'dialog' as const,
+                'aria-expanded': header.profile.expanded,
+              })}
           aria-label={header.profile.label}
           onClick={header.profile.open}
           onPointerDown={(event) => event.stopPropagation()}
@@ -350,6 +358,10 @@ function ChannelBreadcrumb(): ReactElement | null {
       {header.status}
     </span>
   );
+}
+
+export function useDockPanelOpener(): ((panelId: string) => void) | undefined {
+  return useContext(DockContext)?.open;
 }
 
 function useDock(): DockContextValue {
@@ -2097,6 +2109,7 @@ export function ChannelDock({
         heights: { ...column.heights, [id]: Math.max(MIN_SUBPANEL_HEIGHT, Math.round(height)) },
       });
     },
+    open,
     close,
   };
   const actions = useRef(handlers);
@@ -2122,6 +2135,7 @@ export function ChannelDock({
         updated.set(entryId, { ...(current.get(entryId) ?? IDLE_RUNTIME), ...next });
         return updated;
       }),
+    open: (panelId: string) => actions.current.open(panelId),
     close: (panelId: string) => actions.current.close(panelId),
   }));
   const subpanels = useRef(new Map<string, ReturnType<typeof stable.subpanel>>());
@@ -2242,6 +2256,7 @@ export function ChannelDock({
       visible,
       runtimes,
       setRuntime: stable.setRuntime,
+      open: stable.open,
       close: stable.close,
       simple: simpleMode,
       t,

@@ -87,6 +87,7 @@ import {
   ModelsSection,
   AutoApprovalSection,
   PromptsSection,
+  VoiceSection,
 } from './bot-settings-sections.js';
 import { PluginsSection } from './plugin-updates-view.js';
 import { ReleaseNotesController } from './release-notes.js';
@@ -141,7 +142,7 @@ import {
 } from './session-return-action.js';
 import { mountActivityLive } from './activity-live.js';
 import { installChannelFollow, mountChannelLive, mountRosterLive } from './channel-live.js';
-import { installTypedLive } from './messaging-defaults-live.js';
+import { installTypedLive, observeHumanAttention } from './messaging-defaults-live.js';
 import {
   CHANNEL_REMOTE_DESCRIPTOR,
   COMPANION_REMOTE_DESCRIPTOR,
@@ -453,10 +454,12 @@ export function apply(ctx: ClientContext): void {
       warn: (message, error) => ctx.logger.warn(message, error),
     });
     let roster = '';
+    let rosterBots: unknown;
     const offRoster = store.subscribe(() => {
-      const next = JSON.stringify(
-        store.getSnapshot().bots.map((bot) => [bot.slug, bot.displayName]),
-      );
+      const bots = store.getSnapshot().bots;
+      if (bots === rosterBots) return;
+      rosterBots = bots;
+      const next = JSON.stringify(bots.map((bot) => [bot.slug, bot.displayName]));
       if (next === roster) return;
       roster = next;
       visibility.refresh();
@@ -681,12 +684,14 @@ export function apply(ctx: ClientContext): void {
           listener();
         });
         const offPrefs = desktopNotifications.subscribe(listener);
+        const offAttention = observeHumanAttention(listener);
         document.addEventListener('visibilitychange', listener);
         window.addEventListener('focus', listener);
         window.addEventListener('blur', listener);
         return () => {
           offStore();
           offPrefs();
+          offAttention();
           document.removeEventListener('visibilitychange', listener);
           window.removeEventListener('focus', listener);
           window.removeEventListener('blur', listener);
@@ -965,6 +970,19 @@ export function apply(ctx: ClientContext): void {
           inject: () => ({ actions }),
         },
         PromptsSection,
+      ),
+    );
+    settingsCtx.slots.inject('botharness.settings.section', () =>
+      settingsCtx.slots.register(
+        {
+          name: 'botharness.settings.section',
+          id: BOT_SETTINGS_SECTIONS.voice,
+          order: 17,
+          label: () => t('botSettings.section.voice'),
+          locale: LOCALE_NS,
+          inject: () => ({ actions }),
+        },
+        VoiceSection,
       ),
     );
     settingsCtx.slots.inject('botharness.settings.section', () =>

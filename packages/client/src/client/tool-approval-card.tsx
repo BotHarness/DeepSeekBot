@@ -55,7 +55,7 @@ export function ToolApprovalCard({
   const botSlug = message.author.kind === 'bot' ? message.author.slug : undefined;
   const cardChannelId = sourceChannelId ?? 'dm-' + botSlug;
   const [status, setStatus] = useState<
-    'loading' | 'pending' | 'expired' | 'decided' | 'unavailable'
+    'loading' | 'pending' | 'expired' | 'stopped' | 'decided' | 'unavailable'
   >(decision === undefined ? 'loading' : 'decided');
   const [busy, setBusy] = useState(false);
   const [busyChoice, setBusyChoice] = useState<typeof decision>();
@@ -120,12 +120,14 @@ export function ToolApprovalCard({
           status: value,
           expiresAt: expiry,
         }: {
-          status: 'pending' | 'expired';
+          status: 'pending' | 'expired' | 'stopped';
           expiresAt?: string;
         }) => {
           if (active) {
             setStatus((current) =>
-              current === 'expired' || current === 'decided' ? current : value,
+              current === 'expired' || current === 'stopped' || current === 'decided'
+                ? current
+                : value,
             );
             setExpiresAt(expiry);
           }
@@ -316,8 +318,8 @@ export function ToolApprovalCard({
         : effectiveDecision === 'allowed-once'
           ? 'allowed'
           : 'remembered'
-      : status === 'expired'
-        ? 'expired'
+      : status === 'expired' || status === 'stopped'
+        ? status
         : undefined;
   const details = open ? (
     <div
@@ -397,9 +399,11 @@ export function ToolApprovalCard({
                 ? 'approval.approved'
                 : settled === 'expired'
                   ? 'approval.expired'
-                  : request.toolName === 'secret_mcp_connect'
-                    ? 'approval.serverRemembered'
-                    : 'approval.ruleSaved',
+                  : settled === 'stopped'
+                    ? 'approval.stopped'
+                    : request.toolName === 'secret_mcp_connect'
+                      ? 'approval.serverRemembered'
+                      : 'approval.ruleSaved',
           )}
         >
           {category + ' · ' + t(`approval.outcome.${settled}`)}

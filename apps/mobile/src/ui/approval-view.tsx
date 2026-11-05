@@ -41,6 +41,7 @@ type Phase =
 
 function settledNotice(request: ApprovalRequest): { tone: NoticeTone; text: string } | undefined {
   if (request.status === 'expired') return { tone: 'warning', text: t.expired };
+  if (request.status === 'stopped') return { tone: 'warning', text: t.stopped };
   if (request.status === 'decided')
     return {
       tone: 'warning',
@@ -134,7 +135,11 @@ export function ApprovalView({
         .load()
         .catch(() => ({ ...request, status: result }) as ApprovalRequest);
       if (!submission.active || current.current !== submission) return;
-      setPhase({ kind: 'ready', request: now, notice: settledNotice({ ...now, status: result })! });
+      setPhase({
+        kind: 'ready',
+        request: now,
+        notice: settledNotice(now.status === 'stopped' ? now : { ...now, status: result })!,
+      });
     } catch (error) {
       if (!submission.active || current.current !== submission) return;
       submission.pending = false;

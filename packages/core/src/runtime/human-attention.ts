@@ -7,6 +7,16 @@ import {
 } from './assignment-human-context.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 
+export const HUMAN_ATTENTION_SUMMARY_LIMIT = 280;
+
+export function attentionSummary(text: string): string {
+  if (text.length <= HUMAN_ATTENTION_SUMMARY_LIMIT) return text;
+  const chars = Array.from(text.slice(0, HUMAN_ATTENTION_SUMMARY_LIMIT * 2 + 2));
+  return chars.length <= HUMAN_ATTENTION_SUMMARY_LIMIT
+    ? text
+    : `${chars.slice(0, HUMAN_ATTENTION_SUMMARY_LIMIT - 1).join('')}…`;
+}
+
 export type HumanAttentionCategory = 'action' | 'info' | 'unread' | 'replies' | 'handled';
 export type HumanAttentionSort = 'newest' | 'oldest' | 'mentions-first';
 
@@ -18,6 +28,7 @@ export interface HumanAttentionItem {
     | 'pairing-request'
     | 'user-question'
     | 'private-input'
+    | 'takeover-request'
     | 'tool-approval'
     | 'auto-rejection'
     | 'workspace-grant-request'
@@ -178,7 +189,7 @@ const ACTION_ATTENTION_CTE = `WITH attention AS (
                SELECT 1 FROM source_events resolution
                 WHERE resolution.channel_id = e.channel_id
                   AND json_extract(resolution.payload_json,
-                    '$.userQuestionResolution.requestMessageId') = e.message_id
+                    '$.userQuestionResolution.requestMessageId') = +e.message_id
              )
           UNION ALL
           SELECT 'approval:' || e.source_event_id AS id,
@@ -200,7 +211,7 @@ const ACTION_ATTENTION_CTE = `WITH attention AS (
                SELECT 1 FROM source_events decision
                 WHERE decision.channel_id = e.channel_id
                   AND json_extract(decision.payload_json,
-                    '$.toolApprovalDecision.requestMessageId') = e.message_id
+                    '$.toolApprovalDecision.requestMessageId') = +e.message_id
              )
           UNION ALL
           SELECT 'autoreject:' || e.source_event_id AS id,
@@ -223,7 +234,7 @@ const ACTION_ATTENTION_CTE = `WITH attention AS (
                 WHERE override.channel_id = e.channel_id
                   AND override.source_kind = 'human-message'
                   AND json_extract(override.payload_json,
-                    '$.toolAutoApprovalOverride.recordMessageId') = e.message_id
+                    '$.toolAutoApprovalOverride.recordMessageId') = +e.message_id
              )
           UNION ALL
           SELECT 'private:' || e.source_event_id AS id,
@@ -246,7 +257,29 @@ const ACTION_ATTENTION_CTE = `WITH attention AS (
                SELECT 1 FROM source_events resolution
                 WHERE resolution.channel_id = e.channel_id
                   AND json_extract(resolution.payload_json,
-                    '$.privateInputResolution.requestMessageId') = e.message_id
+                    '$.privateInputResolution.requestMessageId') = +e.message_id
+             )
+          UNION ALL
+          SELECT 'takeover:' || e.source_event_id AS id,
+                 'action' AS category, 'takeover-request' AS kind,
+                 e.created_at, c.channel_id,
+                 json_extract(c.record_json, '$.name') AS channel_name,
+                 e.bot_slug, json_extract(e.payload_json, '$.takeoverRequest.title') || ' · ' || e.body AS summary,
+                 NULL AS request_id, e.message_id,
+                 NULL AS assignment_session_id, e.source_event_id
+            FROM source_events e
+            JOIN channel_placements p ON p.source_event_id = e.source_event_id
+            JOIN channel_records c ON c.channel_id = p.channel_id
+           WHERE (json_extract(c.record_json, '$.type') = 'group'
+               OR (json_extract(c.record_json, '$.type') = 'dm' AND json_extract(c.record_json, '$.botSlug') = e.bot_slug))
+             AND json_extract(c.record_json, '$.deletedAt') IS NULL
+             AND e.source_kind = 'bot-message'
+             AND json_extract(e.payload_json, '$.takeoverRequest') IS NOT NULL
+             AND json_extract(e.payload_json, '$.takeoverRequest.expiresAt') > strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+             AND NOT EXISTS (
+               SELECT 1 FROM source_events resolution
+                WHERE resolution.channel_id = e.channel_id
+                  AND resolution.message_id = 'takeover-resolution-' || e.message_id
              )
           UNION ALL
           SELECT 'grant:' || e.source_event_id AS id,
@@ -269,7 +302,7 @@ const ACTION_ATTENTION_CTE = `WITH attention AS (
                   AND resolution.source_kind = 'human-message'
                   AND json_extract(resolution.payload_json, '$.author.kind') = 'human'
                   AND json_extract(resolution.payload_json,
-                    '$.grantRequestResolution.requestMessageId') = e.message_id
+                    '$.grantRequestResolution.requestMessageId') = +e.message_id
              )
           UNION ALL
           SELECT 'assignment:' || a.session_id AS id,
@@ -340,7 +373,10 @@ const ACTION_ATTENTION_CTE = `WITH attention AS (
              AND d.source_event_id IS NULL
         )`;
 
-const channelAttentionCte = (excludeMuted: boolean): string => `
+const channelAttentionCte = (
+  excludeMuted: boolean,
+  scope: 'all' | 'unread' | 'replies' | 'unread-replies' = 'all',
+): string => `
   WITH visible_messages AS (
     SELECT p.channel_id, p.revision, p.message_id, p.source_event_id,
            e.created_at, e.body, e.bot_slug,
@@ -357,7 +393,26 @@ const channelAttentionCte = (excludeMuted: boolean): string => `
                    SELECT 1 FROM json_each(e.payload_json, '$.humanMentions') mention
                     WHERE json_extract(mention.value, '$.humanId') = m.human_id
                  ) THEN 1 ELSE 0 END AS is_mention
-      FROM channel_placements p
+      ${
+        scope !== 'all'
+          ? `FROM channel_records c
+      LEFT JOIN channel_read_positions r
+        ON r.channel_id = c.channel_id AND r.human_id = ?
+      LEFT JOIN channel_human_members m
+        ON m.channel_id = c.channel_id AND m.human_id = ?
+      CROSS JOIN channel_placements p
+        ON p.channel_id = c.channel_id AND ${
+          scope === 'unread'
+            ? 'p.revision > coalesce(r.revision, 0) AND p.notice = 0'
+            : scope === 'replies'
+              ? 'p.for_human = 1'
+              : 'p.for_human = 1 AND p.revision > coalesce(r.revision, 0)'
+        }
+      JOIN source_events e ON e.source_event_id = p.source_event_id
+      LEFT JOIN channel_placements original ON original.channel_id = p.channel_id
+        AND original.message_id = json_extract(e.payload_json, '$.replyTo')
+      LEFT JOIN source_events target ON target.source_event_id = original.source_event_id`
+          : `FROM channel_placements p
       JOIN source_events e ON e.source_event_id = p.source_event_id
       JOIN channel_records c ON c.channel_id = p.channel_id
       LEFT JOIN channel_placements original ON original.channel_id = p.channel_id
@@ -366,7 +421,8 @@ const channelAttentionCte = (excludeMuted: boolean): string => `
       LEFT JOIN channel_read_positions r
         ON r.channel_id = p.channel_id AND r.human_id = ?
       LEFT JOIN channel_human_members m
-        ON m.channel_id = p.channel_id AND m.human_id = ?
+        ON m.channel_id = p.channel_id AND m.human_id = ?`
+      }
      WHERE json_extract(c.record_json, '$.deletedAt') IS NULL
        AND ((json_extract(c.record_json, '$.type') = 'dm'
              AND json_extract(c.record_json, '$.botSlug') IS NOT NULL)
@@ -387,10 +443,17 @@ const DM_CARD_FIELDS = [
   'userQuestionResolution',
   'privateInputRequest',
   'privateInputResolution',
+  'takeoverRequest',
+  'takeoverResolution',
   'grantRequest',
 ];
 
+export const UNREAD_COUNT_LIMIT = 100;
+
 const INBOX_CHANNEL_ATTENTION_CTE = channelAttentionCte(true);
+const INBOX_CHANNEL_UNREAD_CTE = channelAttentionCte(true, 'unread');
+const INBOX_CHANNEL_REPLIES_CTE = channelAttentionCte(true, 'replies');
+const INBOX_CHANNEL_UNREAD_REPLIES_CTE = channelAttentionCte(true, 'unread-replies');
 
 function decodeCursor(value: string, filters: string): Cursor {
   try {
@@ -424,7 +487,7 @@ function attentionItem(row: AttentionRow): HumanAttentionItem {
     ...(row.channel_id === null ? {} : { channelId: row.channel_id }),
     ...(row.channel_name === null ? {} : { channelName: row.channel_name }),
     botSlug: row.bot_slug,
-    summary: row.summary,
+    summary: attentionSummary(row.summary),
     ...(row.request_id === null ? {} : { requestId: row.request_id }),
     ...(row.message_id === null ? {} : { messageId: row.message_id }),
     ...(row.assignment_session_id === null
@@ -577,7 +640,9 @@ export function createHumanAttentionQuery(
         search === ''
           ? ''
           : `AND instr(botharness_activity_lower(coalesce(${body}, '') || ' ' || coalesce(${channel}, '') || ' ' || coalesce(${bot}, '')), (SELECT term FROM activity_search)) > 0`;
-      const channelCte = INBOX_CHANNEL_ATTENTION_CTE.replace('WITH ', searchCte);
+      const channelCte = (
+        category === 'unread' ? INBOX_CHANNEL_UNREAD_CTE : INBOX_CHANNEL_REPLIES_CTE
+      ).replace('WITH ', searchCte);
       const actionCte = ACTION_ATTENTION_CTE.replace('WITH ', searchCte);
       const direction = sort === 'oldest' ? 'ASC' : 'DESC';
       const cursorComparison = sort === 'oldest' ? '>' : '<';
@@ -801,7 +866,7 @@ SELECT 'handled:' || request.source_event_id AS id,
           channelId: row.channel_id,
           channelName: row.channel_name,
           botSlug: row.bot_slug,
-          summary: row.summary,
+          summary: attentionSummary(row.summary),
           messageId: row.message_id,
           sourceEventId: row.source_event_id,
           isUnread: row.is_unread === 1,
@@ -888,7 +953,7 @@ SELECT 'handled:' || request.source_event_id AS id,
             channelId: row.channel_id,
             channelName: row.channel_name,
             botSlug: row.bot_slug,
-            summary: row.summary,
+            summary: attentionSummary(row.summary),
             messageId: row.message_id,
             sourceEventId: row.source_event_id,
             unreadCount: row.unread_count,
@@ -973,8 +1038,9 @@ SELECT 'handled:' || request.source_event_id AS id,
             .prepare(`
           SELECT p.channel_id AS channelId, e.message_id AS messageId
             FROM source_events e
-            JOIN channel_placements p ON p.source_event_id = e.source_event_id
+            CROSS JOIN channel_placements p ON p.source_event_id = e.source_event_id
            WHERE e.source_kind = 'bot-message'
+             AND json_extract(e.payload_json, '$.userQuestionRequest') IS NOT NULL
              AND e.message_id IS NOT NULL
              AND json_extract(e.payload_json, '$.userQuestionRequest.callId') IS NOT NULL
              AND NOT EXISTS (
@@ -982,7 +1048,7 @@ SELECT 'handled:' || request.source_event_id AS id,
                  JOIN channel_placements rp ON rp.source_event_id = resolution.source_event_id
                 WHERE rp.channel_id = p.channel_id
                   AND json_extract(resolution.payload_json,
-                    '$.userQuestionResolution.requestMessageId') = e.message_id
+                    '$.userQuestionResolution.requestMessageId') = +e.message_id
              )
            ORDER BY e.created_at, e.source_event_id`)
             .all() as Array<{ channelId: string; messageId: string }>,
@@ -1040,35 +1106,46 @@ SELECT 'handled:' || request.source_event_id AS id,
       };
     },
     status(messageCounts = false) {
-      const counts = database.read(
-        (db) =>
-          db
-            .prepare(`${INBOX_CHANNEL_ATTENTION_CTE}, unread_events AS (
-          SELECT source_event_id, max(is_reply OR is_mention) AS personal
-            FROM visible_unread GROUP BY source_event_id
-        )
-          SELECT count(*) AS total, coalesce(sum(personal), 0) AS replies,
-                 count(*) - coalesce(sum(personal), 0) AS other FROM unread_events
-        `)
-            .get(LOCAL_HUMAN_ID, LOCAL_HUMAN_ID, JSON.stringify(mutedChannelIds())) as {
-            total: number;
-            replies: number;
-            other: number;
-          },
-      );
+      const muted = JSON.stringify(mutedChannelIds());
+      const count = (sql: string) =>
+        database.read(
+          (db) =>
+            (
+              db.prepare(sql).get(LOCAL_HUMAN_ID, LOCAL_HUMAN_ID, muted, UNREAD_COUNT_LIMIT) as {
+                count: number;
+              }
+            ).count,
+        );
+      const total = count(`${INBOX_CHANNEL_UNREAD_CTE}
+        SELECT count(*) AS count FROM (SELECT DISTINCT source_event_id FROM visible_unread LIMIT ?)`);
+      if (!messageCounts)
+        return {
+          unreadCount: total,
+          hasAction: this.list({ category: 'action', limit: 1 }).items.length > 0,
+        };
+      const replies = count(`${INBOX_CHANNEL_UNREAD_REPLIES_CTE}
+        SELECT count(*) AS count FROM (
+          SELECT DISTINCT source_event_id FROM visible_unread WHERE is_reply OR is_mention LIMIT ?
+        )`);
+      const other =
+        total < UNREAD_COUNT_LIMIT || replies < UNREAD_COUNT_LIMIT
+          ? total - replies
+          : count(`${INBOX_CHANNEL_UNREAD_CTE}
+        SELECT count(*) AS count FROM (
+          SELECT DISTINCT source_event_id FROM visible_unread
+           WHERE NOT (is_reply OR is_mention) LIMIT ?
+        )`);
       return {
-        unreadCount: counts.total,
+        unreadCount: total,
         hasAction: this.list({ category: 'action', limit: 1 }).items.length > 0,
-        ...(messageCounts
-          ? { messageCounts: { replies: counts.replies, other: counts.other } }
-          : {}),
+        messageCounts: { replies, other },
       };
     },
     dmReplies(limit, before) {
       const rows = database.read(
         (db) =>
           db
-            .prepare(`${INBOX_CHANNEL_ATTENTION_CTE}
+            .prepare(`${INBOX_CHANNEL_UNREAD_CTE}
         SELECT v.channel_id, v.message_id, v.source_event_id, v.created_at, v.body, v.bot_slug
           FROM visible_unread v
           JOIN source_events e ON e.source_event_id = v.source_event_id
@@ -1106,7 +1183,7 @@ SELECT 'handled:' || request.source_event_id AS id,
         createdAt: row.created_at,
         channelId: row.channel_id,
         botSlug: row.bot_slug,
-        summary: row.body,
+        summary: attentionSummary(row.body),
         messageId: row.message_id,
         sourceEventId: row.source_event_id,
         isUnread: true,
@@ -1132,19 +1209,25 @@ SELECT 'handled:' || request.source_event_id AS id,
                    AND m.left_at IS NULL AND m.visible_from_revision IS NOT NULL))
         ), counts AS MATERIALIZED (
           SELECT eligible.channel_id, (
-            SELECT count(DISTINCT p.source_event_id)
-              FROM channel_placements p
-              JOIN source_events e ON e.source_event_id = p.source_event_id
-             WHERE p.channel_id = eligible.channel_id
-               AND p.revision > eligible.read_revision
-               AND (eligible.type = 'dm' OR p.revision >= eligible.visible_from)
-               AND json_extract(e.payload_json, '$.author.kind') != 'human'
-               AND ${notChannelNoticeSql('e.payload_json')}
+            SELECT count(*) FROM (
+              SELECT DISTINCT p.source_event_id
+                FROM channel_placements p
+                JOIN source_events e ON e.source_event_id = p.source_event_id
+               WHERE p.channel_id = eligible.channel_id
+                 AND p.revision > eligible.read_revision AND p.notice = 0
+                 AND (eligible.type = 'dm' OR p.revision >= eligible.visible_from)
+                 AND json_extract(e.payload_json, '$.author.kind') != 'human'
+                 AND ${notChannelNoticeSql('e.payload_json')}
+               LIMIT ?
+            )
           ) AS unread_count FROM eligible
         )
         SELECT channel_id, unread_count FROM counts
          WHERE unread_count > 0 ORDER BY channel_id`)
-            .all(LOCAL_HUMAN_ID, LOCAL_HUMAN_ID) as { channel_id: string; unread_count: number }[]
+            .all(LOCAL_HUMAN_ID, LOCAL_HUMAN_ID, UNREAD_COUNT_LIMIT) as {
+            channel_id: string;
+            unread_count: number;
+          }[]
         ).map((row) => ({ channelId: row.channel_id, unreadCount: row.unread_count })),
       );
     },

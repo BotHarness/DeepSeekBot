@@ -1,4 +1,5 @@
-import { UnreadCount } from './unread-count.js';
+import { UnreadCount, unreadCountLabel } from './unread-count.js';
+import { observeHumanAttention } from './messaging-defaults-live.js';
 export { unreadCountLabel } from './unread-count.js';
 import { Menu } from './appearance-primitives.js';
 import { ALL_HOSTS, remoteHosts } from './remote-hosts.js';
@@ -16,9 +17,10 @@ import { PanelEmptyState } from './ds/empty-state.js';
 import { ChannelHistory } from './channel-history.js';
 import { attachmentReferenceLabels } from './attachment-refs.js';
 import {
+  memo,
+  useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
   type MouseEvent as ReactMouseEvent,
   type ReactElement,
   type ReactNode,
@@ -112,12 +114,20 @@ import {
 } from './channel-drag.js';
 import { ungroupedLabel } from './labels.js';
 import type { BotHarnessTranslate } from './locale.js';
+import { turnStopText } from './turn-stop.js';
+import { voiceCallRecordText } from './voice-call-record.js';
 import { toolApprovalText } from './approval-text.js';
 import { personaBotActivity } from './persona-activity.js';
 import { CreatePersonaBotModal } from './persona-bot-create.js';
 import { BotAvatarModal } from './profile-header.js';
 import { BotZipShareDialog, ImportBotZipModal } from './bot-zip.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import {
+  liveRowCallbacks,
+  sameSidebarRowProps,
+  type RowCallbacks,
+  type RowLatest,
+} from './sidebar-row-memo.js';
 import { PersonaBotDeletionView } from './personabot-deletion.js';
 import { NicknameDialog } from './human-channel-name.js';
 import {
@@ -193,26 +203,22 @@ import { rememberModelPlan } from './model-plan-store.js';
 import { applyBotModelRoute, botModelMenuGroups, type BotModelGroup } from './bot-model-route.js';
 import { useMountedResource } from './mounted-resource.js';
 import { onCreationRequest } from './create-request.js';
-import { keepClientState, sameFields, useClientStore } from './use-client-store.js';
+import { useClientFields, useClientStore } from './use-client-store.js';
 import { shallowEqual } from '@deepseek-ai/dsh-client-store';
 
-const rosterInputs = sameFields([
+const SIDEBAR_FIELDS = [
   'activitySync',
   'bots',
   'channels',
   'config',
   'error',
   'git',
-  'humanInbox',
   'query',
   'roster',
   'selection',
   'status',
-]);
-
-export function useClientState(): ClientState {
-  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
-}
+] as const;
+const selectChannelUnread = (state: ClientState) => state.humanInbox.channelUnread;
 
 export interface BotPanelEntryProps {
   size: number;
@@ -258,7 +264,7 @@ export function BotPanelIcon({
     ...(state.humanInbox.unreadCount > 0
       ? [
           t('humanInbox.unreadCount', {
-            count: String(state.humanInbox.unreadCount),
+            count: unreadCountLabel(state.humanInbox.unreadCount),
           }),
         ]
       : []),
@@ -266,8 +272,7 @@ export function BotPanelIcon({
   ].join(' · ');
   const entryMount = useMountedResource<HTMLElement>(() => {
     void refreshStatus();
-    const timer = window.setInterval(() => void refreshStatus(), 10_000);
-    return () => window.clearInterval(timer);
+    return observeHumanAttention(() => void refreshStatus());
   }, [refreshStatus]);
 
   const glyphMount = useMountedResource<HTMLSpanElement>(
@@ -382,7 +387,7 @@ export function BotPanelIcon({
                 <InboxIcon size={16} />
                 {state.humanInbox.unreadCount > 0 ? (
                   <span className="bh-human-inbox-count">
-                    {state.humanInbox.unreadCount > 99 ? '99+' : state.humanInbox.unreadCount}
+                    {unreadCountLabel(state.humanInbox.unreadCount)}
                   </span>
                 ) : null}
               </span>
@@ -546,11 +551,8 @@ function channelPreview(
   const message = channel.latestMessage;
   if (message?.contentPurged) return t('purge.purged');
   if (message === undefined) return t('rail.noMessages');
-  if (message.turnStop !== undefined)
-    return t('turn.stopped', {
-      human: message.turnStop.humanName,
-      name: message.turnStop.botName,
-    });
+  if (message.turnStop !== undefined) return turnStopText(message.turnStop, t);
+  if (message.voiceCallRecord !== undefined) return voiceCallRecordText(message.voiceCallRecord, t);
   if (message.memberDeparture !== undefined)
     return t(
       message.memberDeparture.departureType === 'removed' ? 'member.removed' : 'member.left',
@@ -573,6 +575,27 @@ function channelPreview(
           : undefined;
   return author === undefined ? body : `${author}：${body}`;
 }
+
+interface LatestRowProps {
+  latest: RowLatest<ChannelMenuRequest>;
+  latestKey: string;
+}
+
+const MemoBotRow = memo(function MemoBotRow({
+  latest,
+  latestKey,
+  ...props
+}: Parameters<typeof BotRow>[0] & LatestRowProps): ReactElement {
+  return <BotRow {...liveRowCallbacks(props, latest, latestKey)} />;
+}, sameSidebarRowProps);
+
+const MemoChannelRow = memo(function MemoChannelRow({
+  latest,
+  latestKey,
+  ...props
+}: Parameters<typeof ChannelRow>[0] & LatestRowProps): ReactElement {
+  return <ChannelRow {...liveRowCallbacks(props, latest, latestKey)} />;
+}, sameSidebarRowProps);
 
 function BotRow({
   bot,
@@ -1012,12 +1035,12 @@ export function BotSidebar({
   dockPanels,
   t,
 }: SidebarProps): ReactElement {
-  const state = useClientStore(keepClientState, rosterInputs);
+  const state = useClientFields(SIDEBAR_FIELDS);
   const hostTabs = useChannelDockActive();
   const [addingRemote, setAddingRemote] = useState(false);
   const remoteHostsState = useRemoteHosts();
   const remoteOpen = hostTabs && remoteHostsState.open !== undefined;
-  const channelUnread = state.humanInbox.channelUnread;
+  const channelUnread = useClientStore(selectChannelUnread);
   const mutedChannelSet = new Set(state.roster.muted);
   const prefs = useBotModePrefs((value) => value);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -1178,7 +1201,12 @@ export function BotSidebar({
   );
 
   const query = state.query.trim().toLowerCase();
-  const botBySlug = new Map(state.bots.map((bot) => [bot.slug, bot]));
+  const botBySlug = useMemo(() => new Map(state.bots.map((bot) => [bot.slug, bot])), [state.bots]);
+  const rowLatest = useRef(new Map<string, RowCallbacks<ChannelMenuRequest>>());
+  const rowCallbacks = new Map<string, RowCallbacks<ChannelMenuRequest>>();
+  const publishRowCallbacks = useMountedResource<HTMLSpanElement>(() => {
+    rowLatest.current = rowCallbacks;
+  }, [rowCallbacks]);
   const rosterHiddenIds = [...state.roster.hidden, ...deletedBotDmIds(state.channels, state.bots)];
   const hiddenChannelSet = new Set(rosterHiddenIds);
   const allPinnedChannelIds = resolvePinnedChannelIds(state.channels, state.roster.pins);
@@ -1956,11 +1984,23 @@ export function BotSidebar({
     const drag = channelDragProps(scopeId, channel.id);
     const bot = channel.botSlug === undefined ? undefined : botBySlug.get(channel.botSlug);
     const preview = channelPreview(channel, botBySlug, t);
+    const latestKey = `${scopeId ?? ''}:${channel.id}`;
+    const pinDragStart = (channelId: string): void => startPinDrag(channelId, 'roster');
+    const callbacks: RowCallbacks<ChannelMenuRequest> = {
+      onActivate: (event) => activateChannel(channel, event),
+      onMenu: openChannelMenu,
+      onPinDragStart: pinDragStart,
+      onPinDragEnd: endPinDrag,
+      drag,
+    };
+    rowCallbacks.set(latestKey, callbacks);
     if (channel.type === 'dm' && bot !== undefined) {
       return (
-        <BotRow
+        <MemoBotRow
           t={t}
           key={channel.id}
+          latest={rowLatest}
+          latestKey={latestKey}
           bot={bot}
           channel={channel}
           preview={preview}
@@ -1969,22 +2009,24 @@ export function BotSidebar({
           activity={personaBotActivity(state, bot)}
           selected={selectedBot === bot.slug || selectedChannel === channel.id}
           multiSelected={selectedChannelSet.has(channel.id)}
-          onActivate={(event) => activateChannel(channel, event)}
+          onActivate={callbacks.onActivate}
           shortcut={shortcutFor(channel.id)}
           showShortcutHints={showShortcutHints}
           drag={drag}
-          onMenu={openChannelMenu}
-          onPinDragStart={(channelId) => startPinDrag(channelId, 'roster')}
+          onMenu={callbacks.onMenu}
+          onPinDragStart={pinDragStart}
           onPinDragEnd={endPinDrag}
           source={showSource}
         />
       );
     }
     return (
-      <ChannelRow
+      <MemoChannelRow
         t={t}
         source={showSource}
         key={channel.id}
+        latest={rowLatest}
+        latestKey={latestKey}
         channel={channel}
         bots={botBySlug}
         preview={preview}
@@ -1992,12 +2034,12 @@ export function BotSidebar({
         muted={mutedChannelSet.has(channel.id)}
         selected={selectedChannel === channel.id}
         multiSelected={selectedChannelSet.has(channel.id)}
-        onActivate={(event) => activateChannel(channel, event)}
+        onActivate={callbacks.onActivate}
         shortcut={shortcutFor(channel.id)}
         showShortcutHints={showShortcutHints}
         drag={drag}
-        onMenu={openChannelMenu}
-        onPinDragStart={(channelId) => startPinDrag(channelId, 'roster')}
+        onMenu={callbacks.onMenu}
+        onPinDragStart={pinDragStart}
         onPinDragEnd={endPinDrag}
       />
     );
@@ -2261,6 +2303,7 @@ export function BotSidebar({
         channelGapDropProps(resolved.sectionId).drop(resolved.half);
       }}
     >
+      <span ref={publishRowCallbacks} hidden aria-hidden="true" />
       <span ref={createFromWelcome} hidden aria-hidden="true" />
       {state.activitySync === 'stale' ? (
         <div className="bh-activity-stale" role="status" data-activity-stale>

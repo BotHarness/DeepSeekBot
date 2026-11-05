@@ -549,19 +549,32 @@ export function mountContentPurge(options: {
   };
   const sign = (value: string): string => createHmac('sha256', secret).update(value).digest('hex');
   return {
-    redactions: () =>
-      port.read((db) =>
+    redactions: () => {
+      const files = new Map(
+        (ledger?.checkpoint().facts ?? []).flatMap((fact) =>
+          fact.managedFiles === undefined || fact.managedFiles.length === 0
+            ? []
+            : [[fact.sourceEventId, fact.managedFiles] as const],
+        ),
+      );
+      return port.read((db) =>
         db
           .prepare(
             'SELECT p.source_event_id, p.channel_id, p.message_id FROM channel_placements p JOIN messaging_purge_facts f ON f.source_event_id = p.source_event_id',
           )
           .all()
-          .map((row) => ({
-            sourceEventId: String(row.source_event_id),
-            channelId: String(row.channel_id),
-            messageId: String(row.message_id),
-          })),
-      ),
+          .map((row) => {
+            const sourceEventId = String(row.source_event_id);
+            const fileIds = files.get(sourceEventId);
+            return {
+              sourceEventId,
+              channelId: String(row.channel_id),
+              messageId: String(row.message_id),
+              ...(fileIds === undefined ? {} : { fileIds: [...fileIds] }),
+            };
+          }),
+      );
+    },
     history: () =>
       exclusive(() =>
         port.read((db) =>

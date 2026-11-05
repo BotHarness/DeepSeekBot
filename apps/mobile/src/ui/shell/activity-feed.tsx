@@ -15,6 +15,7 @@ import {
   useState,
   memo,
   type ReactElement,
+  type RefObject,
 } from 'react';
 import { AccessibilityInfo, Platform, Pressable, View } from 'react-native';
 import Animated, { FadeOut, LinearTransition } from 'react-native-reanimated';
@@ -40,11 +41,13 @@ import {
 import {
   activityKey,
   activityBotKey,
+  localSelection,
   observeActivitySources,
   type ActivityItem as HumanAttentionItem,
   type ActivitySource,
 } from '../../host/activity-sources';
 import {
+  clearAllAttention,
   clearAttentionItem,
   restoreAttentionItem,
   SNOOZE_CHOICES,
@@ -482,6 +485,9 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
   const [searchFocused, setSearchFocused] = useState(false);
   const [sort, setSort] = useState<ActivitySort>('default');
   const [filtering, setFiltering] = useState(false);
+  const clearRef = useRef<(() => void) | undefined>(undefined);
+  const [clearable, setClearable] = useState(false);
+  const openClear = useCallback(() => clearRef.current?.(), []);
   const [notice, setNotice] = useState<UndoNotice>();
   const noticeCount = useRef(0);
   const noticeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -533,6 +539,8 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
             <ActivityPage
               {...props}
               onNotice={showNotice}
+              clearRef={clearRef}
+              onClearable={setClearable}
               section={filter.section}
               filterBot={filter.bot}
               filterChannel={filter.channel}
@@ -562,6 +570,7 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
           options={filterOptions}
           onSearch={setSearch}
           onFilter={() => setFiltering(true)}
+          onClear={clearable && props.unavailable === undefined ? openClear : undefined}
           onHeight={setHeaderHeight}
         />
       </FixedToolbar>
@@ -638,7 +647,11 @@ const ActivityPage = memo(function ActivityPage({
   searchFocused,
   dismissSearch,
   onNotice,
+  clearRef,
+  onClearable,
 }: ActivityFeedProps & {
+  clearRef: RefObject<(() => void) | undefined>;
+  onClearable(clearable: boolean): void;
   section: ActivityFilter['section'];
   filterBot: ActivityFilter['bot'];
   filterChannel: ActivityFilter['channel'];
@@ -878,6 +891,82 @@ const ActivityPage = memo(function ActivityPage({
       ]);
     void currentInbox()?.refresh();
   };
+  const clearSections: ReadonlyArray<'action' | 'replies' | 'unread'> =
+    filter.section === 'all'
+      ? ['action', 'replies', 'unread']
+      : filter.section === 'action' || filter.section === 'replies' || filter.section === 'unread'
+        ? [filter.section]
+        : [];
+  const clearKinds = [
+    ...new Set(
+      rows.flatMap((row) =>
+        (row.kind === 'row' || row.kind === 'post') &&
+        clearSections.some((section) => section === row.section)
+          ? [row.item.kind]
+          : [],
+      ),
+    ),
+  ];
+  const clearMany = async (kind: string | undefined) => {
+    const targets =
+      sources === undefined
+        ? client === undefined
+          ? []
+          : [{ client, botSlug: filter.bot, channelId: filter.channel }]
+        : sources.flatMap((source) => {
+            const botSlug = localSelection(filter.bot, source);
+            const channelId = localSelection(filter.channel, source);
+            return botSlug === false || channelId === false
+              ? []
+              : [{ client: source.client, botSlug, channelId }];
+          });
+    let dismissed = 0;
+    let more = false;
+    try {
+      for (const target of targets) {
+        if (target.client.getSnapshot().connection.status !== 'connected')
+          throw new Error('activity-source-unavailable');
+        for (const category of clearSections) {
+          const result = await clearAllAttention(target.client, {
+            kind,
+            category,
+            botSlug: target.botSlug,
+            channelId: target.channelId,
+          });
+          dismissed += result.dismissed;
+          more ||= result.more;
+        }
+      }
+      onNotice?.({
+        message: more ? t.activityClearedMore(dismissed) : t.activityClearedCount(dismissed),
+      });
+    } catch {
+      onNotice?.({ message: t.activityChangeFailed });
+    } finally {
+      setHeld([]);
+      await currentInbox()?.refresh();
+    }
+  };
+  const chooseClear = () =>
+    showActionMenu(t.activityClearManyTitle, [
+      {
+        text: t.activityClearAll,
+        icon: ArchiveIcon,
+        style: 'destructive' as const,
+        onPress: () => void clearMany(undefined),
+      },
+      ...clearKinds.map((kind) => ({
+        text: t.kind[kind] ?? t.otherKind,
+        icon: ArchiveIcon,
+        onPress: () => void clearMany(kind),
+      })),
+    ]);
+  useLayoutEffect(() => {
+    clearRef.current = chooseClear;
+  });
+  const clearable = visible.status === 'ready' && clearKinds.length > 0;
+  useLayoutEffect(() => onClearable(clearable), [clearable, onClearable]);
+  useLayoutEffect(() => () => onClearable(false), [onClearable]);
   const refresh = () => {
     setRefreshing(true);
     setHeld([]);

@@ -3,15 +3,18 @@ import {
   type MarketplaceInstallSource,
 } from '../../../../packages/core/src/marketplace/client';
 import { isDeviceYearClass, isPublicModelId, type DeviceTelemetryContext } from './device-context';
+import { isPairingFailureDetail } from '../host/pairing-detail';
 
 export type PairingMethod = 'qr' | 'image' | 'paste' | 'deep_link' | 'account';
 export type PairingOutcome = 'success' | 'refused' | 'failed' | 'cancelled';
 export type PairingReason =
   | 'lan-build-required'
   | 'lan-unreachable'
+  | 'lan-permission-denied'
   | 'already-paired'
   | 'none'
   | 'host-key-required'
+  | 'host-key-changed'
   | 'host-key-confirmation-required'
   | 'channel-authentication-failed'
   | 'link-invalid'
@@ -26,6 +29,7 @@ export type PairingReason =
   | 'sign-in-required'
   | 'account-not-allowed'
   | 'host-offline'
+  | 'host-refused'
   | 'relay-unavailable'
   | 'account-changed'
   | 'account-identity-required'
@@ -96,6 +100,7 @@ export interface EventProperties {
     attempt_id: string;
     outcome: PairingOutcome;
     reason: PairingReason;
+    detail?: string;
     duration_bucket: DurationBucket;
   };
   'activity:approval_submit': {
@@ -247,8 +252,10 @@ export const MOBILE_EVENT_FIELDS: Record<
     reason: member(
       'lan-build-required',
       'lan-unreachable',
+      'lan-permission-denied',
       'none',
       'host-key-required',
+      'host-key-changed',
       'host-key-confirmation-required',
       'already-paired',
       'channel-authentication-failed',
@@ -264,6 +271,7 @@ export const MOBILE_EVENT_FIELDS: Record<
       'sign-in-required',
       'account-not-allowed',
       'host-offline',
+      'host-refused',
       'relay-unavailable',
       'account-changed',
       'account-identity-required',
@@ -272,6 +280,7 @@ export const MOBILE_EVENT_FIELDS: Record<
       'account-deletion-uncertain',
       'unknown',
     ),
+    detail: (value) => value === undefined || isPairingFailureDetail(value),
     duration_bucket: duration,
   },
 };
@@ -338,6 +347,7 @@ export function sanitizeEvent(value: unknown): TelemetryEvent | undefined {
   }
   for (const [name, valid] of Object.entries(MOBILE_EVENT_FIELDS[event as keyof EventProperties])) {
     const field = props[name];
+    if (field === undefined && valid(field)) continue;
     if (!valid(field) || typeof field !== 'string') return undefined;
     properties[name] = field;
   }

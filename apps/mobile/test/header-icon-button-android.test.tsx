@@ -77,6 +77,7 @@ vi.mock(
 
 const requireAsset = createRequire(import.meta.url);
 for (const name of [
+  'archive',
   'arrow-back',
   'close',
   'filter-list',
@@ -88,6 +89,7 @@ for (const name of [
   'computer',
   'do-not-touch',
   'tob-mode',
+  'call',
   'more-vert',
 ]) {
   const path = requireAsset.resolve(`../assets/header/${name}.xml`);
