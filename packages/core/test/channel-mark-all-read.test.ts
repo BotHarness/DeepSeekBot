@@ -123,3 +123,46 @@ it('excludes inaccessible heads and reports a corrupt latest placement instead o
     core.operationalDatabase.close();
   }
 });
+
+it("marks only the chosen Channel, or only the chosen Bot's Channels", async () => {
+  const core = createCore({ dshHome: createTempRoot('bh-all-read-scope-'), agents });
+  try {
+    core.registry.create({ slug: 'ada', displayName: 'Ada' });
+    core.registry.create({ slug: 'bea', displayName: 'Bea' });
+    const ada = core.channels.getOrCreateDm('ada', 'Ada')!;
+    const bea = core.channels.getOrCreateDm('bea', 'Bea')!;
+    const team = core.channels.createGroup({ name: 'Team', members: ['ada'] });
+    for (const channel of [ada, bea, team])
+      await core.channels.appendMessage(channel.id, {
+        id: 'head-' + channel.id,
+        author: { kind: 'bot', slug: channel.id === bea.id ? 'bea' : 'ada' },
+        body: 'Update',
+        at: new Date().toISOString(),
+      });
+    const methods = createBridgeMethods({ ...core });
+    expect(await methods.channelMarkAllRead({ channelId: bea.id })).toEqual({
+      ok: true,
+      value: { channels: 1 },
+    });
+    expect(core.channels.readPosition(bea.id)?.messageId).toBe('head-' + bea.id);
+    expect(core.channels.readPosition(ada.id)).toBeUndefined();
+    expect(core.channels.readPosition(team.id)).toBeUndefined();
+    expect(await methods.channelMarkAllRead({ botSlug: 'ada' })).toEqual({
+      ok: true,
+      value: { channels: 2 },
+    });
+    expect(core.channels.readPosition(ada.id)).toBeDefined();
+    expect(core.channels.readPosition(team.id)?.messageId).toBe('head-' + team.id);
+    expect(await methods.channelMarkAllRead({ channelId: '../x' })).toMatchObject({
+      ok: false,
+      error: { code: 'invalid-input' },
+    });
+    expect(await methods.channelMarkAllRead({ botSlug: 'Not A Slug' })).toMatchObject({
+      ok: false,
+      error: { code: 'invalid-input' },
+    });
+  } finally {
+    await core.runtime.close();
+    core.operationalDatabase.close();
+  }
+});

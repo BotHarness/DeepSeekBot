@@ -47,8 +47,11 @@ import {
   type ActivitySource,
 } from '../../host/activity-sources';
 import {
+  attentionItemUnread,
   clearAllAttention,
   clearAttentionItem,
+  markAllAttentionRead,
+  markAttentionItemRead,
   restoreAttentionItem,
   SNOOZE_CHOICES,
   snoozeAttentionItem,
@@ -72,11 +75,15 @@ import { useChatHeaderHeight } from '../chat/header-chrome';
 import { Button } from '../primitives/button';
 import { DeferredContent } from '../primitives/deferred-content';
 import { ListSkeleton } from '../primitives/list-skeleton';
-import { showActionMenu } from '../primitives/app-dialog';
+import { confirmDestructive, showActionMenu } from '../primitives/app-dialog';
 import { SwipeRow, swipeActionProps, type SwipeAction } from '../primitives/swipe-row';
 import { UndoBar, type UndoNotice } from '../primitives/undo-bar';
-import { ArchiveIcon, ClockIcon, UndoIcon } from './icons';
-import type { ActivityOptions } from './activity-header-actions';
+import { ArchiveIcon, CheckIcon, ClockIcon, UndoIcon } from './icons';
+import type {
+  ActivityManage,
+  ActivityManageItem,
+  ActivityOptions,
+} from './activity-header-actions';
 import { ActivityToolbar, type ActivityToolbarHandle } from './activity-toolbar';
 import { activityAvatar } from './activity-avatar';
 import { useFloatingTabInset } from './floating-tab-inset';
@@ -485,9 +492,22 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
   const [searchFocused, setSearchFocused] = useState(false);
   const [sort, setSort] = useState<ActivitySort>('default');
   const [filtering, setFiltering] = useState(false);
-  const clearRef = useRef<(() => void) | undefined>(undefined);
-  const [clearable, setClearable] = useState(false);
-  const openClear = useCallback(() => clearRef.current?.(), []);
+  const manageRef = useRef<((key: string) => void) | undefined>(undefined);
+  const [manageItems, setManageItems] = useState<readonly ActivityManageItem[]>([]);
+  const onManageItems = useCallback(
+    (next: readonly ActivityManageItem[]) =>
+      setManageItems((current) =>
+        JSON.stringify(current) === JSON.stringify(next) ? current : next,
+      ),
+    [],
+  );
+  const manage = useMemo<ActivityManage | undefined>(
+    () =>
+      manageItems.length === 0
+        ? undefined
+        : { items: manageItems, run: (key) => manageRef.current?.(key) },
+    [manageItems],
+  );
   const [notice, setNotice] = useState<UndoNotice>();
   const noticeCount = useRef(0);
   const noticeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -539,8 +559,8 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
             <ActivityPage
               {...props}
               onNotice={showNotice}
-              clearRef={clearRef}
-              onClearable={setClearable}
+              manageRef={manageRef}
+              onManageItems={onManageItems}
               section={filter.section}
               filterBot={filter.bot}
               filterChannel={filter.channel}
@@ -570,7 +590,7 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
           options={filterOptions}
           onSearch={setSearch}
           onFilter={() => setFiltering(true)}
-          onClear={clearable && props.unavailable === undefined ? openClear : undefined}
+          manage={props.unavailable === undefined ? manage : undefined}
           onHeight={setHeaderHeight}
         />
       </FixedToolbar>
@@ -647,11 +667,11 @@ const ActivityPage = memo(function ActivityPage({
   searchFocused,
   dismissSearch,
   onNotice,
-  clearRef,
-  onClearable,
+  manageRef,
+  onManageItems,
 }: ActivityFeedProps & {
-  clearRef: RefObject<(() => void) | undefined>;
-  onClearable(clearable: boolean): void;
+  manageRef: RefObject<((key: string) => void) | undefined>;
+  onManageItems(items: readonly ActivityManageItem[]): void;
   section: ActivityFilter['section'];
   filterBot: ActivityFilter['bot'];
   filterChannel: ActivityFilter['channel'];
@@ -867,6 +887,16 @@ const ActivityPage = memo(function ActivityPage({
           }),
         ),
     };
+    const read: SwipeAction = {
+      key: 'read',
+      label: t.activityMarkRead,
+      tone: 'accent',
+      icon: CheckIcon,
+      run: () =>
+        void markAttentionItemRead(client, item)
+          .catch(() => onNotice?.({ message: t.activityChangeFailed }))
+          .finally(() => void currentInbox()?.refresh()),
+    };
     if (section === 'action' && item.kind === 'bot-message-needs-repair') return [clear, later];
     if (section === 'action')
       return [
@@ -879,7 +909,7 @@ const ActivityPage = memo(function ActivityPage({
         },
         later,
       ];
-    return [clear];
+    return attentionItemUnread(item) ? [read, { ...clear, tone: 'neutral' }] : [clear];
   };
   const settled = (item: HumanAttentionItem, result: DecisionResult) => {
     if (activeSettlementScope.current !== settlementScope) return;
@@ -907,23 +937,23 @@ const ActivityPage = memo(function ActivityPage({
       ),
     ),
   ];
+  const targets = () =>
+    sources === undefined
+      ? client === undefined
+        ? []
+        : [{ client, botSlug: filter.bot, channelId: filter.channel }]
+      : sources.flatMap((source) => {
+          const botSlug = localSelection(filter.bot, source);
+          const channelId = localSelection(filter.channel, source);
+          return botSlug === false || channelId === false
+            ? []
+            : [{ client: source.client, botSlug, channelId }];
+        });
   const clearMany = async (kind: string | undefined) => {
-    const targets =
-      sources === undefined
-        ? client === undefined
-          ? []
-          : [{ client, botSlug: filter.bot, channelId: filter.channel }]
-        : sources.flatMap((source) => {
-            const botSlug = localSelection(filter.bot, source);
-            const channelId = localSelection(filter.channel, source);
-            return botSlug === false || channelId === false
-              ? []
-              : [{ client: source.client, botSlug, channelId }];
-          });
     let dismissed = 0;
     let more = false;
     try {
-      for (const target of targets) {
+      for (const target of targets()) {
         if (target.client.getSnapshot().connection.status !== 'connected')
           throw new Error('activity-source-unavailable');
         for (const category of clearSections) {
@@ -947,26 +977,70 @@ const ActivityPage = memo(function ActivityPage({
       await currentInbox()?.refresh();
     }
   };
-  const chooseClear = () =>
-    showActionMenu(t.activityClearManyTitle, [
-      {
-        text: t.activityClearAll,
-        icon: ArchiveIcon,
-        style: 'destructive' as const,
-        onPress: () => void clearMany(undefined),
-      },
-      ...clearKinds.map((kind) => ({
-        text: t.kind[kind] ?? t.otherKind,
-        icon: ArchiveIcon,
-        onPress: () => void clearMany(kind),
-      })),
-    ]);
+  const markAllRead = async () => {
+    let channels = 0;
+    try {
+      for (const target of targets()) {
+        if (target.client.getSnapshot().connection.status !== 'connected')
+          throw new Error('activity-source-unavailable');
+        channels += (
+          await markAllAttentionRead(target.client, {
+            botSlug: target.botSlug,
+            channelId: target.channelId,
+          })
+        ).channels;
+      }
+      onNotice?.({ message: t.activityMarkedAllRead(channels) });
+    } catch {
+      onNotice?.({ message: t.activityChangeFailed });
+    } finally {
+      setHeld([]);
+      await currentInbox()?.refresh();
+    }
+  };
+  const hasUnread = rows.some(
+    (row) =>
+      (row.kind === 'row' || row.kind === 'post') &&
+      (attentionItemUnread(row.item) || (row.item.unreadCount ?? 0) > 0),
+  );
+  const manageItems: ActivityManageItem[] =
+    visible.status !== 'ready'
+      ? []
+      : [
+          ...(hasUnread
+            ? [{ key: 'read-all', label: t.activityMarkAllRead, icon: 'read' as const }]
+            : []),
+          ...(clearKinds.length === 0
+            ? []
+            : [
+                {
+                  key: 'clear:',
+                  label: t.activityClearAllItems,
+                  icon: 'clear' as const,
+                  destructive: true,
+                },
+                ...clearKinds.map((kind) => ({
+                  key: 'clear:' + kind,
+                  label: t.activityClearKind(t.kind[kind] ?? t.otherKind),
+                  icon: 'clear' as const,
+                })),
+              ]),
+        ];
   useLayoutEffect(() => {
-    clearRef.current = chooseClear;
+    manageRef.current = (key) => {
+      if (key === 'read-all') void markAllRead();
+      else if (key === 'clear:')
+        confirmDestructive(
+          t.activityClearAllTitle,
+          t.activityClearManyTitle,
+          t.activityClearAllItems,
+          () => void clearMany(undefined),
+        );
+      else if (key.startsWith('clear:')) void clearMany(key.slice(6));
+    };
   });
-  const clearable = visible.status === 'ready' && clearKinds.length > 0;
-  useLayoutEffect(() => onClearable(clearable), [clearable, onClearable]);
-  useLayoutEffect(() => () => onClearable(false), [onClearable]);
+  useLayoutEffect(() => onManageItems(manageItems));
+  useLayoutEffect(() => () => onManageItems([]), [onManageItems]);
   const refresh = () => {
     setRefreshing(true);
     setHeld([]);

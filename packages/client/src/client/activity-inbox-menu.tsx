@@ -61,6 +61,11 @@ export function ActivityInboxMenu({
   const clearKinds = [
     ...new Set(clearSections.flatMap((section) => pages[section].items.map((item) => item.kind))),
   ];
+  const hasUnread = (['replies', 'unread'] as const).some(
+    (section) =>
+      clearSections.includes(section) &&
+      pages[section].items.some((item) => item.isUnread !== false && item.channelId !== undefined),
+  );
   const kindLabel = (kind: HumanAttentionItem['kind'] | undefined): string =>
     kind === undefined
       ? t('activityInbox.clearAll')
@@ -115,10 +120,13 @@ export function ActivityInboxMenu({
     ...(inbox.category === 'unread' || inbox.category === 'handled'
       ? []
       : [{ id: 'snoozed', label: t('humanInbox.snoozed') }]),
+    ...(hasUnread || clearKinds.length > 0
+      ? [{ type: 'separator' as const, id: 'dismiss-separator' }]
+      : []),
+    ...(hasUnread ? [{ id: 'mark-read', label: t('activityInbox.markAllRead') }] : []),
     ...(clearKinds.length === 0
       ? []
       : [
-          { type: 'separator' as const, id: 'dismiss-separator' },
           {
             id: 'dismiss',
             label: t('activityInbox.clearItems'),
@@ -149,6 +157,10 @@ export function ActivityInboxMenu({
     else if (id.startsWith('bot:')) operation = filter({ botSlug: id.slice(4) || undefined });
     else if (id.startsWith('channel:')) operation = filter({ channelId: id.slice(8) || undefined });
     else if (id === 'snoozed') operation = filter({ snoozed: !inbox.snoozed });
+    else if (id === 'mark-read')
+      operation = actions
+        .markAllRead({ channelId: inbox.channelId, botSlug: inbox.botSlug })
+        .then(() => feed.refresh());
     else if (id.startsWith('dismiss:')) {
       setClearError(undefined);
       setClearing({

@@ -707,7 +707,10 @@ export interface BridgeActions {
   loadNewer(channelId: string): Promise<void>;
   openLatest(channelId: string): Promise<void>;
   openAround(channelId: string, messageId: string): Promise<void>;
-  markAllRead(): Promise<void>;
+  markAllRead(scope?: {
+    channelId?: string | undefined;
+    botSlug?: string | undefined;
+  }): Promise<void>;
   markRead(channelId: string, messageId: string): Promise<void>;
   reactToMessage?(
     channelId: string,
@@ -2588,9 +2591,9 @@ export function createActions(
       );
       actions.telemetryEvent('activity:grant_request_submit');
     },
-    async markAllRead() {
+    async markAllRead(scope) {
       try {
-        await markAllReadPositions(call);
+        await markAllReadPositions(call, scope);
       } catch (error) {
         await refreshHumanInboxStatus();
         throw error;

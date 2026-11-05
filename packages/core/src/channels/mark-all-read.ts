@@ -1,11 +1,23 @@
 import { isBotDmChannel, LOCAL_HUMAN_ID } from './channel.js';
 import type { ChannelStore } from './store.js';
 
-export async function markAllHumanMessagesRead(store: ChannelStore): Promise<{ channels: number }> {
+export interface MarkAllReadScope {
+  channelId?: string;
+  botSlug?: string;
+}
+
+export async function markAllHumanMessagesRead(
+  store: ChannelStore,
+  scope: MarkAllReadScope = {},
+): Promise<{ channels: number }> {
   const visible = (id: string): boolean => {
     const channel = store.get(id);
     return (
       channel !== undefined &&
+      (scope.channelId === undefined || channel.id === scope.channelId) &&
+      (scope.botSlug === undefined ||
+        channel.botSlug === scope.botSlug ||
+        (channel.type === 'group' && channel.members.includes(scope.botSlug))) &&
       channel.deletedAt === undefined &&
       !isBotDmChannel(channel) &&
       (channel.type === 'dm' ||

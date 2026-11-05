@@ -267,6 +267,7 @@ export const zh = {
   'activityInbox.settings': '通知设置',
   'activityInbox.category': '显示',
   'activityInbox.clearItems': '清理…',
+  'activityInbox.markAllRead': '全部标为已读',
   'activityInbox.clearAll': '全部条目',
   'activityInbox.clearTitle': '清理「{scope}」？',
   'activityInbox.clearBody':
@@ -5043,6 +5044,7 @@ export const en = {
   'activityInbox.settings': 'Notification settings',
   'activityInbox.category': 'Show',
   'activityInbox.clearItems': 'Clear…',
+  'activityInbox.markAllRead': 'Mark all as read',
   'activityInbox.clearAll': 'All items',
   'activityInbox.clearTitle': 'Clear “{scope}”?',
   'activityInbox.clearBody':
