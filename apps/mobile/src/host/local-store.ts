@@ -79,9 +79,16 @@ export async function openLocalStore(
   const reads = reader(connection);
   let closed = false;
   let queue: Promise<unknown> = Promise.resolve();
-  const write = <T>(work: (tx: SqlWriter) => Promise<T>): Promise<T> => {
-    const next = queue.then(async () => {
+  const serial = <T>(task: () => Promise<T>): Promise<T> => {
+    const next = queue.then(() => {
       if (closed) throw new LocalStoreError('local-store/closed', 'The local store is closed.');
+      return task();
+    });
+    queue = next.catch(() => undefined);
+    return next;
+  };
+  const write = <T>(work: (tx: SqlWriter) => Promise<T>): Promise<T> =>
+    serial(async () => {
       await connection.exec('begin immediate');
       try {
         const result = await work({
@@ -95,9 +102,6 @@ export async function openLocalStore(
         throw error;
       }
     });
-    queue = next.catch(() => undefined);
-    return next;
-  };
   try {
     await connection.exec('pragma journal_mode = wal');
     await connection.exec('pragma synchronous = normal');
@@ -119,7 +123,8 @@ export async function openLocalStore(
     throw error;
   }
   return {
-    ...reads,
+    all: (sql, params) => serial(() => reads.all(sql, params)),
+    get: (sql, params) => serial(() => reads.get(sql, params)),
     version: migrations.length,
     write,
     async close() {

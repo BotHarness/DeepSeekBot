@@ -177,6 +177,26 @@ describe('local store', () => {
     expect(await store.get('select seq from cursors')).toEqual({ seq: 20 });
   });
 
+  it('keeps reads outside a write from seeing its uncommitted rows', async () => {
+    const store = await open();
+    let fail!: () => void;
+    let inserted!: () => void;
+    const failed = new Promise<void>((resolve) => (fail = resolve));
+    const insert = new Promise<void>((resolve) => (inserted = resolve));
+    const writing = store.write(async (tx) => {
+      await tx.run('insert into channels (id, record) values (?, ?)', ['c1', '{}']);
+      inserted();
+      expect(await tx.all('select id from channels')).toEqual([{ id: 'c1' }]);
+      await failed;
+      throw new Error('abort');
+    });
+    await insert;
+    const reading = store.all('select id from channels');
+    fail();
+    await expect(writing).rejects.toThrow('abort');
+    expect(await reading).toEqual([]);
+  });
+
   it('keeps writing after a failed write and refuses writes once closed', async () => {
     const store = await openLocalStore(nodeSqlConnection());
     await expect(store.write(() => Promise.reject(new Error('no')))).rejects.toThrow('no');
