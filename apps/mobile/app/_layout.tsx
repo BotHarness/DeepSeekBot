@@ -3,6 +3,7 @@ import { watchRequestActivity } from '../src/host/native-live-activity';
 import { useCallback, useState } from 'react';
 import { Notice } from '../src/ui/request-parts';
 import { DeviceAlertBanner } from '../src/ui/primitives/device-alert-banner';
+import { useDeviceAlert } from '../src/ui/primitives/use-device-alert';
 import { channelRouteId, channelStackRouter } from '../src/ui/shell/channel-navigation';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -47,6 +48,7 @@ export default function RootLayout() {
 }
 
 function RootNavigator() {
+  const inlineAlert = useDeviceAlert('inline');
   const t = useStrings();
   const theme = useTheme();
   const design = useDesignTheme();
@@ -104,6 +106,14 @@ function RootNavigator() {
                     headerBackButtonDisplayMode: 'minimal',
                     headerBackTitle: t.back,
                     contentStyle: { backgroundColor: theme.background },
+                    unstable_nativeProps:
+                      Platform.OS === 'android'
+                        ? {
+                            headerConfig: {
+                              disableTopInsetApplication: Boolean(inlineAlert) || routingPending,
+                            },
+                          }
+                        : {},
                   }}
                 >
                   <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

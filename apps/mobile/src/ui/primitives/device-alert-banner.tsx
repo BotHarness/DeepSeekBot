@@ -1,4 +1,3 @@
-import { useSyncExternalStore } from 'react';
 import { ScrollView, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { SlideInUp } from 'react-native-reanimated';
@@ -6,7 +5,8 @@ import { useKeyboardState } from 'react-native-keyboard-controller';
 import { alertBanners } from '../../host/alert-banners';
 import { useDesignTheme } from '../design/theme';
 import { alertOverlay, motion, radius, space } from '../design/tokens';
-import { interfacePreferences, type InAppAlertStyle } from '../interface-preferences';
+import type { InAppAlertStyle } from '../interface-preferences';
+import { useDeviceAlert } from './use-device-alert';
 import { useSystemReducedMotion } from './use-system-reduced-motion';
 import { useStrings } from '../strings';
 import { Button } from './button';
@@ -14,18 +14,14 @@ import { Text } from './text';
 import { DeviceAlertAvatar } from './device-alert-avatar';
 
 export function DeviceAlertBanner({ placement = 'inline' }: { placement?: InAppAlertStyle }) {
-  const alert = useSyncExternalStore(alertBanners.subscribe, alertBanners.getSnapshot);
-  const preferences = useSyncExternalStore(
-    interfacePreferences.subscribe,
-    interfacePreferences.getSnapshot,
-  );
+  const alert = useDeviceAlert(placement);
   const theme = useDesignTheme();
   const t = useStrings();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const keyboard = useKeyboardState((state) => (state.isVisible ? state.height : 0));
   const reduced = useSystemReducedMotion();
-  if (!alert || !preferences.inAppAlerts || preferences.inAppAlertStyle !== placement) return null;
+  if (!alert) return null;
   const content = (
     <View
       accessibilityLiveRegion="polite"

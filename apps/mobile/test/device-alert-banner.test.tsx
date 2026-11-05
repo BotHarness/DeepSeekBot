@@ -65,10 +65,16 @@ vi.mock('../src/ui/primitives/button', () => ({
 }));
 
 import { DeviceAlertBanner } from '../src/ui/primitives/device-alert-banner';
+import { useDeviceAlert } from '../src/ui/primitives/use-device-alert';
 import { interfacePreferences } from '../src/ui/interface-preferences';
 import { alertBanners } from '../src/host/alert-banners';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+
+function InsetOwner() {
+  const inline = useDeviceAlert('inline');
+  return <div data-testid="inset-owner" data-consumed={Boolean(inline)} />;
+}
 
 it('moves one alert between inserted and overlay slots without consuming it; open and dismiss keep their meanings', async () => {
   const host = document.createElement('div');
@@ -97,15 +103,22 @@ it('moves one alert between inserted and overlay slots without consuming it; ope
     await act(async () =>
       root.render(
         <>
+          <InsetOwner />
           <DeviceAlertBanner />
           <DeviceAlertBanner placement="overlay" />
         </>,
       ),
     );
     expect(host.querySelectorAll('[data-testid="device-alert-banner"]')).toHaveLength(1);
+    expect(host.querySelector('[data-testid="inset-owner"]')?.getAttribute('data-consumed')).toBe(
+      'true',
+    );
     expect(host.querySelector('[data-testid="bot-avatar"]')?.getAttribute('src')).toBe('bot.png');
     expect(host.querySelector('[data-testid="device-alert-overlay"]')).toBeNull();
     await act(async () => interfacePreferences.setInAppAlertStyle('overlay'));
+    expect(host.querySelector('[data-testid="inset-owner"]')?.getAttribute('data-consumed')).toBe(
+      'false',
+    );
     expect(host.querySelectorAll('[data-testid="device-alert-banner"]')).toHaveLength(1);
     expect(host.querySelector('[data-testid="device-alert-overlay"]')).not.toBeNull();
     expect(host.querySelector('[data-testid="bot-avatar"]')?.getAttribute('src')).toBe('bot.png');
@@ -119,11 +132,21 @@ it('moves one alert between inserted and overlay slots without consuming it; ope
     );
     expect(opened).toHaveBeenCalledExactlyOnceWith(alert.data);
     expect(host.querySelector('[data-testid="device-alert-banner"]')).toBeNull();
+    await act(async () => interfacePreferences.setInAppAlertStyle('inline'));
+    expect(host.querySelector('[data-testid="inset-owner"]')?.getAttribute('data-consumed')).toBe(
+      'false',
+    );
     await act(async () => alertBanners.reconcile('studio', ['q1'], [alert]));
+    expect(host.querySelector('[data-testid="inset-owner"]')?.getAttribute('data-consumed')).toBe(
+      'true',
+    );
     await act(async () =>
       host.querySelector<HTMLButtonElement>('[data-testid="device-alert-dismiss"]')!.click(),
     );
     expect(interfacePreferences.getSnapshot().inAppAlerts).toBe(true);
+    expect(host.querySelector('[data-testid="inset-owner"]')?.getAttribute('data-consumed')).toBe(
+      'false',
+    );
     expect(opened).toHaveBeenCalledTimes(1);
   } finally {
     off();
