@@ -259,7 +259,7 @@ interface Call {
   ownTurnAt: number;
   playing: boolean;
   guardUntil: number;
-  gain: number;
+  gain: number | undefined;
   barge?: { state: 'suspected' | 'confirmed' } | undefined;
   ackStop?: AbortController | undefined;
   interrupted: Reply[];
@@ -1210,7 +1210,10 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
   const setGain = (call: Call, gain: number) => {
     if (call.gain === gain || ended(call)) return;
     call.gain = gain;
-    void call.peer?.setGain?.(gain).catch(() => log('call-gain-failed', { call: call.id, gain }));
+    void call.peer?.setGain?.(gain).catch(() => {
+      if (call.gain === gain) call.gain = undefined;
+      log('call-gain-failed', { call: call.id, gain });
+    });
   };
 
   const talking = (call: Call) => call.playing || call.replies.some(pending);

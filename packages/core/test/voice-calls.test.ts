@@ -108,6 +108,7 @@ function fakeMedia(availability: Awaited<ReturnType<VoiceCallMedia['availability
     stopped: 0,
     closed: 0,
     gains: [] as number[],
+    failGain: undefined as number | undefined,
     playDelay: undefined as Promise<void> | undefined,
     stats: undefined as VoiceCallMediaStats | undefined,
   };
@@ -140,6 +141,10 @@ function fakeMedia(availability: Awaited<ReturnType<VoiceCallMedia['availability
           });
         },
         async setGain(gain) {
+          if (state.failGain === gain) {
+            state.failGain = undefined;
+            throw new Error('refused');
+          }
           state.gains.push(gain);
         },
         async stats() {
@@ -1501,6 +1506,19 @@ describe('barge-in while the Bot speaks', () => {
     expect(events.find((event) => event.type === 'barge-in')).toMatchObject({ by: 'words' });
     expect(state.stopped).toBe(1);
     expect(h.sent.at(-1)?.body).toBe('等等别说了');
+  });
+
+  it('retries the volume after the media helper refused to restore it', async () => {
+    const { media, state } = fakeMedia();
+    const h = harness({ media });
+    const callId = await speaking(h, state);
+    state.failGain = 1;
+    h.feed(state.onPcm!, concat(silence(600), speech(700)));
+    await settled();
+    expect(types((await view(h, callId)).events)).toContain('barge-in');
+    expect(state.gains).toEqual([0.3]);
+    await h.ok({ kind: 'mute', callId, muted: true });
+    expect(state.gains).toEqual([0.3, 1]);
   });
 
   it('restores the volume and forgets a suspected cut-in when the Human mutes', async () => {
