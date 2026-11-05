@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const alert = vi.fn();
+const device = vi.hoisted(() => ({ fontScale: 1 }));
 vi.mock('expo-router', async () => {
   const { useLayoutEffect } = await import('react');
   return {
@@ -14,11 +15,17 @@ vi.mock('expo-router', async () => {
   };
 });
 vi.mock('react-native-keyboard-controller', async () => import('./keyboard-controller-shim'));
-vi.mock('../src/ui/primitives/system-symbol', () => ({ SystemSymbol: () => null }));
+vi.mock('../src/ui/primitives/system-symbol', () => ({
+  SystemSymbol: () => null,
+}));
 vi.mock('expo-router/react-navigation', () => ({ useHeaderHeight: () => 96 }));
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
   Alert: { alert: (...args: unknown[]) => alert(...args) },
+  Dimensions: {
+    get: () => ({ width: 390, height: 844, scale: 3, fontScale: device.fontScale }),
+    addEventListener: () => ({ remove() {} }),
+  },
 }));
 vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
 vi.mock('react-native-worklets', () => ({
@@ -44,14 +51,19 @@ vi.mock('react-native-safe-area-context', () => ({
 vi.mock('expo-image', () => ({ Image: () => null }));
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('../src/ui/bot-avatar', () => ({
-  BotAvatar: ({ bot }: { bot: { slug: string } }) =>
-    createElement('span', { 'data-testid': `avatar-${bot.slug}` }),
+  BotAvatar: ({ bot, size }: { bot: { slug: string }; size: number }) =>
+    createElement('span', { 'data-testid': `avatar-${bot.slug}`, 'data-size': size }),
 }));
 vi.mock('../src/ui/shell/icons', async () => ({
   ...(await import('./shell-icons-shim')),
   ChevronRightIcon: () => null,
   MoreIcon: () => null,
   PlusIcon: () => null,
+}));
+vi.mock('../src/ui/chat/assignment-marks', async (original) => ({
+  ...(await original<object>()),
+  AssignmentActivityIcon: ({ activity, size }: { activity: string; size: number }) =>
+    createElement('i', { 'data-activity': activity, 'data-size': size }),
 }));
 vi.mock('../src/ui/chat/sheet', () => {
   const pass = ({ children }: { children?: ReactNode }) => createElement('div', null, children);
@@ -72,7 +84,10 @@ vi.mock('../src/ui/chat/sheet', () => {
         ? createElement(
             'div',
             { role: 'dialog', 'aria-label': label },
-            createElement('button', { 'aria-label': 'dismiss-sheet', onClick: onClose }),
+            createElement('button', {
+              'aria-label': 'dismiss-sheet',
+              onClick: onClose,
+            }),
             children,
           )
         : null,
@@ -98,7 +113,10 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 let root: Root | undefined;
 let host: HTMLElement | undefined;
-beforeEach(() => alert.mockReset());
+beforeEach(() => {
+  alert.mockReset();
+  device.fontScale = 1;
+});
 afterEach(() => {
   act(() => root?.unmount());
   host?.remove();
@@ -163,7 +181,10 @@ const pressAlert = (call: number, text: string) =>
   );
 
 function tabMemory(tab?: ProfileTab): ProfileTabMemory {
-  const memory = createProfileTabMemory({ read: async () => undefined, write() {} });
+  const memory = createProfileTabMemory({
+    read: async () => undefined,
+    write() {},
+  });
   if (tab !== undefined) memory.remember('group', tab);
   return memory;
 }
@@ -186,7 +207,9 @@ const showTab = (props: GroupProfileProps, tab: ProfileTab) =>
 
 describe('Group profile', () => {
   it('lets the Human replace the photo by pressing the large Channel avatar', async () => {
-    const props = sheet({ pickAvatar: vi.fn(async () => 'data:image/jpeg;base64,/9j/AA==') });
+    const props = sheet({
+      pickAvatar: vi.fn(async () => 'data:image/jpeg;base64,/9j/AA=='),
+    });
     const view = await render(<GroupProfilePage {...props} />);
     const avatar = view.querySelector<HTMLButtonElement>('[data-testid="group-avatar-change"]');
     expect(avatar).not.toBeNull();
@@ -314,7 +337,9 @@ describe('Group profile', () => {
         resolve = done;
         reject = fail;
       });
-      const props = sheet({ actions: actions({ invite: vi.fn(() => pending) }) });
+      const props = sheet({
+        actions: actions({ invite: vi.fn(() => pending) }),
+      });
       const view = await render(<GroupProfilePage {...props} />);
       await act(async () => button(view, t.groupInvite)!.click());
       const invite = view.querySelector(`[role="dialog"][aria-label="${t.groupInvite}"]`)!;
@@ -514,5 +539,159 @@ describe('Group profile', () => {
     await act(async () => button(view, t.tryAgain)!.click());
     expect(loadWork).toHaveBeenCalledTimes(2);
     expect(view.textContent).toContain(t.profileEmpty.work);
+  });
+
+  describe('Working now', () => {
+    const busy = (base: RosterBot, sessions: NonNullable<RosterBot['sessions']>): RosterBot => ({
+      ...base,
+      state: 'working',
+      sessions,
+    });
+    const running = (members: RosterBot[]): GroupInfo => ({
+      ...info,
+      members: members.map((member, index) => ({
+        slug: member.slug,
+        bot: member,
+        owner: index === 0,
+      })),
+    });
+    const adaBusy = busy(ada, [
+      { id: 'ada-orch', role: 'orchestrator', state: 'thinking' },
+      { id: 'ada-sub', role: 'subagent', state: 'working' },
+    ]);
+    const boBusy = busy(bo, [
+      { id: 'bo-orch', role: 'orchestrator', state: 'working' },
+      {
+        id: 'bo-a1',
+        role: 'assignment',
+        name: 'Draft the launch notes',
+        state: 'working',
+      },
+    ]);
+    const stopper = () => ({
+      stopSession: vi.fn(async () => undefined),
+      stopBot: vi.fn(async () => undefined),
+    });
+    const testId = (view: ParentNode, id: string) =>
+      view.querySelector<HTMLElement>(`[data-testid="${id}"]`);
+
+    it('lists running Sessions above Today, grouped by member Bot, without Subagents', async () => {
+      const assignment: ProfileAssignment = {
+        sessionId: 'assignment-7',
+        botSlug: 'bo',
+        title: 'Earlier work',
+        activity: 'idle',
+        updatedAt: new Date().toISOString(),
+      };
+      const props = sheet(
+        {
+          info: running([adaBusy, boBusy]),
+          loadWork: vi.fn(async () => [assignment]),
+          stopper: stopper(),
+        },
+        'work',
+      );
+      const view = await render(<GroupProfilePage {...props} />);
+      const text = view.textContent ?? '';
+      expect(text.indexOf(t.workingNow)).toBeGreaterThanOrEqual(0);
+      expect(text.indexOf(t.workingNow)).toBeLessThan(text.indexOf(t.usageToday));
+      expect(
+        [...view.querySelectorAll('[data-testid^="working-"]')]
+          .map((node) => node.getAttribute('data-testid'))
+          .filter((id) => !id!.endsWith('-stopping') && !id!.startsWith('working-now')),
+      ).toEqual([
+        'working-stop-all-ada',
+        'working-session-ada-orch',
+        'working-stop-ada-orch',
+        'working-stop-all-bo',
+        'working-session-bo-orch',
+        'working-stop-bo-orch',
+        'working-session-bo-a1',
+        'working-stop-bo-a1',
+      ]);
+      expect(testId(view, 'working-session-ada-orch')?.textContent).toContain(
+        t.sessionOrchestrator,
+      );
+      expect(testId(view, 'working-session-bo-a1')?.textContent).toContain(
+        'Draft the launch notes',
+      );
+      expect(testId(view, 'working-session-ada-sub')).toBeNull();
+      expect(testId(view, 'working-stop-all-ada')).not.toBeNull();
+      expect(testId(view, 'working-stop-all-bo')).not.toBeNull();
+      expect(view.querySelectorAll('[data-testid^="working-stop-all-"]')).toHaveLength(2);
+      const head = (slug: string) =>
+        testId(view, `working-stop-all-${slug}`)!.closest('div:has(> div > button)');
+      expect(head('ada')?.querySelector('[data-testid="avatar-ada"]')).not.toBeNull();
+      expect(head('bo')?.querySelector('[data-testid="avatar-bo"]')).not.toBeNull();
+      expect(testId(view, 'profile-assignment-assignment-7')).not.toBeNull();
+    });
+
+    it('hides Working now while no member Bot is running', async () => {
+      const view = await render(
+        <GroupProfilePage
+          {...sheet({ loadWork: vi.fn(async () => []), stopper: stopper() }, 'work')}
+        />,
+      );
+      expect(view.textContent).not.toContain(t.workingNow);
+      expect(view.textContent).toContain(t.profileEmpty.work);
+    });
+
+    it('scales the Bot avatar, its name and the Session icons with the system text size', async () => {
+      device.fontScale = 2;
+      const props = sheet({ info: running([adaBusy, boBusy]), stopper: stopper() }, 'work');
+      const view = await render(<GroupProfilePage {...props} />);
+      const head = testId(view, 'working-stop-all-bo')!.closest('div:has(> div > button)')!;
+      expect(head.querySelector('[data-testid="avatar-bo"]')?.getAttribute('data-size')).toBe('40');
+      expect(
+        testId(view, 'working-session-bo-a1')?.querySelector('i')?.getAttribute('data-size'),
+      ).toBe('32');
+    });
+
+    it('stops one Session from its menu with no confirmation and shows Stopping until it leaves the list', async () => {
+      const stop = stopper();
+      const props = sheet({ info: running([adaBusy, boBusy]), stopper: stop }, 'work');
+      const view = await render(<GroupProfilePage {...props} />);
+      await act(async () => testId(view, 'working-stop-bo-a1')!.click());
+      await pressAlert(alert.mock.calls.length - 1, t.sessionStop);
+      expect(stop.stopSession).toHaveBeenCalledWith('bo', 'bo-a1');
+      expect(alert).toHaveBeenCalledOnce();
+      expect(testId(view, 'working-stop-bo-a1')).toBeNull();
+      expect(testId(view, 'working-stop-bo-a1-stopping')?.getAttribute('aria-label')).toBe(
+        t.sessionStopping,
+      );
+      expect(testId(view, 'working-session-bo-a1')?.textContent).toContain(t.sessionStopping);
+      expect(testId(view, 'working-stop-bo-orch')).not.toBeNull();
+      const settled = busy(bo, [{ id: 'bo-orch', role: 'orchestrator', state: 'working' }]);
+      await act(async () =>
+        root!.render(<GroupProfilePage {...props} info={running([adaBusy, settled])} />),
+      );
+      expect(testId(view, 'working-session-bo-a1')).toBeNull();
+      expect(testId(view, 'working-stop-bo-orch')).not.toBeNull();
+    });
+
+    it('stops every Session of one Bot from its stop-all', async () => {
+      const stop = stopper();
+      const props = sheet({ info: running([adaBusy, boBusy]), stopper: stop }, 'work');
+      const view = await render(<GroupProfilePage {...props} />);
+      await act(async () => testId(view, 'working-stop-all-bo')!.click());
+      await pressAlert(alert.mock.calls.length - 1, t.sessionStopAll);
+      expect(stop.stopBot).toHaveBeenCalledWith('bo');
+      expect(stop.stopSession).not.toHaveBeenCalled();
+      expect(testId(view, 'working-stop-bo-orch-stopping')).not.toBeNull();
+      expect(testId(view, 'working-stop-bo-a1-stopping')).not.toBeNull();
+      expect(testId(view, 'working-stop-all-bo-stopping')).not.toBeNull();
+      expect(testId(view, 'working-stop-ada-orch')).not.toBeNull();
+    });
+
+    it('restores Stop and explains a failed stop', async () => {
+      const stop = stopper();
+      stop.stopSession.mockRejectedValueOnce(new Error('Host unavailable'));
+      const props = sheet({ info: running([boBusy]), stopper: stop }, 'work');
+      const view = await render(<GroupProfilePage {...props} />);
+      await act(async () => testId(view, 'working-stop-bo-a1')!.click());
+      await pressAlert(alert.mock.calls.length - 1, t.sessionStop);
+      expect(testId(view, 'working-stop-bo-a1')).not.toBeNull();
+      expect(testId(view, 'working-stop-failed')?.textContent).toContain('Host unavailable');
+    });
   });
 });

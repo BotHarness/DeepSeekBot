@@ -36,8 +36,12 @@ import {
   assignmentRows,
   profileTabOptions,
   useRememberedProfileTab,
+  workingGap,
+  workingRows,
   WorkListRow,
 } from './bot-profile';
+import type { SessionStopper } from '../../host/session-stop';
+import { useSessionStops } from './session-stops';
 import { InviteSheet } from './invite-sheet';
 import { ProfileShell, type ProfileRow, type ProfileTabBody } from './profile-shell';
 import { profileTabs, type ProfileTabMemory } from './profile-tabs';
@@ -206,6 +210,7 @@ export interface GroupProfileProps {
   onChatBackground?: (() => void) | undefined;
   onNotifications?: (() => void) | undefined;
   files?: ((active: boolean, render: (body: ProfileTabBody) => ReactNode) => ReactNode) | undefined;
+  stopper?: SessionStopper | undefined;
 }
 
 export function GroupProfilePage({
@@ -221,6 +226,7 @@ export function GroupProfilePage({
   onChatBackground,
   onNotifications,
   files,
+  stopper,
 }: GroupProfileProps) {
   const t = useStrings();
   const [busy, setBusy] = useState<string | undefined>();
@@ -232,6 +238,10 @@ export function GroupProfilePage({
   const tabs = profileTabs('group');
   const [tab, setTab] = useRememberedProfileTab(tabMemory, tabs, 'group');
   const { channel } = info;
+  const memberBots = info.members.flatMap((member) =>
+    member.bot === undefined ? [] : [member.bot],
+  );
+  const stops = useSessionStops(stopper, memberBots);
 
   const readWork = useCallback(() => {
     if (loadWork === undefined) return () => {};
@@ -364,6 +374,7 @@ export function GroupProfilePage({
   ]);
 
   const workRows = loadWork === undefined ? [] : assignmentRows(work);
+  const working = workingRows(memberBots, true);
   const settings: ProfileRow[] = [
     node('settings:group', () => (
       <SettingsSection title={t.groupSettingsSection} on={ON}>
@@ -441,9 +452,17 @@ export function GroupProfilePage({
   const bodies: Record<'members' | 'work' | 'settings', ProfileTabBody> = {
     members: { rows: [...callout, ...members] },
     work: {
-      rows: workRows.map((row) =>
-        node(row.key, () => <WorkListRow row={row} onRetry={readWork} onOpen={onOpenAssignment} />),
-      ),
+      rows: [
+        ...working.map((row) =>
+          node(row.key, () => <WorkListRow row={row} onRetry={readWork} stops={stops} />),
+        ),
+        ...(working.length === 0 ? [] : [workingGap(node, stops?.error)]),
+        ...workRows.map((row) =>
+          node(row.key, () => (
+            <WorkListRow row={row} onRetry={readWork} onOpen={onOpenAssignment} />
+          )),
+        ),
+      ],
       empty: <Text tone="muted">{t.profileEmpty.work}</Text>,
     },
     settings: { rows: [...callout, ...settings] },

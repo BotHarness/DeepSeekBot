@@ -150,3 +150,59 @@ it('shows reconnecting text in DM and group headers and removes it after recover
   );
   expect(recovered).not.toContain(t.reconnecting);
 });
+
+describe('session count chip', () => {
+  const sessions: RosterBot['sessions'] = [
+    { id: 'o', role: 'orchestrator', state: 'working' },
+    { id: 'a', role: 'assignment', name: 'Write notes', state: 'working' },
+    { id: 's', role: 'subagent', state: 'working' },
+  ];
+
+  it('counts running Orchestrator and Assignment Sessions after the DM active state', () => {
+    const html = renderToStaticMarkup(
+      <ChatTitle bot={{ ...mika, sessions }} fallback="missing" onPress={() => {}} />,
+    );
+    expect(html).toContain('data-testid="session-count-chip"');
+    expect(html.indexOf(`${t.effect.executing} · bash<`)).toBeLessThan(
+      html.indexOf('data-testid="session-count-chip"'),
+    );
+    expect(html).toMatch(/data-testid="session-count-chip"[^]*>2</);
+    expect(html).toContain(`Mika, ${t.effect.executing} · bash, ${t.sessionCount(2)}`);
+    expect(html).toContain(`data-accessibilityrole="button"`);
+  });
+
+  it('is hidden at zero, including when only Subagents run', () => {
+    const idle = renderToStaticMarkup(
+      <ChatTitle bot={{ ...mika, state: 'idle' }} fallback="missing" onPress={() => {}} />,
+    );
+    expect(idle).not.toContain('session-count-chip');
+    const subagents = renderToStaticMarkup(
+      <ChatTitle
+        bot={{ ...mika, sessions: [{ id: 's', role: 'subagent', state: 'working' }] }}
+        fallback="missing"
+        onPress={() => {}}
+      />,
+    );
+    expect(subagents).not.toContain('session-count-chip');
+  });
+
+  it('shows the Group total after the working avatars', () => {
+    const html = renderToStaticMarkup(
+      <ChannelTitle
+        channel={undefined}
+        fallback="QA group"
+        working={[mika]}
+        sessions={3}
+        onPress={() => {}}
+      />,
+    );
+    expect(html.indexOf('data-testid="working-status"')).toBeLessThan(
+      html.indexOf('data-testid="session-count-chip"'),
+    );
+    expect(html).toContain(t.sessionCount(3));
+    const none = renderToStaticMarkup(
+      <ChannelTitle channel={undefined} fallback="QA group" sessions={0} onPress={() => {}} />,
+    );
+    expect(none).not.toContain('session-count-chip');
+  });
+});

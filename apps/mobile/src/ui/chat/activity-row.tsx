@@ -16,7 +16,7 @@ import {
   PersonIcon,
   PhoneIcon,
   PlusIcon,
-  RecordingStopIcon,
+  StopCircleIcon,
 } from '../shell/icons';
 import { useStrings } from '../strings';
 import { activityPeer, activityText, type ActivityTarget } from './activity-text';
@@ -70,8 +70,8 @@ export function ActivityRow({
               ? PersonIcon
               : activity.kind === 'voice-call'
                 ? PhoneIcon
-                : RecordingStopIcon;
-  const size = theme.type.meta.line;
+                : StopCircleIcon;
+  const size = theme.type.meta.line * theme.fontScale;
   const hit = Math.max(0, (theme.touch - size) / 2);
   const open = () => {
     ref.current?.measureInWindow((x, y, width, height) => {
@@ -107,13 +107,15 @@ export function ActivityRow({
           {dmSlug !== undefined ? null : (
             <View style={{ width: SPEAKER_AVATAR, alignItems: 'center' }}>
               {actor === undefined ? (
-                <PersonIcon color={theme.color.muted} size={size} />
+                <Icon color={theme.color.muted} size={size} />
               ) : (
                 <BotAvatar bot={actor} size={size} corner={radius.xs} ring={false} />
               )}
             </View>
           )}
-          <Icon color={theme.color.muted} size={size} />
+          {dmSlug === undefined && actor === undefined ? null : (
+            <Icon color={theme.color.muted} size={size} />
+          )}
           {dmSlug === undefined || peerSlug === undefined ? null : peer === undefined ? (
             <PersonIcon color={theme.color.muted} size={size} />
           ) : (

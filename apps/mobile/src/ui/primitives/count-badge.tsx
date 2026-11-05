@@ -12,11 +12,13 @@ export function CountBadge({
   tone,
   label,
   compact = false,
+  maxFontSizeMultiplier,
 }: {
   count: number;
   tone: CountBadgeTone;
   label?: string;
   compact?: boolean;
+  maxFontSizeMultiplier?: number | undefined;
 }) {
   const theme = useDesignTheme();
   const fill =
@@ -48,7 +50,11 @@ export function CountBadge({
       <Text
         variant="meta"
         strong
-        {...(compact ? { maxFontSizeMultiplier: cornerBadge.maxTextScale } : {})}
+        {...(maxFontSizeMultiplier !== undefined
+          ? { maxFontSizeMultiplier }
+          : compact
+            ? { maxFontSizeMultiplier: cornerBadge.maxTextScale }
+            : {})}
         style={{ color: ink, textAlign: 'center', fontVariant: ['tabular-nums'] }}
       >
         {badgeCount(count)}

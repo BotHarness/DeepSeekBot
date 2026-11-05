@@ -12,6 +12,8 @@ import { titleChipFill } from './header-chrome';
 import { barLabelStyle, barLabelProps } from './native-header';
 import { botBusy } from './bot-tone';
 import { stepLabel } from './bot-steps';
+import { runningSessions } from '../../host/session-stop';
+import { SessionCountChip } from './session-count-chip';
 
 const AVATAR = 28;
 
@@ -32,17 +34,26 @@ export function ChatTitle({
   const name = bot?.displayName ?? fallback;
   const activity =
     bot !== undefined && botBusy(bot) ? stepLabel(bot.activity, bot.state) : undefined;
+  const sessions = runningSessions(bot).length;
   const chip = (press: () => void) => (
     <HeaderTitleButton
       testID="bot-details-chip"
       accessibilityRole="button"
-      accessibilityLabel={[name, activity ?? status, connectionLabel].filter(Boolean).join(', ')}
+      accessibilityLabel={[
+        name,
+        activity ?? status,
+        sessions > 0 ? t.sessionCount(sessions) : undefined,
+        connectionLabel,
+      ]
+        .filter(Boolean)
+        .join(', ')}
       accessibilityState={{ busy: connectionLabel !== undefined }}
       accessibilityHint={t.openProfile}
       disabled={bot === undefined}
       onPress={press}
       style={({ pressed }) => ({
         flexShrink: 1,
+        width: '100%',
         flexDirection: 'row',
         alignItems: 'center',
         gap: space.x3,
@@ -63,9 +74,15 @@ export function ChatTitle({
       ) : (
         <View style={{ width: AVATAR, height: AVATAR }} />
       )}
-      <Text {...barLabelProps} strong numberOfLines={1} style={[{ flexShrink: 1 }, barLabelStyle]}>
+      <Text
+        {...barLabelProps}
+        strong
+        numberOfLines={1}
+        style={[{ flex: 1, minWidth: 0 }, barLabelStyle]}
+      >
         {activity ?? name}
       </Text>
+      <SessionCountChip count={sessions} />
       <ConnectionProgress active={connectionLabel !== undefined} label={connectionLabel} />
     </HeaderTitleButton>
   );

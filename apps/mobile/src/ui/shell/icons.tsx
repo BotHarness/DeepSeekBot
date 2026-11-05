@@ -354,6 +354,10 @@ export function ClockIcon(props: IconProps) {
   return <Glyph {...props} d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM12 7v5l3 2" />;
 }
 
+export function StopCircleIcon(props: IconProps) {
+  return <Glyph {...props} d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM9.5 9.5h5v5h-5Z" />;
+}
+
 export function PlayIcon(props: IconProps) {
   return <Glyph {...props} d="M8 5.5v13l10-6.5-10-6.5Z" />;
 }

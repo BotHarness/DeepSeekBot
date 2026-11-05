@@ -51,6 +51,7 @@ export function CountBadge({
   tone: CountBadgeTone;
   label?: string;
   compact?: boolean;
+  maxFontSizeMultiplier?: number | undefined;
 }) {
   const theme = useDesignTheme();
   return (
