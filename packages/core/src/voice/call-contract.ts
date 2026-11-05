@@ -1,9 +1,16 @@
+import type { CallGridLayout, CallVisualSource } from './keyframes.js';
+
+export type { CallGridLayout, CallVisualSource } from './keyframes.js';
+
 export const VOICE_CALL_PATH = '/api/voice/call';
 
 export const VOICE_CALL_HOST_OWNER = 'host-owner';
 
 export const VOICE_CALL_LIMITS = {
-  requestBytes: 128 * 1024,
+  requestBytes: 768 * 1024,
+  frameBytes: 512 * 1024,
+  pendingFrames: 32,
+  keptFrames: 64,
   signalBytes: 96 * 1024,
   injectBytes: 88 * 1024,
   pendingRequests: 8,
@@ -109,6 +116,62 @@ export type VoiceCallEvent =
   | { seq: number; at: number; type: 'idle' }
   | { seq: number; at: number; type: 'muted' }
   | { seq: number; at: number; type: 'unmuted' }
+  | {
+      seq: number;
+      at: number;
+      type: 'visual';
+      source: CallVisualSource | 'off';
+      unsaved?: true;
+    }
+  | {
+      seq: number;
+      at: number;
+      type: 'frame-received';
+      source: CallVisualSource;
+      bytes: number;
+      width: number;
+      height: number;
+      score: number;
+      prepareMs: number;
+      skipped?: number;
+    }
+  | {
+      seq: number;
+      at: number;
+      type: 'grid-built';
+      grid: number;
+      source: CallVisualSource;
+      frames: number;
+      dropped: number;
+      layout: CallGridLayout;
+      bytes: number;
+      composeMs: number;
+    }
+  | {
+      seq: number;
+      at: number;
+      type: 'grid-sent';
+      grid: number;
+      messageId: string;
+      layout: CallGridLayout;
+      waitedMs: number;
+    }
+  | { seq: number; at: number; type: 'grid-unchanged'; messageId: string; sameAs: string }
+  | { seq: number; at: number; type: 'grid-failed'; message: string }
+  | { seq: number; at: number; type: 'frame-zoomed'; messageId: string; cell: number; ms: number }
+  | {
+      seq: number;
+      at: number;
+      type: 'frame-record';
+      messageId: string;
+      source: CallVisualSource;
+      frames: number;
+      layout: CallGridLayout;
+      bytes: number;
+      composeMs: number;
+      fromMs: number;
+      toMs: number;
+    }
   | { seq: number; at: number; type: 'ended'; reason: VoiceCallEndReason };
 
 export interface VoiceCallDescription {
@@ -124,6 +187,7 @@ export interface VoiceCallView {
   readonly muted: boolean;
   readonly busy: boolean;
   readonly media: 'webrtc' | 'synthetic';
+  readonly visual?: CallVisualSource | 'off';
   readonly startedAt: number;
   readonly durationMs: number;
   readonly endReason?: VoiceCallEndReason;
@@ -169,7 +233,26 @@ export type VoiceCallCommand =
       readonly pcm: string;
       readonly after?: number;
     }
-  | { readonly kind: 'hangup'; readonly callId: string };
+  | {
+      readonly kind: 'visual';
+      readonly callId: string;
+      readonly source: CallVisualSource | 'off';
+      readonly save?: boolean;
+      readonly stopped?: boolean;
+      readonly paused?: boolean;
+      readonly resumed?: boolean;
+    }
+  | {
+      readonly kind: 'frame';
+      readonly callId: string;
+      readonly source: CallVisualSource;
+      readonly jpeg: string;
+      readonly score?: number;
+      readonly skipped?: number;
+      readonly after?: number;
+    }
+  | { readonly kind: 'hangup'; readonly callId: string }
+  | { readonly kind: 'zoom'; readonly messageId: string; readonly cell: number };
 
 export type VoiceCallRefusal =
   | 'invalid-input'
@@ -190,7 +273,10 @@ export type VoiceCallRefusal =
   | 'queue-full'
   | 'operation-timeout'
   | 'connect-carrier-required'
-  | 'device-revoked';
+  | 'device-revoked'
+  | 'visual-off'
+  | 'frame-invalid'
+  | 'cell-invalid';
 
 export type VoiceCallResult =
   | {
@@ -198,6 +284,7 @@ export type VoiceCallResult =
       readonly call?: VoiceCallView;
       readonly calls?: readonly VoiceCallView[];
       readonly readiness?: VoiceCallReadiness;
+      readonly zoom?: VoiceCallZoomView;
     }
   | { readonly ok: false; readonly code: VoiceCallRefusal; readonly error: string };
 
@@ -206,3 +293,30 @@ export const VOICE_CALL_CONNECT_REFUSAL: VoiceCallResult = {
   code: 'connect-carrier-required',
   error: 'Calls need the paired LAN route or Tailscale; Tobs Connect does not carry calls.',
 };
+
+export type VoiceCallZoom =
+  | { readonly released: true; readonly messageId: string; readonly cell: number }
+  | {
+      readonly released: false;
+      readonly messageId: string;
+      readonly cell: number;
+      readonly cells: number;
+      readonly source: CallVisualSource;
+      readonly jpeg: Uint8Array;
+      readonly width: number;
+      readonly height: number;
+    };
+
+export type VoiceCallZoomView =
+  | { readonly released: true; readonly messageId: string; readonly cell: number }
+  | {
+      readonly released: false;
+      readonly messageId: string;
+      readonly cell: number;
+      readonly cells: number;
+      readonly source: CallVisualSource;
+      readonly width: number;
+      readonly height: number;
+      readonly bytes: number;
+      readonly jpeg: string;
+    };

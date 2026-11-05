@@ -30,6 +30,7 @@ export function Sheet({
   children,
   avoidKeyboard = false,
   animationType = 'fade',
+  fill = false,
 }: {
   page?: ComponentType<SheetPageProps> | undefined;
   visible: boolean;
@@ -41,6 +42,7 @@ export function Sheet({
   children: ReactNode;
   avoidKeyboard?: boolean;
   animationType?: 'none' | 'slide' | 'fade';
+  fill?: boolean;
 }) {
   if (Page !== undefined)
     return visible ? (
@@ -59,6 +61,7 @@ export function Sheet({
       onDismissed={onDismissed}
       avoidKeyboard={avoidKeyboard}
       animationType={animationType}
+      fill={fill}
     >
       {title === undefined ? null : (
         <View

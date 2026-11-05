@@ -131,30 +131,70 @@ describe('Home resource ownership across handoff and interruption', () => {
       expect(matchesHomeProcess(entry, 'c:\\qa a\\', true)).toBe(true);
     },
   );
-  it('runs preparation only through a recorded command process', async () => {
-    const home = mkdtempSync(join(tmpdir(), 'bh-prepare-'));
-    const lease = acquireHome(home);
-    try {
-      const result = await lease.run(
-        process.execPath,
-        [
-          '-e',
-          `const fs=require('node:fs');const record=JSON.parse(fs.readFileSync(${JSON.stringify(join(home, '.botharness-host.json'))},'utf8'));console.log(record.resources.some(r=>r.pid===process.ppid));`,
-        ],
-        { cwd: home },
-      );
-      expect(result.trim()).toBe('true');
-      await expect(
-        lease.run(process.execPath, [
-          '-e',
-          "process.stderr.write('fixture failure');process.exit(7)",
-        ]),
-      ).rejects.toThrow('fixture failure');
-    } finally {
-      lease.release();
-      rmSync(home, { recursive: true, force: true });
-    }
-  });
+  it(
+    'runs preparation only through a recorded command process',
+    async () => {
+      const home = mkdtempSync(join(tmpdir(), 'bh-prepare-'));
+      const lease = acquireHome(home);
+      try {
+        const result = await lease.run(
+          process.execPath,
+          [
+            '-e',
+            `const fs=require('node:fs');const record=JSON.parse(fs.readFileSync(${JSON.stringify(join(home, '.botharness-host.json'))},'utf8'));console.log(record.resources.some(r=>r.pid===process.ppid));`,
+          ],
+          { cwd: home },
+        );
+        expect(result.trim()).toBe('true');
+        await expect(
+          lease.run(process.execPath, [
+            '-e',
+            "process.stderr.write('fixture failure');process.exit(7)",
+          ]),
+        ).rejects.toThrow('fixture failure');
+      } finally {
+        lease.release();
+        rmSync(home, { recursive: true, force: true });
+      }
+    },
+    process.platform === 'win32' ? 60_000 : undefined,
+  );
+  it(
+    'hands off only the live Host after preparation has exited',
+    async () => {
+      const home = mkdtempSync(join(tmpdir(), 'bh-preparation-handoff-'));
+      const owner = join(home, '.botharness-host.json');
+      const lease = acquireHome(home);
+      let child;
+      let released = false;
+      try {
+        await lease.run(process.execPath, ['-e', "process.stdout.write('prepared')"]);
+        child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+          stdio: 'ignore',
+        });
+        await once(child, 'spawn');
+        lease.started(child, join(home, 'fixture.log'));
+        lease.release();
+        released = true;
+        const saved = JSON.parse(readFileSync(owner, 'utf8'));
+        expect(saved.resources.map((resource) => resource.pid)).toEqual([child.pid]);
+        expect(() => acquireHome(home)).toThrow('in use');
+        child.kill();
+        await once(child, 'exit');
+        const next = acquireHome(home);
+        next.release();
+        expect(existsSync(owner)).toBe(false);
+      } finally {
+        if (child?.exitCode === null && child.signalCode === null) {
+          child.kill();
+          await once(child, 'exit');
+        }
+        if (!released) lease.release();
+        rmSync(home, { recursive: true, force: true });
+      }
+    },
+    process.platform === 'win32' ? 60_000 : undefined,
+  );
   it.skipIf(process.platform === 'win32')(
     'does not hang on pipes inherited by an abandoned preparation descendant',
     async () => {
