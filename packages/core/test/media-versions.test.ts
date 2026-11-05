@@ -175,3 +175,20 @@ it('serves byte ranges of a versioned original for resume and video seeking', as
   expect((await get(`&v=${version}`, { range: 'bytes=x-y' })).status).toBe(416);
   expect((await get(`&v=${'0'.repeat(32)}`, { range: 'bytes=0-9' })).status).toBe(409);
 });
+
+it('ignores a byte range whose If-Range validator is not the current version', async () => {
+  const { core, ref, get } = await fixture();
+  const version = (await core.mediaVersions.ensure(ref.fileId!))!.version;
+  const full = await get(`&v=${version}`);
+  const etag = full.headers.get('etag')!;
+  const whole = Buffer.from(await full.arrayBuffer());
+
+  const matching = await get(`&v=${version}`, { range: 'bytes=0-9', 'if-range': etag });
+  expect(matching.status).toBe(206);
+  expect(Buffer.from(await matching.arrayBuffer())).toEqual(whole.subarray(0, 10));
+
+  const other = await get(`&v=${version}`, { range: 'bytes=0-9', 'if-range': '"other"' });
+  expect(other.status).toBe(200);
+  expect(other.headers.get('content-range')).toBeNull();
+  expect(Buffer.from(await other.arrayBuffer())).toEqual(whole);
+});

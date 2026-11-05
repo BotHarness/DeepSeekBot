@@ -36,7 +36,7 @@ export async function cachedAttachmentUri(
         new AbortController().signal,
       );
       if (target.exists) target.delete();
-      new File(cached).copy(target);
+      await new File(cached).copy(target);
       return target.uri;
     }
     const { bytes } = await source.read(new AbortController().signal);
