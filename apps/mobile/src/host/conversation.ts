@@ -722,12 +722,18 @@ export function createConversation(options: ConversationOptions): Conversation {
     return { ...entry, message: { ...message, body: '', contentPurge: { actor: 'local-human' } } };
   };
 
-  const changeCall = async <T>(method: string, args: Record<string, unknown>) => {
+  const changeCall = async <T>(
+    current: number,
+    method: string,
+    args: Record<string, unknown>,
+  ): Promise<T | undefined> => {
     try {
       return await options.host.call<T>(method, args);
     } catch {
-      changesSupported = false;
-      changeCursor = undefined;
+      if (current === session) {
+        changesSupported = false;
+        changeCursor = undefined;
+      }
       return undefined;
     }
   };
@@ -742,7 +748,7 @@ export function createConversation(options: ConversationOptions): Conversation {
 
   const pullChanges = async (current: number, through: number): Promise<void> => {
     for (let page = 0; page < MAX_CHANGE_PAGES && changeCursor !== undefined; page += 1) {
-      const pulled = await changeCall<ChangePull>('channelChanges', {
+      const pulled = await changeCall<ChangePull>(current, 'channelChanges', {
         channelId,
         sinceSeq: changeCursor.seq,
         epoch: changeCursor.epoch,
@@ -974,8 +980,9 @@ export function createConversation(options: ConversationOptions): Conversation {
     if (current !== session) return;
     bareOpen = changesSupported && changeCursor !== undefined && window.length > 0;
     if (!bareOpen && changesSupported) {
-      changeCursor = await changeCall<ChangeCursor>('channelChangeCursor', {});
+      const cursor = await changeCall<ChangeCursor>(current, 'channelChangeCursor', {});
       if (current !== session) return;
+      changeCursor = cursor;
     }
     unfollow = options.host.follow(
       'botharness/followChannel',

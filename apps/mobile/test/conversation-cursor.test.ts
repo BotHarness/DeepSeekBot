@@ -191,6 +191,26 @@ describe('opening a cached conversation with a change cursor', () => {
     expect([...cache.store.values()][0]?.changes).toBeUndefined();
   });
 
+  it('keeps a restarted session cursor when an older pull fails late', async () => {
+    const host = new FakeHost();
+    const { channel, cache } = await warm(host);
+    let release!: () => void;
+    host.changesHeld = new Promise((resolve) => {
+      release = resolve;
+    });
+    const again = open(host, cache);
+    await until(again, () => host.calls.some((call) => call.method === 'channelChanges'));
+    again.stop();
+    again.start();
+    release();
+    await until(again, (s) => s.status === 'live' && !s.fromCache);
+    await settled();
+    channel.append({ id: 'm9', body: 'after the late failure', author: { kind: 'human' } });
+    await until(again, (s) => s.messages.some((m) => m.id === 'm9'));
+    await settled();
+    expect([...cache.store.values()][0]?.changes).toBeDefined();
+  });
+
   it('falls back to a full page when an older Host refuses a zero page size', async () => {
     const host = new FakeHost();
     const { channel, cache } = await warm(host);

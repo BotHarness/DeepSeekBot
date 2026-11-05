@@ -152,6 +152,7 @@ export class FakeHost {
   refusesEmptyPage = false;
   changesFail = false;
   changesStall = false;
+  changesHeld: Promise<void> | undefined;
   readonly log = new ChangeLog();
   deviceSnapshot: unknown;
   private sockets = new Set<Socket>();
@@ -371,7 +372,13 @@ export class FakeHost {
         return { epoch: this.log.epoch, seq: this.log.seq };
       };
     if (method === 'channelChanges')
-      return (args) => {
+      return async (args) => {
+        const held = this.changesHeld;
+        this.changesHeld = undefined;
+        if (held !== undefined) {
+          await held;
+          throw new Error('Host busy');
+        }
         if (!this.changes) throw Object.assign(new Error('Unknown method'), { code: 'not-found' });
         if (this.changesFail) throw new Error('Host busy');
         const channel = this.channels.get(String(args['channelId']));
