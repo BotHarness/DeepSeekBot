@@ -46,6 +46,7 @@ describe('local store', () => {
       'conversation_keys',
       'cursors',
       'gaps',
+      'list_bots',
       'list_cursor',
       'messages',
     ]);

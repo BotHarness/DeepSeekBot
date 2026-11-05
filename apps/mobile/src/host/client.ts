@@ -11,6 +11,8 @@ import { DEVICE_PREFIX } from './pairing';
 import { checkRoute, isConnectRoute, isEncryptedRoute, isLanRoute, socketOrigin } from './route';
 import {
   readChannelList,
+  readListBots,
+  saveListBots,
   syncChannelList,
   type ChannelListChanges,
   type ChannelListCursor,
@@ -338,6 +340,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
   let computerAvailable: boolean | undefined;
   let channels = new Map<string, ChannelListItem>();
   let channelsLoaded = false;
+  let savedBots: string | undefined;
   let states = new Map<string, WireBotActivity>();
   let rawStates = new Map<string, WireBotActivity>();
   const smoother = new ActivitySmoother<WireBotActivity>();
@@ -815,10 +818,27 @@ export function createHostClient(options: HostClientOptions): HostClient {
   const paintStoredChannels = async (): Promise<void> => {
     const store = await openLocalStore();
     if (store === undefined || channelsLoaded) return;
-    const stored = await readChannelList(store).catch(() => undefined);
-    if (stored === undefined || stored.channels.length === 0 || channelsLoaded) return;
+    const [stored, storedBots] = await Promise.all([
+      readChannelList(store),
+      readListBots<PersonaBotSummary>(store),
+    ]).catch(() => [undefined, undefined] as const);
+    if (stored === undefined || storedBots === undefined || channelsLoaded) return;
+    savedBots = JSON.stringify(storedBots);
+    bots = storedBots;
     channels = new Map(stored.channels.map((channel) => [channel.id, channel]));
     publish();
+  };
+
+  const keepBots = (list: PersonaBotSummary[]): void => {
+    const json = JSON.stringify(list);
+    if (json === savedBots) return;
+    void openLocalStore()
+      .then(async (store) => {
+        if (store === undefined) return;
+        await saveListBots(store, list);
+        savedBots = json;
+      })
+      .catch(() => undefined);
   };
 
   const reloadOnce = async (): Promise<void> => {
@@ -836,6 +856,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     bots = list.bots;
     channels = new Map(channelList.map((channel) => [channel.id, channel]));
     channelsLoaded = true;
+    keepBots(list.bots);
     arrangement = rosterArrangement;
     sorting = rosterSorting;
     publish();

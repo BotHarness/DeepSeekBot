@@ -66,6 +66,10 @@ export const LOCAL_STORE_MIGRATIONS: readonly string[] = [
     singleton integer primary key check (singleton = 1),
     epoch text not null,
     seq integer not null
+  );
+  create table list_bots (
+    singleton integer primary key check (singleton = 1),
+    record text not null
   );`,
 ];
 

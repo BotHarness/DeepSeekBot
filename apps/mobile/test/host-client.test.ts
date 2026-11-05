@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createHostClient, type HostClient, type HostSnapshot } from '../src/host/client';
 import { parsePairingLink, redeemPairing } from '../src/host/pairing';
@@ -153,6 +153,9 @@ describe('Host client', () => {
     await until(first, (state) => state.connection.status === 'connected');
     first.stop();
     expect(host.calls.map((call) => call.method)).toContain('channels');
+    await vi.waitFor(async () =>
+      expect(await store.get('select record from list_bots')).toBeDefined(),
+    );
     host.calls.length = 0;
     host.up = false;
     client = createHostClient({
@@ -164,10 +167,10 @@ describe('Host client', () => {
       localStore,
     });
     client.start();
-    const painted = await until(client, (state) => state.roster !== undefined || false, 50).catch(
-      () => client!.getSnapshot(),
-    );
+    const painted = await until(client, (state) => state.roster !== undefined, 50);
     expect(painted.connection.status).not.toBe('connected');
+    expect(painted.roster?.channels.map((channel) => channel.id)).toEqual(['group-research']);
+    expect(painted.roster?.bots.length).toBeGreaterThan(0);
     host.up = true;
     const synced = await until(
       client,

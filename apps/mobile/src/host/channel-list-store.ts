@@ -29,6 +29,20 @@ export async function readChannelList(store: LocalStore): Promise<StoredChannelL
   };
 }
 
+export async function readListBots<T>(store: LocalStore): Promise<T[] | undefined> {
+  const row = await store.get<{ record: string }>('select record from list_bots');
+  return row === undefined ? undefined : (JSON.parse(row.record) as T[]);
+}
+
+export function saveListBots(store: LocalStore, bots: readonly unknown[]): Promise<void> {
+  return store.write((tx) =>
+    tx.run(
+      'insert into list_bots (singleton, record) values (1, ?) on conflict (singleton) do update set record = excluded.record',
+      [JSON.stringify(bots)],
+    ),
+  );
+}
+
 const upsert = (tx: SqlWriter, channel: ChannelListItem) =>
   tx.run(
     'insert into channels (id, record) values (?, ?) on conflict (id) do update set record = excluded.record',
