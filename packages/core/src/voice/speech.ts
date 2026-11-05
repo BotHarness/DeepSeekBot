@@ -157,11 +157,14 @@ const MP3_RATES: Record<number, readonly number[]> = {
   0: [11_025, 12_000, 8_000],
 };
 
-function mp3DurationMs(bytes: Uint8Array): number | undefined {
+function mp3Walk(
+  bytes: Uint8Array,
+  limitMs = Infinity,
+): { ms: number; end: number; frames: number } {
   let offset = id3Length(bytes);
   let seconds = 0;
   let frames = 0;
-  while (offset + 4 <= bytes.length) {
+  while (offset + 4 <= bytes.length && seconds * 1000 < limitMs) {
     const b1 = bytes[offset + 1]!;
     if (bytes[offset] !== 0xff || (b1 & 0xe0) !== 0xe0) {
       offset += 1;
@@ -183,7 +186,37 @@ function mp3DurationMs(bytes: Uint8Array): number | undefined {
     frames += 1;
     offset += length;
   }
-  return frames === 0 ? undefined : seconds * 1000;
+  return { ms: seconds * 1000, end: Math.min(offset, bytes.length), frames };
+}
+
+function mp3DurationMs(bytes: Uint8Array): number | undefined {
+  const walk = mp3Walk(bytes);
+  return walk.frames === 0 ? undefined : walk.ms;
+}
+
+export function trimAudio(clip: AudioClip, ms: number): AudioClip | undefined {
+  if (!(ms > 0)) return undefined;
+  if (ms >= clipDurationMs(clip)) return { audio: clip.audio, mime: clip.mime };
+  if (clip.mime === 'audio/wav') {
+    const parts = wavParts(clip.audio);
+    if (parts === undefined || parts.format.length < 16) return undefined;
+    const view = new DataView(parts.format.buffer, parts.format.byteOffset);
+    const byteRate = view.getUint32(8, true);
+    const block = Math.max(1, view.getUint16(12, true));
+    const cut = Math.floor((ms * byteRate) / 1000 / block) * block;
+    if (cut <= 0) return undefined;
+    return {
+      audio: joinWav([{ format: parts.format, data: parts.data.subarray(0, cut) }]),
+      mime: clip.mime,
+    };
+  }
+  if (clip.mime === 'audio/mpeg') {
+    const walk = mp3Walk(clip.audio, ms);
+    return walk.frames === 0
+      ? undefined
+      : { audio: clip.audio.slice(0, walk.end), mime: clip.mime };
+  }
+  return undefined;
 }
 
 function oggDurationMs(bytes: Uint8Array): number | undefined {

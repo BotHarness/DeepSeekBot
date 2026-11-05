@@ -28,7 +28,13 @@ import { createCallPerf, perfFields, type CallPerf } from './call-perf.js';
 import { createVad, VAD_SAMPLE_RATE, type VadOptions } from './vad.js';
 import { VoiceError, wavFromPcm16 } from './providers.js';
 import type { AsrStream } from './soniox.js';
-import { clipDurationMs, joinAudio, speakableSentences, type AudioClip } from './speech.js';
+import {
+  clipDurationMs,
+  joinAudio,
+  speakableSentences,
+  trimAudio,
+  type AudioClip,
+} from './speech.js';
 import {
   CallFrameError,
   createCallImaging,
@@ -342,6 +348,8 @@ interface Spoken {
   readonly text: string;
   readonly clip: Promise<AudioClip>;
   state: 'queued' | 'playing' | 'played' | 'cut' | 'failed' | 'skipped';
+  startedAt?: number;
+  heardMs?: number;
 }
 
 const FILLERS = new Set([
@@ -1164,17 +1172,18 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       : reply.archived;
     if (heard.length === 0) return { interrupted: reply.interrupted };
     const clips = await Promise.all(
-      heard.map((spoken) =>
-        spoken.clip.catch(() =>
+      heard.map(async (spoken) => {
+        const clip = await spoken.clip.catch(() =>
           synthesize(
             call,
             spoken.text,
             AbortSignal.timeout(VOICE_CALL_LIMITS.operationTimeoutMs * 6),
           ),
-        ),
-      ),
+        );
+        return spoken.state === 'cut' ? trimAudio(clip, spoken.heardMs ?? 0) : clip;
+      }),
     );
-    const clip = joinAudio(clips);
+    const clip = joinAudio(clips.filter((item) => item !== undefined));
     return clip === undefined
       ? { interrupted: reply.interrupted }
       : { clip, interrupted: reply.interrupted };
@@ -1209,6 +1218,9 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
 
   const interrupt = (call: Call, reply: Reply) => {
     reply.interrupted = true;
+    for (const spoken of reply.sentences)
+      if (spoken.state === 'playing' && spoken.startedAt !== undefined)
+        spoken.heardMs = now() - spoken.startedAt;
     reply.stop.abort();
     reply.synth.abort();
     if (reply.draftId !== undefined) call.stoppedDrafts.add(reply.draftId);
@@ -1278,6 +1290,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     }
     if (ended(call) || reply.stop.signal.aborted || spoken.state !== 'queued') return skip();
     spoken.state = 'playing';
+    spoken.startedAt = now();
     startPlaying(call);
     const first = !reply.started;
     reply.started = true;
@@ -1574,7 +1587,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
   const hear = (call: Call, samples: Int16Array) => {
     if (call.phase === 'ended' || call.phase === 'connecting') return;
     if (call.muted) return;
-    call.vad.raise(now() < call.guardUntil ? barge.echoGuardDb : 0);
+    call.vad.raise(!call.vad.speaking && now() < call.guardUntil ? barge.echoGuardDb : 0);
     for (const event of call.vad.push(samples)) {
       if (event.type === 'speech-start') {
         push(call, { type: 'speech-start' });
@@ -1595,7 +1608,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         call.barge = undefined;
         if (suspected) dismiss(call, 'ended');
       } else {
-        const gated = call.barge?.state === 'suspected';
+        const gated = call.barge?.state === 'suspected' && talking(call);
         call.barge = undefined;
         if (!gated) acknowledge(call);
         transcribe(

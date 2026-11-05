@@ -30,8 +30,8 @@ import {
   type VoiceCallsDeps,
 } from '../src/voice/calls.js';
 import { createVoiceCallHttp } from '../src/voice/call-http.js';
-import { VoiceProviders } from '../src/voice/providers.js';
-import { joinAudio, type AudioClip } from '../src/voice/speech.js';
+import { VoiceProviders, wavFromPcm16 } from '../src/voice/providers.js';
+import { clipDurationMs, joinAudio, type AudioClip } from '../src/voice/speech.js';
 import { createTempRoot } from './helpers.js';
 import { chunks, concat, cough, knock, silence, speech } from './voice-audio-fixtures.js';
 
@@ -1296,11 +1296,12 @@ describe('barge-in while the Bot speaks', () => {
   async function speaking(
     h: ReturnType<typeof harness>,
     state: ReturnType<typeof fakeMedia>['state'],
+    delay: Promise<void> = never(),
   ) {
     const callId = await connected(h);
     h.feed(state.onPcm!, concat(silence(300), speech(1200), silence(900)));
     await settled();
-    state.playDelay = never();
+    state.playDelay = delay;
     draft(h, '第一句话。第二句话。第三句话。');
     await settled();
     expect((await view(h, callId)).phase).toBe('bot-speaking');
@@ -1354,6 +1355,84 @@ describe('barge-in while the Bot speaks', () => {
       expect.objectContaining({ type: 'committed', reused: 1, synthesized: 0, interrupted: true }),
       expect.objectContaining({ type: 'reply-done', messageId: 'bot-1', sentences: 0 }),
     ]);
+  });
+
+  it('trims the sentence the Human cut into to the part that played', async () => {
+    const { media, state } = fakeMedia();
+    const transcripts = ['帮我查一下明天的天气', '停一下换个话题'];
+    const h = harness({
+      media,
+      providers: {
+        has: (id, kind) => id.startsWith(kind),
+        async transcribe() {
+          return { text: transcripts.shift() ?? '', latencyMs: 5 };
+        },
+        async synthesize({ text }) {
+          const ms = text === '嗯。' ? 100 : 4_000;
+          return { audio: wavFromPcm16(new Int16Array(ms * 16), 16_000), mime: 'audio/wav' };
+        },
+      },
+    });
+    const callId = await speaking(h, state);
+    const playing = (await view(h, callId)).events.findLast((event) => event.type === 'playing')!;
+    h.feed(state.onPcm!, concat(silence(600), speech(1200)));
+    await settled();
+    const stopped = (await view(h, callId)).events.find((event) => event.type === 'barge-in')!;
+    state.playDelay = undefined;
+    h.feed(state.onPcm!, silence(900));
+    await settled();
+    h.calls.draft({ type: 'settled', channelId: 'dm-mira', draftId: 'b1:c1', attemptId: 'b1' });
+    const archived = await heard(commit(h, 'bot-1', '第一句话。第二句话。第三句话。'));
+    expect(archived?.mime).toBe('audio/wav');
+    const kept = clipDurationMs(archived!);
+    expect(Math.abs(kept - (stopped.at - playing.at))).toBeLessThanOrEqual(20);
+    expect(kept).toBeLessThan(4_000);
+  });
+
+  it('keeps a cut-in as one sentence when the next Bot sentence starts under it', async () => {
+    const { media, state } = fakeMedia();
+    const h = harness({ media, transcripts: ['帮我查一下明天的天气', '停一下换个话题讲讲故宫吧'] });
+    let finish!: () => void;
+    const callId = await speaking(h, state, new Promise<void>((resolve) => (finish = resolve)));
+    const before = (await view(h, callId)).lastSeq;
+    const voice = (ms: number, seed: number) => speech(ms, { dbfs: -38, seed });
+    h.feed(state.onPcm!, concat(silence(600), voice(300, 1)));
+    await settled();
+    state.playDelay = never();
+    finish();
+    await settled();
+    h.feed(state.onPcm!, concat(voice(300, 2), silence(250), voice(700, 3), silence(900)));
+    await settled();
+    const events = (await view(h, callId, before)).events;
+    expect(types(events)).toContain('barge-in');
+    expect(types(events)).not.toContain('noise-discarded');
+    expect(types(events)).not.toContain('barge-dismissed');
+    expect(h.sent.map((item) => item.body)).toEqual([
+      '帮我查一下明天的天气',
+      '停一下换个话题讲讲故宫吧',
+    ]);
+  });
+
+  it('sends a cut-in that outlasts the reply even when it is short', async () => {
+    const { media, state } = fakeMedia();
+    const h = harness({ media, transcripts: ['帮我查一下明天的天气', '停'] });
+    let finish!: () => void;
+    const callId = await speaking(h, state, new Promise<void>((resolve) => (finish = resolve)));
+    const before = (await view(h, callId)).lastSeq;
+    h.feed(state.onPcm!, concat(silence(600), speech(300)));
+    await settled();
+    expect(types((await view(h, callId, before)).events)).toContain('barge-suspected');
+    state.playDelay = undefined;
+    h.calls.draft({ type: 'settled', channelId: 'dm-mira', draftId: 'b1:c1', attemptId: 'b1' });
+    const speech1 = commit(h, 'bot-1', '第一句话。第二句话。第三句话。');
+    finish();
+    await heard(speech1);
+    expect(types((await view(h, callId, before)).events)).toContain('reply-done');
+    h.feed(state.onPcm!, concat(speech(150), silence(900)));
+    await settled();
+    const events = (await view(h, callId, before)).events;
+    expect(types(events)).not.toContain('barge-dismissed');
+    expect(h.sent.at(-1)?.body).toBe('停');
   });
 
   it('stops for a short command once its transcript has two real words', async () => {
