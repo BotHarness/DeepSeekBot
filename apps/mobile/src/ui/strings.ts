@@ -773,6 +773,7 @@ const en = {
     phoneAutoHint:
       'Images and files saved on this phone download again from the computer when you open them. Nothing is deleted on the computer.',
     phoneOlder: 'Delete saved media not opened for',
+    phoneOlderAction: 'Delete unopened media…',
     phoneOlderDone: (files: number, size: string) =>
       files === 0 ? 'Nothing to delete.' : `Deleted ${fileCount(files)} and freed ${size}.`,
     target: 'Clear',
@@ -2969,6 +2970,7 @@ const zh: typeof en = {
     phoneAutoHint:
       '保存在这台手机上的图片和文件，再次打开时会从电脑重新下载。电脑上的内容不会被删除。',
     phoneOlder: '删除多久未打开的已保存媒体',
+    phoneOlderAction: '删除未打开的媒体…',
     phoneOlderDone: (files: number, size: string) =>
       files === 0 ? '没有可删除的内容。' : `已删除 ${files} 个文件，释放 ${size}。`,
     target: '清理内容',
