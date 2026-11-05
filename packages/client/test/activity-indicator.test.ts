@@ -123,16 +123,16 @@ it('retains last canonical facts on a failed refresh and restores ready state on
       value: { unreadCount: 3, hasAction: true, messageCounts: { replies: 1, other: 2 } },
     };
   }, store);
-  await actions.refreshHumanInboxStatus();
-  expect(store.getSnapshot().humanInbox.attentionStatus).toBe('ready');
+  await actions.refreshActivityListStatus();
+  expect(store.getSnapshot().activityList.attentionStatus).toBe('ready');
   fail = true;
-  await actions.refreshHumanInboxStatus();
-  expect(store.getSnapshot().humanInbox).toMatchObject({
+  await actions.refreshActivityListStatus();
+  expect(store.getSnapshot().activityList).toMatchObject({
     attentionStatus: 'error',
     unreadCount: 3,
     messageCounts: { replies: 1, other: 2 },
   });
   fail = false;
-  await actions.refreshHumanInboxStatus();
-  expect(store.getSnapshot().humanInbox.attentionStatus).toBe('ready');
+  await actions.refreshActivityListStatus();
+  expect(store.getSnapshot().activityList.attentionStatus).toBe('ready');
 });

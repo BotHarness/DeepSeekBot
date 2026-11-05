@@ -10,7 +10,7 @@ import type { BridgeActions } from './actions.js';
 import type { HumanAttentionItem } from './store.js';
 import type { BotHarnessTranslate } from './locale.js';
 
-export function HumanInboxDismiss({
+export function ActivityListDismiss({
   source,
   actions,
   t,
@@ -32,7 +32,7 @@ export function HumanInboxDismiss({
     setBusy(true);
     setFailed(false);
     try {
-      await actions.dismissHumanInbox(source);
+      await actions.dismissActivityList(source);
       onClose();
     } catch {
       setFailed(true);
@@ -42,7 +42,7 @@ export function HumanInboxDismiss({
     }
   };
   return (
-    <div className="bh-human-inbox-dismiss">
+    <div className="bh-activity-list-dismiss">
       <Button
         size="sm"
         variant="outline"
@@ -51,14 +51,14 @@ export function HumanInboxDismiss({
         onClick={() => void dismiss()}
       >
         <IconCloseOutlineRegular size={14} />
-        {t('humanInbox.dismiss')}
+        {t('activityList.dismiss')}
       </Button>
-      {failed ? <span role="alert">{t('humanInbox.failed')}</span> : null}
+      {failed ? <span role="alert">{t('activityList.failed')}</span> : null}
     </div>
   );
 }
 
-export function HumanInboxContextEdge({
+export function ActivityListContextEdge({
   direction,
   disabled,
   busy,
@@ -71,12 +71,14 @@ export function HumanInboxContextEdge({
   onClick: () => void;
   t: BotHarnessTranslate;
 }): ReactElement {
-  const label = t(direction === 'older' ? 'humanInbox.context.older' : 'humanInbox.context.newer');
+  const label = t(
+    direction === 'older' ? 'activityList.context.older' : 'activityList.context.newer',
+  );
   return (
     <Tooltip label={label} portal side={direction === 'older' ? 'top' : 'bottom'}>
       <button
         type="button"
-        className={'bh-human-inbox-context-edge bh-human-inbox-context-' + direction}
+        className={'bh-activity-list-context-edge bh-activity-list-context-' + direction}
         aria-label={label}
         aria-busy={busy || undefined}
         disabled={disabled || busy}
@@ -88,7 +90,7 @@ export function HumanInboxContextEdge({
   );
 }
 
-export function HumanInboxMessageSource({
+export function ActivityListMessageSource({
   onClick,
   label,
 }: {
@@ -99,7 +101,7 @@ export function HumanInboxMessageSource({
     <Tooltip label={label} portal side="top">
       <button
         type="button"
-        className="bh-human-inbox-message-source"
+        className="bh-activity-list-message-source"
         aria-label={label}
         onClick={onClick}
       >

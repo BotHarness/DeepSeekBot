@@ -10,8 +10,8 @@ import {
   type ReactNode,
 } from 'react';
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
-import { HumanInboxSnoozeButton, HumanInboxSourceButton } from './human-inbox-controls.js';
-import { canSnoozeHumanInboxItem } from './human-inbox-snooze.js';
+import { ActivityListSnoozeButton, ActivityListSourceButton } from './activity-list-controls.js';
+import { canSnoozeActivityListItem } from './activity-list-snooze.js';
 
 import type { BridgeActions } from './actions.js';
 import {
@@ -23,36 +23,36 @@ import type { ClientState, HumanAttentionItem } from './store.js';
 import { useMountedResource } from './mounted-resource.js';
 import { sameBotFaces, useClientStore } from './use-client-store.js';
 import { webModalOpen } from './channel-shortcuts.js';
-import { HumanInboxReply } from './human-inbox-reply.js';
-import { HumanInboxDismiss } from './human-inbox-detail-controls.js';
-import { HumanInboxWorkspaceAction } from './human-inbox-workspace-action.js';
-import { HumanInboxPairing } from './human-inbox-pairing.js';
-import { HumanInboxAssignment } from './human-inbox-assignment.js';
+import { ActivityListReply } from './activity-list-reply.js';
+import { ActivityListDismiss } from './activity-list-detail-controls.js';
+import { ActivityListWorkspaceAction } from './activity-list-workspace-action.js';
+import { ActivityListPairing } from './activity-list-pairing.js';
+import { ActivityListAssignment } from './activity-list-assignment.js';
 import {
   AllowAutoRejectionButton,
-  HumanInboxAutoRejection,
+  ActivityListAutoRejection,
   autoRejectionMeta,
-} from './human-inbox-auto-rejection.js';
+} from './activity-list-auto-rejection.js';
 
 const categoryCopy = {
-  unread: { title: 'humanInbox.unread', empty: 'humanInbox.empty.unread' },
-  replies: { title: 'humanInbox.replies', empty: 'humanInbox.empty.replies' },
-  action: { title: 'humanInbox.action', empty: 'humanInbox.empty.action' },
-  info: { title: 'humanInbox.info', empty: 'humanInbox.empty.info' },
-  handled: { title: 'humanInbox.handled', empty: 'humanInbox.empty.handled' },
+  unread: { title: 'activityList.unread', empty: 'activityList.empty.unread' },
+  replies: { title: 'activityList.replies', empty: 'activityList.empty.replies' },
+  action: { title: 'activityList.action', empty: 'activityList.empty.action' },
+  info: { title: 'activityList.info', empty: 'activityList.empty.info' },
+  handled: { title: 'activityList.handled', empty: 'activityList.empty.handled' },
 } as const;
 
-type InboxInputs = Pick<ClientState, 'bots' | 'channels' | 'humanInbox'>;
+type InboxInputs = Pick<ClientState, 'bots' | 'channels' | 'activityList'>;
 type OverrideInputs = Pick<ClientState, 'bots' | 'channels'>;
 const selectInboxInputs = (state: ClientState): InboxInputs => ({
   bots: state.bots,
   channels: state.channels,
-  humanInbox: state.humanInbox,
+  activityList: state.activityList,
 });
 const overrideInputs = (left: OverrideInputs, right: OverrideInputs): boolean =>
   left.channels === right.channels && sameBotFaces(left.bots, right.bots);
 const inboxInputs = (left: InboxInputs, right: InboxInputs): boolean =>
-  left.humanInbox === right.humanInbox && overrideInputs(left, right);
+  left.activityList === right.activityList && overrideInputs(left, right);
 
 const itemKey = (item: HumanAttentionItem): string =>
   item.id + '\u0000' + (item.sourceEventId ?? '');
@@ -69,21 +69,21 @@ const batchApprovable = (item: HumanAttentionItem): boolean =>
   item.channelId !== undefined &&
   item.messageId !== undefined;
 
-export type HumanInboxCommands = Pick<
+export type ActivityListCommands = Pick<
   BridgeActions,
   | 'decideGroupJoin'
-  | 'refreshHumanInbox'
+  | 'refreshActivityList'
   | 'ignoreHumanReport'
   | 'markRead'
-  | 'dismissHumanInbox'
-  | 'snoozeHumanInbox'
+  | 'dismissActivityList'
+  | 'snoozeActivityList'
   | 'decideToolApproval'
   | 'openChannelAtMessage'
   | 'allowAutoRejectionOnce'
 >;
 
-export interface HumanInboxSource {
-  commands: HumanInboxCommands;
+export interface ActivityListSource {
+  commands: ActivityListCommands;
   detail(item: HumanAttentionItem, onClose: () => void): ReactElement;
   botName(slug: string): string;
   isDirect(channelId: string | undefined): boolean;
@@ -93,7 +93,7 @@ export interface HumanInboxSource {
   loadMore(): Promise<void>;
 }
 
-export function HumanInboxView({
+export function ActivityListView({
   actions,
   t = zhTranslate,
   inboxOverride,
@@ -102,21 +102,21 @@ export function HumanInboxView({
   collapsed = false,
   hostSource,
 }: {
-  inboxOverride?: import('./store.js').HumanInboxState;
+  inboxOverride?: import('./store.js').ActivityListState;
   sectionHeading?: ReactNode;
   emptyMessage?: string | undefined;
   collapsed?: boolean;
   t?: BotHarnessTranslate | undefined;
 } & (
   | { actions: BridgeActions; hostSource?: never }
-  | { actions?: never; hostSource: HumanInboxSource }
+  | { actions?: never; hostSource: ActivityListSource }
 )): ReactElement {
   const inboxState = useClientStore(
     selectInboxInputs,
     inboxOverride === undefined ? inboxInputs : overrideInputs,
   );
   const state: OverrideInputs = inboxState;
-  const inbox = inboxOverride ?? inboxState.humanInbox;
+  const inbox = inboxOverride ?? inboxState.activityList;
   const [selectionMode, setSelectionMode] = useState(false);
   const detailId = useId();
   const [busyId, setBusyId] = useState<string>();
@@ -153,13 +153,13 @@ export function HumanInboxView({
       item.kind !== 'tool-approval' &&
       item.kind !== 'user-question'
     ) {
-      void hostSource.open(item).catch(() => setActionError(t('humanInbox.failed')));
+      void hostSource.open(item).catch(() => setActionError(t('activityList.failed')));
       return;
     }
     if (item.kind === 'private-input' || item.kind === 'takeover-request') {
       void commands
         .openChannelAtMessage(item.channelId!, item.messageId!)
-        .catch(() => setActionError(t('humanInbox.failed')));
+        .catch(() => setActionError(t('activityList.failed')));
       return;
     }
     setReplySource(item);
@@ -183,10 +183,10 @@ export function HumanInboxView({
     setActionError(undefined);
     try {
       if (!(await commands.decideGroupJoin(item.channelId, item.requestId, accept)))
-        throw new Error(t('humanInbox.failed'));
-      await commands.refreshHumanInbox();
+        throw new Error(t('activityList.failed'));
+      await commands.refreshActivityList();
     } catch {
-      setActionError(t('humanInbox.failed'));
+      setActionError(t('activityList.failed'));
     } finally {
       setBusyId(undefined);
     }
@@ -203,26 +203,26 @@ export function HumanInboxView({
     try {
       if (item.kind === 'assignment-report') {
         await commands.ignoreHumanReport(item.sourceEventId!);
-        await commands.refreshHumanInbox();
+        await commands.refreshActivityList();
       } else {
         await commands.markRead(item.channelId!, item.messageId!);
       }
     } catch {
-      setActionError(t('humanInbox.failed'));
+      setActionError(t('activityList.failed'));
     } finally {
       setBusyId(undefined);
     }
   };
 
   const settle = async (item: HumanAttentionItem): Promise<void> => {
-    if (!acknowledgeable(item)) await commands.dismissHumanInbox(item);
+    if (!acknowledgeable(item)) await commands.dismissActivityList(item);
     else if (item.kind === 'assignment-report') {
-      if (item.sourceEventId === undefined) throw new Error(t('humanInbox.failed'));
+      if (item.sourceEventId === undefined) throw new Error(t('activityList.failed'));
       await commands.ignoreHumanReport(item.sourceEventId);
-      await commands.refreshHumanInbox();
+      await commands.refreshActivityList();
     } else {
       if (item.channelId === undefined || item.messageId === undefined)
-        throw new Error(t('humanInbox.failed'));
+        throw new Error(t('activityList.failed'));
       await commands.markRead(item.channelId, item.messageId);
     }
   };
@@ -231,12 +231,12 @@ export function HumanInboxView({
     setBusyId(item.id);
     setActionError(undefined);
     try {
-      if (clear) await commands.dismissHumanInbox(item);
+      if (clear) await commands.dismissActivityList(item);
       else await settle(item);
       if (replySource !== undefined && itemKey(replySource) === itemKey(item))
         setReplySource(undefined);
     } catch {
-      setActionError(t('humanInbox.failed'));
+      setActionError(t('activityList.failed'));
     } finally {
       setBusyId(undefined);
     }
@@ -246,11 +246,11 @@ export function HumanInboxView({
     setBusyId(item.id);
     setActionError(undefined);
     try {
-      await commands.snoozeHumanInbox(item, until);
+      await commands.snoozeActivityList(item, until);
       if (replySource !== undefined && itemKey(replySource) === itemKey(item))
         setReplySource(undefined);
     } catch {
-      setActionError(t('humanInbox.failed'));
+      setActionError(t('activityList.failed'));
     } finally {
       setBusyId(undefined);
     }
@@ -270,8 +270,8 @@ export function HumanInboxView({
     }
     setSelected(new Set());
     setBatchBusy(false);
-    if (failed > 0) setActionError(t('humanInbox.batch.failed', { count: String(failed) }));
-    await commands.refreshHumanInbox().catch(() => undefined);
+    if (failed > 0) setActionError(t('activityList.batch.failed', { count: String(failed) }));
+    await commands.refreshActivityList().catch(() => undefined);
   };
 
   const toggleSelected = (item: HumanAttentionItem): void =>
@@ -288,7 +288,7 @@ export function HumanInboxView({
     if (item === undefined) return;
     setCursor(itemKey(item));
     const row = root.current?.querySelectorAll<HTMLElement>(
-      '.bh-human-inbox-row-open, .bh-activity-context-toggle',
+      '.bh-activity-list-row-open, .bh-activity-context-toggle',
     )[index];
     row?.focus();
     row?.scrollIntoView?.({ block: 'nearest' });
@@ -305,7 +305,7 @@ export function HumanInboxView({
   keyHandler.current = (event) => {
     if (
       event.target instanceof Element &&
-      event.target.closest('.bh-tool-approval-card, .bh-human-inbox-reply')
+      event.target.closest('.bh-tool-approval-card, .bh-activity-list-reply')
     )
       return;
     if (collapsed) return;
@@ -317,7 +317,7 @@ export function HumanInboxView({
     if (target !== null && target !== document.body && !container.contains(target)) return;
     if (
       target?.closest(
-        'input, textarea, select, [contenteditable="true"], [role="dialog"], [role="menu"], .bh-human-inbox-detail',
+        'input, textarea, select, [contenteditable="true"], [role="dialog"], [role="menu"], .bh-activity-list-detail',
       ) != null
     )
       return;
@@ -325,16 +325,21 @@ export function HumanInboxView({
     const index = items.findIndex((item) => itemKey(item) === cursor);
     const current = index < 0 ? undefined : items[index];
     const onRow =
-      target === null || target === document.body || target.matches('.bh-human-inbox-row-open');
+      target === null || target === document.body || target.matches('.bh-activity-list-row-open');
     const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
     if (key === 'j') moveCursor(index < 0 ? 0 : Math.min(index + 1, items.length - 1));
     else if (key === 'k') moveCursor(index < 0 ? 0 : Math.max(index - 1, 0));
     else if (key === 'Enter' && onRow && current !== undefined)
-      void openSource(current).catch(() => setActionError(t('humanInbox.failed')));
+      void openSource(current).catch(() => setActionError(t('activityList.failed')));
     else if (key === 'o' && current !== undefined) toggleDetail(current);
     else if (key === 'x' && selectable && current !== undefined && current.category !== 'handled')
       toggleSelected(current);
-    else if (key === 's' && selectable && current !== undefined && canSnoozeHumanInboxItem(current))
+    else if (
+      key === 's' &&
+      selectable &&
+      current !== undefined &&
+      canSnoozeActivityListItem(current)
+    )
       setSnoozeMenu(itemKey(current));
     else if (key === 'Escape' && selected.size > 0) setSelected(new Set());
     else if (key === 'Escape' && replySource !== undefined) setReplySource(undefined);
@@ -365,51 +370,51 @@ export function HumanInboxView({
         ? botName(item.botSlug)
         : (item.channelName ?? botName(item.botSlug))
       : item.kind === 'group-join-request'
-        ? t('humanInbox.groupJoin', {
+        ? t('activityList.groupJoin', {
             bot: botName(item.botSlug),
             channel: item.channelName ?? '',
           })
         : item.kind === 'private-input'
-          ? t('humanInbox.privateInput', { bot: botName(item.botSlug) })
+          ? t('activityList.privateInput', { bot: botName(item.botSlug) })
           : item.kind === 'takeover-request'
-            ? t('humanInbox.takeover', { bot: botName(item.botSlug) })
+            ? t('activityList.takeover', { bot: botName(item.botSlug) })
             : item.kind === 'user-question'
-              ? t('humanInbox.question', { bot: botName(item.botSlug) })
+              ? t('activityList.question', { bot: botName(item.botSlug) })
               : item.kind === 'tool-approval'
-                ? t('humanInbox.approval', { bot: botName(item.botSlug) })
+                ? t('activityList.approval', { bot: botName(item.botSlug) })
                 : item.kind === 'auto-rejection'
-                  ? t('humanInbox.autoRejection', { bot: botName(item.botSlug) })
+                  ? t('activityList.autoRejection', { bot: botName(item.botSlug) })
                   : item.kind === 'pairing-request'
                     ? t(
                         item.summary.startsWith('conversation')
-                          ? 'humanInbox.pairingConversation'
-                          : 'humanInbox.pairingManagement',
+                          ? 'activityList.pairingConversation'
+                          : 'activityList.pairingManagement',
                         {
                           bot: botName(item.botSlug),
                           name: item.summary.split(' · ')[1] || t('pairing.unknownName'),
                         },
                       )
                     : item.kind === 'workspace-grant-request'
-                      ? t('humanInbox.grant', { bot: botName(item.botSlug) })
+                      ? t('activityList.grant', { bot: botName(item.botSlug) })
                       : item.kind === 'assignment-waiting-human'
-                        ? t('humanInbox.assignmentWaiting', { bot: botName(item.botSlug) })
+                        ? t('activityList.assignmentWaiting', { bot: botName(item.botSlug) })
                         : item.kind === 'assignment-blocked'
-                          ? t('humanInbox.assignmentBlocked', {
+                          ? t('activityList.assignmentBlocked', {
                               bot: botName(item.botSlug),
                             })
                           : item.kind === 'assignment-report'
-                            ? t('humanInbox.assignmentReport', {
+                            ? t('activityList.assignmentReport', {
                                 bot: botName(item.botSlug),
                               })
                             : item.kind === 'bot-message-needs-repair'
-                              ? t('humanInbox.repair', { bot: botName(item.botSlug) })
+                              ? t('activityList.repair', { bot: botName(item.botSlug) })
                               : botName(item.botSlug);
 
   const renderSource = (source: HumanAttentionItem, onClose: () => void): ReactElement =>
     hostSource !== undefined ? (
       hostSource.detail(source, onClose)
     ) : source.kind === 'auto-rejection' ? (
-      <HumanInboxAutoRejection
+      <ActivityListAutoRejection
         key={source.id}
         source={source}
         actions={actions}
@@ -418,7 +423,7 @@ export function HumanInboxView({
         onClose={onClose}
       />
     ) : source.kind === 'assignment-waiting-human' || source.kind === 'assignment-blocked' ? (
-      <HumanInboxAssignment
+      <ActivityListAssignment
         key={source.assignmentSessionId + ':' + source.sourceEventId}
         source={source}
         actions={actions}
@@ -429,7 +434,7 @@ export function HumanInboxView({
       />
     ) : source.channelId !== undefined && source.messageId !== undefined ? (
       <>
-        <HumanInboxReply
+        <ActivityListReply
           key={source.channelId + ':' + source.messageId}
           source={source}
           actions={actions}
@@ -442,42 +447,44 @@ export function HumanInboxView({
           onClose={onClose}
         />
         {source.kind === 'bot-message-needs-repair' ? (
-          <div className="bh-human-inbox-reply-actions">
+          <div className="bh-activity-list-reply-actions">
             <Button
               variant="primary"
               size="sm"
               type="button"
               onClick={() =>
-                void openRepairBotInbox(source).catch(() => setActionError(t('humanInbox.failed')))
+                void openRepairBotInbox(source).catch(() =>
+                  setActionError(t('activityList.failed')),
+                )
               }
             >
-              {t('humanInbox.openBotInbox')}
+              {t('activityList.openBotInbox')}
             </Button>
           </div>
         ) : null}
       </>
     ) : (
-      <section className="bh-human-inbox-reply" aria-label={itemTitle(source)}>
-        <div className="bh-human-inbox-reply-header">
+      <section className="bh-activity-list-reply" aria-label={itemTitle(source)}>
+        <div className="bh-activity-list-reply-header">
           <h2>{itemTitle(source)}</h2>
-          <HumanInboxDismiss source={source} actions={actions} t={t} onClose={onClose} />
+          <ActivityListDismiss source={source} actions={actions} t={t} onClose={onClose} />
         </div>
         <p>{source.summary}</p>
-        <HumanInboxSourceButton
+        <ActivityListSourceButton
           item={source}
           bots={state.bots}
           channels={state.channels}
           t={t}
           onClick={() =>
-            void openSource(source).catch(() => setActionError(t('humanInbox.failed')))
+            void openSource(source).catch(() => setActionError(t('activityList.failed')))
           }
         />
       </section>
     );
 
   return (
-    <div className="bh-human-inbox" ref={rootRef}>
-      <main className="bh-human-inbox-inner bh-activity-inbox">
+    <div className="bh-activity-list" ref={rootRef}>
+      <main className="bh-activity-list-inner bh-activity-inbox">
         <div className="bh-activity-toolbar">
           <h2>
             {sectionHeading ??
@@ -509,37 +516,41 @@ export function HumanInboxView({
               <p>{inbox.error}</p>
               <Button
                 size="sm"
-                onClick={() => void (hostSource?.refresh() ?? commands.refreshHumanInbox())}
+                onClick={() => void (hostSource?.refresh() ?? commands.refreshActivityList())}
               >
                 {t('activityInbox.retry')}
               </Button>
             </div>
           )}
-          {inbox.status === 'loading' ? <p>{t('humanInbox.loading')}</p> : null}
+          {inbox.status === 'loading' ? <p>{t('activityList.loading')}</p> : null}
           {inbox.status === 'ready' && inbox.items.length === 0 ? (
             sectionHeading ? (
               <p className="bh-activity-section-empty" role="status">
                 {emptyMessage ??
                   t(
-                    inbox.snoozed ? 'humanInbox.empty.snoozed' : categoryCopy[inbox.category].empty,
+                    inbox.snoozed
+                      ? 'activityList.empty.snoozed'
+                      : categoryCopy[inbox.category].empty,
                   )}
               </p>
             ) : (
               <PanelEmptyState icon="bell">
-                {t(inbox.snoozed ? 'humanInbox.empty.snoozed' : categoryCopy[inbox.category].empty)}
+                {t(
+                  inbox.snoozed ? 'activityList.empty.snoozed' : categoryCopy[inbox.category].empty,
+                )}
               </PanelEmptyState>
             )
           ) : null}
           {selectable && inbox.items.some((item) => item.category !== 'handled') ? (
             <div
-              className="bh-human-inbox-batch"
+              className="bh-activity-list-batch"
               role="toolbar"
-              aria-label={t('humanInbox.batch.label')}
+              aria-label={t('activityList.batch.label')}
             >
-              <label className="bh-human-inbox-batch-all">
+              <label className="bh-activity-list-batch-all">
                 <input
                   type="checkbox"
-                  className="bh-human-inbox-row-check"
+                  className="bh-activity-list-row-check"
                   checked={
                     selectedItems.length > 0 &&
                     selectedItems.length ===
@@ -557,8 +568,8 @@ export function HumanInboxView({
                   }
                 />
                 {selectedItems.length === 0
-                  ? t('humanInbox.batch.all')
-                  : t('humanInbox.batch.selected', { count: String(selectedItems.length) })}
+                  ? t('activityList.batch.all')
+                  : t('activityList.batch.selected', { count: String(selectedItems.length) })}
               </label>
               {selectedItems.length === 0 ? null : (
                 <>
@@ -579,7 +590,7 @@ export function HumanInboxView({
                           )
                         }
                       >
-                        {t('humanInbox.batch.allow', { count: String(selectedItems.length) })}
+                        {t('activityList.batch.allow', { count: String(selectedItems.length) })}
                       </Button>
                       <Button
                         variant="outline"
@@ -596,7 +607,7 @@ export function HumanInboxView({
                           )
                         }
                       >
-                        {t('humanInbox.batch.reject')}
+                        {t('activityList.batch.reject')}
                       </Button>
                     </>
                   ) : null}
@@ -607,7 +618,7 @@ export function HumanInboxView({
                     disabled={batchBusy}
                     onClick={() => void runBatch(settle)}
                   >
-                    {t('humanInbox.batch.handle')}
+                    {t('activityList.batch.handle')}
                   </Button>
                   <Button
                     variant="ghost"
@@ -616,14 +627,14 @@ export function HumanInboxView({
                     disabled={batchBusy}
                     onClick={() => setSelected(new Set())}
                   >
-                    {t('humanInbox.batch.clear')}
+                    {t('activityList.batch.clear')}
                   </Button>
                 </>
               )}
             </div>
           ) : null}
-          <div className="bh-human-inbox-workspace">
-            <div ref={retained.mount} role="list" tabIndex={-1} className="bh-human-inbox-list">
+          <div className="bh-activity-list-workspace">
+            <div ref={retained.mount} role="list" tabIndex={-1} className="bh-activity-list">
               {(!selectionMode
                 ? retained.rows
                 : inbox.items.map((item) => ({ item, leaving: false }))
@@ -649,9 +660,9 @@ export function HumanInboxView({
                     role="listitem"
                     data-attention-id={item.id}
                     className={
-                      'bh-human-inbox-row' +
+                      'bh-activity-list-row' +
                       (item.kind === 'channel-reply' || item.kind === 'channel-mention'
-                        ? ' bh-human-inbox-personal-row'
+                        ? ' bh-activity-list-personal-row'
                         : '')
                     }
                     data-selected={replySource?.id === item.id ? 'true' : undefined}
@@ -660,20 +671,20 @@ export function HumanInboxView({
                   >
                     <button
                       type="button"
-                      className="bh-human-inbox-row-open"
-                      aria-label={t('humanInbox.details', { title: itemTitle(item) })}
+                      className="bh-activity-list-row-open"
+                      aria-label={t('activityList.details', { title: itemTitle(item) })}
                       aria-expanded={replySource?.id === item.id}
                       aria-controls={replySource?.id === item.id ? detailId : undefined}
                       onFocus={() => setCursor(itemKey(item))}
                       onClick={() => toggleDetail(item)}
                     />
 
-                    <div className="bh-human-inbox-row-title">
+                    <div className="bh-activity-list-row-title">
                       {selectable && item.category !== 'handled' ? (
                         <input
                           type="checkbox"
-                          className="bh-human-inbox-row-check"
-                          aria-label={t('humanInbox.batch.select', { title: itemTitle(item) })}
+                          className="bh-activity-list-row-check"
+                          aria-label={t('activityList.batch.select', { title: itemTitle(item) })}
                           checked={selected.has(itemKey(item))}
                           disabled={batchBusy}
                           onChange={() => toggleSelected(item)}
@@ -681,14 +692,14 @@ export function HumanInboxView({
                       ) : null}
                       {itemTitle(item)}
                     </div>
-                    <div className="bh-human-inbox-row-main">
+                    <div className="bh-activity-list-row-main">
                       {item.kind === 'channel-reply' || item.kind === 'channel-mention' ? (
-                        <div className="bh-human-inbox-unread-meta">
+                        <div className="bh-activity-list-unread-meta">
                           <span>{item.channelName}</span>
                           {item.kind === 'channel-mention' ? (
                             <>
                               {' · '}
-                              <span className="bh-inline-mention">{t('humanInbox.mention')}</span>
+                              <span className="bh-inline-mention">{t('activityList.mention')}</span>
                             </>
                           ) : null}
                           {' · '}
@@ -696,14 +707,14 @@ export function HumanInboxView({
                             {new Date(item.createdAt).toLocaleString()}
                           </time>
                           {item.isUnread ? (
-                            <span className="bh-human-inbox-message-target">
-                              {t('humanInbox.reply.unread')}
+                            <span className="bh-activity-list-message-target">
+                              {t('activityList.reply.unread')}
                             </span>
                           ) : null}
                         </div>
                       ) : null}
                       {item.category === 'handled' ? (
-                        <div className="bh-human-inbox-unread-meta">
+                        <div className="bh-activity-list-unread-meta">
                           {item.channelName}
                           {' · '}
                           <time dateTime={item.createdAt}>
@@ -712,11 +723,11 @@ export function HumanInboxView({
                         </div>
                       ) : null}
                       {item.kind === 'channel-unread' ? (
-                        <div className="bh-human-inbox-unread-meta">
-                          {t('humanInbox.unreadCount', { count: String(item.unreadCount ?? 0) })}
+                        <div className="bh-activity-list-unread-meta">
+                          {t('activityList.unreadCount', { count: String(item.unreadCount ?? 0) })}
                           {' · '}
                           {new Date(item.createdAt).toLocaleString()}
-                          <p className="bh-human-inbox-row-summary">{item.summary}</p>
+                          <p className="bh-activity-list-row-summary">{item.summary}</p>
                         </div>
                       ) : null}
                       {item.kind === 'channel-reply' ||
@@ -731,13 +742,13 @@ export function HumanInboxView({
                       item.kind === 'assignment-blocked' ||
                       item.kind === 'assignment-report' ||
                       item.kind === 'bot-message-needs-repair' ? (
-                        <div className="bh-human-inbox-row-summary" title={item.summary}>
+                        <div className="bh-activity-list-row-summary" title={item.summary}>
                           {item.summary}
                         </div>
                       ) : null}
                       {item.kind === 'auto-rejection' ? (
                         <div
-                          className="bh-human-inbox-row-summary"
+                          className="bh-activity-list-row-summary"
                           title={
                             autoRejectionMeta(item, t) +
                             ' · ' +
@@ -750,9 +761,9 @@ export function HumanInboxView({
                         </div>
                       ) : null}
                       {item.snoozedUntil === undefined ? null : (
-                        <div className="bh-human-inbox-unread-meta">
+                        <div className="bh-activity-list-unread-meta">
                           <time dateTime={item.snoozedUntil}>
-                            {t('humanInbox.snooze.until', {
+                            {t('activityList.snooze.until', {
                               time: new Date(item.snoozedUntil).toLocaleString(undefined, {
                                 dateStyle: 'medium',
                                 timeStyle: 'short',
@@ -763,20 +774,20 @@ export function HumanInboxView({
                       )}
                       {item.kind === 'bot-message-needs-repair' &&
                       (!item.channelName || !item.messageId) ? (
-                        <div className="bh-human-inbox-row-summary">
+                        <div className="bh-activity-list-row-summary">
                           {t(
                             item.channelId && item.channelName
-                              ? 'humanInbox.messageUnavailable'
-                              : 'humanInbox.sourceUnavailable',
+                              ? 'activityList.messageUnavailable'
+                              : 'activityList.sourceUnavailable',
                           )}
                         </div>
                       ) : null}
                     </div>
-                    <div className="bh-human-inbox-row-actions">
+                    <div className="bh-activity-list-row-actions">
                       <>
                         {item.kind === 'pairing-request' && item.category !== 'handled' ? (
                           hostSource === undefined ? (
-                            <HumanInboxPairing source={item} actions={actions} t={t} />
+                            <ActivityListPairing source={item} actions={actions} t={t} />
                           ) : (
                             <Button
                               variant="primary"
@@ -784,7 +795,7 @@ export function HumanInboxView({
                               type="button"
                               onClick={() => openAction(item)}
                             >
-                              {t('humanInbox.open')}
+                              {t('activityList.open')}
                             </Button>
                           )
                         ) : item.kind === 'channel-unread' ||
@@ -800,7 +811,7 @@ export function HumanInboxView({
                           hostSource === undefined &&
                           item.kind === 'workspace-grant-request' &&
                           item.category !== 'handled' ? (
-                            <HumanInboxWorkspaceAction source={item} actions={actions} t={t} />
+                            <ActivityListWorkspaceAction source={item} actions={actions} t={t} />
                           ) : (
                             <Button
                               variant="primary"
@@ -812,23 +823,23 @@ export function HumanInboxView({
                                 hostSource !== undefined &&
                                   item.kind !== 'tool-approval' &&
                                   item.kind !== 'user-question'
-                                  ? 'humanInbox.open'
+                                  ? 'activityList.open'
                                   : item.category === 'handled'
-                                    ? 'humanInbox.handled.context'
+                                    ? 'activityList.handled.context'
                                     : item.kind === 'tool-approval'
-                                      ? 'humanInbox.approval.handle'
+                                      ? 'activityList.approval.handle'
                                       : item.kind === 'private-input'
-                                        ? 'humanInbox.privateInput.handle'
+                                        ? 'activityList.privateInput.handle'
                                         : item.kind === 'takeover-request'
-                                          ? 'humanInbox.takeover.handle'
+                                          ? 'activityList.takeover.handle'
                                           : item.kind === 'user-question'
-                                            ? 'humanInbox.question.handle'
+                                            ? 'activityList.question.handle'
                                             : item.kind === 'workspace-grant-request'
-                                              ? 'humanInbox.grant.handle'
+                                              ? 'activityList.grant.handle'
                                               : item.kind === 'assignment-waiting-human' ||
                                                   item.kind === 'assignment-blocked'
-                                                ? 'humanInbox.assignment.handle'
-                                                : 'humanInbox.reply',
+                                                ? 'activityList.assignment.handle'
+                                                : 'activityList.reply',
                               )}
                             </Button>
                           )
@@ -841,10 +852,10 @@ export function HumanInboxView({
                             onClick={() =>
                               void commands
                                 .openChannelAtMessage(item.channelId!, item.responseMessageId!)
-                                .catch(() => setActionError(t('humanInbox.failed')))
+                                .catch(() => setActionError(t('activityList.failed')))
                             }
                           >
-                            {t('humanInbox.handled.response')}
+                            {t('activityList.handled.response')}
                           </Button>
                         ) : null}
                         {item.kind === 'auto-rejection' ? (
@@ -859,7 +870,7 @@ export function HumanInboxView({
                               )
                                 setReplySource(undefined);
                             }}
-                            onError={() => setActionError(t('humanInbox.failed'))}
+                            onError={() => setActionError(t('activityList.failed'))}
                           />
                         ) : null}
                         {item.kind === 'group-join-request' ? (
@@ -871,7 +882,7 @@ export function HumanInboxView({
                               disabled={busyId === item.id}
                               onClick={() => void decide(item, true)}
                             >
-                              {t('humanInbox.accept')}
+                              {t('activityList.accept')}
                             </Button>
                             <Button
                               variant="primary"
@@ -880,7 +891,7 @@ export function HumanInboxView({
                               disabled={busyId === item.id}
                               onClick={() => void decide(item, false)}
                             >
-                              {t('humanInbox.decline')}
+                              {t('activityList.decline')}
                             </Button>
                           </>
                         ) : item.kind === 'bot-dm-message' ||
@@ -897,18 +908,18 @@ export function HumanInboxView({
                           >
                             {t(
                               item.kind === 'assignment-report'
-                                ? 'humanInbox.ignore'
+                                ? 'activityList.ignore'
                                 : item.kind === 'channel-unread' ||
                                     item.kind === 'channel-reply' ||
                                     item.kind === 'channel-mention'
-                                  ? 'humanInbox.markRead'
-                                  : 'humanInbox.acknowledge',
+                                  ? 'activityList.markRead'
+                                  : 'activityList.acknowledge',
                             )}
                           </Button>
                         ) : null}
                         {(selectable || hostSource !== undefined) &&
-                        canSnoozeHumanInboxItem(item) ? (
-                          <HumanInboxSnoozeButton
+                        canSnoozeActivityListItem(item) ? (
+                          <ActivityListSnoozeButton
                             item={item}
                             t={t}
                             open={snoozeMenu === itemKey(item)}
@@ -918,14 +929,14 @@ export function HumanInboxView({
                           />
                         ) : null}
                         {hostSource === undefined ? (
-                          <HumanInboxSourceButton
+                          <ActivityListSourceButton
                             item={item}
                             bots={state.bots}
                             channels={state.channels}
                             t={t}
                             onClick={() =>
                               void openSource(item).catch(() =>
-                                setActionError(t('humanInbox.failed')),
+                                setActionError(t('activityList.failed')),
                               )
                             }
                           />
@@ -934,7 +945,7 @@ export function HumanInboxView({
                             item,
                             () =>
                               void openSource(item).catch(() =>
-                                setActionError(t('humanInbox.failed')),
+                                setActionError(t('activityList.failed')),
                               ),
                           )
                         )}
@@ -945,13 +956,13 @@ export function HumanInboxView({
                             disabled={busyId === item.id}
                             onClick={() => void settleOne(item, true)}
                           >
-                            {t('humanInbox.dismiss')}
+                            {t('activityList.dismiss')}
                           </Button>
                         ) : null}
                       </>
                     </div>
                     {replySource?.id === item.id ? (
-                      <div id={detailId} className="bh-human-inbox-detail">
+                      <div id={detailId} className="bh-activity-list-detail">
                         {renderSource(item, () => setReplySource(undefined))}
                       </div>
                     ) : null}
@@ -963,14 +974,14 @@ export function HumanInboxView({
           {inbox.nextCursor === undefined ? null : (
             <button
               type="button"
-              className="bh-human-inbox-more"
+              className="bh-activity-list-more"
               onClick={() =>
                 void (hostSource === undefined
-                  ? actions.loadMoreHumanInbox()
+                  ? actions.loadMoreActivityList()
                   : hostSource.loadMore())
               }
             >
-              {t('humanInbox.more')}
+              {t('activityList.more')}
             </button>
           )}
         </div>

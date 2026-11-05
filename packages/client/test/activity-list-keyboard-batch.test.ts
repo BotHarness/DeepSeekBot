@@ -3,7 +3,7 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
-  ...(await import('./human-inbox-test-controls.js')),
+  ...(await import('./activity-list-test-controls.js')),
   Button: ({
     children,
     variant: _variant,
@@ -24,8 +24,8 @@ vi.mock('../src/client/bot-sidebar.js', async () => {
   return { useClientState: () => useSyncExternalStore(store.subscribe, store.getSnapshot) };
 });
 import { createActions, type BridgeActions } from '../src/client/actions.js';
-import { HumanInboxView } from '../src/client/human-inbox-view.js';
-import { humanInboxSnoozeUntil } from '../src/client/human-inbox-snooze.js';
+import { ActivityListView } from '../src/client/activity-list-view.js';
+import { activityListSnoozeUntil } from '../src/client/activity-list-snooze.js';
 import { store, type HumanAttentionItem } from '../src/client/store.js';
 
 const approval = (slug: string): HumanAttentionItem => ({
@@ -50,7 +50,7 @@ const previous = store.getSnapshot();
 afterEach(() => {
   store.setRoster(previous.bots, previous.channels);
   store.select(previous.selection);
-  store.setHumanInbox(previous.humanInbox);
+  store.setActivityList(previous.activityList);
   document.body.innerHTML = '';
 });
 
@@ -61,16 +61,18 @@ async function mount(items: HumanAttentionItem[]) {
   const root = createRoot(host);
   const actions = {
     ...createActions(async () => ({ ok: true, value: { items: [] } }), store),
-    refreshHumanInbox: vi.fn(async () => undefined),
-    dismissHumanInbox: vi.fn(async () => undefined),
-    snoozeHumanInbox: vi.fn(async (_item: HumanAttentionItem, _until: string | null) => undefined),
+    refreshActivityList: vi.fn(async () => undefined),
+    dismissActivityList: vi.fn(async () => undefined),
+    snoozeActivityList: vi.fn(
+      async (_item: HumanAttentionItem, _until: string | null) => undefined,
+    ),
     decideToolApproval: vi.fn(async () => undefined),
     openBot: vi.fn(async () => undefined),
     openAround: vi.fn(async () => undefined),
-    setHumanInboxFilters: vi.fn(async (filters) => store.setHumanInbox(filters)),
+    setActivityListFilters: vi.fn(async (filters) => store.setActivityList(filters)),
   } satisfies BridgeActions;
   store.select({ kind: 'inbox' });
-  store.setHumanInbox({
+  store.setActivityList({
     category: 'action',
     status: 'ready',
     items,
@@ -79,7 +81,7 @@ async function mount(items: HumanAttentionItem[]) {
     sort: 'oldest',
     snoozed: false,
   });
-  await act(async () => root.render(createElement(HumanInboxView, { actions })));
+  await act(async () => root.render(createElement(ActivityListView, { actions })));
   await act(async () =>
     [...host.querySelectorAll('button')].find((button) => button.textContent === '选择')!.click(),
   );
@@ -97,7 +99,7 @@ describe('Human Inbox keyboard', () => {
     const view = await mount([approval('ada'), grant]);
     await view.press('j');
     expect(document.activeElement).toBe(
-      rows(view.host)[0]!.querySelector('.bh-human-inbox-row-open'),
+      rows(view.host)[0]!.querySelector('.bh-activity-list-row-open'),
     );
     await view.press('j');
     expect(rows(view.host)[1]!.hasAttribute('data-cursor')).toBe(true);
@@ -107,7 +109,7 @@ describe('Human Inbox keyboard', () => {
     expect(view.actions.openBot).toHaveBeenCalledWith('ada');
     expect(view.actions.openAround).toHaveBeenCalledWith('dm-ada', 'request-ada');
     await view.press('e');
-    expect(view.actions.dismissHumanInbox).not.toHaveBeenCalled();
+    expect(view.actions.dismissActivityList).not.toHaveBeenCalled();
     await view.unmount();
   });
 
@@ -121,7 +123,7 @@ describe('Human Inbox keyboard', () => {
         new KeyboardEvent('keydown', { key: 'j', ctrlKey: true, bubbles: true }),
       );
     });
-    expect(view.actions.dismissHumanInbox).not.toHaveBeenCalled();
+    expect(view.actions.dismissActivityList).not.toHaveBeenCalled();
     expect(rows(view.host)[0]!.hasAttribute('data-cursor')).toBe(false);
     await view.unmount();
   });
@@ -179,7 +181,7 @@ describe('Human Inbox bulk actions', () => {
       (b) => b.textContent === '标为已处理',
     )!;
     await act(async () => handle.click());
-    expect(view.actions.dismissHumanInbox).toHaveBeenCalledTimes(2);
+    expect(view.actions.dismissActivityList).toHaveBeenCalledTimes(2);
     expect(view.actions.decideToolApproval).not.toHaveBeenCalled();
     await view.unmount();
   });
@@ -195,7 +197,7 @@ describe('Human Inbox snooze', () => {
     const choice = view.host.querySelector<HTMLButtonElement>('[role="menu"] button')!;
     expect(choice.textContent).toBe('1 小时后');
     await act(async () => choice.click());
-    const [item, until] = view.actions.snoozeHumanInbox.mock.calls[0]!;
+    const [item, until] = view.actions.snoozeActivityList.mock.calls[0]!;
     expect(item).toEqual(approval('ada'));
     expect(Date.parse(until as string) - Date.now()).toBeGreaterThan(59 * 60 * 1000);
     await view.unmount();
@@ -208,7 +210,7 @@ describe('Human Inbox snooze', () => {
       (b) => b.textContent === '取消延后',
     )!;
     await act(async () => cancel.click());
-    expect(view.actions.snoozeHumanInbox).toHaveBeenCalledWith(
+    expect(view.actions.snoozeActivityList).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'approval:ada' }),
       null,
     );
@@ -217,11 +219,11 @@ describe('Human Inbox snooze', () => {
 
   it('offers this evening only while it is still ahead and next week on Monday morning', () => {
     const friday = new Date(2026, 9, 16, 10, 0);
-    expect(humanInboxSnoozeUntil('evening', friday)?.getHours()).toBe(18);
-    expect(humanInboxSnoozeUntil('evening', new Date(2026, 9, 16, 17, 45))).toBeUndefined();
-    const week = humanInboxSnoozeUntil('week', friday)!;
+    expect(activityListSnoozeUntil('evening', friday)?.getHours()).toBe(18);
+    expect(activityListSnoozeUntil('evening', new Date(2026, 9, 16, 17, 45))).toBeUndefined();
+    const week = activityListSnoozeUntil('week', friday)!;
     expect([week.getDay(), week.getDate(), week.getHours()]).toEqual([1, 19, 9]);
-    expect(humanInboxSnoozeUntil('tomorrow', friday)!.getDate()).toBe(17);
+    expect(activityListSnoozeUntil('tomorrow', friday)!.getDate()).toBe(17);
   });
 });
 
@@ -345,13 +347,13 @@ it('isolates invalid remote items from the shared Inbox and retries the affected
       sections: { action: expect.arrayContaining([{ id: 'broken' }]) },
     });
     await fixture.render();
-    expect(fixture.element.querySelectorAll('.bh-human-inbox-row')).toHaveLength(1);
+    expect(fixture.element.querySelectorAll('.bh-activity-list-row')).toHaveLength(1);
     expect(fixture.element.querySelectorAll('[role="alert"]')).toHaveLength(1);
     expect(fixture.element.querySelector('[role="alert"]')?.textContent).toContain(
-      zhTranslate('humanInbox.failed'),
+      zhTranslate('activityList.failed'),
     );
     await act(async () =>
-      fixture.element.querySelector<HTMLButtonElement>('.bh-human-inbox-row-open')!.click(),
+      fixture.element.querySelector<HTMLButtonElement>('.bh-activity-list-row-open')!.click(),
     );
     const allow = () =>
       [...fixture.element.querySelectorAll('button')].find(
@@ -395,20 +397,20 @@ it('retries a non-request detail open once against the same Host', async () => {
   try {
     await fixture.render();
     await act(async () =>
-      fixture.element.querySelector<HTMLButtonElement>('.bh-human-inbox-row-open')!.click(),
+      fixture.element.querySelector<HTMLButtonElement>('.bh-activity-list-row-open')!.click(),
     );
     await act(async () =>
-      [...fixture.element.querySelectorAll('.bh-human-inbox-reply button')]
-        .find((n) => n.textContent?.trim() === zhTranslate('humanInbox.open'))!
+      [...fixture.element.querySelectorAll('.bh-activity-list-reply button')]
+        .find((n) => n.textContent?.trim() === zhTranslate('activityList.open'))!
         .dispatchEvent(new MouseEvent('click', { bubbles: true })),
     );
     expect(fixture.element.querySelector('[role="alert"]')?.textContent).toContain(
-      zhTranslate('humanInbox.failed'),
+      zhTranslate('activityList.failed'),
     );
     expect(open).toHaveBeenCalledTimes(1);
     expect(openPanel).not.toHaveBeenCalled();
     await act(async () =>
-      [...fixture.element.querySelectorAll('.bh-human-inbox-reply button')]
+      [...fixture.element.querySelectorAll('.bh-activity-list-reply button')]
         .find((n) => n.textContent?.trim() === zhTranslate('activityInbox.retry'))!
         .dispatchEvent(new MouseEvent('click', { bubbles: true })),
     );
@@ -432,7 +434,7 @@ it.each(['en', 'zh'] as const)(
     const failed: InboxSnapshot = { status: 'error', error: raw };
     expect(remoteActivityPage(failed, 'action', t)).toMatchObject({
       status: 'error',
-      error: t('humanInbox.failed'),
+      error: t('activityList.failed'),
       items: [],
     });
     const retained: InboxSnapshot = {
@@ -443,7 +445,7 @@ it.each(['en', 'zh'] as const)(
     };
     expect(remoteActivityPage(retained, 'action', t)).toMatchObject({
       status: 'ready',
-      error: t('humanInbox.failed'),
+      error: t('activityList.failed'),
       items: [approval('tob')],
       nextCursor: 'next-page',
     });
@@ -550,7 +552,7 @@ it('renders the remote identity and opens its Host even when a local Tob has the
     expect(element.textContent).not.toContain('Local Tob');
     expect(element.querySelector('img')?.getAttribute('src')).toBe('blob:remote-tob');
     await act(async () =>
-      element.querySelector<HTMLButtonElement>('.bh-human-inbox-source-link')!.click(),
+      element.querySelector<HTMLButtonElement>('.bh-activity-list-source-link')!.click(),
     );
     expect(sources.getSnapshot().open).toEqual({
       hostId: host.hostId,
@@ -770,15 +772,15 @@ it.each([
           .click();
       });
       await act(async () =>
-        element.querySelector<HTMLInputElement>('.bh-human-inbox-batch input')!.click(),
+        element.querySelector<HTMLInputElement>('.bh-activity-list-batch input')!.click(),
       );
     } else {
       await act(async () =>
-        element.querySelector<HTMLButtonElement>('.bh-human-inbox-row-open')!.click(),
+        element.querySelector<HTMLButtonElement>('.bh-activity-list-row-open')!.click(),
       );
     }
     const label = batch
-      ? zhTranslate('humanInbox.batch.allow', { count: '1' })
+      ? zhTranslate('activityList.batch.allow', { count: '1' })
       : kind === 'tool-approval'
         ? zhTranslate('approval.allowOnce')
         : 'Blue';
@@ -813,7 +815,7 @@ it.each([
       await act(async () => {
         await vi.waitFor(() =>
           expect(element.querySelector('[role="alert"]')?.textContent).toBe(
-            zhTranslate('humanInbox.failed'),
+            zhTranslate('activityList.failed'),
           ),
         );
       });
@@ -828,7 +830,7 @@ it.each([
       expect(element.textContent).not.toContain('Request already settled');
       if (batch)
         expect(element.querySelector('[role="alert"]')?.textContent).toContain(
-          zhTranslate('humanInbox.batch.failed', { count: '1' }),
+          zhTranslate('activityList.batch.failed', { count: '1' }),
         );
       else if (kind === 'tool-approval')
         expect(element.querySelector('.bh-request-done')?.getAttribute('data-state')).toBe(
@@ -839,7 +841,7 @@ it.each([
           result === 'decided' ? 'answered' : 'expired',
         );
         expect(element.querySelector('[role="alert"]')?.textContent).toContain(
-          zhTranslate('humanInbox.failed'),
+          zhTranslate('activityList.failed'),
         );
       }
       expect(host.calls.filter((call) => call.method === 'humanAttention').length).toBeGreaterThan(

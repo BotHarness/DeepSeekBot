@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
-  ...(await import('./human-inbox-test-controls.js')),
+  ...(await import('./activity-list-test-controls.js')),
   Button: ({ children, ...props }: { children: ReactNode }) =>
     createElement('button', props, children),
   MarkdownText: () => null,
@@ -17,7 +17,7 @@ vi.mock('../src/client/bot-sidebar.js', async () => {
 });
 
 import type { BridgeActions } from '../src/client/actions.js';
-import { HumanInboxView } from '../src/client/human-inbox-view.js';
+import { ActivityListView } from '../src/client/activity-list-view.js';
 import { store, type HumanAttentionItem } from '../src/client/store.js';
 
 const join: HumanAttentionItem = {
@@ -40,7 +40,7 @@ afterEach(() => {
 describe('Human Inbox center view', () => {
   it('offers canonical request context and answer navigation for handled work', () => {
     store.select({ kind: 'inbox' });
-    store.setHumanInbox({
+    store.setActivityList({
       status: 'ready',
       category: 'handled',
       items: [
@@ -61,7 +61,7 @@ describe('Human Inbox center view', () => {
       ],
     });
     const markup = renderToStaticMarkup(
-      createElement(HumanInboxView, { actions: {} as BridgeActions }),
+      createElement(ActivityListView, { actions: {} as BridgeActions }),
     );
     expect(markup).toContain('已处理');
     expect(markup).toContain('查看答复');
@@ -71,9 +71,9 @@ describe('Human Inbox center view', () => {
 
   it('defaults to action-required and offers source and decision actions', () => {
     store.select({ kind: 'inbox' });
-    store.setHumanInbox({ status: 'ready', category: 'action', items: [join] });
+    store.setActivityList({ status: 'ready', category: 'action', items: [join] });
     const markup = renderToStaticMarkup(
-      createElement(HumanInboxView, { actions: {} as BridgeActions }),
+      createElement(ActivityListView, { actions: {} as BridgeActions }),
     );
     expect(markup).toContain('需要你处理');
     expect(markup).not.toContain('role="tab"');
@@ -85,7 +85,7 @@ describe('Human Inbox center view', () => {
 
   it('renders a Channel unread summary with a deliberate read action and expandable preview', () => {
     store.select({ kind: 'inbox' });
-    store.setHumanInbox({
+    store.setActivityList({
       status: 'ready',
       category: 'unread',
       items: [
@@ -101,10 +101,10 @@ describe('Human Inbox center view', () => {
       ],
     });
     const markup = renderToStaticMarkup(
-      createElement(HumanInboxView, { actions: {} as BridgeActions }),
+      createElement(ActivityListView, { actions: {} as BridgeActions }),
     );
     expect(markup).toContain('3 条未读');
-    expect(markup).toContain('bh-human-inbox-row-open');
+    expect(markup).toContain('bh-activity-list-row-open');
     expect(markup).not.toContain('<details>');
     expect(markup).toContain('The draft is ready.');
     expect(markup).toContain('标为已读');
@@ -113,7 +113,7 @@ describe('Human Inbox center view', () => {
   });
   it('shows a Bot Workspace Grant request as an action linked to its DM card', () => {
     store.select({ kind: 'inbox' });
-    store.setHumanInbox({
+    store.setActivityList({
       status: 'ready',
       category: 'action',
       items: [
@@ -131,7 +131,7 @@ describe('Human Inbox center view', () => {
       ],
     });
     const markup = renderToStaticMarkup(
-      createElement(HumanInboxView, { actions: {} as BridgeActions }),
+      createElement(ActivityListView, { actions: {} as BridgeActions }),
     );
     expect(markup).toContain('请求工作区授权');
     expect(markup).toContain('Please grant access.');
@@ -155,7 +155,7 @@ describe('Human Inbox center view', () => {
       ],
     );
     store.select({ kind: 'inbox' });
-    store.setHumanInbox({
+    store.setActivityList({
       status: 'ready',
       category: 'action',
       items: [
@@ -173,7 +173,7 @@ describe('Human Inbox center view', () => {
       ],
     });
     const markup = renderToStaticMarkup(
-      createElement(HumanInboxView, { actions: {} as BridgeActions }),
+      createElement(ActivityListView, { actions: {} as BridgeActions }),
     );
     expect(markup).toContain('ada 需要你回答');
     expect(markup).toContain('Which branch should I use?');
@@ -184,7 +184,7 @@ describe('Human Inbox center view', () => {
   });
   it('shows an Assignment request as an action with a source link', () => {
     store.select({ kind: 'inbox' });
-    store.setHumanInbox({
+    store.setActivityList({
       status: 'ready',
       category: 'action',
       items: [
@@ -200,7 +200,7 @@ describe('Human Inbox center view', () => {
       ],
     });
     const markup = renderToStaticMarkup(
-      createElement(HumanInboxView, { actions: {} as BridgeActions }),
+      createElement(ActivityListView, { actions: {} as BridgeActions }),
     );
     expect(markup).toContain('ada 的事项需要你协助');
     expect(markup).toContain('Should I choose A or B?');
@@ -211,7 +211,7 @@ describe('Human Inbox center view', () => {
 
   it('shows a blocked Assignment as an action linked to its Session', () => {
     store.select({ kind: 'inbox' });
-    store.setHumanInbox({
+    store.setActivityList({
       status: 'ready',
       category: 'action',
       items: [
@@ -228,7 +228,7 @@ describe('Human Inbox center view', () => {
       ],
     });
     const markup = renderToStaticMarkup(
-      createElement(HumanInboxView, { actions: {} as BridgeActions }),
+      createElement(ActivityListView, { actions: {} as BridgeActions }),
     );
     expect(markup).toContain('ada 的事项受阻，需要关注');
     expect(markup).toContain('Need a new grant.');
@@ -238,7 +238,7 @@ describe('Human Inbox center view', () => {
 
   it('shows a completed Assignment report as informational with Ignore', () => {
     store.select({ kind: 'inbox' });
-    store.setHumanInbox({
+    store.setActivityList({
       status: 'ready',
       category: 'info',
       items: [
@@ -255,7 +255,7 @@ describe('Human Inbox center view', () => {
       ],
     });
     const markup = renderToStaticMarkup(
-      createElement(HumanInboxView, { actions: {} as BridgeActions }),
+      createElement(ActivityListView, { actions: {} as BridgeActions }),
     );
     expect(markup).toContain('ada 的事项已报告完成');
     expect(markup).toContain('Research completed.');
@@ -266,7 +266,7 @@ describe('Human Inbox center view', () => {
 
   it('shows compact source navigation for repairs and a Bot Inbox fallback for missing sources', () => {
     store.select({ kind: 'inbox' });
-    store.setHumanInbox({
+    store.setActivityList({
       status: 'ready',
       category: 'action',
       items: [
@@ -285,7 +285,7 @@ describe('Human Inbox center view', () => {
       ],
     });
     let markup = renderToStaticMarkup(
-      createElement(HumanInboxView, { actions: {} as BridgeActions }),
+      createElement(ActivityListView, { actions: {} as BridgeActions }),
     );
     expect(markup).toContain('ada 的消息需要检查');
     expect(markup).toContain('Check the deployment');
@@ -293,22 +293,26 @@ describe('Human Inbox center view', () => {
     expect(markup).toContain('查看来源');
     expect(markup).not.toContain('忽略</button>');
 
-    store.setHumanInbox({
+    store.setActivityList({
       status: 'ready',
       category: 'action',
-      items: [{ ...store.getSnapshot().humanInbox.items[0]!, channelName: '' }],
+      items: [{ ...store.getSnapshot().activityList.items[0]!, channelName: '' }],
     });
-    markup = renderToStaticMarkup(createElement(HumanInboxView, { actions: {} as BridgeActions }));
+    markup = renderToStaticMarkup(
+      createElement(ActivityListView, { actions: {} as BridgeActions }),
+    );
     expect(markup).toContain('来源频道已不可用');
 
-    const missingMessage = { ...store.getSnapshot().humanInbox.items[0]!, channelName: 'Team' };
+    const missingMessage = { ...store.getSnapshot().activityList.items[0]!, channelName: 'Team' };
     delete missingMessage.messageId;
-    store.setHumanInbox({
+    store.setActivityList({
       status: 'ready',
       category: 'action',
       items: [missingMessage],
     });
-    markup = renderToStaticMarkup(createElement(HumanInboxView, { actions: {} as BridgeActions }));
+    markup = renderToStaticMarkup(
+      createElement(ActivityListView, { actions: {} as BridgeActions }),
+    );
     expect(markup).toContain('来源消息已不可用');
     expect(markup).not.toContain('来源频道已不可用');
   });

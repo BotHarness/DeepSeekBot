@@ -141,7 +141,7 @@ type Phase =
   | 'dm-activity'
   | 'group-member-activity'
   | 'group-unrelated-activity'
-  | 'human-inbox'
+  | 'activity-list'
   | 'search'
   | 'unrelated-state';
 const workload: Record<Phase, (n: number) => void> = {
@@ -154,7 +154,7 @@ const workload: Record<Phase, (n: number) => void> = {
   'dm-activity': (n) => activity('ada', n),
   'group-member-activity': (n) => activity('bob', n),
   'group-unrelated-activity': (n) => activity('cy', n),
-  'human-inbox': (n) => store.setHumanInbox({ unreadCount: n + 1 }),
+  'activity-list': (n) => store.setActivityList({ unreadCount: n + 1 }),
   search: (n) => store.setQuery('a'.repeat((n % 5) + 1)),
   'unrelated-state': (n) => {
     const snapshot = store.getSnapshot();
@@ -322,7 +322,7 @@ describe('Bot main render benchmark', () => {
       expect(report[name]!.titleBars, name).toBe(0);
       expect(report[name]!.containers, name).toBe(0);
     }
-    expect(report['human-inbox']!.mainCommits).toBe(0);
+    expect(report['activity-list']!.mainCommits).toBe(0);
     expect(report['search']!.mainCommits).toBe(0);
     expect(report['unrelated-state']!.mainCommits).toBe(0);
     expect(report['unrelated-activity']!.mainCommits).toBe(0);

@@ -46,10 +46,10 @@ describe('Human Inbox reply actions', () => {
     const clientStore = createStore();
     clientStore.select({ kind: 'inbox' });
     const actions = createActions(call, clientStore);
-    expect(await actions.humanInboxContext('group-team', 'source')).toMatchObject([
+    expect(await actions.activityListContext('group-team', 'source')).toMatchObject([
       { id: 'source' },
     ]);
-    const sent = await actions.replyFromHumanInbox(
+    const sent = await actions.replyFromActivityList(
       'group-team',
       'source',
       'Launch Friday.',

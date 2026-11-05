@@ -6,7 +6,7 @@ import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 import type { ChannelMessage, HumanAttentionItem } from './store.js';
 
-export function HumanInboxWorkspaceAction({
+export function ActivityListWorkspaceAction({
   source,
   actions,
   t,
@@ -26,7 +26,7 @@ export function HumanInboxWorkspaceAction({
   const readTarget = async (signal: AbortSignal): Promise<ChannelMessage> => {
     if (source.channelId === undefined || source.messageId === undefined)
       throw new Error('Workspace request is unavailable');
-    const context = await actions.humanInboxContext(source.channelId, source.messageId, signal);
+    const context = await actions.activityListContext(source.channelId, source.messageId, signal);
     const target = context.find(
       (entry) =>
         entry.id === source.messageId &&
@@ -65,7 +65,7 @@ export function HumanInboxWorkspaceAction({
     <div ref={mount}>
       {message === undefined ? (
         <Button variant="primary" size="sm" disabled={busy} onClick={() => void open()}>
-          {t(busy ? 'grant.loading' : 'humanInbox.grant.handle')}
+          {t(busy ? 'grant.loading' : 'activityList.grant.handle')}
         </Button>
       ) : (
         <GrantRequestCard
@@ -79,7 +79,7 @@ export function HumanInboxWorkspaceAction({
           t={t}
         />
       )}
-      {error ? <span role="alert">{t('humanInbox.failed')}</span> : null}
+      {error ? <span role="alert">{t('activityList.failed')}</span> : null}
     </div>
   );
 }

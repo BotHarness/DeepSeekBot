@@ -25,7 +25,7 @@ it('opens a fresh Human Inbox with oldest action order', async () => {
     }
     return { ok: true, value: { unreadCount: 0, hasAction: false } };
   };
-  await createActions(call, client).openHumanInbox();
+  await createActions(call, client).openActivityList();
   expect(requests).toMatchObject([{ category: 'action', sort: 'oldest' }]);
 });
 
@@ -34,7 +34,7 @@ it('removes a confirmed decision from retained older pages', async () => {
   const older = Array.from({ length: 51 }, (_, index) => item('bot' + index, '01'));
   const target = older[50]!;
   client.select({ kind: 'inbox' });
-  client.setHumanInbox({
+  client.setActivityList({
     category: 'action',
     status: 'ready',
     items: older,
@@ -51,7 +51,7 @@ it('removes a confirmed decision from retained older pages', async () => {
     target.messageId!,
     'allowed-once',
   );
-  expect(client.getSnapshot().humanInbox.items.map((i) => i.id)).toEqual(
+  expect(client.getSnapshot().activityList.items.map((i) => i.id)).toEqual(
     older.slice(0, 50).map((i) => i.id),
   );
 });

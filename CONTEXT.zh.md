@@ -521,7 +521,7 @@ _避免使用_：display name、nickname、browser tab
 _避免使用_：Human ID、login name
 
 **Human Channel nickname**：
-本地 Human 在一个 Channel 内选择的名称，包括 DM 或 Group Channel；它在该 Channel 内覆盖 Human display name。它标记同一个 Human ID，不创建独立 Human Inbox 或角色扮演 Persona。
+本地 Human 在一个 Channel 内选择的名称，包括 DM 或 Group Channel；它在该 Channel 内覆盖 Human display name。它标记同一个 Human ID，不创建独立 Activity 或角色扮演 Persona。
 _避免使用_：Channel name、PersonaBot display name
 
 **Actor mention**：
@@ -736,22 +736,18 @@ _避免使用_：wake policy、inferred step state、message priority
 一次 Orchestrator turn 消费整个就绪 attention 集合——所有未处理的即时项、达到阈值的 digest 批次与被动 notice——而不是一事件一回合。steer 的直达地址改为加入正在运行的回合。
 _避免使用_：per-event queue、wake storm、batch（单独使用）
 
-**Activity Center**：
-「活动中心」是 Bot 模式中面向 Human 的跨 PersonaBot、跨 Channel 注意力入口，直接打开个人 Human Inbox。完整页面与 Dock 共用原位工具审批卡，运行统计不再属于此入口（#2026）。它汇总已有权威事实，不成为消息、用量或 Session 活动的另一份权威。
-_避免使用_：Human Inbox（指整个入口时）、dashboard list
+**Activity**：
+「活动」是 Human 在桌面和手机上唯一的跨 PersonaBot、跨 Channel 注意力入口：未解决的 Human 行动、提及与回复、未读 Channel 活动、信息更新及已处理历史。它引用所属权威事实，不复制 Channel 内容，也不会把每条 Bot Inbox 事件都摊成 Human 工作。桌面完整页面与 Dock 共用原位工具审批卡，运行统计不再属于此入口（#2026）。它汇总已有权威事实，不成为消息、用量或 Session 活动的另一份权威。已读、清理和延后状态存在 Host 上，任何一台设备处理过都算处理（#3321）。Human 设置免打扰的 Channel 不贡献消息注意力（含提及、回复）或全局未读提醒；真实已读位置和明确 Human 行动请求保持不变。代码中列表视图叫 `ActivityList`；Host 方法保留 `humanAttention*` 的接口名。
+_避免使用_：活动中心、Activity Center、Human Inbox、收件箱（指此入口时）、notifications（推送通知是手机对「活动」条目的送达方式）、Bot Inbox、dashboard list
 
-Activity control rail 红点有独立的浏览器／Host 本地显示范围；隐藏或缩小红点范围不改变 Human Inbox 查询、实际未读状态或待处理 Human 请求。
-
-**Human Inbox**：
-Activity Center 内的个人 attention 视图：未解决的 Human 行动、提及与回复、未读 Channel 活动、信息更新及已处理历史。它引用所属权威事实，不复制 Channel 内容，也不会把每条 Bot Inbox 事件都摊成 Human 工作。Human 设置免打扰的 Channel 不贡献消息注意力（含提及、回复）或全局未读提醒；真实已读位置和明确 Human 行动请求保持不变。
-_避免使用_：notifications、Bot Inbox、dashboard list
+Activity control rail 红点有独立的浏览器／Host 本地显示范围；隐藏或缩小红点范围不改变「活动」查询、实际未读状态或待处理 Human 请求。
 
 **Channel Attention**：
-由 Channel activity 产生的 Human Inbox item，例如未读消息、mention 或 reply；它引用所属 Source Event，除非被归类为 action-required，否则 Human 可以忽略。
+由 Channel activity 产生的 Activity item，例如未读消息、mention 或 reply；它引用所属 Source Event，除非被归类为 action-required，否则 Human 可以忽略。
 _避免使用_：Channel Inbox、copied message、Bot Inbox Admission
 
 **PersonaBot Attention**：
-由 PersonaBot 等待 Human、进入 blocked、需要 approval 或发送 informational report 所产生的 Human Inbox item。
+由 PersonaBot 等待 Human、进入 blocked、需要 approval 或发送 informational report 所产生的 Activity item。
 _避免使用_：personal attention、Bot state、notification
 
 **Channel membership**：
@@ -913,7 +909,7 @@ _避免使用_：workbench、panel layout、dock
 _避免使用_：Bot mode、DSB mode、简单视图、专家模式
 
 **Side column**：
-侧列。Simple 布局模式下，位于 Workspace Control Rail 与消息面板之间的可选一列，显示一个全局面板，例如频道列表、Activity Center 或 Marketplace。点选控制列开关会在这里显示对应面板；再点一次当前已显示的开关则隐藏这一列，只留下控制列和消息面板。显示的各个面板共用同一宽度。
+侧列。Simple 布局模式下，位于 Workspace Control Rail 与消息面板之间的可选一列，显示一个全局面板，例如频道列表、Activity 或 Marketplace。点选控制列开关会在这里显示对应面板；再点一次当前已显示的开关则隐藏这一列，只留下控制列和消息面板。显示的各个面板共用同一宽度。
 _避免使用_：sidebar、左侧面板、App Sidebar、primary side bar
 
 **Subpanel column**：
@@ -923,7 +919,7 @@ _避免使用_：Channel sidebar、右侧栏、inspector
 以下布局术语描述 [#2048](https://github.com/BotHarness/DeepSeekBot/issues/2048) 与 ADR-0221 中已确认的目标设计。[#2049](https://github.com/BotHarness/DeepSeekBot/issues/2049) 已交付会话子面板，[#2067](https://github.com/BotHarness/DeepSeekBot/issues/2067) 迁入记忆文件、记忆演化和定时任务。[#2069](https://github.com/BotHarness/DeepSeekBot/issues/2069) 将浏览器控制与电脑控制迁入同一 Bot 专属频道工作区。临时文件、收件箱和成员区域尚未统一为持久化子面板布局。
 
 **Global workspace**：
-全局工作区。Bot mode 的外层呈现空间，包含 Workspace Control Rail、频道列表和活动中心等全局面板，以及唯一的消息面板。全局面板不依赖当前频道也具有独立用途。这是 UI 布局，不是 DSH Workspace、执行环境或权限边界。
+全局工作区。Bot mode 的外层呈现空间，包含 Workspace Control Rail、频道列表和「活动」等全局面板，以及唯一的消息面板。全局面板不依赖当前频道也具有独立用途。这是 UI 布局，不是 DSH Workspace、执行环境或权限边界。
 _避免使用_：App Sidebar、全局频道、根频道
 
 **Workspace Control Rail**：
@@ -1041,11 +1037,11 @@ _避免使用_：Computer、其它电脑、machine、server、peer
 _避免使用_：phone（指所有设备时）、session、Host
 
 **Host Feed**：
-一台 Host 向一个已认证客户端提供的全部实时状态：名单、头像、activity、未读、Human Inbox 和会话。每个客户端都通过同一个 Host Feed 读取每一台 Host，包括 This Host；新增要同步的状态，就是给 Host Feed 加一项。
+一台 Host 向一个已认证客户端提供的全部实时状态：名单、头像、activity、未读、Activity 和会话。每个客户端都通过同一个 Host Feed 读取每一台 Host，包括 This Host；新增要同步的状态，就是给 Host Feed 加一项。
 _避免使用_：sync、mirror、replica、bridge state
 
 **Device Notification Preference**：
-某个 Paired Device 希望某台 Host 就哪些 Human Inbox 项提醒它。偏好由设备拥有并保存；Host 只保留一份副本，用来决定给这台设备发什么。
+某个 Paired Device 希望某台 Host 就哪些 Activity 项提醒它。偏好由设备拥有并保存；Host 只保留一份副本，用来决定给这台设备发什么。
 _避免使用_：Host 通知设置、push settings、mute（指 Channel 时）
 
 **Bot Settings**：
@@ -1106,7 +1102,7 @@ _避免使用_：短网址、UTM 链接、邀请链接
 
 ### Sessions panel（会话面板）
 
-查看已有 Session 的唯一会话 surface（`sessions`，TextQuote 图标）；在两层目标布局中，它是消息面板内的 Channel subpanel（ADR-0221）。PersonaBot 私聊固定查看该 Bot；群聊默认查看「当前频道」，即原始 Source Event 属于该群的 Assignment，跨负责 Bot 展示。Human 可以明确选择可访问的群成员 Bot，查看其 Orchestrator 与 Assignment Session，且不改变当前聊天。范围是按频道保存的本地视图偏好，与历史筛选及工作区分组独立。它不创建 Assignment、不发送执行请求；唯一的执行控制是对运行中行的 Session Stop 和 Bot Stop。旧工作面板退役；活动中心仍负责 Human 待处理事项与审批。见 ADR-0220。
+查看已有 Session 的唯一会话 surface（`sessions`，TextQuote 图标）；在两层目标布局中，它是消息面板内的 Channel subpanel（ADR-0221）。PersonaBot 私聊固定查看该 Bot；群聊默认查看「当前频道」，即原始 Source Event 属于该群的 Assignment，跨负责 Bot 展示。Human 可以明确选择可访问的群成员 Bot，查看其 Orchestrator 与 Assignment Session，且不改变当前聊天。范围是按频道保存的本地视图偏好，与历史筛选及工作区分组独立。它不创建 Assignment、不发送执行请求；唯一的执行控制是对运行中行的 Session Stop 和 Bot Stop。旧工作面板退役；「活动」仍负责 Human 待处理事项与审批。见 ADR-0220。
 
 会话面板默认跟随当前频道时不重复显示范围标签；群聊范围选择收进视图选项菜单，仅显式指定 Bot 时在标题栏显示 `Bot · 名称`。
 

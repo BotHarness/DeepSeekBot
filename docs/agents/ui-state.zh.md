@@ -7,7 +7,7 @@
 ## 规则
 
 1. **按字段选择，并带类型。** 通过 `useClientStore(selector, equal)` 或 `useClientFields(keys)` 读取 store。选择器只返回组件读取的内容，类型为 `Pick<ClientState, ...>` 或一个小的派生值；`equal` 只比较这些字段（逐字段比较引用、`shallowEqual`，或 `sameBotFaces` 这类专用比较）。这就是 zustand 的选择器模式；`useClientStore` 实现了 DSH 的 `SnapshotSelectorHook`。
-2. **大的切片只选用到的部分。** `humanInbox`、`conversation`、`roster` 等对象会因为很多原因变化。只选子字段或派生值（例如 `state.humanInbox.channelUnread`，或 `resolveChannelSidebarContext(state)?.botSlug`），不要选整个对象。
+2. **大的切片只选用到的部分。** `activityList`、`conversation`、`roster` 等对象会因为很多原因变化。只选子字段或派生值（例如 `state.activityList.channelUnread`，或 `resolveChannelSidebarContext(state)?.botSlug`），不要选整个对象。
 3. **不要把整颗 state 往下传。** 需要 store 数据的子组件自己选择，或通过 props 接收具体的值。需要多个字段的函数，参数类型写成 `Pick<ClientState, ...>`（例如 `ConversationStateView`），这样类型检查会列出它读了哪些字段；如果新读了一个订阅方没选的字段，编译会直接报错。
 4. **保持选择稳定。** 选择器和字段列表定义在模块级或做 memo；组件显示的内容没变时返回原来的值。store 的 setter 会跳过没有任何变化的补丁，不要为了绕过它而强行创建新对象。
 5. **小的专用 store 不受此限。** 只保存某一个视图状态的专用 store（偏好设置、feed、controller 等）可以用 `useSyncExternalStore` 整体读取。

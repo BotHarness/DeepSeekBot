@@ -348,30 +348,30 @@ function stubActions(): BridgeActions {
     openActivityCenter: vi.fn(async () => undefined),
     attachActivityCenterPanel: vi.fn(() => () => undefined),
     activityPage: vi.fn(),
-    openHumanInbox: vi.fn(async () => undefined),
-    refreshHumanInboxStatus: vi.fn(async () => undefined),
-    refreshHumanInbox: vi.fn(async () => undefined),
-    setHumanInboxFilters: vi.fn(async () => undefined),
-    loadMoreHumanInbox: vi.fn(async () => undefined),
+    openActivityList: vi.fn(async () => undefined),
+    refreshActivityListStatus: vi.fn(async () => undefined),
+    refreshActivityList: vi.fn(async () => undefined),
+    setActivityListFilters: vi.fn(async () => undefined),
+    loadMoreActivityList: vi.fn(async () => undefined),
     ignoreHumanReport: vi.fn(async () => undefined),
     loadMoreBotInbox: vi.fn(async () => undefined),
     botInboxPage: vi.fn(async () => ({ items: [] })),
     openChannel: vi.fn(async () => undefined),
     openChannelAtMessage: vi.fn(async () => undefined),
-    dismissHumanInbox: vi.fn(async () => undefined),
-    dismissAllHumanInbox: vi.fn(async () => ({ dismissed: 0, more: false })),
+    dismissActivityList: vi.fn(async () => undefined),
+    dismissAllActivityList: vi.fn(async () => ({ dismissed: 0, more: false })),
     allowAutoRejectionOnce: vi.fn(async () => undefined),
-    snoozeHumanInbox: vi.fn(async () => undefined),
+    snoozeActivityList: vi.fn(async () => undefined),
     channelFilesPage: vi.fn(async () => ({ entries: [] })),
-    humanInboxContextPage: vi.fn(async () => ({
+    activityListContextPage: vi.fn(async () => ({
       entries: [],
       olderCursor: null,
       newerCursor: null,
       hasOlder: false,
       hasNewer: false,
     })),
-    humanInboxContext: vi.fn(async () => []),
-    replyFromHumanInbox: vi.fn(async () => {
+    activityListContext: vi.fn(async () => []),
+    replyFromActivityList: vi.fn(async () => {
       throw new Error('No reply expected');
     }),
     loadOlder: vi.fn(async () => undefined),
@@ -728,7 +728,7 @@ beforeEach(() => {
 
 afterEach(() => {
   captured.menus.length = 0;
-  store.setHumanInbox({ unreadCount: 0, hasAction: false, channelUnread: {} });
+  store.setActivityList({ unreadCount: 0, hasAction: false, channelUnread: {} });
   store.setMode('dsh');
   store.setQuery('');
   store.select(undefined);
@@ -922,12 +922,12 @@ describe('bot sidebar rows', () => {
       commits = 0;
       for (let n = 0; n < 5; n++)
         await act(() => {
-          store.setHumanInbox({ status: n % 2 === 0 ? 'ready' : 'loading', items: [] });
+          store.setActivityList({ status: n % 2 === 0 ? 'ready' : 'loading', items: [] });
           store.setConversation({ revision: n + 1 });
           store.setSessions({ ...store.getSnapshot().sessions });
         });
       expect(commits).toBe(0);
-      await act(() => store.setHumanInbox({ channelUnread: { [DM_CHANNEL.id]: 3 } }));
+      await act(() => store.setActivityList({ channelUnread: { [DM_CHANNEL.id]: 3 } }));
       expect(commits).toBeGreaterThan(0);
     } finally {
       await act(() => root.unmount());
@@ -1027,10 +1027,10 @@ describe('bot sidebar rows', () => {
     }
   });
 
-  it('keeps Activity Center out of the Channel roster in both layouts', () => {
+  it('keeps Activity out of the Channel roster in both layouts', () => {
     store.select({ kind: 'inbox' });
-    expect(renderSidebar()).not.toContain('bh-human-inbox-entry');
-    expect(renderSidebar(false)).not.toContain('bh-human-inbox-entry');
+    expect(renderSidebar()).not.toContain('bh-activity-list-entry');
+    expect(renderSidebar(false)).not.toContain('bh-activity-list-entry');
   });
 
   it('renders the glyph-free section header anatomy', () => {
@@ -1178,21 +1178,21 @@ describe('bot sidebar rows', () => {
       ],
     );
     expect(renderSidebar()).not.toContain('bh-unread-count');
-    store.setHumanInbox({ channelUnread: { [DM_CHANNEL.id]: 3 } });
+    store.setActivityList({ channelUnread: { [DM_CHANNEL.id]: 3 } });
     const wide = renderSidebar();
     expect(wide).toContain('bh-has-unread');
     expect(wide).toMatch(
       /<span class="bh-row-avatar">.*?<span class="bh-unread-count bh-unread-corner" aria-label="3 条未读">3<\/span><\/span>/u,
     );
     expect(wide).toContain('data-status="done-unread"');
-    store.setHumanInbox({ channelUnread: { [DM_CHANNEL.id]: 120 } });
+    store.setActivityList({ channelUnread: { [DM_CHANNEL.id]: 120 } });
     expect(renderSidebar(false)).toContain('>99+</span>');
   });
 
   it('greys a muted conversation and its unread count and marks it with a muted bell', () => {
     store.setRoster([BOT], [DM_CHANNEL]);
     setRoster({ muted: [DM_CHANNEL.id] });
-    store.setHumanInbox({ channelUnread: { [DM_CHANNEL.id]: 2 } });
+    store.setActivityList({ channelUnread: { [DM_CHANNEL.id]: 2 } });
     const markup = renderSidebar();
     expect(markup).toContain('bh-muted');
     expect(markup).toContain('aria-label="已免打扰"');

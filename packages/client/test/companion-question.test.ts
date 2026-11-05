@@ -284,7 +284,7 @@ it('keeps all question drafts through speech, reading, offline and current-state
     companion.dispose();
     node.remove();
     store.select(old.selection);
-    store.setHumanInbox(old.humanInbox);
+    store.setActivityList(old.activityList);
     vi.unstubAllGlobals();
   }
 });

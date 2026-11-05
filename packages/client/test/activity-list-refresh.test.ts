@@ -43,14 +43,14 @@ describe('Human Inbox pagination refresh', () => {
     ];
     const call: BridgeCall = async () => ({ ok: true, value: responses.shift() });
     const actions = createActions(call, clientStore);
-    await actions.refreshHumanInbox();
-    await actions.loadMoreHumanInbox();
-    await actions.refreshHumanInbox();
-    expect(clientStore.getSnapshot().humanInbox.items.map((row) => row.id)).not.toContain(
+    await actions.refreshActivityList();
+    await actions.loadMoreActivityList();
+    await actions.refreshActivityList();
+    expect(clientStore.getSnapshot().activityList.items.map((row) => row.id)).not.toContain(
       'resolved-elsewhere',
     );
-    expect(clientStore.getSnapshot().humanInbox.items.at(-1)?.id).toBe('still-live');
-    expect(clientStore.getSnapshot().humanInbox.nextCursor).toBeUndefined();
+    expect(clientStore.getSnapshot().activityList.items.at(-1)?.id).toBe('still-live');
+    expect(clientStore.getSnapshot().activityList.nextCursor).toBeUndefined();
   });
 
   it('rejects an unread summary without a committed anchor or positive count', async () => {
@@ -74,9 +74,9 @@ describe('Human Inbox pagination refresh', () => {
         ],
       },
     });
-    await createActions(call, clientStore).refreshHumanInbox('unread');
-    expect(clientStore.getSnapshot().humanInbox.status).toBe('error');
-    expect(clientStore.getSnapshot().humanInbox.items).toEqual([]);
+    await createActions(call, clientStore).refreshActivityList('unread');
+    expect(clientStore.getSnapshot().activityList.status).toBe('error');
+    expect(clientStore.getSnapshot().activityList.items).toEqual([]);
   });
   it('uses the Host status for the entry badge and refreshes it after a concrete read', async () => {
     const clientStore = createStore();
@@ -98,9 +98,12 @@ describe('Human Inbox pagination refresh', () => {
       throw new Error('Unexpected bridge call');
     };
     const actions = createActions(call, clientStore);
-    await actions.refreshHumanInboxStatus();
-    expect(clientStore.getSnapshot().humanInbox).toMatchObject({ unreadCount: 3, hasAction: true });
-    expect(clientStore.getSnapshot().humanInbox.channelUnread).toEqual({ 'group-team': 2 });
+    await actions.refreshActivityListStatus();
+    expect(clientStore.getSnapshot().activityList).toMatchObject({
+      unreadCount: 3,
+      hasAction: true,
+    });
+    expect(clientStore.getSnapshot().activityList.channelUnread).toEqual({ 'group-team': 2 });
     await actions.markRead('group-team', 'second');
     expect(calls.map((entry) => entry.endpoint)).toEqual([
       'humanAttentionStatus',
@@ -110,8 +113,8 @@ describe('Human Inbox pagination refresh', () => {
       'channelUnreadCounts',
     ]);
     expect(calls[2]?.payload).toEqual({ channelId: 'group-team', messageId: 'second' });
-    expect(clientStore.getSnapshot().humanInbox.unreadCount).toBe(1);
-    expect(clientStore.getSnapshot().humanInbox.channelUnread).toEqual({});
+    expect(clientStore.getSnapshot().activityList.unreadCount).toBe(1);
+    expect(clientStore.getSnapshot().activityList.channelUnread).toEqual({});
   });
   it('keeps loaded older items and their cursor across a background refresh', async () => {
     const clientStore = createStore();
@@ -125,10 +128,10 @@ describe('Human Inbox pagination refresh', () => {
     ];
     const call: BridgeCall = async () => ({ ok: true, value: responses.shift() });
     const actions = createActions(call, clientStore);
-    await actions.refreshHumanInbox();
-    await actions.loadMoreHumanInbox();
-    await actions.refreshHumanInbox();
-    const inbox = clientStore.getSnapshot().humanInbox;
+    await actions.refreshActivityList();
+    await actions.loadMoreActivityList();
+    await actions.refreshActivityList();
+    const inbox = clientStore.getSnapshot().activityList;
     expect(inbox.status).toBe('ready');
     expect(inbox.items).toHaveLength(52);
     expect(inbox.items[0]?.id).toBe('new');
@@ -161,11 +164,11 @@ describe('Human Inbox pagination refresh', () => {
         ? { ok: true, value: { accepted: true } }
         : { ok: true, value: responses.shift() };
     const actions = createActions(call, clientStore);
-    await actions.refreshHumanInbox('info');
-    await actions.loadMoreHumanInbox();
+    await actions.refreshActivityList('info');
+    await actions.loadMoreActivityList();
     await actions.ignoreHumanReport('old-ignored');
-    await actions.refreshHumanInbox();
-    const inbox = clientStore.getSnapshot().humanInbox;
+    await actions.refreshActivityList();
+    const inbox = clientStore.getSnapshot().activityList;
     expect(inbox.status).toBe('ready');
     expect(inbox.items.map((entry) => entry.sourceEventId)).not.toContain('old-ignored');
     expect(inbox.items.map((entry) => entry.sourceEventId)).toContain('old-kept');
@@ -186,12 +189,12 @@ describe('Human Inbox pagination refresh', () => {
     ];
     const call: BridgeCall = async () => ({ ok: true, value: await responses.shift()! });
     const actions = createActions(call, clientStore);
-    await actions.refreshHumanInbox();
-    const loadMore = actions.loadMoreHumanInbox();
-    await actions.refreshHumanInbox();
+    await actions.refreshActivityList();
+    const loadMore = actions.loadMoreActivityList();
+    await actions.refreshActivityList();
     older.resolve({ items: [item('id-50')], nextCursor: 'cursor-2' });
     await loadMore;
-    const inbox = clientStore.getSnapshot().humanInbox;
+    const inbox = clientStore.getSnapshot().activityList;
     expect(inbox.items.map((entry) => entry.id)).toContain('id-50');
     expect(inbox.nextCursor).toBe('cursor-2');
   });
@@ -199,7 +202,7 @@ describe('Human Inbox pagination refresh', () => {
   it('bounds automatic reconciliation to three canonical pages and keeps a current load-more cursor', async () => {
     const clientStore = createStore();
     clientStore.select({ kind: 'inbox' });
-    clientStore.setHumanInbox({
+    clientStore.setActivityList({
       status: 'ready',
       items: Array.from({ length: 240 }, (_, i) => item('old-' + i)),
       nextCursor: 'old-cursor',
@@ -217,13 +220,13 @@ describe('Human Inbox pagination refresh', () => {
       };
     };
     const actions = createActions(call, clientStore);
-    await actions.refreshHumanInbox();
+    await actions.refreshActivityList();
     expect(requests).toHaveLength(3);
-    expect(clientStore.getSnapshot().humanInbox.items).toHaveLength(150);
-    expect(clientStore.getSnapshot().humanInbox.nextCursor).toBe('fresh-3');
-    await actions.loadMoreHumanInbox();
+    expect(clientStore.getSnapshot().activityList.items).toHaveLength(150);
+    expect(clientStore.getSnapshot().activityList.nextCursor).toBe('fresh-3');
+    await actions.loadMoreActivityList();
     expect(requests.at(-1)?.['cursor']).toBe('fresh-3');
-    expect(clientStore.getSnapshot().humanInbox.items).toHaveLength(200);
+    expect(clientStore.getSnapshot().activityList.items).toHaveLength(200);
   });
 
   it.each(['poll-first', 'page-first', 'poll-finishes-first'] as const)(
@@ -232,7 +235,7 @@ describe('Human Inbox pagination refresh', () => {
       const clientStore = createStore();
       clientStore.select({ kind: 'inbox' });
       const first = Array.from({ length: 150 }, (_, i) => item('old-' + i));
-      clientStore.setHumanInbox({ status: 'ready', items: first, nextCursor: 'older' });
+      clientStore.setActivityList({ status: 'ready', items: first, nextCursor: 'older' });
       const refresh = deferred<HumanAttentionPage>(),
         older = deferred<HumanAttentionPage>();
       const calls: Record<string, unknown>[] = [];
@@ -244,10 +247,11 @@ describe('Human Inbox pagination refresh', () => {
         };
       };
       const actions = createActions(call, clientStore);
-      const poll = order !== 'page-first' ? actions.refreshHumanInbox(undefined, true) : undefined;
-      const more = actions.loadMoreHumanInbox();
+      const poll =
+        order !== 'page-first' ? actions.refreshActivityList(undefined, true) : undefined;
+      const more = actions.loadMoreActivityList();
       const laterPoll =
-        order === 'page-first' ? actions.refreshHumanInbox(undefined, true) : undefined;
+        order === 'page-first' ? actions.refreshActivityList(undefined, true) : undefined;
       if (order === 'poll-finishes-first') {
         refresh.resolve({ items: first.slice(0, 50), nextCursor: 'head' });
         await poll;
@@ -257,9 +261,9 @@ describe('Human Inbox pagination refresh', () => {
       refresh.resolve({ items: first.slice(0, 50), nextCursor: 'head' });
       await poll;
       await laterPoll;
-      expect(clientStore.getSnapshot().humanInbox.items).toHaveLength(151);
-      expect(clientStore.getSnapshot().humanInbox.items.at(-1)?.id).toBe('deep');
-      expect(clientStore.getSnapshot().humanInbox.nextCursor).toBe('deep-cursor');
+      expect(clientStore.getSnapshot().activityList.items).toHaveLength(151);
+      expect(clientStore.getSnapshot().activityList.items.at(-1)?.id).toBe('deep');
+      expect(clientStore.getSnapshot().activityList.nextCursor).toBe('deep-cursor');
       expect(calls.filter((call) => call['cursor'] === undefined)).toHaveLength(
         order === 'page-first' ? 0 : 1,
       );
@@ -275,7 +279,7 @@ describe('Human Inbox pagination refresh', () => {
       return { ok: true, value: { items: [] } };
     };
     const actions = createActions(call, clientStore);
-    await actions.setHumanInboxFilters({
+    await actions.setActivityListFilters({
       botSlug: 'ada',
       channelId: 'group-team',
       sort: 'oldest',
@@ -286,14 +290,14 @@ describe('Human Inbox pagination refresh', () => {
       channelId: 'group-team',
       sort: 'oldest',
     });
-    await actions.refreshHumanInbox('info');
+    await actions.refreshActivityList('info');
     expect(requests.at(-1)).toMatchObject({
       category: 'info',
       botSlug: 'ada',
       sort: 'newest',
     });
     expect(requests.at(-1)?.['channelId']).toBeUndefined();
-    expect(clientStore.getSnapshot().humanInbox.channelId).toBeUndefined();
+    expect(clientStore.getSnapshot().activityList.channelId).toBeUndefined();
   });
 
   it('discards a stale response after filters change', async () => {
@@ -303,16 +307,16 @@ describe('Human Inbox pagination refresh', () => {
     const responses = [stale.promise, Promise.resolve({ items: [] })];
     const call: BridgeCall = async () => ({ ok: true, value: await responses.shift()! });
     const actions = createActions(call, clientStore);
-    const first = actions.refreshHumanInbox();
-    await actions.setHumanInboxFilters({
+    const first = actions.refreshActivityList();
+    await actions.setActivityListFilters({
       botSlug: 'ada',
       channelId: undefined,
       sort: 'oldest',
     });
     stale.resolve({ items: [item('stale')] });
     await first;
-    expect(clientStore.getSnapshot().humanInbox.items).toEqual([]);
-    expect(clientStore.getSnapshot().humanInbox.sort).toBe('oldest');
+    expect(clientStore.getSnapshot().activityList.items).toEqual([]);
+    expect(clientStore.getSnapshot().activityList.sort).toBe('oldest');
   });
 
   it('discards an old category response after switching category', async () => {
@@ -322,12 +326,12 @@ describe('Human Inbox pagination refresh', () => {
     const responses = [old.promise, Promise.resolve({ items: [], nextCursor: undefined })];
     const call: BridgeCall = async () => ({ ok: true, value: await responses.shift()! });
     const actions = createActions(call, clientStore);
-    const before = actions.refreshHumanInbox();
-    await actions.refreshHumanInbox('info');
+    const before = actions.refreshActivityList();
+    await actions.refreshActivityList('info');
     old.resolve({ items: [item('stale')] });
     await before;
-    expect(clientStore.getSnapshot().humanInbox.category).toBe('info');
-    expect(clientStore.getSnapshot().humanInbox.items).toEqual([]);
+    expect(clientStore.getSnapshot().activityList.category).toBe('info');
+    expect(clientStore.getSnapshot().activityList.items).toEqual([]);
   });
 });
 
@@ -351,15 +355,15 @@ it('refreshes the entry status when a committed roster mute changes without open
     throw new Error('Unexpected endpoint: ' + endpoint);
   };
   const actions = createActions(call, clientStore);
-  await actions.refreshHumanInboxStatus();
-  expect(clientStore.getSnapshot().humanInbox.unreadCount).toBe(4);
+  await actions.refreshActivityListStatus();
+  expect(clientStore.getSnapshot().activityList.unreadCount).toBe(4);
   expect(await actions.setChannelMuted('quiet', true)).toBe(true);
-  await vi.waitFor(() => expect(clientStore.getSnapshot().humanInbox.unreadCount).toBe(1));
-  expect(clientStore.getSnapshot().humanInbox).toMatchObject({
+  await vi.waitFor(() => expect(clientStore.getSnapshot().activityList.unreadCount).toBe(1));
+  expect(clientStore.getSnapshot().activityList).toMatchObject({
     hasAction: true,
     channelUnread: { quiet: 3 },
   });
   muted = [];
   await actions.refreshRoster();
-  await vi.waitFor(() => expect(clientStore.getSnapshot().humanInbox.unreadCount).toBe(4));
+  await vi.waitFor(() => expect(clientStore.getSnapshot().activityList.unreadCount).toBe(4));
 });

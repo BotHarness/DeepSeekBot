@@ -1,15 +1,18 @@
 import type { HumanAttentionItem } from './store.js';
 
-export type HumanInboxSnoozeChoice = 'hour' | 'evening' | 'tomorrow' | 'week';
+export type ActivityListSnoozeChoice = 'hour' | 'evening' | 'tomorrow' | 'week';
 
-export const HUMAN_INBOX_SNOOZE_CHOICES: readonly HumanInboxSnoozeChoice[] = [
+export const HUMAN_INBOX_SNOOZE_CHOICES: readonly ActivityListSnoozeChoice[] = [
   'hour',
   'evening',
   'tomorrow',
   'week',
 ];
 
-export function humanInboxSnoozeUntil(choice: HumanInboxSnoozeChoice, now: Date): Date | undefined {
+export function activityListSnoozeUntil(
+  choice: ActivityListSnoozeChoice,
+  now: Date,
+): Date | undefined {
   if (choice === 'hour') return new Date(now.getTime() + 60 * 60 * 1000);
   const at = new Date(now);
   if (choice === 'evening') {
@@ -22,7 +25,7 @@ export function humanInboxSnoozeUntil(choice: HumanInboxSnoozeChoice, now: Date)
   return at;
 }
 
-export function canSnoozeHumanInboxItem(item: HumanAttentionItem): boolean {
+export function canSnoozeActivityListItem(item: HumanAttentionItem): boolean {
   return (
     item.kind !== 'channel-unread' && item.category !== 'unread' && item.category !== 'handled'
   );

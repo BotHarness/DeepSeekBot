@@ -94,14 +94,14 @@ type Phase =
   | 'revision'
   | 'unrelated-activity'
   | 'own-activity'
-  | 'human-inbox'
+  | 'activity-list'
   | 'search';
 const PHASES: readonly Phase[] = [
   'stream',
   'revision',
   'unrelated-activity',
   'own-activity',
-  'human-inbox',
+  'activity-list',
   'search',
 ];
 const FRAMES = 40;
@@ -139,7 +139,7 @@ const workload: Record<Phase, (n: number) => void> = {
   revision: (n) => store.setConversation({ revision: n + 1 }),
   'unrelated-activity': (n) => activity('cy', n),
   'own-activity': (n) => activity('ada', n),
-  'human-inbox': (n) => store.setHumanInbox({ unreadCount: n + 1 }),
+  'activity-list': (n) => store.setActivityList({ unreadCount: n + 1 }),
   search: (n) => store.setQuery('a'.repeat((n % 5) + 1)),
 };
 
@@ -221,7 +221,7 @@ describe('Channel sidebar render benchmark', () => {
     const counters = await run('dm', 'personabot', DM);
     expect(total(counters, 'stream')).toBe(0);
     expect(total(counters, 'unrelated-activity')).toBe(0);
-    expect(total(counters, 'human-inbox')).toBe(0);
+    expect(total(counters, 'activity-list')).toBe(0);
     expect(total(counters, 'search')).toBe(0);
   });
 
@@ -229,7 +229,7 @@ describe('Channel sidebar render benchmark', () => {
     const counters = await run('group', 'channel', GROUP);
     expect(total(counters, 'stream')).toBe(0);
     expect(total(counters, 'unrelated-activity')).toBe(0);
-    expect(total(counters, 'human-inbox')).toBe(0);
+    expect(total(counters, 'activity-list')).toBe(0);
     expect(total(counters, 'search')).toBe(0);
   });
 

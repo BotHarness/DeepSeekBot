@@ -33,29 +33,29 @@ export const INBOX_COMMANDS = [
     description: 'approve persistent read/write for one workspace request (needs --confirm)',
   },
   {
-    command: 'inbox-watch',
-    description: 'observe live inbox changes for a bounded time and return one JSON snapshot',
+    command: 'activity-watch',
+    description: 'observe live Activity changes for a bounded time and return one JSON snapshot',
   },
-  { command: 'inbox', description: 'list Human Inbox items by category, Bot or Channel' },
-  { command: 'inbox-status', description: 'read the Human Inbox unread count and action flag' },
-  { command: 'inbox-dismiss', description: 'dismiss one Human Inbox item' },
-  { command: 'inbox-restore', description: 'bring back one dismissed Human Inbox item' },
+  { command: 'activity', description: 'list Activity items by category, Bot or Channel' },
+  { command: 'activity-status', description: 'read Activity unread count and action flag' },
+  { command: 'activity-dismiss', description: 'dismiss one Activity item' },
+  { command: 'activity-restore', description: 'bring back one dismissed Activity item' },
   {
-    command: 'inbox-dismiss-all',
-    description: 'dismiss every Human Inbox item, or every item of one kind (needs --confirm)',
+    command: 'activity-dismiss-all',
+    description: 'dismiss every Activity item, or every item of one kind (needs --confirm)',
   },
   {
-    command: 'inbox-allow-once',
-    description: 'allow one auto-rejected call once anyway, from its Human Inbox item',
+    command: 'activity-allow-once',
+    description: 'allow one auto-rejected call once anyway, from its Activity item',
   },
-  { command: 'inbox-ignore', description: 'ignore an informational assignment report' },
+  { command: 'activity-ignore', description: 'ignore an informational assignment report' },
   {
-    command: 'inbox-snooze',
-    description: 'hide one Human Inbox item until a later time, or bring it back',
+    command: 'activity-snooze',
+    description: 'hide one Activity item until a later time, or bring it back',
   },
   {
     command: 'assignment-context',
-    description: "read an assignment report's context from the Human Inbox",
+    description: "read an assignment report's context from Activity",
   },
   {
     command: 'assignments',
@@ -155,8 +155,30 @@ function usage(message: string): never {
   throw new CliLiveError('usage', message);
 }
 
+const ACTIVITY_COMMAND_NAMES: Readonly<Record<string, string>> = {
+  activity: 'inbox',
+  'activity-watch': 'inbox-watch',
+  'activity-status': 'inbox-status',
+  'activity-dismiss': 'inbox-dismiss',
+  'activity-restore': 'inbox-restore',
+  'activity-dismiss-all': 'inbox-dismiss-all',
+  'activity-allow-once': 'inbox-allow-once',
+  'activity-ignore': 'inbox-ignore',
+  'activity-snooze': 'inbox-snooze',
+};
+const LEGACY_INBOX_COMMANDS: ReadonlySet<string> = new Set(Object.values(ACTIVITY_COMMAND_NAMES));
+
+export function isActivityCommandName(command: string): boolean {
+  return LEGACY_INBOX_COMMANDS.has(command) || ACTIVITY_COMMAND_NAMES[command] !== undefined;
+}
+
+function inboxCommandName(command: string): string {
+  return ACTIVITY_COMMAND_NAMES[command] ?? command;
+}
+
 export function isInboxCommand(command: string): boolean {
   return (
+    LEGACY_INBOX_COMMANDS.has(command) ||
     INBOX_COMMANDS.some((entry) => entry.command === command) ||
     INBOX_HOST_COMMANDS.some((entry) => entry === command)
   );
@@ -191,13 +213,14 @@ function confirmed(command: string, values: InboxValues): void {
 }
 
 export async function runInboxCommand(
-  command: string,
+  name: string,
   rest: string[],
   values: InboxValues,
   connect: () => Promise<{ rpc: Rpc; stream?: (path: string) => Promise<Response> }>,
 ): Promise<unknown> {
+  const command = inboxCommandName(name);
   if (command === 'inbox-watch' && values.notifications)
-    usage('Use inbox --notifications with its returned cursor.');
+    usage('Use activity --notifications with its returned cursor.');
   const call = prepare(command === 'inbox-watch' ? 'inbox' : command, rest, values);
   if (command === 'inbox-watch') {
     const seconds = Number(values['watch-seconds'] ?? 10);
@@ -274,7 +297,7 @@ function prepare(
       if (values.kind !== undefined && values.kind !== 'auto-rejection')
         usage('--kind must be auto-rejection.');
       if (values.snoozed === true && values.dismissed === true)
-        usage('inbox takes --snoozed or --dismissed, not both.');
+        usage('activity takes --snoozed or --dismissed, not both.');
       const limit = values.limit === undefined ? undefined : Number(values.limit);
       if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 100))
         usage('--limit must be 1–100.');
@@ -327,7 +350,7 @@ function prepare(
     case 'inbox-allow-once': {
       const [itemId] = positionals(command, rest, 1, 'exactly one auto-rejection item id');
       if (!itemId!.startsWith('autoreject:'))
-        usage('inbox-allow-once takes an auto-rejection item id (autoreject:…).');
+        usage('activity-allow-once takes an auto-rejection item id (autoreject:…).');
       return { method: 'toolAutoRejectionOverride', args: { itemId } };
     }
     case 'inbox-status':
@@ -343,7 +366,7 @@ function prepare(
     case 'inbox-dismiss-all': {
       positionals(command, rest, 0, '');
       if (values.confirm !== true)
-        usage('inbox-dismiss-all clears many items at once; pass --confirm.');
+        usage('activity-dismiss-all clears many items at once; pass --confirm.');
       if (
         values.category !== undefined &&
         !['action', 'info', 'unread', 'replies'].includes(values.category)
@@ -371,7 +394,7 @@ function prepare(
     case 'inbox-snooze': {
       const [itemId] = positionals(command, rest, 1, 'exactly one inbox item id');
       if ((values.until !== undefined) === (values.clear === true))
-        usage('inbox-snooze needs --until <ISO time> or --clear, not both or neither.');
+        usage('activity-snooze needs --until <ISO time> or --clear, not both or neither.');
       let until: string | null = null;
       if (values.until !== undefined) {
         const at = Date.parse(values.until.trim());

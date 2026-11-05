@@ -3,7 +3,7 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
-  ...(await import('./human-inbox-test-controls.js')),
+  ...(await import('./activity-list-test-controls.js')),
   Button: ({ children, ...props }: { children: ReactNode }) =>
     createElement('button', props, children),
   MarkdownText: () => null,
@@ -12,8 +12,8 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
 }));
 import { createActions } from '../src/client/actions.js';
 import type { BridgeCall } from '../src/client/bridge.js';
-import { HumanInboxReply } from '../src/client/human-inbox-reply.js';
-import { HumanInboxDismiss } from '../src/client/human-inbox-detail-controls.js';
+import { ActivityListReply } from '../src/client/activity-list-reply.js';
+import { ActivityListDismiss } from '../src/client/activity-list-detail-controls.js';
 import { createStore, type ChannelMessage, type HumanAttentionItem } from '../src/client/store.js';
 import { zhTranslate } from '../src/client/locale.js';
 afterEach(() => vi.unstubAllGlobals());
@@ -95,11 +95,11 @@ describe('Inbox detail context controls', () => {
         row.getAttribute('data-message-id'),
       );
     const edge = (direction: string) =>
-      host.querySelector<HTMLButtonElement>('.bh-human-inbox-context-' + direction)!;
+      host.querySelector<HTMLButtonElement>('.bh-activity-list-context-' + direction)!;
     try {
       await act(async () =>
         root.render(
-          createElement(HumanInboxReply, {
+          createElement(ActivityListReply, {
             source,
             actions,
             t: zhTranslate,
@@ -148,7 +148,7 @@ describe('Inbox detail context controls', () => {
       await act(async () =>
         host
           .querySelector<HTMLButtonElement>(
-            '[data-message-id="old3"] .bh-human-inbox-message-source',
+            '[data-message-id="old3"] .bh-activity-list-message-source',
           )!
           .click(),
       );
@@ -181,7 +181,7 @@ describe('Inbox detail context controls', () => {
     try {
       await act(async () =>
         root.render(
-          createElement(HumanInboxDismiss, { source, actions, t: zhTranslate, onClose: close }),
+          createElement(ActivityListDismiss, { source, actions, t: zhTranslate, onClose: close }),
         ),
       );
       await act(async () => host.querySelector('button')!.click());
