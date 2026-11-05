@@ -90,7 +90,7 @@ public final class LanChannelModule: Module {
         }
       }
       connection.start(queue: queue)
-      queue.asyncAfter(deadline: .now() + 1.5) { settle(denied() ? "denied" : "unknown") }
+      queue.asyncAfter(deadline: .now() + 1.5) { settle(denied() ? "denied" : "unreachable") }
     }
     OnDestroy {
       self.lock.lock()

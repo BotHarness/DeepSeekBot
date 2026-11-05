@@ -247,9 +247,25 @@ describe('encrypted redemption', () => {
     ).toEqual({
       ok: false,
       code: 'unreachable',
-      detail: 'lan:channel-handshake-failed,connect:socket-error',
+      detail: 'lan:channel-handshake-failed:tcp-open,connect:socket-error',
     });
     expect(opened).toEqual([LAN, CONNECT]);
+  });
+
+  it('names a local address the phone cannot reach over TCP', async () => {
+    const { carrier } = closingCarrier({
+      [LAN]: 'channel-handshake-failed',
+      [CONNECT]: 'socket error',
+    });
+    expect(
+      await redeemPairing({
+        payload: payload([LAN, CONNECT]),
+        deviceName: 'Phone',
+        carrier: { ...carrier, localNetworkStatus: async () => 'unreachable' as const },
+        lanRetryDelayMs: 1,
+        confirmFingerprint: async () => true,
+      }),
+    ).toMatchObject({ detail: 'lan:channel-handshake-failed:tcp-closed,connect:socket-error' });
   });
 
   it('does not retry the local path after an ordinary local failure', async () => {

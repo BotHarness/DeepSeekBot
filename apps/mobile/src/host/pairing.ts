@@ -10,7 +10,7 @@ import {
 import { isConnectRoute, isEncryptedRoute, isLanRoute } from './route';
 import { channelFailureDetail, joinFailureDetails } from './pairing-detail';
 import type { HostEncryption } from './hosts';
-import type { HostCarrier } from './carrier';
+import type { HostCarrier, LocalNetworkStatus } from './carrier';
 import { checkRoute } from './route';
 import type { ConnectRefusal } from './connect-account';
 import type { SavedHost } from './hosts';
@@ -572,14 +572,7 @@ function redeemEncryptedRoute(
       if (probing) return;
       probing = true;
       void probe(route).then(
-        (status) =>
-          finish(
-            channelFailure(
-              route,
-              status === 'denied' ? 'lan-unreachable:local-network-denied' : reason,
-              authenticated,
-            ),
-          ),
+        (status) => finish(channelFailure(route, probedReason(reason, status), authenticated)),
         () => finish(channelFailure(route, reason, authenticated)),
       );
     };
@@ -651,6 +644,12 @@ function redeemEncryptedRoute(
       (error: unknown) => fail(error instanceof Error ? error.message : 'channel-disconnected'),
     );
   });
+}
+
+function probedReason(reason: string, status: LocalNetworkStatus): string {
+  if (status === 'denied') return 'lan-unreachable:local-network-denied';
+  if (status === 'unknown' || reason.includes(':')) return reason;
+  return `${reason}:${status === 'reachable' ? 'tcp-open' : 'tcp-closed'}`;
 }
 
 export function channelFailure(
