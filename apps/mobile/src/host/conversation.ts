@@ -623,6 +623,7 @@ export function createConversation(options: ConversationOptions): Conversation {
   let hasOlder = false;
   let loadingOlderSession: number | undefined;
   let olderError = false;
+  let olderOffline = false;
   let fromCache = false;
   let status: ConversationStatus = 'opening';
   let reason: string | undefined;
@@ -984,6 +985,7 @@ export function createConversation(options: ConversationOptions): Conversation {
       if (current !== session) return;
       fromCache = false;
       status = 'live';
+      if (olderOffline) olderError = olderOffline = false;
       reason = undefined;
     } else if (frame.type === 'entry') {
       const entry = frame.entry;
@@ -1220,8 +1222,8 @@ export function createConversation(options: ConversationOptions): Conversation {
       draftTimer = undefined;
     },
     async loadOlder() {
-      if (loadingOlderSession === session || !hasOlder || window.length === 0 || fromCache) return;
-      if (status !== 'live') return;
+      if (loadingOlderSession === session || !hasOlder || window.length === 0) return;
+      const offline = fromCache || status !== 'live';
       const current = session;
       const before = first();
       const generation = windowGeneration;
@@ -1241,6 +1243,10 @@ export function createConversation(options: ConversationOptions): Conversation {
         if (local !== undefined) {
           window = [...local.entries, ...window];
           hasOlder = local.hasOlder;
+          return;
+        }
+        if (offline) {
+          olderError = olderOffline = true;
           return;
         }
         const page = await readPage(last(), before, olderPageSize);
