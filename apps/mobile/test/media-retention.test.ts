@@ -20,7 +20,7 @@ function memoryStore(files: Record<string, { size: number; modified: number }>, 
   let saved = settings;
   const store: MediaStore = {
     uri: (key) => (disk.has(key) ? `file:///${key}` : undefined),
-    write: (key, bytes) => {
+    write: async (key, bytes) => {
       disk.set(key, { size: bytes.length, modified: Date.now() });
       return `file:///${key}`;
     },
