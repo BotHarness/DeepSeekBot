@@ -1433,6 +1433,7 @@ describe('barge-in while the Bot speaks', () => {
     const events = (await view(h, callId, before)).events;
     expect(types(events)).not.toContain('barge-dismissed');
     expect(h.sent.at(-1)?.body).toBe('停');
+    expect(state.gains).toEqual([0.3, 1]);
   });
 
   it('stops for a short command once its transcript has two real words', async () => {

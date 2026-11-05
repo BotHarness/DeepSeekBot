@@ -1608,8 +1608,10 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         call.barge = undefined;
         if (suspected) dismiss(call, 'ended');
       } else {
-        const gated = call.barge?.state === 'suspected' && talking(call);
+        const suspected = call.barge?.state === 'suspected';
+        const gated = suspected && talking(call);
         call.barge = undefined;
+        if (suspected && !gated) setGain(call, 1);
         if (!gated) acknowledge(call);
         transcribe(
           call,
