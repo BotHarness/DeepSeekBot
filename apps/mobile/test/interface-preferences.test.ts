@@ -56,7 +56,7 @@ describe('phone interface preferences', () => {
       language: 'system',
       appearance: 'system',
       inAppAlerts: true,
-      inAppAlertStyle: 'inline',
+      inAppAlertStyle: 'overlay',
     });
   });
 
@@ -119,7 +119,7 @@ describe('phone interface preferences', () => {
       language: 'zh',
       appearance: 'dark',
       inAppAlerts: true,
-      inAppAlertStyle: 'inline',
+      inAppAlertStyle: 'overlay',
     });
   });
 
@@ -150,12 +150,31 @@ describe('phone interface preferences', () => {
     expect(restarted.getSnapshot().inAppAlertStyle).toBe('overlay');
   });
 
-  it('defaults unsupported saved styles to inserted presentation', async () => {
+  it('defaults unsupported saved styles to overlay presentation', async () => {
     const preferences = createInterfacePreferences();
     await preferences.restore({
       read: async () => ({ inAppAlertStyle: 'system-push' }),
       write() {},
     });
-    expect(preferences.getSnapshot().inAppAlertStyle).toBe('inline');
+    expect(preferences.getSnapshot().inAppAlertStyle).toBe('overlay');
+  });
+});
+
+it.each(['inline', 'overlay'] as const)('retains the explicitly saved %s style', async (style) => {
+  const preferences = createInterfacePreferences();
+  await preferences.restore({ read: async () => ({ inAppAlertStyle: style }), write() {} });
+  expect(preferences.getSnapshot().inAppAlertStyle).toBe(style);
+});
+it('uses overlay for a new install and old settings without a style', async () => {
+  const preferences = createInterfacePreferences();
+  expect(preferences.getSnapshot().inAppAlertStyle).toBe('overlay');
+  await preferences.restore({
+    read: async () => ({ language: 'zh', inAppAlerts: false }),
+    write() {},
+  });
+  expect(preferences.getSnapshot()).toMatchObject({
+    inAppAlertStyle: 'overlay',
+    language: 'zh',
+    inAppAlerts: false,
   });
 });

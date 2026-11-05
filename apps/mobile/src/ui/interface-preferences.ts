@@ -26,7 +26,7 @@ export function createInterfacePreferences() {
     language: 'system',
     appearance: 'system',
     inAppAlerts: true,
-    inAppAlertStyle: 'inline',
+    inAppAlertStyle: 'overlay',
   };
   let snapshot = { ...value, locale: system, loaded: false, storageError: false };
   let storage: InterfaceStorage | undefined;

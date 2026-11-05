@@ -94,7 +94,7 @@ it('restores before showing content, updates native appearance and refreshes sys
       language: 'en',
       appearance: 'system',
       inAppAlerts: true,
-      inAppAlertStyle: 'inline',
+      inAppAlertStyle: 'overlay',
     });
   } finally {
     await act(async () => root.unmount());
