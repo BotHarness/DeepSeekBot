@@ -1,4 +1,5 @@
 import { Context } from '@deepseek-ai/cordis';
+import { resolve } from 'node:path';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import { createScope } from '@deepseek-ai/dsh-scope';
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools';
@@ -74,9 +75,14 @@ describe('secret input capability boundary', () => {
     expect(f.guard({ name: 'bash', arguments: { command: 'cat ~/.dsh/.cred*' } })).toContain(
       denied,
     );
-    expect(f.guard({ name: 'bash', arguments: { command: 'ls -la /qa/dsh-home' } })).toContain(
-      denied,
-    );
+    expect(
+      f.guard({ name: 'bash', arguments: { command: `ls -la '${resolve('/qa/dsh-home')}'` } }),
+    ).toContain(denied);
+    for (const name of ['bash', 'pwsh']) {
+      expect(
+        f.guard({ name, arguments: { command: `echo '${resolve('/qa/dsh-home')}'` } }),
+      ).toBeUndefined();
+    }
     expect(
       f.guard({ name: 'bash', arguments: { command: 'ls /qa/dsh-home/botharness/bots' } }),
     ).toBeUndefined();
