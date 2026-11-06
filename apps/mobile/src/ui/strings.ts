@@ -981,6 +981,13 @@ const en = {
   pasteLink: 'Or paste the pairing link',
   pasteLinkHint: 'In the code window on your computer, choose Copy pairing link.',
   pair: 'Pair',
+  backgroundCatchUpFixture: {
+    title: 'Background catch-up test',
+    run: 'Run background catch-up now',
+    notice: 'Development builds only. Runs the same task iOS schedules in the background.',
+    started: 'Background catch-up started.',
+    unavailable: 'This build cannot start background tasks for testing.',
+  },
   accountFixture: {
     title: 'Account action test',
     reset: 'Reset test account',
@@ -3221,6 +3228,13 @@ const zh: typeof en = {
   pasteLink: '或粘贴配对链接',
   pasteLinkHint: '在电脑的二维码窗口点「复制配对链接」。',
   pair: '配对',
+  backgroundCatchUpFixture: {
+    title: '后台同步测试',
+    run: '立即运行后台同步',
+    notice: '仅限开发版本。运行的是 iOS 在后台调度的同一个任务。',
+    started: '后台同步已开始。',
+    unavailable: '这个版本无法为测试启动后台任务。',
+  },
   accountFixture: {
     title: '账号操作测试',
     reset: '重置测试账号',

@@ -34,6 +34,7 @@ import { installPurgeTargets } from '../src/host/purge-caches';
 import { installHostStoreOpener, retryHostStoreDeletes } from '../src/host/host-store';
 import { nativeHostStoreOpener } from '../src/host/native-local-store';
 import { nativePurgeTargets } from '../src/host/native-purge-targets';
+import { nativeBackgroundCatchUp } from '../src/host/native-background-support';
 import { HostAccentProvider } from '../src/ui/shell/host-accent-provider';
 import { useDesignTheme } from '../src/ui/design/theme';
 import { useStrings } from '../src/ui/strings';
@@ -44,6 +45,7 @@ installMediaStore(nativeMediaStore);
 installHostStoreOpener(nativeHostStoreOpener);
 void retryHostStoreDeletes();
 installPurgeTargets(nativePurgeTargets);
+nativeBackgroundCatchUp?.scheduleBackgroundCatchUp();
 setTimeout(() => {
   runAutoCleanup();
   setInterval(() => runAutoCleanup(), 24 * 60 * 60 * 1000);

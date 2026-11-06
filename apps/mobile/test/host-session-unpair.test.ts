@@ -27,6 +27,7 @@ let savedFilter = 'all';
 
 vi.mock('expo-secure-store', () => ({
   WHEN_UNLOCKED_THIS_DEVICE_ONLY: 0,
+  AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY: 1,
   getItemAsync: async (key: string) => {
     await beforeRead?.(key);
     return secure.get(key) ?? null;
