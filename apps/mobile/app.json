@@ -35,6 +35,7 @@
     "plugins": [
       ["expo-localization", { "supportedLocales": ["en", "zh-Hans"], "supportsRTL": false }],
       "./with-lan-channel",
+      "./with-scheduler-lifetime",
       "expo-router",
       [
         "expo-splash-screen",

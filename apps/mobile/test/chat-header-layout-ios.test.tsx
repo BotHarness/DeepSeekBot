@@ -82,7 +82,9 @@ vi.mock('@expo/ui/swift-ui', () => ({
   ...nativeViews,
   RNHostView: ({ children }: { children: ReactNode }) => children,
   HStack: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  Image: ({ systemName }: { systemName: string }) => <i data-symbol={systemName} />,
+  Image: ({ systemName, size }: { systemName: string; size: number }) => (
+    <i data-symbol={systemName} data-symbol-size={size} />
+  ),
   Button: ({
     children,
     modifiers,
@@ -128,8 +130,14 @@ vi.mock('../src/ui/chat/header-chrome', () => ({
   titleChipFill: () => ({}),
   HeaderBackButton: () => null,
 }));
-vi.mock('../src/ui/bot-avatar', () => ({ BotAvatar: () => null }));
-vi.mock('../src/ui/chat/group-mark', () => ({ GroupMark: () => null }));
+vi.mock('../src/ui/bot-avatar', () => ({
+  BotAvatar: ({ size }: { size: number }) => <i data-avatar-size={size} />,
+}));
+vi.mock('../src/ui/chat/group-mark', () => ({
+  GroupMark: ({ size, labelScale }: { size: number; labelScale: number }) => (
+    <i data-avatar-size={size} data-label-scale={labelScale} />
+  ),
+}));
 vi.mock('../src/ui/primitives/loading-indicator', () => ({ LoadingIndicator: () => null }));
 
 import { NativePageHeader } from '../src/ui/primitives/native-page-navigation.ios';
@@ -178,6 +186,10 @@ describe('iOS chat header size contract', () => {
         expect(html).toContain('data-native-title="true"');
         expect(html).not.toContain('data-system-glass="true"');
         expect(html).not.toContain('&quot;type&quot;:&quot;button&quot;');
+        const scale = Math.min(device.scale, 1.35);
+        expect(html).toContain(`data-avatar-size="${28 * scale}"`);
+        expect(html).toContain(`data-symbol-size="${22 * scale}"`);
+        if (group) expect(html).toContain(`data-label-scale="${scale}"`);
         expect(html).toContain('data-symbol="chevron.left"');
         expect(html).toContain('data-symbol="ellipsis"');
         expect(html.includes('data-symbol="phone"')).toBe(!group);

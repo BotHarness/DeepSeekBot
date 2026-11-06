@@ -1,0 +1,65 @@
+diff --git a/ReactCommon/react/renderer/scheduler/Scheduler.cpp b/ReactCommon/react/renderer/scheduler/Scheduler.cpp
+index e74e8025c267022145beca65dbb525b8fc1c7836..119bfef1639655f1220bc18254f3921f21911051 100644
+--- a/ReactCommon/react/renderer/scheduler/Scheduler.cpp
++++ b/ReactCommon/react/renderer/scheduler/Scheduler.cpp
+@@ -178,6 +178,8 @@ Scheduler::Scheduler(
+ }
+ 
+ Scheduler::~Scheduler() {
++  delegateInvalidated_->store(true, std::memory_order_release);
++
+   LOG(WARNING) << "Scheduler::~Scheduler() was called (address: " << this
+                << ").";
+ 
+@@ -270,7 +272,12 @@ Scheduler::findComponentDescriptorByHandle_DO_NOT_USE_THIS_IS_BROKEN(
+ #pragma mark - Delegate
+ 
+ void Scheduler::setDelegate(SchedulerDelegate* delegate) {
++  if (delegate_ == delegate) {
++    return;
++  }
++  delegateInvalidated_->store(true, std::memory_order_release);
+   delegate_ = delegate;
++  delegateInvalidated_ = std::make_shared<std::atomic<bool>>(false);
+ }
+ 
+ SchedulerDelegate* Scheduler::getDelegate() const {
+@@ -304,7 +311,11 @@ void Scheduler::uiManagerDidFinishTransaction(
+       runtimeScheduler_->scheduleRenderingUpdate(
+           surfaceId,
+           [delegate = delegate_,
++           delegateInvalidated = delegateInvalidated_,
+            mountingCoordinator = std::move(mountingCoordinator)]() {
++            if (delegateInvalidated->load(std::memory_order_acquire)) {
++              return;
++            }
+             delegate->schedulerShouldRenderTransactions(mountingCoordinator);
+           });
+     } else {
+@@ -330,9 +341,13 @@ void Scheduler::uiManagerDidDispatchCommand(
+     runtimeScheduler_->scheduleRenderingUpdate(
+         shadowNode->getSurfaceId(),
+         [delegate = delegate_,
++         delegateInvalidated = delegateInvalidated_,
+          shadowView = std::move(shadowView),
+          commandName,
+          args]() {
++          if (delegateInvalidated->load(std::memory_order_acquire)) {
++            return;
++          }
+           delegate->schedulerDidDispatchCommand(shadowView, commandName, args);
+         });
+   }
+diff --git a/ReactCommon/react/renderer/scheduler/Scheduler.h b/ReactCommon/react/renderer/scheduler/Scheduler.h
+index 1f5a59d1e1e296629f3d525430d4dcd90c5d4f25..2c087c743579acb9a1851fde031b04d1ff91ab0d 100644
+--- a/ReactCommon/react/renderer/scheduler/Scheduler.h
++++ b/ReactCommon/react/renderer/scheduler/Scheduler.h
+@@ -126,6 +126,8 @@ class Scheduler final : public UIManagerDelegate {
+   friend class SurfaceHandler;
+ 
+   SchedulerDelegate *delegate_;
++  std::shared_ptr<std::atomic<bool>> delegateInvalidated_{
++      std::make_shared<std::atomic<bool>>(false)};
+   SharedComponentDescriptorRegistry componentDescriptorRegistry_;
+   RuntimeExecutor runtimeExecutor_;
+   std::shared_ptr<UIManager> uiManager_;
