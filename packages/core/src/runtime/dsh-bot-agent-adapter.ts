@@ -112,6 +112,14 @@ function groupJoinResult(
   };
 }
 
+/**
+ * DSH 0.2.2 removed tools.presentAs(); call it only when the Host still offers it.
+ */
+function presentNativeToolsSafely(tools: unknown): (() => void) | undefined {
+  const select = (tools as { presentAs?: (mode: string) => () => void })?.presentAs;
+  return typeof select === 'function' ? select.call(tools, 'native') : undefined;
+}
+
 const ROLE_PROMPT_ORDER = 10_350;
 function replyDeliveryPrompt(text: PromptText): string {
   return `## Before ending this Orchestrator turn
@@ -990,8 +998,8 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       const registerBridgeTool = (tool: Parameters<typeof agentCtx.tools.register>[0]) => {
         bridgeTools.push(tool);
       };
-      const disposePresentation = agentCtx.tools.presentAs('native');
-      if (borrowed) borrowedDisposers.push(disposePresentation);
+      const disposePresentation = presentNativeToolsSafely(agentCtx.tools);
+      if (borrowed && disposePresentation !== undefined) borrowedDisposers.push(disposePresentation);
       const disposeNativeSchedules = agentCtx.tools.guard(({ name }) =>
         NATIVE_SCHEDULE_TOOLS.has(name)
           ? `${name} is not available to a PersonaBot Orchestrator: use bot_schedule_list, bot_schedule_create, bot_schedule_update or bot_schedule_delete so the schedule appears in the Channel sidebar and wakes you through the Bot Inbox.`
@@ -3977,8 +3985,8 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           if (borrowed) borrowedDisposers.push(dispose);
           return dispose;
         };
-        const disposePresentation = agentCtx.tools.presentAs('native');
-        if (borrowed) borrowedDisposers.push(disposePresentation);
+        const disposePresentation = presentNativeToolsSafely(agentCtx.tools);
+        if (borrowed && disposePresentation !== undefined) borrowedDisposers.push(disposePresentation);
         const disposeRolePrompt = agentCtx.systemPrompt.section({
           name: 'botharness:assignment-role',
           order: ROLE_PROMPT_ORDER,
