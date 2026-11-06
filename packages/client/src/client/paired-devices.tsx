@@ -541,9 +541,11 @@ export function PairedDevicesSettings({
                           signIn.issue === 'sign-in-expired' ||
                           signIn.issue === 'sign-in-denied'
                         ? 'devices.connect.signInAgain'
-                        : signIn.recovery === 'automatic'
-                          ? 'devices.connect.relayDown'
-                          : 'devices.connect.relaySignIn',
+                        : signIn.issue === 'credential-unavailable'
+                          ? 'devices.connect.credentialUnavailable'
+                          : signIn.recovery === 'automatic'
+                            ? 'devices.connect.relayDown'
+                            : 'devices.connect.relaySignIn',
                 )}
               </Callout>
             ) : null}

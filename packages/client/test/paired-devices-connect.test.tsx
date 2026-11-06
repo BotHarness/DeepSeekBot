@@ -135,17 +135,32 @@ it('explains a refused account', async () => {
   expect(button('登录')).toBeDefined();
 });
 
-it('does not promise automatic recovery when the Host requires another sign-in', async () => {
+it.each(['sign-in', undefined] as const)(
+  'does not promise automatic recovery without Host confirmation (%s)',
+  async (recovery) => {
+    snapshot = devices({
+      state: 'off',
+      account: { state: 'error', issue: 'relay-unavailable', recovery },
+    });
+    await render();
+    expect(host.querySelector('[data-connect-issue]')?.textContent).toBe(
+      '暂时连不上 Tobs 服务，稍后重新登录。',
+    );
+    expect(host.textContent).not.toContain('自动重试');
+    expect(button('登录')).toBeDefined();
+  },
+);
+
+it('describes unavailable local credentials without blaming the Tobs service', async () => {
   snapshot = devices({
     state: 'off',
-    account: { state: 'error', issue: 'relay-unavailable', recovery: 'sign-in' },
+    account: { state: 'error', issue: 'credential-unavailable' },
   });
   await render();
   expect(host.querySelector('[data-connect-issue]')?.textContent).toBe(
-    '暂时连不上 Tobs 服务，稍后重新登录。',
+    '无法读取本机登录凭证，请检查凭证存储后重新登录。',
   );
-  expect(host.textContent).not.toContain('自动重试');
-  expect(button('登录')).toBeDefined();
+  expect(host.textContent).not.toContain('连不上 Tobs 服务');
 });
 
 it('explains automatic recovery only when the Host can resume the saved session', async () => {

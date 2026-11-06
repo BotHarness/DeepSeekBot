@@ -517,8 +517,8 @@ export function createConnectAccount(options: {
     expires: number,
   ): Promise<void> => {
     let wait = interval;
-    const expired = (): boolean => {
-      if (Date.now() < expires) return false;
+    const expired = (signal?: AbortSignal): boolean => {
+      if (!signal?.aborted && Date.now() < expires) return false;
       status = { state: 'error', issue: 'sign-in-expired' };
       record('sign-in-expired');
       return true;
@@ -528,6 +528,7 @@ export function createConnectAccount(options: {
       if (run !== attempt) return;
       if (expired()) return;
       let reply: Awaited<ReturnType<typeof post>>;
+      const tokenSignal = AbortSignal.timeout(Math.max(1, Math.ceil(expires - Date.now())));
       try {
         reply = await post(
           'device-token',
@@ -537,14 +538,14 @@ export function createConnectAccount(options: {
             device_code: deviceCode,
             client_id: id,
           },
-          AbortSignal.timeout(Math.max(1, Math.ceil(expires - Date.now()))),
+          tokenSignal,
         );
       } catch {
         wait *= 2;
         continue;
       }
       if (run !== attempt) return;
-      if (expired()) return;
+      if (expired(tokenSignal)) return;
       const error = reply.body['error'];
       if (error === 'authorization_pending') continue;
       if (error === 'slow_down') {

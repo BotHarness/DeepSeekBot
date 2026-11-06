@@ -220,6 +220,40 @@ function setup(services = fakeServices(), port = 41001, watchMs = 60_000) {
 }
 
 describe('Connect account sign-in', () => {
+  it('rejects a token returned after timeout abort before the wall-clock deadline', async () => {
+    const services = fakeServices({ pending: 0 });
+    const credentials = memoryCredentials();
+    const controller = new AbortController();
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1000);
+    const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(controller.signal);
+    const account = createConnectAccount({
+      credentials: () => credentials.provider,
+      connect: fakeConnect().connect,
+      relay: RELAY,
+      sleep: async () => {},
+      fetch: async (input, init) => {
+        if (String(input).endsWith('/authenticate')) {
+          controller.abort();
+          return Response.json({ access_token: 'late-access', refresh_token: 'late-refresh' });
+        }
+        return services.fetcher(input, init);
+      },
+    });
+    try {
+      await account.signIn();
+      await vi.waitFor(() =>
+        expect(account.status()).toMatchObject({ state: 'error', issue: 'sign-in-expired' }),
+      );
+      expect(Date.now()).toBe(1000);
+      expect(credentials.records.size).toBe(0);
+      expect(services.hosts.size).toBe(0);
+    } finally {
+      await account.close();
+      timeout.mockRestore();
+      now.mockRestore();
+    }
+  });
+
   it.each(['aborted', 'late-success'])(
     'expires an in-flight device-token request (%s)',
     async (mode) => {
