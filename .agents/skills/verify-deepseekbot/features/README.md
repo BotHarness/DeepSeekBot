@@ -11,7 +11,7 @@
 | Bot calls: iPhone and Mac or Windows desktop | yes for replies | `scripts/e2e-call-media.mjs`; `scripts/e2e-desktop-call.mjs`; `deepseekbot call-simulate` | [bot-call.md](bot-call.md) |
 | Local Computer video: Windows to physical Android | no | Windows testing-center native journey | [local-computer-video.md](local-computer-video.md) |
 | Bot Marketplace cards, filters, remembered sorting, upload/import and Tob's install review | yes | `verify-app` Bot mode path; `scripts/e2e-install-review.mjs` | [marketplace.md](marketplace.md) |
-| Connect encrypted pairing, resources and native private input | yes for DM/tool/private request | `verify-app` isolated Host and shared native QA | [connect-channel.md](connect-channel.md) |
+| Connect account recovery, encrypted pairing, resources and native private input | yes for DM/tool/private request; no for account recovery | `scripts/e2e-connect-account-recovery.mjs`; `verify-app` isolated Host and shared native QA | [connect-channel.md](connect-channel.md) |
 | SSH tunnel to an existing Linux Host | no | `verify-app` two-Host path and system SSH | [ssh-host.md](ssh-host.md) |
 | Browser Remote Host pairing, icon strip, local appearance/notifications and Host-level settings | only for a reply | `verify-app` two-Host path | [remote-hosts.md](remote-hosts.md) |
 

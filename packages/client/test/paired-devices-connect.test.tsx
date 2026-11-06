@@ -135,6 +135,30 @@ it('explains a refused account', async () => {
   expect(button('登录')).toBeDefined();
 });
 
+it('does not promise automatic recovery when the Host requires another sign-in', async () => {
+  snapshot = devices({
+    state: 'off',
+    account: { state: 'error', issue: 'relay-unavailable', recovery: 'sign-in' },
+  });
+  await render();
+  expect(host.querySelector('[data-connect-issue]')?.textContent).toBe(
+    '暂时连不上 Tobs 服务，稍后重新登录。',
+  );
+  expect(host.textContent).not.toContain('自动重试');
+  expect(button('登录')).toBeDefined();
+});
+
+it('explains automatic recovery only when the Host can resume the saved session', async () => {
+  snapshot = devices({
+    state: 'off',
+    account: { state: 'error', issue: 'relay-unavailable', recovery: 'automatic' },
+  });
+  await render();
+  expect(host.querySelector('[data-connect-issue]')?.textContent).toBe(
+    zhTranslate('devices.connect.relayDown'),
+  );
+});
+
 it('marks a device paired in the last day so a stranger stands out', async () => {
   const recent = new Date(Date.now() - 60_000).toISOString();
   const old = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
