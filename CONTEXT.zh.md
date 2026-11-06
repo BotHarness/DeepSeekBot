@@ -181,7 +181,7 @@ _避免使用_：worker、PersonaBot、Orchestrator、Assignment Session
 _避免使用_：task list、AgentHandle map、cwd scan、Orchestrator memory
 
 **Archived Assignment**：
-Orchestrator 在 Assignment 结束执行后，通过 DSH 原生 Session archive 显式归档的 Assignment。它离开默认的 Assignment Directory 列表和原生 Session 列表，释放自己的 Continuity Key，以 `assignment-ended` 拒绝 Assignment Request，并保留历史；取消归档即可恢复。归档就是 Assignment 的 resolve：在此之前它一直是 active，回合报错、被取消或被中断都不会结束它。不会有任何机制自动归档 Assignment（ADR-0188、ADR-0295）。
+Orchestrator 在 Assignment 结束执行后，通过 DSH 原生 Session archive 显式归档的 Assignment。它离开默认的 Assignment Directory 列表和原生 Session 列表，释放自己的 Continuity Key，并保留历史；取消归档即可恢复，对它调用 `send_assignment_request` 也会先自动取消归档再重试投递，重试仍受容量和接收检查约束。归档就是 Assignment 的 resolve：在此之前它一直是 active，回合报错、被取消或被中断都不会结束它。不会有任何机制自动归档 Assignment（ADR-0188、ADR-0295）。
 _避免使用_：deleted Assignment、stopped Assignment、auto-archive、hidden flag
 
 **Continuity Key**：

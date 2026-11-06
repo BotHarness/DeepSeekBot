@@ -625,6 +625,35 @@ describe('Search in the Chats header', () => {
     });
     expect(view.textContent).not.toContain(t.hostListLoadFailed);
   });
+  it('waits for the quick automatic retry before reporting a first failed load', async () => {
+    const transport = new FakeHost();
+    transport.kill();
+    const client = createHostClient({
+      routes: ['https://studio.tailnet-example.ts.net'],
+      credential: transport.credential,
+      carrier: transport.carrier,
+      backoff: (attempt) => (attempt === 1 ? 1_500 : 60_000),
+    });
+    hostState.live = client;
+    client.start();
+    await vi.waitFor(() => expect(client.getSnapshot().connection.status).toBe('unreachable'));
+    const view = await home();
+    await act(async () => conversationFilter.set(computerEnvironmentKey('h1')));
+    expect(view.textContent).not.toContain(t.hostListLoadFailed);
+    expect(view.textContent).not.toContain(t.cloudChannels.empty);
+    expect(view.querySelector('[data-testid="connection-progress"]')).not.toBeNull();
+    await act(async () => {
+      await vi.waitFor(
+        () =>
+          expect(client.getSnapshot().connection).toMatchObject({
+            status: 'unreachable',
+            attempt: 2,
+          }),
+        { timeout: 3_000 },
+      );
+    });
+    expect(view.textContent).toContain(t.hostListLoadFailed);
+  });
   it.each(['list', 'channels', 'rosterGet', 'settings/describe'])(
     'diagnoses initial %s transport failure without treating the generic Chats error as a root cause',
     async (method) => {

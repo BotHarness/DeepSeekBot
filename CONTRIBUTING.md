@@ -63,7 +63,7 @@ Read the [mobile agent guide](apps/mobile/AGENTS.md) and the [system text and la
 
 ## PRs and review
 
-- Keep one coherent scope. Link the issue and discussion when applicable; use `Closes #...` only for complete work and `Refs #...` for partial work.
+- Keep one coherent scope. Link the issue and discussion when applicable; when the PR delivers the issue's feature or fixes its bug, write `Closes #...` as plain text in the PR body so the issue closes on merge, without waiting for a release or pending device/Human QA (track remaining QA in its own issue). Use `Refs #...` only when part of the issue's scope is still unbuilt. GitHub acts on `Closes #...` only when the PR merges into `main`, so once a stacked PR's parent has merged into `main`, retarget the stacked PR to `main` before merging it, or close the issue by hand once the work reaches `main`.
 - Explain why and how to verify the change. List actual checks and remaining gaps in the PR template.
 - For visible UI or interaction changes, provide sanitized, GitHub-rendered before/after screenshots, or a concrete capture blocker and runnable review path. Follow [visual evidence guidance](docs/agents/pr-ui-visual-evidence.md).
 - Follow the [Release Ledger guide](docs/agents/changelog.md) for user-visible or independently valuable public documentation changes; keep required bilingual parity.

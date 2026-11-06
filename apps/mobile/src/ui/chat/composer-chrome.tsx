@@ -1,6 +1,6 @@
 import type { ComposerSymbol } from './composer-symbol';
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { pressTint, useDesignTheme, type DesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
@@ -10,11 +10,11 @@ export function composerPrimary(theme: DesignTheme): { fill: string; ink: string
 }
 
 export function composerBar(theme: DesignTheme): number {
-  return theme.touch;
+  return Platform.OS === 'android' ? theme.touch + space.x3 : theme.touch;
 }
 
 export function composerControl(theme: DesignTheme): number {
-  return theme.touch - space.x4;
+  return Platform.OS === 'android' ? theme.touch : theme.touch - space.x4;
 }
 
 export const micAlwaysFilled = false;

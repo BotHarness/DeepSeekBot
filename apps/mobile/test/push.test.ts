@@ -159,6 +159,7 @@ function fakeNotifications(permission: PermissionState) {
 
 const servers: Server[] = [];
 const roots: string[] = [];
+const owners: ReturnType<typeof mountOperationalDatabase>[] = [];
 afterEach(async () => {
   await Promise.all(
     servers.splice(0).map(
@@ -169,6 +170,7 @@ afterEach(async () => {
         }),
     ),
   );
+  for (const owner of owners.splice(0)) owner.close();
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
@@ -176,6 +178,7 @@ async function realHost() {
   const home = mkdtempSync(join(tmpdir(), 'bh-mobile-push-'));
   roots.push(home);
   const owner = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
+  owners.push(owner);
   const sent: ExpoMessage[] = [];
   let items: Array<{ id: string; createdAt: string }> = [];
   let push: ReturnType<typeof createPushDelivery>;
