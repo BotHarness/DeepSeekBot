@@ -152,6 +152,13 @@ export function CallScreen({
   const report = session?.report;
 
   const round = theme.touch * 1.5;
+  const controlColumn = {
+    flexBasis: round,
+    flexGrow: 1,
+    minWidth: round,
+    alignItems: 'center' as const,
+    gap: space.x3,
+  };
   const roundButton = (input: {
     label: string;
     testID: string;
@@ -162,7 +169,7 @@ export function CallScreen({
     selected?: boolean;
     disabled?: boolean;
   }) => (
-    <View style={{ alignItems: 'center', gap: space.x3 }}>
+    <View style={controlColumn}>
       <Pressable
         testID={input.testID}
         accessibilityRole="button"
@@ -185,7 +192,7 @@ export function CallScreen({
       >
         <SystemSymbol name={input.symbol} size={theme.type.title.line} color={input.ink} />
       </Pressable>
-      <Text variant="meta" tone="muted">
+      <Text variant="meta" tone="muted" style={{ width: '100%', textAlign: 'center' }}>
         {input.label}
       </Text>
     </View>
@@ -382,7 +389,7 @@ export function CallScreen({
             <Button testID="call-close" label={t.call.close} onPress={leave} />
           </View>
         ) : (
-          <View style={{ flexDirection: 'row', justifyContent: 'space-evenly' }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.x3 }}>
             {roundButton({
               label: model.muted ? t.call.unmute : t.call.mute,
               testID: 'call-mute',
@@ -407,7 +414,7 @@ export function CallScreen({
                 })}
             {session?.audioRoutes !== true ||
             (Platform.OS === 'android' && session.audioRoute === undefined) ? null : (
-              <View style={{ alignItems: 'center', gap: space.x3 }}>
+              <View style={controlColumn}>
                 <CallAudioMenu
                   route={shownRoute}
                   size={round}
@@ -429,7 +436,7 @@ export function CallScreen({
                       }
                     : {})}
                 />
-                <Text variant="meta" tone="muted">
+                <Text variant="meta" tone="muted" style={{ width: '100%', textAlign: 'center' }}>
                   {callAudioDeviceName(
                     t,
                     shownRoute.outputs.find((output) => output.id === shownRoute.output),
