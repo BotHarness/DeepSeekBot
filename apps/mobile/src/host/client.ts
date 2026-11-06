@@ -351,7 +351,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
   let settle: ReturnType<typeof setTimeout> | undefined;
   let arrangement: RosterArrangement | undefined;
   let sorting: RosterSorting | undefined;
-  let reconnecting = false;
+  let reuseNextPass = false;
   let fetchedArrangement: { value: RosterArrangement | undefined; at: number } | undefined;
   let fetchedSorting: { value: RosterSorting | undefined; at: number } | undefined;
   let running = false;
@@ -849,17 +849,18 @@ export function createHostClient(options: HostClientOptions): HostClient {
   };
 
   const reusable = <T>(
+    reuse: boolean,
     fetched: { value: T; at: number } | undefined,
   ): fetched is { value: T; at: number } =>
-    reconnecting && fetched !== undefined && Date.now() - fetched.at < REUSE_ON_RECONNECT_MS;
+    reuse && fetched !== undefined && Date.now() - fetched.at < REUSE_ON_RECONNECT_MS;
 
-  const reloadOnce = async (): Promise<void> => {
+  const reloadOnce = async (reuse: boolean): Promise<void> => {
     void discoverComputer();
     void discoverRoutes();
     const [list, channelList, rosterArrangement, rosterSorting] = await Promise.all([
       call<{ bots: PersonaBotSummary[] }>('list'),
       loadChannels(),
-      reusable(fetchedArrangement)
+      reusable(reuse, fetchedArrangement)
         ? fetchedArrangement.value
         : call<unknown>('rosterGet')
             .then(arrangementOf, (error: unknown) => {
@@ -870,7 +871,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
               fetchedArrangement = { value, at: Date.now() };
               return value;
             }),
-      reusable(fetchedSorting)
+      reusable(reuse, fetchedSorting)
         ? fetchedSorting.value
         : call<unknown>('settings/describe')
             .then(rosterSortingOf)
@@ -896,8 +897,10 @@ export function createHostClient(options: HostClientOptions): HostClient {
     reloading = (async () => {
       try {
         do {
+          const reuse = reuseNextPass;
+          reuseNextPass = false;
           reloadAgain = false;
-          await reloadOnce();
+          await reloadOnce(reuse);
         } while (reloadAgain);
       } finally {
         reloading = undefined;
@@ -1158,12 +1161,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
     } finally {
       clearTimeout(deadline);
     }
-    reconnecting = true;
-    try {
-      await reload();
-    } finally {
-      reconnecting = false;
-    }
+    if (reloading === undefined) reuseNextPass = true;
+    await reload();
     if (current !== generation) return;
     const stable = setTimeout(() => {
       attempt = 0;

@@ -118,6 +118,25 @@ describe('Host client', () => {
     expect(count('rosterGet')).toBe(2);
   });
 
+  it('reads the roster and sorting fresh when a roster change arrives during a reconnect reload', async () => {
+    const host = new FakeHost();
+    const target = connect(host);
+    const count = (method: string) => host.calls.filter((call) => call.method === method).length;
+    await until(target, (state) => state.connection.status === 'connected');
+    let armed = false;
+    host.methods.set('list', () => {
+      if (armed && host.push('botharness/followRoster', { type: 'changed' })) armed = false;
+      return recordedBot.result.value;
+    });
+    host.kill();
+    await until(target, (state) => state.connection.status !== 'connected');
+    armed = true;
+    host.restart();
+    await until(target, (state) => state.connection.status === 'connected');
+    await until(target, () => count('settings/describe') >= 2);
+    expect(count('rosterGet')).toBeGreaterThanOrEqual(2);
+  });
+
   it('does not download the settings again on every failed reconnect', async () => {
     const host = new FakeHost();
     const target = connect(host);
