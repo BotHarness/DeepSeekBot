@@ -83,7 +83,7 @@ export function SignInBrandButton({
       <View accessible={false} importantForAccessibility="no">
         {provider === 'AppleOAuth' ? <AppleMark color={colors.label} /> : <GoogleMark />}
       </View>
-      <Text strong style={{ color: colors.label }} numberOfLines={1}>
+      <Text strong style={{ color: colors.label, flexShrink: 1, textAlign: 'center' }}>
         {label}
       </Text>
     </Pressable>

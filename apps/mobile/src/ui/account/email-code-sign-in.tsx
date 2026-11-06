@@ -33,6 +33,8 @@ function Heading({ title, detail, icon }: { title: string; detail: string; icon?
             width: signInBrand.appIcon,
             height: signInBrand.appIcon,
             borderRadius: radius.lg,
+            borderWidth: 1,
+            borderColor: theme.color.border,
             marginBottom: space.x3,
           }}
         />
