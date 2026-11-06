@@ -3293,13 +3293,13 @@ const zh: typeof en = {
     apple: '通过 Apple 继续',
     google: '通过 Google 继续',
     refused: {
-      'invalid-email': '请输入有效的邮箱地址。',
+      'invalid-email': '输入有效的邮箱地址。',
       'invalid-code': '验证码不对或已过期。',
-      'rate-limited': '尝试次数太多，请稍等一分钟再试。',
+      'rate-limited': '尝试次数太多，稍等一分钟再试。',
       'use-browser-sign-in': '这个账号需要用其他方式登录。',
-      'email-code-unavailable': '暂时无法用邮箱验证码登录，请用“其他登录方式”。',
-      'relay-unavailable': '连不上服务器，请再试一次。',
-      'sign-in-failed': '登录没有完成，请再试一次。',
+      'email-code-unavailable': '暂时无法用邮箱验证码登录，可以用“其他登录方式”。',
+      'relay-unavailable': '连不上服务器，再试一次。',
+      'sign-in-failed': '登录没有完成，再试一次。',
     } satisfies Record<EmailCodeRefusal, string>,
   },
   pairAccount: {

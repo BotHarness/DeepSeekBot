@@ -95,5 +95,5 @@ WorkOS custom domains, which put the sign-in page and OAuth callbacks on our own
 
 ## Open questions for the Human
 
-- **Prod:** confirm which WorkOS environment Prod is. The relay and the phone use UAT's client today, so switching them to Prod is a separate change.
+- **Prod:** the hosted relay publishes Production's client, and the phone reads its client id from the relay's `/v1/config`, so both use Production. Local QA relays (`dev:email-code staging`) use UAT.
 - **Store app redirect:** the store app (`app.deepseekbot.mobile`) needs its own redirect URI, because the phone's code currently uses `ai.botharness.deepseekbot.dev:/oauth2redirect`. Decide this before Prod sign-in on store builds.

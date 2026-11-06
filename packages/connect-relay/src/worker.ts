@@ -97,14 +97,12 @@ export function relayForEnv(env: ConnectRelayEnv): ReturnType<typeof createRelay
               .success,
         }),
     ...(apiKey ? { deleteUser: workosUserDeleter(apiKey) } : {}),
-    ...(apiKey
+    ...(apiKey && limiter !== undefined
       ? {
           emailCode: createEmailCode({
             apiKey,
             clientId,
-            ...(limiter === undefined
-              ? {}
-              : { limit: async (key: string) => (await limiter.limit({ key })).success }),
+            limit: async (key: string) => (await limiter.limit({ key })).success,
           }),
         }
       : {}),
