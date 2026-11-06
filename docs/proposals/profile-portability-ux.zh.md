@@ -2,7 +2,7 @@
 
 **状态：Human 已验收 PR #881 的 UX，实现跟踪 #882，尚未交付完整运行功能。** Issue [#76](https://github.com/BotHarness/BotHarness/issues/76)，2026-10-05。[English](profile-portability-ux.md)。
 
-这份提案将已接受的 [ADR-0041](../adr/0041-one-database-owns-botharness-operational-state.md)、[ADR-0042](../adr/0042-profile-backup-coordinates-database-files-and-dsh-sessions.md)、[ADR-0043](../adr/0043-profile-transfer-prevents-identity-split-brain.md)、[ADR-0044](../adr/0044-restore-revalidates-target-runtime-dependencies.md) 整理为最小交互。产品术语仍由 [CONTEXT](../../CONTEXT.md) 定义，整合后的架构仍以 [living architecture](../architecture/botharness-architecture.md) 为准。本文件是评审材料，不是已经可用的操作指南或另一份架构权威。
+这份提案将已接受的 [ADR-0041](../adr/0041-one-database-owns-botharness-operational-state.md)、[ADR-0042](../adr/0042-profile-backup-coordinates-database-files-and-dsh-sessions.md)、[ADR-0043](../adr/0043-profile-transfer-prevents-identity-split-brain.md)、[ADR-0044](../adr/0044-restore-revalidates-target-runtime-dependencies.md) 整理为最小交互。产品术语仍由 [CONTEXT](../../GLOSSARY.md) 定义，整合后的架构仍以 [living architecture](../architecture/botharness-architecture.md) 为准。本文件是评审材料，不是已经可用的操作指南或另一份架构权威。
 
 ## 入口与信息层级
 

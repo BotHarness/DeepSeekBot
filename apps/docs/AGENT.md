@@ -119,8 +119,8 @@ only for ad-hoc `mermaid` fences in hand-authored pages.
 ## Generated directories — don't edit
 
 - `src/content/docs/dev/**` — English tree: living architecture, BotHarness Product Context,
-  Guides, generated Reference, and ADR, from maintained repository sources (`CONTEXT.md` is
-  paired with `CONTEXT.zh.md` for the Chinese tree)
+  Guides, generated Reference, and ADR, from maintained repository sources (`GLOSSARY.md` is
+  paired with `GLOSSARY.zh.md` for the Chinese tree)
 - `src/content/docs-zh/dev/**` — Chinese tree at `/zh`: the same sources,
   clean, plus the Chinese architecture page
 - `src/content/docs/dsh/**` — DSH Dev Docs: the landing from `docs/dsh/index.md`

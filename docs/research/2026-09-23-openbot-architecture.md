@@ -136,7 +136,7 @@ export function bloubAvatarProfile(seed: string, hue: AvatarHue | null): BloubAv
 
 ## 5. 对 BotHarness 的借鉴（四问之三）
 
-映射到 `CONTEXT.md` 的 PersonaBot / Bot-state Activity Frame / Avatar：
+映射到 `GLOSSARY.md` 的 PersonaBot / Bot-state Activity Frame / Avatar：
 
 | OpenBot 做法                                         | BotHarness 可借鉴点                                                                                                           | 优先级 |
 | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------ |
@@ -144,10 +144,10 @@ export function bloubAvatarProfile(seed: string, hue: AvatarHue | null): BloubAv
 | seeded 轮廓 = 身份，动画禁改 silhouette（+测试守卫） | ADR-0032 blobatar 路线已有确定性 seed；若引入 bloub/动效，照抄「shape-safe 白名单 + 对照库目录的测试」                        | 高     |
 | `motion`（何时动）与 `mood`（表达什么）正交          | Avatar 属性拆两轴：Presence/Activity 一轴、动画预算（hover/always/idle + reduced-motion）一轴                                 | 高     |
 | 带数字的性能注释（30fps、island 4.1%、83 recalc/s）  | DSH 侧栏/动态岛类常驻 UI 的动画预算应写进代码注释与 dsh-ui skill 的 measure-the-shell 流程                                    | 中     |
-| 照片头像用同一 decor 承载 mood                       | 「自定义图静止、Activity Frame 携活动」已有 CONTEXT 定义；OpenBot 证明环/呼吸可跨生成图与照片复用（`CONTEXT.md` Avatar 条目） | 中     |
+| 照片头像用同一 decor 承载 mood                       | 「自定义图静止、Activity Frame 携活动」已有 CONTEXT 定义；OpenBot 证明环/呼吸可跨生成图与照片复用（`GLOSSARY.md` Avatar 条目） | 中     |
 | DeltaBuffer 100ms/8KiB + 只写变更行                  | IM 适配与会话投影的流式节流、避免按 thread 全量重写                                                                           | 中     |
 | MemoryStore 单 owner 列 + 确定性 commandId           | 与 Git-backed Memory 不同构，但 agent/channel 同构 memory 的 owner 抽象、exactly-once 写可参考 channel/memory 聚合            | 中     |
-| glossary + non-negotiable 清单                       | 与根 `CONTEXT.md` 唯一权威、ADR 承载 durable 选择同构；可对照其「迁移不可逆」写法审视 Memory 迁移策略                         | 低     |
+| glossary + non-negotiable 清单                       | 与根 `GLOSSARY.md` 唯一权威、ADR 承载 durable 选择同构；可对照其「迁移不可逆」写法审视 Memory 迁移策略                         | 低     |
 | 供应商 `ProviderSignIn` 联合防错                     | Channel/IM adapter 的登录方式建模（浏览器跳转 vs CLI vs 外部）可借鉴 union 而非 optional 字段                                 | 低     |
 
 **不建议直接搬的**：PolyForm Noncommercial 许可、Electron 单体与 `danger-full-access` 运行模型、`bot` 术语遗留、把 x.ai/bloub 视觉身份当可复制资产（见 2026-09-19 调研：MIT 只覆盖代码不覆盖设计）。

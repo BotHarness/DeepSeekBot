@@ -25,7 +25,7 @@ All of this is display configuration and lives browser-local in `roster.json` (p
 - `roster.json` grows a global default and per-scope `order`/`sortMode`; parsing stays defensive, with unknown shapes falling back to defaults.
 - New client work splits into tickets: row styling, section management, sort modes, and move (drag + context menu).
 - Spec §2/§5 and PRD US-1 carry the model; ADR-0028's update records the vendored-glyph exception.
-- `CONTEXT.md` gains Section order / Sort mode / 未分组; "未分组" is a product term, not a synonym for a folder.
+- `GLOSSARY.md` gains Section order / Sort mode / 未分组; "未分组" is a product term, not a synonym for a folder.
 
 ## Update (2026-09-19) — arrangement moves host-side
 

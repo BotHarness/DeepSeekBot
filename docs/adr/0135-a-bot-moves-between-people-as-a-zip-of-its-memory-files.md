@@ -28,5 +28,5 @@ BotHarness drops platform accounts for good. The account-based second phase of t
 ## Consequences
 
 - ADR-0131's Phase 2 is superseded; its Phase 1 stands. #17 is closed as not planned and #18 points here.
-- `CONTEXT.md` gains **Bot Zip**; the Bot Marketplace definition no longer promises uploaded Bots.
+- `GLOSSARY.md` gains **Bot Zip**; the Bot Marketplace definition no longer promises uploaded Bots.
 - Delivery is tracked in [#1059](https://github.com/BotHarness/BotHarness/issues/1059).

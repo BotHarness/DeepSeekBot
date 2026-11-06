@@ -1,6 +1,6 @@
 # DSH_CONTEXT — DeepSeek Harness / Cordis 主要术语
 
-> **状态**：架构调研输入。通用 DSH/Cordis 结论已整理进 `.agents/skills/dsh-plugin-dev/references/context.md`；BotHarness 产品术语以根目录 `CONTEXT.md` 与已接受 ADR 为准。
+> **状态**：架构调研输入。通用 DSH/Cordis 结论已整理进 `.agents/skills/dsh-plugin-dev/references/context.md`；BotHarness 产品术语以根目录 `GLOSSARY.md` 与已接受 ADR 为准。
 >
 > 用途：统一术语表。回答「这个词是什么、不是什么」。
 > 配套：`DSH_DECISION_TREE.md`（快速决策树）、`GROKBOT_ON_DSH_ARCHITECTURE.md`（产品场景输入）。

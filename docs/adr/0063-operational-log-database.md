@@ -29,4 +29,4 @@ BotHarness needs a durable home for operational logs (plugin lifecycle transitio
 
 - Implementation follows as tracer slices (tables + writer + lazy retention + read API + Cordis emit); this ADR decides topology only.
 - Viewer placement for the unified timeline (settings page section) is recorded in #238, not here: UI placement is easily reversible and not ADR-worthy.
-- Operational-log vocabulary (`operational timeline`, `log database`, `owner scope`) lives here and in #238, not in `CONTEXT.md`, which stays product-terms only.
+- Operational-log vocabulary (`operational timeline`, `log database`, `owner scope`) lives here and in #238, not in `GLOSSARY.md`, which stays product-terms only.
