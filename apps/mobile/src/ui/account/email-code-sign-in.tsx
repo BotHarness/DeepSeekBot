@@ -51,7 +51,7 @@ function Heading({ title, detail, icon }: { title: string; detail: string; icon?
 
 function OrDivider({ label }: { label: string }) {
   const theme = useDesignTheme();
-  const line = { flex: 1, height: edge.hairline, backgroundColor: theme.color.border };
+  const line = { flex: 1, height: edge.hairline, backgroundColor: theme.layer.sheet.divider };
   return (
     <View
       style={{ flexDirection: 'row', alignItems: 'center', gap: space.x4 }}
