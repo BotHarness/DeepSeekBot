@@ -12,6 +12,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import '../src/host/native-haptic-feedback';
+import { registerPushResolveTask } from '../src/host/native-push-resolve';
 
 import { usePushRouting } from '../src/host/push-routing';
 import { HostDrawer, WorkspaceButton, hostDrawer } from '../src/ui/shell/host-drawer';
@@ -36,16 +37,20 @@ import { installPurgeTargets } from '../src/host/purge-caches';
 import { installHostStoreOpener, retryHostStoreDeletes } from '../src/host/host-store';
 import { nativeHostStoreOpener } from '../src/host/native-local-store';
 import { nativePurgeTargets } from '../src/host/native-purge-targets';
+import { nativeBackgroundCatchUp } from '../src/host/native-background-support';
 import { HostAccentProvider } from '../src/ui/shell/host-accent-provider';
 import { useDesignTheme } from '../src/ui/design/theme';
 import { useStrings } from '../src/ui/strings';
 import { useTheme } from '../src/ui/theme';
 import { useNativeInterfacePreferences } from '../src/ui/native-interface-preferences';
 
+registerPushResolveTask();
+
 installMediaStore(nativeMediaStore);
 installHostStoreOpener(nativeHostStoreOpener);
 void retryHostStoreDeletes();
 installPurgeTargets(nativePurgeTargets);
+nativeBackgroundCatchUp?.scheduleBackgroundCatchUp();
 setTimeout(() => {
   runAutoCleanup();
   setInterval(() => runAutoCleanup(), 24 * 60 * 60 * 1000);

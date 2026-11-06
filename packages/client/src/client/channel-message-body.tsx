@@ -393,12 +393,12 @@ export function GrantRequestCard({
       disabled={busy || opening}
       onClick={() => open()}
     >
-      {t(compact ? 'humanInbox.grant.handle' : 'grant.requestChoose')}
+      {t(compact ? 'activityList.grant.handle' : 'grant.requestChoose')}
     </ActionButton>
   );
   return (
     <div
-      className={compact ? 'bh-human-inbox-grant-action' : 'bh-grant-request-card'}
+      className={compact ? 'bh-activity-list-grant-action' : 'bh-grant-request-card'}
       ref={pickerTrigger}
     >
       {compact ? null : (

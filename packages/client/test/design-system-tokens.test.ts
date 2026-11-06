@@ -188,7 +188,7 @@ const ALLOWANCES: readonly Allowance[] = [
     reason: 'The full-page Inbox and the hidden-channel empty state keep their page-level padding.',
     property: /^padding$/,
     values: ['28px', '64px'],
-    selectors: ['.bh-human-inbox', '.bh-hidden-empty'],
+    selectors: ['.bh-activity-list', '.bh-hidden-empty'],
   },
 ];
 

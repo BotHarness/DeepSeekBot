@@ -13,6 +13,7 @@ export const DEFAULT_PUSH_PREFERENCES: PushPreferences = {
   reply: true,
 };
 
+const RESOLVED_LIMIT = 50;
 const MAX_ATTEMPTS = 3;
 const RETRY_BASE_MS = 1_000;
 const RECEIPT_DELAY_MS = 15 * 60 * 1000;
@@ -56,6 +57,7 @@ export interface PushData {
   badge?: number;
   test?: true;
   deviceId?: string;
+  resolved?: string[];
 }
 
 export interface ExpoMessage {
@@ -69,6 +71,13 @@ export interface ExpoMessage {
   channelId?: string;
   categoryId?: string;
   mutableContent?: true;
+  _contentAvailable?: true;
+}
+
+function keepDelivered(message: ExpoMessage): ExpoMessage {
+  if (message.badge !== 0) return message;
+  const { badge: _badge, ...rest } = message;
+  return { ...rest, _contentAvailable: true, data: { ...message.data, badge: 0 } };
 }
 
 export type ExpoTicket =
@@ -98,7 +107,7 @@ export type PushEvent =
   | {
       phase: 'sent';
       deviceId: string;
-      kind: PushKind | 'badge' | 'test' | 'device-paired';
+      kind: PushKind | 'badge' | 'resolve' | 'test' | 'device-paired';
       outcome: 'ok' | 'error';
       code?: string;
       ageMs?: number;
@@ -368,10 +377,11 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
 
   const deliver = async (
     device: DeviceRow,
-    messages: ExpoMessage[],
-    kinds: Array<PushKind | 'badge' | 'test' | 'device-paired'>,
+    input: ExpoMessage[],
+    kinds: Array<PushKind | 'badge' | 'resolve' | 'test' | 'device-paired'>,
     createdAt: ReadonlyArray<string | undefined> = [],
   ): Promise<boolean> => {
+    const messages = device.platform === 'ios' ? input.map(keepDelivered) : input;
     for (let start = 0; start < messages.length; start += BATCH) {
       const batch = messages.slice(start, start + BATCH);
       let result: ExpoTicket[] | undefined;
@@ -507,9 +517,23 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
           data,
         };
       });
-      const kinds: Array<PushKind | 'badge'> = notify.map((item) => item.kind);
+      const kinds: Array<PushKind | 'badge' | 'resolve'> = notify.map((item) => item.kind);
       const created: Array<string | undefined> = notify.map((item) => item.createdAt);
-      if (messages.length === 0 && device.badge !== badge) {
+      const resolve =
+        gone.length === 0
+          ? undefined
+          : device.platform === 'ios'
+            ? { to: device.token, badge, _contentAvailable: true as const }
+            : device.render === 'app'
+              ? { to: device.token, priority: 'high' as const }
+              : undefined;
+      if (resolve !== undefined) {
+        for (let start = 0; start < gone.length; start += RESOLVED_LIMIT) {
+          const resolved = gone.slice(start, start + RESOLVED_LIMIT);
+          messages.push({ ...resolve, data: { v: 1, hostId, resolved } });
+          kinds.push('resolve');
+        }
+      } else if (messages.length === 0 && device.badge !== badge) {
         messages.push({ to: device.token, badge, data: { v: 1, hostId } });
         kinds.push('badge');
       }

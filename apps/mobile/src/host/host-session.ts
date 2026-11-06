@@ -319,10 +319,7 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
           disposed
             ? Promise.reject(new Error('This Computer session has ended.'))
             : client.call(method, args),
-        () =>
-          [...(conversations.get(client)?.keys() ?? [])].map((key) =>
-            JSON.stringify(['computer', saved.hostId, key]),
-          ),
+        () => liveKeys(client, saved.hostId),
       );
     }
     connected = now;
@@ -671,6 +668,17 @@ export interface DmTarget {
 }
 
 const conversations = new WeakMap<HostClient, Map<string, Conversation>>();
+
+function liveKeys(client: HostClient, hostId: string): string[] {
+  return [...(conversations.get(client)?.keys() ?? [])].map((key) =>
+    JSON.stringify(['computer', hostId, key]),
+  );
+}
+
+export function liveConversationKeys(hostId: string): string[] {
+  const client = sessions.get(hostId)?.host.client;
+  return client === undefined ? [] : liveKeys(client, hostId);
+}
 const preparedConversations = new WeakMap<
   HostClient,
   { conversation: Conversation; release(): void }

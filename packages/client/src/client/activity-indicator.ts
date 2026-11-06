@@ -1,4 +1,4 @@
-import type { HumanInboxState } from './store.js';
+import type { ActivityListState } from './store.js';
 
 export const ACTIVITY_INDICATOR_SCOPES = ['all', 'action', 'replies', 'unread', 'none'] as const;
 export type ActivityIndicatorScope = (typeof ACTIVITY_INDICATOR_SCOPES)[number];
@@ -12,7 +12,7 @@ export function parseActivityIndicatorScope(value: unknown): ActivityIndicatorSc
 
 export function activityIndicator(
   scope: ActivityIndicatorScope,
-  state: Pick<HumanInboxState, 'unreadCount' | 'hasAction' | 'messageCounts' | 'attentionStatus'>,
+  state: Pick<ActivityListState, 'unreadCount' | 'hasAction' | 'messageCounts' | 'attentionStatus'>,
 ): 'on' | 'off' | 'unknown' {
   if (scope === 'none') return 'off';
   if (state.attentionStatus !== 'ready') return 'unknown';

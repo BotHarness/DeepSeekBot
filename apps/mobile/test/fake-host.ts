@@ -33,6 +33,7 @@ export class ChangeLog {
 export class FakeChannel {
   readonly messages: ChannelMessage[] = [];
   bodiesSent = 0;
+  sendsChangeHead = true;
   private followers = new Map<string, { entry: Socket; streamId: string }>();
   readonly follows: Array<Record<string, unknown>> = [];
   baselineDrafts: WireDraft[] = [];
@@ -88,9 +89,15 @@ export class FakeChannel {
   follow(entry: Socket, streamId: string, limit: number): void {
     this.followers.set(streamId, { entry, streamId });
     const cursor = this.revision;
+    const head =
+      this.log.rows.filter((row) => row.channelId === this.id || row.channelId === '*').at(-1)
+        ?.seq ?? 0;
     this.send(streamId, {
       type: 'opened',
       cursor,
+      ...(this.sendsChangeHead
+        ? { changes: { epoch: this.log.epoch, seq: Math.max(head, this.log.floor) } }
+        : {}),
       page:
         limit === 0
           ? { entries: [], olderCursor: null, hasOlder: this.messages.length > 0 }
@@ -484,11 +491,15 @@ export class FakeHost {
     entry.events.message(JSON.stringify({ type: 'item', streamId, value }));
   }
 
-  push(endpoint: 'botharness/followRoster' | 'botharness/followActivity', value: unknown): void {
+  push(endpoint: 'botharness/followRoster' | 'botharness/followActivity', value: unknown): boolean {
+    let delivered = false;
     for (const entry of this.sockets) {
       const streamId = entry.streams.get(endpoint);
-      if (streamId !== undefined) this.emit(entry, streamId, value);
+      if (streamId === undefined) continue;
+      this.emit(entry, streamId, value);
+      delivered = true;
     }
+    return delivered;
   }
 
   endFollower(endpoint: 'botharness/followRoster' | 'botharness/followChannel'): void {

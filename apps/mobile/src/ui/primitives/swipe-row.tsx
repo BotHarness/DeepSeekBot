@@ -70,10 +70,12 @@ export function SwipeRow({
   actions,
   children,
   testID,
+  contextMenu = true,
 }: {
   actions: readonly SwipeAction[];
   children: ReactNode;
   testID?: string;
+  contextMenu?: boolean;
 }) {
   const theme = useDesignTheme();
   const reduced = useReducedMotion();
@@ -219,11 +221,15 @@ export function SwipeRow({
       <GestureDetector gesture={pan}>
         <Animated.View style={[{ backgroundColor: theme.color.base }, contentStyle]}>
           <ContextMenuArea
-            actions={actions.map((action) => ({
-              key: action.key,
-              label: action.label,
-              run: action.run,
-            }))}
+            actions={
+              contextMenu
+                ? actions.map((action) => ({
+                    key: action.key,
+                    label: action.label,
+                    run: action.run,
+                  }))
+                : []
+            }
           >
             {children}
           </ContextMenuArea>

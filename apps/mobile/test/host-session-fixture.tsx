@@ -5,6 +5,7 @@ export const refreshNotificationPermission = vi.fn(async () => undefined);
 
 vi.mock('expo-secure-store', () => ({
   WHEN_UNLOCKED_THIS_DEVICE_ONLY: 0,
+  AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY: 1,
   getItemAsync: async (key: string) => secure.get(key) ?? null,
   setItemAsync: async (key: string, value: string) => void secure.set(key, value),
   deleteItemAsync: async (key: string) => void secure.delete(key),

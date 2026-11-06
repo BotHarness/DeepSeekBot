@@ -480,6 +480,7 @@ export interface ChannelStore {
   readHumanFilesPage(id: string, request: ChannelFilesRequest): ChannelFilesPage | undefined;
   readHumanChanges?(id: string, request: ChannelChangesRequest): ChannelChanges | undefined;
   changeCursor?(): ChannelChangeCursor;
+  channelChangeHead?(id: string): ChannelChangeCursor | undefined;
   readChangedChannels?(request: Omit<ChannelChangesRequest, 'limit'>): ChangedChannels;
   recordAttachmentChange?(fileId: string): number;
   rotateChangeEpoch?(): ChannelChangeCursor;

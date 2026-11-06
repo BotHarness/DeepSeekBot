@@ -56,10 +56,10 @@ export type WorkspaceOptions = Omit<
 };
 
 const selectRailAttention = (state: ClientState) => ({
-  unreadCount: state.humanInbox.unreadCount,
-  hasAction: state.humanInbox.hasAction,
-  messageCounts: state.humanInbox.messageCounts,
-  attentionStatus: state.humanInbox.attentionStatus,
+  unreadCount: state.activityList.unreadCount,
+  hasAction: state.activityList.hasAction,
+  messageCounts: state.activityList.messageCounts,
+  attentionStatus: state.activityList.attentionStatus,
 });
 const selectRailBotSlug = (state: ClientState) => resolveChannelSidebarContext(state)?.botSlug;
 export function Workspace({
@@ -245,9 +245,9 @@ function WorkspaceRail({
   const indicator = activityIndicator(indicatorMenu.scope, attention);
   const attentionLabel = [
     ...(attention.unreadCount > 0
-      ? [t('humanInbox.unreadCount', { count: unreadCountLabel(attention.unreadCount) })]
+      ? [t('activityList.unreadCount', { count: unreadCountLabel(attention.unreadCount) })]
       : []),
-    ...(attention.hasAction ? [t('humanInbox.action')] : []),
+    ...(attention.hasAction ? [t('activityList.action')] : []),
     ...(indicator === 'unknown' ? [t('activityIndicator.unavailable')] : []),
   ].join(' · ');
   const shortcuts = useSyncExternalStore(

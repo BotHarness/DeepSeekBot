@@ -676,9 +676,9 @@ export function apply(ctx: ClientContext): void {
       channels: () => store.getSnapshot().channels,
       attentive: () => document.visibilityState === 'visible' && document.hasFocus(),
       subscribe: (listener) => {
-        let prior = store.getSnapshot().humanInbox;
+        let prior = store.getSnapshot().activityList;
         const offStore = store.subscribe(() => {
-          const next = store.getSnapshot().humanInbox;
+          const next = store.getSnapshot().activityList;
           if (next.unreadCount === prior.unreadCount && next.hasAction === prior.hasAction) return;
           prior = next;
           listener();
@@ -1137,7 +1137,7 @@ export function apply(ctx: ClientContext): void {
           ctx.layout.selectPanel(PANEL_ID);
           void actions.openActivityCenter();
         },
-        () => actions.refreshHumanInboxStatus(),
+        () => actions.refreshActivityListStatus(),
         {
           launcher: (translate) =>
             createElement(OnboardingLauncher, { actions, t: translate, placement: 'row' }),

@@ -103,7 +103,7 @@ it('keeps notification states and active-mode navigation distinct', async () => 
   };
   try {
     await act(async () => {
-      store.setHumanInbox({ unreadCount: 126, hasAction: true });
+      store.setActivityList({ unreadCount: 126, hasAction: true });
       store.select({ kind: 'inbox' });
     });
     await render(16, true);
@@ -112,9 +112,9 @@ it('keeps notification states and active-mode navigation distinct', async () => 
     expect(chip.parentElement).toBe(actions);
     expect(actions.querySelector('.bh-panel-gear')).not.toBeNull();
     expect(chip.dataset['unread']).toBe('true');
-    expect(chip.querySelector('.bh-human-inbox-count')?.textContent?.trim()).toBe('99+');
+    expect(chip.querySelector('.bh-activity-list-count')?.textContent?.trim()).toBe('99+');
     expect(chip.getAttribute('aria-label')).toContain('99+');
-    expect(chip.querySelector('.bh-human-inbox-notification-dot')).toBeNull();
+    expect(chip.querySelector('.bh-activity-list-notification-dot')).toBeNull();
     chip.click();
     expect(open).toHaveBeenCalledOnce();
     expect(exit).not.toHaveBeenCalled();
@@ -132,33 +132,33 @@ it('keeps notification states and active-mode navigation distinct', async () => 
     chip = nav.querySelector<HTMLElement>('.bh-panel-activity')!;
     expect(chip.parentElement).toBe(nav);
     expect(native.querySelector('.bh-panel-actions')).toBeNull();
-    expect(chip.querySelector('.bh-human-inbox-count')).toBeNull();
-    expect(chip.querySelector('.bh-human-inbox-notification-dot')).not.toBeNull();
+    expect(chip.querySelector('.bh-activity-list-count')).toBeNull();
+    expect(chip.querySelector('.bh-activity-list-notification-dot')).not.toBeNull();
     expect(chip.getAttribute('aria-label')).toContain('99+');
     await render(24, false);
     expect(chip.tabIndex).toBe(-1);
     expect(chip.getAttribute('aria-hidden')).toBe('true');
-    expect(chip.querySelector('.bh-human-inbox-notification-dot')).toBeNull();
+    expect(chip.querySelector('.bh-activity-list-notification-dot')).toBeNull();
     await render(16, false);
     chip = nav.querySelector<HTMLElement>('.bh-panel-activity')!;
     expect(chip.parentElement).toBe(native.querySelector('.bh-panel-actions'));
     expect(native.querySelector('.bh-panel-gear')).toBeNull();
-    expect(chip.querySelector('.bh-human-inbox-count')?.textContent?.trim()).toBe('99+');
+    expect(chip.querySelector('.bh-activity-list-count')?.textContent?.trim()).toBe('99+');
     expect(chip.tabIndex).toBe(0);
     expect(chip.hasAttribute('aria-hidden')).toBe(false);
     await render(24, true);
     await act(async () => {
-      store.setHumanInbox({ unreadCount: 0, hasAction: false });
+      store.setActivityList({ unreadCount: 0, hasAction: false });
     });
-    expect(chip.querySelector('.bh-human-inbox-notification-dot')).toBeNull();
+    expect(chip.querySelector('.bh-activity-list-notification-dot')).toBeNull();
     await act(async () => {
-      store.setHumanInbox({ unreadCount: 0, hasAction: true });
+      store.setActivityList({ unreadCount: 0, hasAction: true });
     });
     await render(16, true);
     chip = nav.querySelector<HTMLElement>('.bh-panel-activity')!;
-    expect(chip.querySelector('.bh-human-inbox-count')).toBeNull();
-    expect(chip.querySelector('.bh-human-inbox-notification-dot')).toBeNull();
-    expect(chip.getAttribute('aria-label')).toContain(zhTranslate('humanInbox.action'));
+    expect(chip.querySelector('.bh-activity-list-count')).toBeNull();
+    expect(chip.querySelector('.bh-activity-list-notification-dot')).toBeNull();
+    expect(chip.getAttribute('aria-label')).toContain(zhTranslate('activityList.action'));
     expect(chip.tabIndex).toBe(0);
     await render(16, false);
     expect(chip.dataset['active']).toBe('false');
@@ -170,14 +170,14 @@ it('keeps notification states and active-mode navigation distinct', async () => 
     expect(chip.dataset['wide']).toBe('false');
     expect(chip.tabIndex).toBe(0);
     expect(chip.hasAttribute('aria-hidden')).toBe(false);
-    expect(chip.querySelector('.bh-human-inbox-count')).toBeNull();
-    expect(chip.querySelector('.bh-human-inbox-notification-dot')).not.toBeNull();
+    expect(chip.querySelector('.bh-activity-list-count')).toBeNull();
+    expect(chip.querySelector('.bh-activity-list-notification-dot')).not.toBeNull();
     chip.click();
     expect(open).toHaveBeenCalledTimes(3);
   } finally {
     await act(async () => {
       root.unmount();
-      store.setHumanInbox({ unreadCount: 0, hasAction: false });
+      store.setActivityList({ unreadCount: 0, hasAction: false });
       store.select(undefined);
     });
     expect(nav.querySelector('.bh-panel-activity')).toBeNull();

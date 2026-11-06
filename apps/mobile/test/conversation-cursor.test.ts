@@ -194,6 +194,7 @@ describe('opening a cached conversation with a change cursor', () => {
   it('keeps a restarted session cursor when an older pull fails late', async () => {
     const host = new FakeHost();
     const { channel, cache } = await warm(host);
+    channel.sendsChangeHead = false;
     let release!: () => void;
     host.changesHeld = new Promise((resolve) => {
       release = resolve;

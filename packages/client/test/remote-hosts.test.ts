@@ -1052,8 +1052,8 @@ it('routes decisions, questions, joins, snooze and clear to the owning Host and 
     { id: 'q', selected: ['Yes'], custom: '' },
   ]);
   await actions.decideGroupJoin('same-group', 'same-request', true);
-  await actions.snoozeHumanInbox(item, '2099-01-01T00:00:00.000Z');
-  await actions.dismissHumanInbox(item);
+  await actions.snoozeActivityList(item, '2099-01-01T00:00:00.000Z');
+  await actions.dismissActivityList(item);
   expect(host.calls).toEqual([
     {
       method: 'toolApprovalDecide',
@@ -1079,13 +1079,13 @@ it('routes decisions, questions, joins, snooze and clear to the owning Host and 
   ]);
   expect(refresh).toHaveBeenCalledTimes(5);
   host.methods.set('humanAttentionDismiss', () => ({ accepted: false }));
-  await expect(actions.dismissHumanInbox(item)).rejects.toThrow();
+  await expect(actions.dismissActivityList(item)).rejects.toThrow();
   expect(refresh).toHaveBeenCalledTimes(5);
   await expect(actions.decideToolApproval('dm-tob', 'unowned-message', 'rejected')).rejects.toThrow(
     'Request was not accepted',
   );
   await sources.remove(host.hostId);
-  await expect(actions.dismissHumanInbox(item)).rejects.toThrow('Host removed');
+  await expect(actions.dismissActivityList(item)).rejects.toThrow('Host removed');
 });
 
 it.each(

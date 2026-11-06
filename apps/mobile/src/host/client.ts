@@ -252,7 +252,11 @@ interface Follower {
   reopen?: ReturnType<typeof setTimeout> | undefined;
 }
 
-const defaultBackoff = (attempt: number): number => Math.min(15_000, 500 * 2 ** (attempt - 1));
+export const MAX_RECONNECT_DELAY_MS = 300_000;
+export const STABLE_CONNECTION_MS = 60_000;
+export const REUSE_ON_RECONNECT_MS = 600_000;
+export const defaultBackoff = (attempt: number): number =>
+  Math.min(MAX_RECONNECT_DELAY_MS, 500 * 2 ** (attempt - 1));
 
 function id(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/gu, (c) => {
@@ -355,6 +359,9 @@ export function createHostClient(options: HostClientOptions): HostClient {
   let settle: ReturnType<typeof setTimeout> | undefined;
   let arrangement: RosterArrangement | undefined;
   let sorting: RosterSorting | undefined;
+  let reuseNextPass = false;
+  let fetchedArrangement: { value: RosterArrangement | undefined; at: number } | undefined;
+  let fetchedSorting: { value: RosterSorting | undefined; at: number } | undefined;
   let running = false;
   let everConnected = false;
   let attempt = 0;
@@ -863,17 +870,43 @@ export function createHostClient(options: HostClientOptions): HostClient {
       .catch(() => undefined);
   };
 
-  const reloadOnce = async (): Promise<void> => {
+  const reusable = <T>(
+    reuse: boolean,
+    fetched: { value: T; at: number } | undefined,
+  ): fetched is { value: T; at: number } =>
+    reuse && fetched !== undefined && Date.now() - fetched.at < REUSE_ON_RECONNECT_MS;
+
+  const readArrangement = (): Promise<RosterArrangement | undefined> => {
+    fetchedArrangement = undefined;
+    return call<unknown>('rosterGet')
+      .then(arrangementOf, (error: unknown) => {
+        if (error instanceof MethodRefused) return undefined;
+        throw error;
+      })
+      .then((value) => {
+        fetchedArrangement = { value, at: Date.now() };
+        return value;
+      });
+  };
+
+  const readSorting = (): Promise<RosterSorting | undefined> => {
+    fetchedSorting = undefined;
+    return call<unknown>('settings/describe')
+      .then(rosterSortingOf)
+      .then((value) => {
+        fetchedSorting = { value, at: Date.now() };
+        return value;
+      });
+  };
+
+  const reloadOnce = async (reuse: boolean): Promise<void> => {
     void discoverComputer();
     void discoverRoutes();
     const [list, channelList, rosterArrangement, rosterSorting] = await Promise.all([
       call<{ bots: PersonaBotSummary[] }>('list'),
       loadChannels(),
-      call<unknown>('rosterGet').then(arrangementOf, (error: unknown) => {
-        if (error instanceof MethodRefused) return undefined;
-        throw error;
-      }),
-      call<unknown>('settings/describe').then(rosterSortingOf),
+      reusable(reuse, fetchedArrangement) ? fetchedArrangement.value : readArrangement(),
+      reusable(reuse, fetchedSorting) ? fetchedSorting.value : readSorting(),
     ]);
     bots = list.bots;
     channels = new Map(channelList.map((channel) => [channel.id, channel]));
@@ -892,8 +925,10 @@ export function createHostClient(options: HostClientOptions): HostClient {
     reloading = (async () => {
       try {
         do {
+          const reuse = reuseNextPass;
+          reuseNextPass = false;
           reloadAgain = false;
-          await reloadOnce();
+          await reloadOnce(reuse);
         } while (reloadAgain);
       } finally {
         reloading = undefined;
@@ -1154,9 +1189,12 @@ export function createHostClient(options: HostClientOptions): HostClient {
     } finally {
       clearTimeout(deadline);
     }
+    if (reloading === undefined) reuseNextPass = true;
     await reload();
     if (current !== generation) return;
-    attempt = 0;
+    const stable = setTimeout(() => {
+      attempt = 0;
+    }, STABLE_CONNECTION_MS);
     everConnected = true;
     disconnectCurrent = disconnect;
     publish({ status: 'connected', route });
@@ -1167,6 +1205,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     try {
       await closed;
     } finally {
+      clearTimeout(stable);
       clearInterval(health);
       if (disconnectCurrent === disconnect) disconnectCurrent = undefined;
     }
@@ -1350,6 +1389,10 @@ export function createHostClient(options: HostClientOptions): HostClient {
     },
     retryNow(trigger = 'manual_retry') {
       if (!running) return;
+      if (trigger === 'manual_retry') {
+        fetchedArrangement = undefined;
+        fetchedSorting = undefined;
+      }
       options.telemetry?.begin(trigger);
       if (snapshot.connection.status === 'connected') {
         if (trigger === 'resume') {

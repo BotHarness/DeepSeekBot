@@ -744,6 +744,36 @@ describe('background catch-up', () => {
     expect(host.calls.filter((call) => call.method === 'channelChanges').length).toBe(before);
   });
 
+  it('opens a Channel that is already up to date without asking the Host for changes', async () => {
+    const host = new FakeHost();
+    const path = file();
+    const channel = fill(host, 1, 40);
+    const first = await session(host, path);
+    await until(first.conversation, (s) => s.status === 'live' && !s.fromCache);
+    await settle(first.cache);
+    const pulls = host.calls.filter((call) => call.method === 'channelChanges').length;
+    channel.bodiesSent = 0;
+    const second = await session(host, path);
+    const live = await until(second.conversation, (s) => s.status === 'live' && !s.fromCache);
+    expect(host.calls.filter((call) => call.method === 'channelChanges').length).toBe(pulls);
+    expect(channel.bodiesSent).toBe(0);
+    expect(live.messages.at(-1)?.id).toBe('m40');
+  });
+
+  it('still confirms with one change pull when an older Host sends no change head', async () => {
+    const host = new FakeHost();
+    const path = file();
+    const channel = fill(host, 1, 40);
+    const first = await session(host, path);
+    await until(first.conversation, (s) => s.status === 'live' && !s.fromCache);
+    await settle(first.cache);
+    channel.sendsChangeHead = false;
+    const pulls = host.calls.filter((call) => call.method === 'channelChanges').length;
+    const second = await session(host, path);
+    await until(second.conversation, (s) => s.status === 'live' && !s.fromCache);
+    expect(host.calls.filter((call) => call.method === 'channelChanges').length).toBe(pulls + 1);
+  });
+
   it('takes messages that arrived while closed from the change pull on a bare open', async () => {
     const host = new FakeHost();
     const path = file();

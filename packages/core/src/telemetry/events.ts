@@ -180,7 +180,7 @@ export const TELEMETRY_EVENTS = {
   },
   'activity:inbox_open': {
     origin: 'client',
-    description: 'Activity Center (the Human Inbox) opened.',
+    description: 'Activity opened.',
     properties: SURFACE,
   },
   'activity:approval_submit': {
@@ -200,17 +200,17 @@ export const TELEMETRY_EVENTS = {
   },
   'activity:inbox_reply_send': {
     origin: 'client',
-    description: 'The Human replied to a message from Activity Center.',
+    description: 'The Human replied to a message from Activity.',
     properties: { target: ['message', 'assignment'], ...SURFACE },
   },
   'activity:inbox_item_dismiss': {
     origin: 'client',
-    description: 'The Human dismissed an Activity Center item.',
+    description: 'The Human dismissed an Activity item.',
     properties: SURFACE,
   },
   'activity:inbox_item_snooze': {
     origin: 'client',
-    description: 'The Human snoozed an Activity Center item.',
+    description: 'The Human snoozed an Activity item.',
     properties: SURFACE,
   },
   'model:plan_update': {
