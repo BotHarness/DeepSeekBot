@@ -140,7 +140,7 @@ async function probe(environment) {
     process.exit(1);
   }
   const { clientId, apiKey } = credential;
-  const email = `qa-magic-auth-${Date.now()}@example.com`;
+  const email = `qa-magic-auth-${Date.now()}@example.org`;
   const rows = [];
   const row = (step, result, detail = '') => rows.push({ step, result, detail });
 
