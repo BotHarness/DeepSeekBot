@@ -27,6 +27,7 @@ export type SonioxSocketFactory = (url: string, headers: Record<string, string>)
 const MAX_BUFFERED_BYTES = 9 * 1024 * 1024;
 const MAX_TEXT = 4_000;
 const CONTROL = new Set(['<fin>', '<end>']);
+const interruptedStreams = new WeakSet<Error>();
 
 const defaultSocket: SonioxSocketFactory = (url, headers) =>
   new WebSocket(url, {
@@ -236,12 +237,12 @@ export function openSonioxStream(
 
   socket.on('close', (code) => {
     if (closed) return;
-    fail(
-      new VoiceError(
-        'provider-unavailable',
-        `The provider closed the stream before completing recognition (WebSocket ${code}).`,
-      ),
+    const error = new VoiceError(
+      'provider-unavailable',
+      `The provider closed the stream before completing recognition (WebSocket ${code}).`,
     );
+    if (code === 1006) interruptedStreams.add(error);
+    fail(error);
   });
 
   const pushBytes = (chunk: Buffer) => {
@@ -290,6 +291,73 @@ export function openSonioxStream(
     },
     cancel() {
       shut();
+    },
+  };
+}
+
+export function openSonioxUtterance(
+  options: SonioxStreamOptions & { onReconnect?: () => void },
+): AsrStream {
+  const abort = new AbortController();
+  const signal =
+    options.signal === undefined ? abort.signal : AbortSignal.any([options.signal, abort.signal]);
+  const now = options.now ?? (() => performance.now());
+  let stream = openSonioxStream({ ...options, signal });
+  let chunks: Int16Array[] = [];
+  let bytes = 0;
+  let canReplay = true;
+  let finished = false;
+  const clear = () => {
+    for (const chunk of chunks) chunk.fill(0);
+    chunks = [];
+    bytes = 0;
+  };
+  return {
+    push(pcm) {
+      if (finished || signal.aborted) return;
+      if (canReplay) {
+        bytes += pcm.byteLength;
+        if (bytes > 8 * 1024 * 1024) {
+          canReplay = false;
+          clear();
+        } else chunks.push(pcm.slice());
+      }
+      stream.push(pcm);
+    },
+    async finish() {
+      if (finished || signal.aborted)
+        throw new VoiceError('invalid-input', 'This stream is already finished.');
+      finished = true;
+      const started = now();
+      try {
+        try {
+          return await stream.finish();
+        } catch (error) {
+          const remaining = options.timeoutMs - (now() - started);
+          if (
+            !(error instanceof Error) ||
+            !interruptedStreams.has(error) ||
+            !canReplay ||
+            chunks.length === 0 ||
+            signal.aborted ||
+            remaining <= 0
+          )
+            throw error;
+          stream.cancel();
+          options.onReconnect?.();
+          stream = openSonioxStream({ ...options, warm: undefined, signal, timeoutMs: remaining });
+          for (const chunk of chunks) stream.push(chunk);
+          const result = await stream.finish();
+          return { ...result, latencyMs: Math.round(now() - started) };
+        }
+      } finally {
+        clear();
+      }
+    },
+    cancel() {
+      abort.abort();
+      stream.cancel();
+      clear();
     },
   };
 }

@@ -29,9 +29,12 @@ interface Session {
   ended: boolean;
 }
 
-async function fakeSoniox(options: { finals?: string[]; refuse?: number; partial?: string } = {}) {
+async function fakeSoniox(
+  options: { finals?: string[]; refuse?: number; partial?: string; interruptFirst?: boolean } = {},
+) {
   const finals = options.finals ?? ['明天上海会下雨吗？'];
   const sessions: Session[] = [];
+  let interrupted = false;
   const server = new WebSocketServer({
     port: 0,
     host: '127.0.0.1',
@@ -48,10 +51,16 @@ async function fakeSoniox(options: { finals?: string[]; refuse?: number; partial
       ended: false,
     };
     sessions.push(session);
-    const final = finals.shift() ?? '';
+    let final = '';
     socket.on('message', (data, binary) => {
       if (binary) {
         session.bytes += (data as Buffer).byteLength;
+        if (options.interruptFirst && !interrupted && session.bytes >= 16000) {
+          interrupted = true;
+          socket.send(JSON.stringify({ tokens: [{ text: '未完成的半句话', is_final: false }] }));
+          socket.terminate();
+          return;
+        }
         if (session.bytes >= 16_000)
           socket.send(
             JSON.stringify({
@@ -73,6 +82,7 @@ async function fakeSoniox(options: { finals?: string[]; refuse?: number; partial
       if (message['type'] === 'keepalive') return;
       if (session.config === undefined) {
         session.config = message;
+        final = finals.shift() ?? '';
         return;
       }
       if (message['type'] === 'finalize') {
@@ -386,6 +396,19 @@ async function streamingCall(soniox: Awaited<ReturnType<typeof fakeSoniox>>) {
 const types = (events: readonly VoiceCallEvent[]) => events.map((event) => event.type);
 
 describe('Host call owner with a streaming ASR Provider', () => {
+  it('replays an interrupted utterance once and submits only its complete result', async () => {
+    const soniox = await fakeSoniox({
+      interruptFirst: true,
+      finals: ['discarded', '三加四等于多少？'],
+    });
+    const call = await streamingCall(soniox);
+    await call.feed(concat(speech(1500), silence(1000)));
+    await until(() => call.sent.length === 1);
+    expect(call.sent).toHaveLength(1);
+    expect(call.sent[0]!.body).toBe('三加四等于多少？');
+    expect(types((await call.view()).events)).not.toContain('asr-failed');
+  });
+
   it('streams only the spoken part, shows live text, and posts the final text to the DM', async () => {
     const soniox = await fakeSoniox();
     const call = await streamingCall(soniox);
