@@ -52,6 +52,7 @@ export type CallSessionSnapshot = {
 };
 
 export interface CallControls {
+  mode?(music: boolean): Promise<CallAudioRouteState | null>;
   mute(muted: boolean): void;
   hangup(): void;
   choose(

@@ -402,6 +402,18 @@ export function CallScreen({
                   disabled={!model.live}
                   onOutput={(output) => chooseAudio(output, shownRoute.microphone)}
                   onMicrophone={(microphone) => chooseAudio(shownRoute.output, microphone)}
+                  {...(control()?.mode
+                    ? {
+                        onMode: (music: boolean) => {
+                          if (key === undefined) return;
+                          void control()
+                            ?.mode?.(music)
+                            .then((next) => {
+                              setAudioFailed(next === null);
+                            });
+                        },
+                      }
+                    : {})}
                 />
                 <Text variant="meta" tone="muted">
                   {callAudioDeviceName(

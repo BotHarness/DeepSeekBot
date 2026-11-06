@@ -213,6 +213,9 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
       mute: (muted) => void call.mute(muted),
       hangup: () => void call.hangup(),
       choose: async (output, microphone) => (await media.audio?.choose(output, microphone)) ?? null,
+      ...(media.audio?.mode
+        ? { mode: async (music: boolean) => (await media.audio?.mode?.(music)) ?? null }
+        : {}),
       camera: (on) => void turnCamera(on, cameraState.position),
       flip: () => {
         if (cameraState.on)

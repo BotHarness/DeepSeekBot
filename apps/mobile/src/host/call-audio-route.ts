@@ -38,6 +38,7 @@ export type CallAudioEvent = {
 };
 
 export interface CallAudioControl {
+  mode?(music: boolean): Promise<CallAudioRouteState | null>;
   choose(
     output: CallAudioOutputId,
     microphone: CallMicrophoneId,

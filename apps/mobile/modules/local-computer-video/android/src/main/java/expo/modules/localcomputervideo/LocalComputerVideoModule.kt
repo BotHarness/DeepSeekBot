@@ -44,6 +44,7 @@ class LocalComputerVideoModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("LocalComputerVideo")
     Constant("callAudioSupported") { android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S }
+    Constant("callAudioModeSupported") { android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU }
     Events("onCallState", "onCallTap", "onCallAudio")
 
     // Answers the Host's audio offer with the microphone. `testAudio` (test builds only)
@@ -101,6 +102,10 @@ class LocalComputerVideoModule : Module() {
 
     AsyncFunction("callAudioState") { attemptId: String ->
       call?.takeIf { it.id == attemptId }?.audioState()
+    }.runOnQueue(Queues.MAIN)
+
+    AsyncFunction("callAudioMode") { attemptId: String, music: Boolean ->
+      call?.takeIf { it.id == attemptId }?.setAudioMode(music)
     }.runOnQueue(Queues.MAIN)
 
     AsyncFunction("callAudio") { attemptId: String, output: String, microphone: String ->
