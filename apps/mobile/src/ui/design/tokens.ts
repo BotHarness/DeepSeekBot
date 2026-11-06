@@ -434,3 +434,18 @@ export const memoryGrid = {
   icon: 28,
   gap: space.x3,
 } as const;
+
+export const signInBrand = {
+  height: 50,
+  mark: 20,
+  apple: {
+    light: { fill: '#000000', label: '#ffffff', edge: '#000000' },
+    dark: { fill: '#ffffff', label: '#000000', edge: '#ffffff' },
+  },
+  google: {
+    light: { fill: '#ffffff', label: '#1f1f1f', edge: '#747775' },
+    dark: { fill: '#131314', label: '#e3e3e3', edge: '#8e918f' },
+  },
+  googleMark: { red: '#ea4335', blue: '#4285f4', yellow: '#fbbc05', green: '#34a853' },
+  appIcon: 64,
+} as const;
