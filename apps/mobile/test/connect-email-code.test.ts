@@ -43,7 +43,7 @@ function setup(
       });
     return Response.json({}, { status: 404 });
   });
-  const authorize = vi.fn(async (url: string) => {
+  const authorize = vi.fn(async (url: string): Promise<string | null> => {
     const state = new URL(url).searchParams.get('state');
     return `${REDIRECT}?code=auth-code&state=${state}`;
   });
