@@ -14,6 +14,13 @@ export type EmailCodeResult =
   | { status: 200; body: Record<string, unknown> }
   | { status: number; body: { error: { code: string; cause?: string } } };
 
+const workosError = (body: Record<string, unknown>) =>
+  typeof body['code'] === 'string'
+    ? body['code']
+    : typeof body['error'] === 'string'
+      ? body['error']
+      : undefined;
+
 const refused = (status: number, code: string, cause?: string): EmailCodeResult => ({
   status,
   body: { error: cause === undefined ? { code } : { code, cause } },
@@ -67,6 +74,8 @@ export function createEmailCode(options: EmailCodeOptions) {
       if (reply.status === 200 || reply.status === 201)
         return { status: 200, body: { sent: true } };
       if (reply.status === 429) return refused(429, 'rate-limited');
+      if (workosError(reply.body) === 'authentication_method_not_allowed')
+        return refused(503, 'email-code-unavailable', 'authentication_method_not_allowed');
       if (reply.status === 400 || reply.status === 422) return refused(400, 'invalid-email');
       return refused(502, 'workos-unavailable', `http-${reply.status}`);
     },
@@ -110,13 +119,10 @@ export function createEmailCode(options: EmailCodeOptions) {
             },
           },
         };
-      const workosCode =
-        typeof reply.body['code'] === 'string'
-          ? reply.body['code']
-          : typeof reply.body['error'] === 'string'
-            ? reply.body['error']
-            : undefined;
+      const workosCode = workosError(reply.body);
       if (reply.status === 429) return refused(429, 'rate-limited');
+      if (workosCode === 'authentication_method_not_allowed')
+        return refused(503, 'email-code-unavailable', workosCode);
       if (
         workosCode === 'invalid_one_time_code' ||
         workosCode === 'one_time_code_expired' ||

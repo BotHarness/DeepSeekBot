@@ -24,6 +24,7 @@ export type EmailCodeRefusal =
   | 'invalid-code'
   | 'rate-limited'
   | 'use-browser-sign-in'
+  | 'email-code-unavailable'
   | 'relay-unavailable';
 
 export interface EmailCodeFlow {
@@ -246,7 +247,8 @@ export function createConnectAccount(options: {
     return code === 'invalid-email' ||
       code === 'invalid-code' ||
       code === 'rate-limited' ||
-      code === 'use-browser-sign-in'
+      code === 'use-browser-sign-in' ||
+      code === 'email-code-unavailable'
       ? code
       : 'relay-unavailable';
   };

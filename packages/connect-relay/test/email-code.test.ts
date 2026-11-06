@@ -216,3 +216,24 @@ describe('Connect relay email-code routes', () => {
     expect(get.status).toBe(405);
   });
 });
+
+describe('email-code sign-in when Magic Auth is off', () => {
+  it('reports unavailable instead of blaming the email', async () => {
+    const off = workos({
+      '/magic_auth': {
+        status: 400,
+        body: { code: 'authentication_method_not_allowed', message: 'Magic Auth is disabled.' },
+      },
+      '/authenticate': { status: 400, body: { code: 'authentication_method_not_allowed' } },
+    });
+    const auth = createEmailCode({ apiKey: API_KEY, clientId: CLIENT_ID, fetcher: off.fetcher });
+    const expected = {
+      status: 503,
+      body: {
+        error: { code: 'email-code-unavailable', cause: 'authentication_method_not_allowed' },
+      },
+    };
+    expect(await auth.send({ email: 'a@b.co' })).toEqual(expected);
+    expect(await auth.verify({ email: 'a@b.co', code: '123456' })).toEqual(expected);
+  });
+});
