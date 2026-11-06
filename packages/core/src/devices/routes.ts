@@ -50,7 +50,7 @@ const runFile: RunCommand = (file, args, options) =>
     execFile(
       file,
       [...args],
-      { timeout: options?.timeoutMs ?? 3000, maxBuffer: 1024 * 1024 },
+      { timeout: options?.timeoutMs ?? 3000, maxBuffer: 1024 * 1024, windowsHide: true },
       (error, stdout, stderr) =>
         error ? reject(Object.assign(error, { stdout, stderr })) : resolve(stdout),
     );

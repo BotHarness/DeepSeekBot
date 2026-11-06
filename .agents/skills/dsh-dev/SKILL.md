@@ -90,6 +90,18 @@ A saved AX model id may disappear from the pinned native catalog. Preserve the l
 
 ## Pitfall log
 
+### Windows background command consoles (#3565)
+
+On a detached Windows DSH Host, a console executable launched by `execFile` without
+`windowsHide: true` can time out before entering its main function. In the task-owned
+Tailscale fixture, alternating the flag on the same Host produced eight timeouts out
+of eight with the default, versus eight successful status reads out of eight with
+hidden consoles; the 3000 ms timeout stayed unchanged. Child spawn/stdout/exit marks
+and native entry records separated this from Host event-loop starvation. Use hidden
+windows for noninteractive command runners. The detached-process regression in
+`packages/core/test/phone-route-windows.test.ts` exercises the real default route runner.
+This qualifies Windows process startup, not a real Tailscale daemon or macOS behavior.
+
 The Typert SRC gateway derives accepted named arguments from the registered Service method signature. Adding a Client argument and reading it in the application owner is insufficient: a missing facade parameter is rejected as `gateway/arguments-invalid` before the owner runs. Keep the facade signature and forwarding payload aligned, and replay the same authenticated `/api` request on a rebuilt isolated Host. A domain-only test cannot detect this boundary failure (#3215).
 
 In DSH 0.2.1-rc.3, never give two Loader rows the same id across Bundle layers. A Bundle `insert` of an existing id such as `ui-theme` makes the Loader start the last row, but native Settings (`configEditor`) composes the Profile Patch and checks the first row; every write then fails with `settings/rejected: Configuration for "ui-theme" is overridden by a home patch or command-line overlay`. The theme Client rolls back to the stored preference without a visible error. A non-insert Patch `name` is a selector, not a rename, so a Bundle cannot replace a native Plugin row; use a Profile-local package link instead. Reproduce by clicking Settings → General → Appearance → Dark and reading the `settings/mutate` reply (#2788).
