@@ -200,7 +200,12 @@ export type ChannelNotification =
     };
 
 export type ChannelLiveFrame =
-  | { type: 'opened'; cursor: number; page?: JournalPage }
+  | {
+      type: 'opened';
+      cursor: number;
+      page?: JournalPage;
+      changes?: { epoch: string; seq: number };
+    }
   | { type: 'entry'; entry: JournalEntry }
   | { type: 'notification'; notification: ChannelNotification };
 

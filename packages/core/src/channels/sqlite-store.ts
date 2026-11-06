@@ -3359,6 +3359,21 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       };
     },
     changeCursor: () => database.read(changeCursorIn),
+    channelChangeHead: (id) =>
+      database.read((db) => {
+        if (!changeLogIn(db)) return undefined;
+        const cursor = changeCursorIn(db);
+        const floor = db
+          .prepare('SELECT floor_seq FROM channel_change_epoch WHERE singleton = 1')
+          .get() as { floor_seq: number } | undefined;
+        const head = db
+          .prepare("SELECT max(seq) AS seq FROM channel_changes WHERE channel_id IN (?, '*')")
+          .get(id) as { seq: number | null } | undefined;
+        return {
+          epoch: cursor.epoch,
+          seq: Math.max(Number(head?.seq ?? 0), Number(floor?.floor_seq ?? 0)),
+        };
+      }),
     readChangedChannels(request): ChangedChannels {
       return database.read((db) => {
         const cursor = changeCursorIn(db);
