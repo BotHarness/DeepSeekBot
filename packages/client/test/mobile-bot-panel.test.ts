@@ -168,7 +168,7 @@ describe('Mobile Bot navigation', () => {
   it('connects only existing top-level actions and restores the desktop component on resize', () => {
     const { exitBotMode, openBotSettings } = renderPanel();
     expect(container.querySelectorAll('.bh-mobile-nav button')).toHaveLength(3);
-    click('Activity Center');
+    click('Activity');
     expect(container.querySelector('.bh-mobile-shell')?.getAttribute('data-page')).toBe('inbox');
     expect(container.querySelector<HTMLElement>('.bh-mobile-content')?.hidden).toBe(false);
     click('Conversations');
@@ -220,7 +220,7 @@ describe('Mobile Bot navigation', () => {
     const buttons = [...container.querySelectorAll('.bh-mobile-nav button')];
     expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual([
       'Conversations',
-      'Activity Center',
+      'Activity',
       'Bot settings',
     ]);
     for (const button of buttons) {
@@ -242,14 +242,14 @@ describe('Mobile Bot navigation', () => {
       );
     const navigation = byRole('nav', 'Bot mode navigation')!;
     expect(navigation.className).toMatch(/^bh-mobile-nav bhx/);
-    for (const name of ['Conversations', 'Activity Center', 'Bot settings'])
+    for (const name of ['Conversations', 'Activity', 'Bot settings'])
       expect(byRole('button', name)?.className, name).toMatch(/^bhx/);
     const exit = byRole('button', 'Exit Bot mode')!;
     expect(exit.className).toMatch(/^bh-mobile-exit bhx/);
     const current = byRole('button', 'Conversations')!;
     expect(current.getAttribute('aria-current')).toBe('page');
     expect(current.className).not.toBe(byRole('button', 'Bot settings')!.className);
-    click('Activity Center');
+    click('Activity');
     expect(byRole('button', 'Back to conversations')?.className).toMatch(/^bhx/);
     expect(byRole('button', 'Exit Bot mode')?.className).not.toBe(exit.className);
     click('Back to conversations');
@@ -369,8 +369,8 @@ describe('Mobile Bot navigation', () => {
   it('keeps mobile search borders within their slot and hides only the duplicate Activity title', () => {
     container.innerHTML = `<style>${MOBILE_BOT_CSS}</style>
       <div class="bh-mobile-list"><div class="bh-search bh-search-open"></div></div>
-      <div class="bh-mobile-content"><header class="bh-activity-center-header"><h1>Activity Center</h1><div role="tablist"></div></header></div>
-      <header class="bh-activity-center-header"><h1>Desktop Activity Center</h1></header>`;
+      <div class="bh-mobile-content"><header class="bh-activity-center-header"><h1>Activity</h1><div role="tablist"></div></header></div>
+      <header class="bh-activity-center-header"><h1>Desktop Activity</h1></header>`;
     const search = getComputedStyle(container.querySelector('.bh-search-open')!);
     expect(search.width).toBe('100%');
     expect(search.marginInline).toBe('0');

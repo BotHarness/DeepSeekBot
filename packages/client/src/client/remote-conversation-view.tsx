@@ -386,7 +386,7 @@ export function RemoteConversationView({
                   disabled={snapshot.loadingOlder || !reachable}
                   onClick={() => void conversation?.loadOlder()}
                 >
-                  {t('humanInbox.context.older')}
+                  {t('activityList.context.older')}
                 </Button>
               ) : null}
             </div>

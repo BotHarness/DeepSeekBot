@@ -407,7 +407,7 @@ function Post({
     onSettled(item, result);
   };
   return (
-    <SwipeRow actions={actions} testID={`inbox-swipe-${activityKey(item)}`}>
+    <SwipeRow actions={actions} contextMenu={false} testID={`inbox-swipe-${activityKey(item)}`}>
       <View
         testID={`inbox-post-${activityKey(item)}`}
         style={{

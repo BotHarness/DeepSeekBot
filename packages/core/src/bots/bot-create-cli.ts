@@ -77,6 +77,7 @@ import { createPersonaBotRegistry, type PersonaBotRegistry } from './registry.js
 import { ZipArchiveError, writeZip, type ZipEntry } from './zip-archive.js';
 import { INBOX_HOST_COMMANDS } from './cli-inbox.js';
 import { CliLiveError, LIVE_COMMANDS, LIVE_OPTIONS, runLiveCli } from './cli-live.js';
+import { isActivityCommandName } from './cli-inbox.js';
 import { hasAgentCliContext, runAgentCli } from './cli-agent.js';
 import { runVoiceLocalKit, VOICE_LOCAL_KIT_HELP } from './cli-voice.js';
 import { runSshCli, SSH_COMMANDS, SSH_OPTIONS } from './cli-ssh.js';
@@ -2715,7 +2716,8 @@ export async function runBotCreateCli(
       return 0;
     }
     if (
-      (LIVE_COMMANDS.some((entry) => entry.command === command) &&
+      ((LIVE_COMMANDS.some((entry) => entry.command === command) ||
+        isActivityCommandName(command)) &&
         (!['pause', 'resume'].includes(command) || online)) ||
       (([
         'channel-messages',

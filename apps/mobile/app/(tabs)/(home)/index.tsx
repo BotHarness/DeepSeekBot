@@ -92,7 +92,14 @@ type MessageItem = {
   conversation: Conversation;
 };
 type HomeItem = EnvironmentChatItem | { type: 'message-heading'; key: string } | MessageItem;
+import type { ConnectionState } from '../../../src/host/client';
 import { sectionCollapse, useCollapsedSections } from '../../../src/host/native-section-collapse';
+
+const quickRetryMs = 2_000;
+const firstAttemptFailed = ({ snapshot: { connection } }: ConnectedHost) =>
+  connection.status === 'unreachable' &&
+  connection.attempt < 2 &&
+  (connection.retryDelay ?? Infinity) <= quickRetryMs;
 
 export default function HomeScreen() {
   const focused = useIsFocused();
@@ -402,7 +409,17 @@ const HomeContent = memo(function HomeContent({
         : [],
     [displayed, query, messageItems, t],
   );
-  const connecting = useConnectionProgress(selectedHost?.snapshot.connection.status) !== undefined;
+  const selectedConnection: ConnectionState | undefined =
+    selectedHost === undefined
+      ? undefined
+      : firstAttemptFailed(selectedHost)
+        ? {
+            status: 'reconnecting',
+            route: selectedHost.snapshot.connection.route,
+            attempt: 1,
+          }
+        : selectedHost.snapshot.connection;
+  const connecting = useConnectionProgress(selectedConnection?.status) !== undefined;
   const pickSearch = (key: string) => {
     const message = messageItems.find((entry) => entry.key === key);
     if (message !== undefined) {
@@ -418,6 +435,7 @@ const HomeContent = memo(function HomeContent({
   const includesCloud = environment.kind !== 'computer';
   const hostFailed =
     selectedHost !== undefined &&
+    !firstAttemptFailed(selectedHost) &&
     ['unreachable', 'refused', 'stopped'].includes(selectedHost.snapshot.connection.status);
   const cloudFailed = includesCloud && Boolean(directory.errors.length || cloud.error);
   const loadingHosts = selectedHost ? [selectedHost] : effectiveFilter === 'all' ? hosts : [];
@@ -425,7 +443,8 @@ const HomeContent = memo(function HomeContent({
     loadingHosts.some(
       (host) =>
         !host.snapshot.roster &&
-        ['connecting', 'reconnecting'].includes(host.snapshot.connection.status),
+        (['connecting', 'reconnecting'].includes(host.snapshot.connection.status) ||
+          firstAttemptFailed(host)),
     ) ||
     (includesCloud && cloud.rows.some((row) => row.hasSession) && !directory.ready && !cloudFailed);
   const screen = <Stack.Screen options={{ title: environment.title, headerShown: false }} />;
@@ -546,7 +565,7 @@ const HomeContent = memo(function HomeContent({
       <HostDrawerEdge anywhere enabled={showWorkspaces === undefined}>
         <HomeHeader
           environment={environment}
-          connection={selectedHost?.snapshot.connection}
+          connection={selectedConnection}
           onWorkspaces={showWorkspaces}
           bar={
             Platform.OS === 'android' ? (
@@ -650,7 +669,8 @@ const HomeContent = memo(function HomeContent({
                         )}
                       {selectedHost &&
                       ((refreshFailedHosts.includes(selectedHost.saved.hostId) && !hostFailed) ||
-                        selectedHost.snapshot.connection.status === 'unreachable' ||
+                        (selectedHost.snapshot.connection.status === 'unreachable' &&
+                          !firstAttemptFailed(selectedHost)) ||
                         selectedHost.snapshot.connection.status === 'stopped') ? (
                         <View style={{ paddingHorizontal: space.x5, gap: space.x2 }}>
                           <Text tone="muted">

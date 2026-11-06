@@ -1234,9 +1234,15 @@ export function WorkspacePanel({
               <View ref={cloudAvailable ? undefined : tabFocus}>
                 <DrawerListItem
                   testID="drawer-all"
-                  label={page ? t.allEnvironmentsRow : t.allEnvironments}
+                  label={t.allEnvironmentsRow}
                   selected={!cloudRoute && filter === 'all'}
-                  leading={<ChatsIcon color={theme.color.accent} size={theme.type.body.line} />}
+                  leading={
+                    rows.length > 0 ? (
+                      <StackedHostTiles rows={rows} />
+                    ) : (
+                      <ChatsIcon color={theme.color.accent} size={theme.type.body.line} />
+                    )
+                  }
                   onPress={() => closeThen(() => hostDrawer.selectAll())}
                 />
               </View>
@@ -1247,7 +1253,7 @@ export function WorkspacePanel({
                 ref={cloudAvailable ? undefined : tabFocus}
                 testID="drawer-all"
                 accessibilityRole="button"
-                accessibilityLabel={page ? t.allEnvironmentsRow : t.allEnvironments}
+                accessibilityLabel={t.allEnvironmentsRow}
                 accessibilityState={{ selected: !cloudRoute && filter === 'all' }}
                 onPress={() => closeThen(() => hostDrawer.selectAll())}
                 android_ripple={{ color: pressTint(theme.color.fg), foreground: true }}
@@ -1261,7 +1267,7 @@ export function WorkspacePanel({
                   overflow: 'hidden',
                 })}
               >
-                {page && rows.length > 0 ? (
+                {rows.length > 0 ? (
                   <StackedHostTiles rows={rows} />
                 ) : (
                   <ChatsIcon
@@ -1270,7 +1276,7 @@ export function WorkspacePanel({
                   />
                 )}
                 <Text strong style={{ flexShrink: 1 }}>
-                  {page ? t.allEnvironmentsRow : t.allEnvironments}
+                  {t.allEnvironmentsRow}
                 </Text>
               </Pressable>
             );

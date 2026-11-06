@@ -10,7 +10,7 @@ import type {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ConversationMessage } from '../src/host/conversation';
-import { STABLE_FRAMES, useFollowLatest } from '../src/ui/chat/follow-latest';
+import { CHECK_BUDGET, STABLE_FRAMES, useFollowLatest } from '../src/ui/chat/follow-latest';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -445,6 +445,63 @@ describe('following a growing conversation', () => {
     expect(view.current.browsed).toBe(false);
     act(() => view.current.listProps.onScrollBeginDrag());
     expect(view.current.browsed).toBe(true);
+    view.unmount();
+  });
+
+  it('reveals rows that arrive after the list geometry has already settled', () => {
+    const view = mount([]);
+    act(() => view.current.listProps.onLayout(layout(LAYOUT)));
+    act(() => view.current.listProps.onContentSizeChange(0, CONTENT));
+    act(() => view.current.listProps.onScroll(event(0)));
+    flushFrames();
+    expect(view.current.ready).toBe(false);
+    view.rerender([message('a', 'bot')]);
+    flushFrames();
+    expect(view.current.ready).toBe(true);
+    view.unmount();
+  });
+
+  it('offers retry when rows are present but the list never reports its content', () => {
+    const view = mount([message('a', 'bot')]);
+    act(() => view.current.listProps.onLayout(layout(LAYOUT)));
+    for (let frame = 0; frame < CHECK_BUDGET * 2; frame += 1)
+      act(() => {
+        for (const callback of frames.splice(0)) callback();
+      });
+    expect(view.current.ready).toBe(false);
+    expect(view.current.canRetry).toBe(true);
+    view.unmount();
+  });
+
+  it('pins the latest message even when a keyboard start never ends', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const view = mount([message('a', 'bot')]);
+    act(() => view.current.keyboard.onStart());
+    act(() => view.current.listProps.onLayout(layout(LAYOUT)));
+    act(() => view.current.listProps.onContentSizeChange(0, CONTENT));
+    flushFrames();
+    expect(view.scrollToOffset).not.toHaveBeenCalled();
+    act(() => vi.runAllTimers());
+    flushFrames();
+    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END, animated: false });
+    act(() => view.current.listProps.onScroll(event(0)));
+    flushFrames();
+    expect(view.current.ready).toBe(true);
+    view.unmount();
+    vi.useRealTimers();
+  });
+
+  it('offers retry when the content height never stops changing', () => {
+    const view = mount([message('a', 'bot')]);
+    act(() => view.current.listProps.onLayout(layout(LAYOUT)));
+    for (let frame = 0; frame < CHECK_BUDGET * 2; frame += 1) {
+      act(() => view.current.listProps.onContentSizeChange(0, frame % 2 === 0 ? 728 : 768));
+      act(() => {
+        for (const callback of frames.splice(0)) callback();
+      });
+    }
+    expect(view.current.ready).toBe(false);
+    expect(view.current.canRetry).toBe(true);
     view.unmount();
   });
 

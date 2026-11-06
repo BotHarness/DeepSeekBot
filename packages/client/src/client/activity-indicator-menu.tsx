@@ -11,7 +11,7 @@ const labels = {
   all: 'activityInbox.all',
   action: 'activityInbox.needsYou',
   replies: 'activityInbox.forYou',
-  unread: 'humanInbox.unread',
+  unread: 'activityList.unread',
   none: 'activityIndicator.none',
 } as const;
 

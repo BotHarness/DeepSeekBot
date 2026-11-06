@@ -4,7 +4,7 @@ import type {
   ChannelMessage,
   ChannelSummary,
   ConversationState,
-  HumanInboxState,
+  ActivityListState,
 } from './store.js';
 
 export function parseContentRedactions(event: Event): PurgedPlacement[] {
@@ -89,7 +89,7 @@ export function createContentRedactions() {
       });
       return sameItems(items, value.items) ? value : { ...value, items };
     },
-    humanInbox(value: HumanInboxState): HumanInboxState {
+    activityList(value: ActivityListState): ActivityListState {
       if (placements.size === 0 && sources.size === 0) return value;
       const items = value.items.map((item) =>
         (item.sourceEventId !== undefined && sources.has(item.sourceEventId)) ||

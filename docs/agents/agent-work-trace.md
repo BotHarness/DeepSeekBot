@@ -36,7 +36,7 @@ Issue: #196
 Agent-Task: codex/local/<CODEX_THREAD_ID>
 ```
 
-In the PR description, link the issue, the claim comment, and the same task reference. Use `Closes #196` only when the PR finishes the issue; use `Refs #196` for a partial slice. If several tasks contributed, list each task reference and its scope. Preserve the reference in a squash-merge message when practical, but treat the issue and PR as the durable trail if GitHub rewrites the commit message.
+In the PR description, link the issue, the claim comment, and the same task reference. When the PR delivers the issue's feature or fixes its bug, write `Closes #196` as plain text (not inside a Markdown link, which GitHub ignores) so merging closes the issue. Do not keep the issue open for a release or for pending device/Human QA; move remaining QA to its own issue. Use `Refs #196` only for a slice that leaves part of the issue's scope unbuilt. GitHub acts on `Closes #196` only when the PR merges into `main`: once a stacked PR's parent has merged into `main`, retarget the stacked PR to `main` before merging it, or close the issue by hand once its work reaches `main`. If several tasks contributed, list each task reference and its scope. Preserve the reference in a squash-merge message when practical, but treat the issue and PR as the durable trail if GitHub rewrites the commit message.
 
 ## Finish, hand off, or recover
 

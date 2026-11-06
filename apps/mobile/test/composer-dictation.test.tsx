@@ -436,7 +436,7 @@ describe('Holding the Android input', () => {
     await emit('start');
     await emit('result', result('Keep this draft', true));
     await emit('end');
-    expect(field().placeholder).toBe('Message Mika');
+    expect(field().placeholder).toBe(t.composerInputHint);
     expect(field().value).toBe('Keep this draft');
     await act(async () => speech.gesture!['stop']!());
     expect(field().value).toBe('Keep this draft');

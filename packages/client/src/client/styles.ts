@@ -98,7 +98,7 @@ export const CSS =
 .bh-onboarding-notice { position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 1000; display: flex; align-items: center; gap: ${space.x3}; max-width: min(560px, calc(100vw - 32px)); padding: ${space.x3} ${space.x4}; border: ${border.hairline} solid ${color.border}; border-radius: ${radius.md}; background: var(--dsw-alias-bg-base); box-shadow: 0 8px 24px color-mix(in srgb, var(--dsw-alias-label-primary) 12%, transparent); }
 .bh-onboarding-notice-text { min-width: 0; overflow-wrap: anywhere; }
 /* Onboarding launcher: a progress ring in the Bot-mode row's action group (no row
-   of its own). Like the Human Inbox and gear it appears only on hover, while its
+   of its own). Like Activity and gear it appears only on hover, while its
    checklist is open, or while the walkthrough highlights the row. */
 .bh-onboarding-launcher { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: ${radius.sm}; color: var(--dsw-alias-label-secondary); cursor: pointer; transition: opacity 120ms var(--ds-ease-in-out), background 120ms var(--ds-ease-in-out); }
 .bh-onboarding-launcher[data-bh-onboarding-launcher='row']:not([data-open='true']) { opacity: 0; pointer-events: none; }
@@ -608,7 +608,7 @@ button:has(.bh-panel-glyph)::before {
 }
 
 
-/* Action group on the wide Bot row: tutorial progress, Human Inbox and the
+/* Action group on the wide Bot row: tutorial progress, Activity and the
    settings gear sit side by side inside the row, sharing its layer and hover. */
 .bh-panel-actions {
   position: absolute;
@@ -6299,7 +6299,7 @@ pre.bh-memory-commit-code { padding: ${space.x3} ${space.x5}; white-space: pre-w
   color: var(--dsw-alias-label-tertiary);
   font-size: ${text.metaSize};
 }
-/* Human Inbox follows the native Bot mode inset and semantic theme aliases. */
+/* Activity follows the native Bot mode inset and semantic theme aliases. */
 
 nav:has(> .bh-panel-activity) {
   display: grid;
@@ -6330,7 +6330,7 @@ button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-panel-activity[data-wi
 .bh-panel-activity:hover { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-primary); }
 .bh-panel-activity[aria-current='page'] { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-primary); }
 .bh-panel-activity:focus-visible { outline: ${border.focus} solid var(--dsw-alias-state-business-primary); outline-offset: 1px; }
-.bh-human-inbox-count {
+.bh-activity-list-count {
   flex: none;
   min-width: 14px;
   padding: 0 ${space.x1};
@@ -6339,7 +6339,7 @@ button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-panel-activity[data-wi
   font-variant-numeric: tabular-nums;
   color: inherit;
 }
-.bh-human-inbox-notification-dot {
+.bh-activity-list-notification-dot {
   position: absolute;
   top: 3px;
   right: 3px;
@@ -6362,27 +6362,27 @@ button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-panel-activity[data-wi
 .bh-panel-activity[data-wide='false'][data-active='false'] { display: none; }
 .bh-panel-activity[data-wide='false']:hover { background: var(--bh-hover); }
 .bh-panel-activity[data-wide='false'][aria-current='page'] { background: var(--bh-selected); }
-.bh-human-inbox {
+.bh-activity-list {
   overflow: auto;
   padding: 28px min(6vw, 64px);
 }
-.bh-human-inbox-inner {
+.bh-activity-list-inner {
   width: min(100%, 1120px);
   margin: 0 auto;
 }
-.bh-human-inbox-workspace {
+.bh-activity-list-workspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 20px;
   align-items: start;
 }
-.bh-human-inbox-row[data-selected='true'] {
+.bh-activity-list-row[data-selected='true'] {
   background: var(--dsw-alias-interactive-bg-hover);
 }
-.bh-human-inbox-list {
+.bh-activity-list {
   min-width: 0;
 }
-.bh-human-inbox-row {
+.bh-activity-list-row {
   position: relative;
   display: flex;
   flex-wrap: wrap;
@@ -6392,7 +6392,7 @@ button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-panel-activity[data-wi
   padding: ${space.x4} ${space.x5};
   border-bottom: ${border.hairline} solid ${color.divider};
 }
-.bh-human-inbox-row-open {
+.bh-activity-list-row-open {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -6401,22 +6401,22 @@ button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-panel-activity[data-wi
   background: transparent;
   cursor: pointer;
 }
-.bh-human-inbox-row-open:hover { background: var(--bh-hover); }
-.bh-human-inbox-row-open:focus-visible {
+.bh-activity-list-row-open:hover { background: var(--bh-hover); }
+.bh-activity-list-row-open:focus-visible {
   outline: ${border.focus} solid var(--bh-accent);
   outline-offset: -2px;
 }
-.bh-human-inbox-row-main {
+.bh-activity-list-row-main {
   position: relative;
   pointer-events: none;
   flex: 1 1 24ch;
   min-width: 0;
 }
-.bh-human-inbox-row > .bh-human-inbox-detail {
+.bh-activity-list-row > .bh-activity-list-detail {
   flex-basis: 100%;
   min-width: 0;
 }
-.bh-human-inbox-source-link {
+.bh-activity-list-source-link {
   position: relative;
   display: grid;
   place-items: center;
@@ -6430,9 +6430,9 @@ button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-panel-activity[data-wi
   color: var(--dsw-alias-label-primary-foreground);
   cursor: pointer;
 }
-.bh-human-inbox-source-link:hover { background: var(--dsw-alias-button-primary-hover); }
-.bh-human-inbox-source-link:focus-visible { outline: ${border.focus} solid var(--bh-accent); outline-offset: 2px; }
-.bh-human-inbox-source-arrow {
+.bh-activity-list-source-link:hover { background: var(--dsw-alias-button-primary-hover); }
+.bh-activity-list-source-link:focus-visible { outline: ${border.focus} solid var(--bh-accent); outline-offset: 2px; }
+.bh-activity-list-source-arrow {
   position: absolute;
   top: -3px;
   right: -3px;
@@ -6441,7 +6441,7 @@ button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-panel-activity[data-wi
   border-radius: ${radius.sm};
   background: var(--dsw-alias-button-primary-fill);
 }
-.bh-human-inbox-channel-avatar {
+.bh-activity-list-channel-avatar {
   display: grid;
   place-items: center;
   width: 24px;
@@ -6451,57 +6451,57 @@ button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-panel-activity[data-wi
   overflow: hidden;
   border-radius: ${radius.sm};
 }
-.bh-human-inbox-channel-avatar img { width: 100%; height: 100%; object-fit: cover; }
-.bh-human-inbox-reply {
+.bh-activity-list-channel-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.bh-activity-list-reply {
   margin: 0;
   padding: ${space.x4};
   border: ${border.hairline} solid ${color.border};
   border-radius: ${radius.sm};
 }
-.bh-human-inbox-reply-header,
-.bh-human-inbox-reply-actions {
+.bh-activity-list-reply-header,
+.bh-activity-list-reply-actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: ${space.x3};
 }
-.bh-human-inbox-reply-header h2 {
+.bh-activity-list-reply-header h2 {
   margin: 0;
   font-size: inherit;
   font-weight: ${text.strong};
 }
-.bh-human-inbox-reply p {
+.bh-activity-list-reply p {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   margin: ${space.x2} 0;
 }
-.bh-human-inbox-purpose {
+.bh-activity-list-purpose {
   font-size: inherit;
   font-weight: ${text.strong};
   overflow-wrap: anywhere;
 }
-.bh-human-inbox-purpose.is-collapsed {
+.bh-activity-list-purpose.is-collapsed {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
 }
-.bh-human-inbox-message {
+.bh-activity-list-message {
   position: relative;  display: flex;
   gap: ${space.x3};
   padding: ${space.x4} ${space.x5};
   border-bottom: ${border.hairline} solid ${color.divider};
 }
-.bh-human-inbox-message-flow {
+.bh-activity-list-message-flow {
   max-height: min(42vh, 380px);
   overflow: auto;
   margin-bottom: 0;
 }
-.bh-human-inbox-message-content {
+.bh-activity-list-message-content {
   min-width: 0;
   flex: 1;
 }
-.bh-human-inbox-human-avatar {
+.bh-activity-list-human-avatar {
   display: grid;
   place-items: center;
   flex: none;
@@ -6510,17 +6510,17 @@ button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-panel-activity[data-wi
   border-radius: ${radius.sm};
   background: var(--dsw-alias-interactive-bg-hover);
 }
-.bh-human-inbox-message-heading {
+.bh-activity-list-message-heading {
   display: flex;
   align-items: baseline;
   gap: ${space.x3};
   flex-wrap: wrap;
 }
-.bh-human-inbox-message time {
+.bh-activity-list-message time {
   color: var(--dsw-alias-label-secondary);
   font-size: inherit;
 }
-.bh-human-inbox-message-target {
+.bh-activity-list-message-target {
   display: inline-block;
   margin: ${space.x2} 0 0;
   padding: ${space.x1} ${space.x2};
@@ -6529,22 +6529,22 @@ button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-panel-activity[data-wi
   color: ${color.accentText};
   font-size: inherit;
 }
-.bh-human-inbox-reply-source {
+.bh-activity-list-reply-source {
   border-left: ${border.hairline} solid var(--bh-accent);
   background: var(--dsw-alias-bg-layer-1);
 }
-.bh-human-inbox-message blockquote {
+.bh-activity-list-message blockquote {
   margin: ${space.x3} 0;
   padding-left: ${space.x3};
   border-left: ${border.hairline} solid ${color.divider};
   color: var(--dsw-alias-label-secondary);
 }
-.bh-human-inbox-reply form label {
+.bh-activity-list-reply form label {
   display: flex;
   flex-direction: column;
   gap: ${space.x2};
 }
-.bh-human-inbox-reply textarea {
+.bh-activity-list-reply textarea {
   box-sizing: border-box;
   width: 100%;
   resize: vertical;
@@ -6556,17 +6556,17 @@ button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-panel-activity[data-wi
   font: inherit;
   line-height: 1.5;
 }
-.bh-human-inbox-reply-actions {
+.bh-activity-list-reply-actions {
   justify-content: flex-end;
   margin-top: ${space.x3};
   flex-wrap: wrap;
 }
-.bh-human-inbox-reply textarea:focus-visible,
-.bh-human-inbox-reply button:focus-visible {
+.bh-activity-list-reply textarea:focus-visible,
+.bh-activity-list-reply button:focus-visible {
   outline: ${border.focus} solid var(--bh-accent);
   outline-offset: 2px;
 }
-.bh-human-inbox-row-title {
+.bh-activity-list-row-title {
   position: relative;
   pointer-events: none;
   flex-basis: 100%;
@@ -6574,7 +6574,7 @@ button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-panel-activity[data-wi
   font-weight: ${text.strong};
   overflow-wrap: anywhere;
 }
-.bh-human-inbox-row-summary {
+.bh-activity-list-row-summary {
   margin-top: ${space.x2};
   color: var(--dsw-alias-label-secondary);
   overflow-wrap: anywhere;
@@ -6583,16 +6583,16 @@ button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-panel-activity[data-wi
   -webkit-line-clamp: 1;
   overflow: hidden;
 }
-.bh-human-inbox-unread-meta {
+.bh-activity-list-unread-meta {
   margin-top: ${space.x2};
   color: var(--dsw-alias-label-secondary);
   font-size: ${text.metaSize};
 }
-.bh-human-inbox-unread-meta summary {
+.bh-activity-list-unread-meta summary {
   margin-top: ${space.x3};
   cursor: pointer;
 }
-.bh-human-inbox-row-actions {
+.bh-activity-list-row-actions {
   align-items: center;
   justify-content: flex-end;
   position: relative;
@@ -6603,13 +6603,13 @@ button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-panel-activity[data-wi
   gap: ${space.x2};
   flex-wrap: wrap;
 }
-.bh-human-inbox-pairing-capabilities {
+.bh-activity-list-pairing-capabilities {
   display: flex;
   flex-basis: 100%;
   flex-wrap: wrap;
   gap: ${space.x2} ${space.x4};
 }
-.bh-human-inbox-row-check {
+.bh-activity-list-row-check {
   position: relative;
   z-index: 1;
   pointer-events: auto;
@@ -6618,8 +6618,8 @@ button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-panel-activity[data-wi
   accent-color: ${color.accentText};
   cursor: pointer;
 }
-.bh-human-inbox-row[data-checked] { background: ${color.selected}; }
-.bh-human-inbox-batch {
+.bh-activity-list-row[data-checked] { background: ${color.selected}; }
+.bh-activity-list-batch {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -6628,8 +6628,8 @@ button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-panel-activity[data-wi
   padding: 0 ${space.x5} ${space.x3};
   border-bottom: ${border.hairline} solid ${color.divider};
 }
-.bh-human-inbox-batch-all { display: inline-flex; align-items: center; color: var(--dsw-alias-label-secondary); cursor: pointer; }
-.bh-human-inbox-more {
+.bh-activity-list-batch-all { display: inline-flex; align-items: center; color: var(--dsw-alias-label-secondary); cursor: pointer; }
+.bh-activity-list-more {
   padding: ${space.x2} ${space.x3};
   border: ${border.hairline} solid ${color.borderStrong};
   border-radius: ${radius.sm};
@@ -6637,26 +6637,26 @@ button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-panel-activity[data-wi
   background: transparent;
   cursor: pointer;
 }
-.bh-human-inbox-more:hover {
+.bh-activity-list-more:hover {
   background: var(--dsw-alias-interactive-bg-hover);
 }
 .bh-activity-center { display:flex;flex-direction:column;overflow:hidden; }
 .bh-activity-center-header {padding:20px ${space.x6} 0; flex-shrink:0;}
 .bh-activity-center-header h1 {margin:0 0 ${space.x5};font-size:${text.titleSize};line-height:${text.titleLine};font-weight:${text.strong};}
-.bh-activity-center > .bh-human-inbox {min-height:0;flex:1;}
+.bh-activity-center > .bh-activity-list {min-height:0;flex:1;}
 .bh-activity-center-panel {height:100%;min-height:0;container-type:inline-size;}
 .bh-activity-center-panel .bh-activity-center-header {padding:0;}
-.bh-activity-center-panel > .bh-human-inbox {padding:${space.x4} 0 0;}
-.bh-human-inbox-context-window { margin-top: ${space.x4}; }
-.bh-human-inbox-context-edge { display: flex; align-items: center; justify-content: center; width: 100%; height: 28px; padding: 0; border: ${border.hairline} solid ${color.borderStrong}; background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-secondary); cursor: pointer; }
-.bh-human-inbox-context-edge:not(:disabled):hover { background: var(--bh-hover); }
-.bh-human-inbox-context-edge:disabled { opacity: .4; cursor: default; }
-.bh-human-inbox-context-older svg { transform: rotate(180deg); }
-.bh-human-inbox-message-source { position: absolute; right: 8px; top: 8px; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: ${border.hairline} solid ${color.border}; border-radius: ${radius.sm}; background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); opacity: 0; pointer-events: none; cursor: pointer; }
-.bh-human-inbox-message:hover .bh-human-inbox-message-source, .bh-human-inbox-message:focus-within .bh-human-inbox-message-source, .bh-human-inbox-message-source:focus-visible { opacity: 1; pointer-events: auto; }
-.bh-human-inbox-message-heading { padding-right: ${space.x6}; }
-.bh-human-inbox-dismiss { display: flex; align-items: center; gap: ${space.x2}; }
-@media (hover: none) { .bh-human-inbox-message-source { opacity: 1; pointer-events: auto; } }
+.bh-activity-center-panel > .bh-activity-list {padding:${space.x4} 0 0;}
+.bh-activity-list-context-window { margin-top: ${space.x4}; }
+.bh-activity-list-context-edge { display: flex; align-items: center; justify-content: center; width: 100%; height: 28px; padding: 0; border: ${border.hairline} solid ${color.borderStrong}; background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-secondary); cursor: pointer; }
+.bh-activity-list-context-edge:not(:disabled):hover { background: var(--bh-hover); }
+.bh-activity-list-context-edge:disabled { opacity: .4; cursor: default; }
+.bh-activity-list-context-older svg { transform: rotate(180deg); }
+.bh-activity-list-message-source { position: absolute; right: 8px; top: 8px; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: ${border.hairline} solid ${color.border}; border-radius: ${radius.sm}; background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); opacity: 0; pointer-events: none; cursor: pointer; }
+.bh-activity-list-message:hover .bh-activity-list-message-source, .bh-activity-list-message:focus-within .bh-activity-list-message-source, .bh-activity-list-message-source:focus-visible { opacity: 1; pointer-events: auto; }
+.bh-activity-list-message-heading { padding-right: ${space.x6}; }
+.bh-activity-list-dismiss { display: flex; align-items: center; gap: ${space.x2}; }
+@media (hover: none) { .bh-activity-list-message-source { opacity: 1; pointer-events: auto; } }
 
 
 .bh-channel-activity {margin-top:${space.x6};color:var(--dsw-alias-label-primary);font-size:var(--dsh-content-font-size);}

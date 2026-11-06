@@ -1,4 +1,8 @@
+import type { RefObject } from 'react';
+import type { ViewInstance } from 'react-native';
+
 export type ConversationTopBarProps = {
+  blurTarget: RefObject<ViewInstance | null>;
   title: string;
   connectionLabel?: string | undefined;
   onBack(): void;
