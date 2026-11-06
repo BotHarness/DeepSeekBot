@@ -182,7 +182,7 @@ The PersonaBot-scoped durable read model through which its current Orchestrator 
 _Avoid_: task list, AgentHandle map, cwd scan, Orchestrator memory
 
 **Archived Assignment**:
-An Assignment whose Orchestrator explicitly archived it through DSH's native Session archive after it settled. It leaves the default Assignment Directory listing and native Session lists, gives up its Continuity Key, refuses Assignment Requests with `assignment-ended`, and keeps its history; unarchiving restores it. Archiving is how an Assignment is resolved: until then it stays active, and a Turn that failed, was cancelled or was interrupted does not end it. Nothing archives an Assignment automatically (ADR-0188, ADR-0295).
+An Assignment whose Orchestrator explicitly archived it through DSH's native Session archive after it settled. It leaves the default Assignment Directory listing and native Session lists, gives up its Continuity Key, and keeps its history; unarchiving restores it, and `send_assignment_request` to it unarchives it first and then retries the request, which the usual capacity and acceptance checks can still refuse. Archiving is how an Assignment is resolved: until then it stays active, and a Turn that failed, was cancelled or was interrupted does not end it. Nothing archives an Assignment automatically (ADR-0188, ADR-0295).
 _Avoid_: deleted Assignment, stopped Assignment, auto-archive, hidden flag
 
 **Continuity Key**:

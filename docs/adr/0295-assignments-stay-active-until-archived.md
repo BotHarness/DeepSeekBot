@@ -15,7 +15,7 @@ An unsuccessful Turn, however, behaved like a second, implicit end. A native Tur
 An Assignment has two lifecycle states for delivery:
 
 - **Active**: not archived. It accepts Assignment Requests, subject to the existing stop, Grant, acceptance and concurrency checks. Activity (`working`, `idle`, `error`) is an execution fact inside this state, not an end.
-- **Resolved**: archived through `archive_assignment`. A request returns the coded refusal `{ outcome: 'refused', code: 'assignment-ended' }` and delivers nothing. `unarchive_assignment` makes it active again.
+- **Resolved**: archived through `archive_assignment`. It leaves the default directory listing. Sending it an Assignment Request through `send_assignment_request` reactivates it: the tool unarchives it through the native Session archive and retries the request once. `unarchived: true` means the archive was undone; it does not mean the request was delivered, because the retry can still be refused by capacity, and only a `steer` or `followup` delivery carries the request. `unarchive_assignment` reactivates it without sending anything. At the Host runtime seam a request to an archived Assignment, or one whose archive is still in flight, stays the coded refusal `{ outcome: 'refused', code: 'assignment-ended' }`, which is what the tool sees before it unarchives and what it returns if the request is still refused afterwards.
 
 An unsuccessful Turn does not resolve:
 
@@ -24,10 +24,12 @@ An unsuccessful Turn does not resolve:
 - A request with `answer_to` to an errored Assignment is still refused. The answer may already sit in the native Inbox after an uncertain acceptance (ADR-0059), so it is never replayed; the Orchestrator inspects and continues with a plain request.
 - If delivery fails before native acceptance, the Assignment returns to `error`, not `idle`.
 
+Archiving is therefore a way to file finished work out of the default view, not a lock: an Orchestrator that sends to an archived Assignment means to reuse it (amended the same day after Human review; the first version refused the request).
+
 Nothing resolves automatically. A TTL or turn limit that archives on policy is left to a later change; when it lands it must archive through the same path so the refusal is the same.
 
 ## Consequences
 
 - Finished work leaves the default directory only when the Orchestrator archives it, as ADR-0188 already asks; the prompt now says a failed or interrupted Assignment should be continued rather than replaced.
 - An Orchestrator stop and a Human stop keep their existing semantics; this ADR does not change `stop_state`.
-- Machine dispatch (#3578) can map `assignment-ended` directly to "create a new Assignment".
+- Machine dispatch (#3578) can still read `assignment-ended` at the runtime seam and choose to unarchive, as the Bot tool does, or to create a new Assignment.
