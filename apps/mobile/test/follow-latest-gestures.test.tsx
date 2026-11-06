@@ -10,7 +10,7 @@ import type {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ConversationMessage } from '../src/host/conversation';
-import { STABLE_FRAMES, useFollowLatest } from '../src/ui/chat/follow-latest';
+import { SETTLE_FRAMES, STABLE_FRAMES, useFollowLatest } from '../src/ui/chat/follow-latest';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -445,6 +445,31 @@ describe('following a growing conversation', () => {
     expect(view.current.browsed).toBe(false);
     act(() => view.current.listProps.onScrollBeginDrag());
     expect(view.current.browsed).toBe(true);
+    view.unmount();
+  });
+
+  it('reveals rows that arrive after the list geometry has already settled', () => {
+    const view = mount([]);
+    act(() => view.current.listProps.onLayout(layout(LAYOUT)));
+    act(() => view.current.listProps.onContentSizeChange(0, CONTENT));
+    act(() => view.current.listProps.onScroll(event(0)));
+    flushFrames();
+    expect(view.current.ready).toBe(false);
+    view.rerender([message('a', 'bot')]);
+    flushFrames();
+    expect(view.current.ready).toBe(true);
+    view.unmount();
+  });
+
+  it('offers retry when the content height never stops changing', () => {
+    const view = mount([message('a', 'bot')]);
+    act(() => view.current.listProps.onLayout(layout(LAYOUT)));
+    for (let frame = 0; frame < SETTLE_FRAMES * 8; frame += 1) {
+      act(() => view.current.listProps.onContentSizeChange(0, frame % 2 === 0 ? 728 : 768));
+      act(() => frames.shift()?.());
+    }
+    expect(view.current.ready).toBe(false);
+    expect(view.current.canRetry).toBe(true);
     view.unmount();
   });
 
