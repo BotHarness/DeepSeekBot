@@ -234,13 +234,14 @@ export function openSonioxStream(
     );
   });
 
-  socket.on('close', () => {
+  socket.on('close', (code) => {
     if (closed) return;
-    if (finishing !== undefined && failure === undefined) {
-      done();
-      return;
-    }
-    fail(new VoiceError('provider-unavailable', 'The provider closed the stream.'));
+    fail(
+      new VoiceError(
+        'provider-unavailable',
+        `The provider closed the stream before completing recognition (WebSocket ${code}).`,
+      ),
+    );
   });
 
   const pushBytes = (chunk: Buffer) => {
