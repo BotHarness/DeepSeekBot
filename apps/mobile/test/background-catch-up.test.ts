@@ -94,6 +94,22 @@ describe('background catch-up', () => {
     expect(run.synced.map((entry) => entry.hostId)).toEqual(['h1']);
   });
 
+  it('keeps syncing the other Hosts when one saved Host cannot even build a client', async () => {
+    const run = options({
+      hosts: async () => [
+        { hostId: 'broken', routes: ['https://broken'] },
+        { hostId: 'h1', routes: ['https://lan'] },
+      ],
+    });
+    const call = run.options.call;
+    run.options.call = (saved, route) => {
+      if (saved.hostId === 'broken') throw new Error('malformed saved encryption');
+      return call(saved, route);
+    };
+    expect(await runBackgroundCatchUp(run.options)).toBe('synced');
+    expect(run.synced.map((entry) => entry.hostId)).toEqual(['h1']);
+  });
+
   it('keeps going after one Host fails mid-sync', async () => {
     const run = options();
     const sync = run.options.sync;

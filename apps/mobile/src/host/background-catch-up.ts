@@ -34,8 +34,8 @@ async function reachable<Saved extends { hostId: string; routes: string[] }>(
   saved: Saved,
 ): Promise<Call | undefined> {
   for (const route of saved.routes) {
-    const call = options.call(saved, route);
     try {
+      const call = options.call(saved, route);
       await call('channelChangeCursor', {});
       return call;
     } catch (error) {
@@ -57,18 +57,25 @@ export async function runBackgroundCatchUp<Saved extends { hostId: string; route
   }
   const work = Promise.all(
     hosts.map(async (saved) => {
-      const call = await reachable(options, saved);
-      if (call === undefined) return;
-      await options
-        .sync({ hostId: saved.hostId, call, liveKeys: () => options.liveKeys(saved.hostId) })
-        .catch(() => undefined);
+      try {
+        const call = await reachable(options, saved);
+        if (call === undefined) return;
+        await options.sync({
+          hostId: saved.hostId,
+          call,
+          liveKeys: () => options.liveKeys(saved.hostId),
+        });
+      } catch {}
     }),
   );
   let timer: ReturnType<typeof setTimeout> | undefined;
   const deadline = new Promise<'late'>((resolve) => {
     timer = setTimeout(() => resolve('late'), options.deadlineMs ?? DEADLINE_MS);
   });
-  const finished = await Promise.race([work.then(() => 'done' as const), deadline]);
-  clearTimeout(timer);
-  return finished === 'done' ? 'synced' : 'failed';
+  try {
+    const finished = await Promise.race([work.then(() => 'done' as const), deadline]);
+    return finished === 'done' ? 'synced' : 'failed';
+  } finally {
+    clearTimeout(timer);
+  }
 }
