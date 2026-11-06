@@ -737,6 +737,14 @@
       "gap": null
     },
     {
+      "id": "desktop.group.invitation-candidates",
+      "label": "Invite eligible Bots while explaining protected Tob's private-chat-only participation",
+      "source": "packages/client/src/client/group-member-controls.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/group-invitations.md",
+      "task": 3537,
+      "gap": null
+    },
+    {
       "id": "phone.chat-backgrounds",
       "label": "Device-local chat backgrounds and transactional native editor",
       "source": "apps/mobile/src/host/chat-background.ts",
