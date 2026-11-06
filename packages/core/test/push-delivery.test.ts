@@ -392,6 +392,27 @@ describe('Push delivery', () => {
     expect(f.expo.sent).toHaveLength(3);
   });
 
+  it('sends every resolved id in batches of at most 50', async () => {
+    const f = fixture();
+    const phone = f.device('Phone');
+    f.push.register(phone.device.id, { token: TOKEN_A, platform: 'ios' });
+    const ids = Array.from({ length: 51 }, (_, index) => `approval:${index}`);
+    for (const [index, id] of ids.entries()) {
+      f.advance(1000);
+      f.setInbox(ids.slice(0, index + 1).map((item) => approval(item, f.at(0))));
+      await f.push.reconcile();
+    }
+    const before = f.expo.flat().length;
+    f.setInbox([], 0);
+    await f.push.reconcile();
+    const batches = f.expo
+      .flat()
+      .slice(before)
+      .map((message) => (message.data as { resolved?: string[] }).resolved ?? []);
+    expect(batches.map((batch) => batch.length)).toEqual([50, 1]);
+    expect(batches.flat().sort()).toEqual([...ids].sort());
+  });
+
   it('tells an Android device that draws its own notifications which items were resolved, and an Android device the system draws only the badge', async () => {
     const f = fixture();
     const drawn = f.device('Drawn');

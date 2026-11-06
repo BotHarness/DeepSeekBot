@@ -504,9 +504,8 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
       });
       const kinds: Array<PushKind | 'badge' | 'resolve'> = notify.map((item) => item.kind);
       const created: Array<string | undefined> = notify.map((item) => item.createdAt);
-      const resolved = gone.slice(0, RESOLVED_LIMIT);
       const resolve =
-        resolved.length === 0
+        gone.length === 0
           ? undefined
           : device.platform === 'ios'
             ? { to: device.token, badge, _contentAvailable: true as const }
@@ -514,8 +513,11 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
               ? { to: device.token, priority: 'high' as const }
               : undefined;
       if (resolve !== undefined) {
-        messages.push({ ...resolve, data: { v: 1, hostId, resolved } });
-        kinds.push('resolve');
+        for (let start = 0; start < gone.length; start += RESOLVED_LIMIT) {
+          const resolved = gone.slice(start, start + RESOLVED_LIMIT);
+          messages.push({ ...resolve, data: { v: 1, hostId, resolved } });
+          kinds.push('resolve');
+        }
       } else if (messages.length === 0 && device.badge !== badge) {
         messages.push({ to: device.token, badge, data: { v: 1, hostId } });
         kinds.push('badge');
