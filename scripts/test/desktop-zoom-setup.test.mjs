@@ -266,6 +266,57 @@ function windowsFixture() {
   };
 }
 
+it.each([desktopFixture, windowsFixture])(
+  'refuses a mismatched Desktop release before installing a theme alias',
+  (makeFixture) => {
+    for (const version of ['0.2.2-rc.1', '0.2.1-rc.3', '', 'unknown']) {
+      const f = makeFixture();
+      const before = readFileSync(f.path, 'utf8');
+      f.run.mockReturnValueOnce(version);
+      expect(() => configureDesktopZoom({ ...f, action: 'enable' })).toThrow(
+        'desktop-zoom-setup-version-unsupported',
+      );
+      expect(f.run).toHaveBeenCalledTimes(1);
+      expect(readFileSync(f.path, 'utf8')).toBe(before);
+      expect(() =>
+        realpathSync(join(f.directory, 'node_modules/@deepseek-ai/dsh-client-ui-theme')),
+      ).toThrow();
+    }
+  },
+);
+
+it.each([desktopFixture, windowsFixture])(
+  'refuses re-enabling an old theme after a Desktop upgrade but permits disabling it',
+  (makeFixture) => {
+    const f = makeFixture();
+    configureDesktopZoom({ ...f, action: 'enable' });
+    f.run.mockReturnValueOnce('0.2.2-rc.1');
+    expect(() => configureDesktopZoom({ ...f, action: 'enable' })).toThrow(
+      'desktop-zoom-setup-version-unsupported',
+    );
+    f.run.mockReturnValueOnce('0.2.2-rc.1');
+    expect(configureDesktopZoom({ ...f, action: 'disable' }).changed).toBe(true);
+    expect(
+      JSON.parse(readFileSync(f.path)).dependencies['@deepseek-ai/dsh-client-ui-theme'],
+    ).toBeUndefined();
+  },
+);
+
+it('refuses a Desktop theme without its qualified source version', () => {
+  const f = windowsFixture();
+  const path = join(
+    f.directory,
+    'node_modules/deepseekbot/desktop-theme/botharness-zoom-compat.json',
+  );
+  const provenance = JSON.parse(readFileSync(path, 'utf8'));
+  delete provenance.sourceVersion;
+  writeFileSync(path, JSON.stringify(provenance));
+  expect(() => configureDesktopZoom({ ...f, action: 'enable' })).toThrow(
+    'desktop-zoom-setup-version-unsupported',
+  );
+  expect(f.run).toHaveBeenCalledTimes(1);
+});
+
 it('installs and disables on Windows using FileVersion and the exact app bundled pnpm', () => {
   const f = windowsFixture();
   expect(configureDesktopZoom({ ...f, action: 'enable' }).changed).toBe(true);
