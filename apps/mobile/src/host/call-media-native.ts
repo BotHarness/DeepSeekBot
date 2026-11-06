@@ -24,6 +24,7 @@ type NativeAudioEvent = {
 };
 
 interface CallNativeModule {
+  readonly callAudioSupported?: boolean;
   callStart(
     attemptId: string,
     offer: string,
@@ -74,14 +75,14 @@ export function createCallMedia(
 ): (CallClientMedia & { audio?: CallAudioControl; test?: CallTestAudio }) | undefined {
   if (!callMediaSupported || native === null) return undefined;
   const module = native;
-  const routable = typeof module.callAudio === 'function';
+  const routable = typeof module.callAudio === 'function' && module.callAudioSupported !== false;
   let attempt: string | undefined;
   let recording: string | null = null;
   const testAudio = options.testAudio === true;
   const media: CallClientMedia & { audio?: CallAudioControl; test?: CallTestAudio } = {
     async start({ callId, offer }) {
       attempt = callId;
-      if (!routable) return module.callStart(callId, offer, testAudio);
+      if (typeof module.callAudio !== 'function') return module.callStart(callId, offer, testAudio);
       const audio = options.audio?.() ?? DEFAULT_CALL_AUDIO;
       return module.callStart(callId, offer, testAudio, audio.headsetMicrophone);
     },

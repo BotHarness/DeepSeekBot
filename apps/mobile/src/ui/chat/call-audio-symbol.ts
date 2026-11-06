@@ -16,6 +16,7 @@ export function callAudioDeviceSymbol(
 ): CallAudioSymbol {
   switch (device?.kind) {
     case 'iphone':
+    case 'phone':
     case 'receiver':
       return 'iphone';
     case 'bluetooth':
@@ -38,7 +39,10 @@ export function callAudioDeviceName(
 ): string {
   if (device === undefined) return t.call.audioDevices.speaker;
   const builtIn =
-    device.kind === 'iphone' || device.kind === 'receiver' || device.kind === 'speaker';
+    device.kind === 'iphone' ||
+    device.kind === 'phone' ||
+    device.kind === 'receiver' ||
+    device.kind === 'speaker';
   if (builtIn || device.name.trim() === '') return t.call.audioDevices[device.kind];
   return device.name;
 }

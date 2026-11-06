@@ -183,6 +183,10 @@ A Bot DM's header shows a `phone` SF Symbol bar button before the profile ellips
 
 The call keeps running with the screen locked or another app open (#3422). Its Live Activity (`src/ui/widgets/call-activity.tsx`) is the call's system surface: on the Lock Screen banner, the Bot's name with a green `phone.fill`, the call timer in monospaced digits, the status line in the secondary style, and Mute and Hang Up buttons; in the Dynamic Island, `phone.fill` and the timer when compact, the same content when expanded. An interruption by another call or app shows "Paused by another call or app. It resumes when that ends." as the call hint and "Paused by another call" in the Live Activity. There is no CallKit screen.
 
+### Android call output (#3632)
+
+On Android 12 and later, the call's Audio control opens a native Compose dropdown of available communication outputs. The selected row follows Android's confirmed route, with Speaker, Phone and a connected headset by name. The control appears after native routing is known. Output changes also work while muted: when recording is inactive, the microphone is explicitly unconfirmed and is not announced as selected. Ending the call removes listeners and restores the pre-call audio mode. Older Android versions retain automatic routing. Independent microphone selection, media playback mode and headset preference restoration remain separate work in #3632; this output menu does not claim those capabilities.
+
 ### Minimized call and floating bubble (#3468)
 
 The running call belongs to `CallSessionHost` in the root layout, not to the call route; the call screen and the floating bubble are both views of it. A round Minimize button sits at the call screen's top leading corner while the call runs (`arrow.down.right.and.arrow.up.left` on iOS ↔ `close_fullscreen` on Android, `surface` fill, `theme.touch`). Minimize, and on Android system Back, returns to where the call started and leaves the call running; the Human can open other chats and send messages. An ended call or one still waiting for the microphone is closed instead of minimized.

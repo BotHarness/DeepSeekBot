@@ -50,6 +50,7 @@
     "apps/mobile/test/native-connection-mode.test.ts",
     "apps/mobile/test/native-lan-socket.test.ts",
     "apps/mobile/test/call-camera.test.ts",
+    "apps/mobile/test/call-media-native.test.ts",
     "apps/mobile/test/native-persistence.test.ts",
     "apps/mobile/test/native-zip-import-file.test.ts",
     "apps/mobile/test/share-attachment.test.ts",
