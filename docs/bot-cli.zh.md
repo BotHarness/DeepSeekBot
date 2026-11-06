@@ -846,7 +846,7 @@ deepseekbot phone-route-publish --confirm
 deepseekbot phone-route-disable --confirm
 ```
 
-`phone-route` 返回 `{routes}`，包含 Tailscale 可用性、每条路线是否就绪、建议的 `serveCommand`，以及托管启用与归属状态。`phone-route-publish` 明确启用托管发布和重启恢复，返回 `{published, changed, routes}`。Host 端口不变，发布端口依次从 443、8443–8452 中选取空闲项；已有匹配发布直接复用，不取得其所有权。`phone-route-disable` 关闭恢复，仅删除当前仍匹配的自有映射，保留配对和其他路线。拒绝码为 `confirm-required`、`tailscale-missing`、`tailscale-stopped`、`serve-other-target`（候选端口全满或配置已变化）、`serve-needs-enable`（带 Tailscale 后台 `enableUrl`）、`serve-denied` 和 `serve-failed`。权限或 tailnet HTTPS 未启用需要完成对应设置，换端口不能解决。
+`phone-route` 返回 `{routes}`，包含 Tailscale 可用性、每条路线是否就绪、建议的 `serveCommand`，以及托管启用与归属状态。`phone-route-publish` 明确启用托管发布和重启恢复，返回 `{published, changed, routes}`。重启时原位更新仍属本产品的映射，保持 HTTPS 地址不变；发布失败时保留旧映射。状态的 `staleRoutes` 列出未响应的本地代理地址和目标端口，检查有界且缓存五秒，归属未知的规则不会自动删除。新建发布时 Host 端口不变，发布端口依次从 443、8443–8452 中选取空闲项；已有匹配发布直接复用，不取得其所有权。`phone-route-disable` 关闭恢复，仅删除当前仍匹配的自有映射，保留配对和其他路线。拒绝码为 `confirm-required`、`tailscale-missing`、`tailscale-stopped`、`serve-other-target`（候选端口全满或配置已变化）、`serve-needs-enable`（带 Tailscale 后台 `enableUrl`）、`serve-denied` 和 `serve-failed`。权限或 tailnet HTTPS 未启用需要完成对应设置，换端口不能解决。
 
 ### 已配对设备
 

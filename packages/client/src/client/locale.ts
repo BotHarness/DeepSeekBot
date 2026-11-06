@@ -4365,6 +4365,9 @@ export const zh = {
   'botSettings.section.devices': '连接',
   'botSettings.section.connect': 'Connect',
   'devices.tailscale.disable': '关闭自动发布',
+  'devices.tailscale.localPort': '本地端口 {port}',
+  'devices.tailscale.stale':
+    '这些 Tailscale 地址的本地服务未响应。请检查 Serve 配置；未确认归属的规则不会自动删除。',
   'devices.tailscale.manage': '开启自动恢复',
   'remoteHosts.tabs': '本机与远程',
   'remoteHosts.all': '全部',
@@ -9398,6 +9401,9 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'botSettings.section.devices': 'Connections',
   'botSettings.section.connect': 'Connect',
   'devices.tailscale.disable': 'Turn off automatic publishing',
+  'devices.tailscale.localPort': 'Local port {port}',
+  'devices.tailscale.stale':
+    'These Tailscale addresses point to local services that are not responding. Check your Serve configuration; routes with unknown ownership are preserved.',
   'devices.tailscale.manage': 'Enable automatic recovery',
   'remoteHosts.tabs': 'This host and remotes',
   'remoteHosts.all': 'All',

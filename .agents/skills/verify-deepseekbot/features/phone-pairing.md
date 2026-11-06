@@ -1,5 +1,11 @@
 # Phone pairing and paired devices
 
+## Tailscale restart and stale routes (#3565, #3566)
+
+On a task-owned Host and isolated Serve fixture, enable automatic publishing, then restart the same Profile on a new Host port. The owned HTTPS port must remain unchanged and no `off` may precede publication. Refuse the publication command and require the old route and ownership record to remain; restore command access and retry. Repeat with unavailable or malformed Serve status after a successful command: report failure, retain ownership and recover on retry. An externally edited mapping must be preserved.
+
+Include a separate unowned loopback proxy to a closed port. Connections → Manage must show its URL and target port as unavailable even while the current route is ready; `deepseekbot phone-route` must report the same `staleRoutes`. Restore the target listener and require the warning to disappear after the five-second check cache refreshes. The check must not publish, delete or adopt that route. Capture both themes and read the browser console. Process fixtures qualify the Host/CLI/Client path only; actual macOS Tailscale daemon and native phone reachability remain separate checks. Never use the Human's existing Serve rules as fixtures.
+
 ## Connection recovery (#2731)
 
 For foreground live-stream recovery (#3336), run `pnpm exec vitest run apps/mobile/test/host-client.test.ts apps/mobile/test/phone-connection-recovery.test.ts`. In the assigned Android lane, record a matched background/foreground sequence with a populated Channel, then produce a fresh Host event after returning and verify it arrives without manual retry. Repeat across two paired Hosts and rapid resume cycles. Distinguish silent socket loss from a delivered close callback; capture reconnecting status, retained content, and canonical event IDs. Repeat with an accepted request in flight: recovery waits for its completion or existing deadline, and the write is not replayed. Source tests qualify neither Android suspension nor native before/after evidence.

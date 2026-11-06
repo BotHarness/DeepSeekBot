@@ -916,6 +916,16 @@ export function PairedDevicesSettings({
               </Button>
             }
           >
+            {freshSnapshot && routes?.staleRoutes?.length ? (
+              <Callout tone="warning" data={{ 'data-tailscale-stale': '' }}>
+                {t('devices.tailscale.stale')}
+                {routes.staleRoutes.map((route) => (
+                  <Note key={route.url}>
+                    {route.url} — {t('devices.tailscale.localPort', { port: route.targetPort })}
+                  </Note>
+                ))}
+              </Callout>
+            ) : null}
             {showTailscale && routes && freshSnapshot ? (
               <div>
                 {routes.managed?.enabled || routes.managed?.owned ? (

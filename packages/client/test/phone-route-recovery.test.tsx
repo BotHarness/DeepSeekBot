@@ -87,6 +87,26 @@ async function poll() {
   await act(async () => vi.advanceTimersByTimeAsync(3_100));
 }
 
+it('shows unavailable Serve addresses even when the current phone route is ready', async () => {
+  const current = tailnet('running');
+  snapshot = {
+    ...current,
+    routes: {
+      ...current.routes,
+      staleRoutes: [{ url: 'https://studio.tail1.ts.net:8443', targetPort: 4000 }],
+    },
+  };
+  await mountWithTimers();
+  const warning = host.querySelector('[data-tailscale-stale]');
+  expect(warning?.textContent).toContain(zhTranslate('devices.tailscale.stale'));
+  expect(warning?.textContent).toContain('https://studio.tail1.ts.net:8443');
+  expect(warning?.textContent).toContain('4000');
+  expect(posts).toEqual([]);
+  snapshot = tailnet('running');
+  await poll();
+  expect(host.querySelector('[data-tailscale-stale]')).toBeNull();
+});
+
 it('shows retry instead of indefinite loading when the first status check fails', async () => {
   vi.stubGlobal(
     'fetch',
