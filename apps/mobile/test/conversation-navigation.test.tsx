@@ -90,6 +90,7 @@ vi.mock('expo-router', () => ({
       options: {
         headerLeft?: () => ReactNode;
         headerRight?: () => ReactNode;
+        headerTitle?: string | (() => ReactNode);
         headerBackVisible?: boolean;
         headerBlurEffect?: string;
         unstable_headerLeftItems?: () => Array<{
@@ -124,6 +125,7 @@ vi.mock('expo-router', () => ({
           options.headerLeft?.() ??
           null}
         <aside data-testid="trailing-header">
+          {typeof options.headerTitle === 'function' ? options.headerTitle() : null}
           {options.unstable_headerRightItems?.().map((item, index) =>
             item.type === 'custom' ? (
               <span key={index}>{item.element}</span>
@@ -877,10 +879,7 @@ it.each(['ios', 'android'])('shows the %s native Profile entry', async (os) => {
     if (os === 'android') {
       expect(view.querySelector('[data-testid="trailing-header"]')!.childElementCount).toBe(0);
     }
-    const button =
-      os === 'ios'
-        ? view.querySelector<HTMLButtonElement>('[data-testid="trailing-header"] button')
-        : view.querySelector<HTMLButtonElement>('[data-testid="chat-profile-button"]');
+    const button = view.querySelector<HTMLButtonElement>('[data-testid="chat-profile-button"]');
     expect(button).not.toBeNull();
     await act(async () => button!.click());
     if (os === 'ios') {
@@ -1332,7 +1331,11 @@ describe('missing conversation navigation', () => {
     it(`${name}: leaves back to Activity to the native header back button`, async () => {
       state.history = ['/activity', route];
       const view = await render(place);
-      expect(view.querySelector('header button')).toBeNull();
+      expect(
+        [...view.querySelectorAll('header button')].some(
+          (button) => button.textContent === 'Header back' || button.textContent === t.back,
+        ),
+      ).toBe(false);
       expect(state.history).toEqual(['/activity', route]);
     });
 
@@ -1342,7 +1345,7 @@ describe('missing conversation navigation', () => {
       expect(state.history).toEqual(['/']);
     });
 
-    it(`${name}: iOS puts back and the title capsule in separate leading bar items`, async () => {
+    it(`${name}: iOS keeps the whole control row in the native title view`, async () => {
       const os = Platform.OS;
       Object.assign(Platform, { OS: 'ios' });
       try {
@@ -1354,7 +1357,7 @@ describe('missing conversation navigation', () => {
           [...header.children]
             .filter((item) => item.hasAttribute('data-item'))
             .map((item) => (item as HTMLElement).dataset['item']),
-        ).toEqual(['custom', 'spacing', 'custom']);
+        ).toEqual([]);
         await press(alone, t.back);
         expect(state.history).toEqual(['/']);
         act(() => root?.unmount());
@@ -1366,7 +1369,7 @@ describe('missing conversation navigation', () => {
           [...stacked.children]
             .filter((item) => item.hasAttribute('data-item'))
             .map((item) => (item as HTMLElement).dataset['item']),
-        ).toEqual(['custom', 'spacing', 'custom']);
+        ).toEqual([]);
       } finally {
         Object.assign(Platform, { OS: os });
       }

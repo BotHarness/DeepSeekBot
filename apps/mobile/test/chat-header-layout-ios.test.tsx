@@ -23,11 +23,14 @@ vi.mock('expo-router/react-navigation', () => ({
 }));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaFrame: () => ({}),
-  useSafeAreaInsets: () => ({ top: 62 }),
+  useSafeAreaInsets: () => ({ top: 62, bottom: 34, left: 0, right: 0 }),
 }));
 vi.mock('react-native-screens', () => ({
   Screen: () => null,
   ScreenStack: () => null,
+  ScreenStackHeaderCenterView: ({ children }: { children: ReactNode }) => (
+    <div data-native-title="true">{children}</div>
+  ),
   ScreenStackHeaderConfig: ({
     children,
     headerLeftBarButtonItems,
@@ -96,18 +99,22 @@ vi.mock('@expo/ui/swift-ui', () => ({
 }));
 vi.mock('@expo/ui/swift-ui/modifiers', () => {
   const modifier = (kind: string) => (value: unknown) => ({ kind, value });
-  return Object.fromEntries(
-    [
-      'accessibilityLabel',
-      'accessibilityHint',
-      'accessibilityValue',
-      'buttonStyle',
-      'disabled',
-      'foregroundStyle',
-      'frame',
-      'glassEffect',
-    ].map((k) => [k, modifier(k)]),
-  );
+  return {
+    shapes: { rectangle: () => ({ kind: 'rectangle' }) },
+    ...Object.fromEntries(
+      [
+        'accessibilityLabel',
+        'accessibilityHint',
+        'accessibilityValue',
+        'buttonStyle',
+        'disabled',
+        'foregroundStyle',
+        'frame',
+        'glassEffect',
+        'contentShape',
+      ].map((k) => [k, modifier(k)]),
+    ),
+  };
 });
 vi.mock(
   '../src/ui/chat/chat-header-actions',
@@ -168,7 +175,7 @@ describe('iOS chat header size contract', () => {
         );
         const heights = [...html.matchAll(/data-host-height="([\d.]+)"/g)].map((m) => Number(m[1]));
         expect(heights).toEqual([height, height, height]);
-        expect(html.match(/data-system-glass="false"/g)).toHaveLength(3);
+        expect(html).toContain('data-native-title="true"');
         expect(html).not.toContain('data-system-glass="true"');
         expect(html).not.toContain('&quot;type&quot;:&quot;button&quot;');
         expect(html).toContain('data-symbol="chevron.left"');

@@ -3,9 +3,11 @@ import { Button, HStack, Image } from '@expo/ui/swift-ui';
 import {
   accessibilityLabel,
   buttonStyle,
+  contentShape,
   foregroundStyle,
   frame,
   glassEffect,
+  shapes,
 } from '@expo/ui/swift-ui/modifiers';
 import { useDesignTheme } from '../design/theme';
 import { barLabelProps, headerControlHeight } from './native-header';
@@ -45,7 +47,10 @@ export function ChatHeaderActions(props: ChatHeaderActionsProps) {
             <Image
               systemName={symbols[action.icon]}
               size={symbolSize}
-              modifiers={[frame({ width: height, height, alignment: 'center' })]}
+              modifiers={[
+                frame({ width: height, height, alignment: 'center' }),
+                contentShape(shapes.rectangle()),
+              ]}
             />
           </Button>
         ))}

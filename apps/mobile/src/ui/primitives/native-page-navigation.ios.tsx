@@ -5,14 +5,14 @@ import {
   Screen,
   ScreenStack,
   ScreenStackHeaderConfig,
+  ScreenStackHeaderCenterView,
   ScreenStackHeaderLeftView,
-  ScreenStackHeaderRightView,
   type HeaderBarButtonItem,
 } from 'react-native-screens';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDesignTheme } from '../design/theme';
 import { glassPress } from '../design/tokens';
-import { ChatHeaderActions } from '../chat/chat-header-actions';
+import { ChatHeaderRow } from '../chat/chat-header-row';
 import { HeaderBackButton } from '../chat/header-chrome';
 import { glassHeader, headerIslands } from '../chat/header-kind';
 import { useStrings } from '../strings';
@@ -54,25 +54,46 @@ export function NativePageNavigation({ children }: { children: ReactNode }) {
 export function NativePageHeader({ title, onBack, backID, action, call }: NativePageHeaderProps) {
   const theme = useDesignTheme();
   const t = useStrings();
-  const items: HeaderBarButtonItem[] =
-    headerIslands || glassHeader
-      ? []
-      : [
-          {
-            type: 'button',
-            index: 0,
-            title: '',
-            icon: { type: 'sfSymbol', name: 'chevron.left' },
-            onPress: onBack,
-            identifier: backID,
-            accessibilityLabel: t.back,
-            sharesBackground: false,
-          },
-        ];
+  if (glassHeader)
+    return (
+      <ScreenStackHeaderConfig
+        title=""
+        translucent
+        backgroundColor="transparent"
+        hideShadow
+        hideBackButton
+        color={theme.color.fg}
+      >
+        <ScreenStackHeaderCenterView>
+          <ChatHeaderRow
+            title={title}
+            back={{ label: t.back, testID: backID, onPress: onBack }}
+            actions={[
+              ...(call === undefined ? [] : [{ icon: 'call' as const, ...call }]),
+              ...(action === undefined ? [] : [{ icon: 'more' as const, ...action }]),
+            ]}
+          />
+        </ScreenStackHeaderCenterView>
+      </ScreenStackHeaderConfig>
+    );
+  const items: HeaderBarButtonItem[] = headerIslands
+    ? []
+    : [
+        {
+          type: 'button',
+          index: 0,
+          title: '',
+          icon: { type: 'sfSymbol', name: 'chevron.left' },
+          onPress: onBack,
+          identifier: backID,
+          accessibilityLabel: t.back,
+          sharesBackground: false,
+        },
+      ];
   if (title !== undefined) items.push({ type: 'spacing', spacing: glassPress.gap });
   const grouped = call !== undefined && action !== undefined;
   const right: HeaderBarButtonItem[] = [];
-  if (action !== undefined && !glassHeader)
+  if (action !== undefined)
     right.push({
       type: 'button',
       index: right.length,
@@ -83,7 +104,7 @@ export function NativePageHeader({ title, onBack, backID, action, call }: Native
       onPress: action.onPress,
       sharesBackground: grouped,
     });
-  if (call !== undefined && !glassHeader)
+  if (call !== undefined)
     right.push({
       type: 'button',
       index: right.length,
@@ -105,48 +126,12 @@ export function NativePageHeader({ title, onBack, backID, action, call }: Native
       headerLeftBarButtonItems={items}
       headerRightBarButtonItems={right}
     >
-      {glassHeader ? (
-        <ScreenStackHeaderLeftView hidesSharedBackground>
-          <ChatHeaderActions back={{ label: t.back, testID: backID, onPress: onBack }} />
-        </ScreenStackHeaderLeftView>
-      ) : headerIslands ? (
+      {headerIslands ? (
         <ScreenStackHeaderLeftView>
           <HeaderBackButton plain={false} onPress={onBack} />
         </ScreenStackHeaderLeftView>
       ) : null}
-      {title === undefined ? null : (
-        <ScreenStackHeaderLeftView hidesSharedBackground={glassHeader}>
-          {title}
-        </ScreenStackHeaderLeftView>
-      )}
-      {glassHeader && (call !== undefined || action !== undefined) ? (
-        <ScreenStackHeaderRightView hidesSharedBackground>
-          <ChatHeaderActions
-            actions={[
-              ...(call === undefined
-                ? []
-                : [
-                    {
-                      icon: 'call' as const,
-                      label: call.label,
-                      testID: call.testID,
-                      onPress: call.onPress,
-                    },
-                  ]),
-              ...(action === undefined
-                ? []
-                : [
-                    {
-                      icon: 'more' as const,
-                      label: action.label,
-                      testID: action.testID,
-                      onPress: action.onPress,
-                    },
-                  ]),
-            ]}
-          />
-        </ScreenStackHeaderRightView>
-      ) : null}
+      {title === undefined ? null : <ScreenStackHeaderLeftView>{title}</ScreenStackHeaderLeftView>}
     </ScreenStackHeaderConfig>
   );
 }
