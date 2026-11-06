@@ -204,7 +204,7 @@
 | 3   | 审批归属      | 应用级动作门                   | provider 原生透传     | 跟 rakazo 的动作门（宿主级审批），不复刻 provider mode                              | PRD FR-5；`docs/botharness.md:74`（外部副作用→waiting） |
 | 4   | Task/Run 实体 | 有 Task+Run                    | 会话即任务            | 维持 ADR-0017（无 Task）；future：只加 pending prompt 队列，需要时再引入 Run 类记录 | ADR-0017 后果                                           |
 | 5   | 凭证静态存储  | 密文+服务端注入                | 明文 0600             | 跟 rakazo 的边界规则 + ADR-0006 的 DSH credentials 存储；**拒绝**明文               | ADR-0006；PRD AC-5.2                                    |
-| 6   | 多租户        | Space/Org                      | 单 Host + fleet       | PoC 跟 OMB 单 Host；多租户不抢先设计                                                | `GLOSSARY.md:43-45` Host；PRD 非目标                     |
+| 6   | 多租户        | Space/Org                      | 单 Host + fleet       | PoC 跟 OMB 单 Host；多租户不抢先设计                                                | `GLOSSARY.md:43-45` Host；PRD 非目标                    |
 | 7   | MCP 控制面    | 无（仅工具面+OAuth）           | 有界 stdio 控制面     | 记录为后续扩展形态；与 §6 扩展面同构                                                | `docs/botharness.md:92`；`docs/mcp-server.md:3-15`      |
 | 8   | 客户端数据流  | oRPC eventIterator + PG fanout | 一条 SSE + 纯 reducer | M3 跟 OMB 形态（单流+reducer），传输仍是 DSH 客户端 bundle                          | ADR-0015 后果；architecture §6                          |
 | 9   | 记忆可见性    | 空间/作用域隔离                | 单脑 + 披露 chip      | 维持 ADR-0013（单脑 + visibility/owner）；两者都不能验证我们                        | ADR-0013                                                |

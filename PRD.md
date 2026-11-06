@@ -11,7 +11,7 @@
 | 平台规格  | `docs/botharness.md`（PersonaBot / 记忆 / 状态 / 工作方式）                                                                                                                                                                             |
 | 上游依赖  | DSH（开发者预览，**必须 pin**）；dsh-im（通道基座）；blobatar（MVP 形象）                                                                                                                                                               |
 | v1.0 变更 | 重组：平台层（PersonaBot、记忆、状态、工作方式）移入 `docs/botharness.md`，本 PRD 只描述 DeepSeekBot 应用；路线从 IM-first 调整为 **sidebar-first**（IM 作为第一个真实渠道，见 M5）；仓库更名 `BotHarness/BotHarness`                   |
-| v1.1 变更 | 对齐平台 v1.6（ADR-0024/0025/0026）：US-2/AC-2.2 委派目标态 = 独立工作 Session；术语对齐 `GLOSSARY.md`（Channel / Binding / Inbox / Orchestrator Session）；跨 PersonaBot 通信目标路径 = 经 Orchestrator                                 |
+| v1.1 变更 | 对齐平台 v1.6（ADR-0024/0025/0026）：US-2/AC-2.2 委派目标态 = 独立工作 Session；术语对齐 `GLOSSARY.md`（Channel / Binding / Inbox / Orchestrator Session）；跨 PersonaBot 通信目标路径 = 经 Orchestrator                                |
 | v1.2 变更 | 对齐平台 v1.7：PersonaBot 最小 profile = displayName / tag（岗位）/ description，AC-1.3 向导同步；模型选择为本地策略、不随 SoulSnapshot 发布（ADR-0027）                                                                                |
 | v1.3 变更 | 对齐平台 v1.9（ADR-0029/0030 + 0026 增补）：BOT 模式改为聊天优先（点击 BOT 即 DM，session 移右侧面板，workspace 弱化）；Channel/Section/Bridge/Bot Inbox 术语；M3 收敛为 IA + 聊天外壳 + 本地消息存储，Bot Inbox 及 Channel 工具落 v1.1 |
 | v1.4 变更 | 对齐平台 v1.10（ADR-0031/0032）：sidebar 区块排序与移动、未分组、默认 blobatar 头像与字形图标、行几何对齐原生实测；自定义头像与头像动效/表情留 v1.1                                                                                     |
