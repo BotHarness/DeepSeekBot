@@ -10,6 +10,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import '../src/host/native-haptic-feedback';
+import { registerPushResolveTask } from '../src/host/native-push-resolve';
 
 import { usePushRouting } from '../src/host/push-routing';
 import { HostDrawer, WorkspaceButton, hostDrawer } from '../src/ui/shell/host-drawer';
@@ -40,6 +41,8 @@ import { useDesignTheme } from '../src/ui/design/theme';
 import { useStrings } from '../src/ui/strings';
 import { useTheme } from '../src/ui/theme';
 import { useNativeInterfacePreferences } from '../src/ui/native-interface-preferences';
+
+registerPushResolveTask();
 
 installMediaStore(nativeMediaStore);
 installHostStoreOpener(nativeHostStoreOpener);
