@@ -58,6 +58,26 @@ function fixture() {
 }
 
 describe('Host workspace request approval', () => {
+  it('upgrades and replays the same directory through a replacement Workspace registration', async () => {
+    const f = fixture();
+    try {
+      const original = await f.core.grants.create('ada', f.workspace.id);
+      f.workspace.id = 'replacement';
+      await f.request();
+      const payload = { ...f.payload, workspaceId: f.workspace.id };
+      const expected = {
+        ok: true,
+        value: {
+          grant: { id: original.id, workspaceId: original.workspaceId, orchestratorWrite: true },
+        },
+      };
+      expect(await f.methods.grantRequestApprove(payload)).toMatchObject(expected);
+      expect(await f.methods.grantRequestApprove(payload)).toMatchObject(expected);
+      expect(f.core.grants.list('ada')).toHaveLength(1);
+    } finally {
+      await f.close();
+    }
+  });
   it('publishes writable authority with the decision and accepts one concurrent decision', async () => {
     const f = fixture();
     try {

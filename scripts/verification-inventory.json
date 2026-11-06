@@ -2081,7 +2081,7 @@
       "behaviors": ["desktop.grants.temporary-read-revoke"],
       "reason": "Dedicated temporary sample outside Host data; actual Web Grant authorization, direct attachment-import read, explicit CLI revocation, same-read denial and before/after visible evidence. No model/native file tool/Shell security claim.",
       "task": 1974,
-      "sha256": "eedc6f54d818cf732e4537965fde803a20a1375e5375f308c60e3f09abed4d03"
+      "sha256": "10ae7f69333a6df85262bd8fd2367ffa4c621a2efa5e5137700dc0881d917417"
     },
     {
       "path": "scripts/e2e-bot-mode-exit.mjs",
