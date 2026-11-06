@@ -22,11 +22,6 @@ WorkOS Magic Auth can create and check the same codes through the API, but check
 - Rolling back is a relay config change: without `WORKOS_API_KEY` the phone falls back to AuthKit.
 - The phone refreshes these sessions without the secret; this must hold for Magic Auth sessions before release (`node scripts/workos-secret.mjs probe-email-code staging`).
 
-## Migration to the new WorkOS environments
+## WorkOS environments
 
-The live relay uses an older WorkOS environment whose secret key is not available. On 2026-11-06 the Human chose to move Connect to the new staging (`client_01M60C2CYVX3477G1KR9D2TZBW`) and production (`client_01M60C2D9RDD8MYF3GTAECNX23`) environments instead of finding the old key. User IDs differ per environment, so this is a cutover, not a migration of accounts:
-
-1. In the new production environment: enable Magic Auth, keep the sign-in methods offered today (Google, Apple, SSO as configured), enable the device authorization grant used by Host sign-in, and register the phone redirect URIs `app.deepseekbot.mobile:/oauth2redirect` and `ai.botharness.deepseekbot.dev:/oauth2redirect`.
-2. Verify with `node scripts/workos-secret.mjs probe-email-code production --allow-production` (creates one test user) after the staging probe passes.
-3. Replace the relay secrets `WORKOS_CLIENT_ID` and `WORKOS_API_KEY` and redeploy. Phones and Hosts read the client from `/v1/config`; no app release is needed for the switch.
-4. Existing sessions refresh against the old client and fail with `sign-in-required`; every phone and Host signs in again and re-pairs. Hosts registered under old account IDs stay in D1 under accounts nobody can sign in as; their tunnels are reclaimed once offline, and the rows need a one-off cleanup.
+Connect uses the WorkOS team **BotHarness**, project **TOB**: Production `client_01M5F0C09JH5QPFX9160RFCKTH` (the live relay's `WORKOS_CLIENT_ID`) and Staging `client_01M54TZZAA0Y6A248NCFYD84A5`. Magic Auth, Google and Apple are enabled in both, so turning this on needs no WorkOS change and no account migration: the relay only needs `WORKOS_API_KEY` from the same Production environment. Verify a key with `node scripts/workos-secret.mjs probe-email-code staging` before deploying.
