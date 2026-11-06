@@ -36,7 +36,7 @@ Load a file with `set -a; . .secrets/google-oauth.env; set +a` and never echo it
 
 Status on 2026-10-21: Google and Apple are registered for UAT and Prod, and Production Apple authorization was verified in the browser. Microsoft and GitHub are not registered.
 
-Client IDs and Redirect URIs are not secret, but they sit next to the secrets so one file describes the environment. Only the WorkOS client IDs belong in committed code. Today that is UAT's `client_01M54TZZAA0Y6A248NCFYD84A5`, which the relay publishes at `https://connect.botharness.ai/v1/config`.
+Client IDs and Redirect URIs are not secret, but they sit next to the secrets so one file describes the environment. Only the WorkOS client IDs belong in committed code. The hosted relay publishes Production's `client_01M5F0C09JH5QPFX9160RFCKTH` at `https://connect.botharness.ai/v1/config` (checked 2026-11-06).
 
 ## Steps, per environment (do UAT first, then Prod)
 
