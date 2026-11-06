@@ -7,6 +7,7 @@ export type ConversationTopBarProps = {
   title: string;
   subtitle?: string | undefined;
   bot?: RosterBot | undefined;
+  activeBots?: readonly RosterBot[] | undefined;
   avatar?: string | undefined;
   connectionLabel?: string | undefined;
   onBack(): void;

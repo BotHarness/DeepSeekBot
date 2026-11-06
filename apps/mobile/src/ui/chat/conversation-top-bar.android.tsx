@@ -30,12 +30,14 @@ import { useStrings } from '../strings';
 import type { ConversationTopBarProps } from './conversation-top-bar';
 import { ChatHeaderSurface } from './chat-header-surface.android';
 import { GroupMark } from './group-mark';
+import { HeaderBotStack } from './header-bot-stack';
 
 export function ConversationTopBar({
   blurTarget,
   title,
   subtitle,
   bot,
+  activeBots = [],
   avatar,
   connectionLabel,
   onBack,
@@ -144,14 +146,30 @@ export function ConversationTopBar({
                   {title}
                 </Text>
                 {status === undefined ? null : (
-                  <Text
-                    color={theme.color.muted}
-                    style={{ typography: 'bodySmall' }}
-                    maxLines={1}
-                    overflow="ellipsis"
-                  >
-                    {status}
-                  </Text>
+                  <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: space.x2 }}>
+                    {activeBots.length === 0 ? null : (
+                      <RNHostView
+                        modifiers={[
+                          size(
+                            theme.type.meta.line * Math.min(3, activeBots.length) -
+                              space.x2 * (Math.min(3, activeBots.length) - 1),
+                            theme.type.meta.line,
+                          ),
+                        ]}
+                      >
+                        <HeaderBotStack bots={activeBots} size={theme.type.meta.line} />
+                      </RNHostView>
+                    )}
+                    <Text
+                      modifiers={[weight(1)]}
+                      color={theme.color.muted}
+                      style={{ typography: 'bodySmall' }}
+                      maxLines={1}
+                      overflow="ellipsis"
+                    >
+                      {status}
+                    </Text>
+                  </Row>
                 )}
               </Column>
               {connectionLabel === undefined ? null : (

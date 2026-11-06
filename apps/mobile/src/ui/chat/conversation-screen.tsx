@@ -1,3 +1,4 @@
+import { useHeaderStatus } from './use-header-status';
 import type { ChatPlace } from './chat-place';
 export type { ChatPlace } from './chat-place';
 import { HeaderTitleButton } from './header-title-button';
@@ -96,7 +97,6 @@ import { ChannelTitle } from './channel-title';
 import { WorkingStatus } from './working-status';
 import { ChatTitle } from './chat-title';
 import { runningSessionCount } from '../../host/session-stop';
-import { ChatHeaderActions } from './chat-header-actions';
 import { ConversationTopBar } from './conversation-top-bar';
 import { ChatBackdrop } from './chat-backdrop';
 import { Composer, type ComposerInput } from './composer';
@@ -1365,6 +1365,7 @@ function ChatConversation({
     : botDm
       ? () => router.push({ ...pairHref, params: { ...pairHref.params, entry: swipeEntry } })
       : () => router.push({ ...groupHref, params: { ...groupHref.params, entry: swipeEntry } });
+  const headerStatus = useHeaderStatus(dm ? bot : undefined, channel, members);
   const title = dm ? (
     <ChatTitle
       bot={bot}
@@ -1377,7 +1378,7 @@ function ChatConversation({
   ) : (
     <ChannelTitle
       channel={channel}
-      working={working}
+      bots={members}
       sessions={runningSessionCount(members)}
       connectionLabel={connectionLabel}
       fallback={channelName ?? t.groupInfo}
@@ -1557,53 +1558,28 @@ function ChatConversation({
                   unstable_headerRightItems: () =>
                     !canOpenProfile
                       ? []
-                      : glassHeader && placeCall !== undefined
-                        ? [
-                            {
-                              type: 'custom' as const,
-                              hidesSharedBackground: true,
-                              element: (
-                                <ChatHeaderActions
-                                  actions={[
-                                    {
-                                      icon: 'call',
-                                      label: t.call.button,
-                                      testID: 'chat-call-button',
-                                      onPress: placeCall,
-                                    },
-                                    {
-                                      icon: 'more',
-                                      label: t.openProfile,
-                                      testID: 'chat-profile-button',
-                                      onPress: openProfile,
-                                    },
-                                  ]}
-                                />
-                              ),
-                            },
-                          ]
-                        : [
-                            {
-                              type: 'button' as const,
-                              label: t.openProfile,
-                              identifier: 'chat-profile-button',
-                              icon: { type: 'sfSymbol' as const, name: 'ellipsis' as const },
-                              sharesBackground: placeCall !== undefined,
-                              onPress: openProfile,
-                            },
-                            ...(placeCall === undefined
-                              ? []
-                              : [
-                                  {
-                                    type: 'button' as const,
-                                    label: t.call.button,
-                                    identifier: 'chat-call-button',
-                                    icon: { type: 'sfSymbol' as const, name: 'phone' as const },
-                                    sharesBackground: true,
-                                    onPress: placeCall,
-                                  },
-                                ]),
-                          ],
+                      : [
+                          {
+                            type: 'button' as const,
+                            label: t.openProfile,
+                            identifier: 'chat-profile-button',
+                            icon: { type: 'sfSymbol' as const, name: 'ellipsis' as const },
+                            sharesBackground: placeCall !== undefined,
+                            onPress: openProfile,
+                          },
+                          ...(placeCall === undefined
+                            ? []
+                            : [
+                                {
+                                  type: 'button' as const,
+                                  label: t.call.button,
+                                  identifier: 'chat-call-button',
+                                  icon: { type: 'sfSymbol' as const, name: 'phone' as const },
+                                  sharesBackground: true,
+                                  onPress: placeCall,
+                                },
+                              ]),
+                        ],
                   unstable_headerLeftItems: () => [
                     ...(headerIslands
                       ? [{ type: 'custom' as const, element: back }]
@@ -2032,20 +2008,8 @@ function ChatConversation({
             }
             bot={dm ? bot : undefined}
             avatar={channel?.avatar}
-            subtitle={
-              [
-                dm && bot !== undefined
-                  ? t.state[bot.state]
-                  : channel === undefined
-                    ? undefined
-                    : t.members(channel.memberCount),
-                runningSessionCount(members) > 0
-                  ? t.sessionCount(runningSessionCount(members))
-                  : undefined,
-              ]
-                .filter(Boolean)
-                .join(' ') || undefined
-            }
+            subtitle={headerStatus.label}
+            activeBots={headerStatus.bots}
             connectionLabel={connectionLabel}
             onBack={leave}
             onProfile={canOpenProfile ? openProfile : undefined}

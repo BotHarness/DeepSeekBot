@@ -4,8 +4,8 @@ section: Changed
 
 ## en
 
-- Android chats now show rounded floating controls and an avatar, name and status above a fading message background ([#3621](https://github.com/BotHarness/DeepSeekBot/issues/3621)).
+- Chats now show a single-line name above Bot status or group activity, with floating rounded Android controls and native iOS glass navigation ([#3621](https://github.com/BotHarness/DeepSeekBot/issues/3621)).
 
 ## zh
 
-- Android 聊天顶栏改为悬浮圆角按钮与头像、名称和状态胶囊，消息背景在顶部渐隐（[#3621](https://github.com/BotHarness/DeepSeekBot/issues/3621)）。
+- 聊天顶栏以单行名称和第二行状态呈现 Bot 或群聊活动；Android 使用悬浮圆角控件，iOS 使用系统原生玻璃导航（[#3621](https://github.com/BotHarness/DeepSeekBot/issues/3621)）。

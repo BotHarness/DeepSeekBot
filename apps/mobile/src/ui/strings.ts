@@ -1248,6 +1248,7 @@ const en = {
   privateInputHint: 'Open this request in the conversation and fill in the private form.',
   readOnlyHint: 'Open the conversation on the Host to reply.',
   done: 'Done',
+  lastChatActivity: (time: string) => `Active ${time}`,
   ago: (minutes: number) =>
     minutes < 1
       ? 'just now'
@@ -3550,6 +3551,7 @@ const zh: typeof en = {
   privateInputHint: '在聊天中打开这项请求，使用私密表单填写。',
   readOnlyHint: '在本机客户端里打开这段对话来回复。',
   done: '完成',
+  lastChatActivity: (time: string) => `${time}活跃`,
   ago: (minutes: number) =>
     minutes < 1
       ? '刚刚'

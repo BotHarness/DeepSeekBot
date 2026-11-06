@@ -1402,7 +1402,7 @@ it('the real conversation title opens a source-scoped Bot Profile', async () => 
     ];
     const view = await render({ kind: 'dm', slug: 'ada' });
     const title = [...view.querySelectorAll<HTMLButtonElement>('button')].find(
-      (button) => button.textContent === 'Ada',
+      (button) => button.getAttribute('aria-label') === `Ada, ${t.state.idle}`,
     );
     expect(title).toBeDefined();
     await act(async () => title!.click());
