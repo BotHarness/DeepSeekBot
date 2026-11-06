@@ -8,7 +8,7 @@ import type {
   SocialProvider,
 } from '../../host/connect-account';
 import { useDesignTheme } from '../design/theme';
-import { radius, signInBrand, space } from '../design/tokens';
+import { edge, radius, signInBrand, space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import { Text } from '../primitives/text';
@@ -33,7 +33,7 @@ function Heading({ title, detail, icon }: { title: string; detail: string; icon?
             width: signInBrand.appIcon,
             height: signInBrand.appIcon,
             borderRadius: radius.lg,
-            borderWidth: 1,
+            borderWidth: edge.hairline,
             borderColor: theme.color.border,
             marginBottom: space.x3,
           }}
@@ -51,7 +51,7 @@ function Heading({ title, detail, icon }: { title: string; detail: string; icon?
 
 function OrDivider({ label }: { label: string }) {
   const theme = useDesignTheme();
-  const line = { flex: 1, height: 1, backgroundColor: theme.color.border };
+  const line = { flex: 1, height: edge.hairline, backgroundColor: theme.color.border };
   return (
     <View
       style={{ flexDirection: 'row', alignItems: 'center', gap: space.x4 }}
