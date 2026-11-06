@@ -138,6 +138,35 @@ export class FakeChannel {
     });
   }
 
+  setAttachments(
+    messageId: string,
+    attachments: NonNullable<ChannelMessage['attachments']>,
+    cleared: NonNullable<ChannelMessage['clearedAttachments']> = [],
+  ): void {
+    const index = this.messages.findIndex((message) => message.id === messageId);
+    const {
+      attachments: _attachments,
+      clearedAttachments: _cleared,
+      ...message
+    } = this.messages[index]!;
+    this.messages[index] = {
+      ...message,
+      ...(attachments.length === 0 ? {} : { attachments }),
+      ...(cleared.length === 0 ? {} : { clearedAttachments: cleared }),
+    } as ChannelMessage;
+    this.log.record(this.id, messageId);
+    this.emit({
+      type: 'notification',
+      notification: {
+        kind: 'attachments',
+        channelId: this.id,
+        messageId,
+        attachments,
+        clearedAttachments: cleared,
+      },
+    });
+  }
+
   emit(frame: ChannelLiveFrame): void {
     for (const streamId of this.followers.keys()) this.send(streamId, frame);
   }

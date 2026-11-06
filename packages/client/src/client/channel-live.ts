@@ -1,5 +1,9 @@
 import { isChannelNotice } from '../../../core/src/channels/channel-notice.js';
 import {
+  isChannelAttachmentRef,
+  isChannelClearedAttachment,
+} from '../../../core/src/attachments/ref.js';
+import {
   subscribeMessagingDefaults,
   openSharedChannel,
   type ChannelEventSource,
@@ -21,6 +25,7 @@ const ADMISSION_EVENT = 'channel/admission';
 const HUMAN_READ_EVENT = 'channel/human-read';
 const REACTION_EVENT = 'channel/reaction';
 const VOICE_EVENT = 'channel/voice';
+const ATTACHMENTS_EVENT = 'channel/attachments';
 const DRAFT_EVENT = 'channel/draft';
 const DRAFT_APPEND_EVENT = 'channel/draft-append';
 const DRAFT_BASELINE_EVENT = 'channel/draft-baseline';
@@ -440,6 +445,35 @@ export function mountChannelLive(
         ),
       });
     };
+    const onAttachments = (data: unknown): void => {
+      const payload = decode(data);
+      if (typeof payload !== 'object' || payload === null) return;
+      const item = payload as Record<string, unknown>;
+      const attachments = item['attachments'];
+      const cleared = item['clearedAttachments'];
+      if (
+        item['channelId'] !== activeChannelId ||
+        typeof item['messageId'] !== 'string' ||
+        !Array.isArray(attachments) ||
+        !attachments.every(isChannelAttachmentRef) ||
+        !Array.isArray(cleared) ||
+        !cleared.every(isChannelClearedAttachment)
+      )
+        return;
+      const latest = store.getSnapshot();
+      if (latest.conversation.channel?.id !== activeChannelId) return;
+      store.setConversation({
+        messages: latest.conversation.messages.map((message) => {
+          if (message.id !== item['messageId']) return message;
+          const { attachments: _attachments, clearedAttachments: _cleared, ...rest } = message;
+          return {
+            ...rest,
+            ...(attachments.length === 0 ? {} : { attachments }),
+            ...(cleared.length === 0 ? {} : { clearedAttachments: cleared }),
+          };
+        }),
+      });
+    };
     const onHumanRead = (data: unknown): void => {
       const payload = decode(data);
       if (typeof payload !== 'object' || payload === null) return;
@@ -602,6 +636,7 @@ export function mountChannelLive(
           else if (item.kind === 'human-read') onHumanRead(notification);
           else if (item.kind === 'reaction') onReaction(notification);
           else if (item.kind === 'voice') onVoice(notification);
+          else if (item.kind === 'attachments') onAttachments(notification);
           else if (item.kind === 'draft-baseline') onDraftBaseline(notification);
           else if (item.kind === 'draft') onDraft(item.draft);
           else if (item.kind === 'draft-append') onDraftAppend(item.append);
@@ -653,6 +688,7 @@ export function mountChannelLive(
     next.addEventListener(HUMAN_READ_EVENT, data(onHumanRead));
     next.addEventListener(REACTION_EVENT, data(onReaction));
     next.addEventListener(VOICE_EVENT, data(onVoice));
+    next.addEventListener(ATTACHMENTS_EVENT, data(onAttachments));
     next.addEventListener(DRAFT_BASELINE_EVENT, data(onDraftBaseline));
     next.addEventListener(DRAFT_EVENT, data(onDraft));
     next.addEventListener(DRAFT_APPEND_EVENT, data(onDraftAppend));

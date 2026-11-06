@@ -80,6 +80,7 @@ export interface ChannelStoreOptions {
   onHumanReadChanged?: (channelId: string, humanId: string, revision: number) => void;
   onReactionChanged?: (channelId: string, messageId: string, reactions: ChannelReaction[]) => void;
   onVoiceChanged?: (channelId: string, messageId: string, message: ChannelMessage) => void;
+  onAttachmentsChanged?: (channelId: string, messageId: string, message: ChannelMessage) => void;
   warn?: (message: string) => void;
   isBotActive?: (botSlug: string) => boolean;
   botDisplayName?: (botSlug: string) => string | undefined;
