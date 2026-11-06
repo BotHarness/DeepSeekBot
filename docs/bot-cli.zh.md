@@ -1394,6 +1394,8 @@ deepseekbot window-zoom-setup-cancel --host <host> --token-file <私有文件>
 
 在非桌面 Profile 中状态为 `{supported:false, code}`，否则为 `{supported:true, enabled, pending?, last?}`。拒绝代码包括 `zoom-setup-not-desktop`、`zoom-setup-desktop-app-unresolved`、`zoom-setup-command-unavailable`、`zoom-setup-already-enabled|disabled` 与 `zoom-setup-not-pending`；后台进程未写结果即结束时报告 `zoom-setup-helper-exited`。
 
+`enabled` 同时识别产品拥有的 0.2.1-rc.2 和 0.2.2-rc.1 主题链接，两者均可通过同一命令禁用。启用时按桌面版本选择对应主题；未知版本仍会被拒绝。
+
 `window-zoom-clients` 列出在线目标，必须明确传入 `--client-id`，不会隐式选择窗口。
 `window-zoom-get` 读取 Client 持有的状态；写入必须携带其 `document.revision`：
 

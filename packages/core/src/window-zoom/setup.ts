@@ -10,6 +10,7 @@ import {
 } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
+import { DESKTOP_ZOOM_THEMES } from './theme-paths.mjs';
 
 export const WINDOW_ZOOM_SETUP_PATH = '/api/botharness/window-zoom-setup';
 const THEME = '@deepseek-ai/dsh-client-ui-theme';
@@ -173,7 +174,9 @@ export function createWindowZoomSetup(options: WindowZoomSetupOptions) {
       desktop,
       desktopApp,
       script,
-      enabled: typeof link === 'string' && link === `link:node_modules/${entry}/desktop-theme`,
+      enabled: Object.values(DESKTOP_ZOOM_THEMES).some(
+        (path) => link === `link:node_modules/${entry}/${path}`,
+      ),
     };
   };
   const status = (): WindowZoomSetupStatus => {

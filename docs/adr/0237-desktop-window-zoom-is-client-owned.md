@@ -135,6 +135,28 @@ Desktop/Host/Client tuple; re-enable only after qualifying the new combination.
 
 The exact Desktop release checks above are superseded. Optional setup and the Client lease now check adapter protocol 1, platform, ownership and generated file integrity; the runtime release string is diagnostic information only. The theme converter still rejects unknown source bytes/import shapes because its transformation targets specific code, but identical code in a differently labelled release is admissible. Native interaction qualification remains separate from installation admission. This follows [ADR-0087’s current admission policy](0087-dsh-compatibility-is-a-semver-range-with-a-verified-floor.md).
 
+## 2026-11-07 versioned theme payloads (#3639)
+
+The setup admission rule above is superseded by #3623 and #3639: a whole-package theme override
+must match the selected Desktop release, even if the small shortcut seam is unchanged. The
+0.2.2-rc.1 theme carries different Client and appearance bytes; adapter protocol compatibility
+does not establish resource compatibility. Build generation now validates separate official
+version/hash pairs for 0.2.1-rc.2 and 0.2.2-rc.1 and preserves each package's resources and license.
+The font-shortcut Fiber lease and portable schema import remain the only transformed entry points.
+
+The old `desktop-theme` path stays stable for existing 0.2.1-rc.2 Profiles. The new payload lives
+beside it at `desktop-theme-0.2.2-rc.1`; both DeepSeekBot and Tobs artifacts carry both payloads.
+Setup chooses by the selected application's native version metadata. It validates the replacement
+before switching the owned dependency through the existing package manager transaction, and
+accepts only exact product-owned links for upgrade, rollback and disable. Unknown Desktop releases
+cannot enable an override; they can still disable a recognized one to restore native resolution.
+Do not treat a Profile package-manager failure as atomic rollback or runtime success: the existing
+outcome-unconfirmed refusal remains. Disable before an unqualified Desktop upgrade; no background
+process changes Profile dependencies automatically. Client lease admission remains protocol-based.
+
+Windows native evidence for the new tuple belongs to #3639. It does not qualify macOS, Linux,
+multi-monitor DPI, embedded guest painting or the outstanding #2269/#2270 matrices.
+
 ## Default Bundle activation (#2775)
 
 This supersedes the opt-in activation instructions above. Both product Bundle patches insert the product-carried theme as the final Loader row with the existing `ui-theme` id. Cordis EntryGroup selects the last row for an id; only one theme Fiber starts. Later Profile/Home patches still target that id, preserving native appearance and font preferences. After removing the product Bundle and restarting Desktop, the original upstream row becomes effective again. Hot replacement is not qualified. The copied theme retains its native module identity, license and hash-qualified shortcut lease. No installed shell, Profile dependency or postinstall hook is changed.

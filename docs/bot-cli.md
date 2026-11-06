@@ -1428,6 +1428,8 @@ deepseekbot window-zoom-setup-cancel --host <host> --token-file <private-file>
 
 Status is `{supported:false, code}` outside the Desktop Profile, or `{supported:true, enabled, pending?, last?}`. Refusals include `zoom-setup-not-desktop`, `zoom-setup-desktop-app-unresolved`, `zoom-setup-command-unavailable`, `zoom-setup-already-enabled|disabled` and `zoom-setup-not-pending`; a helper that ended without an outcome reports `zoom-setup-helper-exited`.
 
+`enabled` recognizes both the 0.2.1-rc.2 and 0.2.2-rc.1 product-owned theme links, so either can be disabled through the same command. Enable selects the exact Desktop version's payload; unknown versions remain refused.
+
 `window-zoom-clients` lists active targets. Select one `--client-id`; commands never choose a
 window implicitly. `window-zoom-get` reads the Client-owned snapshot. A write requires the
 returned `document.revision` as `--expected-revision`:
