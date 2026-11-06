@@ -96,7 +96,8 @@ vi.mock('../src/host/host-store', () => ({
 }));
 vi.mock('../src/host/purge-caches', () => ({ installPurgeTargets: () => undefined }));
 vi.mock('../src/host/native-haptic-feedback', () => ({}));
-vi.mock('../src/ui/shell/channel-navigation', () => ({
+vi.mock('../src/ui/shell/channel-navigation', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../src/ui/shell/channel-navigation')>()),
   channelRouteId: () => '',
   channelStackRouter: () => ({}),
 }));
