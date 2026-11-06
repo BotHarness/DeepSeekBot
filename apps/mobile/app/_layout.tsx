@@ -2,7 +2,11 @@ import { useMounted } from '../src/ui/mounted';
 import { watchRequestActivity } from '../src/host/native-live-activity';
 import { useCallback, useState } from 'react';
 import { Notice } from '../src/ui/request-parts';
-import { channelRouteId, channelStackRouter } from '../src/ui/shell/channel-navigation';
+import {
+  channelRouteId,
+  channelStackRouter,
+  conversationRouteOptions,
+} from '../src/ui/shell/channel-navigation';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Platform, View, type ViewInstance } from 'react-native';
@@ -132,21 +136,13 @@ function RootNavigator() {
                 <Stack.Screen
                   name="dm/[slug]"
                   dangerouslySingular={channelRouteId}
-                  options={({ route }) => ({
-                    title: '',
-                    fullScreenGestureEnabled: true,
-                    ...swipeEntryOptions(route),
-                  })}
+                  options={conversationRouteOptions}
                   listeners={swipeEntryListeners('default')}
                 />
                 <Stack.Screen
                   name="channel/[id]"
                   dangerouslySingular={channelRouteId}
-                  options={({ route }) => ({
-                    title: '',
-                    fullScreenGestureEnabled: true,
-                    ...swipeEntryOptions(route),
-                  })}
+                  options={conversationRouteOptions}
                   listeners={swipeEntryListeners('default')}
                 />
                 <Stack.Screen name="dm-top" options={topEntranceScreenOptions} />
