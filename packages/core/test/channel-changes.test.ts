@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { createAttachmentStore } from '../src/attachments/store.js';
+import { createChannelLiveHub } from '../src/channels/live.js';
 import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
 import {
   attachOperationalModule,
@@ -254,6 +255,37 @@ describe('global change log for placed messages', () => {
     expect(seen.size).toBe(10);
   });
 
+  it('tells an opening device how far this Channel has changed, ignoring other Channels', async () => {
+    const { channels, group, since } = await scene();
+    const head = channels.channelChangeHead!(group.id)!;
+    expect(head).toEqual(since());
+    const other = channels.createGroup({ name: 'Elsewhere', members: [] });
+    await channels.appendMessage(other.id, {
+      id: 'x1',
+      at: '2026-11-05T00:01:00.000Z',
+      author: { kind: 'human' },
+      body: 'elsewhere',
+    });
+    expect(since().seq).toBeGreaterThan(head.seq);
+    expect(channels.channelChangeHead!(group.id)).toEqual(head);
+    channels.setHumanReaction!(group.id, 'm1', '👍', true);
+    expect(channels.channelChangeHead!(group.id)).toEqual(since());
+  });
+
+  it('sends that change head in the first frame of a Channel follow', async () => {
+    const { channels, group } = await scene();
+    const hub = createChannelLiveHub(channels);
+    const abort = new AbortController();
+    const frames = hub.followChannel(group.id, 0, abort.signal)[Symbol.asyncIterator]();
+    const opened = (await frames.next()).value;
+    abort.abort();
+    expect(opened).toMatchObject({
+      type: 'opened',
+      cursor: 3,
+      changes: channels.channelChangeHead!(group.id),
+    });
+  });
+
   it('asks for a reset after a new epoch, an unknown cursor or a cursor from another epoch (#53)', async () => {
     const { since, changes, channels, group } = await scene();
     const cursor = since();
@@ -317,4 +349,5 @@ it('prunes change rows older than 30 days at startup and resets cursors below th
   expect(
     later.readHumanChanges!(group.id, { sinceSeq: before.seq, epoch: before.epoch })!.reset,
   ).toBeUndefined();
+  expect(later.channelChangeHead!(group.id)!.seq).toBeGreaterThanOrEqual(before.seq);
 });

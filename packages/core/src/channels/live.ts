@@ -4,7 +4,7 @@ import { channelPreviewMessage, isChannelNotice } from './channel-notice.js';
 import type { ChannelDraft, ChannelDraftEvent } from './draft.js';
 import type { ChannelMessage, ChannelReaction } from './channel.js';
 import type { ChannelMessageCommit, ChannelStore } from './store.js';
-import { MAX_MESSAGE_PAGE, type ChannelJournalPage } from './timeline.js';
+import { MAX_MESSAGE_PAGE, type ChannelChangeCursor, type ChannelJournalPage } from './timeline.js';
 
 export const CHANNEL_STREAM_PATH = '/api/botharness/stream';
 export const CHANNEL_COMMIT_EVENT = 'channel/message';
@@ -94,7 +94,12 @@ export type ChannelLiveNotification =
     };
 
 export type ChannelLiveFrame =
-  | { type: 'opened'; cursor: number; page?: ChannelJournalPage }
+  | {
+      type: 'opened';
+      cursor: number;
+      page?: ChannelJournalPage;
+      changes?: ChannelChangeCursor;
+    }
   | { type: 'entry'; entry: { channelId: string; message: ChannelMessage; revision: number } }
   | { type: 'notification'; notification: ChannelLiveNotification };
 
@@ -712,6 +717,7 @@ export function createChannelLiveHub(
         ? { entries: [], olderCursor: null, hasOlder: read.entries.length > 0 || read.hasOlder }
         : read;
     if (signal.aborted) return;
+    const changes = channels.channelChangeHead?.(channelId);
     const queue: ChannelLiveFrame[] = [];
     let ended = false;
     let wake: (() => void) | undefined;
@@ -719,7 +725,11 @@ export function createChannelLiveHub(
       channelId,
       after,
       (frame) => {
-        queue.push(frame.type === 'opened' ? { ...frame, page } : frame);
+        queue.push(
+          frame.type === 'opened'
+            ? { ...frame, page, ...(changes === undefined ? {} : { changes }) }
+            : frame,
+        );
         if (queue.length > CHANNEL_LIVE_QUEUE_LIMIT)
           throw new Error('Channel live consumer is behind');
         wake?.();

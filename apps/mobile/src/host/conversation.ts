@@ -991,12 +991,18 @@ export function createConversation(options: ConversationOptions): Conversation {
           ? await readPage(frame.cursor, undefined, pageSize)
           : frame.page;
       if (current !== session) return;
-      const pullFirst = bare && page === frame.page;
+      const upToDate =
+        frame.changes !== undefined &&
+        changeCursor !== undefined &&
+        changeCursor.epoch === frame.changes.epoch &&
+        changeCursor.seq >= frame.changes.seq;
+      const pull = bare && !upToDate;
+      const pullFirst = pull && page === frame.page;
       if (pullFirst) await pullChanges(current, frame.cursor);
       if (current !== session) return;
       await advance(frame.cursor, page);
       if (current !== session) return;
-      if (bare && !pullFirst) await pullChanges(current, frame.cursor);
+      if (pull && !pullFirst) await pullChanges(current, frame.cursor);
       if (current !== session) return;
       fromCache = false;
       status = 'live';
