@@ -1,0 +1,5 @@
+{
+  "permissions": {
+    "allow": ["Bash(pnpm evidence:publish:*)", "Bash(pnpm evidence:check:*)"]
+  }
+}
