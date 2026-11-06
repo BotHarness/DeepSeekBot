@@ -3442,26 +3442,42 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       };
     },
     recordAttachmentChange(fileId) {
-      return database.transaction(
-        (db) =>
-          !changeLogIn(db)
-            ? 0
-            : Number(
-                db
-                  .prepare(
-                    `INSERT INTO channel_changes (channel_id, message_id, kind)
-                 SELECT DISTINCT p.channel_id, p.message_id, 'message'
-                   FROM channel_placements p
-                   JOIN source_events e ON e.source_event_id = p.source_event_id
-                  WHERE instr(e.payload_json, ?) > 0
-                     OR p.source_event_id IN (
-                       SELECT source_event_id FROM attachment_file_bindings WHERE file_id = ?
-                     )`,
-                  )
-                  .run(JSON.stringify(fileId), fileId).changes,
-              ),
+      const placements = database.transaction(
+        (db) => {
+          const rows = db
+            .prepare(
+              `SELECT DISTINCT p.channel_id, p.message_id
+                 FROM channel_placements p
+                 JOIN source_events e ON e.source_event_id = p.source_event_id
+                WHERE instr(e.payload_json, ?) > 0
+                   OR p.source_event_id IN (
+                     SELECT source_event_id FROM attachment_file_bindings WHERE file_id = ?
+                   )`,
+            )
+            .all(JSON.stringify(fileId), fileId)
+            .map((row) => ({
+              channelId: String(row.channel_id),
+              messageId: String(row.message_id),
+            }));
+          if (changeLogIn(db))
+            for (const row of rows)
+              db.prepare(
+                "INSERT INTO channel_changes (channel_id, message_id, kind) VALUES (?, ?, 'message')",
+              ).run(row.channelId, row.messageId);
+          return rows;
+        },
         ['channel-changes'],
       );
+      for (const { channelId, messageId } of placements) {
+        const message = this.message(channelId, messageId);
+        if (message === undefined) continue;
+        try {
+          options.onAttachmentsChanged?.(channelId, messageId, message);
+        } catch (error) {
+          options.warn?.('Attachment notification failed: ' + String(error));
+        }
+      }
+      return placements.length;
     },
     rotateChangeEpoch() {
       return database.transaction(

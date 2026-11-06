@@ -182,6 +182,18 @@ export type ChannelNotification =
       attachments: readonly AttachmentRef[];
     }
   | {
+      kind: 'attachments';
+      channelId: string;
+      messageId: string;
+      attachments: readonly AttachmentRef[];
+      clearedAttachments: readonly {
+        name: string;
+        mime: string;
+        size: number;
+        clearedAt: string;
+      }[];
+    }
+  | {
       kind: 'draft-baseline';
       channelId: string;
       revision: number;

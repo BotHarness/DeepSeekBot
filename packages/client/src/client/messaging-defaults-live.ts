@@ -227,6 +227,7 @@ function ensureSource(): void {
     'channel/human-read',
     'channel/reaction',
     'channel/voice',
+    'channel/attachments',
     'channel/draft-baseline',
     'channel/draft',
     'channel/draft-settled',

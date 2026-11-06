@@ -171,6 +171,7 @@ export function createStorageCleanup(deps: {
   memoryDirs: () => readonly string[];
   memoryReferences: () => Iterable<string>;
   botName?: (slug: string) => string | undefined;
+  cleared?: (placements: readonly { channelId: string; messageId: string }[]) => void;
   now?: () => Date;
 }): StorageCleanup {
   const now = deps.now ?? (() => new Date());
@@ -469,9 +470,19 @@ export function createStorageCleanup(deps: {
         );
       previews.delete(token);
       const clearedAt = now().toISOString();
+      const placements: { channelId: string; messageId: string }[] = [];
       port.transaction(
         (db) => {
           for (const event of result.events) {
+            for (const placement of db
+              .prepare(
+                'SELECT channel_id, message_id FROM channel_placements WHERE source_event_id = ?',
+              )
+              .all(event.sourceEventId))
+              placements.push({
+                channelId: String(placement.channel_id),
+                messageId: String(placement.message_id),
+              });
             const row = db
               .prepare('SELECT payload_json FROM source_events WHERE source_event_id = ?')
               .get(event.sourceEventId);
@@ -501,6 +512,7 @@ export function createStorageCleanup(deps: {
         },
         ['channel'],
       );
+      deps.cleared?.(placements);
       let removedFiles = 0;
       let pendingFiles = 0;
       const references = (): ReadonlySet<string> => {

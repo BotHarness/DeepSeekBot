@@ -59,7 +59,7 @@ export const nativeMediaStore: MediaStore = {
     return file.exists ? file.textSync() : undefined;
   },
   writeSettings(text) {
-    settingsFile().write(text);
+    settingsFile().writeSync(text);
   },
   forget(cacheKeyPrefixes) {
     const directory = mediaRoot();
