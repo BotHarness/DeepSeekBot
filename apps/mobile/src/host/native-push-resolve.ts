@@ -1,7 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
 
-import { dismissResolved, parsePushResolved } from './push-resolve';
+import { dismissResolved, parsePushBadge, parsePushResolved } from './push-resolve';
 
 export const PUSH_RESOLVE_TASK = 'deepseekbot-push-resolve';
 
@@ -23,6 +23,8 @@ TaskManager.defineTask<Notifications.NotificationTaskPayload>(
     if (error !== null || data === undefined) return;
     const resolved = parsePushResolved(data);
     if (resolved !== undefined) await dismissResolved(port, resolved).catch(() => undefined);
+    const badge = parsePushBadge(data);
+    if (badge !== undefined) await Notifications.setBadgeCountAsync(badge).catch(() => undefined);
   },
 );
 

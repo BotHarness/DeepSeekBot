@@ -74,6 +74,12 @@ export interface ExpoMessage {
   _contentAvailable?: true;
 }
 
+function keepDelivered(message: ExpoMessage): ExpoMessage {
+  if (message.badge !== 0) return message;
+  const { badge: _badge, ...rest } = message;
+  return { ...rest, _contentAvailable: true, data: { ...message.data, badge: 0 } };
+}
+
 export type ExpoTicket =
   | { status: 'ok'; id: string }
   | { status: 'error'; message?: string; details?: { error?: string } };
@@ -367,10 +373,11 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
 
   const deliver = async (
     device: DeviceRow,
-    messages: ExpoMessage[],
+    input: ExpoMessage[],
     kinds: Array<PushKind | 'badge' | 'resolve' | 'test' | 'device-paired'>,
     createdAt: ReadonlyArray<string | undefined> = [],
   ): Promise<boolean> => {
+    const messages = device.platform === 'ios' ? input.map(keepDelivered) : input;
     for (let start = 0; start < messages.length; start += BATCH) {
       const batch = messages.slice(start, start + BATCH);
       let result: ExpoTicket[] | undefined;

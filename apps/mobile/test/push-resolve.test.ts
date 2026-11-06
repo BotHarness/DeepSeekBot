@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 
-import { dismissResolved, parsePushResolved } from '../src/host/push-resolve';
+import { dismissResolved, parsePushBadge, parsePushResolved } from '../src/host/push-resolve';
 
 it('reads the resolved items from every shape a background push arrives in', () => {
   const payload = { v: 1, hostId: 'h1', resolved: ['approval:1', '', 3, 'reply:2'] };
@@ -30,4 +30,12 @@ it('withdraws only the shown notifications of the resolved items from that Compu
   };
   expect(await dismissResolved(port, { hostId: 'h1', itemIds: ['approval:1'] })).toBe(1);
   expect(dismissed).toEqual(['n1']);
+});
+
+it('reads the badge a background push carries instead of the system badge', () => {
+  expect(parsePushBadge({ data: { body: { v: 1, hostId: 'h1', badge: 0 } } })).toBe(0);
+  expect(parsePushBadge({ data: { v: 1, hostId: 'h1', badge: 3 } })).toBe(3);
+  expect(parsePushBadge({ data: { v: 1, hostId: 'h1' } })).toBeUndefined();
+  expect(parsePushBadge({ data: { v: 1, hostId: 'h1', badge: -1 } })).toBeUndefined();
+  expect(parsePushBadge({ data: { v: 1, badge: 0 } })).toBeUndefined();
 });

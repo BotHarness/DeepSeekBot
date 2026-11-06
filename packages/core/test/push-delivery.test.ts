@@ -388,7 +388,11 @@ describe('Push delivery', () => {
     await f.push.reconcile();
     await f.push.reconcile();
     expect(f.expo.flat().filter((message) => message.title !== undefined)).toHaveLength(2);
-    expect(f.expo.flat().at(-1)?.badge).toBe(0);
+    expect(f.expo.flat().at(-1)).toEqual({
+      to: TOKEN_A,
+      _contentAvailable: true,
+      data: { v: 1, hostId: f.pairing.host().id, resolved: ['approval:2'], badge: 0 },
+    });
     expect(f.expo.sent).toHaveLength(3);
   });
 
@@ -650,9 +654,10 @@ describe('Push delivery', () => {
           hostId: f.pairing.host().id,
           kind: 'device-paired',
           deviceId: added.device.id,
+          badge: 0,
         },
       }),
-      expect.objectContaining({ to: TOKEN_B, title: 'New device paired' }),
+      expect.objectContaining({ to: TOKEN_B, title: 'New device paired', badge: 0 }),
     ]);
     f.push.register(added.device.id, { token: 'ExponentPushToken[stranger-1]', platform: 'ios' });
     f.pairing.revoke(tablet.device.id);

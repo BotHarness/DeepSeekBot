@@ -37,6 +37,17 @@ export function parsePushResolved(input: unknown): PushResolved | undefined {
   return itemIds.length === 0 ? undefined : { hostId: target.hostId, itemIds };
 }
 
+export function parsePushBadge(input: unknown): number | undefined {
+  const payload = payloadOf(input);
+  const badge = payload?.['badge'];
+  return parsePushData(payload) !== undefined &&
+    typeof badge === 'number' &&
+    Number.isInteger(badge) &&
+    badge >= 0
+    ? badge
+    : undefined;
+}
+
 export async function dismissResolved(
   port: {
     presented(): Promise<Array<{ id: string; data: unknown }>>;
