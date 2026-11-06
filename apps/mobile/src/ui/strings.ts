@@ -1030,6 +1030,7 @@ const en = {
       'use-browser-sign-in': 'This account needs another sign-in method.',
       'email-code-unavailable': 'Email codes are unavailable right now. Use Other sign-in options.',
       'relay-unavailable': 'Could not reach the server. Try again.',
+      'sign-in-failed': 'Sign-in did not finish. Try again.',
     } satisfies Record<EmailCodeRefusal, string>,
   },
   pairAccount: {
@@ -3298,6 +3299,7 @@ const zh: typeof en = {
       'use-browser-sign-in': '这个账号需要用其他方式登录。',
       'email-code-unavailable': '暂时无法用邮箱验证码登录，请用“其他登录方式”。',
       'relay-unavailable': '连不上服务器，请再试一次。',
+      'sign-in-failed': '登录没有完成，请再试一次。',
     } satisfies Record<EmailCodeRefusal, string>,
   },
   pairAccount: {

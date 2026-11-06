@@ -66,6 +66,13 @@ export function EmailCodeSignIn({
       }
     });
 
+  const browser = (provider?: SocialProvider) =>
+    run(async () => {
+      const result = await flow.browser(provider);
+      if (result.ok) finish({ kind: 'signed-in', email: result.email });
+      else if (result.code !== 'cancelled') setError(result.code);
+    });
+
   const providers: { id: SocialProvider; label: string; testID: string }[] = [
     { id: 'AppleOAuth', label: copy.apple, testID: 'email-sign-in-apple' },
     { id: 'GoogleOAuth', label: copy.google, testID: 'email-sign-in-google' },
@@ -85,7 +92,7 @@ export function EmailCodeSignIn({
               testID={provider.testID}
               label={provider.label}
               disabled={busy}
-              onPress={() => finish({ kind: 'browser', provider: provider.id })}
+              onPress={() => void browser(provider.id)}
             />
           ))}
           <Text tone="muted">{copy.emailHint}</Text>
@@ -179,7 +186,7 @@ export function EmailCodeSignIn({
         label={copy.otherMethods}
         variant="text"
         disabled={busy}
-        onPress={() => finish({ kind: 'browser' })}
+        onPress={() => void browser()}
       />
     </KeyboardFormScroll>
   );

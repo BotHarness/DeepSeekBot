@@ -105,22 +105,40 @@ describe('phone Connect email-code sign-in (#3464)', () => {
     expect(relay.stored()).toBeNull();
   });
 
-  it('falls back to AuthKit when the user picks another method or the relay lacks the route', async () => {
-    const chosen = setup(async () => ({ kind: 'browser' }));
+  it('opens AuthKit from the open sheet and stays there when the browser is cancelled', async () => {
+    const chosen = setup(async (flow) => {
+      const result = await flow.browser();
+      return result.ok ? { kind: 'signed-in', email: result.email } : { kind: 'cancelled' };
+    });
     expect(await chosen.account.signIn()).toEqual({ ok: true, value: 'alice@example.com' });
     expect(chosen.authorize).toHaveBeenCalledOnce();
     expect(chosen.stored()).toMatchObject({ refreshToken: 'refresh-browser' });
-
     expect(new URL(chosen.authorize.mock.calls[0]![0]).searchParams.get('provider')).toBe(
       'authkit',
     );
 
-    const apple = setup(async () => ({ kind: 'browser', provider: 'AppleOAuth' }));
+    const apple = setup(async (flow) => {
+      apple.authorize.mockResolvedValueOnce(null);
+      expect(await flow.browser('AppleOAuth')).toEqual({ ok: false, code: 'cancelled' });
+      expect(apple.stored()).toBeNull();
+      const result = await flow.browser('AppleOAuth');
+      return result.ok ? { kind: 'signed-in', email: result.email } : { kind: 'cancelled' };
+    });
     expect(await apple.account.signIn()).toEqual({ ok: true, value: 'alice@example.com' });
-    const url = new URL(apple.authorize.mock.calls[0]![0]);
+    expect(apple.authorize).toHaveBeenCalledTimes(2);
+    const url = new URL(apple.authorize.mock.calls[1]![0]);
     expect(url.searchParams.get('provider')).toBe('AppleOAuth');
     expect(url.searchParams.get('code_challenge_method')).toBe('S256');
 
+    const broken = setup(async (flow) => {
+      broken.authorize.mockResolvedValueOnce(`${REDIRECT}?code=x&state=wrong`);
+      expect(await flow.browser('GoogleOAuth')).toEqual({ ok: false, code: 'sign-in-failed' });
+      return { kind: 'cancelled' };
+    });
+    expect(await broken.account.signIn()).toEqual({ ok: false, code: 'sign-in-cancelled' });
+  });
+
+  it('uses AuthKit directly when the relay lacks the email-code route', async () => {
     const collect = vi.fn();
     const older = setup(collect, { emailCode: false });
     expect(await older.account.signIn()).toEqual({ ok: true, value: 'alice@example.com' });
