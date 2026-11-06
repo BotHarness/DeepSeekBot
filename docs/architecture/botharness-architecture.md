@@ -1341,7 +1341,11 @@ then returns it on disposal. The product build carries that licensed theme and a
 schema module. Bundle patches retain the original `ui-theme` row and canonical Settings
 namespace. An explicit `deepseekbot-zoom-setup enable` command installs one Profile-local
 package link through the selected Desktop's bundled package manager and requires a restart.
-The macOS path and Windows candidate check adapter protocol and content integrity, without a Desktop release-label gate; foreign overrides are still refused.
+Setup selects the exact Desktop release's packaged theme: `desktop-theme` retains 0.2.1-rc.2 and
+`desktop-theme-0.2.2-rc.1` preserves the official 0.2.2-rc.1 resources. It checks source version,
+adapter protocol and content integrity before changing an owned Profile link; unknown releases
+and foreign overrides are refused. Switching between known payloads uses the same package owner,
+and disable remains available after upgrading to an unknown Desktop release (#3639).
 Windows reads executable FileVersion, checks live processes with CIM, and validates owned
 junctions under the same Profile writer lock. The Client checks a matching platform lease
 before registering the same native Shortcut commands; Ctrl+0 restores the saved default.

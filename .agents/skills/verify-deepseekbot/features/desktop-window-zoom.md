@@ -22,6 +22,17 @@ row from a Bundle Patch: native Settings then refuses every appearance and font 
 Ordinary browsers retain browser-native zoom. Package tests and native activation are
 separate checks; verify the actual theme id and source in `__DSH_BOOT__` after restart.
 
+For #3639, the installer additionally requires the selected Desktop version to match the
+theme source version. Both legacy `desktop-theme` (0.2.1-rc.2) and
+`desktop-theme-0.2.2-rc.1` ship in the product. On an isolated 0.2.2-rc.1 Desktop, record the
+native sidebar Plugins/Automations/More icons and composer attachment icon before activation;
+after activation, compare them at 100%, 120% and 144%. Confirm one `ui-theme` module, the RC1
+source payload, unchanged font preferences, shortcut/default/reset behavior and persistence
+after a cold restart. Disable while closed, restart and confirm native theme resolution and
+the same font preferences. Exercise a packaged product upgrade and an old/new payload switch;
+keep source/fixture proof separate from native platform results. An unknown Desktop version
+must refuse enable but still allow disable of either recognized owned link.
+
 ## Settings button (enable after quit)
 
 On the native Desktop Profile, Bot Settings → General shows "Enable window zoom" (or "Turn off window zoom").

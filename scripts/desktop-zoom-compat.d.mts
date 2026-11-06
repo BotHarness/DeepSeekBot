@@ -10,7 +10,8 @@ export interface DesktopZoomThemeProvenance {
 }
 export const ZOOM_THEME_VERSION: '0.2.1-rc.2';
 export const ZOOM_THEME_HASHES: { client: string; host: string };
-export function adaptZoomTheme(client: string): string;
+export const ZOOM_THEME_BUILDS: Record<string, { client: string; host: string }>;
+export function adaptZoomTheme(client: string, version?: string): string;
 export function prepareDesktopZoomCompatibility(options: {
   source: string;
   target: string;

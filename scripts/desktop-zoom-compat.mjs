@@ -16,9 +16,17 @@ export const ZOOM_THEME_HASHES = {
   client: 'f9915fb53d5f156e75291e63be66c80e607a82bfd03c7d583e0a12ebef5a6cb8',
   host: '1adf59906ab10e91765d96f3e42268b0b7669f921c4baf4021a3057894cf3000',
 };
+export const ZOOM_THEME_BUILDS = {
+  [ZOOM_THEME_VERSION]: ZOOM_THEME_HASHES,
+  '0.2.2-rc.1': {
+    client: '78d79a77112e2a83cfa1a9015c06f4b980efb9e1b071bc0b2ba46525748c3592',
+    host: '1adf59906ab10e91765d96f3e42268b0b7669f921c4baf4021a3057894cf3000',
+  },
+};
 const hash = (value) => createHash('sha256').update(value).digest('hex');
-export function adaptZoomTheme(client) {
-  if (hash(client) !== ZOOM_THEME_HASHES.client) throw Error('zoom-theme-build-unsupported');
+export function adaptZoomTheme(client, version = ZOOM_THEME_VERSION) {
+  if (hash(client) !== ZOOM_THEME_BUILDS[version]?.client)
+    throw Error('zoom-theme-build-unsupported');
   const call =
     '\t\t\t\tinstallFontSizeShortcuts(ctx, (delta) => {\n\t\t\t\t\tthis.adjustFontSizes(delta);\n\t\t\t\t});';
   const start = 'function installFontSizeShortcuts(ctx, adjust) {\n\t\t\tctx.inject(';
@@ -60,18 +68,18 @@ export function adaptZoomTheme(client) {
 }
 function transformZoomTheme(source, { packaged = false, schemaModule } = {}) {
   const manifest = JSON.parse(readFileSync(join(source, 'package.json'), 'utf8'));
+  const build = ZOOM_THEME_BUILDS[manifest.version];
   const supported =
     manifest.name === '@deepseek-ai/dsh-client-ui-theme' &&
-    typeof manifest.version === 'string' &&
+    build !== undefined &&
     manifest.license === 'MIT';
   if (!packaged && !supported) throw Error('zoom-theme-version-unsupported');
   const client = readFileSync(join(source, 'lib/client.js'), 'utf8');
   const host = readFileSync(join(source, 'lib/index.js'), 'utf8');
-  if (packaged && (!supported || hash(host) !== ZOOM_THEME_HASHES.host))
+  if (packaged && (!supported || hash(host) !== build.host))
     throw Error('zoom-theme-version-unsupported');
-  const adapted = adaptZoomTheme(client);
-  if (!packaged && hash(host) !== ZOOM_THEME_HASHES.host)
-    throw Error('zoom-theme-host-unsupported');
+  const adapted = adaptZoomTheme(client, manifest.version);
+  if (!packaged && hash(host) !== build.host) throw Error('zoom-theme-host-unsupported');
   let schemaSpecifier = '"../../dist/theme-schema.mjs"';
   if (!packaged) {
     const schema =

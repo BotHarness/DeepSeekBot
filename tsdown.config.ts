@@ -296,6 +296,10 @@ export default defineConfig([
         source: join(ROOT_DIR, 'packages/client/node_modules/@deepseek-ai/dsh-client-ui-theme'),
         target: join(ROOT_DIR, 'packages/deepseekbot/desktop-theme'),
       });
+      preparePackagedDesktopZoomTheme({
+        source: join(ROOT_DIR, 'packages/client/node_modules/dsh-ui-theme-022'),
+        target: join(ROOT_DIR, 'packages/deepseekbot/desktop-theme-0.2.2-rc.1'),
+      });
     },
     outDir: 'packages/deepseekbot/dist',
     format: ['esm'],
