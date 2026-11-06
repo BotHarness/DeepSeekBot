@@ -194,9 +194,50 @@ describe('native DSH questions in a PersonaBot DM', () => {
       state: 'answered',
       answers: expected.answers,
     });
-    expect(state.answerer.status('ada', request.id)).toBe('expired');
+    expect(state.answerer.status('ada', request.id)).toBe('answered');
     expect(state.answerer.activeMessageIds()).toEqual([]);
     expect(await state.answerer.answer('ada', request.id, expected)).toBe(false);
+    const restarted = new ChannelUserQuestions(
+      state.channels,
+      state.ownership,
+      () => false,
+      state.warn,
+    );
+    expect(restarted.status('ada', request.id)).toBe('answered');
+    expect(restarted.status('ada', 'missing-request')).toBe('expired');
+    expect(restarted.activeMessageIds()).toEqual([]);
+    expect(await restarted.answer('ada', request.id, expected)).toBe(false);
+  });
+
+  it('finds answered questions beyond the latest page before and after service restart', async () => {
+    const state = fixture();
+    const wait = state.answerer.ask({ agent: state.agent, questions });
+    await vi.waitFor(() => expect(state.answerer.activeMessageIds()).toHaveLength(1));
+    const id = state.answerer.activeMessageIds()[0]!;
+    const appendHistory = async (prefix: string) => {
+      for (let index = 0; index < 205; index++) {
+        await state.channels.appendMessage(channelId, {
+          id: `${prefix}-${index}`,
+          at: new Date().toISOString(),
+          author: { kind: 'human' },
+          body: 'Intervening message',
+        });
+      }
+    };
+    await appendHistory('before-answer');
+    const answer = { answers: [{ id: questions[0]!.id, selected: ['main'] }] };
+    expect(await state.answerer.answer('ada', id, answer)).toBe(true);
+    expect(await wait).toEqual(answer);
+    expect(state.answerer.status('ada', id)).toBe('answered');
+    await appendHistory('after-answer');
+    const restarted = new ChannelUserQuestions(
+      state.channels,
+      state.ownership,
+      () => false,
+      state.warn,
+    );
+    expect(restarted.status('ada', id)).toBe('answered');
+    expect(await restarted.answer('ada', id, answer)).toBe(false);
   });
 
   it('posts a card for more than three questions and a long question instead of leaving them to DSH', async () => {

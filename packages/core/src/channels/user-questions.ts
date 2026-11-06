@@ -310,16 +310,26 @@ export class ChannelUserQuestions {
   ): ChannelQuestionStatus {
     const pending = this.#pending.get(messageId);
     if (pending === undefined) {
-      const messages = this.#channels.readMessages(channelId);
-      const message = messages.find((entry) => entry.id === messageId);
-      return message?.userQuestionRequest?.callId !== undefined &&
-        messages.some(
-          (entry) =>
-            entry.userQuestionResolution?.requestMessageId === messageId &&
-            entry.userQuestionResolution.state === 'answered',
+      const message = this.#channels.message(channelId, messageId);
+      if (message?.userQuestionRequest === undefined) return 'expired';
+      let before: string | undefined;
+      while (true) {
+        const messages = this.#channels.readMessages(channelId, {
+          limit: 200,
+          ...(before === undefined ? {} : { before }),
+        });
+        if (
+          messages.some(
+            (entry) =>
+              entry.userQuestionResolution?.requestMessageId === messageId &&
+              entry.userQuestionResolution.state === 'answered',
+          )
         )
-        ? 'answered'
-        : 'expired';
+          return 'answered';
+        if (messages.length === 0 || messages.some((entry) => entry.id === messageId))
+          return 'expired';
+        before = messages.at(-1)!.id;
+      }
     }
     if (pending.botSlug !== botSlug || !this.#holds(messageId, pending)) return 'expired';
     if (pending.deferred && pending.callId !== undefined) {
