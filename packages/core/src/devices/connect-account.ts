@@ -36,6 +36,7 @@ export interface AccountStatus {
   verificationUri?: string;
   expiresAt?: string;
   issue?: AccountIssue;
+  recovery?: 'automatic' | 'sign-in';
 }
 
 export type AccountResult =
@@ -231,20 +232,28 @@ export function createConnectAccount(options: {
     }
   };
 
-  const post = async (operation: IdentityOperation, url: string, body: Record<string, string>) => {
+  const post = async (
+    operation: IdentityOperation,
+    url: string,
+    body: Record<string, string>,
+    signal?: AbortSignal,
+  ) => {
     let response: Response;
     try {
       response = await fetcher(url, {
         method: 'POST',
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams(body).toString(),
+        ...(signal === undefined ? {} : { signal }),
       });
     } catch (error) {
       throw requestError('identity', operation, { reason: 'transport', error });
     }
     if (response.status >= 500 || response.status === 429 || response.status === 408)
       requestError('identity', operation, { reason: 'http', status: response.status });
-    const parsed = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+    const parsed =
+      z.record(z.string(), z.unknown()).safeParse(await response.json().catch(() => undefined))
+        .data ?? {};
     return { ok: response.ok, status: response.status, body: parsed };
   };
 
@@ -375,6 +384,10 @@ export function createConnectAccount(options: {
     status = {
       state: 'error',
       issue,
+      recovery:
+        issue === 'relay-unavailable' && canResumeSession && current !== undefined
+          ? 'automatic'
+          : 'sign-in',
       ...(current?.email ? { email: current.email } : {}),
       ...(current?.hostId ? { hostId: current.hostId } : {}),
     };
@@ -504,33 +517,50 @@ export function createConnectAccount(options: {
     expires: number,
   ): Promise<void> => {
     let wait = interval;
+    const expired = (signal?: AbortSignal): boolean => {
+      if (!signal?.aborted && Date.now() < expires) return false;
+      status = { state: 'error', issue: 'sign-in-expired' };
+      record('sign-in-expired');
+      return true;
+    };
     while (run === attempt) {
-      await sleep(wait * 1000);
+      await sleep(Math.min(wait * 1000, Math.max(0, expires - Date.now())));
       if (run !== attempt) return;
-      if (Date.now() > expires) {
-        status = { state: 'error', issue: 'sign-in-expired' };
-        record('sign-in-expired');
-        return;
-      }
+      if (expired()) return;
       let reply: Awaited<ReturnType<typeof post>>;
+      const tokenSignal = AbortSignal.timeout(Math.max(1, Math.ceil(expires - Date.now())));
       try {
-        reply = await post('device-token', TOKEN_ENDPOINT, {
-          grant_type: DEVICE_GRANT,
-          device_code: deviceCode,
-          client_id: id,
-        });
+        reply = await post(
+          'device-token',
+          TOKEN_ENDPOINT,
+          {
+            grant_type: DEVICE_GRANT,
+            device_code: deviceCode,
+            client_id: id,
+          },
+          tokenSignal,
+        );
       } catch {
+        wait *= 2;
         continue;
       }
       if (run !== attempt) return;
+      if (expired(tokenSignal)) return;
       const error = reply.body['error'];
       if (error === 'authorization_pending') continue;
       if (error === 'slow_down') {
         wait += 5;
         continue;
       }
+      if (
+        typeof error !== 'string' &&
+        (reply.status === 408 || reply.status === 429 || reply.status >= 500)
+      ) {
+        wait *= 2;
+        continue;
+      }
       const refreshToken = reply.body['refresh_token'];
-      if (!reply.ok || typeof refreshToken !== 'string') {
+      if (typeof error === 'string' || !reply.ok || typeof refreshToken !== 'string') {
         const expired = error === 'expired_token';
         status = { state: 'error', issue: expired ? 'sign-in-expired' : 'sign-in-denied' };
         record(

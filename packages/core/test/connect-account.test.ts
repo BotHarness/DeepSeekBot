@@ -220,6 +220,247 @@ function setup(services = fakeServices(), port = 41001, watchMs = 60_000) {
 }
 
 describe('Connect account sign-in', () => {
+  it('rejects a token returned after timeout abort before the wall-clock deadline', async () => {
+    const services = fakeServices({ pending: 0 });
+    const credentials = memoryCredentials();
+    const controller = new AbortController();
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1000);
+    const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(controller.signal);
+    const account = createConnectAccount({
+      credentials: () => credentials.provider,
+      connect: fakeConnect().connect,
+      relay: RELAY,
+      sleep: async () => {},
+      fetch: async (input, init) => {
+        if (String(input).endsWith('/authenticate')) {
+          controller.abort();
+          return Response.json({ access_token: 'late-access', refresh_token: 'late-refresh' });
+        }
+        return services.fetcher(input, init);
+      },
+    });
+    try {
+      await account.signIn();
+      await vi.waitFor(() =>
+        expect(account.status()).toMatchObject({ state: 'error', issue: 'sign-in-expired' }),
+      );
+      expect(Date.now()).toBe(1000);
+      expect(credentials.records.size).toBe(0);
+      expect(services.hosts.size).toBe(0);
+    } finally {
+      await account.close();
+      timeout.mockRestore();
+      now.mockRestore();
+    }
+  });
+
+  it.each(['aborted', 'late-success'])(
+    'expires an in-flight device-token request (%s)',
+    async (mode) => {
+      const services = fakeServices({ pending: 0 });
+      const credentials = memoryCredentials();
+      let aborted = false;
+      let tokenCalls = 0;
+      const account = createConnectAccount({
+        credentials: () => credentials.provider,
+        connect: fakeConnect().connect,
+        relay: RELAY,
+        fetch: async (input, init) => {
+          if (String(input).endsWith('/authorize/device')) {
+            const response = await services.fetcher(input, init);
+            return Response.json({ ...(await response.json()), expires_in: 1, interval: 0.001 });
+          }
+          if (String(input).endsWith('/authenticate')) {
+            tokenCalls += 1;
+            if (!init?.signal) throw new Error('Device authorization must have a deadline');
+            const signal = init.signal;
+            return new Promise((resolve, reject) => {
+              signal.addEventListener(
+                'abort',
+                () => {
+                  aborted = true;
+                  if (mode === 'late-success')
+                    resolve(
+                      Response.json({ access_token: 'late-access', refresh_token: 'late-refresh' }),
+                    );
+                  else reject(signal.reason);
+                },
+                { once: true },
+              );
+            });
+          }
+          return services.fetcher(input, init);
+        },
+      });
+      try {
+        await account.signIn();
+        await vi.waitFor(
+          () =>
+            expect(account.status()).toMatchObject({ state: 'error', issue: 'sign-in-expired' }),
+          { timeout: 3000, interval: 10 },
+        );
+        expect(aborted).toBe(true);
+        expect(tokenCalls).toBe(1);
+        expect(credentials.records.size).toBe(0);
+        expect(services.hosts.size).toBe(0);
+      } finally {
+        await account.close();
+      }
+    },
+  );
+
+  it.each([
+    { status: 500, error: 'access_denied', issue: 'sign-in-denied' },
+    { status: 429, error: 'invalid_grant', issue: 'sign-in-denied' },
+    { status: 503, error: 'expired_token', issue: 'sign-in-expired' },
+  ])('does not retry an explicit OAuth $error even on HTTP $status', async (failure) => {
+    const services = fakeServices({ pending: 0 });
+    const waits: number[] = [];
+    const account = createConnectAccount({
+      credentials: () => memoryCredentials().provider,
+      connect: fakeConnect().connect,
+      relay: RELAY,
+      fetch: async (input, init) =>
+        String(input).endsWith('/authenticate')
+          ? Response.json({ error: failure.error }, { status: failure.status })
+          : services.fetcher(input, init),
+      sleep: async (ms) => {
+        waits.push(ms);
+      },
+    });
+    try {
+      await account.signIn();
+      await settle(account);
+      expect(account.status()).toMatchObject({ state: 'error', issue: failure.issue });
+      expect(waits).toEqual([1000]);
+    } finally {
+      await account.close();
+    }
+  });
+
+  it('backs off timeouts, preserves slow_down intervals and stops at the original expiry', async () => {
+    const services = fakeServices({ pending: 0 });
+    let now = 1_000_000;
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => now);
+    const waits: number[] = [];
+    let calls = 0;
+    const account = createConnectAccount({
+      credentials: () => memoryCredentials().provider,
+      connect: fakeConnect().connect,
+      relay: RELAY,
+      fetch: async (input, init) => {
+        if (String(input).endsWith('/authorize/device')) {
+          const response = await services.fetcher(input, init);
+          return Response.json({ ...(await response.json()), expires_in: 14 });
+        }
+        if (String(input).endsWith('/authenticate')) {
+          calls += 1;
+          if (calls === 1) throw new DOMException('timeout', 'TimeoutError');
+          if (calls === 2) return Response.json({ error: 'slow_down' }, { status: 400 });
+          return Response.json({ error: 'authorization_pending' }, { status: 400 });
+        }
+        return services.fetcher(input, init);
+      },
+      sleep: async (ms) => {
+        waits.push(ms);
+        now += ms;
+      },
+    });
+    try {
+      await account.signIn();
+      await settle(account);
+      expect(account.status()).toMatchObject({ state: 'error', issue: 'sign-in-expired' });
+      expect(waits).toEqual([1000, 2000, 7000, 4000]);
+      expect(calls).toBe(3);
+    } finally {
+      await account.close();
+      clock.mockRestore();
+    }
+  });
+
+  it.each(['register-host', 'tunnel'])(
+    'automatically recovers a post-login %s failure without another sign-in',
+    async (operation) => {
+      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+      const services = fakeServices({ pending: 0 });
+      const credentials = memoryCredentials();
+      let failed = false;
+      const account = createConnectAccount({
+        credentials: () => credentials.provider,
+        connect: fakeConnect().connect,
+        relay: RELAY,
+        fetch: async (input, init) => {
+          const target =
+            operation === 'register-host'
+              ? `${RELAY}/v1/hosts`
+              : `${RELAY}/v1/hosts/hstudioaaaaa/tunnel`;
+          if (String(input) === target && init?.method === 'POST' && !failed) {
+            failed = true;
+            return Response.json({}, { status: 503 });
+          }
+          return services.fetcher(input, init);
+        },
+        sleep: async () => {},
+        freePort: async () => 41001,
+      });
+      try {
+        await account.signIn();
+        await settle(account);
+        expect(account.status()).toMatchObject({
+          state: 'error',
+          issue: 'relay-unavailable',
+          recovery: 'automatic',
+        });
+        await vi.advanceTimersByTimeAsync(60_000);
+        expect(account.status()).toMatchObject({ state: 'signed-in', hostId: 'hstudioaaaaa' });
+        expect(services.hosts.size).toBe(1);
+        expect(
+          services.calls.filter((call) => call.path.endsWith('/authorize/device')),
+        ).toHaveLength(1);
+      } finally {
+        await account.close();
+        vi.useRealTimers();
+      }
+    },
+  );
+
+  it.each([408, 429, 500, 503])(
+    'retries temporary HTTP %s during device authorization',
+    async (httpStatus) => {
+      const services = fakeServices({ pending: 0 });
+      const credentials = memoryCredentials();
+      const waits: number[] = [];
+      let tokenCalls = 0;
+      const account = createConnectAccount({
+        credentials: () => credentials.provider,
+        connect: fakeConnect().connect,
+        relay: RELAY,
+        fetch: async (input, init) => {
+          if (
+            String(init?.body).includes(
+              encodeURIComponent('urn:ietf:params:oauth:grant-type:device_code'),
+            ) &&
+            tokenCalls++ === 0
+          )
+            return Response.json({}, { status: httpStatus });
+          return services.fetcher(input, init);
+        },
+        sleep: async (ms) => {
+          waits.push(ms);
+        },
+        freePort: async () => 41001,
+      });
+      try {
+        await account.signIn();
+        await settle(account);
+        expect(account.status()).toMatchObject({ state: 'signed-in' });
+        expect(waits).toEqual([1000, 2000]);
+      } finally {
+        await account.close();
+      }
+    },
+  );
+
   it('keeps a local tunnel refusal distinct from a relay request failure', async () => {
     const services = fakeServices({ pending: 0 });
     const credentials = memoryCredentials();
@@ -774,6 +1015,7 @@ describe('Connect account lifecycle', () => {
         expect(account.status()).toMatchObject({
           state: 'error',
           issue: failure.listStatus === 401 ? 'session-expired' : 'relay-unavailable',
+          recovery: 'sign-in',
         });
         expect(
           services.calls.filter(

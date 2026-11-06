@@ -1517,6 +1517,8 @@ stops the tunnel, deletes the stored session and reports `error` with `session-e
 `connect-sign-out` unlinks the Host at the relay, stops the tunnel and
 deletes the session. Any signed-in account can link Hosts.
 
+For account errors, `connect.account.recovery` distinguishes `automatic` (a saved session can retry registration or tunnel setup) from `sign-in` (another explicit sign-in is required). Failed ownership verification never resumes the previous account; the UI gives the same recovery instruction. Device authorization polling backs off after transport failures and HTTP 408/429/5xx without an OAuth error, stops at the original expiry, and still stops for explicit OAuth refusals. `authorization_pending` keeps the interval and `slow_down` adds five seconds, as specified by [RFC 8628](https://www.rfc-editor.org/rfc/rfc8628.html#section-3.5).
+
 ## Device-local DeepSeekBot appearance
 
 `appearance-clients` lists the online Client ids and platform on the authenticated Host. Select one explicitly; a new mount/reload gets a new id. This controls DeepSeekBot, not the DSH-native Host theme.

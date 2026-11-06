@@ -4,6 +4,14 @@
   "boundary": "All scripts/e2e-*.mjs files and all current feature-map documents, augmented by implemented Client/CLI/mobile source entry points. Behavior rows group related acceptance paths; they are not an exhaustive product behavior denominator. Planned unmerged #1954 work and packaged/restart identity promises are excluded.",
   "behaviors": [
     {
+      "id": "connect.account-recovery",
+      "label": "Connect authorization expiry, transient retries and truthful recovery instructions",
+      "source": "packages/core/src/devices/connect-account.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/connect-channel.md",
+      "task": 3567,
+      "gap": "Controlled WorkOS/relay fixtures qualify Host/Client behavior, not production account or Cloudflare availability."
+    },
+    {
       "id": "channel-section-management",
       "label": "Tobs channel group mutations and failure recovery",
       "source": "packages/client/src/client/section-management.tsx",
@@ -949,6 +957,14 @@
     }
   ],
   "scripts": [
+    {
+      "path": "scripts/e2e-connect-account-recovery.mjs",
+      "category": "mapped",
+      "behaviors": ["connect.account-recovery"],
+      "reason": "Read the real isolated Host account status and capture the actual Connect recovery UI using synthetic account failure preconditions.",
+      "task": 3567,
+      "sha256": "fc7032d9c6045cdc8135d21af99520b64cc0862d11764885bc4d4f3578a80529"
+    },
     {
       "path": "scripts/e2e-zip-import-proof.mjs",
       "category": "mapped",

@@ -4577,6 +4577,8 @@ export const zh = {
   'devices.connect.hostLimit': '这个账号已关联 5 台电脑，先在其他电脑上退出登录。',
   'devices.connect.signInAgain': '登录已失效或被取消，请重新登录。',
   'devices.connect.relayDown': '暂时连不上 Tobs 服务，稍后会自动重试。',
+  'devices.connect.relaySignIn': '暂时连不上 Tobs 服务，稍后重新登录。',
+  'devices.connect.credentialUnavailable': '无法读取本机登录凭证，请检查凭证存储后重新登录。',
   'devices.connect.tunnel': '连接地址',
   'devices.connect.connected': '已连接',
   'devices.connect.starting': '正在连接…',
@@ -9634,6 +9636,9 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'devices.connect.signInAgain': 'The sign-in expired or was cancelled. Sign in again.',
   'devices.connect.relayDown':
     'The Tobs service is unreachable right now. This computer retries on its own.',
+  'devices.connect.relaySignIn': 'Cannot reach the Tobs service. Try signing in again later.',
+  'devices.connect.credentialUnavailable':
+    'Cannot read local sign-in credentials. Check credential storage, then sign in again.',
   'devices.connect.tunnel': 'Address',
   'devices.connect.connected': 'Connected',
   'devices.connect.starting': 'Connecting…',

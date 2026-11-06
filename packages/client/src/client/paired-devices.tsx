@@ -47,6 +47,7 @@ interface ConnectAccountStatus {
   userCode?: string;
   verificationUri?: string;
   issue?: string;
+  recovery?: 'automatic' | 'sign-in';
 }
 
 interface ConnectStatus {
@@ -540,7 +541,11 @@ export function PairedDevicesSettings({
                           signIn.issue === 'sign-in-expired' ||
                           signIn.issue === 'sign-in-denied'
                         ? 'devices.connect.signInAgain'
-                        : 'devices.connect.relayDown',
+                        : signIn.issue === 'credential-unavailable'
+                          ? 'devices.connect.credentialUnavailable'
+                          : signIn.recovery === 'automatic'
+                            ? 'devices.connect.relayDown'
+                            : 'devices.connect.relaySignIn',
                 )}
               </Callout>
             ) : null}
