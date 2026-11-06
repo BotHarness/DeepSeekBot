@@ -39,6 +39,28 @@ beforeEach(() => {
 });
 
 describe('native call audio capability', () => {
+  it('restores the saved headset input request and forwards refusal without inventing a selected microphone', async () => {
+    const media = createCallMedia({ audio: () => ({ headsetMicrophone: 'iphone' }) });
+    const changed = vi.fn();
+    media?.audio?.onChange(changed);
+    await media?.start({ callId: 'mic-call', offer: 'offer' });
+    expect(native.callStart).toHaveBeenCalledWith('mic-call', 'offer', false, 'iphone');
+    const rejected = {
+      ...route,
+      selectionFailed: true,
+      microphoneConfirmed: true,
+      microphones: [...route.microphones, { id: 'headset', kind: 'bluetooth', name: 'Headset' }],
+    };
+    listeners.get('onCallAudio')?.({ attemptId: 'mic-call', route: rejected });
+    expect(changed).toHaveBeenLastCalledWith({ interrupted: false, route: rejected });
+    listeners.get('onCallAudio')?.({
+      attemptId: 'mic-call',
+      route: { ...route, microphoneConfirmed: false, selectionFailed: false },
+    });
+    expect(changed.mock.lastCall?.[0].route.microphoneConfirmed).toBe(false);
+    media?.stop();
+  });
+
   it('exposes playback modes only when native supports them and scopes changes to the active call', async () => {
     expect(createCallMedia()?.audio?.mode).toBeUndefined();
     native.callAudioModeSupported = true;

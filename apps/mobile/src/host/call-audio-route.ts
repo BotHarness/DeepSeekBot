@@ -27,6 +27,7 @@ export type CallAudioRouteState = {
   readonly outputs: readonly CallAudioOutput[];
   readonly microphone: CallMicrophoneId;
   readonly microphoneConfirmed?: boolean;
+  readonly selectionFailed?: boolean;
   readonly microphones: readonly CallMicrophone[];
   readonly music: boolean;
 };
@@ -115,6 +116,9 @@ export function parseCallAudioRouteState(value: unknown): CallAudioRouteState | 
     music: fields['music'] === true,
     ...(typeof fields['microphoneConfirmed'] === 'boolean'
       ? { microphoneConfirmed: fields['microphoneConfirmed'] }
+      : {}),
+    ...(typeof fields['selectionFailed'] === 'boolean'
+      ? { selectionFailed: fields['selectionFailed'] }
       : {}),
   };
 }
