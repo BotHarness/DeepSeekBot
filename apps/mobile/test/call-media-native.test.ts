@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const native = vi.hoisted(() => ({
   callAudioSupported: true,
+  callAudioModeSupported: false,
+  callAudioMode: vi.fn(async (_attempt: string, music: boolean) => ({ ...route, music })),
   callStart: vi.fn(async () => 'answer'),
   callMute: vi.fn(),
   callAudio: vi.fn(async () => route),
@@ -33,9 +35,22 @@ beforeEach(() => {
   vi.clearAllMocks();
   listeners.clear();
   native.callAudioSupported = true;
+  native.callAudioModeSupported = false;
 });
 
 describe('native call audio capability', () => {
+  it('exposes playback modes only when native supports them and scopes changes to the active call', async () => {
+    expect(createCallMedia()?.audio?.mode).toBeUndefined();
+    native.callAudioModeSupported = true;
+    const media = createCallMedia();
+    await media?.start({ callId: 'mode-call', offer: 'offer' });
+    expect(await media?.audio?.mode?.(true)).toEqual({ ...route, music: true });
+    expect(native.callAudioMode).toHaveBeenCalledWith('mode-call', true);
+    media?.stop();
+    expect(await media?.audio?.mode?.(false)).toBeNull();
+    expect(native.callAudioMode).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps the new start signature on Android versions without selectable routes', async () => {
     native.callAudioSupported = false;
     const media = createCallMedia();

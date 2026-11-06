@@ -12,7 +12,15 @@ import type { CallAudioMenuProps } from './call-audio-menu';
 import type { CallAudioOutput } from '../../host/call-audio-route';
 import { callAudioDeviceName } from './call-audio-symbol';
 
-export function CallAudioMenu({ route, size, fill, ink, disabled, onOutput }: CallAudioMenuProps) {
+export function CallAudioMenu({
+  route,
+  size,
+  fill,
+  ink,
+  disabled,
+  onOutput,
+  onMode,
+}: CallAudioMenuProps) {
   const theme = useDesignTheme();
   const t = useStrings();
   const [open, setOpen] = useState(false);
@@ -50,7 +58,10 @@ export function CallAudioMenu({ route, size, fill, ink, disabled, onOutput }: Ca
             <Box modifiers={[fillMaxSize()]} />
           </DropdownMenu.Trigger>
           <DropdownMenu.Items>
-            <Column modifiers={[width(materialMenu.width)]}>
+            <Column
+              modifiers={[width(materialMenu.width)]}
+              verticalArrangement={{ spacedBy: materialMenu.groupGap }}
+            >
               <MaterialMenuGroup
                 items={route.outputs.map((device) => ({
                   key: device.id,
@@ -66,6 +77,30 @@ export function CallAudioMenu({ route, size, fill, ink, disabled, onOutput }: Ca
                   },
                 }))}
               />
+              {onMode ? (
+                <MaterialMenuGroup
+                  items={[false, true].map((music) => ({
+                    key: String(music),
+                    label: music ? t.call.audioMediaMode : t.call.audioCallMode,
+                    selected: route.music === music,
+                    testID: `call-audio-mode-${music ? 'media' : 'communication'}`,
+                    icon: (
+                      <SystemSymbol
+                        name={{
+                          ios: 'speaker.wave.2.fill',
+                          android: music ? 'music_note' : 'call',
+                        }}
+                        color={ink}
+                        size={materialMenu.iconSize}
+                      />
+                    ),
+                    onPress: () => {
+                      setOpen(false);
+                      if (music !== route.music) onMode(music);
+                    },
+                  }))}
+                />
+              ) : null}
             </Column>
           </DropdownMenu.Items>
         </DropdownMenu>
@@ -75,7 +110,7 @@ export function CallAudioMenu({ route, size, fill, ink, disabled, onOutput }: Ca
         disabled={disabled}
         onPress={() => setOpen(true)}
         accessibilityRole="button"
-        accessibilityLabel={t.call.audioOutput}
+        accessibilityLabel={t.call.audio}
         accessibilityValue={{
           text: `${callAudioDeviceName(t, output)}, ${
             route.microphoneConfirmed === false

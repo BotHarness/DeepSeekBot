@@ -1798,6 +1798,8 @@ const en = {
     cameraMissing: 'No camera is available on this phone right now.',
     interrupted: 'Paused by another call or app. It resumes when that ends.',
     audio: 'Audio',
+    audioCallMode: 'Call mode',
+    audioMediaMode: 'Media mode',
     audioMicrophone: 'Microphone',
     audioMicrophoneInactive: 'Microphone is not recording',
     audioMicrophoneHint: {
@@ -4105,6 +4107,8 @@ const zh: typeof en = {
     cameraMissing: '这台手机现在没有可用的摄像头。',
     interrupted: '被其他通话或 App 打断，结束后自动恢复',
     audio: '音频',
+    audioCallMode: '通话模式',
+    audioMediaMode: '媒体模式',
     audioMicrophone: '麦克风',
     audioMicrophoneInactive: '麦克风未在录音',
     audioMicrophoneHint: {

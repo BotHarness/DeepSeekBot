@@ -25,6 +25,8 @@ type NativeAudioEvent = {
 
 interface CallNativeModule {
   readonly callAudioSupported?: boolean;
+  readonly callAudioModeSupported?: boolean;
+  callAudioMode?(attemptId: string, music: boolean): Promise<unknown>;
   callStart(
     attemptId: string,
     offer: string,
@@ -109,6 +111,15 @@ export function createCallMedia(
   };
   if (routable)
     media.audio = {
+      ...(module.callAudioModeSupported === true && typeof module.callAudioMode === 'function'
+        ? {
+            async mode(music: boolean) {
+              if (attempt === undefined) return null;
+              const next = await module.callAudioMode?.(attempt, music).catch(() => undefined);
+              return parseCallAudioRouteState(next) ?? null;
+            },
+          }
+        : {}),
       async choose(output, microphone) {
         if (attempt === undefined) return null;
         const next = await module.callAudio?.(attempt, output, microphone).catch(() => undefined);
