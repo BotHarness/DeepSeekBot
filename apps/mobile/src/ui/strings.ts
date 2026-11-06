@@ -1799,6 +1799,7 @@ const en = {
     interrupted: 'Paused by another call or app. It resumes when that ends.',
     audio: 'Audio',
     audioMicrophone: 'Microphone',
+    audioMicrophoneInactive: 'Microphone is not recording',
     audioMicrophoneHint: {
       iphone: 'Music keeps playing, better sound',
       headset: 'Call quality, best for noisy places',
@@ -4105,6 +4106,7 @@ const zh: typeof en = {
     interrupted: '被其他通话或 App 打断，结束后自动恢复',
     audio: '音频',
     audioMicrophone: '麦克风',
+    audioMicrophoneInactive: '麦克风未在录音',
     audioMicrophoneHint: {
       iphone: '音乐不停，音质更好',
       headset: '通话音质，适合嘈杂环境',

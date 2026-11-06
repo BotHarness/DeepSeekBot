@@ -114,6 +114,9 @@ export function CallScreen({
         return;
       }
       setAudioFailed(false);
+      // Android accepts the request before applying it. Its route event owns the
+      // selected row; a delayed promise must not overwrite that newer event.
+      if (Platform.OS === 'android') return;
       callSessions.publish(key, { audioRoute: next });
       if (next.output === 'external') callAudioPreference.setHeadsetMicrophone(next.microphone);
     });

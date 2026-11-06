@@ -185,7 +185,7 @@ The call keeps running with the screen locked or another app open (#3422). Its L
 
 ### Android call output (#3632)
 
-On Android 12 and later, the call's Audio control opens a native Compose dropdown of available communication outputs. The selected row follows Android's confirmed route, with Speaker, Phone and a connected headset by name. The control appears after native routing is known. Output changes also work while muted: the last confirmed microphone remains usable only while connected. Ending the call removes listeners and restores the pre-call audio mode. Older Android versions retain automatic routing. Independent microphone selection, media playback mode and headset preference restoration remain separate work in #3632; this output menu does not claim those capabilities.
+On Android 12 and later, the call's Audio control opens a native Compose dropdown of available communication outputs. The selected row follows Android's confirmed route, with Speaker, Phone and a connected headset by name. The control appears after native routing is known. Output changes also work while muted: when recording is inactive, the microphone is explicitly unconfirmed and is not announced as selected. Ending the call removes listeners and restores the pre-call audio mode. Older Android versions retain automatic routing. Independent microphone selection, media playback mode and headset preference restoration remain separate work in #3632; this output menu does not claim those capabilities.
 
 ### Minimized call and floating bubble (#3468)
 

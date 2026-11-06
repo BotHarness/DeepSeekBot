@@ -9,6 +9,7 @@ import { MaterialMenuGroup } from '../primitives/material-menu.android';
 import { SystemSymbol } from '../primitives/system-symbol';
 import { useStrings } from '../strings';
 import type { CallAudioMenuProps } from './call-audio-menu';
+import type { CallAudioOutput } from '../../host/call-audio-route';
 import { callAudioDeviceName } from './call-audio-symbol';
 
 export function CallAudioMenu({ route, size, fill, ink, disabled, onOutput }: CallAudioMenuProps) {
@@ -18,10 +19,17 @@ export function CallAudioMenu({ route, size, fill, ink, disabled, onOutput }: Ca
   if (disabled && open) setOpen(false);
   const output = route.outputs.find((device) => device.id === route.output);
   const microphone = route.microphones.find((device) => device.id === route.microphone);
-  const symbol = (id: string) =>
+  const symbol = (device: CallAudioOutput | undefined) =>
     ({
       ios: 'speaker.wave.2.fill',
-      android: id === 'receiver' ? 'phone_in_talk' : id === 'speaker' ? 'volume_up' : 'headphones',
+      android:
+        device?.id === 'receiver'
+          ? 'phone_in_talk'
+          : device?.kind === 'bluetooth'
+            ? 'bluetooth_audio'
+            : device?.id === 'external'
+              ? 'headphones'
+              : 'volume_up',
     }) as const;
   return (
     <View style={{ width: size, height: size }}>
@@ -50,11 +58,7 @@ export function CallAudioMenu({ route, size, fill, ink, disabled, onOutput }: Ca
                   selected: device.id === route.output,
                   testID: `call-audio-output-${device.id}`,
                   icon: (
-                    <SystemSymbol
-                      name={symbol(device.id)}
-                      color={ink}
-                      size={materialMenu.iconSize}
-                    />
+                    <SystemSymbol name={symbol(device)} color={ink} size={materialMenu.iconSize} />
                   ),
                   onPress: () => {
                     setOpen(false);
@@ -73,7 +77,11 @@ export function CallAudioMenu({ route, size, fill, ink, disabled, onOutput }: Ca
         accessibilityRole="button"
         accessibilityLabel={t.call.audioOutput}
         accessibilityValue={{
-          text: `${callAudioDeviceName(t, output)}, ${t.call.audioMicrophone} ${callAudioDeviceName(t, microphone)}`,
+          text: `${callAudioDeviceName(t, output)}, ${
+            route.microphoneConfirmed === false
+              ? t.call.audioMicrophoneInactive
+              : `${t.call.audioMicrophone} ${callAudioDeviceName(t, microphone)}`
+          }`,
         }}
         accessibilityState={{ expanded: open && !disabled, disabled }}
         android_ripple={{ color: theme.layer.sheet.pressed, borderless: false }}
@@ -87,7 +95,7 @@ export function CallAudioMenu({ route, size, fill, ink, disabled, onOutput }: Ca
           overflow: 'hidden',
         }}
       >
-        <SystemSymbol name={symbol(route.output)} color={ink} size={theme.type.title.size} />
+        <SystemSymbol name={symbol(output)} color={ink} size={theme.type.title.size} />
       </Pressable>
     </View>
   );

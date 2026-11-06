@@ -169,6 +169,9 @@ describe('call audio route', () => {
     expect(route?.microphones).toEqual([phone]);
     expect(callAudioDeviceName(en, phone)).toBe('Phone');
     expect(callAudioDeviceName(zh, phone)).toBe('手机');
+    expect(
+      parseCallAudioRouteState({ ...route, microphoneConfirmed: false })?.microphoneConfirmed,
+    ).toBe(false);
   });
 
   const headphones = {

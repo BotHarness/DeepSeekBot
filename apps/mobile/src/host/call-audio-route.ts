@@ -26,6 +26,8 @@ export type CallAudioRouteState = {
   readonly output: CallAudioOutputId;
   readonly outputs: readonly CallAudioOutput[];
   readonly microphone: CallMicrophoneId;
+  /** False while native recording is inactive: microphone is an available candidate, not selected. */
+  readonly microphoneConfirmed?: boolean;
   readonly microphones: readonly CallMicrophone[];
   readonly music: boolean;
 };
@@ -105,7 +107,16 @@ export function parseCallAudioRouteState(value: unknown): CallAudioRouteState | 
   const output = outputs.find((device) => device.id === fields['output'])?.id;
   const microphone = microphones.find((device) => device.id === fields['microphone'])?.id;
   if (output === undefined || microphone === undefined) return undefined;
-  return { output, outputs, microphone, microphones, music: fields['music'] === true };
+  return {
+    output,
+    outputs,
+    microphone,
+    microphones,
+    music: fields['music'] === true,
+    ...(typeof fields['microphoneConfirmed'] === 'boolean'
+      ? { microphoneConfirmed: fields['microphoneConfirmed'] }
+      : {}),
+  };
 }
 
 export function fallbackCallAudioRoute(): CallAudioRouteState {

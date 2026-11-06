@@ -368,7 +368,6 @@ class CallAudioRoute(context: Context, private val onChange: (Map<String, Any?>)
   private var focus: AudioFocusRequest? = null
   private val legacyFocus = AudioManager.OnAudioFocusChangeListener { }
   private var active = false
-  private var lastInput: AudioDeviceInfo? = null
 
   fun begin(): Boolean {
     if (active) return true
@@ -438,16 +437,16 @@ class CallAudioRoute(context: Context, private val onChange: (Map<String, Any?>)
     val selectedOutput = outputId(output) ?: return null
     // Without privileged permission Android exposes only this app's recording configurations.
     val recordingInput = manager.activeRecordingConfigurations.firstOrNull()?.audioDevice
-    if (recordingInput != null) lastInput = recordingInput
-    // WebRTC stops recording while muted. Keep the last confirmed input only while
-    // it is still connected; muting must not disable output selection.
+    // Muting stops recording. A connected microphone is then only an available
+    // candidate, not a confirmed selection; output routing remains usable.
     val input = recordingInput ?: manager.getDevices(AudioManager.GET_DEVICES_INPUTS)
-      .firstOrNull { it.id == lastInput?.id } ?: return null
+      .firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_MIC } ?: return null
     val microphone = if (input.type == AudioDeviceInfo.TYPE_BUILTIN_MIC) "iphone" else "headset"
     val outputs = (listOf(output) + manager.availableCommunicationDevices)
       .mapNotNull { item -> outputId(item)?.let { device(item, it) } }
       .distinctBy { it["id"] }
     return mapOf("output" to selectedOutput, "outputs" to outputs,
+      "microphoneConfirmed" to (recordingInput != null),
       "microphone" to microphone, "microphones" to listOf(device(input, microphone)), "music" to false)
   }
 
@@ -470,7 +469,6 @@ class CallAudioRoute(context: Context, private val onChange: (Map<String, Any?>)
   fun end() {
     if (!active) return
     active = false
-    lastInput = null
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
       routeListener?.let { manager.removeOnCommunicationDeviceChangedListener(it) }
       routeListener = null
