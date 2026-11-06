@@ -9,13 +9,13 @@
 
 ## How to get to it (user POV)
 
-Enter Bot mode, open a Group, then choose Invite member in its Members panel. Search or select a Bot and confirm. Tob remains available through its private conversation.
+Enter Bot mode, open a Group, open Subpanel column if its Members panel is hidden, then choose Invite member. Search or select a Bot and confirm. Tob remains available through its private conversation.
 
 ## Driving it with verify-app
 
 Launch a task-owned Host and run doctor. Seed a Group and an ordinary Bot through `botharness/channelCreate` and `botharness/create`; read `botharness/list` for the actual protected identity.
 
-Use `shot --bot-mode --click-text <group-name> --click "Invite member"` after confirming the current accessible names in the ARIA snapshot. Capture the dialog in light and dark. Require the protected identity to be absent, its private-chat guidance visible, and the ordinary Bot selectable. Confirm the ordinary invitation in the UI, then read `botharness/channelGet` for the same Group and require accepted membership (or a pending invitation if automatic acceptance is disabled).
+Use `shot --bot-mode --click-text <group-name> --click "Subpanel column" --click "Invite member"` after confirming the current accessible names and column visibility in the ARIA snapshot. Capture the dialog in light and dark. Require the protected identity to be absent, its private-chat guidance visible, and the ordinary Bot selectable. Confirm the ordinary invitation in the UI, then read `botharness/channelGet` for the same Group and require accepted membership (or a pending invitation if automatic acceptance is disabled).
 
 Rename the protected Tob and confirm it remains excluded; give an ordinary Bot the display name Tob and confirm it remains eligible. A direct `botharness/channelGroupInvite` targeting the protected identity must still refuse with `protected-bot` and leave membership unchanged. No model reply is needed.
 
