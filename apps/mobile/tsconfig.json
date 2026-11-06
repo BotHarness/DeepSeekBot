@@ -19,6 +19,7 @@
     "test/native-telemetry.test.ts",
     "test/native-connection-mode.test.ts",
     "test/call-camera.test.ts",
+    "test/call-media-native.test.ts",
     "test/native-persistence.test.ts",
     "test/native-zip-import-file.test.ts",
     "test/share-attachment.test.ts",
