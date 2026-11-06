@@ -7,7 +7,7 @@ The product goal is more animals, fantasy species and decorations for the pixel 
 ## Authorities
 
 - [ADR-0148](../adr/0148-avatar-species-and-custom-parts-extend-one-pixel-rig.md), which partially supersedes the free-drawing and upload limits of [ADR-0118](../adr/0118-editable-avatar-appearance-is-independent-of-activity.md).
-- [Glossary](../../CONTEXT.md): Avatar Species, Custom Part and Part Library; Avatar Appearance now includes species and Custom Parts.
+- [Glossary](../../GLOSSARY.md): Avatar Species, Custom Part and Part Library; Avatar Appearance now includes species and Custom Parts.
 - [Living architecture §5.4](../architecture/botharness-architecture.en.md#54--avatar-species-and-custom-parts-accepted-design-not-yet-implemented) and its Chinese counterpart.
 - [Pixel-part editor UX research](2026-10-08-pixel-part-editor-ux.md) for tool behavior; [anime 32×32 bust techniques](2026-10-04-anime-32px-bust-pixel-art.md) for artwork.
 

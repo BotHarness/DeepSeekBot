@@ -140,7 +140,7 @@
 
 ## 4. BotHarness 范式建议：可携带的 PersonaBot 包（提案，非已决策）
 
-> 本节是在调研结论之上的设计提案。**2026-09-18 已固化为 ADR-0019 / ADR-0020 与规格 v1.1**（`docs/botharness.md`、`CONTEXT.md`、changelog），此处保留提案原文以供对照。
+> 本节是在调研结论之上的设计提案。**2026-09-18 已固化为 ADR-0019 / ADR-0020 与规格 v1.1**（`docs/botharness.md`、`GLOSSARY.md`、changelog），此处保留提案原文以供对照。
 >
 > 一句话范式：**导出的是「人」，不是「经历」。** 包携带 persona + 可选记忆 + 给接收者的 setup instructions，永远不携带会话、运行环境与凭据；导入总是创建独立新副本，且在人类审阅前不生效。
 
@@ -230,7 +230,7 @@ share_policy: ask | allowed | no-redistribution # 荣誉制，非 DRM
 - **Non-goals**：marketplace/registry 与链接分享、增量/双向同步、自动装插件、凭据迁移、签名/加密包（v2 可做 `.botharness.enc` + 口令）。
 - **依赖与排期**：导出过滤与导入 `sources` 追加依赖 M2（front-matter/可见性）；建议独立小里程碑（M2 之后，不塞进 M5），因为 M5 已排 IM 适配器。
 - **代码边界**：core 提供 `exportBot(slug, opts)` / `inspectPackage(path)` / `importBot(path, opts)`；client 提供导出向导与导入审阅页；不触碰 DSH 上游。
-- **术语增补（CONTEXT.md）**：Bot package（PersonaBot package）、Export profile、Import review、Provenance、Dormant private entry。
+- **术语增补（GLOSSARY.md）**：Bot package（PersonaBot package）、Export profile、Import review、Provenance、Dormant private entry。
 
 ### 4.7 决议（2026-09-18，已固化）
 

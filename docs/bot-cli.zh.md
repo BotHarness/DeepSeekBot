@@ -1067,7 +1067,7 @@ Bot 名字只是标签，身份是 id。不带 operation key 时，每次创建�
 
 ## 生命周期与人类命名
 
-`pause`/`resume` 开关 Bot 的执行；`update` 改名改标签（`--name`、`--description`、`--role`，遵守 profile 标签/简介长度限制）。`human-name-set` 写人类显示名（`--clear` 重置），`channel-human-name-set` 写分 channel 人类昵称，用词与 CONTEXT.md 一致。未知 Bot/Channel 按错误码失败（`unknown-bot`、`unknown-channel`）。
+`pause`/`resume` 开关 Bot 的执行；`update` 改名改标签（`--name`、`--description`、`--role`，遵守 profile 标签/简介长度限制）。`human-name-set` 写人类显示名（`--clear` 重置），`channel-human-name-set` 写分 channel 人类昵称，用词与 GLOSSARY.md 一致。未知 Bot/Channel 按错误码失败（`unknown-bot`、`unknown-channel`）。
 
 ## Channel、授权、计划与配对
 

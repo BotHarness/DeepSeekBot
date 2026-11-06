@@ -10,7 +10,7 @@ The DSH Plugin skill Context and Decision Tree were read completely. The primary
 seam is a CLI Consumer of existing application-defined Host Service commands and
 queries, through the DSH-native authenticated Connection/API Gateway. Host modules
 remain Providers and durable owners; the CLI does not acquire a second live
-database writer. Product terminology follows [CONTEXT](../../CONTEXT.md).
+database writer. Product terminology follows [CONTEXT](../../GLOSSARY.md).
 
 ## Findings: current behavior
 

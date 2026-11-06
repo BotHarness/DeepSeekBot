@@ -601,14 +601,14 @@ export const PAGES = [
     slug: 'dev/design/context',
     order: 2,
     en: {
-      source: 'CONTEXT.md',
+      source: 'GLOSSARY.md',
       title: 'BotHarness Product Context',
       description: 'Canonical BotHarness product terms, distinct from DSH and Cordis vocabulary',
       lang: 'en',
       configuredTitle: true,
     },
     zh: {
-      source: 'CONTEXT.zh.md',
+      source: 'GLOSSARY.zh.md',
       title: 'BotHarness 产品术语',
       description: 'BotHarness 产品专有词汇；与 DSH、Cordis 术语分开',
       configuredTitle: true,

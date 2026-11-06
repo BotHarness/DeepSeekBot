@@ -69,7 +69,7 @@ Bot 模式首次体验由 application-defined Onboarding owner 在现有 operati
 
 当前 Client UI 由独立 `@botharness/ui` Bundle 挂载，源码仍在 `packages/client`；RC2 的插件图把结尾 `/client` 解释为导出子路径，因此包身份依 [ADR-0066](../adr/0066-rc2-client-bundle-identity.md) 避开该后缀。Client HMR 只暂存当前 Bot/Channel 选择以恢复视图，不复制 Host 中的 PersonaBot、Channel 或消息权威。
 
-产品术语以根目录 [`CONTEXT.md`](/zh/dev/design/context) 为唯一词表；[BotHarness Runtime 架构](/zh/dev/design/bot-runtime) 单独展开 PersonaBot、Bot Inbox、Orchestrator、Assignment 与 DSH execution 的关系。DSH/Cordis 本身的术语和 Plugin 开发决策位于 `/zh/dsh`，不在这里重复定义。
+产品术语以根目录 [`GLOSSARY.md`](/zh/dev/design/context) 为唯一词表；[BotHarness Runtime 架构](/zh/dev/design/bot-runtime) 单独展开 PersonaBot、Bot Inbox、Orchestrator、Assignment 与 DSH execution 的关系。DSH/Cordis 本身的术语和 Plugin 开发决策位于 `/zh/dsh`，不在这里重复定义。
 
 迁移阶段保持可验证：#79 建立 `botharness.db` owner；#885 的 Schema Generation 56 已将 #66 的 roster arrangement 单向迁入 owning SQLite module。旧 `botharness_roster` Storage Domain 仅作一次性输入，校验失败时 roster 只读且返回 `storage-unavailable`，不会当成空排列；成功后排列与 import marker 同一事务提交，旧源保留供恢复参考，正常运行不再打开或读写该 domain。Session ownership 保持既有数据库权威；#886 的 Schema Generation 72 增加恢复收据、逐 Bot 模型授权／激活记录与 Session 内容可用性。
 
@@ -900,7 +900,7 @@ Zip 使用既有已认证 RPC 上传 256 KiB 原始数据块，避免整包超�
 
 - 模块、数据流、事务边界或 authority 发生结构变化时，同步本文件、英文镜像和 `docs/architecture/diagrams/*.mmd`。
 - 运行 `pnpm diagrams` 提交 light/dark SVG；`scripts/sync-docs.mjs` 将本文和图同步到 `apps/docs`。
-- 配套：BotHarness 产品术语 `CONTEXT.zh.md`（英文为 `CONTEXT.md`）；取舍与理由 `docs/adr/`。Platform Spec 与 App PRD 已归档为历史工作草稿，不再作为并列设计权威。
+- 配套：BotHarness 产品术语 `GLOSSARY.zh.md`（英文为 `GLOSSARY.md`）；取舍与理由 `docs/adr/`。Platform Spec 与 App PRD 已归档为历史工作草稿，不再作为并列设计权威。
 
 ## 附件文件操作切片
 

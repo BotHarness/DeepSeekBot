@@ -51,4 +51,4 @@ The dedicated Discord App and QA guild passed both original text-channel and exi
 - [Discord Threads](https://docs.discord.com/developers/topics/threads)
 - [Discord Permissions](https://docs.discord.com/developers/topics/permissions)
 - [Discord Message API](https://docs.discord.com/developers/resources/message)
-- ADR-0036/0037/0038, ADR-0126/0127; CONTEXT.md; #629/#693
+- ADR-0036/0037/0038, ADR-0126/0127; GLOSSARY.md; #629/#693

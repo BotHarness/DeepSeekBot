@@ -313,7 +313,7 @@ Human 已确认：
 - 首版采用已提交消息的并行逐字播放，不直播尚未提交的生成正文。
 - 对阅读时的 hover 行为，Human 回复“参考 Coopanion 来”，未明确接受上一轮提出的停止移动、暂停到期及暂缓新消息插入。
 
-根 CONTEXT.md 与 CONTEXT.zh.md 已记录 Window Companion 的产品定义；它是一种既有 PersonaBot 的 Binding，不是新身份或 Channel 置顶。尚未决定其偏好的存储范围；术语定义不承诺已交付实现。
+根 GLOSSARY.md 与 GLOSSARY.zh.md 已记录 Window Companion 的产品定义；它是一种既有 PersonaBot 的 Binding，不是新身份或 Channel 置顶。尚未决定其偏好的存储范围；术语定义不承诺已交付实现。
 
 再次核对显示，Coopanion 与 MIT 前身都不因 hover 自动暂停 roaming、逐字播放或气泡到期；hover 主要提供快捷工具的延迟隐藏和连续命中区。消息播放会影响随机 roaming 决策，但不等于 hover 阅读模式。它们又没有多气泡栈，所以不能凭“参考 Coopanion”确定新增列表的稳定阅读行为。[hover 工具](https://github.com/Pal-AI-Lab/Coopanion/blob/421e708a8e994897b2c99706284540c86f6bba37/packages/cortico-world-desktop-pet/web/pet-app.js#L930-L1009)、[roaming 准入与移动](https://github.com/Pal-AI-Lab/Coopanion/blob/421e708a8e994897b2c99706284540c86f6bba37/packages/cortico-world-desktop-pet/web/kit/body.js#L349-L398)、[逐字与到期](https://github.com/Pal-AI-Lab/Coopanion/blob/421e708a8e994897b2c99706284540c86f6bba37/packages/cortico-world-desktop-pet/web/pet-app.js#L310-L356)
 

@@ -26,4 +26,4 @@ Every profile-wide BotHarness setting lived on one long page behind a single `se
 
 - Opening the native Models and IM Bots sections still scrapes the DOM until DSH exposes `openSection` beyond onboarding.
 - Our `modal.ts` wrapper exposes `headless`.
-- `CONTEXT.md` replaces **Settings UI** with **Bot Settings** and **Bot Settings section**.
+- `GLOSSARY.md` replaces **Settings UI** with **Bot Settings** and **Bot Settings section**.

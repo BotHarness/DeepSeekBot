@@ -10,7 +10,7 @@
 - 手机应用保留既有应用身份、商店记录与升级链路，只迁移公开品牌和相关链接。
 - 提供 `tobs` 安装及 CLI 入口，保留 `deepseekbot` 安装、命令和旧链接兼容。具体包发布形式受 npm 可用性与发布验证约束。
 
-术语以 [CONTEXT.md](../../CONTEXT.md) 与 [CONTEXT.zh.md](../../CONTEXT.zh.md) 为准；持久兼容边界见 [ADR-0248](../adr/0248-tobs-rebrands-the-product-while-preserving-existing-entry-points.md)。
+术语以 [GLOSSARY.md](../../GLOSSARY.md) 与 [GLOSSARY.zh.md](../../GLOSSARY.zh.md) 为准；持久兼容边界见 [ADR-0248](../adr/0248-tobs-rebrands-the-product-while-preserving-existing-entry-points.md)。
 
 ## npm 名称核查
 

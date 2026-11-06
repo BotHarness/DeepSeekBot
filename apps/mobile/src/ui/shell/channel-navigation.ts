@@ -4,6 +4,7 @@ import type { ComponentProps } from 'react';
 
 import type { RosterView } from '../../host/client';
 import type { ChatHref } from '../../host/push';
+import { swipeEntryOptions } from './swipe-entry';
 
 export type ChannelLink = { channelId?: string; botSlug: string; messageId?: string };
 export type ChannelDestination = ChatHref & { params: { hostId: string; focusRequest?: string } };
@@ -29,6 +30,15 @@ export function channelDestination(
 
 export function channelRouteId(name: string, params: Record<string, unknown>): string {
   return JSON.stringify([params['hostId'], name, params['slug'] ?? params['id']]);
+}
+
+export function conversationRouteOptions({ route }: { route: { params?: object | undefined } }) {
+  return {
+    title: '',
+    headerShown: false,
+    fullScreenGestureEnabled: true,
+    ...swipeEntryOptions(route),
+  };
 }
 
 export const channelStackRouter: NonNullable<ComponentProps<typeof Stack>['UNSTABLE_router']> = (

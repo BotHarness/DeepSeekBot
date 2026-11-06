@@ -202,7 +202,7 @@ The remote Browser viewer, and the Computer viewer shown when a Host cannot stre
 Accepted 2026-10-26 (#2922). Adding Environments and creating a Bot share one pinned bottom bar and one selection idiom.
 
 - **Step bar.** A `StepBar` primitive pins the flow's action above the bottom safe area: an optional round Back button and a capsule primary button of the same height (iOS 52pt, Android 56dp, never below the touch target). The capsule names the action and, in a multi-step flow, the step (“Next · 2/3”); its accessible label speaks the step in words. Busy shows the platform's native indicator inside the capsule and disables it. iOS 26 uses Liquid Glass (`glass` / `glassProminent`) and falls back to bordered styles on earlier iOS or with Reduce Transparency; Android uses Material 3 Expressive `FilledTonalIconButton` + `Button` with the Expressive loading indicator.
-- **Environment.** These flows call a paired Host an Environment (环境), per `CONTEXT.md`.
+- **Environment.** These flows call a paired Host an Environment (环境), per `GLOSSARY.md`.
 - **Selection list.** Choosing Environments uses whole-row selection with one native checkmark: a trailing `checkmark` on iOS, the selected settings-row fill plus a check on Android. No row embeds a checkbox control. Already-added Environments say “Added” and are not selectable; offline ones are disabled.
 - **Adding from a Tobs Connect account.** The bar's capsule reads “Add N Environments” and is disabled until something is selected. Pairing keeps the list visible: the row being paired shows the native indicator and “Adding…”, then its result. The verification page replaces the list only while a fingerprint needs the Human's comparison or approval.
 
@@ -320,7 +320,7 @@ The two-tab shell follows [ADR-0211](../../docs/adr/0211-the-mobile-app-has-two-
   - One list of PersonaBot DMs and Channels together, grouped by the Host's **Channel sections** as on the desktop sidebar:
     - Sections come in the desktop's order. Ungrouped DMs and Channels sit between them in the desktop's top-level order.
     - A section header shows its name and Channel count and collapses or expands on tap. A collapsed section still shows a "Needs you" mark when something inside needs the Human. The collapse state is kept on the phone, per Host.
-    - Hidden Channels stay out of the list. Pins and the sort mode follow `CONTEXT.md`.
+    - Hidden Channels stay out of the list. Pins and the sort mode follow `GLOSSARY.md`.
     - Changes made on the desktop show when the roster refreshes. Mobile can create sections and assign conversations through **Add to section**; renaming and reordering sections remain outside this flow.
     - Long-press a section header to **Delete section**. Confirmation names the section and explains that its conversations return to the unsectioned list; no Bot or Channel is deleted. The synthetic Pinned header cannot be deleted.
     - A Host with no sections shows one flat list by latest activity.

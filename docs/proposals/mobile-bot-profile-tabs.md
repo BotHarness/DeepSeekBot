@@ -22,7 +22,7 @@ Every rule in `apps/mobile/DESIGN.md` and `apps/mobile/OVERLAYS.md` still applie
 
 ## Work
 
-- One row per **Assignment** (see CONTEXT.md): Assignment Title, Assignment Description and the time. At large system text sizes, title and description wrap without a line cap. Rows are grouped by the day of last activity. Orchestrator turns are not listed; they are already in the chat. Group Work lists the Group's Assignments with the same row.
+- One row per **Assignment** (see GLOSSARY.md): Assignment Title, Assignment Description and the time. At large system text sizes, title and description wrap without a line cap. Rows are grouped by the day of last activity. Orchestrator turns are not listed; they are already in the chat. Group Work lists the Group's Assignments with the same row.
 - The detail page is read-only: status, Title, Description, latest Assignment Report, and a timeline of MAIN (the Assignment Agent) and SUBAGENT 01, 02… showing public summaries only, never raw tool input. Stop and archive stay with the Orchestrator; the Human asks the Bot in chat.
 - Depends on ADR-0262 (Assignment Title and Description).
 
