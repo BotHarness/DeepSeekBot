@@ -67,6 +67,9 @@ beforeEach(() => {
       bot('cy', 'Cy'),
       bot('dee', 'Dee', { paused: true }),
       bot('eve', 'Eve'),
+      bot('protected-steward', 'Renamed Tob', {
+        tob: { defaultName: false, defaultAvatar: false },
+      }),
     ],
     [GROUP],
   );
@@ -108,6 +111,7 @@ it('lists only Bots that can be invited, filters them and invites the chosen one
   await openInvite();
   expect(dialog().getAttribute('aria-label')).toBe(t('group.invite'));
   expect(options()).toEqual(['Bob', 'Eve']);
+  expect(dialog().textContent).toContain(t('group.tobPrivateOnly'));
   const submit = () =>
     [...dialog().querySelectorAll<HTMLButtonElement>('button[type="submit"]')].at(0)!;
   expect(submit().disabled).toBe(true);
@@ -138,4 +142,23 @@ it('keeps the dialog open with an error when the invitation fails', async () => 
   expect(dialog().querySelector('[role="alert"]')?.textContent).toBe(t('members.error'));
   await act(async () => buttonNamed(t('common.cancel'), dialog()).click());
   expect(document.querySelector('[role="dialog"]')).toBeNull();
+});
+
+it('does not confuse an ordinary Bot named Tob with the protected identity', async () => {
+  store.setRoster([bot('ordinary', 'Tob')], [GROUP]);
+  await openInvite();
+  expect(options()).toEqual(['Tob']);
+  expect(dialog().textContent).not.toContain(t('group.tobPrivateOnly'));
+  await act(async () => buttonNamed('Tob', dialog()).click());
+  await act(async () => dialog().querySelector('form')!.requestSubmit());
+  expect(inviteGroupBot).toHaveBeenCalledWith(GROUP.id, 'ordinary');
+});
+
+it('stops a selected Bot from being invited after it becomes unavailable', async () => {
+  await openInvite();
+  await act(async () => buttonNamed('Bob', dialog()).click());
+  await act(async () => store.setRoster([bot('bob', 'Bob', { paused: true })], [GROUP]));
+  expect(dialog().querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(true);
+  await act(async () => dialog().querySelector('form')!.requestSubmit());
+  expect(inviteGroupBot).not.toHaveBeenCalled();
 });

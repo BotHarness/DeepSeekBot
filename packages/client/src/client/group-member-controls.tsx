@@ -168,6 +168,7 @@ function InviteMemberModal({
   const [error, setError] = useState(false);
   const available = bots.filter(
     (bot) =>
+      bot.tob === undefined &&
       !bot.paused &&
       !bot.deleted &&
       !group.members.includes(bot.slug) &&
@@ -175,13 +176,14 @@ function InviteMemberModal({
         (invitation) => invitation.targetBotSlug === bot.slug && invitation.status === 'pending',
       ),
   );
+  const selectedAvailable = available.some((bot) => bot.slug === selected);
   const filtered = available.filter(
     (bot) =>
       bot.displayName.toLocaleLowerCase().includes(delayedQuery) ||
       bot.slug.toLocaleLowerCase().includes(delayedQuery),
   );
   const invite = async (): Promise<void> => {
-    if (!selected) return;
+    if (!selectedAvailable) return;
     setBusy(true);
     try {
       if (await actions.inviteGroupBot(group.id, selected)) onClose();
@@ -195,7 +197,7 @@ function InviteMemberModal({
       title={t('group.invite')}
       labels={{ close: t('common.close'), cancel: t('common.cancel') }}
       submitLabel={t('group.invite')}
-      submitDisabled={!selected}
+      submitDisabled={!selectedAvailable}
       busy={busy}
       error={error ? t('members.error') : undefined}
       onCancel={onClose}
@@ -209,6 +211,7 @@ function InviteMemberModal({
         onChange={updateQuery}
         initialFocus
       />
+      {bots.some((bot) => bot.tob !== undefined) ? <Note>{t('group.tobPrivateOnly')}</Note> : null}
       <div
         ref={cancelOnUnmount}
         role="group"
