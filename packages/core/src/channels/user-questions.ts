@@ -312,7 +312,7 @@ export class ChannelUserQuestions {
     if (pending === undefined) {
       const messages = this.#channels.readMessages(channelId);
       const message = messages.find((entry) => entry.id === messageId);
-      return message?.userQuestionRequest?.callId !== undefined &&
+      return message?.userQuestionRequest !== undefined &&
         messages.some(
           (entry) =>
             entry.userQuestionResolution?.requestMessageId === messageId &&

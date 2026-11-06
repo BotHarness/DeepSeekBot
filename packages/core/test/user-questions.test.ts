@@ -194,9 +194,19 @@ describe('native DSH questions in a PersonaBot DM', () => {
       state: 'answered',
       answers: expected.answers,
     });
-    expect(state.answerer.status('ada', request.id)).toBe('expired');
+    expect(state.answerer.status('ada', request.id)).toBe('answered');
     expect(state.answerer.activeMessageIds()).toEqual([]);
     expect(await state.answerer.answer('ada', request.id, expected)).toBe(false);
+    const restarted = new ChannelUserQuestions(
+      state.channels,
+      state.ownership,
+      () => false,
+      state.warn,
+    );
+    expect(restarted.status('ada', request.id)).toBe('answered');
+    expect(restarted.status('ada', 'missing-request')).toBe('expired');
+    expect(restarted.activeMessageIds()).toEqual([]);
+    expect(await restarted.answer('ada', request.id, expected)).toBe(false);
   });
 
   it('posts a card for more than three questions and a long question instead of leaving them to DSH', async () => {
