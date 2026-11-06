@@ -11,8 +11,8 @@ import {
   Text,
 } from '@expo/ui/jetpack-compose';
 import {
-  defaultMinSize,
   fillMaxWidth,
+  height as nativeHeight,
   padding,
   semantics,
   size,
@@ -48,13 +48,17 @@ export function ConversationTopBar({
   const t = useStrings();
   const [height, setHeight] = useState(0);
   const mark = materialIconButton.container;
+  const islandHeight = Math.max(
+    theme.touch,
+    Math.ceil((theme.type.title.line + theme.type.meta.line) * theme.fontScale + space.x2 * 2),
+  );
   const status = connectionLabel ?? subtitle;
   const action = (id: string, label: string, source: number, onClick: () => void) => (
     <IconButton
       onClick={onClick}
       colors={{ contentColor: theme.color.fg }}
       modifiers={[
-        size(theme.touch, theme.touch),
+        size(islandHeight, islandHeight),
         testID(id),
         semantics({ contentDescription: label }),
       ]}
@@ -118,7 +122,7 @@ export function ConversationTopBar({
               verticalAlignment="center"
               horizontalArrangement={{ spacedBy: space.x3 }}
               modifiers={[
-                defaultMinSize({ minHeight: theme.touch }),
+                nativeHeight(islandHeight),
                 padding(space.x2, space.x2, space.x4, space.x2),
               ]}
             >
@@ -134,7 +138,7 @@ export function ConversationTopBar({
               <Column modifiers={[weight(1)]}>
                 <Text
                   style={{ typography: 'titleMedium', fontWeight: 'bold' }}
-                  maxLines={theme.largeText ? 2 : 1}
+                  maxLines={1}
                   overflow="ellipsis"
                 >
                   {title}
