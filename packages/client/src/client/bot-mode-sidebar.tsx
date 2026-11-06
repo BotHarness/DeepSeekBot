@@ -52,8 +52,8 @@ export interface BotModeSidebarProps {
 }
 
 const selectSidebarNavigation = (state: ClientState) => ({
-  unreadCount: state.humanInbox.unreadCount,
-  hasAction: state.humanInbox.hasAction,
+  unreadCount: state.activityList.unreadCount,
+  hasAction: state.activityList.hasAction,
   inboxCurrent: state.selection?.kind === 'inbox',
 });
 
@@ -64,8 +64,8 @@ export function BotModeSidebar(props: BotModeSidebarProps): ReactElement {
   const navigation = useClientStore(selectSidebarNavigation, shallowEqual);
   const unread = navigation.unreadCount;
   const inboxNotes = [
-    ...(unread > 0 ? [t('humanInbox.unreadCount', { count: unreadCountLabel(unread) })] : []),
-    ...(navigation.hasAction ? [t('humanInbox.action')] : []),
+    ...(unread > 0 ? [t('activityList.unreadCount', { count: unreadCountLabel(unread) })] : []),
+    ...(navigation.hasAction ? [t('activityList.action')] : []),
   ];
   const inboxLabel = [t('activityCenter.title'), ...inboxNotes].join(' · ');
   const inboxCurrent = navigation.inboxCurrent;
@@ -76,8 +76,8 @@ export function BotModeSidebar(props: BotModeSidebarProps): ReactElement {
   const [logoFocus, setLogoFocus] = useState(false);
   const morph = logoHover || logoFocus;
   const rootMount = useMountedResource<HTMLDivElement>(() => {
-    void actions.refreshHumanInboxStatus();
-    return observeHumanAttention(() => void actions.refreshHumanInboxStatus());
+    void actions.refreshActivityListStatus();
+    return observeHumanAttention(() => void actions.refreshActivityListStatus());
   }, [actions]);
 
   const row = (

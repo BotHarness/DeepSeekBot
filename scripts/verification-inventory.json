@@ -436,7 +436,7 @@
     {
       "id": "desktop.inbox.requests",
       "label": "Act on tool approval, question, grant or Assignment reply; preserve independent requests",
-      "source": "packages/client/src/client/human-inbox-view.tsx",
+      "source": "packages/client/src/client/activity-list-view.tsx",
       "guide": null,
       "task": 1974,
       "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
@@ -444,7 +444,7 @@
     {
       "id": "desktop.inbox.messages",
       "label": "Read mentions/replies, navigate exact source and preserve reply draft",
-      "source": "packages/client/src/client/human-inbox-reply.tsx",
+      "source": "packages/client/src/client/activity-list-reply.tsx",
       "guide": null,
       "task": 1967,
       "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
@@ -972,7 +972,7 @@
       "behaviors": ["desktop.activity.overview"],
       "reason": "Old #679 hover/chip entry selectors timed out behind onboarding in the retained audit; adapt to current pinned Activity Center card before use.",
       "task": 1967,
-      "sha256": "b1cc4a72cf8a6d815f88ebf92da094ace958290bb5242f0255b21300ba9fe4b8"
+      "sha256": "988e3406700ed406b77dba5565f0d081de93498dfad8f96caaf6b8df50ad44b2"
     },
     {
       "path": "scripts/e2e-activity-idle.mjs",
@@ -988,7 +988,7 @@
       "behaviors": ["desktop.activity.overview"],
       "reason": "#541 modes expect a prepared launcher log and fixtures; checks counts, Session navigation, cold restart and layout, not just idle.",
       "task": 1967,
-      "sha256": "05034197e09eb8d4f83d0a103939eb57deb793a8d7589b9587d07b1277398aba"
+      "sha256": "76ad376f92c8f047c7fca0a7bada63197d01bf9f5d722a2e6de335062e9df0f0"
     },
     {
       "path": "scripts/e2e-activity-recovery.mjs",
@@ -1036,7 +1036,7 @@
       "behaviors": ["desktop.assignment.lifecycle", "desktop.activity.live"],
       "reason": "#123 stored scene and live model; compares Assignment waiting-Human attention with Overview and answered revision. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "294c0829b0406933ec2290dfd3e03fdb4efe6ce1ea78f2c4fc88bc15d2f4c61f"
+      "sha256": "958adfc1962f6fbc66b2e67bbd770f5bc9a591541dc1fdbabd6e793270775724"
     },
     {
       "path": "scripts/e2e-assignment-escalation.mjs",
@@ -1364,7 +1364,7 @@
       "behaviors": ["desktop.activity.metrics"],
       "reason": "#703 prepared task Host; compares daily Human/Bot counts and late arrivals without changing Human attention. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "0a7b595c0c6f4930a9a49450ad3dc3f2444e67cba272be17e08de53bd8b8c4ca"
+      "sha256": "36e76af3c046d4f96deb3e90dff8f58bdfc138cab6cf8eafdeab3933d4890026"
     },
     {
       "path": "scripts/e2e-channel-image-read.mjs",
@@ -1548,7 +1548,7 @@
       "behaviors": ["desktop.grants", "desktop.activity.live"],
       "reason": "#123 model-created grant request; verifies pending/dismissed attention and Overview revisions, not full revoke journey. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1974,
-      "sha256": "c46d486943b71d381e6864eb41213cd1ff10cfad22a1f3f1e957ef78ecf3c0c0"
+      "sha256": "cecebd144f1926d45fbd4507f389bd3cd48ac7fbb36e048705994e5dadad43e8"
     },
     {
       "path": "scripts/e2e-group-activity.mjs",
@@ -1676,23 +1676,23 @@
       "behaviors": ["desktop.identity.names"],
       "reason": "#622 prepared scene and real model; separate DM/Group aliases and stable local-human identity in replies. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "ca1e038b943d8de51e72bbd41806bc4ebe2d5e87d28af11d9b6269914ecb5970"
+      "sha256": "98721a755b47553390ea251d23a23bd83e544e08fb84c6c92ff3f5d939074bc6"
     },
     {
-      "path": "scripts/e2e-human-inbox-list.mjs",
+      "path": "scripts/e2e-activity-list.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.inbox.requests"],
       "reason": "#687 owner-seeded fixture with execution forbidden; filters/keyboard/details/actions checked against source, not model execution.",
       "task": 1974,
-      "sha256": "4ff352dd456366120312b70cb6a37490d2414593a42c35be0a02d440b4fb098a"
+      "sha256": "d6dbb927c69b946c2a8291b97652c3ac71219a5ee0cc93997651e712cda4471c"
     },
     {
-      "path": "scripts/e2e-human-inbox-reply.mjs",
+      "path": "scripts/e2e-activity-list-reply.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.inbox.messages"],
       "reason": "#547 prepared sources and real model; exact Group/DM reply correlation and drafts survive failed navigation. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "c1b08f7cedcc15a14853690e5de26a99833013f63b90ba66d4503f3eacf44a92"
+      "sha256": "9b6474ef0cd7a6a45f5645f872964c12e7904f5a81db1360d638aa0aeb172cc3"
     },
     {
       "path": "scripts/e2e-human-mentions.mjs",
@@ -1700,7 +1700,7 @@
       "behaviors": ["desktop.inbox.messages"],
       "reason": "#549 source fixture, personal attention and second identity; filtered mentions and exact reply target. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "f77995e61dc11ff904df12900963116bccb2ce133884b637dfdecf7ab4be004a"
+      "sha256": "0f1fd7c72a101d536888cf39c39b3e9ac09cfdb4aff238e70a941dad285369fb"
     },
     {
       "path": "scripts/e2e-human-names.mjs",
@@ -1708,7 +1708,7 @@
       "behaviors": ["desktop.identity.names"],
       "reason": "#621 prepared scene; changes Human display name while preserving message authors, mentions, attention and default fallback. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "081523eefd05645cafd3611a45c6b7acbbcbfc3ac9d3429beb0e965153af8d44"
+      "sha256": "1393c4a80636749d486ceba66ad7f5b50ffaf82d80a3efdc1ff0392dc8462392"
     },
     {
       "path": "scripts/e2e-human-personal-replies.mjs",
@@ -1716,7 +1716,7 @@
       "behaviors": ["desktop.inbox.messages"],
       "reason": "#548 prepared reply source; exact read-state and Human response identity, with actual browser target. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "73fc5d9576ceb0795ea1f08949990e9bab60324b4509988f036a7e23369eee24"
+      "sha256": "ae1be57bc45e85836099aba4cae230e99895f6943fd51191a2faec9a4d19600a"
     },
     {
       "path": "scripts/e2e-inbox-grant-assignment.mjs",
@@ -1724,7 +1724,7 @@
       "behaviors": ["desktop.inbox.requests", "desktop.grants"],
       "reason": "#552 live grant/Assignment fixture; approval and replies resume exact Session, preserve independent requests and stale refusal. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1974,
-      "sha256": "4511fc271e8863d1d2b7127add9f9cfab6cba68fde7b79997bd335de5939bb49"
+      "sha256": "4f7dc56060d8d923c331662ea08686804efb27949afd710cc0e041a3e5261cb0"
     },
     {
       "path": "scripts/e2e-activity-live.mjs",
@@ -1732,7 +1732,7 @@
       "behaviors": ["desktop.activity-center.inline-tool-approval"],
       "reason": "Task-local real browser: idle and slow-read stability, live cross-Channel message and request arrivals, read/source identity, actual WebSocket reconnect, snooze expiry, group-join decision and bounded CLI watch. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 2230,
-      "sha256": "5dd881a4de566a563a76f4901963b1c17d6fbb6f6ad8727ff9d70f524ce1deee"
+      "sha256": "23ba3fe91edbf01faf4c487565e73a52f16ba1abaeec3b02dae23a6996a4d223"
     },
     {
       "path": "scripts/e2e-inbox-tool-approval.mjs",
@@ -1740,7 +1740,7 @@
       "behaviors": ["desktop.activity-center.inline-tool-approval"],
       "reason": "Task-owned isolated Host with two real pending native requests; validates exact harmless marker commands, page failed-response retry/allow/native file effect, Dock reject, context, focus safety, canonical audit and light/dark evidence. Does not qualify other request kinds or multi-window stale UI.",
       "task": 2026,
-      "sha256": "6145ee06184f09742dc846febda0d6615da9bc4f4a81fab2de1e984979b20268"
+      "sha256": "afab85ee4aa61a2da410fd7bc22c2f346cd9da72acb0d367874d16f81fed8fa4"
     },
     {
       "path": "scripts/e2e-informational-attention.mjs",
@@ -1748,7 +1748,7 @@
       "behaviors": ["desktop.activity.live"],
       "reason": "#123 prepared grant/model fixture; informational attention persists without work and clears only through ignore.",
       "task": 1967,
-      "sha256": "dfb80c1f3afa25802b819557818efe6b4f9b2961fa4169a68f7ec22a09d70e94"
+      "sha256": "c842dbf0dbd6064d0a80c91c64e338bf8c43797698e32a8d3270946f6b0a9cb4"
     },
     {
       "path": "scripts/e2e-lark-provider-contract.mjs",
@@ -1948,7 +1948,7 @@
       "behaviors": ["desktop.activity.metrics", "desktop.inbox.requests"],
       "reason": "#705 stored scene; stacked chart and collapse persist; mark-all-read leaves requests and later unread message intact. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "8cfe76ad9d4d6bb4bc592cf744f48aca5ccb2d4e53057b9623c7ae1716ffea92"
+      "sha256": "7c818af9bc21cd9cee7ed6513f0ac59ac87144551330ed13e60de80beeb66769"
     },
     {
       "path": "scripts/e2e-overview-usage.mjs",
@@ -1956,7 +1956,7 @@
       "behaviors": ["desktop.activity.metrics", "desktop.usage"],
       "reason": "#709 actual model usage and Profile/Overview totals; range/chart/navigation plus subsequent usage, prepared launcher. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "0649cbe8fdd3178c05a520772d41712d9f7a619bee1fe46dfcdff3630dbbc539"
+      "sha256": "ac56237193b3e4676600062ec84ea40bbca72b5e597722671620c4e635ce1a4d"
     },
     {
       "path": "scripts/e2e-personabot-create.mjs",
@@ -1985,7 +1985,7 @@
       "behaviors": ["desktop.inbox.requests", "desktop.activity.live"],
       "reason": "#123 real model asks formal question; offline read, answer/cancel and Host attention revision compared. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "ad470a81bd82b797dc2f4920ccf852fc9cef6d6610518284209cd132a719341a"
+      "sha256": "d3be54555348e39fa608a79a7c9f3d359002884ce4e4aa4700bb5d9c542a1496"
     },
     {
       "path": "scripts/e2e-rail-avatar-badge.mjs",

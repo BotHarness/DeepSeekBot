@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
-  ...(await import('./human-inbox-test-controls.js')),
+  ...(await import('./activity-list-test-controls.js')),
   Button: ({ children, ...props }: { children: ReactNode }) =>
     createElement('button', props, children),
   MarkdownText: () => null,
@@ -20,7 +20,7 @@ vi.mock('../src/client/bot-sidebar.js', async () => {
 
 import { createActions } from '../src/client/actions.js';
 import type { BridgeCall } from '../src/client/bridge.js';
-import { HumanInboxView } from '../src/client/human-inbox-view.js';
+import { ActivityListView } from '../src/client/activity-list-view.js';
 import { store } from '../src/client/store.js';
 
 describe('Human Inbox inline reply', () => {
@@ -127,7 +127,7 @@ describe('Human Inbox inline reply', () => {
       };
       const actions = createActions(call, store);
       store.select({ kind: 'inbox' });
-      store.setHumanInbox({
+      store.setActivityList({
         category: inboxCategory,
         status: 'ready',
         items: [
@@ -160,10 +160,10 @@ describe('Human Inbox inline reply', () => {
           (candidate) => candidate.textContent === text,
         );
       try {
-        await act(async () => root.render(createElement(HumanInboxView, { actions })));
+        await act(async () => root.render(createElement(ActivityListView, { actions })));
         expect(requests.some((request) => request.endpoint === 'channelMarkRead')).toBe(false);
         await act(async () => button('回复')?.click());
-        expect(container.querySelector('.bh-human-inbox-reply-source')?.textContent).toContain(
+        expect(container.querySelector('.bh-activity-list-reply-source')?.textContent).toContain(
           'The launch plan is ready.',
         );
         const textarea = container.querySelector('textarea')!;
@@ -182,7 +182,7 @@ describe('Human Inbox inline reply', () => {
           },
         );
         expect(container.querySelector('textarea')?.value).toBe('Launch Friday.');
-        expect(container.querySelector('.bh-human-inbox-reply-source')?.textContent).toContain(
+        expect(container.querySelector('.bh-activity-list-reply-source')?.textContent).toContain(
           'The launch plan is ready.',
         );
         expect(
@@ -191,19 +191,19 @@ describe('Human Inbox inline reply', () => {
               request.endpoint === 'channelMarkRead' && request.payload['messageId'] === 'newer',
           ),
         ).toBe(false);
-        expect(container.querySelectorAll('.bh-human-inbox-message time')).toHaveLength(1);
+        expect(container.querySelectorAll('.bh-activity-list-message time')).toHaveLength(1);
         await act(async () =>
-          container.querySelector<HTMLButtonElement>('.bh-human-inbox-context-older')!.click(),
+          container.querySelector<HTMLButtonElement>('.bh-activity-list-context-older')!.click(),
         );
         await act(async () =>
-          container.querySelector<HTMLButtonElement>('.bh-human-inbox-context-newer')!.click(),
+          container.querySelector<HTMLButtonElement>('.bh-activity-list-context-newer')!.click(),
         );
         expect(
-          [...container.querySelectorAll('.bh-human-inbox-message')].map((row) =>
+          [...container.querySelectorAll('.bh-activity-list-message')].map((row) =>
             row.getAttribute('data-message-id'),
           ),
         ).toEqual(['before', 'source', 'newer']);
-        expect(container.querySelectorAll('.bh-human-inbox-message time')).toHaveLength(3);
+        expect(container.querySelectorAll('.bh-activity-list-message time')).toHaveLength(3);
         await act(async () => seeMessage?.('newer'));
         expect(
           requests.filter((request) => request.endpoint === 'channelMarkRead').at(-1)?.payload,
@@ -212,7 +212,7 @@ describe('Human Inbox inline reply', () => {
         await act(async () =>
           container
             .querySelector<HTMLButtonElement>(
-              '.bh-human-inbox-reply-source .bh-human-inbox-message-source',
+              '.bh-activity-list-reply-source .bh-activity-list-message-source',
             )!
             .click(),
         );
@@ -244,7 +244,7 @@ describe('Human Inbox inline reply', () => {
         await act(async () => root.unmount());
         container.remove();
         store.select(previous.selection);
-        store.setHumanInbox(previous.humanInbox);
+        store.setActivityList(previous.activityList);
         vi.unstubAllGlobals();
       }
     },

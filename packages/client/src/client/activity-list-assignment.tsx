@@ -7,14 +7,14 @@ import type { BotHarnessTranslate } from './locale.js';
 import type { HumanAttentionItem } from './store.js';
 import type { BotSummary } from './store.js';
 import {
-  HumanInboxDismiss,
-  HumanInboxContextEdge,
-  HumanInboxMessageSource,
-} from './human-inbox-detail-controls.js';
+  ActivityListDismiss,
+  ActivityListContextEdge,
+  ActivityListMessageSource,
+} from './activity-list-detail-controls.js';
 import { PersonaBotAvatar } from './avatar.js';
 import { useMountedResource } from './mounted-resource.js';
 
-export function HumanInboxAssignment({
+export function ActivityListAssignment({
   source,
   actions,
   t,
@@ -167,12 +167,12 @@ export function HumanInboxAssignment({
       if (!controller.signal.aborted) setEdgeBusy(false);
     }
   };
-  const title = t('humanInbox.assignment.title', { bot: botName(source.botSlug) });
+  const title = t('activityList.assignment.title', { bot: botName(source.botSlug) });
   return (
-    <section className="bh-human-inbox-reply" ref={mount} aria-label={title}>
-      <div className="bh-human-inbox-reply-header">
+    <section className="bh-activity-list-reply" ref={mount} aria-label={title}>
+      <div className="bh-activity-list-reply-header">
         <h2>{title}</h2>
-        <HumanInboxDismiss
+        <ActivityListDismiss
           source={source}
           actions={actions}
           t={t}
@@ -182,33 +182,33 @@ export function HumanInboxAssignment({
       </div>
       {target === undefined ? (
         <p role={failed ? 'alert' : 'status'}>
-          {t(failed ? 'humanInbox.reply.unavailable' : 'humanInbox.loading')}
+          {t(failed ? 'activityList.reply.unavailable' : 'activityList.loading')}
         </p>
       ) : (
         <>
-          <h3 className="bh-human-inbox-purpose is-collapsed" title={context!.description}>
+          <h3 className="bh-activity-list-purpose is-collapsed" title={context!.description}>
             {context!.title}
           </h3>
-          <div className="bh-human-inbox-context-window">
-            <HumanInboxContextEdge
+          <div className="bh-activity-list-context-window">
+            <ActivityListContextEdge
               direction="older"
               disabled={!(targetIndex > olderShown || context?.hasOlder)}
               busy={edgeBusy}
               onClick={() => void expand('older')}
               t={t}
             />
-            <div className="bh-human-inbox-message-flow">
+            <div className="bh-activity-list-message-flow">
               {visibleReports.map((report) => (
                 <article
                   key={report.sourceEventId}
                   data-source-event-id={report.sourceEventId}
                   className={
-                    'bh-human-inbox-message' +
-                    (report.sourceEventId === sourceEventId ? ' bh-human-inbox-reply-source' : '')
+                    'bh-activity-list-message' +
+                    (report.sourceEventId === sourceEventId ? ' bh-activity-list-reply-source' : '')
                   }
                 >
-                  <HumanInboxMessageSource
-                    label={t('humanInbox.assignment.session')}
+                  <ActivityListMessageSource
+                    label={t('activityList.assignment.session')}
                     onClick={() => void navigate(() => actions.openSession(sessionId))}
                   />
                   <PersonaBotAvatar
@@ -221,12 +221,12 @@ export function HumanInboxAssignment({
                     indicator={false}
                     t={t}
                   />
-                  <div className="bh-human-inbox-message-content">
-                    <div className="bh-human-inbox-message-heading">
+                  <div className="bh-activity-list-message-content">
+                    <div className="bh-activity-list-message-heading">
                       <strong>{botName(source.botSlug)}</strong>
                       <time dateTime={report.at}>{new Date(report.at).toLocaleString()}</time>
                     </div>
-                    <span className="bh-human-inbox-message-target">
+                    <span className="bh-activity-list-message-target">
                       {t(`inbox.report.${report.state}`)}
                     </span>
                     <p>{report.summary}</p>
@@ -234,7 +234,7 @@ export function HumanInboxAssignment({
                 </article>
               ))}
             </div>
-            <HumanInboxContextEdge
+            <ActivityListContextEdge
               direction="newer"
               disabled={false}
               busy={edgeBusy}
@@ -244,14 +244,14 @@ export function HumanInboxAssignment({
           </div>
         </>
       )}
-      <div className="bh-human-inbox-reply-actions">
+      <div className="bh-activity-list-reply-actions">
         <ActionButton
           size="sm"
           icon="terminal"
           type="button"
           onClick={() => void navigate(() => actions.openSession(sessionId))}
         >
-          {t('humanInbox.assignment.session')}
+          {t('activityList.assignment.session')}
         </ActionButton>
         <ActionButton
           size="sm"
@@ -259,18 +259,18 @@ export function HumanInboxAssignment({
           type="button"
           onClick={() => void navigate(() => actions.openBot(source.botSlug))}
         >
-          {t('humanInbox.assignment.dm')}
+          {t('activityList.assignment.dm')}
         </ActionButton>
       </div>
       {failed && target !== undefined ? (
-        <p role="alert">{t('humanInbox.reply.unavailable')}</p>
+        <p role="alert">{t('activityList.reply.unavailable')}</p>
       ) : null}
-      {navigationError ? <p role="alert">{t('humanInbox.reply.unavailable')}</p> : null}
+      {navigationError ? <p role="alert">{t('activityList.reply.unavailable')}</p> : null}
       {reply !== undefined && (sent !== undefined || context?.canReply !== true) ? (
         <div role="status">
-          <strong>{t('humanInbox.assignment.sent')}</strong>
+          <strong>{t('activityList.assignment.sent')}</strong>
           <p>{reply.body}</p>
-          <p>{t('humanInbox.assignment.forwarding')}</p>
+          <p>{t('activityList.assignment.forwarding')}</p>
           <ActionButton
             size="sm"
             icon="external-link"
@@ -279,7 +279,7 @@ export function HumanInboxAssignment({
               void navigate(() => actions.openChannelAtMessage('dm-' + source.botSlug, reply.id))
             }
           >
-            {t('humanInbox.open')}
+            {t('activityList.open')}
           </ActionButton>
         </div>
       ) : (
@@ -290,13 +290,13 @@ export function HumanInboxAssignment({
           }}
         >
           {reply !== undefined && context?.canReply === true ? (
-            <p role="status">{t('humanInbox.assignment.retry')}</p>
+            <p role="status">{t('activityList.assignment.retry')}</p>
           ) : null}
           {context !== undefined && !context.canReply ? (
-            <p role="status">{t('humanInbox.assignment.stale')}</p>
+            <p role="status">{t('activityList.assignment.stale')}</p>
           ) : null}
           <label>
-            <span>{t('humanInbox.reply.input')}</span>
+            <span>{t('activityList.reply.input')}</span>
             <textarea
               rows={3}
               value={draft}
@@ -304,15 +304,15 @@ export function HumanInboxAssignment({
               onChange={(event) => setDraft(event.currentTarget.value)}
             />
           </label>
-          {sendError ? <p role="alert">{t('humanInbox.reply.failed')}</p> : null}
-          <div className="bh-human-inbox-reply-actions">
+          {sendError ? <p role="alert">{t('activityList.reply.failed')}</p> : null}
+          <div className="bh-activity-list-reply-actions">
             <Button
               size="sm"
               variant="primary"
               type="submit"
               disabled={sending || context?.canReply !== true || draft.trim().length === 0}
             >
-              {t(sending ? 'humanInbox.reply.sending' : 'humanInbox.reply.send')}
+              {t(sending ? 'activityList.reply.sending' : 'activityList.reply.send')}
             </Button>
           </div>
         </form>

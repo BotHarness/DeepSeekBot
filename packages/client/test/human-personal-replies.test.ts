@@ -27,16 +27,16 @@ describe('Human personal replies Client', () => {
     const windows = [createStore(), createStore()];
     for (const client of windows) {
       client.select({ kind: 'inbox' });
-      client.setHumanInbox({ sort: 'oldest' });
+      client.setActivityList({ sort: 'oldest' });
       const actions = createActions(call, client);
-      await actions.refreshHumanInbox('replies');
-      expect(client.getSnapshot().humanInbox).toMatchObject({
+      await actions.refreshActivityList('replies');
+      expect(client.getSnapshot().activityList).toMatchObject({
         category: 'replies',
         status: 'ready',
         sort: 'newest',
         items: [row],
       });
-      await actions.setHumanInboxFilters({
+      await actions.setActivityListFilters({
         botSlug: 'ada',
         channelId: 'group-launch',
         sort: 'newest',
@@ -48,8 +48,8 @@ describe('Human personal replies Client', () => {
         sort: 'newest',
       });
     }
-    expect(windows[0]!.getSnapshot().humanInbox.items).toEqual(
-      windows[1]!.getSnapshot().humanInbox.items,
+    expect(windows[0]!.getSnapshot().activityList.items).toEqual(
+      windows[1]!.getSnapshot().activityList.items,
     );
   });
 });

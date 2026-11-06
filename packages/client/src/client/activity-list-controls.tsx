@@ -5,9 +5,9 @@ import { Tooltip } from './ds/tooltip.js';
 import { PersonaBotAvatar } from './avatar.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { BotSummary, ChannelSummary, HumanAttentionItem } from './store.js';
-import { HUMAN_INBOX_SNOOZE_CHOICES, humanInboxSnoozeUntil } from './human-inbox-snooze.js';
+import { HUMAN_INBOX_SNOOZE_CHOICES, activityListSnoozeUntil } from './activity-list-snooze.js';
 
-export function HumanInboxSourceButton({
+export function ActivityListSourceButton({
   item,
   bots,
   channels,
@@ -32,10 +32,10 @@ export function HumanInboxSourceButton({
   const label =
     t(
       item.kind === 'bot-message-needs-repair' && (!item.channelName || !item.messageId)
-        ? 'humanInbox.openBotInbox'
+        ? 'activityList.openBotInbox'
         : item.category === 'handled' && item.assignmentSessionId !== undefined
-          ? 'humanInbox.handled.session'
-          : 'humanInbox.open',
+          ? 'activityList.handled.session'
+          : 'activityList.open',
     ) +
     ' · ' +
     sourceName;
@@ -43,12 +43,12 @@ export function HumanInboxSourceButton({
     <Tooltip label={label} portal side="top">
       <button
         type="button"
-        className="bh-human-inbox-source-link"
+        className="bh-activity-list-source-link"
         aria-label={label}
         onClick={onClick}
       >
         {channel?.type === 'group' ? (
-          <span className="bh-human-inbox-channel-avatar" aria-hidden="true">
+          <span className="bh-activity-list-channel-avatar" aria-hidden="true">
             {channel.avatar === undefined ? '#' : <img src={channel.avatar} alt="" />}
           </span>
         ) : (
@@ -64,20 +64,20 @@ export function HumanInboxSourceButton({
             t={t}
           />
         )}
-        <IconRightUpOutlineRegular className="bh-human-inbox-source-arrow" />
+        <IconRightUpOutlineRegular className="bh-activity-list-source-arrow" />
       </button>
     </Tooltip>
   );
 }
 
 const SNOOZE_LABELS = {
-  hour: 'humanInbox.snooze.hour',
-  evening: 'humanInbox.snooze.evening',
-  tomorrow: 'humanInbox.snooze.tomorrow',
-  week: 'humanInbox.snooze.week',
+  hour: 'activityList.snooze.hour',
+  evening: 'activityList.snooze.evening',
+  tomorrow: 'activityList.snooze.tomorrow',
+  week: 'activityList.snooze.week',
 } as const;
 
-export function HumanInboxSnoozeButton({
+export function ActivityListSnoozeButton({
   item,
   t,
   open,
@@ -101,12 +101,12 @@ export function HumanInboxSnoozeButton({
         disabled={disabled}
         onClick={() => onSnooze(null)}
       >
-        {t('humanInbox.snooze.cancel')}
+        {t('activityList.snooze.cancel')}
       </Button>
     );
   const now = new Date();
   const items = HUMAN_INBOX_SNOOZE_CHOICES.flatMap((choice) => {
-    const until = humanInboxSnoozeUntil(choice, now);
+    const until = activityListSnoozeUntil(choice, now);
     return until === undefined
       ? []
       : [
@@ -142,7 +142,7 @@ export function HumanInboxSnoozeButton({
           aria-expanded={open}
           onClick={() => onOpenChange(!open)}
         >
-          {t('humanInbox.snooze')}
+          {t('activityList.snooze')}
         </Button>
       }
     />

@@ -7,7 +7,7 @@ import { createStore, type ClientState } from '../src/client/store.js';
 import { keepClientState, sameFields, useStoreSlice } from '../src/client/use-client-store.js';
 
 const loose = sameFields(['channels']);
-const strict = sameFields(['channels', 'humanInbox']);
+const strict = sameFields(['channels', 'activityList']);
 
 describe('useStoreSlice', () => {
   beforeAll(() => vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true));
@@ -23,10 +23,10 @@ describe('useStoreSlice', () => {
     const host = document.createElement('div');
     const root = createRoot(host);
     await act(async () => root.render(createElement(Probe, { watchInbox: false })));
-    await act(async () => store.setHumanInbox({ unreadCount: 7 }));
-    expect(seen!.humanInbox.unreadCount).not.toBe(7);
+    await act(async () => store.setActivityList({ unreadCount: 7 }));
+    expect(seen!.activityList.unreadCount).not.toBe(7);
     await act(async () => root.render(createElement(Probe, { watchInbox: true })));
-    expect(seen!.humanInbox.unreadCount).toBe(7);
+    expect(seen!.activityList.unreadCount).toBe(7);
     await act(async () => root.unmount());
   });
 });

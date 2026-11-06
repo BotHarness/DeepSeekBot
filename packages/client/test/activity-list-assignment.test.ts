@@ -9,7 +9,7 @@ vi.mock('../src/client/bot-sidebar.js', async () => {
   return { useClientState: () => useSyncExternalStore(store.subscribe, store.getSnapshot) };
 });
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
-  ...(await import('./human-inbox-test-controls.js')),
+  ...(await import('./activity-list-test-controls.js')),
   Button: ({ children, ...props }: { children: ReactNode }) =>
     createElement('button', props, children),
   MarkdownText: () => null,
@@ -19,7 +19,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
 
 import { createActions } from '../src/client/actions.js';
 import type { BridgeCall } from '../src/client/bridge.js';
-import { HumanInboxView } from '../src/client/human-inbox-view.js';
+import { ActivityListView } from '../src/client/activity-list-view.js';
 import { store, type HumanAttentionItem } from '../src/client/store.js';
 
 describe('Human Inbox Assignment reply', () => {
@@ -93,7 +93,7 @@ describe('Human Inbox Assignment reply', () => {
       openSession,
     });
     store.select({ kind: 'inbox' });
-    store.setHumanInbox({ category: 'action', sort: 'oldest', status: 'ready', items: [source] });
+    store.setActivityList({ category: 'action', sort: 'oldest', status: 'ready', items: [source] });
     const container = document.createElement('div');
     document.body.append(container);
     const root = createRoot(container);
@@ -102,14 +102,14 @@ describe('Human Inbox Assignment reply', () => {
         (node) => node.textContent === text,
       )!;
     try {
-      await act(async () => root.render(createElement(HumanInboxView, { actions })));
+      await act(async () => root.render(createElement(ActivityListView, { actions })));
       await act(async () => button('回应事项').click());
-      expect(container.querySelector('.bh-human-inbox-detail')).not.toBeNull();
+      expect(container.querySelector('.bh-activity-list-detail')).not.toBeNull();
       expect(container.querySelector('[role="dialog"]')).toBeNull();
       expect(container.textContent).toContain('Launch review');
       expect(container.textContent).not.toContain('Dependencies ready');
       await act(async () =>
-        container.querySelector<HTMLButtonElement>('.bh-human-inbox-context-older')!.click(),
+        container.querySelector<HTMLButtonElement>('.bh-activity-list-context-older')!.click(),
       );
       expect(container.textContent).toContain('Dependencies ready');
       const input = container.querySelector('textarea')!;
@@ -143,7 +143,7 @@ describe('Human Inbox Assignment reply', () => {
       await act(async () => root.unmount());
       container.remove();
       store.select(previous.selection);
-      store.setHumanInbox(previous.humanInbox);
+      store.setActivityList(previous.activityList);
     }
   });
 });

@@ -173,13 +173,13 @@ const login = async (client) => {
       .find((n) => ['继续', 'Continue'].includes(n.textContent?.trim() ?? ''))
       ?.click(),
   );
-  await client.waitForSelector('.bh-human-inbox-entry', { timeout: 5000 }).catch(async () => {
+  await client.waitForSelector('.bh-activity-list-entry', { timeout: 5000 }).catch(async () => {
     await client.evaluate(() =>
       [...document.querySelectorAll('button')]
         .find((n) => n.textContent?.includes('Bot 模式'))
         ?.click(),
     );
-    await client.waitForSelector('.bh-human-inbox-entry');
+    await client.waitForSelector('.bh-activity-list-entry');
   });
   const expand = await client.$('button[aria-label="打开侧边栏"]');
   if (expand) await expand.click();
@@ -202,17 +202,17 @@ const openInbox = async (client = page) => {
     await client.waitForSelector('.bh-activity-center-header');
   });
   await click('.bh-activity-center-header [role="tab"]', '收件箱', client);
-  await click('.bh-human-inbox-tabs button', '需要我处理', client);
-  await client.waitForSelector('.bh-human-inbox-row-open');
+  await click('.bh-activity-list-tabs button', '需要我处理', client);
+  await client.waitForSelector('.bh-activity-list-row-open');
 };
 const selectFilter = async (index, label) => {
-  const controls = await page.$$('.bh-human-inbox-selector');
+  const controls = await page.$$('.bh-activity-list-selector');
   await controls[index].click();
   await page.waitForSelector('[role="menu"]', { visible: true });
   await click('[role="menu"] button', label);
   await page.waitForFunction(
     (label) =>
-      [...document.querySelectorAll('.bh-human-inbox-selector')].some((button) =>
+      [...document.querySelectorAll('.bh-activity-list-selector')].some((button) =>
         button.textContent.includes(label),
       ),
     {},
@@ -233,11 +233,11 @@ if (mode === 'row-actions') {
     );
     assert.ok(repair, 'Use a task QA Profile with an actual repair admission and source placement');
     const rowGeometry = await page.evaluate(() =>
-      [...document.querySelectorAll('.bh-human-inbox-row')].map((row) => {
-        const source = row.querySelector('.bh-human-inbox-source-link');
+      [...document.querySelectorAll('.bh-activity-list-row')].map((row) => {
+        const source = row.querySelector('.bh-activity-list-source-link');
         const box = row.getBoundingClientRect();
         const sourceBox = source.getBoundingClientRect();
-        const others = [...row.querySelectorAll('.bh-human-inbox-row-actions button')].filter(
+        const others = [...row.querySelectorAll('.bh-activity-list-row-actions button')].filter(
           (button) => button !== source,
         );
         return {
@@ -262,17 +262,17 @@ if (mode === 'row-actions') {
     await theme(true);
     await shot('row-source-rightmost-dark');
     const selector =
-      '.bh-human-inbox-row[data-attention-id="' + repair.id + '"] .bh-human-inbox-row-open';
+      '.bh-activity-list-row[data-attention-id="' + repair.id + '"] .bh-activity-list-row-open';
     await page.click(selector);
-    await page.waitForSelector('.bh-human-inbox-detail .bh-human-inbox-reply-source');
+    await page.waitForSelector('.bh-activity-list-detail .bh-activity-list-reply-source');
     await page.waitForFunction(() =>
-      [...document.querySelectorAll('.bh-human-inbox-detail button')].some(
+      [...document.querySelectorAll('.bh-activity-list-detail button')].some(
         (button) => button.textContent.trim() === '查看 Bot 收件箱',
       ),
     );
     await shot('repair-maintenance-details-dark');
-    await click('.bh-human-inbox-detail button', '查看 Bot 收件箱');
-    await page.waitForFunction(() => !document.querySelector('.bh-human-inbox-detail'));
+    await click('.bh-activity-list-detail button', '查看 Bot 收件箱');
+    await page.waitForFunction(() => !document.querySelector('.bh-activity-list-detail'));
     await page.waitForFunction(() =>
       [...document.querySelectorAll('[data-sidebar-entry]')].some(
         (node) =>
@@ -328,23 +328,23 @@ try {
   await login(page);
   await openInbox();
   await theme(false);
-  await page.waitForFunction(() => document.querySelectorAll('.bh-human-inbox-row').length === 3);
-  assert.equal(await page.$('.bh-human-inbox-detail'), null);
-  assert.equal(await page.$('.bh-human-inbox-filters select'), null);
+  await page.waitForFunction(() => document.querySelectorAll('.bh-activity-list-row').length === 3);
+  assert.equal(await page.$('.bh-activity-list-detail'), null);
+  assert.equal(await page.$('.bh-activity-list-filters select'), null);
   assert.equal(await page.$('button button'), null);
   await shot('list-light');
   const geometry = await page.evaluate(() =>
-    [...document.querySelectorAll('.bh-human-inbox-row')].map((row) => {
+    [...document.querySelectorAll('.bh-activity-list-row')].map((row) => {
       const box = row.getBoundingClientRect(),
-        text = row.querySelector('.bh-human-inbox-row-main').getBoundingClientRect();
-      const button = row.querySelector('.bh-human-inbox-row-actions button'),
+        text = row.querySelector('.bh-activity-list-row-main').getBoundingClientRect();
+      const button = row.querySelector('.bh-activity-list-row-actions button'),
         style = getComputedStyle(button);
       return {
         height: box.height,
         textInset: text.x - box.x,
         rightInset:
           box.right -
-          row.querySelector('.bh-human-inbox-row-actions').getBoundingClientRect().right,
+          row.querySelector('.bh-activity-list-row-actions').getBoundingClientRect().right,
         primaryFill: style.backgroundColor,
         primaryToken: getComputedStyle(document.body)
           .getPropertyValue('--dsw-alias-button-primary-fill')
@@ -359,64 +359,64 @@ try {
   }
   await theme(true);
   await shot('list-dark');
-  const controls = await page.$$('.bh-human-inbox-selector');
+  const controls = await page.$$('.bh-activity-list-selector');
   await controls[0].click();
   await page.waitForSelector('[role="menu"]', { visible: true });
   await shot('native-bot-selector-dark');
   await click('[role="menu"] button', 'Review Bot');
-  await page.waitForFunction(() => document.querySelectorAll('.bh-human-inbox-row').length === 1);
+  await page.waitForFunction(() => document.querySelectorAll('.bh-activity-list-row').length === 1);
   assert.ok(requestEvidence.some((value) => value.args.botSlug === 'inbox-review'));
   await shot('filtered-bot-dark');
   await selectFilter(1, 'Review Bot');
-  await page.waitForFunction(() => document.querySelectorAll('.bh-human-inbox-row').length === 1);
+  await page.waitForFunction(() => document.querySelectorAll('.bh-activity-list-row').length === 1);
   await selectFilter(0, '全部 Bot');
   await selectFilter(1, '全部频道');
-  await page.waitForFunction(() => document.querySelectorAll('.bh-human-inbox-row').length === 3);
-  const sort = await page.$$('.bh-human-inbox-selector');
+  await page.waitForFunction(() => document.querySelectorAll('.bh-activity-list-row').length === 3);
+  const sort = await page.$$('.bh-activity-list-selector');
   await sort[2].click();
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Home');
   await page.keyboard.press('Enter');
   await page.waitForFunction(() =>
-    [...document.querySelectorAll('.bh-human-inbox-selector')].some((button) =>
+    [...document.querySelectorAll('.bh-activity-list-selector')].some((button) =>
       button.textContent.includes('最新在前'),
     ),
   );
   assert.ok(requestEvidence.some((value) => value.args.sort === 'newest'));
   await selectFilter(2, '最早在前');
-  await page.waitForFunction(() => document.querySelectorAll('.bh-human-inbox-row').length === 3);
-  const firstId = await page.$eval('.bh-human-inbox-row', (row) =>
+  await page.waitForFunction(() => document.querySelectorAll('.bh-activity-list-row').length === 3);
+  const firstId = await page.$eval('.bh-activity-list-row', (row) =>
     row.getAttribute('data-attention-id'),
   );
-  await page.click('.bh-human-inbox-row-main');
-  await page.waitForSelector('.bh-human-inbox-detail .bh-grant-request-card');
+  await page.click('.bh-activity-list-row-main');
+  await page.waitForSelector('.bh-activity-list-detail .bh-grant-request-card');
   assert.equal(
-    await page.$eval('.bh-human-inbox-row-open', (row) => row.getAttribute('aria-expanded')),
+    await page.$eval('.bh-activity-list-row-open', (row) => row.getAttribute('aria-expanded')),
     'true',
   );
   await shot('row-details-dark');
-  const detailPadding = await page.$eval('.bh-human-inbox-message', (message) =>
+  const detailPadding = await page.$eval('.bh-activity-list-message', (message) =>
     parseFloat(getComputedStyle(message).paddingLeft),
   );
   assert.ok(detailPadding >= 16);
   await theme(false);
   await shot('row-details-light');
-  await page.click('.bh-human-inbox-row-open[aria-expanded="true"]');
-  await page.waitForFunction(() => !document.querySelector('.bh-human-inbox-detail'));
-  await page.focus('.bh-human-inbox-row-open');
+  await page.click('.bh-activity-list-row-open[aria-expanded="true"]');
+  await page.waitForFunction(() => !document.querySelector('.bh-activity-list-detail'));
+  await page.focus('.bh-activity-list-row-open');
   await page.keyboard.press('Enter');
-  await page.waitForSelector('.bh-human-inbox-detail .bh-grant-request-card');
+  await page.waitForSelector('.bh-activity-list-detail .bh-grant-request-card');
   await shot('keyboard-details-light');
-  await page.click('.bh-human-inbox-row-open[aria-expanded="true"]');
-  await page.click('.bh-human-inbox-row-actions button');
-  assert.equal(await page.$('.bh-human-inbox-detail'), null);
+  await page.click('.bh-activity-list-row-open[aria-expanded="true"]');
+  await page.click('.bh-activity-list-row-actions button');
+  assert.equal(await page.$('.bh-activity-list-detail'), null);
   await page.waitForSelector('[data-folder-browser]', { visible: true, timeout: 15000 });
-  assert.equal(await page.$('.bh-human-inbox-detail'), null);
-  assert.equal(await page.$('.bh-human-inbox-row-open[aria-expanded="true"]'), null);
+  assert.equal(await page.$('.bh-activity-list-detail'), null);
+  assert.equal(await page.$('.bh-activity-list-row-open[aria-expanded="true"]'), null);
   await shot('list-action-picker-light');
   await click('[role="dialog"]:has([data-folder-browser]) button', '取消');
   await page.waitForFunction(() => !document.querySelector('[data-folder-browser]'));
-  await page.click('.bh-human-inbox-row-actions button');
+  await page.click('.bh-activity-list-row-actions button');
   await page.waitForSelector('[data-folder-browser]', { visible: true, timeout: 15000 });
   await theme(true);
   await shot('list-action-picker-dark');
@@ -424,66 +424,66 @@ try {
   await page.waitForFunction(() => !document.querySelector('[data-folder-browser]'));
   await theme(false);
   await shot('primary-action-details-light');
-  assert.equal(await page.$('.bh-human-inbox-detail'), null);
+  assert.equal(await page.$('.bh-activity-list-detail'), null);
   const sourceItem = (
     await rpc('humanAttention', { category: 'action', sort: 'oldest', limit: 50 })
   ).items.find((item) => item.id === firstId);
-  await page.click('.bh-human-inbox-source-link');
+  await page.click('.bh-activity-list-source-link');
   await page.waitForSelector('[data-message-id="' + sourceItem.messageId + '"]');
-  assert.equal(await page.$('.bh-human-inbox-detail'), null);
+  assert.equal(await page.$('.bh-activity-list-detail'), null);
   await shot('exact-source-light');
   await openInbox();
-  await click('.bh-human-inbox-tabs button', '其他未读');
-  await page.waitForSelector('.bh-human-inbox-channel-avatar');
+  await click('.bh-activity-list-tabs button', '其他未读');
+  await page.waitForSelector('.bh-activity-list-channel-avatar');
   await shot('unread-channel-avatar-light');
   await page.click(
-    '.bh-human-inbox-row:has(.bh-human-inbox-channel-avatar) .bh-human-inbox-row-open',
+    '.bh-activity-list-row:has(.bh-activity-list-channel-avatar) .bh-activity-list-row-open',
   );
-  await page.waitForSelector('.bh-human-inbox-detail .bh-human-inbox-message');
+  await page.waitForSelector('.bh-activity-list-detail .bh-activity-list-message');
   await shot('unread-context-light');
 
-  await click('.bh-human-inbox-tabs button', '需要我处理');
-  await page.waitForFunction(() => document.querySelectorAll('.bh-human-inbox-row').length === 3);
+  await click('.bh-activity-list-tabs button', '需要我处理');
+  await page.waitForFunction(() => document.querySelectorAll('.bh-activity-list-row').length === 3);
   const pending = (await rpc('humanAttention', { category: 'action', sort: 'oldest', limit: 50 }))
     .items[0];
-  await page.click('.bh-human-inbox-row-main');
-  await page.waitForSelector('.bh-human-inbox-detail .bh-human-inbox-reply-source');
+  await page.click('.bh-activity-list-row-main');
+  await page.waitForSelector('.bh-activity-list-detail .bh-activity-list-reply-source');
   assert.equal(
     await page.evaluate(
-      () => document.querySelectorAll('.bh-human-inbox-detail [data-message-id]').length,
+      () => document.querySelectorAll('.bh-activity-list-detail [data-message-id]').length,
     ),
     1,
   );
   assert.equal(
-    await page.$eval('.bh-human-inbox-message-source', (node) => getComputedStyle(node).opacity),
+    await page.$eval('.bh-activity-list-message-source', (node) => getComputedStyle(node).opacity),
     '0',
   );
-  await page.click('.bh-human-inbox-context-older');
+  await page.click('.bh-activity-list-context-older');
   await page.waitForFunction(
-    () => document.querySelectorAll('.bh-human-inbox-detail [data-message-id]').length === 3,
+    () => document.querySelectorAll('.bh-activity-list-detail [data-message-id]').length === 3,
   );
   assert.equal(
-    await page.$eval('.bh-human-inbox-detail', (node) =>
+    await page.$eval('.bh-activity-list-detail', (node) =>
       node.textContent.includes('Newer context'),
     ),
     false,
   );
-  await page.click('.bh-human-inbox-context-older');
+  await page.click('.bh-activity-list-context-older');
   await page.waitForFunction(
-    () => document.querySelectorAll('.bh-human-inbox-detail [data-message-id]').length === 5,
+    () => document.querySelectorAll('.bh-activity-list-detail [data-message-id]').length === 5,
   );
-  await page.click('.bh-human-inbox-context-newer');
+  await page.click('.bh-activity-list-context-newer');
   await page.waitForFunction(
-    () => document.querySelectorAll('.bh-human-inbox-detail [data-message-id]').length === 7,
+    () => document.querySelectorAll('.bh-activity-list-detail [data-message-id]').length === 7,
   );
-  await page.click('.bh-human-inbox-context-newer');
+  await page.click('.bh-activity-list-context-newer');
   await page.waitForFunction(
-    () => document.querySelectorAll('.bh-human-inbox-detail [data-message-id]').length === 9,
+    () => document.querySelectorAll('.bh-activity-list-detail [data-message-id]').length === 9,
   );
-  const contextGeometry = await page.$eval('.bh-human-inbox-context-window', (node) => {
-    const upper = node.querySelector('.bh-human-inbox-context-older').getBoundingClientRect(),
-      flow = node.querySelector('.bh-human-inbox-message-flow').getBoundingClientRect(),
-      lower = node.querySelector('.bh-human-inbox-context-newer').getBoundingClientRect();
+  const contextGeometry = await page.$eval('.bh-activity-list-context-window', (node) => {
+    const upper = node.querySelector('.bh-activity-list-context-older').getBoundingClientRect(),
+      flow = node.querySelector('.bh-activity-list-message-flow').getBoundingClientRect(),
+      lower = node.querySelector('.bh-activity-list-context-newer').getBoundingClientRect();
     return {
       upperGap: flow.top - upper.bottom,
       lowerGap: lower.top - flow.bottom,
@@ -497,17 +497,17 @@ try {
     Math.abs(contextGeometry.upperWidth - contextGeometry.flowWidth) < 1 &&
       Math.abs(contextGeometry.lowerWidth - contextGeometry.flowWidth) < 1,
   );
-  await page.hover('.bh-human-inbox-reply-source');
+  await page.hover('.bh-activity-list-reply-source');
   assert.equal(
     await page.$eval(
-      '.bh-human-inbox-reply-source .bh-human-inbox-message-source',
+      '.bh-activity-list-reply-source .bh-activity-list-message-source',
       (node) => getComputedStyle(node).opacity,
     ),
     '1',
   );
-  const sourceGeometry = await page.$eval('.bh-human-inbox-reply-source', (node) => {
+  const sourceGeometry = await page.$eval('.bh-activity-list-reply-source', (node) => {
     const parent = node.getBoundingClientRect(),
-      button = node.querySelector('.bh-human-inbox-message-source').getBoundingClientRect();
+      button = node.querySelector('.bh-activity-list-message-source').getBoundingClientRect();
     return { topInset: button.top - parent.top, rightInset: parent.right - button.right };
   });
   assert.ok(
@@ -519,26 +519,26 @@ try {
   await shot('detail-context-light');
   await theme(true);
   await shot('detail-context-dark');
-  await page.click('.bh-human-inbox-reply-source .bh-human-inbox-message-source');
-  await page.waitForFunction(() => !document.querySelector('.bh-human-inbox-detail'));
+  await page.click('.bh-activity-list-reply-source .bh-activity-list-message-source');
+  await page.waitForFunction(() => !document.querySelector('.bh-activity-list-detail'));
   await page.waitForSelector('[data-message-id="' + pending.messageId + '"]');
-  assert.equal(await page.$('.bh-human-inbox-detail'), null);
+  assert.equal(await page.$('.bh-activity-list-detail'), null);
   await openInbox();
   const peerContext = await browser.createBrowserContext();
   const peer = await peerContext.newPage();
   await peer.setViewport({ width: 1440, height: 900 });
   await login(peer);
   await openInbox(peer);
-  await peer.waitForFunction(() => document.querySelectorAll('.bh-human-inbox-row').length === 3);
-  await page.click('.bh-human-inbox-row-main');
-  await page.waitForSelector('.bh-human-inbox-detail .bh-human-inbox-reply-source');
-  await click('.bh-human-inbox-detail .bh-human-inbox-reply-header button', '移除');
+  await peer.waitForFunction(() => document.querySelectorAll('.bh-activity-list-row').length === 3);
+  await page.click('.bh-activity-list-row-main');
+  await page.waitForSelector('.bh-activity-list-detail .bh-activity-list-reply-source');
+  await click('.bh-activity-list-detail .bh-activity-list-reply-header button', '移除');
   await page.waitForFunction(
     () =>
-      document.querySelectorAll('.bh-human-inbox-row').length === 2 &&
-      !document.querySelector('.bh-human-inbox-detail'),
+      document.querySelectorAll('.bh-activity-list-row').length === 2 &&
+      !document.querySelector('.bh-activity-list-detail'),
   );
-  await peer.waitForFunction(() => document.querySelectorAll('.bh-human-inbox-row').length === 2);
+  await peer.waitForFunction(() => document.querySelectorAll('.bh-activity-list-row').length === 2);
   assert.ok(
     !(await rpc('humanAttention', { category: 'action', sort: 'oldest', limit: 50 })).items.some(
       (item) => item.id === pending.id,
@@ -559,7 +559,7 @@ try {
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForSelector('.bh-panel-activity');
   await openInbox();
-  await page.waitForFunction(() => document.querySelectorAll('.bh-human-inbox-row').length === 2);
+  await page.waitForFunction(() => document.querySelectorAll('.bh-activity-list-row').length === 2);
   await peerContext.close();
 
   writeFileSync(

@@ -66,15 +66,15 @@ const inbox = async () => {
       .find((button) => button.textContent?.includes('Bot 模式'))
       ?.click(),
   );
-  await page.waitForSelector('.bh-human-inbox-entry');
-  await page.click('.bh-human-inbox-entry');
+  await page.waitForSelector('.bh-activity-list-entry');
+  await page.click('.bh-activity-list-entry');
   await delay(1200);
-  await clickText('.bh-human-inbox-tabs button', '其他未读');
+  await clickText('.bh-activity-list-tabs button', '其他未读');
   await delay(1200);
 };
 const replyRow = async (name) => {
   const clicked = await page.evaluate((name) => {
-    const row = [...document.querySelectorAll('.bh-human-inbox-row')].find((row) =>
+    const row = [...document.querySelectorAll('.bh-activity-list-row')].find((row) =>
       row.textContent?.includes(name),
     );
     const button = [...(row?.querySelectorAll('button') ?? [])].find(
@@ -84,7 +84,7 @@ const replyRow = async (name) => {
     return !!button;
   }, name);
   if (!clicked) throw new Error('Missing reply row: ' + name);
-  await page.waitForSelector('.bh-human-inbox-reply-source');
+  await page.waitForSelector('.bh-activity-list-reply-source');
 };
 const capture = (name) => page.screenshot({ path: resolve(out, name + '.png') });
 const waitBot = async (channelId, excluded = []) => {
@@ -188,17 +188,17 @@ try {
     await inbox();
     await replyRow(scene.group.name);
     const sourceId = await page.$eval(
-      '.bh-human-inbox-reply-source',
+      '.bh-activity-list-reply-source',
       (node) => node.dataset.messageId,
     );
     if (sourceId !== scene.groupSource.id) throw new Error('Wrong Group source');
     const body = 'Friday launch approved. Please finish the documentation review today.';
-    await page.type('.bh-human-inbox-reply textarea', body);
-    await clickText('.bh-human-inbox-reply button', '查看附近消息');
+    await page.type('.bh-activity-list-reply textarea', body);
+    await clickText('.bh-activity-list-reply button', '查看附近消息');
     await capture('after-draft');
-    await clickText('.bh-human-inbox-reply button', '发送回复');
+    await clickText('.bh-activity-list-reply button', '发送回复');
     await page.waitForFunction(() =>
-      document.querySelector('.bh-human-inbox-reply')?.textContent?.includes('回复已发送'),
+      document.querySelector('.bh-activity-list-reply')?.textContent?.includes('回复已发送'),
     );
     await capture('after-sent');
     const matches = (await rpc('channelMessages', { channelId: scene.group.id })).messages.filter(
@@ -210,23 +210,23 @@ try {
       matches[0].author.kind !== 'human'
     )
       throw new Error('Noncanonical Group reply');
-    await clickText('.bh-human-inbox-reply button', '查看来源');
+    await clickText('.bh-activity-list-reply button', '查看来源');
     await page.waitForFunction(
       (id) => !!document.querySelector('[data-message-id="' + id + '"]'),
       {},
       matches[0].id,
     );
     await capture('after-source');
-    await page.click('.bh-human-inbox-entry');
+    await page.click('.bh-activity-list-entry');
     await delay(1300);
-    await clickText('.bh-human-inbox-tabs button', '其他未读');
+    await clickText('.bh-activity-list-tabs button', '其他未读');
     await delay(1000);
     await replyRow(scene.bot.displayName);
     const dmBody = 'Checklist reviewed. Thank you.';
-    await page.type('.bh-human-inbox-reply textarea', dmBody);
-    await clickText('.bh-human-inbox-reply button', '发送回复');
+    await page.type('.bh-activity-list-reply textarea', dmBody);
+    await clickText('.bh-activity-list-reply button', '发送回复');
     await page.waitForFunction(() =>
-      document.querySelector('.bh-human-inbox-reply')?.textContent?.includes('回复已发送'),
+      document.querySelector('.bh-activity-list-reply')?.textContent?.includes('回复已发送'),
     );
     const dmMatches = (await rpc('channelMessages', { channelId: scene.dm.id })).messages.filter(
       (message) => message.body === dmBody,
@@ -267,7 +267,7 @@ try {
     await inbox();
     await replyRow(scene.bot.displayName);
     await page.type(
-      '.bh-human-inbox-reply textarea',
+      '.bh-activity-list-reply textarea',
       'Ready for Human QA: review this reply in the Inbox or open its source.',
     );
     await page.evaluate(() => document.body.removeAttribute('data-ds-dark-theme'));
@@ -277,8 +277,8 @@ try {
       await page.evaluate(() => {
         const controls = [...document.querySelectorAll('button')];
         const native = controls.find((button) => button.textContent?.includes('新会话'));
-        const custom = document.querySelector('.bh-human-inbox-reply button');
-        const pane = document.querySelector('.bh-human-inbox-reply');
+        const custom = document.querySelector('.bh-activity-list-reply button');
+        const pane = document.querySelector('.bh-activity-list-reply');
         return {
           native: native && {
             height: native.getBoundingClientRect().height,
@@ -316,25 +316,25 @@ try {
     await inbox();
     await replyRow(channel.name);
     const draft = 'Keep this draft if the Channel disappears.';
-    await page.type('.bh-human-inbox-reply textarea', draft);
+    await page.type('.bh-activity-list-reply textarea', draft);
     await rpc('channelGroupDelete', { channelId: channel.id });
-    await clickText('.bh-human-inbox-reply button', '发送回复');
+    await clickText('.bh-activity-list-reply button', '发送回复');
     await page.waitForFunction(() =>
       document
-        .querySelector('.bh-human-inbox-reply [role="alert"]')
+        .querySelector('.bh-activity-list-reply [role="alert"]')
         ?.textContent?.includes('草稿已保留'),
     );
-    if ((await page.$eval('.bh-human-inbox-reply textarea', (node) => node.value)) !== draft)
+    if ((await page.$eval('.bh-activity-list-reply textarea', (node) => node.value)) !== draft)
       throw new Error('Lost draft');
     await capture('after-error');
     console.log('E2E VERIFIED: deleted source rejects reply and preserves draft');
-    await clickText('.bh-human-inbox-reply button', '查看来源');
+    await clickText('.bh-activity-list-reply button', '查看来源');
     await page.waitForFunction(() =>
       document
-        .querySelector('.bh-human-inbox-reply [role="alert"]')
+        .querySelector('.bh-activity-list-reply [role="alert"]')
         ?.textContent?.includes('来源已不可用'),
     );
-    if ((await page.$eval('.bh-human-inbox-reply textarea', (node) => node.value)) !== draft)
+    if ((await page.$eval('.bh-activity-list-reply textarea', (node) => node.value)) !== draft)
       throw new Error('Failed navigation lost draft');
     await capture('after-navigation-error');
     console.log('E2E VERIFIED: failed exact navigation remains in Inbox with draft');

@@ -3,7 +3,7 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
-  ...(await import('./human-inbox-test-controls.js')),
+  ...(await import('./activity-list-test-controls.js')),
   Button: ({ children, ...props }: { children: ReactNode }) =>
     createElement('button', props, children),
   MarkdownText: () => null,
@@ -16,8 +16,8 @@ vi.mock('../src/client/bot-sidebar.js', async () => {
   return { useClientState: () => useSyncExternalStore(store.subscribe, store.getSnapshot) };
 });
 import { createActions, type BridgeActions } from '../src/client/actions.js';
-import { HumanInboxView } from '../src/client/human-inbox-view.js';
-import { HumanInboxReply } from '../src/client/human-inbox-reply.js';
+import { ActivityListView } from '../src/client/activity-list-view.js';
+import { ActivityListReply } from '../src/client/activity-list-reply.js';
 import { zhTranslate } from '../src/client/locale.js';
 import type { BridgeCall } from '../src/client/bridge.js';
 import { store } from '../src/client/store.js';
@@ -109,7 +109,7 @@ describe('Handled action navigation', () => {
       try {
         await act(async () =>
           root.render(
-            createElement(HumanInboxReply, {
+            createElement(ActivityListReply, {
               source,
               actions: createActions(call, store),
               t: zhTranslate,
@@ -135,7 +135,7 @@ describe('Handled action navigation', () => {
         await act(async () => root.unmount());
         container.remove();
         store.select(previous.selection);
-        store.setHumanInbox(previous.humanInbox);
+        store.setActivityList(previous.activityList);
       }
     },
   );
@@ -169,7 +169,7 @@ describe('Handled action navigation', () => {
         openAround,
         openSession,
         openChannelAtMessage,
-        refreshHumanInbox: async () => undefined,
+        refreshActivityList: async () => undefined,
       } as unknown as BridgeActions;
       const container = document.createElement('div');
       document.body.append(container);
@@ -186,8 +186,8 @@ describe('Handled action navigation', () => {
       try {
         await act(async () => {
           store.select({ kind: 'inbox' });
-          store.setHumanInbox({ category: 'handled', status: 'ready', items: [source] });
-          root.render(createElement(HumanInboxView, { actions }));
+          store.setActivityList({ category: 'handled', status: 'ready', items: [source] });
+          root.render(createElement(ActivityListView, { actions }));
         });
         await click(kind === 'assignment' ? '查看 Session' : '查看来源');
         expect(openBot).toHaveBeenCalledWith('ada');
@@ -202,7 +202,7 @@ describe('Handled action navigation', () => {
         await act(async () => root.unmount());
         container.remove();
         store.select(previous.selection);
-        store.setHumanInbox(previous.humanInbox);
+        store.setActivityList(previous.activityList);
       }
     },
   );

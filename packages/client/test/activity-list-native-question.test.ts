@@ -9,7 +9,7 @@ vi.mock('../src/client/bot-sidebar.js', async () => {
   return { useClientState: () => useSyncExternalStore(store.subscribe, store.getSnapshot) };
 });
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
-  ...(await import('./human-inbox-test-controls.js')),
+  ...(await import('./activity-list-test-controls.js')),
   Button: ({ children, ...props }: { children: ReactNode }) =>
     createElement('button', props, children),
   MarkdownText: () => null,
@@ -20,7 +20,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
 
 import { createActions } from '../src/client/actions.js';
 import type { BridgeCall } from '../src/client/bridge.js';
-import { HumanInboxView } from '../src/client/human-inbox-view.js';
+import { ActivityListView } from '../src/client/activity-list-view.js';
 import { createStore, store, type HumanAttentionItem } from '../src/client/store.js';
 
 const item = (slug: string, minute: string): HumanAttentionItem => ({
@@ -119,7 +119,7 @@ describe('Human Inbox native question', () => {
       };
       const actions = createActions(call, store);
       store.select({ kind: 'inbox' });
-      store.setHumanInbox({
+      store.setActivityList({
         category: 'action',
         sort: 'oldest',
         status: 'ready',
@@ -133,10 +133,10 @@ describe('Human Inbox native question', () => {
           (b) => b.textContent === text,
         );
       try {
-        await act(async () => root.render(createElement(HumanInboxView, { actions })));
+        await act(async () => root.render(createElement(ActivityListView, { actions })));
         expect(button('回答问题')).toBeDefined();
         await act(async () => button('回答问题')!.click());
-        expect(container.querySelector('.bh-human-inbox-detail')).not.toBeNull();
+        expect(container.querySelector('.bh-activity-list-detail')).not.toBeNull();
         expect(container.querySelector('[role="dialog"]')).toBeNull();
         expect(container.querySelector('.bh-question-prompt')?.textContent).toBe(
           'Which launch channel?',
@@ -145,15 +145,15 @@ describe('Human Inbox native question', () => {
         expect(container.querySelector('input[aria-label="其他回答"]')).not.toBeNull();
         expect(container.querySelector('.bh-question-source')).toBeNull();
         expect(container.querySelector('textarea')).toBeNull();
-        expect(container.querySelector('.bh-human-inbox-reply h2')?.textContent).toBe(
+        expect(container.querySelector('.bh-activity-list-reply h2')?.textContent).toBe(
           '回答问题 · ada',
         );
         expect(container.textContent).not.toContain('The separate check is queued.');
         await act(async () =>
-          container.querySelector<HTMLButtonElement>('.bh-human-inbox-context-older')!.click(),
+          container.querySelector<HTMLButtonElement>('.bh-activity-list-context-older')!.click(),
         );
         await act(async () =>
-          container.querySelector<HTMLButtonElement>('.bh-human-inbox-context-newer')!.click(),
+          container.querySelector<HTMLButtonElement>('.bh-activity-list-context-newer')!.click(),
         );
         expect(container.textContent).toContain('Please check the release.');
         expect(container.textContent).toContain('The separate check is queued.');
@@ -187,7 +187,7 @@ describe('Human Inbox native question', () => {
           },
         ]);
         expect(store.getSnapshot().selection).toEqual({ kind: 'inbox' });
-        expect(store.getSnapshot().humanInbox.items.map((i) => i.botSlug)).toEqual(['bea']);
+        expect(store.getSnapshot().activityList.items.map((i) => i.botSlug)).toEqual(['bea']);
         expect(container.querySelector('[data-attention-id="question:ada"]')).toBeNull();
         expect(button('回答并继续')).toBeUndefined();
         expect(calls.some((c) => c.endpoint === 'channelSend')).toBe(false);
@@ -195,7 +195,7 @@ describe('Human Inbox native question', () => {
         await act(async () => root.unmount());
         container.remove();
         store.select(previous.selection);
-        store.setHumanInbox(previous.humanInbox);
+        store.setActivityList(previous.activityList);
       }
     },
   );
@@ -206,7 +206,7 @@ it('removes a settled question from an older retained Inbox page', async () => {
   const older = Array.from({ length: 51 }, (_, index) => item('bot' + index, '01'));
   const target = older[50]!;
   client.select({ kind: 'inbox' });
-  client.setHumanInbox({
+  client.setActivityList({
     category: 'action',
     status: 'ready',
     items: older,
@@ -221,7 +221,7 @@ it('removes a settled question from an older retained Inbox page', async () => {
   await createActions(call, client).answerUserQuestion(target.channelId!, target.messageId!, [
     { id: 'release-route', selected: ['Canary'] },
   ]);
-  expect(client.getSnapshot().humanInbox.items.map((i) => i.id)).toEqual(
+  expect(client.getSnapshot().activityList.items.map((i) => i.id)).toEqual(
     older.slice(0, 50).map((i) => i.id),
   );
 });

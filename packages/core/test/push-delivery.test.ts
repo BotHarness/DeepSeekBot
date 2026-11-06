@@ -20,7 +20,7 @@ import {
 } from '../src/push/delivery.js';
 import { createExpoSender } from '../src/push/expo-sender.js';
 import { createDevicePushHttp } from '../src/push/http.js';
-import { humanInboxPushSource } from '../src/push/source.js';
+import { activityListPushSource } from '../src/push/source.js';
 import type { HumanAttentionItem } from '../src/runtime/human-attention.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
@@ -626,7 +626,7 @@ describe('Human Inbox push source', () => {
       summary: '请求批准执行 bash',
       ...over,
     });
-    const source = humanInboxPushSource(
+    const source = activityListPushSource(
       {
         list: ({ category }) => ({
           items:
@@ -703,7 +703,7 @@ describe('Human Inbox push source', () => {
   });
 
   it('offers Always allow from the notification only when the Host offers it', () => {
-    const source = humanInboxPushSource(
+    const source = activityListPushSource(
       {
         list: ({ category }) => ({
           items:
@@ -733,7 +733,7 @@ describe('Human Inbox push source', () => {
 
   it('notifies a folder request as an approval that opens the app, with its reason', () => {
     const lookup = vi.fn(() => ({ toolName: 'bash', input: '{}', allowAlways: true }));
-    const source = humanInboxPushSource(
+    const source = activityListPushSource(
       {
         list: ({ category }) => ({
           items:
@@ -783,7 +783,7 @@ describe('Human Inbox push source', () => {
       summary,
       channelId: 'dm-ada',
     });
-    const source = humanInboxPushSource(
+    const source = activityListPushSource(
       {
         list: ({ category }) => ({
           items:

@@ -3,16 +3,16 @@ import { describe, expect, it } from 'vitest';
 import { formatTabTitle, mountTabTitle } from '../src/client/tab-title.js';
 
 function source(initial: { unreadCount: number; hasAction: boolean }) {
-  let humanInbox = initial;
+  let activityList = initial;
   const listeners = new Set<() => void>();
   return {
-    getSnapshot: () => ({ humanInbox }),
+    getSnapshot: () => ({ activityList }),
     subscribe(listener: () => void) {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
     set(next: { unreadCount: number; hasAction: boolean }) {
-      humanInbox = next;
+      activityList = next;
       for (const listener of listeners) listener();
     },
     listeners,

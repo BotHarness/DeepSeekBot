@@ -69,14 +69,14 @@ function render(overrides: Partial<BotModeSidebarProps> = {}) {
     toggleSidebar: vi.fn(),
     openBotSettings: vi.fn(),
     openActivityCenter: vi.fn(async () => undefined),
-    refreshHumanInboxStatus: vi.fn(async () => undefined),
+    refreshActivityListStatus: vi.fn(async () => undefined),
   };
   const props: BotModeSidebarProps = {
     collapsed: false,
     width: 280,
     actions: {
       openActivityCenter: calls.openActivityCenter,
-      refreshHumanInboxStatus: calls.refreshHumanInboxStatus,
+      refreshActivityListStatus: calls.refreshActivityListStatus,
     } as never,
     useBotModePrefs,
     setSortMode: () => undefined,
@@ -103,7 +103,7 @@ describe('Bot mode sidebar', () => {
   it('skips conversation-only updates while keeping inbox badges and navigation live', () => {
     const before = store.getSnapshot();
     try {
-      act(() => store.setHumanInbox({ unreadCount: 0, hasAction: false }));
+      act(() => store.setActivityList({ unreadCount: 0, hasAction: false }));
       const { container: node } = render();
       const initialRenders = rosterProbe.renders;
       for (let draftRevision = 1; draftRevision <= 60; draftRevision += 1)
@@ -112,7 +112,7 @@ describe('Bot mode sidebar', () => {
       act(() => store.setQuery('Ada'));
       expect(node.querySelector('[data-roster]')?.getAttribute('data-roster-query')).toBe('Ada');
       expect(rosterProbe.renders).toBe(initialRenders + 1);
-      act(() => store.setHumanInbox({ unreadCount: 3, hasAction: true }));
+      act(() => store.setActivityList({ unreadCount: 3, hasAction: true }));
       expect(rosterProbe.renders).toBe(initialRenders + 2);
       expect(node.querySelector('[data-bh-tour="inbox"]')?.getAttribute('aria-label')).toContain(
         '3',
@@ -133,7 +133,7 @@ describe('Bot mode sidebar', () => {
         store.select(before.selection);
         store.setQuery(before.query);
         store.setConversation(before.conversation);
-        store.setHumanInbox(before.humanInbox);
+        store.setActivityList(before.activityList);
       });
     }
   });
@@ -141,7 +141,7 @@ describe('Bot mode sidebar', () => {
   it('leads out of Bot mode and drives the DSH column from its own controls', () => {
     const { calls, button, container: node } = render();
 
-    expect(calls.refreshHumanInboxStatus).toHaveBeenCalledTimes(1);
+    expect(calls.refreshActivityListStatus).toHaveBeenCalledTimes(1);
     expect(node.querySelector('[data-roster]')?.getAttribute('data-roster')).toBe('wide');
     expect(node.textContent).toContain('Tobs');
     expect(node.textContent).not.toContain('Bot mode');
@@ -158,7 +158,7 @@ describe('Bot mode sidebar', () => {
     act(() => button('Exit Bot mode').click());
     act(() => button('Collapse sidebar').click());
     act(() => button('Bot settings').click());
-    act(() => button('Activity Center').click());
+    act(() => button('Activity').click());
 
     expect(calls.exitBotMode).toHaveBeenCalledTimes(1);
     expect(calls.toggleSidebar).toHaveBeenCalledTimes(1);
@@ -180,14 +180,14 @@ describe('Bot mode sidebar', () => {
     const dockPanels = createDockPanelRegistry();
     dockPanels.register({
       id: 'activity-center',
-      title: 'Activity Center',
+      title: 'Activity',
       icon: 'bell',
       scope: 'global',
       order: -100,
       component: () => null,
     });
     dockPanels.register({ id: 'todo', title: 'To-do', scope: 'global', component: () => null });
-    act(() => store.setHumanInbox({ unreadCount: 3, hasAction: true }));
+    act(() => store.setActivityList({ unreadCount: 3, hasAction: true }));
     const { calls, container: node } = render({ dockPanels });
     const card = (id: string): HTMLButtonElement =>
       node.querySelector<HTMLButtonElement>(`[data-pinned-panel="${id}"]`)!;
@@ -200,7 +200,7 @@ describe('Bot mode sidebar', () => {
     ).toEqual(['activity-center', 'todo']);
     expect(card('activity-center').getAttribute('data-bh-tour')).toBe('inbox');
     expect(card('activity-center').getAttribute('aria-label')).toBe(
-      'Activity Center · 3 unread · Needs my action',
+      'Activity · 3 unread · Needs my action',
     );
     expect(card('activity-center').querySelector('[data-pinned-panel-count]')?.textContent).toBe(
       '3',
@@ -235,24 +235,24 @@ describe('Bot mode sidebar', () => {
     expect(card('todo').getAttribute('data-open')).toBe('true');
     expect(calls.openActivityCenter).toHaveBeenCalledTimes(1);
     act(() => detach());
-    act(() => store.setHumanInbox({ unreadCount: 0, hasAction: false }));
+    act(() => store.setActivityList({ unreadCount: 0, hasAction: false }));
   });
 
   it('stacks the pinned cards as icons on the collapsed rail', () => {
     const dockPanels = createDockPanelRegistry();
     dockPanels.register({
       id: 'activity-center',
-      title: 'Activity Center',
+      title: 'Activity',
       icon: 'bell',
       scope: 'global',
       component: () => null,
     });
-    act(() => store.setHumanInbox({ unreadCount: 2, hasAction: false }));
+    act(() => store.setActivityList({ unreadCount: 2, hasAction: false }));
     const { container: node } = render({ dockPanels, collapsed: true, width: 56 });
     const card = node.querySelector('[data-pinned-panel="activity-center"]')!;
     expect(card.querySelector('[data-pinned-panel-count]')).toBeNull();
     expect(card.querySelector('[data-pinned-panel-dot]')).not.toBeNull();
-    act(() => store.setHumanInbox({ unreadCount: 0, hasAction: false }));
+    act(() => store.setActivityList({ unreadCount: 0, hasAction: false }));
   });
 });
 
@@ -271,13 +271,13 @@ it('updates the entry badge from the shared live stream and releases it on unmou
     const { calls } = render();
     handlers.baseline([]);
     await vi.advanceTimersByTimeAsync(30);
-    const count = calls.refreshHumanInboxStatus.mock.calls.length;
+    const count = calls.refreshActivityListStatus.mock.calls.length;
     await vi.advanceTimersByTimeAsync(60_000);
-    expect(calls.refreshHumanInboxStatus).toHaveBeenCalledTimes(count);
+    expect(calls.refreshActivityListStatus).toHaveBeenCalledTimes(count);
     handlers.attention?.();
     handlers.attention?.();
     await vi.advanceTimersByTimeAsync(30);
-    expect(calls.refreshHumanInboxStatus).toHaveBeenCalledTimes(count + 1);
+    expect(calls.refreshActivityListStatus).toHaveBeenCalledTimes(count + 1);
     act(() => root?.unmount());
     root = undefined;
     expect(stop).toHaveBeenCalledTimes(1);

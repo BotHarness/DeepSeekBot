@@ -120,8 +120,8 @@ import type {
   BotAttentionStatus,
   HumanAttentionItem,
   HumanAttentionPage,
-  HumanInboxCategory,
-  HumanInboxFilters,
+  ActivityListCategory,
+  ActivityListFilters,
   BotBannerView,
   BotSummary,
   ChannelAuthor,
@@ -4887,10 +4887,10 @@ export function parseHumanAttentionPage(value: unknown): HumanAttentionPage {
 
 export async function loadHumanAttention(
   call: BridgeCall,
-  category: HumanInboxCategory,
+  category: ActivityListCategory,
   limit = 50,
   cursor?: string,
-  filters: HumanInboxFilters & { search?: string; mentionsFirst?: boolean } = {
+  filters: ActivityListFilters & { search?: string; mentionsFirst?: boolean } = {
     botSlug: undefined,
     channelId: undefined,
     sort: 'newest',
@@ -4963,7 +4963,7 @@ export async function loadChannelUnreadCounts(call: BridgeCall): Promise<Record<
   return counts;
 }
 
-export async function dismissHumanInboxItem(
+export async function dismissActivityListItem(
   call: BridgeCall,
   itemId: string,
   sourceKey: string,
@@ -4972,7 +4972,7 @@ export async function dismissHumanInboxItem(
   if (value?.['accepted'] !== true) throw new Error('Inbox dismissal was not confirmed');
 }
 
-export async function dismissAllHumanInboxItems(
+export async function dismissAllActivityListItems(
   call: BridgeCall,
   filter: {
     kind?: HumanAttentionItem['kind'] | undefined;
@@ -4999,7 +4999,7 @@ export async function overrideAutoRejection(call: BridgeCall, itemId: string): P
   if (value?.['accepted'] !== true) throw new Error('Auto-rejection override was not confirmed');
 }
 
-export async function snoozeHumanInboxItem(
+export async function snoozeActivityListItem(
   call: BridgeCall,
   itemId: string,
   sourceKey: string,

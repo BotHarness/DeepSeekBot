@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
-  ...(await import('./human-inbox-test-controls.js')),
+  ...(await import('./activity-list-test-controls.js')),
   Button: ({ children, ...props }: ComponentProps<'button'>) =>
     createElement('button', props, children),
   MarkdownText: () => null,
@@ -14,7 +14,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
 }));
 
 import { createActions } from '../src/client/actions.js';
-import { HumanInboxView, type HumanInboxSource } from '../src/client/human-inbox-view.js';
+import { ActivityListView, type ActivityListSource } from '../src/client/activity-list-view.js';
 import { en, zhTranslate, type BotHarnessTranslate } from '../src/client/locale.js';
 import { store, type HumanAttentionItem } from '../src/client/store.js';
 import { CSS } from '../src/client/styles.js';
@@ -32,7 +32,7 @@ afterAll(async () => {
 }, 30_000);
 
 const actions = createActions(async () => ({ ok: true, value: { items: [] } }), store);
-const source: HumanInboxSource = {
+const source: ActivityListSource = {
   commands: actions,
   detail: () => createElement('div'),
   botName: () => 'Remote Bot',
@@ -71,14 +71,14 @@ describe.each([
         isUnread: true,
       };
       const markup = renderToStaticMarkup(
-        createElement(HumanInboxView, {
+        createElement(ActivityListView, {
           ...(owner === 'local' ? { actions } : { hostSource: source }),
           inboxOverride: {
-            ...store.getSnapshot().humanInbox,
+            ...store.getSnapshot().activityList,
             status: 'ready',
             category: 'replies',
             items: [item],
-            error: t('humanInbox.failed'),
+            error: t('activityList.failed'),
           },
           t,
         }),
@@ -91,16 +91,16 @@ describe.each([
           button { font: inherit; white-space: nowrap; padding: ${space.x2} ${space.x3}; }
         </style><div class="bh-activity-triage bh-activity-center-panel" style="width:${width}px"><div class="bh-activity-sections">${markup}</div></div>`);
         const measured = await page.evaluate(() => {
-          const row = document.querySelector<HTMLElement>('.bh-human-inbox-row')!;
+          const row = document.querySelector<HTMLElement>('.bh-activity-list-row')!;
           const main = row
-            .querySelector<HTMLElement>('.bh-human-inbox-row-main')!
+            .querySelector<HTMLElement>('.bh-activity-list-row-main')!
             .getBoundingClientRect();
           const area = row
-            .querySelector<HTMLElement>('.bh-human-inbox-row-actions')!
+            .querySelector<HTMLElement>('.bh-activity-list-row-actions')!
             .getBoundingClientRect();
           const bounds = row.getBoundingClientRect();
           const buttons = [
-            ...row.querySelectorAll<HTMLElement>('.bh-human-inbox-row-actions button'),
+            ...row.querySelectorAll<HTMLElement>('.bh-activity-list-row-actions button'),
           ];
           return {
             summaryWidth: main.width,
@@ -148,13 +148,13 @@ describe.each([
         );
         await page.evaluate((markup: string) => {
           const detail = document.createElement('div');
-          detail.className = 'bh-human-inbox-detail';
+          detail.className = 'bh-activity-list-detail';
           detail.innerHTML = markup;
-          document.querySelector('.bh-human-inbox-row')!.append(detail);
+          document.querySelector('.bh-activity-list-row')!.append(detail);
         }, card);
         const detail = await page.evaluate(() => {
-          const row = document.querySelector<HTMLElement>('.bh-human-inbox-row')!;
-          const box = row.querySelector('.bh-human-inbox-detail')!.getBoundingClientRect();
+          const row = document.querySelector<HTMLElement>('.bh-activity-list-row')!;
+          const box = row.querySelector('.bh-activity-list-detail')!.getBoundingClientRect();
           const bounds = row.getBoundingClientRect();
           const style = getComputedStyle(row);
           return {
@@ -163,7 +163,7 @@ describe.each([
               bounds.width - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
             below:
               box.top >=
-              row.querySelector('.bh-human-inbox-row-actions')!.getBoundingClientRect().bottom,
+              row.querySelector('.bh-activity-list-row-actions')!.getBoundingClientRect().bottom,
           };
         });
         expect(detail.width).toBeCloseTo(detail.available, 0);

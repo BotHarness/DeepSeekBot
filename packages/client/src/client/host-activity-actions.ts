@@ -20,7 +20,7 @@ import {
   markReadPosition,
   type BridgeCall,
 } from './bridge.js';
-import type { HumanInboxCommands } from './human-inbox-view.js';
+import type { ActivityListCommands } from './activity-list-view.js';
 import type { ChannelMessage, HumanAttentionItem } from './store.js';
 
 export type HostRequestActions = Pick<
@@ -33,7 +33,7 @@ export type HostRequestActions = Pick<
   | 'answerUserQuestion'
 >;
 
-export interface HostActivityActions extends HumanInboxCommands, HostRequestActions {
+export interface HostActivityActions extends ActivityListCommands, HostRequestActions {
   message(item: HumanAttentionItem, signal?: AbortSignal): Promise<ChannelMessage>;
 }
 
@@ -121,14 +121,14 @@ export function createHostActivityActions(options: {
   const requests = createHostRequestActions({ ...options, ref });
   return {
     ...requests,
-    refreshHumanInbox: options.refresh,
+    refreshActivityList: options.refresh,
     openChannelAtMessage: (channelId) => options.open(channelId),
     async decideGroupJoin(channelId, requestId, accept) {
       await changed(() => decideJoinRequest(options.client(), channelId, requestId, accept));
       return true;
     },
-    dismissHumanInbox: (item) => changed(() => clearAttentionItem(options.client(), item)),
-    snoozeHumanInbox: (item, until) =>
+    dismissActivityList: (item) => changed(() => clearAttentionItem(options.client(), item)),
+    snoozeActivityList: (item, until) =>
       changed(() =>
         snoozeAttentionItem(options.client(), item, until === null ? null : new Date(until)),
       ),

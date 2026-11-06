@@ -117,7 +117,7 @@ try {
   await page.setViewport({ width: 1440, height: 1000 });
   await page.waitForSelector('.bh-activity-center:not(.bh-activity-center-panel)');
   await clickCard(scenes[0], '查看上下文');
-  await page.waitForSelector(card(scenes[0]) + ' .bh-human-inbox-reply');
+  await page.waitForSelector(card(scenes[0]) + ' .bh-activity-list-reply');
   assert.equal(
     await page.$$eval(card(scenes[0]) + ' .bh-tool-approval-card', (nodes) => nodes.length),
     1,

@@ -4,10 +4,10 @@ import { useRef, useState, type ReactElement } from 'react';
 import type { BridgeActions } from './actions.js';
 import type { TimelinePage } from './bridge.js';
 import {
-  HumanInboxDismiss,
-  HumanInboxContextEdge,
-  HumanInboxMessageSource,
-} from './human-inbox-detail-controls.js';
+  ActivityListDismiss,
+  ActivityListContextEdge,
+  ActivityListMessageSource,
+} from './activity-list-detail-controls.js';
 import { ChannelMessageBody } from './channel-message-body.js';
 import { PersonaBotAvatar } from './avatar.js';
 import { channelHumanName, currentMentionLabel, humanLabel } from './actor-names.js';
@@ -18,7 +18,7 @@ import { toolApprovalReplyPreview } from './approval-text.js';
 import { useMountedResource } from './mounted-resource.js';
 import type { BotSummary, ChannelAuthor, ChannelMessage, HumanAttentionItem } from './store.js';
 
-export function HumanInboxReply({
+export function ActivityListReply({
   source,
   actions,
   t,
@@ -43,12 +43,12 @@ export function HumanInboxReply({
   const isNativeAction = isApproval || isQuestion || isGrant;
   const title = t(
     isApproval
-      ? 'humanInbox.approval.title'
+      ? 'activityList.approval.title'
       : isQuestion
-        ? 'humanInbox.question.title'
+        ? 'activityList.question.title'
         : isGrant
-          ? 'humanInbox.grant.title'
-          : 'humanInbox.reply.title',
+          ? 'activityList.grant.title'
+          : 'activityList.reply.title',
     { channel: isNativeAction ? botName(source.botSlug) : (source.channelName ?? '') },
   );
   const channelId = source.channelId!;
@@ -78,7 +78,7 @@ export function HumanInboxReply({
     setContext(undefined);
     setContextError(false);
     try {
-      const initial = await actions.humanInboxContextPage(
+      const initial = await actions.activityListContextPage(
         channelId,
         { direction: 'around', around: messageId, olderLimit: 2, newerLimit: 2 },
         controller.signal,
@@ -88,7 +88,7 @@ export function HumanInboxReply({
       const responses =
         responseId === undefined
           ? []
-          : await actions.humanInboxContext(channelId, responseId, controller.signal);
+          : await actions.activityListContext(channelId, responseId, controller.signal);
       const answer = responses.find(
         (message) =>
           message.id === responseId &&
@@ -147,7 +147,7 @@ export function HumanInboxReply({
     if (attempt.current?.body !== body)
       attempt.current = { body, id: 'human-' + crypto.randomUUID() };
     try {
-      const reply = await actions.replyFromHumanInbox(
+      const reply = await actions.replyFromActivityList(
         channelId,
         messageId,
         body,
@@ -155,7 +155,7 @@ export function HumanInboxReply({
       );
       setSent(reply);
       setDraft('');
-      void actions.refreshHumanInbox().catch(() => undefined);
+      void actions.refreshActivityList().catch(() => undefined);
     } catch {
       setSendError(true);
     } finally {
@@ -170,7 +170,7 @@ export function HumanInboxReply({
         ? value.source
         : value.kind === 'human'
           ? humanLabel(channelHumanName({ humanMembers: [...humanMembers] }), t)
-          : t('humanInbox.reply.system');
+          : t('activityList.reply.system');
   const author = (message: ChannelMessage): string => authorName(message.author);
   const target = context?.find((message) => message.id === messageId);
   const targetIndex = context?.findIndex((message) => message.id === messageId) ?? -1;
@@ -196,7 +196,7 @@ export function HumanInboxReply({
     const controller = new AbortController();
     loading.current = controller;
     try {
-      const next = await actions.humanInboxContextPage(
+      const next = await actions.activityListContextPage(
         channelId,
         cursor === null
           ? { direction: 'around', around: context.at(-1)!.id, olderLimit: 0, newerLimit: 10 }
@@ -230,15 +230,15 @@ export function HumanInboxReply({
   };
 
   return (
-    <section className="bh-human-inbox-reply" ref={mount} aria-label={title}>
-      <div className="bh-human-inbox-reply-header">
+    <section className="bh-activity-list-reply" ref={mount} aria-label={title}>
+      <div className="bh-activity-list-reply-header">
         <h2>{title}</h2>
         {contextOnly ? (
           <Button size="sm" onClick={onClose}>
             {t('common.close')}
           </Button>
         ) : (
-          <HumanInboxDismiss
+          <ActivityListDismiss
             source={source}
             actions={actions}
             t={t}
@@ -249,35 +249,35 @@ export function HumanInboxReply({
       </div>
       {target === undefined ? (
         <p role={contextError ? 'alert' : 'status'}>
-          {t(contextError ? 'humanInbox.reply.unavailable' : 'humanInbox.loading')}
+          {t(contextError ? 'activityList.reply.unavailable' : 'activityList.loading')}
           {contextError ? (
             <Button size="sm" type="button" onClick={() => void reload()}>
-              {t('humanInbox.context.retry')}
+              {t('activityList.context.retry')}
             </Button>
           ) : null}
         </p>
       ) : (
         <div>
-          <div className="bh-human-inbox-context-window">
-            <HumanInboxContextEdge
+          <div className="bh-activity-list-context-window">
+            <ActivityListContextEdge
               direction="older"
               disabled={!hasOlder}
               busy={edgeBusy !== undefined}
               onClick={() => void expand('older')}
               t={t}
             />
-            <div ref={visibleSource} className="bh-human-inbox-message-flow">
+            <div ref={visibleSource} className="bh-activity-list-message-flow">
               {visibleMessages.map((message) => (
                 <article
                   key={message.id}
                   data-message-id={message.id}
                   className={
-                    'bh-human-inbox-message' +
-                    (message.id === messageId ? ' bh-human-inbox-reply-source' : '')
+                    'bh-activity-list-message' +
+                    (message.id === messageId ? ' bh-activity-list-reply-source' : '')
                   }
                 >
-                  <HumanInboxMessageSource
-                    label={t('humanInbox.open')}
+                  <ActivityListMessageSource
+                    label={t('activityList.open')}
                     onClick={() => openSource(message.id)}
                   />
                   {message.author.kind === 'bot' ? (
@@ -307,17 +307,17 @@ export function HumanInboxReply({
                       t={t}
                     />
                   ) : (
-                    <span className="bh-human-inbox-human-avatar" aria-hidden="true">
+                    <span className="bh-activity-list-human-avatar" aria-hidden="true">
                       {author(message).slice(0, 1)}
                     </span>
                   )}
-                  <div className="bh-human-inbox-message-content">
-                    <div className="bh-human-inbox-message-heading">
+                  <div className="bh-activity-list-message-content">
+                    <div className="bh-activity-list-message-heading">
                       <strong>{author(message)}</strong>
                       <time dateTime={message.at}>{new Date(message.at).toLocaleString()}</time>
                     </div>
                     {message.id === messageId ? (
-                      <span className="bh-human-inbox-message-target">
+                      <span className="bh-activity-list-message-target">
                         {t(
                           isApproval
                             ? 'approval.requestTitle'
@@ -325,7 +325,7 @@ export function HumanInboxReply({
                               ? 'question.title'
                               : isGrant
                                 ? 'grant.requestTitle'
-                                : 'humanInbox.reply.target',
+                                : 'activityList.reply.target',
                         )}
                       </span>
                     ) : null}
@@ -396,16 +396,16 @@ export function HumanInboxReply({
               ))}
               {response === undefined ||
               visibleMessages.some((message) => message.id === response.id) ? null : (
-                <article data-message-id={response.id} className="bh-human-inbox-message">
-                  <HumanInboxMessageSource
-                    label={t('humanInbox.handled.response')}
+                <article data-message-id={response.id} className="bh-activity-list-message">
+                  <ActivityListMessageSource
+                    label={t('activityList.handled.response')}
                     onClick={() => openSource(response.id)}
                   />
-                  <span className="bh-human-inbox-human-avatar" aria-hidden="true">
+                  <span className="bh-activity-list-human-avatar" aria-hidden="true">
                     {author(response).slice(0, 1)}
                   </span>
-                  <div className="bh-human-inbox-message-content">
-                    <div className="bh-human-inbox-message-heading">
+                  <div className="bh-activity-list-message-content">
+                    <div className="bh-activity-list-message-heading">
                       <strong>{author(response)}</strong>
                       <time dateTime={response.at}>{new Date(response.at).toLocaleString()}</time>
                     </div>
@@ -414,7 +414,7 @@ export function HumanInboxReply({
                 </article>
               )}
             </div>
-            <HumanInboxContextEdge
+            <ActivityListContextEdge
               direction="newer"
               disabled={false}
               busy={edgeBusy !== undefined}
@@ -422,7 +422,7 @@ export function HumanInboxReply({
               t={t}
             />
           </div>
-          {edgeError ? <p role="alert">{t('humanInbox.reply.unavailable')}</p> : null}
+          {edgeError ? <p role="alert">{t('activityList.reply.unavailable')}</p> : null}
         </div>
       )}
       {isNativeAction ? null : sent === undefined ? (
@@ -433,7 +433,7 @@ export function HumanInboxReply({
           }}
         >
           <label>
-            <span>{t('humanInbox.reply.input')}</span>
+            <span>{t('activityList.reply.input')}</span>
             <textarea
               value={draft}
               rows={3}
@@ -441,8 +441,8 @@ export function HumanInboxReply({
               onChange={(event) => setDraft(event.currentTarget.value)}
             />
           </label>
-          {sendError ? <p role="alert">{t('humanInbox.reply.failed')}</p> : null}
-          <div className="bh-human-inbox-reply-actions">
+          {sendError ? <p role="alert">{t('activityList.reply.failed')}</p> : null}
+          <div className="bh-activity-list-reply-actions">
             <Button
               size="sm"
               variant="primary"
@@ -451,16 +451,16 @@ export function HumanInboxReply({
                 sending || context === undefined || contextError || draft.trim().length === 0
               }
             >
-              {t(sending ? 'humanInbox.reply.sending' : 'humanInbox.reply.send')}
+              {t(sending ? 'activityList.reply.sending' : 'activityList.reply.send')}
             </Button>
           </div>
         </form>
       ) : (
         <div role="status">
-          <strong>{t('humanInbox.reply.sent')}</strong>
+          <strong>{t('activityList.reply.sent')}</strong>
           <p>{sent.body}</p>
           <Button size="sm" variant="outline" type="button" onClick={() => openSource(sent.id)}>
-            {t('humanInbox.open')}
+            {t('activityList.open')}
           </Button>
         </div>
       )}

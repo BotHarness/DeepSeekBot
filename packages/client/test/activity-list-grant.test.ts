@@ -133,7 +133,7 @@ describe('Inbox workspace Grant', () => {
           workspaceId: 'project',
           acknowledgeReadWrite: true,
         });
-      expect(store.getSnapshot().humanInbox.items).toHaveLength(state === 'unconfirmed' ? 1 : 0);
+      expect(store.getSnapshot().activityList.items).toHaveLength(state === 'unconfirmed' ? 1 : 0);
     },
   );
 });

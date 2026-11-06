@@ -101,20 +101,20 @@ const login = async (client) => {
       .find((n) => ['继续', 'Continue'].includes(n.textContent?.trim() ?? ''))
       ?.click(),
   );
-  await client.waitForSelector('.bh-human-inbox-entry', { timeout: 5000 }).catch(async () => {
+  await client.waitForSelector('.bh-activity-list-entry', { timeout: 5000 }).catch(async () => {
     await client.evaluate(() =>
       [...document.querySelectorAll('button')]
         .find((n) => n.textContent?.includes('Bot 模式'))
         ?.click(),
     );
-    await client.waitForSelector('.bh-human-inbox-entry');
+    await client.waitForSelector('.bh-activity-list-entry');
   });
 };
 const inbox = async (client = page) => {
   await client.bringToFront();
-  await client.evaluate(() => document.querySelector('.bh-human-inbox-entry')?.click());
-  await client.waitForSelector('.bh-human-inbox-tabs');
-  await click('.bh-human-inbox-tabs button', '需要我处理', client);
+  await client.evaluate(() => document.querySelector('.bh-activity-list-entry')?.click());
+  await client.waitForSelector('.bh-activity-list-tabs');
+  await click('.bh-activity-list-tabs button', '需要我处理', client);
   await delay(700);
 };
 const openDM = async (id, client = page) => {
@@ -134,7 +134,7 @@ const waitFor = async (test, label) => {
 };
 
 const overview = async (client = page) => {
-  await client.evaluate(() => document.querySelector('.bh-human-inbox-entry')?.click());
+  await client.evaluate(() => document.querySelector('.bh-activity-list-entry')?.click());
   await client.waitForSelector('.bh-overview');
   await client.waitForSelector('.bh-overview-bot');
 };
@@ -349,7 +349,7 @@ try {
     await overview();
     await page.click('.bh-overview-action-count');
     await page.waitForFunction(() =>
-      [...document.querySelectorAll('.bh-human-inbox-tabs button')].some(
+      [...document.querySelectorAll('.bh-activity-list-tabs button')].some(
         (n) => n.textContent === '需要我处理' && n.getAttribute('aria-selected') === 'true',
       ),
     );

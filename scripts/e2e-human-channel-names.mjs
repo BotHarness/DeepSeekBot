@@ -85,18 +85,18 @@ const inbox = async (client = page) => {
       ?.click(),
   );
   try {
-    await client.waitForSelector('.bh-human-inbox-entry', { timeout: 8000 });
+    await client.waitForSelector('.bh-activity-list-entry', { timeout: 8000 });
   } catch {
     await client.evaluate(() =>
       [...document.querySelectorAll('button')]
         .find((node) => node.textContent?.includes('Bot 模式'))
         ?.click(),
     );
-    await client.waitForSelector('.bh-human-inbox-entry');
+    await client.waitForSelector('.bh-activity-list-entry');
   }
-  await client.evaluate(() => document.querySelector('.bh-human-inbox-entry')?.click());
-  await client.waitForSelector('.bh-human-inbox-tabs');
-  await clickText('.bh-human-inbox-tabs button', '提及与回复', client);
+  await client.evaluate(() => document.querySelector('.bh-activity-list-entry')?.click());
+  await client.waitForSelector('.bh-activity-list-tabs');
+  await clickText('.bh-activity-list-tabs button', '提及与回复', client);
   console.log('Inbox opened');
   await delay(900);
 };
@@ -307,15 +307,15 @@ try {
     await page.evaluate(() => document.body.setAttribute('data-ds-dark-theme', 'true'));
     await capture('after-group-dark');
     await inbox();
-    await clickText('.bh-human-inbox-row button', '回复');
-    await page.waitForSelector('.bh-human-inbox-reply-source [data-human-id="local-human"]');
+    await clickText('.bh-activity-list-row button', '回复');
+    await page.waitForSelector('.bh-activity-list-reply-source [data-human-id="local-human"]');
     await label(page, '教授');
-    await clickText('.bh-human-inbox-reply button', '查看附近消息');
+    await clickText('.bh-activity-list-reply button', '查看附近消息');
     await capture('after-inbox-dark');
     assert.ok(
       await page.evaluate(() =>
         document
-          .querySelector('.bh-human-inbox-reply')
+          .querySelector('.bh-activity-list-reply')
           ?.textContent?.includes('Plain @Human stays ordinary.'),
       ),
     );

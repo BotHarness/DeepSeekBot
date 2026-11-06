@@ -20,11 +20,11 @@ import { createHumanAttentionQuery } from '../src/runtime/human-attention.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
 function fixture() {
-  const home = createTempRoot('human-inbox-bounded-');
+  const home = createTempRoot('activity-list-bounded-');
   const owner = trackTestOwner(
     mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
   );
-  const database = attachOperationalModule(owner, 'human-inbox-bounded');
+  const database = attachOperationalModule(owner, 'activity-list-bounded');
   const statements: string[] = [];
   const recordedDb = (db: DatabaseSync) =>
     new Proxy(db, {
@@ -251,7 +251,7 @@ describe('Human inbox history bounds', () => {
   });
 
   it('marks legacy imported replies that precede their Human target', async () => {
-    const home = createTempRoot('human-inbox-legacy-');
+    const home = createTempRoot('activity-list-legacy-');
     const rootDir = join(home, 'channels');
     const legacy = createChannelStore({ rootDir });
     const group = legacy.createGroup({ name: 'Legacy', members: ['ada'] });
@@ -274,7 +274,7 @@ describe('Human inbox history bounds', () => {
     const owner = trackTestOwner(
       mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
     );
-    const database = attachOperationalModule(owner, 'human-inbox-legacy');
+    const database = attachOperationalModule(owner, 'activity-list-legacy');
     createSqliteChannelStore({ database, rootDir });
     expect(
       database.read((db) =>

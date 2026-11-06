@@ -5,7 +5,7 @@ import { RemoteConversationView } from './remote-conversation-view.js';
 import { ActivityHostHeading, RemoteActivityGroup } from './remote-activity.js';
 import type { DockPanelRegistry } from './dock-panels.js';
 import type { BridgeActions } from './actions.js';
-import { HumanInboxView } from './human-inbox-view.js';
+import { ActivityListView } from './activity-list-view.js';
 import { zhTranslate, type BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 import { activitySectionActions, useActivityFeed, type ActivitySection } from './activity-feed.js';
@@ -17,8 +17,8 @@ import {
 const titles = {
   action: 'activityInbox.needsYou',
   replies: 'activityInbox.forYou',
-  unread: 'humanInbox.unread',
-  handled: 'humanInbox.handled',
+  unread: 'activityList.unread',
+  handled: 'activityList.handled',
 } as const;
 
 export function ActivityCenterView({
@@ -49,7 +49,7 @@ export function ActivityCenterView({
   const filterKey = JSON.stringify(query);
   const mount = useMountedResource<HTMLDivElement>(() => {
     const detach = panel ? actions.attachActivityCenterPanel() : undefined;
-    void actions.refreshHumanInboxStatus();
+    void actions.refreshActivityListStatus();
     const release = feed.acquire();
     return () => {
       release();
@@ -85,7 +85,7 @@ export function ActivityCenterView({
               : page.items.length;
           const expanded = !collapsed[section];
           return (
-            <HumanInboxView
+            <ActivityListView
               key={section + filterKey}
               actions={scoped[section]}
               t={t}
