@@ -491,11 +491,15 @@ export class FakeHost {
     entry.events.message(JSON.stringify({ type: 'item', streamId, value }));
   }
 
-  push(endpoint: 'botharness/followRoster' | 'botharness/followActivity', value: unknown): void {
+  push(endpoint: 'botharness/followRoster' | 'botharness/followActivity', value: unknown): boolean {
+    let delivered = false;
     for (const entry of this.sockets) {
       const streamId = entry.streams.get(endpoint);
-      if (streamId !== undefined) this.emit(entry, streamId, value);
+      if (streamId === undefined) continue;
+      this.emit(entry, streamId, value);
+      delivered = true;
     }
+    return delivered;
   }
 
   endFollower(endpoint: 'botharness/followRoster' | 'botharness/followChannel'): void {
