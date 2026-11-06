@@ -19,7 +19,7 @@ import {
   relaunchDesktopApp,
   runDesktopZoomSetup,
 } from '../../packages/deepseekbot/src/desktop-zoom-setup.mjs';
-import { DESKTOP_ZOOM_THEMES } from '../../packages/deepseekbot/src/desktop-zoom-themes.mjs';
+import { DESKTOP_ZOOM_THEMES } from '../../packages/core/src/window-zoom/theme-paths.mjs';
 const roots = [];
 afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });

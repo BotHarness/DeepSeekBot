@@ -18,7 +18,7 @@ import {
   desktopZoomWindowsProcesses,
   inspectDesktopZoomApp,
 } from './desktop-zoom-platform.mjs';
-import { DESKTOP_ZOOM_THEMES } from './desktop-zoom-themes.mjs';
+import { DESKTOP_ZOOM_THEMES } from '../../core/src/window-zoom/theme-paths.mjs';
 
 const theme = '@deepseek-ai/dsh-client-ui-theme';
 function refuse(code) {

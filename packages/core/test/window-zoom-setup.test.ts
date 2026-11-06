@@ -79,7 +79,7 @@ describe('Desktop window zoom setup after quit', () => {
       '--profile',
       'desktop',
       '--desktop-app',
-      app,
+      app.replaceAll('\\', '/'),
       '--after-quit',
       join(home, 'botharness/window-zoom-setup.json'),
       '--request',
@@ -96,15 +96,18 @@ describe('Desktop window zoom setup after quit', () => {
     ).toMatchObject({ id: state.id, status: 'cancelled' });
   });
 
-  it('offers disable once the Profile link is installed and refuses repeats', async () => {
-    const { setup, spawn } = fixture('link:node_modules/deepseekbot/desktop-theme');
-    expect(setup.status()).toEqual({ supported: true, enabled: true });
-    const refused = await setup.fetch(post({ action: 'enable' }));
-    expect(refused.status).toBe(409);
-    expect(await refused.json()).toMatchObject({ error: { code: 'zoom-setup-already-enabled' } });
-    await setup.fetch(post({ action: 'disable' }));
-    expect(spawn.mock.calls[0]![1][1]).toBe('disable');
-  });
+  it.each(['desktop-theme', 'desktop-theme-0.2.2-rc.1'])(
+    'offers disable for installed %s and refuses repeats',
+    async (theme) => {
+      const { setup, spawn } = fixture(`link:node_modules/deepseekbot/${theme}`);
+      expect(setup.status()).toEqual({ supported: true, enabled: true });
+      const refused = await setup.fetch(post({ action: 'enable' }));
+      expect(refused.status).toBe(409);
+      expect(await refused.json()).toMatchObject({ error: { code: 'zoom-setup-already-enabled' } });
+      await setup.fetch(post({ action: 'disable' }));
+      expect(spawn.mock.calls[0]![1][1]).toBe('disable');
+    },
+  );
 
   it('records an asynchronous spawn failure instead of crashing the Host', async () => {
     const { setup, fail } = fixture();
