@@ -14,7 +14,8 @@ WorkOS Magic Auth can create and check the same codes through the API, but check
 
 - The relay exposes two unauthenticated routes: `POST /v1/auth/email-code` asks WorkOS to email a code (the reply never says whether the account exists), and `POST /v1/auth/email-code/verify` exchanges the code with the Magic Auth grant using `WORKOS_API_KEY` as the client secret and returns only `refresh_token` and `user { id, email }`. Both are rate-limited per email, and sending also per caller IP, through `CONNECT_LIMIT`. `/v1/config` advertises `emailCode: true` only when the relay has the key.
 - The phone shows its own email and code sheet when the relay advertises it. The code is one native field (`oneTimeCode`, number pad), so iOS fills or types it once. The resulting session is stored and refreshed exactly like an AuthKit session.
-- AuthKit in the system auth sheet stays the path for Google, Apple, SSO and any account WorkOS answers with an organization, MFA or SSO requirement (`use-browser-sign-in`), and for relays without the key.
+- The sheet also shows Continue with Apple and Continue with Google. They open the system auth sheet with `provider=AppleOAuth` or `GoogleOAuth` on the same PKCE authorize request, so the user lands directly on Apple's or Google's page without the AuthKit picker. WorkOS has no API that accepts a native Apple or Google ID token, so the native Sign in with Apple panel and the Google account picker stay out of scope. **Other sign-in options** opens AuthKit itself.
+- AuthKit in the system auth sheet stays the path for SSO and any account WorkOS answers with an organization, MFA or SSO requirement (`use-browser-sign-in`), and for relays without the key.
 
 ## Consequences
 

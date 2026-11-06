@@ -111,6 +111,16 @@ describe('phone Connect email-code sign-in (#3464)', () => {
     expect(chosen.authorize).toHaveBeenCalledOnce();
     expect(chosen.stored()).toMatchObject({ refreshToken: 'refresh-browser' });
 
+    expect(new URL(chosen.authorize.mock.calls[0]![0]).searchParams.get('provider')).toBe(
+      'authkit',
+    );
+
+    const apple = setup(async () => ({ kind: 'browser', provider: 'AppleOAuth' }));
+    expect(await apple.account.signIn()).toEqual({ ok: true, value: 'alice@example.com' });
+    const url = new URL(apple.authorize.mock.calls[0]![0]);
+    expect(url.searchParams.get('provider')).toBe('AppleOAuth');
+    expect(url.searchParams.get('code_challenge_method')).toBe('S256');
+
     const collect = vi.fn();
     const older = setup(collect, { emailCode: false });
     expect(await older.account.signIn()).toEqual({ ok: true, value: 'alice@example.com' });

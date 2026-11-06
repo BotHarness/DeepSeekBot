@@ -35,9 +35,11 @@ export interface EmailCodeFlow {
   ): Promise<{ ok: true; email: string | undefined } | { ok: false; code: EmailCodeRefusal }>;
 }
 
+export type SocialProvider = 'GoogleOAuth' | 'AppleOAuth';
+
 export type EmailCodeOutcome =
   | { kind: 'signed-in'; email: string | undefined }
-  | { kind: 'browser' }
+  | { kind: 'browser'; provider?: SocialProvider }
   | { kind: 'cancelled' };
 
 export type ConnectRefusal =
@@ -367,10 +369,12 @@ export function createConnectAccount(options: {
           !/^client_[A-Za-z0-9]+$/u.test(clientId)
         )
           throw new Refused('relay-unavailable');
+        let provider: SocialProvider | 'authkit' = 'authkit';
         if (config.body['emailCode'] === true && runtime.collectEmailCode) {
           const outcome = await runtime.collectEmailCode(emailCodeFlow(clientId));
           if (outcome.kind === 'signed-in') return outcome.email;
           if (outcome.kind === 'cancelled') throw new Refused('sign-in-cancelled');
+          if (outcome.provider) provider = outcome.provider;
         }
         const verifier = runtime.random();
         const state = runtime.random();
@@ -378,7 +382,7 @@ export function createConnectAccount(options: {
         const url = new URL(AUTHORIZE_ENDPOINT);
         url.search = new URLSearchParams({
           client_id: clientId,
-          provider: 'authkit',
+          provider,
           response_type: 'code',
           redirect_uri: options.redirectUri,
           state,

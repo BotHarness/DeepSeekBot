@@ -1013,7 +1013,7 @@ const en = {
   emailSignIn: {
     title: 'Sign in',
     email: 'Email',
-    emailHint: 'We’ll email you a 6-digit code.',
+    emailHint: 'Or sign in with email. We’ll send you a 6-digit code.',
     sendCode: 'Send code',
     code: 'Code',
     codeHint: (email: string) => `Enter the code sent to ${email}.`,
@@ -1021,6 +1021,8 @@ const en = {
     resend: 'Send a new code',
     changeEmail: 'Change email',
     otherMethods: 'Other sign-in options',
+    apple: 'Continue with Apple',
+    google: 'Continue with Google',
     refused: {
       'invalid-email': 'Enter a valid email address.',
       'invalid-code': 'That code is wrong or expired.',
@@ -3279,7 +3281,7 @@ const zh: typeof en = {
   emailSignIn: {
     title: '登录',
     email: '邮箱',
-    emailHint: '我们会给你发一个 6 位验证码。',
+    emailHint: '或用邮箱登录，我们会给你发一个 6 位验证码。',
     sendCode: '发送验证码',
     code: '验证码',
     codeHint: (email: string) => `输入发送到 ${email} 的验证码。`,
@@ -3287,6 +3289,8 @@ const zh: typeof en = {
     resend: '重新发送',
     changeEmail: '更改邮箱',
     otherMethods: '其他登录方式',
+    apple: '通过 Apple 继续',
+    google: '通过 Google 继续',
     refused: {
       'invalid-email': '请输入有效的邮箱地址。',
       'invalid-code': '验证码不对或已过期。',

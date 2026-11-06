@@ -1,7 +1,12 @@
 import { useRef, useState } from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 
-import type { EmailCodeFlow, EmailCodeOutcome, EmailCodeRefusal } from '../../host/connect-account';
+import type {
+  EmailCodeFlow,
+  EmailCodeOutcome,
+  EmailCodeRefusal,
+  SocialProvider,
+} from '../../host/connect-account';
 import { space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
@@ -61,6 +66,11 @@ export function EmailCodeSignIn({
       }
     });
 
+  const providers: { id: SocialProvider; label: string; testID: string }[] = [
+    { id: 'AppleOAuth', label: copy.apple, testID: 'email-sign-in-apple' },
+    { id: 'GoogleOAuth', label: copy.google, testID: 'email-sign-in-google' },
+  ];
+  if (Platform.OS !== 'ios') providers.reverse();
   return (
     <KeyboardFormScroll
       keyboardShouldPersistTaps="handled"
@@ -69,6 +79,15 @@ export function EmailCodeSignIn({
     >
       {sentTo === undefined ? (
         <>
+          {providers.map((provider) => (
+            <Button
+              key={provider.id}
+              testID={provider.testID}
+              label={provider.label}
+              disabled={busy}
+              onPress={() => finish({ kind: 'browser', provider: provider.id })}
+            />
+          ))}
           <Text tone="muted">{copy.emailHint}</Text>
           <TextField
             testID="email-sign-in-email"
@@ -78,7 +97,6 @@ export function EmailCodeSignIn({
             value={email}
             onChangeText={setEmail}
             editable={!busy}
-            autoFocus
             autoCapitalize="none"
             autoCorrect={false}
             autoComplete="email"
