@@ -5,14 +5,14 @@ import {
   Screen,
   ScreenStack,
   ScreenStackHeaderConfig,
+  ScreenStackHeaderCenterView,
   ScreenStackHeaderLeftView,
-  ScreenStackHeaderRightView,
   type HeaderBarButtonItem,
 } from 'react-native-screens';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDesignTheme } from '../design/theme';
 import { glassPress } from '../design/tokens';
-import { ChatHeaderActions } from '../chat/chat-header-actions';
+import { ChatHeaderRow } from '../chat/chat-header-row';
 import { HeaderBackButton } from '../chat/header-chrome';
 import { glassHeader, headerIslands } from '../chat/header-kind';
 import { useStrings } from '../strings';
@@ -54,6 +54,28 @@ export function NativePageNavigation({ children }: { children: ReactNode }) {
 export function NativePageHeader({ title, onBack, backID, action, call }: NativePageHeaderProps) {
   const theme = useDesignTheme();
   const t = useStrings();
+  if (glassHeader)
+    return (
+      <ScreenStackHeaderConfig
+        title=""
+        translucent
+        backgroundColor="transparent"
+        hideShadow
+        hideBackButton
+        color={theme.color.fg}
+      >
+        <ScreenStackHeaderCenterView>
+          <ChatHeaderRow
+            title={title}
+            back={{ label: t.back, testID: backID, onPress: onBack }}
+            actions={[
+              ...(call === undefined ? [] : [{ icon: 'call' as const, ...call }]),
+              ...(action === undefined ? [] : [{ icon: 'more' as const, ...action }]),
+            ]}
+          />
+        </ScreenStackHeaderCenterView>
+      </ScreenStackHeaderConfig>
+    );
   const items: HeaderBarButtonItem[] = headerIslands
     ? []
     : [
@@ -70,9 +92,8 @@ export function NativePageHeader({ title, onBack, backID, action, call }: Native
       ];
   if (title !== undefined) items.push({ type: 'spacing', spacing: glassPress.gap });
   const grouped = call !== undefined && action !== undefined;
-  const glassGroup = glassHeader && grouped;
   const right: HeaderBarButtonItem[] = [];
-  if (action !== undefined && !glassGroup)
+  if (action !== undefined)
     right.push({
       type: 'button',
       index: right.length,
@@ -83,7 +104,7 @@ export function NativePageHeader({ title, onBack, backID, action, call }: Native
       onPress: action.onPress,
       sharesBackground: grouped,
     });
-  if (call !== undefined && !glassGroup)
+  if (call !== undefined)
     right.push({
       type: 'button',
       index: right.length,
@@ -111,16 +132,6 @@ export function NativePageHeader({ title, onBack, backID, action, call }: Native
         </ScreenStackHeaderLeftView>
       ) : null}
       {title === undefined ? null : <ScreenStackHeaderLeftView>{title}</ScreenStackHeaderLeftView>}
-      {glassGroup && call !== undefined && action !== undefined ? (
-        <ScreenStackHeaderRightView hidesSharedBackground>
-          <ChatHeaderActions
-            actions={[
-              { icon: 'call', label: call.label, testID: call.testID, onPress: call.onPress },
-              { icon: 'more', label: action.label, testID: action.testID, onPress: action.onPress },
-            ]}
-          />
-        </ScreenStackHeaderRightView>
-      ) : null}
     </ScreenStackHeaderConfig>
   );
 }

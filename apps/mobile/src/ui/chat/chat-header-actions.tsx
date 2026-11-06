@@ -1,4 +1,4 @@
-import { HeaderActionGroup } from './header-chrome';
+import { HeaderActionGroup, HeaderBackButton } from './header-chrome';
 
 export type ChatHeaderAction = {
   icon: 'call' | 'more';
@@ -7,8 +7,14 @@ export type ChatHeaderAction = {
   onPress(): void;
 };
 
-export type ChatHeaderActionsProps = { actions: readonly ChatHeaderAction[] };
+export type ChatHeaderActionsProps =
+  | { actions: readonly ChatHeaderAction[] }
+  | { back: Omit<ChatHeaderAction, 'icon'> };
 
-export function ChatHeaderActions({ actions }: ChatHeaderActionsProps) {
-  return <HeaderActionGroup actions={actions} />;
+export function ChatHeaderActions(props: ChatHeaderActionsProps) {
+  return 'back' in props ? (
+    <HeaderBackButton onPress={props.back.onPress} />
+  ) : (
+    <HeaderActionGroup actions={props.actions} />
+  );
 }

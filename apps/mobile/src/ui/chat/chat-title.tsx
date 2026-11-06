@@ -10,7 +10,7 @@ import { radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { titleChipFill } from './header-chrome';
-import { barLabelStyle, barLabelProps } from './native-header';
+import { barLabelStyle, barLabelProps, headerControlHeight } from './native-header';
 
 const AVATAR = 28;
 
@@ -44,11 +44,7 @@ export function ChatTitle({
         flexDirection: 'row',
         alignItems: 'center',
         gap: space.x3,
-        minHeight: Math.max(
-          theme.touch,
-          (theme.type.body.line + theme.type.meta.line) *
-            Math.min(theme.fontScale, barLabelProps.maxFontSizeMultiplier ?? Infinity),
-        ),
+        minHeight: headerControlHeight(theme),
         paddingLeft: (theme.touch - AVATAR) / 2,
         paddingRight: theme.touch / 2,
         borderRadius: radius.round,

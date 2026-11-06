@@ -94,6 +94,7 @@ import { CallRecordBubble } from './call-record';
 import type { BubbleGroup } from './bubble-shape';
 import { botBusy } from './bot-tone';
 import { ChannelTitle } from './channel-title';
+import { ChatHeaderRow } from './chat-header-row';
 import { WorkingStatus } from './working-status';
 import { ChatTitle } from './chat-title';
 import { runningSessionCount } from '../../host/session-stop';
@@ -117,6 +118,7 @@ import {
   floatingHeader,
   glassHeader,
   headerIslands,
+  headerControlHeight,
   useHeaderOverlap,
   useHeaderPadding,
 } from './native-header';
@@ -1312,7 +1314,7 @@ function ChatConversation({
       disabled={!saved || hostRefused}
       onPress={press}
       style={({ pressed }) => ({
-        minHeight: theme.touch,
+        minHeight: glassHeader ? headerControlHeight(theme) : theme.touch,
         flexShrink: 1,
         flexDirection: 'row',
         alignItems: 'center',
@@ -1427,6 +1429,35 @@ function ChatConversation({
           (canOpenProfile && placeCall !== undefined ? 2 : 1)) -
       (ios && glassHeader ? space.x4 * 2 : 0),
   );
+  const nativeHeaderRow =
+    ios && glassHeader ? (
+      <ChatHeaderRow
+        title={title}
+        back={{ label: t.back, testID: 'chat-back-button', onPress: leave }}
+        actions={[
+          ...(placeCall === undefined
+            ? []
+            : [
+                {
+                  icon: 'call' as const,
+                  label: t.call.button,
+                  testID: 'chat-call-button',
+                  onPress: placeCall,
+                },
+              ]),
+          ...(canOpenProfile
+            ? [
+                {
+                  icon: 'more' as const,
+                  label: t.openProfile,
+                  testID: 'chat-profile-button',
+                  onPress: openProfile,
+                },
+              ]
+            : []),
+        ]}
+      />
+    ) : null;
   const back = <HeaderBackButton plain={!headerIslands} onPress={leave} />;
   const titleItem = (
     <View
@@ -1553,10 +1584,10 @@ function ChatConversation({
             ...(ios
               ? {
                   title: '',
-                  headerTitle: '',
-                  headerBackVisible: canGoBack && !headerIslands,
+                  headerTitle: glassHeader ? () => nativeHeaderRow : '',
+                  headerBackVisible: canGoBack && !headerIslands && !glassHeader,
                   unstable_headerRightItems: () =>
-                    !canOpenProfile
+                    !canOpenProfile || glassHeader
                       ? []
                       : [
                           {
@@ -1580,25 +1611,28 @@ function ChatConversation({
                                 },
                               ]),
                         ],
-                  unstable_headerLeftItems: () => [
-                    ...(headerIslands
-                      ? [{ type: 'custom' as const, element: back }]
-                      : canGoBack
-                        ? []
-                        : [
-                            {
-                              type: 'button' as const,
-                              label: t.back,
-                              icon: {
-                                type: 'sfSymbol' as const,
-                                name: 'chevron.left' as const,
-                              },
-                              onPress: leave,
-                            },
-                          ]),
-                    { type: 'spacing' as const, spacing: headerGap },
-                    { type: 'custom' as const, element: titleItem },
-                  ],
+                  unstable_headerLeftItems: () =>
+                    glassHeader
+                      ? []
+                      : [
+                          ...(headerIslands
+                            ? [{ type: 'custom' as const, element: back }]
+                            : canGoBack
+                              ? []
+                              : [
+                                  {
+                                    type: 'button' as const,
+                                    label: t.back,
+                                    icon: {
+                                      type: 'sfSymbol' as const,
+                                      name: 'chevron.left' as const,
+                                    },
+                                    onPress: leave,
+                                  },
+                                ]),
+                          { type: 'spacing' as const, spacing: headerGap },
+                          { type: 'custom' as const, element: titleItem },
+                        ],
                 }
               : android
                 ? {
@@ -2076,7 +2110,7 @@ function ChatConversation({
       />
       {paging === undefined ? null : (
         <NativePageHeader
-          title={titleItem}
+          title={ios && glassHeader ? title : titleItem}
           onBack={leave}
           backID="chat-page-back"
           action={

@@ -1,46 +1,55 @@
-import { Button, HStack, Host, Image } from '@expo/ui/swift-ui';
+import { Host } from '@expo/ui';
+import { Button, HStack, Image } from '@expo/ui/swift-ui';
 import {
-  accessibilityIdentifier,
   accessibilityLabel,
   buttonStyle,
-  font,
+  contentShape,
   foregroundStyle,
   frame,
   glassEffect,
+  shapes,
 } from '@expo/ui/swift-ui/modifiers';
-
 import { useDesignTheme } from '../design/theme';
+import { barLabelProps, headerControlHeight } from './native-header';
 import type { ChatHeaderActionsProps } from './chat-header-actions';
 
-const symbols = { call: 'phone', more: 'ellipsis' } as const;
+const symbols = { back: 'chevron.left', call: 'phone', more: 'ellipsis' } as const;
 
-export function ChatHeaderActions({ actions }: ChatHeaderActionsProps) {
+export function ChatHeaderActions(props: ChatHeaderActionsProps) {
+  const actions = 'back' in props ? [{ ...props.back, icon: 'back' as const }] : props.actions;
   const theme = useDesignTheme();
+  const height = headerControlHeight(theme);
+  const symbolSize =
+    theme.type.body.line *
+    Math.min(theme.fontScale, barLabelProps.maxFontSizeMultiplier ?? Infinity);
   return (
-    <Host key={theme.scheme} colorScheme={theme.scheme} matchContents>
+    <Host colorScheme={theme.scheme} style={{ width: height * actions.length, height }}>
       <HStack
         spacing={0}
         modifiers={[
-          glassEffect({ glass: { variant: 'regular', interactive: true }, shape: 'capsule' }),
-          frame({ height: theme.touch }),
+          glassEffect({
+            glass: { variant: 'regular', interactive: true },
+            shape: actions.length === 1 ? 'circle' : 'capsule',
+          }),
         ]}
       >
         {actions.map((action) => (
           <Button
             key={action.testID}
+            testID={action.testID}
             onPress={action.onPress}
             modifiers={[
               buttonStyle('plain'),
               accessibilityLabel(action.label),
-              accessibilityIdentifier(action.testID),
+              foregroundStyle(theme.color.fg),
             ]}
           >
             <Image
               systemName={symbols[action.icon]}
+              size={symbolSize}
               modifiers={[
-                font({ textStyle: 'body', weight: 'medium' }),
-                foregroundStyle(theme.color.fg),
-                frame({ width: theme.touch, height: theme.touch }),
+                frame({ width: height, height, alignment: 'center' }),
+                contentShape(shapes.rectangle()),
               ]}
             />
           </Button>

@@ -90,6 +90,7 @@ vi.mock('expo-router', () => ({
       options: {
         headerLeft?: () => ReactNode;
         headerRight?: () => ReactNode;
+        headerTitle?: string | (() => ReactNode);
         headerBackVisible?: boolean;
         headerBlurEffect?: string;
         unstable_headerLeftItems?: () => Array<{
@@ -98,7 +99,12 @@ vi.mock('expo-router', () => ({
           label?: string;
           onPress?: () => void;
         }>;
-        unstable_headerRightItems?: () => Array<{ label: string; onPress(): void }>;
+        unstable_headerRightItems?: () => Array<{
+          type?: string;
+          element?: ReactNode;
+          label?: string;
+          onPress?(): void;
+        }>;
       };
     }) => (
       <header
@@ -119,14 +125,16 @@ vi.mock('expo-router', () => ({
           options.headerLeft?.() ??
           null}
         <aside data-testid="trailing-header">
-          {options
-            .unstable_headerRightItems?.()
-            .filter((item) => item.label !== undefined)
-            .map((item) => (
-              <button key={item.label} type="button" onClick={item.onPress}>
+          {typeof options.headerTitle === 'function' ? options.headerTitle() : null}
+          {options.unstable_headerRightItems?.().map((item, index) =>
+            item.type === 'custom' ? (
+              <span key={index}>{item.element}</span>
+            ) : (
+              <button type="button" key={index} onClick={item.onPress}>
                 {item.label}
               </button>
-            )) ?? options.headerRight?.()}
+            ),
+          ) ?? options.headerRight?.()}
         </aside>
       </header>
     ),
@@ -226,6 +234,7 @@ vi.mock('../src/host/speech', () => ({
   useDictation: () => ({ state: { status: 'idle' }, mountRef: () => undefined }),
 }));
 vi.mock('../src/ui/chat/native-header', () => ({
+  headerControlHeight: (theme: { touch: number }) => theme.touch,
   get glassHeader() {
     return state.glassHeader;
   },
@@ -237,6 +246,22 @@ vi.mock('../src/ui/chat/native-header', () => ({
   useHeaderOverlap: () => 80,
   floatingHeader: false,
   useHeaderPadding: () => 0,
+}));
+vi.mock('../src/ui/chat/chat-header-actions', () => ({
+  ChatHeaderActions: (
+    props: import('../src/ui/chat/chat-header-actions').ChatHeaderActionsProps,
+  ) => {
+    const actions = 'back' in props ? [props.back] : props.actions;
+    return (
+      <>
+        {actions.map((action) => (
+          <button key={action.label} data-testid={action.testID} onClick={action.onPress}>
+            {action.label}
+          </button>
+        ))}
+      </>
+    );
+  },
 }));
 vi.mock('../src/ui/chat/bot-profile-screen', () => ({ BotProfileScreen: () => null }));
 vi.mock('../src/ui/chat/group-profile-screen', () => ({ GroupProfileScreen: () => null }));
@@ -854,10 +879,7 @@ it.each(['ios', 'android'])('shows the %s native Profile entry', async (os) => {
     if (os === 'android') {
       expect(view.querySelector('[data-testid="trailing-header"]')!.childElementCount).toBe(0);
     }
-    const button =
-      os === 'ios'
-        ? view.querySelector<HTMLButtonElement>('[data-testid="trailing-header"] button')
-        : view.querySelector<HTMLButtonElement>('[data-testid="chat-profile-button"]');
+    const button = view.querySelector<HTMLButtonElement>('[data-testid="chat-profile-button"]');
     expect(button).not.toBeNull();
     await act(async () => button!.click());
     if (os === 'ios') {
@@ -984,7 +1006,7 @@ it('keeps the bottom fade at the message viewport edge beneath the composer cont
   expect(fade!.compareDocumentPosition(controls) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
 });
 
-it('extends the native glass fade while leaving Back to the iOS 26 header', async () => {
+it('keeps the native glass fade with the shared-height iOS Back control', async () => {
   const os = Platform.OS;
   Object.assign(Platform, { OS: 'ios' });
   try {
@@ -1005,7 +1027,7 @@ it('extends the native glass fade while leaving Back to the iOS 26 header', asyn
     const header = view.querySelector('header')!;
     expect(view.querySelector('[data-edge="top"]')).not.toBeNull();
     expect(header.getAttribute('data-blur')).toBe('none');
-    expect(header.getAttribute('data-back-visible')).toBe('true');
+    expect(header.getAttribute('data-back-visible')).toBe('false');
     expect(header.textContent).not.toContain('Header back');
   } finally {
     Object.assign(Platform, { OS: os });
@@ -1309,7 +1331,11 @@ describe('missing conversation navigation', () => {
     it(`${name}: leaves back to Activity to the native header back button`, async () => {
       state.history = ['/activity', route];
       const view = await render(place);
-      expect(view.querySelector('header button')).toBeNull();
+      expect(
+        [...view.querySelectorAll('header button')].some(
+          (button) => button.textContent === 'Header back' || button.textContent === t.back,
+        ),
+      ).toBe(false);
       expect(state.history).toEqual(['/activity', route]);
     });
 
@@ -1319,7 +1345,7 @@ describe('missing conversation navigation', () => {
       expect(state.history).toEqual(['/']);
     });
 
-    it(`${name}: iOS puts back and the title capsule in separate leading bar items`, async () => {
+    it(`${name}: iOS keeps the whole control row in the native title view`, async () => {
       const os = Platform.OS;
       Object.assign(Platform, { OS: 'ios' });
       try {
@@ -1331,19 +1357,19 @@ describe('missing conversation navigation', () => {
           [...header.children]
             .filter((item) => item.hasAttribute('data-item'))
             .map((item) => (item as HTMLElement).dataset['item']),
-        ).toEqual(['button', 'spacing', 'custom']);
+        ).toEqual([]);
         await press(alone, t.back);
         expect(state.history).toEqual(['/']);
         act(() => root?.unmount());
         state.history = ['/activity', route];
         const stacked = (await render(place)).querySelector('header')!;
-        expect(stacked.dataset['backVisible']).toBe('true');
+        expect(stacked.dataset['backVisible']).toBe('false');
         expect(stacked.querySelector('[data-item="button"]')).toBeNull();
         expect(
           [...stacked.children]
             .filter((item) => item.hasAttribute('data-item'))
             .map((item) => (item as HTMLElement).dataset['item']),
-        ).toEqual(['spacing', 'custom']);
+        ).toEqual([]);
       } finally {
         Object.assign(Platform, { OS: os });
       }
