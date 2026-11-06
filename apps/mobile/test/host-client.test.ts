@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createHostClient, type HostClient, type HostSnapshot } from '../src/host/client';
+import {
+  createHostClient,
+  defaultBackoff,
+  MAX_RECONNECT_DELAY_MS,
+  type HostClient,
+  type HostSnapshot,
+} from '../src/host/client';
 import { parsePairingLink, redeemPairing } from '../src/host/pairing';
 import { checkRoute } from '../src/host/route';
 import { SECRET_ROUTE_METHODS } from '../../../packages/core/src/bridge/secret-route';
@@ -52,6 +58,80 @@ async function until(
 }
 
 describe('Host client', () => {
+  it('backs a failing Host off to minutes instead of retrying every few seconds', () => {
+    expect(defaultBackoff(1)).toBe(500);
+    expect(defaultBackoff(6)).toBe(16_000);
+    expect(defaultBackoff(12)).toBe(MAX_RECONNECT_DELAY_MS);
+    expect(defaultBackoff(40)).toBe(MAX_RECONNECT_DELAY_MS);
+    expect(MAX_RECONNECT_DELAY_MS).toBe(300_000);
+  });
+
+  it('stops calling a Host once it no longer accepts this phone', async () => {
+    const host = new FakeHost();
+    const target = connect(host);
+    await until(target, (state) => state.connection.status === 'connected');
+    host.revoke();
+    await until(target, (state) => state.connection.status === 'refused');
+    const before = host.requests.length;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(host.requests.length).toBe(before);
+  });
+
+  it('keeps backing off when connections keep dropping right after they open', async () => {
+    const host = new FakeHost();
+    const attempts: number[] = [];
+    client = createHostClient({
+      routes: [ROUTE],
+      credential: host.credential,
+      carrier: host.carrier,
+      backoff: (attempt) => {
+        attempts.push(attempt);
+        return 5;
+      },
+      timeoutMs: 200,
+    });
+    client.start();
+    const target = client;
+    for (let cycle = 0; cycle < 3; cycle += 1) {
+      await until(target, (state) => state.connection.status === 'connected');
+      host.kill();
+      await until(target, (state) => state.connection.status !== 'connected');
+      host.restart();
+    }
+    await until(target, (state) => state.connection.status === 'connected');
+    expect(attempts).toEqual([1, 2, 3]);
+  });
+
+  it('reuses the roster and sorting it just read when reconnecting, and reads them fresh on refresh', async () => {
+    const host = new FakeHost();
+    const target = connect(host);
+    const count = (method: string) => host.calls.filter((call) => call.method === method).length;
+    await until(target, (state) => state.connection.status === 'connected');
+    host.kill();
+    await until(target, (state) => state.connection.status !== 'connected');
+    host.restart();
+    await until(target, (state) => state.connection.status === 'connected');
+    expect(count('settings/describe')).toBe(1);
+    expect(count('rosterGet')).toBe(1);
+    await target.refresh();
+    expect(count('settings/describe')).toBe(2);
+    expect(count('rosterGet')).toBe(2);
+  });
+
+  it('does not download the settings again on every failed reconnect', async () => {
+    const host = new FakeHost();
+    const target = connect(host);
+    const count = (method: string) => host.calls.filter((call) => call.method === method).length;
+    await until(target, (state) => state.connection.status === 'connected');
+    host.failing.add('channels');
+    host.kill();
+    await until(target, (state) => state.connection.status !== 'connected');
+    host.restart();
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect(count('channels')).toBeGreaterThan(2);
+    expect(count('settings/describe')).toBe(1);
+  });
+
   it('preserves the Host-owned Tob marker for deletion menus', async () => {
     const host = new FakeHost();
     host.methods.set('list', () => ({
