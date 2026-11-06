@@ -24,15 +24,12 @@ function BackgroundCatchUpFixture() {
         testID="background-catch-up-run"
         label={t.backgroundCatchUpFixture.run}
         onPress={() =>
-          void (nativeBackgroundCatchUp?.runBackgroundCatchUpNow() ?? Promise.resolve(false))
-            .catch(() => false)
-            .then((started) =>
-              setResult(
-                started
-                  ? t.backgroundCatchUpFixture.started
-                  : t.backgroundCatchUpFixture.unavailable,
-              ),
-            )
+          void (
+            nativeBackgroundCatchUp?.runBackgroundCatchUpNow() ??
+            Promise.reject(new Error('unavailable'))
+          )
+            .then(() => setResult(t.backgroundCatchUpFixture.started))
+            .catch(() => setResult(t.backgroundCatchUpFixture.unavailable))
         }
       />
       <Text testID="background-catch-up-result" selectable>

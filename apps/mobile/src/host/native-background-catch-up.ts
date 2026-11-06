@@ -6,7 +6,8 @@ import {
   CATCH_UP_TASK,
   runBackgroundCatchUp,
 } from './background-catch-up';
-import { createHostClient } from './client';
+import { createHostClient, deviceRefusal } from './client';
+import { liveConversationKeys } from './host-session';
 import { nativeCarrier } from './native-carrier';
 import { catchUpInBackground } from './native-conversations';
 import { powerConstrained } from './native-power';
@@ -24,6 +25,8 @@ TaskManager.defineTask(CATCH_UP_TASK, async () => {
       });
       return (method, args) => client.call(method, args);
     },
+    refused: (error) => deviceRefusal(error) !== undefined,
+    liveKeys: liveConversationKeys,
     sync: catchUpInBackground,
     constrained: powerConstrained,
   });

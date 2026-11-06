@@ -22,6 +22,8 @@ export type BackgroundCatchUpResult = 'synced' | 'skipped' | 'failed';
 export interface BackgroundCatchUpOptions<Saved extends { hostId: string; routes: string[] }> {
   hosts(): Promise<readonly Saved[]>;
   call(saved: Saved, route: string): Call;
+  refused(error: unknown): boolean;
+  liveKeys(hostId: string): readonly string[];
   sync(host: CatchUpHost): Promise<void>;
   constrained(): Promise<boolean>;
   deadlineMs?: number;
@@ -36,7 +38,9 @@ async function reachable<Saved extends { hostId: string; routes: string[] }>(
     try {
       await call('channelChangeCursor', {});
       return call;
-    } catch {}
+    } catch (error) {
+      if (options.refused(error)) return undefined;
+    }
   }
   return undefined;
 }
@@ -51,13 +55,15 @@ export async function runBackgroundCatchUp<Saved extends { hostId: string; route
   } catch {
     return 'failed';
   }
-  const work = (async () => {
-    for (const saved of hosts) {
+  const work = Promise.all(
+    hosts.map(async (saved) => {
       const call = await reachable(options, saved);
-      if (call === undefined) continue;
-      await options.sync({ hostId: saved.hostId, call, liveKeys: () => [] }).catch(() => undefined);
-    }
-  })();
+      if (call === undefined) return;
+      await options
+        .sync({ hostId: saved.hostId, call, liveKeys: () => options.liveKeys(saved.hostId) })
+        .catch(() => undefined);
+    }),
+  );
   let timer: ReturnType<typeof setTimeout> | undefined;
   const deadline = new Promise<'late'>((resolve) => {
     timer = setTimeout(() => resolve('late'), options.deadlineMs ?? DEADLINE_MS);

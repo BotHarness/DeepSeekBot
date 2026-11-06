@@ -35,6 +35,8 @@ function options(
       if (!reachable.has(route)) throw new Error('The Host could not be reached.');
       return { route };
     },
+    refused: (error) => error instanceof Error && error.message === 'refused',
+    liveKeys: () => [],
     sync: async (host) => {
       const answer = (await host.call('channelChanges', {})) as { route: string };
       synced.push({ hostId: host.hostId, live: host.liveKeys(), route: answer.route });
@@ -73,8 +75,8 @@ describe('background catch-up', () => {
   it('syncs every saved Host on its first reachable route with no conversation open', async () => {
     const run = options({ reachable: ['https://tail'] });
     expect(await runBackgroundCatchUp(run.options)).toBe('synced');
-    expect(run.probes).toEqual(['https://lan', 'https://tail', 'https://tail']);
-    expect(run.synced).toEqual([
+    expect(run.probes.toSorted()).toEqual(['https://lan', 'https://tail', 'https://tail']);
+    expect(run.synced.toSorted((a, b) => a.hostId.localeCompare(b.hostId))).toEqual([
       { hostId: 'h1', live: [], route: 'https://tail' },
       { hostId: 'h2', live: [], route: 'https://tail' },
     ]);
@@ -101,6 +103,50 @@ describe('background catch-up', () => {
     };
     expect(await runBackgroundCatchUp(run.options)).toBe('synced');
     expect(run.synced.map((entry) => entry.hostId)).toEqual(['h2']);
+  });
+
+  it('stops trying a Host once it refuses this phone', async () => {
+    const tried: string[] = [];
+    const run = options({
+      hosts: async () => [{ hostId: 'revoked', routes: ['https://a', 'https://b'] }],
+      call: (_saved, route) => async () => {
+        tried.push(route);
+        throw new Error('refused');
+      },
+    });
+    expect(await runBackgroundCatchUp(run.options)).toBe('synced');
+    expect(tried).toEqual(['https://a']);
+  });
+
+  it('leaves conversations the app is following to their live stream', async () => {
+    const run = options({
+      liveKeys: (hostId) => (hostId === 'h1' ? ['["computer","h1","c1"]'] : []),
+    });
+    await runBackgroundCatchUp(run.options);
+    expect(run.synced.find((entry) => entry.hostId === 'h1')?.live).toEqual([
+      '["computer","h1","c1"]',
+    ]);
+    expect(run.synced.find((entry) => entry.hostId === 'h2')?.live).toEqual([]);
+  });
+
+  it('does not let a Host that never answers hold up the others', async () => {
+    vi.useFakeTimers();
+    const run = options({
+      hosts: async () => [
+        { hostId: 'stuck', routes: ['https://stuck'] },
+        { hostId: 'h1', routes: ['https://lan'] },
+      ],
+      call: (_saved, route) => async () => {
+        if (route === 'https://stuck') return new Promise(() => {});
+        return { route };
+      },
+      deadlineMs: 25_000,
+    });
+    const result = runBackgroundCatchUp(run.options);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(run.synced.map((entry) => entry.hostId)).toEqual(['h1']);
+    await vi.advanceTimersByTimeAsync(25_000);
+    expect(await result).toBe('failed');
   });
 
   it('reports failure when the saved Hosts cannot be read while the phone is locked', async () => {
