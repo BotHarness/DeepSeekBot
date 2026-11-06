@@ -103,9 +103,13 @@ export function CallScreen({
         ? t.call.cameraMissing
         : undefined;
   const hint =
-    audioFailed || session?.audioRoute?.selectionFailed
-      ? t.call.audioSwitchFailed
-      : (cameraError ?? model.hint);
+    [
+      cameraError,
+      model.hint,
+      audioFailed || session?.audioRoute?.selectionFailed ? t.call.audioSwitchFailed : undefined,
+    ]
+      .filter((value): value is string => value !== undefined)
+      .join('\n') || undefined;
   const control = () => (key === undefined ? undefined : callSessions.controls());
   const shownRoute = session?.audioRoute ?? fallbackCallAudioRoute();
   const chooseAudio = (

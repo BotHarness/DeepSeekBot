@@ -104,23 +104,38 @@ class CallAttempt(
 
   fun chooseAudio(output: String, microphone: String): Map<String, Any?>? {
     val before = route.state() ?: return null
-    if (before["output"] != output) {
-      if (!route.hasOutput(output)) return null
-      if (route.music && setAudioMode(false) == null) return null
-      route.requestInput(null)
-      return route.choose(output, microphone)
+    val previousMode = route.music
+    val previousInput = route.requestedInput()
+    val previousOutput = before["output"] as? String ?: return null
+    val outputChange = previousOutput != output
+    val input = if (outputChange) null else (route.microphone(microphone) ?: return null)
+    if (outputChange && !route.hasOutput(output)) return null
+    if (!outputChange && microphone == "headset" && !route.hasOutput("external")) return null
+    fun restore() {
+      if (route.music != previousMode) setAudioMode(previousMode)
+      if (!previousMode && route.hasOutput(previousOutput)) route.chooseOutput(previousOutput)
+      route.requestInput(previousInput?.takeIf { route.hasInput(it.id) })
+      route.publish()
     }
-    val input = route.microphone(microphone) ?: return null
-    if (microphone == "headset") {
-      if (!route.hasOutput("external")) return null
-      if (route.music && setAudioMode(false) == null) return null
-      if (route.choose("external", microphone) == null) return null
-    } else if (before["output"] == "external" && !route.music) {
-      if (setAudioMode(true) == null) return null
+    return try {
+      val accepted = if (outputChange) {
+        (!route.music || setAudioMode(false) != null) && route.chooseOutput(output)
+      } else if (microphone == "headset") {
+        (!route.music || setAudioMode(false) != null) && route.chooseOutput("external")
+      } else previousOutput != "external" || route.music || setAudioMode(true) != null
+      if (!accepted) {
+        restore()
+        null
+      } else {
+        route.requestInput(input)
+        route.publish()
+        // Selection is asynchronous. This is an acknowledgement; events own the current route.
+        route.state() ?: before
+      }
+    } catch (_: Exception) {
+      runCatching { restore() }
+      null
     }
-    route.requestInput(input)
-    route.publish()
-    return route.state()
   }
 
   /** Recreate only playout; signaling, microphone track and the peer stay connected. Main thread. */
@@ -130,6 +145,8 @@ class CallAttempt(
     val module = adm ?: return null
     if (music == route.music) return route.state()
     val previous = route.music
+    val previousInput = route.requestedInput()
+    val before = route.state()
     return try {
       connection.setAudioPlayout(false)
       if (!route.setMusic(music)) {
@@ -140,11 +157,11 @@ class CallAttempt(
       BotCallPlayout.setAttributes(module, route.playbackAttributes())
       connection.setAudioPlayout(true)
       route.publish()
-      route.state()
+      route.state() ?: before
     } catch (_: Exception) {
       runCatching {
         check(route.setMusic(previous))
-        route.requestInput(if (previous) route.phoneMicrophone() else null)
+        route.requestInput(previousInput?.takeIf { route.hasInput(it.id) })
         BotCallPlayout.setAttributes(module, route.playbackAttributes())
         connection.setAudioPlayout(true)
       }.onFailure { state("failed", "speaker-failed") }
@@ -456,6 +473,8 @@ class CallAudioRoute(
 
   fun microphone(id: String): AudioDeviceInfo? = inputs().firstOrNull { inputId(it) == id }
 
+  fun hasInput(id: Int): Boolean = inputs().any { it.id == id }
+
   fun hasOutput(id: String): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
     manager.availableCommunicationDevices.any { outputId(it) == id }
 
@@ -594,13 +613,13 @@ class CallAudioRoute(
       "music" to music)
   }
 
-  fun choose(output: String, microphone: String): Map<String, Any?>? {
-    if (!active || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return null
+  fun chooseOutput(output: String): Boolean {
+    if (!active || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return false
     val target = (listOfNotNull(manager.communicationDevice) + manager.availableCommunicationDevices)
-      .firstOrNull { outputId(it) == output } ?: return null
-    if (!manager.setCommunicationDevice(target)) return null
+      .firstOrNull { outputId(it) == output } ?: return false
+    if (!manager.setCommunicationDevice(target)) return false
     // Route changes are asynchronous; the listener publishes the confirmed selection.
-    return state()
+    return true
   }
 
   fun publish() {
