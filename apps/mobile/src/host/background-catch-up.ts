@@ -7,6 +7,16 @@ const DEADLINE_MS = 25_000;
 
 type Call = CatchUpHost['call'];
 
+export const BACKGROUND_NATIVE_MODULES = ['ExpoTaskManager', 'ExpoBackgroundTask'] as const;
+
+export function loadWithNativeModules<T>(
+  available: (name: string) => boolean,
+  names: readonly string[],
+  load: () => T,
+): T | undefined {
+  return names.every(available) ? load() : undefined;
+}
+
 export type BackgroundCatchUpResult = 'synced' | 'skipped' | 'failed';
 
 export interface BackgroundCatchUpOptions<Saved extends { hostId: string; routes: string[] }> {

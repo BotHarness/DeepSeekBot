@@ -2,7 +2,7 @@ import * as Application from 'expo-application';
 import { Redirect, Stack } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView } from 'react-native';
-import { runBackgroundCatchUpNow } from '../../src/host/native-background-catch-up';
+import { nativeBackgroundCatchUp } from '../../src/host/native-background-support';
 import { Button } from '../../src/ui/primitives/button';
 import { Text } from '../../src/ui/primitives/text';
 import { space } from '../../src/ui/design/tokens';
@@ -24,7 +24,7 @@ function BackgroundCatchUpFixture() {
         testID="background-catch-up-run"
         label={t.backgroundCatchUpFixture.run}
         onPress={() =>
-          void runBackgroundCatchUpNow()
+          void (nativeBackgroundCatchUp?.runBackgroundCatchUpNow() ?? Promise.resolve(false))
             .catch(() => false)
             .then((started) =>
               setResult(

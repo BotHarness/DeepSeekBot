@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  BACKGROUND_NATIVE_MODULES,
   BACKGROUND_PAGES,
+  loadWithNativeModules,
   runBackgroundCatchUp,
   type BackgroundCatchUpOptions,
 } from '../src/host/background-catch-up';
@@ -41,6 +43,23 @@ function options(
   };
   return { probes, synced, options: { ...base, ...overrides } };
 }
+
+describe('background catch-up startup', () => {
+  it('starts the app without the task when a native module is missing from the build', () => {
+    const load = vi.fn(() => 'task');
+    const present = new Set(['ExpoTaskManager']);
+    expect(
+      loadWithNativeModules((name) => present.has(name), BACKGROUND_NATIVE_MODULES, load),
+    ).toBe(undefined);
+    expect(load).not.toHaveBeenCalled();
+  });
+
+  it('defines the task when the build has every native module it needs', () => {
+    const load = vi.fn(() => 'task');
+    expect(loadWithNativeModules(() => true, BACKGROUND_NATIVE_MODULES, load)).toBe('task');
+    expect(BACKGROUND_NATIVE_MODULES).toEqual(['ExpoTaskManager', 'ExpoBackgroundTask']);
+  });
+});
 
 describe('background catch-up', () => {
   it('does nothing while the phone is saving power', async () => {
