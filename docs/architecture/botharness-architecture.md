@@ -125,7 +125,7 @@ question 可先真实返回 pending，问题保持可回答；同一 Session 可
 生产依赖仍为 RC1，timed 模式仅在显式配置的隔离 RC2 Profile 验证。权限审批、容量释放／重获和同群隐私验收
 继续阻塞，不从这次 DM 能力实验推断完成。
 
-Android 本地优先提醒的目标边界见 [ADR-0296](../adr/0296-android-local-alerts-share-native-arbitration.md)（[#3353](https://github.com/BotHarness/DeepSeekBot/issues/3353)）：Human Inbox 的完整通知投影进入设备提醒模块，连接生命周期模块则共享既有 paired Host client 与 Android 前台消息服务。首片只验收后台 Tool approval；原生仲裁以 Host／Inbox item 身份统一本地和 FCM 提醒，持久记录只表示展示尝试，不构成已读或送达权威。保持连接、系统通知权限及云推送登记相互独立；切片原生证据与 Human 反馈由 #3355 跟踪。
+Android 本地优先提醒的目标边界见 [ADR-0297](../adr/0297-android-local-alerts-share-native-arbitration.md)（[#3353](https://github.com/BotHarness/DeepSeekBot/issues/3353)）：Human Inbox 的完整通知投影进入设备提醒模块，连接生命周期模块则共享既有 paired Host client 与 Android 前台消息服务。首片只验收后台 Tool approval；原生仲裁以 Host／Inbox item 身份统一本地和 FCM 提醒，持久记录只表示展示尝试，不构成已读或送达权威。保持连接、系统通知权限及云推送登记相互独立；切片原生证据与 Human 反馈由 #3355 跟踪。
 
 N2 将同一原生仲裁扩展到既有审批、提问、私密输入及回复／mention：前台领取返回有界的应用内提示队列，后台领取调用系统通知。当前实际可见会话的普通回复静默消费，请求保留明显提示；提示点击复用已有可信通知路由。会话静音仅抑制回复，私密输入无正文。首次完整投影静默建立普通回复基线，完整断线补收仍属于 N5。持久领取先于显示，进程在其间终止仍可能丢失一次提示，不能作为已显示回执。允许提前开发 Draft stack，不代表 N1 或后续切片已完成原生与 Human 验收。
 
@@ -1405,6 +1405,8 @@ Once a new device authorization succeeds, the owner retires the old live session
 ### Mobile Connect account actions
 
 The application-defined mobile account session and saved Host credentials remain separate. Native Sign out/Delete confirmations bind to the current sign-in instance. Only newly recorded account-mediated pairings carry trusted issuer/relay/client/subject provenance; manual and legacy unknown-source records are preserved. Confirmed Sign out removes owned phone connections and the local account session. Delete also invokes the existing account-wide Connect unlink and WorkOS deletion, without deleting remote Host files, Bots or chats. Account action markers and a pending-cleanup journal in the existing SecureStore records preserve recovery across partial failures; they are not transactional rollback. Observed remote success enables a local retry even when the completion-marker write fails; after restart, an unknown result offers separately confirmed local-only cleanup, with remote deletion explicitly unresolved. Required local storage failures retain the cleanup journal. See the [ADR-0241 account-action amendment](../adr/0241-hosted-connect-reaches-the-host-through-a-managed-tunnel.md#amendment--confirmed-phone-account-actions-2026-10-23-2603).
+
+On the phone, Connect sign-in collects the email and the 6-digit WorkOS Magic Auth code in the app's own sheet whenever the relay advertises `emailCode` in `/v1/config`. The relay holds `WORKOS_API_KEY`, sends the code, exchanges it with the Magic Auth grant and returns only the refresh token and user; the phone stores and refreshes that session exactly like an AuthKit session. AuthKit in the system auth sheet remains the path for Google, Apple, SSO and accounts WorkOS sends back with organization, MFA or SSO requirements. This avoids AuthKit's hosted code field, which doubles digits on iOS 27 Safari. See [ADR-0296](../adr/0296-connect-sign-in-collects-email-codes-natively.md).
 
 应用定义的手机账号会话与 Host 配对凭据仍是独立权威。退出与删除的原生确认绑定当前登录实例；只有新建的账号配对记录可信来源，手动及来源不明的旧记录会保留。退出清理归属该账号的手机连接与本地登录；删除另执行既有的账号级 Connect 解绑及 WorkOS 删除，不删除远程文件、Bot 或聊天。现有 SecureStore 中的操作标记和清理待办支持部分失败后的恢复，不承诺事务回滚；真实账号删除与原生安全 fixture 验收分别成立。
 

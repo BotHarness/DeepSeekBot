@@ -110,6 +110,7 @@ function configureProfileZoom({
   };
   let packageCommand;
   let desktopExecutable;
+  let desktopVersion;
   const checkStopped = () => {
     if (platform === 'win32') {
       const rows = windowsProcesses();
@@ -142,6 +143,7 @@ function configureProfileZoom({
     if (!desktopApp) refuse('desktop-zoom-setup-desktop-app-required');
     const runtime = inspectDesktopZoomApp({ desktopApp, platform, run, options });
     desktopExecutable = runtime.executable;
+    desktopVersion = runtime.version;
     checkStopped();
     packageCommand = { executable: process.execPath, args: [runtime.pnpm] };
   }
@@ -160,6 +162,11 @@ function configureProfileZoom({
       createHash('sha256').update(client).digest('hex') !== provenance.clientAfter
     )
       refuse('desktop-zoom-setup-theme-unqualified');
+    if (
+      packageCommand &&
+      (!provenance.sourceVersion || desktopVersion !== provenance.sourceVersion)
+    )
+      refuse('desktop-zoom-setup-version-unsupported');
     const patch = readFileSync(join(product, manifest.dsh.bundle.patch), 'utf8');
     if (patch.includes('botharness-desktop-theme'))
       refuse('desktop-zoom-setup-product-upgrade-required');

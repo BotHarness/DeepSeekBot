@@ -7,6 +7,7 @@ import { interfacePreferences } from './interface-preferences';
 import type { PairingFailure } from '../host/pairing';
 import type { PushKind, PushRefusal } from '../host/push';
 import type { AggregatedState } from '../host/wire';
+import type { EmailCodeRefusal } from '../host/connect-account';
 
 type ToolGroup = 'shell' | 'browser' | 'files' | 'other';
 
@@ -1008,6 +1009,33 @@ const en = {
     loadFailed: 'Could not load your profile.',
     saveFailed: 'Could not save.',
     retry: 'Try again',
+  },
+  emailSignIn: {
+    title: 'Sign in',
+    heading: `Welcome to ${productName.en}`,
+    headingDetail: 'Sign in, or create an account if you are new.',
+    or: 'or',
+    email: 'Email',
+    emailPlaceholder: 'name@example.com',
+    sendCode: 'Continue with email',
+    code: 'Code',
+    codeTitle: 'Check your email',
+    codeHint: (email: string) => `Enter the 6-digit code sent to ${email}.`,
+    verify: 'Continue',
+    resend: 'Send a new code',
+    changeEmail: 'Change email',
+    otherMethods: 'Other sign-in options',
+    apple: 'Continue with Apple',
+    google: 'Continue with Google',
+    refused: {
+      'invalid-email': 'Enter a valid email address.',
+      'invalid-code': 'That code is wrong or expired.',
+      'rate-limited': 'Too many tries. Wait a minute and try again.',
+      'use-browser-sign-in': 'This account needs another sign-in method.',
+      'email-code-unavailable': 'Email codes are unavailable right now. Use Other sign-in options.',
+      'relay-unavailable': 'Could not reach the server. Try again.',
+      'sign-in-failed': 'Sign-in did not finish. Try again.',
+    } satisfies Record<EmailCodeRefusal, string>,
   },
   pairAccount: {
     title: `${productName.en} account`,
@@ -3330,6 +3358,33 @@ const zh: typeof en = {
     loadFailed: '未能读取个人资料。',
     saveFailed: '未能保存。',
     retry: '重试',
+  },
+  emailSignIn: {
+    title: '登录',
+    heading: `欢迎使用${productName.zh}`,
+    headingDetail: '登录账号，第一次使用会自动创建。',
+    or: '或',
+    email: '邮箱',
+    emailPlaceholder: 'name@example.com',
+    sendCode: '用邮箱继续',
+    code: '验证码',
+    codeTitle: '查收邮件',
+    codeHint: (email: string) => `输入发送到 ${email} 的 6 位验证码。`,
+    verify: '继续',
+    resend: '重新发送',
+    changeEmail: '更改邮箱',
+    otherMethods: '其他登录方式',
+    apple: '通过 Apple 继续',
+    google: '通过 Google 继续',
+    refused: {
+      'invalid-email': '输入有效的邮箱地址。',
+      'invalid-code': '验证码不对或已过期。',
+      'rate-limited': '尝试次数太多，稍等一分钟再试。',
+      'use-browser-sign-in': '这个账号需要用其他方式登录。',
+      'email-code-unavailable': '暂时无法用邮箱验证码登录，可以用“其他登录方式”。',
+      'relay-unavailable': '连不上服务器，再试一次。',
+      'sign-in-failed': '登录没有完成，再试一次。',
+    } satisfies Record<EmailCodeRefusal, string>,
   },
   pairAccount: {
     computers: '环境',

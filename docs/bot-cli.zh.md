@@ -1619,6 +1619,8 @@ tobs profile-backup-restore --file environment.botharness-backup --new-home new-
 
 ### 诊断日志
 
+排查 Connect 登录失败时，查看 `device-connect` 中 `phase=account-request-error` 的条目。它们标明服务（`relay` 中继或 `identity` 登录服务）、操作和失败原因：`transport` 附带限定范围的错误码，`http` 附带 `httpStatus`，`invalid-response` 表示响应无效。不记录请求 URL、账号标识、凭证或响应正文。单凭 `relay-unavailable` 不能判定 DNS 失败；Host 的隧道 DNS 记录在创建该 Host 时配置，随机 `*.deepseekbot.dev` 子域不一定存在。
+
 Tobs 会一直在本地记录诊断日志，保存在 `$DSH_HOME/botharness/logs.db`（30 天，最多 5 万条）：Client 的操作与导航轨迹、未捕获错误和控制台警告、UI 不变量被破坏、长帧和慢的 Host 调用，以及 Host 警告和 BotHarness 生命周期日志。不会记录输入的文字、消息正文或文件内容，也不会离开这台设备。Workspace Control Rail 上的 **诊断日志** 按钮可查看最近 24 小时，并导出与 CLI 相同的 ZIP。
 
 ```bash

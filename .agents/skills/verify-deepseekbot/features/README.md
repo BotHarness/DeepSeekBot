@@ -2,6 +2,7 @@
 
 | Feature | Needs a model | Scripted journey | File |
 | --- | --- | --- | --- |
+| Tobs channel group create, rename, delete and failure recovery | no | `verify-app` sidebar path | [channel-sections.md](channel-sections.md) |
 | Complete environment backup across versions | no | `verify-app` Settings + backup CLI | [profile-backup.md](profile-backup.md) |
 
 | Mobile concurrent paired Hosts, Chats and Activity | only for a reply | shared-device two-Host journey | [phone-multiple-hosts.md](phone-multiple-hosts.md) |
@@ -36,6 +37,7 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | Bot DM reply, cross-Host route continuity and LAN admission                                                                       | yes                        | `scripts/e2e-llm-scenarios.mjs --scenario dm-reply`                                                  | [bot-dm-reply.md](bot-dm-reply.md)                   |
 | Bot-to-Bot Group mentions and wake                                                                 | yes                        | `scripts/e2e-llm-scenarios.mjs` (nightly)                                                            | [bot-group-mention.md](bot-group-mention.md)         |
 | Group send review | yes for A/B; no for direct tools | `scripts/e2e-group-send-review.mjs`, `scripts/e2e-group-peer-review.mjs`, `scripts/e2e-group-busy-review.mjs`, `scripts/e2e-group-responsibility.mjs` | [group-send-review.md](group-send-review.md) |
+| Group invitation candidates | no | `verify-app` Group Members path | [group-invitations.md](group-invitations.md) |
 | Conversation timeline: static ordinary avatars, memory display, new-messages divider, return to latest, bidirectional pages, kept place, folding, image preview, reactions, search, member mention | for replies | `scripts/e2e-timeline-navigation.mjs` | [conversation-timeline.md](conversation-timeline.md) |
 | PersonaBot creation and restart persistence                                                        | for Bot-created Bots       | `scripts/e2e-personabot-create.mjs` (CI)                                                             | [personabot-create.md](personabot-create.md)         |
 | Stop a working Bot (Web Client)                                                                    | yes                        | `scripts/e2e-web-stop.mjs`                                                                           | [bot-stop.md](bot-stop.md)                           |

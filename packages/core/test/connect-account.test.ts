@@ -220,6 +220,124 @@ function setup(services = fakeServices(), port = 41001, watchMs = 60_000) {
 }
 
 describe('Connect account sign-in', () => {
+  it('keeps a local tunnel refusal distinct from a relay request failure', async () => {
+    const services = fakeServices({ pending: 0 });
+    const credentials = memoryCredentials();
+    const logs: string[] = [];
+    const account = createConnectAccount({
+      credentials: () => credentials.provider,
+      connect: {
+        ...fakeConnect().connect,
+        enable: async () => ({ ok: false, code: 'connect-hostname-invalid' }),
+      },
+      relay: RELAY,
+      fetch: services.fetcher,
+      sleep: async () => {},
+      freePort: async () => 41001,
+      record: (phase, detail) => logs.push(`${phase} ${detail ?? ''}`),
+    });
+    try {
+      await account.signIn();
+      await settle(account);
+      expect(account.status()).toMatchObject({ state: 'error', issue: 'relay-unavailable' });
+      expect(logs).toContain(
+        'account-connect-error operation=enable-tunnel refusal=connect-hostname-invalid',
+      );
+      expect(logs.join('\n')).not.toContain('account-request-error');
+    } finally {
+      await account.close();
+    }
+  });
+
+  it.each(['config', 'device-authorization', 'refresh-token'])(
+    'identifies the failing service and operation: %s',
+    async (operation) => {
+      const services = fakeServices({ pending: 0 });
+      const logs: string[] = [];
+      const credentials = memoryCredentials();
+      const account = createConnectAccount({
+        credentials: () => credentials.provider,
+        connect: fakeConnect().connect,
+        relay: RELAY,
+        fetch: async (input, init) => {
+          const url = String(input);
+          const body = String(init?.body ?? '');
+          if (
+            (operation === 'config' && url.endsWith('/v1/config')) ||
+            (operation === 'device-authorization' && url.endsWith('/authorize/device')) ||
+            (operation === 'refresh-token' && body.includes('grant_type=refresh_token'))
+          )
+            throw new DOMException('private-detail', 'TimeoutError');
+          return services.fetcher(input, init);
+        },
+        sleep: async () => {},
+        freePort: async () => 41001,
+        record: (phase, detail) => logs.push(`${phase} ${detail ?? ''}`),
+      });
+      try {
+        await account.signIn();
+        await settle(account);
+        expect(logs).toContain(
+          `account-request-error service=${operation === 'config' ? 'relay' : 'identity'} operation=${operation} reason=transport transport=timeout`,
+        );
+        expect(logs.join('\n')).not.toContain('private-detail');
+      } finally {
+        await account.close();
+      }
+    },
+  );
+
+  it.each([
+    { failure: 'dns', expected: 'reason=transport transport=ENOTFOUND' },
+    { failure: 'timeout', expected: 'reason=transport transport=ETIMEDOUT' },
+    { failure: 'unknown', expected: 'reason=transport transport=unknown' },
+    { failure: '503', expected: 'reason=http httpStatus=503' },
+    { failure: '429', expected: 'reason=http httpStatus=429' },
+    { failure: 'invalid', expected: 'reason=invalid-response httpStatus=201' },
+  ])('diagnoses post-login host registration failure: $failure', async ({ failure, expected }) => {
+    const services = fakeServices({ pending: 0 });
+    const logs: string[] = [];
+    const credentials = memoryCredentials();
+    const account = createConnectAccount({
+      credentials: () => credentials.provider,
+      connect: fakeConnect().connect,
+      relay: RELAY,
+      fetch: async (input, init) => {
+        if (String(input) === `${RELAY}/v1/hosts` && init?.method === 'POST') {
+          if (failure === '503' || failure === '429')
+            return Response.json({ secret: 'private-response' }, { status: Number(failure) });
+          if (failure === 'invalid')
+            return Response.json({ secret: 'private-response' }, { status: 201 });
+          throw new TypeError('private-url?token=private-token', {
+            cause: Object.assign(new Error('private-host'), {
+              code:
+                failure === 'dns'
+                  ? 'ENOTFOUND'
+                  : failure === 'timeout'
+                    ? 'ETIMEDOUT'
+                    : 'private-code',
+            }),
+          });
+        }
+        return services.fetcher(input, init);
+      },
+      sleep: async () => {},
+      freePort: async () => 41001,
+      record: (phase, detail) => logs.push(`${phase} ${detail ?? ''}`),
+    });
+    try {
+      await account.signIn();
+      await settle(account);
+      expect(account.status()).toMatchObject({ state: 'error', issue: 'relay-unavailable' });
+      expect(logs).toContain(
+        `account-request-error service=relay operation=register-host ${expected}`,
+      );
+      expect(logs.join('\n')).not.toMatch(/private-|access-0|refresh-0/u);
+    } finally {
+      await account.close();
+    }
+  });
+
   it('does not register another computer when signing in again on the same Host', async () => {
     const { account, services } = setup(fakeServices({ pending: 0 }));
     try {

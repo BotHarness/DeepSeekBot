@@ -2,6 +2,7 @@ import { createActivityRegistry, type ActivitySender } from './live-activity.js'
 import type { AccessTokenVerifier } from './auth.js';
 import type { TunnelApi } from './cloudflare.js';
 import type { D1Database } from './d1.js';
+import type { EmailCode } from './email-code.js';
 
 export interface RelayOptions {
   activitySender?: ActivitySender;
@@ -17,6 +18,7 @@ export interface RelayOptions {
   limit?: (account: string) => Promise<boolean>;
   limitBot?: (account: string, hostId: string) => Promise<boolean>;
   deleteUser?: (account: string) => Promise<void>;
+  emailCode?: EmailCode;
   deleteMarketplaceAuthor?: (accessToken: string) => Promise<void>;
   hostKey?: (hostId: string) => Promise<string>;
   fetchHost?: typeof fetch;
@@ -462,7 +464,30 @@ export function createRelay(options: RelayOptions) {
         deviceAuthorizationEndpoint: 'https://api.workos.com/user_management/authorize/device',
         tokenEndpoint: 'https://api.workos.com/user_management/authenticate',
         zone: options.zone,
+        ...(options.emailCode === undefined ? {} : { emailCode: true }),
       });
+    }
+    if (url.pathname === '/v1/auth/email-code' || url.pathname === '/v1/auth/email-code/verify') {
+      if (request.method !== 'POST') return failure(405, 'method-not-allowed');
+      if (options.emailCode === undefined) return failure(503, 'email-code-unavailable');
+      const body = await readBody(request, 4096);
+      if (body === undefined) return failure(400, 'invalid-body');
+      const ip = request.headers.get('cf-connecting-ip') ?? undefined;
+      const userAgent = request.headers.get('user-agent') ?? undefined;
+      try {
+        const result =
+          url.pathname === '/v1/auth/email-code'
+            ? await options.emailCode.send({ email: body['email'], ...(ip ? { ip } : {}) })
+            : await options.emailCode.verify({
+                email: body['email'],
+                code: body['code'],
+                ...(ip ? { ip } : {}),
+                ...(userAgent ? { userAgent } : {}),
+              });
+        return json(result.status, result.body);
+      } catch {
+        return failure(502, 'workos-unavailable');
+      }
     }
     const hostMatch =
       /^\/v1\/hosts\/([^/]+)(\/tunnel|\/offer|\/live-activity|\/bot-network(?:\/grant)?)?$/u.exec(

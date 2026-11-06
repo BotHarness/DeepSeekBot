@@ -16,7 +16,36 @@ export interface ConnectRuntime {
   challenge(verifier: string): Promise<string>;
   authorize(url: string, callback: string): Promise<string | null>;
   now(): number;
+  collectEmailCode?(flow: EmailCodeFlow): Promise<EmailCodeOutcome>;
 }
+
+export type EmailCodeRefusal =
+  | 'invalid-email'
+  | 'invalid-code'
+  | 'rate-limited'
+  | 'use-browser-sign-in'
+  | 'email-code-unavailable'
+  | 'relay-unavailable'
+  | 'sign-in-failed';
+
+export interface EmailCodeFlow {
+  send(email: string): Promise<{ ok: true } | { ok: false; code: EmailCodeRefusal }>;
+  verify(
+    email: string,
+    code: string,
+  ): Promise<{ ok: true; email: string | undefined } | { ok: false; code: EmailCodeRefusal }>;
+  browser(
+    provider?: SocialProvider,
+  ): Promise<
+    { ok: true; email: string | undefined } | { ok: false; code: EmailCodeRefusal | 'cancelled' }
+  >;
+}
+
+export type SocialProvider = 'GoogleOAuth' | 'AppleOAuth';
+
+export type EmailCodeOutcome =
+  | { kind: 'signed-in'; email: string | undefined }
+  | { kind: 'cancelled' };
 
 export type ConnectRefusal =
   | 'sign-in-cancelled'
@@ -200,6 +229,126 @@ export function createConnectAccount(options: {
     }
   };
 
+  const signedIn = async (
+    clientId: string,
+    reply: { status: number; body: Record<string, unknown> },
+  ): Promise<string | undefined> => {
+    const refreshToken = reply.body['refresh_token'];
+    if (reply.status !== 200 || typeof refreshToken !== 'string')
+      throw new Refused('sign-in-failed');
+    const email = record(reply.body['user'])['email'];
+    const subject = record(reply.body['user'])['id'];
+    if (typeof subject !== 'string' || !subject) throw new Refused('sign-in-failed');
+    await save({
+      clientId,
+      refreshToken,
+      subject,
+      sessionId: runtime.random(),
+      ...(typeof email === 'string' ? { email } : {}),
+    });
+    return typeof email === 'string' ? email : undefined;
+  };
+
+  const authKit = async (
+    clientId: string,
+    provider: SocialProvider | 'authkit',
+  ): Promise<string | undefined> => {
+    const verifier = runtime.random();
+    const state = runtime.random();
+    const deadline = runtime.now() + SIGN_IN_MS;
+    const url = new URL(AUTHORIZE_ENDPOINT);
+    url.search = new URLSearchParams({
+      client_id: clientId,
+      provider,
+      response_type: 'code',
+      redirect_uri: options.redirectUri,
+      state,
+      code_challenge: await runtime.challenge(verifier),
+      code_challenge_method: 'S256',
+      max_age: '0',
+    }).toString();
+    const callback = await runtime.authorize(url.href, options.redirectUri);
+    if (callback === null) throw new Refused('sign-in-cancelled');
+    if (runtime.now() >= deadline) throw new Refused('sign-in-failed');
+    let code: string | null;
+    try {
+      const params = new URL(callback).searchParams;
+      code = params.get('state') === state ? params.get('code') : null;
+    } catch {
+      code = null;
+    }
+    if (code === null) throw new Refused('sign-in-failed');
+    const reply = await call(
+      TOKEN_ENDPOINT,
+      form({
+        grant_type: 'authorization_code',
+        client_id: clientId,
+        code,
+        code_verifier: verifier,
+        redirect_uri: options.redirectUri,
+      }),
+    );
+    return signedIn(clientId, reply);
+  };
+
+  const emailRefusal = (body: Record<string, unknown>): EmailCodeRefusal => {
+    const code = record(body['error'])['code'];
+    return code === 'invalid-email' ||
+      code === 'invalid-code' ||
+      code === 'rate-limited' ||
+      code === 'use-browser-sign-in' ||
+      code === 'email-code-unavailable'
+      ? code
+      : 'relay-unavailable';
+  };
+
+  const emailCodeFlow = (clientId: string): EmailCodeFlow => {
+    const post = async (path: string, body: Record<string, string>) => {
+      try {
+        return await call(`${relay}${path}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+      } catch {
+        return { status: 0, body: {} };
+      }
+    };
+    return {
+      async send(email) {
+        const reply = await post('/v1/auth/email-code', { email: email.trim() });
+        return reply.status === 200 ? { ok: true } : { ok: false, code: emailRefusal(reply.body) };
+      },
+      async verify(email, code) {
+        const reply = await post('/v1/auth/email-code/verify', {
+          email: email.trim(),
+          code: code.trim(),
+        });
+        if (reply.status !== 200) return { ok: false, code: emailRefusal(reply.body) };
+        try {
+          return { ok: true, email: await signedIn(clientId, reply) };
+        } catch (error) {
+          return {
+            ok: false,
+            code:
+              error instanceof Refused && error.code === 'relay-unavailable'
+                ? 'relay-unavailable'
+                : 'sign-in-failed',
+          };
+        }
+      },
+      async browser(provider) {
+        try {
+          return { ok: true, email: await authKit(clientId, provider ?? 'authkit') };
+        } catch (error) {
+          const code = error instanceof Refused ? error.code : undefined;
+          if (code === 'sign-in-cancelled') return { ok: false, code: 'cancelled' };
+          return { ok: false, code: code === 'relay-unavailable' ? code : 'sign-in-failed' };
+        }
+      },
+    };
+  };
+
   const access = async (deleting = false): Promise<string> => {
     const session = parseSession(await runtime.read().catch(() => null));
     if (session === undefined) throw new Refused('sign-in-required');
@@ -282,55 +431,12 @@ export function createConnectAccount(options: {
           !/^client_[A-Za-z0-9]+$/u.test(clientId)
         )
           throw new Refused('relay-unavailable');
-        const verifier = runtime.random();
-        const state = runtime.random();
-        const deadline = runtime.now() + SIGN_IN_MS;
-        const url = new URL(AUTHORIZE_ENDPOINT);
-        url.search = new URLSearchParams({
-          client_id: clientId,
-          provider: 'authkit',
-          response_type: 'code',
-          redirect_uri: options.redirectUri,
-          state,
-          code_challenge: await runtime.challenge(verifier),
-          code_challenge_method: 'S256',
-          max_age: '0',
-        }).toString();
-        const callback = await runtime.authorize(url.href, options.redirectUri);
-        if (callback === null) throw new Refused('sign-in-cancelled');
-        if (runtime.now() >= deadline) throw new Refused('sign-in-failed');
-        let code: string | null;
-        try {
-          const params = new URL(callback).searchParams;
-          code = params.get('state') === state ? params.get('code') : null;
-        } catch {
-          code = null;
+        if (config.body['emailCode'] === true && runtime.collectEmailCode) {
+          const outcome = await runtime.collectEmailCode(emailCodeFlow(clientId));
+          if (outcome.kind === 'cancelled') throw new Refused('sign-in-cancelled');
+          return outcome.email;
         }
-        if (code === null) throw new Refused('sign-in-failed');
-        const reply = await call(
-          TOKEN_ENDPOINT,
-          form({
-            grant_type: 'authorization_code',
-            client_id: clientId,
-            code,
-            code_verifier: verifier,
-            redirect_uri: options.redirectUri,
-          }),
-        );
-        const refreshToken = reply.body['refresh_token'];
-        if (reply.status !== 200 || typeof refreshToken !== 'string')
-          throw new Refused('sign-in-failed');
-        const email = record(reply.body['user'])['email'];
-        const subject = record(reply.body['user'])['id'];
-        if (typeof subject !== 'string' || !subject) throw new Refused('sign-in-failed');
-        await save({
-          clientId,
-          refreshToken,
-          subject,
-          sessionId: runtime.random(),
-          ...(typeof email === 'string' ? { email } : {}),
-        });
-        return typeof email === 'string' ? email : undefined;
+        return authKit(clientId, 'authkit');
       }),
 
     hosts: () =>

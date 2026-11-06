@@ -311,6 +311,10 @@ function RootNavigator() {
                     }}
                   />
                   <Stack.Screen
+                    name="sign-in"
+                    options={{ ...sheetScreenOptions(design, true), title: t.emailSignIn.title }}
+                  />
+                  <Stack.Screen
                     name="host-connection"
                     options={{
                       title: t.connectionRoutes.title,

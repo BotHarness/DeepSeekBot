@@ -3,16 +3,21 @@ import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
 import { fetch } from 'expo/fetch';
+import { router } from 'expo-router';
 
 import { MOBILE_REDIRECT_URI } from '../cloud/instance-contract';
 import { hostSession } from './host-session';
 import { createConnectAccount } from './connect-account';
+import { startEmailCodeSignIn } from './email-code-bridge';
 
 const KEY = 'botharness.connect-account.v1';
 const base64url = (value: string) =>
   value.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 
+const devRelay = __DEV__ ? process.env.EXPO_PUBLIC_CONNECT_RELAY : undefined;
+
 export const connectAccount = createConnectAccount({
+  ...(devRelay ? { relay: devRelay } : {}),
   removeConnections: (owner) => hostSession.removeAccount(owner),
   redirectUri: Application.applicationId
     ? `${Application.applicationId}:/oauth2redirect`
@@ -40,5 +45,6 @@ export const connectAccount = createConnectAccount({
       });
       return result.type === 'success' ? result.url : null;
     },
+    collectEmailCode: (flow) => startEmailCodeSignIn(flow, () => router.push('/sign-in')),
   },
 });

@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from 'react';
+import { useRef, useState, type ReactElement } from 'react';
 
 import {
   IconCheckOutlineRegular,
@@ -112,11 +112,34 @@ export interface SectionRenameModalProps {
   section: RosterSection;
   t: BotHarnessTranslate;
   onCancel: () => void;
-  onRename: (name: string) => void;
+  onRename: (name: string) => Promise<boolean>;
 }
 
 function dialogLabels(t: BotHarnessTranslate): DialogLabels {
   return { close: t('common.close'), cancel: t('common.cancel') };
+}
+
+function useSectionMutation(operation: () => Promise<boolean>) {
+  const pending = useRef(false);
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const submit = (): void => {
+    if (pending.current) return;
+    pending.current = true;
+    setBusy(true);
+    setFailed(false);
+    void Promise.resolve()
+      .then(operation)
+      .then(
+        (success) => setFailed(!success),
+        () => setFailed(true),
+      )
+      .finally(() => {
+        pending.current = false;
+        setBusy(false);
+      });
+  };
+  return { busy, failed, submit };
 }
 
 export function SectionRenameModal({
@@ -127,14 +150,19 @@ export function SectionRenameModal({
 }: SectionRenameModalProps): ReactElement {
   const [draft, setDraft] = useState(section.name);
   const trimmed = draft.trim();
+  const mutation = useSectionMutation(() => onRename(trimmed));
   return (
     <FormDialog
       title={t('section.rename.title')}
       labels={dialogLabels(t)}
       submitLabel={t('common.rename')}
       submitDisabled={trimmed.length === 0}
-      onCancel={onCancel}
-      onSubmit={() => onRename(trimmed)}
+      busy={mutation.busy}
+      error={mutation.failed ? t('section.updateFailed') : undefined}
+      onCancel={() => {
+        if (!mutation.busy) onCancel();
+      }}
+      onSubmit={mutation.submit}
     >
       <TextField
         label={t('section.name.label')}
@@ -191,7 +219,7 @@ export interface SectionDeleteModalProps {
   section: RosterSection;
   t: BotHarnessTranslate;
   onCancel: () => void;
-  onDelete: () => void;
+  onDelete: () => Promise<boolean>;
 }
 
 export function SectionDeleteModal({
@@ -200,14 +228,19 @@ export function SectionDeleteModal({
   onCancel,
   onDelete,
 }: SectionDeleteModalProps): ReactElement {
+  const mutation = useSectionMutation(onDelete);
   return (
     <ConfirmDialog
       title={t('section.delete.title')}
       description={t('section.delete.description', { name: section.name })}
       labels={dialogLabels(t)}
       confirmLabel={t('common.delete')}
-      onCancel={onCancel}
-      onConfirm={onDelete}
+      busy={mutation.busy}
+      error={mutation.failed ? t('section.updateFailed') : undefined}
+      onCancel={() => {
+        if (!mutation.busy) onCancel();
+      }}
+      onConfirm={mutation.submit}
     />
   );
 }
@@ -215,7 +248,7 @@ export function SectionDeleteModal({
 export interface CreateSectionModalProps {
   t: BotHarnessTranslate;
   onCancel: () => void;
-  onCreate: (name: string) => void;
+  onCreate: (name: string) => Promise<boolean>;
 }
 
 export function CreateSectionModal({
@@ -225,14 +258,19 @@ export function CreateSectionModal({
 }: CreateSectionModalProps): ReactElement {
   const [draft, setDraft] = useState('');
   const trimmed = draft.trim();
+  const mutation = useSectionMutation(() => onCreate(trimmed));
   return (
     <FormDialog
       title={t('section.create.title')}
       labels={dialogLabels(t)}
       submitLabel={t('common.create')}
       submitDisabled={trimmed.length === 0}
-      onCancel={onCancel}
-      onSubmit={() => onCreate(trimmed)}
+      busy={mutation.busy}
+      error={mutation.failed ? t('section.updateFailed') : undefined}
+      onCancel={() => {
+        if (!mutation.busy) onCancel();
+      }}
+      onSubmit={mutation.submit}
     >
       <TextField
         label={t('section.name.label')}

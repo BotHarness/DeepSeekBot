@@ -4,6 +4,13 @@
   "boundary": "All scripts/e2e-*.mjs files and all current feature-map documents, augmented by implemented Client/CLI/mobile source entry points. Behavior rows group related acceptance paths; they are not an exhaustive product behavior denominator. Planned unmerged #1954 work and packaged/restart identity promises are excluded.",
   "behaviors": [
     {
+      "id": "channel-section-management",
+      "label": "Tobs channel group mutations and failure recovery",
+      "source": "packages/client/src/client/section-management.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/channel-sections.md",
+      "task": 3570
+    },
+    {
       "id": "assignment-report-continuation",
       "label": "Accepted Assignment Report identity, continuation, restart and refusals",
       "source": "packages/core/src/runtime/assignment-report-reader.ts",
@@ -734,6 +741,14 @@
       "source": "packages/core/src/channels/send-review.ts",
       "guide": ".agents/skills/verify-deepseekbot/features/group-send-review.md",
       "task": 2053,
+      "gap": null
+    },
+    {
+      "id": "desktop.group.invitation-candidates",
+      "label": "Invite eligible Bots while explaining protected Tob's private-chat-only participation",
+      "source": "packages/client/src/client/group-member-controls.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/group-invitations.md",
+      "task": 3537,
       "gap": null
     },
     {
@@ -2081,7 +2096,7 @@
       "behaviors": ["desktop.grants.temporary-read-revoke"],
       "reason": "Dedicated temporary sample outside Host data; actual Web Grant authorization, direct attachment-import read, explicit CLI revocation, same-read denial and before/after visible evidence. No model/native file tool/Shell security claim.",
       "task": 1974,
-      "sha256": "eedc6f54d818cf732e4537965fde803a20a1375e5375f308c60e3f09abed4d03"
+      "sha256": "10ae7f69333a6df85262bd8fd2367ffa4c621a2efa5e5137700dc0881d917417"
     },
     {
       "path": "scripts/e2e-bot-mode-exit.mjs",

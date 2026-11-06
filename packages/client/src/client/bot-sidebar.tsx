@@ -2981,16 +2981,29 @@ export function BotSidebar({
           onCancel={() => {
             setCreateRequest(undefined);
           }}
-          onCreate={(name) => {
+          onCreate={async (name) => {
             const request = createRequest;
-            void actions.createSection(name).then((section) => {
-              if (section !== undefined && request.moveChannelIds !== undefined) {
-                void commitBulkMove(request.moveChannelIds, section.id);
-              } else if (section !== undefined && request.moveChannelId !== undefined) {
-                commitChannelMenuMove(request.moveChannelId, section.id, request.pinned === true);
+            const section = await actions.createSection(name);
+            if (section === undefined) return false;
+            setCreateRequest(undefined);
+            try {
+              if (request.moveChannelIds !== undefined) {
+                await commitBulkMove(request.moveChannelIds, section.id);
+              } else if (request.moveChannelId !== undefined) {
+                if (request.pinned === true) {
+                  if (
+                    await actions.movePinnedChannel(request.moveChannelId, section.id, [
+                      request.moveChannelId,
+                    ])
+                  )
+                    setSectionSortMode(section.id, 'manual');
+                  else setBatchError('failed');
+                } else await commitBulkMove([request.moveChannelId], section.id);
               }
-              setCreateRequest(undefined);
-            });
+            } catch {
+              setBatchError('failed');
+            }
+            return true;
           }}
         />
       ) : null}
@@ -3017,9 +3030,10 @@ export function BotSidebar({
           onCancel={() => {
             setRenameTarget(undefined);
           }}
-          onRename={(name) => {
-            void actions.renameSection(renameTarget.id, name);
+          onRename={async (name) => {
+            if (!(await actions.renameSection(renameTarget.id, name))) return false;
             setRenameTarget(undefined);
+            return true;
           }}
         />
       ) : null}
@@ -3045,11 +3059,12 @@ export function BotSidebar({
           onCancel={() => {
             setDeleteTarget(undefined);
           }}
-          onDelete={() => {
+          onDelete={async () => {
+            if (!(await actions.removeSection(deleteTarget.id))) return false;
             setSectionSortMode(deleteTarget.id, undefined);
-            void actions.removeSection(deleteTarget.id);
             if (createSectionId === deleteTarget.id) setCreateRequest(undefined);
             setDeleteTarget(undefined);
+            return true;
           }}
         />
       ) : null}
