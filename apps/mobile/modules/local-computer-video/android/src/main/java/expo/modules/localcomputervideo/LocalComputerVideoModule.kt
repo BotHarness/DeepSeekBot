@@ -82,7 +82,7 @@ class LocalComputerVideoModule : Module() {
         onAudio = { route ->
           if (call?.id == attemptId) sendEvent("onCallAudio", mapOf("attemptId" to attemptId, "route" to route))
         })
-      if (!attempt.beginAudio()) {
+      if (!attempt.beginAudio(headsetMicrophone)) {
         attempt.close { }
         promise.reject("audio-session", "The phone's audio could not start for a call.", null)
         return@AsyncFunction

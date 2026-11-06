@@ -64,7 +64,9 @@ class CallAttempt(
   }
   private val closed = AtomicBoolean(false)
   val tap: CallAudioTap? = if (testAudio) CallAudioTap(SystemClock.elapsedRealtime(), context, onTap) else null
-  private val route = CallAudioRoute(context, onAudio)
+  private val route = CallAudioRoute(context, onAudio) { input ->
+    adm?.let { BotCallPlayout.setInput(it, input) }
+  }
   private var adm: JavaAudioDeviceModule? = null
   private var factory: PeerConnectionFactory? = null
   private var peer: PeerConnection? = null
@@ -96,13 +98,44 @@ class CallAttempt(
   }
 
   /** Takes audio focus and routes the call to a headset, or else the loudspeaker. */
-  fun beginAudio(): Boolean = route.begin()
+  fun beginAudio(headsetMicrophone: String?): Boolean = route.begin(headsetMicrophone)
 
   fun audioState(): Map<String, Any?>? = route.state()
 
   fun chooseAudio(output: String, microphone: String): Map<String, Any?>? {
-    if (route.music && setAudioMode(false) == null) return null
-    return route.choose(output, microphone)
+    val before = route.state() ?: return null
+    val previousMode = route.music
+    val previousInput = route.requestedInput()
+    val previousOutput = before["output"] as? String ?: return null
+    val outputChange = previousOutput != output
+    val input = if (outputChange) null else (route.microphone(microphone) ?: return null)
+    if (outputChange && !route.hasOutput(output)) return null
+    if (!outputChange && microphone == "headset" && !route.hasOutput("external")) return null
+    fun restore() {
+      if (route.music != previousMode) setAudioMode(previousMode)
+      if (!previousMode && route.hasOutput(previousOutput)) route.chooseOutput(previousOutput)
+      route.requestInput(previousInput?.takeIf { route.hasInput(it.id) })
+      route.publish()
+    }
+    return try {
+      val accepted = if (outputChange) {
+        (!route.music || setAudioMode(false) != null) && route.chooseOutput(output)
+      } else if (microphone == "headset") {
+        (!route.music || setAudioMode(false) != null) && route.chooseOutput("external")
+      } else previousOutput != "external" || route.music || setAudioMode(true) != null
+      if (!accepted) {
+        restore()
+        null
+      } else {
+        route.requestInput(input)
+        route.publish()
+        // Selection is asynchronous. This is an acknowledgement; events own the current route.
+        route.state() ?: before
+      }
+    } catch (_: Exception) {
+      runCatching { restore() }
+      null
+    }
   }
 
   /** Recreate only playout; signaling, microphone track and the peer stay connected. Main thread. */
@@ -112,21 +145,23 @@ class CallAttempt(
     val module = adm ?: return null
     if (music == route.music) return route.state()
     val previous = route.music
+    val previousInput = route.requestedInput()
+    val before = route.state()
     return try {
       connection.setAudioPlayout(false)
       if (!route.setMusic(music)) {
         connection.setAudioPlayout(true)
         return null
       }
-      BotCallPlayout.setInput(module, if (music) route.phoneMicrophone() else null)
+      route.requestInput(if (music) route.phoneMicrophone() else null)
       BotCallPlayout.setAttributes(module, route.playbackAttributes())
       connection.setAudioPlayout(true)
       route.publish()
-      route.state()
+      route.state() ?: before
     } catch (_: Exception) {
       runCatching {
         check(route.setMusic(previous))
-        BotCallPlayout.setInput(module, if (previous) route.phoneMicrophone() else null)
+        route.requestInput(previousInput?.takeIf { route.hasInput(it.id) })
         BotCallPlayout.setAttributes(module, route.playbackAttributes())
         connection.setAudioPlayout(true)
       }.onFailure { state("failed", "speaker-failed") }
@@ -142,7 +177,7 @@ class CallAttempt(
       val module = JavaAudioDeviceModule.builder(context)
         .setUseHardwareAcousticEchoCanceler(JavaAudioDeviceModule.isBuiltInAcousticEchoCancelerSupported())
         .setUseHardwareNoiseSuppressor(JavaAudioDeviceModule.isBuiltInNoiseSuppressorSupported())
-        .setAudioAttributes(CallAudioRoute.attributes)
+        .setAudioAttributes(route.playbackAttributes())
         .setAudioRecordErrorCallback(object : JavaAudioDeviceModule.AudioRecordErrorCallback {
           override fun onWebRtcAudioRecordInitError(message: String) = state("failed", "microphone-failed")
           override fun onWebRtcAudioRecordStartError(code: JavaAudioDeviceModule.AudioRecordStartErrorCode, message: String) =
@@ -159,6 +194,7 @@ class CallAttempt(
         .apply { tap?.let { setAudioBufferCallback(it.capture) } }
         .createAudioDeviceModule()
       adm = module
+      route.requestedInput()?.let { BotCallPlayout.setInput(module, it) }
       val built = PeerConnectionFactory.builder().setAudioDeviceModule(module).createPeerConnectionFactory()
       factory = built
       val config = PeerConnection.RTCConfiguration(emptyList()).apply {
@@ -375,7 +411,11 @@ class CallAttempt(
 }
 
 /** Audio focus and routing for one call; restores what the phone had before. */
-class CallAudioRoute(context: Context, private val onChange: (Map<String, Any?>) -> Unit) {
+class CallAudioRoute(
+  context: Context,
+  private val onChange: (Map<String, Any?>) -> Unit,
+  private val onInput: (AudioDeviceInfo?) -> Unit,
+) {
   companion object {
     val attributes: AudioAttributes = AudioAttributes.Builder()
       .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
@@ -395,7 +435,10 @@ class CallAudioRoute(context: Context, private val onChange: (Map<String, Any?>)
   private var routeListener: AudioManager.OnCommunicationDeviceChangedListener? = null
   private val deviceListener = object : AudioDeviceCallback() {
     override fun onAudioDevicesAdded(devices: Array<AudioDeviceInfo>) = publish()
-    override fun onAudioDevicesRemoved(devices: Array<AudioDeviceInfo>) = publish()
+    override fun onAudioDevicesRemoved(devices: Array<AudioDeviceInfo>) {
+      if (devices.any { it.id == requested?.id }) requestInput(null)
+      publish()
+    }
   }
   private val recordingListener = object : AudioManager.AudioRecordingCallback() {
     override fun onRecordingConfigChanged(configs: MutableList<AudioRecordingConfiguration>) = publish()
@@ -408,6 +451,32 @@ class CallAudioRoute(context: Context, private val onChange: (Map<String, Any?>)
   var music = false
     private set
   private var voiceOutput: AudioDeviceInfo? = null
+  private var requested: AudioDeviceInfo? = null
+  private var inputDeadline = 0L
+  private val checkInput = Runnable { if (active) publish() }
+
+  fun requestedInput(): AudioDeviceInfo? = requested
+
+  fun requestInput(device: AudioDeviceInfo?) {
+    onInput(device)
+    requested = device
+    inputDeadline = SystemClock.elapsedRealtime() + 1500
+    handler.removeCallbacks(checkInput)
+    if (device != null) handler.postDelayed(checkInput, 1500)
+  }
+
+  private fun inputs(): List<AudioDeviceInfo> = manager.getDevices(AudioManager.GET_DEVICES_INPUTS)
+    .filter { it.type == AudioDeviceInfo.TYPE_BUILTIN_MIC || it.type in headsets || it.type == AudioDeviceInfo.TYPE_USB_DEVICE }
+
+  private fun inputId(device: AudioDeviceInfo): String =
+    if (device.type == AudioDeviceInfo.TYPE_BUILTIN_MIC) "iphone" else "headset"
+
+  fun microphone(id: String): AudioDeviceInfo? = inputs().firstOrNull { inputId(it) == id }
+
+  fun hasInput(id: Int): Boolean = inputs().any { it.id == id }
+
+  fun hasOutput(id: String): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+    manager.availableCommunicationDevices.any { outputId(it) == id }
 
   fun playbackAttributes(): AudioAttributes = if (music) mediaAttributes else attributes
 
@@ -448,7 +517,7 @@ class CallAudioRoute(context: Context, private val onChange: (Map<String, Any?>)
     return true
   }
 
-  fun begin(): Boolean {
+  fun begin(headsetMicrophone: String?): Boolean {
     if (active) return true
     previousMode = manager.mode
     @Suppress("DEPRECATION")
@@ -477,6 +546,10 @@ class CallAudioRoute(context: Context, private val onChange: (Map<String, Any?>)
       val preferred = devices.firstOrNull { it.type in headsets }
         ?: devices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
       if (preferred != null) manager.setCommunicationDevice(preferred)
+      if (preferred?.type in headsets && headsetMicrophone == "iphone" &&
+          Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && setMusic(true)) {
+        requestInput(phoneMicrophone())
+      }
     } else {
       val wired = manager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any {
         it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET || it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
@@ -524,27 +597,29 @@ class CallAudioRoute(context: Context, private val onChange: (Map<String, Any?>)
     val recordingInput = manager.activeRecordingConfigurations.firstOrNull()?.audioDevice
     // Muting stops recording. A connected microphone is then only an available
     // candidate, not a confirmed selection; output routing remains usable.
-    val input = recordingInput ?: manager.getDevices(AudioManager.GET_DEVICES_INPUTS)
-      .firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_MIC } ?: return null
-    val microphone = if (input.type == AudioDeviceInfo.TYPE_BUILTIN_MIC) "iphone" else "headset"
+    val availableInputs = inputs()
+    val input = recordingInput ?: availableInputs.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_MIC }
+      ?: availableInputs.firstOrNull() ?: return null
+    val microphone = inputId(input)
     val outputs = (listOf(output) + manager.availableCommunicationDevices)
       .mapNotNull { item -> outputId(item)?.let { device(item, it) } }
       .distinctBy { it["id"] }
     return mapOf("output" to selectedOutput, "outputs" to outputs,
       "microphoneConfirmed" to (recordingInput != null),
-      "microphone" to microphone, "microphones" to listOf(device(input, microphone)), "music" to music)
+      "selectionFailed" to (requested != null && recordingInput != null &&
+        requested?.id != recordingInput.id && SystemClock.elapsedRealtime() >= inputDeadline),
+      "microphone" to microphone,
+      "microphones" to (listOf(input) + availableInputs).map { device(it, inputId(it)) }.distinctBy { it["id"] },
+      "music" to music)
   }
 
-  fun choose(output: String, microphone: String): Map<String, Any?>? {
-    if (!active || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return null
-    val before = state() ?: return null
-    // Communication routing couples input and output. Independent input/media mode is a separate slice.
-    if (before["output"] == output && before["microphone"] != microphone) return null
+  fun chooseOutput(output: String): Boolean {
+    if (!active || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return false
     val target = (listOfNotNull(manager.communicationDevice) + manager.availableCommunicationDevices)
-      .firstOrNull { outputId(it) == output } ?: return null
-    if (!manager.setCommunicationDevice(target)) return null
+      .firstOrNull { outputId(it) == output } ?: return false
+    if (!manager.setCommunicationDevice(target)) return false
     // Route changes are asynchronous; the listener publishes the confirmed selection.
-    return state()
+    return true
   }
 
   fun publish() {
@@ -554,6 +629,8 @@ class CallAudioRoute(context: Context, private val onChange: (Map<String, Any?>)
   fun end() {
     if (!active) return
     active = false
+    handler.removeCallbacks(checkInput)
+    requested = null
     music = false
     voiceOutput = null
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {

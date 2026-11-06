@@ -102,10 +102,21 @@ export function CallScreen({
       : camera?.error === 'camera-missing'
         ? t.call.cameraMissing
         : undefined;
-  const hint = audioFailed ? t.call.audioSwitchFailed : (cameraError ?? model.hint);
+  const hint =
+    [
+      cameraError,
+      model.hint,
+      audioFailed || session?.audioRoute?.selectionFailed ? t.call.audioSwitchFailed : undefined,
+    ]
+      .filter((value): value is string => value !== undefined)
+      .join('\n') || undefined;
   const control = () => (key === undefined ? undefined : callSessions.controls());
   const shownRoute = session?.audioRoute ?? fallbackCallAudioRoute();
-  const chooseAudio = (output: CallAudioOutputId, microphone: CallMicrophoneId) => {
+  const chooseAudio = (
+    output: CallAudioOutputId,
+    microphone: CallMicrophoneId,
+    remember = false,
+  ) => {
     const choosing = control();
     if (choosing === undefined || key === undefined) return;
     void choosing.choose(output, microphone).then((next) => {
@@ -114,7 +125,10 @@ export function CallScreen({
         return;
       }
       setAudioFailed(false);
-      if (Platform.OS === 'android') return;
+      if (Platform.OS === 'android') {
+        if (remember) callAudioPreference.setHeadsetMicrophone(microphone);
+        return;
+      }
       callSessions.publish(key, { audioRoute: next });
       if (next.output === 'external') callAudioPreference.setHeadsetMicrophone(next.microphone);
     });
@@ -401,7 +415,7 @@ export function CallScreen({
                   ink={theme.color.fg}
                   disabled={!model.live}
                   onOutput={(output) => chooseAudio(output, shownRoute.microphone)}
-                  onMicrophone={(microphone) => chooseAudio(shownRoute.output, microphone)}
+                  onMicrophone={(microphone) => chooseAudio(shownRoute.output, microphone, true)}
                   {...(control()?.mode
                     ? {
                         onMode: (music: boolean) => {

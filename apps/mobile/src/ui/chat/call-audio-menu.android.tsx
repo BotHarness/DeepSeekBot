@@ -19,6 +19,7 @@ export function CallAudioMenu({
   ink,
   disabled,
   onOutput,
+  onMicrophone,
   onMode,
 }: CallAudioMenuProps) {
   const theme = useDesignTheme();
@@ -74,6 +75,25 @@ export function CallAudioMenu({
                   onPress: () => {
                     setOpen(false);
                     if (device.id !== route.output) onOutput(device.id);
+                  },
+                }))}
+              />
+              <MaterialMenuGroup
+                items={route.microphones.map((device) => ({
+                  key: device.id,
+                  label: `${t.call.audioMicrophone} · ${callAudioDeviceName(t, device)}`,
+                  selected: route.microphoneConfirmed !== false && device.id === route.microphone,
+                  testID: `call-audio-microphone-${device.id}`,
+                  icon: (
+                    <SystemSymbol
+                      name={{ ios: 'mic.fill', android: 'mic' }}
+                      color={ink}
+                      size={materialMenu.iconSize}
+                    />
+                  ),
+                  onPress: () => {
+                    setOpen(false);
+                    onMicrophone(device.id);
                   },
                 }))}
               />
