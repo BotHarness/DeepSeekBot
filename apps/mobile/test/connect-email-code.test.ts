@@ -1,0 +1,133 @@
+import { describe, expect, it, vi } from 'vitest';
+
+import {
+  createConnectAccount,
+  type EmailCodeFlow,
+  type EmailCodeOutcome,
+} from '../src/host/connect-account';
+import { startEmailCodeSignIn, takeEmailCodeSignIn } from '../src/host/email-code-bridge';
+
+const RELAY = 'https://relay.test';
+const REDIRECT = 'ai.botharness.deepseekbot.dev:/oauth2redirect';
+
+function setup(
+  collect: ((flow: EmailCodeFlow) => Promise<EmailCodeOutcome>) | undefined,
+  options: { emailCode?: boolean; verifyStatus?: number; verifyCode?: string } = {},
+) {
+  let stored: string | null = null;
+  let randoms = 0;
+  const calls: { url: string; body?: unknown }[] = [];
+  const request = vi.fn(async (url: string, init?: RequestInit) => {
+    const raw = typeof init?.body === 'string' ? init.body : undefined;
+    calls.push({ url, ...(raw && raw.startsWith('{') ? { body: JSON.parse(raw) } : {}) });
+    if (url === `${RELAY}/v1/config`)
+      return Response.json({
+        clientId: 'client_01TEST',
+        ...(options.emailCode === false ? {} : { emailCode: true }),
+      });
+    if (url === `${RELAY}/v1/auth/email-code`) return Response.json({ sent: true });
+    if (url === `${RELAY}/v1/auth/email-code/verify`)
+      return options.verifyStatus
+        ? Response.json(
+            { error: { code: options.verifyCode ?? 'invalid-code' } },
+            { status: options.verifyStatus },
+          )
+        : Response.json({
+            refresh_token: 'refresh-email',
+            user: { id: 'user_alice', email: 'alice@example.com' },
+          });
+    if (url === 'https://api.workos.com/user_management/authenticate')
+      return Response.json({
+        refresh_token: 'refresh-browser',
+        user: { id: 'user_alice', email: 'alice@example.com' },
+      });
+    return Response.json({}, { status: 404 });
+  });
+  const authorize = vi.fn(async (url: string) => {
+    const state = new URL(url).searchParams.get('state');
+    return `${REDIRECT}?code=auth-code&state=${state}`;
+  });
+  const account = createConnectAccount({
+    relay: RELAY,
+    redirectUri: REDIRECT,
+    runtime: {
+      read: async () => stored,
+      write: async (value) => {
+        stored = value;
+      },
+      request,
+      random: () => `random-${(randoms += 1)}`,
+      challenge: async (value) => value,
+      authorize,
+      now: () => 0,
+      ...(collect ? { collectEmailCode: collect } : {}),
+    },
+  });
+  return { account, calls, authorize, stored: () => (stored ? JSON.parse(stored) : null) };
+}
+
+describe('phone Connect email-code sign-in (#3464)', () => {
+  it('signs in through the relay without opening the WorkOS page', async () => {
+    const relay = setup(async (flow) => {
+      expect(await flow.send(' alice@example.com ')).toEqual({ ok: true });
+      const verified = await flow.verify('alice@example.com', '123456');
+      return verified.ok ? { kind: 'signed-in', email: verified.email } : { kind: 'cancelled' };
+    });
+    expect(await relay.account.signIn()).toEqual({ ok: true, value: 'alice@example.com' });
+    expect(relay.authorize).not.toHaveBeenCalled();
+    expect(relay.calls.map((call) => call.url)).toEqual([
+      `${RELAY}/v1/config`,
+      `${RELAY}/v1/auth/email-code`,
+      `${RELAY}/v1/auth/email-code/verify`,
+    ]);
+    expect(relay.calls[1]?.body).toEqual({ email: 'alice@example.com' });
+    expect(relay.calls[2]?.body).toEqual({ email: 'alice@example.com', code: '123456' });
+    expect(relay.stored()).toMatchObject({
+      clientId: 'client_01TEST',
+      refreshToken: 'refresh-email',
+      subject: 'user_alice',
+      email: 'alice@example.com',
+    });
+  });
+
+  it('reports a wrong code and lets the user retry before finishing', async () => {
+    const relay = setup(
+      async (flow) => {
+        expect(await flow.verify('alice@example.com', '000000')).toEqual({
+          ok: false,
+          code: 'invalid-code',
+        });
+        return { kind: 'cancelled' };
+      },
+      { verifyStatus: 400 },
+    );
+    expect(await relay.account.signIn()).toEqual({ ok: false, code: 'sign-in-cancelled' });
+    expect(relay.stored()).toBeNull();
+  });
+
+  it('falls back to AuthKit when the user picks another method or the relay lacks the route', async () => {
+    const chosen = setup(async () => ({ kind: 'browser' }));
+    expect(await chosen.account.signIn()).toEqual({ ok: true, value: 'alice@example.com' });
+    expect(chosen.authorize).toHaveBeenCalledOnce();
+    expect(chosen.stored()).toMatchObject({ refreshToken: 'refresh-browser' });
+
+    const collect = vi.fn();
+    const older = setup(collect, { emailCode: false });
+    expect(await older.account.signIn()).toEqual({ ok: true, value: 'alice@example.com' });
+    expect(collect).not.toHaveBeenCalled();
+  });
+});
+
+describe('email-code sheet bridge', () => {
+  it('hands one request to the sheet and cancels a superseded one', async () => {
+    const flow = {} as EmailCodeFlow;
+    const present = vi.fn();
+    const first = startEmailCodeSignIn(flow, present);
+    const second = startEmailCodeSignIn(flow, present);
+    expect(await first).toEqual({ kind: 'cancelled' });
+    expect(present).toHaveBeenCalledTimes(2);
+    takeEmailCodeSignIn()?.finish({ kind: 'signed-in', email: 'a@b.co' });
+    expect(await second).toEqual({ kind: 'signed-in', email: 'a@b.co' });
+    expect(takeEmailCodeSignIn()).toBeUndefined();
+  });
+});

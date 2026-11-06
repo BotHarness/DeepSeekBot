@@ -7,6 +7,7 @@ import { interfacePreferences } from './interface-preferences';
 import type { PairingFailure } from '../host/pairing';
 import type { PushKind, PushRefusal } from '../host/push';
 import type { AggregatedState } from '../host/wire';
+import type { EmailCodeRefusal } from '../host/connect-account';
 
 type ToolGroup = 'shell' | 'browser' | 'files' | 'other';
 
@@ -1008,6 +1009,25 @@ const en = {
     loadFailed: 'Could not load your profile.',
     saveFailed: 'Could not save.',
     retry: 'Try again',
+  },
+  emailSignIn: {
+    title: 'Sign in',
+    email: 'Email',
+    emailHint: 'We’ll email you a 6-digit code.',
+    sendCode: 'Send code',
+    code: 'Code',
+    codeHint: (email: string) => `Enter the code sent to ${email}.`,
+    verify: 'Continue',
+    resend: 'Send a new code',
+    changeEmail: 'Change email',
+    otherMethods: 'Other sign-in options',
+    refused: {
+      'invalid-email': 'Enter a valid email address.',
+      'invalid-code': 'That code is wrong or expired.',
+      'rate-limited': 'Too many tries. Wait a minute and try again.',
+      'use-browser-sign-in': 'This account needs another sign-in method.',
+      'relay-unavailable': 'Could not reach the server. Try again.',
+    } satisfies Record<EmailCodeRefusal, string>,
   },
   pairAccount: {
     title: `${productName.en} account`,
@@ -3254,6 +3274,25 @@ const zh: typeof en = {
     loadFailed: '未能读取个人资料。',
     saveFailed: '未能保存。',
     retry: '重试',
+  },
+  emailSignIn: {
+    title: '登录',
+    email: '邮箱',
+    emailHint: '我们会给你发一个 6 位验证码。',
+    sendCode: '发送验证码',
+    code: '验证码',
+    codeHint: (email: string) => `输入发送到 ${email} 的验证码。`,
+    verify: '继续',
+    resend: '重新发送',
+    changeEmail: '更改邮箱',
+    otherMethods: '其他登录方式',
+    refused: {
+      'invalid-email': '请输入有效的邮箱地址。',
+      'invalid-code': '验证码不对或已过期。',
+      'rate-limited': '尝试次数太多，请稍等一分钟再试。',
+      'use-browser-sign-in': '这个账号需要用其他方式登录。',
+      'relay-unavailable': '连不上服务器，请再试一次。',
+    } satisfies Record<EmailCodeRefusal, string>,
   },
   pairAccount: {
     computers: '环境',

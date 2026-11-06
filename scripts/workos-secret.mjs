@@ -1,21 +1,16 @@
 #!/usr/bin/env node
-// Machine-local WorkOS credentials for the Connect relay's staging and production environments.
-// The secret key goes into the macOS Keychain through `security`'s own hidden prompt, so it is
-// never typed into Node, echoed, printed or written to the repo. Agents reuse it through
-// `probe-email-code`, which reads it from the Keychain and prints only redacted results.
-//
-//   node scripts/workos-secret.mjs set staging      # asks for client id, then the sk_ key (hidden)
-//   node scripts/workos-secret.mjs check            # which environments are stored (no secrets)
-//   node scripts/workos-secret.mjs probe-email-code staging [--allow-production]
-//
-// Cloud sessions read WORKOS_<STAGING|PRODUCTION>_CLIENT_ID and _API_KEY from the environment.
 
 import { execFileSync, spawnSync } from 'node:child_process';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 
 export const ENVIRONMENTS = ['staging', 'production'];
 const API = 'https://api.workos.com/user_management';
-const service = (environment, kind) => `botharness-workos-${environment}-${kind}`;
+const DIR = join(homedir(), '.config', 'botharness', 'workos');
+const keychainService = (environment) => `botharness.workos.${environment}`;
+const clientIdPath = (environment) => join(DIR, `${environment}.client_id`);
 
 function requireMac() {
   if (process.platform !== 'darwin') {
@@ -32,11 +27,19 @@ function environmentArg(value) {
   return value;
 }
 
-function read(environment, kind) {
+function readClientId(environment) {
+  try {
+    return readFileSync(clientIdPath(environment), 'utf8').trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function readKey(environment) {
   try {
     const value = execFileSync(
       'security',
-      ['find-generic-password', '-s', service(environment, kind), '-w'],
+      ['find-generic-password', '-s', keychainService(environment), '-w'],
       { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
     ).trim();
     return value.length === 0 ? undefined : value;
@@ -45,23 +48,19 @@ function read(environment, kind) {
   }
 }
 
-// Cloud sessions have no Keychain: WORKOS_STAGING_CLIENT_ID / WORKOS_STAGING_API_KEY (and the
-// PRODUCTION pair) from the environment win when set.
 export function workosCredential(environment) {
   const prefix = `WORKOS_${environment.toUpperCase()}_`;
   const fromEnv = (name) => process.env[prefix + name]?.trim() || undefined;
   const clientId =
-    fromEnv('CLIENT_ID') ??
-    (process.platform === 'darwin' ? read(environment, 'client-id') : undefined);
+    fromEnv('CLIENT_ID') ?? (process.platform === 'darwin' ? readClientId(environment) : undefined);
   const apiKey =
-    fromEnv('API_KEY') ??
-    (process.platform === 'darwin' ? read(environment, 'api-key') : undefined);
+    fromEnv('API_KEY') ?? (process.platform === 'darwin' ? readKey(environment) : undefined);
   return clientId && apiKey ? { clientId, apiKey } : undefined;
 }
 
 async function set(environment) {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
-  const current = read(environment, 'client-id');
+  const current = readClientId(environment);
   const answer = (
     await rl.question(
       `WorkOS ${environment} client id (client_…)${current ? ` [${current}]` : ''}: `,
@@ -73,18 +72,9 @@ async function set(environment) {
     console.error('That is not a WorkOS client id.');
     process.exit(2);
   }
-  execFileSync('security', [
-    'add-generic-password',
-    '-U',
-    '-a',
-    process.env.USER ?? 'botharness',
-    '-s',
-    service(environment, 'client-id'),
-    '-w',
-    clientId,
-  ]);
+  mkdirSync(DIR, { recursive: true, mode: 0o700 });
+  writeFileSync(clientIdPath(environment), `${clientId}\n`, { mode: 0o600 });
   console.log(`Now paste the ${environment} WorkOS secret key (sk_…). Input stays hidden.`);
-  // `-w` as the last argument makes `security` prompt (twice, without echo) for the value.
   const stored = spawnSync(
     'security',
     [
@@ -93,13 +83,13 @@ async function set(environment) {
       '-a',
       process.env.USER ?? 'botharness',
       '-s',
-      service(environment, 'api-key'),
+      keychainService(environment),
       '-w',
     ],
     { stdio: 'inherit' },
   );
   if (stored.status !== 0) process.exit(stored.status ?? 1);
-  const key = read(environment, 'api-key');
+  const key = readKey(environment);
   if (!key?.startsWith('sk_')) {
     console.error('Stored, but the value does not start with sk_. Run set again to replace it.');
     process.exit(1);
@@ -138,8 +128,6 @@ async function post(path, body, { apiKey, form = false } = {}) {
   return { status: response.status, body: await response.json().catch(() => ({})) };
 }
 
-// Checks the native email-code sign-in end to end against WorkOS: create a code, exchange it with
-// the secret (as the relay does), then refresh with only the client id (as the phone does).
 async function probe(environment) {
   const credential = workosCredential(environment);
   if (!credential) {

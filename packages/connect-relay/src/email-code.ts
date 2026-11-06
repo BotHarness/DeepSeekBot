@@ -1,8 +1,3 @@
-// Native email-code sign-in (ADR-0296). The phone collects the email and the one-time code in
-// its own UI; the relay holds the WorkOS secret that Magic Auth requires and returns the same
-// refresh token and user an AuthKit PKCE sign-in would. The code itself never leaves WorkOS
-// except through the user's mailbox.
-
 const WORKOS = 'https://api.workos.com/user_management';
 const MAX_EMAIL = 254;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
@@ -12,7 +7,6 @@ export interface EmailCodeOptions {
   apiKey: string;
   clientId: string;
   fetcher?: typeof fetch;
-  /** One attempt per call; false means the caller is over its budget. */
   limit?: (key: string) => Promise<boolean>;
 }
 
@@ -58,7 +52,6 @@ export function createEmailCode(options: EmailCodeOptions) {
   };
 
   return {
-    /** Ask WorkOS to email a one-time code. The reply never says whether the account exists. */
     async send(input: { email: unknown; ip?: string }): Promise<EmailCodeResult> {
       const email = normalizeEmail(input.email);
       if (email === undefined) return refused(400, 'invalid-email');
@@ -74,11 +67,10 @@ export function createEmailCode(options: EmailCodeOptions) {
       if (reply.status === 200 || reply.status === 201)
         return { status: 200, body: { sent: true } };
       if (reply.status === 429) return refused(429, 'rate-limited');
-      if (reply.status >= 400 && reply.status < 500) return refused(400, 'invalid-email');
+      if (reply.status === 400 || reply.status === 422) return refused(400, 'invalid-email');
       return refused(502, 'workos-unavailable', `http-${reply.status}`);
     },
 
-    /** Exchange the emailed code for the same refresh token an AuthKit sign-in returns. */
     async verify(input: {
       email: unknown;
       code: unknown;
@@ -132,8 +124,7 @@ export function createEmailCode(options: EmailCodeOptions) {
         workosCode === 'invalid_grant'
       )
         return refused(400, 'invalid-code');
-      if (reply.status >= 400 && reply.status < 500)
-        // e.g. organization selection, MFA or SSO-required accounts: finish in AuthKit instead.
+      if (reply.status !== 401 && reply.status >= 400 && reply.status < 500)
         return refused(409, 'use-browser-sign-in', workosCode);
       return refused(502, 'workos-unavailable', `http-${reply.status}`);
     },
