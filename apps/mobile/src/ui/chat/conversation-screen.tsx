@@ -554,15 +554,43 @@ function ChatConversation({
   const focusPage = useRef<string | undefined>(undefined);
   const focusCancelled = useRef(false);
   const focusNeedsLayout = useRef(false);
+  const focusHasLiveLayout = useRef(false);
   const focusEstimate = useRef<string | undefined>(undefined);
   const focusAttempt = useRef<
     { message: string; request: string | undefined; index: number } | undefined
   >(undefined);
+  const [anchoredFocus, setAnchoredFocus] = useState<{
+    message: string | undefined;
+    request: string | undefined;
+  }>();
+  const positioningFocus =
+    android &&
+    focus !== undefined &&
+    (anchoredFocus?.message !== focus || anchoredFocus?.request !== focusRequest);
   const retryFocus = useRef<() => void>(() => undefined);
-  const onFocusViewabilityChange = useCallback(() => {
-    focusNeedsLayout.current = false;
-    retryFocus.current();
-  }, []);
+  const onFocusViewabilityChange = useCallback(
+    (info?: { viewableItems: Array<{ item: Row; isViewable: boolean }> }) => {
+      const attempt = focusAttempt.current;
+      if (
+        android &&
+        focusHasLiveLayout.current &&
+        attempt !== undefined &&
+        !focusCancelled.current &&
+        attempt.message === focusIntent.current.message &&
+        attempt.request === focusIntent.current.request &&
+        info?.viewableItems.some(
+          ({ item, isViewable }) =>
+            isViewable && item.kind === 'message' && item.message.id === attempt.message,
+        )
+      ) {
+        setAnchoredFocus({ message: attempt.message, request: attempt.request });
+        focusAttempt.current = undefined;
+      }
+      focusNeedsLayout.current = false;
+      retryFocus.current();
+    },
+    [android],
+  );
   const focusIntent = useRef<{
     request: string | undefined;
     message: string | undefined;
@@ -828,6 +856,7 @@ function ChatConversation({
       focusPage.current = undefined;
       focusCancelled.current = false;
       focusNeedsLayout.current = false;
+      focusHasLiveLayout.current = false;
       focusEstimate.current = undefined;
       focusAttempt.current = undefined;
     }
@@ -1850,9 +1879,15 @@ function ChatConversation({
                         onStartReachedThreshold={0.5}
                         onEndReachedThreshold={0.5}
                         {...latest.listProps}
+                        maintainVisibleContentPosition={
+                          positioningFocus
+                            ? undefined
+                            : latest.listProps.maintainVisibleContentPosition
+                        }
                         onScrollBeginDrag={(event: ScrollEvent) => {
                           focusCancelled.current = true;
                           focusAttempt.current = undefined;
+                          if (android) setAnchoredFocus({ message: focus, request: focusRequest });
                           pull.onScrollBeginDrag(event);
                           latest.listProps.onScrollBeginDrag();
                         }}
@@ -1867,6 +1902,11 @@ function ChatConversation({
                         onContentSizeChange={(width: number, height: number) => {
                           latest.listProps.onContentSizeChange(width, height);
                           focusNeedsLayout.current = false;
+                          if (positioningFocus && !focusCancelled.current) {
+                            focusHasLiveLayout.current =
+                              snapshot.status === 'live' && !snapshot.fromCache;
+                            jumped.current = undefined;
+                          }
                           jump();
                         }}
                         scrollEventThrottle={Platform.OS === 'android' && !latest.ready ? 16 : 32}

@@ -85,6 +85,203 @@ describe('Host client', () => {
     },
   );
 
+  it('keeps a Channel follower live across repeated foreground recovery', async () => {
+    const host = new FakeHost();
+    const channel = host.channel('resume-channel');
+    const target = connect(host);
+    await until(target, (s) => s.connection.status === 'connected');
+    const received: unknown[] = [];
+    const off = target.follow(
+      'botharness/followChannel',
+      { channelId: channel.id, limit: 20 },
+      {
+        item: (item) => received.push(item),
+        interrupted() {},
+        refused(error) {
+          throw new Error(error.message);
+        },
+      },
+    );
+    await until(target, () => channel.followerCount === 1);
+    for (let cycle = 0; cycle < 5; cycle += 1) {
+      target.retryNow('resume');
+      expect(target.getSnapshot().connection.status).toBe('reconnecting');
+      await until(target, (s) => s.connection.status === 'connected');
+      expect(channel.followerCount).toBe(1);
+      channel.append({ id: `resume-${cycle}`, body: `foreground ${cycle}` });
+      expect(received).toContainEqual(
+        expect.objectContaining({
+          type: 'entry',
+          entry: expect.objectContaining({
+            message: expect.objectContaining({ id: `resume-${cycle}` }),
+          }),
+        }),
+      );
+    }
+    off();
+    expect(channel.followerCount).toBe(0);
+  });
+
+  it('shows unreachable on a failed resume and recovers when the route returns', async () => {
+    const host = new FakeHost();
+    const target = connect(host, host.credential, [ROUTE]);
+    await until(target, (s) => s.connection.status === 'connected');
+    host.unreachable.add(ROUTE);
+    target.retryNow('resume');
+    await until(target, (s) => s.connection.status === 'unreachable');
+    host.unreachable.delete(ROUTE);
+    await until(target, (s) => s.connection.status === 'connected');
+    host.push('botharness/followRoster', latest[0]);
+    expect(target.getSnapshot().roster?.bots[0]?.preview).toBe('mobile tracer probe');
+  });
+
+  it('does not reopen a stopped client when its resume route probe completes late', async () => {
+    const host = new FakeHost();
+    let hold = false;
+    let release!: () => void;
+    let sockets = 0;
+    client = createHostClient({
+      routes: [ROUTE],
+      credential: host.credential,
+      timeoutMs: 200,
+      carrier: {
+        ...host.carrier,
+        request: async (url, init) => {
+          if (hold)
+            await new Promise<void>((resolve) => {
+              release = resolve;
+            });
+          return host.carrier.request(url, init);
+        },
+        openSocket: (...args) => {
+          sockets += 1;
+          return host.carrier.openSocket(...args);
+        },
+      },
+    });
+    client.start();
+    await until(client, (s) => s.connection.status === 'connected');
+    hold = true;
+    client.retryNow('resume');
+    await until(client, () => typeof release === 'function');
+    client.stop();
+    hold = false;
+    release();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(sockets).toBe(1);
+    expect(client.getSnapshot().connection.status).toBe('stopped');
+  });
+
+  it('restores live updates on resume when the old socket silently stops delivering', async () => {
+    const host = new FakeHost();
+    let suspended = false;
+    let sockets = 0;
+    let closeOld = () => {};
+    client = createHostClient({
+      routes: [ROUTE],
+      credential: host.credential,
+      carrier: {
+        ...host.carrier,
+        openSocket(url, events, headers) {
+          const first = ++sockets === 1;
+          if (first) closeOld = () => events.closed('late old connection close');
+          return host.carrier.openSocket(
+            url,
+            {
+              ...events,
+              message: (text) => {
+                if (!first || !suspended) events.message(text);
+              },
+              closed: (reason) => {
+                if (!first || !suspended) events.closed(reason);
+              },
+            },
+            headers,
+          );
+        },
+      },
+      timeoutMs: 200,
+      backoff: () => 5,
+    });
+    const target = client;
+    target.start();
+    await until(target, (s) => s.connection.status === 'connected');
+    suspended = true;
+    target.retryNow('resume');
+    await until(target, (s) => {
+      host.push('botharness/followRoster', latest[0]);
+      return (
+        s.connection.status === 'connected' && s.roster?.bots[0]?.preview === 'mobile tracer probe'
+      );
+    });
+    expect(sockets).toBe(2);
+    let liveEvents = 0;
+    target.onLive(() => liveEvents++);
+    closeOld();
+    host.push('botharness/followRoster', latest[0]);
+    expect(liveEvents).toBe(1);
+    expect(target.getSnapshot().connection.status).toBe('connected');
+  });
+
+  it.each(['complete', 'timeout'] as const)(
+    'defers foreground recovery until an accepted write %ss without replaying it',
+    async (outcome) => {
+      const host = new FakeHost();
+      let complete!: () => void;
+      host.methods.set(
+        'pending-write',
+        () =>
+          new Promise<void>((resolve) => {
+            complete = resolve;
+          }),
+      );
+      let sockets = 0;
+      let closes = 0;
+      client = createHostClient({
+        routes: [ROUTE],
+        credential: host.credential,
+        timeoutMs: 100,
+        carrier: {
+          ...host.carrier,
+          close: () => {
+            closes++;
+          },
+          openSocket: (...args) => {
+            sockets++;
+            return host.carrier.openSocket(...args);
+          },
+          request: async (url, init) => {
+            const response = host.carrier.request(url, init);
+            if (!url.endsWith('/pending-write')) return response;
+            return Promise.race([
+              response,
+              new Promise<never>((_, reject) => {
+                init.signal.addEventListener('abort', () => reject(new Error('aborted')), {
+                  once: true,
+                });
+              }),
+            ]);
+          },
+        },
+      });
+      const target = client;
+      target.start();
+      await until(target, (s) => s.connection.status === 'connected');
+      const pending = target.call('pending-write').then(
+        () => 'complete',
+        () => 'timeout',
+      );
+      await until(target, () => typeof complete === 'function');
+      target.retryNow('resume');
+      expect(closes).toBe(0);
+      expect(sockets).toBe(1);
+      if (outcome === 'complete') complete();
+      expect(await pending).toBe(outcome);
+      await until(target, (s) => s.connection.status === 'connected' && sockets === 2);
+      expect(host.calls.filter((entry) => entry.method === 'pending-write')).toHaveLength(1);
+    },
+  );
+
   it('preserves the Host-owned Tob marker for deletion menus', async () => {
     const host = new FakeHost();
     host.methods.set('list', () => ({
@@ -367,6 +564,10 @@ describe('Host client', () => {
     host.revoke();
     const refused = await until(target, (s) => s.connection.status === 'refused');
     expect(refused.connection).toMatchObject({ code: 'device-revoked' });
+    const attempts = host.requests.length;
+    target.retryNow('resume');
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(host.requests.length).toBe(attempts);
   });
 
   it('asks to pair again when the Host does not know this phone', async () => {

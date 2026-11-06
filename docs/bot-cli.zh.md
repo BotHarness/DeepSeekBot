@@ -124,6 +124,8 @@ echo '{"silence":null}' | deepseekbot bot-prompt-set <bot-id> --preset <preset-i
 deepseekbot bot-prompt-set <bot-id> --prompt-limit dm-context-chars=4000 --prompt-limit review-tool-calls=default
 ```
 
+`bot-activity` 还返回 `bot.active`：权威会话中是否存在思考或工作状态，与按优先级展示的 `state` 独立。另一个会话等待审批时它仍可为 true，不能从有数量上限的 `sessions` 输出反推。Android 常驻汇总复用完整活动 feed 和 Human Inbox 完整待处理发现，按 Host 内的 Bot 身份去重；旧 Host 缺少 `active` 时显示未同步，不显示虚假的零。
+
 创建返回 `bot`、`dm`、Host 的 Memory `dataDir`、完成／延后阶段 `steps` 和 `next`。模型预设经其 owner 应用，不会被误传为原生 Agent preset。已确定不存在的预设在创建前拒绝；创建后的模型失败保留 Bot，返回已知身份、完成阶段与 `outcome: created`。不带稳定 operation key 的创建／导入响应丢失时可能返回 `outcome: unknown`，先检查 Host 再决定是否重建，CLI 不自动重试修改。空白在线创建可用下文的持久创建回执核对同一个身份。创建成功不证明模型可用：使用 `send` 和准确关联的持久回复验证。
 
 `bot-attention` 支持 `--cursor` 及 Host 的 pending/processing/observed/deferred/needs-repair/handled 状态，分页上限 1–100。Session 摘要按创建时间倒序，限制 1–100（默认 50），返回 `total`；每条带 `modelRoute`，即该会话最近一次调用模型的路由，尚未运行时为它配置的路由；活动摘要限制 Session 明细并返回 `sessionCount`。这些是有界摘要，不是完整工具调用日志或流式草稿。

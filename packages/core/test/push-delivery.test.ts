@@ -528,6 +528,60 @@ describe('Push delivery', () => {
     expect(f.tokenRows()).toEqual([]);
   });
 
+  it.each(['ticket', 'receipt'] as const)(
+    'keeps a replacement token when the old token gets a delayed invalid %s',
+    async (phase) => {
+      const f = fixture();
+      const phone = f.device('Phone');
+      f.push.register(phone.device.id, { token: TOKEN_A, platform: 'android' });
+      f.push.setPreferences(phone.device.id, { question: false });
+      f.advance(1000);
+      const first = approval('already-notified', f.at(0));
+      f.setInbox([first]);
+      await f.push.reconcile();
+      const invalid = { status: 'error' as const, details: { error: 'DeviceNotRegistered' } };
+      if (phase === 'ticket') {
+        let settle!: (tickets: ExpoTicket[]) => void;
+        const pending = new Promise<ExpoTicket[]>((resolve) => {
+          settle = resolve;
+        });
+        vi.spyOn(f.expo.sender, 'send').mockImplementationOnce(() => pending);
+        const sending = f.push.test(phone.device.id);
+        f.push.register(phone.device.id, { token: TOKEN_B, platform: 'android' });
+        expect(f.push.settings(phone.device.id)).toMatchObject({
+          registered: true,
+          preferences: { question: false },
+        });
+        settle([invalid]);
+        expect(await sending).toBe('failed');
+      } else {
+        expect(await f.push.test(phone.device.id)).toBe('sent');
+        f.push.register(phone.device.id, { token: TOKEN_B, platform: 'android' });
+        expect(f.push.settings(phone.device.id)).toMatchObject({
+          registered: true,
+          preferences: { question: false },
+        });
+        f.expo.receipts['ticket-2'] = invalid;
+        f.advance(15 * 60 * 1000);
+        await f.push.checkReceipts();
+      }
+      expect(f.push.settings(phone.device.id)).toMatchObject({
+        registered: true,
+        preferences: { question: false },
+      });
+      expect(f.tokenRows()).toEqual([{ device_id: phone.device.id, token: TOKEN_B }]);
+      expect(f.events.some((event) => event.phase === 'token-dropped')).toBe(false);
+      f.setInbox([first, approval('new-after-rotation', f.at(0))]);
+      await f.push.reconcile();
+      expect(f.expo.flat().filter((message) => message.data.itemId)).toMatchObject([
+        { to: TOKEN_A, data: { itemId: 'already-notified' } },
+        { to: TOKEN_B, data: { itemId: 'new-after-rotation' } },
+      ]);
+      expect(JSON.stringify(f.events)).not.toContain(TOKEN_A);
+      expect(JSON.stringify(f.events)).not.toContain(TOKEN_B);
+    },
+  );
+
   it('retries a failed send within bounds and records the outcome without content', async () => {
     const f = fixture();
     const phone = f.device('Phone');

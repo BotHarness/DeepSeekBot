@@ -1,8 +1,11 @@
 export type LanguagePreference = 'system' | 'en' | 'zh';
 export type AppearancePreference = 'system' | 'light' | 'dark';
+export type InAppAlertStyle = 'inline' | 'overlay';
 export type InterfacePreferences = {
   language: LanguagePreference;
   appearance: AppearancePreference;
+  inAppAlerts: boolean;
+  inAppAlertStyle: InAppAlertStyle;
 };
 export type InterfaceStorage = {
   read(): Promise<unknown>;
@@ -19,7 +22,12 @@ export function preferredLanguage(locales: readonly string[]): 'en' | 'zh' {
 
 export function createInterfacePreferences() {
   let system = preferredLanguage([Intl.DateTimeFormat().resolvedOptions().locale]);
-  let value: InterfacePreferences = { language: 'system', appearance: 'system' };
+  let value: InterfacePreferences = {
+    language: 'system',
+    appearance: 'system',
+    inAppAlerts: true,
+    inAppAlertStyle: 'overlay',
+  };
   let snapshot = { ...value, locale: system, loaded: false, storageError: false };
   let storage: InterfaceStorage | undefined;
   let touched = false;
@@ -53,6 +61,13 @@ export function createInterfacePreferences() {
       try {
         const saved = await adapter.read();
         if (!touched && typeof saved === 'object' && saved !== null) {
+          if ('inAppAlerts' in saved && typeof saved.inAppAlerts === 'boolean')
+            value.inAppAlerts = saved.inAppAlerts;
+          if (
+            'inAppAlertStyle' in saved &&
+            (saved.inAppAlertStyle === 'inline' || saved.inAppAlertStyle === 'overlay')
+          )
+            value.inAppAlertStyle = saved.inAppAlertStyle;
           if (
             'language' in saved &&
             (saved.language === 'system' || saved.language === 'en' || saved.language === 'zh')
@@ -82,6 +97,18 @@ export function createInterfacePreferences() {
     setAppearance(appearance: AppearancePreference) {
       touched = true;
       value = { ...value, appearance };
+      if (snapshot.loaded) persist();
+      publish();
+    },
+    setInAppAlerts(inAppAlerts: boolean) {
+      touched = true;
+      value = { ...value, inAppAlerts };
+      if (snapshot.loaded) persist();
+      publish();
+    },
+    setInAppAlertStyle(inAppAlertStyle: InAppAlertStyle) {
+      touched = true;
+      value = { ...value, inAppAlertStyle };
       if (snapshot.loaded) persist();
       publish();
     },
