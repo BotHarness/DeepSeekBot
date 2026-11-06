@@ -152,6 +152,7 @@ vi.mock('../src/host/speech', () => ({
   useDictation: () => ({ state: { status: 'idle' }, mountRef: () => undefined }),
 }));
 vi.mock('../src/ui/chat/native-header', () => ({
+  headerControlHeight: (theme: { touch: number }) => theme.touch,
   get glassHeader() {
     return state.glassHeader;
   },

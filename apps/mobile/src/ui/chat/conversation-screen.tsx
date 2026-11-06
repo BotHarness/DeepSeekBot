@@ -94,6 +94,7 @@ import { CallRecordBubble } from './call-record';
 import type { BubbleGroup } from './bubble-shape';
 import { botBusy } from './bot-tone';
 import { ChannelTitle } from './channel-title';
+import { ChatHeaderActions } from './chat-header-actions';
 import { WorkingStatus } from './working-status';
 import { ChatTitle } from './chat-title';
 import { runningSessionCount } from '../../host/session-stop';
@@ -117,6 +118,7 @@ import {
   floatingHeader,
   glassHeader,
   headerIslands,
+  headerControlHeight,
   useHeaderOverlap,
   useHeaderPadding,
 } from './native-header';
@@ -1312,7 +1314,7 @@ function ChatConversation({
       disabled={!saved || hostRefused}
       onPress={press}
       style={({ pressed }) => ({
-        minHeight: theme.touch,
+        minHeight: glassHeader ? headerControlHeight(theme) : theme.touch,
         flexShrink: 1,
         flexDirection: 'row',
         alignItems: 'center',
@@ -1394,6 +1396,7 @@ function ChatConversation({
     focused,
   );
   const ios = Platform.OS === 'ios';
+  const headerTouch = ios && glassHeader ? headerControlHeight(theme) : theme.touch;
   const headerGap = glassPress.gap;
   const headerActions = canOpenProfile ? (
     <HeaderActionGroup
@@ -1418,16 +1421,23 @@ function ChatConversation({
       insets.left -
       insets.right -
       space.x5 * 2 -
-      theme.touch -
+      headerTouch -
       headerGap * 2 -
       (ios && glassHeader && canOpenProfile && placeCall !== undefined
-        ? theme.touch * 2
-        : (theme.touch +
-            (ios ? Math.min(space.x3, Math.max(0, (theme.fontScale - 1) * space.x3)) : 0)) *
+        ? headerTouch * 2
+        : (headerTouch +
+            (ios && !glassHeader
+              ? Math.min(space.x3, Math.max(0, (theme.fontScale - 1) * space.x3))
+              : 0)) *
           (canOpenProfile && placeCall !== undefined ? 2 : 1)) -
-      (ios && glassHeader ? space.x4 * 2 : 0),
+      (ios && glassHeader ? space.x3 * 2 : 0),
   );
-  const back = <HeaderBackButton plain={!headerIslands} onPress={leave} />;
+  const back =
+    ios && glassHeader ? (
+      <ChatHeaderActions back={{ label: t.back, testID: 'chat-back-button', onPress: leave }} />
+    ) : (
+      <HeaderBackButton plain={!headerIslands} onPress={leave} />
+    );
   const titleItem = (
     <View
       style={{
@@ -1554,35 +1564,70 @@ function ChatConversation({
               ? {
                   title: '',
                   headerTitle: '',
-                  headerBackVisible: canGoBack && !headerIslands,
+                  headerBackVisible: canGoBack && !headerIslands && !glassHeader,
                   unstable_headerRightItems: () =>
                     !canOpenProfile
                       ? []
-                      : [
-                          {
-                            type: 'button' as const,
-                            label: t.openProfile,
-                            identifier: 'chat-profile-button',
-                            icon: { type: 'sfSymbol' as const, name: 'ellipsis' as const },
-                            sharesBackground: placeCall !== undefined,
-                            onPress: openProfile,
-                          },
-                          ...(placeCall === undefined
-                            ? []
-                            : [
-                                {
-                                  type: 'button' as const,
-                                  label: t.call.button,
-                                  identifier: 'chat-call-button',
-                                  icon: { type: 'sfSymbol' as const, name: 'phone' as const },
-                                  sharesBackground: true,
-                                  onPress: placeCall,
-                                },
-                              ]),
-                        ],
+                      : glassHeader
+                        ? [
+                            {
+                              type: 'custom' as const,
+                              hidesSharedBackground: true,
+                              element: (
+                                <ChatHeaderActions
+                                  actions={[
+                                    ...(placeCall === undefined
+                                      ? []
+                                      : [
+                                          {
+                                            icon: 'call' as const,
+                                            label: t.call.button,
+                                            testID: 'chat-call-button',
+                                            onPress: placeCall,
+                                          },
+                                        ]),
+                                    {
+                                      icon: 'more',
+                                      label: t.openProfile,
+                                      testID: 'chat-profile-button',
+                                      onPress: openProfile,
+                                    },
+                                  ]}
+                                />
+                              ),
+                            },
+                          ]
+                        : [
+                            {
+                              type: 'button' as const,
+                              label: t.openProfile,
+                              identifier: 'chat-profile-button',
+                              icon: { type: 'sfSymbol' as const, name: 'ellipsis' as const },
+                              sharesBackground: placeCall !== undefined,
+                              onPress: openProfile,
+                            },
+                            ...(placeCall === undefined
+                              ? []
+                              : [
+                                  {
+                                    type: 'button' as const,
+                                    label: t.call.button,
+                                    identifier: 'chat-call-button',
+                                    icon: { type: 'sfSymbol' as const, name: 'phone' as const },
+                                    sharesBackground: true,
+                                    onPress: placeCall,
+                                  },
+                                ]),
+                          ],
                   unstable_headerLeftItems: () => [
-                    ...(headerIslands
-                      ? [{ type: 'custom' as const, element: back }]
+                    ...(headerIslands || glassHeader
+                      ? [
+                          {
+                            type: 'custom' as const,
+                            element: back,
+                            hidesSharedBackground: glassHeader,
+                          },
+                        ]
                       : canGoBack
                         ? []
                         : [
@@ -1597,7 +1642,11 @@ function ChatConversation({
                             },
                           ]),
                     { type: 'spacing' as const, spacing: headerGap },
-                    { type: 'custom' as const, element: titleItem },
+                    {
+                      type: 'custom' as const,
+                      element: titleItem,
+                      hidesSharedBackground: glassHeader,
+                    },
                   ],
                 }
               : android

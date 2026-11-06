@@ -54,25 +54,25 @@ export function NativePageNavigation({ children }: { children: ReactNode }) {
 export function NativePageHeader({ title, onBack, backID, action, call }: NativePageHeaderProps) {
   const theme = useDesignTheme();
   const t = useStrings();
-  const items: HeaderBarButtonItem[] = headerIslands
-    ? []
-    : [
-        {
-          type: 'button',
-          index: 0,
-          title: '',
-          icon: { type: 'sfSymbol', name: 'chevron.left' },
-          onPress: onBack,
-          identifier: backID,
-          accessibilityLabel: t.back,
-          sharesBackground: false,
-        },
-      ];
+  const items: HeaderBarButtonItem[] =
+    headerIslands || glassHeader
+      ? []
+      : [
+          {
+            type: 'button',
+            index: 0,
+            title: '',
+            icon: { type: 'sfSymbol', name: 'chevron.left' },
+            onPress: onBack,
+            identifier: backID,
+            accessibilityLabel: t.back,
+            sharesBackground: false,
+          },
+        ];
   if (title !== undefined) items.push({ type: 'spacing', spacing: glassPress.gap });
   const grouped = call !== undefined && action !== undefined;
-  const glassGroup = glassHeader && grouped;
   const right: HeaderBarButtonItem[] = [];
-  if (action !== undefined && !glassGroup)
+  if (action !== undefined && !glassHeader)
     right.push({
       type: 'button',
       index: right.length,
@@ -83,7 +83,7 @@ export function NativePageHeader({ title, onBack, backID, action, call }: Native
       onPress: action.onPress,
       sharesBackground: grouped,
     });
-  if (call !== undefined && !glassGroup)
+  if (call !== undefined && !glassHeader)
     right.push({
       type: 'button',
       index: right.length,
@@ -105,18 +105,44 @@ export function NativePageHeader({ title, onBack, backID, action, call }: Native
       headerLeftBarButtonItems={items}
       headerRightBarButtonItems={right}
     >
-      {headerIslands ? (
+      {glassHeader ? (
+        <ScreenStackHeaderLeftView hidesSharedBackground>
+          <ChatHeaderActions back={{ label: t.back, testID: backID, onPress: onBack }} />
+        </ScreenStackHeaderLeftView>
+      ) : headerIslands ? (
         <ScreenStackHeaderLeftView>
           <HeaderBackButton plain={false} onPress={onBack} />
         </ScreenStackHeaderLeftView>
       ) : null}
-      {title === undefined ? null : <ScreenStackHeaderLeftView>{title}</ScreenStackHeaderLeftView>}
-      {glassGroup && call !== undefined && action !== undefined ? (
+      {title === undefined ? null : (
+        <ScreenStackHeaderLeftView hidesSharedBackground={glassHeader}>
+          {title}
+        </ScreenStackHeaderLeftView>
+      )}
+      {glassHeader && (call !== undefined || action !== undefined) ? (
         <ScreenStackHeaderRightView hidesSharedBackground>
           <ChatHeaderActions
             actions={[
-              { icon: 'call', label: call.label, testID: call.testID, onPress: call.onPress },
-              { icon: 'more', label: action.label, testID: action.testID, onPress: action.onPress },
+              ...(call === undefined
+                ? []
+                : [
+                    {
+                      icon: 'call' as const,
+                      label: call.label,
+                      testID: call.testID,
+                      onPress: call.onPress,
+                    },
+                  ]),
+              ...(action === undefined
+                ? []
+                : [
+                    {
+                      icon: 'more' as const,
+                      label: action.label,
+                      testID: action.testID,
+                      onPress: action.onPress,
+                    },
+                  ]),
             ]}
           />
         </ScreenStackHeaderRightView>
