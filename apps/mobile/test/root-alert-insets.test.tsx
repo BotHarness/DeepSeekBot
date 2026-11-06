@@ -70,6 +70,8 @@ vi.mock('../src/ui/shell/host-accent-provider', () => ({
 }));
 vi.mock('../src/ui/mounted', () => ({ useMounted: () => () => undefined }));
 vi.mock('../src/host/native-live-activity', () => ({ watchRequestActivity: () => undefined }));
+vi.mock('../src/host/native-push-resolve', () => ({ registerPushResolveTask: () => undefined }));
+vi.mock('../src/host/native-background-support', () => ({ nativeBackgroundCatchUp: undefined }));
 vi.mock('../src/ui/shell/native-workspace-navigation', () => ({
   useWorkspaceNavigation: () => () => undefined,
 }));
