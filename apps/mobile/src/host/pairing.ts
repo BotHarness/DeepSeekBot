@@ -7,7 +7,13 @@ import {
   openNoiseSocket,
   secureRandom,
 } from './encrypted-carrier';
-import { isConnectRoute, isEncryptedRoute, isLanRoute } from './route';
+import {
+  isConnectRoute,
+  isEncryptedRoute,
+  isLanRoute,
+  isLoopbackRoute,
+  isTailscaleRoute,
+} from './route';
 import { channelFailureDetail, joinFailureDetails } from './pairing-detail';
 import type { HostEncryption } from './hosts';
 import type { HostCarrier, LocalNetworkStatus } from './carrier';
@@ -61,6 +67,16 @@ function base64UrlDecode(value: string): string {
 
 function record(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
+}
+
+export function pairingLinkMode(encoded: string, now = Date.now()): 'lan' | undefined {
+  const parsed = parsePairingLink(`deepseekbot://pair?p=${encodeURIComponent(encoded)}`, now);
+  if (!parsed.ok) return undefined;
+  const { routes } = parsed.payload;
+  const lan = (route: string) => isLanRoute(route) && !isTailscaleRoute(route);
+  return routes.some(lan) && routes.every((route) => lan(route) || isLoopbackRoute(route))
+    ? 'lan'
+    : undefined;
 }
 
 export function parsePairingLink(text: string, now = Date.now()): ParsedLink {
