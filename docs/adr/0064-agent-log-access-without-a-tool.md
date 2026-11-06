@@ -22,7 +22,7 @@ Developer Mode never gates their reads.
    tool can truly disappear via Agent Scope — and since there is no tool, the
    gate question is moot. Developer Mode gates Human diagnostics surfaces
    only (viewer log views, verbose states); it is a visibility preference,
-   never a read boundary (see `CONTEXT.md`: Developer Mode).
+   never a read boundary (see `GLOSSARY.md`: Developer Mode).
 3. **No owner clipping for Developer Mode reads.** A Human opens Developer
    Mode precisely to inspect across bots — including dedicated analysis bots
    and future cost analysis over traces. The `owner` column stays a

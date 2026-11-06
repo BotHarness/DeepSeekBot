@@ -35,7 +35,7 @@ CLI 应支持无关 UI/UX 的调试与测试场景：在运行中的 Host 创建
 - [五平台初始化、身份与真实收发链路](2026-10-11-cli-five-platform-chain.md)
 - [UI 业务操作差距与调试查询](2026-10-11-cli-ui-capability-gaps.md)
 
-产品术语继续遵循根 [CONTEXT.md](../../CONTEXT.md)。目前没有确认的新领域术语，也没有选择新的持久架构取舍，因此不创建推测性 glossary 条目或 ADR。
+产品术语继续遵循根 [GLOSSARY.md](../../GLOSSARY.md)。目前没有确认的新领域术语，也没有选择新的持久架构取舍，因此不创建推测性 glossary 条目或 ADR。
 
 ## 已确认的第一轮决定
 

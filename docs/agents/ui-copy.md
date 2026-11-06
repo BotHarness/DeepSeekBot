@@ -8,8 +8,8 @@ Apply the shared [UI design standard](ui-design.md) ([中文](ui-design.zh.md)) 
 
 ## Names
 
-- Call a PersonaBot **Bot** in the UI: "New Bot", "Search Bots and Channels", "搜索 Bot 和频道". `PersonaBot` stays the domain term in [CONTEXT.md](../../CONTEXT.md), code, ADRs and developer docs; only the visible text says Bot.
-- Use the other product nouns from CONTEXT.md as they are (Channel, Memory, Orchestrator, Assignment), with the casing the surrounding screen already uses.
+- Call a PersonaBot **Bot** in the UI: "New Bot", "Search Bots and Channels", "搜索 Bot 和频道". `PersonaBot` stays the domain term in [GLOSSARY.md](../../GLOSSARY.md), code, ADRs and developer docs; only the visible text says Bot.
+- Use the other product nouns from GLOSSARY.md as they are (Channel, Memory, Orchestrator, Assignment), with the casing the surrounding screen already uses.
 - Keep internal ids, protocol names, config keys and error codes out of the UI. Show them only where the reader needs them to act, such as a copyable diagnostic.
 
 ## Keep it short and plain

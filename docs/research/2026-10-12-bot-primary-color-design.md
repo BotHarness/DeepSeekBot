@@ -7,7 +7,7 @@
 
 Human 已确认六个实现切片：协调 hub [#1470](https://github.com/BotHarness/DeepSeekBot/issues/1470) 管理 #1471（设置与 DM）、#1472（群聊）、#1473（分享导入）、#1474（删除后归属）、#1476（用量图表）和 #1475（活跃度）；Hub 与六个子 Issue 均归属 Project #12，并按 Human 确认绑定 Milestone 1.2.2。源规格正文、标签和状态保持不变。
 
-规范术语已同步 `CONTEXT.md` / `CONTEXT.zh.md`，持久取舍记录于 [ADR-0177](../adr/0177-bot-primary-color-is-portable-identity-not-theme-state.md)，目标边界整合进 [living architecture](../architecture/botharness-architecture.md) §5.5。下列记录保留访谈与验收细节，不是另一份架构权威。
+规范术语已同步 `GLOSSARY.md` / `GLOSSARY.zh.md`，持久取舍记录于 [ADR-0177](../adr/0177-bot-primary-color-is-portable-identity-not-theme-state.md)，目标边界整合进 [living architecture](../architecture/botharness-architecture.md) §5.5。下列记录保留访谈与验收细节，不是另一份架构权威。
 
 ## 已确认的产品决策
 

@@ -26,7 +26,7 @@ A PersonaBot's system prompt carries two conventional Memory files: `SOUL.md`, i
 
 ## Consequences
 
-- The Persona term becomes Soul in `CONTEXT.md`, and the earlier Soul / SoulSnapshot / Soul registry sharing vocabulary is marked historical in favor of ADR-0131.
+- The Persona term becomes Soul in `GLOSSARY.md`, and the earlier Soul / SoulSnapshot / Soul registry sharing vocabulary is marked historical in favor of ADR-0131.
 - PersonaBot Export ([ADR-0040](0040-personabot-export-wraps-soul-and-optional-operational-facets.md)) is retired with SoulSnapshot. One Bot is shared as its Memory Git repository (ADR-0131); a whole Profile moves through Profile Backup (ADR-0042).
 - `packages/core/src/memory/files.ts` stops hiding the two root files, and the legacy write protection in `store.ts` is removed.
 - The prompt snapshot row grows from one body to an ordered set of named bodies.

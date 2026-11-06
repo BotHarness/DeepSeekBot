@@ -1,6 +1,6 @@
 # @botharness/links-worker
 
-`go.tobs.app`: the Campaign short link Worker ([ADR-0132](../../docs/adr/0132-anonymous-posthog-telemetry-and-campaign-short-links.md), [#953](https://github.com/BotHarness/BotHarness/issues/953)). A **Campaign** owns many **Campaign Links** (see `CONTEXT.md`). Resolving a link redirects to the product site with UTM parameters, counts the click in D1 and sends a server-side `campaign:short_link_click` event to PostHog. It is a Hono app built with `@hono/zod-openapi`; the API is defined once and published as `/openapi.json`.
+`go.tobs.app`: the Campaign short link Worker ([ADR-0132](../../docs/adr/0132-anonymous-posthog-telemetry-and-campaign-short-links.md), [#953](https://github.com/BotHarness/BotHarness/issues/953)). A **Campaign** owns many **Campaign Links** (see `GLOSSARY.md`). Resolving a link redirects to the product site with UTM parameters, counts the click in D1 and sends a server-side `campaign:short_link_click` event to PostHog. It is a Hono app built with `@hono/zod-openapi`; the API is defined once and published as `/openapi.json`.
 
 ## Redirect
 

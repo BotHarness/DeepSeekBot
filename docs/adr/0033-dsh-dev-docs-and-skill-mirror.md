@@ -19,7 +19,7 @@ We publish the full-stack DSH plugin authoring guide — the `dsh-plugin-dev` sk
 - Re-verifying `dsh-plugin-dev` is part of adopting a new DSH release; `verifiedAgainst` (DSH version + upstream SHA) is the pin, `verifiedAt` the date, `skillVersion` moves independently.
 - The mirror repo is generated output: its README and provenance block come from the synced skill, edits happen only in this monorepo, and its issue template routes reports back here.
 - `sync-docs` gains a skill-driven page source for the `dsh/` section; `/zh` gets a hand-written landing while skill-derived pages are marked `untranslated` until reviewed.
-- Evidence: `docs/research/2026-09-19-dsh-plugin-authoring-{host,client}.md`, `docs/research/2026-09-19-dsh-community-plugins-survey.md`, `CONTEXT.md` («Developer docs and distribution»).
+- Evidence: `docs/research/2026-09-19-dsh-plugin-authoring-{host,client}.md`, `docs/research/2026-09-19-dsh-community-plugins-survey.md`, `GLOSSARY.md` («Developer docs and distribution»).
 
 ## Update (2026-09-20) — stable-core scope
 

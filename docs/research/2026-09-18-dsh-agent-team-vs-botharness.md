@@ -39,7 +39,7 @@ README 定义：成员是“durable identities for their sessions, keeping memor
 
 | dsh-agent-team                            | 一句话                                                                                 | 我们的对应物（现状/计划）                                                                      |
 | ----------------------------------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Member（Human/Agent）                     | 持久身份，拥有私有 memory/notes/skills/型号；一次只跑一个 `team-member` preset Session | PersonaBot（`CONTEXT.md:9-11`、ADR-0016）；Agent 永远不是 PersonaBot                           |
+| Member（Human/Agent）                     | 持久身份，拥有私有 memory/notes/skills/型号；一次只跑一个 `team-member` preset Session | PersonaBot（`GLOSSARY.md:9-11`、ADR-0016）；Agent 永远不是 PersonaBot                          |
 | Session                                   | 执行单元，可被 rollover/checkpoint 换代                                                | Session（ADR-0017；“work = Session”）                                                          |
 | Workspace / Participation                 | 项目域；join/leave 是纯关系，不移动 session                                            | Workspace（ADR-0018，一目录 1:1；记忆跨 workspace）                                            |
 | Private memory                            | `$DSH_HOME/agent-team/members/<id>/{memory.md,notes/,skills/}`                         | 我们的 memory-dir（`PERSONA.md`/`MEMORY.md`/topic files + `.git`，M1-M11）                     |

@@ -1,6 +1,6 @@
 # DSH 上的 BotHarness Runtime 架构
 
-这份由 BotHarness 产品文档拥有的参考，描述构建在 DSH-native Agent、Session、Workspace、Tool 与 Subagent 之上的 **BotHarness-proposed** 产品层。它不是上游 API 清单。产品术语的定义只存在于根目录 [`CONTEXT.md`](/zh/dev/design/context)，DSH/Cordis 术语则归 [DSH 规范 Context](/zh/dsh/context)；本页只解释两层对象在运行时的关系。
+这份由 BotHarness 产品文档拥有的参考，描述构建在 DSH-native Agent、Session、Workspace、Tool 与 Subagent 之上的 **BotHarness-proposed** 产品层。它不是上游 API 清单。产品术语的定义只存在于根目录 [`GLOSSARY.md`](/zh/dev/design/context)，DSH/Cordis 术语则归 [DSH 规范 Context](/zh/dsh/context)；本页只解释两层对象在运行时的关系。
 
 ## 不变量
 

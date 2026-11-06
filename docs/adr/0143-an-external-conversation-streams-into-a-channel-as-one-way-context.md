@@ -73,7 +73,7 @@ This default applies only to ingest placements. Existing Bridge routes keep thei
 
 ## Consequences
 
-- `CONTEXT.md` gains _Conversation ingest_ (外部会话接入). _Bridge_ is narrowed to the Bot-owned route until slice 9 converges the two. The architecture's Messaging section gains a Channel-owned one-way anchor next to Binding-keyed reception.
+- `GLOSSARY.md` gains _Conversation ingest_ (外部会话接入). _Bridge_ is narrowed to the Bot-owned route until slice 9 converges the two. The architecture's Messaging section gains a Channel-owned one-way anchor next to Binding-keyed reception.
 - Unbound apps become BotHarness-held once connected. Their standalone replies stop. That is the cost of a single exclusive receiver per app (ADR-0136).
 - dsh-im needs new capabilities, each in its own Provider release with real-platform evidence:
   - conversation listing, per platform;

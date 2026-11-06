@@ -1092,7 +1092,7 @@ The model verbs manage the same records afterwards: `model-presets` lists the pr
 
 ## Lifecycle and human naming
 
-`pause` and `resume` gate a Bot's execution; `update` relabels it (`--name`, `--description`, `--role`, within the profile tag/bio limits). `human-name-set` writes the Human display name (`--clear` resets it) and `channel-human-name-set` writes the per-channel Human nickname, using the CONTEXT.md terms. Unknown bots and channels fail coded (`unknown-bot`, `unknown-channel`).
+`pause` and `resume` gate a Bot's execution; `update` relabels it (`--name`, `--description`, `--role`, within the profile tag/bio limits). `human-name-set` writes the Human display name (`--clear` resets it) and `channel-human-name-set` writes the per-channel Human nickname, using the GLOSSARY.md terms. Unknown bots and channels fail coded (`unknown-bot`, `unknown-channel`).
 
 ## Channels, grants, schedules, pairings
 

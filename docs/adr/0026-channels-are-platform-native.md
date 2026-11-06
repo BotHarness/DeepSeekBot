@@ -10,7 +10,7 @@ A Channel is a first-class platform entity where PersonaBots and humans collabor
 
 ## Consequences
 
-- `CONTEXT.md` changed: Channel and Inbox added, `Channel binding` → `Binding`, Thread generalized to a Chat or Channel sub-conversation.
+- `GLOSSARY.md` changed: Channel and Inbox added, `Channel binding` → `Binding`, Thread generalized to a Chat or Channel sub-conversation.
 - M5 must define Channel ↔ Chat/thread mapping, external human identity, and the per-Channel Access policy.
 - Reply scope applies to bridged Chats; Channel-native reply semantics stay an open item.
 
