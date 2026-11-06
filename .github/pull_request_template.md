@@ -2,7 +2,7 @@
 
 Explain the user problem in one sentence / 用一句话说明要解决的问题。
 
-Issue / Discussion: link here; use Closes only for completed work / 关联链接，部分工作用 Refs。
+Issue / Discussion: write `Closes #N` as plain text when this PR delivers the feature or fixes the bug, even if release or device QA is still pending; use `Refs #N` only when part of the issue is still unbuilt / 做完功能或修好 bug 就写 `Closes #N`（纯文本，不要写在链接里），不必等发版或真机验收；只有 issue 还有未实现的部分才用 `Refs #N`。
 
 ## Special things to note
 
