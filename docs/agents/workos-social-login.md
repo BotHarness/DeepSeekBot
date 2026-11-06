@@ -2,6 +2,12 @@
 
 Hosted Connect and TOB sign in through TOB's WorkOS environments (ADR-0241). In **Staging (UAT)**, WorkOS provides default Google, Microsoft, GitHub and Apple credentials for testing only. Their consent screens show WorkOS's name and logo. **Production has no default credentials**: every provider it offers needs its own OAuth client. This runbook registers our own clients for both environments, enters them in WorkOS, and stores them machine-locally.
 
+## WorkOS account and API keys
+
+- Dashboard account: `yang@deepseekbot.app`, team **BotHarness**, project **TOB**. The WorkOS MCP plugin is signed in to the same account. Other WorkOS teams the Human can reach (for example VeReach) are unrelated.
+- Production: `client_01M5F0C09JH5QPFX9160RFCKTH` (Hosted Connect relay `WORKOS_CLIENT_ID`, AuthKit `opportune-twilight-26.authkit.app`). Staging (UAT): `client_01M54TZZAA0Y6A248NCFYD84A5`.
+- Secret API keys (`sk_…`) live only in the Mac's login Keychain as `botharness.workos.<staging|production>`, with the client id in `~/.config/botharness/workos/<env>.client_id`. Store them with `node scripts/workos-secret.mjs set <env>` (hidden input) and check with `node scripts/workos-secret.mjs check`. `probe-email-code staging` verifies Magic Auth sign-in and secret-free refresh without printing any key or token (ADR-0296).
+
 ## Who does what
 
 - The Human signs in to every console: WorkOS, Google Cloud, Azure, GitHub and Apple Developer. An agent never types a password, OTP or passkey, and never creates an account.
