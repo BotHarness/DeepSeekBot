@@ -3059,6 +3059,28 @@ const CHANNEL_CHANGE_LOG_MIGRATION: SchemaMigration = {
   },
 };
 
+const WORKSPACE_GRANT_PATH_MIGRATION: SchemaMigration = {
+  generation: 131,
+  module: 'workspace-grants',
+  description: 'Keep one active Workspace Grant per Bot and canonical directory',
+  migrate(database) {
+    database.exec(`
+      WITH ranked AS (
+        SELECT id, ROW_NUMBER() OVER (
+          PARTITION BY bot_slug, workspace_path ORDER BY created_at DESC, id DESC
+        ) AS position,
+        MAX(created_at) OVER (PARTITION BY bot_slug, workspace_path) AS superseded_at
+        FROM workspace_grants WHERE revoked_at IS NULL
+      )
+      UPDATE workspace_grants SET revoked_at = (
+        SELECT superseded_at FROM ranked WHERE ranked.id = workspace_grants.id
+      ) WHERE id IN (SELECT id FROM ranked WHERE position > 1);
+      CREATE UNIQUE INDEX workspace_grants_active_path
+        ON workspace_grants (bot_slug, workspace_path) WHERE revoked_at IS NULL;
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -3189,4 +3211,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   VOICE_DEFAULTS_MIGRATION,
   VOICE_SETTINGS_MIGRATION,
   CHANNEL_CHANGE_LOG_MIGRATION,
+  WORKSPACE_GRANT_PATH_MIGRATION,
 ]);

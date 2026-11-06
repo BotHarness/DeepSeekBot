@@ -133,26 +133,26 @@ export function createWorkspaceGrantStore(options: {
       return rows.map(toRecord);
     },
     async create(botSlug, workspaceId, confirmation) {
+      const workspace = lookup().get(workspaceId);
+      if (workspace === undefined) {
+        throw new WorkspaceGrantError('unknown-workspace', 'Unknown DSH Workspace: ' + workspaceId);
+      }
       const activeAtStart = database.read(
         (connection) =>
           connection
             .prepare(
-              'SELECT id FROM workspace_grants WHERE bot_slug = ? AND workspace_id = ? AND revoked_at IS NULL',
+              'SELECT id FROM workspace_grants WHERE bot_slug = ? AND (workspace_id = ? OR workspace_path = ?) AND revoked_at IS NULL',
             )
-            .get(botSlug, workspaceId) as { id: string } | undefined,
+            .get(botSlug, workspaceId, workspace.path) as { id: string } | undefined,
       );
       const revokedCountAtStart = database.read(
         (connection) =>
           connection
             .prepare(
-              'SELECT COUNT(*) AS count FROM workspace_grants WHERE bot_slug = ? AND workspace_id = ? AND revoked_at IS NOT NULL',
+              'SELECT COUNT(*) AS count FROM workspace_grants WHERE bot_slug = ? AND (workspace_id = ? OR workspace_path = ?) AND revoked_at IS NOT NULL',
             )
-            .get(botSlug, workspaceId) as { count: number },
+            .get(botSlug, workspaceId, workspace.path) as { count: number },
       ).count;
-      const workspace = lookup().get(workspaceId);
-      if (workspace === undefined) {
-        throw new WorkspaceGrantError('unknown-workspace', 'Unknown DSH Workspace: ' + workspaceId);
-      }
       if ((await workspace.status()) !== 'ok' || !isCurrentDirectory(workspace.path)) {
         throw new WorkspaceGrantError(
           'unavailable-workspace',
@@ -174,15 +174,15 @@ export function createWorkspaceGrantStore(options: {
         (connection) => {
           const existing = connection
             .prepare(
-              'SELECT * FROM workspace_grants WHERE bot_slug = ? AND workspace_id = ? AND revoked_at IS NULL',
+              'SELECT * FROM workspace_grants WHERE bot_slug = ? AND (workspace_id = ? OR workspace_path = ?) AND revoked_at IS NULL',
             )
-            .get(botSlug, workspaceId) as unknown as GrantRow | undefined;
+            .get(botSlug, workspaceId, workspace.path) as unknown as GrantRow | undefined;
           const revokedCountNow = (
             connection
               .prepare(
-                'SELECT COUNT(*) AS count FROM workspace_grants WHERE bot_slug = ? AND workspace_id = ? AND revoked_at IS NOT NULL',
+                'SELECT COUNT(*) AS count FROM workspace_grants WHERE bot_slug = ? AND (workspace_id = ? OR workspace_path = ?) AND revoked_at IS NOT NULL',
               )
-              .get(botSlug, workspaceId) as { count: number }
+              .get(botSlug, workspaceId, workspace.path) as { count: number }
           ).count;
           if (
             revokedCountNow !== revokedCountAtStart ||
@@ -244,7 +244,10 @@ export function createWorkspaceGrantStore(options: {
           'Workspace Grant is missing or revoked: ' + grantId,
         );
       }
-      const workspace = lookup().get(grant.workspaceId);
+      const registry = lookup();
+      const workspace =
+        registry.get(grant.workspaceId) ??
+        registry.list().find((entry) => entry.path === grant.workspacePath);
       if (
         workspace === undefined ||
         workspace.path !== grant.workspacePath ||
@@ -282,21 +285,27 @@ export function createWorkspaceGrantStore(options: {
     },
     async prepareWrite(botSlug, workspaceId, validate) {
       validate();
+      const workspace = lookup().get(workspaceId);
+      if (!workspace)
+        throw new WorkspaceGrantError('unavailable-workspace', 'Workspace is unavailable');
       const existing = this.list(botSlug).find(
-        (grant) => grant.workspaceId === workspaceId && grant.revokedAt === undefined,
+        (grant) =>
+          (grant.workspaceId === workspaceId || grant.workspacePath === workspace.path) &&
+          grant.revokedAt === undefined,
       );
       const revokedCount = () =>
         this.list(botSlug).filter(
-          (grant) => grant.workspaceId === workspaceId && grant.revokedAt !== undefined,
+          (grant) =>
+            (grant.workspaceId === workspaceId || grant.workspacePath === workspace.path) &&
+            grant.revokedAt !== undefined,
         ).length;
       const generation = revokedCount();
-      const workspace = lookup().get(workspaceId);
-      if (!workspace || (await workspace.status()) !== 'ok' || !isCurrentDirectory(workspace.path))
+      if ((await workspace.status()) !== 'ok' || !isCurrentDirectory(workspace.path))
         throw new WorkspaceGrantError('unavailable-workspace', 'Workspace is unavailable');
       const grant: WorkspaceGrant = {
         id: existing?.id ?? createId(),
         botSlug,
-        workspaceId,
+        workspaceId: existing?.workspaceId ?? workspaceId,
         workspacePath: workspace.path,
         workspaceTitle: workspace.title,
         createdAt: existing?.createdAt ?? now().toISOString(),
@@ -337,9 +346,9 @@ export function createWorkspaceGrantStore(options: {
           } else {
             const active = connection
               .prepare(
-                'SELECT id FROM workspace_grants WHERE bot_slug = ? AND workspace_id = ? AND revoked_at IS NULL',
+                'SELECT id FROM workspace_grants WHERE bot_slug = ? AND (workspace_id = ? OR workspace_path = ?) AND revoked_at IS NULL',
               )
-              .get(botSlug, workspaceId);
+              .get(botSlug, workspaceId, workspace.path);
             if (active)
               throw new WorkspaceGrantError(
                 'invalid-grant',
