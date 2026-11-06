@@ -6,9 +6,8 @@ import { AppState, View } from 'react-native';
 import {
   createCallClient,
   type CallClientState,
-  type CallPost,
 } from '../../../../../packages/core/src/voice/call-client';
-import { VOICE_CALL_PATH } from '../../../../../packages/core/src/voice/call-contract';
+import { createCallPost } from '../../host/call-post';
 import {
   PhoneCallCameraFailure,
   createPhoneCallCamera,
@@ -34,17 +33,6 @@ const testBuild = () =>
   typeof __DEV__ !== 'undefined' && __DEV__ && Application.applicationId?.endsWith('.dev') === true;
 
 type ScriptStep = { at: number; url?: string; video?: string; camera?: 'off' | 'flip' };
-
-function hostPost(api: ReturnType<typeof useHostSession>['client']): CallPost {
-  return async (body) => {
-    if (api === undefined) throw new Error('No Host connection.');
-    const answer = await api.api(VOICE_CALL_PATH, { body });
-    const result = answer.body as { ok?: unknown } | null;
-    if (result === null || typeof result !== 'object' || typeof result.ok !== 'boolean')
-      throw new Error(`The Host answered ${answer.status}.`);
-    return result as Awaited<ReturnType<CallPost>>;
-  };
-}
 
 export function useCallSession(): CallSessionSnapshot | undefined {
   return useSyncExternalStore(callSessions.subscribe, callSessions.getSnapshot);
@@ -138,7 +126,7 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
     };
     let stopCamera = () => undefined as void;
     const call = createCallClient({
-      post: hostPost(client),
+      post: createCallPost(client),
       media,
       onChange: (next) => {
         if (cancelled) return;
