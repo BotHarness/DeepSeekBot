@@ -4,6 +4,7 @@ export type CallMicrophoneId = 'iphone' | 'headset';
 
 export type CallAudioDeviceKind =
   | 'iphone'
+  | 'phone'
   | 'receiver'
   | 'speaker'
   | 'bluetooth'
@@ -48,6 +49,7 @@ const OUTPUT_IDS: readonly CallAudioOutputId[] = ['receiver', 'speaker', 'extern
 const MICROPHONE_IDS: readonly CallMicrophoneId[] = ['iphone', 'headset'];
 const KINDS: readonly CallAudioDeviceKind[] = [
   'iphone',
+  'phone',
   'receiver',
   'speaker',
   'bluetooth',

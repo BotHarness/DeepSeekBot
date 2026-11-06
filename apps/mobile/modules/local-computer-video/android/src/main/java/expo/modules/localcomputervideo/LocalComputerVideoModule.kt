@@ -43,11 +43,12 @@ class LocalComputerVideoModule : Module() {
 
   override fun definition() = ModuleDefinition {
     Name("LocalComputerVideo")
-    Events("onCallState", "onCallTap")
+    Constant("callAudioSupported") { android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S }
+    Events("onCallState", "onCallTap", "onCallAudio")
 
     // Answers the Host's audio offer with the microphone. `testAudio` (test builds only)
     // replaces the microphone with injected files and records the downlink.
-    AsyncFunction("callStart") { attemptId: String, offer: String, testAudio: Boolean, promise: Promise ->
+    AsyncFunction("callStart") { attemptId: String, offer: String, testAudio: Boolean, headsetMicrophone: String?, promise: Promise ->
       val lines = offer.lines()
       if (offer.toByteArray().size > 98304 || !offer.startsWith("v=0") ||
           lines.count { it.startsWith("m=audio ") } != 1 ||
@@ -76,6 +77,9 @@ class LocalComputerVideoModule : Module() {
         },
         onTap = { kind, detail ->
           if (call?.id == attemptId) sendEvent("onCallTap", detail + mapOf("attemptId" to attemptId, "kind" to kind))
+        },
+        onAudio = { route ->
+          if (call?.id == attemptId) sendEvent("onCallAudio", mapOf("attemptId" to attemptId, "route" to route))
         })
       if (!attempt.beginAudio()) {
         attempt.close { }
@@ -93,6 +97,14 @@ class LocalComputerVideoModule : Module() {
               "The call could not connect on this phone.", null)
           })
       }
+    }.runOnQueue(Queues.MAIN)
+
+    AsyncFunction("callAudioState") { attemptId: String ->
+      call?.takeIf { it.id == attemptId }?.audioState()
+    }.runOnQueue(Queues.MAIN)
+
+    AsyncFunction("callAudio") { attemptId: String, output: String, microphone: String ->
+      call?.takeIf { it.id == attemptId }?.chooseAudio(output, microphone)
     }.runOnQueue(Queues.MAIN)
 
     Function("callMute") { attemptId: String, muted: Boolean ->

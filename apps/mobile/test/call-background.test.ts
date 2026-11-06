@@ -157,6 +157,20 @@ describe('call audio preference', () => {
 });
 
 describe('call audio route', () => {
+  it('keeps Android phone names without changing the persisted microphone identity', () => {
+    const phone = { id: 'iphone', kind: 'phone', name: 'Built-in mic' } as const;
+    const route = parseCallAudioRouteState({
+      output: 'speaker',
+      outputs: [{ id: 'speaker', kind: 'speaker', name: 'Built-in speaker' }],
+      microphone: 'iphone',
+      microphones: [phone],
+      music: false,
+    });
+    expect(route?.microphones).toEqual([phone]);
+    expect(callAudioDeviceName(en, phone)).toBe('Phone');
+    expect(callAudioDeviceName(zh, phone)).toBe('手机');
+  });
+
   const headphones = {
     output: 'external',
     outputs: [

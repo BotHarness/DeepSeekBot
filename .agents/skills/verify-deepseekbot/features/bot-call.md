@@ -41,3 +41,7 @@ On a Mac or Windows Host, add an ASR and a TTS Provider in Settings › Voice or
 - Calls are full duplex (V4): speech during the Bot's reply is judged as a barge-in. For 500 ms after each clip starts and 300 ms after it ends the VAD needs 14 dB more level, so the start of a quiet reply over the Bot may be missed.
 - One call per Host; a second device gets `call-active`.
 - Nothing is recorded on the Host. Only the `.dev` test build records the downlink, on the phone.
+
+## Android output menu (#3632)
+
+On the assigned physical Android 12+ phone, connect a foreground Bot call and open `call-audio`. Choose `call-audio-output-receiver`, then `call-audio-output-speaker`, both unmuted and muted. Require the same live call ID and confirm the native communication device, not only the selected row. Hang up and verify restoration of the pre-call audio mode. Repeat with an available communication headset and device removal; verify unavailable choices disappear. Record any unavailable hardware explicitly. Exercise native Back dismissal and default/intermediate/maximum text in light/dark. The Android output slice does not implement independent microphone selection or media mode; those remain in #3632. iOS `audio-route` above remains a separate journey.

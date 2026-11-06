@@ -1806,6 +1806,7 @@ const en = {
     audioOutput: 'Output',
     audioDevices: {
       iphone: 'iPhone',
+      phone: 'Phone',
       receiver: 'iPhone',
       speaker: 'Speaker',
       bluetooth: 'Bluetooth',
@@ -4111,6 +4112,7 @@ const zh: typeof en = {
     audioOutput: '输出',
     audioDevices: {
       iphone: 'iPhone',
+      phone: '手机',
       receiver: '听筒',
       speaker: '扬声器',
       bluetooth: '蓝牙耳机',

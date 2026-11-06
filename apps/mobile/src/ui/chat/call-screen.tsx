@@ -1,6 +1,6 @@
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Linking, Pressable, ScrollView, View } from 'react-native';
+import { Linking, Platform, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -390,7 +390,8 @@ export function CallScreen({
                   disabled: !model.live || camera?.starting === true,
                   onPress: () => control()?.camera(!cameraOn),
                 })}
-            {session?.audioRoutes !== true ? null : (
+            {session?.audioRoutes !== true ||
+            (Platform.OS === 'android' && session.audioRoute === undefined) ? null : (
               <View style={{ alignItems: 'center', gap: space.x3 }}>
                 <CallAudioMenu
                   route={shownRoute}
