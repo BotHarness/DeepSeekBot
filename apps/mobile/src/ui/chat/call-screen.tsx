@@ -389,7 +389,11 @@ export function CallScreen({
             <Button testID="call-close" label={t.call.close} onPress={leave} />
           </View>
         ) : (
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.x3 }}>
+          <ScrollView
+            testID="call-controls"
+            style={{ flexGrow: 0, flexShrink: 1 }}
+            contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.x3 }}
+          >
             {roundButton({
               label: model.muted ? t.call.unmute : t.call.mute,
               testID: 'call-mute',
@@ -452,7 +456,7 @@ export function CallScreen({
               ink: theme.color.onDanger,
               onPress: close,
             })}
-          </View>
+          </ScrollView>
         )}
       </View>
     </>
