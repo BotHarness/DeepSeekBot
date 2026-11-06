@@ -137,6 +137,43 @@ describe('Host client', () => {
     expect(count('rosterGet')).toBeGreaterThanOrEqual(2);
   });
 
+  it('reads the roster and sorting fresh when the Human retries after a disconnect', async () => {
+    const host = new FakeHost();
+    client = createHostClient({
+      routes: [ROUTE],
+      credential: host.credential,
+      carrier: host.carrier,
+      backoff: () => 60_000,
+      timeoutMs: 200,
+    });
+    client.start();
+    const target = client;
+    const count = (method: string) => host.calls.filter((call) => call.method === method).length;
+    await until(target, (state) => state.connection.status === 'connected');
+    host.kill();
+    await until(target, (state) => state.connection.status !== 'connected');
+    host.restart();
+    target.retryNow('manual_retry');
+    await until(target, (state) => state.connection.status === 'connected');
+    expect(count('rosterGet')).toBe(2);
+    expect(count('settings/describe')).toBe(2);
+  });
+
+  it('does not reuse a roster arrangement whose last read failed', async () => {
+    const host = new FakeHost();
+    const target = connect(host);
+    const count = (method: string) => host.calls.filter((call) => call.method === method).length;
+    await until(target, (state) => state.connection.status === 'connected');
+    host.failing.add('rosterGet');
+    await expect(target.refresh()).rejects.toThrow();
+    host.failing.delete('rosterGet');
+    host.kill();
+    await until(target, (state) => state.connection.status !== 'connected');
+    host.restart();
+    await until(target, (state) => state.connection.status === 'connected');
+    expect(count('rosterGet')).toBeGreaterThanOrEqual(3);
+  });
+
   it('does not download the settings again on every failed reconnect', async () => {
     const host = new FakeHost();
     const target = connect(host);

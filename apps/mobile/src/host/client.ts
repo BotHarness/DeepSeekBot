@@ -854,31 +854,37 @@ export function createHostClient(options: HostClientOptions): HostClient {
   ): fetched is { value: T; at: number } =>
     reuse && fetched !== undefined && Date.now() - fetched.at < REUSE_ON_RECONNECT_MS;
 
+  const readArrangement = (): Promise<RosterArrangement | undefined> => {
+    fetchedArrangement = undefined;
+    return call<unknown>('rosterGet')
+      .then(arrangementOf, (error: unknown) => {
+        if (error instanceof MethodRefused) return undefined;
+        throw error;
+      })
+      .then((value) => {
+        fetchedArrangement = { value, at: Date.now() };
+        return value;
+      });
+  };
+
+  const readSorting = (): Promise<RosterSorting | undefined> => {
+    fetchedSorting = undefined;
+    return call<unknown>('settings/describe')
+      .then(rosterSortingOf)
+      .then((value) => {
+        fetchedSorting = { value, at: Date.now() };
+        return value;
+      });
+  };
+
   const reloadOnce = async (reuse: boolean): Promise<void> => {
     void discoverComputer();
     void discoverRoutes();
     const [list, channelList, rosterArrangement, rosterSorting] = await Promise.all([
       call<{ bots: PersonaBotSummary[] }>('list'),
       loadChannels(),
-      reusable(reuse, fetchedArrangement)
-        ? fetchedArrangement.value
-        : call<unknown>('rosterGet')
-            .then(arrangementOf, (error: unknown) => {
-              if (error instanceof MethodRefused) return undefined;
-              throw error;
-            })
-            .then((value) => {
-              fetchedArrangement = { value, at: Date.now() };
-              return value;
-            }),
-      reusable(reuse, fetchedSorting)
-        ? fetchedSorting.value
-        : call<unknown>('settings/describe')
-            .then(rosterSortingOf)
-            .then((value) => {
-              fetchedSorting = { value, at: Date.now() };
-              return value;
-            }),
+      reusable(reuse, fetchedArrangement) ? fetchedArrangement.value : readArrangement(),
+      reusable(reuse, fetchedSorting) ? fetchedSorting.value : readSorting(),
     ]);
     bots = list.bots;
     channels = new Map(channelList.map((channel) => [channel.id, channel]));
@@ -1347,6 +1353,10 @@ export function createHostClient(options: HostClientOptions): HostClient {
     },
     retryNow(trigger = 'manual_retry') {
       if (!running) return;
+      if (trigger === 'manual_retry') {
+        fetchedArrangement = undefined;
+        fetchedSorting = undefined;
+      }
       options.telemetry?.begin(trigger);
       if (snapshot.connection.status === 'connected') {
         void refreshConnected().then(
