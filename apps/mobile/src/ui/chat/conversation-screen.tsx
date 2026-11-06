@@ -2028,7 +2028,23 @@ function ChatConversation({
                 ? (bot?.displayName ?? slug ?? '')
                 : botDm
                   ? botDmName
-                  : `#${channel?.name ?? channelName ?? t.groupInfo}`
+                  : (channel?.name ?? channelName ?? t.groupInfo)
+            }
+            bot={dm ? bot : undefined}
+            avatar={channel?.avatar}
+            subtitle={
+              [
+                dm && bot !== undefined
+                  ? t.state[bot.state]
+                  : channel === undefined
+                    ? undefined
+                    : t.members(channel.memberCount),
+                runningSessionCount(members) > 0
+                  ? t.sessionCount(runningSessionCount(members))
+                  : undefined,
+              ]
+                .filter(Boolean)
+                .join(' ') || undefined
             }
             connectionLabel={connectionLabel}
             onBack={leave}
