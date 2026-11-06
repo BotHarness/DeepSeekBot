@@ -327,8 +327,14 @@ export function createConnectAccount(options: {
         if (reply.status !== 200) return { ok: false, code: emailRefusal(reply.body) };
         try {
           return { ok: true, email: await signedIn(clientId, reply) };
-        } catch {
-          return { ok: false, code: 'relay-unavailable' };
+        } catch (error) {
+          return {
+            ok: false,
+            code:
+              error instanceof Refused && error.code === 'relay-unavailable'
+                ? 'relay-unavailable'
+                : 'sign-in-failed',
+          };
         }
       },
       async browser(provider) {

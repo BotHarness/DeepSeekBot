@@ -90,7 +90,12 @@ export function createEmailCode(options: EmailCodeOptions) {
       if (email === undefined) return refused(400, 'invalid-email');
       const code = typeof input.code === 'string' ? input.code.trim() : '';
       if (!CODE.test(code)) return refused(400, 'invalid-code');
-      if (!(await allowed(JSON.stringify(['email-verify', email]))))
+      if (
+        !(await allowed(
+          JSON.stringify(['email-verify', email]),
+          ...(input.ip ? [JSON.stringify(['email-verify-ip', input.ip])] : []),
+        ))
+      )
         return refused(429, 'rate-limited');
       const reply = await workos('/authenticate', {
         client_id: options.clientId,

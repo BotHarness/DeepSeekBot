@@ -12,7 +12,12 @@ const REDIRECT = 'ai.botharness.deepseekbot.dev:/oauth2redirect';
 
 function setup(
   collect: ((flow: EmailCodeFlow) => Promise<EmailCodeOutcome>) | undefined,
-  options: { emailCode?: boolean; verifyStatus?: number; verifyCode?: string } = {},
+  options: {
+    emailCode?: boolean;
+    verifyStatus?: number;
+    verifyCode?: string;
+    verifyUser?: boolean;
+  } = {},
 ) {
   let stored: string | null = null;
   let randoms = 0;
@@ -34,7 +39,9 @@ function setup(
           )
         : Response.json({
             refresh_token: 'refresh-email',
-            user: { id: 'user_alice', email: 'alice@example.com' },
+            ...(options.verifyUser === false
+              ? {}
+              : { user: { id: 'user_alice', email: 'alice@example.com' } }),
           });
     if (url === 'https://api.workos.com/user_management/authenticate')
       return Response.json({
@@ -100,6 +107,21 @@ describe('phone Connect email-code sign-in (#3464)', () => {
         return { kind: 'cancelled' };
       },
       { verifyStatus: 400 },
+    );
+    expect(await relay.account.signIn()).toEqual({ ok: false, code: 'sign-in-cancelled' });
+    expect(relay.stored()).toBeNull();
+  });
+
+  it('reports a session the phone could not save as a failed sign-in, not an unreachable server', async () => {
+    const relay = setup(
+      async (flow) => {
+        expect(await flow.verify('alice@example.com', '123456')).toEqual({
+          ok: false,
+          code: 'sign-in-failed',
+        });
+        return { kind: 'cancelled' };
+      },
+      { verifyUser: false },
     );
     expect(await relay.account.signIn()).toEqual({ ok: false, code: 'sign-in-cancelled' });
     expect(relay.stored()).toBeNull();

@@ -90,7 +90,7 @@ WorkOS custom domains, which put the sign-in page and OAuth callbacks on our own
   - Run `deepseekbot connect-sign-in --wait` on an isolated Host and choose the provider on the AuthKit page. The Human completes the login.
   - Confirm `connect-status` shows `signed-in` with that account's email, then `connect-sign-out`.
   - Check that the consent screen shows DeepSeekBot, not WorkOS.
-- **The phone (UAT):** sign in from the Pair screen's account section on the dev app through the shared device QA queue ([device-qa.md](device-qa.md)).
+- **The phone (Prod, through the hosted relay; a dev build with `EXPO_PUBLIC_CONNECT_RELAY` pointing at a local `dev:email-code staging` relay uses UAT):** sign in from the Pair screen's account section on the dev app through the shared device QA queue ([device-qa.md](device-qa.md)).
 - Report pass or fail per provider and environment, with no identifiers beyond the provider name.
 
 ## Open questions for the Human

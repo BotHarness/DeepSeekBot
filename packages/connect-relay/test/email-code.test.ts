@@ -133,7 +133,7 @@ describe('email-code sign-in', () => {
     ).toEqual({ status: 502, body: { error: { code: 'workos-unavailable', cause: 'http-503' } } });
   });
 
-  it('rate-limits sends per email and per IP, and verifies per email', async () => {
+  it('rate-limits sends and verifies per email and per IP', async () => {
     const keys: string[] = [];
     const { calls, fetcher } = workos({ '/magic_auth': { status: 201, body: {} } });
     const auth = createEmailCode({
@@ -158,6 +158,23 @@ describe('email-code sign-in', () => {
       limit: async () => false,
     });
     expect((await blocked.verify({ email: 'a@b.co', code: '123456' })).status).toBe(429);
+    const verifyKeys: string[] = [];
+    const perIp = createEmailCode({
+      apiKey: API_KEY,
+      clientId: CLIENT_ID,
+      fetcher,
+      limit: async (key) => {
+        verifyKeys.push(key);
+        return !key.includes('email-verify-ip');
+      },
+    });
+    expect(
+      (await perIp.verify({ email: 'a@b.co', code: '123456', ip: '198.51.100.1' })).status,
+    ).toBe(429);
+    expect(verifyKeys).toEqual([
+      JSON.stringify(['email-verify', 'a@b.co']),
+      JSON.stringify(['email-verify-ip', '198.51.100.1']),
+    ]);
   });
 });
 
@@ -214,6 +231,17 @@ describe('Connect relay email-code routes', () => {
     expect(calls[1]?.body).toMatchObject({ ip_address: '203.0.113.9', user_agent: 'Tobs/1.6' });
     const get = await relay.fetch(new Request('https://connect.botharness.ai/v1/auth/email-code'));
     expect(get.status).toBe(405);
+    const failing = relayWith({
+      send: async () => {
+        throw new Error('limiter down');
+      },
+      verify: async () => {
+        throw new Error('limiter down');
+      },
+    });
+    const broken = await post(failing, '/v1/auth/email-code', { email: 'a@b.co' });
+    expect(broken.status).toBe(502);
+    expect(await broken.json()).toMatchObject({ error: { code: 'workos-unavailable' } });
   });
 });
 

@@ -474,16 +474,20 @@ export function createRelay(options: RelayOptions) {
       if (body === undefined) return failure(400, 'invalid-body');
       const ip = request.headers.get('cf-connecting-ip') ?? undefined;
       const userAgent = request.headers.get('user-agent') ?? undefined;
-      const result =
-        url.pathname === '/v1/auth/email-code'
-          ? await options.emailCode.send({ email: body['email'], ...(ip ? { ip } : {}) })
-          : await options.emailCode.verify({
-              email: body['email'],
-              code: body['code'],
-              ...(ip ? { ip } : {}),
-              ...(userAgent ? { userAgent } : {}),
-            });
-      return json(result.status, result.body);
+      try {
+        const result =
+          url.pathname === '/v1/auth/email-code'
+            ? await options.emailCode.send({ email: body['email'], ...(ip ? { ip } : {}) })
+            : await options.emailCode.verify({
+                email: body['email'],
+                code: body['code'],
+                ...(ip ? { ip } : {}),
+                ...(userAgent ? { userAgent } : {}),
+              });
+        return json(result.status, result.body);
+      } catch {
+        return failure(502, 'workos-unavailable');
+      }
     }
     const hostMatch =
       /^\/v1\/hosts\/([^/]+)(\/tunnel|\/offer|\/live-activity|\/bot-network(?:\/grant)?)?$/u.exec(
