@@ -11,7 +11,8 @@ import type { ConversationMessage } from '../../host/conversation';
 export const LATEST_SLOP = 40;
 export const SETTLE_FRAMES = 45;
 export const STABLE_FRAMES = 6;
-const CHECK_BUDGET = SETTLE_FRAMES * 4;
+export const CHECK_BUDGET = SETTLE_FRAMES * 4;
+const KEYBOARD_SETTLE_MS = 1000;
 
 export type ListMetrics = { content: number; layout: number; offset: number; inset?: number };
 
@@ -85,6 +86,7 @@ export function useFollowLatest<Row>(
   const settled = useRef(false);
   const attempts = useRef(0);
   const checks = useRef(0);
+  const keyboardTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useLayoutEffect(() => {
     if (!followingNow.current) onFollowingChange?.(false);
   }, [onFollowingChange]);
@@ -94,6 +96,7 @@ export function useFollowLatest<Row>(
       frame.current = undefined;
       if (confirmation.current !== undefined) cancelAnimationFrame(confirmation.current);
       confirmation.current = undefined;
+      clearTimeout(keyboardTimer.current);
     },
     [],
   );
@@ -146,20 +149,20 @@ export function useFollowLatest<Row>(
   }, [onFollowingChange]);
 
   const confirm = useCallback(
-    (version: number) => {
+    (start: number) => {
       if (confirmation.current !== undefined) cancelAnimationFrame(confirmation.current);
+      let version = start;
       const check = (stable: number) => {
         confirmation.current = requestAnimationFrame(() => {
           confirmation.current = undefined;
-          if (settled.current) return;
+          if (settled.current || !hasRows.current) return;
           checks.current += 1;
-          if (
-            version !== sizes.current ||
-            version === 0 ||
-            metrics.current.content <= 0 ||
-            !hasRows.current
-          ) {
+          const measured =
+            version === sizes.current && version !== 0 && metrics.current.content > 0;
+          version = sizes.current;
+          if (!measured) {
             if (checks.current >= CHECK_BUDGET) setCanRetry(true);
+            else check(0);
             return;
           }
           attempts.current += 1;
@@ -200,7 +203,9 @@ export function useFollowLatest<Row>(
 
   const rowsPresent = messages.length > 0;
   useLayoutEffect(() => {
-    if (rowsPresent && !settled.current) pin();
+    if (!rowsPresent || settled.current) return;
+    checks.current = 0;
+    pin();
   }, [rowsPresent, pin]);
 
   const onKeyboardStart = useCallback(() => {
@@ -209,9 +214,18 @@ export function useFollowLatest<Row>(
     if (confirmation.current !== undefined) cancelAnimationFrame(confirmation.current);
     frame.current = undefined;
     confirmation.current = undefined;
-  }, []);
+    clearTimeout(keyboardTimer.current);
+    keyboardTimer.current = setTimeout(() => {
+      keyboardTimer.current = undefined;
+      if (!keyboardMoving.current) return;
+      keyboardMoving.current = false;
+      pin();
+    }, KEYBOARD_SETTLE_MS);
+  }, [pin]);
 
   const onKeyboardEnd = useCallback(() => {
+    clearTimeout(keyboardTimer.current);
+    keyboardTimer.current = undefined;
     keyboardMoving.current = false;
     pin();
   }, [pin]);
