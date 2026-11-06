@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement, Profiler, type ReactNode } from 'react';
+import { act, createElement, Profiler, type ReactNode, type InputHTMLAttributes } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -85,7 +85,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
     IconTriangleRightFill14: icon('IconTriangleRightFill14'),
     HoverCard: (props: { anchor: ReactNode; content: ReactNode }) =>
       createElement('span', { 'data-hover-card': 'true' }, props.anchor, props.content),
-    Input: stub,
+    Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
     Menu: (props: {
       open: boolean;
       items: readonly Record<string, unknown>[];
@@ -108,6 +108,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
 
 import type { BridgeActions } from '../src/client/actions.js';
 import { BotSidebar, BulkChannelMenu, ChannelMoveMenu } from '../src/client/bot-sidebar.js';
+import { typeInto } from './primitive-mocks.js';
 import { UNGROUPED_MOVE_TARGET } from '../src/client/section-management.js';
 import type { BotModePrefsSnapshot } from '../src/client/bot-mode-prefs.js';
 import { PINNED_SORT_SCOPE_ID } from '../src/bot-mode-settings.js';
@@ -2330,5 +2331,115 @@ it('shows one status glyph at the end of the preview line instead of avatar badg
       revision: 2,
       bots: [],
     });
+  }
+});
+
+describe('section mutation completion', () => {
+  it.each(['rename', 'delete'] as const)(
+    'retains the %s dialog and local state until the Host succeeds',
+    async (kind) => {
+      Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+      const host = document.createElement('div');
+      document.body.append(host);
+      const root = createRoot(host);
+      const actions = stubActions();
+      const mutation = vi
+        .fn<() => Promise<boolean>>()
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(true);
+      if (kind === 'rename') actions.renameSection = mutation;
+      else actions.removeSection = mutation;
+      setRoster({ sections: [section('s1', '工作流', [SECTION_CHANNEL.id])] });
+      store.setRoster([], [SECTION_CHANNEL, FLAT_CHANNEL]);
+      store.select({ kind: 'channel', channelId: FLAT_CHANNEL.id });
+      try {
+        await act(async () =>
+          root.render(
+            createElement(BotSidebar, {
+              wide: true,
+              actions,
+              useBotModePrefs: ((selector: (snapshot: BotModePrefsSnapshot) => unknown) =>
+                selector(prefs)) as never,
+              setSortMode,
+              setSectionSortMode,
+              t: zhTranslate as never,
+            }),
+          ),
+        );
+        await act(async () => menuWithItem('rename').onSelect?.(kind));
+        const submit = async () => {
+          const form = document.querySelector<HTMLFormElement>('[role="dialog"] form');
+          if (!form) throw new Error('Missing section dialog');
+          await act(async () => form.requestSubmit());
+        };
+        await submit();
+        expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+        expect(document.querySelector('[role="alert"]')).not.toBeNull();
+        expect(setSectionSortMode).not.toHaveBeenCalled();
+        await submit();
+        expect(document.querySelector('[role="dialog"]')).toBeNull();
+        if (kind === 'delete') expect(setSectionSortMode).toHaveBeenCalledWith('s1', undefined);
+        expect(store.getSnapshot().selection).toEqual({
+          kind: 'channel',
+          channelId: FLAT_CHANNEL.id,
+        });
+      } finally {
+        await act(async () => root.unmount());
+        host.remove();
+      }
+    },
+  );
+});
+
+it('keeps a successfully created section when the subsequent move fails, without offering duplicate creation', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  const actions = stubActions();
+  const created = section('new', 'New group', []);
+  actions.createSection = vi.fn(async () => {
+    setRoster({ sections: [created] });
+    return created;
+  });
+  actions.batchRoster = vi.fn(async () => false);
+  store.setRoster([], [FLAT_CHANNEL]);
+  try {
+    await act(async () =>
+      root.render(
+        createElement(BotSidebar, {
+          wide: true,
+          actions,
+          useBotModePrefs: ((selector: (snapshot: BotModePrefsSnapshot) => unknown) =>
+            selector(prefs)) as never,
+          setSortMode,
+          setSectionSortMode,
+          t: zhTranslate,
+        }),
+      ),
+    );
+    await act(async () =>
+      host
+        .querySelector('[data-channel-id="c-flat"]')!
+        .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })),
+    );
+    await act(async () => captured.menus.at(-1)?.onSelect?.('new-section'));
+    const input = document.querySelector<HTMLInputElement>('[role="dialog"] input')!;
+    await typeInto(input, 'New group');
+    await act(async () =>
+      document.querySelector<HTMLFormElement>('[role="dialog"] form')!.requestSubmit(),
+    );
+    expect(actions.createSection).toHaveBeenCalledTimes(1);
+    expect(actions.batchRoster).toHaveBeenCalledWith({
+      action: 'move',
+      channelIds: [FLAT_CHANNEL.id],
+      sectionId: 'new',
+    });
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(store.getSnapshot().roster.sections).toEqual([created]);
+    expect(host.querySelector('.bh-error')?.textContent).toBe(zhTranslate('bulk.failed'));
+  } finally {
+    await act(async () => root.unmount());
+    host.remove();
   }
 });

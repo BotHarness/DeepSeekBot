@@ -1834,6 +1834,7 @@ export const zh = {
   'market.error.blocked': '这个仓库已被屏蔽或因举报隐藏，无法收录。',
   'market.error.upstream': 'GitHub 暂时无法访问，请稍后重试。',
   'section.rename.title': '重命名频道分组',
+  'section.updateFailed': '未能更新分组，请重试。',
   'section.delete.title': '删除频道分组',
   'section.delete.description':
     '将把“{name}”从名册中移除。其中的频道会移出分组、变为未分组频道，不会被删除。',
@@ -6693,6 +6694,7 @@ export const en = {
   'market.error.blocked': 'This repository is blocked or hidden after reports.',
   'market.error.upstream': 'GitHub is unreachable right now. Try again later.',
   'section.rename.title': 'Rename channel section',
+  'section.updateFailed': 'Could not update the group. Try again.',
   'section.delete.title': 'Delete channel section',
   'section.delete.description':
     'Removes “{name}” from the roster. Its channels leave the section and become unsectioned; they are not deleted.',
