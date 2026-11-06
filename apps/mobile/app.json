@@ -51,6 +51,7 @@
       ],
       "expo-secure-store",
       "expo-notifications",
+      "expo-background-task",
       "@bacons/apple-targets",
       [
         "expo-camera",

@@ -1,6 +1,7 @@
 import type { ConversationCache } from './conversation';
 import { deleteHostStore, hostStore, hostStoreAvailable } from './host-store';
-import { createCatchUp } from './catch-up';
+import { createCatchUp, type CatchUpHost } from './catch-up';
+import { BACKGROUND_PAGES } from './background-catch-up';
 import { powerConstrained } from './native-power';
 import { createLocalConversationCache, pruneLocalConversations } from './local-conversation-cache';
 import {
@@ -48,6 +49,15 @@ export function pruneHostConversations(hostId: string, stale: (key: string) => b
 }
 
 const catchUp = createCatchUp({ store: hostStore, constrained: powerConstrained });
+const backgroundCatchUp = createCatchUp({
+  store: hostStore,
+  constrained: powerConstrained,
+  maxPages: BACKGROUND_PAGES,
+});
+
+export function catchUpInBackground(host: CatchUpHost): Promise<void> {
+  return hostStoreAvailable() ? backgroundCatchUp.sync(host) : Promise.resolve();
+}
 
 export function catchUpHostConversations(
   hostId: string,
