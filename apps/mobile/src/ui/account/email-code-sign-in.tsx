@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Platform, View } from 'react-native';
+import { Image, Platform, View } from 'react-native';
 
 import type {
   EmailCodeFlow,
@@ -7,12 +7,63 @@ import type {
   EmailCodeRefusal,
   SocialProvider,
 } from '../../host/connect-account';
-import { space } from '../design/tokens';
+import { useDesignTheme } from '../design/theme';
+import { radius, signInBrand, space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import { Text } from '../primitives/text';
 import { TextField } from '../primitives/text-field';
 import { useStrings } from '../strings';
+import { SignInBrandButton } from './sign-in-brand-button';
+
+const APP_ICON = {
+  light: require('../../../assets/app-icons/deepseekbot-light-preview.png'),
+  dark: require('../../../assets/app-icons/deepseekbot-dark-preview.png'),
+};
+
+function Heading({ title, detail, icon }: { title: string; detail: string; icon?: boolean }) {
+  const theme = useDesignTheme();
+  return (
+    <View style={{ alignItems: 'center', gap: space.x3, paddingBottom: space.x3 }}>
+      {icon ? (
+        <Image
+          source={APP_ICON[theme.scheme]}
+          accessibilityIgnoresInvertColors
+          style={{
+            width: signInBrand.appIcon,
+            height: signInBrand.appIcon,
+            borderRadius: radius.lg,
+            marginBottom: space.x3,
+          }}
+        />
+      ) : null}
+      <Text variant="display" accessibilityRole="header" style={{ textAlign: 'center' }}>
+        {title}
+      </Text>
+      <Text tone="muted" style={{ textAlign: 'center' }}>
+        {detail}
+      </Text>
+    </View>
+  );
+}
+
+function OrDivider({ label }: { label: string }) {
+  const theme = useDesignTheme();
+  const line = { flex: 1, height: 1, backgroundColor: theme.color.border };
+  return (
+    <View
+      style={{ flexDirection: 'row', alignItems: 'center', gap: space.x4 }}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
+      <View style={line} />
+      <Text variant="meta" tone="muted">
+        {label}
+      </Text>
+      <View style={line} />
+    </View>
+  );
+}
 
 const CODE_LENGTH = 6;
 const digits = (value: string) => value.replace(/\D/gu, '').slice(0, CODE_LENGTH);
@@ -82,25 +133,32 @@ export function EmailCodeSignIn({
     <KeyboardFormScroll
       keyboardShouldPersistTaps="handled"
       contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={{ padding: space.x5, gap: space.x4 }}
+      contentContainerStyle={{
+        paddingHorizontal: space.x5,
+        paddingTop: space.x3,
+        paddingBottom: space.x6,
+        gap: space.x4,
+      }}
     >
       {sentTo === undefined ? (
         <>
+          <Heading icon title={copy.heading} detail={copy.headingDetail} />
           {providers.map((provider) => (
-            <Button
+            <SignInBrandButton
               key={provider.id}
+              provider={provider.id}
               testID={provider.testID}
               label={provider.label}
               disabled={busy}
               onPress={() => void browser(provider.id)}
             />
           ))}
-          <Text tone="muted">{copy.emailHint}</Text>
+          <OrDivider label={copy.or} />
           <TextField
             testID="email-sign-in-email"
             accessibilityLabel={copy.email}
             label={copy.email}
-            placeholder={copy.email}
+            placeholder={copy.emailPlaceholder}
             value={email}
             onChangeText={setEmail}
             editable={!busy}
@@ -125,7 +183,7 @@ export function EmailCodeSignIn({
         </>
       ) : (
         <>
-          <Text tone="muted">{copy.codeHint(sentTo)}</Text>
+          <Heading title={copy.codeTitle} detail={copy.codeHint(sentTo)} />
           <TextField
             testID="email-sign-in-code"
             accessibilityLabel={copy.code}
