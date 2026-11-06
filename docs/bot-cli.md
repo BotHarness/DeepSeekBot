@@ -1662,6 +1662,8 @@ Historical v1 archives remain readable. New v2 archives record Host and resolved
 
 ### Diagnostic logs
 
+For Connect sign-in failures, inspect `device-connect` entries with `phase=account-request-error`. They identify the service (`relay` or `identity`), operation, and failure reason: `transport` with a bounded error code, `http` with `httpStatus`, or `invalid-response`. They omit request URLs, account IDs, credentials and response bodies. A generic `relay-unavailable` result alone does not identify a DNS failure; Host tunnel DNS records are created when that Host is provisioned, so a random `*.deepseekbot.dev` name need not resolve.
+
 Tobs keeps an always-on local diagnostic log in `$DSH_HOME/botharness/logs.db` (30 days, 50 000 rows): Client action and navigation breadcrumbs, uncaught errors and console warnings, UI invariant violations, long frames and slow Host calls, plus Host warnings and BotHarness lifecycle lines. It never records typed text, message bodies or file contents, and nothing leaves the device. The Workspace Control Rail's **Diagnostic logs** button shows the last 24 hours and exports the same ZIP as the CLI.
 
 ```bash
