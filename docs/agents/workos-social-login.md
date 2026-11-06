@@ -2,6 +2,17 @@
 
 Hosted Connect and TOB sign in through TOB's WorkOS environments (ADR-0241). In **Staging (UAT)**, WorkOS provides default Google, Microsoft, GitHub and Apple credentials for testing only. Their consent screens show WorkOS's name and logo. **Production has no default credentials**: every provider it offers needs its own OAuth client. This runbook registers our own clients for both environments, enters them in WorkOS, and stores them machine-locally.
 
+## Which WorkOS account
+
+Sign in to WorkOS as **yang@deepseekbot.app** (team BotHarness). Connect uses that team's **Tobs** project:
+
+| Environment   | Client ID                           |
+| ------------- | ----------------------------------- |
+| Staging (UAT) | `client_01M54TZZAA0Y6A248NCFYD84A5` |
+| Production    | `client_01M5F0C09JH5QPFX9160RFCKTH` |
+
+The same team also has "BotHarness's Project", which Connect does not use. Other WorkOS accounts the Human owns hold no Connect environment. Use this account for the WorkOS Dashboard and the WorkOS MCP server.
+
 ## Who does what
 
 - The Human signs in to every console: WorkOS, Google Cloud, Azure, GitHub and Apple Developer. An agent never types a password, OTP or passkey, and never creates an account.
@@ -30,7 +41,7 @@ Load a file with `set -a; . .secrets/google-oauth.env; set +a` and never echo it
 
 Status on 2026-10-21: Google and Apple are registered for UAT and Prod, and Production Apple authorization was verified in the browser. Microsoft and GitHub are not registered.
 
-Client IDs and Redirect URIs are not secret, but they sit next to the secrets so one file describes the environment. Only the WorkOS client IDs belong in committed code. Today that is UAT's `client_01M54TZZAA0Y6A248NCFYD84A5`, which the relay publishes at `https://connect.botharness.ai/v1/config`.
+Client IDs and Redirect URIs are not secret, but they sit next to the secrets so one file describes the environment. Only the WorkOS client IDs belong in committed code. On 2026-11-06 the relay at `https://connect.botharness.ai/v1/config` publishes Production's `client_01M5F0C09JH5QPFX9160RFCKTH`.
 
 ## Steps, per environment (do UAT first, then Prod)
 
