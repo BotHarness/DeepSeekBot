@@ -4,6 +4,14 @@ import { useSyncExternalStore } from 'react';
 import { AppState, Appearance } from 'react-native';
 
 import { interfacePreferences } from './interface-preferences';
+import { alertBanners } from '../host/alert-banners';
+
+const syncAlertPresentation = () => {
+  const preferences = interfacePreferences.getSnapshot();
+  alertBanners.setEnabled(preferences.loaded && preferences.inAppAlerts);
+};
+syncAlertPresentation();
+interfacePreferences.subscribe(syncAlertPresentation);
 
 const refreshLocales = () =>
   interfacePreferences.setSystemLocales(getLocales().map((locale) => locale.languageTag));

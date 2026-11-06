@@ -432,3 +432,34 @@ it.each([
   ).toBe('failed');
   expect(decide).toHaveBeenCalledOnce();
 });
+
+it('names why the first handshake frame could not be sent', async () => {
+  const closed = vi.fn();
+  const socket = openNoiseSocket({
+    origin: 'http://192.168.1.20:39101',
+    hostId: 'host',
+    encryption: {
+      protocol: 'connect-noise-xk-v1',
+      hostKey: Buffer.from(noisePublicKey(randomBytes(32))).toString('hex'),
+      deviceKey: randomBytes(32).toString('hex'),
+    },
+    message: vi.fn(),
+    closed,
+    raw: {
+      request: vi.fn(),
+      openSocket(_url, events) {
+        queueMicrotask(events.open);
+        return {
+          send() {
+            throw new Error(
+              'The operation couldn’t be completed. (channel-frame-invalid error 1.)',
+            );
+          },
+          close: vi.fn(),
+        };
+      },
+    },
+  });
+  await expect(socket.ready).rejects.toThrow('channel-handshake-failed:channel-frame-invalid');
+  expect(closed).toHaveBeenCalledWith('channel-handshake-failed:channel-frame-invalid');
+});

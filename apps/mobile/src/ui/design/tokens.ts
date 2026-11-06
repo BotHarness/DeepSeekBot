@@ -42,6 +42,14 @@ export const radius = {
   round: 9999,
 } as const;
 
+export const alertOverlay = {
+  maxHeightFraction: 0.5,
+  swipeStart: 12,
+  swipeCommit: 48,
+  swipeFlick: 800,
+  settle: 400,
+} as const;
+
 export const edge = {
   hairline: 1,
   focus: 2,
@@ -53,6 +61,14 @@ export const stateRing = {
   inset: 3,
   segment: 0.26,
   period: 1300,
+} as const;
+export const callBubble = {
+  avatarScale: 1.25,
+  badge: 20,
+  capsuleOverlap: 8,
+  pulsePeriod: 1400,
+  pulseGrowth: 0.35,
+  maxTextScale: 1.4,
 } as const;
 export const rowGlyph = { size: 16, period: 900 } as const;
 export const accountActionIcon = {
@@ -201,6 +217,8 @@ export const glass = {
   saturate: 180,
 } as const;
 
+export const chatHeaderSurface = { fade: 24, intensity: 70 } as const;
+
 export const edgeFade = {
   bottom: 24,
   stops: [
@@ -281,6 +299,7 @@ export const doubleTap = { window: 300, emoji: '👍' } as const;
 export const recentChats = { limit: 3 } as const;
 
 export const workspaceStack = { max: 3, tile: 28, overlap: 10, ring: 2 } as const;
+export const cornerBadge = { maxTextScale: 1.2, materialLabel: 11 } as const;
 
 export const swipeOpen = {
   start: 24,
@@ -422,4 +441,19 @@ export const memoryGrid = {
   wide: 600,
   icon: 28,
   gap: space.x3,
+} as const;
+
+export const signInBrand = {
+  height: 50,
+  mark: 20,
+  apple: {
+    light: { fill: '#000000', label: '#ffffff', edge: '#000000' },
+    dark: { fill: '#ffffff', label: '#000000', edge: '#ffffff' },
+  },
+  google: {
+    light: { fill: '#ffffff', label: '#1f1f1f', edge: '#747775' },
+    dark: { fill: '#131314', label: '#e3e3e3', edge: '#8e918f' },
+  },
+  googleMark: { red: '#ea4335', blue: '#4285f4', yellow: '#fbbc05', green: '#34a853' },
+  appIcon: 64,
 } as const;

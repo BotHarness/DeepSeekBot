@@ -29,7 +29,9 @@ describe('DSH activity projection', () => {
 
   it('keeps a Channel reply turn active until turn/end, without flickering idle between steps', () => {
     const states = createBotStateTracker();
-    const ownership = createTestOwnership({ root: { botSlug: 'ada', rootRole: 'orchestrator' } });
+    const ownership = createTestOwnership({
+      root: { botSlug: 'ada', rootRole: 'orchestrator' },
+    });
     const activity = createDshActivityProjection({ ownership, states });
     const seen = (
       [
@@ -70,13 +72,21 @@ describe('DSH activity projection', () => {
     expect(deriveSessionState([...log, event('turn/start')])).toBe('thinking');
 
     const states = createBotStateTracker();
-    const ownership = createTestOwnership({ root: { botSlug: 'ada', rootRole: 'orchestrator' } });
+    const ownership = createTestOwnership({
+      root: { botSlug: 'ada', rootRole: 'orchestrator' },
+    });
     const activity = createDshActivityProjection({ ownership, states });
     for (const item of log) activity.handleSessionEvent('root', item);
-    expect(states.snapshot('ada')).toMatchObject({ state: 'idle', sessions: { root: 'done' } });
+    expect(states.snapshot('ada')).toMatchObject({
+      state: 'idle',
+      sessions: { root: 'done' },
+    });
 
     activity.rebuild([{ id: 'root', header: {}, snapshotEvents: () => log }]);
-    expect(states.snapshot('ada')).toMatchObject({ state: 'idle', sessions: { root: 'done' } });
+    expect(states.snapshot('ada')).toMatchObject({
+      state: 'idle',
+      sessions: { root: 'done' },
+    });
 
     activity.handleSessionEvent('root', event('turn/start'));
     expect(states.snapshot('ada').state).toBe('thinking');
@@ -84,24 +94,35 @@ describe('DSH activity projection', () => {
 
   it('settles a log that stops mid-turn when its Agent is not running after a rebuild', () => {
     const log = [event('turn/start'), event('step/start'), event('tool/call')];
-    const ownership = createTestOwnership({ root: { botSlug: 'ada', rootRole: 'orchestrator' } });
+    const ownership = createTestOwnership({
+      root: { botSlug: 'ada', rootRole: 'orchestrator' },
+    });
     const stale = createBotStateTracker();
-    createDshActivityProjection({ ownership, states: stale, running: () => false }).rebuild([
-      { id: 'root', header: {}, snapshotEvents: () => log },
-    ]);
-    expect(stale.snapshot('ada')).toMatchObject({ state: 'idle', sessions: { root: 'done' } });
+    createDshActivityProjection({
+      ownership,
+      states: stale,
+      running: () => false,
+    }).rebuild([{ id: 'root', header: {}, snapshotEvents: () => log }]);
+    expect(stale.snapshot('ada')).toMatchObject({
+      state: 'idle',
+      sessions: { root: 'done' },
+    });
     expect(stale.activity('ada')).toBeUndefined();
 
     const live = createBotStateTracker();
-    createDshActivityProjection({ ownership, states: live, running: () => true }).rebuild([
-      { id: 'root', header: {}, snapshotEvents: () => log },
-    ]);
+    createDshActivityProjection({
+      ownership,
+      states: live,
+      running: () => true,
+    }).rebuild([{ id: 'root', header: {}, snapshotEvents: () => log }]);
     expect(live.snapshot('ada').state).toBe('working');
   });
 
   it('settles an open turn when its Agent goes idle without turn/end', () => {
     const states = createBotStateTracker();
-    const ownership = createTestOwnership({ root: { botSlug: 'ada', rootRole: 'orchestrator' } });
+    const ownership = createTestOwnership({
+      root: { botSlug: 'ada', rootRole: 'orchestrator' },
+    });
     const activity = createDshActivityProjection({ ownership, states });
     activity.handleSessionEvent('root', event('turn/start'));
     activity.handleSessionEvent('root', {
@@ -112,7 +133,10 @@ describe('DSH activity projection', () => {
     expect(states.snapshot('ada').state).toBe('working');
 
     activity.handleAgentIdle('root');
-    expect(states.snapshot('ada')).toMatchObject({ state: 'idle', sessions: { root: 'done' } });
+    expect(states.snapshot('ada')).toMatchObject({
+      state: 'idle',
+      sessions: { root: 'done' },
+    });
     expect(states.activity('ada')).toBeUndefined();
 
     activity.handleSessionEvent('root', event('assistant/message'));
@@ -123,7 +147,9 @@ describe('DSH activity projection', () => {
 
   it('leaves a settled or unknown Session alone when its Agent goes idle', () => {
     const states = createBotStateTracker();
-    const ownership = createTestOwnership({ root: { botSlug: 'ada', rootRole: 'orchestrator' } });
+    const ownership = createTestOwnership({
+      root: { botSlug: 'ada', rootRole: 'orchestrator' },
+    });
     const activity = createDshActivityProjection({ ownership, states });
     const seen: string[] = [];
     states.on((change) => seen.push(change.type));
@@ -135,7 +161,9 @@ describe('DSH activity projection', () => {
 
   it('keeps projecting a turn whose start it did not observe', () => {
     const states = createBotStateTracker();
-    const ownership = createTestOwnership({ root: { botSlug: 'ada', rootRole: 'orchestrator' } });
+    const ownership = createTestOwnership({
+      root: { botSlug: 'ada', rootRole: 'orchestrator' },
+    });
     const activity = createDshActivityProjection({ ownership, states });
     activity.handleSessionEvent('root', event('tool/result'));
     expect(states.snapshot('ada').state).toBe('thinking');
@@ -178,7 +206,11 @@ describe('DSH activity projection', () => {
     ]);
 
     expect(
-      activity.handleAgentCreated({ id: 'orphan', header: {}, snapshotEvents: () => [] }),
+      activity.handleAgentCreated({
+        id: 'orphan',
+        header: {},
+        snapshotEvents: () => [],
+      }),
     ).toBe(false);
     expect(
       activity.handleAgentCreated({
@@ -207,8 +239,13 @@ describe('DSH activity projection', () => {
     ]);
 
     expect(report).toEqual({ rebuilt: 2, attributed: 1, unowned: 0 });
-    expect(ownership.resolve('subagent-1')).toMatchObject({ provenance: 'subagent' });
-    expect(states.snapshot('ada').sessions).toEqual({ 'root-1': 'done', 'subagent-1': 'working' });
+    expect(ownership.resolve('subagent-1')).toMatchObject({
+      provenance: 'subagent',
+    });
+    expect(states.snapshot('ada').sessions).toEqual({
+      'root-1': 'done',
+      'subagent-1': 'working',
+    });
   });
 });
 
@@ -229,7 +266,11 @@ it('keeps each restored Session latest activity separate and updates only the ma
   const call = (id: string) => ({
     type: 'tool/call',
     time: 1000,
-    data: { name: 'search', callId: id, arguments: '{"query":"private query"}' },
+    data: {
+      name: 'search',
+      callId: id,
+      arguments: '{"query":"private query"}',
+    },
   });
   projection.rebuild([
     { id: 'first', header: {}, snapshotEvents: () => [call('a')] },
@@ -244,7 +285,10 @@ it('keeps each restored Session latest activity separate and updates only the ma
     time: 2000,
     data: { message: { toolCallId: 'a', content: 'private result' } },
   });
-  expect(states.sessionActivity('ada')[0]).toMatchObject({ id: before[0]?.id, state: 'thinking' });
+  expect(states.sessionActivity('ada')[0]).toMatchObject({
+    id: before[0]?.id,
+    state: 'thinking',
+  });
   expect(states.sessionActivity('ada')[0]?.activity).toBeUndefined();
   expect(states.sessionActivity('ada')[1]).toEqual(before[1]);
   projection.handleSessionDisposed('first');
@@ -254,7 +298,9 @@ it('keeps each restored Session latest activity separate and updates only the ma
 
 it('projects native Session titles on create, rename and rebuild without changing the active state or opaque identity', () => {
   const states = createBotStateTracker();
-  const ownership = createTestOwnership({ task: { botSlug: 'ada', rootRole: 'assignment' } });
+  const ownership = createTestOwnership({
+    task: { botSlug: 'ada', rootRole: 'assignment' },
+  });
   const projection = createDshActivityProjection({ ownership, states });
   const title = (name: string | null) => ({
     type: 'session/title',
@@ -269,7 +315,11 @@ it('projects native Session titles on create, rename and rebuild without changin
   projection.handleAgentCreated(session);
   projection.handleSessionEvent('task', event('step/start'));
   const first = states.sessionActivity('ada')[0];
-  expect(first).toMatchObject({ name: 'Inspect layout', role: 'assignment', state: 'thinking' });
+  expect(first).toMatchObject({
+    name: 'Inspect layout',
+    role: 'assignment',
+    state: 'thinking',
+  });
   projection.handleSessionEvent('task', title('Verify compact activity'));
   expect(states.sessionActivity('ada')[0]).toMatchObject({
     id: first?.id,
@@ -296,4 +346,62 @@ it('projects native Session titles on create, rename and rebuild without changin
   projection.handleSessionDisposed('task');
   projection.handleSessionEvent('task', event('step/start'));
   expect(states.sessionActivity('ada')[0]?.name).toBeUndefined();
+});
+
+it('names an Assignment Session by its Assignment title, falling back to the DSH title without a row', () => {
+  const states = createBotStateTracker();
+  const ownership = createTestOwnership({
+    task: { botSlug: 'ada', rootRole: 'assignment' },
+    legacy: { botSlug: 'ada', rootRole: 'assignment' },
+    root: { botSlug: 'ada', rootRole: 'orchestrator' },
+  });
+  const lookups: string[] = [];
+  const projection = createDshActivityProjection({
+    ownership,
+    states,
+    assignmentTitle: (botSlug, sessionId) => {
+      lookups.push(`${botSlug}/${sessionId}`);
+      if (sessionId === 'task') return 'Fix Safari export button';
+      if (sessionId === 'root') return 'Never used for an Orchestrator';
+      return undefined;
+    },
+  });
+  const title = (name: string) => ({
+    type: 'session/title',
+    time: 1,
+    data: { title: name },
+  });
+  const name = (sessionId: string) =>
+    states
+      .sessionActivity('ada')
+      .find((session) => states.sessionIdForActivity('ada', session.id) === sessionId)?.name;
+
+  for (const sessionId of ['task', 'legacy', 'root']) {
+    projection.handleSessionEvent(sessionId, title('Inspect the export handler'));
+    projection.handleSessionEvent(sessionId, event('step/start'));
+  }
+  expect(name('task')).toBe('Fix Safari export button');
+  expect(name('legacy')).toBe('Inspect the export handler');
+  expect(name('root')).toBe('Inspect the export handler');
+
+  projection.handleSessionEvent('task', title('Reply to follow-up question'));
+  projection.handleSessionEvent('task', event('step/start'));
+  expect(name('task')).toBe('Fix Safari export button');
+  expect(lookups.filter((lookup) => lookup === 'ada/task')).toHaveLength(1);
+  expect(lookups).not.toContain('ada/root');
+
+  const cold = createBotStateTracker();
+  createDshActivityProjection({
+    ownership,
+    states: cold,
+    assignmentTitle: (_botSlug, sessionId) =>
+      sessionId === 'task' ? 'Fix Safari export button' : undefined,
+  }).rebuild([
+    {
+      id: 'task',
+      header: {},
+      snapshotEvents: () => [title('Stale DSH title'), event('step/start')],
+    },
+  ]);
+  expect(cold.sessionActivity('ada')[0]?.name).toBe('Fix Safari export button');
 });

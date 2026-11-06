@@ -24,8 +24,11 @@ export interface HostSocket {
   close(): void;
 }
 
+export type LocalNetworkStatus = 'denied' | 'reachable' | 'unreachable' | 'timeout' | 'unknown';
+
 export interface HostCarrier {
   randomBytes?(): Uint8Array;
+  localNetworkStatus?(origin: string): Promise<LocalNetworkStatus>;
   close?(): void;
   request(url: string, init: HostRequest): Promise<HostResponse>;
   openSocket(url: string, events: HostSocketEvents, headers?: Record<string, string>): HostSocket;

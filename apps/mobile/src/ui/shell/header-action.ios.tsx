@@ -19,6 +19,7 @@ import { HeaderIconButton } from './header-icon-button';
 const symbols = {
   archive: 'archivebox',
   filter: 'line.3.horizontal.decrease',
+  more: 'ellipsis',
   search: 'magnifyingglass',
   settings: 'gearshape',
   tob: 'chevron.down.circle',

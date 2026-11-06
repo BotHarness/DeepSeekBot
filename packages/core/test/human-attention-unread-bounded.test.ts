@@ -7,6 +7,7 @@ import {
   type OperationalDatabaseModulePort,
 } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
+import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
 import { createHumanAttentionQuery } from '../src/runtime/human-attention.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
@@ -87,5 +88,45 @@ describe('Human attention unread status', () => {
           detail.includes('inbox_admissions_bot_pending'),
       );
     expect(scans).toEqual([]);
+  });
+
+  it('finds private input requests through their partial index', () => {
+    const owner = trackTestOwner(
+      mountOperationalDatabase({ dshHome: createTempRoot(), schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
+    );
+    const database = attachOperationalModule(owner, 'messaging');
+    const statements: string[] = [];
+    const store = createSqliteChannelStore({
+      rootDir: createTempRoot(),
+      database: {
+        ...database,
+        read: (query) =>
+          database.read((db) =>
+            query(
+              new Proxy(db, {
+                get(target, key) {
+                  if (key === 'prepare')
+                    return (sql: string) => {
+                      statements.push(sql);
+                      return target.prepare(sql);
+                    };
+                  const value = Reflect.get(target, key) as unknown;
+                  return typeof value === 'function' ? value.bind(target) : value;
+                },
+              }) as DatabaseSync,
+            ),
+          ),
+      },
+    });
+    expect(store.privateInputRequests?.()).toEqual([]);
+    const sql = statements.find((statement) => statement.includes('privateInputRequest'))!;
+    const details = database.read((db) =>
+      db
+        .prepare(`EXPLAIN QUERY PLAN ${sql}`)
+        .all()
+        .map((row) => String((row as { detail: string }).detail)),
+    );
+    expect(details).toContainEqual(expect.stringContaining('source_events_attention_private'));
+    expect(details.some((detail) => /^SCAN e$/.test(detail))).toBe(false);
   });
 });

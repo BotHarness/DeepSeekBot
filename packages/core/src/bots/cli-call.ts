@@ -1,9 +1,10 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 
 import { CliLiveError } from './cli-live-error.js';
 import type { VoiceCallEvent, VoiceCallView } from '../voice/call-contract.js';
 import { readWavAs16kMono } from '../voice/wav.js';
+import { CallVideoError, videoKeyframes, type VideoKeyframes } from '../voice/call-video.js';
 
 export type CallPost = (body: Record<string, unknown>) => Promise<Record<string, unknown>>;
 
@@ -12,12 +13,23 @@ export const CALL_PATH = '/api/voice/call';
 export const CALL_OPTIONS = {
   script: { type: 'string' },
   'reply-wait': { type: 'string' },
+  video: { type: 'string' },
+  screen: { type: 'string' },
+  'no-save': { type: 'boolean' },
+  'share-ends-at': { type: 'string' },
+  'share-pause': { type: 'string' },
 } as const;
 
 export interface CallValues {
   file?: string;
   script?: string;
   'reply-wait'?: string;
+  video?: string;
+  screen?: string;
+  out?: string;
+  'no-save'?: boolean;
+  'share-ends-at'?: string;
+  'share-pause'?: string;
 }
 
 export const CALL_COMMANDS = [
@@ -28,16 +40,22 @@ export const CALL_COMMANDS = [
   },
   {
     command: 'call-status',
-    description: "show this caller's calls with their phase, busy state and recent events",
+    description:
+      "show this caller's calls with their phase, busy state, recent events and media performance (packets/s, kbps, loss, RTT and CPU per direction)",
   },
   {
     command: 'call-hangup',
     description: 'end a call by id',
   },
   {
+    command: 'call-frame',
+    description:
+      'show one cell of a call grid at its original resolution: call-frame <message-id> <cell> [--out /abs.jpg]; released once the call ends or newer keyframes replace it',
+  },
+  {
     command: 'call-simulate',
     description:
-      'call a Bot with synthetic audio: plays --file <abs.wav> (or a --script <abs.json> timeline) into a Host call without a phone, waits for the spoken reply and reports event timings',
+      'call a Bot with synthetic audio: plays --file <abs.wav> (or a --script <abs.json> timeline, where a step can wait for the Bot to start speaking to test barge-in) into a Host call without a phone, optionally sharing --video (camera) or --screen <abs video file or JPEG folder> as keyframes (--no-save keeps grids out of the DM; --share-ends-at <ms> ends the share as the system would, leaving the call voice only; --share-pause <from>-<to> pauses it as a phone app in the background does), waits for the spoken reply and reports event timings',
   },
 ] as const;
 
@@ -63,6 +81,7 @@ function result(value: Record<string, unknown>): Record<string, unknown> {
 interface ScriptEntry {
   at: number;
   file: string;
+  after?: 'playing';
 }
 
 function script(values: CallValues): ScriptEntry[] {
@@ -93,10 +112,17 @@ function script(values: CallValues): ScriptEntry[] {
       entry['at'] < 0 ||
       entry['at'] > 600_000 ||
       typeof entry['file'] !== 'string' ||
-      !isAbsolute(entry['file'])
+      !isAbsolute(entry['file']) ||
+      (entry['after'] !== undefined && entry['after'] !== 'playing')
     )
-      usage('Each script step needs "at" (ms from call start) and an absolute "file".');
-    return { at: entry['at'], file: entry['file'] };
+      usage(
+        'Each script step needs "at" (ms from call start, or from the next reply audio with "after": "playing") and an absolute "file".',
+      );
+    return {
+      at: entry['at'],
+      file: entry['file'],
+      ...(entry['after'] === 'playing' ? { after: 'playing' as const } : {}),
+    };
   });
 }
 
@@ -111,52 +137,92 @@ function pcmBase64(samples: Int16Array): string {
   return bytes.toString('base64');
 }
 
+function visualInput(
+  values: CallValues,
+): { source: 'camera' | 'screen'; path: string } | undefined {
+  if (values.video !== undefined && values.screen !== undefined)
+    usage('call-simulate shares one source: pass --video or --screen, not both.');
+  const path = values.video ?? values.screen;
+  if (path === undefined) {
+    if (values['no-save'] === true) usage('--no-save needs --video or --screen.');
+    if (values['share-ends-at'] !== undefined || values['share-pause'] !== undefined)
+      usage('--share-ends-at and --share-pause need --video or --screen.');
+    return undefined;
+  }
+  if (!isAbsolute(path)) usage('--video and --screen take an absolute video file or JPEG folder.');
+  return { source: values.video !== undefined ? 'camera' : 'screen', path };
+}
+
+async function loadVisual(values: CallValues): Promise<VideoKeyframes | undefined> {
+  const input = visualInput(values);
+  if (input === undefined) return undefined;
+  try {
+    return await videoKeyframes(input.path, input.source);
+  } catch (error) {
+    if (error instanceof CallVideoError) throw new CliLiveError(error.code, error.message);
+    throw error;
+  }
+}
+
 async function simulate(
   slug: string,
   values: CallValues,
   post: CallPost,
   clock: { now(): number; sleep(ms: number): Promise<void> },
 ): Promise<unknown> {
-  const steps = script(values)
-    .map((step) => {
-      let audio: Int16Array;
-      try {
-        audio = readWavAs16kMono(readFileSync(step.file));
-      } catch (error) {
-        throw new CliLiveError(
-          'invalid-input',
-          `${step.file}: ${error instanceof Error ? error.message : 'cannot read'}`,
-        );
-      }
-      return { ...step, audio };
-    })
-    .sort((left, right) => left.at - right.at);
+  const parsed = script(values).map((step) => {
+    let audio: Int16Array;
+    try {
+      audio = readWavAs16kMono(readFileSync(step.file));
+    } catch (error) {
+      throw new CliLiveError(
+        'invalid-input',
+        `${step.file}: ${error instanceof Error ? error.message : 'cannot read'}`,
+      );
+    }
+    return { ...step, audio };
+  });
+  const relative = parsed.some((step) => step.after !== undefined);
+  const steps = relative ? parsed : parsed.sort((left, right) => left.at - right.at);
   const replyWaitMs = Number(values['reply-wait'] ?? 90) * 1000;
   if (!Number.isFinite(replyWaitMs) || replyWaitMs < 1_000 || replyWaitMs > 540_000)
     usage('--reply-wait must be 1–540 seconds.');
-  const timeline: Int16Array[] = [];
+  const shareEndsAt =
+    values['share-ends-at'] === undefined ? undefined : Number(values['share-ends-at']);
+  if (shareEndsAt !== undefined && (!Number.isSafeInteger(shareEndsAt) || shareEndsAt < 0))
+    usage('--share-ends-at takes milliseconds into the call.');
+  const pauseMatch =
+    values['share-pause'] === undefined ? undefined : /^(\d+)-(\d+)$/u.exec(values['share-pause']);
+  if (values['share-pause'] !== undefined && pauseMatch === null)
+    usage('--share-pause takes <from>-<to> in milliseconds into the call.');
+  const sharePause =
+    pauseMatch === undefined || pauseMatch === null
+      ? undefined
+      : { from: Number(pauseMatch[1]), to: Number(pauseMatch[2]) };
+  if (sharePause !== undefined && sharePause.to <= sharePause.from)
+    usage('--share-pause must end after it starts.');
   let end = 0;
+  let audioMs = 1_500;
   for (const step of steps) {
+    audioMs += (step.audio.length / 16_000) * 1000 + (step.after === undefined ? 0 : step.at);
+    if (step.after !== undefined) {
+      end = Number.POSITIVE_INFINITY;
+      continue;
+    }
     const start = Math.round((step.at * 16_000) / 1000);
     if (start < end)
       usage('Script steps must not overlap: each "at" must come after the previous file ends.');
-    if (start > end) timeline.push(new Int16Array(start - end));
-    timeline.push(step.audio);
     end = start + step.audio.length;
+    audioMs = Math.max(audioMs, (end / 16_000) * 1000 + 1_500);
   }
-  timeline.push(new Int16Array(24_000));
-  const total = timeline.reduce((sum, part) => sum + part.length, 0);
-  if ((total / 16_000) * 1000 + replyWaitMs > SIMULATION_BUDGET_MS)
+  if (audioMs + replyWaitMs * (relative ? 2 : 1) > SIMULATION_BUDGET_MS)
     usage('The audio timeline plus --reply-wait must fit in 9 minutes.');
-  const audio = new Int16Array(total);
-  let offset = 0;
-  for (const part of timeline) {
-    audio.set(part, offset);
-    offset += part.length;
-  }
+  const visual = await loadVisual(values);
   const opened = result(await post({ kind: 'open', slug, media: 'synthetic' }));
   const call = opened['call'] as VoiceCallView;
   const callId = call.callId;
+  const frames = [...(visual?.keyframes ?? [])];
+  const sentFrames: { atMs: number; bytes: number; postMs: number }[] = [];
   const started = clock.now();
   const events: VoiceCallEvent[] = [...call.events];
   let seq = call.lastSeq;
@@ -167,31 +233,154 @@ async function simulate(
   };
   const heartbeat = async () =>
     collect(result(await post({ kind: 'heartbeat', callId, after: seq }))['call'] as VoiceCallView);
-  const CHUNK = 16_000;
-  const silence = new Int16Array(CHUNK);
+  const CHUNK = 3_200;
+  const TICK = 1_600;
+  const silence = new Int16Array(16_000);
   let streamMs = 0;
-  try {
-    for (let position = 0; position < audio.length; position += CHUNK) {
-      const due = started + (position / 16_000) * 1000;
-      const wait = due - clock.now();
-      if (wait > 0) await clock.sleep(wait);
-      const chunk = audio.slice(position, position + CHUNK);
+  let position = 0;
+  const missed: number[] = [];
+  let shareEndedAt: number | undefined;
+  let pausedAt: number | undefined;
+  let resumedAt: number | undefined;
+  const shareDue = async () => {
+    if (visual === undefined || shareEndedAt !== undefined) return;
+    const elapsed = clock.now() - started;
+    if (sharePause !== undefined && pausedAt === undefined && elapsed >= sharePause.from) {
+      pausedAt = Math.round(elapsed);
       collect(
-        result(await post({ kind: 'inject', callId, pcm: pcmBase64(chunk), after: seq }))[
-          'call'
-        ] as VoiceCallView,
+        result(
+          await post({
+            kind: 'visual',
+            callId,
+            source: 'off',
+            paused: true,
+            ...(values['no-save'] === true ? { save: false } : {}),
+          }),
+        )['call'] as VoiceCallView,
       );
-      streamMs += (chunk.length / 16_000) * 1000;
     }
+    if (pausedAt !== undefined && resumedAt === undefined) {
+      if (elapsed < sharePause!.to) {
+        while (frames.length > 0 && frames[0]!.atMs <= elapsed) frames.shift();
+        return;
+      }
+      resumedAt = Math.round(elapsed);
+      collect(
+        result(
+          await post({
+            kind: 'visual',
+            callId,
+            source: visual.source,
+            resumed: true,
+            ...(values['no-save'] === true ? { save: false } : {}),
+          }),
+        )['call'] as VoiceCallView,
+      );
+    }
+    if (shareEndsAt !== undefined && elapsed >= shareEndsAt) {
+      frames.length = 0;
+      shareEndedAt = Math.round(elapsed);
+      collect(
+        result(
+          await post({
+            kind: 'visual',
+            callId,
+            source: 'off',
+            stopped: true,
+            ...(values['no-save'] === true ? { save: false } : {}),
+          }),
+        )['call'] as VoiceCallView,
+      );
+      return;
+    }
+    while (frames.length > 0 && frames[0]!.atMs <= elapsed) {
+      const frame = frames.shift()!;
+      const before = clock.now();
+      collect(
+        result(
+          await post({
+            kind: 'frame',
+            callId,
+            source: visual.source,
+            jpeg: Buffer.from(frame.jpeg).toString('base64'),
+            score: frame.score,
+            skipped: frame.skipped,
+            after: seq,
+          }),
+        )['call'] as VoiceCallView,
+      );
+      sentFrames.push({
+        atMs: frame.atMs,
+        bytes: frame.jpeg.byteLength,
+        postMs: clock.now() - before,
+      });
+    }
+  };
+  try {
+    if (visual !== undefined)
+      collect(
+        result(
+          await post({
+            kind: 'visual',
+            callId,
+            source: visual.source,
+            ...(values['no-save'] === true ? { save: false } : {}),
+          }),
+        )['call'] as VoiceCallView,
+      );
+    const inject = async (samples: Int16Array) => {
+      for (let offset = 0; offset < samples.length; offset += CHUNK) {
+        const due = started + (position / 16_000) * 1000;
+        const wait = due - clock.now();
+        if (wait > 0) await clock.sleep(wait);
+        await shareDue();
+        const chunk = samples.subarray(offset, offset + CHUNK);
+        collect(
+          result(await post({ kind: 'inject', callId, pcm: pcmBase64(chunk), after: seq }))[
+            'call'
+          ] as VoiceCallView,
+        );
+        position += chunk.length;
+        streamMs += (chunk.length / 16_000) * 1000;
+      }
+    };
+    let previous = seq;
+    for (const [index, step] of steps.entries()) {
+      let start = Math.round((step.at * 16_000) / 1000);
+      if (step.after === 'playing') {
+        const mark = previous;
+        const deadline = clock.now() + replyWaitMs;
+        while (
+          !events.some((event) => event.type === 'playing' && event.seq > mark) &&
+          !events.some((event) => event.type === 'ended') &&
+          clock.now() < deadline
+        )
+          await inject(silence.subarray(0, TICK));
+        if (!events.some((event) => event.type === 'playing' && event.seq > mark)) {
+          missed.push(index);
+          continue;
+        }
+        start = position + start;
+      }
+      while (position < start) await inject(silence.subarray(0, Math.min(CHUNK, start - position)));
+      previous = seq;
+      await inject(step.audio);
+    }
+    await inject(new Int16Array(24_000));
     const deadline = clock.now() + replyWaitMs;
     const count = (...types: VoiceCallEvent['type'][]) =>
       events.filter((event) => types.includes(event.type)).length;
+    const filtered = () =>
+      events.filter((event) => event.type === 'barge-dismissed' && event.reason === 'filler')
+        .length;
     const settled = () =>
       count('speech-start') <= count('transcribing', 'noise-discarded') &&
-      count('transcribing') <= count('sent', 'asr-failed', 'send-failed', 'nothing-heard') &&
+      count('transcribing') <=
+        count('sent', 'asr-failed', 'send-failed', 'nothing-heard') + filtered() &&
       count('reply-done') >= count('sent');
     while (clock.now() < deadline) {
       await clock.sleep(1_000);
+      await shareDue();
       collect(
         result(
           await post({
@@ -255,10 +444,55 @@ async function simulate(
   const ack = events.find(
     (event): event is Extract<VoiceCallEvent, { type: 'ack' }> => event.type === 'ack',
   );
+  const of = <T extends VoiceCallEvent['type']>(type: T) =>
+    events.filter((event): event is Extract<VoiceCallEvent, { type: T }> => event.type === type);
+  const visualReport =
+    visual === undefined
+      ? undefined
+      : {
+          source: visual.source,
+          samples: visual.samples,
+          keyframes: visual.keyframes.length,
+          sentFrames: sentFrames.length,
+          frameBytes: sentFrames.reduce((sum, frame) => sum + frame.bytes, 0),
+          pickMs: visual.pickMs,
+          prepareMs: of('frame-received').map((event) => event.prepareMs),
+          framePostMs: sentFrames.map((frame) => frame.postMs),
+          grids: of('grid-built').map((built) => {
+            const sent = of('grid-sent').find((event) => event.grid === built.grid);
+            return {
+              frames: built.frames,
+              dropped: built.dropped,
+              layout: built.layout,
+              bytes: built.bytes,
+              composeMs: built.composeMs,
+              ...(sent === undefined ? {} : { messageId: sent.messageId, waitedMs: sent.waitedMs }),
+            };
+          }),
+          saved: values['no-save'] !== true,
+          ...(shareEndedAt === undefined ? {} : { shareEndedAtMs: shareEndedAt }),
+          ...(pausedAt === undefined ? {} : { pausedAtMs: pausedAt }),
+          ...(resumedAt === undefined ? {} : { resumedAtMs: resumedAt }),
+          records: of('frame-record').map((event) => ({
+            messageId: event.messageId,
+            frames: event.frames,
+            layout: event.layout,
+            bytes: event.bytes,
+            composeMs: event.composeMs,
+            fromMs: event.fromMs,
+            toMs: event.toMs,
+          })),
+          unchanged: of('grid-unchanged').map((event) => ({
+            messageId: event.messageId,
+            sameAs: event.sameAs,
+          })),
+          failed: of('grid-failed').map((event) => event.message),
+        };
   return {
     callId,
     slug,
     streamedMs: Math.round(streamMs),
+    ...(visualReport === undefined ? {} : { visual: visualReport }),
     heard: heard.map((event) => ({
       messageId: event.messageId,
       text: event.text,
@@ -279,6 +513,14 @@ async function simulate(
         : { audioBeforeCommit: entry.firstAudioAt! < entry.committedAt }),
     })),
     ackMs: ack?.ms ?? null,
+    bargeIns: events
+      .filter(
+        (event): event is Extract<VoiceCallEvent, { type: 'barge-in' }> =>
+          event.type === 'barge-in',
+      )
+      .map((event) => ({ at: event.at, by: event.by, replyIds: event.replyIds })),
+    bargeDismissed: events.filter((event) => event.type === 'barge-dismissed').length,
+    ...(missed.length === 0 ? {} : { missedSteps: missed }),
     firstTextMs: first('textMs'),
     firstAudioMs: first('responseMs'),
     answered:
@@ -307,11 +549,36 @@ export async function runCallCommand(
     const slug = one('one bot id');
     return result(await (await connect())({ kind: 'readiness', slug }));
   }
+  if (command === 'call-frame') {
+    if (rest.length !== 2 || !rest[0]!.trim())
+      usage('call-frame needs a message id and a cell number.');
+    const cell = Number(rest[1]);
+    if (!Number.isSafeInteger(cell) || cell < 0 || cell > 16)
+      usage(
+        'The cell is the tile number printed on the grid, 1 to 16, or 0 for a whole unsaved grid.',
+      );
+    if (values.out !== undefined && !isAbsolute(values.out))
+      usage('--out must be an absolute path.');
+    const reply = result(
+      await (
+        await connect()
+      )({ kind: 'zoom', messageId: rest[0]!.trim(), cell }),
+    );
+    const zoom = reply['zoom'] as Record<string, unknown> | undefined;
+    if (zoom === undefined)
+      throw new CliLiveError('host-protocol-error', 'The Host sent no frame.');
+    const { jpeg, ...view } = zoom;
+    if (view['released'] === true || typeof jpeg !== 'string' || values.out === undefined)
+      return view;
+    writeFileSync(values.out, Buffer.from(jpeg, 'base64'), { mode: 0o600 });
+    return { ...view, out: values.out };
+  }
   if (command === 'call-hangup') {
     const callId = one('one call id');
     return result(await (await connect())({ kind: 'hangup', callId }));
   }
   const slug = one('one bot id');
   script(values);
+  visualInput(values);
   return simulate(slug, values, await connect(), clock);
 }

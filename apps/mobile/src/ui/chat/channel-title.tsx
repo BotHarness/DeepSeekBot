@@ -1,3 +1,6 @@
+import { useHeaderStatus } from './use-header-status';
+import { HeaderBotStack } from './header-bot-stack';
+import { View } from 'react-native';
 import { HeaderTitleButton } from './header-title-button';
 import { ConnectionProgress } from '../primitives/connection-progress';
 
@@ -7,9 +10,8 @@ import { radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { titleChipFill } from './header-chrome';
-import { barLabelStyle, barLabelProps } from './native-header';
+import { barLabelStyle, barLabelProps, headerControlHeight } from './native-header';
 import { GroupMark } from './group-mark';
-import { WorkingStatus, workingLabel } from './working-status';
 
 const MARK = 28;
 
@@ -17,17 +19,20 @@ export function ChannelTitle({
   channel,
   fallback,
   connectionLabel,
-  working = [],
+  bots = [],
+  sessions = 0,
   onPress,
 }: {
   channel: RosterChannel | undefined;
   fallback: string;
-  working?: readonly RosterBot[];
+  bots?: readonly RosterBot[];
+  sessions?: number;
   connectionLabel?: string | undefined;
   onPress(): void;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
+  const headerStatus = useHeaderStatus(undefined, channel, bots);
   const name = channel?.name ?? fallback;
   const members = channel === undefined ? undefined : t.members(channel.memberCount);
   const chip = (press: () => void) => (
@@ -38,9 +43,9 @@ export function ChannelTitle({
         name,
         members,
         connectionLabel,
-        working.length
-          ? `${working.map((bot) => bot.displayName).join(', ')}: ${workingLabel(working)}`
-          : undefined,
+        headerStatus.label,
+        headerStatus.bots.map((bot) => bot.displayName).join(', '),
+        sessions > 0 ? t.sessionCount(sessions) : undefined,
       ]
         .filter(Boolean)
         .join(', ')}
@@ -54,12 +59,7 @@ export function ChannelTitle({
         flexDirection: 'row',
         alignItems: 'center',
         gap: space.x3,
-        minHeight: Math.max(
-          theme.touch,
-          theme.type.body.line *
-            Math.min(theme.fontScale, barLabelProps.maxFontSizeMultiplier ?? Infinity) +
-            space.x3,
-        ),
+        minHeight: headerControlHeight(theme),
         paddingLeft: (theme.touch - MARK) / 2,
         paddingRight: theme.touch / 2,
         borderRadius: radius.round,
@@ -67,16 +67,31 @@ export function ChannelTitle({
       })}
     >
       <GroupMark avatar={channel?.avatar} size={MARK} corner={radius.round} />
-      <Text
-        {...barLabelProps}
-        strong
-        numberOfLines={1}
-        style={[{ flex: 1, minWidth: 0 }, barLabelStyle]}
-      >
-        {name}
-      </Text>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text
+          {...barLabelProps}
+          strong
+          numberOfLines={1}
+          ellipsizeMode="tail"
+          style={barLabelStyle}
+        >
+          {name}
+        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}>
+          <HeaderBotStack bots={headerStatus.bots} size={theme.type.meta.line} />
+          <Text
+            {...barLabelProps}
+            variant="meta"
+            tone="muted"
+            numberOfLines={1}
+            ellipsizeMode="tail"
+            style={{ flex: 1, minWidth: 0 }}
+          >
+            {connectionLabel ?? headerStatus.label}
+          </Text>
+        </View>
+      </View>
       <ConnectionProgress active={connectionLabel !== undefined} label={connectionLabel} />
-      <WorkingStatus bots={working} />
     </HeaderTitleButton>
   );
   return chip(onPress);

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { act, createElement, Profiler, type ReactNode, type InputHTMLAttributes } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -85,7 +85,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
     IconTriangleRightFill14: icon('IconTriangleRightFill14'),
     HoverCard: (props: { anchor: ReactNode; content: ReactNode }) =>
       createElement('span', { 'data-hover-card': 'true' }, props.anchor, props.content),
-    Input: stub,
+    Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
     Menu: (props: {
       open: boolean;
       items: readonly Record<string, unknown>[];
@@ -108,6 +108,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
 
 import type { BridgeActions } from '../src/client/actions.js';
 import { BotSidebar, BulkChannelMenu, ChannelMoveMenu } from '../src/client/bot-sidebar.js';
+import { typeInto } from './primitive-mocks.js';
 import { UNGROUPED_MOVE_TARGET } from '../src/client/section-management.js';
 import type { BotModePrefsSnapshot } from '../src/client/bot-mode-prefs.js';
 import { PINNED_SORT_SCOPE_ID } from '../src/bot-mode-settings.js';
@@ -348,29 +349,30 @@ function stubActions(): BridgeActions {
     openActivityCenter: vi.fn(async () => undefined),
     attachActivityCenterPanel: vi.fn(() => () => undefined),
     activityPage: vi.fn(),
-    openHumanInbox: vi.fn(async () => undefined),
-    refreshHumanInboxStatus: vi.fn(async () => undefined),
-    refreshHumanInbox: vi.fn(async () => undefined),
-    setHumanInboxFilters: vi.fn(async () => undefined),
-    loadMoreHumanInbox: vi.fn(async () => undefined),
+    openActivityList: vi.fn(async () => undefined),
+    refreshActivityListStatus: vi.fn(async () => undefined),
+    refreshActivityList: vi.fn(async () => undefined),
+    setActivityListFilters: vi.fn(async () => undefined),
+    loadMoreActivityList: vi.fn(async () => undefined),
     ignoreHumanReport: vi.fn(async () => undefined),
     loadMoreBotInbox: vi.fn(async () => undefined),
     botInboxPage: vi.fn(async () => ({ items: [] })),
     openChannel: vi.fn(async () => undefined),
     openChannelAtMessage: vi.fn(async () => undefined),
-    dismissHumanInbox: vi.fn(async () => undefined),
-    dismissAllHumanInbox: vi.fn(async () => ({ dismissed: 0, more: false })),
+    dismissActivityList: vi.fn(async () => undefined),
+    dismissAllActivityList: vi.fn(async () => ({ dismissed: 0, more: false })),
     allowAutoRejectionOnce: vi.fn(async () => undefined),
-    snoozeHumanInbox: vi.fn(async () => undefined),
-    humanInboxContextPage: vi.fn(async () => ({
+    snoozeActivityList: vi.fn(async () => undefined),
+    channelFilesPage: vi.fn(async () => ({ entries: [] })),
+    activityListContextPage: vi.fn(async () => ({
       entries: [],
       olderCursor: null,
       newerCursor: null,
       hasOlder: false,
       hasNewer: false,
     })),
-    humanInboxContext: vi.fn(async () => []),
-    replyFromHumanInbox: vi.fn(async () => {
+    activityListContext: vi.fn(async () => []),
+    replyFromActivityList: vi.fn(async () => {
       throw new Error('No reply expected');
     }),
     loadOlder: vi.fn(async () => undefined),
@@ -727,7 +729,7 @@ beforeEach(() => {
 
 afterEach(() => {
   captured.menus.length = 0;
-  store.setHumanInbox({ unreadCount: 0, hasAction: false, channelUnread: {} });
+  store.setActivityList({ unreadCount: 0, hasAction: false, channelUnread: {} });
   store.setMode('dsh');
   store.setQuery('');
   store.select(undefined);
@@ -893,6 +895,47 @@ describe('bot sidebar rows', () => {
     }
   });
 
+  it('does not re-render on Inbox, conversation or session writes it does not show', async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    store.setRoster([BOT], [DM_CHANNEL]);
+    const node = document.createElement('div');
+    document.body.append(node);
+    const root = createRoot(node);
+    let commits = 0;
+    try {
+      await act(() =>
+        root.render(
+          createElement(
+            Profiler,
+            { id: 'sidebar', onRender: () => (commits += 1) },
+            createElement(BotSidebar, {
+              wide: true,
+              actions: stubActions(),
+              useBotModePrefs: ((selector: (snapshot: BotModePrefsSnapshot) => unknown) =>
+                selector(prefs)) as never,
+              setSortMode,
+              setSectionSortMode,
+              t: zhTranslate,
+            }),
+          ),
+        ),
+      );
+      commits = 0;
+      for (let n = 0; n < 5; n++)
+        await act(() => {
+          store.setActivityList({ status: n % 2 === 0 ? 'ready' : 'loading', items: [] });
+          store.setConversation({ revision: n + 1 });
+          store.setSessions({ ...store.getSnapshot().sessions });
+        });
+      expect(commits).toBe(0);
+      await act(() => store.setActivityList({ channelUnread: { [DM_CHANNEL.id]: 3 } }));
+      expect(commits).toBeGreaterThan(0);
+    } finally {
+      await act(() => root.unmount());
+      node.remove();
+    }
+  });
+
   it('opens Marketplace upload for the right-clicked Bot from its DM context menu', async () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
     store.setRoster([BOT], [DM_CHANNEL]);
@@ -985,10 +1028,10 @@ describe('bot sidebar rows', () => {
     }
   });
 
-  it('keeps Activity Center out of the Channel roster in both layouts', () => {
+  it('keeps Activity out of the Channel roster in both layouts', () => {
     store.select({ kind: 'inbox' });
-    expect(renderSidebar()).not.toContain('bh-human-inbox-entry');
-    expect(renderSidebar(false)).not.toContain('bh-human-inbox-entry');
+    expect(renderSidebar()).not.toContain('bh-activity-list-entry');
+    expect(renderSidebar(false)).not.toContain('bh-activity-list-entry');
   });
 
   it('renders the glyph-free section header anatomy', () => {
@@ -1136,21 +1179,21 @@ describe('bot sidebar rows', () => {
       ],
     );
     expect(renderSidebar()).not.toContain('bh-unread-count');
-    store.setHumanInbox({ channelUnread: { [DM_CHANNEL.id]: 3 } });
+    store.setActivityList({ channelUnread: { [DM_CHANNEL.id]: 3 } });
     const wide = renderSidebar();
     expect(wide).toContain('bh-has-unread');
     expect(wide).toMatch(
       /<span class="bh-row-avatar">.*?<span class="bh-unread-count bh-unread-corner" aria-label="3 条未读">3<\/span><\/span>/u,
     );
     expect(wide).toContain('data-status="done-unread"');
-    store.setHumanInbox({ channelUnread: { [DM_CHANNEL.id]: 120 } });
+    store.setActivityList({ channelUnread: { [DM_CHANNEL.id]: 120 } });
     expect(renderSidebar(false)).toContain('>99+</span>');
   });
 
   it('greys a muted conversation and its unread count and marks it with a muted bell', () => {
     store.setRoster([BOT], [DM_CHANNEL]);
     setRoster({ muted: [DM_CHANNEL.id] });
-    store.setHumanInbox({ channelUnread: { [DM_CHANNEL.id]: 2 } });
+    store.setActivityList({ channelUnread: { [DM_CHANNEL.id]: 2 } });
     const markup = renderSidebar();
     expect(markup).toContain('bh-muted');
     expect(markup).toContain('aria-label="已免打扰"');
@@ -2288,5 +2331,115 @@ it('shows one status glyph at the end of the preview line instead of avatar badg
       revision: 2,
       bots: [],
     });
+  }
+});
+
+describe('section mutation completion', () => {
+  it.each(['rename', 'delete'] as const)(
+    'retains the %s dialog and local state until the Host succeeds',
+    async (kind) => {
+      Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+      const host = document.createElement('div');
+      document.body.append(host);
+      const root = createRoot(host);
+      const actions = stubActions();
+      const mutation = vi
+        .fn<() => Promise<boolean>>()
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(true);
+      if (kind === 'rename') actions.renameSection = mutation;
+      else actions.removeSection = mutation;
+      setRoster({ sections: [section('s1', '工作流', [SECTION_CHANNEL.id])] });
+      store.setRoster([], [SECTION_CHANNEL, FLAT_CHANNEL]);
+      store.select({ kind: 'channel', channelId: FLAT_CHANNEL.id });
+      try {
+        await act(async () =>
+          root.render(
+            createElement(BotSidebar, {
+              wide: true,
+              actions,
+              useBotModePrefs: ((selector: (snapshot: BotModePrefsSnapshot) => unknown) =>
+                selector(prefs)) as never,
+              setSortMode,
+              setSectionSortMode,
+              t: zhTranslate as never,
+            }),
+          ),
+        );
+        await act(async () => menuWithItem('rename').onSelect?.(kind));
+        const submit = async () => {
+          const form = document.querySelector<HTMLFormElement>('[role="dialog"] form');
+          if (!form) throw new Error('Missing section dialog');
+          await act(async () => form.requestSubmit());
+        };
+        await submit();
+        expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+        expect(document.querySelector('[role="alert"]')).not.toBeNull();
+        expect(setSectionSortMode).not.toHaveBeenCalled();
+        await submit();
+        expect(document.querySelector('[role="dialog"]')).toBeNull();
+        if (kind === 'delete') expect(setSectionSortMode).toHaveBeenCalledWith('s1', undefined);
+        expect(store.getSnapshot().selection).toEqual({
+          kind: 'channel',
+          channelId: FLAT_CHANNEL.id,
+        });
+      } finally {
+        await act(async () => root.unmount());
+        host.remove();
+      }
+    },
+  );
+});
+
+it('keeps a successfully created section when the subsequent move fails, without offering duplicate creation', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  const actions = stubActions();
+  const created = section('new', 'New group', []);
+  actions.createSection = vi.fn(async () => {
+    setRoster({ sections: [created] });
+    return created;
+  });
+  actions.batchRoster = vi.fn(async () => false);
+  store.setRoster([], [FLAT_CHANNEL]);
+  try {
+    await act(async () =>
+      root.render(
+        createElement(BotSidebar, {
+          wide: true,
+          actions,
+          useBotModePrefs: ((selector: (snapshot: BotModePrefsSnapshot) => unknown) =>
+            selector(prefs)) as never,
+          setSortMode,
+          setSectionSortMode,
+          t: zhTranslate,
+        }),
+      ),
+    );
+    await act(async () =>
+      host
+        .querySelector('[data-channel-id="c-flat"]')!
+        .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })),
+    );
+    await act(async () => captured.menus.at(-1)?.onSelect?.('new-section'));
+    const input = document.querySelector<HTMLInputElement>('[role="dialog"] input')!;
+    await typeInto(input, 'New group');
+    await act(async () =>
+      document.querySelector<HTMLFormElement>('[role="dialog"] form')!.requestSubmit(),
+    );
+    expect(actions.createSection).toHaveBeenCalledTimes(1);
+    expect(actions.batchRoster).toHaveBeenCalledWith({
+      action: 'move',
+      channelIds: [FLAT_CHANNEL.id],
+      sectionId: 'new',
+    });
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(store.getSnapshot().roster.sections).toEqual([created]);
+    expect(host.querySelector('.bh-error')?.textContent).toBe(zhTranslate('bulk.failed'));
+  } finally {
+    await act(async () => root.unmount());
+    host.remove();
   }
 });

@@ -6,8 +6,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { installNativeSubagentWake } from '../src/runtime/native-subagent-wake.js';
 import type { BotRuntime } from '../src/runtime/bot-runtime.js';
 
-describe('native wake prepares before model/prompt assembly', () => {
-  it('uses the new model on the first request after an idle parent is awakened', async () => {
+describe('legacy Orchestrator child wake model-capture ordering', () => {
+  it('captures the model at Inbox claim before asynchronous prompt preparation', async () => {
     const ctx = new Context();
     const agent = { session: { id: SessionId('parent') } } as Agent;
     const signal = new AbortController().signal;

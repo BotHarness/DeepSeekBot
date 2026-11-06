@@ -129,9 +129,14 @@ describe('Orchestrator Assignment archive', () => {
       expect(all[0]!.archivedAt).toEqual(expect.any(String));
       expect(all[0]!.continuityKey).toBeUndefined();
 
-      expect(() =>
+      expect(
         f.access.request({ sessionId: id, mode: 'next-turn', text: 'One more thing' }),
-      ).toThrow(/archived/);
+      ).toMatchObject({
+        outcome: 'refused',
+        code: 'assignment-ended',
+        delivery: 'refused',
+        assignment: { sessionId: id },
+      });
 
       const next = f.create('Ship the next release notes', 'release-notes');
       expect(next).not.toBe(id);
@@ -167,8 +172,8 @@ describe('Orchestrator Assignment archive', () => {
       const id = f.create('Racing archive', 'racing');
       await f.settle(id);
       const archiving = f.access.archive!(id);
-      expect(() => f.access.request({ sessionId: id, mode: 'next-turn', text: 'Wake up' })).toThrow(
-        /archived/,
+      expect(f.access.request({ sessionId: id, mode: 'next-turn', text: 'Wake up' })).toMatchObject(
+        { outcome: 'refused', code: 'assignment-ended' },
       );
       expect(() =>
         f.access.create({

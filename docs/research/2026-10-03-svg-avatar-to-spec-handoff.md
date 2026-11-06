@@ -4,7 +4,7 @@
 
 ## 本地入口与权威
 
-先读取仓库 `AGENTS.md`、`.agents/skills/to-spec/SKILL.md`（缺失时查可用个人 skills）、[CONTEXT](../../CONTEXT.md)／[中文 CONTEXT](../../CONTEXT.zh.md)、[living architecture](../architecture/botharness-architecture.md) §5.2；DSH 计划进入 `dsh-plugin-dev` Context → Decision Tree。
+先读取仓库 `AGENTS.md`、`.agents/skills/to-spec/SKILL.md`（缺失时查可用个人 skills）、[CONTEXT](../../GLOSSARY.md)／[中文 CONTEXT](../../GLOSSARY.zh.md)、[living architecture](../architecture/botharness-architecture.md) §5.2；DSH 计划进入 `dsh-plugin-dev` Context → Decision Tree。
 
 规范结果是 [Accepted ADR-0118](../adr/0118-editable-avatar-appearance-is-independent-of-activity.md)，选择与事实依据见 [完整访谈](2026-10-03-svg-avatar-design-exploration.md)。ADR 原草稿用 0101，随后改为 0116；与已合入的 Daily Browser ADR 编号冲突，集成时重新编号为 0118。继续前检查新的编号竞争。
 

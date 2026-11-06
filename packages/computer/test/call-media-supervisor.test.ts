@@ -105,4 +105,15 @@ describe('call media supervisor', () => {
     expect(ops).not.toContain('play');
     await call.close();
   });
+
+  it('sends the barge-in duck to the helper and refuses gains outside 0–1', async () => {
+    const calls = await media([]);
+    const call = await open(calls, 'call-4');
+    await call.setGain!(0.3);
+    await call.setGain!(1);
+    await expect(call.setGain!(1.5)).rejects.toThrow();
+    const ops = (await readFile(join(root, 'ops.log'), 'utf8')).trim().split('\n');
+    expect(ops.filter((op) => op === 'gain')).toHaveLength(2);
+    await call.close();
+  });
 });

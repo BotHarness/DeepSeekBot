@@ -36,11 +36,21 @@ writeFileSync(
   entry,
   [
     `export { createVoiceCalls } from ${JSON.stringify(join(root, 'packages/core/src/voice/calls.ts'))};`,
+    `export { parseStats } from ${JSON.stringify(join(root, 'packages/core/src/voice/call-perf.ts'))};`,
     `export { createVoiceCallHttp } from ${JSON.stringify(join(root, 'packages/core/src/voice/call-http.ts'))};`,
     `export { speech, cough, silence, concat } from ${JSON.stringify(join(root, 'packages/core/test/voice-audio-fixtures.ts'))};`,
   ].join('\n'),
 );
-const host = (await unrun({ path: entry })).module;
+const sharpEntry = require.resolve('sharp', { paths: [join(root, 'packages/core')] });
+const host = (
+  await unrun({
+    path: entry,
+    inputOptions: {
+      resolve: { alias: { sharp: sharpEntry } },
+      external: (id) => id === sharpEntry,
+    },
+  })
+).module;
 
 const page = join(work, 'desktop.ts');
 writeFileSync(
@@ -166,7 +176,78 @@ const SCENARIOS = {
     expectHeard: 1,
     expectNoise: false,
   },
+  camera: {
+    camera: true,
+    steps: [{ at: 6_000, audio: host.speech(1_400, { seed: 7 }) }],
+    transcripts: ['What am I holding up to the camera?'],
+    replies: () => [{ delayMs: 500, text: 'A red card, then a blue one, then a green one.' }],
+    expectHeard: 1,
+    expectNoise: false,
+  },
+  screen: {
+    screen: true,
+    steps: [{ at: 11_000, audio: host.speech(1_400, { seed: 9 }) }],
+    transcripts: ['What does the terminal say?'],
+    replies: () => [{ delayMs: 500, text: 'The build failed at the link step.' }],
+    expectHeard: 1,
+    expectNoise: false,
+  },
 };
+
+const screenWindows = [
+  { seconds: 4, background: 'white', lines: '0x9aa3b2', top: 60 },
+  { seconds: 4, background: '0x1b1f27', lines: '0x4cc38a', top: 120 },
+  { seconds: 16, background: '0xeef3fb', lines: '0x1f7a52', top: 200 },
+];
+
+function screenVideo(path) {
+  const inputs = screenWindows.flatMap((window) => [
+    '-f',
+    'lavfi',
+    '-t',
+    String(window.seconds),
+    '-i',
+    `color=c=${window.background}:s=1280x720:r=15`,
+  ]);
+  const drawn = screenWindows.map((window, index) => {
+    const boxes = Array.from(
+      { length: 8 },
+      (_, line) =>
+        `drawbox=x=${80 + (line % 3) * 40}:y=${window.top + line * 48}:w=${640 - (line % 4) * 90}:h=18:color=${window.lines}:t=fill`,
+    ).join(',');
+    return `[${index}:v]${boxes}[w${index}]`;
+  });
+  execSync(
+    [
+      'ffmpeg -hide_banner -loglevel error -y',
+      ...inputs.map((part) => (part.includes('=') ? JSON.stringify(part) : part)),
+      `-filter_complex "${drawn.join(';')};${screenWindows.map((_, index) => `[w${index}]`).join('')}concat=n=${screenWindows.length}:v=1:a=0[v]"`,
+      '-map "[v]" -pix_fmt yuv420p',
+      JSON.stringify(path),
+    ].join(' '),
+  );
+}
+
+function cameraVideo(path) {
+  const scenes = ['red', 'blue', 'green', 'yellow', 'white', 'purple'];
+  const inputs = scenes.flatMap((color) => [
+    '-f',
+    'lavfi',
+    '-t',
+    '1.5',
+    '-i',
+    `color=c=${color}:s=640x360:r=15`,
+  ]);
+  execSync(
+    [
+      'ffmpeg -hide_banner -loglevel error -y',
+      ...inputs.map((part) => (part.includes('=') ? JSON.stringify(part) : part)),
+      `-filter_complex "${scenes.map((_, index) => `[${index}:v]`).join('')}concat=n=${scenes.length}:v=1:a=0[v]"`,
+      '-map "[v]" -pix_fmt yuv420p',
+      JSON.stringify(path),
+    ].join(' '),
+  );
+}
 
 async function hostMediaPage(browser, base) {
   const context = await browser.newContext();
@@ -221,6 +302,9 @@ async function hostMediaPage(browser, base) {
             await media.evaluate(([key, type]) => window.callPlay(key, type), [id, mime]);
             if (!(await done)) throw new Error('playback failed');
           },
+          async stats() {
+            return host.parseStats(await media.evaluate(() => window.callStats()));
+          },
           async close() {
             state.onPcm = undefined;
             state.onStatus = undefined;
@@ -235,6 +319,9 @@ async function hostMediaPage(browser, base) {
 async function runScenario(name, scenario) {
   const capture = join(work, `${name}.wav`);
   writeFileSync(capture, wavBytes(timelineAudio(scenario.steps), CAPTURE_RATE));
+  const video = join(work, `${name}.y4m`);
+  if (scenario.camera) cameraVideo(video);
+  if (scenario.screen) screenVideo(video);
   const sent = [];
   const transcripts = [...scenario.transcripts];
   const asrAudio = [];
@@ -286,13 +373,11 @@ async function runScenario(name, scenario) {
   });
   const desktopBrowser = await chromium.launch({
     args: [
-      ...(wavMic
+      ...(wavMic && !scenario.camera && !scenario.screen
         ? []
-        : [
-            '--use-fake-ui-for-media-stream',
-            '--use-fake-device-for-media-stream',
-            `--use-file-for-fake-audio-capture=${capture}%noloop`,
-          ]),
+        : ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream']),
+      ...(wavMic ? [] : [`--use-file-for-fake-audio-capture=${capture}%noloop`]),
+      ...(scenario.camera || scenario.screen ? [`--use-file-for-fake-video-capture=${video}`] : []),
       '--autoplay-policy=no-user-gesture-required',
       '--disable-features=WebRtcHideLocalIpsWithMdns',
     ],
@@ -303,7 +388,13 @@ async function runScenario(name, scenario) {
       const devices = navigator.mediaDevices;
       const native = devices.getUserMedia.bind(devices);
       window.__micConstraints = [];
+      devices.getDisplayMedia = async () => {
+        const stream = await native({ video: { width: 1280, height: 720 } });
+        window.__screenStream = stream;
+        return stream;
+      };
       devices.getUserMedia = async (constraints) => {
+        if (constraints?.video) return native(constraints);
         window.__micConstraints.push(constraints);
         if (!substitute) return native(constraints);
         const context = new AudioContext();
@@ -336,7 +427,23 @@ async function runScenario(name, scenario) {
     },
     media: () => helper.media,
     async send(input) {
-      sent.push({ body: input.body, at: Date.now() });
+      sent.push({
+        body: input.body,
+        at: Date.now(),
+        ...(input.visual === undefined
+          ? {}
+          : {
+              visual:
+                'image' in input.visual
+                  ? {
+                      source: input.visual.source,
+                      frames: input.visual.frames,
+                      layout: input.visual.image.layout,
+                      bytes: input.visual.image.jpeg.byteLength,
+                    }
+                  : { source: input.visual.source, sameAs: input.visual.sameAs },
+            }),
+      });
       for (const reply of scenario.replies(input.body))
         setTimeout(
           () =>
@@ -389,6 +496,22 @@ async function runScenario(name, scenario) {
       `the desktop call is live (${JSON.stringify(opened.block ?? opened.state)})`,
     );
     result.connectedMs = Date.now() - started;
+    if (scenario.camera) {
+      await window1.evaluate(() => window.__desktopCall.camera(true));
+      const visual = await window1.evaluate(() => {
+        const current = window.__desktopCall.snapshot().visual;
+        return { source: current.source, error: current.error ?? null };
+      });
+      assert.deepEqual(visual, { source: 'camera', error: null }, 'the camera is on');
+    }
+    if (scenario.screen) {
+      await window1.evaluate(() => window.__desktopCall.screen(true));
+      const visual = await window1.evaluate(() => {
+        const current = window.__desktopCall.snapshot().visual;
+        return { source: current.source, error: current.error ?? null };
+      });
+      assert.deepEqual(visual, { source: 'screen', error: null }, 'the screen is shared');
+    }
 
     const other = await (await desktopContext()).newPage();
     await other.goto(`${base}/desktop.html`);
@@ -438,7 +561,99 @@ async function runScenario(name, scenario) {
     result.noiseDiscarded = types.filter((type) => type === 'noise-discarded').length;
     result.downlinkRms = Number(loud.toFixed(3));
     result.asrClipMs = asrAudio.map((bytes) => Math.round(((bytes - 44) / 2 / RATE) * 1000));
+    if (scenario.camera) {
+      const received = events.filter((event) => event.type === 'frame-received');
+      const built = events.find((event) => event.type === 'grid-built');
+      const gridSent = events.find((event) => event.type === 'grid-sent');
+      assert.ok(received.length >= 2, `keyframes reached the Host: ${types.join(',')}`);
+      assert.ok(
+        built !== undefined && gridSent !== undefined,
+        `a grid was sent: ${types.join(',')}`,
+      );
+      assert.equal(gridSent.grid, built.grid, 'the sent grid is the built one');
+      assert.equal(sent[0]?.visual?.source, 'camera', 'the sentence carried the camera grid');
+      const shown = await window1.evaluate(() => window.__desktopCall.snapshot().visual.keyframes);
+      result.camera = {
+        keyframesShown: shown,
+        received: received.length,
+        frameBytes: received.map((event) => event.bytes),
+        prepareMs: received.map((event) => event.prepareMs),
+        grid: sent[0].visual,
+        composeMs: built.composeMs,
+        waitedMs: gridSent.waitedMs,
+      };
+    }
+    if (scenario.screen) {
+      const received = events.filter((event) => event.type === 'frame-received');
+      const built = events.find((event) => event.type === 'grid-built');
+      const gridSent = events.find((event) => event.type === 'grid-sent');
+      assert.equal(
+        received.length,
+        screenWindows.length,
+        `one keyframe per window and none for a still page: ${received.length}`,
+      );
+      assert.ok(
+        built !== undefined && gridSent?.grid === built.grid,
+        `a grid was sent: ${types.join(',')}`,
+      );
+      assert.deepEqual(
+        sent[0]?.visual && { source: sent[0].visual.source, frames: sent[0].visual.frames },
+        { source: 'screen', frames: screenWindows.length },
+        'the sentence carried the three windows',
+      );
+      await window1.evaluate(() =>
+        window.__screenStream.getVideoTracks()[0].dispatchEvent(new Event('ended')),
+      );
+      const stopped = await window1.evaluate(() => {
+        const current = window.__desktopCall.snapshot();
+        return {
+          source: current.visual.source,
+          error: current.visual.error,
+          status: current.state.status,
+        };
+      });
+      assert.deepEqual(
+        stopped,
+        { source: 'off', error: 'screen-stopped', status: 'live' },
+        'a share stopped by the system falls back to voice only',
+      );
+      const after = Date.now() + 3_000;
+      let hostVisual;
+      while (Date.now() < after) {
+        hostVisual = (await calls.handle({ deviceId: 'host-owner' }, { kind: 'status' })).calls.at(
+          -1,
+        ).visual;
+        if (hostVisual === 'off') break;
+        await new Promise((wait) => setTimeout(wait, 100));
+      }
+      assert.equal(hostVisual, 'off', 'the Host call is voice only');
+      result.screen = {
+        received: received.length,
+        frameBytes: received.map((event) => event.bytes),
+        prepareMs: received.map((event) => event.prepareMs),
+        grid: sent[0].visual,
+        composeMs: built.composeMs,
+        waitedMs: gridSent.waitedMs,
+        stopped: stopped.error,
+      };
+    }
 
+    let perf;
+    for (const until = Date.now() + 8_000; Date.now() < until;) {
+      perf = (await calls.handle({ deviceId: 'host-owner' }, { kind: 'status' })).calls.at(-1).perf;
+      if (perf?.samples >= 1) break;
+      await new Promise((wait) => setTimeout(wait, 250));
+    }
+    assert.ok(perf?.samples >= 1, 'the Host samples call media performance');
+    assert.ok(perf.uplinkPps.max >= 20, `speech fills the uplink (${perf.uplinkPps.max}/s)`);
+    result.perf = {
+      samples: perf.samples,
+      uplinkPps: perf.uplinkPps,
+      downlinkPps: perf.downlinkPps,
+      uplinkKbps: perf.uplinkKbps,
+      downlinkKbps: perf.downlinkKbps,
+      hostCpuPct: perf.hostCpuPct,
+    };
     await window1.evaluate(() => window.__desktopCall.mute(true));
     assert.equal((await window1.evaluate(() => window.__desktopCall.snapshot())).state.muted, true);
     await window1.evaluate(() => window.__desktopCall.hangup());

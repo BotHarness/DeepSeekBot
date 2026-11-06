@@ -84,7 +84,7 @@ import type {
   MessagingIdentityInput,
 } from '../../../core/src/messaging/identity.js';
 import type { ChannelActivityToday } from '../../../core/src/channels/activity-today.js';
-import type { BotAttentionPage, HumanAttentionPage, HumanInboxState } from './store.js';
+import type { BotAttentionPage, HumanAttentionPage, ActivityListState } from './store.js';
 import type { GroupReceptionInput } from '../../../core/src/messaging/group-policy.js';
 import type { MessagingConversationInput } from '../../../core/src/messaging/conversations.js';
 import { publishWorkspaceGrantChange } from './workspace-grant-events.js';
@@ -203,10 +203,10 @@ import {
   loadHumanAssignmentContext,
   type HumanAssignmentContext,
   ignoreHumanAssignmentReport,
-  dismissHumanInboxItem,
-  dismissAllHumanInboxItems,
+  dismissActivityListItem,
+  dismissAllActivityListItems,
   overrideAutoRejection,
-  snoozeHumanInboxItem,
+  snoozeActivityListItem,
   type TimelinePage,
   type TimelinePageRequest,
   loadSessions,
@@ -285,6 +285,8 @@ import {
   saveMemoryFile,
   repairMemory,
   loadTimelinePage,
+  loadFilesPage,
+  type FilesPage,
   loadReadPosition,
   markReadPosition,
   markAllReadPositions,
@@ -346,8 +348,8 @@ import type {
   OwnedSessionSummary,
   ConversationSelection,
   HumanAttentionItem,
-  HumanInboxCategory,
-  HumanInboxFilters,
+  ActivityListCategory,
+  ActivityListFilters,
   UserQuestionAnswerItem,
 } from './store.js';
 
@@ -364,14 +366,21 @@ import {
   type SubmissionAttempt,
   type SubmissionSnapshot,
 } from './composer-submission-store.js';
+import { createVoiceDictationPort } from './composer-dictation.js';
 import {
   addVoiceProvider,
   loadVoiceProviders,
   removeVoiceProvider,
+  setBotAsr,
   setBotVoice,
+  setSpeechThreshold,
+  setVoiceDefault,
   synthesizeVoice,
   testVoiceProvider,
+  type BotAsrView,
   type BotVoiceView,
+  type VoiceDefaultsView,
+  type VoiceSpeechThresholdView,
   type VoiceProviderAddInput,
   type VoiceProviderHealthView,
   type VoiceProvidersView,
@@ -629,41 +638,46 @@ export interface BridgeActions {
   openActivityCenter(): Promise<void>;
   attachActivityCenterPanel(): () => void;
   activityPage(
-    category: HumanInboxCategory,
-    filters: HumanInboxFilters & { search?: string; mentionsFirst?: boolean },
+    category: ActivityListCategory,
+    filters: ActivityListFilters & { search?: string; mentionsFirst?: boolean },
     cursor?: string,
   ): Promise<HumanAttentionPage>;
-  openHumanInbox(): Promise<void>;
-  refreshHumanInboxStatus(): Promise<void>;
-  refreshHumanInbox(category?: HumanInboxCategory, background?: boolean): Promise<void>;
-  setHumanInboxFilters(filters: HumanInboxFilters): Promise<void>;
-  loadMoreHumanInbox(): Promise<void>;
-  dismissHumanInbox(item: HumanAttentionItem): Promise<void>;
-  dismissAllHumanInbox(filter: {
+  openActivityList(): Promise<void>;
+  refreshActivityListStatus(): Promise<void>;
+  refreshActivityList(category?: ActivityListCategory, background?: boolean): Promise<void>;
+  setActivityListFilters(filters: ActivityListFilters): Promise<void>;
+  loadMoreActivityList(): Promise<void>;
+  dismissActivityList(item: HumanAttentionItem): Promise<void>;
+  dismissAllActivityList(filter: {
     kind?: HumanAttentionItem['kind'] | undefined;
     categories: ReadonlyArray<'action' | 'info' | 'replies' | 'unread'>;
     botSlug?: string | undefined;
     channelId?: string | undefined;
   }): Promise<{ dismissed: number; more: boolean }>;
   allowAutoRejectionOnce(item: HumanAttentionItem): Promise<void>;
-  snoozeHumanInbox(item: HumanAttentionItem, until: string | null): Promise<void>;
-  humanInboxContextPage(
+  snoozeActivityList(item: HumanAttentionItem, until: string | null): Promise<void>;
+  activityListContextPage(
     channelId: string,
     request: TimelinePageRequest,
     signal?: AbortSignal,
   ): Promise<TimelinePage>;
+  channelFilesPage(
+    channelId: string,
+    request: { before?: number; limit?: number },
+    signal?: AbortSignal,
+  ): Promise<FilesPage>;
   ignoreHumanReport(sourceEventId: string): Promise<void>;
   loadMoreBotInbox(slug: string): Promise<void>;
   botInboxPage(slug: string, cursor?: string): Promise<BotAttentionPage>;
   openChannel(channelId: string): Promise<void>;
   openChannelAtMessage(channelId: string, messageId: string): Promise<void>;
   averageReplyPerf(channelId: string, signal?: AbortSignal): Promise<AveragePerfView | undefined>;
-  humanInboxContext(
+  activityListContext(
     channelId: string,
     messageId: string,
     signal?: AbortSignal,
   ): Promise<ChannelMessage[]>;
-  replyFromHumanInbox(
+  replyFromActivityList(
     channelId: string,
     messageId: string,
     body: string,
@@ -693,7 +707,10 @@ export interface BridgeActions {
   loadNewer(channelId: string): Promise<void>;
   openLatest(channelId: string): Promise<void>;
   openAround(channelId: string, messageId: string): Promise<void>;
-  markAllRead(): Promise<void>;
+  markAllRead(scope?: {
+    channelId?: string | undefined;
+    botSlug?: string | undefined;
+  }): Promise<void>;
   markRead(channelId: string, messageId: string): Promise<void>;
   reactToMessage?(
     channelId: string,
@@ -867,6 +884,7 @@ export interface BridgeActions {
   setBotApprovalTemplate?(slug: string, template: string | null): Promise<void>;
   approvalReviewerModel?(): Promise<ApprovalReviewerModelView>;
   voiceProviders?(slug?: string): Promise<VoiceProvidersView>;
+  dictationPort?(slug?: string): import('./composer-dictation.js').VoiceDictationPort;
   addVoiceProvider?(input: VoiceProviderAddInput): Promise<VoiceProviderView>;
   removeVoiceProvider?(id: string): Promise<string[]>;
   testVoiceProvider?(id: string, voiceId?: string): Promise<VoiceProviderHealthView>;
@@ -881,6 +899,13 @@ export interface BridgeActions {
     providerId: string | null,
     voiceId?: string,
   ): Promise<BotVoiceView | null>;
+  setBotAsr?(slug: string, providerId: string | null): Promise<BotAsrView | null>;
+  setVoiceDefault?(
+    kind: 'tts' | 'asr',
+    providerId: string | null,
+    voiceId?: string,
+  ): Promise<VoiceDefaultsView>;
+  setSpeechThreshold?(dbfs: number | null): Promise<VoiceSpeechThresholdView>;
   setApprovalReviewerModel?(model: ModelRouteView | null): Promise<ApprovalReviewerModelView>;
   revokeToolApprovalRule(slug: string, id: string): Promise<void>;
   toolApprovalStatus(
@@ -1370,7 +1395,7 @@ export function createActions(
         readOnly: false,
       });
       if (!sameIds([...previousMuted].sort(), [...snapshot.muted].sort()))
-        void refreshHumanInboxStatus();
+        void refreshActivityListStatus();
     } else if (
       rosterResult.reason instanceof BridgeCallError &&
       rosterResult.reason.code === 'storage-unavailable'
@@ -1476,19 +1501,18 @@ export function createActions(
   };
 
   let activityPanelScope: object | undefined;
-  const humanInboxScope = (): object | undefined => {
+  const activityListScope = (): object | undefined => {
     const selection = currentSelection();
     return selection?.kind === 'inbox' ? selection : activityPanelScope;
   };
-  let humanInboxHeadSeq = 0;
-  let humanInboxPageSeq = 0;
-  let humanInboxPagesPending = 0;
-  let humanInboxScopeVersion = 0;
-  let humanInboxStatusSeq = 0;
+  let activityListHeadSeq = 0;
+  let activityListPageSeq = 0;
+  let activityListPagesPending = 0;
+  let activityListScopeVersion = 0;
   const loadInboxStatus = async (): Promise<
     Partial<
       Pick<
-        HumanInboxState,
+        ActivityListState,
         'unreadCount' | 'hasAction' | 'channelUnread' | 'messageCounts' | 'attentionStatus'
       >
     >
@@ -1504,35 +1528,51 @@ export function createActions(
       ...(channelUnread.status === 'fulfilled' ? { channelUnread: channelUnread.value } : {}),
     };
   };
-  const refreshHumanInboxStatus = async (): Promise<void> => {
-    const requestSeq = ++humanInboxStatusSeq;
+  let activityListStatusReading: Promise<void> | undefined;
+  let activityListStatusAgain = false;
+  const readActivityListStatus = async (): Promise<void> => {
     try {
       const status = await loadInboxStatus();
-      if (requestSeq === humanInboxStatusSeq) clientStore.setHumanInbox(status);
+      if (!activityListStatusAgain) clientStore.setActivityList(status);
     } catch {
-      if (requestSeq === humanInboxStatusSeq)
-        clientStore.setHumanInbox({ attentionStatus: 'error' });
-      return;
+      if (!activityListStatusAgain) clientStore.setActivityList({ attentionStatus: 'error' });
     }
   };
-  const loadHumanInboxFor = async (
-    category: HumanInboxCategory,
+  const refreshActivityListStatus = (): Promise<void> => {
+    if (activityListStatusReading !== undefined) {
+      activityListStatusAgain = true;
+      return activityListStatusReading;
+    }
+    activityListStatusReading = (async () => {
+      try {
+        do {
+          activityListStatusAgain = false;
+          await readActivityListStatus();
+        } while (activityListStatusAgain);
+      } finally {
+        activityListStatusReading = undefined;
+      }
+    })();
+    return activityListStatusReading;
+  };
+  const loadActivityListFor = async (
+    category: ActivityListCategory,
     scope: object,
     cursor?: string,
-    retainedCount = clientStore.getSnapshot().humanInbox.items.length,
+    retainedCount = clientStore.getSnapshot().activityList.items.length,
     background = false,
   ): Promise<void> => {
     const head = cursor === undefined;
-    const requestSeq = head ? ++humanInboxHeadSeq : ++humanInboxPageSeq;
-    const scopeVersion = humanInboxScopeVersion;
-    const headVersion = humanInboxHeadSeq;
-    const { botSlug, channelId, sort, snoozed } = clientStore.getSnapshot().humanInbox;
+    const requestSeq = head ? ++activityListHeadSeq : ++activityListPageSeq;
+    const scopeVersion = activityListScopeVersion;
+    const headVersion = activityListHeadSeq;
+    const { botSlug, channelId, sort, snoozed } = clientStore.getSnapshot().activityList;
     const isCurrent = (): boolean =>
-      humanInboxScope() === scope &&
-      scopeVersion === humanInboxScopeVersion &&
-      requestSeq === (head ? humanInboxHeadSeq : humanInboxPageSeq);
-    if (cursor === undefined && clientStore.getSnapshot().humanInbox.status === 'idle')
-      clientStore.setHumanInbox({ status: 'loading', error: undefined });
+      activityListScope() === scope &&
+      scopeVersion === activityListScopeVersion &&
+      requestSeq === (head ? activityListHeadSeq : activityListPageSeq);
+    if (cursor === undefined && clientStore.getSnapshot().activityList.status === 'idle')
+      clientStore.setActivityList({ status: 'loading', error: undefined });
     try {
       const page = await loadHumanAttention(call, category, 50, cursor, {
         botSlug,
@@ -1541,12 +1581,12 @@ export function createActions(
         snoozed,
       });
       if (!isCurrent()) return;
-      const priorState = clientStore.getSnapshot().humanInbox;
+      const priorState = clientStore.getSnapshot().activityList;
       if (priorState.category !== category) return;
       const prior = priorState.items;
-      if (background && (humanInboxPagesPending > 0 || prior.length > 150)) return;
-      if (!head && headVersion !== humanInboxHeadSeq) {
-        await loadHumanInboxFor(category, scope, undefined, prior.length + page.items.length);
+      if (background && (activityListPagesPending > 0 || prior.length > 150)) return;
+      if (!head && headVersion !== activityListHeadSeq) {
+        await loadActivityListFor(category, scope, undefined, prior.length + page.items.length);
         return;
       }
       let canonicalItems = page.items;
@@ -1575,7 +1615,7 @@ export function createActions(
       if (!isCurrent()) return;
       if (
         background &&
-        (humanInboxPagesPending > 0 || clientStore.getSnapshot().humanInbox.items.length > 150)
+        (activityListPagesPending > 0 || clientStore.getSnapshot().activityList.items.length > 150)
       )
         return;
       const items = head
@@ -1584,15 +1624,15 @@ export function createActions(
             ...prior,
             ...canonicalItems.filter((item) => !prior.some((seen) => seen.id === item.id)),
           ];
-      clientStore.setHumanInbox({
+      clientStore.setActivityList({
         status: 'ready',
         items,
         nextCursor,
         error: undefined,
       });
     } catch (error) {
-      if (!isCurrent() || clientStore.getSnapshot().humanInbox.category !== category) return;
-      clientStore.setHumanInbox({
+      if (!isCurrent() || clientStore.getSnapshot().activityList.category !== category) return;
+      clientStore.setActivityList({
         status: 'error',
         error: errorMessage(error),
       });
@@ -1761,19 +1801,19 @@ export function createActions(
         } catch {}
       }
       if (resolved)
-        clientStore.setHumanInbox({
+        clientStore.setActivityList({
           items: clientStore
             .getSnapshot()
-            .humanInbox.items.filter(
+            .activityList.items.filter(
               (item) =>
                 item.kind !== kind || item.channelId !== channelId || item.messageId !== messageId,
             ),
         });
-      const scope = humanInboxScope();
+      const scope = activityListScope();
       await Promise.allSettled([
-        refreshHumanInboxStatus(),
+        refreshActivityListStatus(),
         ...(scope !== undefined
-          ? [loadHumanInboxFor(clientStore.getSnapshot().humanInbox.category, scope)]
+          ? [loadActivityListFor(clientStore.getSnapshot().activityList.category, scope)]
           : []),
       ]);
     }
@@ -1980,11 +2020,16 @@ export function createActions(
     setBotApprovalTemplate: (slug, template) => setBotApprovalTemplate(call, slug, template),
     approvalReviewerModel: () => loadApprovalReviewerModel(call),
     voiceProviders: (slug) => loadVoiceProviders(call, slug),
+    dictationPort: (slug) => createVoiceDictationPort(call, { slug }),
     addVoiceProvider: (input) => addVoiceProvider(call, input),
     removeVoiceProvider: (id) => removeVoiceProvider(call, id),
     testVoiceProvider: (id, voiceId) => testVoiceProvider(call, id, voiceId),
     synthesizeVoice: (input) => synthesizeVoice(call, input),
     setBotVoice: (slug, providerId, voiceId) => setBotVoice(call, slug, providerId, voiceId),
+    setBotAsr: (slug, providerId) => setBotAsr(call, slug, providerId),
+    setVoiceDefault: (kind, providerId, voiceId) =>
+      setVoiceDefault(call, kind, providerId, voiceId),
+    setSpeechThreshold: (dbfs) => setSpeechThreshold(call, dbfs),
     setApprovalReviewerModel: (model) => setApprovalReviewerModel(call, model),
     revokeToolApprovalRule: (slug, id) => revokeToolApprovalRule(call, slug, id),
     toolApprovalStatus: (channelId, messageId) =>
@@ -2280,40 +2325,40 @@ export function createActions(
       return loadBotInboxFor(slug, selection, cursor);
     },
     openActivityCenter() {
-      return actions.openHumanInbox();
+      return actions.openActivityList();
     },
     attachActivityCenterPanel() {
       const scope = {};
       activityPanelScope = scope;
-      humanInboxScopeVersion += 1;
+      activityListScopeVersion += 1;
       return () => {
         if (activityPanelScope !== scope) return;
         activityPanelScope = undefined;
-        humanInboxScopeVersion += 1;
+        activityListScopeVersion += 1;
       };
     },
     botInboxPage: (slug, cursor) => loadBotAttention(call, slug, 50, cursor),
     activityPage: (category, filters, cursor) =>
       loadHumanAttention(call, category, 50, cursor, filters),
-    openHumanInbox() {
+    openActivityList() {
       clientStore.select({ kind: 'inbox' });
       actions.telemetryEvent('activity:inbox_open');
-      void refreshHumanInboxStatus();
-      const scope = humanInboxScope();
+      void refreshActivityListStatus();
+      const scope = activityListScope();
       if (scope === undefined) return Promise.resolve();
-      return loadHumanInboxFor(clientStore.getSnapshot().humanInbox.category, scope);
+      return loadActivityListFor(clientStore.getSnapshot().activityList.category, scope);
     },
-    refreshHumanInboxStatus,
-    refreshHumanInbox(category, background = false) {
-      const scope = humanInboxScope();
+    refreshActivityListStatus,
+    refreshActivityList(category, background = false) {
+      const scope = activityListScope();
       if (scope === undefined) return Promise.resolve();
-      const prior = clientStore.getSnapshot().humanInbox;
-      if (background && (humanInboxPagesPending > 0 || prior.items.length > 150))
+      const prior = clientStore.getSnapshot().activityList;
+      if (background && (activityListPagesPending > 0 || prior.items.length > 150))
         return Promise.resolve();
       const nextCategory = category ?? prior.category;
       if (nextCategory !== prior.category) {
-        humanInboxScopeVersion += 1;
-        clientStore.setHumanInbox({
+        activityListScopeVersion += 1;
+        clientStore.setActivityList({
           category: nextCategory,
           sort: nextCategory === 'action' ? 'oldest' : 'newest',
           botSlug: nextCategory === 'unread' ? undefined : prior.botSlug,
@@ -2325,12 +2370,12 @@ export function createActions(
           error: undefined,
         });
       }
-      return loadHumanInboxFor(nextCategory, scope, undefined, prior.items.length, background);
+      return loadActivityListFor(nextCategory, scope, undefined, prior.items.length, background);
     },
-    setHumanInboxFilters(filters) {
-      const scope = humanInboxScope();
+    setActivityListFilters(filters) {
+      const scope = activityListScope();
       if (scope === undefined) return Promise.resolve();
-      const prior = clientStore.getSnapshot().humanInbox;
+      const prior = clientStore.getSnapshot().activityList;
       if (
         prior.botSlug === filters.botSlug &&
         prior.channelId === filters.channelId &&
@@ -2338,8 +2383,8 @@ export function createActions(
         prior.snoozed === (filters.snoozed ?? prior.snoozed)
       )
         return Promise.resolve();
-      humanInboxScopeVersion += 1;
-      clientStore.setHumanInbox({
+      activityListScopeVersion += 1;
+      clientStore.setActivityList({
         ...filters,
         snoozed: filters.snoozed ?? prior.snoozed,
         status: 'loading',
@@ -2347,54 +2392,54 @@ export function createActions(
         nextCursor: undefined,
         error: undefined,
       });
-      return loadHumanInboxFor(prior.category, scope);
+      return loadActivityListFor(prior.category, scope);
     },
-    loadMoreHumanInbox() {
-      const scope = humanInboxScope();
-      const state = clientStore.getSnapshot().humanInbox;
+    loadMoreActivityList() {
+      const scope = activityListScope();
+      const state = clientStore.getSnapshot().activityList;
       if (scope === undefined || state.nextCursor === undefined) return Promise.resolve();
-      humanInboxPagesPending += 1;
-      return loadHumanInboxFor(state.category, scope, state.nextCursor).finally(() => {
-        humanInboxPagesPending -= 1;
+      activityListPagesPending += 1;
+      return loadActivityListFor(state.category, scope, state.nextCursor).finally(() => {
+        activityListPagesPending -= 1;
       });
     },
     async allowAutoRejectionOnce(item) {
       await overrideAutoRejection(call, item.id);
-      humanInboxScopeVersion += 1;
-      humanInboxHeadSeq += 1;
-      humanInboxPageSeq += 1;
-      const state = clientStore.getSnapshot().humanInbox;
-      clientStore.setHumanInbox({
+      activityListScopeVersion += 1;
+      activityListHeadSeq += 1;
+      activityListPageSeq += 1;
+      const state = clientStore.getSnapshot().activityList;
+      clientStore.setActivityList({
         items: state.items.filter(
           (entry) => entry.id !== item.id || entry.sourceEventId !== item.sourceEventId,
         ),
       });
-      void Promise.all([actions.refreshHumanInbox(), actions.refreshHumanInboxStatus()]).catch(
+      void Promise.all([actions.refreshActivityList(), actions.refreshActivityListStatus()]).catch(
         () => undefined,
       );
     },
-    async dismissHumanInbox(item) {
-      await dismissHumanInboxItem(call, item.id, item.sourceEventId ?? '');
+    async dismissActivityList(item) {
+      await dismissActivityListItem(call, item.id, item.sourceEventId ?? '');
       actions.telemetryEvent('activity:inbox_item_dismiss');
-      humanInboxScopeVersion += 1;
-      humanInboxHeadSeq += 1;
-      humanInboxPageSeq += 1;
-      const state = clientStore.getSnapshot().humanInbox;
-      clientStore.setHumanInbox({
+      activityListScopeVersion += 1;
+      activityListHeadSeq += 1;
+      activityListPageSeq += 1;
+      const state = clientStore.getSnapshot().activityList;
+      clientStore.setActivityList({
         items: state.items.filter(
           (entry) => entry.id !== item.id || entry.sourceEventId !== item.sourceEventId,
         ),
       });
-      void Promise.all([actions.refreshHumanInbox(), actions.refreshHumanInboxStatus()]).catch(
+      void Promise.all([actions.refreshActivityList(), actions.refreshActivityListStatus()]).catch(
         () => undefined,
       );
     },
-    async dismissAllHumanInbox(filter) {
+    async dismissAllActivityList(filter) {
       let dismissed = 0;
       let more = false;
       try {
         for (const category of filter.categories) {
-          const result = await dismissAllHumanInboxItems(call, {
+          const result = await dismissAllActivityListItems(call, {
             kind: filter.kind,
             category,
             botSlug: filter.botSlug,
@@ -2404,16 +2449,19 @@ export function createActions(
           more ||= result.more;
         }
       } finally {
-        humanInboxScopeVersion += 1;
-        humanInboxHeadSeq += 1;
-        humanInboxPageSeq += 1;
-        void Promise.all([actions.refreshHumanInbox(), actions.refreshHumanInboxStatus()]).catch(
-          () => undefined,
-        );
+        activityListScopeVersion += 1;
+        activityListHeadSeq += 1;
+        activityListPageSeq += 1;
+        void Promise.all([
+          actions.refreshActivityList(),
+          actions.refreshActivityListStatus(),
+        ]).catch(() => undefined);
       }
       return { dismissed, more };
     },
-    async humanInboxContextPage(channelId, request, signal) {
+    channelFilesPage: (channelId, request, signal) =>
+      loadFilesPage(call, channelId, request, signal),
+    async activityListContextPage(channelId, request, signal) {
       const { page } = await loadTimelinePage(call, channelId, request, signal);
       if (
         request.direction === 'around' &&
@@ -2431,29 +2479,29 @@ export function createActions(
         return page;
       });
     },
-    async snoozeHumanInbox(item, until) {
-      await snoozeHumanInboxItem(call, item.id, item.sourceEventId ?? '', until);
+    async snoozeActivityList(item, until) {
+      await snoozeActivityListItem(call, item.id, item.sourceEventId ?? '', until);
       actions.telemetryEvent('activity:inbox_item_snooze');
-      humanInboxScopeVersion += 1;
-      humanInboxHeadSeq += 1;
-      humanInboxPageSeq += 1;
-      const state = clientStore.getSnapshot().humanInbox;
-      clientStore.setHumanInbox({
+      activityListScopeVersion += 1;
+      activityListHeadSeq += 1;
+      activityListPageSeq += 1;
+      const state = clientStore.getSnapshot().activityList;
+      clientStore.setActivityList({
         items: state.items.filter(
           (entry) => entry.id !== item.id || entry.sourceEventId !== item.sourceEventId,
         ),
       });
-      void Promise.all([actions.refreshHumanInbox(), actions.refreshHumanInboxStatus()]).catch(
+      void Promise.all([actions.refreshActivityList(), actions.refreshActivityListStatus()]).catch(
         () => undefined,
       );
     },
     async ignoreHumanReport(sourceEventId) {
       await ignoreHumanAssignmentReport(call, sourceEventId);
-      humanInboxScopeVersion += 1;
-      humanInboxHeadSeq += 1;
-      humanInboxPageSeq += 1;
-      const state = clientStore.getSnapshot().humanInbox;
-      clientStore.setHumanInbox({
+      activityListScopeVersion += 1;
+      activityListHeadSeq += 1;
+      activityListPageSeq += 1;
+      const state = clientStore.getSnapshot().activityList;
+      clientStore.setActivityList({
         items: state.items.filter((item) => item.sourceEventId !== sourceEventId),
       });
     },
@@ -2463,7 +2511,7 @@ export function createActions(
     openChannelAtMessage(channelId, messageId) {
       return openChannelById(channelId, messageId);
     },
-    async humanInboxContext(channelId, messageId, signal) {
+    async activityListContext(channelId, messageId, signal) {
       const { page } = await loadTimelinePage(
         call,
         channelId,
@@ -2483,7 +2531,7 @@ export function createActions(
         throw new Error('Source message is no longer available');
       return page.entries;
     },
-    async replyFromHumanInbox(channelId, messageId, body, clientMessageId) {
+    async replyFromActivityList(channelId, messageId, body, clientMessageId) {
       const text = body.trim();
       const message = await sendChannelMessage(
         call,
@@ -2512,7 +2560,7 @@ export function createActions(
     async resolveWorkspaceGrantRequest(slug, messageId, path, _body, sourceChannelId) {
       const channelId = sourceChannelId ?? 'dm-' + slug;
       const readRequest = async () => {
-        const messages = await actions.humanInboxContext(channelId, messageId);
+        const messages = await actions.activityListContext(channelId, messageId);
         return messages.find((message) => message.id === messageId);
       };
       await settleNativeInboxAction(
@@ -2544,22 +2592,20 @@ export function createActions(
       );
       actions.telemetryEvent('activity:grant_request_submit');
     },
-    async markAllRead() {
+    async markAllRead(scope) {
       try {
-        await markAllReadPositions(call);
+        await markAllReadPositions(call, scope);
       } catch (error) {
-        await refreshHumanInboxStatus();
+        await refreshActivityListStatus();
         throw error;
       }
-      const requestSeq = ++humanInboxStatusSeq;
-      const status = await loadInboxStatus();
-      if (requestSeq === humanInboxStatusSeq) clientStore.setHumanInbox(status);
-      if (humanInboxScope() !== undefined) await actions.refreshHumanInbox();
+      await refreshActivityListStatus();
+      if (activityListScope() !== undefined) await actions.refreshActivityList();
     },
     async markRead(channelId, messageId) {
       await markReadPosition(call, channelId, messageId);
-      await refreshHumanInboxStatus();
-      if (humanInboxScope() !== undefined) await actions.refreshHumanInbox();
+      await refreshActivityListStatus();
+      if (activityListScope() !== undefined) await actions.refreshActivityList();
     },
     async reactToMessage(channelId, messageId, emoji, active) {
       const apply = (reactions: (current: ChannelMessage) => ChannelMessage['reactions']) => {
@@ -2597,9 +2643,9 @@ export function createActions(
         .getSnapshot()
         .channels.find((channel) => channel.id === channelId)?.latestMessage?.id;
       if (messageId === undefined) return;
-      clientStore.setHumanInbox({
+      clientStore.setActivityList({
         channelUnread: Object.fromEntries(
-          Object.entries(clientStore.getSnapshot().humanInbox.channelUnread).filter(
+          Object.entries(clientStore.getSnapshot().activityList.channelUnread).filter(
             ([id]) => id !== channelId,
           ),
         ),
@@ -2607,7 +2653,7 @@ export function createActions(
       try {
         await actions.markRead(channelId, messageId);
       } catch (error) {
-        await refreshHumanInboxStatus();
+        await refreshActivityListStatus();
         throw error;
       }
     },
@@ -2645,8 +2691,8 @@ export function createActions(
         return message;
       } finally {
         await Promise.allSettled([
-          refreshHumanInboxStatus(),
-          ...(humanInboxScope() !== undefined ? [actions.refreshHumanInbox()] : []),
+          refreshActivityListStatus(),
+          ...(activityListScope() !== undefined ? [actions.refreshActivityList()] : []),
         ]);
       }
     },

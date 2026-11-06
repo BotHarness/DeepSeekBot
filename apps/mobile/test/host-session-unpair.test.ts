@@ -10,13 +10,24 @@ const forgotten = vi.hoisted(() => [] as string[]);
 const clearCache = vi.hoisted(() => vi.fn((hostId: string) => void clearedCaches.push(hostId)));
 const clearDrafts = vi.hoisted(() => vi.fn(async () => {}));
 const clientStops = vi.hoisted(() => vi.fn());
+const clientCalls = vi.hoisted(() => vi.fn(async () => ({})));
+const catchUpCalls = vi.hoisted(
+  () => [] as Array<(method: string, args: Record<string, unknown>) => Promise<unknown>>,
+);
 const syncPush = vi.hoisted(() => vi.fn(async (_hosts: unknown) => {}));
+const connection = vi.hoisted(() => ({
+  snapshot: { connection: { status: 'connecting', route: '' } } as {
+    connection: { status: string; route: string; code?: string };
+  },
+  listeners: new Set<() => void>(),
+}));
 let beforeRead: ((key: string) => Promise<void>) | undefined;
 let beforeSave: ((key: string, value: string) => Promise<void>) | undefined;
 let savedFilter = 'all';
 
 vi.mock('expo-secure-store', () => ({
   WHEN_UNLOCKED_THIS_DEVICE_ONLY: 0,
+  AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY: 1,
   getItemAsync: async (key: string) => {
     await beforeRead?.(key);
     return secure.get(key) ?? null;
@@ -53,6 +64,7 @@ vi.mock('../src/host/conversation-playback', () => ({ createConversationPlayback
 vi.mock('../src/host/native-cache', () => ({
   clearHostConversationCache: clearCache,
   pruneHostConversationCache: () => undefined,
+  removeCachedConversation: () => undefined,
   nativeConversationCache: {},
 }));
 vi.mock('../src/host/native-conversation-filter', async () => {
@@ -95,9 +107,13 @@ vi.mock('../src/host/client', () => ({
   createHostClient: () => ({
     start() {},
     stop: clientStops,
+    call: clientCalls,
     retryNow() {},
-    subscribe: () => () => {},
-    getSnapshot: () => ({ connection: { status: 'connecting', route: '' } }),
+    subscribe: (listener: () => void) => {
+      connection.listeners.add(listener);
+      return () => connection.listeners.delete(listener);
+    },
+    getSnapshot: () => connection.snapshot,
   }),
 }));
 vi.mock('../src/host/inbox', () => ({
@@ -161,7 +177,97 @@ beforeEach(() => {
   beforeSave = undefined;
   beforeRead = undefined;
   savedFilter = 'all';
+  connection.snapshot = { connection: { status: 'connecting', route: '' } };
+  connection.listeners.clear();
   vi.resetModules();
+});
+
+it('clears the saved chats when the Computer revokes this phone', async () => {
+  await session('old', ['old']);
+  clearCache.mockClear();
+  connection.snapshot = {
+    connection: { status: 'refused', route: '', code: 'device-revoked' },
+  };
+  for (const listener of [...connection.listeners]) listener();
+  expect(clearCache).toHaveBeenCalledWith('old');
+});
+
+it('stops the revoked Host conversations so no write recreates its store', async () => {
+  const { hostSession } = await session('old', ['old']);
+  const { createConversation } = await import('../src/host/conversation');
+  const stop = vi.fn();
+  vi.mocked(createConversation).mockReturnValue({
+    start: () => undefined,
+    stop,
+    subscribe: () => () => {},
+    getSnapshot: () => ({}),
+  } as never);
+  connection.snapshot = {
+    connection: { status: 'connected', route: '' },
+    roster: { bots: [], channels: [{ id: 'g1' }] },
+  } as never;
+  const { prepareConversation } = await import('../src/host/host-session');
+  prepareConversation(hostSession.getState().client!, 'old', { channelId: 'g1' });
+  expect(createConversation).toHaveBeenCalled();
+  connection.snapshot = {
+    connection: { status: 'refused', route: '', code: 'device-revoked' },
+  };
+  for (const listener of [...connection.listeners]) listener();
+  expect(stop).toHaveBeenCalled();
+});
+
+it('starts deleting the store even when the old chat files fail to clear', async () => {
+  const { installHostStoreOpener } = await import('../src/host/host-store');
+  const remove = vi.fn(async () => undefined);
+  installHostStoreOpener({
+    open: async () => {
+      throw new Error('closed');
+    },
+    remove,
+  });
+  clearCache.mockImplementationOnce(() => {
+    throw new Error('disk');
+  });
+  const { forgetHostConversations } = await import('../src/host/native-conversations');
+  expect(() => forgetHostConversations('old')).toThrow('disk');
+  await vi.waitFor(() => expect(remove).toHaveBeenCalledWith('old'));
+});
+
+it('finishes revocation when the old chat files fail to clear', async () => {
+  await session('old', ['old']);
+  const { purgeCaches } = await import('../src/host/purge-caches');
+  const forgetHost = vi.spyOn(purgeCaches, 'forgetHost');
+  clearCache.mockImplementationOnce(() => {
+    throw new Error('disk');
+  });
+  connection.snapshot = {
+    connection: { status: 'refused', route: '', code: 'device-revoked' },
+  };
+  for (const listener of [...connection.listeners]) expect(() => listener()).not.toThrow();
+  expect(clearCache).toHaveBeenCalledWith('old');
+  expect(forgetHost).toHaveBeenCalledWith('old');
+});
+
+it('stops background catch-up from calling a Computer after its session ends', async () => {
+  vi.doMock('../src/host/native-conversations', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('../src/host/native-conversations')>()),
+    catchUpHostConversations: (
+      _hostId: string,
+      call: (method: string, args: Record<string, unknown>) => Promise<unknown>,
+    ) => void catchUpCalls.push(call),
+  }));
+  const { hostSession } = await session('new');
+  catchUpCalls.length = 0;
+  clientCalls.mockClear();
+  connection.snapshot = { connection: { status: 'connected', route: '' } };
+  for (const listener of [...connection.listeners]) listener();
+  expect(catchUpCalls.length).toBeGreaterThan(0);
+  await hostSession.unpair('old');
+  await hostSession.unpair('new');
+  for (const call of catchUpCalls)
+    await expect(call('channelChanges', { channelId: 'g1' })).rejects.toThrow();
+  expect(clientCalls).not.toHaveBeenCalled();
+  vi.doUnmock('../src/host/native-conversations');
 });
 
 it('refreshes push credentials after approved replacement without changing the selected Computer', async () => {

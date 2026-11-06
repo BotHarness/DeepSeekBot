@@ -25,13 +25,36 @@ qualification attempt and does not replace the product release gates.
 | File tools patch  | Retain the `read_image` injection fix and relocate it to the new native artifact. Do not externalize it to discard the fix.                                                                                                                                                                                                                                                                                           |
 | AX Go patch       | Preserve the RC3 template for old isolated CLIs; add a reviewed RC1 template around the new native header-preparation call. Match the actual adapter code shape uniquely, retain native header processing and request attribution, and refuse unknown or ambiguous shapes.                                                                                                                                            |
 
-The theme package remains separately pinned at its existing version. A DSH SDK
-upgrade does not by itself qualify replacing that transformed product input.
+The legacy theme package remains separately pinned. After integrating #3641, the
+product also retains its independently qualified RC1 theme and runtime selection.
+A DSH SDK upgrade does not by itself qualify replacing either transformed input.
+
+### Current versus legacy Subagent paths
+
+Orchestrators have delegated through Assignments since #2968 (`486369c1201e`).
+The earlier direct-child recovery path from #2759 (`7f984cd5d`) remains in main
+for retained Session ownership graphs; the RC1 Inbox-time model capture adapts that
+existing path. Its ordering test is a mocked event-boundary regression, not proof
+that a current Orchestrator can create such a child. The runtime regression also
+reconstructs real native Session snapshots and reads persisted child ownership,
+but still uses an adapter fixture rather than a real model-driven Host.
+
+Current-product qualification must independently exercise an Assignment's background
+child completing after that Assignment becomes idle, and a new Human DM after the
+Bot model changes while idle. A direct CLI call on an idle Assignment lacks active
+execution authority and must refuse; pair it with an authorized active-Assignment
+call. Do not relax authority or manufacture new direct Orchestrator children to
+make the historical test diagram reachable.
 
 ## Evidence status
 
 Qualification is **in progress**. Windows source checks are not a substitute for
 frozen-product installation, real model behavior or macOS Desktop checks.
+
+For the resumed qualification on 2026-11-07, the Human explicitly deferred macOS
+testing to their own follow-up. The current merge gates cover Windows and Linux;
+macOS remains unverified and is not a blocker for this explicitly narrowed merge
+scope. This does not turn Windows or Linux evidence into a macOS compatibility claim.
 
 Local evidence is retained in the task's ignored `dsh-022` directory. Failed attempts
 remain alongside retries:
@@ -137,5 +160,6 @@ full CI run is required for the fixed commit; its result belongs to that exact S
 | Product publication / website deployment                          | Not performed                            |
 
 Do not promote the candidate or announce overall compatibility while required
-runtime/platform rows remain unverified. On completion, replace these statuses with
+in-scope runtime/platform rows remain unverified. The macOS row is deferred to the
+Human for this merge by the explicit scope above. On completion, replace these statuses with
 the exact artifact identity, commands, results and reviewable evidence links.

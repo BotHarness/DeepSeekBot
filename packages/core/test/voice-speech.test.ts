@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { wavFromPcm16 } from '../src/voice/providers.js';
-import { joinAudio, speakableSentences } from '../src/voice/speech.js';
+import { clipDurationMs, joinAudio, speakableSentences, trimAudio } from '../src/voice/speech.js';
 import { readWavAs16kMono } from '../src/voice/wav.js';
 
 describe('call sentences', () => {
@@ -83,5 +83,53 @@ describe('joining spoken clips', () => {
         { audio: new Uint8Array([2]), mime: 'audio/wav' },
       ]),
     ).toBeUndefined();
+  });
+});
+
+describe('clip duration', () => {
+  it('trims WAV and MP3 to the part that played and gives up on other formats', () => {
+    const wav = { audio: wavFromPcm16(new Int16Array(32_000), 16_000), mime: 'audio/wav' };
+    expect(clipDurationMs(trimAudio(wav, 750)!)).toBe(750);
+    expect(trimAudio(wav, 5_000)).toEqual(wav);
+    expect(trimAudio(wav, 0)).toBeUndefined();
+
+    const frame = new Uint8Array(417);
+    frame.set([0xff, 0xfb, 0x90, 0x00]);
+    const mp3 = new Uint8Array(417 * 10);
+    for (let index = 0; index < 10; index += 1) mp3.set(frame, index * 417);
+    const cut = trimAudio({ audio: mp3, mime: 'audio/mpeg' }, 100)!;
+    expect(cut.audio.byteLength).toBe(417 * 4);
+    expect(clipDurationMs(cut)).toBe(104);
+
+    expect(trimAudio({ audio: new Uint8Array(64_000), mime: 'audio/ogg' }, 500)).toBeUndefined();
+  });
+
+  it('reads WAV, MP3 frames and Ogg Opus granules, and guesses for anything else', () => {
+    const pcm = new Int16Array(16_000);
+    expect(clipDurationMs({ audio: wavFromPcm16(pcm, 16_000), mime: 'audio/wav' })).toBe(1_000);
+
+    const frame = new Uint8Array(417);
+    frame.set([0xff, 0xfb, 0x90, 0x00]);
+    const mp3 = new Uint8Array(417 * 10);
+    for (let index = 0; index < 10; index += 1) mp3.set(frame, index * 417);
+    expect(clipDurationMs({ audio: mp3, mime: 'audio/mpeg' })).toBe(261);
+
+    const page = (granule: bigint, payload: Uint8Array) => {
+      const out = new Uint8Array(28 + payload.length);
+      const view = new DataView(out.buffer);
+      out.set([0x4f, 0x67, 0x67, 0x53]);
+      view.setBigInt64(6, granule, true);
+      out[26] = 1;
+      out[27] = payload.length;
+      out.set(payload, 28);
+      return out;
+    };
+    const head = new Uint8Array(19);
+    head.set(Buffer.from('OpusHead'));
+    new DataView(head.buffer).setUint16(10, 312, true);
+    const ogg = Buffer.concat([page(0n, head), page(48_312n, new Uint8Array(10))]);
+    expect(clipDurationMs({ audio: new Uint8Array(ogg), mime: 'audio/ogg' })).toBe(1_000);
+
+    expect(clipDurationMs({ audio: new Uint8Array(8_000), mime: 'audio/aac' })).toBe(500);
   });
 });

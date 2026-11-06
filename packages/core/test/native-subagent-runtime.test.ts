@@ -11,6 +11,7 @@ import {
 } from '../src/runtime/bot-runtime.js';
 import { createBotMessageTool } from '../src/runtime/bot-message-tool.js';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
+import { Session, SessionId } from '@deepseek-ai/dsh-session';
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { createTestRegistry } from './registry-fixture.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
@@ -51,7 +52,11 @@ function fixture(holdTeardown = false) {
   const runs: OrchestratorAgentRun[] = [];
   const archived = new Set<string>();
   const warnings: string[] = [];
+  const modelCaptures: string[] = [];
   const agents: BotAgentAdapter = {
+    captureNativeOrchestratorModel(sessionId) {
+      modelCaptures.push(sessionId);
+    },
     async runOrchestrator(run) {
       runs.push(run);
       started.resolve(run);
@@ -97,10 +102,54 @@ function fixture(holdTeardown = false) {
     cleanup,
     archived,
     warnings,
+    database,
+    modelCaptures,
   };
 }
 
 describe('native Subagent report admission', () => {
+  it('restores native Session identities and persisted ownership for a legacy Orchestrator child', async () => {
+    const f = fixture();
+    const snapshot = (id: string) => {
+      const session = Session.create(SessionId(id));
+      session.append('request/header', {
+        header: { config: { provider: 'test', model: 'legacy' } },
+        reason: 'initial',
+      });
+      return Session.create(session.id, session.snapshotEvents());
+    };
+    const parent = snapshot('parent');
+    const child = snapshot('child');
+    const restoredOwnership = createSessionOwnership(
+      attachOperationalModule(f.database, 'session-ownership'),
+    );
+    try {
+      expect(restoredOwnership.resolve(child.id)).toMatchObject({
+        parentSessionId: parent.id,
+        rootRole: 'orchestrator',
+        provenance: 'subagent',
+      });
+      f.runtime.captureNativeOrchestratorModel?.(child.id);
+      f.runtime.captureNativeOrchestratorModel?.(parent.id);
+      expect(f.modelCaptures).toEqual([parent.id]);
+      const accepted = f.runtime.prepareNativeOrchestratorStep!(
+        parent.id,
+        [child.id],
+        new AbortController().signal,
+      );
+      const run = await f.started.promise;
+      f.prepared.resolve();
+      expect(await accepted).toBe(true);
+      expect(run.message).toBe('');
+      expect(run.inboundChannelId).toBeUndefined();
+      expect(parent.requestHeader()?.config.model).toBe('legacy');
+    } finally {
+      f.prepared.resolve();
+      f.finished.resolve();
+      await f.runtime.close();
+    }
+  });
+
   it('waits for teardown when the previous tool context is already released', async () => {
     const f = fixture(true);
     try {

@@ -36,6 +36,7 @@ export interface AccountStatus {
   verificationUri?: string;
   expiresAt?: string;
   issue?: AccountIssue;
+  recovery?: 'automatic' | 'sign-in';
 }
 
 export type AccountResult =
@@ -88,6 +89,45 @@ class AccountError extends Error {
   }
 }
 
+const transportCodes = new Set([
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'ETIMEDOUT',
+  'ENETUNREACH',
+  'EHOSTUNREACH',
+  'UND_ERR_CONNECT_TIMEOUT',
+  'UND_ERR_HEADERS_TIMEOUT',
+  'UND_ERR_BODY_TIMEOUT',
+  'UND_ERR_SOCKET',
+  'CERT_HAS_EXPIRED',
+  'DEPTH_ZERO_SELF_SIGNED_CERT',
+  'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+  'ERR_TLS_CERT_ALTNAME_INVALID',
+]);
+
+function transportCode(error: unknown): string {
+  let current = error;
+  for (let depth = 0; depth < 4 && current instanceof Error; depth += 1) {
+    if (current.name === 'TimeoutError') return 'timeout';
+    if (current.name === 'AbortError') return 'aborted';
+    if ('code' in current && typeof current.code === 'string' && transportCodes.has(current.code))
+      return current.code;
+    current = current.cause;
+  }
+  return 'unknown';
+}
+
+type RelayOperation =
+  | 'config'
+  | 'register-host'
+  | 'list-hosts'
+  | 'tunnel'
+  | 'live-activity'
+  | 'delete-host';
+type IdentityOperation = 'device-authorization' | 'device-token' | 'refresh-token';
+
 export function freeLoopbackPort(): Promise<number> {
   return new Promise((resolve, reject) => {
     const server = createServer();
@@ -129,6 +169,23 @@ export function createConnectAccount(options: {
   const freePort = options.freePort ?? freeLoopbackPort;
   const sleep = options.sleep ?? ((ms: number) => new Promise((done) => setTimeout(done, ms)));
   const record = options.record ?? (() => {});
+  const requestError = (
+    service: 'relay' | 'identity',
+    operation: RelayOperation | IdentityOperation,
+    failure:
+      | { reason: 'transport'; error: unknown }
+      | { reason: 'http' | 'invalid-response'; status: number },
+  ): AccountError => {
+    const evidence =
+      failure.reason === 'transport'
+        ? `transport=${transportCode(failure.error)}`
+        : `httpStatus=${failure.status}`;
+    record(
+      'account-request-error',
+      `service=${service} operation=${operation} reason=${failure.reason} ${evidence}`,
+    );
+    return new AccountError('relay-unavailable');
+  };
   const { connect } = options;
   let status: AccountStatus = { state: 'signed-out' };
   let attempt = 0;
@@ -175,22 +232,33 @@ export function createConnectAccount(options: {
     }
   };
 
-  const post = async (url: string, body: Record<string, string>) => {
+  const post = async (
+    operation: IdentityOperation,
+    url: string,
+    body: Record<string, string>,
+    signal?: AbortSignal,
+  ) => {
     let response: Response;
     try {
       response = await fetcher(url, {
         method: 'POST',
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams(body).toString(),
+        ...(signal === undefined ? {} : { signal }),
       });
-    } catch {
-      throw new AccountError('relay-unavailable');
+    } catch (error) {
+      throw requestError('identity', operation, { reason: 'transport', error });
     }
-    const parsed = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+    if (response.status >= 500 || response.status === 429 || response.status === 408)
+      requestError('identity', operation, { reason: 'http', status: response.status });
+    const parsed =
+      z.record(z.string(), z.unknown()).safeParse(await response.json().catch(() => undefined))
+        .data ?? {};
     return { ok: response.ok, status: response.status, body: parsed };
   };
 
   const relayCall = async (
+    operation: RelayOperation,
     method: string,
     path: string,
     accessToken?: string,
@@ -215,8 +283,8 @@ export function createConnectAccount(options: {
         },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
-    } catch {
-      throw new AccountError('relay-unavailable');
+    } catch (error) {
+      throw requestError('relay', operation, { reason: 'transport', error });
     }
     const parsed = (await response.json().catch(() => ({}))) as Record<string, unknown>;
     const code = (parsed['error'] as { code?: unknown } | undefined)?.code;
@@ -224,12 +292,12 @@ export function createConnectAccount(options: {
     if (code === 'account-not-allowed') throw new AccountError('account-not-allowed');
     if (code === 'host-limit') throw new AccountError('host-limit');
     if (response.status >= 500 || response.status === 429)
-      throw new AccountError('relay-unavailable');
+      throw requestError('relay', operation, { reason: 'http', status: response.status });
     return { status: response.status, body: parsed };
   };
 
   const clientId = async (): Promise<ConnectClientId> => {
-    const { status: code, body } = await relayCall('GET', '/v1/config');
+    const { status: code, body } = await relayCall('config', 'GET', '/v1/config');
     const parsed = clientIdSchema.safeParse(body['clientId']);
     if (
       code !== 200 ||
@@ -237,12 +305,12 @@ export function createConnectAccount(options: {
       body['deviceAuthorizationEndpoint'] !== DEVICE_ENDPOINT ||
       body['tokenEndpoint'] !== TOKEN_ENDPOINT
     )
-      throw new AccountError('relay-unavailable');
+      throw requestError('relay', 'config', { reason: 'invalid-response', status: code });
     return parsed.data;
   };
 
   const refresh = async (current: AccountRecord): Promise<string> => {
-    const reply = await post(TOKEN_ENDPOINT, {
+    const reply = await post('refresh-token', TOKEN_ENDPOINT, {
       grant_type: 'refresh_token',
       client_id: current.clientId,
       refresh_token: current.refreshToken,
@@ -252,7 +320,12 @@ export function createConnectAccount(options: {
     if (!reply.ok || typeof access !== 'string') {
       if (reply.status >= 400 && reply.status < 500 && reply.status !== 408 && reply.status !== 429)
         throw new AccountError('session-expired');
-      throw new AccountError('relay-unavailable');
+      if (reply.status >= 500 || reply.status === 408 || reply.status === 429)
+        throw new AccountError('relay-unavailable');
+      throw requestError('identity', 'refresh-token', {
+        reason: 'invalid-response',
+        status: reply.status,
+      });
     }
     if (typeof rotated === 'string' && rotated !== current.refreshToken) {
       current.refreshToken = rotated;
@@ -263,13 +336,19 @@ export function createConnectAccount(options: {
   };
 
   const requestTunnel = async (current: AccountRecord, access: string, port: number) => {
-    const reply = await relayCall('POST', `/v1/hosts/${current.hostId ?? ''}/tunnel`, access, {
-      originPort: port,
-    });
+    const reply = await relayCall(
+      'tunnel',
+      'POST',
+      `/v1/hosts/${current.hostId ?? ''}/tunnel`,
+      access,
+      {
+        originPort: port,
+      },
+    );
     if (reply.status === 404) return undefined;
     const { hostname, token, account, relayKey } = reply.body;
     if (reply.status !== 200 || typeof hostname !== 'string' || typeof token !== 'string')
-      throw new AccountError('relay-unavailable');
+      throw requestError('relay', 'tunnel', { reason: 'invalid-response', status: reply.status });
     const signer = typeof account === 'string' && typeof relayKey === 'string';
     if (
       (signer && (current.account !== account || current.relayKey !== relayKey)) ||
@@ -286,11 +365,15 @@ export function createConnectAccount(options: {
   };
 
   const link = async (current: AccountRecord, access: string): Promise<void> => {
-    const reply = await relayCall('POST', '/v1/hosts', access, {
+    const reply = await relayCall('register-host', 'POST', '/v1/hosts', access, {
       name: hostName().slice(0, 64) || 'Tobs',
     });
     const host = z.object({ id: hostIdSchema }).safeParse(reply.body['host']);
-    if (reply.status !== 201 || !host.success) throw new AccountError('relay-unavailable');
+    if (reply.status !== 201 || !host.success)
+      throw requestError('relay', 'register-host', {
+        reason: 'invalid-response',
+        status: reply.status,
+      });
     current.hostId = host.data.id;
     await save(current);
     record('linked', `host=${host.data.id}`);
@@ -301,6 +384,10 @@ export function createConnectAccount(options: {
     status = {
       state: 'error',
       issue,
+      recovery:
+        issue === 'relay-unavailable' && canResumeSession && current !== undefined
+          ? 'automatic'
+          : 'sign-in',
       ...(current?.email ? { email: current.email } : {}),
       ...(current?.hostId ? { hostId: current.hostId } : {}),
     };
@@ -353,7 +440,7 @@ export function createConnectAccount(options: {
           return;
         }
         const stored = current;
-        const hosts = (token: string) => relayCall('GET', '/v1/hosts', token);
+        const hosts = (token: string) => relayCall('list-hosts', 'GET', '/v1/hosts', token);
         const fresh = async () => hosts(await refresh(stored));
         const reply =
           cached === undefined
@@ -399,14 +486,17 @@ export function createConnectAccount(options: {
           await link(current, access);
           tunnel = await requestTunnel(current, access, port);
         }
-        if (tunnel === undefined) throw new AccountError('relay-unavailable');
+        if (tunnel === undefined)
+          throw requestError('relay', 'tunnel', { reason: 'invalid-response', status: 404 });
         const enabled = await connect.enable(tunnel);
-        if (!enabled.ok)
+        if (!enabled.ok) {
+          record('account-connect-error', `operation=enable-tunnel refusal=${enabled.code}`);
           throw new AccountError(
             enabled.code === 'credential-unavailable'
               ? 'credential-unavailable'
               : 'relay-unavailable',
           );
+        }
         const bound = originPort(connect);
         if (bound !== undefined && bound !== port) await requestTunnel(current, access, bound);
         status = {
@@ -427,33 +517,50 @@ export function createConnectAccount(options: {
     expires: number,
   ): Promise<void> => {
     let wait = interval;
+    const expired = (signal?: AbortSignal): boolean => {
+      if (!signal?.aborted && Date.now() < expires) return false;
+      status = { state: 'error', issue: 'sign-in-expired' };
+      record('sign-in-expired');
+      return true;
+    };
     while (run === attempt) {
-      await sleep(wait * 1000);
+      await sleep(Math.min(wait * 1000, Math.max(0, expires - Date.now())));
       if (run !== attempt) return;
-      if (Date.now() > expires) {
-        status = { state: 'error', issue: 'sign-in-expired' };
-        record('sign-in-expired');
-        return;
-      }
+      if (expired()) return;
       let reply: Awaited<ReturnType<typeof post>>;
+      const tokenSignal = AbortSignal.timeout(Math.max(1, Math.ceil(expires - Date.now())));
       try {
-        reply = await post(TOKEN_ENDPOINT, {
-          grant_type: DEVICE_GRANT,
-          device_code: deviceCode,
-          client_id: id,
-        });
+        reply = await post(
+          'device-token',
+          TOKEN_ENDPOINT,
+          {
+            grant_type: DEVICE_GRANT,
+            device_code: deviceCode,
+            client_id: id,
+          },
+          tokenSignal,
+        );
       } catch {
+        wait *= 2;
         continue;
       }
       if (run !== attempt) return;
+      if (expired(tokenSignal)) return;
       const error = reply.body['error'];
       if (error === 'authorization_pending') continue;
       if (error === 'slow_down') {
         wait += 5;
         continue;
       }
+      if (
+        typeof error !== 'string' &&
+        (reply.status === 408 || reply.status === 429 || reply.status >= 500)
+      ) {
+        wait *= 2;
+        continue;
+      }
       const refreshToken = reply.body['refresh_token'];
-      if (!reply.ok || typeof refreshToken !== 'string') {
+      if (typeof error === 'string' || !reply.ok || typeof refreshToken !== 'string') {
         const expired = error === 'expired_token';
         status = { state: 'error', issue: expired ? 'sign-in-expired' : 'sign-in-denied' };
         record(
@@ -480,10 +587,13 @@ export function createConnectAccount(options: {
           if (previous?.relay === relay && previous.clientId === id && previous.hostId) {
             const access = reply.body['access_token'];
             if (typeof access !== 'string') throw new AccountError('session-expired');
-            const listed = await relayCall('GET', '/v1/hosts', access);
+            const listed = await relayCall('list-hosts', 'GET', '/v1/hosts', access);
             const hosts = hostListSchema.safeParse(listed.body);
             if (listed.status !== 200 || !hosts.success)
-              throw new AccountError('relay-unavailable');
+              throw requestError('relay', 'list-hosts', {
+                reason: 'invalid-response',
+                status: listed.status,
+              });
             if (hosts.data.hosts.some((host) => host.id === previous.hostId))
               current.hostId = previous.hostId;
           }
@@ -573,6 +683,7 @@ export function createConnectAccount(options: {
         if (!current?.hostId) return { status: 503, body: {} };
         const call = (access: string) =>
           relayCall(
+            'live-activity',
             body ? 'POST' : 'GET',
             `/v1/hosts/${current.hostId}/live-activity`,
             access,
@@ -684,7 +795,7 @@ export function createConnectAccount(options: {
       let reply: Awaited<ReturnType<typeof post>>;
       try {
         id = await clientId();
-        reply = await post(DEVICE_ENDPOINT, { client_id: id });
+        reply = await post('device-authorization', DEVICE_ENDPOINT, { client_id: id });
       } catch {
         return { ok: false, code: 'relay-unavailable' };
       }
@@ -696,8 +807,13 @@ export function createConnectAccount(options: {
         typeof deviceCode !== 'string' ||
         typeof userCode !== 'string' ||
         typeof uri !== 'string'
-      )
+      ) {
+        requestError('identity', 'device-authorization', {
+          reason: 'invalid-response',
+          status: reply.status,
+        });
         return { ok: false, code: 'relay-unavailable' };
+      }
       const interval = Number(reply.body['interval']) > 0 ? Number(reply.body['interval']) : 5;
       const lifetime =
         Number(reply.body['expires_in']) > 0 ? Number(reply.body['expires_in']) : 300;
@@ -724,7 +840,12 @@ export function createConnectAccount(options: {
         }
         if (current?.hostId !== undefined) {
           try {
-            await relayCall('DELETE', `/v1/hosts/${current.hostId}`, await refresh(current));
+            await relayCall(
+              'delete-host',
+              'DELETE',
+              `/v1/hosts/${current.hostId}`,
+              await refresh(current),
+            );
           } catch {
             record('unlink-failed');
           }

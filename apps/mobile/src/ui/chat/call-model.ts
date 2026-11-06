@@ -72,7 +72,11 @@ function heardText(
   return live === undefined ? undefined : { text: live, final: false };
 }
 
-export function callScreenModel(t: Strings, state: CallClientState): CallScreenModel {
+export function callScreenModel(
+  t: Strings,
+  state: CallClientState,
+  options: { interrupted?: boolean } = {},
+): CallScreenModel {
   if (state.status === 'idle' || state.status === 'opening')
     return { status: t.call.connecting, live: false, muted: false, retry: false };
   if (state.status === 'ended') {
@@ -100,7 +104,12 @@ export function callScreenModel(t: Strings, state: CallClientState): CallScreenM
             : muted
               ? t.call.muted
               : t.call.listening;
-  const hint = call.busy ? t.call.busy : transient(t, events, call.durationMs);
+  const hint =
+    options.interrupted === true
+      ? t.call.interrupted
+      : call.busy
+        ? t.call.busy
+        : transient(t, events, call.durationMs);
   const heard = heardText(events, call.durationMs);
   return {
     status,
@@ -142,6 +151,15 @@ function refusalMessage(t: Strings, code: string | undefined): string {
   }
 }
 
+export function callConfigured(
+  readiness: VoiceCallReadiness | { readonly code: string; readonly error: string },
+): boolean {
+  if ('code' in readiness) return readiness.code === 'connect-carrier-required';
+  return !readiness.missing.some(
+    (missing) => missing === 'bot' || missing === 'asr' || missing === 'tts',
+  );
+}
+
 export function readinessMessage(
   t: Strings,
   readiness: VoiceCallReadiness | { readonly code: string; readonly error: string },
@@ -151,7 +169,10 @@ export function readinessMessage(
   return readiness.missing.map((missing: VoiceCallMissing) => t.call.missing[missing]).join('\n');
 }
 
-export type MicrophoneRecovery = { message: string; action: 'ask' | 'settings' };
+export type MicrophoneRecovery = {
+  message: string;
+  action: 'ask' | 'settings';
+};
 
 export function microphoneRecovery(
   t: Strings,
@@ -169,4 +190,77 @@ export function formatCallDuration(ms: number): string {
   const seconds = total % 60;
   const two = (value: number) => String(value).padStart(2, '0');
   return hours > 0 ? `${hours}:${two(minutes)}:${two(seconds)}` : `${two(minutes)}:${two(seconds)}`;
+}
+
+export type CallActivityPhase =
+  | 'connecting'
+  | 'listening'
+  | 'hearing'
+  | 'thinking'
+  | 'speaking'
+  | 'muted'
+  | 'interrupted'
+  | 'reconnecting';
+
+export function callActivityPhase(
+  state: CallClientState,
+  interrupted: boolean,
+): CallActivityPhase | undefined {
+  if (state.status === 'opening') return 'connecting';
+  if (state.status !== 'live') return undefined;
+  if (interrupted) return 'interrupted';
+  if (state.reconnecting) return 'reconnecting';
+  switch (state.call.phase) {
+    case 'connecting':
+      return 'connecting';
+    case 'user-speaking':
+      return 'hearing';
+    case 'transcribing':
+      return 'thinking';
+    case 'bot-speaking':
+      return 'speaking';
+    default:
+      return state.muted ? 'muted' : 'listening';
+  }
+}
+
+export type CallBubbleTone =
+  | 'connecting'
+  | 'listening'
+  | 'hearing'
+  | 'thinking'
+  | 'speaking'
+  | 'muted'
+  | 'paused'
+  | 'ended';
+
+export type CallBubbleModel = {
+  tone: CallBubbleTone;
+  status: string;
+  muted: boolean;
+  duration?: string;
+};
+
+export function callBubbleModel(
+  t: Strings,
+  input: { state: CallClientState; interrupted: boolean; startedAt?: number | undefined },
+  now: number,
+): CallBubbleModel {
+  const { state, interrupted } = input;
+  if (state.status === 'ended') return { tone: 'ended', status: t.call.ended.hangup, muted: false };
+  const phase = callActivityPhase(state, interrupted);
+  const muted = state.status === 'live' && state.muted;
+  const duration =
+    state.status === 'live' && input.startedAt !== undefined
+      ? formatCallDuration(now - input.startedAt)
+      : undefined;
+  const tone: CallBubbleTone =
+    phase === undefined || phase === 'connecting' || phase === 'reconnecting'
+      ? 'connecting'
+      : phase === 'interrupted'
+        ? 'paused'
+        : phase;
+  const status =
+    tone === 'paused' ? t.call.paused : callScreenModel(t, state, { interrupted }).status;
+  return { tone, status, muted, ...(duration === undefined ? {} : { duration }) };
 }

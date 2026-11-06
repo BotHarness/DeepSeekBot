@@ -291,7 +291,7 @@ it.each([
         expect(container.querySelector('[role=alert]')).toBeNull();
       } else {
         expect(container.querySelector('[role=alert]')?.textContent).toBe(
-          zhTranslate('humanInbox.failed'),
+          zhTranslate('activityList.failed'),
         );
         expect(container.textContent).not.toContain(zhTranslate('grant.requestResolved'));
         expect(container.textContent).not.toMatch(

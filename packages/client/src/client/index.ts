@@ -142,7 +142,7 @@ import {
 } from './session-return-action.js';
 import { mountActivityLive } from './activity-live.js';
 import { installChannelFollow, mountChannelLive, mountRosterLive } from './channel-live.js';
-import { installTypedLive } from './messaging-defaults-live.js';
+import { installTypedLive, observeHumanAttention } from './messaging-defaults-live.js';
 import {
   CHANNEL_REMOTE_DESCRIPTOR,
   COMPANION_REMOTE_DESCRIPTOR,
@@ -454,10 +454,12 @@ export function apply(ctx: ClientContext): void {
       warn: (message, error) => ctx.logger.warn(message, error),
     });
     let roster = '';
+    let rosterBots: unknown;
     const offRoster = store.subscribe(() => {
-      const next = JSON.stringify(
-        store.getSnapshot().bots.map((bot) => [bot.slug, bot.displayName]),
-      );
+      const bots = store.getSnapshot().bots;
+      if (bots === rosterBots) return;
+      rosterBots = bots;
+      const next = JSON.stringify(bots.map((bot) => [bot.slug, bot.displayName]));
       if (next === roster) return;
       roster = next;
       visibility.refresh();
@@ -674,20 +676,22 @@ export function apply(ctx: ClientContext): void {
       channels: () => store.getSnapshot().channels,
       attentive: () => document.visibilityState === 'visible' && document.hasFocus(),
       subscribe: (listener) => {
-        let prior = store.getSnapshot().humanInbox;
+        let prior = store.getSnapshot().activityList;
         const offStore = store.subscribe(() => {
-          const next = store.getSnapshot().humanInbox;
+          const next = store.getSnapshot().activityList;
           if (next.unreadCount === prior.unreadCount && next.hasAction === prior.hasAction) return;
           prior = next;
           listener();
         });
         const offPrefs = desktopNotifications.subscribe(listener);
+        const offAttention = observeHumanAttention(listener);
         document.addEventListener('visibilitychange', listener);
         window.addEventListener('focus', listener);
         window.addEventListener('blur', listener);
         return () => {
           offStore();
           offPrefs();
+          offAttention();
           document.removeEventListener('visibilitychange', listener);
           window.removeEventListener('focus', listener);
           window.removeEventListener('blur', listener);
@@ -1133,7 +1137,7 @@ export function apply(ctx: ClientContext): void {
           ctx.layout.selectPanel(PANEL_ID);
           void actions.openActivityCenter();
         },
-        () => actions.refreshHumanInboxStatus(),
+        () => actions.refreshActivityListStatus(),
         {
           launcher: (translate) =>
             createElement(OnboardingLauncher, { actions, t: translate, placement: 'row' }),

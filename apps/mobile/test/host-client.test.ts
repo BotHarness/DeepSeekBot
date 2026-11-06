@@ -1,10 +1,18 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createHostClient, type HostClient, type HostSnapshot } from '../src/host/client';
+import {
+  createHostClient,
+  defaultBackoff,
+  MAX_RECONNECT_DELAY_MS,
+  type HostClient,
+  type HostSnapshot,
+} from '../src/host/client';
 import { parsePairingLink, redeemPairing } from '../src/host/pairing';
 import { checkRoute } from '../src/host/route';
 import { SECRET_ROUTE_METHODS } from '../../../packages/core/src/bridge/secret-route';
+import { openLocalStore, type LocalStore } from '../src/host/local-store';
 import { FakeHost } from './fake-host';
+import { nodeSqlConnection } from './node-sql-connection';
 import wire from './fixtures/host-wire.json';
 
 const ROUTE = 'https://studio.tailnet-example.ts.net';
@@ -50,6 +58,365 @@ async function until(
 }
 
 describe('Host client', () => {
+  it.each(['channelChangeCursor', 'channelListChanges'])(
+    'connects to an older Host whose optional %s endpoint returns HTTP 404',
+    async (method) => {
+      const store = await openLocalStore(nodeSqlConnection());
+      if (method === 'channelListChanges')
+        await store.write((tx) => tx.run("insert into list_cursor values (1, 'old', 1)"));
+      const host = new FakeHost();
+      client = createHostClient({
+        routes: [ROUTE],
+        credential: host.credential,
+        carrier: {
+          ...host.carrier,
+          request: (url, init) =>
+            url.endsWith(`/${method}`)
+              ? Promise.resolve({ status: 404, text: async () => 'Not Found' })
+              : host.carrier.request(url, init),
+        },
+        localStore: () => Promise.resolve(store),
+        backoff: () => 5,
+        timeoutMs: 200,
+      });
+      try {
+        client.start();
+        const snapshot = await until(client, (state) => state.connection.status === 'connected');
+        expect(snapshot.roster?.bots.length).toBeGreaterThan(0);
+        expect(host.calls.some((call) => call.method === 'channels')).toBe(true);
+      } finally {
+        client.stop();
+        await store.close();
+      }
+    },
+  );
+
+  it('keeps a Channel follower live across repeated foreground recovery', async () => {
+    const host = new FakeHost();
+    const channel = host.channel('resume-channel');
+    const target = connect(host);
+    await until(target, (s) => s.connection.status === 'connected');
+    const received: unknown[] = [];
+    const off = target.follow(
+      'botharness/followChannel',
+      { channelId: channel.id, limit: 20 },
+      {
+        item: (item) => received.push(item),
+        interrupted() {},
+        refused(error) {
+          throw new Error(error.message);
+        },
+      },
+    );
+    await until(target, () => channel.followerCount === 1);
+    for (let cycle = 0; cycle < 5; cycle += 1) {
+      target.retryNow('resume');
+      expect(target.getSnapshot().connection.status).toBe('reconnecting');
+      await until(target, (s) => s.connection.status === 'connected');
+      expect(channel.followerCount).toBe(1);
+      channel.append({ id: `resume-${cycle}`, body: `foreground ${cycle}` });
+      expect(received).toContainEqual(
+        expect.objectContaining({
+          type: 'entry',
+          entry: expect.objectContaining({
+            message: expect.objectContaining({ id: `resume-${cycle}` }),
+          }),
+        }),
+      );
+    }
+    off();
+    expect(channel.followerCount).toBe(0);
+  });
+
+  it('shows unreachable on a failed resume and recovers when the route returns', async () => {
+    const host = new FakeHost();
+    const target = connect(host, host.credential, [ROUTE]);
+    await until(target, (s) => s.connection.status === 'connected');
+    host.unreachable.add(ROUTE);
+    target.retryNow('resume');
+    await until(target, (s) => s.connection.status === 'unreachable');
+    host.unreachable.delete(ROUTE);
+    await until(target, (s) => s.connection.status === 'connected');
+    host.push('botharness/followRoster', latest[0]);
+    expect(target.getSnapshot().roster?.bots[0]?.preview).toBe('mobile tracer probe');
+  });
+
+  it('does not reopen a stopped client when its resume route probe completes late', async () => {
+    const host = new FakeHost();
+    let hold = false;
+    let release!: () => void;
+    let sockets = 0;
+    client = createHostClient({
+      routes: [ROUTE],
+      credential: host.credential,
+      timeoutMs: 200,
+      carrier: {
+        ...host.carrier,
+        request: async (url, init) => {
+          if (hold)
+            await new Promise<void>((resolve) => {
+              release = resolve;
+            });
+          return host.carrier.request(url, init);
+        },
+        openSocket: (...args) => {
+          sockets += 1;
+          return host.carrier.openSocket(...args);
+        },
+      },
+    });
+    client.start();
+    await until(client, (s) => s.connection.status === 'connected');
+    hold = true;
+    client.retryNow('resume');
+    await until(client, () => typeof release === 'function');
+    client.stop();
+    hold = false;
+    release();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(sockets).toBe(1);
+    expect(client.getSnapshot().connection.status).toBe('stopped');
+  });
+
+  it('restores live updates on resume when the old socket silently stops delivering', async () => {
+    const host = new FakeHost();
+    let suspended = false;
+    let sockets = 0;
+    let closeOld = () => {};
+    client = createHostClient({
+      routes: [ROUTE],
+      credential: host.credential,
+      carrier: {
+        ...host.carrier,
+        openSocket(url, events, headers) {
+          const first = ++sockets === 1;
+          if (first) closeOld = () => events.closed('late old connection close');
+          return host.carrier.openSocket(
+            url,
+            {
+              ...events,
+              message: (text) => {
+                if (!first || !suspended) events.message(text);
+              },
+              closed: (reason) => {
+                if (!first || !suspended) events.closed(reason);
+              },
+            },
+            headers,
+          );
+        },
+      },
+      timeoutMs: 200,
+      backoff: () => 5,
+    });
+    const target = client;
+    target.start();
+    await until(target, (s) => s.connection.status === 'connected');
+    suspended = true;
+    target.retryNow('resume');
+    await until(target, (s) => {
+      host.push('botharness/followRoster', latest[0]);
+      return (
+        s.connection.status === 'connected' && s.roster?.bots[0]?.preview === 'mobile tracer probe'
+      );
+    });
+    expect(sockets).toBe(2);
+    let liveEvents = 0;
+    target.onLive(() => liveEvents++);
+    closeOld();
+    host.push('botharness/followRoster', latest[0]);
+    expect(liveEvents).toBe(1);
+    expect(target.getSnapshot().connection.status).toBe('connected');
+  });
+
+  it.each(['complete', 'timeout'] as const)(
+    'defers foreground recovery until an accepted write %ss without replaying it',
+    async (outcome) => {
+      const host = new FakeHost();
+      let complete!: () => void;
+      host.methods.set(
+        'pending-write',
+        () =>
+          new Promise<void>((resolve) => {
+            complete = resolve;
+          }),
+      );
+      let sockets = 0;
+      let closes = 0;
+      client = createHostClient({
+        routes: [ROUTE],
+        credential: host.credential,
+        timeoutMs: 100,
+        carrier: {
+          ...host.carrier,
+          close: () => {
+            closes++;
+          },
+          openSocket: (...args) => {
+            sockets++;
+            return host.carrier.openSocket(...args);
+          },
+          request: async (url, init) => {
+            const response = host.carrier.request(url, init);
+            if (!url.endsWith('/pending-write')) return response;
+            return Promise.race([
+              response,
+              new Promise<never>((_, reject) => {
+                init.signal.addEventListener('abort', () => reject(new Error('aborted')), {
+                  once: true,
+                });
+              }),
+            ]);
+          },
+        },
+      });
+      const target = client;
+      target.start();
+      await until(target, (s) => s.connection.status === 'connected');
+      const pending = target.call('pending-write').then(
+        () => 'complete',
+        () => 'timeout',
+      );
+      await until(target, () => typeof complete === 'function');
+      target.retryNow('resume');
+      expect(closes).toBe(0);
+      expect(sockets).toBe(1);
+      if (outcome === 'complete') complete();
+      expect(await pending).toBe(outcome);
+      await until(target, (s) => s.connection.status === 'connected' && sockets === 2);
+      expect(host.calls.filter((entry) => entry.method === 'pending-write')).toHaveLength(1);
+    },
+  );
+  it('backs a failing Host off to minutes instead of retrying every few seconds', () => {
+    expect(defaultBackoff(1)).toBe(500);
+    expect(defaultBackoff(6)).toBe(16_000);
+    expect(defaultBackoff(12)).toBe(MAX_RECONNECT_DELAY_MS);
+    expect(defaultBackoff(40)).toBe(MAX_RECONNECT_DELAY_MS);
+    expect(MAX_RECONNECT_DELAY_MS).toBe(300_000);
+  });
+
+  it('stops calling a Host once it no longer accepts this phone', async () => {
+    const host = new FakeHost();
+    const target = connect(host);
+    await until(target, (state) => state.connection.status === 'connected');
+    host.revoke();
+    await until(target, (state) => state.connection.status === 'refused');
+    const before = host.requests.length;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(host.requests.length).toBe(before);
+  });
+
+  it('keeps backing off when connections keep dropping right after they open', async () => {
+    const host = new FakeHost();
+    const attempts: number[] = [];
+    client = createHostClient({
+      routes: [ROUTE],
+      credential: host.credential,
+      carrier: host.carrier,
+      backoff: (attempt) => {
+        attempts.push(attempt);
+        return 5;
+      },
+      timeoutMs: 200,
+    });
+    client.start();
+    const target = client;
+    for (let cycle = 0; cycle < 3; cycle += 1) {
+      await until(target, (state) => state.connection.status === 'connected');
+      host.kill();
+      await until(target, (state) => state.connection.status !== 'connected');
+      host.restart();
+    }
+    await until(target, (state) => state.connection.status === 'connected');
+    expect(attempts).toEqual([1, 2, 3]);
+  });
+
+  it('reuses the roster and sorting it just read when reconnecting, and reads them fresh on refresh', async () => {
+    const host = new FakeHost();
+    const target = connect(host);
+    const count = (method: string) => host.calls.filter((call) => call.method === method).length;
+    await until(target, (state) => state.connection.status === 'connected');
+    host.kill();
+    await until(target, (state) => state.connection.status !== 'connected');
+    host.restart();
+    await until(target, (state) => state.connection.status === 'connected');
+    expect(count('settings/describe')).toBe(1);
+    expect(count('rosterGet')).toBe(1);
+    await target.refresh();
+    expect(count('settings/describe')).toBe(2);
+    expect(count('rosterGet')).toBe(2);
+  });
+
+  it('reads the roster and sorting fresh when a roster change arrives during a reconnect reload', async () => {
+    const host = new FakeHost();
+    const target = connect(host);
+    const count = (method: string) => host.calls.filter((call) => call.method === method).length;
+    await until(target, (state) => state.connection.status === 'connected');
+    let armed = false;
+    host.methods.set('list', () => {
+      if (armed && host.push('botharness/followRoster', { type: 'changed' })) armed = false;
+      return recordedBot.result.value;
+    });
+    host.kill();
+    await until(target, (state) => state.connection.status !== 'connected');
+    armed = true;
+    host.restart();
+    await until(target, (state) => state.connection.status === 'connected');
+    await until(target, () => count('settings/describe') >= 2);
+    expect(count('rosterGet')).toBeGreaterThanOrEqual(2);
+  });
+
+  it('reads the roster and sorting fresh when the Human retries after a disconnect', async () => {
+    const host = new FakeHost();
+    client = createHostClient({
+      routes: [ROUTE],
+      credential: host.credential,
+      carrier: host.carrier,
+      backoff: () => 60_000,
+      timeoutMs: 200,
+    });
+    client.start();
+    const target = client;
+    const count = (method: string) => host.calls.filter((call) => call.method === method).length;
+    await until(target, (state) => state.connection.status === 'connected');
+    host.kill();
+    await until(target, (state) => state.connection.status !== 'connected');
+    host.restart();
+    target.retryNow('manual_retry');
+    await until(target, (state) => state.connection.status === 'connected');
+    expect(count('rosterGet')).toBe(2);
+    expect(count('settings/describe')).toBe(2);
+  });
+
+  it('does not reuse a roster arrangement whose last read failed', async () => {
+    const host = new FakeHost();
+    const target = connect(host);
+    const count = (method: string) => host.calls.filter((call) => call.method === method).length;
+    await until(target, (state) => state.connection.status === 'connected');
+    host.failing.add('rosterGet');
+    await expect(target.refresh()).rejects.toThrow();
+    host.failing.delete('rosterGet');
+    host.kill();
+    await until(target, (state) => state.connection.status !== 'connected');
+    host.restart();
+    await until(target, (state) => state.connection.status === 'connected');
+    expect(count('rosterGet')).toBeGreaterThanOrEqual(3);
+  });
+
+  it('does not download the settings again on every failed reconnect', async () => {
+    const host = new FakeHost();
+    const target = connect(host);
+    const count = (method: string) => host.calls.filter((call) => call.method === method).length;
+    await until(target, (state) => state.connection.status === 'connected');
+    host.failing.add('channels');
+    host.kill();
+    await until(target, (state) => state.connection.status !== 'connected');
+    host.restart();
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect(count('channels')).toBeGreaterThan(2);
+    expect(count('settings/describe')).toBe(1);
+  });
+
   it('preserves the Host-owned Tob marker for deletion menus', async () => {
     const host = new FakeHost();
     host.methods.set('list', () => ({
@@ -127,6 +494,82 @@ describe('Host client', () => {
     expect(snapshot.roster?.activityChannels).toEqual(wire.activityJournal.channels);
     expect(snapshot.roster?.channels.map((channel) => channel.id)).toEqual(['group-research']);
   });
+  it('keeps the channel list in the local store and later asks only for what changed (C3)', async () => {
+    const store: LocalStore = await openLocalStore(nodeSqlConnection());
+    const host = new FakeHost();
+    const channels = wire.activityJournal.channels;
+    host.methods.set('channels', () => ({ channels }));
+    host.methods.set('channelChangeCursor', () => ({ epoch: 'e', seq: 5 }));
+    host.methods.set('channelListChanges', () => ({
+      channels: [{ ...channels.find((item) => item.id === 'group-research')!, name: 'Renamed' }],
+      removed: [],
+      cursor: { epoch: 'e', seq: 7 },
+    }));
+    const localStore = () => Promise.resolve(store);
+    const first = createHostClient({
+      routes: [ROUTE],
+      credential: host.credential,
+      carrier: host.carrier,
+      backoff: () => 5,
+      timeoutMs: 200,
+      localStore,
+    });
+    first.start();
+    await until(first, (state) => state.connection.status === 'connected');
+    first.stop();
+    expect(host.calls.map((call) => call.method)).toContain('channels');
+    await vi.waitFor(async () =>
+      expect(await store.get('select record from list_bots')).toBeDefined(),
+    );
+    host.calls.length = 0;
+    host.up = false;
+    client = createHostClient({
+      routes: [ROUTE],
+      credential: host.credential,
+      carrier: host.carrier,
+      backoff: () => 5,
+      timeoutMs: 200,
+      localStore,
+    });
+    client.start();
+    const painted = await until(client, (state) => state.roster !== undefined, 50);
+    expect(painted.connection.status).not.toBe('connected');
+    expect(painted.roster?.channels.map((channel) => channel.id)).toEqual(['group-research']);
+    expect(painted.roster?.bots.length).toBeGreaterThan(0);
+    host.up = true;
+    const synced = await until(
+      client,
+      (state) => state.roster?.channels.some((channel) => channel.name === 'Renamed') === true,
+    );
+    expect(synced.roster?.channels.map((channel) => channel.id)).toEqual(['group-research']);
+    expect(host.calls.map((call) => call.method)).not.toContain('channels');
+    expect(host.calls.find((call) => call.method === 'channelListChanges')?.args).toEqual({
+      sinceSeq: 5,
+      epoch: 'e',
+    });
+    client.stop();
+    await store.close();
+  });
+
+  it('still lists channels from the Host when the local store fails', async () => {
+    const store = await openLocalStore(nodeSqlConnection());
+    await store.close();
+    const host = new FakeHost();
+    host.methods.set('channels', () => ({ channels: wire.activityJournal.channels }));
+    host.methods.set('channelChangeCursor', () => ({ epoch: 'e', seq: 5 }));
+    client = createHostClient({
+      routes: [ROUTE],
+      credential: host.credential,
+      carrier: host.carrier,
+      backoff: () => 5,
+      timeoutMs: 200,
+      localStore: () => Promise.resolve(store),
+    });
+    client.start();
+    const snapshot = await until(client, (state) => state.connection.status === 'connected');
+    expect(snapshot.roster?.channels.map((channel) => channel.id)).toEqual(['group-research']);
+  });
+
   it('calls the device gateway with its credential and renders the recorded Roster', async () => {
     const host = new FakeHost();
     const target = connect(host);
@@ -256,6 +699,10 @@ describe('Host client', () => {
     host.revoke();
     const refused = await until(target, (s) => s.connection.status === 'refused');
     expect(refused.connection).toMatchObject({ code: 'device-revoked' });
+    const attempts = host.requests.length;
+    target.retryNow('resume');
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(host.requests.length).toBe(attempts);
   });
 
   it('asks to pair again when the Host does not know this phone', async () => {
@@ -410,7 +857,7 @@ describe('pairing', () => {
     });
     expect(
       await redeemPairing({ payload: parsed.payload, deviceName: 'iPhone', carrier: host.carrier }),
-    ).toEqual({ ok: false, code: 'offer-invalid' });
+    ).toEqual({ ok: false, code: 'offer-invalid', detail: 'remote:refused-offer-invalid' });
   });
 });
 

@@ -270,7 +270,7 @@ try {
     await assertUI(scene, 1, 0);
     const refreshed = await host(scene.slug);
     assert.deepEqual(refreshed, pending);
-    await page.click('.bh-human-inbox-entry');
+    await page.click('.bh-activity-list-entry');
     await page.waitForSelector(
       `.bh-overview-bot[data-bot-id="${scene.slug}"] .bh-avatar-attention`,
     );

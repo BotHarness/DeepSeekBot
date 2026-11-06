@@ -81,6 +81,12 @@ async function blobBytes(blob: Blob, signal: AbortSignal): Promise<Uint8Array> {
   });
 }
 
+function sendFailure(error: unknown): string {
+  if (error instanceof TypeError) return 'send-not-ready';
+  const message = error instanceof Error ? error.message : '';
+  return /(?:channel|lan)-[a-z-]{1,40}/u.exec(message)?.[0] ?? 'send-failed';
+}
+
 export function openNoiseSocket(options: {
   origin: string;
   hostId: string;
@@ -125,10 +131,17 @@ export function openNoiseSocket(options: {
   try {
     socket = options.raw.openSocket(`${socketOrigin(options.origin)}${CONNECT_CHANNEL_PATH}`, {
       open: () => {
+        let first: string;
         try {
-          socket.send(channel.start());
+          first = channel.start();
         } catch {
-          fail('channel-handshake-failed');
+          fail('channel-handshake-failed:start-failed');
+          return;
+        }
+        try {
+          socket.send(first);
+        } catch (error) {
+          fail(`channel-handshake-failed:${sendFailure(error)}`);
         }
       },
       message: (wire) => {

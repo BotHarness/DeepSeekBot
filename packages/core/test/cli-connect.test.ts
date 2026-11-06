@@ -30,6 +30,7 @@ describe('connect CLI', () => {
         routes: { routes: [] },
         connect: {
           state: 'off',
+          account: { state: 'error', issue: 'relay-unavailable', recovery: 'sign-in' },
           encryption: {
             protocol: 'connect-noise-xk-v1',
             required: true,
@@ -46,6 +47,7 @@ describe('connect CLI', () => {
     ).toEqual({
       connect: {
         state: 'off',
+        account: { state: 'error', issue: 'relay-unavailable', recovery: 'sign-in' },
         encryption: {
           protocol: 'connect-noise-xk-v1',
           required: true,

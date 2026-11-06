@@ -460,7 +460,10 @@ describe('Assignment collaboration', () => {
           activity: 'error',
           latestReport: { state: 'progress', summary: 'Evidence before cancellation' },
         });
-        expect(runtime.getAssignment('ada', run.sessionId)?.continuityKey).toBeUndefined();
+        expect(runtime.getAssignment('ada', run.sessionId)?.continuityKey).toBe('cancel-direction');
+        expect(notice.summary).toContain(
+          'send_assignment_request with this Session id continues it',
+        );
         const payload = attachOperationalModule(owner, 'native-cancel-payload').read((db) =>
           db
             .prepare('SELECT payload_json FROM source_events WHERE source_event_id = ?')
@@ -510,6 +513,19 @@ describe('Assignment collaboration', () => {
           notice.id,
         );
         expect(recoveredAgents.started).toHaveLength(0);
+        const continued = recoveredAgents.access!.request({
+          sessionId: run.sessionId,
+          mode: 'next-turn',
+          text: 'Continue the cancelled work',
+        });
+        expect(continued).toMatchObject({ delivery: 'followup' });
+        expect(recoveredAgents.resumed).toHaveLength(1);
+        expect(recoveredAgents.resumed[0]!.text).toContain('did not finish cleanly');
+        expect(recoveredAgents.resumed[0]!.text).toContain('Continue the cancelled work');
+        await Promise.resolve();
+        recoveredAgents.finish(run.sessionId);
+        await recovered.whenIdle();
+        expect(recovered.getAssignment('ada', run.sessionId)?.activity).toBe('idle');
       } finally {
         await recovered?.close();
         reopened?.close();
@@ -2718,7 +2734,9 @@ describe('Assignment collaboration', () => {
           sessionId,
           activity: 'error',
         });
-        expect(recovered.getAssignment('ada', sessionId)?.continuityKey).toBeUndefined();
+        expect(recovered.getAssignment('ada', sessionId)?.continuityKey).toBe(
+          'unfinished-direction',
+        );
         expect(recovered.getAssignment('ada', sessionId)?.executionWait).toBeUndefined();
         const after = createBotAttentionQuery(
           attachOperationalModule(reopened, 'active-crash-after'),
@@ -2789,23 +2807,19 @@ describe('Assignment collaboration', () => {
         });
         if (!admission.admitted) throw new Error('Human message refused');
         await admission.settled;
-        expect(() =>
-          secondAgents.access!.request({
-            sessionId,
-            mode: 'next-turn',
-            text: 'Resume crashed work',
-          }),
-        ).toThrow('failed; start a new Assignment');
-        const replacement = secondAgents.access!.create({
+        const continued = secondAgents.access!.create({
           title: 'Assignment',
           grantId: TEST_GRANT_ID,
-          description: 'Replacement investigation',
+          description: 'Resume crashed work',
           key: 'unfinished-direction',
         });
+        expect(continued).toMatchObject({ outcome: 'reused', assignment: { sessionId } });
+        expect(secondAgents.resumed).toHaveLength(1);
+        expect(secondAgents.resumed[0]!.text).toContain('did not finish cleanly');
+        await Promise.resolve();
         secondAgents.finishAll();
-        expect(replacement.outcome).toBe('created');
-        if (replacement.outcome === 'created')
-          expect(replacement.assignment.sessionId).not.toBe(sessionId);
+        await recovered.whenIdle();
+        expect(recovered.getAssignment('ada', sessionId)?.activity).toBe('idle');
       } finally {
         coldAgents.finishAll();
         await recovered?.close();
@@ -2849,9 +2863,9 @@ describe('Assignment collaboration', () => {
       assignmentConcurrencyLimit: 1,
     });
     expect(resumed.getAssignment('ada', created.assignment.sessionId)?.activity).toBe('error');
-    expect(
-      resumed.getAssignment('ada', created.assignment.sessionId)?.continuityKey,
-    ).toBeUndefined();
+    expect(resumed.getAssignment('ada', created.assignment.sessionId)?.continuityKey).toBe(
+      'restart-direction',
+    );
     const admission = resumed.admitDmMessage({
       channelId: dmChannelId,
       messageId: 'human-after-restart',
@@ -2866,9 +2880,11 @@ describe('Assignment collaboration', () => {
       description: '新事项',
       key: 'restart-direction',
     });
-    expect(replacement.outcome).toBe('created');
-    if (replacement.outcome === 'created')
-      expect(replacement.assignment.sessionId).not.toBe(created.assignment.sessionId);
+    expect(replacement).toMatchObject({
+      outcome: 'reused',
+      assignment: { sessionId: created.assignment.sessionId },
+    });
+    await Promise.resolve();
     resumedAgents.finishAll();
     await resumed.whenIdle();
     await resumed.close();

@@ -13,6 +13,7 @@ export const DEFAULT_PUSH_PREFERENCES: PushPreferences = {
   reply: true,
 };
 
+const RESOLVED_LIMIT = 50;
 const MAX_ATTEMPTS = 3;
 const RETRY_BASE_MS = 1_000;
 const RECEIPT_DELAY_MS = 15 * 60 * 1000;
@@ -56,6 +57,7 @@ export interface PushData {
   badge?: number;
   test?: true;
   deviceId?: string;
+  resolved?: string[];
 }
 
 export interface ExpoMessage {
@@ -69,6 +71,13 @@ export interface ExpoMessage {
   channelId?: string;
   categoryId?: string;
   mutableContent?: true;
+  _contentAvailable?: true;
+}
+
+function keepDelivered(message: ExpoMessage): ExpoMessage {
+  if (message.badge !== 0) return message;
+  const { badge: _badge, ...rest } = message;
+  return { ...rest, _contentAvailable: true, data: { ...message.data, badge: 0 } };
 }
 
 export type ExpoTicket =
@@ -98,9 +107,10 @@ export type PushEvent =
   | {
       phase: 'sent';
       deviceId: string;
-      kind: PushKind | 'badge' | 'test' | 'device-paired';
+      kind: PushKind | 'badge' | 'resolve' | 'test' | 'device-paired';
       outcome: 'ok' | 'error';
       code?: string;
+      ageMs?: number;
     }
   | { phase: 'retry'; deviceId: string; attempt: number; code: string }
   | { phase: 'send-failed'; deviceId: string; count: number; code: string }
@@ -296,7 +306,7 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
     options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const record = options.record ?? (() => {});
   const iso = (): string => new Date(now()).toISOString();
-  const tickets = new Map<string, { deviceId: string; sentAt: number }>();
+  const tickets = new Map<string, { deviceId: string; token: string; sentAt: number }>();
   let running: Promise<void> | undefined;
   let again = false;
 
@@ -361,16 +371,24 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
     if (drop(deviceId)) record({ phase: 'token-dropped', deviceId, code });
   };
 
+  const dropInvalidToken = (deviceId: string, token: string): void => {
+    if (row(deviceId)?.token === token) dropToken(deviceId, 'device-not-registered');
+  };
+
   const deliver = async (
     device: DeviceRow,
-    messages: ExpoMessage[],
-    kinds: Array<PushKind | 'badge' | 'test' | 'device-paired'>,
+    input: ExpoMessage[],
+    kinds: Array<PushKind | 'badge' | 'resolve' | 'test' | 'device-paired'>,
+    createdAt: ReadonlyArray<string | undefined> = [],
   ): Promise<boolean> => {
+    const messages = device.platform === 'ios' ? input.map(keepDelivered) : input;
     for (let start = 0; start < messages.length; start += BATCH) {
       const batch = messages.slice(start, start + BATCH);
       let result: ExpoTicket[] | undefined;
+      let handedAt = now();
       for (let attempt = 1; result === undefined; attempt += 1) {
         try {
+          handedAt = now();
           result = await sender.send(batch);
         } catch (error) {
           const code = error instanceof Error ? error.message : 'send-failed';
@@ -386,18 +404,24 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
       let unregistered = false;
       result.forEach((ticket, index) => {
         const kind = kinds[start + index] ?? 'badge';
+        const created = Date.parse(createdAt[start + index] ?? '');
+        const age = Number.isFinite(created) ? { ageMs: Math.max(0, handedAt - created) } : {};
         if (ticket.status === 'ok') {
-          record({ phase: 'sent', deviceId: device.device_id, kind, outcome: 'ok' });
+          record({ phase: 'sent', deviceId: device.device_id, kind, outcome: 'ok', ...age });
           if (tickets.size < MAX_PENDING_RECEIPTS)
-            tickets.set(ticket.id, { deviceId: device.device_id, sentAt: now() });
+            tickets.set(ticket.id, {
+              deviceId: device.device_id,
+              token: device.token,
+              sentAt: now(),
+            });
           return;
         }
         const code = ticket.details?.error ?? 'error';
-        record({ phase: 'sent', deviceId: device.device_id, kind, outcome: 'error', code });
+        record({ phase: 'sent', deviceId: device.device_id, kind, outcome: 'error', code, ...age });
         if (code === 'DeviceNotRegistered') unregistered = true;
       });
       if (unregistered) {
-        dropToken(device.device_id, 'device-not-registered');
+        dropInvalidToken(device.device_id, device.token);
         return false;
       }
     }
@@ -493,12 +517,27 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
           data,
         };
       });
-      const kinds: Array<PushKind | 'badge'> = notify.map((item) => item.kind);
-      if (messages.length === 0 && device.badge !== badge) {
+      const kinds: Array<PushKind | 'badge' | 'resolve'> = notify.map((item) => item.kind);
+      const created: Array<string | undefined> = notify.map((item) => item.createdAt);
+      const resolve =
+        gone.length === 0
+          ? undefined
+          : device.platform === 'ios'
+            ? { to: device.token, badge, _contentAvailable: true as const }
+            : device.render === 'app'
+              ? { to: device.token, priority: 'high' as const }
+              : undefined;
+      if (resolve !== undefined) {
+        for (let start = 0; start < gone.length; start += RESOLVED_LIMIT) {
+          const resolved = gone.slice(start, start + RESOLVED_LIMIT);
+          messages.push({ ...resolve, data: { v: 1, hostId, resolved } });
+          kinds.push('resolve');
+        }
+      } else if (messages.length === 0 && device.badge !== badge) {
         messages.push({ to: device.token, badge, data: { v: 1, hostId } });
         kinds.push('badge');
       }
-      if (messages.length > 0 && (await deliver(device, messages, kinds)))
+      if (messages.length > 0 && (await deliver(device, messages, kinds, created)))
         database.transaction(
           (db) =>
             db
@@ -687,7 +726,7 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
           tickets.delete(id);
           const receipt = receipts[id];
           if (receipt?.status === 'error' && receipt.details?.error === 'DeviceNotRegistered')
-            dropToken(ticket.deviceId, 'device-not-registered');
+            dropInvalidToken(ticket.deviceId, ticket.token);
         }
       }
     },

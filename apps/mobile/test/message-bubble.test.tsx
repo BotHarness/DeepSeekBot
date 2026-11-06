@@ -46,6 +46,7 @@ vi.mock('react-native', async () => {
         'source',
         'recyclingKey',
         'cachePolicy',
+        'nativeID',
       ])
         if (props[key] !== undefined)
           attributes[`data-${key.toLowerCase()}`] =
@@ -66,6 +67,7 @@ vi.mock('react-native', async () => {
     return Component;
   };
   return {
+    I18nManager: { isRTL: false },
     useWindowDimensions,
     Dimensions: {
       get: useWindowDimensions,
@@ -188,6 +190,39 @@ const human = (overrides: Partial<ConversationMessage>): ConversationMessage => 
   attachments: [],
   delivery: 'committed',
   ...overrides,
+});
+
+describe('reply swipe touch region', () => {
+  it('leaves the speaker and row space outside the reply gesture', () => {
+    const container = document.createElement('div');
+    container.innerHTML = renderToStaticMarkup(
+      <MessageBubble
+        message={human({ author: 'bot', bot: 'ada', body: 'On it' })}
+        speaker={{ name: 'Ada', bot: undefined, group: 'g', first: true, last: true }}
+        onReply={() => undefined}
+      />,
+    );
+    const region = container.querySelector('[data-nativeid="horizontal-swipe-owner"]')!;
+    expect(region).not.toBeNull();
+    expect(region.textContent).not.toContain('Ada');
+    expect(region.parentElement?.textContent).not.toContain('Ada');
+    expect(container.textContent).toContain('Ada');
+  });
+
+  it('leaves the delivery control beside a human bubble outside the reply gesture', () => {
+    const container = document.createElement('div');
+    container.innerHTML = renderToStaticMarkup(
+      <MessageBubble
+        message={human({ mentions: [{ botSlug: 'ada', label: 'Ada', start: 0, end: 3 }] })}
+        onOpenDelivery={() => undefined}
+        onReply={() => undefined}
+      />,
+    );
+    const region = container.querySelector('[data-nativeid="horizontal-swipe-owner"]')!;
+    expect(region.textContent).toContain('hello');
+    expect(container.querySelector('[data-accessibilityrole="button"]')).not.toBeNull();
+    expect(region.querySelector('[data-accessibilityrole="button"]')).toBeNull();
+  });
 });
 
 describe('message delivery receipt', () => {

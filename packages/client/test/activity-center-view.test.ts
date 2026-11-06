@@ -8,7 +8,7 @@ vi.mock('../src/client/bot-sidebar.js', async () => {
   return { useClientState: () => useSyncExternalStore(store.subscribe, store.getSnapshot) };
 });
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
-  ...(await import('./human-inbox-test-controls.js')),
+  ...(await import('./activity-list-test-controls.js')),
   Button: ({ children, ...props }: { children: ReactNode }) =>
     createElement('button', props, children),
   MarkdownText: () => null,
@@ -115,8 +115,8 @@ async function scenario(placement: 'page' | 'panel', mode: 'success' | 'retry' |
       (node) => node.textContent?.trim() === text,
     );
   store.select(placement === 'panel' ? { kind: 'bot', slug: 'other' } : { kind: 'inbox' });
-  store.setHumanInbox({
-    ...previous.humanInbox,
+  store.setActivityList({
+    ...previous.activityList,
     category: 'action',
     sort: 'oldest',
     status: 'idle',
@@ -129,25 +129,25 @@ async function scenario(placement: 'page' | 'panel', mode: 'success' | 'retry' |
     await act(async () => root.render(createElement(ActivityCenterView, { actions, placement })));
     expect(button('允许这次')).toBeDefined();
     expect(container.querySelector('[role="dialog"]')).toBeNull();
-    expect(container.querySelector('.bh-human-inbox-detail')).toBeNull();
+    expect(container.querySelector('.bh-activity-list-detail')).toBeNull();
     expect(container.querySelector('.bh-overview')).toBeNull();
     expect(button('始终允许这里除密钥命令外的所有工具')).toBeUndefined();
     expect(container.textContent).toContain('echo APPROVAL_2026');
     expect(container.textContent).not.toContain('Check release files.');
     expect(calls.some((entry) => entry.endpoint === 'activityOverview')).toBe(false);
     expect(calls.some((entry) => entry.endpoint === 'channelMarkRead')).toBe(false);
-    expect(container.querySelector('.bh-human-inbox-batch')).toBeNull();
+    expect(container.querySelector('.bh-activity-list-batch')).toBeNull();
     await act(async () => button('选择')!.click());
-    expect(container.querySelector('.bh-human-inbox-batch')).not.toBeNull();
+    expect(container.querySelector('.bh-activity-list-batch')).not.toBeNull();
     expect(container.querySelector('[role="tablist"]')).toBeNull();
-    expect(container.querySelector('.bh-human-inbox-filters')).toBeNull();
+    expect(container.querySelector('.bh-activity-list-filters')).toBeNull();
     if (placement === 'page') {
       const settings = () =>
         container.querySelector<HTMLButtonElement>('header button[aria-label="通知设置"]')!;
       await act(async () => settings().click());
       await act(async () => button('最新在前')!.click());
       expect(activityFeedFor(actions).getSnapshot().query.sort).toBe('newest');
-      expect(container.querySelector('.bh-human-inbox-batch')).toBeNull();
+      expect(container.querySelector('.bh-activity-list-batch')).toBeNull();
       expect(
         calls
           .filter(
@@ -166,9 +166,9 @@ async function scenario(placement: 'page' | 'panel', mode: 'success' | 'retry' |
     }
 
     await act(async () => button('取消')!.click());
-    expect(container.querySelector('.bh-human-inbox-batch')).toBeNull();
+    expect(container.querySelector('.bh-activity-list-batch')).toBeNull();
     await act(async () => button('查看上下文')!.click());
-    expect(container.querySelector('.bh-activity-approval .bh-human-inbox-reply')).not.toBeNull();
+    expect(container.querySelector('.bh-activity-approval .bh-activity-list-reply')).not.toBeNull();
     expect(container.querySelectorAll('.bh-tool-approval-card')).toHaveLength(1);
     expect(container.textContent).toContain('Check release files.');
     await act(async () => button('收起上下文')!.click());
@@ -210,7 +210,7 @@ async function scenario(placement: 'page' | 'panel', mode: 'success' | 'retry' |
     await act(async () => root.unmount());
     container.remove();
     store.select(previous.selection);
-    store.setHumanInbox(previous.humanInbox);
+    store.setActivityList(previous.activityList);
   }
 }
 
@@ -246,10 +246,27 @@ it('keeps a newer unread query when read reconciliation returns an older snapsho
   }, store);
   const reading = actions.markAllRead();
   await started;
-  await actions.refreshHumanInboxStatus();
+  const refreshing = actions.refreshActivityListStatus();
   release?.();
-  await reading;
-  expect(store.getSnapshot().humanInbox.unreadCount).toBe(1);
+  await Promise.all([reading, refreshing]);
+  expect(statusQueries).toBe(2);
+  expect(store.getSnapshot().activityList.unreadCount).toBe(1);
+});
+
+it('runs one status read at a time and one more for refreshes that arrive meanwhile', async () => {
+  let statusQueries = 0;
+  const actions = createActions(async (endpoint) => {
+    if (endpoint === 'humanAttentionStatus') {
+      statusQueries++;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      return { ok: true, value: { unreadCount: statusQueries, hasAction: false } };
+    }
+    if (endpoint === 'channelUnreadCounts') return { ok: true, value: { channels: [] } };
+    throw new Error(endpoint);
+  }, store);
+  await Promise.all(Array.from({ length: 5 }, () => actions.refreshActivityListStatus()));
+  expect(statusQueries).toBe(2);
+  expect(store.getSnapshot().activityList.unreadCount).toBe(2);
 });
 
 it('keeps the loaded empty panel DOM stable during a background request', async () => {

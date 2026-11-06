@@ -238,7 +238,7 @@ try {
     await assertUI(scene, 1);
     const refreshed = await host(bot.slug);
     assert.equal(refreshed.revision, pending.revision);
-    await page.evaluate(() => document.querySelector('.bh-human-inbox-entry')?.click());
+    await page.evaluate(() => document.querySelector('.bh-activity-list-entry')?.click());
     await page.waitForSelector(`.bh-overview-bot[data-bot-id="${bot.slug}"] .bh-avatar-attention`);
     await shot('overview-question-attention');
     await open(channelId);

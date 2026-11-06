@@ -412,7 +412,7 @@ describe('Bot main Sessions pane', () => {
       store.setConversation(previous.conversation);
       store.setSessions(previous.sessions);
       store.setBotInbox(previous.botInbox);
-      store.setHumanInbox(previous.humanInbox);
+      store.setActivityList(previous.activityList);
     }
   });
 

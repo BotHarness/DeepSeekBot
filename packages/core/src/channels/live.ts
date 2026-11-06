@@ -1,10 +1,10 @@
 import type { PersonaBotActivitySnapshot } from '../state/bot-state.js';
 import type { PurgedPlacement } from '../purge/contracts.js';
-import { isChannelNotice } from './channel-notice.js';
+import { channelPreviewMessage, isChannelNotice } from './channel-notice.js';
 import type { ChannelDraft, ChannelDraftEvent } from './draft.js';
 import type { ChannelMessage, ChannelReaction } from './channel.js';
 import type { ChannelMessageCommit, ChannelStore } from './store.js';
-import { MAX_MESSAGE_PAGE, type ChannelJournalPage } from './timeline.js';
+import { MAX_MESSAGE_PAGE, type ChannelChangeCursor, type ChannelJournalPage } from './timeline.js';
 
 export const CHANNEL_STREAM_PATH = '/api/botharness/stream';
 export const CHANNEL_COMMIT_EVENT = 'channel/message';
@@ -12,6 +12,7 @@ export const CHANNEL_ADMISSION_EVENT = 'channel/admission';
 export const CHANNEL_HUMAN_READ_EVENT = 'channel/human-read';
 export const CHANNEL_REACTION_EVENT = 'channel/reaction';
 export const CHANNEL_VOICE_EVENT = 'channel/voice';
+export const CHANNEL_ATTACHMENTS_EVENT = 'channel/attachments';
 export const CHANNEL_DRAFT_EVENT = 'channel/draft';
 export const CHANNEL_DRAFT_APPEND_EVENT = 'channel/draft-append';
 export const CHANNEL_DRAFT_BASELINE_EVENT = 'channel/draft-baseline';
@@ -54,6 +55,7 @@ interface Subscriber {
   pushHumanRead(humanId: string, revision: number): void;
   pushReaction(messageId: string, reactions: ChannelReaction[]): void;
   pushVoice(messageId: string, message: ChannelMessage): void;
+  pushAttachments(messageId: string, message: ChannelMessage): void;
   close(): void;
 }
 
@@ -85,6 +87,13 @@ export type ChannelLiveNotification =
       voice: NonNullable<ChannelMessage['voice']>;
       attachments: NonNullable<ChannelMessage['attachments']>;
     }
+  | {
+      kind: 'attachments';
+      channelId: string;
+      messageId: string;
+      attachments: NonNullable<ChannelMessage['attachments']>;
+      clearedAttachments: NonNullable<ChannelMessage['clearedAttachments']>;
+    }
   | { kind: 'draft-baseline'; channelId: string; revision: number; drafts: PublishedDraft[] }
   | { kind: 'draft'; draft: PublishedDraft }
   | { kind: 'draft-append'; append: PublishedDraftAppend }
@@ -94,7 +103,12 @@ export type ChannelLiveNotification =
     };
 
 export type ChannelLiveFrame =
-  | { type: 'opened'; cursor: number; page?: ChannelJournalPage }
+  | {
+      type: 'opened';
+      cursor: number;
+      page?: ChannelJournalPage;
+      changes?: ChannelChangeCursor;
+    }
   | { type: 'entry'; entry: { channelId: string; message: ChannelMessage; revision: number } }
   | { type: 'notification'; notification: ChannelLiveNotification };
 
@@ -130,6 +144,10 @@ function encodeChannelFrame(frame: ChannelLiveFrame): string {
   if (notification.kind === 'voice') {
     const { kind: _kind, ...data } = notification;
     return `event: ${CHANNEL_VOICE_EVENT}\ndata: ${JSON.stringify(data)}\n\n`;
+  }
+  if (notification.kind === 'attachments') {
+    const { kind: _kind, ...data } = notification;
+    return `event: ${CHANNEL_ATTACHMENTS_EVENT}\ndata: ${JSON.stringify(data)}\n\n`;
   }
   if (notification.kind === 'draft-baseline') {
     const { kind: _kind, ...data } = notification;
@@ -170,6 +188,7 @@ export interface ChannelLiveHub {
   publishHumanRead(channelId: string, humanId: string, revision: number): void;
   publishReaction(channelId: string, messageId: string, reactions: ChannelReaction[]): void;
   publishVoice(channelId: string, messageId: string, message: ChannelMessage): void;
+  publishAttachments(channelId: string, messageId: string, message: ChannelMessage): void;
   publishDraft(event: ChannelDraftEvent): void;
   publishRosterCommitted(): void;
   publishContentPurged(): void;
@@ -641,6 +660,18 @@ export function createChannelLiveHub(
           },
         });
       },
+      pushAttachments(messageId, message) {
+        emit({
+          type: 'notification',
+          notification: {
+            kind: 'attachments',
+            channelId,
+            messageId,
+            attachments: message.attachments ?? [],
+            clearedAttachments: message.clearedAttachments ?? [],
+          },
+        });
+      },
       pushDraft(event) {
         emit({
           type: 'notification',
@@ -697,14 +728,22 @@ export function createChannelLiveHub(
   ): AsyncGenerator<ChannelLiveFrame> {
     if (typeof channelId !== 'string' || channels.get(channelId) === undefined)
       throw new ChannelLiveRefused('not-found', 'Unknown Channel');
-    if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_MESSAGE_PAGE)
+    if (!Number.isSafeInteger(limit) || limit < 0 || limit > MAX_MESSAGE_PAGE)
       throw new ChannelLiveRefused('invalid', 'Invalid Channel page size');
     if (drafts !== 'full' && drafts !== 'append')
       throw new ChannelLiveRefused('invalid', 'Invalid draft delivery');
     const after = channels.revision(channelId);
-    const page = channels.readHumanJournalPage(channelId, { through: after, limit });
-    if (page === undefined) throw new ChannelLiveRefused('not-found', 'Unknown Channel');
+    const read = channels.readHumanJournalPage(channelId, {
+      through: after,
+      limit: Math.max(limit, 1),
+    });
+    if (read === undefined) throw new ChannelLiveRefused('not-found', 'Unknown Channel');
+    const page =
+      limit === 0
+        ? { entries: [], olderCursor: null, hasOlder: read.entries.length > 0 || read.hasOlder }
+        : read;
     if (signal.aborted) return;
+    const changes = channels.channelChangeHead?.(channelId);
     const queue: ChannelLiveFrame[] = [];
     let ended = false;
     let wake: (() => void) | undefined;
@@ -712,7 +751,11 @@ export function createChannelLiveHub(
       channelId,
       after,
       (frame) => {
-        queue.push(frame.type === 'opened' ? { ...frame, page } : frame);
+        queue.push(
+          frame.type === 'opened'
+            ? { ...frame, page, ...(changes === undefined ? {} : { changes }) }
+            : frame,
+        );
         if (queue.length > CHANNEL_LIVE_QUEUE_LIMIT)
           throw new Error('Channel live consumer is behind');
         wake?.();
@@ -767,6 +810,9 @@ export function createChannelLiveHub(
         return new Response('Unknown Channel', { status: 404 });
       }
       const query = url.searchParams.get('after');
+      const drafts = url.searchParams.get('drafts') ?? 'full';
+      if (drafts !== 'full' && drafts !== 'append')
+        return new Response('Invalid draft delivery', { status: 400 });
       const lastEventId = request.headers.get('Last-Event-ID');
       const requested = query === null ? 0 : parseRevision(query);
       const resumed = lastEventId === null ? 0 : parseRevision(lastEventId);
@@ -793,6 +839,7 @@ export function createChannelLiveHub(
                 controller.close();
               } catch {}
             },
+            drafts,
           );
           heartbeat = setInterval(() => {
             try {
@@ -816,9 +863,10 @@ export function createChannelLiveHub(
     },
     publishCommitted(commit) {
       for (const subscriber of subscribers.get(commit.channelId) ?? []) subscriber.push(commit);
-      if (!isChannelNotice(commit.message))
-        for (const subscriber of rosterSubscribers)
-          subscriber.latest(commit.channelId, commit.message);
+      if (!isChannelNotice(commit.message)) {
+        const preview = channelPreviewMessage(commit.message);
+        for (const subscriber of rosterSubscribers) subscriber.latest(commit.channelId, preview);
+      }
       if (commit.message.author.kind !== 'bot') return;
       const botSlug = commit.message.author.slug;
       const candidates = [...(drafts.get(commit.channelId)?.values() ?? [])].filter(
@@ -850,6 +898,10 @@ export function createChannelLiveHub(
     publishVoice(channelId, messageId, message) {
       for (const subscriber of subscribers.get(channelId) ?? [])
         subscriber.pushVoice(messageId, message);
+    },
+    publishAttachments(channelId, messageId, message) {
+      for (const subscriber of subscribers.get(channelId) ?? [])
+        subscriber.pushAttachments(messageId, message);
     },
     publishDraft(event) {
       const channelId = event.type === 'update' ? event.draft.channelId : event.channelId;

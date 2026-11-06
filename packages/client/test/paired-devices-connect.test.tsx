@@ -135,6 +135,45 @@ it('explains a refused account', async () => {
   expect(button('登录')).toBeDefined();
 });
 
+it.each(['sign-in', undefined] as const)(
+  'does not promise automatic recovery without Host confirmation (%s)',
+  async (recovery) => {
+    snapshot = devices({
+      state: 'off',
+      account: { state: 'error', issue: 'relay-unavailable', recovery },
+    });
+    await render();
+    expect(host.querySelector('[data-connect-issue]')?.textContent).toBe(
+      '暂时连不上 Tobs 服务，稍后重新登录。',
+    );
+    expect(host.textContent).not.toContain('自动重试');
+    expect(button('登录')).toBeDefined();
+  },
+);
+
+it('describes unavailable local credentials without blaming the Tobs service', async () => {
+  snapshot = devices({
+    state: 'off',
+    account: { state: 'error', issue: 'credential-unavailable' },
+  });
+  await render();
+  expect(host.querySelector('[data-connect-issue]')?.textContent).toBe(
+    '无法读取本机登录凭证，请检查凭证存储后重新登录。',
+  );
+  expect(host.textContent).not.toContain('连不上 Tobs 服务');
+});
+
+it('explains automatic recovery only when the Host can resume the saved session', async () => {
+  snapshot = devices({
+    state: 'off',
+    account: { state: 'error', issue: 'relay-unavailable', recovery: 'automatic' },
+  });
+  await render();
+  expect(host.querySelector('[data-connect-issue]')?.textContent).toBe(
+    zhTranslate('devices.connect.relayDown'),
+  );
+});
+
 it('marks a device paired in the last day so a stranger stands out', async () => {
   const recent = new Date(Date.now() - 60_000).toISOString();
   const old = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();

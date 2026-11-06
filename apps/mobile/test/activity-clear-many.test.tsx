@@ -14,6 +14,7 @@ vi.mock('react-native-svg', () => ({
   Defs: () => null,
   LinearGradient: () => null,
   Rect: () => null,
+  Circle: () => null,
   Stop: () => null,
 }));
 vi.mock('react-native-safe-area-context', () => ({
@@ -45,6 +46,8 @@ vi.mock('../src/ui/primitives/app-dialog', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   showActionMenu: (title: string, actions: Array<{ text: string; onPress?: () => unknown }>) =>
     menus.push({ title, actions }),
+  confirmDestructive: (_title: string, _message: unknown, _action: string, run: () => unknown) =>
+    run(),
 }));
 
 import { secure, remotes } from './host-session-fixture';
@@ -67,7 +70,7 @@ async function settle() {
     await act(async () => new Promise((resolve) => setTimeout(resolve, 5)));
 }
 
-it('clears every Activity item of one kind, then everything, across the visible sections', async () => {
+it('marks everything read from the ⋯ menu, then clears one kind, then everything', async () => {
   const host = new FakeHost('a');
   const cleared = new Set<string>();
   remotes.set('a.tailnet.ts.net', host);
@@ -97,7 +100,7 @@ it('clears every Activity item of one kind, then everything, across the visible 
     summary: 'Done',
     messageId: 'm2',
     sourceEventId: 'e2',
-    isUnread: true,
+    isUnread: true as boolean,
   };
   host.methods.set('humanAttention', (args) => ({
     queryVersion: 1,
@@ -105,6 +108,10 @@ it('clears every Activity item of one kind, then everything, across the visible 
       (item) => item.category === args['category'] && !cleared.has(item.kind),
     ),
   }));
+  host.methods.set('channelMarkAllRead', () => {
+    reply.isUnread = false;
+    return { channels: 1 };
+  });
   host.methods.set('humanAttentionDismissAll', (args) => {
     const kinds = [repair, reply]
       .filter((item) => item.category === args['category'])
@@ -139,19 +146,35 @@ it('clears every Activity item of one kind, then everything, across the visible 
     [...view.querySelectorAll<HTMLElement>('[data-testid^="inbox-row-"]')].map((el) =>
       el.getAttribute('data-testid'),
     );
-  const clearButton = () =>
-    view.querySelector<HTMLElement>('[data-testid="activity-clear-many"]') ?? undefined;
+  const moreButton = () =>
+    view.querySelector<HTMLElement>('[data-testid="activity-more"]') ?? undefined;
   try {
     await act(async () => root.render(createElement(Screen)));
     await settle();
     expect(rows()).toHaveLength(2);
-    await act(async () => clearButton()!.click());
+    await act(async () => moreButton()!.click());
     expect(menus.at(-1)!.actions.map((action) => action.text)).toEqual([
-      t.activityClearAll,
-      t.kind['bot-message-needs-repair'],
-      t.kind['channel-reply'],
+      t.activityMarkAllRead,
+      t.activityClearAllItems,
+      t.activityClearKind(t.kind['bot-message-needs-repair']!),
+      t.activityClearKind(t.kind['channel-reply']!),
     ]);
     expect(host.calls.some((call) => call.method === 'humanAttentionDismissAll')).toBe(false);
+    await act(async () => {
+      await menus.at(-1)!.actions[0]!.onPress!();
+    });
+    await settle();
+    expect(
+      host.calls.filter((call) => call.method === 'channelMarkAllRead').map((call) => call.args),
+    ).toEqual([{}]);
+    expect(view.textContent).toContain(t.activityMarkedAllRead(1));
+    expect(rows()).toHaveLength(2);
+    await act(async () => moreButton()!.click());
+    expect(menus.at(-1)!.actions.map((action) => action.text)).toEqual([
+      t.activityClearAllItems,
+      t.activityClearKind(t.kind['bot-message-needs-repair']!),
+      t.activityClearKind(t.kind['channel-reply']!),
+    ]);
     await act(async () => {
       await menus.at(-1)!.actions[1]!.onPress!();
     });
@@ -167,13 +190,13 @@ it('clears every Activity item of one kind, then everything, across the visible 
     ]);
     expect(rows()).toEqual([`inbox-row-${JSON.stringify(['a', 'reply:e2'])}`]);
     expect(view.textContent).toContain(t.activityClearedCount(1));
-    await act(async () => clearButton()!.click());
+    await act(async () => moreButton()!.click());
     await act(async () => {
       await menus.at(-1)!.actions[0]!.onPress!();
     });
     await settle();
     expect(rows()).toEqual([]);
-    expect(clearButton()).toBeUndefined();
+    expect(moreButton()).toBeUndefined();
   } finally {
     await act(async () => {
       root.unmount();

@@ -29,9 +29,18 @@ vi.mock('../src/ui/primitives/hardware-send', async () => {
 });
 vi.mock('react-native', async () => {
   const shim = await import('./react-native-shim');
-  const { createElement } = await import('react');
-  const View = (props: Record<string, unknown>) => {
-    if (props['__gesture'] !== undefined) speech.gesture = props['__gesture'] as never;
+  const { createElement, useLayoutEffect } = await import('react');
+  const GestureView = (props: Record<string, unknown>) => {
+    const gesture = props['__gesture'] as typeof speech.gesture;
+    useLayoutEffect(() => {
+      speech.gesture = gesture;
+      return () => {
+        if (speech.gesture === gesture) speech.gesture = undefined;
+      };
+    }, [gesture]);
+    return renderView(props);
+  };
+  const renderView = (props: Record<string, unknown>) => {
     const tap = props['onAccessibilityTap'] as (() => void) | undefined;
     return tap === undefined
       ? shim.View(props)
@@ -41,6 +50,8 @@ vi.mock('react-native', async () => {
           props['children'] as never,
         );
   };
+  const View = (props: Record<string, unknown>) =>
+    props['__gesture'] !== undefined ? createElement(GestureView, props) : renderView(props);
   return {
     ...shim,
     Platform: {
@@ -83,6 +94,28 @@ vi.mock('../src/ui/chat/composer-action', async (importOriginal) => {
         : createElement(fallback.ComposerActionButton, props),
   };
 });
+vi.mock('../src/ui/chat/voice-button', async () => {
+  const android = await import('../src/ui/chat/voice-button.android');
+  const ios = await import('../src/ui/chat/voice-button.ios');
+  return {
+    VoiceButton: (props: Parameters<typeof android.VoiceButton>[0]) =>
+      createElement(speech.platform === 'android' ? android.VoiceButton : ios.VoiceButton, props),
+  };
+});
+vi.mock('../src/ui/chat/composer-hold', () => ({
+  ComposerHold: ({
+    children,
+    onStart,
+    onStop,
+  }: {
+    children: ReactNode;
+    onStart(): void;
+    onStop(): void;
+  }) => {
+    speech.gesture = { start: onStart, stop: onStop };
+    return children;
+  },
+}));
 vi.mock('@expo/ui/swift-ui/modifiers', () => ({
   accessibilityLabel: (label: string) => ({ label }),
   disabled: (disabled: boolean) => ({ disabled }),
@@ -127,8 +160,11 @@ vi.mock('expo-router', () => ({ usePreventRemove: () => {} }));
 vi.mock('expo-speech-recognition', () => ({
   ExpoSpeechRecognitionModule: {
     isRecognitionAvailable: () => speech.available,
-    requestPermissionsAsync: () =>
-      speech.permission ?? Promise.resolve({ granted: speech.granted }),
+    getPermissionsAsync: () =>
+      Promise.resolve({ granted: speech.granted && speech.permission === undefined }),
+    requestPermissionsAsync: vi.fn(
+      () => speech.permission ?? Promise.resolve({ granted: speech.granted }),
+    ),
     start: speech.start,
     stop: speech.stop,
     abort: speech.abort,
@@ -140,6 +176,7 @@ vi.mock('expo-speech-recognition', () => ({
 
 const { Composer } = await import('../src/ui/chat/composer');
 const { useDictation } = await import('../src/host/speech');
+const { ExpoSpeechRecognitionModule } = await import('expo-speech-recognition');
 const { t } = await import('../src/ui/strings');
 const { played } = await import('./expo-haptics-shim');
 const { setHapticsEnabled } = await import('../src/ui/haptics');
@@ -150,7 +187,7 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 const sent = vi.fn();
 
-function Harness({ disabled = false }: { disabled?: boolean }) {
+function Harness({ disabled = false, caret }: { disabled?: boolean; caret?: number }) {
   const [draft, setDraft] = useState('');
   const dictation = useDictation(setDraft);
   return (
@@ -175,7 +212,9 @@ function Harness({ disabled = false }: { disabled?: boolean }) {
         onSend={() => sent(draft)}
         onPick={() => undefined}
         onRemove={() => undefined}
-        onDictate={dictation.start}
+        onDictate={() =>
+          dictation.start({ text: draft, ...(caret === undefined ? {} : { caret }) })
+        }
         onStopDictation={dictation.stop}
         onCancelDictation={dictation.cancel}
       />
@@ -315,7 +354,7 @@ describe('Composer dictation', () => {
 
     await press(t.dictate);
     expect(speech.start).toHaveBeenCalledWith(
-      expect.objectContaining({ interimResults: true, continuous: false }),
+      expect.objectContaining({ interimResults: true, continuous: true }),
     );
     expect(field().placeholder).toBe(t.dictationStarting);
     expect(button(t.stopDictation)).not.toBeNull();
@@ -342,6 +381,18 @@ describe('Composer dictation', () => {
     await press(t.send);
     expect(sent).toHaveBeenCalledWith('Book a table for two.');
     expect(played).toEqual(['impact:light']);
+  });
+
+  it('keeps iOS cumulative transcripts without appending them as Android segments', async () => {
+    speech.platform = 'ios';
+    await act(async () => root!.render(<Harness />));
+    await press(t.dictate);
+    await emit('start');
+    await emit('result', result('First sentence.', false));
+    await emit('result', result('First sentence. Second sentence.', false));
+    await emit('result', result('First sentence. Second sentence.', true));
+    await emit('end');
+    expect(field().value).toBe('First sentence. Second sentence.');
   });
 
   it('cancels a dictation and clears what it had written', async () => {
@@ -408,59 +459,216 @@ describe('Composer test IDs', () => {
   });
 });
 
-describe('Holding the mic', () => {
-  const grab = async (heldMs: number, move?: { dx: number; dy: number }) => {
-    const now = vi.spyOn(Date, 'now').mockReturnValue(1_000);
-    await act(async () => speech.gesture!['onPanResponderGrant']!());
-    if (move !== undefined) await act(async () => speech.gesture!['onPanResponderMove']!({}, move));
-    now.mockReturnValue(1_000 + heldMs);
-    await act(async () => speech.gesture!['onPanResponderRelease']!());
-    now.mockRestore();
-  };
+describe('Holding the Android input', () => {
+  it.each([
+    [undefined, '@Mika Hello again'],
+    [1, '@Hello againMika '],
+  ])('inserts streaming speech into existing text at caret %s', async (caret, expected) => {
+    await act(async () => root!.render(<Harness {...(caret === undefined ? {} : { caret })} />));
+    await press('Pick Mika');
+    const input = field();
+    await act(async () => speech.gesture!['start']!());
+    await emit('start');
+    await emit('result', result('Hel', false));
+    await emit('result', result('Hello', true));
+    await emit('result', result('again', false));
+    expect(field()).toBe(input);
+    expect(field().value).toBe(expected);
+    expect(status()).toBe('listening');
+    await act(async () => speech.gesture!['stop']!());
+    await emit('result', result('again', true));
+    await emit('end');
+    expect(field().value).toBe(expected);
+    expect(sent).not.toHaveBeenCalled();
+  });
 
-  it('listens while held and stops on release, keeping the text', async () => {
-    const now = vi.spyOn(Date, 'now').mockReturnValue(1_000);
-    await act(async () => speech.gesture!['onPanResponderGrant']!());
+  it('cancels only the inserted speech and restores the original draft', async () => {
+    await act(async () => root!.render(<Harness caret={1} />));
+    await press('Pick Mika');
+    await act(async () => speech.gesture!['start']!());
+    await emit('start');
+    await emit('result', result('temporary', false));
+    expect(field().value).toBe('@temporaryMika ');
+    await act(async () => speech.gesture!['stop']!());
+    await press(t.cancelDictation);
+    await emit('end');
+    expect(field().value).toBe('@Mika ');
+  });
+  it('separates English segments and clears them before a new recording', async () => {
+    await press(t.dictate);
+    await emit('start');
+    await emit('result', result('First sentence.', true));
+    await emit('result', result('Second sentence.', true));
+    expect(field().value).toBe('First sentence. Second sentence.');
+    await press(t.cancelDictation);
+    await emit('end');
+    await press(t.dictate);
+    await emit('start');
+    await emit('result', result('New recording.', false));
+    expect(field().value).toBe('New recording.');
+  });
+  it('streams final and interim segments into the same held field until release', async () => {
+    const input = field();
+    await act(async () => speech.gesture!['start']!());
+    expect(speech.start).toHaveBeenCalledWith(expect.objectContaining({ continuous: true }));
+    await emit('start');
+    await emit('result', result('第一句话。', true));
+    await emit('result', result('第二句话很长，需要继续说下去。', false));
+    expect(status()).toBe('listening');
+    expect(field()).toBe(input);
+    expect(field().value).toBe('第一句话。第二句话很长，需要继续说下去。');
+    expect(field().placeholder).toBe(t.dictationReleaseHint);
+    expect(speech.stop).not.toHaveBeenCalled();
+    await act(async () => speech.gesture!['stop']!());
+    await emit('result', result('第二句话很长，需要继续说下去。', true));
+    await emit('end');
+    expect(field().value).toBe('第一句话。第二句话很长，需要继续说下去。');
+    expect(speech.stop).toHaveBeenCalledOnce();
+    expect(sent).not.toHaveBeenCalled();
+  });
+  it('starts an already-authorized hold without reopening the permission activity', async () => {
+    await act(async () => speech.gesture!['start']!());
+    expect(speech.start).toHaveBeenCalledOnce();
+    expect(ExpoSpeechRecognitionModule.requestPermissionsAsync).not.toHaveBeenCalled();
+    expect(status()).toBe('starting');
+    expect(sent).not.toHaveBeenCalled();
+  });
+
+  it('requests continuous Android recognition for a held recording', async () => {
+    await act(async () => speech.gesture!['start']!());
+    expect(speech.start).toHaveBeenCalledWith(expect.objectContaining({ continuous: true }));
+  });
+
+  it.each([
+    [
+      'First sentence.',
+      'Second',
+      'Second sentence.',
+      'First sentence. Second',
+      'First sentence. Second sentence.',
+    ],
+    ['第一句话。', '第二', '第二句话。', '第一句话。第二', '第一句话。第二句话。'],
+  ])(
+    'keeps finalized segments before the next interim and release result: %s',
+    async (first, interim, final, partialDraft, finalDraft) => {
+      const now = vi.spyOn(Date, 'now').mockReturnValue(1_000);
+      try {
+        await act(async () => speech.gesture!['start']!());
+        await emit('start');
+        await emit('result', result(first, true));
+        expect(status()).toBe('listening');
+        await emit('result', result(interim, false));
+        expect(field().value).toBe(partialDraft);
+        now.mockReturnValue(13_000);
+        await act(async () => speech.gesture!['stop']!());
+        expect(speech.stop).toHaveBeenCalledOnce();
+        await emit('result', result(final, true));
+        await emit('end');
+        expect(field().value).toBe(finalDraft);
+        expect(status()).toBe('idle');
+      } finally {
+        now.mockRestore();
+      }
+    },
+  );
+
+  it('does not carry cancelled finalized segments into the next recording', async () => {
+    await press(t.dictate);
+    await emit('start');
+    await emit('result', result('第一句话。', true));
+    await press(t.cancelDictation);
+    await emit('end');
+    expect(field().value).toBe('');
+    await act(async () => speech.gesture!['start']!());
+    await emit('start');
+    await emit('result', result('新的听写', false));
+    expect(field().value).toBe('新的听写');
+  });
+
+  it('clears the held hint after native end before finger release without losing the draft', async () => {
+    await act(async () => speech.gesture!['start']!());
+    await emit('start');
+    await emit('result', result('Keep this draft', true));
+    await emit('end');
+    expect(field().placeholder).toBe(t.composerInputHint);
+    expect(field().value).toBe('Keep this draft');
+    await act(async () => speech.gesture!['stop']!());
+    expect(field().value).toBe('Keep this draft');
+    expect(sent).not.toHaveBeenCalled();
+  });
+  it('stops on release and retains the final transcript for manual Send', async () => {
+    await act(async () => speech.gesture!['start']!());
     expect(speech.start).toHaveBeenCalled();
-    expect(field().placeholder).toBe(t.dictationHoldHint);
+    expect(field().placeholder).toBe(t.dictationReleaseHint);
     await emit('start');
     await emit('result', result('see you at seven', false));
-    now.mockReturnValue(2_500);
-    await act(async () => speech.gesture!['onPanResponderRelease']!());
-    now.mockRestore();
-    expect(speech.stop).toHaveBeenCalled();
+    await act(async () => speech.gesture!['stop']!());
+    expect(speech.stop).toHaveBeenCalledOnce();
     await emit('result', result('See you at seven.', true));
     await emit('end');
     expect(field().value).toBe('See you at seven.');
+    expect(sent).not.toHaveBeenCalled();
+    await press(t.send);
+    expect(sent).toHaveBeenCalledExactlyOnceWith('See you at seven.');
   });
 
-  it('cancels when the held mic slides left', async () => {
-    await grab(1_500, { dx: -120, dy: 0 });
-    expect(speech.abort).toHaveBeenCalled();
-    expect(speech.stop).not.toHaveBeenCalled();
+  it('does not start later when released while permission is pending', async () => {
+    let resolve!: (value: { granted: boolean }) => void;
+    speech.permission = new Promise((done) => {
+      resolve = done;
+    });
+    await act(async () => speech.gesture!['start']!());
+    await act(async () => speech.gesture!['stop']!());
+    await act(async () => resolve({ granted: true }));
+    expect(speech.start).not.toHaveBeenCalled();
     expect(status()).toBe('idle');
+    expect(sent).not.toHaveBeenCalled();
   });
 
-  it('locks when the held mic slides up, so releasing keeps listening', async () => {
-    await grab(1_500, { dx: 0, dy: -90 });
-    expect(speech.stop).not.toHaveBeenCalled();
-    expect(status()).not.toBe('idle');
-    expect(button(t.stopDictation)).not.toBeNull();
-  });
-
-  it('keeps listening after a quick tap until Stop', async () => {
-    await grab(120);
-    expect(speech.stop).not.toHaveBeenCalled();
+  it('keeps microphone taps available without a hold or lock gesture', async () => {
+    await press(t.dictate);
     await emit('start');
-    await grab(80);
-    expect(speech.stop).toHaveBeenCalled();
+    expect(speech.stop).not.toHaveBeenCalled();
+    await press(t.stopDictation);
+    expect(speech.stop).toHaveBeenCalledOnce();
+    expect(sent).not.toHaveBeenCalled();
+  });
+  it.each(['end', 'error'])(
+    'clears a silent field hold after %s and allows the next recording',
+    async (event) => {
+      await act(async () => speech.gesture!['start']!());
+      await emit('start');
+      expect(field().placeholder).toBe(t.dictationReleaseHint);
+      await emit(event, event === 'error' ? { error: 'no-speech' } : undefined);
+      expect(status()).toBe('idle');
+      expect(field().placeholder).toBe(t.composerInputHint);
+      await act(async () => speech.gesture!['stop']!());
+      await act(async () => speech.gesture!['start']!());
+      await emit('start');
+      expect(field().placeholder).toBe(t.dictationReleaseHint);
+      await act(async () => speech.gesture!['stop']!());
+      expect(speech.stop).toHaveBeenCalledOnce();
+      await emit('end');
+      expect(status()).toBe('idle');
+      expect(sent).not.toHaveBeenCalled();
+    },
+  );
+
+  it('clears the field hold hint when microphone permission is refused', async () => {
+    speech.granted = false;
+    await act(async () => speech.gesture!['start']!());
+    expect(status()).toBe('denied');
+    expect(field().placeholder).toBe(t.composerInputHint);
+    expect(speech.start).not.toHaveBeenCalled();
+    await act(async () => speech.gesture!['stop']!());
+    expect(sent).not.toHaveBeenCalled();
   });
 });
 
 describe('native compose bar', () => {
-  it('keeps + outside the field capsule and the mic or Send inside it', async () => {
+  it('keeps +, the input and mic or Send inside one field capsule', async () => {
     const attach = button(t.attach)!;
-    const capsule = attach.nextElementSibling!;
+    const capsule = attach.parentElement!.parentElement!;
     expect(capsule.contains(field())).toBe(true);
     expect(capsule.contains(button(t.dictate))).toBe(true);
     await act(async () => {

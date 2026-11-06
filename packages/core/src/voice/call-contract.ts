@@ -1,9 +1,16 @@
+import type { CallGridLayout, CallVisualSource } from './keyframes.js';
+
+export type { CallGridLayout, CallVisualSource } from './keyframes.js';
+
 export const VOICE_CALL_PATH = '/api/voice/call';
 
 export const VOICE_CALL_HOST_OWNER = 'host-owner';
 
 export const VOICE_CALL_LIMITS = {
-  requestBytes: 128 * 1024,
+  requestBytes: 768 * 1024,
+  frameBytes: 512 * 1024,
+  pendingFrames: 32,
+  keptFrames: 64,
   signalBytes: 96 * 1024,
   injectBytes: 88 * 1024,
   pendingRequests: 8,
@@ -14,7 +21,78 @@ export const VOICE_CALL_LIMITS = {
   events: 256,
   maxUtteranceMs: 30_000,
   playbackTailMs: 300,
+  perfSampleMs: 5_000,
 } as const;
+
+export interface VoiceCallBargeIn {
+  readonly suspectMs: number;
+  readonly confirmMs: number;
+  readonly confirmWords: number;
+  readonly duckGain: number;
+  readonly echoGuardMs: number;
+  readonly echoDelayMs: number;
+  readonly echoGuardDb: number;
+  readonly pauseMs: number;
+}
+
+export const VOICE_CALL_BARGE_IN: VoiceCallBargeIn = {
+  suspectMs: 200,
+  confirmMs: 500,
+  confirmWords: 2,
+  duckGain: 0.3,
+  echoGuardMs: 300,
+  echoDelayMs: 200,
+  echoGuardDb: 14,
+  pauseMs: 1_200,
+};
+export interface VoiceCallMediaStats {
+  readonly uplinkPackets: number;
+  readonly uplinkBytes: number;
+  readonly uplinkLost: number;
+  readonly concealedSamples: number;
+  readonly receivedSamples: number;
+  readonly downlinkPackets: number;
+  readonly downlinkBytes: number;
+  readonly jitterMs?: number;
+  readonly rttMs?: number;
+  readonly helperCpuPct?: number;
+  readonly disconnects?: number;
+}
+
+export interface VoiceCallPerfSample {
+  readonly atMs: number;
+  readonly uplinkPps: number;
+  readonly uplinkKbps: number;
+  readonly uplinkLossPct: number;
+  readonly concealedPct: number;
+  readonly downlinkPps: number;
+  readonly downlinkKbps: number;
+  readonly jitterMs?: number;
+  readonly rttMs?: number;
+  readonly helperCpuPct?: number;
+  readonly disconnects?: number;
+  readonly hostCpuPct: number;
+}
+
+export interface VoiceCallPerfRange {
+  readonly avg: number;
+  readonly max: number;
+}
+
+export interface VoiceCallPerf {
+  readonly samples: number;
+  readonly sampleMs: number;
+  readonly last?: VoiceCallPerfSample;
+  readonly uplinkPps: VoiceCallPerfRange;
+  readonly downlinkPps: VoiceCallPerfRange;
+  readonly uplinkKbps: VoiceCallPerfRange;
+  readonly downlinkKbps: VoiceCallPerfRange;
+  readonly hostCpuPct: VoiceCallPerfRange;
+  readonly helperCpuPct?: VoiceCallPerfRange;
+  readonly rttMs?: VoiceCallPerfRange;
+  readonly uplinkLossPct: number;
+  readonly disconnects?: number;
+}
 
 export type VoiceCallPhase =
   | 'connecting'
@@ -89,13 +167,14 @@ export type VoiceCallEvent =
       messageId: string;
       reused: number;
       synthesized: number;
+      interrupted?: true;
     }
   | {
       seq: number;
       at: number;
       type: 'reply-stopped';
       replyId: string;
-      reason: 'abandoned' | 'revised' | 'replaced';
+      reason: 'abandoned' | 'revised' | 'replaced' | 'interrupted';
     }
   | {
       seq: number;
@@ -105,10 +184,75 @@ export type VoiceCallEvent =
       messageId: string;
       sentences: number;
     }
+  | { seq: number; at: number; type: 'barge-suspected' }
+  | {
+      seq: number;
+      at: number;
+      type: 'barge-in';
+      by: 'duration' | 'words';
+      replyIds: readonly string[];
+    }
+  | { seq: number; at: number; type: 'barge-dismissed'; reason: 'ended' | 'filler' }
   | { seq: number; at: number; type: 'busy' }
   | { seq: number; at: number; type: 'idle' }
   | { seq: number; at: number; type: 'muted' }
   | { seq: number; at: number; type: 'unmuted' }
+  | {
+      seq: number;
+      at: number;
+      type: 'visual';
+      source: CallVisualSource | 'off';
+      unsaved?: true;
+    }
+  | {
+      seq: number;
+      at: number;
+      type: 'frame-received';
+      source: CallVisualSource;
+      bytes: number;
+      width: number;
+      height: number;
+      score: number;
+      prepareMs: number;
+      skipped?: number;
+    }
+  | {
+      seq: number;
+      at: number;
+      type: 'grid-built';
+      grid: number;
+      source: CallVisualSource;
+      frames: number;
+      dropped: number;
+      layout: CallGridLayout;
+      bytes: number;
+      composeMs: number;
+    }
+  | {
+      seq: number;
+      at: number;
+      type: 'grid-sent';
+      grid: number;
+      messageId: string;
+      layout: CallGridLayout;
+      waitedMs: number;
+    }
+  | { seq: number; at: number; type: 'grid-unchanged'; messageId: string; sameAs: string }
+  | { seq: number; at: number; type: 'grid-failed'; message: string }
+  | { seq: number; at: number; type: 'frame-zoomed'; messageId: string; cell: number; ms: number }
+  | {
+      seq: number;
+      at: number;
+      type: 'frame-record';
+      messageId: string;
+      source: CallVisualSource;
+      frames: number;
+      layout: CallGridLayout;
+      bytes: number;
+      composeMs: number;
+      fromMs: number;
+      toMs: number;
+    }
   | { seq: number; at: number; type: 'ended'; reason: VoiceCallEndReason };
 
 export interface VoiceCallDescription {
@@ -124,12 +268,14 @@ export interface VoiceCallView {
   readonly muted: boolean;
   readonly busy: boolean;
   readonly media: 'webrtc' | 'synthetic';
+  readonly visual?: CallVisualSource | 'off';
   readonly startedAt: number;
   readonly durationMs: number;
   readonly endReason?: VoiceCallEndReason;
   readonly offer?: VoiceCallDescription;
   readonly events: readonly VoiceCallEvent[];
   readonly lastSeq: number;
+  readonly perf?: VoiceCallPerf;
 }
 
 export type VoiceCallMissing =
@@ -169,7 +315,26 @@ export type VoiceCallCommand =
       readonly pcm: string;
       readonly after?: number;
     }
-  | { readonly kind: 'hangup'; readonly callId: string };
+  | {
+      readonly kind: 'visual';
+      readonly callId: string;
+      readonly source: CallVisualSource | 'off';
+      readonly save?: boolean;
+      readonly stopped?: boolean;
+      readonly paused?: boolean;
+      readonly resumed?: boolean;
+    }
+  | {
+      readonly kind: 'frame';
+      readonly callId: string;
+      readonly source: CallVisualSource;
+      readonly jpeg: string;
+      readonly score?: number;
+      readonly skipped?: number;
+      readonly after?: number;
+    }
+  | { readonly kind: 'hangup'; readonly callId: string }
+  | { readonly kind: 'zoom'; readonly messageId: string; readonly cell: number };
 
 export type VoiceCallRefusal =
   | 'invalid-input'
@@ -190,7 +355,10 @@ export type VoiceCallRefusal =
   | 'queue-full'
   | 'operation-timeout'
   | 'connect-carrier-required'
-  | 'device-revoked';
+  | 'device-revoked'
+  | 'visual-off'
+  | 'frame-invalid'
+  | 'cell-invalid';
 
 export type VoiceCallResult =
   | {
@@ -198,6 +366,7 @@ export type VoiceCallResult =
       readonly call?: VoiceCallView;
       readonly calls?: readonly VoiceCallView[];
       readonly readiness?: VoiceCallReadiness;
+      readonly zoom?: VoiceCallZoomView;
     }
   | { readonly ok: false; readonly code: VoiceCallRefusal; readonly error: string };
 
@@ -206,3 +375,30 @@ export const VOICE_CALL_CONNECT_REFUSAL: VoiceCallResult = {
   code: 'connect-carrier-required',
   error: 'Calls need the paired LAN route or Tailscale; Tobs Connect does not carry calls.',
 };
+
+export type VoiceCallZoom =
+  | { readonly released: true; readonly messageId: string; readonly cell: number }
+  | {
+      readonly released: false;
+      readonly messageId: string;
+      readonly cell: number;
+      readonly cells: number;
+      readonly source: CallVisualSource;
+      readonly jpeg: Uint8Array;
+      readonly width: number;
+      readonly height: number;
+    };
+
+export type VoiceCallZoomView =
+  | { readonly released: true; readonly messageId: string; readonly cell: number }
+  | {
+      readonly released: false;
+      readonly messageId: string;
+      readonly cell: number;
+      readonly cells: number;
+      readonly source: CallVisualSource;
+      readonly width: number;
+      readonly height: number;
+      readonly bytes: number;
+      readonly jpeg: string;
+    };

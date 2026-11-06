@@ -474,7 +474,13 @@ export const MessageBubble = memo(function MessageBubble({
         pop.style,
       ]}
     >
-      {content}
+      {onReply === undefined ? (
+        content
+      ) : (
+        <ReplySwipe enabled={!streaming && replyable(message)} onReply={() => onReply(message)}>
+          {content}
+        </ReplySwipe>
+      )}
       {badged ? (
         <View
           pointerEvents="box-none"
@@ -561,7 +567,14 @@ export const MessageBubble = memo(function MessageBubble({
   ) : (
     framed
   );
-  const row = { ...bubbleRow(first), ...(last ? { paddingBottom: space.x2 } : {}) };
+  const row = {
+    ...bubbleRow(first),
+    ...(reactions.length > 0 || shownReading.length > 0
+      ? { paddingBottom: BADGE_OVERLAP + space.x2 }
+      : last
+        ? { paddingBottom: space.x2 }
+        : {}),
+  };
   const placed =
     speaker !== undefined ? (
       <SpeakerRow
@@ -575,12 +588,7 @@ export const MessageBubble = memo(function MessageBubble({
     ) : (
       <View style={row}>{surface}</View>
     );
-  if (onReply === undefined) return placed;
-  return (
-    <ReplySwipe enabled={!streaming && replyable(message)} onReply={() => onReply(message)}>
-      {placed}
-    </ReplySwipe>
-  );
+  return placed;
 });
 
 export const DraftBubble = memo(function DraftBubble({

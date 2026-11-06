@@ -6,6 +6,7 @@ import { parseFailureAutoContinue, parseFailureProgress } from '../shared/turn-c
 import { isPixelBannerRecipe, type PixelBannerRecipe } from '@botharness/pixel-banner';
 import { clientLog } from './diagnostic-log.js';
 import { parseToolApprovalActor } from '../../../core/src/workspaces/tool-approval-actor.js';
+import { isChannelVoiceCallRecord } from '../../../core/src/channels/voice-call-record.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import type { PairingRequest, PairingReviewInput } from '../../../core/src/messaging/pairing.js';
 import type { SenderAccessInput } from '../../../core/src/messaging/sender-access.js';
@@ -119,8 +120,8 @@ import type {
   BotAttentionStatus,
   HumanAttentionItem,
   HumanAttentionPage,
-  HumanInboxCategory,
-  HumanInboxFilters,
+  ActivityListCategory,
+  ActivityListFilters,
   BotBannerView,
   BotSummary,
   ChannelAuthor,
@@ -955,18 +956,41 @@ export function parseChannelAttachment(value: unknown): ChannelAttachmentRef | u
     size < 0
   )
     return undefined;
-  return typeof fileId === 'string'
-    ? { fileId, name, mime, size }
-    : { hash: hash as string, name, mime, size };
+  if (typeof fileId !== 'string') return { hash: hash as string, name, mime, size };
+  const { version, width, height, thumbhash } = record;
+  const dimension = (value: unknown) =>
+    typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+  return {
+    fileId,
+    name,
+    mime,
+    size,
+    ...(typeof version === 'string' && /^[0-9a-f]{32}$/u.test(version) ? { version } : {}),
+    ...(dimension(width) && dimension(height)
+      ? { width: width as number, height: height as number }
+      : {}),
+    ...(typeof thumbhash === 'string' && thumbhash.length <= 100 ? { thumbhash } : {}),
+  };
 }
+
+export type AttachmentVariant = '96c' | '320' | '800';
 
 export function channelAttachmentUrl(
   ref: ChannelAttachmentRef,
   owner: { channelId: string; messageId: string },
+  variant?: AttachmentVariant,
 ): string {
   if (owner === undefined) throw new Error('Message ownership is required for attachments');
   if (ref.fileId !== undefined) {
-    return './api/botharness/attachment?' + new URLSearchParams({ ...owner, fileId: ref.fileId });
+    return (
+      './api/botharness/attachment?' +
+      new URLSearchParams({
+        ...owner,
+        fileId: ref.fileId,
+        ...(ref.version === undefined ? {} : { v: ref.version }),
+        ...(ref.version === undefined || variant === undefined ? {} : { variant }),
+      })
+    );
   }
   return (
     './api/botharness/attachment?' +
@@ -1179,7 +1203,12 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
   let turnStop: ChannelMessage['turnStop'];
   let toolAutoApproval: ChannelMessage['toolAutoApproval'];
   let toolAutoApprovalPause: ChannelMessage['toolAutoApprovalPause'];
-  if (record['toolAutoApprovalPause'] !== undefined) {
+  let voiceCallRecord: ChannelMessage['voiceCallRecord'];
+  if (record['voiceCallRecord'] !== undefined) {
+    if (author.kind !== 'system' || !isChannelVoiceCallRecord(record['voiceCallRecord']))
+      return undefined;
+    voiceCallRecord = record['voiceCallRecord'];
+  } else if (record['toolAutoApprovalPause'] !== undefined) {
     const pause = asRecord(record['toolAutoApprovalPause']);
     if (
       pause === undefined ||
@@ -1742,6 +1771,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     ...(memoryCommit === undefined ? {} : { memoryCommit }),
     ...(memberDeparture === undefined ? {} : { memberDeparture }),
     ...(turnStop === undefined ? {} : { turnStop }),
+    ...(voiceCallRecord === undefined ? {} : { voiceCallRecord }),
     ...(toolAutoApproval === undefined ? {} : { toolAutoApproval }),
     ...(toolAutoApprovalPause === undefined ? {} : { toolAutoApprovalPause }),
     ...(toolApprovalRequest === undefined ? {} : { toolApprovalRequest }),
@@ -3794,6 +3824,33 @@ export function parseJournalPage(value: unknown): JournalPage | undefined {
   };
 }
 
+export interface FilesPage {
+  entries: JournalEntry[];
+  nextBefore?: number;
+}
+
+export async function loadFilesPage(
+  call: BridgeCall,
+  channelId: string,
+  request: { before?: number; limit?: number },
+  signal?: AbortSignal,
+): Promise<FilesPage> {
+  const raw = asRecord(await unwrap(call, 'channelFilesPage', { channelId, ...request }, signal));
+  const entries = raw?.['entries'];
+  const nextBefore = raw?.['nextBefore'];
+  const parsed = Array.isArray(entries) ? entries.map((entry) => parseJournalEntry(entry)) : [];
+  if (
+    !Array.isArray(entries) ||
+    parsed.some((entry) => entry === undefined) ||
+    !(nextBefore === undefined || (Number.isSafeInteger(nextBefore) && Number(nextBefore) > 0))
+  )
+    throw new Error('invalid channelFilesPage response');
+  return {
+    entries: parsed as JournalEntry[],
+    ...(nextBefore === undefined ? {} : { nextBefore: nextBefore as number }),
+  };
+}
+
 export async function loadJournalPage(
   call: BridgeCall,
   channelId: string,
@@ -4830,10 +4887,10 @@ export function parseHumanAttentionPage(value: unknown): HumanAttentionPage {
 
 export async function loadHumanAttention(
   call: BridgeCall,
-  category: HumanInboxCategory,
+  category: ActivityListCategory,
   limit = 50,
   cursor?: string,
-  filters: HumanInboxFilters & { search?: string; mentionsFirst?: boolean } = {
+  filters: ActivityListFilters & { search?: string; mentionsFirst?: boolean } = {
     botSlug: undefined,
     channelId: undefined,
     sort: 'newest',
@@ -4906,7 +4963,7 @@ export async function loadChannelUnreadCounts(call: BridgeCall): Promise<Record<
   return counts;
 }
 
-export async function dismissHumanInboxItem(
+export async function dismissActivityListItem(
   call: BridgeCall,
   itemId: string,
   sourceKey: string,
@@ -4915,7 +4972,7 @@ export async function dismissHumanInboxItem(
   if (value?.['accepted'] !== true) throw new Error('Inbox dismissal was not confirmed');
 }
 
-export async function dismissAllHumanInboxItems(
+export async function dismissAllActivityListItems(
   call: BridgeCall,
   filter: {
     kind?: HumanAttentionItem['kind'] | undefined;
@@ -4942,7 +4999,7 @@ export async function overrideAutoRejection(call: BridgeCall, itemId: string): P
   if (value?.['accepted'] !== true) throw new Error('Auto-rejection override was not confirmed');
 }
 
-export async function snoozeHumanInboxItem(
+export async function snoozeActivityListItem(
   call: BridgeCall,
   itemId: string,
   sourceKey: string,
@@ -6689,8 +6746,16 @@ export async function loadChannelActivityToday(call: BridgeCall): Promise<Channe
   return data as unknown as ChannelActivityToday;
 }
 
-export async function markAllReadPositions(call: BridgeCall): Promise<void> {
-  const row = asRecord(await unwrap(call, 'channelMarkAllRead', {}));
+export async function markAllReadPositions(
+  call: BridgeCall,
+  scope: { channelId?: string | undefined; botSlug?: string | undefined } = {},
+): Promise<void> {
+  const row = asRecord(
+    await unwrap(call, 'channelMarkAllRead', {
+      ...(scope.channelId === undefined ? {} : { channelId: scope.channelId }),
+      ...(scope.botSlug === undefined ? {} : { botSlug: scope.botSlug }),
+    }),
+  );
   if (!row || !Number.isSafeInteger(row['channels']) || (row['channels'] as number) < 0)
     throw new Error('invalid all-read result');
 }

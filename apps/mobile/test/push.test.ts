@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   attachOperationalModule,
@@ -159,6 +159,7 @@ function fakeNotifications(permission: PermissionState) {
 
 const servers: Server[] = [];
 const roots: string[] = [];
+const owners: ReturnType<typeof mountOperationalDatabase>[] = [];
 afterEach(async () => {
   await Promise.all(
     servers.splice(0).map(
@@ -169,6 +170,7 @@ afterEach(async () => {
         }),
     ),
   );
+  for (const owner of owners.splice(0)) owner.close();
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
@@ -176,6 +178,7 @@ async function realHost() {
   const home = mkdtempSync(join(tmpdir(), 'bh-mobile-push-'));
   roots.push(home);
   const owner = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
+  owners.push(owner);
   const sent: ExpoMessage[] = [];
   let items: Array<{ id: string; createdAt: string }> = [];
   let push: ReturnType<typeof createPushDelivery>;
@@ -331,6 +334,71 @@ describe('notification buttons', () => {
 });
 
 describe('push registration with a real Host gateway', () => {
+  it('does not re-register when fetching the token reports the same device token again', async () => {
+    const h = await realHost();
+    const base = createHostPush(nodeCarrier(), 2_000);
+    let registrations = 0;
+    let preferences = 0;
+    const hostPush = {
+      ...base,
+      register: (...args: Parameters<typeof base.register>) => {
+        registrations++;
+        return base.register(...args);
+      },
+    };
+    const phone = fakeNotifications('granted');
+    const listeners = new Set<
+      (resolveToken: () => Promise<string>, nativeToken?: string) => void
+    >();
+    let device = 'device-token-1';
+    const emit = () => {
+      for (const listener of listeners) listener(() => fetchToken(), device);
+    };
+    const fetchToken = phone.port.token;
+    phone.port.token = async () => {
+      emit();
+      return fetchToken();
+    };
+    phone.port.onTokenChanged = (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    };
+    const session = createPushSession({
+      notifications: phone.port,
+      hostPush,
+      platform: 'ios',
+      locale: 'en',
+      beforeRegister: async () => {
+        preferences++;
+      },
+    });
+    await session.sync([h.saved]);
+    expect(registrations).toBe(1);
+    emit();
+    emit();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(registrations).toBe(1);
+    expect(preferences).toBe(1);
+    device = 'device-token-2';
+    emit();
+    await vi.waitFor(() => expect(registrations).toBe(2));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(registrations).toBe(2);
+    expect(preferences).toBe(2);
+    phone.port.token = async () => {
+      emit();
+      device = 'device-token-3';
+      emit();
+      return fetchToken();
+    };
+    await session.sync([h.saved]);
+    await vi.waitFor(() => expect(registrations).toBe(3));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(registrations).toBe(3);
+    session.stop();
+    h.owner.close();
+  });
+
   it('registers replacement credentials without asking permission again after revoking the old device', async () => {
     const h = await realHost();
     const hostPush = createHostPush(nodeCarrier(), 2_000);

@@ -3,12 +3,15 @@ let peer;
 let captureContext;
 let playContext;
 let destination;
+let master;
 let remoteAudio;
 let tap;
 let answered = false;
 let stopped = false;
 let connectedSent = false;
 let disconnectTimer;
+let disconnects = 0;
+const DISCONNECT_GRACE_MS = 15_000;
 let framesSent = 0;
 const parts = new Map();
 const playing = new Map();
@@ -50,6 +53,28 @@ function fail() {
 
 window.addEventListener('beforeunload', stop);
 
+function withDtx(sdp) {
+  const eol = sdp.includes('\r\n') ? '\r\n' : '\n';
+  const sections = sdp.split(/(?=^m=)/mu);
+  return sections
+    .map((section) => {
+      const opus = new Set();
+      for (const match of section.matchAll(/^a=rtpmap:(\d+) opus\/48000/gimu)) opus.add(match[1]);
+      const described = new Set();
+      const tuned = section.replace(/^a=fmtp:(\d+) ([^\r\n]*)$/gmu, (line, payload, params) => {
+        described.add(payload);
+        if (!opus.has(payload)) return line;
+        const dtx = /((?:^|;)\s*usedtx=)[^;]*/u;
+        if (!dtx.test(params)) return `${line};usedtx=1`;
+        return `a=fmtp:${payload} ${params.replace(dtx, (_, key) => `${key}1`)}`;
+      });
+      return tuned.replace(/^a=rtpmap:(\d+) opus\/48000[^\r\n]*$/gimu, (line, payload) =>
+        described.has(payload) ? line : `${line}${eol}a=fmtp:${payload} usedtx=1`,
+      );
+    })
+    .join('');
+}
+
 function base64(bytes) {
   let binary = '';
   for (let index = 0; index < bytes.length; index += 0x8000)
@@ -67,7 +92,10 @@ async function startCapture(stream) {
   await captureContext.audioWorklet.addModule(url);
   URL.revokeObjectURL(url);
   const source = captureContext.createMediaStreamSource(stream);
-  tap = new AudioWorkletNode(captureContext, 'pcm-tap', { numberOfInputs: 1, numberOfOutputs: 0 });
+  tap = new AudioWorkletNode(captureContext, 'pcm-tap', {
+    numberOfInputs: 1,
+    numberOfOutputs: 0,
+  });
   let pending = new Int16Array(FRAME);
   let filled = 0;
   tap.port.onmessage = (event) => {
@@ -95,6 +123,8 @@ window.callStart = async () => {
     playContext = new AudioContext({ sampleRate: 48000 });
     await playContext.resume();
     destination = playContext.createMediaStreamDestination();
+    master = playContext.createGain();
+    master.connect(destination);
     const outgoing = destination.stream.getAudioTracks()[0];
     peer = new RTCPeerConnection({
       iceServers: [],
@@ -110,8 +140,9 @@ window.callStart = async () => {
           window.callBridge.state('connected');
         }
       } else if (state === 'disconnected') {
+        disconnects += 1;
         clearTimeout(disconnectTimer);
-        disconnectTimer = setTimeout(fail, 5000);
+        disconnectTimer = setTimeout(fail, DISCONNECT_GRACE_MS);
       } else if (state === 'failed' || state === 'closed') fail();
     });
     peer.addEventListener('datachannel', (event) => {
@@ -156,7 +187,7 @@ window.callStart = async () => {
       peer.addEventListener('icecandidate', candidate);
       complete();
     });
-    return { offer: { type: 'offer', sdp: peer.localDescription.sdp } };
+    return { offer: { type: 'offer', sdp: withDtx(peer.localDescription.sdp) } };
   } catch (error) {
     stop();
     throw error;
@@ -166,7 +197,7 @@ window.callStart = async () => {
 window.callAnswer = async (sdp) => {
   if (!peer || answered) throw new Error('Stale answer');
   answered = true;
-  await peer.setRemoteDescription({ type: 'answer', sdp });
+  await peer.setRemoteDescription({ type: 'answer', sdp: withDtx(sdp) });
   return null;
 };
 
@@ -184,7 +215,7 @@ window.callAudio = (playback, data) => {
 window.callPlay = async (playback, _mime) => {
   const list = parts.get(playback);
   parts.delete(playback);
-  if (!list || stopped || !playContext || !destination) throw new Error('No audio');
+  if (!list || stopped || !playContext || !master) throw new Error('No audio');
   const binary = atob(list.join(''));
   const bytes = new Uint8Array(binary.length);
   for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
@@ -197,7 +228,7 @@ window.callPlay = async (playback, _mime) => {
   }
   const source = playContext.createBufferSource();
   source.buffer = buffer;
-  source.connect(destination);
+  source.connect(master);
   playing.set(playback, source);
   source.addEventListener('ended', () => {
     if (!playing.delete(playback)) return;
@@ -217,8 +248,21 @@ window.callStop = (playback) => {
   return null;
 };
 
+window.callGain = (gain) => {
+  if (stopped || !playContext || !master) throw new Error('Stopped');
+  const value = Math.max(0, Math.min(1, Number(gain)));
+  master.gain.cancelScheduledValues(playContext.currentTime);
+  master.gain.setTargetAtTime(value, playContext.currentTime, 0.03);
+  return null;
+};
+
 window.callStats = async () => {
-  const result = { state: peer?.connectionState ?? 'new', framesSent, path: 'unknown' };
+  const result = {
+    state: peer?.connectionState ?? 'new',
+    framesSent,
+    disconnects,
+    path: 'unknown',
+  };
   if (!peer) return result;
   const stats = await peer.getStats();
   for (const report of stats.values()) {
@@ -239,14 +283,22 @@ window.callStats = async () => {
       report.type === 'inbound-rtp' &&
       report.kind === 'audio' &&
       Number.isFinite(report.bytesReceived)
-    )
+    ) {
       result.bytesReceived = report.bytesReceived;
+      result.packetsReceived = report.packetsReceived ?? 0;
+      result.packetsLost = Math.max(0, report.packetsLost ?? 0);
+      if (Number.isFinite(report.jitter)) result.jitterMs = report.jitter * 1000;
+      result.concealedSamples = report.concealedSamples ?? 0;
+      result.totalSamplesReceived = report.totalSamplesReceived ?? 0;
+    }
     if (
       report.type === 'outbound-rtp' &&
       report.kind === 'audio' &&
       Number.isFinite(report.bytesSent)
-    )
+    ) {
       result.bytesSent = report.bytesSent;
+      result.packetsSent = report.packetsSent ?? 0;
+    }
   }
   return result;
 };

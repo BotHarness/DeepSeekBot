@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { isLanAddress } from './lan-address.js';
+import { stalePhoneRoutes, type StalePhoneRoute } from './route-targets.js';
 
 export interface PhoneRoute {
   url: string;
@@ -9,6 +10,7 @@ export interface PhoneRoute {
 }
 
 export interface RouteStatus {
+  staleRoutes?: StalePhoneRoute[];
   managed?: { enabled: boolean; owned: boolean };
   routes: PhoneRoute[];
   tailscale: 'running' | 'stopped' | 'missing';
@@ -48,7 +50,7 @@ const runFile: RunCommand = (file, args, options) =>
     execFile(
       file,
       [...args],
-      { timeout: options?.timeoutMs ?? 3000, maxBuffer: 1024 * 1024 },
+      { timeout: options?.timeoutMs ?? 3000, maxBuffer: 1024 * 1024, windowsHide: true },
       (error, stdout, stderr) =>
         error ? reject(Object.assign(error, { stdout, stderr })) : resolve(stdout),
     );
@@ -230,43 +232,84 @@ function refusal(
 export async function publishPhoneRoute(options: {
   port: number;
   run?: RunCommand;
+  ownedMapping?: ManagedPhoneRouteState['mapping'];
   beforePublish?: (mapping: { hostname: string; port: number; target: number }) => Promise<void>;
 }): Promise<PublishRouteResult> {
   const run = options.run ?? runFile;
   const before = await detectPhoneRoutes(options);
-  const route = before.routes.find((entry) => entry.kind === 'tailscale');
+  let route = before.routes.find((entry) => entry.kind === 'tailscale');
   if (before.tailscale === 'missing')
     return refusal('tailscale-missing', 'Tailscale is not installed on this computer.', before);
   if (before.tailscale === 'stopped' || route === undefined)
     return refusal('tailscale-stopped', 'Tailscale is not running or not signed in.', before);
+  const owned = options.ownedMapping;
+  const replacing = owned !== undefined && owned.target !== options.port;
+  if (replacing) {
+    const origin = new URL(route.url);
+    if (origin.hostname !== owned.hostname)
+      return refusal(
+        'serve-other-target',
+        'The Tailscale hostname changed. Check the saved route before publishing.',
+        before,
+      );
+    route = { ...route, url: `https://${owned.hostname}:${owned.port}`, ready: false };
+  }
   if (route.ready) return { ok: true, changed: false, status: before };
-  if (route.issue === 'serve-other-target')
+  if (!replacing && route.issue === 'serve-other-target')
     return refusal(
       'serve-other-target',
       'Tailscale serve already publishes another service at this address; change it by hand.',
       before,
     );
+  let replacementPublished = false;
+  const verifyReplacement = async (binary: string): Promise<boolean> => {
+    if (!replacing) return false;
+    try {
+      return ownsMapping(JSON.parse(await run(binary, ['serve', 'status', '--json'])), {
+        ...owned,
+        target: options.port,
+      });
+    } catch {
+      return false;
+    }
+  };
   for (const binary of TAILSCALE_BINARIES) {
     try {
       const published = Number(new URL(route.url).port || '443');
       const config: unknown = JSON.parse(await run(binary, ['serve', 'status', '--json']));
       const dnsName = new URL(route.url).hostname;
-      if (freePublishPort(config, dnsName) !== published)
+      if (replacing && ownsMapping(config, { ...owned, target: options.port }))
+        return { ok: true, changed: false, status: before };
+      const available =
+        record(record(config)['Web'])[`${dnsName}:${published}`] === undefined &&
+        record(record(config)['TCP'])[String(published)] === undefined;
+      if (
+        replacing
+          ? !ownsMapping(config, owned) && !available
+          : freePublishPort(config, dnsName) !== published
+      )
         return refusal(
           'serve-other-target',
           'The publishing entry changed. Check again before publishing.',
           before,
         );
-      await options.beforePublish?.({ hostname: dnsName, port: published, target: options.port });
+      if (!replacing)
+        await options.beforePublish?.({ hostname: dnsName, port: published, target: options.port });
       await run(binary, serveArgs(options.port, published), {
         timeoutMs: SERVE_TIMEOUT_MS,
       });
+      if (replacing) replacementPublished = await verifyReplacement(binary);
       break;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
       const output = outputOf(error);
       const after = await detectPhoneRoutes(options);
-      if (after.routes.some((entry) => entry.kind === 'tailscale' && entry.ready))
+      replacementPublished = await verifyReplacement(binary);
+      if (
+        replacing
+          ? replacementPublished
+          : after.routes.some((entry) => entry.kind === 'tailscale' && entry.ready)
+      )
         return { ok: true, changed: true, status: after };
       const enableUrl = /https:\/\/login\.tailscale\.com\/\S+/u.exec(output)?.[0];
       if (enableUrl !== undefined)
@@ -291,7 +334,11 @@ export async function publishPhoneRoute(options: {
     }
   }
   const after = await detectPhoneRoutes(options);
-  return after.routes.some((entry) => entry.kind === 'tailscale' && entry.ready)
+  return (
+    replacing
+      ? replacementPublished
+      : after.routes.some((entry) => entry.kind === 'tailscale' && entry.ready)
+  )
     ? { ok: true, changed: true, status: after }
     : refusal(
         'serve-failed',
@@ -303,6 +350,19 @@ export async function publishPhoneRoute(options: {
 export interface ManagedPhoneRouteState {
   enabled: boolean;
   mapping?: { hostname: string; port: number; target: number };
+}
+
+function ownsMapping(
+  serve: unknown,
+  mapping: NonNullable<ManagedPhoneRouteState['mapping']>,
+): boolean {
+  const handlers = record(
+    record(record(record(serve)['Web'])[`${mapping.hostname}:${mapping.port}`])['Handlers'],
+  );
+  return (
+    Object.keys(handlers).length === 1 &&
+    servesPort(serve, mapping.hostname, mapping.target, mapping.port) === true
+  );
 }
 
 export function parseManagedPhoneRoute(input: unknown): ManagedPhoneRouteState | undefined {
@@ -332,12 +392,14 @@ export function parseManagedPhoneRoute(input: unknown): ManagedPhoneRouteState |
 export function createManagedPhoneRoute(options: {
   port: number;
   run?: RunCommand;
+  probe?: (port: number, host: string) => Promise<boolean>;
   read(): Promise<ManagedPhoneRouteState | undefined>;
   write(state: ManagedPhoneRouteState): Promise<void>;
   log?: (event: {
     phase: string;
     initiator: string;
     command: string;
+    commands: { command: string; outcome: 'succeeded' | 'failed' }[];
     durationMs: number;
     refusal?: string;
   }) => void;
@@ -345,11 +407,18 @@ export function createManagedPhoneRoute(options: {
   let state: ManagedPhoneRouteState = { enabled: false };
   let tail = Promise.resolve();
   let closed = false;
-  let commandSummary = 'none';
+  let commands: { command: string; outcome: 'succeeded' | 'failed' }[] = [];
   const runOwned: RunCommand = async (file, args, config) => {
     if (closed) throw new Error('publishing-owner-closed');
-    if (args[0] === 'serve' && args[1] !== 'status') commandSummary = `tailscale ${args.join(' ')}`;
-    return (options.run ?? runFile)(file, args, config);
+    const mutation = args[0] === 'serve' && args[1] !== 'status';
+    try {
+      const result = await (options.run ?? runFile)(file, args, config);
+      if (mutation) commands.push({ command: `tailscale ${args.join(' ')}`, outcome: 'succeeded' });
+      return result;
+    } catch (error) {
+      if (mutation) commands.push({ command: `tailscale ${args.join(' ')}`, outcome: 'failed' });
+      throw error;
+    }
   };
   const command: RunCommand = async (_file, args, config) => {
     for (const binary of TAILSCALE_BINARIES) {
@@ -365,10 +434,31 @@ export function createManagedPhoneRoute(options: {
     await options.write(next);
     state = next;
   };
-  const status = async (): Promise<RouteStatus> => ({
-    ...(await detectPhoneRoutes(options)),
-    managed: { enabled: state.enabled, owned: state.mapping !== undefined },
-  });
+  let checkedAt = 0;
+  let stale: StalePhoneRoute[] = [];
+  const status = async (): Promise<RouteStatus> => {
+    const detected = await detectPhoneRoutes(options);
+    const route = detected.routes.find((entry) => entry.kind === 'tailscale');
+    if (route && Date.now() - checkedAt > 5000 && !closed) {
+      try {
+        const config: unknown = JSON.parse(await command('', ['serve', 'status', '--json']));
+        stale = await stalePhoneRoutes(
+          config,
+          new URL(route.url).hostname,
+          options.port,
+          options.probe,
+        );
+        checkedAt = Date.now();
+      } catch {
+        stale = [];
+      }
+    }
+    return {
+      ...detected,
+      ...(route ? { staleRoutes: stale } : {}),
+      managed: { enabled: state.enabled, owned: state.mapping !== undefined },
+    };
+  };
   const serial = <T>(work: () => Promise<T>): Promise<T> => {
     const result = tail.then(work);
     tail = result.then(
@@ -381,15 +471,7 @@ export function createManagedPhoneRoute(options: {
     const mapping = state.mapping;
     if (!mapping) return;
     const config: unknown = JSON.parse(await command('', ['serve', 'status', '--json']));
-    const handlers = record(
-      record(record(record(config)['Web'])[`${mapping.hostname}:${String(mapping.port)}`])[
-        'Handlers'
-      ],
-    );
-    if (
-      Object.keys(handlers).length === 1 &&
-      servesPort(config, mapping.hostname, mapping.target, mapping.port) === true
-    )
+    if (ownsMapping(config, mapping))
       await command('', ['serve', `--https=${String(mapping.port)}`, 'off'], {
         timeoutMs: SERVE_TIMEOUT_MS,
       });
@@ -398,17 +480,22 @@ export function createManagedPhoneRoute(options: {
   const enable = async (): Promise<PublishRouteResult> => {
     if (closed) return refusal('serve-failed', 'Publishing owner is closed.', await status());
     await save({ ...state, enabled: true });
-    if (state.mapping && state.mapping.target !== options.port) await removeOwned();
+    const owned = state.mapping;
     const result = await publishPhoneRoute({
       ...options,
       run: runOwned,
+      ownedMapping: owned,
       beforePublish: async (mapping) => save({ enabled: true, mapping }),
     });
+    if (result.ok && owned && owned.target !== options.port)
+      await save({ enabled: true, mapping: { ...owned, target: options.port } });
     return { ...result, status: await status() };
   };
   const transition = (phase: string, work: () => Promise<PublishRouteResult>) =>
     serial(async () => {
       const started = performance.now();
+      checkedAt = 0;
+      commands = [];
       let result: PublishRouteResult;
       try {
         result = await work();
@@ -422,7 +509,8 @@ export function createManagedPhoneRoute(options: {
       options.log?.({
         phase,
         initiator: phase === 'restore' ? 'startup' : 'operator',
-        command: commandSummary,
+        command: commands.map((entry) => entry.command).join(' ; ') || 'none',
+        commands,
         durationMs: Math.round(performance.now() - started),
         ...(!result.ok ? { refusal: result.code } : {}),
       });

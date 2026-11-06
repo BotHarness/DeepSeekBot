@@ -11,7 +11,7 @@ import type { RosterConfig } from './roster-config.js';
 import type { RosterSection, TopOrderEntry } from './roster.js';
 import type { PurgedPlacement } from '../../../core/src/purge/contracts.js';
 import type { PixelBannerRecipe } from '@botharness/pixel-banner';
-import { createContentRedactions } from './content-redactions.js';
+import { createContentRedactions, sameItems } from './content-redactions.js';
 import { ActivitySmoother } from './activity-smoothing.js';
 
 export type ClientMode = 'dsh' | 'bot';
@@ -117,10 +117,15 @@ export interface ChannelReplyPreview {
   body: string;
 }
 
-export type ChannelAttachmentRef = { name: string; mime: string; size: number } & (
-  | { fileId: string; hash?: never }
-  | { hash: string; fileId?: never }
-);
+export type ChannelAttachmentRef = {
+  name: string;
+  mime: string;
+  size: number;
+  version?: string;
+  width?: number;
+  height?: number;
+  thumbhash?: string;
+} & ({ fileId: string; hash?: never } | { hash: string; fileId?: never });
 
 export interface BotCreatePreview {
   memoryFolder: string;
@@ -255,6 +260,7 @@ export interface ChannelMessage {
     failures?: number;
   };
   toolAutoApproval?: import('../../../core/src/channels/channel.js').ChannelToolAutoApproval;
+  voiceCallRecord?: import('../../../core/src/channels/voice-call-record.js').ChannelVoiceCallRecord;
   toolAutoApprovalPause?: import('../../../core/src/channels/channel.js').ChannelToolAutoApprovalPause;
   memberDeparture?: {
     memberKind: 'bot' | 'human';
@@ -316,19 +322,19 @@ export interface OwnedSessionSummary {
   subagentCount?: number;
 }
 
-export type HumanInboxCategory = 'action' | 'info' | 'unread' | 'replies' | 'handled';
-export type HumanInboxSort = 'newest' | 'oldest';
+export type ActivityListCategory = 'action' | 'info' | 'unread' | 'replies' | 'handled';
+export type ActivityListSort = 'newest' | 'oldest';
 
-export interface HumanInboxFilters {
+export interface ActivityListFilters {
   botSlug: string | undefined;
   channelId: string | undefined;
-  sort: HumanInboxSort;
+  sort: ActivityListSort;
   snoozed?: boolean;
 }
 
 export interface HumanAttentionItem {
   id: string;
-  category: HumanInboxCategory;
+  category: ActivityListCategory;
   kind:
     | 'group-join-request'
     | 'pairing-request'
@@ -374,17 +380,17 @@ export interface HumanAttentionPage {
   nextCursor?: string;
 }
 
-export interface HumanInboxState {
+export interface ActivityListState {
   messageCounts?: { replies: number; other: number } | undefined;
   attentionStatus?: 'ready' | 'error' | undefined;
   status: ClientStatus;
   unreadCount: number;
   channelUnread: Readonly<Record<string, number>>;
   hasAction: boolean;
-  category: HumanInboxCategory;
+  category: ActivityListCategory;
   botSlug: string | undefined;
   channelId: string | undefined;
-  sort: HumanInboxSort;
+  sort: ActivityListSort;
   snoozed: boolean;
   items: readonly HumanAttentionItem[];
   nextCursor: string | undefined;
@@ -513,6 +519,17 @@ export interface RosterState {
   readOnly: boolean;
 }
 
+export const CONVERSATION_STATE_KEYS = [
+  'bots',
+  'channels',
+  'selection',
+  'conversation',
+  'memoryCommitIntent',
+  'contentPurgeRevision',
+  'composerIdentity',
+] as const;
+export type ConversationStateView = Pick<ClientState, (typeof CONVERSATION_STATE_KEYS)[number]>;
+
 export interface ClientState {
   contentPurgeRevision?: number;
   composerIdentity?:
@@ -531,7 +548,7 @@ export interface ClientState {
   conversation: ConversationState;
   sessions: SessionsState;
   botInbox: BotInboxState;
-  humanInbox: HumanInboxState;
+  activityList: ActivityListState;
   activitySync: 'live' | 'stale';
   git: GitAvailability | undefined;
 }
@@ -578,7 +595,7 @@ export interface ClientStore {
   ): void;
   setSessions(patch: Partial<SessionsState>): void;
   setBotInbox(patch: Partial<BotInboxState>): void;
-  setHumanInbox(patch: Partial<HumanInboxState>): void;
+  setActivityList(patch: Partial<ActivityListState>): void;
 }
 
 export function keepUnchanged<T>(
@@ -622,7 +639,7 @@ function initialBotInbox(): BotInboxState {
   return { status: 'idle', items: [], nextCursor: undefined, error: undefined };
 }
 
-function initialHumanInbox(): HumanInboxState {
+function initialActivityList(): ActivityListState {
   return {
     status: 'idle',
     unreadCount: 0,
@@ -679,6 +696,31 @@ function sameActivity(
     JSON.stringify([left.activity, left.attention, left.sessions]) ===
       JSON.stringify([right.activity, right.attention, right.sessions])
   );
+}
+
+function sameValue(left: unknown, right: unknown): boolean {
+  if (left === right) return true;
+  if (Array.isArray(left) && Array.isArray(right)) return sameItems(left, right);
+  if (
+    typeof left !== 'object' ||
+    typeof right !== 'object' ||
+    left === null ||
+    right === null ||
+    Array.isArray(left) ||
+    Array.isArray(right)
+  )
+    return false;
+  const leftKeys = Object.keys(left);
+  return (
+    leftKeys.length === Object.keys(right).length &&
+    leftKeys.every(
+      (key) => (left as Record<string, unknown>)[key] === (right as Record<string, unknown>)[key],
+    )
+  );
+}
+
+function samePatch<T extends object>(current: T, patch: Partial<T>): boolean {
+  return (Object.keys(patch) as (keyof T)[]).every((key) => sameValue(current[key], patch[key]));
 }
 
 export function createStore({
@@ -745,7 +787,7 @@ export function createStore({
     conversation: initialConversation(),
     sessions: initialSessions(),
     botInbox: initialBotInbox(),
-    humanInbox: initialHumanInbox(),
+    activityList: initialActivityList(),
     activitySync: 'live',
     git: undefined,
   };
@@ -804,17 +846,25 @@ export function createStore({
   };
 
   const update = (patch: Partial<ClientState>): void => {
+    const previous = state;
+    const redactedChannels = patch.channels?.map(redactions.channel);
     state = {
       ...state,
       ...patch,
-      ...(patch.channels === undefined ? {} : { channels: patch.channels.map(redactions.channel) }),
+      ...(patch.channels === undefined || redactedChannels === undefined
+        ? {}
+        : {
+            channels: sameItems(redactedChannels, patch.channels)
+              ? patch.channels
+              : redactedChannels,
+          }),
       ...(patch.conversation === undefined
         ? {}
         : { conversation: redactions.conversation(patch.conversation) }),
       ...(patch.botInbox === undefined ? {} : { botInbox: redactions.botInbox(patch.botInbox) }),
-      ...(patch.humanInbox === undefined
+      ...(patch.activityList === undefined
         ? {}
-        : { humanInbox: redactions.humanInbox(patch.humanInbox) }),
+        : { activityList: redactions.activityList(patch.activityList) }),
     };
     const presentChannel = (channel: ChannelSummary): ChannelSummary => {
       const bot =
@@ -825,19 +875,27 @@ export function createStore({
         ? { ...channel, name: bot.displayName }
         : channel;
     };
+    if (patch.bots !== undefined || patch.channels !== undefined) {
+      const channels = state.channels.map(presentChannel);
+      if (channels.some((channel, index) => channel !== state.channels[index]))
+        state.channels = channels;
+    }
     if (
       patch.bots !== undefined ||
       patch.channels !== undefined ||
       patch.conversation !== undefined
     ) {
-      const channels = state.channels.map(presentChannel);
-      if (channels.some((channel, index) => channel !== state.channels[index]))
-        state.channels = channels;
       if (state.conversation.channel) {
         const channel = presentChannel(state.conversation.channel);
         if (channel !== state.conversation.channel)
           state.conversation = { ...state.conversation, channel };
       }
+    }
+    if (
+      (Object.keys(state) as (keyof ClientState)[]).every((key) => state[key] === previous[key])
+    ) {
+      state = previous;
+      return;
     }
     for (const listener of listeners) listener();
   };
@@ -859,7 +917,7 @@ export function createStore({
         channels: state.channels,
         conversation: state.conversation,
         botInbox: state.botInbox,
-        humanInbox: state.humanInbox,
+        activityList: state.activityList,
       });
     },
     getSnapshot: () => state,
@@ -967,12 +1025,12 @@ export function createStore({
           (botSlug === undefined ? undefined : sessionsByBot.get(botSlug)) ?? initialSessions(),
         botInbox:
           (botSlug === undefined ? undefined : inboxesByBot.get(botSlug)) ?? initialBotInbox(),
-        humanInbox: {
-          ...initialHumanInbox(),
-          unreadCount: state.humanInbox.unreadCount,
-          hasAction: state.humanInbox.hasAction,
-          messageCounts: state.humanInbox.messageCounts,
-          attentionStatus: state.humanInbox.attentionStatus,
+        activityList: {
+          ...initialActivityList(),
+          unreadCount: state.activityList.unreadCount,
+          hasAction: state.activityList.hasAction,
+          messageCounts: state.activityList.messageCounts,
+          attentionStatus: state.activityList.attentionStatus,
         },
       });
     },
@@ -988,10 +1046,12 @@ export function createStore({
       update({ sessions: { ...state.sessions, ...patch } });
     },
     setBotInbox(patch) {
+      if (samePatch(state.botInbox, patch)) return;
       update({ botInbox: { ...state.botInbox, ...patch } });
     },
-    setHumanInbox(patch) {
-      update({ humanInbox: { ...state.humanInbox, ...patch } });
+    setActivityList(patch) {
+      if (samePatch(state.activityList, patch)) return;
+      update({ activityList: { ...state.activityList, ...patch } });
     },
   };
 }

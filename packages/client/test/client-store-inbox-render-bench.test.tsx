@@ -29,7 +29,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
 
 import type { BridgeActions } from '../src/client/actions.js';
 import { ActivityInboxMenu } from '../src/client/activity-inbox-menu.js';
-import { HumanInboxView } from '../src/client/human-inbox-view.js';
+import { ActivityListView } from '../src/client/activity-list-view.js';
 import { ImAppsSection } from '../src/client/im-apps-section.js';
 import { zhTranslate as t } from '../src/client/locale.js';
 import {
@@ -129,14 +129,14 @@ const quiet = {
     } as never),
   'conversation-revision': (n: number) => store.setConversation({ revision: n + 1 }),
   search: (n: number) => store.setQuery('a'.repeat((n % 5) + 1)),
-  'inbox-count': (n: number) => store.setHumanInbox({ unreadCount: n + 2 }),
+  'inbox-count': (n: number) => store.setActivityList({ unreadCount: n + 2 }),
   'unrelated-activity': (n: number) => activity('cy', n),
 };
 type Phase = keyof typeof quiet;
-type Part = 'humanInbox' | 'activityMenu' | 'imApps';
-const PARTS: Part[] = ['humanInbox', 'activityMenu', 'imApps'];
+type Part = 'activityList' | 'activityMenu' | 'imApps';
+const PARTS: Part[] = ['activityList', 'activityMenu', 'imApps'];
 const quietFor: Record<Part, Phase[]> = {
-  humanInbox: ['stream', 'conversation-revision', 'search', 'unrelated-activity'],
+  activityList: ['stream', 'conversation-revision', 'search', 'unrelated-activity'],
   activityMenu: ['stream', 'conversation-revision', 'search', 'inbox-count', 'unrelated-activity'],
   imApps: ['stream', 'conversation-revision', 'search', 'inbox-count', 'unrelated-activity'],
 };
@@ -179,7 +179,7 @@ describe('Inbox render benchmark', () => {
     activity(undefined, 0);
     store.select({ kind: 'inbox' });
     store.setConversation({ status: 'ready', channel: DM, messages: [message(0)], revision: 0 });
-    store.setHumanInbox({
+    store.setActivityList({
       status: 'ready',
       category: 'replies',
       items: [item(1), item(2), item(3)],
@@ -209,7 +209,7 @@ describe('Inbox render benchmark', () => {
         createElement(
           'div',
           null,
-          profiled('humanInbox', createElement(HumanInboxView, { actions, t })),
+          profiled('activityList', createElement(ActivityListView, { actions, t })),
           profiled('activityMenu', createElement(ActivityInboxMenu, { actions, t })),
           profiled('imApps', createElement(ImAppsSection, { imApps, store, t } as never)),
         ),
@@ -249,7 +249,7 @@ describe('Inbox render benchmark', () => {
       };
     }
     updates['inbox-items'] = await measure(() =>
-      store.setHumanInbox({ items: [item(1), item(2), item(3), item(4)] }),
+      store.setActivityList({ items: [item(1), item(2), item(3), item(4)] }),
     );
     updates['channel-added'] = await measure(() => store.upsertChannel(channel('ops')));
     updates['bot-renamed'] = await measure(() => store.upsertBot(bot('ada', 'Ada Lovelace')));
@@ -264,11 +264,11 @@ describe('Inbox render benchmark', () => {
     for (const part of PARTS)
       for (const phase of quietFor[part])
         expect(report[phase]!.renders[part], `${part} on ${phase}`).toBe(0);
-    expect(updates['inbox-items']!.humanInbox).toBeGreaterThan(0);
-    for (const part of ['humanInbox', 'activityMenu'] as const)
+    expect(updates['inbox-items']!.activityList).toBeGreaterThan(0);
+    for (const part of ['activityList', 'activityMenu'] as const)
       expect(updates['channel-added']![part], part).toBeGreaterThan(0);
     for (const part of PARTS) expect(updates['bot-renamed']![part], part).toBeGreaterThan(0);
     for (const part of PARTS) expect(updates['bot-added']![part], part).toBeGreaterThan(0);
-    expect(updates['own-avatar']!.humanInbox).toBeGreaterThan(0);
+    expect(updates['own-avatar']!.activityList).toBeGreaterThan(0);
   });
 });

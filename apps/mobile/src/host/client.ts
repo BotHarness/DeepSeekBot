@@ -9,7 +9,20 @@ import type { HostCarrier, HostSocket } from './carrier';
 import { rosterSortingOf, type RosterSorting } from './roster-sorting';
 import { DEVICE_PREFIX } from './pairing';
 import { checkRoute, isConnectRoute, isEncryptedRoute, isLanRoute, socketOrigin } from './route';
+import {
+  readChannelList,
+  readListBots,
+  saveListBots,
+  syncChannelList,
+  type ChannelListChanges,
+  type ChannelListCursor,
+} from './channel-list-store';
+import type { LocalStore } from './local-store';
 import { LOCAL_VIDEO_PATH } from '../../../../packages/computer/src/local-video-contract';
+import {
+  isChannelVoiceCallRecord,
+  type ChannelVoiceCallRecord,
+} from '../../../../packages/core/src/channels/voice-call-record';
 import {
   VOICE_CALL_CONNECT_REFUSAL,
   VOICE_CALL_PATH,
@@ -36,7 +49,7 @@ export type ConnectionState =
   | { status: 'connecting'; route: string }
   | { status: 'connected'; route: string }
   | { status: 'reconnecting'; route: string; attempt: number }
-  | { status: 'unreachable'; route: string; attempt: number; reason: string }
+  | { status: 'unreachable'; route: string; attempt: number; reason: string; retryDelay?: number }
   | { status: 'refused'; route: string; code: DeviceRefusal; reason: string }
   | { status: 'stopped'; route: string };
 
@@ -63,6 +76,7 @@ export interface RosterBot {
   paused: boolean;
   dmChannelId?: string;
   preview?: string;
+  previewCall?: ChannelVoiceCallRecord;
   previewAt?: string;
   latestMessageId?: string;
   previewAuthor?: WireAuthor;
@@ -78,6 +92,7 @@ export interface RosterChannel {
   pendingInvites?: Array<{ id: string; botSlug: string }>;
   pendingJoins?: Array<{ id: string; botSlug: string }>;
   preview?: string;
+  previewCall?: ChannelVoiceCallRecord;
   previewAt?: string;
   latestMessageId?: string;
   previewAuthor?: WireAuthor;
@@ -118,6 +133,7 @@ export interface HostSnapshot {
   }[];
   computerAvailable?: boolean;
   connection: ConnectionState;
+  activity?: readonly WireBotActivity[];
   roster?: RosterView;
 }
 
@@ -125,6 +141,8 @@ export interface RemoteSource {
   read?: (signal: AbortSignal) => Promise<{ bytes: Uint8Array; mime: string }>;
   uri: string;
   headers: Record<string, string>;
+  cacheKey?: string;
+  scope?: string;
 }
 
 export interface StreamHandlers {
@@ -165,6 +183,7 @@ export interface HostApiAnswer {
 
 export interface HostClientOptions {
   onRoutesChanged?: (routes: string[]) => Promise<void>;
+  onPurged?: (placements: unknown) => void;
   hostId?: string;
   encryption?: HostEncryption;
   telemetry?: ConnectionTelemetry;
@@ -173,6 +192,7 @@ export interface HostClientOptions {
   carrier: HostCarrier;
   backoff?: (attempt: number) => number;
   timeoutMs?: number;
+  localStore?: () => Promise<LocalStore | undefined>;
 }
 
 export type DeviceRefusal = 'device-revoked' | 'device-unknown' | 'device-credential-missing';
@@ -202,7 +222,14 @@ function refusalOf(text: string): DeviceRefusal | undefined {
   }
 }
 
-class Unreachable extends Error {}
+class Unreachable extends Error {
+  constructor(
+    message: string,
+    readonly status?: number,
+  ) {
+    super(message);
+  }
+}
 
 const UPLOAD_TOO_LARGE = 'The file is larger than the Host accepts.';
 const uploadTimeoutMs = 120_000;
@@ -225,7 +252,11 @@ interface Follower {
   reopen?: ReturnType<typeof setTimeout> | undefined;
 }
 
-const defaultBackoff = (attempt: number): number => Math.min(15_000, 500 * 2 ** (attempt - 1));
+export const MAX_RECONNECT_DELAY_MS = 300_000;
+export const STABLE_CONNECTION_MS = 60_000;
+export const REUSE_ON_RECONNECT_MS = 600_000;
+export const defaultBackoff = (attempt: number): number =>
+  Math.min(MAX_RECONNECT_DELAY_MS, 500 * 2 ** (attempt - 1));
 
 function id(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/gu, (c) => {
@@ -240,14 +271,19 @@ function record(value: unknown): Record<string, unknown> {
 
 function previewOf(channel: ChannelListItem | undefined): {
   preview?: string;
+  previewCall?: ChannelVoiceCallRecord;
   previewAt?: string;
   latestMessageId?: string;
   previewAuthor?: WireAuthor;
 } {
   const message = channel?.latestMessage;
   if (message === undefined) return {};
+  const call = record(message).voiceCallRecord;
   return {
     preview: message.body.replace(/\s+/gu, ' ').trim().slice(0, 140),
+    ...(message.author?.kind === 'system' && isChannelVoiceCallRecord(call)
+      ? { previewCall: call }
+      : {}),
     previewAt: message.at,
     latestMessageId: message.id,
     ...(message.author === undefined ? {} : { previewAuthor: message.author }),
@@ -315,12 +351,17 @@ export function createHostClient(options: HostClientOptions): HostClient {
   let bots: PersonaBotSummary[] | undefined;
   let computerAvailable: boolean | undefined;
   let channels = new Map<string, ChannelListItem>();
+  let channelsLoaded = false;
+  let savedBots: string | undefined;
   let states = new Map<string, WireBotActivity>();
   let rawStates = new Map<string, WireBotActivity>();
   const smoother = new ActivitySmoother<WireBotActivity>();
   let settle: ReturnType<typeof setTimeout> | undefined;
   let arrangement: RosterArrangement | undefined;
   let sorting: RosterSorting | undefined;
+  let reuseNextPass = false;
+  let fetchedArrangement: { value: RosterArrangement | undefined; at: number } | undefined;
+  let fetchedSorting: { value: RosterSorting | undefined; at: number } | undefined;
   let running = false;
   let everConnected = false;
   let attempt = 0;
@@ -333,22 +374,70 @@ export function createHostClient(options: HostClientOptions): HostClient {
   let reloadAgain = false;
   let disconnectCurrent: ((reason: string) => void) | undefined;
   let activeRequests = 0;
+  let resumeRequested = false;
   let checkingPreferred = false;
   let preferredSwitchAt = 0;
   const followers = new Set<Follower>();
   let liveSocket: { generation: number; send(frame: MuxClientFrame): void } | undefined;
   let streams = new Map<string, { item(value: unknown): void; end(frame: MuxServerFrame): void }>();
 
-  const publish = (connection?: ConnectionState): void => {
-    snapshot = {
-      routes: routes.map((url) => ({
-        url,
-        status: routeChecks.get(url) ?? 'unchecked',
-      })),
-      connection: connection ?? snapshot.connection,
-      ...(computerAvailable === undefined ? {} : { computerAvailable }),
-      ...(bots === undefined ? {} : { roster: view(bots) }),
+  const shared = new Map<string, { json: string; value: unknown }>();
+  const share = <T>(key: string, value: T): T => {
+    const json = JSON.stringify(value);
+    const previous = shared.get(key);
+    if (previous?.json === json) return previous.value as T;
+    shared.set(key, { json, value });
+    return value;
+  };
+  const sameList = <T>(next: readonly T[], previous: readonly T[] | undefined): boolean =>
+    previous !== undefined &&
+    next.length === previous.length &&
+    next.every((item, index) => item === previous[index]);
+  const shareRoster = (next: RosterView, previous: RosterView | undefined): RosterView => {
+    const bots = next.bots.map((bot) => share(`bot:${bot.slug}`, bot));
+    const channels = next.channels.map((channel) => share(`channel:${channel.id}`, channel));
+    const roster: RosterView = {
+      ...next,
+      bots: sameList(bots, previous?.bots) ? previous!.bots : bots,
+      channels: sameList(channels, previous?.channels) ? previous!.channels : channels,
+      ...(next.activityChannels === undefined
+        ? {}
+        : {
+            activityChannels: sameList(next.activityChannels, previous?.activityChannels)
+              ? previous!.activityChannels!
+              : next.activityChannels,
+          }),
     };
+    return previous !== undefined &&
+      (Object.keys(roster) as (keyof RosterView)[]).every((key) => roster[key] === previous[key]) &&
+      Object.keys(previous).length === Object.keys(roster).length
+      ? previous
+      : roster;
+  };
+
+  const publish = (connection?: ConnectionState): void => {
+    const nextRoutes: NonNullable<HostSnapshot['routes']> = routes.map((url) => ({
+      url,
+      status: routeChecks.get(url) ?? 'unchecked',
+    }));
+    const roster = bots === undefined ? undefined : shareRoster(view(bots), snapshot.roster);
+    const next: HostSnapshot = {
+      routes:
+        snapshot.routes !== undefined &&
+        JSON.stringify(nextRoutes) === JSON.stringify(snapshot.routes)
+          ? snapshot.routes
+          : nextRoutes,
+      connection: connection ?? snapshot.connection,
+      activity: share('activity', [...rawStates.values()]),
+      ...(computerAvailable === undefined ? {} : { computerAvailable }),
+      ...(roster === undefined ? {} : { roster }),
+    };
+    const unchanged =
+      connection === undefined &&
+      Object.keys(next).length === Object.keys(snapshot).length &&
+      (Object.keys(next) as (keyof HostSnapshot)[]).every((key) => next[key] === snapshot[key]);
+    if (unchanged) return;
+    snapshot = next;
     if (connection !== undefined)
       options.telemetry?.update(
         connection.status,
@@ -433,11 +522,13 @@ export function createHostClient(options: HostClientOptions): HostClient {
   const absolute = (path: string): string =>
     path.startsWith('/') ? `${route}${DEVICE_PREFIX}${path}` : path;
 
+  const scope = options.hostId ? { scope: options.hostId } : {};
   const resource = (path: string): RemoteSource => {
     if (checkRoute(route).ok && !isEncryptedRoute(route, options.encryption))
-      return { uri: absolute(path), headers: authorization };
+      return { uri: absolute(path), headers: authorization, ...scope };
     const origin = route;
     return {
+      ...scope,
       uri: `connect-resource:${options.hostId ?? ''}:${path}`,
       headers: {},
       read: async (signal) => {
@@ -566,7 +657,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
         const code = refusalOf(await response.text());
         if (code !== undefined) throw new CredentialRefused(code);
       }
-      if (response.status >= 400) throw new Unreachable(`The Host answered ${response.status}.`);
+      if (response.status >= 400)
+        throw new Unreachable(`The Host answered ${response.status}.`, response.status);
       let envelope: Record<string, unknown>;
       try {
         envelope = record(JSON.parse(await response.text()));
@@ -675,7 +767,17 @@ export function createHostClient(options: HostClientOptions): HostClient {
       running = false;
       generation += 1;
       disconnectCurrent?.(error.message);
+      interruptFollowers(error.message);
+      clearTimeout(retryTimer);
+      clearTimeout(settle);
+      settle = undefined;
+      wake?.();
       socket?.close();
+      socket = undefined;
+      carrier.close?.();
+      avatars.clear();
+      avatarLoading.clear();
+      options.telemetry?.dispose();
       publish({
         status: 'refused',
         route,
@@ -703,20 +805,113 @@ export function createHostClient(options: HostClientOptions): HostClient {
     }
   };
 
-  const reloadOnce = async (): Promise<void> => {
+  const fullChannelList = (): Promise<ChannelListItem[]> =>
+    call<{ channels: ChannelListItem[] }>('channels').then((result) => result.channels);
+
+  const unlessRefused = <T>(work: Promise<T>): Promise<T | undefined> =>
+    work.catch((error: unknown) => {
+      if (error instanceof MethodRefused || (error instanceof Unreachable && error.status === 404))
+        return undefined;
+      throw error;
+    });
+
+  const openLocalStore = (): Promise<LocalStore | undefined> =>
+    options.localStore?.().catch(() => undefined) ?? Promise.resolve(undefined);
+
+  const loadChannels = async (): Promise<ChannelListItem[]> => {
+    const store = await openLocalStore();
+    if (store === undefined) return fullChannelList();
+    try {
+      return await syncChannelList(store, {
+        channels: fullChannelList,
+        cursor: () => unlessRefused(call<ChannelListCursor>('channelChangeCursor')),
+        changes: (cursor) =>
+          unlessRefused(
+            call<ChannelListChanges>('channelListChanges', {
+              sinceSeq: cursor.seq,
+              epoch: cursor.epoch,
+            }),
+          ),
+      });
+    } catch (error) {
+      if (
+        error instanceof Unreachable ||
+        error instanceof MethodRefused ||
+        error instanceof CredentialRefused
+      )
+        throw error;
+      return fullChannelList();
+    }
+  };
+
+  const paintStoredChannels = async (): Promise<void> => {
+    const store = await openLocalStore();
+    if (store === undefined || channelsLoaded) return;
+    const [stored, storedBots] = await Promise.all([
+      readChannelList(store),
+      readListBots<PersonaBotSummary>(store),
+    ]).catch(() => [undefined, undefined] as const);
+    if (stored === undefined || storedBots === undefined || channelsLoaded) return;
+    savedBots = JSON.stringify(storedBots);
+    bots = storedBots;
+    channels = new Map(stored.channels.map((channel) => [channel.id, channel]));
+    publish();
+  };
+
+  const keepBots = (list: PersonaBotSummary[]): void => {
+    const json = JSON.stringify(list);
+    if (json === savedBots) return;
+    void openLocalStore()
+      .then(async (store) => {
+        if (store === undefined) return;
+        await saveListBots(store, list);
+        savedBots = json;
+      })
+      .catch(() => undefined);
+  };
+
+  const reusable = <T>(
+    reuse: boolean,
+    fetched: { value: T; at: number } | undefined,
+  ): fetched is { value: T; at: number } =>
+    reuse && fetched !== undefined && Date.now() - fetched.at < REUSE_ON_RECONNECT_MS;
+
+  const readArrangement = (): Promise<RosterArrangement | undefined> => {
+    fetchedArrangement = undefined;
+    return call<unknown>('rosterGet')
+      .then(arrangementOf, (error: unknown) => {
+        if (error instanceof MethodRefused) return undefined;
+        throw error;
+      })
+      .then((value) => {
+        fetchedArrangement = { value, at: Date.now() };
+        return value;
+      });
+  };
+
+  const readSorting = (): Promise<RosterSorting | undefined> => {
+    fetchedSorting = undefined;
+    return call<unknown>('settings/describe')
+      .then(rosterSortingOf)
+      .then((value) => {
+        fetchedSorting = { value, at: Date.now() };
+        return value;
+      });
+  };
+
+  const reloadOnce = async (reuse: boolean): Promise<void> => {
     void discoverComputer();
     void discoverRoutes();
     const [list, channelList, rosterArrangement, rosterSorting] = await Promise.all([
       call<{ bots: PersonaBotSummary[] }>('list'),
-      call<{ channels: ChannelListItem[] }>('channels'),
-      call<unknown>('rosterGet').then(arrangementOf, (error: unknown) => {
-        if (error instanceof MethodRefused) return undefined;
-        throw error;
-      }),
-      call<unknown>('settings/describe').then(rosterSortingOf),
+      loadChannels(),
+      reusable(reuse, fetchedArrangement) ? fetchedArrangement.value : readArrangement(),
+      reusable(reuse, fetchedSorting) ? fetchedSorting.value : readSorting(),
     ]);
     bots = list.bots;
-    channels = new Map(channelList.channels.map((channel) => [channel.id, channel]));
+    channels = new Map(channelList.map((channel) => [channel.id, channel]));
+    channelsLoaded = true;
+    keepBots(list.bots);
     arrangement = rosterArrangement;
     sorting = rosterSorting;
     publish();
@@ -730,8 +925,10 @@ export function createHostClient(options: HostClientOptions): HostClient {
     reloading = (async () => {
       try {
         do {
+          const reuse = reuseNextPass;
+          reuseNextPass = false;
           reloadAgain = false;
-          await reloadOnce();
+          await reloadOnce(reuse);
         } while (reloadAgain);
       } finally {
         reloading = undefined;
@@ -932,6 +1129,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
           };
           follow('botharness/followRoster', (value) => {
             const frame = value as RosterLiveFrame;
+            if (frame.type === 'baseline' || frame.type === 'purged')
+              options.onPurged?.(frame.placements);
             if (frame.type === 'baseline') {
               baselines.roster = true;
               if (baselines.activity) resolveReady();
@@ -990,24 +1189,44 @@ export function createHostClient(options: HostClientOptions): HostClient {
     } finally {
       clearTimeout(deadline);
     }
+    if (reloading === undefined) reuseNextPass = true;
     await reload();
     if (current !== generation) return;
-    attempt = 0;
+    const stable = setTimeout(() => {
+      attempt = 0;
+    }, STABLE_CONNECTION_MS);
     everConnected = true;
     disconnectCurrent = disconnect;
     publish({ status: 'connected', route });
     const health = setInterval(() => {
       void discoverRoutes();
-      void refreshConnected(() => call('list')).catch(() => undefined);
+      void refreshConnected(probeHost).catch(() => undefined);
     }, 20_000);
     try {
       await closed;
     } finally {
+      clearTimeout(stable);
       clearInterval(health);
       if (disconnectCurrent === disconnect) disconnectCurrent = undefined;
     }
   };
 
+  let pingAvailable = true;
+  const probeHost = async (): Promise<unknown> => {
+    if (pingAvailable)
+      try {
+        return await call('ping');
+      } catch (error) {
+        if (
+          error instanceof Unreachable ||
+          error instanceof CredentialRefused ||
+          error instanceof ConnectRefused
+        )
+          throw error;
+        pingAvailable = false;
+      }
+    return call('list');
+  };
   const refreshConnected = async (read: () => Promise<unknown> = reload): Promise<void> => {
     const disconnect = disconnectCurrent;
     try {
@@ -1065,6 +1284,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
 
   const loop = async (current: number): Promise<void> => {
     while (running && current === generation) {
+      let retryDelay: number | undefined;
       try {
         await connectOnce(current);
         if (!running || current !== generation) return;
@@ -1074,29 +1294,43 @@ export function createHostClient(options: HostClientOptions): HostClient {
         if (!running || current !== generation) return;
         socket?.close();
         if (error instanceof CredentialRefused) {
-          running = false;
-          publish({
-            status: 'refused',
-            route,
-            code: error.code,
-            reason: error.message,
-          });
+          refusedBy(error);
           return;
         }
         attempt += 1;
+        retryDelay = backoff(attempt);
         publish({
           status: 'unreachable',
           route,
           attempt,
           reason: error instanceof Error ? error.message : 'The Host could not be reached.',
+          retryDelay,
         });
+      }
+      if (resumeRequested) {
+        resumeRequested = false;
+        continue;
       }
       await new Promise<void>((resolve) => {
         wake = resolve;
-        retryTimer = setTimeout(resolve, backoff(attempt));
+        retryTimer = setTimeout(resolve, retryDelay ?? backoff(attempt));
       });
       wake = undefined;
     }
+  };
+
+  const resumeLive = (): void => {
+    if (
+      !resumeRequested ||
+      !running ||
+      activeRequests > 0 ||
+      snapshot.connection.status !== 'connected'
+    )
+      return;
+    const disconnect = disconnectCurrent;
+    disconnectCurrent = undefined;
+    publish({ status: 'reconnecting', route, attempt: Math.max(attempt, 1) });
+    disconnect?.('resuming');
   };
 
   return {
@@ -1125,16 +1359,19 @@ export function createHostClient(options: HostClientOptions): HostClient {
     start() {
       if (running) return;
       running = true;
+      resumeRequested = false;
       generation += 1;
       publish(
         everConnected
           ? { status: 'reconnecting', route, attempt: Math.max(attempt, 1) }
           : { status: 'connecting', route },
       );
+      void paintStoredChannels();
       void loop(generation);
     },
     stop() {
       running = false;
+      resumeRequested = false;
       disconnectCurrent?.('stopped');
       interruptFollowers('stopped');
       generation += 1;
@@ -1152,8 +1389,17 @@ export function createHostClient(options: HostClientOptions): HostClient {
     },
     retryNow(trigger = 'manual_retry') {
       if (!running) return;
+      if (trigger === 'manual_retry') {
+        fetchedArrangement = undefined;
+        fetchedSorting = undefined;
+      }
       options.telemetry?.begin(trigger);
       if (snapshot.connection.status === 'connected') {
+        if (trigger === 'resume') {
+          resumeRequested = true;
+          resumeLive();
+          return;
+        }
         void refreshConnected().then(
           () => {
             if (running && snapshot.connection.status === 'connected')
@@ -1178,6 +1424,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
         throw error;
       } finally {
         activeRequests -= 1;
+        resumeLive();
       }
     },
     async api(path, init) {
@@ -1189,6 +1436,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
         throw error;
       } finally {
         activeRequests -= 1;
+        resumeLive();
       }
     },
     async upload(name, data) {
@@ -1197,6 +1445,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
         return await upload(name, data);
       } finally {
         activeRequests -= 1;
+        resumeLive();
       }
     },
     resource,

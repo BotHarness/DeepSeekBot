@@ -2,6 +2,7 @@ import { createActivityApns } from './activity-apns.js';
 import { createAccessTokenVerifier, workosKeys } from './auth.js';
 import { createCloudflareApi } from './cloudflare.js';
 import type { D1Database } from './d1.js';
+import { createEmailCode } from './email-code.js';
 import { createRelay, hmac } from './relay.js';
 
 export interface ConnectRelayEnv {
@@ -96,6 +97,15 @@ export function relayForEnv(env: ConnectRelayEnv): ReturnType<typeof createRelay
               .success,
         }),
     ...(apiKey ? { deleteUser: workosUserDeleter(apiKey) } : {}),
+    ...(apiKey && limiter !== undefined
+      ? {
+          emailCode: createEmailCode({
+            apiKey,
+            clientId,
+            limit: async (key: string) => (await limiter.limit({ key })).success,
+          }),
+        }
+      : {}),
     deleteMarketplaceAuthor: marketplaceAuthorDeleter(
       env.MARKET === undefined ? fetch : env.MARKET.fetch.bind(env.MARKET),
     ),

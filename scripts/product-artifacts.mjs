@@ -89,7 +89,14 @@ export function productManifest(manifest, version) {
       ...cloudflaredOptionalDependencies(version),
     },
     dsh: { ...manifest.dsh, bundle: { patch: './cordis.im.patch.yml' } },
-    files: ['dist', 'desktop-theme', 'cordis.im.patch.yml', 'README.md', 'LICENSE'],
+    files: [
+      'dist',
+      'desktop-theme',
+      'desktop-theme-0.2.2-rc.1',
+      'cordis.im.patch.yml',
+      'README.md',
+      'LICENSE',
+    ],
   };
 }
 
@@ -321,7 +328,13 @@ export function packProduct({
   mkdirSync(product);
   const source = join(repoRoot, 'packages/deepseekbot');
   writeJson(join(product, 'package.json'), productRelease);
-  copyAvailable(source, product, ['dist', 'desktop-theme', 'cordis.im.patch.yml', 'README.md']);
+  copyAvailable(source, product, [
+    'dist',
+    'desktop-theme',
+    'desktop-theme-0.2.2-rc.1',
+    'cordis.im.patch.yml',
+    'README.md',
+  ]);
   cpSync(join(repoRoot, 'README.en.md'), join(product, 'README.md'));
   cpSync(join(repoRoot, 'LICENSE'), join(product, 'LICENSE'));
   packageDirectories.push(product);
@@ -332,7 +345,7 @@ export function packProduct({
   cpSync(join(repoRoot, 'README.en.md'), join(tobs, 'README.md'));
   const launcher = join(tobs, 'src/tobs.mjs');
   writeFileSync(launcher, `#!/usr/bin/env node\n${readFileSync(launcher, 'utf8')}`);
-  copyAvailable(source, tobs, ['cordis.im.patch.yml', 'desktop-theme']);
+  copyAvailable(source, tobs, ['cordis.im.patch.yml', 'desktop-theme', 'desktop-theme-0.2.2-rc.1']);
   mkdirSync(join(tobs, 'dist'), { recursive: true });
   cpSync(join(source, 'dist/theme-schema.mjs'), join(tobs, 'dist/theme-schema.mjs'));
   cpSync(join(repoRoot, 'LICENSE'), join(tobs, 'LICENSE'));
@@ -388,6 +401,7 @@ export function tobsManifest(product) {
       'src',
       'dist/theme-schema.mjs',
       'desktop-theme',
+      'desktop-theme-0.2.2-rc.1',
       'cordis.im.patch.yml',
       'README.md',
       'LICENSE',

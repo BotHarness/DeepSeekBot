@@ -13,4 +13,5 @@ export const MENU_SYMBOL = {
   folder: 'folder',
   chat: 'bubble.left',
   share: 'square.and.arrow.up',
+  stop: 'stop.circle',
 } as const satisfies Record<MenuAction['icon'], string>;

@@ -3,7 +3,7 @@ import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { BridgeActions } from './actions.js';
 import { PersonaBotAvatar } from './avatar.js';
 import { ToolApprovalCard } from './tool-approval-card.js';
-import { HumanInboxReply } from './human-inbox-reply.js';
+import { ActivityListReply } from './activity-list-reply.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 import type { BotSummary, ChannelMessage, HumanAttentionItem } from './store.js';
@@ -33,7 +33,7 @@ export function ActivityApproval({
     const controller = new AbortController();
     setFailed(false);
     void actions
-      .humanInboxContextPage(
+      .activityListContextPage(
         source.channelId!,
         {
           direction: 'around',
@@ -116,10 +116,10 @@ export function ActivityApproval({
             />
           ) : (
             <div role={failed ? 'alert' : 'status'} className="bh-note">
-              {t(failed ? 'activityInbox.unavailable' : 'humanInbox.loading')}
+              {t(failed ? 'activityInbox.unavailable' : 'activityList.loading')}
               {failed ? (
                 <Button size="sm" onClick={() => setAttempt((value) => value + 1)}>
-                  {t('humanInbox.context.retry')}
+                  {t('activityList.context.retry')}
                 </Button>
               ) : null}
             </div>
@@ -143,12 +143,12 @@ export function ActivityApproval({
                   .catch(() => setFailed(true));
               }}
             >
-              {t('humanInbox.open')}
+              {t('activityList.open')}
             </button>
           </div>
-          {failed && message ? <p role="alert">{t('humanInbox.failed')}</p> : null}
+          {failed && message ? <p role="alert">{t('activityList.failed')}</p> : null}
           {context ? (
-            <HumanInboxReply
+            <ActivityListReply
               source={source}
               actions={actions}
               t={t}

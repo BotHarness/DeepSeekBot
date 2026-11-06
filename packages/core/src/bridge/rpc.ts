@@ -5,7 +5,13 @@ import type {
   VoiceSynthesisView,
   VoiceTranscriptionView,
 } from '../voice/bridge.js';
-import type { ProviderHealth, VoiceProviderView } from '../voice/providers.js';
+import type { VoiceDictationReadiness, VoiceDictationView } from '../voice/dictation.js';
+import type {
+  ProviderHealth,
+  VoiceDefaults,
+  VoiceProviderView,
+  VoiceSpeechThreshold,
+} from '../voice/providers.js';
 import type { PersonaBotAsr, PersonaBotVoice } from '../bots/persona-bot.js';
 import type { CloudManagementInput, CloudManagementResult } from '../cloud/management.js';
 import type { ChannelManagementResult } from '../channels/management.js';
@@ -36,7 +42,15 @@ import type {
 } from '../storage/media-cleanup.js';
 import type { GroupMemberWakePolicy } from '../channels/channel.js';
 import { LiveRefused } from '../channels/live-frames.js';
-import type { ChannelJournalPage, ChannelJournalRequest } from '../channels/timeline.js';
+import type {
+  ChannelFilesPage,
+  ChannelFilesRequest,
+  ChannelChangeCursor,
+  ChannelChanges,
+  ChannelChangesRequest,
+  ChannelJournalPage,
+  ChannelJournalRequest,
+} from '../channels/timeline.js';
 import type { CompanionLiveFrame } from '../companions/live.js';
 import type { CloudWork, CloudWorkInput } from '../cloud/work.js';
 import {
@@ -129,6 +143,7 @@ import type {
   BridgeMethods,
   BridgeResult,
   ChannelListItem,
+  ChannelListChanges,
   MessagingAppsView,
   PersonaBotDetail,
   ApprovalTemplateEntry,
@@ -249,6 +264,9 @@ export interface BridgeLive {
     drafts?: DraftDelivery,
   ): AsyncIterable<ChannelLiveFrame>;
   journalPage(channelId: string, request: ChannelJournalRequest): ChannelJournalPage | undefined;
+  filesPage(channelId: string, request: ChannelFilesRequest): ChannelFilesPage | undefined;
+  changes(channelId: string, request: ChannelChangesRequest): ChannelChanges | undefined;
+  changeCursor(): ChannelChangeCursor | undefined;
   followCompanion(
     resume: string,
     lastEventId: string,
@@ -342,6 +360,35 @@ export class BotharnessBridgeService extends TypertRemoteService {
         message: 'Channel journal page is unavailable',
       });
     return page;
+  }
+
+  channelFilesPage(channelId: string, before?: number, limit?: number): ChannelFilesPage {
+    const page = this.live?.filesPage(channelId, { before, limit });
+    if (page === undefined)
+      throw toRemoteError({
+        code: 'not-found',
+        message: 'Channel files page is unavailable',
+      });
+    return page;
+  }
+
+  channelChanges(
+    channelId: string,
+    sinceSeq: number,
+    epoch?: string,
+    limit?: number,
+  ): ChannelChanges {
+    const changes = this.live?.changes(channelId, { sinceSeq, epoch, limit });
+    if (changes === undefined)
+      throw toRemoteError({ code: 'not-found', message: 'Channel changes are unavailable' });
+    return changes;
+  }
+
+  channelChangeCursor(): ChannelChangeCursor {
+    const cursor = this.live?.changeCursor();
+    if (cursor === undefined)
+      throw toRemoteError({ code: 'unavailable', message: 'Channel changes are unavailable' });
+    return cursor;
   }
 
   async *followChannel(
@@ -725,8 +772,8 @@ export class BotharnessBridgeService extends TypertRemoteService {
       }),
     );
   }
-  telemetryEvent(event: string, properties: Record<string, string | boolean> = {}): null {
-    return unwrap(this.methods.telemetryEvent({ event, properties }));
+  telemetryEvent(event: string, properties?: Record<string, string | boolean>): null {
+    return unwrap(this.methods.telemetryEvent({ event, properties: properties ?? {} }));
   }
   modelPlanInherit(slug: string, expectedRevision: number): { revision: number } {
     return unwrap(this.methods.modelPlanInherit({ slug, expectedRevision }));
@@ -1364,6 +1411,30 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.botAsrSet({ slug, providerId, language }));
   }
 
+  voiceDefaultSet(
+    kind: string,
+    providerId: string | null,
+    voiceId?: string,
+    language?: string,
+  ): { defaults: VoiceDefaults } {
+    return unwrap(this.methods.voiceDefaultSet({ kind, providerId, voiceId, language }));
+  }
+
+  voiceSpeechThresholdSet(dbfs: number | null): { speechThreshold: VoiceSpeechThreshold } {
+    return unwrap(this.methods.voiceSpeechThresholdSet({ dbfs }));
+  }
+
+  voiceDictation(
+    kind: string,
+    id?: string,
+    pcm?: string,
+    slug?: string,
+    providerId?: string,
+    language?: string,
+  ): Promise<{ readiness: VoiceDictationReadiness } | { dictation: VoiceDictationView }> {
+    return unwrapAsync(this.methods.voiceDictation({ kind, id, pcm, slug, providerId, language }));
+  }
+
   approvalReviewerModel(): Promise<ApprovalReviewerModelView> {
     return unwrapAsync(this.methods.approvalReviewerModel({}));
   }
@@ -1454,6 +1525,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
 
   async channels(): Promise<{ channels: ChannelListItem[] }> {
     return unwrap(await this.methods.channels({}));
+  }
+
+  async channelListChanges(sinceSeq: number, epoch?: string): Promise<ChannelListChanges> {
+    return unwrap(await this.methods.channelListChanges({ sinceSeq, epoch }));
   }
 
   channelDm(slug: string, displayName?: string): { channel: ChannelRecord } {
@@ -1590,6 +1665,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
         ...(expectedChannel === undefined ? {} : { expectedChannel }),
       }),
     );
+  }
+
+  ping() {
+    return unwrap(this.methods.ping({}));
   }
 
   humanIdentity() {
@@ -1733,8 +1812,8 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.channelReadPosition({ channelId }));
   }
 
-  async channelMarkAllRead(): Promise<{ channels: number }> {
-    return unwrap(await this.methods.channelMarkAllRead({}));
+  async channelMarkAllRead(channelId?: string, botSlug?: string): Promise<{ channels: number }> {
+    return unwrap(await this.methods.channelMarkAllRead({ channelId, botSlug }));
   }
   async channelMarkRead(
     channelId: string,
@@ -2780,6 +2859,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'pause',
   'resume',
   'channels',
+  'ping',
   'humanIdentity',
   'composerIdentity',
   'composerValidate',
@@ -2927,6 +3007,9 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'botVoiceSet',
   'voiceTranscribe',
   'botAsrSet',
+  'voiceDefaultSet',
+  'voiceSpeechThresholdSet',
+  'voiceDictation',
   'idleCompaction',
   'idleCompactionSet',
   'idleCompactionCacheLifetimeSet',
@@ -2991,6 +3074,10 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'scheduleRunNow',
   'schedulePreview',
   'channelJournalPage',
+  'channelFilesPage',
+  'channelChanges',
+  'channelChangeCursor',
+  'channelListChanges',
 ]);
 markRemoteStreams(BotharnessBridgeService.prototype, [
   'followRoster',

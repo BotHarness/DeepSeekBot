@@ -25,4 +25,4 @@ We deliberately do not copy the Grok Bot visual identity. `bloub` (the community
 - Glyphs live in a first-party module with per-file attribution headers; the bundle contract test is untouched.
 - `THIRD_PARTY_NOTICES.md` ships in `files`; the root LICENSE ticket lands before any MIT code is copied.
 - Motion and expressions (blobatar `motion.css` / `gaze.css`, 14 expression poses, hover/breathe/bob/blink/saccades/wrap/gaze) are deferred to a v1.1 ticket: stylesheet delivery conflicts with our bundle's CSS injection (`styles.ts`), unresolved, and Safari behavior is unverified.
-- `CONTEXT.md`'s Avatar entry is updated; `docs/research/2026-09-19-avatar-and-icon-references.md` holds the reference facts and license obligations.
+- `GLOSSARY.md`'s Avatar entry is updated; `docs/research/2026-09-19-avatar-and-icon-references.md` holds the reference facts and license obligations.

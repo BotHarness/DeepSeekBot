@@ -52,7 +52,12 @@ describe('phone interface preferences', () => {
     expect(preferences.getSnapshot().locale).toBe('zh');
     preferences.setSystemLocales(['de-DE']);
     expect(preferences.getSnapshot().locale).toBe('en');
-    expect(write).toHaveBeenLastCalledWith({ language: 'system', appearance: 'system' });
+    expect(write).toHaveBeenLastCalledWith({
+      language: 'system',
+      appearance: 'system',
+      inAppAlerts: true,
+      inAppAlertStyle: 'overlay',
+    });
   });
 
   it.each([undefined, null, 'dark', { language: 'es', appearance: 'midnight' }])(
@@ -110,6 +115,66 @@ describe('phone interface preferences', () => {
     finish({ language: 'en', appearance: 'light' });
     await restore;
     expect(preferences.getSnapshot()).toMatchObject({ language: 'zh', appearance: 'dark' });
-    expect(write).toHaveBeenCalledWith({ language: 'zh', appearance: 'dark' });
+    expect(write).toHaveBeenCalledWith({
+      language: 'zh',
+      appearance: 'dark',
+      inAppAlerts: true,
+      inAppAlertStyle: 'overlay',
+    });
+  });
+
+  it('persists the in-app alert choice independently of language and appearance', async () => {
+    let saved: unknown = { language: 'zh', appearance: 'dark' };
+    const storage = {
+      read: async () => saved,
+      write: (value: unknown) => {
+        saved = value;
+      },
+    };
+    const preferences = createInterfacePreferences();
+    await preferences.restore(storage);
+    expect(preferences.getSnapshot().inAppAlerts).toBe(true);
+    preferences.setInAppAlerts(false);
+    preferences.setInAppAlertStyle('overlay');
+    const restarted = createInterfacePreferences();
+    await restarted.restore(storage);
+    expect(restarted.getSnapshot()).toMatchObject({
+      inAppAlerts: false,
+      inAppAlertStyle: 'overlay',
+      language: 'zh',
+      appearance: 'dark',
+    });
+    restarted.setLanguage('en');
+    expect(restarted.getSnapshot().inAppAlerts).toBe(false);
+    restarted.setInAppAlerts(true);
+    expect(restarted.getSnapshot().inAppAlertStyle).toBe('overlay');
+  });
+
+  it('defaults unsupported saved styles to overlay presentation', async () => {
+    const preferences = createInterfacePreferences();
+    await preferences.restore({
+      read: async () => ({ inAppAlertStyle: 'system-push' }),
+      write() {},
+    });
+    expect(preferences.getSnapshot().inAppAlertStyle).toBe('overlay');
+  });
+});
+
+it.each(['inline', 'overlay'] as const)('retains the explicitly saved %s style', async (style) => {
+  const preferences = createInterfacePreferences();
+  await preferences.restore({ read: async () => ({ inAppAlertStyle: style }), write() {} });
+  expect(preferences.getSnapshot().inAppAlertStyle).toBe(style);
+});
+it('uses overlay for a new install and old settings without a style', async () => {
+  const preferences = createInterfacePreferences();
+  expect(preferences.getSnapshot().inAppAlertStyle).toBe('overlay');
+  await preferences.restore({
+    read: async () => ({ language: 'zh', inAppAlerts: false }),
+    write() {},
+  });
+  expect(preferences.getSnapshot()).toMatchObject({
+    inAppAlertStyle: 'overlay',
+    language: 'zh',
+    inAppAlerts: false,
   });
 });

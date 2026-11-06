@@ -101,6 +101,7 @@ export interface ChannelWireMessage extends WireMessage {
   botCreateAction?: unknown;
   memberDeparture?: unknown;
   turnStop?: unknown;
+  voiceCallRecord?: unknown;
 }
 
 export interface WireMessageVoice {
@@ -124,6 +125,10 @@ export interface AttachmentRef {
   size: number;
   fileId?: string;
   hash?: string;
+  version?: string;
+  width?: number;
+  height?: number;
+  thumbhash?: string;
 }
 
 export interface JournalEntry {
@@ -177,6 +182,18 @@ export type ChannelNotification =
       attachments: readonly AttachmentRef[];
     }
   | {
+      kind: 'attachments';
+      channelId: string;
+      messageId: string;
+      attachments: readonly AttachmentRef[];
+      clearedAttachments: readonly {
+        name: string;
+        mime: string;
+        size: number;
+        clearedAt: string;
+      }[];
+    }
+  | {
       kind: 'draft-baseline';
       channelId: string;
       revision: number;
@@ -195,7 +212,12 @@ export type ChannelNotification =
     };
 
 export type ChannelLiveFrame =
-  | { type: 'opened'; cursor: number; page?: JournalPage }
+  | {
+      type: 'opened';
+      cursor: number;
+      page?: JournalPage;
+      changes?: { epoch: string; seq: number };
+    }
   | { type: 'entry'; entry: JournalEntry }
   | { type: 'notification'; notification: ChannelNotification };
 
@@ -399,6 +421,7 @@ export interface WireSessionActivity {
 export interface WireBotActivity {
   slug: string;
   state: AggregatedState;
+  active?: boolean;
   activity?: WireToolActivity;
   sessions?: readonly WireSessionActivity[];
 }

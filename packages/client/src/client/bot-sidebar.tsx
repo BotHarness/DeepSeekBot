@@ -1,4 +1,5 @@
 import { UnreadCount, unreadCountLabel } from './unread-count.js';
+import { observeHumanAttention } from './messaging-defaults-live.js';
 export { unreadCountLabel } from './unread-count.js';
 import { Menu } from './appearance-primitives.js';
 import { ALL_HOSTS, remoteHosts } from './remote-hosts.js';
@@ -20,7 +21,6 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
   type MouseEvent as ReactMouseEvent,
   type ReactElement,
   type ReactNode,
@@ -115,6 +115,7 @@ import {
 import { ungroupedLabel } from './labels.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { turnStopText } from './turn-stop.js';
+import { voiceCallRecordText } from './voice-call-record.js';
 import { toolApprovalText } from './approval-text.js';
 import { personaBotActivity } from './persona-activity.js';
 import { CreatePersonaBotModal } from './persona-bot-create.js';
@@ -202,26 +203,22 @@ import { rememberModelPlan } from './model-plan-store.js';
 import { applyBotModelRoute, botModelMenuGroups, type BotModelGroup } from './bot-model-route.js';
 import { useMountedResource } from './mounted-resource.js';
 import { onCreationRequest } from './create-request.js';
-import { keepClientState, sameFields, useClientStore } from './use-client-store.js';
+import { useClientFields, useClientStore } from './use-client-store.js';
 import { shallowEqual } from '@deepseek-ai/dsh-client-store';
 
-const rosterInputs = sameFields([
+const SIDEBAR_FIELDS = [
   'activitySync',
   'bots',
   'channels',
   'config',
   'error',
   'git',
-  'humanInbox',
   'query',
   'roster',
   'selection',
   'status',
-]);
-
-export function useClientState(): ClientState {
-  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
-}
+] as const;
+const selectChannelUnread = (state: ClientState) => state.activityList.channelUnread;
 
 export interface BotPanelEntryProps {
   size: number;
@@ -251,32 +248,31 @@ export function BotPanelIcon({
   const [row, setRow] = useState<HTMLElement | null>(null);
   const wide = size === 16;
   const state = {
-    humanInbox: useClientStore(
+    activityList: useClientStore(
       (value) => ({
-        unreadCount: value.humanInbox.unreadCount,
-        hasAction: value.humanInbox.hasAction,
+        unreadCount: value.activityList.unreadCount,
+        hasAction: value.activityList.hasAction,
       }),
       shallowEqual,
     ),
     selection: useClientStore((value) => value.selection),
   };
-  const entryHidden = !active && (!wide || state.humanInbox.unreadCount === 0);
+  const entryHidden = !active && (!wide || state.activityList.unreadCount === 0);
   const panelList = row?.parentElement;
   const entryLabel = [
     t('activityCenter.title'),
-    ...(state.humanInbox.unreadCount > 0
+    ...(state.activityList.unreadCount > 0
       ? [
-          t('humanInbox.unreadCount', {
-            count: unreadCountLabel(state.humanInbox.unreadCount),
+          t('activityList.unreadCount', {
+            count: unreadCountLabel(state.activityList.unreadCount),
           }),
         ]
       : []),
-    ...(state.humanInbox.hasAction ? [t('humanInbox.action')] : []),
+    ...(state.activityList.hasAction ? [t('activityList.action')] : []),
   ].join(' · ');
   const entryMount = useMountedResource<HTMLElement>(() => {
     void refreshStatus();
-    const timer = window.setInterval(() => void refreshStatus(), 10_000);
-    return () => window.clearInterval(timer);
+    return observeHumanAttention(() => void refreshStatus());
   }, [refreshStatus]);
 
   const glyphMount = useMountedResource<HTMLSpanElement>(
@@ -288,7 +284,7 @@ export function BotPanelIcon({
       button.setAttribute('data-bh-tour', 'bot-mode');
       const priorGridRow = button.style.gridRow;
       const siblings = Array.from(button.parentElement?.children ?? []).filter(
-        (node) => !node.classList.contains('bh-human-inbox-entry'),
+        (node) => !node.classList.contains('bh-activity-list-entry'),
       );
       button.style.gridRow = String(siblings.indexOf(button) + 1);
       const onKeyDown = (event: KeyboardEvent): void => {
@@ -333,10 +329,10 @@ export function BotPanelIcon({
     openActivityCenter();
   };
   const inboxProps = {
-    className: 'bh-root bh-human-inbox-entry bh-panel-activity',
+    className: 'bh-root bh-activity-list-entry bh-panel-activity',
     'data-bh-tour': 'inbox',
     'data-wide': wide ? 'true' : 'false',
-    'data-unread': state.humanInbox.unreadCount > 0 ? 'true' : 'false',
+    'data-unread': state.activityList.unreadCount > 0 ? 'true' : 'false',
     'data-active': active ? 'true' : 'false',
     tabIndex: entryHidden ? -1 : 0,
     'aria-hidden': entryHidden ? true : undefined,
@@ -364,8 +360,8 @@ export function BotPanelIcon({
               }}
             >
               <InboxIcon size={18} />
-              {active && (state.humanInbox.unreadCount > 0 || state.humanInbox.hasAction) ? (
-                <span className="bh-human-inbox-notification-dot" aria-hidden="true" />
+              {active && (state.activityList.unreadCount > 0 || state.activityList.hasAction) ? (
+                <span className="bh-activity-list-notification-dot" aria-hidden="true" />
               ) : null}
             </button>,
             panelList,
@@ -389,9 +385,9 @@ export function BotPanelIcon({
                 }}
               >
                 <InboxIcon size={16} />
-                {state.humanInbox.unreadCount > 0 ? (
-                  <span className="bh-human-inbox-count">
-                    {unreadCountLabel(state.humanInbox.unreadCount)}
+                {state.activityList.unreadCount > 0 ? (
+                  <span className="bh-activity-list-count">
+                    {unreadCountLabel(state.activityList.unreadCount)}
                   </span>
                 ) : null}
               </span>
@@ -556,6 +552,7 @@ function channelPreview(
   if (message?.contentPurged) return t('purge.purged');
   if (message === undefined) return t('rail.noMessages');
   if (message.turnStop !== undefined) return turnStopText(message.turnStop, t);
+  if (message.voiceCallRecord !== undefined) return voiceCallRecordText(message.voiceCallRecord, t);
   if (message.memberDeparture !== undefined)
     return t(
       message.memberDeparture.departureType === 'removed' ? 'member.removed' : 'member.left',
@@ -1038,12 +1035,12 @@ export function BotSidebar({
   dockPanels,
   t,
 }: SidebarProps): ReactElement {
-  const state = useClientStore(keepClientState, rosterInputs);
+  const state = useClientFields(SIDEBAR_FIELDS);
   const hostTabs = useChannelDockActive();
   const [addingRemote, setAddingRemote] = useState(false);
   const remoteHostsState = useRemoteHosts();
   const remoteOpen = hostTabs && remoteHostsState.open !== undefined;
-  const channelUnread = state.humanInbox.channelUnread;
+  const channelUnread = useClientStore(selectChannelUnread);
   const mutedChannelSet = new Set(state.roster.muted);
   const prefs = useBotModePrefs((value) => value);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -1449,7 +1446,7 @@ export function BotSidebar({
                 (channel) => channel.type === 'dm' && channel.botSlug === selection.slug,
               )?.id
             : undefined;
-      const unread = snapshot.humanInbox.channelUnread;
+      const unread = snapshot.activityList.channelUnread;
       const id = steppedConversationId(
         navigationIdsRef.current,
         currentId,
@@ -2984,16 +2981,29 @@ export function BotSidebar({
           onCancel={() => {
             setCreateRequest(undefined);
           }}
-          onCreate={(name) => {
+          onCreate={async (name) => {
             const request = createRequest;
-            void actions.createSection(name).then((section) => {
-              if (section !== undefined && request.moveChannelIds !== undefined) {
-                void commitBulkMove(request.moveChannelIds, section.id);
-              } else if (section !== undefined && request.moveChannelId !== undefined) {
-                commitChannelMenuMove(request.moveChannelId, section.id, request.pinned === true);
+            const section = await actions.createSection(name);
+            if (section === undefined) return false;
+            setCreateRequest(undefined);
+            try {
+              if (request.moveChannelIds !== undefined) {
+                await commitBulkMove(request.moveChannelIds, section.id);
+              } else if (request.moveChannelId !== undefined) {
+                if (request.pinned === true) {
+                  if (
+                    await actions.movePinnedChannel(request.moveChannelId, section.id, [
+                      request.moveChannelId,
+                    ])
+                  )
+                    setSectionSortMode(section.id, 'manual');
+                  else setBatchError('failed');
+                } else await commitBulkMove([request.moveChannelId], section.id);
               }
-              setCreateRequest(undefined);
-            });
+            } catch {
+              setBatchError('failed');
+            }
+            return true;
           }}
         />
       ) : null}
@@ -3020,9 +3030,10 @@ export function BotSidebar({
           onCancel={() => {
             setRenameTarget(undefined);
           }}
-          onRename={(name) => {
-            void actions.renameSection(renameTarget.id, name);
+          onRename={async (name) => {
+            if (!(await actions.renameSection(renameTarget.id, name))) return false;
             setRenameTarget(undefined);
+            return true;
           }}
         />
       ) : null}
@@ -3048,11 +3059,12 @@ export function BotSidebar({
           onCancel={() => {
             setDeleteTarget(undefined);
           }}
-          onDelete={() => {
+          onDelete={async () => {
+            if (!(await actions.removeSection(deleteTarget.id))) return false;
             setSectionSortMode(deleteTarget.id, undefined);
-            void actions.removeSection(deleteTarget.id);
             if (createSectionId === deleteTarget.id) setCreateRequest(undefined);
             setDeleteTarget(undefined);
+            return true;
           }}
         />
       ) : null}

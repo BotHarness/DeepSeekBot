@@ -1,4 +1,6 @@
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
+
+import sharp from 'sharp';
 import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
@@ -15,7 +17,7 @@ afterEach(async () => {
   for (const close of cleanup.splice(0).reverse()) await close();
 });
 
-function host(options: { reply?: boolean } = {}) {
+function host(options: { reply?: boolean; clip?: Uint8Array; mime?: string } = {}) {
   let clock = 5_000_000;
   const posts: Record<string, unknown>[] = [];
   const transcripts = ['what is on my calendar', 'and tomorrow'];
@@ -31,10 +33,10 @@ function host(options: { reply?: boolean } = {}) {
     providers: {
       has: () => true,
       transcribe: async () => ({ text: transcripts.shift() ?? '', latencyMs: 3 }),
-      synthesize: async () => ({
-        audio: new Uint8Array([0x49, 0x44, 0x33, 1, 2, 3]),
-        mime: 'audio/mpeg',
-      }),
+      synthesize: async ({ text }) =>
+        options.clip !== undefined && !/^(嗯|Mm)/u.test(text)
+          ? { audio: options.clip, mime: options.mime ?? 'audio/wav' }
+          : { audio: new Uint8Array([0x49, 0x44, 0x33, 1, 2, 3]), mime: 'audio/mpeg' },
     },
     media: () => undefined,
     async send({ slug, channelId, messageId }) {
@@ -86,6 +88,108 @@ function wav(root: string, name: string, samples: Int16Array, rate = 16_000) {
 }
 
 describe('deepseekbot call commands', () => {
+  it('call-simulate --video shares the keyframes a client would pick and reports the grids', async () => {
+    const root = createTempRoot('cli-call-');
+    const file = wav(root, 'q.wav', concat(silence(300), speech(2600), silence(200)));
+    const frames = join(root, 'frames');
+    mkdirSync(frames);
+    const colors = [
+      [200, 0, 0],
+      [200, 0, 0],
+      [0, 0, 200],
+      [0, 0, 200],
+      [0, 200, 0],
+      [0, 200, 0],
+    ] as const;
+    for (const [index, [r, g, b]] of colors.entries())
+      await sharp({ create: { width: 320, height: 180, channels: 3, background: { r, g, b } } })
+        .jpeg()
+        .toFile(join(frames, `${index + 1}.jpg`));
+    const { run, posts } = host();
+    const report = (await run('call-simulate', ['ada'], {
+      file,
+      video: frames,
+      'reply-wait': '20',
+    })) as { visual: Record<string, unknown> };
+    expect(posts[1]).toMatchObject({ kind: 'visual', source: 'camera' });
+    expect(posts.filter((post) => post['kind'] === 'frame')).toHaveLength(3);
+    expect(report.visual).toMatchObject({
+      source: 'camera',
+      samples: 6,
+      keyframes: 3,
+      sentFrames: 3,
+      grids: [{ frames: 3, layout: '2x2', messageId: expect.any(String) }],
+      failed: [],
+    });
+    const gridMessage = (report.visual['grids'] as { messageId: string }[])[0]!.messageId;
+    expect(await run('call-frame', [gridMessage, '2'])).toEqual({
+      released: true,
+      messageId: gridMessage,
+      cell: 2,
+    });
+    for (const [rest, values] of [
+      [[gridMessage], {}],
+      [[gridMessage, '-1'], {}],
+      [[gridMessage, '17'], {}],
+      [[gridMessage, '1'], { out: 'relative.jpg' }],
+    ] as const)
+      await expect(run('call-frame', [...rest], values)).rejects.toMatchObject({ code: 'usage' });
+    await expect(
+      run('call-simulate', ['ada'], { file, video: frames, screen: frames }),
+    ).rejects.toMatchObject({ code: 'usage' });
+    const unsaved = (await run('call-simulate', ['ada'], {
+      file,
+      screen: frames,
+      'no-save': true,
+      'reply-wait': '20',
+    })) as { visual: Record<string, unknown> };
+    expect(posts.at(-1)).toBeDefined();
+    expect(posts.find((post) => post['kind'] === 'visual' && post['save'] === false)).toMatchObject(
+      {
+        source: 'screen',
+      },
+    );
+    expect(unsaved.visual).toMatchObject({ saved: false, records: [], grids: [{ frames: 3 }] });
+    await expect(run('call-simulate', ['ada'], { file, 'no-save': true })).rejects.toMatchObject({
+      code: 'usage',
+    });
+    const ended = (await run('call-simulate', ['ada'], {
+      file,
+      screen: frames,
+      'share-ends-at': '1200',
+      'reply-wait': '20',
+    })) as { visual: Record<string, unknown> };
+    expect(
+      posts.find((post) => post['kind'] === 'visual' && post['stopped'] === true),
+    ).toMatchObject({ source: 'off' });
+    expect(ended.visual['shareEndedAtMs']).toBeGreaterThanOrEqual(1200);
+    expect(ended.visual['sentFrames']).toBeLessThan(3);
+    const paused = (await run('call-simulate', ['ada'], {
+      file,
+      video: frames,
+      'share-pause': '600-1800',
+      'reply-wait': '20',
+    })) as { visual: Record<string, unknown> };
+    expect(
+      posts.find((post) => post['kind'] === 'visual' && post['paused'] === true),
+    ).toMatchObject({ source: 'off' });
+    expect(
+      posts.find((post) => post['kind'] === 'visual' && post['resumed'] === true),
+    ).toMatchObject({ source: 'camera' });
+    expect(paused.visual['pausedAtMs']).toBeGreaterThanOrEqual(600);
+    expect(paused.visual['resumedAtMs']).toBeGreaterThanOrEqual(1800);
+    for (const values of [
+      { file, 'share-pause': '1-2' },
+      { file, video: frames, 'share-pause': '900-100' },
+      { file, 'share-ends-at': '100' },
+      { file, screen: frames, 'share-ends-at': 'soon' },
+    ])
+      await expect(run('call-simulate', ['ada'], values)).rejects.toMatchObject({ code: 'usage' });
+    await expect(run('call-simulate', ['ada'], { file, screen: 'relative' })).rejects.toMatchObject(
+      { code: 'usage' },
+    );
+  });
+
   it('call-simulate plays a WAV into a synthetic call and reports heard text and reply timing', async () => {
     const root = createTempRoot('cli-call-');
     const file = wav(root, 'q.wav', concat(silence(300), speech(1400), silence(200)));
@@ -145,6 +249,58 @@ describe('deepseekbot call commands', () => {
       'and tomorrow',
     ]);
     expect(report.events.map((event) => event.type)).toContain('noise-discarded');
+  });
+
+  it('barges in once the Bot starts speaking and reports the stop', async () => {
+    const root = createTempRoot('cli-call-');
+    const first = wav(root, 'one.wav', concat(speech(1200), silence(200)));
+    const cut = wav(root, 'cut.wav', speech(1200, { f0: 190 }));
+    const scriptFile = join(root, 'script.json');
+    writeFileSync(
+      scriptFile,
+      JSON.stringify([
+        { at: 0, file: first },
+        { after: 'playing', at: 600, file: cut },
+      ]),
+    );
+    const { run } = host({
+      clip: wavFromPcm16(new Int16Array(16_000 * 3), 16_000),
+      mime: 'audio/wav',
+    });
+    const report = (await run('call-simulate', ['ada'], {
+      script: scriptFile,
+      'reply-wait': '20',
+    })) as { heard: { text: string }[]; bargeIns: { by: string }[]; events: { type: string }[] };
+    expect(report.bargeIns).toEqual([expect.objectContaining({ by: 'duration' })]);
+    expect(report.heard.map((item) => item.text)).toEqual([
+      'what is on my calendar',
+      'and tomorrow',
+    ]);
+    expect(report.events.map((event) => event.type)).toContain('reply-stopped');
+  });
+
+  it('barges in when the reply starts while the step before is still streaming its tail', async () => {
+    const root = createTempRoot('cli-call-');
+    const first = wav(root, 'one.wav', concat(speech(1200), silence(4000)));
+    const cut = wav(root, 'cut.wav', speech(1200, { f0: 190 }));
+    const scriptFile = join(root, 'script.json');
+    writeFileSync(
+      scriptFile,
+      JSON.stringify([
+        { at: 0, file: first },
+        { after: 'playing', at: 0, file: cut },
+      ]),
+    );
+    const { run } = host({
+      clip: wavFromPcm16(new Int16Array(16_000 * 8), 16_000),
+      mime: 'audio/wav',
+    });
+    const report = (await run('call-simulate', ['ada'], {
+      script: scriptFile,
+      'reply-wait': '20',
+    })) as { missedSteps?: number[]; bargeIns: { by: string }[] };
+    expect(report.missedSteps).toBeUndefined();
+    expect(report.bargeIns).toEqual([expect.objectContaining({ by: 'duration' })]);
   });
 
   it('stops waiting when nobody answers and still hangs up', async () => {

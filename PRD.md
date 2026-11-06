@@ -1,6 +1,6 @@
 # DeepSeekBot — 产品需求文档（PRD）
 
-> **历史工作草稿，不再是设计权威，也不发布到文档站。** 当前产品术语以 `CONTEXT.md` 为准，整合后的目标架构以 `docs/architecture/botharness-architecture.md` 为准，取舍与理由以 `docs/adr/` 为准。
+> **历史工作草稿，不再是设计权威，也不发布到文档站。** 当前产品术语以 `GLOSSARY.md` 为准，整合后的目标架构以 `docs/architecture/botharness-architecture.md` 为准，取舍与理由以 `docs/adr/` 为准。
 
 | 项        | 内容                                                                                                                                                                                                                                    |
 | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -11,7 +11,7 @@
 | 平台规格  | `docs/botharness.md`（PersonaBot / 记忆 / 状态 / 工作方式）                                                                                                                                                                             |
 | 上游依赖  | DSH（开发者预览，**必须 pin**）；dsh-im（通道基座）；blobatar（MVP 形象）                                                                                                                                                               |
 | v1.0 变更 | 重组：平台层（PersonaBot、记忆、状态、工作方式）移入 `docs/botharness.md`，本 PRD 只描述 DeepSeekBot 应用；路线从 IM-first 调整为 **sidebar-first**（IM 作为第一个真实渠道，见 M5）；仓库更名 `BotHarness/BotHarness`                   |
-| v1.1 变更 | 对齐平台 v1.6（ADR-0024/0025/0026）：US-2/AC-2.2 委派目标态 = 独立工作 Session；术语对齐 `CONTEXT.md`（Channel / Binding / Inbox / Orchestrator Session）；跨 PersonaBot 通信目标路径 = 经 Orchestrator                                 |
+| v1.1 变更 | 对齐平台 v1.6（ADR-0024/0025/0026）：US-2/AC-2.2 委派目标态 = 独立工作 Session；术语对齐 `GLOSSARY.md`（Channel / Binding / Inbox / Orchestrator Session）；跨 PersonaBot 通信目标路径 = 经 Orchestrator                                |
 | v1.2 变更 | 对齐平台 v1.7：PersonaBot 最小 profile = displayName / tag（岗位）/ description，AC-1.3 向导同步；模型选择为本地策略、不随 SoulSnapshot 发布（ADR-0027）                                                                                |
 | v1.3 变更 | 对齐平台 v1.9（ADR-0029/0030 + 0026 增补）：BOT 模式改为聊天优先（点击 BOT 即 DM，session 移右侧面板，workspace 弱化）；Channel/Section/Bridge/Bot Inbox 术语；M3 收敛为 IA + 聊天外壳 + 本地消息存储，Bot Inbox 及 Channel 工具落 v1.1 |
 | v1.4 变更 | 对齐平台 v1.10（ADR-0031/0032）：sidebar 区块排序与移动、未分组、默认 blobatar 头像与字形图标、行几何对齐原生实测；自定义头像与头像动效/表情留 v1.1                                                                                     |
@@ -23,7 +23,7 @@
 ## 0. 历史变更（v0.2–v0.9）
 
 - **v0.9**：独立 DSH 插件（不 fork dsh-im）；记忆引入 front-matter、`PERSONA.md` 人属、`visibility`、附件引用即提升、git 每 turn 一 commit；M1 只验 Lark 国际版。
-- **v0.8**：GitHub 远端 + GitHub Issues；建立 `CONTEXT.md` 与 ADR。
+- **v0.8**：GitHub 远端 + GitHub Issues；建立 `GLOSSARY.md` 与 ADR。
 - **v0.7**：回复位置默认 thread 优先；上游共建延后。
 - **v0.6**：不引入 front-matter（v0.9 反转）；目录树注入上限 1000 路径；工具链初始化。
 - **v0.5**：工具写、目录树注入、git 版本化方向、入站文件必须可用。
@@ -200,6 +200,6 @@ dsh --profile <profile>            # 启动；浏览器打开 dsh web 进入「�
 - 技能初始化（对应 `setup-matt-pocock-skills`）：
   - Issue tracker：**GitHub Issues**（`BotHarness/BotHarness`，`gh` CLI；PR 不作 triage 入口）——见 `docs/agents/issue-tracker.md`
   - Triage 标签：默认五角色（`needs-triage` / `needs-info` / `ready-for-agent` / `ready-for-human` / `wontfix`）——见 `docs/agents/triage-labels.md`
-  - 领域文档：单 context；根 `CONTEXT.md` + `docs/adr/`（32 篇）——见 `docs/agents/domain.md`
+  - 领域文档：单 context；根 `GLOSSARY.md` + `docs/adr/`（32 篇）——见 `docs/agents/domain.md`
   - `AGENTS.md` 已加入 `## Agent skills` 区块
 - 常用技能：`/grill-with-docs`（对齐 + 领域建模）、`/to-spec`、`/to-tickets`、`/tdd`、`/diagnosing-bugs`、`/code-review`、`/research`、`/handoff`、`/wizard`。

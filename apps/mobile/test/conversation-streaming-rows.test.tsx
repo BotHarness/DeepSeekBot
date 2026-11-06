@@ -165,6 +165,7 @@ vi.mock('expo-router', () => ({
     }: {
       options: {
         headerLeft?: () => ReactNode;
+        headerTitle?: string | (() => ReactNode);
         unstable_headerLeftItems?: () => Array<{ element?: ReactNode }>;
         unstable_headerRightItems?: () => Array<{
           label: string;
@@ -174,6 +175,7 @@ vi.mock('expo-router', () => ({
       };
     }) => (
       <header>
+        {typeof options.headerTitle === 'function' ? options.headerTitle() : null}
         {options
           .unstable_headerLeftItems?.()
           .map((item, index) => <span key={index}>{item.element}</span>) ??
@@ -291,6 +293,7 @@ vi.mock('../src/host/speech', () => ({
   useDictation: () => ({ state: { status: 'idle' }, mountRef: () => undefined }),
 }));
 vi.mock('../src/ui/chat/native-header', () => ({
+  headerControlHeight: (theme: { touch: number }) => theme.touch,
   glassHeader: true,
   headerIslands: false,
   useHeaderOverlap: () => 80,
@@ -298,6 +301,23 @@ vi.mock('../src/ui/chat/native-header', () => ({
   useHeaderPadding: () => 0,
 }));
 vi.mock('../src/ui/chat/header-chrome', () => ({
+  HeaderActionGroup: ({
+    actions,
+  }: {
+    actions: readonly { label: string; testID: string; onPress(): void }[];
+  }) => (
+    <span>
+      {actions.map((action) => (
+        <button
+          key={action.testID}
+          type="button"
+          data-testid={action.testID}
+          aria-label={action.label}
+          onClick={action.onPress}
+        />
+      ))}
+    </span>
+  ),
   useChatHeaderHeight: () => 56,
   titleChipFill: () => ({}),
   HeaderBackButton: ({ onPress }: { onPress(): void }) => (

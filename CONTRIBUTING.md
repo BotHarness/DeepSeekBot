@@ -49,7 +49,7 @@ Replace the placeholders with details you can safely share. Remove API keys, tok
 
 Use the current toolchain and commands in [AGENTS.md](AGENTS.md#commands), the [README development entry](README.en.md#docs) and the [isolated local instance guide](docs/client-bridge.md#7-本地开发环路dsh-020-rc2), currently in Chinese. Use an isolated Profile, keep credentials machine-local, and leave other contributors' running instances alone.
 
-Start with relevant checks, then broaden as appropriate. Record exact commands and results, including blocked or unrun checks. Avoid unrelated refactors and generated-file edits. Consult [product vocabulary](CONTEXT.md) and [architecture](docs/architecture/botharness-architecture.md) when your change needs those boundaries.
+Start with relevant checks, then broaden as appropriate. Record exact commands and results, including blocked or unrun checks. Avoid unrelated refactors and generated-file edits. Consult [product vocabulary](GLOSSARY.md) and [architecture](docs/architecture/botharness-architecture.md) when your change needs those boundaries.
 
 After `pnpm install`, a pre-commit hook formats staged files with the same oxfmt configuration as CI, including Markdown under `.github/pr-screenshots/`. Partially staged edits are restored by lint-staged; unrelated unstaged files are not formatted. Run `pnpm format:check` before pushing to check the entire repository.
 
@@ -63,7 +63,7 @@ Read the [mobile agent guide](apps/mobile/AGENTS.md) and the [system text and la
 
 ## PRs and review
 
-- Keep one coherent scope. Link the issue and discussion when applicable; use `Closes #...` only for complete work and `Refs #...` for partial work.
+- Keep one coherent scope. Link the issue and discussion when applicable; when the PR delivers the issue's feature or fixes its bug, write `Closes #...` as plain text in the PR body so the issue closes on merge, without waiting for a release or pending device/Human QA (track remaining QA in its own issue). Use `Refs #...` only when part of the issue's scope is still unbuilt. GitHub acts on `Closes #...` only when the PR merges into `main`, so once a stacked PR's parent has merged into `main`, retarget the stacked PR to `main` before merging it, or close the issue by hand once the work reaches `main`.
 - Explain why and how to verify the change. List actual checks and remaining gaps in the PR template.
 - For visible UI or interaction changes, provide sanitized, GitHub-rendered before/after screenshots, or a concrete capture blocker and runnable review path. Follow [visual evidence guidance](docs/agents/pr-ui-visual-evidence.md).
 - Follow the [Release Ledger guide](docs/agents/changelog.md) for user-visible or independently valuable public documentation changes; keep required bilingual parity.

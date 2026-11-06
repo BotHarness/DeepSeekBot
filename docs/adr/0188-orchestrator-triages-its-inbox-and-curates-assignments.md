@@ -72,7 +72,7 @@ Waking:
   - Archiving clears the Assignment's continuity key.
   - Nothing is archived automatically.
 - `unarchive_assignment(session_id)` restores it.
-- `list_assignments` gains `query` (text over purpose, key and latest report), `activity` filters, `include_archived` (default false) and cursor paging. This aligns it with the Assignment Directory definition in CONTEXT.md.
+- `list_assignments` gains `query` (text over purpose, key and latest report), `activity` filters, `include_archived` (default false) and cursor paging. This aligns it with the Assignment Directory definition in GLOSSARY.md.
 - The default Assignment Concurrency Limit becomes 8. It stays one profile-wide setting that counts only executing Assignments.
 
 ### Prompt: a coordinator with an inbox
@@ -90,9 +90,9 @@ The line equating "finished turn" with "handled" is removed. The inbox is descri
 
 ## Consequences
 
-- Delivery follows the tracer-bullet slices in #1561. The Assignment archive, the Assignment Directory query and the default limit of 8 ship first. The inbox states, tools, snooze, triage continuation and prompt section follow, and each slice updates CONTEXT.md and the living architecture as it lands.
+- Delivery follows the tracer-bullet slices in #1561. The Assignment archive, the Assignment Directory query and the default limit of 8 ship first. The inbox states, tools, snooze, triage continuation and prompt section follow, and each slice updates GLOSSARY.md and the living architecture as it lands.
 
-- CONTEXT.md:
+- GLOSSARY.md:
   - "Attention Decision" changes from handling following successful turn completion to explicit resolve or snooze.
   - "Bot Inbox" gains open, resolved and snoozed.
   - "Assignment Directory" gains archived.

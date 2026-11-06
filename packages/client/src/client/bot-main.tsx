@@ -1,3 +1,4 @@
+import { CONVERSATION_STATE_KEYS, type ConversationStateView } from './store.js';
 import { PendingDelivery } from './message-delivery.js';
 import { AppearanceContext } from './appearance-context.js';
 import type { Appearance } from './appearance.js';
@@ -12,6 +13,7 @@ import { useTimelineWindow } from './timeline-window.js';
 import { OnboardingOverlay } from './onboarding-view.js';
 import { BotIntro } from './bot-intro.js';
 import type { Wallpaper } from './wallpaper.js';
+import type { VoiceDictationPort } from './composer-dictation.js';
 import {
   ChannelMark,
   ChannelMenuCaret,
@@ -68,7 +70,7 @@ import {
   personaBotPresentationSummary,
   type PersonaBotFacepileItem,
 } from './avatar.js';
-import { keepClientState, useClientStore } from './use-client-store.js';
+import { useClientStore } from './use-client-store.js';
 import { sameConversationBots } from './conversation-bots.js';
 import type { BotModePrefs } from './bot-mode-prefs.js';
 import {
@@ -237,6 +239,7 @@ import {
 import { inlineImageAttachment } from './message-attachment.js';
 import { channelAttachmentUrl } from './bridge.js';
 import { turnStopText } from './turn-stop.js';
+import { VoiceCallRecordBubble } from './voice-call-record.js';
 
 export function committedMessageIds(messages: readonly ChannelMessage[]): Set<string> {
   return new Set(
@@ -341,7 +344,13 @@ const messageStyles = stylex.create({
   },
 });
 
-function Welcome({ state, t }: { state: ClientState; t: BotHarnessTranslate }): ReactElement {
+function Welcome({
+  state,
+  t,
+}: {
+  state: ConversationStateView;
+  t: BotHarnessTranslate;
+}): ReactElement {
   return (
     <div className="bh-root bh-main">
       <div className="bh-content" {...stylex.props(messageStyles.emptyContainer)}>
@@ -1100,7 +1109,7 @@ function ConversationView({
 }: {
   onMobileBack?: (() => void) | undefined;
   scopeKey: string;
-  state: ClientState;
+  state: ConversationStateView;
   actions: BridgeActions;
   companion?: WindowCompanions | undefined;
   channelSidebar: ChannelSidebarRegistry;
@@ -1363,6 +1372,14 @@ function ConversationView({
     useScopedState<GroupProfileActivity>(scopeKey);
   const conversation = state.conversation;
   const channel = conversation.channel;
+  const dictationSlug = channel?.type === 'dm' ? channel.botSlug : undefined;
+  const dictationPort = useMemo(() => {
+    const port: unknown = actions.dictationPort?.(dictationSlug);
+    if (port instanceof Promise) port.catch(() => undefined);
+    return typeof (port as VoiceDictationPort | undefined)?.readiness === 'function'
+      ? (port as VoiceDictationPort)
+      : undefined;
+  }, [actions, dictationSlug]);
   const botNames = new Map(state.bots.map((member) => [member.slug, member.displayName]));
   const dmBotSlug = channel?.type === 'dm' ? channel.botSlug : undefined;
   const hiddenActions = useSyncExternalStore(
@@ -1538,6 +1555,7 @@ function ConversationView({
       item.memoryCommit === undefined &&
       item.memberDeparture === undefined &&
       item.turnStop === undefined &&
+      item.voiceCallRecord === undefined &&
       item.toolAutoApproval === undefined &&
       item.toolAutoApprovalPause === undefined,
   );
@@ -2153,17 +2171,17 @@ function ConversationView({
   );
   const arrivalIds = useMemo(
     () =>
-      displayMessages
+      visibleMessages
         .filter((item) => !streamReplies || item.author.kind !== 'bot')
         .map((item) => item.id),
-    [displayMessages, streamReplies],
+    [visibleMessages, streamReplies],
   );
   const arrivals = useMessageArrivals(channelId, arrivalIds, conversation.status === 'ready');
   const galleryImages = useMemo<GalleryImage[]>(
     () =>
       channelId === undefined
         ? []
-        : displayMessages.flatMap((message) =>
+        : visibleMessages.flatMap((message) =>
             message.contentPurged === true
               ? []
               : (message.attachments ?? []).flatMap((ref) =>
@@ -2178,29 +2196,26 @@ function ConversationView({
                     : [],
                 ),
           ),
-    [channelId, displayMessages],
+    [channelId, visibleMessages],
   );
   const imageGallery = useMessageImageGallery(galleryImages, t);
-  const groupKeys = useMemo(() => messageGroups.map((group) => group.key), [messageGroups]);
-  const groupMembers = useMemo(
-    () =>
-      new Map(
-        messageGroups.map((group) => [group.key, group.messages.map((message) => message.id)]),
-      ),
-    [messageGroups],
-  );
+  const groupShape = useStableGroupShape(messageGroups);
+  const groupKeys = groupShape.keys;
+  const groupMembers = groupShape.members;
   const pinnedGroups = useMemo(() => {
     const pinned = new Set<string>();
     const focus = conversation.focusMessageId;
-    messageGroups.forEach((group, index) => {
+    groupKeys.forEach((key, index) => {
+      const ids = groupMembers.get(key) ?? [];
+      const previous = index === 0 ? undefined : groupMembers.get(groupKeys[index - 1]!);
       if (
-        (focus !== undefined && group.messages.some((message) => message.id === focus)) ||
-        (unreadAfter !== undefined && messageGroups[index - 1]?.messages.at(-1)?.id === unreadAfter)
+        (focus !== undefined && ids.includes(focus)) ||
+        (unreadAfter !== undefined && previous?.at(-1) === unreadAfter)
       )
-        pinned.add(group.key);
+        pinned.add(key);
     });
     return pinned;
-  }, [messageGroups, unreadAfter, conversation.focusMessageId]);
+  }, [groupKeys, groupMembers, unreadAfter, conversation.focusMessageId]);
   const timelineWindow = useTimelineWindow(groupKeys, pinnedGroups, groupMembers);
   const placeUnreadDivider = (element: HTMLDivElement): boolean => {
     const divider = element.querySelector<HTMLElement>('[data-unread-divider]');
@@ -2444,6 +2459,7 @@ function ConversationView({
     return selected.caret;
   };
 
+  const dictating = useRef(false);
   const fileDrop = useConversationFileDrop(
     !readOnlyDm &&
       !conversation.sending &&
@@ -2451,6 +2467,7 @@ function ConversationView({
       activeMemoryView === undefined &&
       selectedIds === undefined,
     (files) => {
+      if (dictating.current) return;
       addFiles(files);
       setRestoreFocusSignal((value) => value + 1);
     },
@@ -3042,6 +3059,12 @@ function ConversationView({
                         bots={state.bots}
                         t={t}
                       />
+                    ) : first.voiceCallRecord !== undefined ? (
+                      <VoiceCallRecordBubble
+                        messageId={first.id}
+                        record={first.voiceCallRecord}
+                        t={t}
+                      />
                     ) : first.turnStop !== undefined ? (
                       <div className="bh-member-departure" data-message-id={first.id}>
                         <span>{turnStopText(first.turnStop, t)}</span>
@@ -3380,6 +3403,9 @@ function ConversationView({
                         : []
                   }
                   placeholder={t('composer.placeholder', { name: title })}
+                  holdPlaceholder={t('composer.holdToTalk', { name: title })}
+                  dictation={dictationPort}
+                  dictating={dictating}
                   sending={conversation.sending || recovery.blocked}
                   focusSignal={restoreFocusSignal}
                   attachments={uploadItems}
@@ -3748,17 +3774,52 @@ function ConversationView({
   );
 }
 
-function sameConversationInputs(left: ClientState, right: ClientState): boolean {
-  const keys = Object.keys(right) as (keyof ClientState)[];
-  return (
-    keys.length === Object.keys(left).length &&
-    keys.every(
-      (key) =>
-        key === 'humanInbox' ||
-        key === 'query' ||
-        left[key] === right[key] ||
-        (key === 'bots' && sameConversationBots(left.bots, right.bots, right)),
-    )
+function useStableGroupShape(
+  groups: readonly { key: string; messages: readonly { id: string }[] }[],
+): {
+  keys: string[];
+  members: Map<string, string[]>;
+} {
+  const shape = useRef<{ keys: string[]; members: Map<string, string[]> } | undefined>(undefined);
+  const previous = shape.current;
+  if (
+    previous !== undefined &&
+    previous.keys.length === groups.length &&
+    groups.every((group, index) => {
+      const ids = previous.members.get(group.key);
+      return (
+        previous.keys[index] === group.key &&
+        ids !== undefined &&
+        ids.length === group.messages.length &&
+        group.messages.every((message, at) => ids[at] === message.id)
+      );
+    })
+  )
+    return previous;
+  const next = {
+    keys: groups.map((group) => group.key),
+    members: new Map(
+      groups.map((group) => [group.key, group.messages.map((message) => message.id)]),
+    ),
+  };
+  shape.current = next;
+  return next;
+}
+
+function selectConversationState(state: ClientState): ConversationStateView {
+  return Object.fromEntries(
+    CONVERSATION_STATE_KEYS.flatMap((key) => (state[key] === undefined ? [] : [[key, state[key]]])),
+  ) as ConversationStateView;
+}
+
+function sameConversationInputs(
+  left: ConversationStateView,
+  right: ConversationStateView,
+): boolean {
+  return CONVERSATION_STATE_KEYS.every(
+    (key) =>
+      left[key] === right[key] ||
+      (key === 'bots' && sameConversationBots(left.bots, right.bots, right)),
   );
 }
 
@@ -3783,7 +3844,7 @@ function BotMainContent({
   nativeChatT?: NativeChatFailureText | undefined;
   t?: BotHarnessTranslate | undefined;
 }): ReactElement {
-  const state = useClientStore(keepClientState, sameConversationInputs);
+  const state = useClientStore(selectConversationState, sameConversationInputs);
   const workspace = useContext(WorkspaceContext);
   if (!workspace && state.selection === undefined) return <Welcome state={state} t={t} />;
   if (!workspace && state.selection?.kind === 'inbox')

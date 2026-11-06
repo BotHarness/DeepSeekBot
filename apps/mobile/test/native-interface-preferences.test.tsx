@@ -37,6 +37,7 @@ vi.mock('react-native', () => ({
 }));
 import { useNativeInterfacePreferences } from '../src/ui/native-interface-preferences';
 import { interfacePreferences } from '../src/ui/interface-preferences';
+import { alertBanners } from '../src/host/alert-banners';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -67,7 +68,34 @@ it('restores before showing content, updates native appearance and refreshes sys
     await act(async () => interfacePreferences.setLanguage('en'));
     await act(async () => native.foreground?.('active'));
     expect(host.textContent).toBe('en:system');
-    expect(JSON.parse(native.saved)).toEqual({ language: 'en', appearance: 'system' });
+    const alert = {
+      title: 'Question',
+      body: 'Needs you',
+      data: {
+        v: 1 as const,
+        hostId: 'test',
+        itemId: 'question',
+        kind: 'user-question',
+        botSlug: 'test',
+        channelId: 'test',
+        messageId: 'test',
+        sender: 'Bot',
+        text: 'Needs you',
+      },
+    };
+    alertBanners.reconcile('test', ['question'], [alert]);
+    expect(alertBanners.getSnapshot()).toEqual(alert);
+    await act(async () => interfacePreferences.setInAppAlerts(false));
+    expect(alertBanners.getSnapshot()).toBeUndefined();
+    alertBanners.reconcile('test', ['question'], [alert]);
+    await act(async () => interfacePreferences.setInAppAlerts(true));
+    expect(alertBanners.getSnapshot()).toBeUndefined();
+    expect(JSON.parse(native.saved)).toEqual({
+      language: 'en',
+      appearance: 'system',
+      inAppAlerts: true,
+      inAppAlertStyle: 'overlay',
+    });
   } finally {
     await act(async () => root.unmount());
     expect(native.remove).toHaveBeenCalledOnce();

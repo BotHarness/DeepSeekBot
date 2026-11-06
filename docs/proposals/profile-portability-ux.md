@@ -2,7 +2,7 @@
 
 **Status: UX accepted by Human in PR #881; runtime implementation tracked in #882.** Issue [#76](https://github.com/BotHarness/BotHarness/issues/76), 2026-10-05. [中文](profile-portability-ux.zh.md).
 
-This proposal translates accepted [ADR-0041](../adr/0041-one-database-owns-botharness-operational-state.md), [ADR-0042](../adr/0042-profile-backup-coordinates-database-files-and-dsh-sessions.md), [ADR-0043](../adr/0043-profile-transfer-prevents-identity-split-brain.md) and [ADR-0044](../adr/0044-restore-revalidates-target-runtime-dependencies.md) into a minimal interaction. Product terms remain owned by [CONTEXT](../../CONTEXT.md); the [living architecture](../architecture/botharness-architecture.md) remains the integrated authority. This document is a review artifact, not a published user guide or a second architecture authority.
+This proposal translates accepted [ADR-0041](../adr/0041-one-database-owns-botharness-operational-state.md), [ADR-0042](../adr/0042-profile-backup-coordinates-database-files-and-dsh-sessions.md), [ADR-0043](../adr/0043-profile-transfer-prevents-identity-split-brain.md) and [ADR-0044](../adr/0044-restore-revalidates-target-runtime-dependencies.md) into a minimal interaction. Product terms remain owned by [CONTEXT](../../GLOSSARY.md); the [living architecture](../architecture/botharness-architecture.md) remains the integrated authority. This document is a review artifact, not a published user guide or a second architecture authority.
 
 ## Entry and information hierarchy
 

@@ -1,5 +1,5 @@
 import { TextInput } from '../primitives/system-text';
-import { useRef, useState, type ComponentRef, type ReactNode, type Ref } from 'react';
+import { useState, type ComponentRef, type ReactNode, type Ref } from 'react';
 import {
   Image,
   Platform,
@@ -28,6 +28,7 @@ import {
 } from './composer-chrome';
 import { ComposerActionButton } from './composer-action';
 import { VoiceButton } from './voice-button';
+import { ComposerHold } from './composer-hold';
 import { DraftEditor } from './draft-editor';
 import { haptic } from '../haptics';
 import { PlusMenuButton } from '../primitives/plus-menu-button';
@@ -207,7 +208,7 @@ export function Composer({
       ? measuredLine.height
       : theme.type.body.line * theme.fontScale;
   const bar = composerBar(theme);
-  const integratedLeading = Platform.OS === 'ios';
+  const integratedLeading = Platform.OS === 'ios' || Platform.OS === 'android';
   const lineHeight = Math.max(composerControl(theme), textLine);
   const fieldPadding = Math.max(space.x2, (lineHeight - textLine) / 2);
   const fieldLimit = Math.max(textLine + 2 * fieldPadding, viewportHeight / 5);
@@ -221,6 +222,7 @@ export function Composer({
     else pillHeight.value = withSpring(next, spring.spatial.default);
   };
   const listening = dictating(dictation);
+  if (held && !listening) setHeld(false);
   const actions = composerActions({
     text: value,
     files: files.length,
@@ -300,15 +302,22 @@ export function Composer({
       onBlur={() => onFocusChange?.(false)}
       placeholder={
         held
-          ? t.dictationHoldHint
+          ? Platform.OS === 'android'
+            ? t.dictationReleaseHint
+            : t.dictationHoldHint
           : dictation === 'starting'
             ? t.dictationStarting
             : listening
               ? t.dictationListening
-              : placeholder
+              : Platform.OS === 'android' && canDictate && !disabled
+                ? t.composerInputHint
+                : placeholder
       }
       placeholderTextColor={theme.color.subtle}
       accessibilityLabel={placeholder}
+      accessibilityHint={
+        Platform.OS === 'android' && canDictate && !disabled ? t.composerInputHint : undefined
+      }
       multiline
       editable={!listening}
       onContentSizeChange={(event) => setContentHeight(event.nativeEvent.contentSize.height)}
@@ -451,7 +460,19 @@ export function Composer({
                   paddingRight: stacked || trailing.length === 0 ? 0 : button + space.x2,
                 }}
               >
-                {field}
+                <ComposerHold
+                  enabled={canDictate && !disabled && (!listening || held)}
+                  onStart={() => {
+                    setHeld(true);
+                    onDictate();
+                  }}
+                  onStop={() => {
+                    setHeld(false);
+                    onStopDictation();
+                  }}
+                >
+                  {field}
+                </ComposerHold>
               </HardwareSend>
               {stacked && expand === null && trailing.length === 0 && leadingWidth === 0 ? null : (
                 <View
@@ -498,7 +519,7 @@ export function Composer({
           {footer}
         </View>
       )}
-      {held ? (
+      {held && Platform.OS !== 'android' ? (
         <LockHint
           style={{
             position: 'absolute',

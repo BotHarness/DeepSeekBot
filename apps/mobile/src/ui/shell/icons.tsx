@@ -192,6 +192,24 @@ export function PhoneIcon(props: IconProps) {
   );
 }
 
+export function PhoneOffIcon(props: IconProps) {
+  return (
+    <Glyph
+      {...props}
+      d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1ZM3 21 21 3"
+    />
+  );
+}
+
+export function ScreenIcon(props: IconProps) {
+  return (
+    <Glyph
+      {...props}
+      d="M4 4h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Zm4 16h8m-4-4v4"
+    />
+  );
+}
+
 export function BrowserIcon(props: IconProps) {
   return (
     <Glyph
@@ -334,6 +352,10 @@ export function CheckIcon(props: IconProps) {
 
 export function ClockIcon(props: IconProps) {
   return <Glyph {...props} d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM12 7v5l3 2" />;
+}
+
+export function StopCircleIcon(props: IconProps) {
+  return <Glyph {...props} d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM9.5 9.5h5v5h-5Z" />;
 }
 
 export function PlayIcon(props: IconProps) {

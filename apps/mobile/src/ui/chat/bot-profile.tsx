@@ -11,6 +11,7 @@ import {
   type ProfilePart,
 } from '../../host/bot-profile';
 import type { RosterBot, RosterChannel } from '../../host/client';
+import { runningSessions, type RunningSession, type SessionStopper } from '../../host/session-stop';
 import type { MemoryChange, MemoryChangesPage } from '../../host/memory-changes';
 import type { BotScheduleSummary, ProfileActivity } from '../../host/wire';
 import { botBanner } from '../../marketplace/artwork';
@@ -38,6 +39,8 @@ import { useStrings, t } from '../strings';
 import { ActivityGlance } from './activity-glance';
 import { AssignmentActivityIcon } from './assignment-marks';
 import { botStateTone } from './bot-tone';
+import { stepLabel } from './bot-steps';
+import { useSessionStops, type SessionStops } from './session-stops';
 import {
   MemoryGridRow,
   MemoryPinnedCards,
@@ -53,6 +56,8 @@ import {
 } from './profile-routines';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import { Button } from '../primitives/button';
+import { ActionMenuButton } from '../primitives/action-menu-button';
+import { showActionMenu } from '../primitives/app-dialog';
 import { Segmented } from '../primitives/segmented';
 import { memoryChangeTime, useMemoryChanges, type MemoryChanges } from './memory-changes';
 import {
@@ -87,9 +92,22 @@ type RowBody =
   | { kind: 'grid'; entries: MemoryEntry[]; columns: number; lead: boolean }
   | { kind: 'commit'; change: MemoryChange }
   | { kind: 'more'; busy: boolean }
-  | { kind: 'routine-group'; group: RoutineGroup; routines: BotScheduleSummary[] }
+  | {
+      kind: 'routine-group';
+      group: RoutineGroup;
+      routines: BotScheduleSummary[];
+    }
   | { kind: 'assignment'; assignment: ProfileAssignment }
   | { kind: 'day'; label: string }
+  | {
+      kind: 'working-head';
+      label: string;
+      botSlug: string;
+      sessionIds: string[];
+      lead: boolean;
+      bot?: RosterBot;
+    }
+  | { kind: 'session'; botSlug: string; session: RunningSession }
   | { kind: 'activity'; activity: ProfileActivity }
   | { kind: 'note'; text: string }
   | { kind: 'failed'; error: string }
@@ -109,17 +127,74 @@ export interface BotProfileActions {
   onOpenAssignment?(assignment: ProfileAssignment): void;
   onNewRoutine?(): void;
   routines?: RoutineChanges;
+  stops?: SessionStops | undefined;
   onOpenActivity(): void;
   onClose(): void;
+}
+
+function boundary(body: RowBody | undefined): boolean {
+  return body?.kind === 'day' || body?.kind === 'working-head';
 }
 
 function frame(section: ProfileSection, bodies: RowBody[]): Row[] {
   return bodies.map((body, index) => ({
     ...body,
     key: `${section}:${index}`,
-    first: index === 0 || bodies[index - 1]?.kind === 'day',
-    last: index === bodies.length - 1 || bodies[index + 1]?.kind === 'day',
+    first: index === 0 || boundary(bodies[index - 1]),
+    last: index === bodies.length - 1 || boundary(bodies[index + 1]),
   }));
+}
+
+function workingKey(body: RowBody): string {
+  if (body.kind === 'working-head') return `working:bot:${body.botSlug}`;
+  if (body.kind === 'session') return `working:${body.botSlug}:${body.session.id}`;
+  return 'working:heading';
+}
+
+export function workingRows(bots: readonly RosterBot[], grouped: boolean): Row[] {
+  const running = bots
+    .map((bot) => ({ bot, sessions: runningSessions(bot) }))
+    .filter(({ sessions }) => sessions.length > 0);
+  if (running.length === 0) return [];
+  const bodies: RowBody[] = grouped ? [{ kind: 'day', label: t.workingNow }] : [];
+  for (const [index, { bot, sessions }] of running.entries()) {
+    bodies.push({
+      kind: 'working-head',
+      label: grouped ? bot.displayName : t.workingNow,
+      botSlug: bot.slug,
+      sessionIds: sessions.map((session) => session.id),
+      lead: index === 0,
+      ...(grouped ? { bot } : {}),
+    });
+    for (const session of sessions) bodies.push({ kind: 'session', botSlug: bot.slug, session });
+  }
+  return bodies.map((body, index) => ({
+    ...body,
+    key: workingKey(body),
+    first: index === 0 || boundary(bodies[index - 1]),
+    last: index === bodies.length - 1 || boundary(bodies[index + 1]),
+  }));
+}
+
+export function workingGap<T>(
+  node: (key: string, render: () => ReactNode) => T,
+  error: string | undefined,
+): T {
+  return node('working:gap', () => (
+    <View testID="working-now-end" style={{ paddingTop: space.x3, paddingBottom: space.x3 }}>
+      {error === undefined ? null : (
+        <Text testID="working-stop-failed" variant="meta" tone="danger">
+          {t.sessionStopFailed(error)}
+        </Text>
+      )}
+    </View>
+  ));
+}
+
+export function sessionTitle(session: RunningSession): string {
+  if (session.role === 'orchestrator') return t.sessionOrchestrator;
+  const name = session.name?.trim() ?? '';
+  return name === '' ? t.sessionAssignment : name;
 }
 
 function partRows<T>(
@@ -387,14 +462,77 @@ function rowShape(theme: ReturnType<typeof useDesignTheme>, row: Row) {
 
 export type WorkRow = Row;
 
+const HEAD_AVATAR = 20;
+
+function StopMenu({
+  title,
+  action,
+  stopping,
+  testID,
+  onStop,
+  compact = false,
+}: {
+  title: string;
+  action: string;
+  stopping: boolean;
+  testID: string;
+  onStop(): void;
+  compact?: boolean;
+}) {
+  const t = useStrings();
+  const theme = useDesignTheme();
+  const bleed = compact
+    ? { marginVertical: -Math.max(0, theme.touch - theme.type.body.line * theme.fontScale) / 2 }
+    : {};
+  if (stopping)
+    return (
+      <View
+        testID={`${testID}-stopping`}
+        accessible
+        accessibilityLabel={t.sessionStopping}
+        accessibilityLiveRegion="polite"
+        style={{
+          width: theme.touch,
+          minHeight: theme.touch,
+          alignItems: 'center',
+          justifyContent: 'center',
+          ...bleed,
+        }}
+      >
+        <LoadingIndicator size="control" color={theme.color.muted} />
+      </View>
+    );
+  return (
+    <View style={{ flexShrink: 0, ...bleed }}>
+      <ActionMenuButton
+        label={t.sessionMenu(title)}
+        testID={testID}
+        actions={[{ label: action, icon: 'stop', destructive: true, run: onStop }]}
+        onOpen={() =>
+          showActionMenu(title, [
+            {
+              text: action,
+              icon: 'stop',
+              style: 'destructive',
+              onPress: onStop,
+            },
+          ])
+        }
+      />
+    </View>
+  );
+}
+
 export function WorkListRow({
   row,
   onRetry,
   onOpen,
+  stops,
 }: {
   row: Row;
   onRetry(): void;
   onOpen?: ((assignment: ProfileAssignment) => void) | undefined;
+  stops?: SessionStops | undefined;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
@@ -405,14 +543,101 @@ export function WorkListRow({
         tone="muted"
         strong
         style={{
-          paddingTop: row.key.endsWith(':0') ? 0 : space.x4,
+          paddingTop: row.key.endsWith(':0') || row.key === 'working:heading' ? 0 : space.x4,
           paddingBottom: space.x2,
         }}
       >
         {row.label}
       </Text>
     );
+  if (row.kind === 'working-head')
+    return (
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: space.x3,
+          paddingTop: row.lead ? 0 : space.x4,
+          paddingBottom: space.x2,
+        }}
+      >
+        {row.bot === undefined ? null : (
+          <BotAvatar
+            bot={row.bot}
+            size={HEAD_AVATAR * theme.fontScale}
+            ring={false}
+            corner={radius.sm}
+          />
+        )}
+        <Text strong style={{ flex: 1, minWidth: 0 }}>
+          {row.label}
+        </Text>
+        {stops === undefined ? null : (
+          <StopMenu
+            compact
+            title={row.label}
+            action={t.sessionStopAll}
+            stopping={row.sessionIds.every((id) => stops.stopping(row.botSlug, id))}
+            testID={`working-stop-all-${row.botSlug}`}
+            onStop={() => stops.stopAll(row.botSlug)}
+          />
+        )}
+      </View>
+    );
   const shape = rowShape(theme, row);
+  if (row.kind === 'session') {
+    const { session } = row;
+    const title = sessionTitle(session);
+    const stopping = stops?.stopping(row.botSlug, session.id) === true;
+    const state = stopping ? t.sessionStopping : stepLabel(session.activity, session.state);
+    return (
+      <View
+        testID={`working-session-${session.id}`}
+        accessible={false}
+        style={[
+          shape,
+          {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: space.x3,
+            minHeight: theme.touch,
+            paddingRight: space.x3,
+          },
+        ]}
+      >
+        <View
+          accessible
+          accessibilityLabel={[title, state].join(', ')}
+          style={{ flex: 1, flexDirection: 'row', gap: space.x3 }}
+        >
+          <View
+            style={{ paddingTop: ((theme.type.body.line - rowGlyph.size) * theme.fontScale) / 2 }}
+          >
+            <AssignmentActivityIcon
+              activity={stopping ? 'stopping' : 'working'}
+              size={rowGlyph.size * theme.fontScale}
+            />
+          </View>
+          <View style={{ flex: 1, gap: space.x1 }}>
+            <Text numberOfLines={theme.largeText ? undefined : 2}>{title}</Text>
+            <Text variant="meta" tone="muted" numberOfLines={theme.largeText ? undefined : 1}>
+              {state}
+            </Text>
+          </View>
+        </View>
+        {stops === undefined ? null : (
+          <StopMenu
+            title={title}
+            action={t.sessionStop}
+            stopping={stopping}
+            testID={`working-stop-${session.id}`}
+            onStop={() => stops.stop(row.botSlug, session.id)}
+          />
+        )}
+      </View>
+    );
+  }
   if (row.kind === 'assignment') {
     const { assignment } = row;
     const time = new Date(assignment.updatedAt).toLocaleTimeString(undefined, {
@@ -444,11 +669,22 @@ export function WorkListRow({
           },
         ]}
       >
-        <View style={{ paddingTop: (theme.type.body.line - rowGlyph.size) / 2 }}>
-          <AssignmentActivityIcon activity={assignment.activity} size={rowGlyph.size} />
+        <View
+          style={{ paddingTop: ((theme.type.body.line - rowGlyph.size) * theme.fontScale) / 2 }}
+        >
+          <AssignmentActivityIcon
+            activity={assignment.activity}
+            size={rowGlyph.size * theme.fontScale}
+          />
         </View>
         <View style={{ flex: 1, gap: space.x1 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.x3 }}>
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'baseline',
+              gap: space.x3,
+            }}
+          >
             <Text numberOfLines={theme.largeText ? undefined : 2} style={{ flex: 1 }}>
               {assignment.title}
             </Text>
@@ -515,12 +751,21 @@ function ProfileRow({
     );
   if (
     row.kind === 'day' ||
+    row.kind === 'working-head' ||
+    row.kind === 'session' ||
     row.kind === 'assignment' ||
     row.kind === 'loading' ||
     row.kind === 'failed' ||
     row.kind === 'note'
   )
-    return <WorkListRow row={row} onRetry={onRetry} onOpen={actions.onOpenAssignment} />;
+    return (
+      <WorkListRow
+        row={row}
+        onRetry={onRetry}
+        onOpen={actions.onOpenAssignment}
+        stops={actions.stops}
+      />
+    );
   const shape = rowShape(theme, row);
   if (row.kind === 'commit') {
     const { change } = row;
@@ -543,7 +788,13 @@ function ProfileRow({
           },
         ]}
       >
-        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.x3 }}>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'baseline',
+            gap: space.x3,
+          }}
+        >
           <Text numberOfLines={2} style={{ flex: 1 }}>
             {change.subject}
           </Text>
@@ -618,11 +869,13 @@ export function BotProfilePage({
   initialProfile,
   avatar,
   tabMemory,
+  stopper,
 }: {
   bot: RosterBot;
   channels: RosterChannel[];
   load: () => Promise<BotProfile>;
   actions: BotProfileActions;
+  stopper?: SessionStopper | undefined;
   settings?: ReactNode;
   permissions?: ReactNode;
   workActions?: ReactNode;
@@ -635,6 +888,7 @@ export function BotProfilePage({
   const t = useStrings();
   const theme = useDesignTheme();
   const avatarEditor = useAvatarEditor(avatar);
+  const stops = useSessionStops(stopper, [bot]);
   const [profile, setProfile] = useState(initialProfile);
   const content = useSheetContent();
   const columns = useMemoryColumns();
@@ -660,7 +914,7 @@ export function BotProfilePage({
   const showChanges = attached && memoryView === 'changes';
   const rowOf = (row: Row): ShellRow => ({
     key: row.key,
-    render: () => <ProfileRow bot={bot} row={row} onRetry={read} actions={actions} />,
+    render: () => <ProfileRow bot={bot} row={row} onRetry={read} actions={{ ...actions, stops }} />,
   });
   const changeRowOf = (row: Row): ShellRow => ({
     key: `changes:${row.key}`,
@@ -686,10 +940,13 @@ export function BotProfilePage({
         <SettingsHeading>{title}</SettingsHeading>
       </View>
     ));
+  const working = workingRows([bot], false);
   const bodies: Record<Exclude<ProfileTab, 'files' | 'members'>, ProfileTabBody> = {
     work: {
       rows: [
         ...(workActions === undefined ? [] : [node('work:actions', () => workActions)]),
+        ...working.map(rowOf),
+        ...(working.length === 0 ? [] : [workingGap(node, stops?.error)]),
         ...rows.work.map(rowOf),
       ],
     },

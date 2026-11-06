@@ -73,7 +73,7 @@ fresh isolated Host and a real model turn, and keeps light/dark screenshots in i
 On a native build, check each step on iOS and Android separately:
 
 1. For you: swipe a reply left past half the row. It leaves, an undo bar says "Cleared · Undo",
-   and `deepseekbot inbox --category replies --dismissed` lists it. Undo brings it back on the
+   and `deepseekbot activity --category replies --dismissed` lists it. Undo brings it back on the
    phone, and the CLI no longer lists it as dismissed. Desktop Activity hides and shows it too.
 2. Swipe a short way and let go: Clear stays revealed; tap the row to close it. Open a second row:
    the first closes. Long-press a row: the same action is in the native menu; VoiceOver/TalkBack

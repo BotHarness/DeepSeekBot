@@ -19,6 +19,7 @@ import {
   relaunchDesktopApp,
   runDesktopZoomSetup,
 } from '../../packages/deepseekbot/src/desktop-zoom-setup.mjs';
+import { DESKTOP_ZOOM_THEMES } from '../../packages/core/src/window-zoom/theme-paths.mjs';
 const roots = [];
 afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
@@ -42,16 +43,19 @@ function fixture(profile = 'qa', entry = 'deepseekbot') {
     JSON.stringify({ name: entry, dsh: { bundle: { patch: 'cordis.im.patch.yml' } } }),
   );
   writeFileSync(join(root, 'cordis.im.patch.yml'), '[]');
-  writeFileSync(join(root, 'desktop-theme/lib/client.js'), 'qualified');
-  writeFileSync(
-    join(root, 'desktop-theme/botharness-zoom-compat.json'),
-    JSON.stringify({
-      sourceVersion: '0.2.1-rc.2',
-      adapterVersion: 1,
-      platforms: ['macos', 'windows'],
-      clientAfter: createHash('sha256').update('qualified').digest('hex'),
-    }),
-  );
+  for (const [sourceVersion, themePath] of Object.entries(DESKTOP_ZOOM_THEMES)) {
+    mkdirSync(join(root, themePath, 'lib'), { recursive: true });
+    writeFileSync(join(root, themePath, 'lib/client.js'), 'qualified');
+    writeFileSync(
+      join(root, themePath, 'botharness-zoom-compat.json'),
+      JSON.stringify({
+        sourceVersion,
+        adapterVersion: 1,
+        platforms: ['macos', 'windows'],
+        clientAfter: createHash('sha256').update('qualified').digest('hex'),
+      }),
+    );
+  }
   const run = vi.fn((command, args) => {
     if (args[0] === '--version') return '0.2.1-rc.2\n';
     if (command === '/usr/libexec/PlistBuddy') return '0.2.1-rc.2\n';
@@ -64,10 +68,12 @@ function fixture(profile = 'qa', entry = 'deepseekbot') {
     else delete doc.dependencies['@deepseek-ai/dsh-client-ui-theme'];
     if (adding) {
       mkdirSync(join(directory, 'node_modules/@deepseek-ai'), { recursive: true });
+      const alias = join(directory, 'node_modules/@deepseek-ai/dsh-client-ui-theme');
+      rmSync(alias, { force: true });
       symlinkSync(
-        root + '/desktop-theme',
-        join(directory, 'node_modules/@deepseek-ai/dsh-client-ui-theme'),
-        'dir',
+        join(directory, doc.dependencies['@deepseek-ai/dsh-client-ui-theme'].slice('link:'.length)),
+        alias,
+        'junction',
       );
     }
     writeFileSync(path, JSON.stringify(doc));
@@ -132,8 +138,8 @@ it('uses the native package manager to enable and remove only its own Profile al
     'native preference unchanged',
   );
 });
-function desktopFixture() {
-  const f = fixture('desktop');
+function desktopFixture(entry = 'deepseekbot') {
+  const f = fixture('desktop', entry);
   const desktopApp = join(f.home, 'Harness.app');
   const pnpm = join(
     desktopApp,
@@ -244,8 +250,8 @@ it('requires an explicit target and refuses unknown or repeated flags', () => {
   expect(() => runDesktopZoomSetup(['enable', '--token', 'secret'])).toThrow('arguments-invalid');
 });
 
-function windowsFixture() {
-  const f = fixture('desktop');
+function windowsFixture(entry = 'deepseekbot') {
+  const f = fixture('desktop', entry);
   const desktopApp = join(f.home, 'Windows Harness');
   const executable = join(desktopApp, 'DeepSeek Harness.exe');
   const pnpm = join(desktopApp, 'resources/runtime/primary-runtime/dependencies/pnpm/bin/pnpm.mjs');
@@ -265,6 +271,98 @@ function windowsFixture() {
     windowsProcesses: vi.fn(() => []),
   };
 }
+
+it.each([desktopFixture, windowsFixture])(
+  'refuses a mismatched Desktop release before installing a theme alias',
+  (makeFixture) => {
+    for (const version of ['0.2.2-rc.2', '0.2.1-rc.3', '', 'unknown']) {
+      const f = makeFixture();
+      const before = readFileSync(f.path, 'utf8');
+      f.run.mockReturnValueOnce(version);
+      expect(() => configureDesktopZoom({ ...f, action: 'enable' })).toThrow(
+        'desktop-zoom-setup-version-unsupported',
+      );
+      expect(f.run).toHaveBeenCalledTimes(1);
+      expect(readFileSync(f.path, 'utf8')).toBe(before);
+      expect(() =>
+        realpathSync(join(f.directory, 'node_modules/@deepseek-ai/dsh-client-ui-theme')),
+      ).toThrow();
+    }
+  },
+);
+
+it.each([desktopFixture, windowsFixture])(
+  'refuses re-enabling an old theme after a Desktop upgrade but permits disabling it',
+  (makeFixture) => {
+    const f = makeFixture();
+    configureDesktopZoom({ ...f, action: 'enable' });
+    f.run.mockReturnValueOnce('0.2.3-rc.1');
+    expect(() => configureDesktopZoom({ ...f, action: 'enable' })).toThrow(
+      'desktop-zoom-setup-version-unsupported',
+    );
+    f.run.mockReturnValueOnce('0.2.3-rc.1');
+    expect(configureDesktopZoom({ ...f, action: 'disable' }).changed).toBe(true);
+    expect(
+      JSON.parse(readFileSync(f.path)).dependencies['@deepseek-ai/dsh-client-ui-theme'],
+    ).toBeUndefined();
+  },
+);
+
+it('refuses a Desktop theme without its qualified source version', () => {
+  const f = windowsFixture();
+  const path = join(
+    f.directory,
+    'node_modules/deepseekbot/desktop-theme/botharness-zoom-compat.json',
+  );
+  const provenance = JSON.parse(readFileSync(path, 'utf8'));
+  delete provenance.sourceVersion;
+  writeFileSync(path, JSON.stringify(provenance));
+  expect(() => configureDesktopZoom({ ...f, action: 'enable' })).toThrow(
+    'desktop-zoom-setup-version-unsupported',
+  );
+  expect(f.run).toHaveBeenCalledTimes(1);
+});
+
+it.each([desktopFixture, windowsFixture])(
+  'selects, upgrades and rolls back exact owned theme payloads',
+  (makeFixture) => {
+    for (const entry of ['deepseekbot', 'tobs']) {
+      const f = makeFixture(entry);
+      const alias = join(f.directory, 'node_modules/@deepseek-ai/dsh-client-ui-theme');
+      for (const version of ['0.2.1-rc.2', '0.2.2-rc.1', '0.2.1-rc.2', '0.2.2-rc.1']) {
+        f.run.mockReturnValueOnce(version);
+        expect(configureDesktopZoom({ ...f, action: 'enable' }).changed).toBe(true);
+        expect(realpathSync(alias)).toBe(
+          realpathSync(join(f.directory, 'node_modules', entry, DESKTOP_ZOOM_THEMES[version])),
+        );
+        f.run.mockReturnValueOnce(version);
+        expect(configureDesktopZoom({ ...f, action: 'enable' }).changed).toBe(false);
+      }
+      f.run.mockReturnValueOnce('0.2.3-rc.1');
+      expect(configureDesktopZoom({ ...f, action: 'disable' }).changed).toBe(true);
+      expect(() => realpathSync(alias)).toThrow();
+      expect(
+        JSON.parse(readFileSync(f.path)).dependencies['@deepseek-ai/dsh-client-ui-theme'],
+      ).toBeUndefined();
+    }
+  },
+);
+
+it('preserves an old alias when the replacement theme is unqualified', () => {
+  const f = windowsFixture();
+  configureDesktopZoom({ ...f, action: 'enable' });
+  const before = readFileSync(f.path, 'utf8');
+  const alias = join(f.directory, 'node_modules/@deepseek-ai/dsh-client-ui-theme');
+  const original = realpathSync(alias);
+  writeFileSync(
+    join(f.directory, 'node_modules/deepseekbot/desktop-theme-0.2.2-rc.1/lib/client.js'),
+    'changed',
+  );
+  f.run.mockReturnValueOnce('0.2.2-rc.1');
+  expect(() => configureDesktopZoom({ ...f, action: 'enable' })).toThrow('theme-unqualified');
+  expect(readFileSync(f.path, 'utf8')).toBe(before);
+  expect(realpathSync(alias)).toBe(original);
+});
 
 it('installs and disables on Windows using FileVersion and the exact app bundled pnpm', () => {
   const f = windowsFixture();

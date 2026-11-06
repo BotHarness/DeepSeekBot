@@ -1,6 +1,9 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('expo-image', () => ({ Image: () => null }));
+vi.mock('../src/ui/minute-clock', () => ({
+  useMinuteClock: () => new Date('2026-11-06T10:00:00Z'),
+}));
 
 import type { RosterBot } from '../src/host/client';
 
@@ -45,7 +48,11 @@ vi.mock('react-native-svg', () => ({
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 
 vi.mock('../src/ui/chat/header-chrome', () => ({ titleChipFill: () => ({}) }));
-vi.mock('../src/ui/chat/native-header', () => ({ barLabelProps: {}, barLabelStyle: {} }));
+vi.mock('../src/ui/chat/native-header', () => ({
+  barLabelProps: {},
+  barLabelStyle: {},
+  headerControlHeight: (theme: { touch: number }) => theme.touch,
+}));
 vi.mock('../src/ui/primitives/loading-indicator', () => ({ LoadingIndicator: () => null }));
 vi.mock('../src/ui/chat/group-mark', () => ({ GroupMark: () => null }));
 
@@ -71,13 +78,13 @@ const mika = bot('mika', 'Mika', {
 });
 
 describe('working status', () => {
-  it('replaces a busy DM name with its step while preserving accessible identity', () => {
+  it('keeps a busy DM name above its textual state', () => {
     const html = renderToStaticMarkup(
       <ChatTitle bot={mika} fallback="missing" onPress={() => {}} />,
     );
-    expect(html).toContain(`>${t.effect.executing} · bash<`);
-    expect(html).not.toContain('>Mika<');
-    expect(html).toContain(`data-accessibilitylabel="Mika, ${t.effect.executing} · bash`);
+    expect(html).toContain(`>${t.state.working}<`);
+    expect(html).toContain('>Mika<');
+    expect(html).toContain(`data-accessibilitylabel="Mika, ${t.state.working}`);
     const idle = renderToStaticMarkup(
       <ChatTitle bot={{ ...mika, state: 'idle' }} fallback="missing" onPress={() => {}} />,
     );
@@ -89,10 +96,10 @@ describe('working status', () => {
   });
   it('keeps a group name alongside the activity avatars', () => {
     const html = renderToStaticMarkup(
-      <ChannelTitle channel={undefined} fallback="QA group" working={[mika]} onPress={() => {}} />,
+      <ChannelTitle channel={undefined} fallback="QA group" bots={[mika]} onPress={() => {}} />,
     );
     expect(html).toContain('>QA group<');
-    expect(html).toContain('data-testid="working-status"');
+    expect(html).toContain('data-testid="header-bot-stack"');
     expect(html).toContain('Mika');
   });
   it('shows the avatar and the current step without a name or a Stop button', () => {
@@ -138,7 +145,7 @@ it('shows reconnecting text in DM and group headers and removes it after recover
     <ChannelTitle
       channel={undefined}
       fallback="QA group"
-      working={[]}
+      bots={[]}
       connectionLabel={t.reconnecting}
       onPress={() => {}}
     />,
@@ -149,4 +156,56 @@ it('shows reconnecting text in DM and group headers and removes it after recover
     <ChatTitle bot={{ ...mika, state: 'idle' }} fallback="missing" onPress={() => {}} />,
   );
   expect(recovered).not.toContain(t.reconnecting);
+});
+
+describe('session count chip', () => {
+  const sessions: RosterBot['sessions'] = [
+    { id: 'o', role: 'orchestrator', state: 'working' },
+    { id: 'a', role: 'assignment', name: 'Write notes', state: 'working' },
+    { id: 's', role: 'subagent', state: 'working' },
+  ];
+
+  it('keeps DM identity and state readable when several sessions run', () => {
+    const html = renderToStaticMarkup(
+      <ChatTitle bot={{ ...mika, sessions }} fallback="missing" onPress={() => {}} />,
+    );
+    expect(html).toContain('>Mika<');
+    expect(html).toContain(`>${t.state.working}<`);
+    expect(html).not.toContain('session-count-chip');
+    expect(html).toContain(`data-accessibilityrole="button"`);
+  });
+
+  it('is hidden at zero, including when only Subagents run', () => {
+    const idle = renderToStaticMarkup(
+      <ChatTitle bot={{ ...mika, state: 'idle' }} fallback="missing" onPress={() => {}} />,
+    );
+    expect(idle).not.toContain('session-count-chip');
+    const subagents = renderToStaticMarkup(
+      <ChatTitle
+        bot={{ ...mika, sessions: [{ id: 's', role: 'subagent', state: 'working' }] }}
+        fallback="missing"
+        onPress={() => {}}
+      />,
+    );
+    expect(subagents).not.toContain('session-count-chip');
+  });
+
+  it('keeps the Group session total accessible without crowding its subtitle', () => {
+    const html = renderToStaticMarkup(
+      <ChannelTitle
+        channel={undefined}
+        fallback="QA group"
+        bots={[mika]}
+        sessions={3}
+        onPress={() => {}}
+      />,
+    );
+    expect(html).toContain('data-testid="header-bot-stack"');
+    expect(html).not.toContain('session-count-chip');
+    expect(html).toContain(t.sessionCount(3));
+    const none = renderToStaticMarkup(
+      <ChannelTitle channel={undefined} fallback="QA group" sessions={0} onPress={() => {}} />,
+    );
+    expect(none).not.toContain('session-count-chip');
+  });
 });

@@ -7,7 +7,7 @@ import {
   type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { BridgeActions } from './actions.js';
-import { keepClientState, sameBotNames, useClientStore } from './use-client-store.js';
+import { sameBotNames, useClientStore } from './use-client-store.js';
 import type { ClientState } from './store.js';
 import { IconButton } from './ds/icon-button.js';
 import { Tooltip } from './ds/tooltip.js';
@@ -26,11 +26,16 @@ const categories = [
   ['all', 'activityInbox.all'],
   ['action', 'activityInbox.needsYou'],
   ['replies', 'activityInbox.forYou'],
-  ['unread', 'humanInbox.unread'],
-  ['handled', 'humanInbox.handled'],
+  ['unread', 'activityList.unread'],
+  ['handled', 'activityList.handled'],
 ] as const;
 
-const menuInputs = (left: ClientState, right: ClientState): boolean =>
+type MenuInputs = Pick<ClientState, 'bots' | 'channels'>;
+const selectMenuInputs = (state: ClientState): MenuInputs => ({
+  bots: state.bots,
+  channels: state.channels,
+});
+const menuInputs = (left: MenuInputs, right: MenuInputs): boolean =>
   left.channels === right.channels && sameBotNames(left.bots, right.bots);
 
 export function ActivityInboxMenu({
@@ -40,7 +45,7 @@ export function ActivityInboxMenu({
   actions: BridgeActions;
   t: BotHarnessTranslate;
 }): ReactElement {
-  const { bots, channels } = useClientStore(keepClientState, menuInputs);
+  const { bots, channels } = useClientStore(selectMenuInputs, menuInputs);
   const { feed, query: inbox, pages } = useActivityFeed(actions);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState(false);
@@ -56,6 +61,11 @@ export function ActivityInboxMenu({
   const clearKinds = [
     ...new Set(clearSections.flatMap((section) => pages[section].items.map((item) => item.kind))),
   ];
+  const hasUnread = (['replies', 'unread'] as const).some(
+    (section) =>
+      clearSections.includes(section) &&
+      pages[section].items.some((item) => item.isUnread !== false && item.channelId !== undefined),
+  );
   const kindLabel = (kind: HumanAttentionItem['kind'] | undefined): string =>
     kind === undefined
       ? t('activityInbox.clearAll')
@@ -67,19 +77,19 @@ export function ActivityInboxMenu({
     { type: 'label', id: 'category-label', text: t('activityInbox.category') },
     ...categories.map(([id, label]) => ({ id: 'category:' + id, label: t(label) })),
     { type: 'separator', id: 'sort-separator' },
-    { type: 'label', id: 'sort-label', text: t('humanInbox.filter.sort') },
+    { type: 'label', id: 'sort-label', text: t('activityList.filter.sort') },
     { id: 'sort:default', label: t('activityInbox.defaultSort') },
-    { id: 'sort:newest', label: t('humanInbox.filter.newest') },
-    { id: 'sort:oldest', label: t('humanInbox.filter.oldest') },
+    { id: 'sort:newest', label: t('activityList.filter.newest') },
+    { id: 'sort:oldest', label: t('activityList.filter.oldest') },
     { type: 'separator', id: 'filter-separator' },
     ...(inbox.category === 'unread'
       ? []
       : [
           {
             id: 'bot',
-            label: t('humanInbox.filter.bot'),
+            label: t('activityList.filter.bot'),
             submenu: [
-              { id: 'bot:', label: t('humanInbox.filter.allBots') },
+              { id: 'bot:', label: t('activityList.filter.allBots') },
               ...[...bots]
                 .sort((a, b) => a.displayName.localeCompare(b.displayName))
                 .map((bot) => ({ id: 'bot:' + bot.slug, label: bot.displayName })),
@@ -88,9 +98,9 @@ export function ActivityInboxMenu({
         ]),
     {
       id: 'channel',
-      label: t('humanInbox.filter.channel'),
+      label: t('activityList.filter.channel'),
       submenu: [
-        { id: 'channel:', label: t('humanInbox.filter.allChannels') },
+        { id: 'channel:', label: t('activityList.filter.allChannels') },
         ...channels
           .filter((channel) =>
             inbox.category === 'replies'
@@ -109,11 +119,14 @@ export function ActivityInboxMenu({
     },
     ...(inbox.category === 'unread' || inbox.category === 'handled'
       ? []
-      : [{ id: 'snoozed', label: t('humanInbox.snoozed') }]),
+      : [{ id: 'snoozed', label: t('activityList.snoozed') }]),
+    ...(hasUnread || clearKinds.length > 0
+      ? [{ type: 'separator' as const, id: 'dismiss-separator' }]
+      : []),
+    ...(hasUnread ? [{ id: 'mark-read', label: t('activityInbox.markAllRead') }] : []),
     ...(clearKinds.length === 0
       ? []
       : [
-          { type: 'separator' as const, id: 'dismiss-separator' },
           {
             id: 'dismiss',
             label: t('activityInbox.clearItems'),
@@ -125,7 +138,7 @@ export function ActivityInboxMenu({
         ]),
     { type: 'separator', id: 'clear-separator' },
     { id: 'clear', label: t('activityInbox.clearFilters') },
-    ...(error ? [{ type: 'label' as const, id: 'error', text: t('humanInbox.failed') }] : []),
+    ...(error ? [{ type: 'label' as const, id: 'error', text: t('activityList.failed') }] : []),
   ];
   const select = (id: string): void => {
     setOpen(false);
@@ -144,6 +157,10 @@ export function ActivityInboxMenu({
     else if (id.startsWith('bot:')) operation = filter({ botSlug: id.slice(4) || undefined });
     else if (id.startsWith('channel:')) operation = filter({ channelId: id.slice(8) || undefined });
     else if (id === 'snoozed') operation = filter({ snoozed: !inbox.snoozed });
+    else if (id === 'mark-read')
+      operation = actions
+        .markAllRead({ channelId: inbox.channelId, botSlug: inbox.botSlug })
+        .then(() => feed.refresh());
     else if (id.startsWith('dismiss:')) {
       setClearError(undefined);
       setClearing({
@@ -167,7 +184,7 @@ export function ActivityInboxMenu({
     setClearBusy(true);
     setClearError(undefined);
     try {
-      const result = await actions.dismissAllHumanInbox({
+      const result = await actions.dismissAllActivityList({
         kind: clearing.kind,
         categories: clearSections.filter(
           (section): section is (typeof ACTIVITY_SECTIONS)[number] => section !== 'handled',
@@ -180,7 +197,7 @@ export function ActivityInboxMenu({
         setClearError(t('activityInbox.clearMore', { count: String(result.dismissed) }));
       else setClearing(undefined);
     } catch {
-      setClearError(t('humanInbox.failed'));
+      setClearError(t('activityList.failed'));
     } finally {
       setClearBusy(false);
     }

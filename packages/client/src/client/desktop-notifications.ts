@@ -2,7 +2,6 @@ import type { ConfigStorage } from './roster-config.js';
 import type { ChannelSummary, HumanAttentionItem } from './store.js';
 
 export const DESKTOP_NOTIFICATIONS_KEY = 'botharness.desktopNotifications';
-export const DESKTOP_NOTIFICATION_POLL_MS = 15_000;
 
 export type DesktopNotificationPermission = 'default' | 'granted' | 'denied' | 'unsupported';
 
@@ -157,7 +156,6 @@ export interface DesktopNotifierDeps {
   title(kind: DesktopNoticeKind, item: HumanAttentionItem): string;
   open(item: HumanAttentionItem): void;
   lang?: () => string;
-  intervalMs?: number;
 }
 
 export function mountDesktopNotifications(deps: DesktopNotifierDeps): () => void {
@@ -239,12 +237,10 @@ export function mountDesktopNotifications(deps: DesktopNotifierDeps): () => void
     if (!disposed) void check();
   };
   const unsubscribe = deps.subscribe(trigger);
-  const timer = setInterval(trigger, deps.intervalMs ?? DESKTOP_NOTIFICATION_POLL_MS);
   trigger();
   return () => {
     disposed = true;
     unsubscribe();
-    clearInterval(timer);
     shown.clear();
   };
 }

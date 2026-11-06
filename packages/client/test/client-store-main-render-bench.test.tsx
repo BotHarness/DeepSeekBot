@@ -141,8 +141,9 @@ type Phase =
   | 'dm-activity'
   | 'group-member-activity'
   | 'group-unrelated-activity'
-  | 'human-inbox'
-  | 'search';
+  | 'activity-list'
+  | 'search'
+  | 'unrelated-state';
 const workload: Record<Phase, (n: number) => void> = {
   stream: (n) =>
     store.setConversation({
@@ -153,8 +154,15 @@ const workload: Record<Phase, (n: number) => void> = {
   'dm-activity': (n) => activity('ada', n),
   'group-member-activity': (n) => activity('bob', n),
   'group-unrelated-activity': (n) => activity('cy', n),
-  'human-inbox': (n) => store.setHumanInbox({ unreadCount: n + 1 }),
+  'activity-list': (n) => store.setActivityList({ unreadCount: n + 1 }),
   search: (n) => store.setQuery('a'.repeat((n % 5) + 1)),
+  'unrelated-state': (n) => {
+    const snapshot = store.getSnapshot();
+    if (n % 4 === 0) store.setConfig({ ...snapshot.config });
+    else if (n % 4 === 1) store.setRosterState({ muted: [...snapshot.roster.muted] });
+    else if (n % 4 === 2 && snapshot.git !== undefined) store.setGit({ ...snapshot.git });
+    else store.setSessions({ ...snapshot.sessions });
+  },
 };
 const FRAMES = 20;
 const LOAD_FRAMES = Number(process.env.BH_MAIN_BENCH_LOAD ?? 0);
@@ -314,8 +322,9 @@ describe('Bot main render benchmark', () => {
       expect(report[name]!.titleBars, name).toBe(0);
       expect(report[name]!.containers, name).toBe(0);
     }
-    expect(report['human-inbox']!.mainCommits).toBe(0);
+    expect(report['activity-list']!.mainCommits).toBe(0);
     expect(report['search']!.mainCommits).toBe(0);
+    expect(report['unrelated-state']!.mainCommits).toBe(0);
     expect(report['unrelated-activity']!.mainCommits).toBe(0);
     expect(report['group-unrelated-activity']!.mainCommits).toBe(0);
     expect(report['dm-activity']!.mainCommits).toBeGreaterThanOrEqual(FRAMES);

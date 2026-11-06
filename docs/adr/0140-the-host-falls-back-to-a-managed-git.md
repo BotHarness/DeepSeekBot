@@ -27,6 +27,6 @@ Every Memory Repository operation (Bot creation, Import from GitHub, Bot Zip imp
 
 ## Consequences
 
-- `CONTEXT.md` gains **Managed Git**.
+- `GLOSSARY.md` gains **Managed Git**.
 - `docs/installation.md` states that Bot mode needs Git and that it can install Git itself.
 - Prepending to the DSH process PATH also affects non-Bot DSH Sessions on that Host. This is intended: it only happens when the Host has no usable system Git.

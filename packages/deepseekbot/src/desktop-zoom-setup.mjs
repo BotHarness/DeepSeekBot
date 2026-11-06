@@ -18,6 +18,7 @@ import {
   desktopZoomWindowsProcesses,
   inspectDesktopZoomApp,
 } from './desktop-zoom-platform.mjs';
+import { DESKTOP_ZOOM_THEMES } from '../../core/src/window-zoom/theme-paths.mjs';
 
 const theme = '@deepseek-ai/dsh-client-ui-theme';
 function refuse(code) {
@@ -78,12 +79,15 @@ function configureProfileZoom({
   const entry =
     !bundles.includes('deepseekbot') && bundles.includes('tobs') ? 'tobs' : 'deepseekbot';
   const product = join(directory, 'node_modules', entry);
-  const target = join(product, 'desktop-theme');
-  const ownedLink = `link:${relative(directory, target).replaceAll('\\', '/')}`;
+  const themeTargets = Object.values(DESKTOP_ZOOM_THEMES).map((path) => join(product, path));
+  const linkFor = (target) => `link:${relative(directory, target).replaceAll('\\', '/')}`;
+  const ownedLinks = new Map(themeTargets.map((target) => [linkFor(target), target]));
+  let target = join(product, 'desktop-theme');
   const current = before.dependencies?.[theme];
-  if (current !== undefined && current !== ownedLink) refuse('desktop-zoom-setup-theme-conflict');
+  if (current !== undefined && !ownedLinks.has(current))
+    refuse('desktop-zoom-setup-theme-conflict');
   const alias = join(directory, 'node_modules', theme);
-  const linkState = () => {
+  const linkState = (expected = current === undefined ? undefined : ownedLinks.get(current)) => {
     let stat;
     try {
       stat = lstatSync(alias);
@@ -93,7 +97,18 @@ function configureProfileZoom({
     }
     if (!stat.isSymbolicLink()) return 'foreign';
     try {
-      return realpathSync(alias) === realpathSync(target) ? 'owned' : 'foreign';
+      const resolved = realpathSync(alias);
+      const candidates = expected ? [expected] : themeTargets;
+      return candidates.some((candidate) => {
+        try {
+          return resolved === realpathSync(candidate);
+        } catch (error) {
+          if (error.code === 'ENOENT') return false;
+          throw error;
+        }
+      })
+        ? 'owned'
+        : 'foreign';
     } catch (error) {
       if (error.code === 'ENOENT') return 'foreign';
       throw error;
@@ -110,6 +125,7 @@ function configureProfileZoom({
   };
   let packageCommand;
   let desktopExecutable;
+  let desktopVersion;
   const checkStopped = () => {
     if (platform === 'win32') {
       const rows = windowsProcesses();
@@ -142,6 +158,12 @@ function configureProfileZoom({
     if (!desktopApp) refuse('desktop-zoom-setup-desktop-app-required');
     const runtime = inspectDesktopZoomApp({ desktopApp, platform, run, options });
     desktopExecutable = runtime.executable;
+    desktopVersion = runtime.version;
+    if (action === 'enable') {
+      if (!Object.hasOwn(DESKTOP_ZOOM_THEMES, desktopVersion))
+        refuse('desktop-zoom-setup-version-unsupported');
+      target = join(product, DESKTOP_ZOOM_THEMES[desktopVersion]);
+    }
     checkStopped();
     packageCommand = { executable: process.execPath, args: [runtime.pnpm] };
   }
@@ -151,7 +173,7 @@ function configureProfileZoom({
     const manifest = JSON.parse(readFileSync(join(product, 'package.json'), 'utf8'));
     if (manifest.name !== entry || !bundles.some((name) => ['deepseekbot', 'tobs'].includes(name)))
       refuse('desktop-zoom-setup-product-not-enabled');
-    const root = join(product, 'desktop-theme');
+    const root = target;
     const provenance = JSON.parse(readFileSync(join(root, 'botharness-zoom-compat.json'), 'utf8'));
     const client = readFileSync(join(root, 'lib/client.js'));
     if (
@@ -160,11 +182,17 @@ function configureProfileZoom({
       createHash('sha256').update(client).digest('hex') !== provenance.clientAfter
     )
       refuse('desktop-zoom-setup-theme-unqualified');
+    if (
+      packageCommand &&
+      (!provenance.sourceVersion || desktopVersion !== provenance.sourceVersion)
+    )
+      refuse('desktop-zoom-setup-version-unsupported');
     const patch = readFileSync(join(product, manifest.dsh.bundle.patch), 'utf8');
     if (patch.includes('botharness-desktop-theme'))
       refuse('desktop-zoom-setup-product-upgrade-required');
   }
-  const packageChanged = action === 'enable' ? current !== ownedLink : current === ownedLink;
+  const ownedLink = linkFor(target);
+  const packageChanged = action === 'enable' ? current !== ownedLink : ownedLinks.has(current);
   const changed = packageChanged || (action === 'disable' && linkState() === 'owned');
   if (packageChanged) {
     if (packageCommand) checkStopped();
@@ -192,7 +220,7 @@ function configureProfileZoom({
       : after.dependencies?.[theme] !== undefined
   )
     refuse('desktop-zoom-setup-package-outcome-unconfirmed');
-  if (action === 'enable' ? linkState() !== 'owned' : linkState() !== 'absent')
+  if (action === 'enable' ? linkState(target) !== 'owned' : linkState() !== 'absent')
     refuse('desktop-zoom-setup-package-outcome-unconfirmed');
   return { action, profile, changed, restartRequired: true, runtimeVerified: false };
 }

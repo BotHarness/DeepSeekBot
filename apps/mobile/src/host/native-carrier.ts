@@ -1,7 +1,7 @@
 import { getRandomBytes } from 'expo-crypto';
 import type { HostCarrier } from './carrier';
 import { isLanRoute } from './route';
-import { openLanSocket } from './native-lan-socket';
+import { localNetworkStatus, openLanSocket } from './native-lan-socket';
 
 type NativeWebSocket = new (
   url: string,
@@ -12,6 +12,7 @@ type NativeWebSocket = new (
 export function nativeCarrier(): HostCarrier {
   return {
     randomBytes: () => getRandomBytes(32),
+    localNetworkStatus,
     async request(url, init) {
       if (isLanRoute(new URL(url).origin)) throw new Error('encrypted-channel-required');
       const response = await fetch(url, {

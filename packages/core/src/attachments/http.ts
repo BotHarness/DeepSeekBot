@@ -1,10 +1,43 @@
+import { createReadStream, statSync } from 'node:fs';
+import { Readable } from 'node:stream';
+
 import { MessagingError } from '../messaging/provider.js';
 import type { ChannelAttachmentRef } from './ref.js';
 import { createMessageAttachmentFiles } from './message-files.js';
+import type { MediaVersions } from './media-versions.js';
+import { parseThumbnailVariant, THUMBNAIL_MIME } from './thumbnails.js';
 import type { ChannelStore } from '../channels/store.js';
 import { ChannelAttachmentError, safeAttachmentName, type AttachmentStore } from './store.js';
 
 export const CHANNEL_ATTACHMENT_PATH = '/api/botharness/attachment';
+
+function parseRange(
+  header: string | null,
+): { start?: number; end?: number } | 'invalid' | undefined {
+  if (header === null) return undefined;
+  const match = /^bytes=(\d*)-(\d*)$/u.exec(header.trim());
+  if (match === null || (match[1] === '' && match[2] === '')) return 'invalid';
+  return {
+    ...(match[1] === '' ? {} : { start: Number(match[1]) }),
+    ...(match[2] === '' ? {} : { end: Number(match[2]) }),
+  };
+}
+
+function clampRange(
+  range: { start?: number; end?: number },
+  size: number,
+): { start: number; end: number } | undefined {
+  if (size === 0) return undefined;
+  if (range.start === undefined) {
+    const suffix = Math.min(range.end ?? 0, size);
+    return suffix === 0 ? undefined : { start: size - suffix, end: size - 1 };
+  }
+  if (range.start >= size) return undefined;
+  const end = Math.min(range.end ?? size - 1, size - 1);
+  return end < range.start ? undefined : { start: range.start, end };
+}
+
+const IMMUTABLE = { 'cache-control': 'private, max-age=31536000, immutable' };
 export const CHANNEL_ATTACHMENT_UPLOAD_PATH = '/api/botharness/attachment/upload';
 
 async function* chunks(body: ReadableStream<Uint8Array> | null): AsyncIterable<Uint8Array> {
@@ -89,6 +122,7 @@ export function createAttachmentHttp(
     representation?: 'playback';
     signal: AbortSignal;
   }) => Promise<{ ref: ChannelAttachmentRef; body: ReadableStream<Uint8Array>; inline?: boolean }>,
+  mediaVersions?: MediaVersions,
 ): (request: Request) => Promise<Response> {
   return async (request) => {
     const url = new URL(request.url);
@@ -110,6 +144,8 @@ export function createAttachmentHttp(
             ? { uploadId: url.searchParams.get('uploadId') ?? '' }
             : {}),
         });
+        if (mediaVersions !== undefined && ref.fileId !== undefined)
+          await mediaVersions.ensure(ref.fileId).catch(() => undefined);
         return Response.json(
           { attachment: ref },
           {
@@ -219,6 +255,112 @@ export function createAttachmentHttp(
           'Legacy attachment requires its owning message; refresh the message for fileId',
           { status: 400, headers: { 'cache-control': 'no-store' } },
         );
+      const version = url.searchParams.get('v');
+      const variantParam = url.searchParams.get('variant');
+      if (
+        (version !== null || variantParam !== null) &&
+        fileId !== null &&
+        channels !== undefined &&
+        channelId !== null &&
+        messageId !== null
+      ) {
+        if (mediaVersions === undefined || version === null)
+          return new Response('versioned media is unavailable', {
+            status: 400,
+            headers: { 'cache-control': 'no-store' },
+          });
+        const variant = variantParam === null ? undefined : parseThumbnailVariant(variantParam);
+        if (variantParam !== null && variant === undefined)
+          return new Response('unknown thumbnail variant', {
+            status: 400,
+            headers: { 'cache-control': 'no-store' },
+          });
+        const files = createMessageAttachmentFiles(channels, store);
+        try {
+          files.target(channelId, messageId, fileId);
+        } catch (error) {
+          return errorResponse(error);
+        }
+        const etag = `"${version}-${variant ?? 'original'}"`;
+        const stale = async () =>
+          Response.json(
+            { error: 'stale-version', version: (await mediaVersions.ensure(fileId))?.version },
+            { status: 409, headers: { 'cache-control': 'no-store' } },
+          );
+        if (variant !== undefined) {
+          const thumbnail = await mediaVersions.thumbnail(fileId, version, variant);
+          if (thumbnail === 'stale') return stale();
+          if (thumbnail === 'unavailable')
+            return new Response('thumbnail unavailable', {
+              status: 422,
+              headers: { 'cache-control': 'no-store' },
+            });
+          if (request.headers.get('if-none-match') === etag)
+            return new Response(null, { status: 304, headers: { etag, ...IMMUTABLE } });
+          return new Response(new Uint8Array(thumbnail.bytes), {
+            headers: {
+              'content-type': THUMBNAIL_MIME,
+              'content-length': String(thumbnail.bytes.length),
+              'x-content-type-options': 'nosniff',
+              etag,
+              ...IMMUTABLE,
+            },
+          });
+        }
+        if ((await mediaVersions.ensure(fileId))?.version !== version) return stale();
+        if (request.headers.get('if-none-match') === etag)
+          return new Response(null, { status: 304, headers: { etag, ...IMMUTABLE } });
+        try {
+          const ifRange = request.headers.get('if-range');
+          const range =
+            ifRange !== null && ifRange !== etag
+              ? undefined
+              : parseRange(request.headers.get('range'));
+          if (range !== undefined) {
+            const { path } = files.target(channelId, messageId, fileId);
+            const size = statSync(path).size;
+            const slice = range === 'invalid' ? undefined : clampRange(range, size);
+            if (slice === undefined)
+              return new Response(null, {
+                status: 416,
+                headers: { 'content-range': `bytes */${size}`, 'cache-control': 'no-store' },
+              });
+            const ref = store.current({ fileId, name: '', mime: '', size: 0 });
+            const stream = createReadStream(path, {
+              start: slice.start,
+              end: slice.end,
+              signal: request.signal,
+            });
+            return new Response(Readable.toWeb(stream) as ReadableStream<Uint8Array>, {
+              status: 206,
+              headers: {
+                'content-type': ref.mime,
+                'content-length': String(slice.end - slice.start + 1),
+                'content-range': `bytes ${slice.start}-${slice.end}/${size}`,
+                'accept-ranges': 'bytes',
+                'x-content-type-options': 'nosniff',
+                etag,
+                ...IMMUTABLE,
+              },
+            });
+          }
+          const { ref, body } = await files.download(channelId, messageId, fileId, request.signal);
+          const image = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(ref.mime);
+          return new Response(body, {
+            headers: {
+              'content-type': ref.mime,
+              'content-length': String(ref.size),
+              'content-disposition': filenameDisposition(ref.name, image),
+              'accept-ranges': 'bytes',
+              'x-content-type-options': 'nosniff',
+              etag,
+              ...IMMUTABLE,
+            },
+          });
+        } catch (error) {
+          return errorResponse(error);
+        }
+      }
       try {
         const { ref, body } =
           channels === undefined || channelId === null || messageId === null

@@ -6,6 +6,7 @@ import { join } from 'node:path';
 
 import type { VoiceCallMedia, VoiceCallMediaPeer } from '../../../core/src/voice/calls.js';
 import type { VoiceCallDescription } from '../../../core/src/voice/call-contract.js';
+import { parseStats } from '../../../core/src/voice/call-perf.js';
 import {
   MAC_VIDEO_EXECUTABLE,
   macVideoHelperDirectory,
@@ -438,6 +439,14 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
               playSignal.removeEventListener('abort', stop);
               playbacks.delete(playback);
             }
+          },
+          async setGain(gain: number) {
+            if (!Number.isFinite(gain) || gain < 0 || gain > 1)
+              throw new CallMediaError('helper-failed', 'The gain must be between 0 and 1.');
+            await request('gain', { gain });
+          },
+          async stats() {
+            return parseStats(await request('stats'));
           },
           close,
         };

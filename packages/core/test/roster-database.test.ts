@@ -60,6 +60,39 @@ afterEach(() => {
 });
 
 describe('roster database authority', () => {
+  it('keeps duplicate names independent and persists deletion, membership and stale requests', async () => {
+    const root = home();
+    const database = mount(root);
+    const store = createRosterStore({ database });
+    await store.attach(populated().facility);
+    await store.sectionRename('source', 'Work');
+    expect(store.snapshot().sections.map((section) => section.name)).toEqual(['Work', 'Work']);
+    await Promise.all([store.sectionRemove('source'), store.sectionRemove('source')]);
+    await expect(store.sectionRename('source', 'stale')).rejects.toThrow('unknown Channel section');
+    await expect(store.channelAssign('loose', 'source')).rejects.toThrow('unknown Channel section');
+    const expected = store.snapshot();
+    expect(expected.sections).toEqual([{ id: 'target', name: 'Work', channelIds: ['c3'] }]);
+    expect(expected.pins).toEqual(['c2', 'loose']);
+    expect(expected.hidden).toEqual(['c3']);
+    expect(expected.topOrder).toEqual([
+      { kind: 'section', id: 'target' },
+      { kind: 'channel', id: 'loose' },
+      { kind: 'channel', id: 'c1' },
+      { kind: 'channel', id: 'c2' },
+    ]);
+    database.close();
+    const reopened = createRosterStore({ database: mount(root) });
+    expect(reopened.snapshot()).toEqual(expected);
+    await reopened.sectionRemove('target');
+    expect(reopened.snapshot().sections).toEqual([]);
+    expect(
+      reopened
+        .snapshot()
+        .topOrder?.filter((entry) => entry.kind === 'channel')
+        .map((entry) => entry.id),
+    ).toEqual(['c3', 'loose', 'c1', 'c2']);
+  });
+
   it('imports all arrangement fields, retains the source and reopens without the facility', async () => {
     const root = home();
     const database = mount(root);

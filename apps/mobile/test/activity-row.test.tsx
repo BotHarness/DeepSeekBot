@@ -179,6 +179,18 @@ describe('activity row layout and interaction', () => {
     expect(activityPeer(post, 'ada', roster)).toBeUndefined();
   });
 
+  it('marks a Human stop with one stop symbol and no person icon in a Group', () => {
+    render({
+      kind: 'turn-stop',
+      humanName: 'You',
+      botName: 'Ada',
+      botSlug: 'ada',
+      sessionId: 'session',
+    });
+    expect(container.querySelectorAll('[data-icon]')).toHaveLength(1);
+    expect(container.querySelector('[data-avatar]')).toBeNull();
+  });
+
   it('still exposes details for an activity with no destination', () => {
     render(
       { kind: 'turn-stop', humanName: 'You', botName: 'Ada', botSlug: 'ada', sessionId: 'session' },

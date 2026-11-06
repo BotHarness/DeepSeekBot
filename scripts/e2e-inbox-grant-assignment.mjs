@@ -96,7 +96,7 @@ const login = async (client) => {
       .find((n) => ['继续', 'Continue'].includes(n.textContent?.trim() ?? ''))
       ?.click(),
   );
-  await client.waitForSelector('.bh-human-inbox-entry', { timeout: 5000 }).catch(async () => {
+  await client.waitForSelector('.bh-activity-list-entry', { timeout: 5000 }).catch(async () => {
     await client.waitForFunction(() =>
       [...document.querySelectorAll('button')].some((node) =>
         node.textContent?.includes('Bot 模式'),
@@ -107,14 +107,14 @@ const login = async (client) => {
         .find((n) => n.textContent?.includes('Bot 模式'))
         ?.click(),
     );
-    await client.waitForSelector('.bh-human-inbox-entry');
+    await client.waitForSelector('.bh-activity-list-entry');
   });
 };
 const inbox = async (client = page) => {
   await client.bringToFront();
-  await client.evaluate(() => document.querySelector('.bh-human-inbox-entry')?.click());
-  await client.waitForSelector('.bh-human-inbox-tabs');
-  await click('.bh-human-inbox-tabs button', '需要我处理', client);
+  await client.evaluate(() => document.querySelector('.bh-activity-list-entry')?.click());
+  await client.waitForSelector('.bh-activity-list-tabs');
+  await click('.bh-activity-list-tabs button', '需要我处理', client);
   await delay(700);
 };
 const openDM = async (id, client = page) => {
@@ -151,7 +151,7 @@ const review = async (scene, label, client = page) => {
   await inbox(client);
   await client.waitForFunction(
     (name) =>
-      [...document.querySelectorAll('.bh-human-inbox-row')].some((row) =>
+      [...document.querySelectorAll('.bh-activity-list-row')].some((row) =>
         row.textContent?.includes(name),
       ),
     {},
@@ -159,7 +159,7 @@ const review = async (scene, label, client = page) => {
   );
   await client.evaluate(
     ({ name, label }) => {
-      const row = [...document.querySelectorAll('.bh-human-inbox-row')].find((row) =>
+      const row = [...document.querySelectorAll('.bh-activity-list-row')].find((row) =>
         row.textContent?.includes(name),
       );
       [...row.querySelectorAll('button')]
@@ -168,7 +168,7 @@ const review = async (scene, label, client = page) => {
     },
     { name: scene.bot.displayName, label },
   );
-  await client.waitForSelector('.bh-human-inbox-reply');
+  await client.waitForSelector('.bh-activity-list-reply');
 };
 try {
   await login(page);
@@ -183,23 +183,23 @@ try {
     );
     assert.ok(rows.some((row) => row.sourceEventId === scenes.qa.sourceEventId));
     await review(scenes.qa, '回应事项');
-    await page.waitForSelector('.bh-human-inbox-reply textarea');
+    await page.waitForSelector('.bh-activity-list-reply textarea');
     assert.equal(
-      await page.$eval('.bh-human-inbox-reply textarea', (node) => node.disabled),
+      await page.$eval('.bh-activity-list-reply textarea', (node) => node.disabled),
       false,
     );
-    await page.type('.bh-human-inbox-reply textarea', 'Use canary for this Assignment.');
+    await page.type('.bh-activity-list-reply textarea', 'Use canary for this Assignment.');
     await page.waitForFunction(() =>
-      [...document.querySelectorAll('.bh-human-inbox-reply button')].some(
+      [...document.querySelectorAll('.bh-activity-list-reply button')].some(
         (node) => node.textContent?.trim() === '发送回复' && !node.disabled,
       ),
     );
-    await page.focus('.bh-human-inbox-reply textarea');
+    await page.focus('.bh-activity-list-reply textarea');
     await page.keyboard.down('Control');
     await page.keyboard.press('A');
     await page.keyboard.up('Control');
     await page.keyboard.press('Backspace');
-    assert.equal(await page.$eval('.bh-human-inbox-reply textarea', (node) => node.value), '');
+    assert.equal(await page.$eval('.bh-activity-list-reply textarea', (node) => node.value), '');
     await shot('after-restart-qa-ready');
     console.log('Restart preserved independent Grant and pending Assignment actions.');
   } else {
@@ -220,13 +220,13 @@ try {
       );
     }
     await review(grant, '选择工作区');
-    await page.waitForSelector('.bh-human-inbox-reply .bh-grant-request-card');
+    await page.waitForSelector('.bh-activity-list-reply .bh-grant-request-card');
     await theme(false);
     await shot('grant-light');
     await theme(true);
     await shot('grant-dark');
     await theme(false);
-    await click('.bh-human-inbox-reply button', '选择文件夹并授权');
+    await click('.bh-activity-list-reply button', '选择文件夹并授权');
     await page.waitForSelector('[data-folder-browser]');
     const initialFolder = await page.$eval(
       '[data-folder-browser-crumb][aria-current="location"]',
@@ -242,9 +242,9 @@ try {
     if (initialFolder !== basename(userHome)) {
       await click('[data-folder-browser-crumb]', basename(userHome));
     }
-    await click('.bh-human-inbox-reply button', '刷新上下文').catch(() => undefined);
+    await click('.bh-activity-list-reply button', '刷新上下文').catch(() => undefined);
     if (!(await page.$('[data-folder-browser]'))) {
-      await click('.bh-human-inbox-reply button', '选择文件夹并授权');
+      await click('.bh-activity-list-reply button', '选择文件夹并授权');
       await page.waitForSelector('[data-folder-browser]');
     }
     await click('[data-folder-browser-item]', folderName);
@@ -286,7 +286,7 @@ try {
     console.log('Grant approval committed and real Orchestrator continued.');
     await shot('grant-answered');
     await openDM(grant.dm.id);
-    await page.waitForFunction(() => !document.querySelector('.bh-human-inbox-reply'));
+    await page.waitForFunction(() => !document.querySelector('.bh-activity-list-reply'));
     await page.waitForFunction(() =>
       [...document.querySelectorAll('.bh-grant-request-card')].some((node) =>
         node.textContent?.includes('已回复授权请求'),
@@ -327,9 +327,9 @@ try {
     };
     const waiting = await startAssignment('waiting-human', 'WAITING_QA');
     await review(waiting, '回应事项');
-    await page.waitForSelector('.bh-human-inbox-reply textarea');
+    await page.waitForSelector('.bh-activity-list-reply textarea');
     await page.waitForFunction(() =>
-      [...document.querySelectorAll('.bh-human-inbox-reply button')].some(
+      [...document.querySelectorAll('.bh-activity-list-reply button')].some(
         (node) => node.textContent === '查看附近报告',
       ),
     );
@@ -337,10 +337,10 @@ try {
     await theme(true);
     await shot('assignment-waiting-dark');
     await theme(false);
-    await click('.bh-human-inbox-reply button', '查看附近报告');
+    await click('.bh-activity-list-reply button', '查看附近报告');
     await shot('assignment-context');
-    await page.type('.bh-human-inbox-reply textarea', 'Use canary for this Assignment.');
-    await click('.bh-human-inbox-reply button', '发送回复');
+    await page.type('.bh-activity-list-reply textarea', 'Use canary for this Assignment.');
+    await click('.bh-activity-list-reply button', '发送回复');
     const response = await waitFor(
       async () =>
         (await rpc('channelMessages', { channelId: waiting.dm.id })).messages.find(
@@ -350,7 +350,7 @@ try {
     );
     assert.equal(response.assignmentReply.sessionId, waiting.sessionId);
     await page.waitForFunction(() =>
-      document.querySelector('.bh-human-inbox-reply')?.textContent.includes('已发送给 Bot'),
+      document.querySelector('.bh-activity-list-reply')?.textContent.includes('已发送给 Bot'),
     );
     await shot('assignment-replied');
     await waitFor(
@@ -365,7 +365,7 @@ try {
         !(await actionRows()).some((row) => row.assignmentSessionId === waiting.sessionId),
       'canonical completion removed action',
     );
-    await click('.bh-human-inbox-reply button', '打开 Assignment Session');
+    await click('.bh-activity-list-reply button', '打开 Assignment Session');
     await page.waitForFunction(() => !document.querySelector('.bh-root'));
     await shot('assignment-native-session');
     await page.evaluate(() =>
@@ -373,11 +373,11 @@ try {
         .find((node) => node.textContent?.includes('Bot 模式'))
         ?.click(),
     );
-    await page.waitForSelector('.bh-human-inbox-entry');
+    await page.waitForSelector('.bh-activity-list-entry');
 
     const blocked = await startAssignment('blocked', 'BLOCKED_QA');
     await review(blocked, '回应事项');
-    await page.waitForSelector('.bh-human-inbox-reply textarea');
+    await page.waitForSelector('.bh-activity-list-reply textarea');
     await shot('assignment-blocked');
     console.log('Blocked Assignment ready for concurrent response verification.');
     const secondContext = await browser.createBrowserContext();
@@ -387,20 +387,20 @@ try {
     await login(other);
     console.log('Second window entered Bot mode.');
     await review(blocked, '回应事项', other);
-    await other.waitForSelector('.bh-human-inbox-reply textarea');
-    await other.type('.bh-human-inbox-reply textarea', 'Use stable for this Assignment.');
-    await click('.bh-human-inbox-reply button', '发送回复', other);
+    await other.waitForSelector('.bh-activity-list-reply textarea');
+    await other.type('.bh-activity-list-reply textarea', 'Use stable for this Assignment.');
+    await click('.bh-activity-list-reply button', '发送回复', other);
     console.log('Second window submitted the addressed response.');
     await other.waitForFunction(() =>
-      document.querySelector('.bh-human-inbox-reply')?.textContent.includes('已发送给 Bot'),
+      document.querySelector('.bh-activity-list-reply')?.textContent.includes('已发送给 Bot'),
     );
     await secondContext.close();
     await page.bringToFront();
-    await page.type('.bh-human-inbox-reply textarea', 'Use canary instead.');
-    await click('.bh-human-inbox-reply button', '发送回复');
+    await page.type('.bh-activity-list-reply textarea', 'Use canary instead.');
+    await click('.bh-activity-list-reply button', '发送回复');
     await page.waitForFunction(() =>
       document
-        .querySelector('.bh-human-inbox-reply')
+        .querySelector('.bh-activity-list-reply')
         ?.textContent.includes('Use stable for this Assignment.'),
     );
     assert.equal(
@@ -418,9 +418,9 @@ try {
     );
     const qa = await startAssignment('waiting-human', 'HUMAN_QA');
     await review(qa, '回应事项');
-    await page.waitForSelector('.bh-human-inbox-reply textarea');
+    await page.waitForSelector('.bh-activity-list-reply textarea');
     await page.setViewport({ width: 420, height: 900, deviceScaleFactor: 1 });
-    await page.$eval('.bh-human-inbox-reply', (node) => node.scrollIntoView({ block: 'start' }));
+    await page.$eval('.bh-activity-list-reply', (node) => node.scrollIntoView({ block: 'start' }));
     await shot('assignment-narrow');
     await page.setViewport({ width: 1440, height: 900, deviceScaleFactor: 1 });
     await shot('human-qa-ready');

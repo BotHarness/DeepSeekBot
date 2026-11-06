@@ -1,9 +1,11 @@
 import { vi } from 'vitest';
 export const notificationTaps = new Set<(data: unknown, action?: string) => void>();
 export const secure = new Map<string, string>();
+export const refreshNotificationPermission = vi.fn(async () => undefined);
 
 vi.mock('expo-secure-store', () => ({
   WHEN_UNLOCKED_THIS_DEVICE_ONLY: 0,
+  AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY: 1,
   getItemAsync: async (key: string) => secure.get(key) ?? null,
   setItemAsync: async (key: string, value: string) => void secure.set(key, value),
   deleteItemAsync: async (key: string) => void secure.delete(key),
@@ -29,6 +31,7 @@ vi.mock('../src/host/native-source-drafts', async () => {
 vi.mock('../src/host/native-cache', () => ({
   clearHostConversationCache: () => undefined,
   pruneHostConversationCache: () => undefined,
+  removeCachedConversation: () => undefined,
   nativeConversationCache: { read: async () => undefined, write() {} },
 }));
 vi.mock('../src/host/native-conversation-filter', async () => {
@@ -65,6 +68,7 @@ vi.mock('../src/host/push-session', () => ({
     sync: async () => undefined,
     forget: async () => undefined,
     retryFailed: async () => undefined,
+    refreshPermission: refreshNotificationPermission,
     reflect() {},
     reflectAgain() {},
   }),
@@ -87,6 +91,11 @@ vi.mock('../src/host/native-carrier', () => ({ nativeCarrier: () => carrier }));
 
 vi.mock('../src/host/native-notification-preferences', () => ({
   notificationPreferences: {
+    ready: Promise.resolve(),
+    getSnapshot: () => ({
+      preferences: { approval: true, question: true, 'private-input': true, reply: true },
+    }),
+    subscribe: () => () => {},
     setForeground() {},
     sync: async () => {},
     retry: async () => {},

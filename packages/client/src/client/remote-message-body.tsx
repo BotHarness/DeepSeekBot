@@ -31,7 +31,7 @@ export function RemoteMessageBody({
               messageId: message.id,
               botSlug: message.bot,
             },
-            t('humanInbox.failed'),
+            t('activityList.failed'),
           ),
     [host, message.source?.channelId, message.id, message.bot, t],
   );

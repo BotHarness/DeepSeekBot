@@ -148,8 +148,34 @@ describe('channel move menu', () => {
 });
 
 describe('section rename modal', () => {
+  it('keeps a failed name available for retry and blocks duplicate pending submissions', async () => {
+    let finish!: (value: boolean) => void;
+    const onRename = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    await render(
+      createElement(SectionRenameModal, {
+        t,
+        section: SECTION,
+        onCancel: () => undefined,
+        onRename,
+      }),
+    );
+    await typeInto(fieldNamed('分组名称'), '保留草稿');
+    await pressEnter();
+    expect(buttonNamed('重命名').disabled).toBe(true);
+    await pressEnter();
+    expect(onRename).toHaveBeenCalledTimes(1);
+    await act(async () => finish(false));
+    expect(fieldNamed('分组名称').value).toBe('保留草稿');
+    expect(dialog().querySelector('[role="alert"]')).not.toBeNull();
+    expect(buttonNamed('重命名').disabled).toBe(false);
+  });
   it('labels the name field and submits the trimmed draft on Enter', async () => {
-    const onRename = vi.fn();
+    const onRename = vi.fn(async () => true);
     await render(
       createElement(SectionRenameModal, {
         t,
@@ -167,7 +193,7 @@ describe('section rename modal', () => {
   });
 
   it('submits an edited name through the primary button', async () => {
-    const onRename = vi.fn();
+    const onRename = vi.fn(async () => true);
     await render(
       createElement(SectionRenameModal, {
         t,
@@ -184,7 +210,7 @@ describe('section rename modal', () => {
   });
 
   it('keeps a blank draft from submitting by button or Enter', async () => {
-    const onRename = vi.fn();
+    const onRename = vi.fn(async () => true);
     await render(
       createElement(SectionRenameModal, {
         t,
@@ -206,7 +232,7 @@ describe('section rename modal', () => {
         t,
         section: SECTION,
         onCancel,
-        onRename: () => undefined,
+        onRename: async () => true,
       }),
     );
 
@@ -219,7 +245,7 @@ describe('section rename modal', () => {
 
 describe('section delete modal', () => {
   it('explains the consequence and confirms with a destructive action', async () => {
-    const onDelete = vi.fn();
+    const onDelete = vi.fn(async () => true);
     const onCancel = vi.fn();
     await render(
       createElement(SectionDeleteModal, {
@@ -244,7 +270,7 @@ describe('section delete modal', () => {
 
 describe('section create modal', () => {
   it('asks for a section name and stays inert while it is blank', async () => {
-    const onCreate = vi.fn();
+    const onCreate = vi.fn(async () => true);
     const onCancel = vi.fn();
     await render(createElement(CreateSectionModal, { t, onCancel, onCreate }));
 
@@ -303,4 +329,36 @@ describe('channel create modal', () => {
     expect(onCreate).toHaveBeenLastCalledWith('周报');
     expect(dialog().querySelector('[role="alert"]')).toBeNull();
   });
+});
+
+describe('section mutation failures', () => {
+  it.each(['rename', 'delete', 'create'] as const)(
+    'keeps %s open after rejection and permits a successful retry',
+    async (kind) => {
+      const mutation = vi
+        .fn<() => Promise<boolean>>()
+        .mockRejectedValueOnce(new Error('offline'))
+        .mockResolvedValueOnce(true);
+      const onCancel = vi.fn();
+      const node =
+        kind === 'rename'
+          ? createElement(SectionRenameModal, { t, section: SECTION, onCancel, onRename: mutation })
+          : kind === 'delete'
+            ? createElement(SectionDeleteModal, {
+                t,
+                section: SECTION,
+                onCancel,
+                onDelete: mutation,
+              })
+            : createElement(CreateSectionModal, { t, onCancel, onCreate: mutation });
+      await render(node);
+      if (kind === 'create') await typeInto(fieldNamed('分组名称'), '新分组');
+      await pressEnter();
+      expect(dialog().querySelector('[role="alert"]')?.textContent).toBe(t('section.updateFailed'));
+      expect(onCancel).not.toHaveBeenCalled();
+      await pressEnter();
+      expect(mutation).toHaveBeenCalledTimes(2);
+      expect(dialog().querySelector('[role="alert"]')).toBeNull();
+    },
+  );
 });

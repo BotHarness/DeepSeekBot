@@ -12,7 +12,10 @@ Use [the recurring RC workflow](../../../docs/agents/dsh-upgrade.md) and
 does not raise the `>=0.2.0-0` admission floor, and a new pin is not runtime evidence.
 On RC1, select the Agent model before step preparation: Inbox claim precedes the
 loop's model snapshot, while prompt assembly is already too late to change that
-step's route. Keep asynchronous application authorization before prompt admission.
+step's route. The direct Orchestrator-child wake hook preserves historical Session
+graphs from before #2968; current Orchestrators delegate through Assignments.
+Qualify current Assignment background completion and next-DM model changes separately
+from legacy graph restoration. Keep asynchronous application authorization before prompt admission.
 Native tool execution now dispatches batches to scoped executors; direct CLI calls
 must omit model-step logging and verify result identity. An executor disposer leaves
 an unavailable selection, so borrowed application handles must not own its lifetime.
@@ -113,6 +116,18 @@ Use application adapters for both API generations rather than raising the instal
 A saved AX model id may disappear from the pinned native catalog. Preserve the launcher's refusal; do not misdiagnose it as a missing credential or silently rewrite the shared selection. For this task's launch only, set `BOTHARNESS_AX_MODEL` to the current catalog model (normally `deepseek-v4.1-flash`), then verify an actual DM reply. The launcher retains catalog validation and the existing private key source.
 
 ## Pitfall log
+
+### Windows background command consoles (#3565)
+
+On a detached Windows DSH Host, a console executable launched by `execFile` without
+`windowsHide: true` can time out before entering its main function. In the task-owned
+Tailscale fixture, alternating the flag on the same Host produced eight timeouts out
+of eight with the default, versus eight successful status reads out of eight with
+hidden consoles; the 3000 ms timeout stayed unchanged. Child spawn/stdout/exit marks
+and native entry records separated this from Host event-loop starvation. Use hidden
+windows for noninteractive command runners. The detached-process regression in
+`packages/core/test/phone-route-windows.test.ts` exercises the real default route runner.
+This qualifies Windows process startup, not a real Tailscale daemon or macOS behavior.
 
 The Typert SRC gateway derives accepted named arguments from the registered Service method signature. Adding a Client argument and reading it in the application owner is insufficient: a missing facade parameter is rejected as `gateway/arguments-invalid` before the owner runs. Keep the facade signature and forwarding payload aligned, and replay the same authenticated `/api` request on a rebuilt isolated Host. A domain-only test cannot detect this boundary failure (#3215).
 
@@ -538,3 +553,7 @@ In DSH 0.2.1-rc.3, native child reports wake an idle parent independently of an 
 ## Additional verified pitfall — #2761 desktop ASAR filesystem
 
 The Electron desktop carrier patches Node filesystem APIs to interpret `.asar` archives as virtual directories. A downloaded capture-runtime archive must instead be inventoried, hashed and cleaned as physical files. In Electron, use its built-in `original-fs` for those installer operations; keep ordinary Node filesystem APIs in CLI Hosts. Do not toggle process-wide `noAsar`, which affects unrelated DSH modules. A valid cache can pass CLI verification but fail the desktop carrier, trigger another download and leave cleanup with `ENOTEMPTY`. Qualify both carriers: `BH_TEST_ELECTRON=<desktop executable> pnpm exec vitest run packages/computer/test/local-video-electron.test.ts` verifies two starts with zero downloads. Full archive installation, native UI readiness and mobile viewing remain separate acceptance steps.
+
+### Completed preparation PID reused by an unrelated process (#3519)
+
+A development Home can refuse recovery as `Home is in use` after its Host has stopped if an old launch record retains an exited preparation PID that the OS has reused. Successful preparation must retire its resource record only after process exit and descendant verification; live resources and unresolved cleanup remain protected. Old records are not automatically safe to remove: compare the process creation time, command ownership and Home listeners, preserve the original metadata, and remove only a proven stale entry. Never kill a currently live PID based only on an old record or weaken the ownership scan. This was observed during Android QA recovery; the unrelated application process was left running and normal startup succeeded after the verified stale entry was removed.

@@ -625,6 +625,35 @@ describe('Search in the Chats header', () => {
     });
     expect(view.textContent).not.toContain(t.hostListLoadFailed);
   });
+  it('waits for the quick automatic retry before reporting a first failed load', async () => {
+    const transport = new FakeHost();
+    transport.kill();
+    const client = createHostClient({
+      routes: ['https://studio.tailnet-example.ts.net'],
+      credential: transport.credential,
+      carrier: transport.carrier,
+      backoff: (attempt) => (attempt === 1 ? 1_500 : 60_000),
+    });
+    hostState.live = client;
+    client.start();
+    await vi.waitFor(() => expect(client.getSnapshot().connection.status).toBe('unreachable'));
+    const view = await home();
+    await act(async () => conversationFilter.set(computerEnvironmentKey('h1')));
+    expect(view.textContent).not.toContain(t.hostListLoadFailed);
+    expect(view.textContent).not.toContain(t.cloudChannels.empty);
+    expect(view.querySelector('[data-testid="connection-progress"]')).not.toBeNull();
+    await act(async () => {
+      await vi.waitFor(
+        () =>
+          expect(client.getSnapshot().connection).toMatchObject({
+            status: 'unreachable',
+            attempt: 2,
+          }),
+        { timeout: 3_000 },
+      );
+    });
+    expect(view.textContent).toContain(t.hostListLoadFailed);
+  });
   it.each(['list', 'channels', 'rosterGet', 'settings/describe'])(
     'diagnoses initial %s transport failure without treating the generic Chats error as a root cause',
     async (method) => {
@@ -1048,6 +1077,21 @@ describe('Search in the Chats header', () => {
     });
   });
 
+  it('does not send a pending message search after leaving Home', async () => {
+    vi.useFakeTimers();
+    try {
+      const view = await home();
+      await type(view, 'launch');
+      expect(call.mock.calls.filter(([method]) => method === 'messageSearch')).toEqual([]);
+      await act(async () => root?.unmount());
+      root = undefined;
+      await act(async () => vi.advanceTimersByTimeAsync(150));
+      expect(call.mock.calls.filter(([method]) => method === 'messageSearch')).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('lists matching messages under the Chats and opens the conversation at that message', async () => {
     vi.useFakeTimers();
     try {
@@ -1090,6 +1134,19 @@ describe('Search in the Chats header', () => {
     await type(view, ' zed ');
     expect(rows(view)).toEqual([]);
     expect(view.textContent).toContain(t.searchNoMatch('zed'));
+  });
+  it('drops a pending message search when the screen goes away', async () => {
+    vi.useFakeTimers();
+    try {
+      const view = await home();
+      await type(view, 'zed');
+      act(() => root?.unmount());
+      root = undefined;
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(call).not.toHaveBeenCalledWith('messageSearch', expect.anything());
+    } finally {
+      vi.useRealTimers();
+    }
   });
   it('wraps the list in the last-chat swipe, off while searching', async () => {
     const view = await home();

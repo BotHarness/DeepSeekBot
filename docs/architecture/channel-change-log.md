@@ -1,0 +1,53 @@
+# Channel change log
+
+Every change to what a placed message renders is recorded in `channel_changes` (`seq`, `channel_id`, `message_id`, `kind`, `changed_at`) and kept for 30 days. A client keeps a cursor `{epoch, seq}` and pulls `channelChanges(channelId, sinceSeq, epoch?, limit?)`, which returns the projected `upserts`, `tombstones` (purged), `removed` message ids, `channelChanged` and `readChanged` flags, the next cursor and `hasMore`, or `{reset}`. `channelChangeCursor()` returns the current head. CLI: `deepseekbot channel-changes <channelId> [--since N] [--epoch E] [--limit N]`. `channelListChanges(sinceSeq, epoch?)` returns the list items of the Channels changed since the cursor, the ids of changed Channels that are gone (`removed`) and the head cursor, or `{reset}`; CLI: `deepseekbot channel-list-changes [--since N] [--epoch E]`. Decision record: [ADR-0293](../adr/0293-placed-message-changes-are-logged-by-database-triggers.md).
+
+Rows are written by SQLite triggers (migration generation 130), so a new write path is covered without a call-site change. Two cases need code: an edited original file (no database write) and a restored profile (new epoch). `test/channel-changes.test.ts` covers each mechanism; its last test fails if a table that feeds the projection loses its trigger.
+
+## Inventory (#3510, re-scanned against origin/main 11a1314c5)
+
+| #            | Mutation                                             | Recorded by                                                                                                     | Test                                 |
+| ------------ | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| 1            | Voice state, added voice attachment                  | `source_events` update trigger                                                                                  | body/payload rewrite                 |
+| 2            | Storage media cleanup                                | `source_events` update + `attachment_file_bindings` delete triggers                                             | body/payload rewrite                 |
+| 3            | Content purge                                        | `source_events` update trigger; projection reports a tombstone                                                  | purge tombstone                      |
+| 4            | Purge of DM-mirror copies                            | `source_events` update trigger (every placement of the source)                                                  | purge tombstone                      |
+| 5            | Purge replayed at start or restore                   | update trigger fires only when body or payload actually changes                                                 | stamps produce nothing               |
+| 6            | Group disband                                        | `source_events` update + `channel_records` update triggers                                                      | purge tombstone, Channel-level       |
+| 7            | Bridged sender or mention name refresh               | `source_events` update trigger + reply fan-out                                                                  | body/payload rewrite                 |
+| 8            | WeChat DM mirror flag                                | not rendered; trigger records it harmlessly                                                                     | —                                    |
+| 9, 10        | Feedback stamps, context-read audit                  | excluded: `$.feedback` and `$.external.contextReads` are ignored                                                | stamps produce nothing               |
+| 11           | Coalesced schedule firing                            | never placed                                                                                                    | —                                    |
+| 12           | Legacy NDJSON import                                 | `channel_placements` insert trigger                                                                             | new message                          |
+| 13           | `notice` / `for_human` recompute                     | follows #3/#4                                                                                                   | purge tombstone                      |
+| 14–31, 35–38 | Delivery (admission) state transitions               | `inbox_admissions` insert/update (`attempt_state`, `handled_at`)/delete triggers, every placement of the source | delivery state                       |
+| 32, 33       | Bot leaves or group deleted (bulk admission updates) | same triggers, per row                                                                                          | delivery state                       |
+| 34           | Bridged channel ended                                | `channel_records` update trigger                                                                                | Channel-level                        |
+| 39, 53       | Profile restore, portability import                  | `suspendRestoredExecution` rotates the epoch                                                                    | restore → reset                      |
+| 40           | Human marks read                                     | `channel_read_positions` triggers → `readChanged`                                                               | Channel-level                        |
+| 41           | Human default name                                   | `local_human_names` triggers → Channel-level row for every Channel (`*`)                                        | Channel-level                        |
+| 42           | Per-Channel nickname                                 | `channel_human_nicknames` triggers                                                                              | Channel-level                        |
+| 43           | Grant request resolved or its resolution purged      | placement insert and source update triggers bump the request                                                    | — (grant fan-out in trigger)         |
+| 44           | Reply target changed                                 | source update trigger fans out to replies (indexed `$.replyTo`)                                                 | body rewrite bumps reply             |
+| 45           | Bot-post target purged                               | source update trigger fans out across Channels (indexed `$.botChannelPost.messageId`)                           | — (cross-Channel fan-out in trigger) |
+| 46           | Bot edits an original                                | `OriginalAttachmentAccess` compares size and mtime; `recordAttachmentChange(fileId)`                            | edited original                      |
+| 47           | Human edits a file in a local app                    | the content-version check calls `recordAttachmentChange`                                                        | edited outside the app               |
+| 48           | Legacy hash→file migration                           | `attachment_file_bindings` insert/update triggers                                                               | —                                    |
+| 49, 50       | Bridged media acquired, reviewed file purge          | not rendered beyond #2/#3                                                                                       | —                                    |
+| 51           | Reaction toggled                                     | `channel_reactions` insert/delete triggers                                                                      | reaction                             |
+| 52           | Rename, avatar, wake policy, invites, joins          | `channel_records` update trigger (ignoring `updatedAt`) → `channelChanged`                                      | Channel-level                        |
+| 54           | Host upgrade changing the projection                 | new epoch when the projection changes (bump by migration)                                                       | epoch reset                          |
+
+## Live attachment updates
+
+`recordAttachmentChange` (rows #46, #47) and Storage media cleanup (row #2) also push a `kind: 'attachments'` live notification (`channel/attachments` over SSE) with the message's current `attachments` and `clearedAttachments`, so an open conversation shows the new version or the cleared file without reopening. The phone forgets cached copies of any file version a message no longer references.
+
+## Phone open (#3511)
+
+The phone stores the change cursor with each cached conversation tail. When it opens a cached conversation it follows the Channel with `limit: 0`, so the opened frame carries only the head revision and no bodies. It then reads only the revisions after its cached tail with `channelJournalPage` (or the latest page when more than 200 are missing) and applies `channelChanges` since its cursor: upserts replace cached entries by revision, tombstones blank the message and removed ids leave the window. A `reset` refetches the latest page. A conversation without a cursor asks `channelChangeCursor` before following, so its next open can use it. An older Host that refuses `limit: 0` or has no change methods gets the previous full-page open. The phone waits for its cache read at most 200 ms before opening.
+
+Approval, question, private-input and takeover requests are resolved by placing a resolution message (insert trigger); the client pairs them, so nothing changes in memory. Rows older than 30 days are pruned at start and `floor_seq` rises, so a cursor below the floor gets `reset`.
+
+## Phone channel list (#3553)
+
+The phone keeps each listed Channel in the local store's `channels` table the list cursor in `list_cursor` and the last Bot list in `list_bots`. When the client starts it paints the stored Bots and Channels before the Host answers. On each roster reload it calls `channelListChanges` since the stored cursor, upserts the returned Channels and deletes removed ones together with their messages, cursors and gaps, in one transaction with the new cursor. A `reset`, a missing cursor or an older Host without the method falls back to `channelChangeCursor` followed by the full `channels` list, which replaces the stored list.

@@ -142,21 +142,51 @@ describe('Bot voice messages', () => {
     expect(channels.referencedAttachmentHashes().has(attachmentIdentity(audio))).toBe(true);
   });
 
-  it('stores the sentences a live call spoke as the voice attachment, without a second synthesis', async () => {
+  const eventually = async (check: () => boolean) => {
+    for (let index = 0; index < 100 && !check(); index += 1)
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(check()).toBe(true);
+  };
+
+  it('stores the sentences a live call spoke as the voice attachment once playback ends, without a second synthesis', async () => {
     const played = new Uint8Array(Buffer.concat([Buffer.from('ID3'), Buffer.alloc(64, 3)]));
     const asked: { slug: string; channelId: string; body: string }[] = [];
+    let finish!: (value: {
+      clip?: { audio: Uint8Array; mime: string };
+      interrupted: boolean;
+    }) => void;
     const { send, bind, channels, dm, spoken } = await setup(200, async (input) => {
       asked.push({ slug: input.slug, channelId: input.channelId, body: input.body });
-      return { audio: played, mime: 'audio/mpeg' };
+      return { archive: new Promise((resolve) => (finish = resolve)) };
     });
     await bind();
     const sent = await send({ voice: true, body: '明天会下雨。带上伞吧。' });
-    const result = sent.result as { messageId: string };
+    const result = sent.result as { messageId: string; voice: { status: string } };
+    expect(result.voice.status).toBe('speaking');
+    expect(channels.message(dm.id, result.messageId)!.voice).toBeUndefined();
+    finish({ clip: { audio: played, mime: 'audio/mpeg' }, interrupted: false });
+    await eventually(() => channels.message(dm.id, result.messageId)!.voice?.state === 'ready');
     const message = channels.message(dm.id, result.messageId)!;
     expect(asked).toEqual([{ slug: 'ada', channelId: dm.id, body: '明天会下雨。带上伞吧。' }]);
     expect(spoken).toEqual([]);
-    expect(message.voice).toMatchObject({ state: 'ready' });
     expect(message.attachments![0]).toMatchObject({ mime: 'audio/mpeg', size: played.length });
+  });
+
+  it('keeps no voice bar when the Human cut in before any sentence played', async () => {
+    let finish!: () => void;
+    const { send, bind, channels, dm, spoken } = await setup(200, async () => ({
+      archive: new Promise((resolve) => (finish = () => resolve({ interrupted: true }))),
+    }));
+    await bind();
+    const sent = await send({ voice: true, body: '第一句。第二句。' });
+    const messageId = (sent.result as { messageId: string }).messageId;
+    finish();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const message = channels.message(dm.id, messageId)!;
+    expect(message.body).toBe('第一句。第二句。');
+    expect(message.voice).toBeUndefined();
+    expect(message.attachments).toBeUndefined();
+    expect(spoken).toEqual([]);
   });
 
   it('falls back to one synthesis when the call cannot finish the voice', async () => {
@@ -169,6 +199,29 @@ describe('Bot voice messages', () => {
     const message = channels.message(dm.id, (sent.result as { messageId: string }).messageId)!;
     expect(spoken).toEqual(['明天会下雨。']);
     expect(message.voice).toMatchObject({ state: 'ready' });
+  });
+
+  it('synthesizes the whole message when the call archive fails after playback', async () => {
+    const { VoiceError } = await import('../src/voice/providers.js');
+    const { send, bind, channels, dm, spoken } = await setup(200, async () => ({
+      archive: Promise.reject(new VoiceError('provider-rate-limited', 'Out of quota.')),
+    }));
+    await bind();
+    const sent = await send({ voice: true, body: '明天会下雨。' });
+    const messageId = (sent.result as { messageId: string }).messageId;
+    await eventually(() => channels.message(dm.id, messageId)!.voice?.state === 'ready');
+    expect(spoken).toEqual(['明天会下雨。']);
+  });
+
+  it('synthesizes the whole message when an uninterrupted call ends without a clip', async () => {
+    const { send, bind, channels, dm, spoken } = await setup(200, async () => ({
+      archive: Promise.resolve({ interrupted: false }),
+    }));
+    await bind();
+    const sent = await send({ voice: true, body: '明天会下雨。' });
+    const messageId = (sent.result as { messageId: string }).messageId;
+    await eventually(() => channels.message(dm.id, messageId)!.voice?.state === 'ready');
+    expect(spoken).toEqual(['明天会下雨。']);
   });
 
   it('sends exactly as before when voice is false', async () => {

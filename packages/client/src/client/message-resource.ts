@@ -1,4 +1,5 @@
 import { useMemo, useSyncExternalStore } from 'react';
+import { boundedBridgeMediaRequest } from './bridge-media-request.js';
 import { fetchMessageResource, useMessageHost, type MessageHost } from './message-host.js';
 
 interface ResourceState {
@@ -45,7 +46,7 @@ export function createMessageResource(path: string | undefined, host?: MessageHo
     const request = new AbortController();
     controller = request;
     const signal = AbortSignal.any([request.signal, AbortSignal.timeout(30_000)]);
-    pending = (async () => {
+    pending = boundedBridgeMediaRequest(signal, async () => {
       const response = await fetchMessageResource(path, signal, host);
       if (signal.aborted) {
         await response.body?.cancel();
@@ -87,7 +88,7 @@ export function createMessageResource(path: string | undefined, host?: MessageHo
       );
       publish({ url });
       return url;
-    })()
+    })
       .catch(() => {
         if (!request.signal.aborted) publish({ failed: true });
         return undefined;

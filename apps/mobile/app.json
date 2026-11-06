@@ -50,12 +50,13 @@
         }
       ],
       "expo-secure-store",
-      "expo-notifications",
+      ["expo-notifications", { "enableBackgroundRemoteNotifications": true }],
+      "expo-background-task",
       "@bacons/apple-targets",
       [
         "expo-camera",
         {
-          "cameraPermission": "DeepSeekBot uses the camera to scan the pairing code shown on your computer and to take photos you send to a Bot.",
+          "cameraPermission": "DeepSeekBot uses the camera to scan the pairing code shown on your computer, to take photos you send to a Bot, and to show a Bot what you see on a call.",
           "microphonePermission": "DeepSeekBot uses the microphone to turn what you say into a message you can edit before sending to a Bot, and to talk with a Bot on a call.",
           "recordAudioAndroid": false
         }
@@ -64,7 +65,7 @@
         "expo-image-picker",
         {
           "photosPermission": "DeepSeekBot opens your photos so you can send them to a Bot.",
-          "cameraPermission": "DeepSeekBot uses the camera to scan the pairing code shown on your computer and to take photos you send to a Bot.",
+          "cameraPermission": "DeepSeekBot uses the camera to scan the pairing code shown on your computer, to take photos you send to a Bot, and to show a Bot what you see on a call.",
           "microphonePermission": "DeepSeekBot uses the microphone to turn what you say into a message you can edit before sending to a Bot, and to talk with a Bot on a call."
         }
       ],

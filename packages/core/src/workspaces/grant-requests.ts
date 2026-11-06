@@ -54,7 +54,8 @@ export async function approveGrantRequest(
     const resolution = deps.channels.grantRequestResolution?.(channelId, requestMessageId);
     if (!resolution) return;
     const grant = deps.grants.requireActive(slug, resolution.grantRequestResolution!.grantId);
-    if (grant.workspaceId !== workspaceId || grant.orchestratorWrite !== true)
+    const workspace = deps.grants.availableWorkspaces().find((entry) => entry.id === workspaceId);
+    if (workspace?.path !== grant.workspacePath || grant.orchestratorWrite !== true)
       fail('This request was already decided for different or no longer writable authority');
     return { grant, message: resolution };
   };

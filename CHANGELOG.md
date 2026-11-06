@@ -2028,7 +2028,7 @@ First stable DeepSeekBot release on npm: PersonaBots with their own identity, Gi
 
 - Documented current Computer deployment/image choices, durable workspace and export recovery limits with real Docker verification ([#205](https://github.com/BotHarness/BotHarness/issues/205), [report](docs/research/2026-10-04-computer-image-spike-qualification.md)).
 
-- Defined Avatar Family and Avatar Appearance, with separate ownership for editable appearance, shared activity facts and transient renderer poses; runtime behavior is unchanged ([Context](CONTEXT.md), [ADR-0116](docs/adr/0116-editable-avatar-appearance-is-independent-of-activity.md), [#743](https://github.com/BotHarness/BotHarness/issues/743)).
+- Defined Avatar Family and Avatar Appearance, with separate ownership for editable appearance, shared activity facts and transient renderer poses; runtime behavior is unchanged ([Context](GLOSSARY.md), [ADR-0116](docs/adr/0116-editable-avatar-appearance-is-independent-of-activity.md), [#743](https://github.com/BotHarness/BotHarness/issues/743)).
 - Added a compressed multi-bot concept illustration to both README introductions, keeping it clearly labelled alongside real product screenshots ([#643](https://github.com/BotHarness/BotHarness/issues/643)).
 
 - Replaced the early milestone README with bilingual product screenshots, current source-preview setup, and explicit Computer/Browser authorization (including Auto-allow) and temporary-fork IM delivery boundaries ([#643](https://github.com/BotHarness/BotHarness/issues/643)).
