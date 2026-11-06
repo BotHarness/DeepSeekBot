@@ -26,7 +26,6 @@ export type CallAudioRouteState = {
   readonly output: CallAudioOutputId;
   readonly outputs: readonly CallAudioOutput[];
   readonly microphone: CallMicrophoneId;
-  /** False while native recording is inactive: microphone is an available candidate, not selected. */
   readonly microphoneConfirmed?: boolean;
   readonly microphones: readonly CallMicrophone[];
   readonly music: boolean;
