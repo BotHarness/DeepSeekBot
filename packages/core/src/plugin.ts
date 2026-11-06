@@ -154,7 +154,7 @@ import { mountDiagnosticLog } from './diagnostics/diagnostic-log.js';
 import { createCoreTakeoverHandoffs, mountTakeoverTools } from './takeover/mount.js';
 import { createTurnLog } from './diagnostics/turn-log.js';
 import { mountDevicePairing } from './devices/mount.js';
-import { humanInboxPushSource } from './push/source.js';
+import { activityListPushSource } from './push/source.js';
 import { createMarketplaceClient } from './marketplace/client.js';
 import { createInstallReceipts } from './marketplace/install-receipts.js';
 import { createMarketplaceUploads } from './marketplace/uploaded-bots.js';
@@ -1769,7 +1769,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     packageAnchors: releaseAnchors,
     credentials: () => ctx.get('credentials'),
     push: {
-      source: humanInboxPushSource(
+      source: activityListPushSource(
         core.humanAttention,
         (slug) => core.registry.get(slug)?.displayName,
         (channelId, messageId) => core.channels.message(channelId, messageId)?.toolApprovalRequest,

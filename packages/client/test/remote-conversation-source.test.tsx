@@ -10,7 +10,7 @@ vi.mock('../src/client/remote-hosts.js', async (original) => ({
   remoteHosts: () => fixture.sources!,
 }));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
-  ...(await import('./human-inbox-test-controls.js')),
+  ...(await import('./activity-list-test-controls.js')),
   Button: ({
     children,
     variant: _variant,

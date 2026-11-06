@@ -25,7 +25,7 @@
 
 手机命令通过 inspector 显式等待 JavaScript Promise 完成，不依赖 Hermes 执行 CDP 的 `awaitPromise`。连接后，启动操作、轮询和取结果共用一个 20 秒期限。每次请求使用唯一的临时结果槽，取走结果或取消时删除；debugger 断开后由运行时的 20 秒到期清理兜底，迟到完成不能重建槽。运行时到期清理需要应用的 JavaScript 事件循环运行；应用暂停时，定时器恢复后执行清理。只有通过结构校验的手机 owner 结果才算成功，Promise 内部字段或不合规响应返回 `inspector-result-required`。传输层无法撤回 owner 已开始的写入，因此超时仍表示写入结果未知，不能据此认定未改变；重试前先读回。命令自身也会区分这些结果：可能已经发出的写入若无法取得结果，会保留底层错误码，并明确提示写入结果未知、先不带 `--preferences-stdin` 读回；只读失败和确定发生在写入前的拒绝不使用该提示。
 
-`deepseekbot inbox --notifications [--limit 1..100] [--cursor <游标>]` 使用 Host 现有 `humanAttention` 的通知发现模式。遍历全部返回游标，取得 Host 判定的待办、未读群提及/回复和普通未读 DM 回复。它独立于 Activity 的 mentions-first 分页窗口，不可混用筛选条件。响应须有 `notificationVersion: 1`，旧 Host 明确拒绝；不增加 Feed 连接，不修改 attention 或已读状态。
+`deepseekbot activity --notifications [--limit 1..100] [--cursor <游标>]` 使用 Host 现有 `humanAttention` 的通知发现模式。遍历全部返回游标，取得 Host 判定的待办、未读群提及/回复和普通未读 DM 回复。它独立于 Activity 的 mentions-first 分页窗口，不可混用筛选条件。响应须有 `notificationVersion: 1`，旧 Host 明确拒绝；不增加 Feed 连接，不修改 attention 或已读状态。
 
 `deepseekbot device-notifications --device-file <私有配对.json>` 从运行中的 Host 读取当前配对设备的通知发送副本。加上 `--preferences-stdin`，从标准输入传入 `{"approval":true,"question":true,"private-input":true,"reply":false}`，即可替换四种通知选择，无需先注册推送 token。私有文件使用已保存配对的结构（`hostId`、`hostName`、`routes`、`deviceId`、`credential`）；凭据不能放入参数或公开文件。标准输出仅有一个不含凭据的 JSON，配对撤销后返回 `device-revoked`。命令只修改该 Host 的发送副本；手机持久化选择仍是权威，下次同步会覆盖副本。浏览器通知选择只保存在该浏览器，不影响 Host attention。
 
@@ -425,21 +425,21 @@ deepseekbot grants <bot-id>
 
 `computer-frame` 把 Computer 桌面（本机或容器）的当前画面保存到一个绝对路径，并报告大小、`mimeType`（`image/jpeg`；Host 无法编码 JPEG 时为 `image/png`）、`seq` 和目标。已配对的手机轮询的也是这一帧：`GET /api/computer/frame?after=<seq>` 会等到画面变化，画面不变时返回 204。`computer-input --args-stdin` 向这个桌面发送一次人工操作：`{"kind":"click","x":10,"y":20}`（可加 `"button":"right"`、`"count":2`）、`{"kind":"scroll","direction":"down","amount":3}`、`{"kind":"type","text":"hi"}` 或 `{"kind":"key","key":"return","modifiers":["meta"]}`。坐标是上一帧画面的像素。Computer 停止时两者都会以 `not-running` 拒绝。发送操作前要先执行 `computer-takeover --enabled`，否则会以 `not-paused` 拒绝。Computer 还没有产生画面时，`computer-frame` 以 `no-frame` 拒绝。`computer-takeover --enabled` 会等 Bot 正在进行的 Computer 调用结束（最多 10 秒）后再返回，暂停开始后才完成的调用结果不会交给 Bot。暂停期间 Bot 的所有 Computer 工具调用都会被拒绝，包括截图，所以你输密码时 Bot 不能移走焦点，也看不到屏幕。手机持续轮询画面或发送操作时暂停一直有效，最后一次之后 30 秒自动结束；`computer-takeover --disabled` 立即交还。
 
-### Human Inbox、委派、会话与审批规则
+### Activity、委派、会话与审批规则
 
 ```bash
-deepseekbot inbox --category action --limit 20
-deepseekbot inbox --category replies --search budget --unread --sort mentions-first
-deepseekbot inbox-watch --category unread --watch-seconds 10
-deepseekbot inbox-status
-deepseekbot inbox-dismiss <item-id> --source-key <source-event-id>
-deepseekbot inbox-dismiss-all --confirm [--kind <kind>] [--category action|info|unread|replies] [--bot <id>] [--channel <id>]
-deepseekbot inbox --category replies --dismissed
-deepseekbot inbox-restore <item-id> --source-key <source-event-id>
-deepseekbot inbox-snooze <item-id> --source-key <source-event-id> --until 2026-10-15T09:00:00Z
-deepseekbot inbox-snooze <item-id> --source-key <source-event-id> --clear
-deepseekbot inbox --category action --snoozed
-deepseekbot inbox-ignore <report-source-event-id>
+deepseekbot activity --category action --limit 20
+deepseekbot activity --category replies --search budget --unread --sort mentions-first
+deepseekbot activity-watch --category unread --watch-seconds 10
+deepseekbot activity-status
+deepseekbot activity-dismiss <item-id> --source-key <source-event-id>
+deepseekbot activity-dismiss-all --confirm [--kind <kind>] [--category action|info|unread|replies] [--bot <id>] [--channel <id>]
+deepseekbot activity --category replies --dismissed
+deepseekbot activity-restore <item-id> --source-key <source-event-id>
+deepseekbot activity-snooze <item-id> --source-key <source-event-id> --until 2026-10-15T09:00:00Z
+deepseekbot activity-snooze <item-id> --source-key <source-event-id> --clear
+deepseekbot activity --category action --snoozed
+deepseekbot activity-ignore <report-source-event-id>
 deepseekbot assignment-context <bot-id> --session <session-id> --source <source-event-id>
 deepseekbot assignments <bot-id> [--search <text>] [--activity idle,working] [--include-archived] [--limit 20] [--cursor <next>]
 deepseekbot assignment <bot-id> --session <session-id>
@@ -472,13 +472,13 @@ deepseekbot private-mcp-remove <bot-id> --server <name> --confirm
 
 `bot-stop <bot-id>` 即 Bot Stop：停止 Bot 的 Orchestrator 和所有运行中的 Assignment 及其 Subagent，语义同样只是打断。它是幂等的：没有运行中的工作时返回空的 `stopped`。每个被停止的 Assignment 都可以像单独停止的一样，用 Assignment Request 继续。带 `--channel` 时通知（`turnStop.target.scope: "bot"`）只发到该 Channel，且只在 Bot 属于该 Channel 时发。IM 的 `/stop` 和输入框的停止按钮都执行 Bot Stop。
 
-`inbox-status` 请求完整的消息分类摘要，返回 `unreadCount`、`hasAction`，以及支持该能力的 Host 返回的 `messageCounts: { replies, other }`。分类在可见性与 Channel 免打扰过滤后，对未读 Source Event 去重并分成个人消息和其他消息；已读保留的提及／回复、已处理请求不点亮消息红点。该摘要不受 Activity 分页和浏览器筛选影响。旧 Host 可能省略 `messageCounts`，缺失不代表零。control rail 红点偏好只在当前浏览器和 Host origin 保存，不改动 CLI 返回的真实状态。
+`activity-status` 请求完整的消息分类摘要，返回 `unreadCount`、`hasAction`，以及支持该能力的 Host 返回的 `messageCounts: { replies, other }`。分类在可见性与 Channel 免打扰过滤后，对未读 Source Event 去重并分成个人消息和其他消息；已读保留的提及／回复、已处理请求不点亮消息红点。该摘要不受 Activity 分页和浏览器筛选影响。旧 Host 可能省略 `messageCounts`，缺失不代表零。control rail 红点偏好只在当前浏览器和 Host origin 保存，不改动 CLI 返回的真实状态。
 
-`inbox-watch` 先订阅现有已认证 roster 实时流，再读取基线。观测 1–60 秒（默认 10 秒）后，仅输出一个 JSON，包含 `initial`、`current` 和 `invalidations` 数量。两次快照沿用 `inbox` 的 Human Inbox 查询与筛选；中间事件仅通知数据失效，不另存通知。流提前中断返回编码拒绝。`--timeout` 应长于观测窗口。
+`activity-watch` 先订阅现有已认证 roster 实时流，再读取基线。观测 1–60 秒（默认 10 秒）后，仅输出一个 JSON，包含 `initial`、`current` 和 `invalidations` 数量。两次快照沿用 `activity` 的 Activity 查询与筛选；中间事件仅通知数据失效，不另存通知。流提前中断返回编码拒绝。`--timeout` 应长于观测窗口。
 
-`inbox --search <文字>` 在分页前搜索安全的 Activity 摘要、Channel 名称和 Bot slug（最多 200 字符）。`--unread` 仅保留未读的个人消息，不隐藏待处理事项。`--sort newest|oldest` 按时间排序；`--category replies --sort mentions-first` 将提及排在回复前。使用 `--cursor` 时须保持筛选条件不变。搜索、未读筛选和提及排序要求查询版本 1；旧 Host 返回 `host-query-unsupported`，不会静默返回部分结果。
+`activity --search <文字>` 在分页前搜索安全的 Activity 摘要、Channel 名称和 Bot slug（最多 200 字符）。`--unread` 仅保留未读的个人消息，不隐藏待处理事项。`--sort newest|oldest` 按时间排序；`--category replies --sort mentions-first` 将提及排在回复前。使用 `--cursor` 时须保持筛选条件不变。搜索、未读筛选和提及排序要求查询版本 1；旧 Host 返回 `host-query-unsupported`，不会静默返回部分结果。
 
-`inbox` 返回 Human Inbox 的一页（`items` 和 `nextCursor`），可以像 Inbox 的标签页一样按 `--category`（`action`、`info`、`unread`、`replies`、`handled`）、`--bot` 或 `--channel` 筛选。`inbox-dismiss` 接收条目的 `id`，条目带有 `sourceEventId` 时把它作为 `--source-key` 传入；`inbox-dismiss-all --confirm` 一次移除所有活动条目，或只移除某个 `--kind`（例如 `bot-message-needs-repair`）的条目，并可用 `--category`、`--bot`、`--channel` 限定范围；被清理的未读会话、回复和提及会一并标为已读（读到该条消息为止）；返回 `dismissed`、`read`（标为已读的会话数）和 `more`（每次最多 1000 条，仍有剩余时 `more: true`），对应网页和手机「活动」里的「清理…」菜单。`inbox --dismissed` 列出已移除的条目（对应手机上的「已清理」筛选），`inbox-restore` 用同样的 `id` 和 `--source-key` 把一条恢复回来，旧版 Host 会以 `host-query-unsupported` 失败；`inbox-ignore` 把一条仅供知悉的委派汇报标为已读。`inbox-snooze` 把需要处理、通知或回复里的条目隐藏到 `--until`（最多 30 天后），对应网页 Inbox 的「稍后提醒」；`--clear` 立即让它回来，`inbox --snoozed` 列出仍在延后的条目及其 `snoozedUntil`。`assignment-context` 读取 `assignment-report` 条目背后的汇报。`assignments` 按最近更新顺序列出 Bot 的委派任务，每条都带 `title`（委派标题）和 `description`（委派描述）、活动状态、Continuity Key 和最新汇报；`--search` 不区分大小写地匹配标题、描述、Continuity Key 和最新汇报摘要，`--activity` 用逗号列出要保留的 `working`、`idle`、`error`、`stopping`、`stopped`，`--include-archived` 同时列出已归档的，`--cursor` 用上一页的 `nextCursor` 在相同筛选下继续（`--limit` 为 1–50，默认 20）。它读取的就是 Bot 的 `list_assignments` 所用的 Assignment Directory。`assignment` 按 `--session` 查看一个委派任务。`assignment-timeline` 返回该委派任务、它的 `rounds`（轮次）及 `lanes` 中的时间线。每一轮是委派 Agent 的一个 turn：第 1 轮为 `created`，之后为 `continued`（Orchestrator 又发来一个请求），每轮带开始时间和 Orchestrator 指令 `instruction` 的前 280 个字符；保留最新 20 轮，`omittedRounds` 统计其余。MAIN 条目和 Subagent 泳道带有所属的 `round`。泳道先是 `main`（委派 Agent），再按创建顺序列出每个 DSH Subagent，记为 `subagent` 1、2…（最多最近 20 个，其余数量见 `omittedSubagents`）。每条泳道保留最近 40 条 `entries`，每条带工具名、`kind`、`status`（`running`、`done`、`failed`、`denied` 或 `cancelled`）、时间，以及仅在工具声明时才有的简短公开 `detail`；原始工具输入和输出不会出现。每条泳道还带 `state`（`running`、`done`、`failed`、`cancelled` 或 `idle`）、首末事件时间，以及该会话调用过模型后实际使用的 `route`（`provider`、`model`、`reasoningEffort`）。Sessions 面板和群组 Work 面板里 Assignment 行上的“执行过程”按钮读取的就是它：按轮次列出 Orchestrator 的指示、MAIN 步骤和这一轮开出的 Subagent。`session-subagents` 对 Bot 拥有的任一根会话（Orchestrator 或 Assignment）返回同样的 `subagent` 泳道，因此也覆盖 Orchestrator 自己用 `bot_subagent` 派出的 Subagent；会话面板和群聊 Work 面板展开某一行时读取它。`channel-assignments` 列出群组 Channel 的委派工作；`channel-assign` 把 Channel 移到侧栏的某个分组（`--unsectioned` 移出分组）。`session-ids` 列出 Bot 拥有的根会话，`session-owner` 说明某个会话属于哪个 Bot、以什么角色运行。`tool-approval-rules` 列出 Bot 的"始终允许"规则；每条规则的 `autoApprovedCount` 是它不经询问就批准的请求次数，每个请求只计一次。`tool-approval-history` 按从新到旧列出 Human 对该 Bot 批准卡片的答复：每条包含工具、输入、`outcome`（`allowed-once`、`allowed-always-tool`、`allowed-always-exact`、`allowed-always-all` 或 `rejected`）、`channelId` 和两条消息 ID；答复来自已配对的 IM 账号时还带 `actor`。`--cursor` 用上一页的 `nextCursor` 继续（`--limit` 为 1–100，默认 30）。撤销规则、工作区授权或私有 MCP 服务器都需要 `--confirm`，与 Web UI 的确认一致。指定了 Host 时，`grant-revoke` 和 `grant-write-set` 经由 Host 执行；使用 `--home` 时仍是离线维护命令。私有 MCP 服务器由 `ask-secret-accounts` 列出；Host 不认识的名称会以 `private-mcp-server-unavailable` 失败。
+`activity*` 命令在 #3321 之前叫 `inbox*`，旧名字仍然可用。`activity` 返回「活动」的一页（`items` 和 `nextCursor`），可以像「活动」的筛选一样按 `--category`（`action`、`info`、`unread`、`replies`、`handled`）、`--bot` 或 `--channel` 筛选。`activity-dismiss` 接收条目的 `id`，条目带有 `sourceEventId` 时把它作为 `--source-key` 传入；`activity-dismiss-all --confirm` 一次移除所有活动条目，或只移除某个 `--kind`（例如 `bot-message-needs-repair`）的条目，并可用 `--category`、`--bot`、`--channel` 限定范围；被清理的未读会话、回复和提及会一并标为已读（读到该条消息为止）；返回 `dismissed`、`read`（标为已读的会话数）和 `more`（每次最多 1000 条，仍有剩余时 `more: true`），对应网页和手机「活动」里的「清理…」菜单。`activity --dismissed` 列出已移除的条目（对应手机上的「已清理」筛选），`activity-restore` 用同样的 `id` 和 `--source-key` 把一条恢复回来，旧版 Host 会以 `host-query-unsupported` 失败；`activity-ignore` 把一条仅供知悉的委派汇报标为已读。`activity-snooze` 把需要处理、通知或回复里的条目隐藏到 `--until`（最多 30 天后），对应网页 Inbox 的「稍后提醒」；`--clear` 立即让它回来，`activity --snoozed` 列出仍在延后的条目及其 `snoozedUntil`。`assignment-context` 读取 `assignment-report` 条目背后的汇报。`assignments` 按最近更新顺序列出 Bot 的委派任务，每条都带 `title`（委派标题）和 `description`（委派描述）、活动状态、Continuity Key 和最新汇报；`--search` 不区分大小写地匹配标题、描述、Continuity Key 和最新汇报摘要，`--activity` 用逗号列出要保留的 `working`、`idle`、`error`、`stopping`、`stopped`，`--include-archived` 同时列出已归档的，`--cursor` 用上一页的 `nextCursor` 在相同筛选下继续（`--limit` 为 1–50，默认 20）。它读取的就是 Bot 的 `list_assignments` 所用的 Assignment Directory。`assignment` 按 `--session` 查看一个委派任务。`assignment-timeline` 返回该委派任务、它的 `rounds`（轮次）及 `lanes` 中的时间线。每一轮是委派 Agent 的一个 turn：第 1 轮为 `created`，之后为 `continued`（Orchestrator 又发来一个请求），每轮带开始时间和 Orchestrator 指令 `instruction` 的前 280 个字符；保留最新 20 轮，`omittedRounds` 统计其余。MAIN 条目和 Subagent 泳道带有所属的 `round`。泳道先是 `main`（委派 Agent），再按创建顺序列出每个 DSH Subagent，记为 `subagent` 1、2…（最多最近 20 个，其余数量见 `omittedSubagents`）。每条泳道保留最近 40 条 `entries`，每条带工具名、`kind`、`status`（`running`、`done`、`failed`、`denied` 或 `cancelled`）、时间，以及仅在工具声明时才有的简短公开 `detail`；原始工具输入和输出不会出现。每条泳道还带 `state`（`running`、`done`、`failed`、`cancelled` 或 `idle`）、首末事件时间，以及该会话调用过模型后实际使用的 `route`（`provider`、`model`、`reasoningEffort`）。Sessions 面板和群组 Work 面板里 Assignment 行上的“执行过程”按钮读取的就是它：按轮次列出 Orchestrator 的指示、MAIN 步骤和这一轮开出的 Subagent。`session-subagents` 对 Bot 拥有的任一根会话（Orchestrator 或 Assignment）返回同样的 `subagent` 泳道，因此也覆盖 Orchestrator 自己用 `bot_subagent` 派出的 Subagent；会话面板和群聊 Work 面板展开某一行时读取它。`channel-assignments` 列出群组 Channel 的委派工作；`channel-assign` 把 Channel 移到侧栏的某个分组（`--unsectioned` 移出分组）。`session-ids` 列出 Bot 拥有的根会话，`session-owner` 说明某个会话属于哪个 Bot、以什么角色运行。`tool-approval-rules` 列出 Bot 的"始终允许"规则；每条规则的 `autoApprovedCount` 是它不经询问就批准的请求次数，每个请求只计一次。`tool-approval-history` 按从新到旧列出 Human 对该 Bot 批准卡片的答复：每条包含工具、输入、`outcome`（`allowed-once`、`allowed-always-tool`、`allowed-always-exact`、`allowed-always-all` 或 `rejected`）、`channelId` 和两条消息 ID；答复来自已配对的 IM 账号时还带 `actor`。`--cursor` 用上一页的 `nextCursor` 继续（`--limit` 为 1–100，默认 30）。撤销规则、工作区授权或私有 MCP 服务器都需要 `--confirm`，与 Web UI 的确认一致。指定了 Host 时，`grant-revoke` 和 `grant-write-set` 经由 Host 执行；使用 `--home` 时仍是离线维护命令。私有 MCP 服务器由 `ask-secret-accounts` 列出；Host 不认识的名称会以 `private-mcp-server-unavailable` 失败。
 
 ### 在线 Host 上的定时任务
 
@@ -708,14 +708,14 @@ deepseekbot approval-template-set <bot-id> off
 
 Bot 在自己的 Shell 里运行这些命令时，新建模板、或编辑没有任何 Bot 在用的模板，都不需要卡片，所以 Bot 可以替你起草模板。选择模板，以及编辑或删除某个 Bot 正在使用的模板，需要 Human 决定，或在独立管理范围中显式保存的授权规则；模型审批员不能代答。你拒绝后，文件保持不变。拒绝时带错误码：`invalid-input`（名称不合法、内容为空或过大、要选择的模板不存在）、`template-exists`、`template-read-only`（内置模板）、`unknown-template` 和 `unknown-bot`。
 
-审批员拒绝的每次调用都会成为 Human Inbox 里的一条 `auto-rejection`。它的 `autoRejection` 含会话、工具、参数、模板和理由。`inbox-allow-once` 就是收件箱里的“仍然允许这一次”：只放行那一次完全相同的调用。Bot 会收到通知并可以重试，同一会话里同一工具、参数完全相同的下一次调用不经审核直接运行。之后的调用仍按模板审核。
+审批员拒绝的每次调用都会成为 Activity 里的一条 `auto-rejection`。它的 `autoRejection` 含会话、工具、参数、模板和理由。`activity-allow-once` 就是收件箱里的“仍然允许这一次”：只放行那一次完全相同的调用。Bot 会收到通知并可以重试，同一会话里同一工具、参数完全相同的下一次调用不经审核直接运行。之后的调用仍按模板审核。
 
 ```bash
-deepseekbot inbox --category action --kind auto-rejection
-deepseekbot inbox-allow-once autoreject:<source-event-id>
+deepseekbot activity --category action --kind auto-rejection
+deepseekbot activity-allow-once autoreject:<source-event-id>
 ```
 
-`inbox-allow-once` 返回 `{accepted, channelId, messageId}`，其中 `messageId` 是 Human 在 Channel 里的放行消息。已经放行过的条目，或 Bot 已不在该 Channel 时，返回错误码 `auto-rejection-unavailable`。
+`activity-allow-once` 返回 `{accepted, channelId, messageId}`，其中 `messageId` 是 Human 在 Channel 里的放行消息。已经放行过的条目，或 Bot 已不在该 Channel 时，返回错误码 `auto-rejection-unavailable`。
 
 **熔断。** 同一会话连续 3 次被拒绝，或累计 20 次被拒绝后，此会话的自动审批暂停：之后每个请求都发卡片，Channel 里会出现一条提示。Human 在此会话里给出的下一次批准（卡片上或收件箱里）会恢复自动审批并重新计数。阈值固定。熔断状态和尚未使用的“允许这一次”只保存在 Host 内存里，所以 Host 重启后自动审批会重新计数并恢复，Bot 还没用掉的放行会失效，收件箱条目仍算已处理。
 
@@ -1074,7 +1074,7 @@ Bot 名字只是标签，身份是 id。不带 operation key 时，每次创建�
 ### 在线批准工作区请求
 
 ```bash
-deepseekbot inbox --category action --bot <bot-id>
+deepseekbot activity --category action --bot <bot-id>
 deepseekbot workspace-options
 deepseekbot grant-request-approve <bot-id> --channel <channel-id> --request <message-id> --workspace <workspace-id> --confirm
 deepseekbot grants <bot-id>
@@ -1630,7 +1630,7 @@ printf '%s' '{"version":1,"session":"agent-qa-0001","entries":[{"ts":17800000000
 ### 消息反馈（#2811）
 
 单条消息反馈独立于匿名遥测。Host 生成冻结并脱敏的材料，默认选择锚点前后各 20 条消息，
-各侧可设为 0–100。`conversation`、`sessions`、`inbox`、`deliveries`、`relatedChats` 默认开启，
+各侧可设为 0–100。`conversation`、`sessions`、`activity`、`deliveries`、`relatedChats` 默认开启，
 `wholeSessions` 默认关闭。提交前检查 `files`、类别选择与 `summary.omissions`。
 即使关闭 `conversation`，执行记录仍可能包含重复的聊天文本。
 

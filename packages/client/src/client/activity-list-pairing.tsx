@@ -20,13 +20,13 @@ const capabilities = [
   ['review-pairing', 'pairing.reviewCapability'],
 ] as const;
 
-export function HumanInboxPairing({
+export function ActivityListPairing({
   source,
   actions,
   t,
 }: {
   source: HumanAttentionItem;
-  actions: Pick<BridgeActions, 'messagingSnapshot' | 'pairingReview' | 'refreshHumanInbox'>;
+  actions: Pick<BridgeActions, 'messagingSnapshot' | 'pairingReview' | 'refreshActivityList'>;
   t: BotHarnessTranslate;
 }): ReactElement {
   const [loaded, setLoaded] = useState<{ request?: PairingRequest; roles: ExternalUserRole[] }>();
@@ -53,7 +53,7 @@ export function HumanInboxPairing({
     setError(false);
     try {
       await actions.pairingReview(source.botSlug, input);
-      await actions.refreshHumanInbox();
+      await actions.refreshActivityList();
     } catch {
       setError(true);
       await load().catch(() => undefined);
@@ -63,7 +63,7 @@ export function HumanInboxPairing({
   };
   const base = request && { id: request.id, expectedRevision: request.revision };
   return (
-    <div ref={mount} className="bh-human-inbox-row-actions">
+    <div ref={mount} className="bh-activity-list-row-actions">
       {base && request?.status === 'pending' ? (
         <>
           {request.purpose === 'conversation' ? (
@@ -81,7 +81,7 @@ export function HumanInboxPairing({
               ]}
             />
           ) : (
-            <div className="bh-human-inbox-pairing-capabilities">
+            <div className="bh-activity-list-pairing-capabilities">
               {capabilities.map(([capability, label]) => (
                 <Checkbox
                   key={capability}
@@ -117,7 +117,7 @@ export function HumanInboxPairing({
               )
             }
           >
-            {t('humanInbox.accept')}
+            {t('activityList.accept')}
           </Button>
           <Button
             variant="primary"
@@ -126,13 +126,13 @@ export function HumanInboxPairing({
             disabled={busy}
             onClick={() => void review({ ...base, kind: 'reject' })}
           >
-            {t('humanInbox.decline')}
+            {t('activityList.decline')}
           </Button>
         </>
       ) : loaded ? (
-        <span role="status">{t('humanInbox.pairingUnavailable')}</span>
+        <span role="status">{t('activityList.pairingUnavailable')}</span>
       ) : null}
-      {error ? <span role="alert">{t('humanInbox.failed')}</span> : null}
+      {error ? <span role="alert">{t('activityList.failed')}</span> : null}
     </div>
   );
 }

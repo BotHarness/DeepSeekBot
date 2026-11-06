@@ -101,7 +101,7 @@ function candidate(
   ];
 }
 
-export function humanInboxPushSource(
+export function activityListPushSource(
   attention: Pick<HumanAttentionQuery, 'list' | 'actionCount' | 'dmReplies'>,
   botName: (slug: string) => string | undefined,
   approval?: PushApprovalLookup,

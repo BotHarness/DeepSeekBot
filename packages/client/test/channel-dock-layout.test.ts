@@ -812,7 +812,7 @@ describe('workspace default placement', () => {
     ).toEqual({ referencePanel: WORKSPACE_CHANNELS, direction: 'right' });
   });
 
-  it('opens Activity Center as a column beside Messages', () => {
+  it('opens Activity as a column beside Messages', () => {
     expect(
       resolveDefaultPosition(
         dock(WORKSPACE_RAIL, WORKSPACE_CHANNELS, CHANNEL_BODY_PANEL),
@@ -822,7 +822,7 @@ describe('workspace default placement', () => {
     ).toEqual({ referencePanel: CHANNEL_BODY_PANEL, direction: 'right' });
   });
 
-  it('opens plugin right panels and orphaned Activity Center at the right edge', () => {
+  it('opens plugin right panels and orphaned Activity at the right edge', () => {
     const api = dock(WORKSPACE_RAIL, WORKSPACE_CHANNELS, 'market');
     expect(resolveDefaultPosition(api, { zone: 'right' }, 'vendor:panel')).toEqual({
       direction: 'right',

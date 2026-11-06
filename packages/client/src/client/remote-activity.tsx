@@ -14,15 +14,15 @@ import { ACTIVITY_SECTIONS, type ActivityQuery, type ActivitySection } from './a
 import { CHANNEL_BODY_PANEL } from './channel-dock-layout.js';
 import type { DockPanelRegistry } from './dock-panels.js';
 import { color, space, text } from './ds/tokens.stylex.js';
-import { HumanInboxView } from './human-inbox-view.js';
-import { HumanInboxSourceButton } from './human-inbox-controls.js';
+import { ActivityListView } from './activity-list-view.js';
+import { ActivityListSourceButton } from './activity-list-controls.js';
 import { createHostActivityActions, type HostActivityActions } from './host-activity-actions.js';
 import { useMountedResource } from './mounted-resource.js';
 import { ToolApprovalCard } from './tool-approval-card.js';
 import { UserQuestionCard } from './user-question-card.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { RemoteHost, RemoteHosts, RemoteConversationTarget } from './remote-hosts.js';
-import type { ChannelMessage, HumanAttentionItem, HumanInboxState } from './store.js';
+import type { ChannelMessage, HumanAttentionItem, ActivityListState } from './store.js';
 
 const styles = stylex.create({
   heading: {
@@ -49,8 +49,8 @@ const styles = stylex.create({
 const titles = {
   action: 'activityInbox.needsYou',
   replies: 'activityInbox.forYou',
-  unread: 'humanInbox.unread',
-  handled: 'humanInbox.handled',
+  unread: 'activityList.unread',
+  handled: 'activityList.handled',
 } as const;
 
 export function remoteActivityTarget(
@@ -87,7 +87,7 @@ export function remoteActivityPage(
   inbox: InboxSnapshot,
   section: ActivitySection,
   t: BotHarnessTranslate,
-): HumanInboxState {
+): ActivityListState {
   const parsed =
     inbox.status === 'ready'
       ? parseRemoteActivityItems(inbox.sections[section])
@@ -104,7 +104,7 @@ export function remoteActivityPage(
       parsed.failed ||
       inbox.status === 'error' ||
       (inbox.status === 'ready' && inbox.stale !== undefined)
-        ? t('humanInbox.failed')
+        ? t('activityList.failed')
         : undefined,
     nextCursor: inbox.status === 'ready' ? inbox.cursors?.[section] : undefined,
     unreadCount: 0,
@@ -175,15 +175,15 @@ function RemoteActivityDetail({
     }
   };
   return (
-    <section ref={mount} className="bh-human-inbox-reply">
-      <div className="bh-human-inbox-reply-header">
+    <section ref={mount} className="bh-activity-list-reply">
+      <div className="bh-activity-list-reply-header">
         <Button variant="ghost" size="sm" onClick={onClose}>
           {t('common.close')}
         </Button>
       </div>
       {failed ? (
         <p role="alert">
-          {t('humanInbox.failed')}{' '}
+          {t('activityList.failed')}{' '}
           <Button
             onClick={() => (failed === 'open' ? void open() : setAttempt((value) => value + 1))}
           >
@@ -191,7 +191,7 @@ function RemoteActivityDetail({
           </Button>
         </p>
       ) : request && message === undefined ? (
-        <p>{t('humanInbox.loading')}</p>
+        <p>{t('activityList.loading')}</p>
       ) : null}
       {message?.toolApprovalRequest ? (
         <ToolApprovalCard
@@ -214,7 +214,7 @@ function RemoteActivityDetail({
         <p>{item.summary}</p>
       )}
       <Button variant="outline" size="sm" onClick={() => void open()}>
-        {t('humanInbox.open')}
+        {t('activityList.open')}
       </Button>
     </section>
   );
@@ -261,11 +261,11 @@ export function RemoteActivityGroup({
   const scopedActions = useMemo(
     () =>
       createHostActivityActions({
-        requestUnavailable: t('humanInbox.failed'),
+        requestUnavailable: t('activityList.failed'),
         client: () => {
           const client = sources.client(host.host.hostId);
           if (client === undefined || client.getSnapshot().connection.status === 'refused')
-            throw new Error(t('humanInbox.failed'));
+            throw new Error(t('activityList.failed'));
           return client;
         },
         items: () => {
@@ -284,7 +284,7 @@ export function RemoteActivityGroup({
             .getSnapshot()
             .hosts.find((entry) => entry.host.hostId === host.host.hostId);
           if (current === undefined || current.snapshot.connection.status === 'refused')
-            throw new Error(t('humanInbox.failed'));
+            throw new Error(t('activityList.failed'));
           sources.open({
             hostId: current.host.hostId,
             channelId,
@@ -320,7 +320,7 @@ export function RemoteActivityGroup({
       .getSnapshot()
       .hosts.find((entry) => entry.host.hostId === host.host.hostId);
     if (current === undefined || current.snapshot.connection.status === 'refused')
-      throw new Error(t('humanInbox.failed'));
+      throw new Error(t('activityList.failed'));
     sources.open(remoteActivityTarget(current, item));
     registry?.open(CHANNEL_BODY_PANEL);
   };
@@ -341,7 +341,7 @@ export function RemoteActivityGroup({
                 ? page.items.reduce((sum, item) => sum + (item.unreadCount ?? 0), 0)
                 : page.items.length;
             return (
-              <HumanInboxView
+              <ActivityListView
                 key={section + JSON.stringify(query)}
                 t={t}
                 inboxOverride={page}
@@ -363,7 +363,7 @@ export function RemoteActivityGroup({
                   isDirect: (channelId) => !channels.some((channel) => channel.id === channelId),
                   open,
                   sourceButton: (item, onOpen) => (
-                    <HumanInboxSourceButton
+                    <ActivityListSourceButton
                       item={item}
                       bots={bots}
                       channels={channels}

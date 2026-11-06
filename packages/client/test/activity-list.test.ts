@@ -3,7 +3,7 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
-  ...(await import('./human-inbox-test-controls.js')),
+  ...(await import('./activity-list-test-controls.js')),
   Button: ({
     children,
     variant,
@@ -42,7 +42,7 @@ vi.mock('../src/client/modal.js', () => ({
     ),
 }));
 import { createActions, type BridgeActions } from '../src/client/actions.js';
-import { HumanInboxView } from '../src/client/human-inbox-view.js';
+import { ActivityListView } from '../src/client/activity-list-view.js';
 import { store, type ChannelMessage, type HumanAttentionItem } from '../src/client/store.js';
 
 const item: HumanAttentionItem = {
@@ -61,7 +61,7 @@ const previous = store.getSnapshot();
 afterEach(() => {
   store.setRoster(previous.bots, previous.channels);
   store.select(previous.selection);
-  store.setHumanInbox(previous.humanInbox);
+  store.setActivityList(previous.activityList);
 });
 
 async function mount(source = item, resolved = false) {
@@ -71,8 +71,8 @@ async function mount(source = item, resolved = false) {
   const root = createRoot(host);
   const actions = {
     ...createActions(async () => ({ ok: true, value: { items: [] } }), store),
-    refreshHumanInbox: vi.fn(async () => undefined),
-    humanInboxContext: vi.fn(async (): Promise<ChannelMessage[]> => [
+    refreshActivityList: vi.fn(async () => undefined),
+    activityListContext: vi.fn(async (): Promise<ChannelMessage[]> => [
       {
         id: 'source',
         at: source.createdAt,
@@ -95,17 +95,17 @@ async function mount(source = item, resolved = false) {
     markRead: vi.fn(async () => undefined),
     openChannelAtMessage: vi.fn(async () => undefined),
     openBot: vi.fn(async () => undefined),
-    setHumanInboxFilters: vi.fn(async (filters) => store.setHumanInbox(filters)),
+    setActivityListFilters: vi.fn(async (filters) => store.setActivityList(filters)),
   } satisfies BridgeActions;
-  actions.humanInboxContextPage = vi.fn(async () => ({
-    entries: await actions.humanInboxContext(),
+  actions.activityListContextPage = vi.fn(async () => ({
+    entries: await actions.activityListContext(),
     olderCursor: null,
     newerCursor: null,
     hasOlder: false,
     hasNewer: false,
   }));
   store.select({ kind: 'inbox' });
-  store.setHumanInbox({
+  store.setActivityList({
     category: source.category,
     status: 'ready',
     items: [source],
@@ -113,7 +113,7 @@ async function mount(source = item, resolved = false) {
     channelId: undefined,
     sort: 'oldest',
   });
-  await act(async () => root.render(createElement(HumanInboxView, { actions })));
+  await act(async () => root.render(createElement(ActivityListView, { actions })));
   return {
     host,
     actions,
@@ -136,37 +136,37 @@ describe('compact Human Inbox interactions', () => {
     };
     const view = await mount(repair);
     try {
-      const rowActions = view.host.querySelector('.bh-human-inbox-row-actions')!;
+      const rowActions = view.host.querySelector('.bh-activity-list-row-actions')!;
       expect(
         [...rowActions.querySelectorAll('button')].map((button) => button.textContent),
       ).toEqual(['']);
       expect(rowActions.textContent).not.toContain('查看 Bot 收件箱');
       await act(async () =>
-        rowActions.querySelector<HTMLButtonElement>('.bh-human-inbox-source-link')!.click(),
+        rowActions.querySelector<HTMLButtonElement>('.bh-activity-list-source-link')!.click(),
       );
       expect(view.actions.openChannelAtMessage).toHaveBeenCalledWith('group', 'source');
       view.actions.openChannelAtMessage.mockRejectedValueOnce(
         new Error('Source no longer available'),
       );
       await act(async () =>
-        rowActions.querySelector<HTMLButtonElement>('.bh-human-inbox-source-link')!.click(),
+        rowActions.querySelector<HTMLButtonElement>('.bh-activity-list-source-link')!.click(),
       );
       expect(view.actions.openBot).toHaveBeenCalledWith('ada', 'inbox');
       view.actions.openBot.mockClear();
-      expect(view.host.querySelector('.bh-human-inbox-detail')).toBeNull();
+      expect(view.host.querySelector('.bh-activity-list-detail')).toBeNull();
       await act(async () =>
-        view.host.querySelector<HTMLButtonElement>('.bh-human-inbox-row-open')!.click(),
+        view.host.querySelector<HTMLButtonElement>('.bh-activity-list-row-open')!.click(),
       );
       const maintenance = [
-        ...view.host.querySelectorAll<HTMLButtonElement>('.bh-human-inbox-detail button'),
+        ...view.host.querySelectorAll<HTMLButtonElement>('.bh-activity-list-detail button'),
       ].find((button) => button.textContent === '查看 Bot 收件箱')!;
       expect(maintenance).toBeDefined();
       await act(async () => maintenance.click());
       expect(view.actions.openBot).toHaveBeenCalledWith('ada', 'inbox');
-      await act(async () => store.setHumanInbox({ items: [{ ...repair, channelName: '' }] }));
+      await act(async () => store.setActivityList({ items: [{ ...repair, channelName: '' }] }));
       view.actions.openBot.mockClear();
       await act(async () =>
-        rowActions.querySelector<HTMLButtonElement>('.bh-human-inbox-source-link')!.click(),
+        rowActions.querySelector<HTMLButtonElement>('.bh-activity-list-source-link')!.click(),
       );
       expect(view.actions.openBot).toHaveBeenCalledWith('ada', 'inbox');
     } finally {
@@ -177,17 +177,17 @@ describe('compact Human Inbox interactions', () => {
   it('opens canonical details from the row without marking the summary read', async () => {
     const view = await mount();
     try {
-      expect(view.host.querySelector('.bh-human-inbox-detail')).toBeNull();
+      expect(view.host.querySelector('.bh-activity-list-detail')).toBeNull();
       expect(view.host.querySelector('select')).toBeNull();
-      const row = view.host.querySelector<HTMLButtonElement>('.bh-human-inbox-row-open')!;
+      const row = view.host.querySelector<HTMLButtonElement>('.bh-activity-list-row-open')!;
       await act(async () => row.click());
-      expect(view.actions.humanInboxContextPage).toHaveBeenCalledWith(
+      expect(view.actions.activityListContextPage).toHaveBeenCalledWith(
         'group',
         { direction: 'around', around: 'source', olderLimit: 2, newerLimit: 2 },
         expect.any(AbortSignal),
       );
       expect(row.getAttribute('aria-expanded')).toBe('true');
-      expect(view.host.querySelector('.bh-human-inbox-detail')?.id).toBe(
+      expect(view.host.querySelector('.bh-activity-list-detail')?.id).toBe(
         row.getAttribute('aria-controls'),
       );
       expect(view.actions.markRead).not.toHaveBeenCalled();
@@ -200,11 +200,11 @@ describe('compact Human Inbox interactions', () => {
     const view = await mount();
     try {
       await act(async () =>
-        view.host.querySelector<HTMLButtonElement>('.bh-human-inbox-source-link')!.click(),
+        view.host.querySelector<HTMLButtonElement>('.bh-activity-list-source-link')!.click(),
       );
       expect(view.actions.openChannelAtMessage).toHaveBeenCalledWith('group', 'source');
-      expect(view.actions.humanInboxContext).not.toHaveBeenCalled();
-      expect(view.host.querySelector('.bh-human-inbox-detail')).toBeNull();
+      expect(view.actions.activityListContext).not.toHaveBeenCalled();
+      expect(view.host.querySelector('.bh-activity-list-detail')).toBeNull();
       expect(view.host.querySelector('button button')).toBeNull();
     } finally {
       await view.close();
@@ -221,11 +221,11 @@ describe('compact Human Inbox interactions', () => {
       const action = workspaceAction(view.host)!;
       expect(action.textContent).toBe('选择工作区');
       await act(async () => action.click());
-      expect(view.actions.humanInboxContext).toHaveBeenCalledTimes(1);
+      expect(view.actions.activityListContext).toHaveBeenCalledTimes(1);
       expect(view.actions.listHostFolders).toHaveBeenCalledTimes(1);
-      expect(view.host.querySelector('.bh-human-inbox-detail')).toBeNull();
+      expect(view.host.querySelector('.bh-activity-list-detail')).toBeNull();
       expect(
-        view.host.querySelector('.bh-human-inbox-row-open')?.getAttribute('aria-expanded'),
+        view.host.querySelector('.bh-activity-list-row-open')?.getAttribute('aria-expanded'),
       ).toBe('false');
       expect(view.host.querySelector('[role="dialog"]')).not.toBeNull();
       expect(view.actions.resolveWorkspaceGrantRequest).not.toHaveBeenCalled();
@@ -235,7 +235,7 @@ describe('compact Human Inbox interactions', () => {
           .click(),
       );
       await act(async () =>
-        view.host.querySelector<HTMLButtonElement>('.bh-human-inbox-row-open')!.click(),
+        view.host.querySelector<HTMLButtonElement>('.bh-activity-list-row-open')!.click(),
       );
       await act(async () => workspaceAction(view.host)!.click());
       expect(view.actions.listHostFolders).toHaveBeenCalledTimes(2);
@@ -269,7 +269,7 @@ describe('compact Human Inbox interactions', () => {
           .find((button) => button.textContent === 'Close picker')!
           .click(),
       );
-      view.actions.humanInboxContext.mockResolvedValue([
+      view.actions.activityListContext.mockResolvedValue([
         {
           id: 'source',
           at: item.createdAt,
@@ -332,12 +332,12 @@ describe('compact Human Inbox interactions', () => {
     });
     try {
       await act(async () =>
-        view.host.querySelector<HTMLButtonElement>('.bh-human-inbox-row-open')!.click(),
+        view.host.querySelector<HTMLButtonElement>('.bh-activity-list-row-open')!.click(),
       );
-      expect(view.host.querySelector('.bh-human-inbox-detail')?.textContent).toContain(
+      expect(view.host.querySelector('.bh-activity-list-detail')?.textContent).toContain(
         'Completed.',
       );
-      expect(view.actions.humanInboxContext).not.toHaveBeenCalled();
+      expect(view.actions.activityListContext).not.toHaveBeenCalled();
     } finally {
       await view.close();
     }

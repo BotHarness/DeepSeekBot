@@ -219,7 +219,7 @@ it.each([
       companion.dispose();
       node.remove();
       store.select(old.selection);
-      store.setHumanInbox(old.humanInbox);
+      store.setActivityList(old.activityList);
       vi.unstubAllGlobals();
     }
   },
@@ -299,7 +299,7 @@ it.each(['native', 'wrong-target', 'unmounted'] as const)(
       if (!unmounted) await act(() => root.unmount());
       node.remove();
       store.select(old.selection);
-      store.setHumanInbox(old.humanInbox);
+      store.setActivityList(old.activityList);
     }
   },
 );

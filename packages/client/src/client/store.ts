@@ -322,19 +322,19 @@ export interface OwnedSessionSummary {
   subagentCount?: number;
 }
 
-export type HumanInboxCategory = 'action' | 'info' | 'unread' | 'replies' | 'handled';
-export type HumanInboxSort = 'newest' | 'oldest';
+export type ActivityListCategory = 'action' | 'info' | 'unread' | 'replies' | 'handled';
+export type ActivityListSort = 'newest' | 'oldest';
 
-export interface HumanInboxFilters {
+export interface ActivityListFilters {
   botSlug: string | undefined;
   channelId: string | undefined;
-  sort: HumanInboxSort;
+  sort: ActivityListSort;
   snoozed?: boolean;
 }
 
 export interface HumanAttentionItem {
   id: string;
-  category: HumanInboxCategory;
+  category: ActivityListCategory;
   kind:
     | 'group-join-request'
     | 'pairing-request'
@@ -380,17 +380,17 @@ export interface HumanAttentionPage {
   nextCursor?: string;
 }
 
-export interface HumanInboxState {
+export interface ActivityListState {
   messageCounts?: { replies: number; other: number } | undefined;
   attentionStatus?: 'ready' | 'error' | undefined;
   status: ClientStatus;
   unreadCount: number;
   channelUnread: Readonly<Record<string, number>>;
   hasAction: boolean;
-  category: HumanInboxCategory;
+  category: ActivityListCategory;
   botSlug: string | undefined;
   channelId: string | undefined;
-  sort: HumanInboxSort;
+  sort: ActivityListSort;
   snoozed: boolean;
   items: readonly HumanAttentionItem[];
   nextCursor: string | undefined;
@@ -548,7 +548,7 @@ export interface ClientState {
   conversation: ConversationState;
   sessions: SessionsState;
   botInbox: BotInboxState;
-  humanInbox: HumanInboxState;
+  activityList: ActivityListState;
   activitySync: 'live' | 'stale';
   git: GitAvailability | undefined;
 }
@@ -595,7 +595,7 @@ export interface ClientStore {
   ): void;
   setSessions(patch: Partial<SessionsState>): void;
   setBotInbox(patch: Partial<BotInboxState>): void;
-  setHumanInbox(patch: Partial<HumanInboxState>): void;
+  setActivityList(patch: Partial<ActivityListState>): void;
 }
 
 export function keepUnchanged<T>(
@@ -639,7 +639,7 @@ function initialBotInbox(): BotInboxState {
   return { status: 'idle', items: [], nextCursor: undefined, error: undefined };
 }
 
-function initialHumanInbox(): HumanInboxState {
+function initialActivityList(): ActivityListState {
   return {
     status: 'idle',
     unreadCount: 0,
@@ -787,7 +787,7 @@ export function createStore({
     conversation: initialConversation(),
     sessions: initialSessions(),
     botInbox: initialBotInbox(),
-    humanInbox: initialHumanInbox(),
+    activityList: initialActivityList(),
     activitySync: 'live',
     git: undefined,
   };
@@ -862,9 +862,9 @@ export function createStore({
         ? {}
         : { conversation: redactions.conversation(patch.conversation) }),
       ...(patch.botInbox === undefined ? {} : { botInbox: redactions.botInbox(patch.botInbox) }),
-      ...(patch.humanInbox === undefined
+      ...(patch.activityList === undefined
         ? {}
-        : { humanInbox: redactions.humanInbox(patch.humanInbox) }),
+        : { activityList: redactions.activityList(patch.activityList) }),
     };
     const presentChannel = (channel: ChannelSummary): ChannelSummary => {
       const bot =
@@ -917,7 +917,7 @@ export function createStore({
         channels: state.channels,
         conversation: state.conversation,
         botInbox: state.botInbox,
-        humanInbox: state.humanInbox,
+        activityList: state.activityList,
       });
     },
     getSnapshot: () => state,
@@ -1025,12 +1025,12 @@ export function createStore({
           (botSlug === undefined ? undefined : sessionsByBot.get(botSlug)) ?? initialSessions(),
         botInbox:
           (botSlug === undefined ? undefined : inboxesByBot.get(botSlug)) ?? initialBotInbox(),
-        humanInbox: {
-          ...initialHumanInbox(),
-          unreadCount: state.humanInbox.unreadCount,
-          hasAction: state.humanInbox.hasAction,
-          messageCounts: state.humanInbox.messageCounts,
-          attentionStatus: state.humanInbox.attentionStatus,
+        activityList: {
+          ...initialActivityList(),
+          unreadCount: state.activityList.unreadCount,
+          hasAction: state.activityList.hasAction,
+          messageCounts: state.activityList.messageCounts,
+          attentionStatus: state.activityList.attentionStatus,
         },
       });
     },
@@ -1049,9 +1049,9 @@ export function createStore({
       if (samePatch(state.botInbox, patch)) return;
       update({ botInbox: { ...state.botInbox, ...patch } });
     },
-    setHumanInbox(patch) {
-      if (samePatch(state.humanInbox, patch)) return;
-      update({ humanInbox: { ...state.humanInbox, ...patch } });
+    setActivityList(patch) {
+      if (samePatch(state.activityList, patch)) return;
+      update({ activityList: { ...state.activityList, ...patch } });
     },
   };
 }

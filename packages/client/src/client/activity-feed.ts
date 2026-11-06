@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { observeHumanAttention } from './messaging-defaults-live.js';
 import type { BridgeActions } from './actions.js';
-import { store, type ClientStore, type HumanInboxState } from './store.js';
+import { store, type ClientStore, type ActivityListState } from './store.js';
 
 const LIVE_REFRESH_DELAY_MS = 250;
 const LIVE_REFRESH_MAX_WAIT_MS = 1_000;
@@ -24,7 +24,7 @@ const INITIAL_QUERY: ActivityQuery = {
   snoozed: false,
   search: '',
 };
-const empty = (category: ActivitySection): HumanInboxState => ({
+const empty = (category: ActivitySection): ActivityListState => ({
   category,
   sort: category === 'action' ? 'oldest' : 'newest',
   botSlug: undefined,
@@ -132,7 +132,7 @@ export function createActivityFeed(
         }
         if (version !== generation) return;
         loaded.add(section);
-        const next: HumanInboxState = {
+        const next: ActivityListState = {
           ...before,
           items,
           nextCursor: cursor,
@@ -293,16 +293,16 @@ export function activitySectionActions(
     };
   return {
     ...actions,
-    refreshHumanInbox: () => feed.refresh(),
-    loadMoreHumanInbox: () => feed.loadMore(section),
+    refreshActivityList: () => feed.refresh(),
+    loadMoreActivityList: () => feed.loadMore(section),
     answerUserQuestion: after(actions.answerUserQuestion),
     decideToolApproval: after(actions.decideToolApproval),
     resolveWorkspaceGrantRequest: after(actions.resolveWorkspaceGrantRequest),
     replyToHumanAssignment: after(actions.replyToHumanAssignment),
     decideGroupJoin: after(actions.decideGroupJoin),
-    dismissHumanInbox: after(actions.dismissHumanInbox),
+    dismissActivityList: after(actions.dismissActivityList),
     allowAutoRejectionOnce: after(actions.allowAutoRejectionOnce),
-    snoozeHumanInbox: after(actions.snoozeHumanInbox),
+    snoozeActivityList: after(actions.snoozeActivityList),
     markRead: after(actions.markRead),
   };
 }

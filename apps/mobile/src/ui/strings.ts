@@ -1125,7 +1125,7 @@ const en = {
   unpairFailed: 'Could not unpair:',
   exitWebMode: 'Exit web mode',
   exitWebModeHint: 'Hold for help. Drag to move.',
-  inbox: 'Inbox',
+  inbox: 'Activity',
   inboxSections: {
     action: 'Needs you',
     replies: 'For you',
@@ -1188,9 +1188,9 @@ const en = {
   sectionCount: (label: string, count: number) => `${label} · ${count}`,
   openPost: (kind: string, name: string, summary: string) =>
     `${[kind, name, summary].filter((part) => part !== '').join(', ')}. Open in chat`,
-  inboxLoading: 'Reading your Inbox…',
-  inboxStale: 'Showing the last Inbox read. It could not be refreshed:',
-  inboxFailed: 'Could not read your Inbox.',
+  inboxLoading: 'Reading Activity…',
+  inboxStale: 'Showing the last Activity read. It could not be refreshed:',
+  inboxFailed: 'Could not read Activity.',
   kind: {
     'tool-approval': 'Tool approval',
     'user-question': 'Question',
@@ -3356,7 +3356,7 @@ const zh: typeof en = {
   unpairFailed: '取消配对失败：',
   exitWebMode: '退出网页模式',
   exitWebModeHint: '按住查看说明，拖动可移开。',
-  inbox: '收件箱',
+  inbox: '活动',
   inboxSections: {
     action: '待你处理',
     replies: '与你有关',
@@ -3416,9 +3416,9 @@ const zh: typeof en = {
   sectionCount: (label: string, count: number) => `${label} · ${count}`,
   openPost: (kind: string, name: string, summary: string) =>
     `${[kind, name, summary].filter((part) => part !== '').join('，')}。在聊天中打开`,
-  inboxLoading: '正在读取收件箱…',
-  inboxStale: '显示的是上次读取的收件箱，刷新失败：',
-  inboxFailed: '读取收件箱失败。',
+  inboxLoading: '正在读取活动…',
+  inboxStale: '显示的是上次读取的活动，刷新失败：',
+  inboxFailed: '读取活动失败。',
   kind: {
     'tool-approval': '工具审批',
     'user-question': '提问',

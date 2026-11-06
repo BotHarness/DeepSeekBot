@@ -524,7 +524,7 @@ The editable default name of the local Human within one DSH Profile. A Human Cha
 _Avoid_: Human ID, login name
 
 **Human Channel nickname**:
-The local Human's chosen name within one Channel, including a DM or Group Channel, overriding the Human display name for that Channel. It labels the same Human ID and does not create a separate Human Inbox or roleplay persona.
+The local Human's chosen name within one Channel, including a DM or Group Channel, overriding the Human display name for that Channel. It labels the same Human ID and does not create a separate Activity or roleplay persona.
 _Avoid_: Channel name, PersonaBot display name
 
 **Actor mention**:
@@ -739,22 +739,18 @@ _Avoid_: wake policy, inferred step state, message priority
 One Orchestrator turn that consumes a bounded, fair selection from the ready attention set — immediate items, due digest batches, and passive notices — instead of one turn per event. When a Group Channel enters the turn, the selection can also include its pending non-silent Inbox context, reserving space for the trigger, nearby messages, and oldest pending messages. Unselected items remain pending; a steered direct address joins the running turn instead.
 _Avoid_: per-event queue, wake storm, batch (bare)
 
-**Activity Center**:
-The Human's Bot-mode entry for cross-PersonaBot and cross-Channel attention, opening directly into the personal Human Inbox. The page and Dock share inline Tool approval cards; operational statistics are outside this entry (#2026). It summarizes existing facts without becoming another authority for messages, usage, or Session activity.
-_Avoid_: Human Inbox (for the whole entry), dashboard list
+**Activity**:
+The Human's one entry, on desktop and phone, for cross-PersonaBot and cross-Channel attention: unresolved Human actions, mentions and replies, unread Channel activity, informational updates, and handled history. It references the owning facts without copying Channel content or flattening every Bot Inbox event into Human work. The desktop page and Dock share inline Tool approval cards; operational statistics are outside this entry (#2026). It summarizes existing facts without becoming another authority for messages, usage, or Session activity. Read, clear and snooze state lives on the Host, so handling an item on any device handles it everywhere (#3321). Human-muted Channels contribute neither message attention (including mentions and replies) nor global unread reminders; their read positions and explicit Human action requests remain intact. Code names it `ActivityList` for the list view; Host methods keep their `humanAttention*` wire names.
+_Avoid_: Activity Center, Human Inbox, Activity list, notifications (push notifications are the phone's delivery of Activity items), Bot Inbox, dashboard list
 
-The Activity control-rail indicator has an independent browser/Host-local display scope. Hiding or narrowing it does not change the Human Inbox query, actual unread state, or pending Human requests.
-
-**Human Inbox**:
-The personal attention view inside Activity Center: unresolved Human actions, mentions and replies, unread Channel activity, informational updates, and handled history. It references the owning facts without copying Channel content or flattening every Bot Inbox event into Human work. Human-muted Channels contribute neither message attention (including mentions and replies) nor global unread reminders; their read positions and explicit Human action requests remain intact.
-_Avoid_: notifications, Bot Inbox, dashboard list
+The Activity control-rail indicator has an independent browser/Host-local display scope. Hiding or narrowing it does not change the Activity query, actual unread state, or pending Human requests.
 
 **Channel Attention**:
-A Human Inbox item caused by Channel activity such as an unread message, mention, or reply; it references the owning Source Event and may be ignored unless classified action-required.
+A Activity item caused by Channel activity such as an unread message, mention, or reply; it references the owning Source Event and may be ignored unless classified action-required.
 _Avoid_: Channel Inbox, copied message, Bot Inbox Admission
 
 **PersonaBot Attention**:
-A Human Inbox item caused by a PersonaBot waiting for the Human, becoming blocked, requiring approval, or issuing an informational report.
+A Activity item caused by a PersonaBot waiting for the Human, becoming blocked, requiring approval, or issuing an informational report.
 _Avoid_: personal attention, Bot state, notification
 
 **Channel membership**:
@@ -916,7 +912,7 @@ The Human's device-local choice of how the desktop Bot mode layout behaves: **Si
 _Avoid_: Bot mode, DSB mode, simple view, expert mode
 
 **Side column**:
-In Simple layout mode, the optional column between the Workspace Control Rail and the Messages panel that shows one Global panel, such as Channel list, Activity Center or Marketplace. Selecting a rail switch shows that panel there; selecting the switch that is already shown hides the column, leaving only the rail and Messages. Its width is shared by every panel it shows.
+In Simple layout mode, the optional column between the Workspace Control Rail and the Messages panel that shows one Global panel, such as Channel list, Activity or Marketplace. Selecting a rail switch shows that panel there; selecting the switch that is already shown hides the column, leaving only the rail and Messages. Its width is shared by every panel it shows.
 _Avoid_: sidebar, left panel, App Sidebar, primary side bar
 
 **Subpanel column**:
@@ -926,7 +922,7 @@ _Avoid_: Channel sidebar, right sidebar, inspector
 The following layout terms describe the agreed target in [#2048](https://github.com/BotHarness/DeepSeekBot/issues/2048) and ADR-0221. Sessions is delivered in [#2049](https://github.com/BotHarness/DeepSeekBot/issues/2049), with Memory files, Memory evolution and Schedules added in [#2067](https://github.com/BotHarness/DeepSeekBot/issues/2067). Browser control and Computer control join the same Bot-only workspace in [#2069](https://github.com/BotHarness/DeepSeekBot/issues/2069). Transient files, Inbox and Members are not yet unified with persisted subpanel layout.
 
 **Global workspace**:
-The outer presentation space of Bot mode, containing the Workspace Control Rail, global Panels such as Channel list and Activity Center, and the unique Messages panel. Global panels remain meaningful independently of the active Channel. This is a UI arrangement, not a DSH Workspace, execution environment or permission boundary.
+The outer presentation space of Bot mode, containing the Workspace Control Rail, global Panels such as Channel list and Activity, and the unique Messages panel. Global panels remain meaningful independently of the active Channel. This is a UI arrangement, not a DSH Workspace, execution environment or permission boundary.
 _Avoid_: App Sidebar, global Channel, root Channel
 
 **Workspace Control Rail**:
@@ -1044,11 +1040,11 @@ A client, a phone app or one browser profile on one origin, holding its own revo
 _Avoid_: phone (for all devices), session, Host
 
 **Host Feed**:
-The whole live state one Host serves to one admitted client: roster, avatars, activity, unread state, Human Inbox and conversations. Every client reads every Host, This Host included, through the same Host Feed; new state to sync is a new part of the Host Feed.
+The whole live state one Host serves to one admitted client: roster, avatars, activity, unread state, Activity and conversations. Every client reads every Host, This Host included, through the same Host Feed; new state to sync is a new part of the Host Feed.
 _Avoid_: sync, mirror, replica, bridge state
 
 **Device Notification Preference**:
-Which kinds of Human Inbox item one Paired Device wants to be alerted about from one Host. The device owns and stores it; the Host keeps a copy only to decide what to send that device.
+Which kinds of Activity item one Paired Device wants to be alerted about from one Host. The device owns and stores it; the Host keeps a copy only to decide what to send that device.
 _Avoid_: Host notification setting, push settings, mute (for a Channel)
 
 **Bot Settings**:
@@ -1109,7 +1105,7 @@ _Avoid_: short URL, UTM link, referral link
 
 ### Sessions panel
 
-The single Sessions surface (`sessions`, TextQuote icon) for inspecting existing Sessions; in the two-level target it is a Channel subpanel inside Messages (ADR-0221). In a PersonaBot DM its scope is that Bot. In a Group Channel its default scope is **Current channel**: Assignments whose original Source Event belongs to that Group, across responsible Bots. The Human can explicitly select an accessible member Bot to inspect that Bot's owned Orchestrator and Assignment Sessions without changing the active conversation. Scope is a per-Channel local view preference, separate from history and workspace grouping. It does not create Assignments or send requests; its only execution control is Session Stop and Bot Stop on running rows. The former Work panel is retired; Activity Center still owns Human attention and approval. See ADR-0220.
+The single Sessions surface (`sessions`, TextQuote icon) for inspecting existing Sessions; in the two-level target it is a Channel subpanel inside Messages (ADR-0221). In a PersonaBot DM its scope is that Bot. In a Group Channel its default scope is **Current channel**: Assignments whose original Source Event belongs to that Group, across responsible Bots. The Human can explicitly select an accessible member Bot to inspect that Bot's owned Orchestrator and Assignment Sessions without changing the active conversation. Scope is a per-Channel local view preference, separate from history and workspace grouping. It does not create Assignments or send requests; its only execution control is Session Stop and Bot Stop on running rows. The former Work panel is retired; Activity still owns Human attention and approval. See ADR-0220.
 
 Default-following Sessions headers omit a redundant scope label. Group scope choices live in the existing view-options menu; only an explicit member-Bot override shows `Bot · name` in the header.
 
