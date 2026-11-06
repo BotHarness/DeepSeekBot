@@ -108,6 +108,9 @@ function check() {
   }
 }
 
+const why = (body) =>
+  [body.code ?? body.error, body.message ?? body.error_description].filter(Boolean).join(': ');
+
 const claims = (token) => {
   try {
     return JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'));
@@ -146,7 +149,7 @@ async function probe(environment) {
   row(
     'create code',
     created.status,
-    typeof code === 'string' ? 'code returned' : created.body.code,
+    typeof code === 'string' ? 'code returned' : why(created.body),
   );
   if (typeof code !== 'string') return print(rows, email);
 
@@ -167,7 +170,7 @@ async function probe(environment) {
     signedIn.status,
     signedIn.status === 200
       ? `user ${signedIn.body.user?.id}, method ${signedIn.body.authentication_method}, iss ${access.iss}`
-      : `${signedIn.body.code ?? signedIn.body.error ?? ''}`,
+      : why(signedIn.body),
   );
   const wrong = await post(
     '/authenticate',
@@ -180,7 +183,7 @@ async function probe(environment) {
     },
     { apiKey },
   );
-  row('wrong code', wrong.status, `${wrong.body.code ?? wrong.body.error ?? ''}`);
+  row('wrong code', wrong.status, why(wrong.body));
   if (typeof signedIn.body.refresh_token !== 'string') return print(rows, email);
 
   const refreshed = await post(
@@ -199,7 +202,7 @@ async function probe(environment) {
       ? `same user ${refreshed.body.user?.id === signedIn.body.user?.id}, rotated ${
           refreshed.body.refresh_token !== signedIn.body.refresh_token
         }`
-      : `${refreshed.body.code ?? refreshed.body.error ?? ''} ${refreshed.body.error_description ?? ''}`,
+      : why(refreshed.body),
   );
   if (access.sid) {
     const revoked = await post('/sessions/revoke', { session_id: access.sid }, { apiKey });
