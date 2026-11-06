@@ -20,6 +20,7 @@ export function ComposerHold({ enabled, onStart, onStop, children }: ComposerHol
     const hold = Gesture.LongPress()
       .enabled(enabled)
       .minDuration(voiceGesture.holdMs)
+      .shouldCancelWhenOutside(false)
       .runOnJS(true)
       .onStart(() => {
         if (!latest.current.enabled) return;
@@ -27,7 +28,7 @@ export function ComposerHold({ enabled, onStart, onStop, children }: ComposerHol
         latest.current.onStart();
       })
       .onFinalize(stop);
-    return Gesture.Exclusive(hold, Gesture.Native());
+    return Gesture.Simultaneous(hold, Gesture.Native().shouldActivateOnStart(true));
   }, [enabled]);
   return (
     <View ref={mounted} style={{ flex: 1 }}>

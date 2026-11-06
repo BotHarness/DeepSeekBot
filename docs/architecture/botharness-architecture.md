@@ -125,6 +125,18 @@ question 可先真实返回 pending，问题保持可回答；同一 Session 可
 生产依赖仍为 RC1，timed 模式仅在显式配置的隔离 RC2 Profile 验证。权限审批、容量释放／重获和同群隐私验收
 继续阻塞，不从这次 DM 能力实验推断完成。
 
+Android 本地优先提醒的目标边界见 [ADR-0297](../adr/0297-android-local-alerts-share-native-arbitration.md)（[#3353](https://github.com/BotHarness/DeepSeekBot/issues/3353)）：Human Inbox 的完整通知投影进入设备提醒模块，连接生命周期模块则共享既有 paired Host client 与 Android 前台消息服务。首片只验收后台 Tool approval；原生仲裁以 Host／Inbox item 身份统一本地和 FCM 提醒，持久记录只表示展示尝试，不构成已读或送达权威。保持连接、系统通知权限及云推送登记相互独立；切片原生证据与 Human 反馈由 #3355 跟踪。
+
+N2 将同一原生仲裁扩展到既有审批、提问、私密输入及回复／mention：前台领取返回有界的应用内提示队列，后台领取调用系统通知。当前实际可见会话的普通回复静默消费，请求保留明显提示；提示点击复用已有可信通知路由。会话静音仅抑制回复，私密输入无正文。首次完整投影静默建立普通回复基线，完整断线补收仍属于 N5。持久领取先于显示，进程在其间终止仍可能丢失一次提示，不能作为已显示回执。允许提前开发 Draft stack，不代表 N1 或后续切片已完成原生与 Human 验收。
+
+N3 为每个既有 paired Host client 独立计算前台需求与后台提醒需求：前台保持连接，后台仅保留服务运行且 Host 提醒已启用的连接；未知偏好须先在前台读取，不另建偏好存储。凭据失效释放该 client 的传输和重试资源，保留重新配对状态，仅清理该 Host 提醒；前后台切换不能重启它。页面选择不改变其他 Host 的需求。Expo Web 只验证前台交互，双 Host 后台显示和连接开销仍待共享 Android QA。
+
+N4 的常驻通知从上述同一连接范围汇总：Host 活动快照新增独立 `active` 布尔值，依据全部权威会话而非有界 UI 列表；Human Inbox 完整通知投影中的 action 按 Bot 去重为 Needs you，身份按 Host 隔离，两者可重叠。仅已连接、活动字段完整且通知投影完成的 Host 贡献计数，断线立即使通知基线失效。部分数据标记统计不完整，全部未同步显示暂不可用。原生 bridge 仅传计数与语言，静默更新同一常驻通知，保留原打开和停止语义。
+
+N5 在同一原生设备提醒 SQLite owner 内保存同步基线、补收汇总成员与同批发声声明。完整 Human Inbox 通知投影才可确认缺失或推进基线；未知 Host 偏好不等于主动关闭。首次开启或主动重开静默吸收旧回复，仍待处理请求汇总一次；意外断线或运行时重启按 Host 汇总未提醒积压。汇总与单条本地/FCM 路径共用去重，发声声明先持久化，失败重试保持静默；私密正文不进入汇总。原生库升级至 v2 保留旧去重记录，回退须保留 v2 读取兼容，真机补收与 Human 验收仍待 QA。
+
+N6 的可选配置入口留在通知设置中，不阻断聊天；明确选择或跳过后，设备只保存一个配置提示关闭标记，连接开关仍由原有 ConnectionService 偏好负责。诊断分别读取服务实际运行、完整连接范围计数、系统通知权限、两类通知 channel、Android 电池优化与省电状态；厂商额外限制明确不可检测。返回系统设置重新读取，不推断修复成功。本机测试通过同一 requests channel 发出无业务内容的短时通知，固定 ID 限制测试残留；原生 bridge 仅报告系统调用结果，显示确认来自 Human。云测试继续使用既有 Host push/CLI 路径，注册、请求成功与看见通知保持独立；诊断只保留最近 20 条时间与固定阶段码，不包含 Host 凭据、正文或推送 token。
+
 ## 1 · 系统上下文
 
 新附件已遵循 [ADR-0100](../adr/0100-file-open-actions-target-real-host-files.md)：独立上传彼此独立，显式复用身份才共享编辑结果。原生打开指向真实目标；后续消息读取、预览和下载使用当前内容，上传源独立。保存不保留附件历史，不生成 Source Revision、Inbox Admission、通知或 Bot wake。目标缺失则报告不可用，不自动重建。旧 CAS 迁移（#577）按 Source Event 附件出现位置预留可重启恢复的身份，仅在保留依赖未转换时继续保护旧对象；其他 CAS 数据与 Memory Git 行为保持各自语义。
@@ -521,6 +533,8 @@ Orchestrator 的应用定义 channel_list 工具从当前 PersonaBot 的 Session
 ### Bot 通话（ADR-0281）
 
 [ADR-0281](../adr/0281-host-owned-bot-calls.md)：`VoiceProviders` 也负责 ASR Provider（`kind: 'asr'`，兼容 OpenAI `/audio/transcriptions`），PersonaBot 可以绑定一个 `asr`。`createVoiceCalls` 是 Host 上通话的唯一所有者，入口是 `POST /api/voice/call`（局域网 Noise 通道和 Tailscale 设备网关；Connect 返回 `connect-carrier-required`）。它对 16 kHz 上行 PCM 运行内置 VAD（检测音高，咳嗽和敲击会被丢弃），把每句话转写后以 Human 消息发到 Bot DM，并带上 `voiceCall`，从而加入 `voice-call-hint` 提示词片段。一句话结束时先播放一声短应答。作为草稿的 speculative 消费者（ADR-0054），通话在 `voice: true` 的 `bot_send_message` 草稿流式到达时按句合成播放，草稿被放弃时立即停止；消息提交后认领已播放的片段，拼成语音附件（`joinAudio`），只补合成缺少的句子。Bot 说话时上行照常经过 VAD：连续语音约 200 ms 先把播放压到 30%，约 500 ms 或转写里有两个非语气词才停止播放并丢弃未播放的句子，提前结束的语音恢复音量且不进 DM；Bot 开口后的一小段时间提高 VAD 门限以防回声。被打断的回复只把听到的句子存成语音条。每个 Host 同时一通电话；8 秒没有心跳即结束。音频从不保存。Host 侧由 Electron 媒体助手（`call-main.cjs`）承载 WebRTC，手机侧由 iOS 原生模块应答；`synthetic` 通话让 `deepseekbot call-simulate` 可以注入音频。Android 用同一个原生模块应答，音频设备模块开启回声消除；两种手机上的通话都只在前台进行，App 离开前台或锁屏时通话结束（[ADR-0284](../adr/0284-android-bot-calls-are-foreground-only.md)）。
+
+Soniox 每句识别只接受明确的完成标记。异常断流（1006）可在原识别时限内新建连接重试一次；用于重放的 PCM 只暂存在最多 8 MiB 的内存中，完成或取消即清零，不落盘。Host 仍只提交一个完整结果，重试失败或取消时沿用原失败路径（ADR-0281，#3631）。
 
 视频和屏幕共享通话（[ADR-0286](../adr/0286-call-keyframe-grids.md)）不增加视频轨。客户端用 `visual` 命令打开 `camera` 或 `screen`，用共享的 `keyframes.ts` 在本地挑关键帧（灰度缩略图差异和稳定时长），每个关键帧以 JPEG 通过同一个 `/api/voice/call` 的 `frame` 命令发送。通话 owner 在关键帧到达时就把它缩小（`call-frames.ts`，sharp）；VAD 切出一句话时，在语音识别进行的同时把这句话的关键帧拼成一张宫格图（单图、2x2、3x3 或 4x4，最长 1536 像素，每格标编号和距说完的秒数）。宫格图作为普通图片附件附在 Human 的消息上，`voiceCall.visual` 记录来源、帧数和布局；画面没变时只记录 `sameAs` 指向更早的消息。回合提示让 Bot 用 `channel_read_image` 查看。原始帧从不写盘。通话进行中，owner 在内存里保留最近 64 个宫格格子背后的原始关键帧，Bot 工具 `call_frame`（[ADR-0287](../adr/0287-call-frame-zoom.md)）或 `deepseekbot call-frame` 可以取回其中一张原图；通话结束后返回 `released`。Human 沉默时，每 16 个关键帧拼成一张 4x4 画面记录：一条带宫格图的系统消息，不触发 Bot 回合；下一句话会列出它之前的画面记录。关闭保存画面（`visual` 的 `save: false`）时 DM 里什么都不存，`call_frame` 第 0 格返回内存中的宫格图（[ADR-0288](../adr/0288-call-frame-records.md)）。在 Mac、Windows 和 Web 上，通话栏的摄像头按钮打开摄像头，用同一个挑帧逻辑在 canvas 上每秒采样两次，把关键帧作为 `frame` 命令发出；镜像的自拍预览在每个关键帧时闪一下，并放着保存开关（[ADR-0289](../adr/0289-desktop-call-camera.md)）。屏幕按钮用 `getDisplayMedia` 和屏幕参数做同样的事，并显示正在共享的窗口名；取消选择时保留当前来源。系统结束共享时，客户端发送带 `stopped: true` 的 `visual off`，Host 在 DM 里写一条 `share-stopped` 通话记录，让 Bot 知道通话已改为仅语音（[ADR-0290](../adr/0290-desktop-call-screen.md)）。iPhone 上，原生 `CallCamera` 模块把灰度缩略图交给同一个 JS 关键帧选择器，只在关键帧时返回 JPEG，以 `frame` 命令发给 Host。通话页显示带切换摄像头按钮的自拍预览。切到后台时用带 `paused: true` 的 `visual off` 暂停摄像头，回到前台时用 `resumed: true` 恢复；Host 把两者记录为 `share-paused` 和 `share-resumed` 通话记录（[ADR-0291](../adr/0291-ios-call-camera.md)）。Bot 的主模型声明不支持图片输入时，Host 仍然附上宫格图留作 DM 历史，但在 `voiceCall.visual` 里标记 `unseen`，回合提示告诉 Bot 对方正在共享画面，但它当前的模型看不到。
 

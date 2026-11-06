@@ -17,8 +17,8 @@ export function ChatHeaderSurface({
   solid: number;
 }) {
   const theme = useDesignTheme();
-  const fadeHeight = height + chatHeaderSurface.fade;
-  const mask = <EdgeFade edge="top" height={fadeHeight} cover={height} solid={solid} />;
+  const fadeHeight = height;
+  const mask = <EdgeFade edge="top" height={fadeHeight} cover={solid} solid={solid} />;
   return (
     <View
       pointerEvents="none"
@@ -35,7 +35,13 @@ export function ChatHeaderSurface({
           tint={theme.scheme}
         />
       </MaskedView>
-      {mask}
+      <EdgeFade
+        edge="top"
+        height={fadeHeight}
+        cover={solid}
+        solid={solid}
+        color={theme.color.base}
+      />
     </View>
   );
 }

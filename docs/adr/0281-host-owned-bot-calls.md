@@ -49,4 +49,8 @@ A call that connects writes two system messages into the Bot DM through the Chan
 
 ## Consequences
 
+### Soniox stream interruption recovery (#3631)
+
+The Soniox utterance adapter accepts completion only from the provider's finalization marker or finished response, never from socket closure. For an abnormal close without a close frame (1006), it may open one fresh connection and replay the same utterance once within the original finalization timeout. It retains at most 8 MiB of PCM in memory for this purpose, clears that buffer on completion or cancellation, and never writes it to disk. An oversized utterance continues without recovery buffering. Cancellation, authorization refusals and a failed replacement stream do not retry. The call owner still submits only the completed result, once; it receives the existing coded failure if recovery fails. Structured `transcribe-retry` logs record provider, close code and attempt, without audio, transcript, credentials or server-supplied close reasons.
+
 Calls reuse DM messages, voice messages and attachments, so a call leaves an ordinary conversation behind and committed messages survive a dropped call. The Host needs the media helper on Mac or Windows; Linux Hosts report `media-unsupported`. The call supervisor copies the video supervisor's process ownership; merging the two is a later refactor. Streaming ASR/TTS, barge-in, Android and desktop clients build on the same owner and contract.

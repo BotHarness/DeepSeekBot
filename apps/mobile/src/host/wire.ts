@@ -409,6 +409,7 @@ export interface WireSessionActivity {
 export interface WireBotActivity {
   slug: string;
   state: AggregatedState;
+  active?: boolean;
   activity?: WireToolActivity;
   sessions?: readonly WireSessionActivity[];
 }

@@ -8,7 +8,7 @@ import { clampSpeechDbfs, DEFAULT_SPEECH_DBFS, SPEECH_DBFS_RANGE } from './vad.j
 import {
   warmSoniox,
   type WarmSoniox,
-  openSonioxStream,
+  openSonioxUtterance,
   sonioxLanguageHints,
   sonioxTranscribeFile,
   type AsrStream,
@@ -1051,7 +1051,7 @@ export class VoiceProviders {
     const stored = this.#stored(input.providerId, 'asr');
     const language = input.language?.trim() || stored.language;
     const opened = this.#key(stored).then((key) =>
-      openSonioxStream({
+      openSonioxUtterance({
         baseUrl: stored.baseUrl,
         key,
         model: stored.model ?? 'stt-rt-v6',
@@ -1062,6 +1062,13 @@ export class VoiceProviders {
         onText: input.onText,
         socket: this.#socket,
         warm: this.#takeWarm(input.providerId),
+        onReconnect: () =>
+          this.#log('transcribe-retry', {
+            provider: stored.id,
+            mode: 'stream',
+            closeCode: 1006,
+            attempt: 1,
+          }),
       }),
     );
     const log = this.#log;

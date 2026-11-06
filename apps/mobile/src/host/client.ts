@@ -133,6 +133,7 @@ export interface HostSnapshot {
   }[];
   computerAvailable?: boolean;
   connection: ConnectionState;
+  activity?: readonly WireBotActivity[];
   roster?: RosterView;
 }
 
@@ -221,7 +222,14 @@ function refusalOf(text: string): DeviceRefusal | undefined {
   }
 }
 
-class Unreachable extends Error {}
+class Unreachable extends Error {
+  constructor(
+    message: string,
+    readonly status?: number,
+  ) {
+    super(message);
+  }
+}
 
 const UPLOAD_TOO_LARGE = 'The file is larger than the Host accepts.';
 const uploadTimeoutMs = 120_000;
@@ -366,6 +374,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
   let reloadAgain = false;
   let disconnectCurrent: ((reason: string) => void) | undefined;
   let activeRequests = 0;
+  let resumeRequested = false;
   let checkingPreferred = false;
   let preferredSwitchAt = 0;
   const followers = new Set<Follower>();
@@ -419,6 +428,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
           ? snapshot.routes
           : nextRoutes,
       connection: connection ?? snapshot.connection,
+      activity: share('activity', [...rawStates.values()]),
       ...(computerAvailable === undefined ? {} : { computerAvailable }),
       ...(roster === undefined ? {} : { roster }),
     };
@@ -647,7 +657,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
         const code = refusalOf(await response.text());
         if (code !== undefined) throw new CredentialRefused(code);
       }
-      if (response.status >= 400) throw new Unreachable(`The Host answered ${response.status}.`);
+      if (response.status >= 400)
+        throw new Unreachable(`The Host answered ${response.status}.`, response.status);
       let envelope: Record<string, unknown>;
       try {
         envelope = record(JSON.parse(await response.text()));
@@ -756,7 +767,17 @@ export function createHostClient(options: HostClientOptions): HostClient {
       running = false;
       generation += 1;
       disconnectCurrent?.(error.message);
+      interruptFollowers(error.message);
+      clearTimeout(retryTimer);
+      clearTimeout(settle);
+      settle = undefined;
+      wake?.();
       socket?.close();
+      socket = undefined;
+      carrier.close?.();
+      avatars.clear();
+      avatarLoading.clear();
+      options.telemetry?.dispose();
       publish({
         status: 'refused',
         route,
@@ -789,7 +810,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
 
   const unlessRefused = <T>(work: Promise<T>): Promise<T | undefined> =>
     work.catch((error: unknown) => {
-      if (error instanceof MethodRefused) return undefined;
+      if (error instanceof MethodRefused || (error instanceof Unreachable && error.status === 404))
+        return undefined;
       throw error;
     });
 
@@ -1272,13 +1294,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
         if (!running || current !== generation) return;
         socket?.close();
         if (error instanceof CredentialRefused) {
-          running = false;
-          publish({
-            status: 'refused',
-            route,
-            code: error.code,
-            reason: error.message,
-          });
+          refusedBy(error);
           return;
         }
         attempt += 1;
@@ -1291,12 +1307,30 @@ export function createHostClient(options: HostClientOptions): HostClient {
           retryDelay,
         });
       }
+      if (resumeRequested) {
+        resumeRequested = false;
+        continue;
+      }
       await new Promise<void>((resolve) => {
         wake = resolve;
         retryTimer = setTimeout(resolve, retryDelay ?? backoff(attempt));
       });
       wake = undefined;
     }
+  };
+
+  const resumeLive = (): void => {
+    if (
+      !resumeRequested ||
+      !running ||
+      activeRequests > 0 ||
+      snapshot.connection.status !== 'connected'
+    )
+      return;
+    const disconnect = disconnectCurrent;
+    disconnectCurrent = undefined;
+    publish({ status: 'reconnecting', route, attempt: Math.max(attempt, 1) });
+    disconnect?.('resuming');
   };
 
   return {
@@ -1325,6 +1359,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     start() {
       if (running) return;
       running = true;
+      resumeRequested = false;
       generation += 1;
       publish(
         everConnected
@@ -1336,6 +1371,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     },
     stop() {
       running = false;
+      resumeRequested = false;
       disconnectCurrent?.('stopped');
       interruptFollowers('stopped');
       generation += 1;
@@ -1359,6 +1395,11 @@ export function createHostClient(options: HostClientOptions): HostClient {
       }
       options.telemetry?.begin(trigger);
       if (snapshot.connection.status === 'connected') {
+        if (trigger === 'resume') {
+          resumeRequested = true;
+          resumeLive();
+          return;
+        }
         void refreshConnected().then(
           () => {
             if (running && snapshot.connection.status === 'connected')
@@ -1383,6 +1424,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
         throw error;
       } finally {
         activeRequests -= 1;
+        resumeLive();
       }
     },
     async api(path, init) {
@@ -1394,6 +1436,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
         throw error;
       } finally {
         activeRequests -= 1;
+        resumeLive();
       }
     },
     async upload(name, data) {
@@ -1402,6 +1445,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
         return await upload(name, data);
       } finally {
         activeRequests -= 1;
+        resumeLive();
       }
     },
     resource,

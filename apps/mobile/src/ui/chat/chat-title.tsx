@@ -1,3 +1,4 @@
+import { useHeaderStatus } from './use-header-status';
 import { HeaderTitleButton } from './header-title-button';
 import { ConnectionProgress } from '../primitives/connection-progress';
 import { View } from 'react-native';
@@ -10,10 +11,6 @@ import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { titleChipFill } from './header-chrome';
 import { barLabelStyle, barLabelProps } from './native-header';
-import { botBusy } from './bot-tone';
-import { stepLabel } from './bot-steps';
-import { runningSessions } from '../../host/session-stop';
-import { SessionCountChip } from './session-count-chip';
 
 const AVATAR = 28;
 
@@ -30,23 +27,13 @@ export function ChatTitle({
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
-  const status = bot === undefined ? undefined : bot.paused ? t.paused : t.state[bot.state];
+  const headerStatus = useHeaderStatus(bot, undefined);
   const name = bot?.displayName ?? fallback;
-  const activity =
-    bot !== undefined && botBusy(bot) ? stepLabel(bot.activity, bot.state) : undefined;
-  const sessions = runningSessions(bot).length;
   const chip = (press: () => void) => (
     <HeaderTitleButton
       testID="bot-details-chip"
       accessibilityRole="button"
-      accessibilityLabel={[
-        name,
-        activity ?? status,
-        sessions > 0 ? t.sessionCount(sessions) : undefined,
-        connectionLabel,
-      ]
-        .filter(Boolean)
-        .join(', ')}
+      accessibilityLabel={[name, headerStatus.label, connectionLabel].filter(Boolean).join(', ')}
       accessibilityState={{ busy: connectionLabel !== undefined }}
       accessibilityHint={t.openProfile}
       disabled={bot === undefined}
@@ -59,9 +46,8 @@ export function ChatTitle({
         gap: space.x3,
         minHeight: Math.max(
           theme.touch,
-          theme.type.body.line *
-            Math.min(theme.fontScale, barLabelProps.maxFontSizeMultiplier ?? Infinity) +
-            space.x3,
+          (theme.type.body.line + theme.type.meta.line) *
+            Math.min(theme.fontScale, barLabelProps.maxFontSizeMultiplier ?? Infinity),
         ),
         paddingLeft: (theme.touch - AVATAR) / 2,
         paddingRight: theme.touch / 2,
@@ -74,15 +60,29 @@ export function ChatTitle({
       ) : (
         <View style={{ width: AVATAR, height: AVATAR }} />
       )}
-      <Text
-        {...barLabelProps}
-        strong
-        numberOfLines={1}
-        style={[{ flex: 1, minWidth: 0 }, barLabelStyle]}
-      >
-        {activity ?? name}
-      </Text>
-      <SessionCountChip count={sessions} />
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text
+          {...barLabelProps}
+          strong
+          numberOfLines={1}
+          ellipsizeMode="tail"
+          style={barLabelStyle}
+        >
+          {name}
+        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}>
+          <Text
+            {...barLabelProps}
+            variant="meta"
+            tone="muted"
+            numberOfLines={1}
+            ellipsizeMode="tail"
+            style={{ flex: 1, minWidth: 0 }}
+          >
+            {connectionLabel ?? headerStatus.label}
+          </Text>
+        </View>
+      </View>
       <ConnectionProgress active={connectionLabel !== undefined} label={connectionLabel} />
     </HeaderTitleButton>
   );

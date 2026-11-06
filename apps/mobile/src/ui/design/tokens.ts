@@ -42,6 +42,14 @@ export const radius = {
   round: 9999,
 } as const;
 
+export const alertOverlay = {
+  maxHeightFraction: 0.5,
+  swipeStart: 12,
+  swipeCommit: 48,
+  swipeFlick: 800,
+  settle: 400,
+} as const;
+
 export const edge = {
   hairline: 1,
   focus: 2,
@@ -209,7 +217,7 @@ export const glass = {
   saturate: 180,
 } as const;
 
-export const chatHeaderSurface = { fade: 24, intensity: 45 } as const;
+export const chatHeaderSurface = { fade: 24, intensity: 70 } as const;
 
 export const edgeFade = {
   bottom: 24,

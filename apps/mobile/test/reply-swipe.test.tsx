@@ -110,7 +110,7 @@ describe('swipe left to reply', () => {
     expect(onReply).toHaveBeenCalledTimes(1);
   });
 
-  it('marks the row as owning its swipe left so the profile swipe skips it', async () => {
+  it('marks the bubble as owning its swipe left so the profile swipe skips it', async () => {
     await act(async () =>
       root.render(
         <ReplySwipe enabled onReply={() => undefined}>

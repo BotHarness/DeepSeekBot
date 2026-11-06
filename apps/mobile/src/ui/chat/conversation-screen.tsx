@@ -1,3 +1,4 @@
+import { useHeaderStatus } from './use-header-status';
 import type { ChatPlace } from './chat-place';
 export type { ChatPlace } from './chat-place';
 import { HeaderTitleButton } from './header-title-button';
@@ -96,7 +97,6 @@ import { ChannelTitle } from './channel-title';
 import { WorkingStatus } from './working-status';
 import { ChatTitle } from './chat-title';
 import { runningSessionCount } from '../../host/session-stop';
-import { ChatHeaderActions } from './chat-header-actions';
 import { ConversationTopBar } from './conversation-top-bar';
 import { ChatBackdrop } from './chat-backdrop';
 import { Composer, type ComposerInput } from './composer';
@@ -510,7 +510,13 @@ function ChatConversation({
   }>();
   const [files, setFiles] = useState<PickedFile[]>([]);
   const [attachError, setAttachError] = useState(false);
-  const dictation = useDictation(setDraft);
+  const dictation = useDictation((text, nextCaret) => {
+    setDraft(text);
+    if (nextCaret !== undefined) {
+      setCaret(nextCaret);
+      setSelection({ start: nextCaret, end: nextCaret });
+    }
+  });
   const [shareError, setShareError] = useState(false);
   const [viewing, setViewing] = useState<MessageAttachment>();
   const [actionsFor, setActionsFor] = useState<MessageMenuTarget>();
@@ -548,15 +554,43 @@ function ChatConversation({
   const focusPage = useRef<string | undefined>(undefined);
   const focusCancelled = useRef(false);
   const focusNeedsLayout = useRef(false);
+  const focusHasLiveLayout = useRef(false);
   const focusEstimate = useRef<string | undefined>(undefined);
   const focusAttempt = useRef<
     { message: string; request: string | undefined; index: number } | undefined
   >(undefined);
+  const [anchoredFocus, setAnchoredFocus] = useState<{
+    message: string | undefined;
+    request: string | undefined;
+  }>();
+  const positioningFocus =
+    android &&
+    focus !== undefined &&
+    (anchoredFocus?.message !== focus || anchoredFocus?.request !== focusRequest);
   const retryFocus = useRef<() => void>(() => undefined);
-  const onFocusViewabilityChange = useCallback(() => {
-    focusNeedsLayout.current = false;
-    retryFocus.current();
-  }, []);
+  const onFocusViewabilityChange = useCallback(
+    (info?: { viewableItems: Array<{ item: Row; isViewable: boolean }> }) => {
+      const attempt = focusAttempt.current;
+      if (
+        android &&
+        focusHasLiveLayout.current &&
+        attempt !== undefined &&
+        !focusCancelled.current &&
+        attempt.message === focusIntent.current.message &&
+        attempt.request === focusIntent.current.request &&
+        info?.viewableItems.some(
+          ({ item, isViewable }) =>
+            isViewable && item.kind === 'message' && item.message.id === attempt.message,
+        )
+      ) {
+        setAnchoredFocus({ message: attempt.message, request: attempt.request });
+        focusAttempt.current = undefined;
+      }
+      focusNeedsLayout.current = false;
+      retryFocus.current();
+    },
+    [android],
+  );
   const focusIntent = useRef<{
     request: string | undefined;
     message: string | undefined;
@@ -822,6 +856,7 @@ function ChatConversation({
       focusPage.current = undefined;
       focusCancelled.current = false;
       focusNeedsLayout.current = false;
+      focusHasLiveLayout.current = false;
       focusEstimate.current = undefined;
       focusAttempt.current = undefined;
     }
@@ -1330,6 +1365,7 @@ function ChatConversation({
     : botDm
       ? () => router.push({ ...pairHref, params: { ...pairHref.params, entry: swipeEntry } })
       : () => router.push({ ...groupHref, params: { ...groupHref.params, entry: swipeEntry } });
+  const headerStatus = useHeaderStatus(dm ? bot : undefined, channel, members);
   const title = dm ? (
     <ChatTitle
       bot={bot}
@@ -1342,7 +1378,7 @@ function ChatConversation({
   ) : (
     <ChannelTitle
       channel={channel}
-      working={working}
+      bots={members}
       sessions={runningSessionCount(members)}
       connectionLabel={connectionLabel}
       fallback={channelName ?? t.groupInfo}
@@ -1522,53 +1558,28 @@ function ChatConversation({
                   unstable_headerRightItems: () =>
                     !canOpenProfile
                       ? []
-                      : glassHeader && placeCall !== undefined
-                        ? [
-                            {
-                              type: 'custom' as const,
-                              hidesSharedBackground: true,
-                              element: (
-                                <ChatHeaderActions
-                                  actions={[
-                                    {
-                                      icon: 'call',
-                                      label: t.call.button,
-                                      testID: 'chat-call-button',
-                                      onPress: placeCall,
-                                    },
-                                    {
-                                      icon: 'more',
-                                      label: t.openProfile,
-                                      testID: 'chat-profile-button',
-                                      onPress: openProfile,
-                                    },
-                                  ]}
-                                />
-                              ),
-                            },
-                          ]
-                        : [
-                            {
-                              type: 'button' as const,
-                              label: t.openProfile,
-                              identifier: 'chat-profile-button',
-                              icon: { type: 'sfSymbol' as const, name: 'ellipsis' as const },
-                              sharesBackground: placeCall !== undefined,
-                              onPress: openProfile,
-                            },
-                            ...(placeCall === undefined
-                              ? []
-                              : [
-                                  {
-                                    type: 'button' as const,
-                                    label: t.call.button,
-                                    identifier: 'chat-call-button',
-                                    icon: { type: 'sfSymbol' as const, name: 'phone' as const },
-                                    sharesBackground: true,
-                                    onPress: placeCall,
-                                  },
-                                ]),
-                          ],
+                      : [
+                          {
+                            type: 'button' as const,
+                            label: t.openProfile,
+                            identifier: 'chat-profile-button',
+                            icon: { type: 'sfSymbol' as const, name: 'ellipsis' as const },
+                            sharesBackground: placeCall !== undefined,
+                            onPress: openProfile,
+                          },
+                          ...(placeCall === undefined
+                            ? []
+                            : [
+                                {
+                                  type: 'button' as const,
+                                  label: t.call.button,
+                                  identifier: 'chat-call-button',
+                                  icon: { type: 'sfSymbol' as const, name: 'phone' as const },
+                                  sharesBackground: true,
+                                  onPress: placeCall,
+                                },
+                              ]),
+                        ],
                   unstable_headerLeftItems: () => [
                     ...(headerIslands
                       ? [{ type: 'custom' as const, element: back }]
@@ -1741,7 +1752,7 @@ function ChatConversation({
                     }
                     onDictate={() => {
                       setAttachError(false);
-                      dictation.start();
+                      dictation.start({ text: draft, ...(typing ? { caret } : {}) });
                     }}
                     onStopDictation={dictation.stop}
                     onCancelDictation={dictation.cancel}
@@ -1770,10 +1781,7 @@ function ChatConversation({
                 travel={profileTravel}
                 onOpen={swipeProfile}
               >
-                <Animated.View
-                  style={{ flex: 1, marginTop: android ? headerPadding : 0 }}
-                  onLayout={latest.onViewportLayout}
-                >
+                <Animated.View style={{ flex: 1 }} onLayout={latest.onViewportLayout}>
                   <MarkdownViewportContext.Provider value={markdownViewport}>
                     <SpeakerStageContext.Provider value={dm ? undefined : stage}>
                       <Animated.FlatList
@@ -1810,7 +1818,7 @@ function ChatConversation({
                             ? composerHeight + edgeFade.bottom
                             : space.x3 + listTop,
                           paddingBottom: android
-                            ? space.x3 + listTop
+                            ? space.x3 + headerPadding
                             : composerHeight + edgeFade.bottom,
                         }}
                         data={rows}
@@ -1847,9 +1855,15 @@ function ChatConversation({
                         onStartReachedThreshold={0.5}
                         onEndReachedThreshold={0.5}
                         {...latest.listProps}
+                        maintainVisibleContentPosition={
+                          positioningFocus
+                            ? undefined
+                            : latest.listProps.maintainVisibleContentPosition
+                        }
                         onScrollBeginDrag={(event: ScrollEvent) => {
                           focusCancelled.current = true;
                           focusAttempt.current = undefined;
+                          if (android) setAnchoredFocus({ message: focus, request: focusRequest });
                           pull.onScrollBeginDrag(event);
                           latest.listProps.onScrollBeginDrag();
                         }}
@@ -1864,6 +1878,11 @@ function ChatConversation({
                         onContentSizeChange={(width: number, height: number) => {
                           latest.listProps.onContentSizeChange(width, height);
                           focusNeedsLayout.current = false;
+                          if (positioningFocus && !focusCancelled.current) {
+                            focusHasLiveLayout.current =
+                              snapshot.status === 'live' && !snapshot.fromCache;
+                            jumped.current = undefined;
+                          }
                           jump();
                         }}
                         scrollEventThrottle={Platform.OS === 'android' && !latest.ready ? 16 : 32}
@@ -1985,8 +2004,12 @@ function ChatConversation({
                 ? (bot?.displayName ?? slug ?? '')
                 : botDm
                   ? botDmName
-                  : `#${channel?.name ?? channelName ?? t.groupInfo}`
+                  : (channel?.name ?? channelName ?? t.groupInfo)
             }
+            bot={dm ? bot : undefined}
+            avatar={channel?.avatar}
+            subtitle={headerStatus.label}
+            activeBots={headerStatus.bots}
             connectionLabel={connectionLabel}
             onBack={leave}
             onProfile={canOpenProfile ? openProfile : undefined}

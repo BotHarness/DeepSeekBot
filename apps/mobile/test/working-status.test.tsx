@@ -1,6 +1,9 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('expo-image', () => ({ Image: () => null }));
+vi.mock('../src/ui/minute-clock', () => ({
+  useMinuteClock: () => new Date('2026-11-06T10:00:00Z'),
+}));
 
 import type { RosterBot } from '../src/host/client';
 
@@ -71,13 +74,13 @@ const mika = bot('mika', 'Mika', {
 });
 
 describe('working status', () => {
-  it('replaces a busy DM name with its step while preserving accessible identity', () => {
+  it('keeps a busy DM name above its textual state', () => {
     const html = renderToStaticMarkup(
       <ChatTitle bot={mika} fallback="missing" onPress={() => {}} />,
     );
-    expect(html).toContain(`>${t.effect.executing} · bash<`);
-    expect(html).not.toContain('>Mika<');
-    expect(html).toContain(`data-accessibilitylabel="Mika, ${t.effect.executing} · bash`);
+    expect(html).toContain(`>${t.state.working}<`);
+    expect(html).toContain('>Mika<');
+    expect(html).toContain(`data-accessibilitylabel="Mika, ${t.state.working}`);
     const idle = renderToStaticMarkup(
       <ChatTitle bot={{ ...mika, state: 'idle' }} fallback="missing" onPress={() => {}} />,
     );
@@ -89,10 +92,10 @@ describe('working status', () => {
   });
   it('keeps a group name alongside the activity avatars', () => {
     const html = renderToStaticMarkup(
-      <ChannelTitle channel={undefined} fallback="QA group" working={[mika]} onPress={() => {}} />,
+      <ChannelTitle channel={undefined} fallback="QA group" bots={[mika]} onPress={() => {}} />,
     );
     expect(html).toContain('>QA group<');
-    expect(html).toContain('data-testid="working-status"');
+    expect(html).toContain('data-testid="header-bot-stack"');
     expect(html).toContain('Mika');
   });
   it('shows the avatar and the current step without a name or a Stop button', () => {
@@ -138,7 +141,7 @@ it('shows reconnecting text in DM and group headers and removes it after recover
     <ChannelTitle
       channel={undefined}
       fallback="QA group"
-      working={[]}
+      bots={[]}
       connectionLabel={t.reconnecting}
       onPress={() => {}}
     />,
@@ -158,16 +161,13 @@ describe('session count chip', () => {
     { id: 's', role: 'subagent', state: 'working' },
   ];
 
-  it('counts running Orchestrator and Assignment Sessions after the DM active state', () => {
+  it('keeps DM identity and state readable when several sessions run', () => {
     const html = renderToStaticMarkup(
       <ChatTitle bot={{ ...mika, sessions }} fallback="missing" onPress={() => {}} />,
     );
-    expect(html).toContain('data-testid="session-count-chip"');
-    expect(html.indexOf(`${t.effect.executing} · bash<`)).toBeLessThan(
-      html.indexOf('data-testid="session-count-chip"'),
-    );
-    expect(html).toMatch(/data-testid="session-count-chip"[^]*>2</);
-    expect(html).toContain(`Mika, ${t.effect.executing} · bash, ${t.sessionCount(2)}`);
+    expect(html).toContain('>Mika<');
+    expect(html).toContain(`>${t.state.working}<`);
+    expect(html).not.toContain('session-count-chip');
     expect(html).toContain(`data-accessibilityrole="button"`);
   });
 
@@ -186,19 +186,18 @@ describe('session count chip', () => {
     expect(subagents).not.toContain('session-count-chip');
   });
 
-  it('shows the Group total after the working avatars', () => {
+  it('keeps the Group session total accessible without crowding its subtitle', () => {
     const html = renderToStaticMarkup(
       <ChannelTitle
         channel={undefined}
         fallback="QA group"
-        working={[mika]}
+        bots={[mika]}
         sessions={3}
         onPress={() => {}}
       />,
     );
-    expect(html.indexOf('data-testid="working-status"')).toBeLessThan(
-      html.indexOf('data-testid="session-count-chip"'),
-    );
+    expect(html).toContain('data-testid="header-bot-stack"');
+    expect(html).not.toContain('session-count-chip');
     expect(html).toContain(t.sessionCount(3));
     const none = renderToStaticMarkup(
       <ChannelTitle channel={undefined} fallback="QA group" sessions={0} onPress={() => {}} />,

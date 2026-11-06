@@ -34,6 +34,11 @@ import { revokePairing } from './pairing';
 import { createHostPush } from './push';
 import { createPushSession, type PushStatus } from './push-session';
 import { notificationPreferences } from './native-notification-preferences';
+import { connectionMode } from './native-connection-mode';
+import { createDeviceAlerts } from './device-alerts';
+import { alertBanners } from './alert-banners';
+import { createConnectionLifetime } from './connection-lifetime';
+import { connectionSummary } from './connection-summary';
 import { createQuietChannels } from './quiet-channels';
 import { loadSavedHosts, saveHosts, type SavedHost } from './saved-host';
 import { mobileTelemetry } from '../telemetry/native';
@@ -58,7 +63,9 @@ export interface ConnectedHost {
 }
 
 const sessions = new Map<string, { host: ConnectedHost; dispose(): void }>();
+const connectionLifetime = createConnectionLifetime(AppState.currentState === 'active');
 const feedListeners = new Set<() => void>();
+const visibleConversations = new Map<Conversation, { hostId: string; channelId: string }>();
 let feeds: readonly ConnectedHost[] = [];
 function publishFeeds(): void {
   feeds = [...sessions.values()].map(({ host }) => ({
@@ -67,7 +74,74 @@ function publishFeeds(): void {
     attention: host.inbox.getSnapshot(),
   }));
   for (const listener of feedListeners) listener();
+  scheduleAlerts();
 }
+
+const deviceAlerts = createDeviceAlerts(connectionMode, {
+  ready: notificationPreferences.ready,
+  failed: () => connectionMode.reportAlertFailure(),
+  read: () => {
+    const preferences = notificationPreferences.getSnapshot().preferences;
+    const enabled = preferences !== undefined && Object.values(preferences).some(Boolean);
+    return {
+      approvalsEnabled: enabled,
+      ...(preferences ? { preferences } : {}),
+      hosts: feeds
+        .filter((host) => host.snapshot.connection.status !== 'refused')
+        .map((host) => ({
+          hostId: host.saved.hostId,
+          hostName: host.saved.hostName,
+          language: locale,
+          connected: host.snapshot.connection.status === 'connected',
+          items:
+            host.attention.status === 'ready' && !host.attention.stale
+              ? host.attention.notificationItems
+              : undefined,
+          foreground: AppState.currentState === 'active',
+          approvalsEnabled: enabled,
+          botName: (slug: string) =>
+            host.snapshot.roster?.bots.find((bot) => bot.slug === slug)?.displayName,
+          approvalText: t.localApprovalText,
+          ...(preferences ? { preferences } : {}),
+          quietChannelIds: quietChannels.get(host.saved.hostId),
+          visibleChannelId: [...visibleConversations.values()].find(
+            (entry) => entry.hostId === host.saved.hostId,
+          )?.channelId,
+          text: {
+            approval: t.localApprovalText,
+            question: t.localQuestionText,
+            'private-input': t.localPrivateInputText,
+            reply: t.localReplyText,
+          },
+        })),
+    };
+  },
+});
+function scheduleAlerts(): void {
+  if (!connectionMode.supported) return;
+  connectionMode.updateSummary(
+    connectionSummary(
+      feeds.map((host) => ({
+        hostId: host.saved.hostId,
+        enabled: connectionLifetime.backgroundAllowed(host.client),
+        snapshot: host.snapshot,
+        attention: host.attention,
+      })),
+    ),
+    locale,
+  );
+  deviceAlerts.refresh();
+}
+if (connectionMode.supported) notificationPreferences.subscribe(scheduleAlerts);
+let previousMode = connectionMode.getSnapshot();
+connectionMode.subscribe(() => {
+  const mode = connectionMode.getSnapshot();
+  if (mode.enabled === previousMode.enabled && mode.running === previousMode.running) return;
+  previousMode = mode;
+  deviceAlerts.invalidate();
+  connectionLifetime.backgroundRunning(connectionMode.getSnapshot().running);
+  scheduleAlerts();
+});
 
 const clientHosts = new WeakMap<HostClient, string>();
 const listeners = new Set<() => void>();
@@ -79,8 +153,15 @@ export function onHostRemoval(listener: (host: SavedHost) => Promise<void>): () 
   };
 }
 const clearPresentations = async (host: SavedHost) => {
+  await deviceAlerts.forget(host.hostId);
   await Promise.allSettled([...removalListeners].map((listener) => listener(host)));
 };
+export function setHostNotificationsEnabled(hostId: string, enabled: boolean): void {
+  deviceAlerts.setHostEnabled(hostId, enabled);
+  const client = sessions.get(hostId)?.host.client;
+  if (client) connectionLifetime.allowBackground(client, enabled);
+  scheduleAlerts();
+}
 let state: HostSessionState = { saved: undefined, hosts: [], client: undefined, inbox: undefined };
 let stored: SavedHosts = { hosts: [] };
 let selectionIntent = 0;
@@ -94,9 +175,12 @@ export const pushSession = createPushSession({
     reject: t.reject,
     'remove-device': t.removeDevice,
   }),
-  hostPush,
-  beforeRegister: () => notificationPreferences.retry(),
-  prepareRegistration: (host) => notificationPreferences.prepare(host),
+  hostPush: {
+    ...hostPush,
+    register: (host, registration) =>
+      notificationPreferences.withPrepared(host, () => hostPush.register(host, registration)),
+  },
+  beforeRegister: () => notificationPreferences.ready,
   platform: Platform.OS === 'android' ? 'android' : 'ios',
   locale: locale === 'zh' ? 'zh' : 'en',
 });
@@ -104,11 +188,42 @@ export const pushSession = createPushSession({
 function reflectInbox(hostId: string, inbox: Inbox): void {
   const snapshot = inbox.getSnapshot();
   if (snapshot.status !== 'ready') return;
-  const unresolved = new Set(snapshot.sections.action.map((item) => item.id));
+  if (connectionMode.supported && snapshot.notificationItems === undefined) return;
+  const unresolved = new Set(
+    (snapshot.notificationItems ?? snapshot.sections.action)
+      .filter((item) => item.category === 'action')
+      .map((item) => item.id),
+  );
   pushSession.reflect(hostId, unresolved, unresolved.size);
 }
 
+connectionMode.onApproval(({ hostId, itemId }) => {
+  const host = sessions.get(hostId)?.host;
+  if (
+    !host ||
+    !deviceAlerts.includes(hostId) ||
+    host.client.getSnapshot().connection.status !== 'connected'
+  )
+    return;
+  void host.inbox
+    .refresh()
+    .then(async () => {
+      const latest = host.inbox.getSnapshot();
+      if (
+        sessions.get(hostId)?.host !== host ||
+        latest.status !== 'ready' ||
+        latest.stale ||
+        latest.notificationItems === undefined
+      )
+        return;
+      if (!latest.notificationItems.some((item) => item.id === itemId))
+        await connectionMode.verifiedAbsent(hostId, itemId);
+    })
+    .catch(() => connectionMode.reportAlertFailure());
+});
+
 function connect(saved: SavedHost, trigger: ConnectionTrigger) {
+  deviceAlerts.paired(saved.hostId);
   const client = createHostClient({
     ...saved,
     onPurged: (placements) => {
@@ -137,7 +252,7 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
   });
   clientHosts.set(client, saved.hostId);
   warmHostConversations(saved.hostId);
-  const inbox = createInbox(client);
+  const inbox = createInbox(client, { notifications: connectionMode.supported });
   const offInbox = inbox.subscribe(() => {
     reflectInbox(saved.hostId, inbox);
     publishFeeds();
@@ -151,6 +266,10 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
   const disbanded = watchDisbandedGroups();
   const offConnection = client.subscribe(() => {
     const snapshot = client.getSnapshot();
+    if (snapshot.connection.status === 'refused' && deviceAlerts.includes(saved.hostId)) {
+      connectionLifetime.refused(client);
+      void clearPresentations(saved).catch(() => connectionMode.reportAlertFailure());
+    }
     if (snapshot.roster !== undefined) {
       const change = disbanded(snapshot.roster);
       const live = conversations.get(client);
@@ -179,6 +298,19 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
     }
     const now = snapshot.connection.status === 'connected';
     if (now && !connected) {
+      if (connectionMode.supported)
+        void hostPush
+          .settings(saved)
+          .then((settings) => {
+            if (
+              sessions.get(saved.hostId)?.host.client === client &&
+              client.getSnapshot().connection.status !== 'refused'
+            ) {
+              quietChannels.set(saved.hostId, settings.quietChannelIds);
+              setHostNotificationsEnabled(saved.hostId, settings.enabled);
+            }
+          })
+          .catch(() => undefined);
       void pushSession.retryFailed();
       void notificationPreferences.retry().catch(() => undefined);
       catchUpHostConversations(
@@ -214,7 +346,8 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
       inbox.stop();
       for (const conversation of conversations.get(client)?.values() ?? []) conversation.stop();
       conversations.delete(client);
-      client.stop();
+      if (connectionMode.supported) connectionLifetime.remove(client);
+      else client.stop();
     },
   };
 }
@@ -245,8 +378,10 @@ function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
     }
     const session = connect(saved, trigger);
     sessions.set(saved.hostId, session);
-    session.host.client.start();
+    if (connectionMode.supported) connectionLifetime.add(session.host.client);
+    else session.host.client.start();
   }
+  connectionLifetime.backgroundRunning(connectionMode.getSnapshot().running);
   const saved = currentHost(next) ?? null;
   const selected = saved ? sessions.get(saved.hostId)?.host : undefined;
   if (
@@ -282,16 +417,22 @@ const restoreHosts = (hosts: SavedHosts) => {
   adopt(hosts);
   hostsLoaded = true;
   void pushSession.sync(hosts.hosts);
+  if (AppState.currentState === 'active') void connectionMode.resume().catch(() => undefined);
 };
 const hostsReady = loadSavedHosts().then(restoreHosts, () => adopt({ hosts: [] }));
 
 AppState.addEventListener('change', (next) => {
+  if (next === 'active') deviceAlerts.invalidate();
+  else alertBanners.clear();
+  connectionLifetime.foreground(next === 'active');
   mobileTelemetry.foreground(next === 'active', state.hosts.length);
   notificationPreferences.setForeground(next === 'active');
+  scheduleAlerts();
   if (next !== 'active') return;
+  void connectionMode.resume().catch(() => undefined);
   void notificationPreferences.retry().catch(() => undefined);
   pushSession.reflectAgain();
-  void pushSession.retryFailed();
+  void pushSession.refreshPermission();
   for (const { host } of sessions.values()) {
     host.client.retryNow('resume');
     if (host.client.getSnapshot().connection.status === 'connected') void host.inbox.refresh();
@@ -470,6 +611,18 @@ export function useHostSessions(visible = true): readonly ConnectedHost[] {
   return useVisibleSnapshot(feedSource, visible);
 }
 
+export function useConnectionSummary() {
+  const current = useHostSessions();
+  return connectionSummary(
+    current.map((host) => ({
+      hostId: host.saved.hostId,
+      enabled: connectionLifetime.backgroundAllowed(host.client),
+      snapshot: host.snapshot,
+      attention: host.attention,
+    })),
+  );
+}
+
 const availability = hostAvailabilitySource(feedSource);
 
 export function useHostAvailability(visible = true) {
@@ -484,7 +637,6 @@ export const quietChannels = createQuietChannels();
 quietChannels.subscribe(publishFeeds);
 
 export function refreshQuietChannels(saved: SavedHost): void {
-  if (pushSession.getSnapshot().status !== 'on') return;
   hostPush.settings(saved).then(
     (settings) => quietChannels.set(saved.hostId, settings.quietChannelIds),
     () => undefined,
@@ -615,7 +767,16 @@ function conversationFor(
   };
   const conversation: Conversation = {
     ...inner,
+    setForeground(active) {
+      inner.setForeground?.(active);
+      const hostId = clientHosts.get(client);
+      if (active && hostId && options.channelId)
+        visibleConversations.set(conversation, { hostId, channelId: options.channelId });
+      else visibleConversations.delete(conversation);
+      scheduleAlerts();
+    },
     stop() {
+      visibleConversations.delete(conversation);
       releasePreparedConversation(client, conversation);
       clearTimeout(idle);
       offRetained?.();

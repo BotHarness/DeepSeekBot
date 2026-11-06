@@ -42,10 +42,12 @@
     "*.config.ts"
   ],
   "exclude": [
+    "apps/mobile/test/notification-preferences-web.test.ts",
     "apps/mobile/test/posthog-sender.test.ts",
     "apps/mobile/test/catch-up-power.test.ts",
     "apps/mobile/test/mobile-telemetry-wire-live.test.ts",
     "apps/mobile/test/native-telemetry.test.ts",
+    "apps/mobile/test/native-connection-mode.test.ts",
     "apps/mobile/test/native-lan-socket.test.ts",
     "apps/mobile/test/call-camera.test.ts",
     "apps/mobile/test/native-persistence.test.ts",
@@ -68,6 +70,7 @@
     "apps/mobile/test/attention-actions.test.ts",
     "apps/mobile/test/host-session-unpair.test.ts",
     "apps/mobile/test/host-session-multiple.test.ts",
+    "apps/mobile/test/host-session-background.test.ts",
     "apps/mobile/test/conversation-cache-host.test.ts",
     "apps/mobile/test/native-conversation-cache.test.ts",
     "apps/mobile/test/reanimated-shim.ts",
