@@ -326,32 +326,30 @@ describe('desktop call', () => {
     expect(element.querySelector('button[aria-label="Hang up the current call"]')).toBeNull();
   });
 
-  it('shares camera keyframes with the Host call and turns saving off', async () => {
+  it('shares camera keyframes with the Host call', async () => {
     const { calls, fetcher } = host();
     const mac = desktopWindow(fetcher, 'window-mac-0001');
     await mac.call.start('mira');
     await mac.call.camera(true);
     expect(mac.call.snapshot().visual).toMatchObject({
       source: 'camera',
-      save: true,
       keyframes: 0,
     });
     expect(mac.camera.running()).toBe(true);
     await mac.camera.keyframe();
     expect(mac.call.snapshot().visual.keyframes).toBe(1);
-    await mac.call.saveFrames(false);
     const status = await calls.handle({ deviceId: 'host-owner' }, { kind: 'status' });
     const view = (status as unknown as { calls: { visual?: string; events: { type: string }[] }[] })
       .calls[0]!;
     expect(view.visual).toBe('camera');
     const types = view.events.map((event) => event.type);
     expect(types).toEqual(expect.arrayContaining(['visual', 'frame-received']));
-    expect(view.events.filter((event) => event.type === 'visual').at(-1)).toMatchObject({
-      unsaved: true,
-    });
+    expect(view.events.filter((event) => event.type === 'visual').at(-1)).toEqual(
+      expect.not.objectContaining({ unsaved: expect.anything() }),
+    );
     await mac.call.camera(false);
     expect(mac.camera.running()).toBe(false);
-    expect(mac.call.snapshot().visual).toMatchObject({ source: 'off', save: false });
+    expect(mac.call.snapshot().visual).toMatchObject({ source: 'off' });
     await mac.call.camera(true);
     await mac.call.hangup();
     expect(mac.camera.running()).toBe(false);
@@ -452,10 +450,7 @@ describe('desktop call', () => {
     await act(async () => mac.camera.keyframe());
     expect(panel.textContent).toContain('Keyframes sent to the Bot: 1');
     expect(panel.querySelector('.bh-call-camera-flash')?.getAttribute('data-flash')).toBe('true');
-    const save = panel.querySelector<HTMLInputElement>('#bh-call-save-frames')!;
-    expect(save.checked).toBe(true);
-    await act(async () => save.click());
-    expect(mac.call.snapshot().visual.save).toBe(false);
+    expect(panel.querySelector('input[type="checkbox"]')).toBeNull();
     await act(async () =>
       element.querySelector<HTMLButtonElement>('button[aria-label="Turn camera off"]')!.click(),
     );

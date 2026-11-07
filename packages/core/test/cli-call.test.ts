@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { runCallCommand, type CallValues } from '../src/bots/cli-call.js';
+import { CALL_OPTIONS, runCallCommand, type CallValues } from '../src/bots/cli-call.js';
 import { createVoiceCalls } from '../src/voice/calls.js';
 import { wavFromPcm16 } from '../src/voice/providers.js';
 import { readWavAs16kMono } from '../src/voice/wav.js';
@@ -130,6 +130,7 @@ describe('deepseekbot call commands', () => {
     for (const [rest, values] of [
       [[gridMessage], {}],
       [[gridMessage, '-1'], {}],
+      [[gridMessage, '0'], {}],
       [[gridMessage, '17'], {}],
       [[gridMessage, '1'], { out: 'relative.jpg' }],
     ] as const)
@@ -137,22 +138,11 @@ describe('deepseekbot call commands', () => {
     await expect(
       run('call-simulate', ['ada'], { file, video: frames, screen: frames }),
     ).rejects.toMatchObject({ code: 'usage' });
-    const unsaved = (await run('call-simulate', ['ada'], {
-      file,
-      screen: frames,
-      'no-save': true,
-      'reply-wait': '20',
-    })) as { visual: Record<string, unknown> };
-    expect(posts.at(-1)).toBeDefined();
-    expect(posts.find((post) => post['kind'] === 'visual' && post['save'] === false)).toMatchObject(
-      {
-        source: 'screen',
-      },
+    expect(Object.keys(CALL_OPTIONS)).not.toContain('no-save');
+    expect(report.visual).not.toHaveProperty('saved');
+    expect(posts.filter((post) => post['kind'] === 'visual')).not.toContainEqual(
+      expect.objectContaining({ save: expect.anything() }),
     );
-    expect(unsaved.visual).toMatchObject({ saved: false, records: [], grids: [{ frames: 3 }] });
-    await expect(run('call-simulate', ['ada'], { file, 'no-save': true })).rejects.toMatchObject({
-      code: 'usage',
-    });
     const ended = (await run('call-simulate', ['ada'], {
       file,
       screen: frames,

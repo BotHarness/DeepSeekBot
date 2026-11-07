@@ -3081,6 +3081,20 @@ const WORKSPACE_GRANT_PATH_MIGRATION: SchemaMigration = {
   },
 };
 
+const CALL_VISUAL_UNSAVED_MIGRATION: SchemaMigration = {
+  generation: 132,
+  module: 'messaging',
+  description: 'Drop the removed unsaved marker from call message visuals',
+  migrate(database) {
+    database.exec(`
+      UPDATE source_events
+         SET payload_json = json_remove(payload_json, '$.voiceCall.visual.unsaved')
+       WHERE json_valid(payload_json)
+         AND json_type(payload_json, '$.voiceCall.visual.unsaved') IS NOT NULL;
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -3212,4 +3226,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   VOICE_SETTINGS_MIGRATION,
   CHANNEL_CHANGE_LOG_MIGRATION,
   WORKSPACE_GRANT_PATH_MIGRATION,
+  CALL_VISUAL_UNSAVED_MIGRATION,
 ]);

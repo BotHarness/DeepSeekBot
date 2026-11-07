@@ -367,23 +367,20 @@ describe('Host call owner with a shared camera or screen', () => {
   });
 
   it('keeps only the newest 64 grid cells', async () => {
-    const h = host(Array.from({ length: 5 }, (_, index) => `第${index}句`));
+    const h = host();
     const call = await h.ok({ kind: 'open', slug: 'mira', media: 'synthetic' });
-    await h.ok({ kind: 'visual', callId: call.callId, source: 'camera', save: false });
+    await h.ok({ kind: 'visual', callId: call.callId, source: 'camera' });
     const frame = (await jpeg({ r: 10, g: 20, b: 30 }, 160, 90)).toString('base64');
-    for (let sentence = 0; sentence < 5; sentence += 1) {
+    for (let batch = 0; batch < 5; batch += 1) {
       for (let index = 0; index < 16; index += 1)
         await h.ok({ kind: 'frame', callId: call.callId, source: 'camera', jpeg: frame });
-      await h.say(call.callId);
+      for (let index = 0; index < 20 && h.records.length <= batch; index += 1)
+        await new Promise((resolve) => setTimeout(resolve, 5));
     }
-    expect(h.sent).toHaveLength(5);
-    expect(h.calls.zoom({ slug: 'mira', messageId: h.sent[0]!.messageId, cell: 1 }).released).toBe(
-      true,
-    );
-    for (const message of h.sent.slice(1))
-      expect(h.calls.zoom({ slug: 'mira', messageId: message.messageId, cell: 16 }).released).toBe(
-        false,
-      );
+    expect(h.records).toHaveLength(5);
+    expect(h.calls.zoom({ slug: 'mira', messageId: 'record-1', cell: 1 }).released).toBe(true);
+    for (const messageId of ['record-2', 'record-3', 'record-4', 'record-5'])
+      expect(h.calls.zoom({ slug: 'mira', messageId, cell: 16 }).released).toBe(false);
   });
 
   it('saves 16 silent keyframes as a frame record and lists it on the next sentence', async () => {
@@ -436,33 +433,23 @@ describe('Host call owner with a shared camera or screen', () => {
     });
   });
 
-  it('keeps grids out of the DM when saving frames is off', async () => {
+  it('refuses the removed save switch and always saves frames', async () => {
     const h = host();
     const call = await h.ok({ kind: 'open', slug: 'mira', media: 'synthetic' });
-    await h.ok({ kind: 'visual', callId: call.callId, source: 'screen', save: false });
-    const frame = (await jpeg({ r: 0, g: 0, b: 90 }, 160, 90)).toString('base64');
-    for (let index = 0; index < 20; index += 1)
-      await h.ok({ kind: 'frame', callId: call.callId, source: 'screen', jpeg: frame });
-    for (let index = 0; index < 20; index += 1)
-      await new Promise((resolve) => setTimeout(resolve, 5));
-    expect(h.records).toHaveLength(0);
-    await h.say(call.callId);
-    const visual = h.sent[0]!.visual as { saved: boolean; frames: number };
-    expect(visual).toMatchObject({ source: 'screen', saved: false, frames: 16 });
-    const whole = h.calls.zoom({ slug: 'mira', messageId: h.sent[0]!.messageId, cell: 0 });
-    expect(whole).toMatchObject({ released: false, cell: 0, cells: 16 });
-    expect((whole as { width: number }).width).toBe(1536);
-    expect(
-      await h.calls.handle(
-        { deviceId: 'phone-1' },
-        {
-          kind: 'visual',
-          callId: call.callId,
-          source: 'screen',
-          save: 'no',
-        },
-      ),
-    ).toMatchObject({ ok: false, code: 'invalid-input' });
+    for (const save of [false, true, 'no'])
+      expect(
+        await h.calls.handle(
+          { deviceId: 'phone-1' },
+          { kind: 'visual', callId: call.callId, source: 'screen', save },
+        ),
+      ).toMatchObject({ ok: false, code: 'invalid-input', error: expect.stringMatching(/save/u) });
+    expect((await h.ok({ kind: 'heartbeat', callId: call.callId })).visual).toBe('off');
+    await h.ok({ kind: 'visual', callId: call.callId, source: 'screen' });
+    const events = (await h.ok({ kind: 'heartbeat', callId: call.callId })).events;
+    expect(events.filter((event) => event.type === 'visual')).toEqual([
+      expect.objectContaining({ type: 'visual', source: 'screen' }),
+    ]);
+    expect(events.find((event) => event.type === 'visual')).not.toHaveProperty('unsaved');
   });
 
   it('keeps keyframes for the next sentence when nothing was heard', async () => {
@@ -735,26 +722,26 @@ describe('call visuals in Channel messages', () => {
       ),
     ).toContain('since message human-1');
     expect(callVisualNote('dm-mira', { ...base }, 'HINT')).toBeUndefined();
-    const unsaved = callVisualNote(
+    const recorded = callVisualNote(
       'dm-mira',
       {
         ...base,
+        attachments: [image],
         voiceCall: {
           callId: 'call-0123456789abcdef',
           visual: {
             source: 'screen',
             frames: 4,
             layout: '2x2',
-            unsaved: true,
             records: ['voice-call-frames-a', 'voice-call-frames-b'],
           },
         },
       },
       'HINT',
     );
-    expect(unsaved).toContain('turned off saving call frames');
-    expect(unsaved).toContain('message_id human-2 and cell 0');
-    expect(unsaved).toContain(
+    expect(recorded).toContain(`attachment_id ${image.fileId}`);
+    expect(recorded).not.toContain('cell 0');
+    expect(recorded).toContain(
       '2 frame records in this DM (message voice-call-frames-a, voice-call-frames-b)',
     );
   });
@@ -768,6 +755,9 @@ describe('call visuals in Channel messages', () => {
     expect(
       isChannelCallVisual({ source: 'camera', frames: 4, layout: '2x2', unsaved: false }),
     ).toBe(false);
+    expect(isChannelCallVisual({ source: 'camera', frames: 4, layout: '2x2', unsaved: true })).toBe(
+      false,
+    );
     const record = {
       callId: 'call-0123456789abcdef',
       botSlug: 'mira',

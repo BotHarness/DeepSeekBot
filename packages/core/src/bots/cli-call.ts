@@ -15,7 +15,6 @@ export const CALL_OPTIONS = {
   'reply-wait': { type: 'string' },
   video: { type: 'string' },
   screen: { type: 'string' },
-  'no-save': { type: 'boolean' },
   'share-ends-at': { type: 'string' },
   'share-pause': { type: 'string' },
 } as const;
@@ -27,7 +26,6 @@ export interface CallValues {
   video?: string;
   screen?: string;
   out?: string;
-  'no-save'?: boolean;
   'share-ends-at'?: string;
   'share-pause'?: string;
 }
@@ -55,7 +53,7 @@ export const CALL_COMMANDS = [
   {
     command: 'call-simulate',
     description:
-      'call a Bot with synthetic audio: plays --file <abs.wav> (or a --script <abs.json> timeline, where a step can wait for the Bot to start speaking to test barge-in) into a Host call without a phone, optionally sharing --video (camera) or --screen <abs video file or JPEG folder> as keyframes (--no-save keeps grids out of the DM; --share-ends-at <ms> ends the share as the system would, leaving the call voice only; --share-pause <from>-<to> pauses it as a phone app in the background does), waits for the spoken reply and reports event timings',
+      'call a Bot with synthetic audio: plays --file <abs.wav> (or a --script <abs.json> timeline, where a step can wait for the Bot to start speaking to test barge-in) into a Host call without a phone, optionally sharing --video (camera) or --screen <abs video file or JPEG folder> as keyframes (--share-ends-at <ms> ends the share as the system would, leaving the call voice only; --share-pause <from>-<to> pauses it as a phone app in the background does), waits for the spoken reply and reports event timings',
   },
 ] as const;
 
@@ -144,7 +142,6 @@ function visualInput(
     usage('call-simulate shares one source: pass --video or --screen, not both.');
   const path = values.video ?? values.screen;
   if (path === undefined) {
-    if (values['no-save'] === true) usage('--no-save needs --video or --screen.');
     if (values['share-ends-at'] !== undefined || values['share-pause'] !== undefined)
       usage('--share-ends-at and --share-pause need --video or --screen.');
     return undefined;
@@ -254,7 +251,6 @@ async function simulate(
             callId,
             source: 'off',
             paused: true,
-            ...(values['no-save'] === true ? { save: false } : {}),
           }),
         )['call'] as VoiceCallView,
       );
@@ -272,7 +268,6 @@ async function simulate(
             callId,
             source: visual.source,
             resumed: true,
-            ...(values['no-save'] === true ? { save: false } : {}),
           }),
         )['call'] as VoiceCallView,
       );
@@ -287,7 +282,6 @@ async function simulate(
             callId,
             source: 'off',
             stopped: true,
-            ...(values['no-save'] === true ? { save: false } : {}),
           }),
         )['call'] as VoiceCallView,
       );
@@ -324,7 +318,6 @@ async function simulate(
             kind: 'visual',
             callId,
             source: visual.source,
-            ...(values['no-save'] === true ? { save: false } : {}),
           }),
         )['call'] as VoiceCallView,
       );
@@ -469,7 +462,6 @@ async function simulate(
               ...(sent === undefined ? {} : { messageId: sent.messageId, waitedMs: sent.waitedMs }),
             };
           }),
-          saved: values['no-save'] !== true,
           ...(shareEndedAt === undefined ? {} : { shareEndedAtMs: shareEndedAt }),
           ...(pausedAt === undefined ? {} : { pausedAtMs: pausedAt }),
           ...(resumedAt === undefined ? {} : { resumedAtMs: resumedAt }),
@@ -553,10 +545,8 @@ export async function runCallCommand(
     if (rest.length !== 2 || !rest[0]!.trim())
       usage('call-frame needs a message id and a cell number.');
     const cell = Number(rest[1]);
-    if (!Number.isSafeInteger(cell) || cell < 0 || cell > 16)
-      usage(
-        'The cell is the tile number printed on the grid, 1 to 16, or 0 for a whole unsaved grid.',
-      );
+    if (!Number.isSafeInteger(cell) || cell < 1 || cell > 16)
+      usage('The cell is the tile number printed on the grid, 1 to 16.');
     if (values.out !== undefined && !isAbsolute(values.out))
       usage('--out must be an absolute path.');
     const reply = result(
