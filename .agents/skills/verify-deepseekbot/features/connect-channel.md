@@ -2,7 +2,7 @@
 
 ## Sub-features
 
-- Linked computers: Desktop/Web Settings → Devices → Tobs Connect loads the account list on entry,
+- Linked computers: Desktop/Web Bot settings → Connections → Manage → Tobs Connect loads the account list on entry,
   not on the three-second snapshot poll. Confirm sign-out of another computer; the current row has
   no revoke action. CLI: `connect-account-hosts` and `connect-account-revoke <host-id> --confirm`.
   At the five-link limit the unlinked current computer is explained without inventing a current row.
