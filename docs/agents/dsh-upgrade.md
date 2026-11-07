@@ -94,6 +94,34 @@ pointer. Stop only owned processes and retain failure evidence and recovery limi
 
 ## 4. Update records and choose the release path
 
+### Qualify one product across API generations
+
+When a planned product release must support both DSH 0.2.1 and 0.2.2, freeze one
+product candidate and install those exact artifacts on each concrete target.
+An old-product/old-DSH to new-product/new-DSH upgrade is useful migration evidence,
+but does not prove that the new product still runs on the older Host. A passing
+test of a published package also does not qualify a different candidate.
+
+- Record the exact available versions. RC evidence is not proof for a later stable
+  build or an untested RC in the same version family.
+- Select tool and model integration by the native capability available in the
+  running Host, not by the SDK used to compile the product. Cover legacy
+  `presentAs`/single-call execution and newer executor/batch execution, model
+  selection timing, Agent lifetime and native child wake/report behavior.
+- Never retry a failed execution through another API generation. Authorization,
+  cancellation and integrity refusals must remain refusals; retrying can repeat
+  external effects. Modern-only optional features must not break older Hosts.
+- For each target, retain real reply, native Memory read/write, Assignment/report,
+  child result and same-Profile restart evidence. Test idle first-step model
+  switching and active/idle direct-call boundaries on both API generations.
+- Keep CLI Host, standalone Web and official native Desktop evidence separate.
+  Bind source/dirty patch, package hashes, runtime identity and failures to each
+  result. A later PR may reuse unchanged tested runtime bytes only with an explicit
+  source comparison; it must not rename a dirty-patch run as a clean-commit build.
+
+The Human's planned Tobs `1.7.0` release uses this gate. A test candidate with that
+version prefix does not change the published install identity or authorize release.
+
 Maintain a version-specific record such as `docs/agents/dsh-022-rc1-upgrade.md` with:
 
 - upstream tag/SHA and comparison; Tobs source and exact artifact identity/digests;
