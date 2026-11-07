@@ -3,10 +3,12 @@ import { parseToolApprovalActor } from '../workspaces/tool-approval-actor.js';
 import { createHash } from 'node:crypto';
 import { isValidSlug } from '../bots/slug.js';
 import { isChannelTurnStopTarget, type ChannelTurnStopTarget } from './turn-stop.js';
+import { isCallGridLayout, type CallGridLayout } from '../voice/keyframes.js';
 import { isChannelVoiceCallRecord, type ChannelVoiceCallRecord } from './voice-call-record.js';
 
 export { isChannelTurnStopTarget, type ChannelTurnStopTarget };
 export { isChannelVoiceCallRecord, type ChannelVoiceCallRecord };
+import type { GenuiContent, GenuiMessageReply } from './genui.js';
 
 import {
   isChannelAttachmentRef,
@@ -433,8 +435,7 @@ export type ChannelCallVisual =
   | {
       source: 'camera' | 'screen';
       frames: number;
-      layout: '1x1' | '2x2' | '3x3' | '4x4';
-      unsaved?: true;
+      layout: CallGridLayout;
       unseen?: true;
       records?: string[];
     }
@@ -469,22 +470,15 @@ export function isChannelCallVisual(value: unknown): value is ChannelCallVisual 
       visual['sameAs'].length <= 150
     );
   return (
-    [
-      'frames,layout,source',
-      'frames,layout,source,unsaved',
-      'frames,layout,source,unseen',
-      'frames,layout,source,unsaved,unseen',
-    ].includes(keys) &&
-    (visual['unsaved'] === undefined || visual['unsaved'] === true) &&
+    ['frames,layout,source', 'frames,layout,source,unseen'].includes(keys) &&
     (visual['unseen'] === undefined || visual['unseen'] === true) &&
-    Number.isSafeInteger(visual['frames']) &&
-    (visual['frames'] as number) >= 1 &&
-    (visual['frames'] as number) <= 16 &&
-    ['1x1', '2x2', '3x3', '4x4'].includes(visual['layout'] as string)
+    isCallGridLayout(visual['frames'], visual['layout'])
   );
 }
 
 export interface ChannelMessage {
+  genui?: GenuiContent;
+  genuiReply?: GenuiMessageReply;
   id: string;
   at: string;
   author: ChannelMessageAuthor;

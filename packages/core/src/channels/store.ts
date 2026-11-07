@@ -1,4 +1,5 @@
 import { isChannelNotice } from './channel-notice.js';
+import { assertGenuiMessage } from './genui-message.js';
 import {
   compareToolApprovalHistory,
   toolApprovalHistoryEntry,
@@ -332,6 +333,14 @@ export interface CreateChannelGroupInput {
 }
 
 export interface ChannelStore {
+  genuiView?(channelId: string, messageId: string): import('./genui.js').GenuiPrivateView;
+  saveGenuiView?(
+    channelId: string,
+    messageId: string,
+    snapshotId: string,
+    expectedVersion: number,
+    state: unknown,
+  ): import('./genui.js').GenuiPrivateView;
   rootDir: string;
   humanIdentity(): LocalHumanIdentity;
   setHumanDefaultName(displayName: string | null): LocalHumanIdentity;
@@ -575,6 +584,8 @@ function projectReplyBase(
 function sameMessageIntent(left: ChannelMessage, right: ChannelMessage): boolean {
   return (
     JSON.stringify(left.author) === JSON.stringify(right.author) &&
+    JSON.stringify(left.genui) === JSON.stringify(right.genui) &&
+    JSON.stringify(left.genuiReply) === JSON.stringify(right.genuiReply) &&
     left.body === right.body &&
     left.replyTo === right.replyTo &&
     JSON.stringify(left.grantRequestResolution) === JSON.stringify(right.grantRequestResolution) &&
@@ -966,7 +977,7 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
       return enqueue(id, () => {
         const record = read(id);
         if (record === undefined) return undefined;
-        const priorMessages = message.replyTo === undefined ? [] : readValidMessages(id);
+        const priorMessages = readValidMessages(id);
         if (
           message.replyTo !== undefined &&
           !priorMessages.some((candidate) => candidate.id === message.replyTo)
@@ -975,6 +986,7 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
         }
         assertAttachmentRefs(message.attachments ?? []);
         assertGrantRequestReply(record, message, priorMessages);
+        assertGenuiMessage(record, message, priorMessages);
         if (beforeCommit && !beforeCommit()) return undefined;
         const durableMessage = { ...message };
         delete durableMessage.grantRequestResolved;
@@ -1045,6 +1057,7 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
         }
         assertAttachmentRefs(message.attachments ?? []);
         assertGrantRequestReply(record, message, priorMessages);
+        assertGenuiMessage(record, message, priorMessages);
         const durableMessage = { ...message };
         delete durableMessage.grantRequestResolved;
         delete durableMessage.replyToPreview;

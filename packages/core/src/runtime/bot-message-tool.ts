@@ -5,6 +5,8 @@ import {
 } from '../messaging/mention-text.js';
 import { isChannelAttachmentRef } from '../attachments/ref.js';
 import { createHash } from 'node:crypto';
+import { parseGenuiContent } from '../channels/genui.js';
+import { GENUI_DOCUMENT_LIMITS } from '../channels/genui-document.js';
 import { SendReviewRequired, GroupReplySourceRevoked } from '../channels/send-review.js';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import type { ChannelMessage } from '../channels/channel.js';
@@ -183,6 +185,11 @@ export function createBotMessageTool(
           'Default false. true also sends this message as a voice message: the Human sees the same text with a playable voice bar, spoken with your configured voice. Decide per message; give voice before body. Code, paths and tables are not read aloud. Local Channels only.',
       },
       body: { type: 'string', required: true, description: 'The actual message to deliver.' },
+      genui_json: {
+        type: 'string',
+        description:
+          'Optional complete GenUI JSON for a Human DM only (256 KiB maximum). Prefer version:2, snapshotId, observedAt ISO date, title, html (self-contained HTML/CSS/local JavaScript, at most 192 KiB UTF-8). No network or external resources. The isolated compiler provides the global genui bridge; no Host APIs. Optional stateContract:{version:1,fields:{key:{type:string|number|boolean|choice,initial,...}}} declares at most 16 primitive fields (string maxLength<=500; number min/max; choice options<=20). Legacy version:1 reports remain supported within 64 KiB. body is the readable summary. Refresh uses a new snapshotId and predecessorMessageId.',
+      },
       resolve_inbox_ids: {
         type: 'array',
         items: { type: 'string' },
@@ -254,6 +261,19 @@ export function createBotMessageTool(
           'invalid-review',
           'Recovery requires draft_id and a fresh observation_id.',
         );
+      const genui =
+        args.genui_json === undefined
+          ? undefined
+          : (() => {
+              if (external || channel?.kind !== 'human-dm' || !args.body.trim())
+                throw new BotMessageError(
+                  'unsupported-genui-destination',
+                  'Reports require a Human DM and a readable summary.',
+                );
+              if (new TextEncoder().encode(args.genui_json).length > GENUI_DOCUMENT_LIMITS.bytes)
+                throw new BotMessageError('invalid-genui', 'Report JSON exceeds its budget.');
+              return parseGenuiContent(JSON.parse(args.genui_json));
+            })();
       if (
         args.freshness_override &&
         (!args.draft_id ||
@@ -385,6 +405,7 @@ export function createBotMessageTool(
             channelId: channelId!,
             body: args.body,
             deliveryKey: String(exec.callId),
+            ...(genui === undefined ? {} : { genui }),
             ...(args.attachments === undefined ? {} : { attachments: args.attachments }),
             ...(args.mention_bot_ids === undefined ? {} : { mentionBotIds: args.mention_bot_ids }),
             ...(args.mention_human_ids === undefined

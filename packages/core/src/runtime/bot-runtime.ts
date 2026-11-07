@@ -660,6 +660,7 @@ export interface OrchestratorChannelAccess {
     yieldToMessageIds?: string[];
   }): import('../channels/send-review.js').SendReviewOutcome;
   send(input: {
+    genui?: import('../channels/genui.js').GenuiContent;
     replySourceEventId?: string;
     observationId?: string;
     draftId?: string;
@@ -8106,6 +8107,8 @@ class BotRuntimeImplementation implements BotRuntime {
           );
         const channel = resolve(input.channelId);
         const exhaustedDraftId = exhaustedDrops.get(channel.id);
+        if (input.genui !== undefined && (channel.type !== 'dm' || channel.botSlug !== botSlug))
+          throw new Error('GenUI reports require the Bot Human DM');
         if (exhaustedDraftId)
           throw new SendReviewRequired({
             status: 'requires-review',
@@ -8255,6 +8258,7 @@ class BotRuntimeImplementation implements BotRuntime {
           ...(input.attachments === undefined ? {} : { attachments: input.attachments }),
           ...(input.replyTo === undefined ? {} : { replyTo: input.replyTo }),
           ...this.#perf(sessionId, body),
+          ...(input.genui === undefined ? {} : { genui: input.genui }),
         };
         const originId = input.replySourceEventId ?? sourceEventId;
         const origin = {
@@ -10512,8 +10516,6 @@ export function callVisualNote(
     visual.frames === 1 ? 'one keyframe' : `a ${visual.layout} grid of ${visual.frames} keyframes`;
   if (visual.unseen === true)
     return `[Call ${visual.source} view] The Human is sharing their ${visual.source}, and this message keeps ${what} for the DM history, but your current model cannot read images, so do not open it. If they ask about what they are showing, tell them you cannot see it with this model and ask them to describe it.`;
-  if (visual.unsaved === true)
-    return `[Call ${visual.source} view] The Human turned off saving call frames, so this message carries no image. To see ${what} from their ${visual.source} for this message, call call_frame with channel_id ${channelId}, message_id ${message.id} and cell 0; it is kept only during the call.${records} ${hint}`;
   const image = message.attachments?.find((ref) => ref.mime === 'image/jpeg');
   if (image === undefined) return undefined;
   return `[Call ${visual.source} view] This message carries ${what} from the Human's ${visual.source}: channel_read_image with channel_id ${channelId}, message_id ${message.id} and attachment_id ${attachmentIdentity(image)}.${records} ${hint}`;

@@ -1,5 +1,7 @@
 import { allBotPreview, assertAllBotPreview, type AllBotPreview } from './all-bot-mention.js';
+import { GenuiError, genuiPrivateView, parseGenuiContent } from './genui.js';
 import { projectBridgeMessage } from '../messaging/channel-target.js';
+import { assertGenuiMessage } from './genui-message.js';
 import type { ExternalSource } from '../messaging/inbound.js';
 import { isChannelNotice, notChannelNoticeSql } from './channel-notice.js';
 import { toolApprovalHistoryEntry, type ToolApprovalHistoryEntry } from './approval-history.js';
@@ -251,6 +253,8 @@ function sameIntent(left: ChannelMessage, right: ChannelMessage): boolean {
       botCausation: left.botCausation,
       grantRequestResolution: left.grantRequestResolution,
       assignmentReply: left.assignmentReply,
+      genui: left.genui,
+      genuiReply: left.genuiReply,
     }) ===
     JSON.stringify({
       author: right.author,
@@ -265,6 +269,8 @@ function sameIntent(left: ChannelMessage, right: ChannelMessage): boolean {
       botCausation: right.botCausation,
       grantRequestResolution: right.grantRequestResolution,
       assignmentReply: right.assignmentReply,
+      genui: right.genui,
+      genuiReply: right.genuiReply,
     })
   );
 }
@@ -781,6 +787,29 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       attachmentMigration.project(row.source_event_id, placementMessage(row, id)),
     );
 
+  const readGenuiMessage = (channelId: string, messageId: string): ChannelMessage => {
+    const channel = readRecord(channelId);
+    if (channel?.type !== 'dm' || channel.botSlug === undefined)
+      throw new GenuiError('genui-unavailable', 'The report is unavailable.');
+    const row = database.read((db) =>
+      db
+        .prepare(`SELECT e.payload_json, e.body
+      FROM channel_placements p JOIN source_events e ON e.source_event_id = p.source_event_id
+      WHERE p.channel_id = ? AND p.message_id = ?`)
+        .get(channelId, messageId),
+    ) as { payload_json: string; body: string } | undefined;
+    const message =
+      row === undefined
+        ? undefined
+        : parseMessage(row.payload_json, row.body, messageId, channelId);
+    if (
+      message?.genui === undefined ||
+      message.author.kind !== 'bot' ||
+      message.author.slug !== channel.botSlug
+    )
+      throw new GenuiError('genui-unavailable', 'The report is unavailable.');
+    return message;
+  };
   const projectPostPreview = (message: ChannelMessage): ChannelMessage => {
     const post = message.botChannelPost;
     if (post === undefined) return message;
@@ -1019,6 +1048,8 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         message.replyTo,
         grantRequestId,
         message.takeoverResolution?.requestMessageId,
+        message.genui?.predecessorMessageId,
+        message.genuiReply?.messageId,
       ]),
       ...grantResolutions(id, grantRequestId === undefined ? [] : [grantRequestId]),
     ];
@@ -1196,6 +1227,27 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
             );
           }
           assertGrantRequestReply(channel, durable, previous);
+          const snapshot =
+            durable.genui === undefined
+              ? undefined
+              : (db
+                  .prepare(`SELECT p.message_id, e.payload_json, e.body
+                    FROM channel_placements p
+                    JOIN source_events e ON e.source_event_id = p.source_event_id
+                    WHERE p.channel_id = ? AND json_extract(e.payload_json, '$.genui.snapshotId') = ?
+                    LIMIT 1`)
+                  .get(id, durable.genui.snapshotId) as
+                  | { message_id: string; payload_json: string; body: string }
+                  | undefined);
+          const snapshotMessage =
+            snapshot === undefined
+              ? undefined
+              : parseMessage(snapshot.payload_json, snapshot.body, snapshot.message_id, id);
+          assertGenuiMessage(
+            channel,
+            durable,
+            snapshotMessage === undefined ? previous : [...previous, snapshotMessage],
+          );
           assertAssignmentHumanReply(db, channel, durable);
           if (
             durable.grantRequestResolution !== undefined &&
@@ -1425,6 +1477,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         error instanceof OperationalDatabaseError &&
         error.code === 'transaction-failed' &&
         (error.cause instanceof ChannelReplyTargetError ||
+          error.cause instanceof GenuiError ||
           error.cause instanceof AssignmentReplyTargetError)
       )
         throw error.cause;
@@ -3125,6 +3178,72 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       if (!row) return undefined;
       const payload = JSON.parse(row.payload_json) as ChannelMessage;
       return projectRows(channelId, placementsById(channelId, [payload.id]))[0];
+    },
+    genuiView(channelId, messageId) {
+      const message = readGenuiMessage(channelId, messageId);
+      const report = parseGenuiContent(message.genui);
+      return database.read((db) => {
+        const row = db
+          .prepare(
+            'SELECT version, state_json FROM genui_private_views WHERE human_id = ? AND channel_id = ? AND message_id = ? AND snapshot_id = ?',
+          )
+          .get(humanIdentity().humanId, channelId, messageId, report.snapshotId) as
+          | { version: number; state_json: string }
+          | undefined;
+        return row === undefined
+          ? genuiPrivateView(report, 0)
+          : genuiPrivateView(report, row.version, JSON.parse(row.state_json));
+      });
+    },
+    saveGenuiView(channelId, messageId, snapshotId, expectedVersion, value) {
+      try {
+        return database.transaction((db) => {
+          const message = readGenuiMessage(channelId, messageId);
+          if (message.genui?.snapshotId !== snapshotId)
+            throw new GenuiError('genui-unavailable', 'The report snapshot is unavailable.');
+          if (
+            !Number.isSafeInteger(expectedVersion) ||
+            expectedVersion < 0 ||
+            expectedVersion >= Number.MAX_SAFE_INTEGER
+          )
+            throw new GenuiError('invalid-genui', 'Expected view version is invalid.');
+          if (value === undefined)
+            throw new GenuiError('invalid-genui', 'An explicit private view state is required.');
+          const view = genuiPrivateView(
+            parseGenuiContent(message.genui),
+            expectedVersion + 1,
+            value,
+          );
+          const state = view.state;
+          const humanId = humanIdentity().humanId;
+          const row = db
+            .prepare(
+              'SELECT version FROM genui_private_views WHERE human_id = ? AND channel_id = ? AND message_id = ?',
+            )
+            .get(humanId, channelId, messageId) as { version: number } | undefined;
+          if ((row?.version ?? 0) !== expectedVersion)
+            throw new GenuiError(
+              'genui-view-conflict',
+              'The private view changed on another client. Reload or explicitly resolve the conflict.',
+            );
+          const version = expectedVersion + 1;
+          db.prepare(`INSERT INTO genui_private_views (human_id, channel_id, message_id, snapshot_id, version, state_json)
+          VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (human_id, channel_id, message_id)
+          DO UPDATE SET snapshot_id = excluded.snapshot_id, version = excluded.version, state_json = excluded.state_json`).run(
+            humanId,
+            channelId,
+            messageId,
+            snapshotId,
+            version,
+            JSON.stringify(state),
+          );
+          return view;
+        });
+      } catch (error) {
+        if (error instanceof OperationalDatabaseError && error.cause instanceof GenuiError)
+          throw error.cause;
+        throw error;
+      }
     },
     async appendMessageOnce(id, message, preview, origin, canCommit) {
       const result = append(id, message, true, preview, origin, canCommit);

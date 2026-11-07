@@ -4,6 +4,8 @@
 - Date: 2026-11-04
 - Issue: #3492 (spec #3490, hub #3491; builds on ADR-0281)
 
+> Amended by [ADR-0303](0303-call-grids-tile-balanced-rows.md): grids tile one to nine keyframes in balanced rows of at most three (`layout` such as `3+2`), not square 2x2, 3x3 or 4x4 grids.
+
 ## Context
 
 The Human wants a Bot call to include their camera or their screen. Real-time video is heavy to carry and the model does not read video frame by frame, while separate images lose their order. The grilled design (spec #3490) sends, with each spoken sentence, one image tiled from the keyframes of that sentence, and keeps the work as simple and fast as possible: no new model dependency and no step that adds delay unless measurements show the simple path is not good enough.

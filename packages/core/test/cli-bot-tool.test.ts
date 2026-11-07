@@ -101,6 +101,23 @@ describe('Harness Bot tool runner commands', () => {
     ]);
   });
 
+  it('routes offline diagram authoring through the existing direct Tool owner', async () => {
+    const args = { source: 'flowchart LR\n A[输入] --> B[结果]', width: 640 };
+    const live = await host(() => ({
+      ok: true,
+      value: { tool: 'genui_diagram', result: { compiler: 'pele@1.13.0', svg: '<svg/>' } },
+    }));
+    const result = await invoke(
+      ['bot-tool', 'ada', 'genui_diagram', '--args-stdin'],
+      live.url,
+      JSON.stringify(args),
+    );
+    expect(result.json.result.compiler).toBe('pele@1.13.0');
+    expect(live.calls).toEqual([
+      { method: 'botToolRun', args: { slug: 'ada', tool: 'genui_diagram', args } },
+    ]);
+  });
+
   it('carries an explicit Group freshness decision and returns the owning coded outcome', async () => {
     const args = {
       channel_id: 'group',

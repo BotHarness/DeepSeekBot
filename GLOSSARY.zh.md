@@ -532,6 +532,11 @@ _避免使用_：name-matched text、stored display name as identity
 从 Channel、Bridge、webhook、Session 或 system source 接收的不可变本地事实，保存其内容唯一的本地副本与可信 provenance。它可以出现在 Channel 中，也可以被 admit 到任意数量的 Bot Inbox，但两种关系都不拥有另一份内容副本。
 _避免使用_：inbox message、mailbox copy、notification payload、stimulus
 
+**GenUI content**：
+普通 Channel 消息中的交互式可视化信息，按该消息的读取权限共享。每个 Human 的探索状态保持私有，直到其显式通过普通消息发布相关上下文。
+丰富内容的目标采用隔离 HTML 文档，而不是固定的报告组件 catalog；生成的展示内容不获得 Host 或业务执行权限（[ADR-0301](docs/adr/0301-genui-rich-documents-use-isolated-html.md)）。
+_避免使用_：独立 GenUI 会话、绑定发布者的回调通道
+
 **Provider Echo**：
 provider 对 BotHarness 已发送 message 的 inbound reflection。成功关联时，它会丰富既有 Source Event 与 Outbox receipt，而不会产生新的 attention；无法匹配、但 sender 是自身的 echo 保持 unresolved，且不能 wake PersonaBot。
 _避免使用_：new user message、duplicate Channel message、delivery success by assumption

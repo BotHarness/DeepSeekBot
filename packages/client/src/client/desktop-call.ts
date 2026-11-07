@@ -38,7 +38,6 @@ export type DesktopCallVisualError =
 
 export interface DesktopCallVisual {
   readonly source: 'off' | CallVisualSource;
-  readonly save: boolean;
   readonly starting: boolean;
   readonly stream: MediaStream | undefined;
   readonly label: string | undefined;
@@ -62,7 +61,6 @@ export interface DesktopCallSnapshot {
 
 export const DESKTOP_CALL_VISUAL_OFF: DesktopCallVisual = {
   source: 'off',
-  save: true,
   starting: false,
   stream: undefined,
   label: undefined,
@@ -79,7 +77,6 @@ export interface DesktopCall {
   camera(on: boolean): Promise<void>;
   screen(on: boolean): Promise<void>;
   dismissVisual(): void;
-  saveFrames(save: boolean): Promise<void>;
   hangup(): Promise<void>;
   dismiss(): void;
 }
@@ -156,7 +153,7 @@ export function createDesktopCall(
     if (owned === undefined || current.visual.source !== source) return;
     stopCamera();
     setVisual({ source: 'off', stream: undefined, label: undefined });
-    await owned.visual('off', current.visual.save);
+    await owned.visual('off');
   };
   const share = async (source: CallVisualSource) => {
     const owned = client;
@@ -178,7 +175,7 @@ export function createDesktopCall(
           label: undefined,
           error: source === 'camera' ? 'camera-stopped' : 'screen-stopped',
         });
-        if (client === owned) void owned.visual('off', current.visual.save, 'stopped');
+        if (client === owned) void owned.visual('off', 'stopped');
       },
     });
     let stream: MediaStream;
@@ -195,7 +192,7 @@ export function createDesktopCall(
       setVisual({ starting: false });
       return;
     }
-    const refused = await owned.visual(source, current.visual.save);
+    const refused = await owned.visual(source);
     if (client !== owned || (refused !== undefined && !refused.ok)) {
       started.stop();
       setVisual({ starting: false });
@@ -275,13 +272,6 @@ export function createDesktopCall(
     screen: (on) => (on ? share('screen') : unshare('screen')),
     dismissVisual() {
       if (current.visual.error !== undefined) setVisual({ error: undefined });
-    },
-    async saveFrames(save) {
-      if (current.visual.save === save) return;
-      setVisual({ save });
-      const owned = client;
-      if (owned !== undefined && current.state.status === 'live' && current.visual.source !== 'off')
-        await owned.visual(current.visual.source, save);
     },
     async hangup() {
       stopCamera();
