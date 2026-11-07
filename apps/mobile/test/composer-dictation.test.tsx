@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const speech = vi.hoisted(() => ({
   scale: 1,
+  viewportHeight: 874,
+  input: undefined as Record<string, unknown> | undefined,
   platform: 'android',
   hardware: new Map<boolean, { enabled: boolean; onSend(): void }>(),
   listeners: new Map<string, (event: unknown) => void>(),
@@ -60,12 +62,22 @@ vi.mock('react-native', async () => {
         return speech.platform;
       },
     },
-    useWindowDimensions: () => ({ width: 402, height: 874, scale: 3, fontScale: speech.scale }),
+    useWindowDimensions: () => ({
+      width: 402,
+      height: speech.viewportHeight,
+      scale: 3,
+      fontScale: speech.scale,
+    }),
     Dimensions: {
       get: () => ({ width: 402, height: 874, scale: 3, fontScale: speech.scale }),
       addEventListener: (_event: string, _changed: () => void) => ({ remove() {} }),
     },
     View,
+    TextInput: (props: Parameters<typeof shim.TextInput>[0]) => {
+      if (props['testID'] === 'composer-input')
+        speech.input = { ...props, style: shim.StyleSheet.flatten(props['style']) };
+      return shim.TextInput(props);
+    },
     Keyboard: { dismiss() {} },
     PanResponder: { create: (config: unknown) => ({ panHandlers: { __gesture: config } }) },
   };
@@ -202,7 +214,6 @@ function Harness({ disabled = false, caret }: { disabled?: boolean; caret?: numb
             Mika
           </button>
         }
-        placeholder="Message Mika"
         disabled={disabled}
         files={[]}
         canAttach
@@ -229,6 +240,8 @@ beforeEach(async () => {
   setHapticsEnabled(true);
   speech.platform = 'android';
   speech.scale = 1;
+  speech.viewportHeight = 874;
+  speech.input = undefined;
   speech.hardware.clear();
   played.length = 0;
   speech.listeners.clear();
@@ -265,6 +278,90 @@ async function emit(name: string, event: unknown = null) {
 const result = (transcript: string, isFinal: boolean) => ({
   isFinal,
   results: [{ transcript, confidence: 1, segments: [] }],
+});
+
+describe('empty composer', () => {
+  it.each(
+    ['ios', 'android'].flatMap((platform) =>
+      ['en', 'zh'].flatMap((language) =>
+        [1, 3.571].flatMap((scale) =>
+          [874, 400].map((viewportHeight) => ({ platform, language, scale, viewportHeight })),
+        ),
+      ),
+    ),
+  )(
+    'keeps the placeholder empty and label accessible on $platform/$language at $scale/$viewportHeight',
+    async ({ platform, language, scale, viewportHeight }) => {
+      speech.platform = platform;
+      speech.scale = scale;
+      speech.viewportHeight = viewportHeight;
+      await act(async () => interfacePreferences.setLanguage(language as 'en' | 'zh'));
+      await act(async () => root!.render(<Harness />));
+      expect(field().placeholder).toBe('');
+      expect(field().getAttribute('aria-label')).toBe(strings.t.messagePlaceholder);
+      expect(speech.input!['accessibilityHint']).toBe(strings.t.composerInputHint);
+      expect(speech.input!['multiline']).toBe(true);
+      expect(speech.input!['allowFontScaling']).not.toBe(false);
+      expect(speech.input!['maxFontSizeMultiplier']).toBeUndefined();
+      const input = field();
+      input.focus();
+      await act(async () => root!.render(<Harness disabled />));
+      expect(field()).toBe(input);
+      expect(document.activeElement).toBe(input);
+      expect(speech.input!['accessibilityHint']).toBeUndefined();
+      expect(sent).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['ios', 'android'])(
+    'ignores stale empty content measurements but preserves real multiline drafts on %s',
+    async (platform) => {
+      speech.platform = platform;
+      speech.scale = 3.571;
+      await act(async () => root!.render(<Harness />));
+      const input = field();
+      input.focus();
+      const height = () => (speech.input!['style'] as { minHeight: number }).minHeight;
+      const contentSize = async (height: number) => {
+        await act(async () =>
+          (speech.input!['onContentSizeChange'] as (event: unknown) => void)({
+            nativeEvent: { contentSize: { height } },
+          }),
+        );
+      };
+      const edit = async (value: string) => {
+        await act(async () => (speech.input!['onChangeText'] as (text: string) => void)(value));
+      };
+      const minimum = height();
+      await contentSize(10000);
+      expect(height()).toBe(minimum);
+      const draft = 'First line\n第二行草稿\nThird line';
+      await edit(draft);
+      await contentSize(minimum + 30);
+      expect(height()).toBeGreaterThan(minimum);
+      input.setSelectionRange(2, 5);
+      speech.viewportHeight = 400;
+      await act(async () => root!.render(<Harness />));
+      speech.viewportHeight = 874;
+      await act(async () => root!.render(<Harness />));
+      expect(field()).toBe(input);
+      expect(input.value).toBe(draft);
+      expect(input.selectionStart).toBe(2);
+      expect(input.selectionEnd).toBe(5);
+      expect(document.activeElement).toBe(input);
+      await press(strings.t.expandDraft);
+      const editor = host.querySelector<HTMLTextAreaElement>('[role="dialog"] textarea')!;
+      expect(editor.value).toBe(draft);
+      expect(editor.placeholder).toBe('');
+      expect(editor.getAttribute('aria-label')).toBe(strings.t.editDraft);
+      await press(strings.t.done);
+      expect(field()).toBe(input);
+      expect(input.value).toBe(draft);
+      await edit('');
+      expect(height()).toBe(minimum);
+      expect(sent).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe('Composer dictation', () => {
@@ -590,40 +687,50 @@ describe('Holding the Android input', () => {
     await emit('start');
     await emit('result', result('Keep this draft', true));
     await emit('end');
-    expect(field().placeholder).toBe(t.composerInputHint);
+    expect(field().placeholder).toBe('');
     expect(field().value).toBe('Keep this draft');
     await act(async () => speech.gesture!['stop']!());
     expect(field().value).toBe('Keep this draft');
     expect(sent).not.toHaveBeenCalled();
   });
-  it('stops on release and retains the final transcript for manual Send', async () => {
-    await act(async () => speech.gesture!['start']!());
-    expect(speech.start).toHaveBeenCalled();
-    expect(field().placeholder).toBe(t.dictationReleaseHint);
-    await emit('start');
-    await emit('result', result('see you at seven', false));
-    await act(async () => speech.gesture!['stop']!());
-    expect(speech.stop).toHaveBeenCalledOnce();
-    await emit('result', result('See you at seven.', true));
-    await emit('end');
-    expect(field().value).toBe('See you at seven.');
-    expect(sent).not.toHaveBeenCalled();
-    await press(t.send);
-    expect(sent).toHaveBeenCalledExactlyOnceWith('See you at seven.');
-  });
+  it.each(['ios', 'android'])(
+    'stops on release and retains the final transcript for manual Send on %s',
+    async (platform) => {
+      speech.platform = platform;
+      await act(async () => root!.render(<Harness />));
+      await act(async () => speech.gesture!['start']!());
+      expect(speech.start).toHaveBeenCalled();
+      expect(field().placeholder).toBe(t.dictationReleaseHint);
+      await emit('start');
+      await emit('result', result('see you at seven', false));
+      await act(async () => speech.gesture!['stop']!());
+      expect(speech.stop).toHaveBeenCalledOnce();
+      await emit('result', result('See you at seven.', true));
+      await emit('end');
+      expect(field().value).toBe('See you at seven.');
+      expect(sent).not.toHaveBeenCalled();
+      await press(t.send);
+      expect(sent).toHaveBeenCalledExactlyOnceWith('See you at seven.');
+    },
+  );
 
-  it('does not start later when released while permission is pending', async () => {
-    let resolve!: (value: { granted: boolean }) => void;
-    speech.permission = new Promise((done) => {
-      resolve = done;
-    });
-    await act(async () => speech.gesture!['start']!());
-    await act(async () => speech.gesture!['stop']!());
-    await act(async () => resolve({ granted: true }));
-    expect(speech.start).not.toHaveBeenCalled();
-    expect(status()).toBe('idle');
-    expect(sent).not.toHaveBeenCalled();
-  });
+  it.each(['ios', 'android'])(
+    'does not start later when released while permission is pending on %s',
+    async (platform) => {
+      speech.platform = platform;
+      await act(async () => root!.render(<Harness />));
+      let resolve!: (value: { granted: boolean }) => void;
+      speech.permission = new Promise((done) => {
+        resolve = done;
+      });
+      await act(async () => speech.gesture!['start']!());
+      await act(async () => speech.gesture!['stop']!());
+      await act(async () => resolve({ granted: true }));
+      expect(speech.start).not.toHaveBeenCalled();
+      expect(status()).toBe('idle');
+      expect(sent).not.toHaveBeenCalled();
+    },
+  );
 
   it('keeps microphone taps available without a hold or lock gesture', async () => {
     await press(t.dictate);
@@ -641,7 +748,7 @@ describe('Holding the Android input', () => {
       expect(field().placeholder).toBe(t.dictationReleaseHint);
       await emit(event, event === 'error' ? { error: 'no-speech' } : undefined);
       expect(status()).toBe('idle');
-      expect(field().placeholder).toBe(t.composerInputHint);
+      expect(field().placeholder).toBe('');
       await act(async () => speech.gesture!['stop']!());
       await act(async () => speech.gesture!['start']!());
       await emit('start');
@@ -658,7 +765,7 @@ describe('Holding the Android input', () => {
     speech.granted = false;
     await act(async () => speech.gesture!['start']!());
     expect(status()).toBe('denied');
-    expect(field().placeholder).toBe(t.composerInputHint);
+    expect(field().placeholder).toBe('');
     expect(speech.start).not.toHaveBeenCalled();
     await act(async () => speech.gesture!['stop']!());
     expect(sent).not.toHaveBeenCalled();

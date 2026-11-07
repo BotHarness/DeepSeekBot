@@ -10,6 +10,7 @@
 - `appearance-choice`: Follow system, Light and Dark update app colors, status bar, native menus, sheets and keyboard appearance together. Background preview overrides remain scoped.
 - `phone-persistence`: both preferences survive a cold launch and apply across paired Computers and Cloud workspaces on this phone; a failed save displays a retry hint.
 - `chat-continuity`: the current route, unsent draft, input identity/caret and held chat history remain in place when either preference changes.
+- `empty-composer`: DM and Channel message fields have no static placeholder, retain a localized accessible name, and return to one text line plus native padding after clearing a multiline draft. iOS and Android share the input-area hold-to-dictate gesture and accessibility hint, with a separate tap-to-toggle microphone button.
 
 ## How to get to it (user POV)
 
@@ -24,6 +25,7 @@ Reserve native iOS/Android checks through the [shared queue](../../../../docs/ag
 3. Select Dark while the phone is light, then Light while it is dark; open native menus and keyboard and inspect status/navigation bars. Return to Follow system and change system appearance. Inspect background editor preview isolation.
 4. Cold-launch the app and verify saved selections; switch Computer scope and confirm the same preference without changing another phone. Repeat default/intermediate/maximum system text in light and dark on each native platform; scroll to every option and choose it.
 5. Retain matched before/after settings captures and chat-continuity evidence. Source tests cover read/write failure and startup races; record native QA and Human QA separately.
+6. In a synthetic DM and a Channel with a long name, inspect the empty composer and expanded editor at default/intermediate/maximum native text sizes in English and Chinese, light and dark, with the keyboard open/closed. Enter a multiline draft without sending, open/close expanded editing and Profile, and confirm the draft and caret survive. Clear manually if text replacement automation is blocked; the empty field must shrink without reducing text scaling or limiting real draft growth. Check VoiceOver/TalkBack labels and the platform-specific dictation controls. Reserve the native lane before changing any device state; hardware-keyboard takeover is an environment behavior, not a placeholder regression.
 
 ## Gotchas
 

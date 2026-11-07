@@ -115,7 +115,6 @@ describe.each(['light', 'dark'] as const)('%s pressed visual tokens', (scheme) =
       root.render(
         <Composer
           value=""
-          placeholder="Message"
           disabled={false}
           files={[
             {

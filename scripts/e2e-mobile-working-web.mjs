@@ -257,9 +257,9 @@ async function main() {
     steps.push('paired the app by pasting the link');
 
     await page.locator(`::-p-text(${displayName})`).click();
-    await page.waitForSelector(`[placeholder="Message ${displayName}"]`, { timeout: 30_000 });
+    await page.waitForSelector('[data-testid="composer-input"]', { timeout: 30_000 });
     await page.type(
-      `[placeholder="Message ${displayName}"]`,
+      '[data-testid="composer-input"]',
       'Send me the numbers from 1 to 60. Put each number in its own separate bot_send_message call, one call at a time, and do not combine them.',
     );
     await page.locator('::-p-aria(Send)').click();
