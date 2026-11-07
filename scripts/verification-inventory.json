@@ -1849,17 +1849,17 @@
       "path": "scripts/e2e-mobile-follow-latest-web.mjs",
       "category": "historical-regression",
       "behaviors": ["phone.timeline"],
-      "reason": "Own task Host and Expo Web export; mobile scroll/follow behavior only, not native gesture acceptance. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Own task Host and Expo Web export; mobile scroll/follow behavior only, not native gesture acceptance. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. #3666 re-audit: composer discovery uses its stable testID; preparation, side effects and assertions are unchanged. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "ba0ae84b06abc7c184256779df7333a9debd2238658466e9c8d42c2959bd3ab3"
+      "sha256": "0b88c1aa98f8c6cd5b7a0f3033001f45878d021a7bb8b257dc9fde67ec35c968"
     },
     {
       "path": "scripts/e2e-mobile-group-info-web.mjs",
       "category": "historical-regression",
       "behaviors": ["phone.group.info"],
-      "reason": "Own task Host and Expo Web export; prepared Group info and controls in browser, no native acceptance.",
+      "reason": "Own task Host and Expo Web export; prepared Group info and controls in browser, no native acceptance. #3666 re-audit: composer discovery uses its stable testID instead of recipient placeholder text; preparation, side effects and assertions remain unchanged.",
       "task": 1967,
-      "sha256": "0256a8e0c1b836cd066cdb61d64b8ce85468a56acca1e75f3be7ff1f736938ba"
+      "sha256": "c5137f7b6c1ebb583013e4edf7f929ac259aa0341dbc28d2996fa6e4a2b49202"
     },
     {
       "path": "scripts/e2e-mobile-pairing-web.mjs",
@@ -1873,9 +1873,9 @@
       "path": "scripts/e2e-mobile-reactions-web.mjs",
       "category": "historical-regression",
       "behaviors": ["phone.timeline"],
-      "reason": "Own task Host and Expo Web export with seeded messages; reactions/long-press details in Web, not native touch proof. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Own task Host and Expo Web export with seeded messages; reactions/long-press details in Web, not native touch proof. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. #3666 re-audit: composer discovery uses its stable testID; preparation, side effects and assertions are unchanged. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "d176c820fe449a263eb7aab55ac63f91039c6fead4ff7515fabcb930bf753102"
+      "sha256": "92b1aeb8eb841a519f01acad613e0dc1d055b793ac7931b0dc3cd7243cb3329c"
     },
     {
       "path": "scripts/e2e-mobile-routines-web.mjs",
@@ -1929,9 +1929,9 @@
       "path": "scripts/e2e-mobile-working-web.mjs",
       "category": "historical-regression",
       "behaviors": ["phone.timeline"],
-      "reason": "Own task Host and Expo Web export; prepared working-state presentation in Web, not native lifecycle qualification. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Own task Host and Expo Web export; prepared working-state presentation in Web, not native lifecycle qualification. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. #3666 re-audit: composer discovery and input use its stable testID; preparation, side effects and assertions are unchanged. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "b4f23ed573b575b51d9cf41611d90336e0a29a2976ac8b4128066c5db01a03ff"
+      "sha256": "3b4ac43ad6922aaedd7ca5636370a51c8700cf8f3834e6f3c241007279dc2e39"
     },
     {
       "path": "scripts/e2e-model-usage.mjs",

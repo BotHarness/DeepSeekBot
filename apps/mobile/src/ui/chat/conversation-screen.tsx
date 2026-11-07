@@ -1728,13 +1728,6 @@ function ChatConversation({
                 ) : (
                   <Composer
                     value={draft}
-                    placeholder={
-                      bot !== undefined
-                        ? t.messageBot(bot.displayName)
-                        : channel !== undefined
-                          ? t.messageBot(`#${channel.name}`)
-                          : t.messagePlaceholder
-                    }
                     disabled={
                       conversation === undefined ||
                       host.connection.status !== 'connected' ||

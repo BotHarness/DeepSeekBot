@@ -151,7 +151,6 @@ export type ComposerInput = ComponentRef<typeof TextInput>;
 
 export function Composer({
   value,
-  placeholder,
   disabled,
   files,
   canAttach,
@@ -172,7 +171,6 @@ export function Composer({
   onFocusChange,
 }: {
   value: string;
-  placeholder: string;
   disabled: boolean;
   files: PickedFile[];
   canAttach: boolean;
@@ -302,21 +300,19 @@ export function Composer({
       onBlur={() => onFocusChange?.(false)}
       placeholder={
         held
-          ? Platform.OS === 'android'
+          ? Platform.OS === 'android' || Platform.OS === 'ios'
             ? t.dictationReleaseHint
             : t.dictationHoldHint
           : dictation === 'starting'
             ? t.dictationStarting
             : listening
               ? t.dictationListening
-              : Platform.OS === 'android' && canDictate && !disabled
-                ? t.composerInputHint
-                : placeholder
+              : ''
       }
       placeholderTextColor={theme.color.subtle}
-      accessibilityLabel={placeholder}
+      accessibilityLabel={t.messagePlaceholder}
       accessibilityHint={
-        Platform.OS === 'android' && canDictate && !disabled ? t.composerInputHint : undefined
+        integratedLeading && canDictate && !disabled ? t.composerInputHint : undefined
       }
       multiline
       editable={!listening}
@@ -325,7 +321,12 @@ export function Composer({
         flex: 1,
         ...(expanded
           ? {
-              minHeight: composerFieldHeight(contentHeight, textLine, fieldPadding, fieldLimit),
+              minHeight: composerFieldHeight(
+                value === '' ? 0 : contentHeight,
+                textLine,
+                fieldPadding,
+                fieldLimit,
+              ),
               maxHeight: composerFieldHeight(Infinity, textLine, fieldPadding, fieldLimit),
             }
           : { height: textLine + fieldPadding * 2 }),
@@ -392,7 +393,6 @@ export function Composer({
       {editing ? (
         <DraftEditor
           value={value}
-          placeholder={placeholder}
           canSend={canSend}
           showSend={actions.includes('send')}
           above={above}

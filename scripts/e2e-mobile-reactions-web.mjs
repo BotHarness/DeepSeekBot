@@ -294,7 +294,7 @@ async function main() {
     steps.push('the Bot posted in its DM through its own bot_send_message, without a model turn');
 
     await page.locator(`::-p-text(${displayName})`).click();
-    await page.waitForSelector(`[placeholder="Message ${displayName}"]`, { timeout: 30_000 });
+    await page.waitForSelector('[data-testid="composer-input"]', { timeout: 30_000 });
     await text('All 214 tests passed.');
 
     await longPress('The staging deploy finished. All 214 tests passed.');
@@ -423,7 +423,7 @@ async function main() {
     );
     await close();
 
-    const composer = await page.waitForSelector(`[placeholder="Message ${displayName}"]`);
+    const composer = await page.waitForSelector('[data-testid="composer-input"]');
     await composer.type('Great, ship it to production after lunch.');
     await page.locator('::-p-aria(Send)').click();
     await text('Great, ship it to production after lunch.');

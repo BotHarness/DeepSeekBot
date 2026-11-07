@@ -25,7 +25,7 @@ export function DraftEditor({
   onSelection,
 }: {
   value: string;
-  placeholder: string;
+  placeholder?: string;
   canSend: boolean;
   showSend?: boolean;
   onChange(value: string): void;
