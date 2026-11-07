@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { Keyboard, Platform } from 'react-native';
 
 import type { AccountOwner } from '../../host/account-owner';
+import { accountHostLookId } from '../../host/account-host-look';
 import { hostSession } from '../../host/host-session';
 import { nativeCarrier } from '../../host/native-carrier';
 import { connectAccount } from '../../host/native-connect-account';
@@ -68,7 +69,9 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
     setError(undefined);
     setErrorDetail(undefined);
     lastDetail.current = undefined;
-    let accountPair: { accountOwner: AccountOwner; sessionKey: string } | undefined;
+    let accountPair:
+      | { accountOwner: AccountOwner; sessionKey: string; routes: string[] }
+      | undefined;
     const startingHosts = hostSession.getState().hosts;
     const result = await pairHost({
       existing: (id) => startingHosts.find((host) => host.hostId === id),
@@ -135,6 +138,9 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
           host.hostId,
           hostSession.getState().hosts.map((saved) => saved.hostId),
           name,
+          accountPair === undefined
+            ? undefined
+            : accountHostLookId(new URL(accountPair.routes[0]!).hostname),
         );
         if (!original) setupHost.current = host.hostId;
       },

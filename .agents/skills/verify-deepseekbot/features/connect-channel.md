@@ -38,6 +38,29 @@ Select A/B and Add2: each must expose its own complete Host fingerprint for inde
 
 After both succeed, both are Added, reopening the page prevents repeated selection, and Settings rename still changes only the phone-local name. Verify sign-out and failed/confirmed account deletion using a disposable QA account only; never delete the Human account for acceptance. Capture default/intermediate/maximum text × light/dark with actual native interactions; Android, physical devices and assistive technology stay separately untested until exercised.
 
+## Mobile account computer identity (#3660)
+
+In the assigned native QA batch, open the Computers environment picker with a saved Wi-Fi or
+Tailscale computer and an unpaired task-owned account computer. Keep the two sections. On Android,
+inspect the Material 3 `ListItem`; on iOS inspect both the drawer row and the environment page's
+grouped form row. A long English or Chinese name occupies one line with a trailing ellipsis; its
+complete accessible name remains available. The second line shows a green Online or red Offline
+dot with matching localized text, not the Pair action. Saved computers also use yellow while
+checking their connection.
+
+Open More → Customize for the account computer, edit its local name and icon, save and reopen the
+picker. The local identity must survive refresh/relaunch; the remote registration name must not
+change. Pair through the existing independent fingerprint/approval ceremony: the same appearance
+must follow the computer into the saved section, without duplicate rows or credential changes.
+An already-customized saved computer wins over an older account-list appearance on re-pair.
+Repeat at default/intermediate/maximum system text in light/dark, with narrow-screen ellipsis,
+reachable More/Save, the actual keyboard, and full screen-reader names. Capture matched before/after
+from the exact source heads; keep Android, iOS and Human acceptance separate.
+
+Source regression controls: `apps/mobile/test/computer-row.test.tsx`,
+`apps/mobile/test/host-look-screen.test.tsx` and `apps/mobile/test/host-look.test.tsx`.
+These controls do not establish native text geometry, presented FPS, or real account-service QA.
+
 ## Connect account recovery (#3567)
 
 This journey needs no model or production account. Build the selected revision and launch a named isolated Host with `verify-app`. For that launch only, set `NODE_OPTIONS=--import=<file-URL-of-scripts/fixtures/connect-account-recovery.mjs>`, `BOTHARNESS_CONNECT_QA_STATE=<absolute-private-JSON-path>` and `DEEPSEEKBOT_CONNECT_RELAY=https://connect-recovery.invalid`. Initialize the JSON with `{"mode":"tunnel-failure"}`. The preload replaces only this reserved relay and the two exact WorkOS device-flow endpoints with synthetic responses; it never creates a real tunnel or returns a runnable connector token. Do not use the fixture with an existing Human Profile.

@@ -12,6 +12,7 @@ vi.mock('@expo/ui/jetpack-compose/modifiers', async () => ({
   ...(await import('./compose-menu-shim')).modifiers,
   combinedClickable: (handlers: { onClick?: () => void; onLongClick?: () => void }) => handlers,
   testID: () => ({}),
+  size: () => ({}),
 }));
 vi.mock('@expo/ui/jetpack-compose', async () => {
   const base = (await import('./compose-menu-shim')).components;
@@ -32,6 +33,17 @@ vi.mock('@expo/ui/jetpack-compose', async () => {
   };
   return {
     ...base,
+    Box: pass,
+    Text: ({
+      children,
+      maxLines,
+      overflow,
+    }: {
+      children: ReactNode;
+      maxLines?: number;
+      overflow?: string;
+    }) =>
+      createElement('span', { 'data-max-lines': maxLines, 'data-overflow': overflow }, children),
     ListItem: Object.assign(ListItem, {
       HeadlineContent: pass,
       SupportingContent: pass,
@@ -54,6 +66,27 @@ function mount(content: ReactNode) {
 }
 
 describe('Android workspace controls', () => {
+  it('ellipsizes both native computer text slots without losing the complete accessible name', () => {
+    const name = '很长的电脑名称 '.repeat(30);
+    const view = mount(
+      <DrawerListItem
+        label={name}
+        detail="Online"
+        detailDot="green"
+        singleLine
+        onPress={() => undefined}
+      />,
+    );
+    expect(view.host.querySelector('[aria-label]')?.getAttribute('aria-label')).toBe(
+      `${name}, Online`,
+    );
+    const slots = view.host.querySelectorAll('[data-overflow="ellipsis"]');
+    expect(slots).toHaveLength(2);
+    expect(Array.from(slots, (slot) => slot.getAttribute('data-max-lines'))).toEqual(['1', '1']);
+    expect(slots[0]?.textContent).toBe(name);
+    view.close();
+  });
+
   it('selects an environment on tap and opens its actions on long press', () => {
     const select = vi.fn();
     const menu = vi.fn();

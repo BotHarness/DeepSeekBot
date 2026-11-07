@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   getState: vi.fn(),
   save: vi.fn(),
   initialize: vi.fn(),
+  savePairing: vi.fn(async (_key: string, save: () => Promise<void>) => save()),
   filter: vi.fn(),
 }));
 vi.mock('expo-router', () => ({
@@ -34,7 +35,9 @@ vi.mock('../src/host/host-session', () => ({
   hostSession: { pair: mocks.save, getState: mocks.getState },
 }));
 vi.mock('../src/host/native-carrier', () => ({ nativeCarrier: () => ({}) }));
-vi.mock('../src/host/native-connect-account', () => ({ connectAccount: { offer: mocks.offer } }));
+vi.mock('../src/host/native-connect-account', () => ({
+  connectAccount: { offer: mocks.offer, savePairing: mocks.savePairing },
+}));
 vi.mock('../src/host/native-host-look', () => ({ hostLooks: { initialize: mocks.initialize } }));
 vi.mock('../src/host/native-conversation-filter', () => ({
   conversationFilter: { set: mocks.filter },
@@ -188,7 +191,7 @@ it.each([false, true])(
     await act(async () => {
       await pairing.pair('new-link', 'paste');
     });
-    expect(mocks.initialize).toHaveBeenCalledWith('new-b', ['new-b'], undefined);
+    expect(mocks.initialize).toHaveBeenCalledWith('new-b', ['new-b'], undefined, undefined);
     if (batch) {
       expect(mocks.filter).not.toHaveBeenCalled();
       act(() => {
@@ -247,6 +250,55 @@ it.each([false, true])(
     history.back();
   },
 );
+
+it('seeds the verified paired identity from the account computer appearance only after saving the pairing', async () => {
+  pairingOptions = { stayOnPage: true };
+  mocks.getState.mockReturnValue({ hosts: [] });
+  view = document.createElement('div');
+  root = createRoot(view);
+  await act(async () => root.render(<Harness />));
+  const saved: SavedHost = {
+    hostId: 'verified-host',
+    hostName: 'Studio',
+    routes: ['https://studio.connect.example'],
+    deviceId: 'phone',
+    credential: 'test',
+  };
+  mocks.offer.mockResolvedValue({
+    ok: true,
+    value: {
+      routes: saved.routes,
+      sessionKey: 'test-session',
+      accountOwner: {
+        issuer: 'https://api.workos.com',
+        relay: 'https://relay.example',
+        clientId: 'client',
+        subject: 'user',
+      },
+    },
+  });
+  mocks.save.mockImplementation(async () =>
+    mocks.getState.mockReturnValue({ hosts: [saved], saved }),
+  );
+  mocks.pairHost.mockImplementation(async (options: Parameters<typeof pairHost>[0]) => {
+    if (typeof options.text === 'function') await options.text();
+    await options.save(saved);
+    return { ok: true };
+  });
+  await act(async () => {
+    await pairing.pair('account:registration', 'account', true, 'registration');
+  });
+  expect(mocks.savePairing).toHaveBeenCalledWith('test-session', expect.any(Function));
+  expect(mocks.initialize).toHaveBeenCalledWith(
+    'verified-host',
+    ['verified-host'],
+    undefined,
+    'connect-host:studio.connect.example',
+  );
+  expect(mocks.save.mock.invocationCallOrder.at(-1)).toBeLessThan(
+    mocks.initialize.mock.invocationCallOrder.at(-1)!,
+  );
+});
 
 it('refuses an alternate registration of an already saved Host before opening a channel', async () => {
   pairingOptions = { stayOnPage: true, preventDuplicates: true };
