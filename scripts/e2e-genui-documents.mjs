@@ -304,7 +304,7 @@ async function qualifyFaults() {
   await setFilter('Alpha');
   await saved((state) => state.filter === 'Alpha');
   await capture('fault-invalid-bridge-retained-state');
-  await trusted('Reload document');
+  await button('Reload document');
   inner = await frame();
   await inner.evaluate((stale) => parent.postMessage({ ...stale, sequence: 999999 }, '*'), stale);
   await setFilter('Beta');
@@ -333,7 +333,7 @@ async function qualifyFaults() {
   );
   assert.equal(await inner.evaluate(() => window.genui.getState().filter), 'Retained draft');
   await capture('fault-failed-save-retained-draft');
-  await trusted('Save my view');
+  await button('Save my view');
   await saved((state) => state.filter === 'Retained draft');
   await waitText('Private view saved');
   await capture('fault-save-retry-recovered');
@@ -348,7 +348,7 @@ async function qualifyFaults() {
     };
   });
   const messagesBefore = (await call('channelMessages', { channelId, limit: 100 })).messages;
-  await trusted('Continue');
+  await button('Continue');
   await waitText('Send not confirmed. Retry reuses the same message.');
   const uncertain = await page.evaluate(() => ({
     fault: window.__genuiFaultQa.fault,
@@ -359,7 +359,7 @@ async function qualifyFaults() {
   assert.ok(uncertainId, 'The Client supplies its stable Human message ID.');
   assert.ok(!messagesBefore.some((message) => message.id === uncertainId));
   await capture('fault-uncertain-response');
-  await trusted('Continue');
+  await button('Continue');
   await waitText('Sent. Waiting for the Bot to reply');
   const retries = await page.evaluate(() =>
     window.__genuiFaultQa.calls

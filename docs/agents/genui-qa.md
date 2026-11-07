@@ -138,4 +138,16 @@ still in the viewport after layout settles, not just before scroll/window update
 
 Keep PNG originals, ARIA observations and the manifest under the task's private evidence directory, with an index in the machine's main checkout. Preserve source SHA plus dirty diff identity, built Host/Client hashes, browser identity, fixtures, canonical references, capture times, viewport and theme. Bind any pre-commit capture to the final source only after verifying production source and bundle identities have not changed.
 
+For a separate natural-GC diagnostic, run the same frozen performance driver and fixture
+with `--trace --heap-observe 30` in at least three interleaved baseline/change pairs.
+The driver retains raw boundary samples in `<label>.heap-observation.json`, including
+browser timestamps when available, then observes an untouched fixed window after the
+original idle endpoint and before typing. It never forces GC or replaces that endpoint
+with a later minimum. The unchanged budget still uses `heapMB` (rounded decimal MB,
+bytes divided by 1,000,000, not MiB). Correlate samples with natural GC events in the
+trace; no observed major GC means the resident-memory question is inconclusive.
+This diagnostic adds observer overhead and changes the subsequent typing phase; it is
+not a replacement for the canonical performance qualification or a passing result for
+an earlier budget failure. Do not combine it with CPU profiling.
+
 Inspect every selected image for secrets, login URLs, private content and misleading clipping. Retain failed attempts separately. Publish only reviewed derivatives through the repository's R2 evidence publisher with the full frozen source commit; never commit screenshots or use a Git evidence branch. Verify public readback, retain upload receipts and put representative images plus a complete scene index in the PR Change outline. Verify GitHub-rendered images after writing the PR. An absence state captured in the candidate is labelled as such, not passed off as an older source build.
