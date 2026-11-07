@@ -44,5 +44,5 @@ export async function openTimelineConversation(page, channelId, dismissOverlays)
     break;
   }
   if (!opened) throw new Error(`Visible conversation row unavailable: ${channelId}`);
-  await page.waitForSelector('.bh-chat-body [data-message-id]');
+  await page.waitForSelector('.bh-chat-body', { visible: true });
 }

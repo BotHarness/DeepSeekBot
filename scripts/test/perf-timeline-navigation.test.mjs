@@ -38,7 +38,13 @@ describe('actual conversation visibility', () => {
   });
 });
 
-function fixture({ active = true, listVisible = true, rail = true, hiddenFirst = false } = {}) {
+function fixture({
+  active = true,
+  listVisible = true,
+  rail = true,
+  hiddenFirst = false,
+  empty = false,
+} = {}) {
   const clicks = [];
   const row = `${rail ? '[data-workspace-dock] ' : ''}button[data-channel-id="group"]`;
   const page = {
@@ -59,6 +65,7 @@ function fixture({ active = true, listVisible = true, rail = true, hiddenFirst =
       throw new Error(`Unexpected selector: ${selector}`);
     }),
     waitForSelector: vi.fn(async (selector) => {
+      if (empty && selector.includes('[data-message-id]')) throw new Error('Conversation is empty');
       if (selector === '.bh-root.bh-main, [data-workspace-dock]') expect(active).toBe(true);
       if (selector === row) expect(listVisible).toBe(true);
     }),
@@ -105,6 +112,10 @@ function fixture({ active = true, listVisible = true, rail = true, hiddenFirst =
 }
 
 describe('timeline performance navigation', () => {
+  it('opens an empty DM before its first publication', async () => {
+    const { page } = fixture({ empty: true });
+    await expect(openTimelineConversation(page, 'group', vi.fn())).resolves.toBeUndefined();
+  });
   it('navigates via the visible row without requiring the hidden conversation shell', async () => {
     const { page, clicks } = fixture();
     const wait = page.waitForSelector;
