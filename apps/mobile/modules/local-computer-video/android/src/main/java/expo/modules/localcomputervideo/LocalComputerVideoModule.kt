@@ -140,7 +140,9 @@ class LocalComputerVideoModule : Module() {
       // Native lifecycle is authoritative even while the JS thread is suspended.
       stopViews("background")
       // Calls are foreground only: leaving the app or locking the phone ends the call.
-      main.post { endCall("background") }
+      // A live camera-permission dialog is the one exception: the user is still in the
+      // call and the dialog returns at once. #3423 removes this temporary bridge.
+      if (!CallCamera.askingPermission) main.post { endCall("background") }
     }
     OnActivityEntersForeground {
       foreground = true

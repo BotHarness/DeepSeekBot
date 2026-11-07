@@ -126,7 +126,7 @@ export function createPhoneCallCamera(options: {
       } catch (error) {
         const code = (error as { code?: unknown } | undefined)?.code;
         throw new PhoneCallCameraFailure(
-          code === 'camera-denied' ? 'camera-denied' : 'camera-missing',
+          code === 'camera-denied' || code === 'camera-cancelled' ? code : 'camera-missing',
         );
       }
       picker = createKeyframePicker(settings);

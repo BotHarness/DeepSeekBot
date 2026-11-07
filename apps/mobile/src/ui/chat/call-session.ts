@@ -8,7 +8,7 @@ import type { MicrophoneAccess } from '../../host/call-media';
 
 export type CallCameraPosition = 'front' | 'back';
 
-export type PhoneCallCameraError = 'camera-denied' | 'camera-missing';
+export type PhoneCallCameraError = 'camera-denied' | 'camera-missing' | 'camera-cancelled';
 
 export type CallCameraState = {
   on: boolean;

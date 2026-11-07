@@ -99,3 +99,31 @@ Finish with a fresh, unmodified production observation. Remove debugger breakpoi
 confirm normal motion/control/release/resume, and collect the canonical Host cleanup and
 receiver evidence. These fault-injection rows do not establish measured FPS, latency,
 physical scanout or Human acceptance.
+
+## Android call camera (#3498) — pending execution
+
+Run this in the assigned Windows/physical-Android batch with a rebuilt Debug APK and the
+isolated QA Host, never by taking the shared phone outside its queue. The JVM test covers the
+pure thumbnail, scaling and NV21 math; it does not prove CameraX capture or preview.
+
+1. Connect a Bot call, tap `call-camera`, grant the camera permission when asked, and confirm
+   the call stays up and the 3:4 self-preview appears. The permission dialog must not end the
+   call as a background event.
+2. Show a printed page or a QR-sized label, wait for the keyframe counter to rise, and ask the
+   Bot what it sees with the latest DeepSeek model. Confirm the Host receives `frame` commands
+   and the DM carries the expected grid.
+3. Tap `call-camera-flip`; confirm the preview switches camera and require a new keyframe from the
+   other side in the Host facts or keyframe counter. A preview-only change is not a pass. Front
+   preview is mirrored; text in the frame sent to the Bot is not.
+4. Use a `.dev` build and open `deepseekbot-dev://call/<bot>?script=<url>` with a timeline that
+   contains `{"at": 0, "video": "<url>"}`, then `{"at": 3000, "camera": "flip"}` and
+   `{"at": 6000, "camera": "off"}`. Require the report's `camera` mark with
+   `position: "back"` and `test: false` after the flip, then a later `keyframe` mark, before the
+   off transition. Earlier `video` or `keyframe` marks do not prove the flip. On an emulator
+   without a rear camera, record the flip row as **blocked**, not passed. Record JPEG byte sizes
+   and preparation times for the keyframes that do arrive.
+5. Background camera pause/resume is blocked on #3423: today Android calls end on background
+   (ADR-0284), so the `share-paused` and `share-resumed` DM records cannot be observed until
+   that slice keeps the call alive. Record the row as **blocked**, not passed, until then.
+6. Capture light and dark call screens with the camera on and off. Crop unrelated conversations
+   from published evidence.

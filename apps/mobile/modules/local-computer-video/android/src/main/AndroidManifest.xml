@@ -2,4 +2,6 @@
   <!-- Bot calls (#3405): the microphone track and the call's audio route. -->
   <uses-permission android:name="android.permission.RECORD_AUDIO" />
   <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+  <!-- Bot call camera (#3498): CameraX capture for keyframes and the self-preview. -->
+  <uses-permission android:name="android.permission.CAMERA" />
 </manifest>
