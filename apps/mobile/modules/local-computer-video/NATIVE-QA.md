@@ -115,8 +115,9 @@ pure thumbnail, scaling and NV21 math; it does not prove CameraX capture or prev
 3. Tap `call-camera-flip`; confirm the preview switches camera and the next keyframe is from the
    other side. Front preview is mirrored; text in the frame sent to the Bot is not.
 4. Use a `.dev` build and open `deepseekbot-dev://call/<bot>?script=<url>` with a timeline that
-   contains `{"at": 0, "video": "<url>"}`, then `{"camera": "flip"}` and `{"camera": "off"}`.
-   Confirm the report's `video` and `keyframe` marks, JPEG byte sizes and preparation times.
+   contains `{"at": 0, "video": "<url>"}`, then `{"at": 3000, "camera": "flip"}` and
+   `{"at": 6000, "camera": "off"}`. Confirm the report's `video` and `keyframe` marks, JPEG byte
+   sizes and preparation times.
 5. Background camera pause/resume is blocked on #3423: today Android calls end on background
    (ADR-0284), so the `share-paused` and `share-resumed` DM records cannot be observed until
    that slice keeps the call alive. Record the row as **blocked**, not passed, until then.

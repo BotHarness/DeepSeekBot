@@ -40,6 +40,7 @@ internal class CallCameraFailure private constructor(val code: String) : Excepti
   companion object {
     val denied = CallCameraFailure("camera-denied")
     val missing = CallCameraFailure("camera-missing")
+    val cancelled = CallCameraFailure("camera-cancelled")
   }
 }
 
@@ -68,6 +69,12 @@ internal object CallCamera {
     override val height: Int get() = bitmap.height
   }
 
+  private class TestVideo(
+    val reader: MediaMetadataRetriever,
+    val first: Bitmap,
+    val durationMs: Long,
+  )
+
   private val main = Handler(Looper.getMainLooper())
   private val analysisExecutor = Executors.newSingleThreadExecutor { job ->
     Thread(job, "CallCameraAnalysis").apply { isDaemon = true }
@@ -90,6 +97,7 @@ internal object CallCamera {
   @Volatile var askingPermission = false
 
   private var generation = 0
+  private var pendingStart: ((Result<Map<String, Any>>) -> Unit)? = null
   @Volatile private var running = false
   @Volatile private var paused = false
   @Volatile private var testing = false
@@ -122,9 +130,11 @@ internal object CallCamera {
     done: (Result<Map<String, Any>>) -> Unit,
   ) {
     postToMain {
+      cancelStart()
       releaseResources()
       generation += 1
       val current = generation
+      pendingStart = done
       this.position = if (position == "back") "back" else "front"
       this.thumbWidth = thumbWidth.coerceIn(16, 256)
       intervalMs = (1000.0 / sampleFps.coerceIn(0.5, 10.0)).toLong().coerceAtLeast(100)
@@ -138,26 +148,30 @@ internal object CallCamera {
       if (testVideo != null) {
         val path = pathOf(testVideo)
         testExecutor.execute {
-          val first = openTestVideo(path)
+          val opened = openTestVideo(path)
           postToMain {
             if (current != generation) {
-              releaseTestVideo()
+              opened?.let { video ->
+                testExecutor.execute { runCatching { video.reader.release() } }
+              }
               return@postToMain
             }
-            if (first == null) {
-              finishFailure(CallCameraFailure.missing, done)
+            if (opened == null) {
+              finishFailure(current, CallCameraFailure.missing)
               return@postToMain
             }
-            latest = BitmapFrame(first)
+            retriever = opened.reader
+            testDurationMs = opened.durationMs
+            latest = BitmapFrame(opened.first)
             testing = true
             runTestTimer(current)
             refreshViews()
-            done(Result.success(mapOf("position" to "test")))
+            settleStart(current, Result.success(mapOf("position" to "test")))
           }
         }
         return@postToMain
       }
-      openCamera(context, current, done)
+      openCamera(context, current)
     }
   }
 
@@ -195,6 +209,7 @@ internal object CallCamera {
 
   fun stop() {
     postToMain {
+      cancelStart()
       generation += 1
       releaseResources()
     }
@@ -202,6 +217,7 @@ internal object CallCamera {
 
   fun dispose() {
     postToMain {
+      cancelStart()
       generation += 1
       askingPermission = false
       releaseResources()
@@ -228,21 +244,20 @@ internal object CallCamera {
   private fun openCamera(
     context: Context,
     current: Int,
-    done: (Result<Map<String, Any>>) -> Unit,
   ) {
     val future = ProcessCameraProvider.getInstance(context)
     future.addListener({
       if (current != generation || !running) return@addListener
       val provider = runCatching { future.get() }.getOrNull()
       if (provider == null) {
-        finishFailure(CallCameraFailure.missing, done)
+        finishFailure(current, CallCameraFailure.missing)
         return@addListener
       }
       val selector =
         if (position == "back") CameraSelector.DEFAULT_BACK_CAMERA
         else CameraSelector.DEFAULT_FRONT_CAMERA
       if (!runCatching { provider.hasCamera(selector) }.getOrDefault(false)) {
-        finishFailure(CallCameraFailure.missing, done)
+        finishFailure(current, CallCameraFailure.missing)
         return@addListener
       }
       val owner = CameraLifecycleOwner()
@@ -269,7 +284,7 @@ internal object CallCamera {
       } catch (_: Exception) {
         analysis.clearAnalyzer()
         owner.destroy()
-        finishFailure(CallCameraFailure.missing, done)
+        finishFailure(current, CallCameraFailure.missing)
         return@addListener
       }
       this.provider = provider
@@ -277,7 +292,7 @@ internal object CallCamera {
       this.preview = preview
       lifecycleOwner = owner
       refreshViews()
-      done(Result.success(mapOf("position" to this.position)))
+      settleStart(current, Result.success(mapOf("position" to this.position)))
     }, ContextCompat.getMainExecutor(context))
   }
 
@@ -405,13 +420,13 @@ internal object CallCamera {
       "prepareMs" to (SystemClock.elapsedRealtime() - began).toInt(),
     )
 
-  private fun openTestVideo(path: String): Bitmap? {
+  private fun openTestVideo(path: String): TestVideo? {
     val file = File(path)
     if (!file.isFile) return null
     val reader = MediaMetadataRetriever()
     return try {
       reader.setDataSource(file.absolutePath)
-      testDurationMs =
+      val duration =
         reader.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
           ?.toLongOrNull()
           ?.coerceAtLeast(1) ?: 1L
@@ -420,8 +435,7 @@ internal object CallCamera {
         reader.release()
         null
       } else {
-        retriever = reader
-        first
+        TestVideo(reader, first, duration)
       }
     } catch (_: Exception) {
       runCatching { reader.release() }
@@ -491,12 +505,23 @@ internal object CallCamera {
     }
   }
 
-  private fun finishFailure(
-    failure: CallCameraFailure,
-    done: (Result<Map<String, Any>>) -> Unit,
-  ) {
+  private fun finishFailure(current: Int, failure: CallCameraFailure) {
+    if (current != generation) return
+    settleStart(current, Result.failure(failure))
     releaseResources()
-    done(Result.failure(failure))
+  }
+
+  private fun settleStart(current: Int, result: Result<Map<String, Any>>) {
+    if (current != generation) return
+    val done = pendingStart ?: return
+    pendingStart = null
+    done(result)
+  }
+
+  private fun cancelStart() {
+    val done = pendingStart ?: return
+    pendingStart = null
+    done(Result.failure(CallCameraFailure.cancelled))
   }
 
   private fun releaseResources() {

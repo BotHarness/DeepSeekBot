@@ -26,6 +26,10 @@ class CallCameraView(context: Context, appContext: AppContext) : ExpoView(contex
   init {
     addView(live, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     addView(still, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+  }
+
+  override fun onAttachedToWindow() {
+    super.onAttachedToWindow()
     CallCamera.attach(this)
   }
 

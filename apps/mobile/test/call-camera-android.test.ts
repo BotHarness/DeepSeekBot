@@ -39,6 +39,14 @@ describe('Android call camera (#3498)', () => {
     expect(read('android/build.gradle')).toContain('camera-view');
   });
 
+  it('re-registers the self-preview when the view re-attaches', () => {
+    const view = read('android/src/main/java/expo/modules/localcomputervideo/CallCameraView.kt');
+    expect(view).toContain('override fun onAttachedToWindow()');
+    expect(view).toContain('CallCamera.attach(this)');
+    expect(view).toContain('override fun onDetachedFromWindow()');
+    expect(view).toContain('CallCamera.detach(this)');
+  });
+
   it('keeps the call alive while the camera permission dialog pauses the activity', () => {
     const host = read(
       'android/src/main/java/expo/modules/localcomputervideo/LocalComputerVideoModule.kt',

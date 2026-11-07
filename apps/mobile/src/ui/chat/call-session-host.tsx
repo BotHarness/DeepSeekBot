@@ -189,10 +189,10 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
         await camera.start(position, testVideo);
       } catch (error) {
         camera.stop();
-        setCamera({
-          ...CALL_CAMERA_OFF,
-          error: error instanceof PhoneCallCameraFailure ? error.code : 'camera-missing',
-        });
+        const code = error instanceof PhoneCallCameraFailure ? error.code : 'camera-missing';
+        setCamera(CALL_CAMERA_OFF);
+        if (code === 'camera-cancelled') return;
+        setCamera({ ...CALL_CAMERA_OFF, error: code });
         await call.visual('off');
         return;
       }

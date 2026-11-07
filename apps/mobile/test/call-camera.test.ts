@@ -12,6 +12,8 @@ const native = vi.hoisted(() => {
         native.started.push(args);
         if (args[0] === 'back' && args[1] === 'deny')
           throw Object.assign(new Error('no'), { code: 'camera-denied' });
+        if (args[1] === 'cancel')
+          throw Object.assign(new Error('cancelled'), { code: 'camera-cancelled' });
         return { position: args[0] };
       },
       async callCameraKeyframe(maxBytes: number) {
@@ -84,4 +86,11 @@ it('names a refused camera and plays a test video in place of the camera', async
   );
   await camera.start('front', 'file:///cache/story.mp4');
   expect(native.started.at(-1)?.[1]).toBe('file:///cache/story.mp4');
+});
+
+it('keeps a cancelled start distinct so the call can ignore it', async () => {
+  const camera = createPhoneCallCamera({ onKeyframe: () => undefined, onPause: () => undefined })!;
+  await expect(camera.start('front', 'cancel')).rejects.toEqual(
+    new PhoneCallCameraFailure('camera-cancelled'),
+  );
 });
