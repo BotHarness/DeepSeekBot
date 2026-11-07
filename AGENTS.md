@@ -115,6 +115,7 @@ For a feature that crosses layers, deliver a sequence of **tracer bullets**: the
 - Seek Human feedback after the first working slice before broadening sibling views, providers, variants, policies, or edge cases.
 - Order issues and sub-issues by runnable vertical slices. Open research or grilling only when an unresolved decision blocks the next slice; defer speculative branches that would only create more unvalidated tickets.
 - A slice is complete when one coherent behavior works end-to-end through production seams and its regression is observable automatically. Then start the next slice with a fresh, narrow scope.
+- Never work in the main checkout: one task, one worktree and branch, following [worktree discipline](docs/agents/worktree-discipline.md).
 
 ## Agent skills
 
