@@ -2086,8 +2086,15 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         const cell = command['cell'];
         if (typeof messageId !== 'string' || messageId.length === 0 || messageId.length > 150)
           throw new CallRefusal('invalid-input', 'messageId must name the message with the grid.');
-        if (!Number.isSafeInteger(cell) || (cell as number) < 0 || (cell as number) > 16)
-          throw new CallRefusal('cell-invalid', 'cell must be a grid cell number from 1 to 16.');
+        if (
+          !Number.isSafeInteger(cell) ||
+          (cell as number) < 0 ||
+          (cell as number) > MAX_GRID_FRAMES
+        )
+          throw new CallRefusal(
+            'cell-invalid',
+            `cell must be a grid cell number from 1 to ${MAX_GRID_FRAMES}.`,
+          );
         const result = zoom({ messageId, cell: cell as number });
         return {
           ok: true,

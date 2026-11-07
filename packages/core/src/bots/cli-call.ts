@@ -4,6 +4,7 @@ import { isAbsolute } from 'node:path';
 import { CliLiveError } from './cli-live-error.js';
 import type { VoiceCallEvent, VoiceCallView } from '../voice/call-contract.js';
 import { readWavAs16kMono } from '../voice/wav.js';
+import { MAX_GRID_FRAMES } from '../voice/keyframes.js';
 import { CallVideoError, videoKeyframes, type VideoKeyframes } from '../voice/call-video.js';
 
 export type CallPost = (body: Record<string, unknown>) => Promise<Record<string, unknown>>;
@@ -50,7 +51,7 @@ export const CALL_COMMANDS = [
   {
     command: 'call-frame',
     description:
-      'show one cell of a call grid at its original resolution: call-frame <message-id> <cell> [--out /abs.jpg]; released once the call ends or newer keyframes replace it',
+      'show one cell of a call grid at its original resolution: call-frame <message-id> <cell> [--out /abs.jpg], cells numbered 1 to 9 row by row from the top left; released once the call ends or newer keyframes replace it',
   },
   {
     command: 'call-simulate',
@@ -553,9 +554,9 @@ export async function runCallCommand(
     if (rest.length !== 2 || !rest[0]!.trim())
       usage('call-frame needs a message id and a cell number.');
     const cell = Number(rest[1]);
-    if (!Number.isSafeInteger(cell) || cell < 0 || cell > 16)
+    if (!Number.isSafeInteger(cell) || cell < 0 || cell > MAX_GRID_FRAMES)
       usage(
-        'The cell is the tile number printed on the grid, 1 to 16, or 0 for a whole unsaved grid.',
+        `The cell is the tile number printed on the grid, 1 to ${MAX_GRID_FRAMES} row by row from the top left, or 0 for a whole unsaved grid.`,
       );
     if (values.out !== undefined && !isAbsolute(values.out))
       usage('--out must be an absolute path.');

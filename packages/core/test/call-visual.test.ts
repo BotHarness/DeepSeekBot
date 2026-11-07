@@ -9,13 +9,14 @@ import {
 } from '../src/channels/voice-call-record.js';
 import { callVisualNote } from '../src/runtime/bot-runtime.js';
 import type { VoiceCallEvent, VoiceCallView } from '../src/voice/call-contract.js';
-import { createCallImaging, drawLabel, frameLabel } from '../src/voice/call-frames.js';
+import { createCallImaging, drawLabel, frameLabel, gridCells } from '../src/voice/call-frames.js';
 import { createVoiceCalls, type VoiceCallsDeps } from '../src/voice/calls.js';
 import {
   KEYFRAME_DEFAULTS,
   createKeyframePicker,
   frameDifference,
   gridLayout,
+  MAX_GRID_FRAMES,
   pickGridFrames,
 } from '../src/voice/keyframes.js';
 import { concat, silence, speech } from './voice-audio-fixtures.js';
@@ -100,16 +101,24 @@ describe('keyframe picker', () => {
 });
 
 describe('grid layout', () => {
-  it('tiles 1, 2–4, 5–9 and 10–16 frames', () => {
-    expect([1, 2, 4, 5, 9, 10, 16].map((count) => gridLayout(count).layout)).toEqual([
-      '1x1',
-      '2x2',
-      '2x2',
-      '3x3',
-      '3x3',
-      '4x4',
-      '4x4',
+  it('balances 1 to 9 frames into rows of at most three, the longer rows first', () => {
+    expect(
+      [1, 2, 3, 4, 5, 6, 7, 8, 9].map((count) => {
+        const { layout, rows } = gridLayout(count);
+        return { layout, rows };
+      }),
+    ).toEqual([
+      { layout: '1', rows: [1] },
+      { layout: '2', rows: [2] },
+      { layout: '3', rows: [3] },
+      { layout: '2+2', rows: [2, 2] },
+      { layout: '3+2', rows: [3, 2] },
+      { layout: '3+3', rows: [3, 3] },
+      { layout: '3+2+2', rows: [3, 2, 2] },
+      { layout: '3+3+2', rows: [3, 3, 2] },
+      { layout: '3+3+3', rows: [3, 3, 3] },
     ]);
+    expect(MAX_GRID_FRAMES).toBe(9);
   });
 
   it('keeps the first frame and the biggest changes, in time order', () => {
@@ -118,7 +127,7 @@ describe('grid layout', () => {
       score: index === 0 ? 1 : (index * 7) % 20,
     }));
     const kept = pickGridFrames(frames);
-    expect(kept).toHaveLength(16);
+    expect(kept).toHaveLength(9);
     expect(kept[0]!.index).toBe(0);
     expect(kept.map((frame) => frame.index)).toEqual(
       [...kept.map((frame) => frame.index)].sort((a, b) => a - b),
@@ -127,40 +136,87 @@ describe('grid layout', () => {
     const lowest = Math.min(...kept.slice(1).map((frame) => frame.score));
     expect(dropped.every((frame) => frame.score <= lowest)).toBe(true);
   });
+
+  it('numbers cells row by row and centres a shorter row', () => {
+    expect(gridCells([3, 2], 512, 288)).toEqual([
+      { left: 0, top: 0 },
+      { left: 512, top: 0 },
+      { left: 1024, top: 0 },
+      { left: 256, top: 288 },
+      { left: 768, top: 288 },
+    ]);
+  });
 });
 
+const PALETTE = [
+  { r: 255, g: 0, b: 0 },
+  { r: 0, g: 255, b: 0 },
+  { r: 0, g: 0, b: 255 },
+  { r: 255, g: 255, b: 0 },
+  { r: 0, g: 255, b: 255 },
+  { r: 255, g: 0, b: 255 },
+  { r: 255, g: 128, b: 0 },
+  { r: 128, g: 0, b: 255 },
+  { r: 255, g: 255, b: 255 },
+];
+
 describe('grid imaging', () => {
-  it('tiles keyframes into one labelled image no larger than 1536 pixels', async () => {
+  it.each([2, 3, 4, 5, 6, 7, 8, 9])(
+    'tiles %i keyframes in balanced rows with no empty cell',
+    async (count) => {
+      const imaging = createCallImaging();
+      const prepared = await Promise.all(
+        PALETTE.slice(0, count).map(async (color) =>
+          imaging.prepare(new Uint8Array(await jpeg(color, 1920, 1080))),
+        ),
+      );
+      expect(prepared[0]).toMatchObject({ width: 1920, height: 1080, tileWidth: 768 });
+      const grid = await imaging.compose(
+        prepared,
+        prepared.map((_, index) => frameLabel(index, 10 - index)),
+      );
+      const { layout, rows } = gridLayout(count);
+      expect(grid.layout).toBe(layout);
+      const tileWidth = count === 2 ? 768 : 512;
+      const tileHeight = Math.floor(tileWidth / (1920 / 1080));
+      expect(grid).toMatchObject({
+        width: tileWidth * Math.max(...rows),
+        height: tileHeight * rows.length,
+      });
+      expect(Math.max(grid.width, grid.height)).toBeLessThanOrEqual(1536);
+      const { data, info } = await sharp(grid.jpeg).raw().toBuffer({ resolveWithObject: true });
+      const pixel = (x: number, y: number) => {
+        const offset = (Math.floor(y) * info.width + Math.floor(x)) * 3;
+        return [...data.subarray(offset, offset + 3)];
+      };
+      const widest = Math.max(...rows);
+      let cell = 0;
+      rows.forEach((size, row) => {
+        const offset = ((widest - size) * tileWidth) / 2;
+        for (let col = 0; col < size; col += 1) {
+          const color = PALETTE[cell]!;
+          const [r, g, b] = pixel(offset + (col + 0.5) * tileWidth, (row + 0.6) * tileHeight);
+          expect([r! > 128, g! > 128, b! > 128]).toEqual([
+            color.r > 128,
+            color.g > 128,
+            color.b > 128,
+          ]);
+          cell += 1;
+        }
+      });
+      expect(Math.max(...pixel(2, 2))).toBeLessThan(40);
+    },
+  );
+
+  it('refuses more than nine frames in one grid', async () => {
     const imaging = createCallImaging();
-    const colors = [
-      { r: 255, g: 0, b: 0 },
-      { r: 0, g: 255, b: 0 },
-      { r: 0, g: 0, b: 255 },
-      { r: 255, g: 255, b: 0 },
-      { r: 0, g: 255, b: 255 },
-    ];
-    const prepared = await Promise.all(
-      colors.map(async (color) => imaging.prepare(new Uint8Array(await jpeg(color, 1920, 1080)))),
-    );
-    expect(prepared[0]).toMatchObject({ width: 1920, height: 1080, tileWidth: 768 });
-    const grid = await imaging.compose(
-      prepared,
-      prepared.map((_, index) => frameLabel(index, 10 - index * 2)),
-    );
-    expect(grid.layout).toBe('3x3');
-    expect(Math.max(grid.width, grid.height)).toBeLessThanOrEqual(1536);
-    const { data, info } = await sharp(grid.jpeg).raw().toBuffer({ resolveWithObject: true });
-    const pixel = (x: number, y: number) => {
-      const offset = (Math.floor(y) * info.width + Math.floor(x)) * 3;
-      return [...data.subarray(offset, offset + 3)];
-    };
-    const tile = { w: info.width / 3, h: info.height / 2 };
-    expect(tile.h).toBeCloseTo(tile.w * (1080 / 1920), -1);
-    expect(pixel(tile.w * 0.5, tile.h * 0.6)[0]).toBeGreaterThan(200);
-    expect(pixel(tile.w * 1.5, tile.h * 0.6)[1]).toBeGreaterThan(200);
-    expect(pixel(tile.w * 2.5, tile.h * 0.6)[2]).toBeGreaterThan(200);
-    expect(Math.max(...pixel(tile.w * 2.5, tile.h * 1.6))).toBeLessThan(30);
-    expect(Math.max(...pixel(2, 2))).toBeLessThan(40);
+    const frame = await imaging.prepare(new Uint8Array(await jpeg({ r: 9, g: 9, b: 9 })));
+    await expect(
+      imaging.compose(
+        Array.from({ length: 10 }, () => frame),
+        [],
+      ),
+    ).rejects.toThrow(/at most 9/u);
   });
 
   it('sends a single keyframe as one sharp image', async () => {
@@ -169,7 +225,7 @@ describe('grid imaging', () => {
       new Uint8Array(await jpeg({ r: 9, g: 9, b: 9 }, 3000, 2000)),
     );
     const grid = await imaging.compose([frame], ['1 · -0s']);
-    expect(grid).toMatchObject({ layout: '1x1', width: 1536, height: 1024 });
+    expect(grid).toMatchObject({ layout: '1', width: 1536, height: 1024 });
   });
 
   it('refuses something that is not a JPEG', async () => {
@@ -292,8 +348,8 @@ describe('Host call owner with a shared camera or screen', () => {
     expect(first.body).toBe('这是什么');
     expect(first.visual).toMatchObject({ source: 'camera', frames: 3 });
     const image = (first.visual as { image: { layout: string; jpeg: Uint8Array } }).image;
-    expect(image.layout).toBe('2x2');
-    expect((await sharp(image.jpeg).metadata()).width).toBe(1536);
+    expect(image.layout).toBe('3');
+    expect(await sharp(image.jpeg).metadata()).toMatchObject({ width: 1536, height: 288 });
 
     await h.say(call.callId);
     expect(h.sent[1]!.visual).toEqual({ source: 'camera', sameAs: first.messageId });
@@ -311,12 +367,12 @@ describe('Host call owner with a shared camera or screen', () => {
     const received = events.find((event) => event.type === 'frame-received');
     expect(received).toMatchObject({ source: 'camera', width: 640, height: 360, skipped: 3 });
     const built = events.find((event) => event.type === 'grid-built');
-    expect(built).toMatchObject({ frames: 3, dropped: 0, layout: '2x2' });
+    expect(built).toMatchObject({ frames: 3, dropped: 0, layout: '3' });
     const gridSent = events.find((event) => event.type === 'grid-sent');
     expect(gridSent).toMatchObject({
       grid: (built as { grid: number }).grid,
       messageId: first.messageId,
-      layout: '2x2',
+      layout: '3',
     });
   });
 
@@ -367,30 +423,30 @@ describe('Host call owner with a shared camera or screen', () => {
   });
 
   it('keeps only the newest 64 grid cells', async () => {
-    const h = host(Array.from({ length: 5 }, (_, index) => `第${index}句`));
+    const h = host(Array.from({ length: 8 }, (_, index) => `第${index}句`));
     const call = await h.ok({ kind: 'open', slug: 'mira', media: 'synthetic' });
     await h.ok({ kind: 'visual', callId: call.callId, source: 'camera', save: false });
     const frame = (await jpeg({ r: 10, g: 20, b: 30 }, 160, 90)).toString('base64');
-    for (let sentence = 0; sentence < 5; sentence += 1) {
-      for (let index = 0; index < 16; index += 1)
+    for (let sentence = 0; sentence < 8; sentence += 1) {
+      for (let index = 0; index < 9; index += 1)
         await h.ok({ kind: 'frame', callId: call.callId, source: 'camera', jpeg: frame });
       await h.say(call.callId);
     }
-    expect(h.sent).toHaveLength(5);
+    expect(h.sent).toHaveLength(8);
     expect(h.calls.zoom({ slug: 'mira', messageId: h.sent[0]!.messageId, cell: 1 }).released).toBe(
       true,
     );
     for (const message of h.sent.slice(1))
-      expect(h.calls.zoom({ slug: 'mira', messageId: message.messageId, cell: 16 }).released).toBe(
+      expect(h.calls.zoom({ slug: 'mira', messageId: message.messageId, cell: 9 }).released).toBe(
         false,
       );
   });
 
-  it('saves 16 silent keyframes as a frame record and lists it on the next sentence', async () => {
+  it('saves 9 silent keyframes as a frame record and lists it on the next sentence', async () => {
     const h = host();
     const call = await h.ok({ kind: 'open', slug: 'mira', media: 'synthetic' });
     await h.ok({ kind: 'visual', callId: call.callId, source: 'camera' });
-    for (let index = 0; index < 20; index += 1) {
+    for (let index = 0; index < 11; index += 1) {
       h.advance(1_000);
       await h.ok({
         kind: 'frame',
@@ -402,20 +458,20 @@ describe('Host call owner with a shared camera or screen', () => {
     for (let index = 0; index < 20; index += 1)
       await new Promise((resolve) => setTimeout(resolve, 5));
     expect(h.records).toHaveLength(1);
-    expect(h.records[0]).toMatchObject({ source: 'camera', frames: 16, image: { layout: '4x4' } });
-    expect(h.records[0]!.toMs - h.records[0]!.fromMs).toBe(15_000);
+    expect(h.records[0]).toMatchObject({ source: 'camera', frames: 9, image: { layout: '3+3+3' } });
+    expect(h.records[0]!.toMs - h.records[0]!.fromMs).toBe(8_000);
     expect(h.sent).toHaveLength(0);
-    expect(h.calls.zoom({ slug: 'mira', messageId: 'record-1', cell: 16 }).released).toBe(false);
+    expect(h.calls.zoom({ slug: 'mira', messageId: 'record-1', cell: 9 }).released).toBe(false);
 
     await h.say(call.callId);
-    expect(h.sent[0]!.visual).toMatchObject({ source: 'camera', frames: 4, records: ['record-1'] });
+    expect(h.sent[0]!.visual).toMatchObject({ source: 'camera', frames: 2, records: ['record-1'] });
     await h.say(call.callId);
     expect(h.sent[1]!.visual).toEqual({ source: 'camera', sameAs: h.sent[0]!.messageId });
     const events = (await h.ok({ kind: 'heartbeat', callId: call.callId })).events;
     expect(events.find((event) => event.type === 'frame-record')).toMatchObject({
       messageId: 'record-1',
-      frames: 16,
-      layout: '4x4',
+      frames: 9,
+      layout: '3+3+3',
     });
   });
 
@@ -424,7 +480,7 @@ describe('Host call owner with a shared camera or screen', () => {
     const call = await h.ok({ kind: 'open', slug: 'mira', media: 'synthetic' });
     await h.ok({ kind: 'visual', callId: call.callId, source: 'screen' });
     const frame = (await jpeg({ r: 0, g: 90, b: 0 }, 160, 90)).toString('base64');
-    for (let index = 0; index < 16; index += 1)
+    for (let index = 0; index < 9; index += 1)
       await h.ok({ kind: 'frame', callId: call.callId, source: 'screen', jpeg: frame });
     for (let index = 0; index < 20; index += 1)
       await new Promise((resolve) => setTimeout(resolve, 5));
@@ -448,9 +504,9 @@ describe('Host call owner with a shared camera or screen', () => {
     expect(h.records).toHaveLength(0);
     await h.say(call.callId);
     const visual = h.sent[0]!.visual as { saved: boolean; frames: number };
-    expect(visual).toMatchObject({ source: 'screen', saved: false, frames: 16 });
+    expect(visual).toMatchObject({ source: 'screen', saved: false, frames: 9 });
     const whole = h.calls.zoom({ slug: 'mira', messageId: h.sent[0]!.messageId, cell: 0 });
-    expect(whole).toMatchObject({ released: false, cell: 0, cells: 16 });
+    expect(whole).toMatchObject({ released: false, cell: 0, cells: 9 });
     expect((whole as { width: number }).width).toBe(1536);
     expect(
       await h.calls.handle(
@@ -560,7 +616,7 @@ describe('Host call owner with a shared camera or screen', () => {
           body: '你看到什么了',
           voiceCall: {
             callId: 'call-0123456789abcdef',
-            visual: { source: 'screen', frames: 1, layout: '1x1', unseen: true },
+            visual: { source: 'screen', frames: 1, layout: '1', unseen: true },
           },
         },
         'hint',
@@ -662,20 +718,27 @@ describe('Host call owner with a shared camera or screen', () => {
 
 describe('call visuals in Channel messages', () => {
   it('accepts a grid or an unchanged view and refuses anything else', () => {
-    expect(isChannelCallVisual({ source: 'camera', frames: 4, layout: '2x2' })).toBe(true);
+    expect(isChannelCallVisual({ source: 'camera', frames: 4, layout: '2+2' })).toBe(true);
     expect(isChannelCallVisual({ source: 'screen', sameAs: 'human-1' })).toBe(true);
-    expect(isChannelCallVisual({ source: 'camera', frames: 1, layout: '1x1', unseen: true })).toBe(
+    expect(isChannelCallVisual({ source: 'camera', frames: 1, layout: '1', unseen: true })).toBe(
       true,
     );
-    expect(isChannelCallVisual({ source: 'camera', frames: 1, layout: '1x1', unseen: false })).toBe(
+    expect(isChannelCallVisual({ source: 'camera', frames: 1, layout: '1', unseen: false })).toBe(
       false,
     );
+    for (const [frames, layout] of [
+      [1, '1x1'],
+      [4, '2x2'],
+      [9, '3x3'],
+      [16, '4x4'],
+      [5, '2+3'],
+      [5, '3+3'],
+      [10, '3+3+3'],
+    ] as const)
+      expect(isChannelCallVisual({ source: 'camera', frames, layout })).toBe(false);
     expect(isChannelCallVisual({ source: 'camera', unseen: true })).toBe(false);
-    expect(isChannelCallVisual({ source: 'screen', frames: 17, layout: '4x4' })).toBe(false);
-    expect(isChannelCallVisual({ source: 'tv', frames: 1, layout: '1x1' })).toBe(false);
-    expect(isChannelCallVisual({ source: 'camera', frames: 1, layout: '1x1', extra: 1 })).toBe(
-      false,
-    );
+    expect(isChannelCallVisual({ source: 'tv', frames: 1, layout: '1' })).toBe(false);
+    expect(isChannelCallVisual({ source: 'camera', frames: 1, layout: '1', extra: 1 })).toBe(false);
     const message = {
       id: 'human-1',
       at: '2026-11-04T00:00:00.000Z',
@@ -712,12 +775,12 @@ describe('call visuals in Channel messages', () => {
         attachments: [image],
         voiceCall: {
           callId: 'call-0123456789abcdef',
-          visual: { source: 'camera', frames: 6, layout: '3x3' },
+          visual: { source: 'camera', frames: 5, layout: '3+2' },
         },
       },
       'HINT',
     );
-    expect(grid).toContain('a 3x3 grid of 6 keyframes');
+    expect(grid).toContain('a 3+2 grid of 5 keyframes');
     expect(grid).toContain(`attachment_id ${image.fileId}`);
     expect(grid).toContain('channel_id dm-mira');
     expect(grid).toContain('HINT');
@@ -744,7 +807,7 @@ describe('call visuals in Channel messages', () => {
           visual: {
             source: 'screen',
             frames: 4,
-            layout: '2x2',
+            layout: '2+2',
             unsaved: true,
             records: ['voice-call-frames-a', 'voice-call-frames-b'],
           },
@@ -761,12 +824,12 @@ describe('call visuals in Channel messages', () => {
 
   it('accepts frame records and their references on call messages', () => {
     expect(
-      isChannelCallVisual({ source: 'camera', frames: 4, layout: '2x2', records: ['r-1'] }),
+      isChannelCallVisual({ source: 'camera', frames: 4, layout: '2+2', records: ['r-1'] }),
     ).toBe(true);
     expect(isChannelCallVisual({ source: 'camera', sameAs: 'h-1', records: ['r-1'] })).toBe(true);
     expect(isChannelCallVisual({ source: 'camera', sameAs: 'h-1', records: [] })).toBe(false);
     expect(
-      isChannelCallVisual({ source: 'camera', frames: 4, layout: '2x2', unsaved: false }),
+      isChannelCallVisual({ source: 'camera', frames: 4, layout: '2+2', unsaved: false }),
     ).toBe(false);
     const record = {
       callId: 'call-0123456789abcdef',
@@ -774,16 +837,18 @@ describe('call visuals in Channel messages', () => {
       state: 'frames',
       startedAt: '2026-11-04T00:00:00.000Z',
       source: 'screen',
-      frames: 16,
-      layout: '4x4',
+      frames: 9,
+      layout: '3+3+3',
       fromMs: 12_000,
       toMs: 40_000,
     };
     expect(isChannelVoiceCallRecord(record)).toBe(true);
     expect(isChannelVoiceCallRecord({ ...record, toMs: 1_000 })).toBe(false);
-    expect(isChannelVoiceCallRecord({ ...record, frames: 17 })).toBe(false);
+    expect(isChannelVoiceCallRecord({ ...record, frames: 10 })).toBe(false);
+    expect(isChannelVoiceCallRecord({ ...record, frames: 16, layout: '4x4' })).toBe(false);
+    expect(isChannelVoiceCallRecord({ ...record, frames: 8 })).toBe(false);
     expect(voiceCallRecordBody(record as ChannelVoiceCallRecord)).toBe(
-      'Screen record of call call-0123456789abcdef from 0:12 to 0:40 while the Human was silent: a 4x4 grid of 16 keyframes, oldest first.',
+      'Screen record of call call-0123456789abcdef from 0:12 to 0:40 while the Human was silent: a 3+3+3 grid of 9 keyframes, oldest first.',
     );
   });
 });

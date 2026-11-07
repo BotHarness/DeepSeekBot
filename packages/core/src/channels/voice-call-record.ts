@@ -1,3 +1,5 @@
+import { isCallGridLayout, type CallGridLayout } from '../voice/keyframes.js';
+
 export type ChannelVoiceCallEndReason =
   | 'hangup'
   | 'connection-lost'
@@ -40,7 +42,7 @@ export type ChannelVoiceCallRecord =
       startedAt: string;
       source: 'camera' | 'screen';
       frames: number;
-      layout: '1x1' | '2x2' | '3x3' | '4x4';
+      layout: CallGridLayout;
       fromMs: number;
       toMs: number;
     }
@@ -88,10 +90,7 @@ export function isChannelVoiceCallRecord(value: unknown): value is ChannelVoiceC
     return (
       Object.keys(record).length === 9 &&
       (record['source'] === 'camera' || record['source'] === 'screen') &&
-      count(record['frames']) &&
-      (record['frames'] as number) >= 1 &&
-      (record['frames'] as number) <= 16 &&
-      ['1x1', '2x2', '3x3', '4x4'].includes(record['layout'] as string) &&
+      isCallGridLayout(record['frames'], record['layout']) &&
       count(record['fromMs']) &&
       count(record['toMs']) &&
       (record['toMs'] as number) >= (record['fromMs'] as number)
