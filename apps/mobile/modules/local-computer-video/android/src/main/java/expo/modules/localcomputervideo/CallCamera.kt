@@ -114,8 +114,8 @@ internal object CallCamera {
   private var preview: Preview? = null
   private var lifecycleOwner: CameraLifecycleOwner? = null
   private var testTimer: ScheduledFuture<*>? = null
-  private var retriever: MediaMetadataRetriever? = null
-  private var testDurationMs = 0L
+  @Volatile private var retriever: MediaMetadataRetriever? = null
+  @Volatile private var testDurationMs = 0L
 
   fun hasPermission(context: Context): Boolean =
     ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
