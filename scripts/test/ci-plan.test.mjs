@@ -204,6 +204,9 @@ describe('CI test plan', () => {
     );
     expect(timelinePerf('affected', [{ path: 'scripts/perf-budgets/timeline.json' }])).toBe(true);
     expect(timelinePerf('affected', [{ path: 'scripts/perf-idle-timeline.mjs' }])).toBe(true);
+    expect(timelinePerf('affected', [{ path: 'scripts/foreground-timeline-scroll.mjs' }])).toBe(
+      true,
+    );
     expect(timelinePerf('full', [])).toBe(true);
     expect(timelinePerf('affected', [{ path: 'packages/core/src/index.ts' }])).toBe(false);
     expect(timelinePerf('affected', [{ path: 'packages/client/test/a.test.ts' }])).toBe(false);

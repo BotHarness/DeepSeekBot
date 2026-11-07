@@ -505,7 +505,7 @@ export function androidNativeTests(tests, changes) {
 }
 
 const TIMELINE_PERF_INPUT =
-  /^packages\/client\/src\/|^scripts\/perf-|^scripts\/perf-budgets\/|^\.github\/workflows\/verify\.yml$/;
+  /^packages\/client\/src\/|^scripts\/perf-|^scripts\/perf-budgets\/|^scripts\/foreground-timeline-scroll\.mjs$|^\.github\/workflows\/verify\.yml$/;
 export function timelinePerf(tests, changes) {
   return (
     tests === 'full' ||
