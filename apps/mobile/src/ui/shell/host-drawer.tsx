@@ -737,6 +737,7 @@ function AccountHostRow({ host, onPress }: { host: ConnectHost; onPress(): void 
       <DrawerListItem
         label={host.name}
         detail={status}
+        singleLine={!theme.largeText}
         testID={'workspace-account-' + host.id}
         accessibilityLabel={[t.pairAccount.pairWith(host.name), status].join(', ')}
         leading={<ComputerIcon color={theme.color.muted} size={theme.type.title.line + space.x3} />}
