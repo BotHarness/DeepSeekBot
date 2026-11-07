@@ -1,8 +1,8 @@
-# GenUI T1 verification matrix
+# GenUI verification matrix
 
 ## HTML document candidate
 
-The current #3685 direction is version-2 isolated HTML, not expansion of the version-1 catalog below. Run the production-shaped HTML journey against a task-owned Host:
+The version-2 isolated HTML implementation shipped in PR #3699. Current-main Web qualification is tracked in #3703, independent execution/resource containment in #3704, and installed mobile in #3705; the cross-platform parent #3684 remains open. Closing implementation tickets #3685/#3691 did not turn their outstanding acceptance checkboxes into passes. Run the production-shaped HTML journey against a task-owned Host:
 
 ```bash
 BH_E2E_INSTANCE=.humanlayer/verify/<name>/instance.json \
@@ -10,6 +10,18 @@ BH_E2E_INSTANCE=.humanlayer/verify/<name>/instance.json \
 ```
 
 It creates a synthetic Bot, invokes the model-free `genui_preview` Tool, explicitly publishes the document, and drives its actual isolated frames. It closes its own browser; the caller owns the Host. Default captures are headed. Keep every failure in its original run directory.
+
+Add `--with-model` to require a real model-generated linked HTML follow-up after the visible Human continuation. This opts into real provider work on the newly created synthetic Bot. The runner requires the canonical Source Event, correct Channel/Bot/predecessor, and an ordered successful preview/publication in the actual orchestrator trace whose committed message ID matches that canonical message. A direct Tool run, a text-only reply, an earlier message or unrelated Bot does not satisfy this gate. The new message must also render in the actual conversation. The deterministic default is not model acceptance, even if a background model happens to reply.
+
+```bash
+BH_E2E_INSTANCE=.humanlayer/verify/<name>/instance.json \
+  node scripts/e2e-genui-documents.mjs --pele --with-model \
+  --out <private-evidence-directory>
+```
+
+The model evidence covers explicit publication of a linked generated document; it does not imply model reliability for every possible document. Inspect the retained preview diagnostics and failures separately. Neither successful model calls nor synthetic screenshot coverage clears #3704 or the independent foreground-performance/native/Human gates.
+
+The public `channelMessages` projection intentionally does not expose `channelId` or `sourceEventId` on every message. The verification runner correlates its already-authorized scoped read with read-only Source Event/placement and Human-request Admission evidence from its own isolated Profile. This is observation only, never a write bypass or another message store. The orchestrator trace must be non-`direct`, and its committed result must identify the very same canonical message.
 
 | Content or interaction               | Required evidence                                                 |
 | ------------------------------------ | ----------------------------------------------------------------- |
@@ -75,6 +87,8 @@ The browser is headed by default. `--with-model` additionally requires a configu
 The three T1 catalog components are metric, table and bar-chart. Approval, Question and private-input cards retain their existing owners; they are not GenUI catalog components. Catalog expansion requires extending this matrix and the runnable journey in the same change.
 
 ## Separate remaining gates
+
+For a foreground diagnostic, `scripts/perf-idle-timeline.mjs --headed --foreground-scroll --trace` records native trusted wheel input, focus/visibility, sampled gaps/anchors, bounded rAF diagnostics and a separate compositor trace. `--foreground-scroll` refuses headless mode. Its sample checks are not a full zero-jump proof, presented FPS, or a performance acceptance verdict. Use a frozen fixture and at least three interleaved baseline/candidate runs, inspect compositor evidence and real display identity, and retain busy-machine failures instead of relaxing budgets. The existing headless default remains a structural/idle diagnostic for CI.
 
 Record pass, fail or untested for every layer, never a blanket end-to-end claim:
 

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { checkBudget, readBudget } from './perf-budget.mjs';
 import { openTimelineConversation } from './perf-timeline-navigation.mjs';
+import { observeForegroundTimelineScroll } from './foreground-timeline-scroll.mjs';
 
 export const usage = `Usage: node scripts/perf-idle-timeline.mjs [options]
 
@@ -21,6 +22,9 @@ BH_E2E_INSTANCE=.humanlayer/verify/<name>/instance.json (from verify-app launch)
   --animate           Add one small infinite CSS animation, standing in for Tob or a
                       working indicator, so per-frame cost becomes visible.
   --trace             Save a Chrome trace of the idle window (open in DevTools).
+  --headed            Open a real foreground browser instead of the headless diagnostic default.
+  --foreground-scroll Record trusted wheel input, visible-gap samples and a compositor trace;
+                      requires --headed. rAF diagnostics are not presented FPS.
   --profile           Save a CPU profile of the idle window and list the hottest functions.
   --scroll-check      After mounting, scroll from the latest message to the top one viewport at a
                       time and report scroll jumps and blank gaps left in view (on by
@@ -42,6 +46,8 @@ const { values: options } = parseArgs({
     seconds: { type: 'string', default: '15' },
     animate: { type: 'boolean', default: false },
     trace: { type: 'boolean', default: false },
+    headed: { type: 'boolean', default: false },
+    'foreground-scroll': { type: 'boolean', default: false },
     profile: { type: 'boolean', default: false },
     'scroll-check': { type: 'boolean', default: true },
     'no-scroll-check': { type: 'boolean', default: false },
@@ -58,6 +64,7 @@ if (options.help) {
 }
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+assert.ok(!options['foreground-scroll'] || options.headed, '--foreground-scroll requires --headed');
 const store = resolve(root, 'node_modules/.pnpm');
 const pkg = readdirSync(store).find((name) => name.startsWith('puppeteer@'));
 const puppeteer = createRequire(resolve(store, pkg, 'node_modules/'))('puppeteer');
@@ -137,7 +144,7 @@ async function scrollCheck() {
 }
 
 const browser = await puppeteer.launch({
-  headless: true,
+  headless: !options.headed,
   args: ['--no-sandbox', '--lang=en-US', '--enable-precise-memory-info'],
   protocolTimeout: 600_000,
 });
@@ -304,6 +311,12 @@ try {
     loadAll && options['scroll-check'] && !options['no-scroll-check']
       ? await scrollCheck()
       : undefined;
+  const foregroundScroll = options['foreground-scroll']
+    ? await observeForegroundTimelineScroll(
+        page,
+        resolve(out, `${options.label}.scroll.trace.json`),
+      )
+    : undefined;
   if (options.animate)
     await page.evaluate(() => {
       const style = document.createElement('style');
@@ -399,12 +412,15 @@ try {
       hottest: typingHottest,
     },
     scroll,
+    headed: options.headed,
+    foregroundScroll,
     idleHottest,
     trace: options.trace ? traceFile : undefined,
     pageErrors: errors,
   };
   writeFileSync(resolve(out, `${options.label}.json`), JSON.stringify(summary, null, 2));
   console.log(JSON.stringify(summary, null, 2));
+  if (foregroundScroll && !foregroundScroll.correctnessPass) process.exitCode = 1;
   if (options.budget) {
     const check = checkBudget(summary, readBudget(options.budget), {
       strictTiming: options['strict-timing'],

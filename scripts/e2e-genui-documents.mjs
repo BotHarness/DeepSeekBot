@@ -5,10 +5,12 @@ import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
+import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 import { syntheticGenuiDocument } from '../packages/core/test/fixtures/genui-document.ts';
 import { syntheticGenuiDiagrams } from '../packages/core/test/fixtures/genui-diagrams.ts';
 import { rpc } from './verify-app.mjs';
+import { findGenuiModelFollowup } from './genui-model-qualification.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const { values } = parseArgs({
@@ -16,6 +18,7 @@ const { values } = parseArgs({
     out: { type: 'string' },
     headless: { type: 'boolean', default: false },
     pele: { type: 'boolean', default: false },
+    'with-model': { type: 'boolean', default: false },
   },
 });
 assert.ok(
@@ -53,6 +56,7 @@ const manifest = {
     title: `Project explorer ${runId}`,
   },
   headed: !values.headless,
+  modelRequested: values['with-model'],
   captures: [],
   checks: [],
   errors: [],
@@ -224,10 +228,25 @@ async function filter(text, target = page) {
   );
 }
 
+async function revealPublished(selector) {
+  const latest = 'button[aria-label="Return to latest messages"]';
+  await page.waitForFunction(
+    (selector, latest) => document.querySelector(selector) || document.querySelector(latest),
+    {},
+    selector,
+    latest,
+  );
+  const button = await page.$(latest);
+  if (button && (await button.boundingBox())) await button.click();
+  await page.waitForSelector(selector);
+}
+
 try {
   bot = await call('create', {
     displayName: `HTML QA ${runId}`,
-    persona: 'Synthetic HTML GenUI QA. No real business data.',
+    persona: values['with-model']
+      ? 'Synthetic HTML GenUI QA. No real business data. When a Human continues from a document, preview and explicitly publish a SHORT new version:2 HTML document in this same DM. Use a new snapshotId and the exact original message ID as predecessorMessageId. Show the submitted selection in a small accessible table inside a section; use the default stylesheet, no doctype, document wrapper, custom CSS or diagrams. Use genui_preview before bot_send_message. Publish the EXACT same serialized genui_json that you successfully previewed, including every HTML character and all metadata. Any correction, even a CSS typo or timestamp, requires previewing the corrected complete document again. Do not publish unrelated replies.'
+      : 'Synthetic HTML GenUI QA. No real business data.',
     operationKey: randomUUID(),
   });
   channelId = bot.channelId ?? `dm-${bot.bot.slug}`;
@@ -414,6 +433,79 @@ try {
   assert.equal(submitted.genuiReply.state.values.selected, 'alpha');
   manifest.submission = submitted;
   await capture('11-visible-human-continuation');
+  if (values['with-model']) {
+    const deadline = Date.now() + 180_000;
+    while (Date.now() < deadline) {
+      const messages = await call('channelMessages', { channelId, limit: 100 });
+      const trace = await call('botToolTrace', { slug: bot.bot.slug, turns: 4 });
+      const evidenceDb = new DatabaseSync(join(instance.home, 'botharness/botharness.db'), {
+        readOnly: true,
+      });
+      try {
+        manifest.canonicalModelEvidence = {
+          sourceEvents: evidenceDb
+            .prepare(
+              'SELECT e.source_event_id AS sourceEventId, e.message_id AS messageId, p.channel_id AS channelId FROM source_events e JOIN channel_placements p USING(source_event_id) WHERE p.channel_id = ? ORDER BY p.revision DESC LIMIT 100',
+            )
+            .all(channelId),
+          admissions: evidenceDb
+            .prepare(
+              'SELECT a.bot_slug AS botSlug, a.attempt_state AS attemptState, a.source_event_id AS sourceEventId FROM inbox_admissions a JOIN source_events e USING(source_event_id) WHERE e.message_id = ? AND a.bot_slug = ?',
+            )
+            .all(submitted.id, bot.bot.slug),
+        };
+      } finally {
+        evidenceDb.close();
+      }
+      manifest.modelTrace = trace;
+      manifest.modelFollowup = findGenuiModelFollowup(messages.messages, trace, {
+        channelId,
+        slug: bot.bot.slug,
+        after: submitted.at,
+        humanMessageId: submitted.id,
+        predecessorMessageId: messageId,
+        ...manifest.canonicalModelEvidence,
+      });
+      save();
+      if (manifest.modelFollowup) break;
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+    assert.ok(
+      manifest.modelFollowup,
+      'A real model must preview and explicitly publish a canonical linked HTML follow-up within 180 seconds. Direct Tools and text-only replies do not qualify.',
+    );
+    const modelPanel = `section[aria-label=${JSON.stringify(manifest.modelFollowup.message.genui.title)}]`;
+    await revealPublished(modelPanel);
+    await page.waitForSelector(`${modelPanel} iframe`);
+    await page.waitForFunction(
+      (selector) => {
+        const content = document.querySelector(selector)?.textContent;
+        return (
+          content &&
+          !content.includes('Loading document') &&
+          !content.includes('The document could not run') &&
+          (content.includes('This document does not save a private view') ||
+            content.includes('Private view saved'))
+        );
+      },
+      {},
+      modelPanel,
+    );
+    const modelGuardian = await (await page.$(`${modelPanel} iframe`)).contentFrame();
+    const modelFrame = modelGuardian.childFrames()[0];
+    assert.ok(modelFrame, 'The model-authored isolated document must actually mount.');
+    await modelFrame.waitForSelector('table');
+    assert.ok(
+      (await modelFrame.$eval('table', (node) => node.textContent.toLowerCase())).includes(
+        submitted.genuiReply.state.values.selected.toLowerCase(),
+      ),
+      'The actual rendered table must show the Human-submitted selection.',
+    );
+    await capture('11-real-model-linked-followup', page, modelPanel);
+    manifest.checks.push(
+      'Real orchestrator preview and committed publication call IDs match the canonical linked HTML message and its Source Event.',
+    );
+  }
   await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'dark' }]);
   await page.evaluate(() => document.body.setAttribute('data-ds-dark-theme', ''));
   await capture('12-dark');
@@ -491,6 +583,7 @@ try {
     predecessorMessageId: messageId,
   };
   const refreshedPanel = `section[aria-label=${JSON.stringify(refreshed.title)}]`;
+  await revealPublished(refreshedPanel);
   await page.waitForSelector(`${refreshedPanel} iframe`);
   await page.waitForFunction(
     (selector) => !document.querySelector(selector)?.textContent.includes('Loading document'),
@@ -527,7 +620,7 @@ try {
     });
     assert.equal(published.result.status, 'committed');
     const selector = `section[aria-label=${JSON.stringify(document.title)}]`;
-    await page.waitForSelector(selector);
+    await revealPublished(selector);
     await page.waitForFunction(
       (selector) => !document.querySelector(selector)?.textContent.includes('Loading document'),
       {},
