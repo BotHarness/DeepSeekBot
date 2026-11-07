@@ -185,6 +185,9 @@ async function capture(name, target = page, selector = panel) {
       'The captured GenUI section must intersect the viewport.',
     );
   await new Promise((resolve) => setTimeout(resolve, 200));
+  await captureObservation(name, target, 'verified-conversation');
+}
+async function captureObservation(name, target, kind) {
   const path = join(out, `${name}.png`);
   await target.screenshot({ path });
   writeFileSync(
@@ -193,6 +196,7 @@ async function capture(name, target = page, selector = panel) {
   );
   manifest.captures.push({
     name,
+    kind,
     file: `${name}.png`,
     sha256: hash(readFileSync(path)),
     viewport: target.viewport(),
@@ -674,7 +678,7 @@ try {
 } catch (error) {
   manifest.status = 'failed';
   manifest.failure = error.stack ?? String(error);
-  if (page) await capture('failure').catch(() => undefined);
+  if (page) await captureObservation('failure', page, 'failure-observation').catch(() => undefined);
   process.exitCode = 1;
 } finally {
   await browser?.close();

@@ -38,9 +38,9 @@ describe('actual conversation visibility', () => {
   });
 });
 
-function fixture({ active = true, listVisible = true, rail = true } = {}) {
+function fixture({ active = true, listVisible = true, rail = true, hiddenFirst = false } = {}) {
   const clicks = [];
-  const row = `${rail ? '[data-workspace-dock] ' : ''}button.bh-channel-row[data-channel-id="group"]`;
+  const row = `${rail ? '[data-workspace-dock] ' : ''}button[data-channel-id="group"]`;
   const page = {
     $: vi.fn(async (selector) => {
       if (selector === '.bh-root.bh-main, [data-workspace-dock]') return active ? {} : null;
@@ -62,6 +62,32 @@ function fixture({ active = true, listVisible = true, rail = true } = {}) {
       if (selector === '.bh-root.bh-main, [data-workspace-dock]') expect(active).toBe(true);
       if (selector === row) expect(listVisible).toBe(true);
     }),
+    waitForFunction: vi.fn(async (_predicate, _options, selector) => {
+      expect(selector).toBe(row);
+      expect(listVisible).toBe(true);
+    }),
+    $$: vi.fn(async (selector) => {
+      expect(selector).toBe(row);
+      expect(listVisible).toBe(true);
+      return [
+        ...(hiddenFirst
+          ? [
+              {
+                isVisible: async () => false,
+                click: async () => {
+                  throw new Error('Hidden row clicked');
+                },
+              },
+            ]
+          : []),
+        {
+          isVisible: async () => true,
+          click: async () => {
+            clicks.push(row);
+          },
+        },
+      ];
+    }),
     locator: (selector) => ({
       click: async () => {
         if (selector === '::-p-aria(Bot mode)') {
@@ -79,29 +105,39 @@ function fixture({ active = true, listVisible = true, rail = true } = {}) {
 }
 
 describe('timeline performance navigation', () => {
+  it('navigates via the visible row without requiring the hidden conversation shell', async () => {
+    const { page, clicks } = fixture();
+    const wait = page.waitForSelector;
+    page.waitForSelector = vi.fn(async (selector, options) => {
+      if (selector === '.bh-root.bh-main, [data-workspace-dock]')
+        expect(options?.visible).not.toBe(true);
+      await wait(selector);
+    });
+    await openTimelineConversation(page, 'group', vi.fn());
+    expect(clicks).toContain('[data-workspace-dock] button[data-channel-id="group"]');
+  });
+
   it('recognizes an active workspace without looking for the hidden Bot mode entry', async () => {
     const { page, clicks } = fixture();
     await openTimelineConversation(page, 'group', vi.fn());
-    expect(clicks).toEqual([
-      '[data-workspace-dock] button.bh-channel-row[data-channel-id="group"]',
-    ]);
+    expect(clicks).toEqual(['[data-workspace-dock] button[data-channel-id="group"]']);
   });
 
   it('opens a hidden list by panel ID when the Channels label includes a shortcut', async () => {
     const { page, clicks } = fixture({ listVisible: false });
     await openTimelineConversation(page, 'group', vi.fn());
-    expect(clicks).toEqual([
-      'Channels',
-      '[data-workspace-dock] button.bh-channel-row[data-channel-id="group"]',
-    ]);
+    expect(clicks).toEqual(['Channels', '[data-workspace-dock] button[data-channel-id="group"]']);
   });
 
   it('enters Bot mode only when neither shell is mounted', async () => {
     const { page, clicks } = fixture({ active: false, rail: false });
     await openTimelineConversation(page, 'group', vi.fn());
-    expect(clicks).toEqual([
-      '::-p-aria(Bot mode)',
-      'button.bh-channel-row[data-channel-id="group"]',
-    ]);
+    expect(clicks).toEqual(['::-p-aria(Bot mode)', 'button[data-channel-id="group"]']);
+  });
+
+  it('skips a hidden legacy row when a visible DM contact shares the channel ID', async () => {
+    const { page, clicks } = fixture({ hiddenFirst: true });
+    await openTimelineConversation(page, 'group', vi.fn());
+    expect(clicks).toEqual(['[data-workspace-dock] button[data-channel-id="group"]']);
   });
 });

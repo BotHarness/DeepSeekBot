@@ -16,17 +16,33 @@ export async function timelineConversationVisible(page) {
 export async function openTimelineConversation(page, channelId, dismissOverlays) {
   const shell = '.bh-root.bh-main, [data-workspace-dock]';
   if (!(await page.$(shell))) await page.locator('::-p-aria(Bot mode)').click();
-  await page.waitForSelector(shell, { visible: true });
+  await page.waitForSelector(shell);
   await dismissOverlays();
   const workspace = await page.$('[data-workspace-dock]');
-  const row = `${workspace ? '[data-workspace-dock] ' : ''}button.bh-channel-row[data-channel-id="${channelId}"]`;
+  const row = `${workspace ? '[data-workspace-dock] ' : ''}button[data-channel-id="${channelId}"]`;
   const channel = await page.$(row);
   if (!channel || !(await channel.isVisible())) {
     const channels = await page.$('[data-workspace-dock] button[data-pinned-panel="bh:channels"]');
     if (channels) await channels.click();
   }
-  await page.waitForSelector(row, { visible: true });
+  await page.waitForFunction(
+    (selector) =>
+      [...document.querySelectorAll(selector)].some((node) => {
+        const bounds = node.getBoundingClientRect();
+        return node.checkVisibility() && bounds.width > 0 && bounds.height > 0;
+      }),
+    {},
+    row,
+  );
   await dismissOverlays();
-  await page.locator(row).click();
+  const rows = await page.$$(row);
+  let opened = false;
+  for (const candidate of rows) {
+    if (!(await candidate.isVisible())) continue;
+    await candidate.click();
+    opened = true;
+    break;
+  }
+  if (!opened) throw new Error(`Visible conversation row unavailable: ${channelId}`);
   await page.waitForSelector('.bh-chat-body [data-message-id]');
 }
