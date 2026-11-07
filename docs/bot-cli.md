@@ -1514,10 +1514,11 @@ it as `connect-enable` would, with no hand-made token. While signed in it asks t
 the tunnel stops, so a tunnel the relay reclaimed after the Host was offline comes back on the same
 `<host-id>.deepseekbot.dev`. `connect-status` adds `connect.account` with `state` (`signed-out`,
 `signing-in`, `signed-in`, `error`), `email`, `hostId` and `issue` (`relay-unavailable`,
-`sign-in-denied`, `sign-in-expired`, `session-expired`, `account-not-allowed`, `host-limit`,
+`sign-in-denied`, `sign-in-expired`, `session-expired`, `session-revoked`, `account-not-allowed`, `host-limit`,
 `credential-unavailable`). While signed in, the Host re-checks the account with the relay every
 minute; once the relay or WorkOS refuses the session (for example after `DELETE /v1/account`), it
-stops the tunnel, deletes the stored session and reports `error` with `session-expired`.
+stops the tunnel, retires the stored session and reports `error` with `session-revoked` for a relay
+`401 session-revoked`, or `session-expired` for other session refusals.
 `connect-sign-out` unlinks the Host at the relay, stops the tunnel and
 deletes the session. Any signed-in account can link Hosts.
 
