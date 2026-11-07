@@ -93,12 +93,12 @@ afterEach(() => {
   act(() => root?.unmount());
   vi.unstubAllGlobals();
 });
-function mount() {
+function mount(startInset = 0) {
   const scrollToOffset = vi.fn();
   const list = { current: { scrollToOffset } as unknown as FlatList<unknown> };
   let current!: ReturnType<typeof useChannelViewport<unknown>>;
   function Probe({ messages = rows }: { messages?: ConversationMessage[] }) {
-    current = useChannelViewport(list, messages, undefined, 0, false);
+    current = useChannelViewport(list, messages, undefined, startInset, false);
     return current.renderScrollComponent?.({}) ?? null;
   }
   root = createRoot(document.createElement('div'));
@@ -133,6 +133,78 @@ function end() {
 }
 
 describe('Channel viewport through the Android keyboard adapter', () => {
+  it('repins a following short list when composer reflow moves its native anchor without resizing content', () => {
+    const view = mount(116);
+    act(() => {
+      view.current.listProps.onLayout({
+        nativeEvent: { layout: { height: 874 } },
+      } as LayoutChangeEvent);
+      view.current.listProps.onContentSizeChange(0, 758);
+      view.current.onComposerLayout({
+        nativeEvent: { layout: { height: 94 } },
+      } as LayoutChangeEvent);
+      view.current.listProps.onScroll(scroll(-116, 758));
+    });
+    flush();
+    view.scrollToOffset.mockClear();
+    act(() => {
+      view.current.listProps.onScroll(scroll(-407.333, 758));
+      view.current.onComposerLayout({
+        nativeEvent: { layout: { height: 168.333 } },
+      } as LayoutChangeEvent);
+    });
+    flush();
+    expect(view.scrollToOffset.mock.calls).toEqual([[{ offset: -116, animated: false }]]);
+    expect(view.current.listProps.maintainVisibleContentPosition).toEqual({
+      minIndexForVisible: 0,
+    });
+  });
+  it('does not pull held history to latest when the composer reflows', () => {
+    const view = mount();
+    act(() => view.current.hold());
+    act(() =>
+      view.current.onComposerLayout({
+        nativeEvent: { layout: { height: 168.333 } },
+      } as LayoutChangeEvent),
+    );
+    flush();
+    expect(view.scrollToOffset).not.toHaveBeenCalled();
+    expect(view.current.away).toBe(true);
+  });
+  it('coalesces composer reflow and ignores repeated equal layout heights', () => {
+    const view = mount();
+    act(() => {
+      view.current.onComposerLayout({
+        nativeEvent: { layout: { height: 94 } },
+      } as LayoutChangeEvent);
+      view.current.onComposerLayout({
+        nativeEvent: { layout: { height: 168.333 } },
+      } as LayoutChangeEvent);
+    });
+    flush();
+    expect(view.scrollToOffset.mock.calls).toEqual([[{ offset: 1200, animated: false }]]);
+    act(() =>
+      view.current.onComposerLayout({
+        nativeEvent: { layout: { height: 168.333 } },
+      } as LayoutChangeEvent),
+    );
+    flush();
+    expect(view.scrollToOffset).toHaveBeenCalledTimes(1);
+  });
+  it('leaves composer reflow to the native keyboard until motion ends', () => {
+    const view = mount();
+    start();
+    act(() =>
+      view.current.onComposerLayout({
+        nativeEvent: { layout: { height: 168.333 } },
+      } as LayoutChangeEvent),
+    );
+    flush();
+    expect(view.scrollToOffset).not.toHaveBeenCalled();
+    end();
+    flush();
+    expect(view.scrollToOffset.mock.calls).toEqual([[{ offset: 1500, animated: false }]]);
+  });
   it.each([904, 770.333])(
     'keeps measured geometry when a delayed scroll reports layout %s during recovery',
     (staleLayout) => {
