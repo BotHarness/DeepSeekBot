@@ -112,13 +112,33 @@ export function createDevicesHttp(options: {
   publish?: () => Promise<PublishRouteResult>;
   unpublish?: () => Promise<PublishRouteResult>;
   connect?: DeviceConnect;
-  account?: ConnectAccount;
+  account?: Pick<
+    ConnectAccount,
+    'status' | 'signIn' | 'signOut' | 'connectedHosts' | 'revokeConnectedHost'
+  >;
   lan?: DeviceLan;
   lanBots?: LanBotControl;
 }): (request: Request) => Promise<Response> {
   const { pairing, connect, account } = options;
   return async (request) => {
     const path = new URL(request.url).pathname;
+    if (path === `${DEVICES_PATH}/account-hosts` && request.method === 'GET') {
+      if (account === undefined) return json({ code: 'signed-out' }, 409);
+      const result = await account.connectedHosts();
+      return result.ok
+        ? json({ hosts: result.hosts })
+        : json({ code: result.code }, result.code === 'relay-unavailable' ? 503 : 409);
+    }
+    if (path === `${DEVICES_PATH}/account-hosts/revoke` && request.method === 'POST') {
+      const input = await body(request);
+      if (input['confirm'] !== true) return json({ code: 'confirm-required' }, 400);
+      if (typeof input['hostId'] !== 'string') return json({ code: 'invalid-host-id' }, 400);
+      if (account === undefined) return json({ code: 'signed-out' }, 409);
+      const result = await account.revokeConnectedHost(input['hostId']);
+      return result.ok
+        ? json(result)
+        : json({ code: result.code }, result.code === 'relay-unavailable' ? 503 : 409);
+    }
     if (request.method === 'GET' && path === `${DEVICES_PATH}/requests`)
       return json({ pendingKeys: pairing.pendingKeys() });
     if (request.method === 'GET' && path === DEVICES_PATH) {

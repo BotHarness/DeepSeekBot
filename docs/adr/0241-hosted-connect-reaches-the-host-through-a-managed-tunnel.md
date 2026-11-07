@@ -51,6 +51,48 @@ The Human chose this direction on 2026-10-20: **an account only discovers Hosts 
 2. **Our own relay on Workers and Durable Objects.** Can be end-to-end encrypted and needs only outbound 443, but we would have to carry HTTP and WebSocket over the relay ourselves to give the WebView a real origin, which amounts to writing a tunnel. Kept as a fallback if `cloudflared` cannot be shipped or port 7844 is commonly blocked.
 3. **Hosted mesh (Headscale, embedded WireGuard).** End-to-end by construction, but the iOS app would need its own VPN Network Extension. Rejected.
 
+## Amendment — linked-computer sign-out (2026-11-07, #3672)
+
+Desktop/Web Settings → Devices → Tobs Connect and the matching CLI expose an on-demand account
+computer list and explicitly confirmed remote sign-out. The owning Host uses its native credential
+record; the Client supplies only a target Host ID and confirmation, never an account token.
+Both the Host owner and relay refuse self-revocation. The existing self-service DELETE remains
+unlink, not a new sign-out contract.
+
+The relay stores the validated access token's `sid` on each computer. The live gate used two
+independent disposable Profiles on one test account: both refreshed successfully with distinct
+session IDs; targeted WorkOS revoke made only A's refresh fail. Restarting the same Profiles retired
+A's native session and left B signed in. This validates the session assumption, not a production
+deployment of the new contract.
+
+Remote revoke first persists `revoked_sessions(account, session_id, revoked_at)`, then removes
+tunnel, DNS, live activities and the registration. Authorization checks the indexed tombstone
+before every account route, including registration and tunnel allocation, so a still-valid WorkOS
+access token cannot re-link. Optional WorkOS single-session revoke is hardening: its failure does
+not undo local enforcement, and `sessionRevoked` reports the actual outcome. Unlink failure retains
+the tombstone and reports a failure, permitting safe cleanup retry. Repeating an already-completed
+removal returns `404 host-not-found` without more external changes.
+
+Existing online computers bind their current validated `sid` on an account-owned tunnel request.
+Use `COALESCE(?, session_id)`, preserving the old value only for callers without a session claim.
+Backfilling only an empty column is insufficient: Host-registration recovery deliberately reuses
+the same Host ID after re-login, and remote revoke must affect the **new** session, not its old
+binding. A tombstoned token cannot execute this rebind because authorization runs first.
+Offline legacy rows have no bound session and remain honest **Remove from account** operations:
+the old computer may reconnect until updated or signed out there. Never present that as sign-out.
+
+After successful remote revoke while at `host-limit`, the owner exits its serial queue before
+calling `sync()` once and returns the updated account status. Another computer may take the freed
+slot; `host-limit` remains actionable, without a tight retry loop. A Host receiving
+`401 session-revoked` disables its tunnel and retires its session just as for session expiry.
+No session IDs, relay keys or tokens reach the Client, CLI or public evidence.
+
+Migration `0005_host_sessions.sql` must precede the Worker rollout. Remote migration/deployment,
+real hosted end-to-end behavior, installed Desktop acceptance and Human acceptance remain separate
+gates. Mobile management is deliberately deferred. The performance cost is one indexed tombstone
+lookup per session-authenticated relay request; account list reads are on-demand, never added to
+the three-second Devices snapshot poll. Tests guard snapshot request counts and the five-link cap.
+
 ## Trust boundaries
 
 - `dsh web` stays loopback-bound; the tunnel reaches it only for `/botharness-device/*`, and the gateway still authenticates every request with a device credential.

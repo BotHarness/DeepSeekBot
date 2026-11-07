@@ -4,6 +4,26 @@ const reply = (value: unknown) => ({
   bytes: new TextEncoder().encode(JSON.stringify(value)),
 });
 describe('connect CLI', () => {
+  it('lists linked computers through the on-demand route', async () => {
+    const http = vi.fn(async () => reply({ hosts: [] }));
+    expect(
+      await runConnectCommand('connect-account-hosts', [], {}, {}, async () => ({ http })),
+    ).toEqual({ hosts: [] });
+    expect(http).toHaveBeenCalledWith('/api/botharness/devices/account-hosts');
+  });
+  it('requires explicit confirmation before connecting and uses the same owner route', async () => {
+    const http = vi.fn(async () => reply({ ok: true, status: { state: 'signed-in' } }));
+    const connect = vi.fn(async () => ({ http }));
+    await expect(
+      runConnectCommand('connect-account-revoke', ['hother'], {}, {}, connect),
+    ).rejects.toMatchObject({ code: 'confirm-required' });
+    expect(connect).not.toHaveBeenCalled();
+    await runConnectCommand('connect-account-revoke', ['hother'], { confirm: true }, {}, connect);
+    expect(http).toHaveBeenCalledWith('/api/botharness/devices/account-hosts/revoke', {
+      hostId: 'hother',
+      confirm: true,
+    });
+  });
   it('enables with the token from stdin and never puts it in arguments', async () => {
     const http = vi.fn(async () =>
       reply({ state: 'starting', hostname: 'studio.deepseekbot.dev' }),

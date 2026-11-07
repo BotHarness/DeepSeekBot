@@ -2,6 +2,27 @@
 
 ## Sub-features
 
+- Linked computers: Desktop/Web Bot settings → Connections → Manage → Tobs Connect loads the account list on entry,
+  not on the three-second snapshot poll. Confirm sign-out of another computer; the current row has
+  no revoke action. CLI: `connect-account-hosts` and `connect-account-revoke <host-id> --confirm`.
+  At the five-link limit the unlinked current computer is explained without inventing a current row.
+  Legacy unbound rows say Remove from account and warn they may reconnect.
+
+## Linked-computer verification gate
+
+Use only disposable, independently authorized Profiles on a designated test account. Refresh
+their tokens privately, compare same account/distinct `sid`, revoke one session, and prove only
+that Host retires its stored session while the control still refreshes. Never capture raw tokens or
+session IDs. For the implemented relay route, verify tombstone-first refusal, current identification,
+cancel without requests, explicit confirmation, slot recovery and no re-link after a watcher cycle.
+`packages/connect-relay/test/connect-relay.test.ts`,
+`packages/core/test/connect-account.test.ts`, `packages/core/test/cli-connect.test.ts` and
+`packages/client/test/connect-account-hosts.test.tsx` cover the corresponding source boundaries.
+Real Cloudflare/WorkOS, isolated Host/browser and production deploy are separate evidence gates;
+local fixtures cannot qualify the deployment. Mobile remote sign-out is deliberately deferred.
+
+## Encrypted channel sub-features
+
 - Host fingerprint: Devices and `connect-status` expose one stable public identity across restart.
 - Pairing: new phone/browser independently compares Host fingerprint; trusted Host approves the exact device key. No ordinary operation works while pending.
 - Traffic: DM, image upload/download, avatar, approval, native private input, push registration and logical streams use the channel.

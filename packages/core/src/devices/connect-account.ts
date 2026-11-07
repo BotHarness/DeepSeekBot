@@ -24,6 +24,7 @@ export type AccountIssue =
   | 'sign-in-denied'
   | 'sign-in-expired'
   | 'session-expired'
+  | 'session-revoked'
   | 'account-not-allowed'
   | 'host-limit'
   | 'credential-unavailable';
@@ -39,9 +40,31 @@ export interface AccountStatus {
   recovery?: 'automatic' | 'sign-in';
 }
 
+export type AccountFailureCode =
+  | AccountIssue
+  | 'signed-out'
+  | 'current-host'
+  | 'host-not-found'
+  | 'session-unknown'
+  | 'invalid-host-id';
+
 export type AccountResult =
-  | { ok: true; status: AccountStatus }
-  | { ok: false; code: 'credential-unavailable' | 'relay-unavailable' };
+  | { ok: true; status: AccountStatus; sessionKnown?: boolean; sessionRevoked?: boolean }
+  | { ok: false; code: AccountFailureCode };
+
+export interface ConnectedHost {
+  id: string;
+  name: string;
+  hostname: string;
+  createdAt: string;
+  connected?: boolean;
+  current: boolean;
+  sessionKnown: boolean;
+}
+
+export type ConnectedHostsResult =
+  | { ok: true; hosts: ConnectedHost[] }
+  | { ok: false; code: AccountFailureCode };
 
 export type OfferVerification = { ok: true; verifierHash: string; name?: string } | { ok: false };
 
@@ -54,6 +77,8 @@ export interface ConnectAccount {
   start(): Promise<void>;
   signIn(): Promise<AccountResult>;
   signOut(): Promise<AccountResult>;
+  connectedHosts(): Promise<ConnectedHostsResult>;
+  revokeConnectedHost(hostId: string): Promise<AccountResult>;
   close(): Promise<void>;
 }
 
@@ -79,6 +104,23 @@ const sessionSchema = registrationSchema.omit({ hostId: true }).extend({
 });
 const storedAccountSchema = z.union([sessionSchema, registrationSchema]);
 const hostListSchema = z.object({ hosts: z.array(z.object({ id: hostIdSchema })) });
+const connectedHostsSchema = z.object({
+  hosts: z.array(
+    z.object({
+      id: hostIdSchema,
+      name: z.string(),
+      hostname: z.string(),
+      createdAt: z.string(),
+      connected: z.boolean().optional(),
+      sessionKnown: z.boolean().default(false),
+    }),
+  ),
+});
+const revokedHostSchema = z.object({
+  deleted: z.literal(true),
+  sessionKnown: z.boolean(),
+  sessionRevoked: z.boolean(),
+});
 type AccountRecord = z.infer<typeof sessionSchema>;
 type StoredAccount = z.infer<typeof storedAccountSchema>;
 type ConnectClientId = z.infer<typeof clientIdSchema>;
@@ -123,6 +165,7 @@ type RelayOperation =
   | 'config'
   | 'register-host'
   | 'list-hosts'
+  | 'revoke-host'
   | 'tunnel'
   | 'live-activity'
   | 'delete-host';
@@ -288,7 +331,8 @@ export function createConnectAccount(options: {
     }
     const parsed = (await response.json().catch(() => ({}))) as Record<string, unknown>;
     const code = (parsed['error'] as { code?: unknown } | undefined)?.code;
-    if (response.status === 401) throw new AccountError('session-expired');
+    if (response.status === 401)
+      throw new AccountError(code === 'session-revoked' ? 'session-revoked' : 'session-expired');
     if (code === 'account-not-allowed') throw new AccountError('account-not-allowed');
     if (code === 'host-limit') throw new AccountError('host-limit');
     if (response.status >= 500 || response.status === 429)
@@ -416,7 +460,11 @@ export function createConnectAccount(options: {
 
   const revoke = async (error: unknown, current?: AccountRecord): Promise<void> => {
     fail(error, current);
-    if (!(error instanceof AccountError) || error.issue !== 'session-expired') return;
+    if (
+      !(error instanceof AccountError) ||
+      (error.issue !== 'session-expired' && error.issue !== 'session-revoked')
+    )
+      return;
     attempt += 1;
     try {
       await retireSession(current);
@@ -452,7 +500,10 @@ export function createConnectAccount(options: {
               });
         listed = reply.body['hosts'];
       } catch (error) {
-        if (error instanceof AccountError && error.issue === 'session-expired')
+        if (
+          error instanceof AccountError &&
+          (error.issue === 'session-expired' || error.issue === 'session-revoked')
+        )
           await revoke(error, current);
         return;
       }
@@ -705,7 +756,8 @@ export function createConnectAccount(options: {
     fetch: fetcher,
     revoked: () =>
       status.state === 'signed-out' ||
-      (status.state === 'error' && status.issue === 'session-expired'),
+      (status.state === 'error' &&
+        (status.issue === 'session-expired' || status.issue === 'session-revoked')),
     session: () =>
       serial(async () => {
         if (botNetworkClosed || status.state !== 'signed-in') return undefined;
@@ -736,7 +788,10 @@ export function createConnectAccount(options: {
                     return undefined;
                   return await refresh(latest);
                 } catch (error) {
-                  if (error instanceof AccountError && error.issue === 'session-expired')
+                  if (
+                    error instanceof AccountError &&
+                    (error.issue === 'session-expired' || error.issue === 'session-revoked')
+                  )
                     await revoke(error, stored);
                   return undefined;
                 }
@@ -771,6 +826,95 @@ export function createConnectAccount(options: {
       call: activityCall,
     },
     status: () => ({ ...status }),
+    connectedHosts: () =>
+      serial(async (): Promise<ConnectedHostsResult> => {
+        let current: AccountRecord | undefined;
+        try {
+          current = await read();
+          if (current === undefined) return { ok: false, code: 'signed-out' };
+          const reply = await relayCall('list-hosts', 'GET', '/v1/hosts', await refresh(current));
+          const parsed = connectedHostsSchema.safeParse(reply.body);
+          if (reply.status !== 200 || !parsed.success)
+            return { ok: false, code: 'relay-unavailable' };
+          return {
+            ok: true,
+            hosts: parsed.data.hosts.map((host) => ({
+              id: host.id,
+              name: host.name,
+              hostname: host.hostname,
+              createdAt: host.createdAt,
+              ...(host.connected === undefined ? {} : { connected: host.connected }),
+              current: current?.hostId === host.id,
+              sessionKnown: host.sessionKnown,
+            })),
+          };
+        } catch (error) {
+          if (
+            error instanceof AccountError &&
+            (error.issue === 'session-expired' || error.issue === 'session-revoked')
+          )
+            await revoke(error, current);
+          return {
+            ok: false,
+            code: error instanceof AccountError ? error.issue : 'relay-unavailable',
+          };
+        }
+      }),
+    async revokeConnectedHost(hostId) {
+      let retryLink = false;
+      const result = await serial(async (): Promise<AccountResult> => {
+        let current: AccountRecord | undefined;
+        try {
+          current = await read();
+          if (current === undefined) return { ok: false, code: 'signed-out' };
+          if (current.hostId === hostId) return { ok: false, code: 'current-host' };
+          if (!hostIdSchema.safeParse(hostId).success || hostId.length > 255)
+            return { ok: false, code: 'invalid-host-id' };
+          const reply = await relayCall(
+            'revoke-host',
+            'POST',
+            `/v1/hosts/${encodeURIComponent(hostId)}/revoke`,
+            await refresh(current),
+          );
+          if (reply.status === 404) return { ok: false, code: 'host-not-found' };
+          if (reply.status === 409) {
+            const parsed = z
+              .object({ error: z.object({ code: z.enum(['current-host', 'session-unknown']) }) })
+              .safeParse(reply.body);
+            return {
+              ok: false,
+              code: parsed.success ? parsed.data.error.code : 'relay-unavailable',
+            };
+          }
+          const parsed = revokedHostSchema.safeParse(reply.body);
+          if (reply.status !== 200 || !parsed.success)
+            return { ok: false, code: 'relay-unavailable' };
+          retryLink = status.issue === 'host-limit';
+          record(
+            'account-host-revoked',
+            `sessionKnown=${parsed.data.sessionKnown} sessionRevoked=${parsed.data.sessionRevoked}`,
+          );
+          return {
+            ok: true,
+            status: { ...status },
+            sessionKnown: parsed.data.sessionKnown,
+            sessionRevoked: parsed.data.sessionRevoked,
+          };
+        } catch (error) {
+          if (
+            error instanceof AccountError &&
+            (error.issue === 'session-expired' || error.issue === 'session-revoked')
+          )
+            await revoke(error, current);
+          return {
+            ok: false,
+            code: error instanceof AccountError ? error.issue : 'relay-unavailable',
+          };
+        }
+      });
+      if (result.ok && retryLink) await sync();
+      return result.ok ? { ...result, status: { ...status } } : result;
+    },
     verifyOffer,
     accessToken: (options) =>
       serial(async () => {

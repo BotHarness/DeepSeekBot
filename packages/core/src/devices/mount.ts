@@ -756,6 +756,8 @@ export function mountDevicePairing(
       [`${DEVICES_PATH}/approve-key`, ['POST']],
       [`${DEVICES_PATH}/revoke`, ['POST']],
       [`${DEVICES_PATH}/connect`, ['POST']],
+      [`${DEVICES_PATH}/account-hosts`, ['GET']],
+      [`${DEVICES_PATH}/account-hosts/revoke`, ['POST']],
       [`${DEVICES_PATH}/lan`, ['POST']],
       [`${DEVICES_PATH}/lan-bots`, ['GET', 'POST']],
     ] as const)

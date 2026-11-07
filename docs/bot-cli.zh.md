@@ -1459,6 +1459,8 @@ deepseekbot connect-disable --host <host> --token-file <private-file>
 ```sh
 deepseekbot connect-sign-in --wait --host <host> --token-file <private-file>
 deepseekbot connect-sign-out --host <host> --token-file <private-file>
+deepseekbot connect-account-hosts --host <host> --token-file <private-file>
+deepseekbot connect-account-revoke <host-id> --confirm --host <host> --token-file <private-file>
 ```
 
 `connect-sign-in` 用 `https://connect.botharness.ai` 上 relay 公布的 WorkOS client 发起 CLI Auth
@@ -1468,13 +1470,33 @@ token 存进 DSH 凭据存储，把自己关联到账号（每个账号最多 5 
 `connect-enable` 一样运行，不再需要手工 token。登录期间隧道停掉时 Host 会重新向 relay 申请，所以
 Host 离线后被回收的隧道会在同一个 `<host-id>.deepseekbot.dev` 上恢复。`connect-status` 增加
 `connect.account`：`state`（`signed-out`、`signing-in`、`signed-in`、`error`）、`email`、`hostId`
-和 `issue`（`relay-unavailable`、`sign-in-denied`、`sign-in-expired`、`session-expired`、
+和 `issue`（`relay-unavailable`、`sign-in-denied`、`sign-in-expired`、`session-expired`、`session-revoked`、
 `account-not-allowed`、`host-limit`、`credential-unavailable`）。登录期间 Host 每分钟向 relay
-复查一次账号；relay 或 WorkOS 拒绝会话后（例如 `DELETE /v1/account` 之后），Host 停掉隧道、删除
-保存的会话，并报告 `error` 和 `session-expired`。`connect-sign-out` 在 relay 上解除
+复查一次账号；relay 或 WorkOS 拒绝会话后（例如 `DELETE /v1/account` 之后），Host 停掉隧道、退役
+保存的会话，并报告 `error`；relay 返回 `401 session-revoked` 时，`issue` 为 `session-revoked`，
+其他会话拒绝为 `session-expired`。`connect-sign-out` 在 relay 上解除
 关联、停掉隧道并删除会话。任何已登录的账号都能关联 Host。
 
 账号出错时，`connect.account.recovery` 区分 `automatic`（已保存的会话能自动重试注册或隧道设置）和 `sign-in`（需要再次主动登录）。所有权校验失败后不会恢复旧账号，界面提供相同的恢复指引。设备授权轮询在网络失败、没有 OAuth 错误的 HTTP 408/429/5xx 后延长间隔，仍在原授权到期时间停止；明确的 OAuth 拒绝仍会终止登录。`authorization_pending` 保留间隔，`slow_down` 增加五秒，遵循 [RFC 8628](https://www.rfc-editor.org/rfc/rfc8628.html#section-3.5)。
+
+`connect-account-hosts` 按需读取账号中的电脑；本机已关联时会标为 `current`。每行仅含
+`id`、`name`、`hostname`、`createdAt`、可选 `connected`、`current` 和 `sessionKnown`；
+缺少连接状态表示未知。它不会给 Devices 快照轮询增加 relay 请求。本机因五台限制而未关联时，
+仍可用已保存的账号会话读取列表。
+
+`connect-account-revoke` 必须带 `--confirm`，owner 在发请求前拒绝 `current-host`；本机退出仍用
+`connect-sign-out`。Relay 先为目标 WorkOS 会话写入撤销标记，再解除隧道、DNS 和账号关联。
+目标 Host 收到 `401 session-revoked` 后移除会话凭据，不会重新注册。可选的 WorkOS 撤销结果由
+`sessionRevoked` 如实报告；WorkOS 不可用时 relay 的拒绝仍然生效。结果还包含更新后的
+账号 `status` 和 `sessionKnown`。
+
+`sessionKnown: false` 只能表示**从账号移除**，不能声称退出登录：旧电脑可能重新关联，需要更新
+或在那台电脑上退出。本机处于 `host-limit` 时，成功移除后 owner 先离开串行队列，再尝试注册一次；
+若名额被另一台电脑占用，结果仍为 `host-limit`。`signed-out`、`host-not-found`、
+`session-unknown`、`relay-unavailable` 都是明确的拒绝，不会只在本机隐藏电脑。
+
+远端退出依赖 relay 会话迁移和 Worker 上线；本地代码与测试不能证明线上行为。参见
+[ADR-0241 补充](adr/0241-hosted-connect-reaches-the-host-through-a-managed-tunnel.md#amendment--linked-computer-sign-out-2026-11-07-3672)。
 
 ## 设备本地 DeepSeekBot 外观
 

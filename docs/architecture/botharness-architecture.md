@@ -1406,6 +1406,18 @@ Native private input uses masked fields and the existing credential owner; value
 
 ### Host Connect re-login
 
+The application-defined linked-computer owner exposes an on-demand list and confirmed remote
+sign-out through the existing Host HTTP adapter and matching CLI, not the Devices snapshot poll.
+The relay binds each registered computer to the validated WorkOS `sid`, refreshing that binding
+on an account-owned tunnel request after re-login. Remote revoke first persists an account/session
+tombstone and then removes the tunnel, DNS, activities and registration. Every authenticated relay
+request checks the tombstone before dispatch, so an unexpired access token cannot re-register.
+Optional targeted WorkOS revocation hardens other-service session handling but is not the relay's
+enforcement authority. Session IDs and credentials stay out of Client/CLI projections. Both owner
+and relay refuse the caller's current computer/session; legacy unbound rows are explicitly removal
+only. After a confirmed removal, a host-limit retry happens once outside the owner's serial queue.
+See the [ADR-0241 linked-computer amendment](../adr/0241-hosted-connect-reaches-the-host-through-a-managed-tunnel.md#amendment--linked-computer-sign-out-2026-11-07-3672).
+
 The application-defined Connect account owner keeps the local registration reference in its existing Credentials Provider record. Re-login reuses that Host ID only when the relay origin and OAuth client match and the newly authorized session's account-scoped Host list includes it. It never matches computers by name or email, and obtains tunnel/signing material afresh. Session expiry disables the tunnel and removes all session tokens, email and signing material while retaining only relay, client ID and Host ID for a later ownership check; explicit Host sign-out removes the record. This reference grants neither account access nor Device Pairing approval. Missing registrations follow the existing registration path; an unavailable or malformed ownership response fails closed without creating another computer. See the [ADR-0241 recovery amendment](../adr/0241-hosted-connect-reaches-the-host-through-a-managed-tunnel.md#amendment--host-registration-recovery-2026-11-01-3229).
 
 应用定义的 Connect 账号 owner 仅在原有 Credentials Provider 记录中保留本机注册引用。重登必须匹配 relay 与 OAuth client，并由新授权会话的账号级 Host 列表确认归属，不能按名称或邮箱匹配；隧道与签名材料重新取得。会话过期后停用隧道并清除令牌、邮箱及签名材料，仅保留 relay、client ID 和 Host ID 供后续验证，显式退出则移除记录。此引用不授予账号访问或设备配对权限；注册已不存在时沿用原有注册流程，归属查询失败或响应无效时拒绝额外注册。

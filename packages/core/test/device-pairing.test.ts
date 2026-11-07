@@ -8,6 +8,7 @@ import {
   type DevicePairingEvent,
 } from '../src/devices/pairing.js';
 import { createDevicesHttp, offeredRoutes, type PairingOfferView } from '../src/devices/http.js';
+import type { AccountResult, ConnectedHostsResult } from '../src/devices/connect-account.js';
 import { detectPhoneRoutes, type RunCommand } from '../src/devices/routes.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
@@ -39,6 +40,77 @@ function fixture() {
 }
 
 describe('Device Pairing', () => {
+  it('exposes account-host management only on demand and requires confirmation before owner calls', async () => {
+    const host = fixture().open();
+    let listCalls = 0;
+    const revokes: string[] = [];
+    const state = { state: 'signed-in' as const };
+    const http = createDevicesHttp({
+      pairing: host.pairing,
+      routes: () => detectPhoneRoutes({ port: 4100, run: async () => '' }),
+      account: {
+        status: () => state,
+        signIn: async () => ({ ok: true, status: state }),
+        signOut: async () => ({ ok: true, status: state }),
+        connectedHosts: async (): Promise<ConnectedHostsResult> => {
+          listCalls += 1;
+          return {
+            ok: true,
+            hosts: [
+              {
+                id: 'hother',
+                name: 'Other',
+                hostname: 'other.test',
+                createdAt: '2026-01-01T00:00:00Z',
+                current: false,
+                sessionKnown: true,
+              },
+            ],
+          };
+        },
+        revokeConnectedHost: async (hostId): Promise<AccountResult> => {
+          revokes.push(hostId);
+          return { ok: false, code: 'current-host' };
+        },
+      },
+    });
+    await http(new Request('http://h/api/botharness/devices'));
+    expect(listCalls).toBe(0);
+    const list = await (
+      await http(new Request('http://h/api/botharness/devices/account-hosts'))
+    ).json();
+    expect(list).toMatchObject({ hosts: [{ id: 'hother', current: false, sessionKnown: true }] });
+    expect(listCalls).toBe(1);
+    const revoke = (body: unknown) =>
+      http(
+        new Request('http://h/api/botharness/devices/account-hosts/revoke', {
+          method: 'POST',
+          body: JSON.stringify(body),
+        }),
+      );
+    expect((await revoke({ hostId: 'hother' })).status).toBe(400);
+    expect((await revoke({ confirm: true })).status).toBe(400);
+    expect(revokes).toHaveLength(0);
+    expect(
+      await (
+        await revoke({ hostId: 'hother', confirm: true, token: 'ignored-client-token' })
+      ).json(),
+    ).toEqual({ code: 'current-host' });
+    expect(revokes).toEqual(['hother']);
+    host.owner.close();
+  });
+
+  it('returns a coded signed-out refusal for account management without an owner', async () => {
+    const host = fixture().open();
+    const http = createDevicesHttp({
+      pairing: host.pairing,
+      routes: () => detectPhoneRoutes({ port: 4100, run: async () => '' }),
+    });
+    expect(
+      await (await http(new Request('http://h/api/botharness/devices/account-hosts'))).json(),
+    ).toEqual({ code: 'signed-out' });
+    host.owner.close();
+  });
   it('requires approval of the exact Noise device key and keeps that binding across restart', () => {
     const f = fixture();
     let host = f.open();

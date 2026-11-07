@@ -67,7 +67,7 @@
       "description": "Device list, offers, offer status and revoke; the Connect tunnel action on the same route family has connect-status/enable/disable/sign-in/sign-out.",
       "scope": "Profile",
       "surfaces": [
-        "route:packages/core/src/devices/mount.ts:path in [ [DEVICES_PATH, ['GET']], [`${DEVICES_PATH}/requests`, ['GET']], [`${DEVICES_PATH}/offer`, ['POST']], [`${DEVICES_PATH}/offer-status`, ['POST']], [`${DEVICES_PATH}/approve-key`, ['POST']], [`${DEVICES_PATH}/revoke`, ['POST']], [`${DEVICES_PATH}/connect`, ['POST']], [`${DEVICES_PATH}/lan`, ['POST']], [`${DEVICES_PATH}/lan-bots`, ['GET', 'POST']], ] as const",
+        "route:packages/core/src/devices/mount.ts:path in [ [DEVICES_PATH, ['GET']], [`${DEVICES_PATH}/requests`, ['GET']], [`${DEVICES_PATH}/offer`, ['POST']], [`${DEVICES_PATH}/offer-status`, ['POST']], [`${DEVICES_PATH}/approve-key`, ['POST']], [`${DEVICES_PATH}/revoke`, ['POST']], [`${DEVICES_PATH}/connect`, ['POST']], [`${DEVICES_PATH}/account-hosts`, ['GET']], [`${DEVICES_PATH}/account-hosts/revoke`, ['POST']], [`${DEVICES_PATH}/lan`, ['POST']], [`${DEVICES_PATH}/lan-bots`, ['GET', 'POST']], ] as const",
         "setting:packages/client/src/client/paired-devices.tsx:{t('devices.lan.title')}",
         "setting:packages/client/src/client/lan-bot-settings.tsx:{peer.name}",
         "setting:packages/client/src/client/lan-bot-settings.tsx:{review.peer.name}",
@@ -90,6 +90,8 @@
         "device-revoke",
         "connect-enable",
         "connect-disable",
+        "connect-account-hosts",
+        "connect-account-revoke",
         "device-requests",
         "connection-clients",
         "connection"
@@ -101,9 +103,17 @@
       "scope": "Profile",
       "surfaces": [
         "setting:packages/client/src/client/paired-devices.tsx:{t('devices.connect.account')}",
-        "setting:packages/client/src/client/paired-devices.tsx:{t('devices.connect.tunnel')}"
+        "setting:packages/client/src/client/paired-devices.tsx:{t('devices.connect.tunnel')}",
+        "setting:packages/client/src/client/connect-account-hosts.tsx:{host.name}",
+        "setting:packages/client/src/client/connect-account-hosts.tsx:{t('devices.connect.computersStatus')}"
       ],
-      "commands": ["connect-status", "connect-sign-in", "connect-sign-out"]
+      "commands": [
+        "connect-status",
+        "connect-sign-in",
+        "connect-sign-out",
+        "connect-account-hosts",
+        "connect-account-revoke"
+      ]
     },
     {
       "id": "phone-route",

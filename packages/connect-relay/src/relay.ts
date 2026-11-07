@@ -18,6 +18,7 @@ export interface RelayOptions {
   limit?: (account: string) => Promise<boolean>;
   limitBot?: (account: string, hostId: string) => Promise<boolean>;
   deleteUser?: (account: string) => Promise<void>;
+  revokeSession?: (sessionId: string) => Promise<void>;
   emailCode?: EmailCode;
   deleteMarketplaceAuthor?: (accessToken: string) => Promise<void>;
   hostKey?: (hostId: string) => Promise<string>;
@@ -37,6 +38,7 @@ interface HostRow {
   origin_port: number | null;
   bot_host_id: string | null;
   bot_public_key: string | null;
+  session_id: string | null;
 }
 
 const HOST_ID = /^h[a-z2-7]{12}$/u;
@@ -165,6 +167,7 @@ export function createRelay(options: RelayOptions) {
     hostname: hostname(row.id),
     createdAt: row.created_at,
     tunnel: row.tunnel_id !== null,
+    sessionKnown: row.session_id != null,
     ...(row.bot_host_id == null || row.bot_public_key == null
       ? {}
       : {
@@ -428,10 +431,21 @@ export function createRelay(options: RelayOptions) {
   const bearerToken = (request: Request) =>
     /^Bearer (\S+)$/u.exec(request.headers.get('authorization') ?? '')?.[1];
 
-  const authorized = async (request: Request): Promise<string | Response> => {
+  const authorized = async (
+    request: Request,
+  ): Promise<{ account: string; sessionId?: string } | Response> => {
     const token = bearerToken(request);
-    const account = token === undefined ? undefined : await options.verifier.verify(token);
-    if (account === undefined) return failure(401, 'unauthorized');
+    const identity = token === undefined ? undefined : await options.verifier.verify(token);
+    if (identity === undefined) return failure(401, 'unauthorized');
+    const { account, sessionId } = identity;
+    if (
+      sessionId !== undefined &&
+      (await db
+        .prepare('SELECT 1 FROM revoked_sessions WHERE account = ? AND session_id = ?')
+        .bind(account, sessionId)
+        .first()) !== null
+    )
+      return failure(401, 'session-revoked');
     if (!allowAll && !options.allowedUsers.includes(account))
       return failure(403, 'account-not-allowed');
     if (
@@ -452,7 +466,7 @@ export function createRelay(options: RelayOptions) {
       !(await options.limit(account))
     )
       return failure(429, 'rate-limited');
-    return account;
+    return identity;
   };
 
   const route = async (request: Request): Promise<Response> => {
@@ -490,13 +504,14 @@ export function createRelay(options: RelayOptions) {
       }
     }
     const hostMatch =
-      /^\/v1\/hosts\/([^/]+)(\/tunnel|\/offer|\/live-activity|\/bot-network(?:\/grant)?)?$/u.exec(
+      /^\/v1\/hosts\/([^/]+)(\/tunnel|\/revoke|\/offer|\/live-activity|\/bot-network(?:\/grant)?)?$/u.exec(
         url.pathname,
       );
     if (url.pathname !== '/v1/hosts' && url.pathname !== '/v1/account' && hostMatch === null)
       return failure(404, 'not-found');
-    const account = await authorized(request);
-    if (account instanceof Response) return account;
+    const identity = await authorized(request);
+    if (identity instanceof Response) return identity;
+    const { account, sessionId } = identity;
 
     if (url.pathname === '/v1/account') {
       if (request.method !== 'DELETE') return failure(405, 'method-not-allowed');
@@ -529,16 +544,19 @@ export function createRelay(options: RelayOptions) {
       const created = changes(
         await db
           .prepare(
-            'INSERT INTO hosts (id, account, name, created_at) SELECT ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM hosts WHERE account = ?) < ? AND NOT EXISTS (SELECT 1 FROM deleted_accounts WHERE account = ?)',
+            'INSERT INTO hosts (id, account, name, created_at, session_id) SELECT ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM hosts WHERE account = ?) < ? AND NOT EXISTS (SELECT 1 FROM deleted_accounts WHERE account = ?) AND NOT EXISTS (SELECT 1 FROM revoked_sessions WHERE account = ? AND session_id = ?)',
           )
           .bind(
             id,
             account,
             body['name'].trim(),
             now().toISOString(),
+            sessionId ?? null,
             account,
             options.maxHosts,
             account,
+            account,
+            sessionId ?? null,
           )
           .run(),
       );
@@ -550,6 +568,35 @@ export function createRelay(options: RelayOptions) {
     const id = hostMatch?.[1] ?? '';
     const row = HOST_ID.test(id) ? await owned(id, account) : null;
     if (row === null) return failure(404, 'host-not-found');
+    if (hostMatch?.[2] === '/revoke') {
+      if (request.method !== 'POST') return failure(405, 'method-not-allowed');
+      if (sessionId === undefined) return failure(409, 'session-unknown');
+      if (row.session_id === sessionId) return failure(409, 'current-host');
+      const sessionKnown = row.session_id !== null;
+      if (sessionKnown) {
+        await db
+          .prepare(
+            'INSERT OR IGNORE INTO revoked_sessions (account, session_id, revoked_at) VALUES (?, ?, ?)',
+          )
+          .bind(account, row.session_id, now().toISOString())
+          .run();
+      }
+      try {
+        await unlink(row);
+      } catch {
+        return failure(502, 'upstream-unavailable');
+      }
+      let sessionRevoked = false;
+      if (row.session_id !== null && options.revokeSession !== undefined) {
+        try {
+          await options.revokeSession(row.session_id);
+          sessionRevoked = true;
+        } catch {
+          sessionRevoked = false;
+        }
+      }
+      return json(200, { deleted: true, sessionRevoked, sessionKnown });
+    }
     if (
       request.method === 'POST' &&
       (hostMatch?.[2] === '/bot-network' || hostMatch?.[2] === '/bot-network/grant') &&
@@ -575,6 +622,12 @@ export function createRelay(options: RelayOptions) {
       const port = (await readBody(request))?.['originPort'];
       if (typeof port !== 'number' || !Number.isInteger(port) || port < 1024 || port > 65535)
         return failure(400, 'invalid-origin-port');
+      await db
+        .prepare(
+          'UPDATE hosts SET session_id = COALESCE(?, session_id) WHERE id = ? AND account = ?',
+        )
+        .bind(sessionId ?? null, id, account)
+        .run();
       try {
         const tunnel = await provision(row, port);
         return tunnel === undefined ? failure(404, 'host-not-found') : json(200, tunnel);

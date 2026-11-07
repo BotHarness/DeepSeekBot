@@ -49,6 +49,18 @@ export function workosUserDeleter(apiKey: string, fetcher: typeof fetch = fetch)
   };
 }
 
+export function workosSessionRevoker(apiKey: string, fetcher: typeof fetch = fetch) {
+  return async (sessionId: string): Promise<void> => {
+    const response = await fetcher('https://api.workos.com/user_management/sessions/revoke', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ session_id: sessionId }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok && response.status !== 404) throw new Error(`workos ${response.status}`);
+  };
+}
+
 function positive(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
@@ -96,7 +108,9 @@ export function relayForEnv(env: ConnectRelayEnv): ReturnType<typeof createRelay
             (await limiter.limit({ key: JSON.stringify(['bot-network', account, hostId]) }))
               .success,
         }),
-    ...(apiKey ? { deleteUser: workosUserDeleter(apiKey) } : {}),
+    ...(apiKey
+      ? { deleteUser: workosUserDeleter(apiKey), revokeSession: workosSessionRevoker(apiKey) }
+      : {}),
     ...(apiKey && limiter !== undefined
       ? {
           emailCode: createEmailCode({
