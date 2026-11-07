@@ -1593,7 +1593,10 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #nativeStepReady = new Map<string, (accepted: boolean) => void>();
   readonly #preparedOrchestrators = new Set<string>();
   readonly #preparedAssignments = new Set<string>();
-  readonly #nativeAssignmentSteps = new Map<string, Promise<boolean>>();
+  readonly #nativeAssignmentSteps = new Map<
+    string,
+    { step: Promise<boolean>; signal: AbortSignal }
+  >();
   readonly #stoppedTurns = new Set<string>();
   readonly #stopNotices = new Map<string, string>();
   readonly #held = new Map<string, BotHoldCause>();
@@ -5116,7 +5119,22 @@ class BotRuntimeImplementation implements BotRuntime {
     };
     if (!valid()) return refuse();
     const pending = this.#nativeAssignmentSteps.get(sessionId);
-    if (pending !== undefined) return pending;
+    if (pending !== undefined) {
+      const accepted = await new Promise<boolean>((resolve) => {
+        const finish = (result: boolean) => {
+          cancellation.removeEventListener('abort', abort);
+          resolve(result);
+        };
+        const abort = () => finish(false);
+        cancellation.addEventListener('abort', abort, { once: true });
+        void pending.step.then(finish, () => finish(false));
+        if (cancellation.aborted) abort();
+      });
+      if (!valid()) return refuse();
+      if (!accepted && pending.signal.aborted)
+        return this.#prepareNativeAssignmentStep(sessionId, senderSessionIds, signal);
+      return accepted;
+    }
     const prepare = async () => {
       while (this.#assignmentRuns.has(sessionId)) {
         if (this.#preparedAssignments.has(sessionId)) return valid();
@@ -5193,11 +5211,11 @@ class BotRuntimeImplementation implements BotRuntime {
       });
     };
     const step = prepare();
-    this.#nativeAssignmentSteps.set(sessionId, step);
+    this.#nativeAssignmentSteps.set(sessionId, { step, signal: cancellation });
     try {
       return await step;
     } finally {
-      if (this.#nativeAssignmentSteps.get(sessionId) === step)
+      if (this.#nativeAssignmentSteps.get(sessionId)?.step === step)
         this.#nativeAssignmentSteps.delete(sessionId);
     }
   }

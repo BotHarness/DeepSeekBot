@@ -251,6 +251,51 @@ remain unverified; Windows is outside this fix scope. No overall compatibility,
 npm publication or Site deployment is claimed. The subsequent fix PR and its
 CI/merge decision are separate from this frozen-runtime qualification record.
 
+### PR review follow-up candidate
+
+- Review found that deduplicated admission shared the first caller's cancellation.
+  Two independently signalled regressions failed before the fix and passed after it:
+  cancelling a follower releases only that waiter; cancelling the preparation owner
+  lets a still-live follower re-enter admission with fresh authority checks. The
+  pending map still shares one preparation, and cancellation listeners are removed
+  when each waiter settles. The prepared-step constant-work guard remains unchanged.
+- New local-only candidate `1.6.2-test.3477.idle.2` freezes head
+  `911b93cc440ca3369422b402c94fc77cf1eb035b` plus review patch SHA256
+  `540da5154a4a9c13409602c55358e57879b5c0fe19da93bfd854a3ed7c6f29d4`.
+  Artifact manifest SHA256:
+  `baa3220f210a65c996793f5aec2b316dba6af7f74f556f955ede22d194f6d256`.
+  Both installed Hosts' core bundle matches the frozen bundle SHA256
+  `f3b60fa0f260acea71e1a3ead7ab00399586702473396b994fd6f602cfac7fba`.
+  This is local `product-artifacts` packaging, not release preparation/publication.
+- Follow-up checks: 178 tests in three affected files, root/mobile typechecks,
+  build, lint and formatting passed. Real RC1 Host model switching, active direct
+  child success, idle refusal and native background wake/report all passed. Closed
+  persisted CLI logs retain 49 parent and 33 child records, with canonical progress
+  in Turn 1 and completion in Turn 2.
+- A fresh independent official macOS RC1 Home/userData repeated real native DM and
+  background-child input on the official DeepSeek route. Parent
+  `botharness-03282740-b239-43bc-b63d-f1721fb8594d` was idle at
+  `2026-11-07T12:33:15.836Z` while child `56e9ac91-246f-40f2-9896-1a4c797aa826`
+  ran. Turn 1 end35 → Turn 2 start37 → report call44/result45 succeeded; closed
+  persisted logs retain 55 parent and 36 child records, canonical progress1 /
+  completed2, and the rendered DM contains `MAC3477_WAKE_DONE`.
+- Installed CLI against that Desktop Host independently passed active direct
+  child execution and idle refusal, with child count 1→1. Its supplementary
+  active/idle collector failed a fetch after the successful active command; the
+  failure is retained, and separate idle readback/refusal established the boundary
+  without resending the task. Native navigation attempts blocked by onboarding
+  are also retained. These failures are not reclassified as clean script runs.
+- The [new cropped native result](https://media.botharness.ai/pr/911b93cc440c/819fd1b727d97cce66bad99bd3a136f2549a1107b5a72a73fd4e7987ea354589.png)
+  passed public R2 byte/hash/type readback. Its namespace is the pre-patch head;
+  the source identity is the explicit frozen patch above, not a clean head build.
+  The earlier candidate's evidence remains historical, not proof of these bytes.
+- Review evidence is indexed under ignored
+  `.humanlayer/tasks/3477-idle-authority-review/`. Desktop PID97165, Host98681 and
+  recorded descendants exited; CDP34930, native Host56781 and CLI Host34910 were
+  released. The unchanged official app passed post-run deep/strict signature
+  verification; Human Desktop PID2740 remained alive and untouched. Standalone
+  Web and Human acceptance remain unverified; Windows remains outside this scope.
+
 ## Merged-candidate Windows qualification (2026-11-07)
 
 Merging current `main` into the RC1 candidate (`51b39218a`) kept the product changes

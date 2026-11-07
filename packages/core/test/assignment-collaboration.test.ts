@@ -427,6 +427,58 @@ describe('Assignment collaboration', () => {
     }
   });
 
+  it.each(['first', 'second'])(
+    'honors the %s native wake caller cancellation independently',
+    async (cancelledCaller) => {
+      const { runtime, agents, owner, sessionId, close } = await idleNativeAssignment({
+        assignmentConcurrencyLimit: 1,
+      });
+      const subscribe = vi.spyOn(owner, 'subscribe');
+      const firstController = new AbortController();
+      const secondController = new AbortController();
+      try {
+        const other = agents.access!.create({
+          title: 'Assignment',
+          grantId: TEST_GRANT_ID,
+          description: 'Other',
+        });
+        if (other.outcome !== 'created') throw new Error('Other missing');
+        const first = runtime.prepareNativeOrchestratorStep!(
+          sessionId,
+          ['native-child'],
+          firstController.signal,
+        );
+        const second = runtime.prepareNativeOrchestratorStep!(
+          sessionId,
+          ['native-child'],
+          secondController.signal,
+        );
+        await vi.waitFor(() => expect(subscribe).toHaveBeenCalledTimes(1));
+        const cancelled = cancelledCaller === 'first' ? first : second;
+        const remaining = cancelledCaller === 'first' ? second : first;
+        let remainingResult: boolean | undefined;
+        void remaining.then((accepted) => {
+          remainingResult = accepted;
+        });
+        (cancelledCaller === 'first' ? firstController : secondController).abort();
+        await expect(cancelled).resolves.toBe(false);
+        await vi.waitFor(() =>
+          expect(subscribe).toHaveBeenCalledTimes(cancelledCaller === 'first' ? 2 : 1),
+        );
+        expect(remainingResult).toBeUndefined();
+        expect(agents.started).toHaveLength(2);
+        agents.finish(other.assignment.sessionId);
+        await expect(remaining).resolves.toBe(true);
+        expect(agents.started).toHaveLength(3);
+        agents.finish(sessionId);
+      } finally {
+        firstController.abort();
+        secondController.abort();
+        await close();
+      }
+    },
+  );
+
   it.each(['abort', 'stop', 'revoke', 'close'])(
     'cancels a capacity-queued native wake on %s',
     async (boundary) => {
