@@ -38,6 +38,12 @@ import { CliLiveError } from './cli-live-error.js';
 import { CONNECTION_COMMANDS, runConnectionCommand } from './cli-connection.js';
 import { BOT_TOOL_COMMANDS, runBotToolCommand } from './cli-bot-tool.js';
 import {
+  CALL_TIMELINE_COMMANDS,
+  CALL_TIMELINE_OPTIONS,
+  isCallTimelineCommand,
+  runCallTimelineCommand,
+} from './cli-call-timeline.js';
+import {
   TAKEOVER_COMMANDS,
   TAKEOVER_OPTIONS,
   isTakeoverCommand,
@@ -204,6 +210,7 @@ export const LIVE_OPTIONS = {
   ...APPROVAL_REVIEWER_OPTIONS,
   ...VOICE_OPTIONS,
   ...CALL_OPTIONS,
+  ...CALL_TIMELINE_OPTIONS,
   ...STORAGE_OPTIONS,
   host: { type: 'string' },
   'token-file': { type: 'string' },
@@ -336,6 +343,7 @@ export const LIVE_COMMANDS = [
   ...APPROVAL_REVIEWER_COMMANDS,
   ...VOICE_COMMANDS,
   ...CALL_COMMANDS,
+  ...CALL_TIMELINE_COMMANDS,
   ...IDLE_COMPACTION_COMMANDS,
   ...STORAGE_COMMANDS,
   {
@@ -1090,6 +1098,10 @@ export async function runLiveCli(
         }
       };
     });
+  if (isCallTimelineCommand(command))
+    return runCallTimelineCommand(command, rest, values, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
   if (isApprovalReviewerCommand(command))
     return runApprovalReviewerCommand(command, rest, values, async () => {
       const signal = AbortSignal.timeout(timeoutMs(values.timeout));

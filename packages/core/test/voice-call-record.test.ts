@@ -132,7 +132,7 @@ describe('voice call records in the Bot DM (#3483)', () => {
       await core.runtime.whenIdle();
       const first = runs.at(-1)!.message;
       expect(first).toContain(`[Last voice call with the Human in this DM: ${CALL}`);
-      expect(first).toContain(`from=${startedAt} to=${endedAt}`);
+      expect(first).toContain(`channel_read call=${CALL}; add from_ms/to_ms`);
       expect(first).toContain('0:59');
       expect(first).toContain('1 spoken message heard');
 
