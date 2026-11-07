@@ -196,3 +196,11 @@ deterministic defects. The fixes below are committed with the candidate.
 - The Windows qualification command uses the diagnostic `--testTimeout=60000` flag; the
   repository keeps its 15-second guard. The 40-hop Group stress test carries an explicit
   300-second Windows allowance because 40 SQLite-backed hops take minutes on that platform.
+
+Re-running the 44 affected files at that diagnostic allowance with four workers passed 41;
+the three remaining files were then fixed and re-verified individually: the native-path
+`ENOTDIR` refusal, the 300-second 40-hop allowance, and the Puppeteer shutdown hook that
+needed more than 30 seconds under load. A subsequent full-suite attempt on the same shared
+machine still exceeded the diagnostic allowance while other agents held the CPU, so that
+log stays a failure record and not a passing gate. Linux CI remains the full-suite
+authority for this PR.
