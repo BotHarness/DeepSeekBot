@@ -101,6 +101,16 @@ No EAS initialization, Expo account or cloud build is needed for this local debu
 `open` restarts only the development app process before opening its Metro link, so a previous
 failed connection is not reused; it preserves app data and pairing credentials.
 
+## Dev Client tools button
+
+The development client is configured with `expo-dev-client` `toolsButton: false`, so a freshly
+configured QA build does not show the floating **Tools** button
+(`EXDevMenuShowFloatingActionButton=false`). That Debug-only bubble can cover a right-edge swipe
+action and make a real tap look like a missed hit target. Do not re-enable it for device QA. If an
+older build still shows it, hide it for that process with `__expo_disable_fab=1` on the dev-client
+launch URL, or move the bubble away before testing edge gestures; record which method was used in
+the evidence.
+
 ## Dedicated Host and pairing
 
 Use the existing [verified Host launcher](../../.agents/skills/verify-deepseekbot/SKILL.md)

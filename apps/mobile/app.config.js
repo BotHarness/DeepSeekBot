@@ -64,7 +64,7 @@ module.exports = ({ config }) => {
         'expo-widgets',
         { enablePushNotifications: true, groupIdentifier: `group.${bundleIdentifier}` },
       ],
-      ['expo-dev-client', { addGeneratedScheme: !store }],
+      ['expo-dev-client', { addGeneratedScheme: !store, toolsButton: false }],
     ],
     owner: 'deepseekbots-team',
     updates: { ...config.updates, enabled: false },
