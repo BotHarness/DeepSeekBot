@@ -1440,6 +1440,17 @@ Android Computer uses native Material command buttons and a floating toolbar; th
 
 Under ADR-0245, `scroll-motion` travels through the existing Local Computer video input command and its controller grant. iOS renews a bounded velocity while held; the macOS owner validates capture-to-logical geometry and delegates frame injection to a short-lived system-native bridge. Every frame rechecks the current grant; zero velocity, invalidation and a 250ms missing-refresh deadline stop the process. Only one acknowledged, expiring native packet is allowed in flight. This adapter supplements the general-purpose Computer driver only for continuous Human scrolling and grants no Bot capability. Android and legacy Hosts retain the existing discrete path.
 
+### Idle Assignment native-child wake (#3477)
+
+The application-defined Assignment lifecycle joins a DSH-native child wake at claimed-input
+prompt assembly. Only a persisted direct Subagent may restore an idle parent's execution,
+after rechecking its Bot, Grant, Source, stop/archive state and shared Assignment capacity.
+The owning Adapter establishes the actual Assignment run without replaying native input,
+records reports against the native Turn, and releases capacity after native `whenIdle`.
+Capacity waits subscribe to canonical commit notifications and cancel on stop, revocation,
+runtime close or native cancellation. An idle direct CLI/tool invocation does not pass this
+admission seam and retains its strict `running + working` execution guard.
+
 ### 独立 Subagent 的原生组合
 
 独立 `bot_subagent` 依次选择允许的显式 preset、配置的子 Agent preset、DSH registry 当前系统默认值；fork 保留父级原生组合。此应用定义策略与 Model Plan 路由校验独立。直接 CLI 调用用 `--session` 指定存活的 Assignment，复用其原生工具执行链；没有父 Agent 时拒绝，不隐式创建。DSH 继续拥有 preset 与子 Agent 生命周期（ADR-0251）。

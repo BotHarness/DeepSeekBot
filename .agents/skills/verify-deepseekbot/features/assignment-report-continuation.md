@@ -24,6 +24,23 @@ Launch an isolated Host and run doctor. Use a task-owned Bot and an Assignment w
 
 Save redacted CLI results, exact-body digests, DSH version and restart evidence. Real SQLite Runtime tests exercise cross-page updates, malformed metadata, scoped identities and purge; direct adapter tests exercise the same tool used by CLI. These do not replace a real Host continuation run.
 
+## Idle native-child wake (#3477)
+
+Use a task-owned Assignment with a valid Workspace Grant and Source Event. Have the model
+start one native background `bot_subagent` that sleeps long enough to outlive the parent's
+first turn. The parent reports progress and ends its turn without polling. Record both
+canonical `running + idle` and native `turn/end` while the child is still running. Its
+native relay must start a later parent turn, whose `report_to_orchestrator` commits a
+completed report with that later turn identity. Verify the native child result and the
+Orchestrator's delivered result, not merely a wake or a tool receipt.
+
+Pair an authorized `running + working` direct CLI `bot_subagent` with the same call after
+idle. The latter must refuse without adding a child. Stop/archive, revoked or mismatched
+Grant, unavailable Source and foreign-child cases remain fail-closed. Source fixtures
+cover queued capacity cancellation and no-polling behavior; they are not native acceptance.
+Run the same frozen bytes in the authorized official Desktop with a separate Profile and
+userData, and keep CLI, Web, native Desktop and Human acceptance separate.
+
 ## Gotchas
 
 - Assignment `sourceEventId` is its origin, not the report identity.

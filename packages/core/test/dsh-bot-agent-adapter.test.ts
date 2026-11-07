@@ -3042,6 +3042,75 @@ describe('DSH Bot Agent adapter', () => {
     },
   );
 
+  it.each([true, false])(
+    'joins native Assignment input without replay, accepted=%s',
+    async (accept) => {
+      const host = new FakeAgentHost();
+      const adapter = createDshBotAgentAdapter({
+        agents: host,
+        defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+        orchestratorCwd: () => '/memory/ada',
+        ensureWorkspace: () => undefined,
+      });
+      const run: AssignmentAgentRun = {
+        sessionId: 'native-wake-assignment',
+        bot: BOT,
+        text: 'Initial',
+        permission: {
+          grantId: 'grant-1',
+          workspaceId: 'workspace-1',
+          primaryCwd: '/project',
+          mode: 'workspace-write',
+          approval: 'ask',
+          presetRevision: 0,
+        },
+        report: async (input) => ({ ...input, at: BOT.createdAt }),
+      };
+      try {
+        await adapter.runAssignment(run);
+        const agent = host.get(run.sessionId)!;
+        agent.session.append('turn/start', { turn: 2 });
+        const followup = vi.spyOn(agent, 'followup');
+        const ready = vi.fn();
+        const report = vi.fn(run.report);
+        const completed = vi.fn();
+        vi.spyOn(agent, 'whenIdle').mockImplementationOnce(async () => {
+          const tool = host.scopes
+            .get(run.sessionId)!
+            .tools.find((definition) => definition.name === 'report_to_orchestrator')!;
+          await tool.execute(
+            { state: 'completed', summary: 'Native child finished' },
+            {} as ToolRunContext,
+          );
+          agent.session.append('turn/end', { turn: 2, reason: { kind: 'completed' } });
+        });
+        await adapter.runAssignment({
+          ...run,
+          text: '',
+          resume: true,
+          report,
+          completedTurn: completed,
+          setExecutionReady: ready,
+          acceptNativeInput: () => {
+            expect(ready).toHaveBeenLastCalledWith(true);
+            return accept;
+          },
+        });
+        expect(followup).not.toHaveBeenCalled();
+        expect(ready.mock.calls).toEqual([[true], [false]]);
+        expect(report).toHaveBeenCalledTimes(accept ? 1 : 0);
+        expect(completed).toHaveBeenCalledTimes(accept ? 1 : 0);
+        if (accept)
+          expect(report).toHaveBeenCalledWith(
+            { state: 'completed', summary: 'Native child finished' },
+            { turn: 2 },
+          );
+      } finally {
+        await adapter.close();
+      }
+    },
+  );
+
   it('acknowledges native Inbox acceptance before the resumed turn finishes', async () => {
     let finish!: () => void;
     const pending = new Promise<void>((resolve) => {

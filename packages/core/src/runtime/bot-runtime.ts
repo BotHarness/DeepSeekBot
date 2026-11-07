@@ -469,6 +469,8 @@ export interface InterruptedToolCall {
 }
 
 export interface AssignmentAgentRun {
+  acceptNativeInput?: () => boolean;
+  setExecutionReady?(ready: boolean): void;
   requireContent?(): void;
   accepted?(): void;
   toolsInterrupted?(calls: InterruptedToolCall[]): void;
@@ -1590,6 +1592,11 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #activeTurns = new Map<string, Promise<void>>();
   readonly #nativeStepReady = new Map<string, (accepted: boolean) => void>();
   readonly #preparedOrchestrators = new Set<string>();
+  readonly #preparedAssignments = new Set<string>();
+  readonly #nativeAssignmentSteps = new Map<
+    string,
+    { step: Promise<boolean>; signal: AbortSignal }
+  >();
   readonly #stoppedTurns = new Set<string>();
   readonly #stopNotices = new Map<string, string>();
   readonly #held = new Map<string, BotHoldCause>();
@@ -4404,6 +4411,8 @@ class BotRuntimeImplementation implements BotRuntime {
     signal: AbortSignal,
   ): Promise<boolean> {
     const owner = this.#ownership.resolve(sessionId);
+    if (owner?.rootRole === 'assignment' && owner.parentSessionId === undefined)
+      return this.#prepareNativeAssignmentStep(sessionId, senderSessionIds, signal);
     if (owner?.rootRole !== 'orchestrator' || owner.parentSessionId !== undefined) return true;
     const unavailable = (): NativeOrchestratorRefusal | undefined => {
       if (this.#closed) return 'runtime-closed';
@@ -5034,17 +5043,24 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   #assignmentExecutionAvailable(sessionId: string): boolean {
+    return this.#assignmentAvailable(sessionId, 'working');
+  }
+
+  #assignmentAvailable(sessionId: string, activity: 'working' | 'idle'): boolean {
     if (this.#closed) return false;
     const row = this.#assignmentRow(undefined, sessionId);
     const owner = this.#ownership.resolve(sessionId);
     const bot = row === undefined ? undefined : this.#registry.get(row.bot_slug);
     if (
       row?.stop_state !== 'running' ||
-      row.activity !== 'working' ||
+      row.activity !== activity ||
       owner?.rootRole !== 'assignment' ||
       owner.botSlug !== row.bot_slug ||
       bot === undefined ||
       bot.paused === true ||
+      isArchivedRow(row) ||
+      this.#sessionArchived?.(sessionId) === true ||
+      this.#assignmentArchives.has(sessionId) ||
       !this.#ownership.contentAvailable(sessionId)
     )
       return false;
@@ -5061,6 +5077,146 @@ class BotRuntimeImplementation implements BotRuntime {
       return true;
     } catch {
       return false;
+    }
+  }
+
+  async #prepareNativeAssignmentStep(
+    sessionId: string,
+    senderSessionIds: readonly string[],
+    signal: AbortSignal,
+  ): Promise<boolean> {
+    const startedAt = Date.now();
+    if (this.#preparedAssignments.has(sessionId))
+      return !signal.aborted && this.#assignmentExecutionAvailable(sessionId);
+    const trusted = () =>
+      senderSessionIds.length > 0 &&
+      senderSessionIds.every((id) => {
+        const sender = this.#ownership.resolve(id);
+        return (
+          sender?.parentSessionId === sessionId &&
+          sender.botSlug === this.#assignmentRow(undefined, sessionId)?.bot_slug &&
+          sender.provenance === 'subagent' &&
+          this.#ownership.contentAvailable(id)
+        );
+      });
+    const cancellation = AbortSignal.any([signal, this.#waitLifetime.signal]);
+    const valid = () =>
+      !cancellation.aborted &&
+      (this.#assignmentAvailable(sessionId, 'idle') ||
+        this.#assignmentExecutionAvailable(sessionId)) &&
+      trusted();
+    const refuse = () => {
+      this.#warn?.(
+        JSON.stringify({
+          event: 'native-assignment-input',
+          phase: 'refused',
+          reason: 'execution-unavailable',
+          session: sessionId,
+          durationMs: Date.now() - startedAt,
+        }),
+      );
+      return false;
+    };
+    if (!valid()) return refuse();
+    const pending = this.#nativeAssignmentSteps.get(sessionId);
+    if (pending !== undefined) {
+      const accepted = await new Promise<boolean>((resolve) => {
+        const finish = (result: boolean) => {
+          cancellation.removeEventListener('abort', abort);
+          resolve(result);
+        };
+        const abort = () => finish(false);
+        cancellation.addEventListener('abort', abort, { once: true });
+        void pending.step.then(finish, () => finish(false));
+        if (cancellation.aborted) abort();
+      });
+      if (!valid()) return refuse();
+      if (!accepted && pending.signal.aborted)
+        return this.#prepareNativeAssignmentStep(sessionId, senderSessionIds, signal);
+      return accepted;
+    }
+    const prepare = async () => {
+      while (this.#assignmentRuns.has(sessionId)) {
+        if (this.#preparedAssignments.has(sessionId)) return valid();
+        await this.#assignmentRuns.get(sessionId);
+      }
+      while (valid() && this.#assignmentCapacityRefusal('awakened') !== undefined) {
+        await new Promise<void>((resolve) => {
+          const finish = () => {
+            unsubscribe();
+            cancellation.removeEventListener('abort', finish);
+            resolve();
+          };
+          const unsubscribe = this.#waitOptions.database.subscribe(finish);
+          cancellation.addEventListener('abort', finish, { once: true });
+          if (!valid() || this.#assignmentCapacityRefusal('awakened') === undefined) finish();
+        });
+      }
+      if (!valid()) return refuse();
+      const row = this.#assignmentRow(undefined, sessionId)!;
+      const bot = this.#registry.get(row.bot_slug)!;
+      const permission = permissionFromRow(row)!;
+      return new Promise<boolean>((resolve) => {
+        let settled = false;
+        const finish = (accepted: boolean) => {
+          if (settled) return;
+          settled = true;
+          cancellation.removeEventListener('abort', abort);
+          resolve(accepted);
+        };
+        const abort = () => finish(false);
+        cancellation.addEventListener('abort', abort, { once: true });
+        const modelRoute = modelRouteFromRow(row);
+        this.#trackAssignmentRun(sessionId, async () => {
+          try {
+            await this.#agents.runAssignment({
+              sessionId,
+              bot,
+              text: '',
+              resume: true,
+              permission,
+              ...(modelRoute === undefined ? {} : { modelRoute }),
+              requireContent: () =>
+                this.#database.read((db) =>
+                  requireAssignmentSource(db, row.source_event_id, bot.slug),
+                ),
+              setExecutionReady: (ready) => this.#setAssignmentExecutionReady(sessionId, ready),
+              acceptNativeInput: () => {
+                const accepted = valid();
+                this.#warn?.(
+                  JSON.stringify({
+                    event: 'native-assignment-input',
+                    phase: accepted ? 'ready' : 'refused',
+                    session: sessionId,
+                    durationMs: Date.now() - startedAt,
+                  }),
+                );
+                finish(accepted);
+                return accepted;
+              },
+              report: (report, execution) =>
+                this.#recordReport(bot.slug, sessionId, report, execution),
+              completedTurn: (execution) =>
+                this.#recordCompletedAssignment(bot.slug, sessionId, execution),
+              cancelledTurn: (execution) =>
+                this.#recordUnsuccessfulAssignment(bot.slug, sessionId, execution, 'cancelled'),
+              failedTurn: (execution) =>
+                this.#recordUnsuccessfulAssignment(bot.slug, sessionId, execution, 'failed'),
+            });
+          } finally {
+            this.#preparedAssignments.delete(sessionId);
+            finish(false);
+          }
+        });
+      });
+    };
+    const step = prepare();
+    this.#nativeAssignmentSteps.set(sessionId, { step, signal: cancellation });
+    try {
+      return await step;
+    } finally {
+      if (this.#nativeAssignmentSteps.get(sessionId)?.step === step)
+        this.#nativeAssignmentSteps.delete(sessionId);
     }
   }
 
@@ -8896,6 +9052,7 @@ class BotRuntimeImplementation implements BotRuntime {
     trackDelivery?.(sessionId, true);
     this.#trackAssignmentRun(sessionId, () =>
       this.#agents.runAssignment({
+        setExecutionReady: (ready) => this.#setAssignmentExecutionReady(sessionId, ready),
         requireContent: () =>
           this.#database.read((db) => requireAssignmentSource(db, sourceEventId, bot.slug)),
         accepted: () => trackDelivery?.(sessionId, false),
@@ -9013,6 +9170,7 @@ class BotRuntimeImplementation implements BotRuntime {
     }
     const interrupted = this.#interruptedTools.get(input.sessionId);
     const run: AssignmentAgentRun = {
+      setExecutionReady: (ready) => this.#setAssignmentExecutionReady(input.sessionId, ready),
       requireContent: () =>
         this.#database.read((db) => requireAssignmentSource(db, row.source_event_id, bot.slug)),
       accepted: () => trackDelivery?.(input.sessionId, false),
@@ -9343,6 +9501,11 @@ class BotRuntimeImplementation implements BotRuntime {
       () => this.#assignmentNotices.delete(notice),
       () => this.#assignmentNotices.delete(notice),
     );
+  }
+
+  #setAssignmentExecutionReady(sessionId: string, ready: boolean): void {
+    if (ready) this.#preparedAssignments.add(sessionId);
+    else this.#preparedAssignments.delete(sessionId);
   }
 
   #trackAssignmentRun(
