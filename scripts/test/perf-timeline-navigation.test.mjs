@@ -9,7 +9,8 @@ function fixture({ active = true, listVisible = true, rail = true } = {}) {
       if (selector === '.bh-root.bh-main, [data-workspace-dock]') return active ? {} : null;
       if (selector === '[data-workspace-dock]') return rail ? {} : null;
       if (selector === row) return listVisible ? { isVisible: async () => true } : null;
-      if (selector === '[data-workspace-dock] button[aria-label="Channels"]' && rail)
+      if (selector === '[data-workspace-dock] button[aria-label="Channels"]') return null;
+      if (selector === '[data-workspace-dock] button[data-pinned-panel="bh:channels"]' && rail)
         return {
           click: async () => {
             clicks.push('Channels');
@@ -49,7 +50,7 @@ describe('timeline performance navigation', () => {
     ]);
   });
 
-  it('opens a hidden list without toggling an already visible list closed', async () => {
+  it('opens a hidden list by panel ID when the Channels label includes a shortcut', async () => {
     const { page, clicks } = fixture({ listVisible: false });
     await openTimelineConversation(page, 'group', vi.fn());
     expect(clicks).toEqual([
