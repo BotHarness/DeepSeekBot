@@ -92,6 +92,13 @@ For a foreground diagnostic, `scripts/perf-idle-timeline.mjs --headed --foregrou
 
 Record pass, fail or untested for every layer, never a blanket end-to-end claim:
 
+Headed runs disable Puppeteer viewport emulation and fit the actual native window to
+the display's available bounds. The summary records inner/outer dimensions, native
+window bounds, display coordinates and actual device pixel ratio. Oversized emulated
+viewports and off-screen native bounds fail calibration; do not count a clipped
+1440px emulation in a smaller window as fully visible foreground evidence. This
+calibration does not prove compositor presentation or exclusive machine ownership.
+
 - Focused automated coverage: malformed/oversized/versioned reports, forged selections, publication failures, idempotent retries, dirty-draft remounts, access loss and canonical Content Purge.
 - Additional real Web fault journeys: failed saves, uncertain-response retry, access revocation and purge while a report is open. Unit coverage does not qualify these browser scenes.
 - Accessibility: keyboard selection is narrow evidence, not full keyboard navigation, screen-reader or large-text acceptance.

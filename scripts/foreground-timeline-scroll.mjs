@@ -1,5 +1,83 @@
 import assert from 'node:assert/strict';
 
+export function fittingWindowBounds(screen) {
+  assert.ok(
+    [screen.availLeft, screen.availTop, screen.availWidth, screen.availHeight].every(
+      Number.isFinite,
+    ) &&
+      screen.availWidth > 0 &&
+      screen.availHeight > 0,
+    'Invalid native display geometry.',
+  );
+  return {
+    left: Math.round(screen.availLeft),
+    top: Math.round(screen.availTop),
+    width: Math.min(1440, Math.floor(screen.availWidth)),
+    height: Math.min(900, Math.floor(screen.availHeight)),
+  };
+}
+
+export function assertNativeViewport(geometry) {
+  const { screen, windowBounds: bounds } = geometry;
+  fittingWindowBounds(screen);
+  assert.ok(
+    [
+      geometry.innerWidth,
+      geometry.innerHeight,
+      geometry.outerWidth,
+      geometry.outerHeight,
+      geometry.devicePixelRatio,
+      bounds.width,
+      bounds.height,
+    ].every((value) => Number.isFinite(value) && value > 0) &&
+      geometry.innerWidth <= geometry.outerWidth &&
+      geometry.innerHeight <= geometry.outerHeight &&
+      geometry.outerWidth <= bounds.width + 1 &&
+      geometry.outerHeight <= bounds.height + 1 &&
+      bounds.left >= screen.availLeft &&
+      bounds.top >= screen.availTop &&
+      bounds.left + bounds.width <= screen.availLeft + screen.availWidth + 1 &&
+      bounds.top + bounds.height <= screen.availTop + screen.availHeight + 1,
+    'The native viewport must fit its actual on-screen window; emulation is not foreground evidence.',
+  );
+}
+
+export async function calibrateNativeViewport(page) {
+  await page.setViewport(null);
+  const cdp = await page.createCDPSession();
+  try {
+    const screen = await page.evaluate(() => ({
+      availLeft: window.screen.availLeft,
+      availTop: window.screen.availTop,
+      availWidth: window.screen.availWidth,
+      availHeight: window.screen.availHeight,
+    }));
+    const { windowId } = await cdp.send('Browser.getWindowForTarget');
+    await cdp.send('Browser.setWindowBounds', { windowId, bounds: { windowState: 'normal' } });
+    const desired = fittingWindowBounds(screen);
+    await cdp.send('Browser.setWindowBounds', { windowId, bounds: desired });
+    await page.waitForFunction(
+      ({ width, height }) =>
+        Math.abs(window.outerWidth - width) <= 1 && Math.abs(window.outerHeight - height) <= 1,
+      {},
+      desired,
+    );
+    const { bounds } = await cdp.send('Browser.getWindowBounds', { windowId });
+    const geometry = await page.evaluate(() => ({
+      innerWidth: window.innerWidth,
+      innerHeight: window.innerHeight,
+      outerWidth: window.outerWidth,
+      outerHeight: window.outerHeight,
+      devicePixelRatio: window.devicePixelRatio,
+    }));
+    const result = { ...geometry, screen, windowBounds: bounds };
+    assertNativeViewport(result);
+    return result;
+  } finally {
+    await cdp.detach();
+  }
+}
+
 export function summarizeForegroundScroll(samples, observation) {
   const intervals = [...observation.rafIntervalsMs].sort((left, right) => left - right);
   const at = (quantile) =>

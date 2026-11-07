@@ -6,7 +6,10 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { checkBudget, readBudget } from './perf-budget.mjs';
 import { openTimelineConversation } from './perf-timeline-navigation.mjs';
-import { observeForegroundTimelineScroll } from './foreground-timeline-scroll.mjs';
+import {
+  calibrateNativeViewport,
+  observeForegroundTimelineScroll,
+} from './foreground-timeline-scroll.mjs';
 
 export const usage = `Usage: node scripts/perf-idle-timeline.mjs [options]
 
@@ -271,7 +274,8 @@ async function stopProfile(cdp, phase) {
 const metric = (list, name) => list.metrics.find((item) => item.name === name)?.value ?? 0;
 
 try {
-  await page.setViewport({ width: 1440, height: 900 });
+  const nativeViewport = options.headed ? await calibrateNativeViewport(page) : undefined;
+  if (!options.headed) await page.setViewport({ width: 1440, height: 900 });
   await page.goto(instance.url, { waitUntil: 'networkidle2' });
   await dismissOverlays();
 
@@ -413,6 +417,7 @@ try {
     },
     scroll,
     headed: options.headed,
+    nativeViewport,
     foregroundScroll,
     idleHottest,
     trace: options.trace ? traceFile : undefined,
