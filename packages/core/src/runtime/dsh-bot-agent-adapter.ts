@@ -904,10 +904,15 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       if (this.#stopping.has(run.sessionId) || this.#stoppedBots.has(run.bot.slug))
         throw new Error('Assignment stopped before Inbox acceptance');
       const fromSeq = handle.agent.session.seq;
-      try {
-        handle.agent.followup(assignmentMessage(run.text));
-      } catch (error) {
-        throw new AssignmentInboxAcceptanceUncertainError(error);
+      run.setExecutionReady?.(true);
+      if (run.acceptNativeInput !== undefined) {
+        if (!run.acceptNativeInput()) return;
+      } else {
+        try {
+          handle.agent.followup(assignmentMessage(run.text));
+        } catch (error) {
+          throw new AssignmentInboxAcceptanceUncertainError(error);
+        }
       }
       accepted?.();
       run.accepted?.();
@@ -941,7 +946,10 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     } finally {
       abandonable.release();
       this.#stopSeqs.delete(run.sessionId);
-      if (this.#runs.get(run.sessionId) === entry) this.#runs.delete(run.sessionId);
+      if (this.#runs.get(run.sessionId) === entry) {
+        this.#runs.delete(run.sessionId);
+        run.setExecutionReady?.(false);
+      }
     }
   }
 

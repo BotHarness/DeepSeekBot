@@ -51,10 +51,12 @@ make the historical test diagram reachable.
 Qualification is **in progress**. Windows source checks are not a substitute for
 frozen-product installation, real model behavior or macOS Desktop checks.
 
-For the resumed qualification on 2026-11-07, the Human explicitly deferred macOS
-testing to their own follow-up. The current merge gates cover Windows and Linux;
-macOS remains unverified and is not a blocker for this explicitly narrowed merge
-scope. This does not turn Windows or Linux evidence into a macOS compatibility claim.
+The earlier qualification scope deferred macOS testing to the Human. On 2026-11-07
+the Human superseded that deferral for the idle Assignment report fix: official
+macOS Desktop verification is now required for that fix, serialized with the
+parent task's published-version upgrade check. Windows is outside the fix task's
+scope. Historical Windows/Linux results remain separate and do not establish
+macOS compatibility.
 
 Local evidence is retained in the task's ignored `dsh-022` directory. Failed attempts
 remain alongside retries:
@@ -160,9 +162,94 @@ full CI run is required for the fixed commit; its result belongs to that exact S
 | Product publication / website deployment                          | Not performed                            |
 
 Do not promote the candidate or announce overall compatibility while required
-in-scope runtime/platform rows remain unverified. The macOS row is deferred to the
-Human for this merge by the explicit scope above. On completion, replace these statuses with
+in-scope runtime/platform rows remain unverified. The historical macOS deferral
+does not satisfy the newly authorized fix verification described below. On completion, replace these statuses with
 the exact artifact identity, commands, results and reviewable evidence links.
+
+## Idle Assignment report continuation fix (2026-11-07)
+
+This scope is claimed separately in [#3477's work trace](https://github.com/BotHarness/DeepSeekBot/issues/3477#issuecomment-6706041773).
+The published `1.6.1` upgrade baseline belongs to the parent qualification task;
+this record does not claim that baseline or authorize a release.
+
+- Root cause: the native child did wake the idle Assignment, but the wake did not
+  establish an application-owned Assignment run and report context. The existing
+  `running + working` execution guard correctly refused its report. The fix admits
+  verified direct native Subagent input through the real Assignment lifecycle,
+  rechecking Bot, Source, Grant, stop/archive state and capacity. It does not relax
+  the idle direct-tool guard or replay the already claimed native input.
+- Frozen local candidate: `1.6.2-test.3477.idle.1`, base
+  `9d6956ae9d39348efad92caeeaee73cde64c626e` plus an explicitly uncommitted patch,
+  not a clean source SHA. Patch SHA256:
+  `76a7baa748e2fc4ab8ab385cf9956d5152cd3eb36f657a2a29c4d424745e5f4e`.
+  Artifact manifest SHA256:
+  `c66e4fc25cc8a32a9085f675cf8831b5875b2d2bef91c89acdb35df29d682814`.
+  Subsequent qualification/CLI documentation edits do not change the frozen runtime.
+- Red-before-green: the new regression failed against the original lifecycle;
+  230 focused tests across eight files then passed, including revoked/mismatched
+  Grant, Source, stop/archive, queued cancellation and strict direct-tool refusal.
+  Root/mobile typechecks, build, lint and formatting passed. These are source/build
+  checks, not native or Human acceptance.
+- Real RC1 CLI/Host with that installed candidate and
+  `opencode-go/minimax-m3` (effort off) observed parent
+  `botharness-3b546656-c4ce-44b2-a77b-7d8389535461` as `running + idle`
+  while child `15b87ac7-fd91-4a45-827f-d202b913b9e2` ran `sleep 45`.
+  Native parent Turn 1 ended at sequence 32; Turn 2 began at 34 and successfully
+  called `report_to_orchestrator` at 41. Canonical Source Events retained the
+  progress report in Turn 1 and completed report in Turn 2; the Orchestrator's
+  actual DM included `IDLE3477_WAKE_DONE`. The real idle first-step switch to
+  `opencode-go/qwen3.8-flash` also passed.
+- The installed CLI's active direct child succeeded; the idle equivalent refused
+  with execution authority unavailable and child count unchanged at 2. No new
+  bridge method or Bot tool was introduced; existing CLI parity remains intact.
+- Preserve the failed capture: the original runtime report marks the wake gate
+  failed because a later evidence read used a root Session address for a Subagent.
+  This happened after successful report/DM delivery. Read-only persisted native
+  logs (50 parent records, 33 child records) and canonical readback establish the
+  functional result; they do not erase that harness failure.
+- Performance guard: 100 already-prepared native steps create no extra Assignment
+  runs, timers or database subscriptions. Capacity waits use cancellable database
+  commit notifications rather than polling. No measured end-to-end speedup is
+  claimed.
+- Official macOS RC1 binary verification passed: arm64, matching feed/archive
+  SHA512, `codesign --deep --strict`, and notarized `spctl` acceptance; Team
+  `NAN929V4UM`, signature dated 2026-11-04. Executable SHA256:
+  `49f390f1ff2975c822522254d1363836d060f49b164e89b59d09e9c8a7929de2`.
+  Post-run deep/strict signature verification also passed; the app was not modified.
+- After the parent explicitly released its Desktop slot, the fix's independent
+  macOS Home/userData/CDP 34930 used the same frozen candidate, manually staged
+  while its Desktop was stopped. This is not UI/CLI installation evidence. The
+  native Plugins page enabled Tobs, with canonical Bundle readback. Real
+  mouse/keyboard input in the visible Desktop sent the DM and Assignment request
+  using `deepseek-official/deepseek-flash`, effort low.
+- Native parent `botharness-f20b0051-e3a6-4f84-9059-8306a1a0ed5c` was observed
+  idle at `2026-11-07T11:48:09.677Z` while child
+  `e47c42ed-9f63-4cfc-b765-bf5b907caab9` ran `sleep 45`. Turn 1 ended at sequence
+  35; Turn 2 began at 37, successfully reported at call 44/result 45, and ended
+  at 53. Canonical reports retained progress in Turn 1 and completion in Turn 2.
+  The actual native DM rendered `MAC3477_WAKE_DONE` and the child result.
+  Complete persisted readback retained 55 parent and 36 child records. The
+  installed CLI against this Desktop-owned Host still refused idle direct child
+  execution with child count unchanged at 1.
+- Native preparation failures remain recorded: an early Host-access readiness
+  race, ambiguous navigation and attempts before the task composer was selected.
+  They did not send duplicate DMs. The separate CLI post-success capture failure
+  above is not reclassified as a clean run.
+- Public, privacy-reviewed R2 derivatives passed byte/hash/type readback:
+  [cropped native completion](https://media.botharness.ai/pr/9d6956ae9d39/51fc77ab28e208b6b312756879f0cedbbc65f4c09341a4f9f943ce839324a49a.png)
+  and [qualification summary download](https://media.botharness.ai/pr/9d6956ae9d39/fed79f8c69a8637821b4bb1041c7ba36937af4364b6bb7106d982284b5f9d673.html).
+  Their source namespace is the base SHA; both evidence descriptions explicitly
+  retain the frozen dirty-patch identity. Raw logs and credentials are not public.
+
+Private evidence is indexed in the fix task's ignored
+`.humanlayer/tasks/3477-idle-authority/README.md`; raw logs and credentials must
+not be published. CLI Host PID 99184 exited and port 34910 was released. Native
+Desktop PID 89027 and its recorded descendants exited; CDP 34930 and Host port
+52491 were released. Profiles and private evidence are retained; the unrelated
+Human Desktop was not attached or stopped. Standalone Web and Human acceptance
+remain unverified; Windows is outside this fix scope. No overall compatibility,
+npm publication or Site deployment is claimed. The subsequent fix PR and its
+CI/merge decision are separate from this frozen-runtime qualification record.
 
 ## Merged-candidate Windows qualification (2026-11-07)
 

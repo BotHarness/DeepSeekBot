@@ -246,6 +246,18 @@ When a DSH-side bug or trap is diagnosed, **record it here (or in the playbook) 
 
 | 53 | A gateway concurrency refusal ends the Bot turn without retry | Several Bots woken at once on a serial local model fail within seconds with `PI_AI_ERROR: Concurrency limit exceeded for user, please retry later`, while one direct DSH chat queues and succeeds | Native `llm-pi-ai` classifies failures by text; an in-stream refusal without `429` or `rate limit` becomes non-retryable `PI_AI_ERROR`, so `dsh-llm-retry` never runs, and its default normal budget (5 retries, about 15 s) would be too short anyway. A repo pnpm patch only changes AX/dev runtimes, never a user's installed DSH. BotHarness owns the fix on the public `agent/request-error` waterfall (`runtime/bot-request-retry.ts`): Bot Sessions retry concurrency-limit, too-many-requests, server-busy and `RATE_LIMIT` failures with 1–10 s backoff for up to 300 s, delegating providers set to `retryPolicy.mode: always` (#3300). |
 
+### Idle Assignment native child wake (#3477)
+
+A DSH-native background child can wake its idle Assignment parent without an application-defined
+Assignment run. Native `turn/start` and a relay alone do not restore the report tool's execution
+authority or its Adapter run context. At claimed-input prompt assembly, validate persisted direct
+Subagent ownership, current Grant/Source, stop/archive and Bot availability; reacquire application
+capacity and establish the real Assignment run before continuing the already-claimed input. Do
+not replay the relay as a followup or change the idle direct-tool guard. Join native `whenIdle`
+and record the actual later Turn's report/completion, then release capacity. Waiting capacity
+uses cancellable commit notifications, not an idle polling loop. Qualify newly frozen bytes with
+a real model, native events and the canonical report; fixtures are not native acceptance.
+
 ## Reference
 
 For opted-in AX Go launches on Windows, stage the reviewed adapter patch inside the isolated
