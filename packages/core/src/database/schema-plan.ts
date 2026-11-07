@@ -3096,7 +3096,6 @@ const CALL_VISUAL_UNSAVED_MIGRATION: SchemaMigration = {
 };
 
 const GENUI_PRIVATE_VIEW_MIGRATION: SchemaMigration = {
-const GENUI_PRIVATE_VIEW_MIGRATION: SchemaMigration = {
   generation: 132,
   module: 'messaging',
   description:
@@ -3145,6 +3144,7 @@ const CALL_GRID_ROWS_MIGRATION: SchemaMigration = {
              payload_json = json_set(payload_json, '$.voiceCallRecord.layout',
                ${callGridLayoutFor(recordFrames)})
        WHERE ${oldRecord} AND ${recordFrames} BETWEEN 1 AND 9;
+    `);
   },
 };
 

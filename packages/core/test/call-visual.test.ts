@@ -423,23 +423,28 @@ describe('Host call owner with a shared camera or screen', () => {
   });
 
   it('keeps only the newest 64 grid cells', async () => {
-    const h = host(Array.from({ length: 8 }, (_, index) => `第${index}句`));
+    const h = host();
     const call = await h.ok({ kind: 'open', slug: 'mira', media: 'synthetic' });
     await h.ok({ kind: 'visual', callId: call.callId, source: 'camera' });
     const frame = (await jpeg({ r: 10, g: 20, b: 30 }, 160, 90)).toString('base64');
-    for (let sentence = 0; sentence < 8; sentence += 1) {
+    for (let batch = 0; batch < 8; batch += 1) {
       for (let index = 0; index < 9; index += 1)
         await h.ok({ kind: 'frame', callId: call.callId, source: 'camera', jpeg: frame });
-      await h.say(call.callId);
+      for (let index = 0; index < 20 && h.records.length <= batch; index += 1)
+        await new Promise((resolve) => setTimeout(resolve, 5));
     }
-    expect(h.sent).toHaveLength(8);
-    expect(h.calls.zoom({ slug: 'mira', messageId: h.sent[0]!.messageId, cell: 1 }).released).toBe(
-      true,
-    );
-    for (const message of h.sent.slice(1))
-      expect(h.calls.zoom({ slug: 'mira', messageId: message.messageId, cell: 9 }).released).toBe(
-        false,
-      );
+    expect(h.records).toHaveLength(8);
+    expect(h.calls.zoom({ slug: 'mira', messageId: 'record-1', cell: 1 }).released).toBe(true);
+    for (const messageId of [
+      'record-2',
+      'record-3',
+      'record-4',
+      'record-5',
+      'record-6',
+      'record-7',
+      'record-8',
+    ])
+      expect(h.calls.zoom({ slug: 'mira', messageId, cell: 9 }).released).toBe(false);
   });
 
   it('saves 9 silent keyframes as a frame record and lists it on the next sentence', async () => {
