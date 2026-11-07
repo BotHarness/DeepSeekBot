@@ -979,7 +979,7 @@
       "behaviors": ["web.genui.reports"],
       "reason": "Synthetic HTML document journey through preview/publication, isolated frames, nine content scenes, Host-owned private state and ordinary Human continuation; opt-in real-model canonical identity, frontmost viewport assertions and owned Bot-activity cleanup reject hidden captures and retained model work. Hard execution containment, foreground performance and installed-native qualification remain open.",
       "task": 3703,
-      "sha256": "221b033961dbef887e59299f193bfec319535bfc0b55ccea20cf29b1d4380137"
+      "sha256": "6d7174441de8129f75d9b78ffef92f2822538ebd8f5ab9d9ebf285689965f4d9"
     },
     {
       "path": "scripts/e2e-genui-reports.mjs",

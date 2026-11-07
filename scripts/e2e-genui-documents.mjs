@@ -13,6 +13,7 @@ import { rpc } from './verify-app.mjs';
 import { findGenuiModelFollowup, genuiMessageSelector } from './genui-model-qualification.mjs';
 import { stopGenuiQaBot } from './genui-qa-cleanup.mjs';
 import { installGenuiFaultTransport } from './genui-fault-transport.mjs';
+import { clickGenuiDocumentAction } from './genui-document-action.mjs';
 import {
   openTimelineConversation,
   revealEarlierTimelineMessage,
@@ -215,23 +216,7 @@ async function saved(predicate) {
   throw new Error('Private state did not reach the expected canonical value.');
 }
 async function button(label, target = page) {
-  await target.waitForFunction(
-    (selector, name) =>
-      [...document.querySelectorAll(`${selector} button`)].some(
-        (node) =>
-          node.textContent.trim() === name && !node.disabled && node.getClientRects().length > 0,
-      ),
-    {},
-    panel,
-    label,
-  );
-  const buttons = await target.$$(`${panel} button`);
-  for (const element of buttons)
-    if ((await element.evaluate((node) => node.textContent)).trim() === label) {
-      await element.click();
-      return;
-    }
-  throw new Error(`Document action unavailable: ${label}`);
+  await clickGenuiDocumentAction(target, panel, label);
 }
 async function filter(text, target = page) {
   const inner = await frame(target);
