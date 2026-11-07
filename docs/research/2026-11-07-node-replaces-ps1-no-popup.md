@@ -26,7 +26,7 @@ What each knob actually does:
   This is the flag that eliminates the popup for console tools like
   `pwsh.exe`, `adb.exe`, `node.exe`.
 - `DETACHED_PROCESS` (`0x00000008`): the new console process does not
-  inherit the parent console but *may* call `AllocConsole` later — i.e. it
+  inherit the parent console but _may_ call `AllocConsole` later — i.e. it
   can still end up with a console
   ([Process Creation Flags](https://learn.microsoft.com/en-us/windows/win32/procthread/process-creation-flags)).
   In Node, `detached: true` on Windows means the child "will have its own
@@ -44,7 +44,7 @@ What each knob actually does:
   property ("`true` if the process should be started without creating a new
   window"), which is ignored when `UseShellExecute` is `true`. The script's
   emulator launch (`Start-Process ... -WindowStyle Hidden`) therefore still
-  owns a hidden console; the user-visible flash comes from the *outer*
+  owns a hidden console; the user-visible flash comes from the _outer_
   `pwsh.exe` invocation, not from that line.
 
 Exact Node options and what they map to:
@@ -83,10 +83,10 @@ No primary source publishes pwsh-vs-node startup figures, so both were
 measured on this Windows box (median of 5 `spawnSync` runs, same machine,
 same session):
 
-| Command | Median | Runs (ms) |
-|---|---|---|
+| Command                                          | Median     | Runs (ms)               |
+| ------------------------------------------------ | ---------- | ----------------------- |
 | `pwsh.exe -NoProfile -Command exit` (pwsh 7.6.9) | **341 ms** | 323, 323, 341, 344, 346 |
-| `node -e ""` (node v24.16.0) | **48 ms** | 43, 44, 48, 57, 58 |
+| `node -e ""` (node v24.16.0)                     | **48 ms**  | 43, 44, 48, 57, 58      |
 
 Reading: each helper invocation today pays ~340 ms of pwsh 7 cold start
 (.NET runtime + profile bypass still loads the engine) before executing a
@@ -123,8 +123,8 @@ them elsewhere.
   runner") is therefore preserved by `wx`: open-`wx`, write the lease JSON,
   close; on `EEXIST`, exit nonzero with the same message/exit-code contract.
   Port recipe: `try { fd = openSync(lease, 'wx'); writeSync(fd, json);
-  closeSync(fd) } catch (e) { if (e.code === 'EEXIST') fail('already
-  claimed'); throw e }`.
+closeSync(fd) } catch (e) { if (e.code === 'EEXIST') fail('already
+claimed'); throw e }`.
 - Atomic JSON writes (`active.json`, `config.json`, build manifests):
   write-tmp + rename. libuv rename on Windows is `MoveFileExW` with
   `MOVEFILE_REPLACE_EXISTING` (same `src/win/fs.c`), i.e. an atomic
@@ -136,17 +136,17 @@ them elsewhere.
 
 ## 4. Port mapping per ps1 construct
 
-| ps1 construct (`scripts/android-qa.ps1`) | `.mjs` equivalent |
-|---|---|
-| `param()` block with `ValidateSet` (action, lane) and `ValidateRange` (ports, seconds) (`:4-13`) | `node:util` [`parseArgs`](https://nodejs.org/api/util.html#utilparseargsconfig) + manual range/enum checks that print the same usage errors and exit nonzero. No new dependency: `parseArgs` is core. |
-| `$LASTEXITCODE` checks after `& $Exe` / `git` / `adb` (`:27-29`, `:31-33`, `:136-149`) | `spawnSync(...).status` (or `execFileSync` throwing on nonzero) compared against `0`; throw `"<exe> exited <code>"` to keep the message contract. |
-| `Start-Process -WindowStyle Hidden` emulator launch (`:124`) | `spawn(emulatorExe, ['-avd', avd, '-port', port, '-no-snapshot-save'], { detached: true, stdio: 'ignore', windowsHide: true, cwd: sdk })` + `child.unref()`. `detached` gives post-parent survival; `windowsHide` + ignored stdio yields `CREATE_NO_WINDOW` + `SW_HIDE` per §1. |
+| ps1 construct (`scripts/android-qa.ps1`)                                                                    | `.mjs` equivalent                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `param()` block with `ValidateSet` (action, lane) and `ValidateRange` (ports, seconds) (`:4-13`)            | `node:util` [`parseArgs`](https://nodejs.org/api/util.html#utilparseargsconfig) + manual range/enum checks that print the same usage errors and exit nonzero. No new dependency: `parseArgs` is core.                                                                                                                                                                                                                                                                                                                                                          |
+| `$LASTEXITCODE` checks after `& $Exe` / `git` / `adb` (`:27-29`, `:31-33`, `:136-149`)                      | `spawnSync(...).status` (or `execFileSync` throwing on nonzero) compared against `0`; throw `"<exe> exited <code>"` to keep the message contract.                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `Start-Process -WindowStyle Hidden` emulator launch (`:124`)                                                | `spawn(emulatorExe, ['-avd', avd, '-port', port, '-no-snapshot-save'], { detached: true, stdio: 'ignore', windowsHide: true, cwd: sdk })` + `child.unref()`. `detached` gives post-parent survival; `windowsHide` + ignored stdio yields `CREATE_NO_WINDOW` + `SW_HIDE` per §1.                                                                                                                                                                                                                                                                                |
 | Binary PNG pipe avoiding redirection corruption (`:189-196`, uses `ProcessStartInfo` + `BaseStream.CopyTo`) | `spawn(adb, [...])` + `node:stream/promises` `pipeline(child.stdout, createWriteStream(prefix + '.png'))`, then check exit code. Bytes never pass through text decoding — the same guarantee as the current workaround. (PowerShell `>` redirection historically went through text formatting/`Out-File`; byte-preserving native-stdout redirect only arrived in 7.4 — [about_Redirection](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_redirection?view=powershell-7.6). The port sidesteps the issue entirely.) |
-| `$env:` scoping (`:111-116`, `:129-133`) | Per-spawn `env: { ...process.env, ANDROID_HOME: sdk, ... }` — strictly scoped to the child, better than the script's process-wide mutation and required since concurrent `.mjs` actions must not share globals. |
-| `trap { ... events.jsonl; throw }` (`:16-23`) | Top-level `try/catch`: on failure append the same `{time, phase:'failed', action, owner, batch, code:'ANDROID_QA_FAILED'}` JSON line, then `process.exitCode = 1` and rethrow/print. |
-| `ConvertTo-Json` / `ConvertFrom-Json`, `[DateTime]::UtcNow 'o'` | `JSON.stringify` / `JSON.parse`, `new Date().toISOString()` (same ISO-8601 `o`-round-trip shape). |
-| `pnpm.cmd` / `gradlew.bat` invocation (`:134`, `:150`, `:164`) | `.bat`/`.cmd` files "are not executable on their own ... cannot be launched using `execFile`" — spawn `cmd.exe /c` or use `exec` per [Spawning .bat and .cmd files on Windows](https://nodejs.org/api/child_process.html#spawning-bat-and-cmd-files-on-windows), with `windowsHide: true`. `adb.exe`/`emulator.exe`/`scrcpy.exe` spawn directly with `shell: false`. |
-| `git -C $Repo rev-parse --path-format=absolute --git-common-dir` (`:31`) | Unchanged semantics: `spawnSync('git', ['-C', repo, 'rev-parse', '--path-format=absolute', '--git-common-dir'])` ([git-rev-parse](https://git-scm.com/docs/git-rev-parse)). Keeps all worktrees resolving the shared main-checkout queue root. |
+| `$env:` scoping (`:111-116`, `:129-133`)                                                                    | Per-spawn `env: { ...process.env, ANDROID_HOME: sdk, ... }` — strictly scoped to the child, better than the script's process-wide mutation and required since concurrent `.mjs` actions must not share globals.                                                                                                                                                                                                                                                                                                                                                |
+| `trap { ... events.jsonl; throw }` (`:16-23`)                                                               | Top-level `try/catch`: on failure append the same `{time, phase:'failed', action, owner, batch, code:'ANDROID_QA_FAILED'}` JSON line, then `process.exitCode = 1` and rethrow/print.                                                                                                                                                                                                                                                                                                                                                                           |
+| `ConvertTo-Json` / `ConvertFrom-Json`, `[DateTime]::UtcNow 'o'`                                             | `JSON.stringify` / `JSON.parse`, `new Date().toISOString()` (same ISO-8601 `o`-round-trip shape).                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `pnpm.cmd` / `gradlew.bat` invocation (`:134`, `:150`, `:164`)                                              | `.bat`/`.cmd` files "are not executable on their own ... cannot be launched using `execFile`" — spawn `cmd.exe /c` or use `exec` per [Spawning .bat and .cmd files on Windows](https://nodejs.org/api/child_process.html#spawning-bat-and-cmd-files-on-windows), with `windowsHide: true`. `adb.exe`/`emulator.exe`/`scrcpy.exe` spawn directly with `shell: false`.                                                                                                                                                                                           |
+| `git -C $Repo rev-parse --path-format=absolute --git-common-dir` (`:31`)                                    | Unchanged semantics: `spawnSync('git', ['-C', repo, 'rev-parse', '--path-format=absolute', '--git-common-dir'])` ([git-rev-parse](https://git-scm.com/docs/git-rev-parse)). Keeps all worktrees resolving the shared main-checkout queue root.                                                                                                                                                                                                                                                                                                                 |
 
 ## 5. Recommendation
 
