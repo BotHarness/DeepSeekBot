@@ -340,6 +340,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
   let routes = preferredRoutes(options.routes);
   const routeChecks = new Map<string, 'verified' | 'unreachable'>();
   const authorization = { authorization: `Device ${options.credential}` };
+  const jsonAuthorization = { ...authorization, 'content-type': 'application/json' };
   let route = options.routes[0] ?? '';
   const backoff = options.backoff ?? defaultBackoff;
   const timeoutMs = options.timeoutMs ?? 10_000;
@@ -650,7 +651,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
       const response = await carrier.request(`${via}${DEVICE_PREFIX}/api/${name}`, {
         method: 'POST',
         body: JSON.stringify(request),
-        headers: authorization,
+        headers: jsonAuthorization,
         signal,
       });
       if (response.status === 401) {
@@ -737,7 +738,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
         const response = await carrier.request(`${route}${DEVICE_PREFIX}${path}`, {
           method: init.body === undefined ? 'GET' : 'POST',
           ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
-          headers: authorization,
+          headers: init.body === undefined ? authorization : jsonAuthorization,
           signal: controller.signal,
         });
         if (init.response === 'bytes' && response.status < 400) {

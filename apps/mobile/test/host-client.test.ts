@@ -58,6 +58,69 @@ async function until(
 }
 
 describe('Host client', () => {
+  it('connects when the Host requires an explicit JSON media type for RPC requests', async () => {
+    const host = new FakeHost();
+    const mediaTypes: Array<string | undefined> = [];
+    client = createHostClient({
+      routes: [LOOPBACK],
+      credential: host.credential,
+      carrier: {
+        ...host.carrier,
+        request: (url, init) => {
+          if (init.method === 'POST' && url.includes('/api/botharness/')) {
+            mediaTypes.push(init.headers?.['content-type']);
+            if (init.headers?.['content-type'] !== 'application/json')
+              return Promise.resolve({ status: 415, text: async () => 'Unsupported Media Type' });
+          }
+          return host.carrier.request(url, init);
+        },
+      },
+      backoff: () => 5,
+      timeoutMs: 200,
+    });
+    client.start();
+    const snapshot = await until(client, (state) => state.connection.status === 'connected');
+    expect(snapshot.roster?.bots.length).toBeGreaterThan(0);
+    expect(mediaTypes.length).toBeGreaterThan(0);
+    expect(mediaTypes.every((mediaType) => mediaType === 'application/json')).toBe(true);
+  });
+
+  it('labels JSON resource requests without changing bodyless reads or binary uploads', async () => {
+    const host = new FakeHost();
+    const resourceHeaders: Array<Record<string, string> | undefined> = [];
+    client = createHostClient({
+      routes: [LOOPBACK],
+      credential: host.credential,
+      carrier: {
+        ...host.carrier,
+        request: (url, init) => {
+          if (url.endsWith('/api/computer/qa-json')) {
+            resourceHeaders.push(init.headers);
+            const accepted =
+              init.method === 'GET'
+                ? init.headers?.['content-type'] === undefined
+                : init.headers?.['content-type'] === 'application/json';
+            return Promise.resolve({ status: accepted ? 200 : 415, text: async () => '{}' });
+          }
+          if (url.includes('/attachment/upload'))
+            expect(init.headers?.['content-type']).toBe('application/octet-stream');
+          return host.carrier.request(url, init);
+        },
+      },
+      backoff: () => 5,
+      timeoutMs: 200,
+    });
+    client.start();
+    await until(client, (state) => state.connection.status === 'connected');
+    expect((await client.api('/api/computer/qa-json', { body: { value: true } })).status).toBe(200);
+    expect((await client.api('/api/computer/qa-json')).status).toBe(200);
+    await client.upload('qa.txt', new Blob(['qa']));
+    expect(resourceHeaders).toEqual([
+      { authorization: `Device ${host.credential}`, 'content-type': 'application/json' },
+      { authorization: `Device ${host.credential}` },
+    ]);
+  });
+
   it.each(['channelChangeCursor', 'channelListChanges'])(
     'connects to an older Host whose optional %s endpoint returns HTTP 404',
     async (method) => {
