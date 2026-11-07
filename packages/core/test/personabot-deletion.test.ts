@@ -172,6 +172,57 @@ describe('confirmed terminal PersonaBot deletion', () => {
     ).toEqual([]);
   });
 
+  it('hides references that become invalid after startup on Group reads', async () => {
+    const fixtureState = fixture();
+    fixtureState.create('a');
+    fixtureState.create('b');
+    const core = fixtureState.core;
+    const group = core.channels.createGroup({
+      name: 'Running Host',
+      members: ['a', 'b'],
+      ownerBotSlug: 'a',
+    });
+    core.channels.setGroupWakePolicy(group.id, 'a', {
+      mode: 'mentions',
+      count: 1,
+      intervalSeconds: 30,
+    });
+    const methods = createBridgeMethods({ ...core, deletions: core.deletions });
+    expect(methods.channelGet({ channelId: group.id })).toMatchObject({
+      ok: true,
+      value: { channel: { members: ['a', 'b'], ownerBotSlug: 'a' } },
+    });
+    const preview = fixtureState.deletion.preview('a');
+    await fixtureState.deletion.confirm('a', preview.token, false);
+    const lookup = vi.spyOn(core.registry, 'get');
+    const result = methods.channelGet({ channelId: group.id });
+    expect(lookup.mock.calls.map(([slug]) => slug)).toEqual(['a', 'b']);
+    lookup.mockRestore();
+    expect(result).toMatchObject({
+      ok: true,
+      value: { channel: { members: ['b'] }, wakePolicies: [{ botSlug: 'b' }] },
+    });
+    if (!result.ok) throw new Error('Group read failed');
+    expect(result.value.channel.ownerBotSlug).toBeUndefined();
+    expect(result.value.channel.wakePolicies?.a).toBeUndefined();
+    expect(await methods.channels({})).toMatchObject({
+      ok: true,
+      value: {
+        channels: expect.arrayContaining([
+          expect.objectContaining({ id: group.id, members: ['b'] }),
+        ]),
+      },
+    });
+    expect(core.channels.get(group.id)?.members).toEqual(['a', 'b']);
+    expect(
+      core.channelManagement.removeMember({
+        channelId: group.id,
+        botSlug: 'b',
+        expectedChannel: result.value.channelFingerprint,
+      }).channel.members,
+    ).toEqual(['a']);
+  });
+
   it.each(['membership', 'tombstone'])(
     'rolls back every Group and Bot deletion on %s failure',
     async (failure) => {

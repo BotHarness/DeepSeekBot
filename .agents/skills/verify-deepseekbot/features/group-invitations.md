@@ -6,7 +6,7 @@
 - `private-chat-guidance`: the dialog explains that Tob cannot join Groups and can be contacted privately.
 - `ordinary-invitation`: choosing an eligible Bot submits through the existing Channel owner and shows the canonical membership or pending invitation.
 - `live-selection`: if a selected Bot becomes unavailable while the dialog is open, submission is disabled and sends no invitation.
-- `deleted-member-recovery`: deleting an ordinary Bot that belongs to two Groups clears both memberships and any owner/wake-policy references atomically. Restart repairs legacy missing members without changing history; removing a legacy missing member through the existing member-removal command does not require a live Bot profile.
+- `deleted-member-recovery`: deleting an ordinary Bot that belongs to two Groups clears both memberships and any owner/wake-policy references atomically. Restart repairs legacy missing members without changing history; Group reads hide references that become invalid after startup without mutating storage or weakening the canonical revision fingerprint. Removing a legacy missing member through the existing member-removal command does not require a live Bot profile.
 
 ## How to get to it (user POV)
 

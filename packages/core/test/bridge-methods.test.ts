@@ -2279,7 +2279,7 @@ describe('bridge methods', () => {
       id: 'group-design-team',
       type: 'group',
       name: 'Design Team',
-      members: ['ada', 'bob'],
+      members: ['ada'],
     });
     const renamedGroup = methods.channelRename({
       channelId: 'group-design-team',
