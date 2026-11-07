@@ -10,6 +10,18 @@ import kotlin.math.roundToInt
 internal object CallCameraFrames {
   data class Grey(val bytes: ByteArray, val width: Int, val height: Int)
 
+  /** iOS tries the same qualities before giving up on a keyframe. */
+  val jpegQualities = intArrayOf(80, 60, 45)
+
+  /** The first encoded frame within [maxBytes], or null when every quality is too large. */
+  fun boundedJpeg(maxBytes: Int, encode: (Int) -> ByteArray?): ByteArray? {
+    for (quality in jpegQualities) {
+      val data = encode(quality) ?: continue
+      if (data.isNotEmpty() && data.size <= maxBytes) return data
+    }
+    return null
+  }
+
   /** The grey thumbnail keeps the source aspect ratio at [targetWidth] pixels wide. */
   fun thumbnailSize(width: Int, height: Int, targetWidth: Int): Pair<Int, Int> {
     val sourceWidth = width.coerceAtLeast(1)

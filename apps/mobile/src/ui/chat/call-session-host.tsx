@@ -200,6 +200,11 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
         camera.stop();
         return;
       }
+      if (current.status !== 'live') {
+        camera.stop();
+        setCamera(CALL_CAMERA_OFF);
+        return;
+      }
       setCamera({
         on: true,
         starting: false,

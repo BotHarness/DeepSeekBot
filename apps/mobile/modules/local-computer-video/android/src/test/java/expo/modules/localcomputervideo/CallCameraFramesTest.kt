@@ -38,6 +38,36 @@ class CallCameraFramesTest {
   }
 
   @Test
+  fun `bounded jpeg stops at the first quality under the limit`() {
+    val tried = mutableListOf<Int>()
+    val data = CallCameraFrames.boundedJpeg(10) { quality ->
+      tried += quality
+      if (quality == 60) ByteArray(8) else ByteArray(20)
+    }
+    assertArrayEquals(ByteArray(8), data)
+    assertEquals(listOf(80, 60), tried)
+  }
+
+  @Test
+  fun `bounded jpeg refuses a frame that stays over the limit`() {
+    val tried = mutableListOf<Int>()
+    val data = CallCameraFrames.boundedJpeg(4) { quality ->
+      tried += quality
+      ByteArray(8)
+    }
+    assertEquals(null, data)
+    assertEquals(listOf(80, 60, 45), tried)
+  }
+
+  @Test
+  fun `bounded jpeg skips an encoder that returns nothing`() {
+    val data = CallCameraFrames.boundedJpeg(8) { quality ->
+      if (quality == 80) null else ByteArray(8)
+    }
+    assertArrayEquals(ByteArray(8), data)
+  }
+
+  @Test
   fun `nv21 interleaves V then U and drops row padding`() {
     val y = ByteArray(16) { (it + 1).toByte() }
     val u = byteArrayOf(10, 0, 11, 0, 12, 0, 13, 0)

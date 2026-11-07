@@ -33,7 +33,9 @@ describe('Android call camera (#3498)', () => {
     expect(camera).toContain('Size(1280, 720)');
     expect(camera).toContain('setOutputImageRotationEnabled(true)');
     expect(camera).toContain('MediaMetadataRetriever');
-    expect(camera).toContain('intArrayOf(80, 60, 45)');
+    expect(
+      read('android/src/main/java/expo/modules/localcomputervideo/CallCameraFrames.kt'),
+    ).toContain('jpegQualities = intArrayOf(80, 60, 45)');
     expect(read('android/build.gradle')).toContain('camera-view');
   });
 

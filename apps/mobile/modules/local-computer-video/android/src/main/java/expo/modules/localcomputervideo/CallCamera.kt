@@ -303,7 +303,7 @@ internal object CallCamera {
         1,
         thumbWidth,
       )
-      emitThumb(grey, now)
+      emitThumb(grey, now, current)
     } finally {
       proxy.close()
     }
@@ -336,14 +336,14 @@ internal object CallCamera {
     return data
   }
 
-  private fun emitThumb(grey: CallCameraFrames.Grey, now: Long) {
+  private fun emitThumb(grey: CallCameraFrames.Grey, now: Long, current: Int) {
     val body = mapOf(
       "grey" to Base64.encodeToString(grey.bytes, Base64.NO_WRAP),
       "width" to grey.width,
       "height" to grey.height,
       "atMs" to (now - startedAt).coerceAtLeast(0).toInt(),
     )
-    postToMain { onThumb?.invoke(body) }
+    postToMain { if (current == generation) onThumb?.invoke(body) }
   }
 
   /** The newest frame at most 1280 pixels on its long edge, as a JPEG no larger than [maxBytes]. */
@@ -360,16 +360,16 @@ internal object CallCamera {
     return bitmapJpeg(scaled, maxBytes, began, recycle = true)
   }
 
-  private fun compressYuv(frame: YuvFrame, maxBytes: Int): ByteArray? {
-    for (quality in intArrayOf(80, 60, 45)) {
+  private fun compressYuv(frame: YuvFrame, maxBytes: Int): ByteArray? =
+    CallCameraFrames.boundedJpeg(maxBytes) { quality ->
       val out = ByteArrayOutputStream()
       val image = YuvImage(frame.nv21, ImageFormat.NV21, frame.width, frame.height, null)
-      if (!image.compressToJpeg(Rect(0, 0, frame.width, frame.height), quality, out)) continue
-      val data = out.toByteArray()
-      if (data.isNotEmpty() && data.size <= maxBytes) return data
+      if (image.compressToJpeg(Rect(0, 0, frame.width, frame.height), quality, out)) {
+        out.toByteArray()
+      } else {
+        null
+      }
     }
-    return null
-  }
 
   private fun bitmapJpeg(
     bitmap: Bitmap,
@@ -390,15 +390,11 @@ internal object CallCamera {
     }
   }
 
-  private fun compressBitmap(bitmap: Bitmap, maxBytes: Int): ByteArray? {
-    for (quality in intArrayOf(80, 60, 45)) {
+  private fun compressBitmap(bitmap: Bitmap, maxBytes: Int): ByteArray? =
+    CallCameraFrames.boundedJpeg(maxBytes) { quality ->
       val out = ByteArrayOutputStream()
-      if (!bitmap.compress(Bitmap.CompressFormat.JPEG, quality, out)) continue
-      val data = out.toByteArray()
-      if (data.isNotEmpty() && data.size <= maxBytes) return data
+      if (bitmap.compress(Bitmap.CompressFormat.JPEG, quality, out)) out.toByteArray() else null
     }
-    return null
-  }
 
   private fun body(data: ByteArray, width: Int, height: Int, began: Long): Map<String, Any> =
     mapOf(
@@ -451,11 +447,13 @@ internal object CallCamera {
       if (paused) return@scheduleAtFixedRate
       if (now - lastPreviewAt >= 100) {
         lastPreviewAt = now
-        postToMain { views.toList().forEach { it.showImage(bitmap) } }
+        postToMain {
+          if (current == generation) views.toList().forEach { it.showImage(bitmap) }
+        }
       }
       if (now - lastThumbAt >= intervalMs) {
         lastThumbAt = now
-        emitThumb(greyFromBitmap(bitmap, thumbWidth), now)
+        emitThumb(greyFromBitmap(bitmap, thumbWidth), now, current)
       }
     }, 0, 100, TimeUnit.MILLISECONDS)
   }
