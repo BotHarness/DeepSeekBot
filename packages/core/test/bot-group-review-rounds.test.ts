@@ -91,7 +91,6 @@ describe('Bot-to-Bot review rounds in one Group', () => {
 
   it(
     'runs 20 review rounds (40 hops) under the default limit',
-    // 40 SQLite-backed hops cost minutes on Windows; the same boundary is seconds on Linux CI.
     { timeout: process.platform === 'win32' ? 300_000 : 15_000 },
     async () => {
       const { runs, receipts } = await reviewRounds(20);

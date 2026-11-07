@@ -55,8 +55,6 @@ export function readMemoryBytes(
   let bytes: Buffer;
   if (source === 'worktree') {
     const target = resolveMemoryPath(root, path);
-    // Windows has no O_NOFOLLOW. Refuse a symlink before opening so every platform treats one as
-    // unavailable instead of following it out of the jail and reporting an invalid request.
     try {
       if (lstatSync(target).isSymbolicLink()) return fail('missing');
     } catch (error) {

@@ -49,8 +49,6 @@ function canonicalTarget(path: string): string | undefined {
     if (parent === current) return undefined;
     try {
       const real = realpathSync(parent);
-      // A missing child below a regular file is not a resolvable path. POSIX reports ENOTDIR
-      // from realpath; Windows reports ENOENT, so check the existing ancestor explicitly.
       if (!statSync(real).isDirectory()) return undefined;
       return join(real, ...missing);
     } catch (error) {

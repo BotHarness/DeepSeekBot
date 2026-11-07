@@ -20,7 +20,6 @@ async function until(predicate) {
     await delay(25);
   }
 }
-// A file can exist between creation and its first write; poll for parseable content.
 async function jsonWhenReady(file) {
   let parsed;
   await until(() => {

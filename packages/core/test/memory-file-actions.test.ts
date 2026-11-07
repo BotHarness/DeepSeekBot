@@ -63,7 +63,6 @@ describe('current Memory files', () => {
   });
   it('streams binary and oversized current bytes with a safe Unicode filename', async () => {
     const { dir, get } = setup();
-    // Windows rejects `"` in file names; keep the Unicode + spaces coverage with a legal name.
     const fileName = process.platform === 'win32' ? '你好 large.bin' : '你好 "large".bin';
     const name = `Project notes/${fileName}`;
     const bytes = Buffer.alloc(5 * 1024 * 1024 + 7, 0xa5);

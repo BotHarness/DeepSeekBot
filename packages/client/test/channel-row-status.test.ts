@@ -121,8 +121,6 @@ describe('formatChannelListTime', () => {
   });
 
   it('reuses bounded formatters without native per-row locale formatter construction', async () => {
-    // Pin the zone: Node on Windows keeps the last stubbed zone after unstubbing, and `at()`
-    // builds local dates, so the day buckets (and therefore cache keys) would drift.
     vi.stubEnv('TZ', 'UTC');
     const localNow = new Date(2026, 9, 19, 22, 30).getTime();
     vi.resetModules();

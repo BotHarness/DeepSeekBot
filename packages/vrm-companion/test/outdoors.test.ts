@@ -6,7 +6,6 @@ afterEach(() => vi.useRealTimers());
 
 describe('room environment', () => {
   it('follows wall-clock time while presets remain explicit', () => {
-    // Pin the zone so solar noon is not shifted by the machine's time zone.
     vi.stubEnv('TZ', 'UTC');
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 9, 19, 12, 0, 0));
