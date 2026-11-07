@@ -377,13 +377,23 @@ async function qualifyFaults() {
   try {
     const event = database
       .prepare(
-        'SELECT e.source_event_id AS sourceEventId FROM source_events e JOIN channel_placements p USING(source_event_id) WHERE p.channel_id = ? AND e.message_id = ?',
+        'SELECT e.source_event_id AS sourceEventId, e.created_at AS createdAt FROM source_events e JOIN channel_placements p USING(source_event_id) WHERE p.channel_id = ? AND e.message_id = ?',
       )
       .get(channelId, messageId);
     assert.ok(event?.sourceEventId);
-    const scope = { channelId, sourceEventIds: [event.sourceEventId] };
-    const preview = await call('channelPurgePreview', scope);
-    const purged = await call('channelPurgeConfirm', { ...scope, token: preview.token });
+    const scope = {
+      channelIds: [channelId],
+      before: new Date(Date.parse(event.createdAt) + 1).toISOString(),
+    };
+    const preview = await call('storageMessagesCleanupPreview', scope);
+    assert.equal(
+      preview.messages,
+      1,
+      'The cleanup must target only the original synthetic document.',
+    );
+    assert.ok(preview.chats.every((chat) => chat.channelId === channelId));
+    const purged = await call('storageMessagesCleanupConfirm', { ...scope, token: preview.token });
+    assert.equal(purged.messages, 1);
     manifest.faultPurge = purged;
     await assert.rejects(call('channelGenuiView', { channelId, messageId }), /genui-unavailable/);
     assert.equal(
