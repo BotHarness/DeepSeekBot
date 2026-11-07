@@ -1,7 +1,5 @@
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createAttachmentStore } from '../src/attachments/store.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import { createChannelStore } from '../src/channels/store.js';
@@ -13,20 +11,13 @@ import {
   type MarketplaceClient,
 } from '../src/marketplace/client.js';
 import { createBotStateTracker } from '../src/state/bot-state.js';
-import { createTestOwnership } from './helpers.js';
+import { createTestOwnership, createTempRoot } from './helpers.js';
 import { createTestRegistry } from './registry-fixture.js';
 import { createTestRosterStore } from './roster-fixture.js';
 import { createMarket, fakeRepository, submit } from '../../market/test/market-harness.js';
 
-const roots: string[] = [];
-
-afterEach(() => {
-  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
-});
-
 function methodsWith(marketplace?: MarketplaceClient, warn?: (message: string) => void) {
-  const root = mkdtempSync(join(tmpdir(), 'botharness-marketplace-'));
-  roots.push(root);
+  const root = createTempRoot('botharness-marketplace-');
   const registry = createTestRegistry({ rootDir: root });
   const attachments = createAttachmentStore({ rootDir: join(root, 'attachments') });
   return createBridgeMethods({

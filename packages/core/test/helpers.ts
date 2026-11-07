@@ -37,7 +37,8 @@ export function cleanupTempRoots(): void {
   while (owners.length > 0) owners.pop()?.close();
   while (roots.length > 0) {
     const root = roots.pop();
-    if (root !== undefined) rmSync(root, { recursive: true, force: true });
+    if (root !== undefined)
+      rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   }
 }
 

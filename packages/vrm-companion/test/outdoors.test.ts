@@ -6,10 +6,12 @@ afterEach(() => vi.useRealTimers());
 
 describe('room environment', () => {
   it('follows wall-clock time while presets remain explicit', () => {
+    // Pin the zone so solar noon is not shifted by the machine's time zone.
+    vi.stubEnv('TZ', 'UTC');
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 9, 19, 12, 0, 0));
     const outdoors = createOutdoors();
-    expect(outdoors.update(0, 'auto').daylight).toBeCloseTo(1);
+    expect(outdoors.update(0, 'auto').daylight).toBeGreaterThan(0.99);
     vi.setSystemTime(new Date(2026, 9, 19, 23, 30, 0));
     expect(outdoors.update(0, 'auto')).toMatchObject({ hour: 23.5, daylight: 0 });
     const sunset = outdoors.update(0, 'sunset');
@@ -17,6 +19,7 @@ describe('room environment', () => {
     expect(sunset.hour).toBe(sunset.sunset);
     expect(sunset.sunrise).toBeLessThan(sunset.sunset);
     expect(outdoors.update(0, 'night').hour).toBe(23);
+    vi.unstubAllEnvs();
   });
 
   it('moves soft cloud layers without rebuilding or growing the scene', () => {

@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, realpathSync } from 'node:fs';
-import { delimiter, join } from 'node:path';
+import { posix, win32 } from 'node:path';
 
 export const MINIMUM_GIT_VERSION = '2.28';
 
@@ -59,9 +59,10 @@ export function gitSupportsSinceAsFilter(probe: () => GitAvailability = probeGit
 }
 
 function firstOnPath(host: GitProbeHost): string | undefined {
-  for (const dir of (host.path ?? '').split(delimiter)) {
+  const path = host.platform === 'win32' ? win32 : posix;
+  for (const dir of (host.path ?? '').split(path.delimiter)) {
     if (dir.length === 0) continue;
-    const candidate = join(dir, 'git');
+    const candidate = path.join(dir, 'git');
     if (host.exists(candidate)) return candidate;
   }
   return undefined;

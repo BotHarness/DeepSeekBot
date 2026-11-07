@@ -15,6 +15,8 @@ function save(path, value) {
     closeSync(file);
   }
   renameSync(temporary, path);
+  // Windows cannot fsync a directory handle (EPERM); the rename is still atomic there.
+  if (process.platform === 'win32') return;
   const directory = openSync(dirname(path), 'r');
   try {
     fsyncSync(directory);

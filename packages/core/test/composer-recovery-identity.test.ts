@@ -24,7 +24,7 @@ describe('Host-issued recovery identity', () => {
       composerRecoveryIdentity(host, join(root, 'other-profile', 'id'), 'local-human').profileId,
     ).not.toBe(identity.profileId);
     expect(JSON.stringify(identity)).not.toContain(root);
-    expect(statSync(host).mode & 0o777).toBe(0o600);
+    if (process.platform !== 'win32') expect(statSync(host).mode & 0o777).toBe(0o600);
     writeFileSync(profile, '-'.repeat(36));
     expect(() => composerRecoveryIdentity(host, profile, 'local-human')).toThrow(
       'invalid composer identity',

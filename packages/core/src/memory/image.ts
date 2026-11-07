@@ -10,6 +10,7 @@ import {
   closeSync,
   constants,
   fstatSync,
+  lstatSync,
   openSync,
   readSync,
   realpathSync,
@@ -54,6 +55,15 @@ export function readMemoryBytes(
   let bytes: Buffer;
   if (source === 'worktree') {
     const target = resolveMemoryPath(root, path);
+    // Windows has no O_NOFOLLOW. Refuse a symlink before opening so every platform treats one as
+    // unavailable instead of following it out of the jail and reporting an invalid request.
+    try {
+      if (lstatSync(target).isSymbolicLink()) return fail('missing');
+    } catch (error) {
+      if (['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? ''))
+        return fail('missing');
+      throw error;
+    }
     let fd: number;
     try {
       fd = openSync(

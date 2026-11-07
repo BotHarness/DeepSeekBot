@@ -63,7 +63,9 @@ describe('current Memory files', () => {
   });
   it('streams binary and oversized current bytes with a safe Unicode filename', async () => {
     const { dir, get } = setup();
-    const name = 'Project notes/你好 "large".bin';
+    // Windows rejects `"` in file names; keep the Unicode + spaces coverage with a legal name.
+    const fileName = process.platform === 'win32' ? '你好 large.bin' : '你好 "large".bin';
+    const name = `Project notes/${fileName}`;
     const bytes = Buffer.alloc(5 * 1024 * 1024 + 7, 0xa5);
     bytes[0] = 0;
     bytes[1] = 255;
@@ -73,7 +75,7 @@ describe('current Memory files', () => {
     expect(response.headers.get('content-length')).toBe(String(bytes.length));
     expect(response.headers.get('content-type')).toBe('application/octet-stream');
     expect(response.headers.get('content-disposition')).toContain(
-      "filename*=UTF-8''" + encodeURIComponent('你好 "large".bin'),
+      "filename*=UTF-8''" + encodeURIComponent(fileName),
     );
     expect(response.headers.get('content-disposition')).not.toContain('Project notes/');
     const received = Buffer.from(await response.arrayBuffer());

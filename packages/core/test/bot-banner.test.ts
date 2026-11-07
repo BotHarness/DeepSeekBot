@@ -1,8 +1,7 @@
 import { seededBannerRecipe } from '@botharness/pixel-banner';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { BOT_BANNER_PATH, botBannerSummary, createBotBannerHttp } from '../src/bots/banner-http.js';
 import {
   botBannerPng,
@@ -18,16 +17,10 @@ import { readZip } from '../src/bots/zip-archive.js';
 import { parseBotDescriptor } from '../src/marketplace/descriptor.js';
 import { ensureMemoryRepository } from '../src/memory/repository.js';
 import { createTestRegistry } from './registry-fixture.js';
-
-const roots: string[] = [];
-
-afterEach(() => {
-  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
-});
+import { createTempRoot } from './helpers.js';
 
 function registryAt() {
-  const root = mkdtempSync(join(tmpdir(), 'botharness-banner-'));
-  roots.push(root);
+  const root = createTempRoot('botharness-banner-');
   return createTestRegistry({
     rootDir: join(root, 'bots'),
     initializeMemory: (memoryDir) => ({ ok: ensureMemoryRepository({ memoryDir }).ok }),
@@ -170,8 +163,7 @@ describe('Bot banner', () => {
 });
 
 it('drops a damaged stored banner instead of hiding the Bot', () => {
-  const root = mkdtempSync(join(tmpdir(), 'botharness-banner-legacy-'));
-  roots.push(root);
+  const root = createTempRoot('botharness-banner-legacy-');
   mkdirSync(join(root, 'ada'));
   writeFileSync(
     join(root, 'ada', 'bot.json'),

@@ -69,39 +69,42 @@ function drivesOf(...paths: string[]): DriveRoots {
 }
 
 describe('folder browsing on the Host', () => {
-  it('starts at home and lists folder names only, hidden ones last', async () => {
-    const root = home();
-    mkdirSync(join(root, 'site'));
-    mkdirSync(join(root, 'Notes'));
-    mkdirSync(join(root, '.config'));
-    writeFileSync(join(root, 'secret.txt'), 'never listed');
-    symlinkSync(join(root, 'site'), join(root, 'site-link'));
-    symlinkSync(join(root, 'secret.txt'), join(root, 'file-link'));
+  it.skipIf(process.platform === 'win32')(
+    'starts at home and lists folder names only, hidden ones last',
+    async () => {
+      const root = home();
+      mkdirSync(join(root, 'site'));
+      mkdirSync(join(root, 'Notes'));
+      mkdirSync(join(root, '.config'));
+      writeFileSync(join(root, 'secret.txt'), 'never listed');
+      symlinkSync(join(root, 'site'), join(root, 'site-link'));
+      symlinkSync(join(root, 'secret.txt'), join(root, 'file-link'));
 
-    const listing = await createFolderBrowser({
-      home: root,
-      platform: 'linux',
-      read: inProcess(),
-    }).list();
+      const listing = await createFolderBrowser({
+        home: root,
+        platform: 'linux',
+        read: inProcess(),
+      }).list();
 
-    expect(listing.path).toBe(root);
-    expect(listing.home).toBe(root);
-    expect(listing.entries.map((entry) => [entry.name, entry.hidden])).toEqual([
-      ['Notes', false],
-      ['site', false],
-      ['site-link', false],
-      ['.config', true],
-    ]);
-    expect(listing.entries[0]?.path).toBe(join(root, 'Notes'));
-    expect(listing.crumbs.at(0)).toEqual({ name: '/', path: '/', hidden: false });
-    expect(listing.crumbs.at(-1)?.path).toBe(root);
-    expect(listing.roots.map((entry) => entry.path)).toEqual([root, '/']);
-    expect(listing.truncated).toBe(false);
-    expect(listing.nextOffset).toBeUndefined();
-    expect(listing.nativePicker).toBeUndefined();
-  });
+      expect(listing.path).toBe(root);
+      expect(listing.home).toBe(root);
+      expect(listing.entries.map((entry) => [entry.name, entry.hidden])).toEqual([
+        ['Notes', false],
+        ['site', false],
+        ['site-link', false],
+        ['.config', true],
+      ]);
+      expect(listing.entries[0]?.path).toBe(join(root, 'Notes'));
+      expect(listing.crumbs.at(0)).toEqual({ name: '/', path: '/', hidden: false });
+      expect(listing.crumbs.at(-1)?.path).toBe(root);
+      expect(listing.roots.map((entry) => entry.path)).toEqual([root, '/']);
+      expect(listing.truncated).toBe(false);
+      expect(listing.nextOffset).toBeUndefined();
+      expect(listing.nativePicker).toBeUndefined();
+    },
+  );
 
-  it('expands ~ and drops a trailing separator', async () => {
+  it.skipIf(process.platform === 'win32')('expands ~ and drops a trailing separator', async () => {
     const root = home();
     mkdirSync(join(root, 'code', 'app'), { recursive: true });
     const browser = createFolderBrowser({ home: root, platform: 'linux', read: inProcess() });
@@ -112,28 +115,35 @@ describe('folder browsing on the Host', () => {
     );
   });
 
-  it('refuses relative, missing, file and unreadable paths with codes', async () => {
-    const root = home();
-    writeFileSync(join(root, 'file.txt'), '');
-    const browser = createFolderBrowser({ home: root, platform: 'linux', read: inProcess() });
+  it.skipIf(process.platform === 'win32')(
+    'refuses relative, missing, file and unreadable paths with codes',
+    async () => {
+      const root = home();
+      writeFileSync(join(root, 'file.txt'), '');
+      const browser = createFolderBrowser({ home: root, platform: 'linux', read: inProcess() });
 
-    expect(await refusal(() => browser.list('code'))).toBe('folder-browse/invalid-path');
-    expect(await refusal(() => browser.list(`${root}/missing`))).toBe('folder-browse/not-found');
-    expect(await refusal(() => browser.list(`${root}/file.txt`))).toBe(
-      'folder-browse/not-directory',
-    );
-    const failing = (code: string): FolderRead =>
-      inProcess({
-        readdir: async () => {
-          throw Object.assign(new Error(code), { code });
-        },
-        isDirectory: async () => false,
+      expect(await refusal(() => browser.list('code'))).toBe('folder-browse/invalid-path');
+      expect(await refusal(() => browser.list(`${root}/missing`))).toBe('folder-browse/not-found');
+      expect(await refusal(() => browser.list(`${root}/file.txt`))).toBe(
+        'folder-browse/not-directory',
+      );
+      const failing = (code: string): FolderRead =>
+        inProcess({
+          readdir: async () => {
+            throw Object.assign(new Error(code), { code });
+          },
+          isDirectory: async () => false,
+        });
+      const denied = createFolderBrowser({
+        home: root,
+        platform: 'linux',
+        read: failing('EACCES'),
       });
-    const denied = createFolderBrowser({ home: root, platform: 'linux', read: failing('EACCES') });
-    expect(await refusal(() => denied.list('/root'))).toBe('folder-browse/denied');
-    const broken = createFolderBrowser({ home: root, platform: 'linux', read: failing('EIO') });
-    expect(await refusal(() => broken.list('/mnt'))).toBe('folder-browse/unreadable');
-  });
+      expect(await refusal(() => denied.list('/root'))).toBe('folder-browse/denied');
+      const broken = createFolderBrowser({ home: root, platform: 'linux', read: failing('EIO') });
+      expect(await refusal(() => broken.list('/mnt'))).toBe('folder-browse/unreadable');
+    },
+  );
 
   it('walks Windows paths and offers the drives the OS reports', async () => {
     const opened: string[] = [];

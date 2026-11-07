@@ -163,3 +163,36 @@ Do not promote the candidate or announce overall compatibility while required
 in-scope runtime/platform rows remain unverified. The macOS row is deferred to the
 Human for this merge by the explicit scope above. On completion, replace these statuses with
 the exact artifact identity, commands, results and reviewable evidence links.
+
+## Merged-candidate Windows qualification (2026-11-07)
+
+Merging current `main` into the RC1 candidate (`51b39218a`) kept the product changes
+but brought newer tests. The first Windows full run at that head found 96 failures
+across 44 files. Re-running those files separated environment pressure from
+deterministic defects. The fixes below are committed with the candidate.
+
+- Files that created their own temp roots deleted them before the shared helper
+  closed tracked SQLite owners. Windows refuses to delete an open database file
+  (EPERM). Those files now use the helper's `createTempRoot`, and helper cleanup
+  retries transient Windows locks.
+- POSIX-only assertions now branch or skip on Windows: Linux folder browsing,
+  file-mode bits, a Windows-illegal quoted filename, a POSIX shell shim, and a
+  path-separator expectation.
+- Timezone-sensitive tests pin `TZ=UTC` (Node on Windows retains a stubbed zone
+  after unstubbing); the formatter-cache test uses the same pinned zone so its day
+  buckets and cache keys stay stable.
+- `git-probe` chooses POSIX or Windows path semantics from the injected host
+  platform, so the macOS Command Line Tools stub is detected inside a Windows test
+  process.
+- Memory images refuse a symlink with the `missing` result on every platform.
+  Windows has no `O_NOFOLLOW`; previously it followed the link and reported an
+  invalid request (400 instead of 404).
+- Native file refusal now rejects a path whose missing child sits below a regular
+  file. POSIX reports `ENOTDIR`; Windows reports `ENOENT`, which previously passed
+  the parent as if it were a directory.
+- The Lark provider-contract probe skips directory `fsync` on Windows (EPERM), and
+  the detached-daemon lifecycle test polls for parseable JSON rather than file
+  existence, removing a Linux CI race.
+- The Windows qualification command uses the diagnostic `--testTimeout=60000` flag; the
+  repository keeps its 15-second guard. The 40-hop Group stress test carries an explicit
+  300-second Windows allowance because 40 SQLite-backed hops take minutes on that platform.
