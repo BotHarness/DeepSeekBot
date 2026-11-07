@@ -111,6 +111,10 @@ Navigate by the visible Channel row's exact `data-channel-id`, including DM cont
 do not substring-match the Bot name against arbitrary buttons, because call controls
 also include that name. Failure screenshots are retained as observations even when
 the conversation is hidden, and are never counted as verified content captures.
+The runner pauses its own synthetic Bot before stopping its activity in `finally`,
+so queued model continuations cannot silently outlive a run. Cleanup failure fails
+the run and is retained separately from the original failure. A busy preview remains
+a refusal, not a passing render; do not raise its timeout to obtain a green result.
 
 Keep PNG originals, ARIA observations and the manifest under the task's private evidence directory, with an index in the machine's main checkout. Preserve source SHA plus dirty diff identity, built Host/Client hashes, browser identity, fixtures, canonical references, capture times, viewport and theme. Bind any pre-commit capture to the final source only after verifying production source and bundle identities have not changed.
 

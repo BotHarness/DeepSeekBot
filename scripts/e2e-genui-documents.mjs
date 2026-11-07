@@ -11,6 +11,7 @@ import { syntheticGenuiDocument } from '../packages/core/test/fixtures/genui-doc
 import { syntheticGenuiDiagrams } from '../packages/core/test/fixtures/genui-diagrams.ts';
 import { rpc } from './verify-app.mjs';
 import { findGenuiModelFollowup } from './genui-model-qualification.mjs';
+import { stopGenuiQaBot } from './genui-qa-cleanup.mjs';
 import {
   openTimelineConversation,
   timelineConversationVisible as conversationVisible,
@@ -664,6 +665,15 @@ try {
   if (page) await captureObservation('failure', page, 'failure-observation').catch(() => undefined);
   process.exitCode = 1;
 } finally {
+  if (bot) {
+    try {
+      manifest.botCleanup = await stopGenuiQaBot(call, { slug: bot.bot.slug, channelId });
+    } catch (error) {
+      manifest.cleanupFailure = error.stack ?? String(error);
+      manifest.status = 'failed';
+      process.exitCode = 1;
+    }
+  }
   await browser?.close();
   manifest.browserClosed = true;
   save();
