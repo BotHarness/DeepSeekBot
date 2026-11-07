@@ -1054,7 +1054,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     }
   }
   const parsedGenuiReply =
-    author.kind === 'human'
+    author.kind === 'human' && record['genuiReply'] !== undefined
       ? (asRecord(record['genuiReply'])?.['version'] === 2
           ? genuiDocumentReplySchema
           : genuiReplySchema

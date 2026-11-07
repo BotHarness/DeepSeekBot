@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { parseChannelMessage } from '../src/client/bridge.js';
+import { genuiReplySchema } from '../../core/src/channels/genui.js';
+import { genuiDocumentReplySchema } from '../../core/src/channels/genui-document.js';
 import { comparisonReport as syntheticGenuiReport } from '../../core/test/fixtures/genui-report.js';
 
 const message = {
@@ -57,6 +59,48 @@ describe('GenUI document message parsing', () => {
 });
 
 describe('GenUI channel message parsing', () => {
+  it('does not validate absent reply metadata in ordinary history', () => {
+    const reportParse = vi.spyOn(genuiReplySchema, 'safeParse');
+    const documentParse = vi.spyOn(genuiDocumentReplySchema, 'safeParse');
+    try {
+      for (let index = 0; index < 600; index += 1) {
+        const parsed = parseChannelMessage({
+          ...message,
+          id: `ordinary-${index}`,
+          author: { kind: 'human' },
+        });
+        expect(parsed?.body).toBe(message.body);
+        expect(parsed?.genuiReply).toBeUndefined();
+      }
+      expect(reportParse).not.toHaveBeenCalled();
+      expect(documentParse).not.toHaveBeenCalled();
+    } finally {
+      reportParse.mockRestore();
+      documentParse.mockRestore();
+    }
+  });
+
+  it.each([null, false, 0, '', {}, { version: 2 }])(
+    'still validates present malformed reply metadata: %j',
+    (genuiReply) => {
+      const reportParse = vi.spyOn(genuiReplySchema, 'safeParse');
+      const documentParse = vi.spyOn(genuiDocumentReplySchema, 'safeParse');
+      try {
+        const parsed = parseChannelMessage({
+          ...message,
+          author: { kind: 'human' },
+          genuiReply,
+        });
+        expect(parsed?.body).toBe(message.body);
+        expect(parsed?.genuiReply).toBeUndefined();
+        expect(reportParse.mock.calls.length + documentParse.mock.calls.length).toBe(1);
+      } finally {
+        reportParse.mockRestore();
+        documentParse.mockRestore();
+      }
+    },
+  );
+
   it('retains a validated version-one report', () => {
     expect(parseChannelMessage({ ...message, genui: syntheticGenuiReport })?.genui).toEqual(
       syntheticGenuiReport,
