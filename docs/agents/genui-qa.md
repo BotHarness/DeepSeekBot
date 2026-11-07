@@ -21,6 +21,15 @@ BH_E2E_INSTANCE=.humanlayer/verify/<name>/instance.json \
 
 The model evidence covers explicit publication of a linked generated document; it does not imply model reliability for every possible document. Inspect the retained preview diagnostics and failures separately. Neither successful model calls nor synthetic screenshot coverage clears #3704 or the independent foreground-performance/native/Human gates.
 
+Add `--faults` for live bridge replay/oversize/unknown/mount checks, failed-save
+recovery, uncertain-response deduplication and scoped Content Purge while open.
+The two transport failures are explicitly injected in the task browser: one rejects
+before a save request; the other drops the response only after the actual Host
+reports a successful Human-message commit. They are controlled fault fixtures, not
+evidence of a naturally occurring network outage. The retry must reuse the same
+Human message ID and leave exactly one canonical message. The runner pauses/stops
+its own synthetic Bot before this stage and purges only its own original report.
+
 The public `channelMessages` projection intentionally does not expose `channelId` or `sourceEventId` on every message. The verification runner correlates its already-authorized scoped read with read-only Source Event/placement and Human-request Admission evidence from its own isolated Profile. This is observation only, never a write bypass or another message store. The orchestrator trace must be non-`direct`, and its committed result must identify the very same canonical message.
 
 | Content or interaction               | Required evidence                                                 |

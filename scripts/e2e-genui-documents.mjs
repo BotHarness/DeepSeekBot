@@ -12,6 +12,7 @@ import { syntheticGenuiDiagrams } from '../packages/core/test/fixtures/genui-dia
 import { rpc } from './verify-app.mjs';
 import { findGenuiModelFollowup, genuiMessageSelector } from './genui-model-qualification.mjs';
 import { stopGenuiQaBot } from './genui-qa-cleanup.mjs';
+import { installGenuiFaultTransport } from './genui-fault-transport.mjs';
 import {
   openTimelineConversation,
   timelineConversationVisible as conversationVisible,
@@ -24,6 +25,7 @@ const { values } = parseArgs({
     headless: { type: 'boolean', default: false },
     pele: { type: 'boolean', default: false },
     'with-model': { type: 'boolean', default: false },
+    faults: { type: 'boolean', default: false },
   },
 });
 assert.ok(
@@ -116,6 +118,7 @@ async function dismiss(target) {
   }
 }
 async function open(target) {
+  if (values.faults) await target.evaluateOnNewDocument(installGenuiFaultTransport);
   await target.evaluateOnNewDocument(() => {
     Object.defineProperty(navigator, 'language', { configurable: true, get: () => 'en-US' });
     Object.defineProperty(navigator, 'languages', {
@@ -261,6 +264,170 @@ async function restoreConversation() {
     await conversationVisible(page),
     'Changing responsive layout must reopen the actual conversation.',
   );
+}
+
+async function qualifyFaults() {
+  await stopGenuiQaBot(call, { slug: bot.bot.slug, channelId });
+  await revealPublished(panel);
+  let inner = await frame();
+  const setFilter = async (value) =>
+    inner.evaluate((filter) => {
+      window.genui.setState({ ...window.genui.getState(), filter });
+    }, value);
+  const waitText = (text) =>
+    page.waitForFunction(
+      (selector, text) => document.querySelector(selector)?.textContent.includes(text),
+      {},
+      panel,
+      text,
+    );
+  await setFilter('Alpha');
+  await saved((state) => state.filter === 'Alpha');
+  const stale = await page.evaluate(() =>
+    window.__genuiFaultQa.messages.findLast(
+      (message) => message.type === 'state' && message.state.values.filter === 'Alpha',
+    ),
+  );
+  assert.ok(stale, 'Observe an actual accepted state envelope before replay.');
+  await setFilter('Beta');
+  const before = await saved((state) => state.filter === 'Beta');
+  await inner.evaluate((stale) => {
+    parent.postMessage(stale, '*');
+    parent.postMessage({ ...stale, sequence: 999999, type: 'unknown' }, '*');
+    parent.postMessage({ ...stale, sequence: 999999, padding: 'x'.repeat(20000) }, '*');
+    parent.postMessage({ ...stale, instanceId: 'wrong-mount', sequence: 999999 }, '*');
+  }, stale);
+  await page.evaluate((stale) => window.postMessage(stale, '*'), stale);
+  await new Promise((resolve) => setTimeout(resolve, 1200));
+  assert.deepEqual(await call('channelGenuiView', { channelId, messageId }), before);
+  await setFilter('Alpha');
+  await saved((state) => state.filter === 'Alpha');
+  await capture('fault-invalid-bridge-retained-state');
+  await trusted('Reload document');
+  inner = await frame();
+  await inner.evaluate((stale) => parent.postMessage({ ...stale, sequence: 999999 }, '*'), stale);
+  await setFilter('Beta');
+  await saved((state) => state.filter === 'Beta');
+  manifest.checks.push(
+    'Live same-mount replay, wrong source/mount, oversized and unknown bridge envelopes do not roll back state; remount accepts fresh traffic.',
+  );
+
+  await page.evaluate(() => {
+    window.__genuiFaultQa.fault = {
+      method: 'botharness/channelGenuiViewSave',
+      mode: 'before-request',
+    };
+  });
+  await setFilter('Retained draft');
+  await waitText('Private view could not save. Your draft is retained.');
+  const saveFault = await page.evaluate(() => window.__genuiFaultQa.fault);
+  assert.equal(
+    saveFault.used,
+    true,
+    'The actual Client must traverse the injected transport boundary.',
+  );
+  assert.equal(
+    (await call('channelGenuiView', { channelId, messageId })).state.values.filter,
+    'Beta',
+  );
+  assert.equal(await inner.evaluate(() => window.genui.getState().filter), 'Retained draft');
+  await capture('fault-failed-save-retained-draft');
+  await trusted('Save my view');
+  await saved((state) => state.filter === 'Retained draft');
+  await waitText('Private view saved');
+  await capture('fault-save-retry-recovered');
+  manifest.checks.push(
+    'Explicit pre-request transport failure retains the live draft and original canonical state; trusted retry saves through the actual Host owner.',
+  );
+
+  await page.evaluate(() => {
+    window.__genuiFaultQa.fault = {
+      method: 'botharness/channelSend',
+      mode: 'after-commit',
+    };
+  });
+  const messagesBefore = (await call('channelMessages', { channelId, limit: 100 })).messages;
+  await trusted('Continue');
+  await waitText('Send not confirmed. Retry reuses the same message.');
+  const uncertain = await page.evaluate(() => ({
+    fault: window.__genuiFaultQa.fault,
+    calls: window.__genuiFaultQa.calls.filter((call) => call.method === 'botharness/channelSend'),
+  }));
+  assert.equal(uncertain.fault.committed, true, 'Drop only an actual successful Host response.');
+  const uncertainId = uncertain.calls.at(-1)?.messageId;
+  assert.ok(uncertainId, 'The Client supplies its stable Human message ID.');
+  assert.ok(!messagesBefore.some((message) => message.id === uncertainId));
+  await capture('fault-uncertain-response');
+  await trusted('Continue');
+  await waitText('Sent. Waiting for the Bot to reply');
+  const retries = await page.evaluate(() =>
+    window.__genuiFaultQa.calls
+      .filter((call) => call.method === 'botharness/channelSend')
+      .slice(-2),
+  );
+  assert.deepEqual(
+    retries.map((call) => call.messageId),
+    [uncertainId, uncertainId],
+  );
+  const messagesAfter = (await call('channelMessages', { channelId, limit: 100 })).messages;
+  assert.equal(messagesAfter.filter((message) => message.id === uncertainId).length, 1);
+  manifest.faultSubmission = {
+    messageId: uncertainId,
+    attempts: retries.length,
+    canonicalCount: 1,
+  };
+  await capture('fault-uncertain-retry-deduplicated');
+  manifest.checks.push(
+    'Actual Host commit followed by explicitly injected response loss shows unconfirmed UI; retry reuses the same UUID and one canonical Human message.',
+  );
+
+  const database = new DatabaseSync(join(instance.home, 'botharness/botharness.db'), {
+    readOnly: true,
+  });
+  try {
+    const event = database
+      .prepare(
+        'SELECT e.source_event_id AS sourceEventId FROM source_events e JOIN channel_placements p USING(source_event_id) WHERE p.channel_id = ? AND e.message_id = ?',
+      )
+      .get(channelId, messageId);
+    assert.ok(event?.sourceEventId);
+    const scope = { channelId, sourceEventIds: [event.sourceEventId] };
+    const preview = await call('channelPurgePreview', scope);
+    const purged = await call('channelPurgeConfirm', { ...scope, token: preview.token });
+    manifest.faultPurge = purged;
+    await assert.rejects(call('channelGenuiView', { channelId, messageId }), /genui-unavailable/);
+    assert.equal(
+      database
+        .prepare(
+          'SELECT COUNT(*) AS count FROM genui_private_views WHERE channel_id = ? AND message_id = ?',
+        )
+        .get(channelId, messageId).count,
+      0,
+    );
+    await page.waitForFunction(
+      (selector) => !document.querySelector(`${selector} iframe`),
+      {},
+      panel,
+    );
+    await assert.rejects(
+      call('channelGenuiViewSave', {
+        channelId,
+        messageId,
+        snapshotId: manifest.document.snapshotId,
+        expectedVersion: 0,
+        state: before.state,
+      }),
+      /genui-unavailable/,
+    );
+    await captureObservation('fault-purged-content', page, 'verified-purge-conversation', {
+      messageId,
+    });
+    manifest.checks.push(
+      'Actual scoped Content Purge while open removes the frame and canonical private view; stale save/read are refused by the Host.',
+    );
+  } finally {
+    database.close();
+  }
 }
 
 try {
@@ -662,6 +829,7 @@ try {
   manifest.checks.push(
     'Explicit ordinary Human continuation and appended linked refresh retain canonical messages.',
   );
+  if (values.faults) await qualifyFaults();
   manifest.expectedErrors = manifest.errors.filter((error) =>
     error.includes('Synthetic fixture failure'),
   );
