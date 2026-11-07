@@ -120,6 +120,24 @@ calibration does not prove compositor presentation or exclusive machine ownershi
 - Dynamic-height recovery: `packages/client/test/timeline-window-recovery.test.tsx` reproduces the all-gap window after cached geometry becomes stale. The existing timeline owner retains a measurable edge group so later measurements can recover. This correctness guard is not frame-pacing or performance qualification.
 - Desktop shell, installed iOS, installed Android and Human acceptance remain separate. An 800-pixel Web viewport does not qualify a mobile application.
 
+## Animated foreground scroll protocol
+
+The timeline driver's legacy `--animate` starts its synthetic CSS animation **after**
+scrolling and measures animated idle work; it does not qualify scrolling with an active
+visual animation. The driver now labels that schedule `timeline-idle-v1`; older manifests
+without this field remain unchanged legacy evidence, not retroactively relabelled runs.
+For a separate matched animated-scroll batch, add
+`--animate-scroll --animate --foreground-scroll --headed`. This records
+`timeline-animated-scroll-v2`, starts the same animation before scripted and native-wheel
+scrolling, requires it to be running at the foreground segment's boundaries, and includes
+user-timing start/end markers in the trace. The unchanged heap endpoint and budget still
+apply. Do not pool the two protocols.
+
+Active-animation assertions, zero sampled gaps and rAF cadence do not establish presented
+FPS. Retain compositor traces, source/browser/build identities and at least three interleaved
+base/change pairs. Distinguish Chromium's presentation feedback, diagnostic-observer cost,
+physical display behavior, opening latency and installed-native acceptance.
+
 ## PR evidence
 
 Mounted conversation DOM is not proof that the conversation is visible. At responsive

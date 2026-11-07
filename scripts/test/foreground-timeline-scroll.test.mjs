@@ -1,9 +1,30 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   assertNativeViewport,
   fittingWindowBounds,
+  observeForegroundTimelineScroll,
   summarizeForegroundScroll,
 } from '../foreground-timeline-scroll.mjs';
+
+describe('active animation requirement', () => {
+  it('fails and releases observation resources when the animation never started', async () => {
+    const stop = vi.fn().mockResolvedValue(undefined);
+    const page = {
+      bringToFront: async () => undefined,
+      waitForFunction: async () => undefined,
+      $: async () => ({ boundingBox: async () => ({ x: 0, y: 0, width: 600, height: 600 }) }),
+      mouse: { move: async () => undefined, wheel: vi.fn() },
+      evaluate: vi.fn().mockResolvedValueOnce(undefined).mockResolvedValueOnce(false),
+      tracing: { start: vi.fn().mockResolvedValue(undefined), stop },
+    };
+    await expect(
+      observeForegroundTimelineScroll(page, 'unused.trace.json', { requireAnimation: true }),
+    ).rejects.toThrow('The scroll animation must be running');
+    expect(page.mouse.wheel).not.toHaveBeenCalled();
+    expect(page.evaluate).toHaveBeenCalledTimes(3);
+    expect(stop).toHaveBeenCalledOnce();
+  });
+});
 
 describe('actual foreground window calibration', () => {
   const screen = { availLeft: 0, availTop: 25, availWidth: 1470, availHeight: 900 };

@@ -103,7 +103,11 @@ export function summarizeForegroundScroll(samples, observation) {
   };
 }
 
-export async function observeForegroundTimelineScroll(page, tracePath) {
+export async function observeForegroundTimelineScroll(
+  page,
+  tracePath,
+  { requireAnimation = false } = {},
+) {
   await page.bringToFront();
   await page.waitForFunction(() => document.visibilityState === 'visible' && document.hasFocus());
   const body = await page.$('.bh-chat-body');
@@ -157,6 +161,7 @@ export async function observeForegroundTimelineScroll(page, tracePath) {
   let tracing = false;
   const samples = [];
   let observation;
+  const activity = { required: requireAnimation, runningAtStart: false, runningAtEnd: false };
   try {
     await page.tracing.start({
       path: tracePath,
@@ -166,9 +171,23 @@ export async function observeForegroundTimelineScroll(page, tracePath) {
         'cc',
         'viz',
         'benchmark',
+        'blink.user_timing',
       ],
     });
     tracing = true;
+    activity.runningAtStart = await page.evaluate(() => {
+      performance.mark('botharness:foreground-scroll:start');
+      return Boolean(
+        document
+          .querySelector('.perf-animated')
+          ?.getAnimations()
+          .some((animation) => animation.playState === 'running' && animation.currentTime !== null),
+      );
+    });
+    assert.ok(
+      !requireAnimation || activity.runningAtStart,
+      'The scroll animation must be running.',
+    );
     for (const deltaY of [-450, -450, -450, -450, 450, 450, 450, 450]) {
       await page.mouse.wheel({ deltaY });
       await new Promise((resolve) => setTimeout(resolve, 250));
@@ -205,6 +224,19 @@ export async function observeForegroundTimelineScroll(page, tracePath) {
         }),
       );
     }
+    activity.runningAtEnd = await page.evaluate(() => {
+      performance.mark('botharness:foreground-scroll:end');
+      return Boolean(
+        document
+          .querySelector('.perf-animated')
+          ?.getAnimations()
+          .some((animation) => animation.playState === 'running' && animation.currentTime !== null),
+      );
+    });
+    assert.ok(
+      !requireAnimation || activity.runningAtEnd,
+      'The scroll animation stopped during sampling.',
+    );
   } finally {
     try {
       observation = await page.evaluate(() => window.__bhStopForegroundScroll());
@@ -212,5 +244,5 @@ export async function observeForegroundTimelineScroll(page, tracePath) {
       if (tracing) await page.tracing.stop();
     }
   }
-  return { ...summarizeForegroundScroll(samples, observation), trace: tracePath };
+  return { ...summarizeForegroundScroll(samples, observation), activity, trace: tracePath };
 }
