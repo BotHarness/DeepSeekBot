@@ -847,6 +847,8 @@ Generation 70 的应用定义 `ContentPurge` Host owner 通过已有 Typert/API 
 
 ### PersonaBot 删除运行路径（#896）
 
+确认删除时，Deletion owner 将身份关闭写入回调交给 Channel owner，在同一 Operational Database 事务内清理所有活动群的成员、群主、唤醒策略及相关邀请准入；任何写入失败都回滚身份关闭和全部群变更。后续停止及可选 Memory 清理仍沿用可重试阶段。Host 启动时由同一 Channel 清理路径修复历史失效成员，现有移出命令也允许移除已无活动 Bot 的成员，但保留 Human 权限与频道版本检查。群资料的 bridge 读取会隐藏失效成员及其群主／唤醒策略投影，包括启动后才失效的引用；读取不修改持久数据，版本指纹仍绑定 canonical 状态。修复不改写历史消息，也不补发虚构的离群消息（[#3635](https://github.com/BotHarness/DeepSeekBot/issues/3635)）。
+
 Registry 在 Generation 66 持久化不可恢复的身份关闭状态和确认时的记忆位置。活动查询排除已接受删除的身份；历史查询保留身份、Session Ownership、Report、消息和用量归属。Human Profile 确认框复用 Typert/API Gateway 与原生 Host 文件打开能力。“同时删除记忆文件”默认不勾选，清除需要专属 Git 仓库、已记录的目录身份，以及与其他保留仓库和所有注册 Workspace 均无重叠。新建自定义仓库可以记录同样的归属证明；已有自定义路径本身不足以证明独占归属。Host 共享存储也受到保护。
 
 删除 owner 先接受持久身份关闭状态，再停止该 Bot 所拥有的原生 AgentHandle 执行树、撤销 Workspace／工具规则，并停用其 Messaging 绑定。已发出的原生／provider 效果保留实际结果。可选文件清理具有明确接受的范围和未完成状态；重试只使用原目录身份，不能选择新路径。DSH Session Persistence 与共享 provider 账号保留。冷启动仍排除已删除身份，即使清理需要修复。后续 Profile Backup 必须枚举历史 Registry 记录及删除位置，区分主动清除的记忆。Channel Content Purge 与支持恢复的 ledger 仍属于 #897。

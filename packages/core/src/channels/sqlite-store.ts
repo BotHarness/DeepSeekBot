@@ -2239,6 +2239,77 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       publishRecordChanged();
       return updated;
     },
+    removeBotFromGroups(botSlug, commit) {
+      const changed = database.transaction(
+        (db) => {
+          const rows = db
+            .prepare(`SELECT channel_id, record_json FROM channel_records
+            WHERE json_extract(record_json, '$.type') = 'group'
+              AND json_extract(record_json, '$.deletedAt') IS NULL
+              AND (json_extract(record_json, '$.ownerBotSlug') = ?
+                OR EXISTS (SELECT 1 FROM json_each(record_json, '$.members') WHERE value = ?))
+          `)
+            .all(botSlug, botSlug) as {
+            channel_id: string;
+            record_json: string;
+          }[];
+          const timestamp = now().toISOString();
+          let changed = false;
+          for (const row of rows) {
+            const channel = parseRecord(row.record_json, row.channel_id);
+            if (
+              channel?.type !== 'group' ||
+              channel.deletedAt !== undefined ||
+              (!channel.members.includes(botSlug) && channel.ownerBotSlug !== botSlug)
+            )
+              continue;
+            const updated: ChannelRecord = {
+              ...channel,
+              members: channel.members.filter((member) => member !== botSlug),
+              invitations: (channel.invitations ?? []).map((invitation) =>
+                invitation.status === 'pending' &&
+                (invitation.inviterBotSlug === botSlug || invitation.targetBotSlug === botSlug)
+                  ? { ...invitation, status: 'cancelled', respondedAt: timestamp }
+                  : invitation,
+              ),
+              updatedAt: timestamp,
+            };
+            if (updated.ownerBotSlug === botSlug) delete updated.ownerBotSlug;
+            if (updated.wakePolicies !== undefined) {
+              updated.wakePolicies = { ...updated.wakePolicies };
+              delete updated.wakePolicies[botSlug];
+            }
+            db.prepare('UPDATE channel_records SET record_json = ? WHERE channel_id = ?').run(
+              JSON.stringify(updated),
+              channel.id,
+            );
+            for (const invitation of channel.invitations ?? []) {
+              if (
+                invitation.status !== 'pending' ||
+                (invitation.inviterBotSlug !== botSlug && invitation.targetBotSlug !== botSlug)
+              )
+                continue;
+              db.prepare(`UPDATE inbox_admissions
+                SET attempt_state = 'handled', handled_at = ?
+                WHERE reason = 'group-invite' AND attempt_state IN ('pending', 'retryable')
+                  AND source_event_id IN (SELECT source_event_id FROM source_events WHERE message_id = ?)
+              `).run(timestamp, invitation.id);
+            }
+            db.prepare(`UPDATE inbox_admissions
+              SET attempt_state = 'handled', handled_at = ?, last_error = 'Group membership revoked'
+              WHERE bot_slug = ? AND attempt_state IN ('pending', 'retryable')
+                AND reason IN ('group-ordinary', 'group-mention', 'group-join-request', 'group-invite')
+                AND source_event_id IN (SELECT source_event_id FROM source_events WHERE channel_id = ?)
+            `).run(timestamp, botSlug, channel.id);
+            changed = true;
+          }
+          commit?.(db);
+          return changed;
+        },
+        ['channel', 'bot-inbox', 'bot-registry'],
+      );
+      if (changed) publishRecordChanged();
+    },
     cancelInvitationsForBot(botSlug) {
       for (const channel of this.list()) {
         if (channel.type !== 'group') continue;

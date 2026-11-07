@@ -2,6 +2,7 @@ import { isTob, TobError } from '../tob/service.js';
 import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, readdirSync, realpathSync, rmSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import type { DatabaseSync } from 'node:sqlite';
 
 import {
   attachOperationalModule,
@@ -167,6 +168,7 @@ export function createPersonaBotDeletions(options: {
   allWorkspacePaths(): string[];
   protectedPaths?: string[];
   stop(slug: string): Promise<void>;
+  accept?(slug: string, commit: (database: DatabaseSync) => void): void;
   changed?(slug: string): void;
   capture?: TelemetryCapture;
   log?(event: {
@@ -190,20 +192,19 @@ export function createPersonaBotDeletions(options: {
         ? undefined
         : (JSON.parse(String(row['body'])) as PersonaBotDeletion);
     });
-  const write = (state: PersonaBotDeletion, retainedRecord?: string): void => {
-    port.transaction(
-      (database) => {
-        if (retainedRecord !== undefined)
-          database
-            .prepare('UPDATE persona_bots SET body = ? WHERE slug = ?')
-            .run(retainedRecord, state.slug);
+  const write = (state: PersonaBotDeletion, retainedRecord?: string, accepting = false): void => {
+    const commit = (database: DatabaseSync): void => {
+      if (retainedRecord !== undefined)
         database
-          .prepare(`INSERT INTO persona_bot_deletions (slug, body) VALUES (?, ?)
+          .prepare('UPDATE persona_bots SET body = ? WHERE slug = ?')
+          .run(retainedRecord, state.slug);
+      database
+        .prepare(`INSERT INTO persona_bot_deletions (slug, body) VALUES (?, ?)
         ON CONFLICT (slug) DO UPDATE SET body = excluded.body`)
-          .run(state.slug, JSON.stringify(state));
-      },
-      ['bot-registry'],
-    );
+        .run(state.slug, JSON.stringify(state));
+    };
+    if (accepting && options.accept !== undefined) options.accept(state.slug, commit);
+    else port.transaction(commit, ['bot-registry']);
     try {
       options.changed?.(state.slug);
     } catch {}
@@ -355,7 +356,7 @@ export function createPersonaBotDeletions(options: {
       try {
         retainedRecord = options.registry.retainedRecordBody(slug);
       } catch {}
-      write(state, retainedRecord);
+      write(state, retainedRecord, true);
       try {
         options.capture?.('bot_library:bot_delete');
       } catch {}

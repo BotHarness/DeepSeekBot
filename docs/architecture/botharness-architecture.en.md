@@ -543,6 +543,8 @@ Preview lists selected sources, all placements/Admissions, file removal/retentio
 
 ### PersonaBot deletion runtime (#896)
 
+On confirmed deletion, the Deletion owner hands its identity-fence write callback to the Channel owner, which clears active Group membership, ownership, wake policies and related invitation admissions in the same Operational Database transaction. A write failure rolls back the identity fence and every Group change. Stopping and optional Memory erasure retain their retryable phases. Host startup repairs legacy missing members through that Channel cleanup path; the existing member-removal command also permits a missing active Bot while retaining Human access and Channel revision checks. Group bridge reads hide missing members and their owner/wake-policy projections, including references invalidated after startup, without mutating storage; revision fingerprints remain bound to canonical state. Repair neither rewrites history nor invents departure messages ([#3635](https://github.com/BotHarness/DeepSeekBot/issues/3635)).
+
 Registry stores a terminal identity fence and the reviewed Memory locator in Generation 66.
 Its active queries exclude accepted deletions; historical queries retain identity, ownership,
 Reports, messages and usage attribution. The Human Profile confirmation uses the existing

@@ -408,6 +408,7 @@ export interface ChannelStore {
 
   cancelGroupInvite(channelId: string, invitationId: string): ChannelRecord;
   cancelInvitationsForBot(botSlug: string): void;
+  removeBotFromGroups(botSlug: string, commit?: (database: DatabaseSync) => void): void;
   getGroupWakePolicy(channelId: string, botSlug: string): GroupWakePolicyView;
   setGroupWakePolicy(
     channelId: string,
@@ -927,6 +928,9 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
       throw new Error('Group invitations require the operational Channel store');
     },
     cancelInvitationsForBot() {},
+    removeBotFromGroups() {
+      throw new Error('Bot membership cleanup requires the operational Channel store');
+    },
     getGroupWakePolicy() {
       throw new Error('Group wake policy requires the operational Channel store');
     },

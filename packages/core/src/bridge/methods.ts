@@ -2038,6 +2038,17 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       : undefined;
   };
   const channelView = (channel: ChannelRecord): ChannelListItem => {
+    if (channel.type === 'group') {
+      const members = channel.members.filter((slug) => deps.registry.get(slug) !== undefined);
+      const memberSlugs = new Set(members);
+      channel = { ...channel, members };
+      if (channel.ownerBotSlug !== undefined && !memberSlugs.has(channel.ownerBotSlug))
+        delete channel.ownerBotSlug;
+      if (channel.wakePolicies !== undefined)
+        channel.wakePolicies = Object.fromEntries(
+          Object.entries(channel.wakePolicies).filter(([slug]) => memberSlugs.has(slug)),
+        );
+    }
     const humanNickname = deps.channels.humanNickname(channel.id);
     const remoteContact =
       channel.remoteBot === undefined || channel.members[0] === undefined
@@ -5185,7 +5196,16 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         };
       try {
         const result = deps.channelManagement.snapshot(channelId);
-        return { ok: true, value: { ...result, channel: channelView(result.channel) } };
+        const channel = channelView(result.channel);
+        const members = new Set(channel.members);
+        return {
+          ok: true,
+          value: {
+            ...result,
+            channel,
+            wakePolicies: result.wakePolicies.filter(({ botSlug }) => members.has(botSlug)),
+          },
+        };
       } catch (error) {
         if (error instanceof ChannelManagementError)
           return { ok: false, error: { code: error.code, message: error.message } };

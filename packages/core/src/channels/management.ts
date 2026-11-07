@@ -235,12 +235,12 @@ export function createChannelManagement(options: {
       throw new ChannelManagementError('stale-channel');
     return before;
   };
-  const member = (channel: ChannelRecord, slug: string): void => {
+  const member = (channel: ChannelRecord, slug: string, allowMissing = false): void => {
     if (typeof slug !== 'string' || !isValidSlug(slug))
       throw new ChannelManagementError('invalid-input');
     if (options.isProtectedBot(slug)) throw new ChannelManagementError('protected-bot');
     if (!channel.members.includes(slug)) throw new ChannelManagementError('not-group-member');
-    if (!registry.get(slug)) throw new ChannelManagementError('unknown-bot');
+    if (!allowMissing && !registry.get(slug)) throw new ChannelManagementError('unknown-bot');
   };
   const current = (before: ChannelManagementSnapshot): void => {
     if (humanSnapshot(before.channel.id).channelFingerprint !== before.channelFingerprint)
@@ -432,7 +432,7 @@ export function createChannelManagement(options: {
     },
     removeMember(input) {
       const before = edit(input, ['botSlug']);
-      member(before.channel, input.botSlug);
+      member(before.channel, input.botSlug, true);
       current(before);
       channels.removeGroupMember(input.channelId, input.botSlug);
       return snapshot(input.channelId);

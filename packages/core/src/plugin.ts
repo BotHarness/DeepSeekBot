@@ -1189,6 +1189,7 @@ export function createCore(
   });
   if (operationalDatabase.mode === 'ready') runtime.reconcileMemoryChangesOnStartup?.();
   const deletions = createPersonaBotDeletions({
+    accept: (slug, commit) => channels.removeBotFromGroups(slug, commit),
     ...(options.capture === undefined ? {} : { capture: options.capture }),
     protectedPaths: [dshHome],
     database: operationalDatabase,
@@ -1234,6 +1235,7 @@ export function createCore(
         ]),
     ],
     stop: async (slug) => {
+      channels.removeBotFromGroups(slug);
       channels.cancelInvitationsForBot(slug);
       for (const grant of grants.list(slug))
         if (grant.revokedAt === undefined) grants.revoke(slug, grant.id);
@@ -1245,6 +1247,22 @@ export function createCore(
     changed: () => live?.publishRosterCommitted(),
     log: (event) => options.warn?.(JSON.stringify(event)),
   });
+  if (operationalDatabase.mode === 'ready') {
+    const activeBots = new Set(registry.list().map((bot) => bot.slug));
+    const missingMembers = new Set(
+      channels
+        .list()
+        .flatMap((channel) =>
+          channel.type !== 'group'
+            ? []
+            : [
+                ...channel.members,
+                ...(channel.ownerBotSlug === undefined ? [] : [channel.ownerBotSlug]),
+              ].filter((slug) => !activeBots.has(slug)),
+        ),
+    );
+    for (const slug of missingMembers) channels.removeBotFromGroups(slug);
+  }
   const onboarding = createBotOnboarding({
     database: attachOperationalModule(operationalDatabase, 'bot-onboarding'),
     tob,
