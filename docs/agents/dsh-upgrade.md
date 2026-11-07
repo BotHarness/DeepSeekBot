@@ -80,6 +80,15 @@ Unrun platforms remain **unverified**, and a failed required row prevents an ove
 compatibility claim. A documented partial result may be reviewed without calling it
 complete. Follow shared QA ownership rules for any mobile/device checks.
 
+A full source suite on Windows is supporting evidence, not a substitute for the rows
+above. Keep the repository's 15-second guard and run it with the diagnostic
+`--testTimeout=60000` flag; report that allowance explicitly. Triage by cause before
+changing a test: an open SQLite owner before temp-root deletion (EPERM), POSIX-only
+assertions, stubbed time zones that survive `unstubAllEnvs()` on Windows, and paths
+that rely on `ENOTDIR` are platform behavior. Fix the platform assumption or the owning
+product path rather than deleting coverage; keep a per-test Windows allowance only for
+an inherent stress cost such as forty SQLite-backed Group hops.
+
 Done: each required row is passed, failed or unverified with a reason and an evidence
 pointer. Stop only owned processes and retain failure evidence and recovery limits.
 
