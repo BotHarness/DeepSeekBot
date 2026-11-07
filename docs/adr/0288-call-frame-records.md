@@ -4,6 +4,8 @@
 - Date: 2026-11-04
 - Issue: #3494 (spec #3490, hub #3491; builds on ADR-0286 and ADR-0287)
 
+> Amended by [ADR-0303](0303-call-grids-tile-balanced-rows.md): a frame record holds nine keyframes in a 3+3+3 grid.
+
 ## Context
 
 A grid is built only when the Human finishes a sentence, so a long silent stretch, such as watching a film together, would pile up keyframes that the next sentence must squeeze into one 4x4 grid. Some Humans also do not want what they share to stay in the DM.

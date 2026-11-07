@@ -3100,6 +3100,40 @@ const GENUI_PRIVATE_VIEW_MIGRATION: SchemaMigration = {
   },
 };
 
+const callGridLayoutFor = (frames: string) =>
+  `CASE ${frames} WHEN 1 THEN '1' WHEN 2 THEN '2' WHEN 3 THEN '3' WHEN 4 THEN '2+2' WHEN 5 THEN '3+2'
+    WHEN 6 THEN '3+3' WHEN 7 THEN '3+2+2' WHEN 8 THEN '3+3+2' WHEN 9 THEN '3+3+3' END`;
+
+const CALL_GRID_ROWS_MIGRATION: SchemaMigration = {
+  generation: 133,
+  module: 'voice',
+  description: 'Rewrite call grid layouts from square grids to balanced rows of at most three',
+  migrate(database) {
+    const visualFrames = "json_extract(payload_json, '$.voiceCall.visual.frames')";
+    const recordFrames = "json_extract(payload_json, '$.voiceCallRecord.frames')";
+    const oldVisual = `json_valid(payload_json)
+      AND json_extract(payload_json, '$.voiceCall.visual.layout') IN ('1x1', '2x2', '3x3', '4x4')`;
+    const oldRecord = `json_valid(payload_json)
+      AND json_extract(payload_json, '$.voiceCallRecord.state') = 'frames'
+      AND json_extract(payload_json, '$.voiceCallRecord.layout') IN ('1x1', '2x2', '3x3', '4x4')`;
+    database.exec(`
+      UPDATE source_events
+         SET payload_json = json_set(payload_json, '$.voiceCall.visual.layout',
+           ${callGridLayoutFor(visualFrames)})
+       WHERE ${oldVisual} AND ${visualFrames} BETWEEN 1 AND 9;
+      UPDATE source_events SET payload_json = json_remove(payload_json, '$.voiceCall.visual')
+       WHERE ${oldVisual};
+      UPDATE source_events
+         SET body = replace(body,
+               'a ' || json_extract(payload_json, '$.voiceCallRecord.layout') || ' grid of',
+               'a ' || ${callGridLayoutFor(recordFrames)} || ' grid of'),
+             payload_json = json_set(payload_json, '$.voiceCallRecord.layout',
+               ${callGridLayoutFor(recordFrames)})
+       WHERE ${oldRecord} AND ${recordFrames} BETWEEN 1 AND 9;
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -3232,4 +3266,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   CHANNEL_CHANGE_LOG_MIGRATION,
   WORKSPACE_GRANT_PATH_MIGRATION,
   GENUI_PRIVATE_VIEW_MIGRATION,
+  CALL_GRID_ROWS_MIGRATION,
 ]);
