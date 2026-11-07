@@ -11,6 +11,34 @@ afterEach(() => {
 });
 
 describe('workspace shell ownership', () => {
+  it('claims the DSH 0.2.2 center column, preserving bottom and overlay slots on release', () => {
+    document.body.innerHTML = `
+      <div style="display:grid" id="frame">
+        <div><div data-slot="sidebar"></div></div>
+        <div id="center"><div data-global-panel="true"><div data-slot="main"><div id="workspace"></div></div></div></div>
+        <div data-rightbar-col><div data-slot="rightbar"></div></div>
+        <div data-shell-bottom><div data-slot="shell.bottom"></div></div>
+        <div data-shell-overlay><div data-slot="shell.overlay"></div></div>
+      </div>`;
+    const frame = document.getElementById('frame')!;
+    const before = frame.outerHTML;
+    const native = vi.fn();
+    const toggle = vi.fn();
+    const layout = { toggleSidebar: native };
+    const release = mountWorkspaceShell(document.getElementById('workspace')!, layout, toggle);
+    expect(release).toBeTypeOf('function');
+    expect(document.querySelector('[data-bh-workspace-main]')).toBe(
+      document.getElementById('center'),
+    );
+    expect(document.querySelector('[data-bh-workspace-frame]')).toBe(frame);
+    layout.toggleSidebar();
+    expect(toggle).toHaveBeenCalledOnce();
+    expect(native).not.toHaveBeenCalled();
+    release!();
+    expect(frame.outerHTML).toBe(before);
+    expect(layout.toggleSidebar).toBe(native);
+  });
+
   it('gives Windows blank headers and rail window drag while recalling titles and controls', () => {
     document.documentElement.setAttribute('data-windows-titlebar', '');
     const styles = document.createElement('style');

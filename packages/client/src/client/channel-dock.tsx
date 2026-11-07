@@ -53,7 +53,6 @@ import {
   CHANNEL_BODY_COMPONENT,
   CHANNEL_BODY_PANEL,
   DEFAULT_WORKSPACE_GAP,
-  CHANNEL_DOCK_QUERY,
   CHANNEL_ENTRY_COMPONENT,
   clearChannelDock,
   DEFAULT_DOCK_PANELS,
@@ -83,7 +82,10 @@ import {
   type SimpleLayout,
   type SubpanelColumn,
 } from './layout-mode.js';
-import { NARROW_CHANNEL_SIDEBAR_QUERY } from './channel-sidebar-layout.js';
+import {
+  botModeSidebarViewport,
+  subscribeBotModeSidebarViewport,
+} from './bot-mode-sidebar-viewport.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import {
   clampChannelSidebarWidth,
@@ -166,29 +168,8 @@ const DOCK_THEME: DockviewTheme = {
   dndPanelOverlay: 'content',
 };
 
-function matches(query: string): boolean {
-  return typeof window !== 'undefined' && typeof window.matchMedia === 'function'
-    ? window.matchMedia(query).matches
-    : false;
-}
-
-function subscribeQueries(listener: () => void): () => void {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return () => {};
-  const queries = [CHANNEL_DOCK_QUERY, NARROW_CHANNEL_SIDEBAR_QUERY].map((query) =>
-    window.matchMedia(query),
-  );
-  for (const query of queries) query.addEventListener('change', listener);
-  return () => {
-    for (const query of queries) query.removeEventListener('change', listener);
-  };
-}
-
 export function useChannelDockActive(): boolean {
-  return useSyncExternalStore(
-    subscribeQueries,
-    () => matches(CHANNEL_DOCK_QUERY) && !matches(NARROW_CHANNEL_SIDEBAR_QUERY),
-    () => false,
-  );
+  return useSyncExternalStore(subscribeBotModeSidebarViewport, botModeSidebarViewport, () => false);
 }
 
 interface EntryRuntime {

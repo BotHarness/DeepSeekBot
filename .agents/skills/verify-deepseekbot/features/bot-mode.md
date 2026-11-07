@@ -15,7 +15,7 @@ Bot mode swaps the native DSH session view for the BotHarness conversation view.
 ## How to get to it (user POV)
 
 - Choose `Bot mode` in the global sidebar.
-- On desktop, choose the logo at the top left of the Bot mode sidebar (its accessible name is `Exit Bot mode`) to return to the native view. Between 760 and 960 px wide, the native sidebar stays and `Bot mode` is chosen again instead.
+- On desktop, choose the logo at the top left of the Bot mode sidebar (its accessible name is `Exit Bot mode`) to return to the native view. At 960px or narrower (also at up to 1000px wide and 500px high), use the mobile single-column layout and its explicit exit button; the native sidebar is hidden.
 
 The workspace rail carries the exit control and panel switches; the independent Channel list carries the Roster. Both remain available without a selected Channel.
 
