@@ -13,7 +13,7 @@ import { rpc } from './verify-app.mjs';
 import { findGenuiModelFollowup, genuiMessageSelector } from './genui-model-qualification.mjs';
 import { stopGenuiQaBot } from './genui-qa-cleanup.mjs';
 import { installGenuiFaultTransport } from './genui-fault-transport.mjs';
-import { clickGenuiDocumentAction } from './genui-document-action.mjs';
+import { clickGenuiDocumentAction, fillGenuiDocumentFilter } from './genui-document-action.mjs';
 import {
   openTimelineConversation,
   revealEarlierTimelineMessage,
@@ -256,10 +256,9 @@ async function qualifyFaults() {
   await stopGenuiQaBot(call, { slug: bot.bot.slug, channelId });
   await revealEarlierTimelineMessage(page, panel);
   let inner = await frame();
-  const setFilter = async (value) =>
-    inner.evaluate((filter) => {
-      window.genui.setState({ ...window.genui.getState(), filter });
-    }, value);
+  await inner.select('#scene', 'table');
+  await saved((state) => state.scene === 'table');
+  const setFilter = async (value) => fillGenuiDocumentFilter(inner, value);
   const waitText = (text) =>
     page.waitForFunction(
       (selector, text) => document.querySelector(selector)?.textContent.includes(text),

@@ -28,7 +28,12 @@ before a save request; the other drops the response only after the actual Host
 reports a successful Human-message commit. They are controlled fault fixtures, not
 evidence of a naturally occurring network outage. The retry must reuse the same
 Human message ID and leave exactly one canonical message. The runner pauses/stops
-its own synthetic Bot before this stage and purges only its own original report.
+its own synthetic Bot before this stage, resumes it only for the eligible DM
+submission, then pauses/stops it again. The ended-Group purge API intentionally
+refuses a DM. Use the scoped DM message-cleanup preview/confirm owner instead,
+with an exact Channel and a cutoff just after the original document's canonical
+creation time. Assert exactly one candidate before confirmation and one deletion
+afterward; never widen the scope to get a passing result.
 
 The public `channelMessages` projection intentionally does not expose `channelId` or `sourceEventId` on every message. The verification runner correlates its already-authorized scoped read with read-only Source Event/placement and Human-request Admission evidence from its own isolated Profile. This is observation only, never a write bypass or another message store. The orchestrator trace must be non-`direct`, and its committed result must identify the very same canonical message.
 
