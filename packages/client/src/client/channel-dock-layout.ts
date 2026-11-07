@@ -19,7 +19,6 @@ export const CHANNEL_DOCK_LAYOUT_VERSION = 9;
 const READABLE_VERSIONS = [1, 2, 3, 4, 5, 6, 7, 8, CHANNEL_DOCK_LAYOUT_VERSION];
 export const DEFAULT_WORKSPACE_GAP = 4;
 export const CHANNEL_BODY_PANEL = 'bh:channel-body';
-export const CHANNEL_DOCK_QUERY = '(min-width: 961px)';
 export const CHANNEL_BODY_COMPONENT = 'channel-body';
 export const CHANNEL_ENTRY_COMPONENT = 'channel-entry';
 const RETIRED_RAIL_IDS: readonly string[] = [HOME_SLOT, 'bh:tob-mode'];

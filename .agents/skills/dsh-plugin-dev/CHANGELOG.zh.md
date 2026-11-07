@@ -11,6 +11,8 @@ artifact；DSH 版本与上游 revision 记录这些内容是基于什么版本�
 
 - 记录下游 RC 跟进流程及 0.2.2-rc.1 运行时适配检查；稳定 Context/Decision Tree Skill 的版本与已验证上游来源不变（[#3477](https://github.com/BotHarness/DeepSeekBot/issues/3477)）。
 
+- 补充下游响应式工作区归属与 DSH 0.2.2 center-column 兼容性陷阱；DSH/Cordis Context、Decision Tree 与 Skill 版本保持不变（[#3665](https://github.com/BotHarness/DeepSeekBot/issues/3665)）。
+
 - 准备下游 Tobs 1.6.1 发布记录；独立版本的 DSH Skill 及其已验证 DSH 来源不变（[#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)）。
 
 - 在验证 1.6.0 发布后同步下游 Tobs 安装指南；独立 Skill 版本与 DSH 来源不变（[#3195](https://github.com/BotHarness/DeepSeekBot/issues/3195)）。

@@ -158,7 +158,7 @@ export function installClientObserver(win: Window & typeof globalThis): void {
     if (win.document.querySelector('[data-dsh-boot]')) return false;
     const surfaces = [
       win.document.querySelector('.bh-panel-glyph')?.closest('button'),
-      win.document.querySelector('.bh-root.bh-main'),
+      win.document.querySelector('.bh-root.bh-mobile-shell, .bh-root.bh-main'),
     ];
     return surfaces.some((surface) => {
       const rect = surface?.getBoundingClientRect();

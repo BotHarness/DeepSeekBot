@@ -12,6 +12,8 @@ Preparing the next DSH Skill release independently from downstream product relea
 
 - Documented downstream RC qualification and the 0.2.2-rc.1 runtime adaptation checks; the stable Context/Decision Tree Skill version and its verified upstream provenance are unchanged ([#3477](https://github.com/BotHarness/DeepSeekBot/issues/3477)).
 
+- Documented downstream responsive workspace ownership and the DSH 0.2.2 center-column compatibility pitfall; DSH/Cordis Context, Decision Tree and Skill version are unchanged ([#3665](https://github.com/BotHarness/DeepSeekBot/issues/3665)).
+
 - Prepared the downstream Tobs 1.6.1 release ledger; the independently versioned DSH Skill and its verified DSH provenance are unchanged ([#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)).
 
 - Synchronized downstream Tobs installation guidance after verified 1.6.0 publication; the independent Skill version and DSH provenance are unchanged ([#3195](https://github.com/BotHarness/DeepSeekBot/issues/3195)).

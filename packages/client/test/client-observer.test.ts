@@ -164,6 +164,8 @@ describe('early real Client diagnostic observer', () => {
     for (const html of [
       '<button><span class="bh-panel-glyph"></span></button>',
       '<div class="bh-root bh-main">Bot mode</div>',
+      '<div class="bh-root bh-mobile-shell">Mobile Channel list</div>',
+      '<div class="bh-root bh-main">Restored desktop workspace</div>',
       '<button><span class="bh-panel-glyph"></span></button>',
     ]) {
       document.body.innerHTML = html;
@@ -181,35 +183,38 @@ describe('early real Client diagnostic observer', () => {
     });
   });
 
-  it('coalesces mounted-shell checks to one geometry read per frame', async () => {
-    vi.useFakeTimers();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }));
-    const geometry = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
-      width: 30,
-      height: 30,
-    } as DOMRect);
-    installClientObserver(window);
-    document.body.innerHTML = '<div class="bh-root bh-main"><p></p></div>';
-    await Promise.resolve();
-    await vi.advanceTimersByTimeAsync(300);
-    expect(observer().snapshot().state).toBe('shell-ready');
-    geometry.mockClear();
-    const list = document.querySelector('p')!;
-    for (let n = 0; n < 50; n++) {
-      list.append(document.createElement('span'));
+  it.each(['bh-main', 'bh-mobile-shell'])(
+    'coalesces %s shell checks to one geometry read per frame',
+    async (surface) => {
+      vi.useFakeTimers();
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }));
+      const geometry = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+        width: 30,
+        height: 30,
+      } as DOMRect);
+      installClientObserver(window);
+      document.body.innerHTML = `<div class="bh-root ${surface}"><p></p></div>`;
       await Promise.resolve();
-    }
-    expect(geometry).not.toHaveBeenCalled();
-    await vi.advanceTimersByTimeAsync(20);
-    expect(geometry).toHaveBeenCalledTimes(1);
-    document.body.innerHTML = '<div class="bh-root">Window Companion</div>';
-    await Promise.resolve();
-    await vi.advanceTimersByTimeAsync(20);
-    expect(observer().snapshot()).toMatchObject({
-      state: 'failed',
-      firstFailure: { code: 'shell-lost' },
-    });
-  });
+      await vi.advanceTimersByTimeAsync(300);
+      expect(observer().snapshot().state).toBe('shell-ready');
+      geometry.mockClear();
+      const list = document.querySelector('p')!;
+      for (let n = 0; n < 50; n++) {
+        list.append(document.createElement('span'));
+        await Promise.resolve();
+      }
+      expect(geometry).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(20);
+      expect(geometry).toHaveBeenCalledTimes(1);
+      document.body.innerHTML = '<div class="bh-root">Window Companion</div>';
+      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(20);
+      expect(observer().snapshot()).toMatchObject({
+        state: 'failed',
+        firstFailure: { code: 'shell-lost' },
+      });
+    },
+  );
 
   it('requires a visible Bot mode main surface after the boot screen is gone', async () => {
     vi.useFakeTimers();

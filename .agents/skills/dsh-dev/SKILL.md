@@ -32,6 +32,18 @@ Preserve the stale owner record and recover only the verified task-local record 
 checking that its Host and preparation processes have exited. Retain the refusal and
 recovery evidence separately from the product restart result.
 
+### DSH 0.2.2 center column and Bot workspace qualification (#3665)
+
+The real 0.2.2-rc.1 Web shell adds a center-column container between the main-panel
+container and the grid frame. Assuming the main slot's grandparent is the frame
+silently refuses workspace ownership and shows the Bot-mode sidebar fallback even
+at desktop widths. Qualify the bounded old/new structural paths using the direct
+sidebar, rightbar and overlay markers, and mark the grid's center-column child,
+not the nested main panel. Restore markers and the exact native sidebar command
+on exit. Compare the running DOM and loaded Client identity before blaming cached
+assets; Simple/Advanced is a separate device-local preference. Browser verification
+does not qualify an installed Desktop upgrade.
+
 ### Empty tool declaration series (#3137)
 
 DSH 0.2.1-rc.3 can record a `request/header` with `startsSeries: true` and no tools.

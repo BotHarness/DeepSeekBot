@@ -11,6 +11,14 @@ DeepSeekBot can already do far more than DSH's native shell shows, and Humans wi
 
 ### Scope
 
+Responsive correction (#3665, 2026-11-07): the intermediate desktop fallback is
+removed on qualified shells. At 960px or narrower, or up to 1000px wide and 500px
+high, Bot mode uses its mobile single-column navigation. All other viewports use
+the full Control Rail workspace. Simple/Advanced remains an independent saved
+desktop preference. The structural adapter supports both the original frame and
+DSH 0.2.2's extra center-column container; unknown structures still fail closed.
+The historical responsive fallback description below is superseded by this rule.
+
 - **Desktop Bot mode only.** The Bot mode layout exists only while the Client is in Bot mode at 961 px or wider. Outside Bot mode, DSH's native shell is unchanged. Below 961 px the Client falls back to today's responsive layout, where the Channel sidebar is an overlay of collapsible entries. The saved layout is kept and returns when the window widens again. Phones keep their current layout.
 
 ### Channel selection preserves layout lifetime
