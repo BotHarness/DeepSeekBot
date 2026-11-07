@@ -75,16 +75,12 @@ const panel = `section[aria-label=${JSON.stringify(manifest.document.title)}]`;
 let browser, page, bot, channelId, messageId;
 save();
 
-async function visibleButton(target, label, contains = false) {
+async function visibleButton(target, label) {
   for (const button of await target.$$('button')) {
     const name = (
       await button.evaluate((node) => node.getAttribute('aria-label') ?? node.textContent)
     ).trim();
-    if (
-      (contains ? name.includes(label) && !name.startsWith('Open ') : name === label) &&
-      (await button.boundingBox())
-    )
-      return button;
+    if (name === label && (await button.boundingBox())) return button;
   }
   throw new Error(`Visible button unavailable: ${label}`);
 }
@@ -134,21 +130,10 @@ async function open(target) {
   await target.goto(instance.url, { waitUntil: 'networkidle2' });
   await target.waitForFunction(
     () =>
-      document.body.innerText.includes('Bot mode') || document.querySelector('.bh-root.bh-main'),
+      document.body.innerText.includes('Bot mode') ||
+      document.querySelector('.bh-root.bh-main, [data-workspace-dock]'),
   );
-  await dismiss(target);
-  if (!(await target.$('.bh-root.bh-main'))) await target.locator('::-p-aria(Bot mode)').click();
-  await target.waitForSelector('.bh-root.bh-main');
-  await dismiss(target);
-  await target.waitForFunction(
-    (name) =>
-      [...document.querySelectorAll('button')].some(
-        (node) => node.textContent.includes(name) && node.getClientRects().length,
-      ),
-    {},
-    bot.bot.displayName,
-  );
-  await (await visibleButton(target, bot.bot.displayName, true)).click();
+  await openTimelineConversation(target, channelId, () => dismiss(target));
   await target.waitForSelector('.bh-chat-body');
   await target.waitForFunction(() => !document.querySelector('.bh-skeleton-messages'));
 }
@@ -348,8 +333,6 @@ try {
   page = await browser.newPage();
   await open(page);
   await capture('00-before-publication');
-  await (await visibleButton(page, bot.bot.displayName, true)).click();
-  await page.waitForSelector('.bh-chat-body');
   const sent = await call('botToolRun', {
     slug: bot.bot.slug,
     tool: 'bot_send_message',

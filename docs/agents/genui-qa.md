@@ -107,6 +107,10 @@ The HTML runner reopens the conversation after resizing, requires a frontmost vi
 hit-test, and rejects captures whose document section does not intersect the viewport.
 Earlier narrow captures without these assertions must be inspected and cannot establish
 narrow GenUI acceptance merely because the runner exited successfully.
+Navigate by the visible Channel row's exact `data-channel-id`, including DM contacts;
+do not substring-match the Bot name against arbitrary buttons, because call controls
+also include that name. Failure screenshots are retained as observations even when
+the conversation is hidden, and are never counted as verified content captures.
 
 Keep PNG originals, ARIA observations and the manifest under the task's private evidence directory, with an index in the machine's main checkout. Preserve source SHA plus dirty diff identity, built Host/Client hashes, browser identity, fixtures, canonical references, capture times, viewport and theme. Bind any pre-commit capture to the final source only after verifying production source and bundle identities have not changed.
 
