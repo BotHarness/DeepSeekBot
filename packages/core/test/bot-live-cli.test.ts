@@ -79,6 +79,104 @@ async function invoke(argv: string[], url?: string, stdin = '', token = 'private
 }
 
 describe('live CLI over the authenticated DSH carrier', () => {
+  it('uses existing commands for v2 document state and continuation without expanding CLI input limits', async () => {
+    const live = await host(() => ({ ok: true, value: { version: 0, state: {} } }));
+    const state = { version: 1, values: { selected: 'alpha', count: 2, expanded: true } };
+    const save = { snapshotId: 'html-1', expectedVersion: 0, state };
+    expect(
+      (
+        await invoke(
+          ['genui-view-save', 'dm-ada', '--message-id', 'html-message', '--genui-stdin'],
+          live.url,
+          JSON.stringify(save),
+        )
+      ).code,
+    ).toBe(0);
+    expect(live.calls.at(-1)).toEqual({
+      method: 'channelGenuiViewSave',
+      args: { channelId: 'dm-ada', messageId: 'html-message', ...save },
+    });
+    const request = {
+      body: 'Continue this document',
+      genuiReply: {
+        version: 2,
+        messageId: 'html-message',
+        snapshotId: 'html-1',
+        intent: 'continue',
+        state,
+      },
+    };
+    const id = 'human-11111111-1111-4111-8111-111111111111';
+    expect(
+      (
+        await invoke(
+          ['genui-submit', 'dm-ada', '--message-id', id, '--genui-stdin'],
+          live.url,
+          JSON.stringify(request),
+        )
+      ).code,
+    ).toBe(0);
+    expect(live.calls.at(-1)).toEqual({
+      method: 'channelSend',
+      args: { channelId: 'dm-ada', messageId: id, ...request },
+    });
+    const count = live.calls.length;
+    const invalid = { ...save, state: { version: 1, values: { nested: { invalid: true } } } };
+    expect(
+      (
+        await invoke(
+          ['genui-view-save', 'dm-ada', '--message-id', 'html-message', '--genui-stdin'],
+          live.url,
+          JSON.stringify(invalid),
+        )
+      ).code,
+    ).not.toBe(0);
+    expect(live.calls).toHaveLength(count);
+  });
+  it('uses the same online GenUI view and ordinary-message operations', async () => {
+    const live = await host(() => ({ ok: true, value: { version: 0, state: {} } }));
+    const view = await invoke(['genui-view', 'dm-ada', '--message-id', 'report-1'], live.url);
+    expect(view.code).toBe(0);
+    expect(live.calls.at(-1)).toEqual({
+      method: 'channelGenuiView',
+      args: { channelId: 'dm-ada', messageId: 'report-1' },
+    });
+    const state = {
+      filter: '',
+      sortColumnId: null,
+      sortDirection: 'asc',
+      view: 'table',
+      selectedIds: ['alpha'],
+      expandedId: null,
+    };
+    const saved = await invoke(
+      ['genui-view-save', 'dm-ada', '--message-id', 'report-1', '--genui-stdin'],
+      live.url,
+      JSON.stringify({ snapshotId: 'snapshot-1', expectedVersion: 0, state }),
+    );
+    expect(saved.code).toBe(0);
+    expect(live.calls.at(-1)?.method).toBe('channelGenuiViewSave');
+    const request = {
+      body: 'Compare these',
+      genuiReply: {
+        messageId: 'report-1',
+        snapshotId: 'snapshot-1',
+        selectedIds: ['alpha'],
+        intent: 'continue',
+      },
+    };
+    const id = 'human-11111111-1111-4111-8111-111111111111';
+    const submitted = await invoke(
+      ['genui-submit', 'dm-ada', '--message-id', id, '--genui-stdin'],
+      live.url,
+      JSON.stringify(request),
+    );
+    expect(submitted.code).toBe(0);
+    expect(live.calls.at(-1)).toEqual({
+      method: 'channelSend',
+      args: { channelId: 'dm-ada', messageId: id, ...request },
+    });
+  });
   it('classifies an interrupted response body as a transport failure', async () => {
     const live = await host(() => ({}), true);
     const result = await invoke(['release-info', '--timeout', '0.1'], live.url);

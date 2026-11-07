@@ -4,7 +4,7 @@
 - Date: 2026-11-04
 - Issue: #3494 (spec #3490, hub #3491; builds on ADR-0286 and ADR-0287)
 
-> Amended by [ADR-0300](0300-call-grids-tile-balanced-rows.md): a frame record holds nine keyframes in a 3+3+3 grid.
+> Amended by [ADR-0303](0303-call-grids-tile-balanced-rows.md): a frame record holds nine keyframes in a 3+3+3 grid.
 
 ## Context
 

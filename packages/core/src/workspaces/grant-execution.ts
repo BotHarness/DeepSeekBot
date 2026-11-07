@@ -360,6 +360,8 @@ const BOT_TOOL_NAMES = new Set([
   'group_leave',
   'bot_create',
   'bot_send_message',
+  'genui_preview',
+  'genui_diagram',
   'channel_action',
 
   'ask_user_question',

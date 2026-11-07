@@ -3081,12 +3081,31 @@ const WORKSPACE_GRANT_PATH_MIGRATION: SchemaMigration = {
   },
 };
 
+const GENUI_PRIVATE_VIEW_MIGRATION: SchemaMigration = {
+  generation: 132,
+  module: 'messaging',
+  description:
+    'Private Human view drafts reference canonical report placements and cascade on purge',
+  migrate(database) {
+    database.exec(`CREATE TABLE genui_private_views (
+      human_id TEXT NOT NULL,
+      channel_id TEXT NOT NULL,
+      message_id TEXT NOT NULL,
+      snapshot_id TEXT NOT NULL,
+      version INTEGER NOT NULL CHECK (version > 0),
+      state_json TEXT NOT NULL,
+      PRIMARY KEY (human_id, channel_id, message_id),
+      FOREIGN KEY (channel_id, message_id) REFERENCES channel_placements(channel_id, message_id) ON DELETE CASCADE
+    )`);
+  },
+};
+
 const callGridLayoutFor = (frames: string) =>
   `CASE ${frames} WHEN 1 THEN '1' WHEN 2 THEN '2' WHEN 3 THEN '3' WHEN 4 THEN '2+2' WHEN 5 THEN '3+2'
     WHEN 6 THEN '3+3' WHEN 7 THEN '3+2+2' WHEN 8 THEN '3+3+2' WHEN 9 THEN '3+3+3' END`;
 
 const CALL_GRID_ROWS_MIGRATION: SchemaMigration = {
-  generation: 132,
+  generation: 133,
   module: 'voice',
   description: 'Rewrite call grid layouts from square grids to balanced rows of at most three',
   migrate(database) {
@@ -3246,5 +3265,6 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   VOICE_SETTINGS_MIGRATION,
   CHANNEL_CHANGE_LOG_MIGRATION,
   WORKSPACE_GRANT_PATH_MIGRATION,
+  GENUI_PRIVATE_VIEW_MIGRATION,
   CALL_GRID_ROWS_MIGRATION,
 ]);

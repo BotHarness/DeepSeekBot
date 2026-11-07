@@ -31,12 +31,12 @@ const record = (frames: number, layout: string) => ({
 const recordBody = (frames: number, layout: string) =>
   `Screen record of call ${CALL} from 0:12 to 0:40 while the Human was silent: a ${layout} grid of ${frames} keyframes, oldest first.`;
 
-it('rewrites square call grid layouts as balanced rows at generation 132', () => {
+it('rewrites square call grid layouts as balanced rows at generation 133', () => {
   const home = createTempRoot('bh3689-grid-rows-');
   const prior = mountOperationalDatabase({
     dshHome: home,
     schemaPlan: defineSchemaPlan(
-      BOT_HARNESS_SCHEMA_PLAN.migrations.filter((migration) => migration.generation < 132),
+      BOT_HARNESS_SCHEMA_PLAN.migrations.filter((migration) => migration.generation < 133),
     ),
   });
   const rows: [string, string, object][] = [

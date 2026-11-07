@@ -52,6 +52,8 @@ import { useFooterPreferences } from './composer-footer-preferences.js';
 import { messagePerfView } from './message-perf.js';
 import { store, type BotSummary, type ChannelMessage } from './store.js';
 import { useMountedResource } from './mounted-resource.js';
+import { GenuiReportCard } from './genui-report.js';
+import { GenuiDocumentCard } from './genui-document.js';
 
 const ChannelMarkdownText = MarkdownText as unknown as (
   props: Parameters<typeof MarkdownText>[0],
@@ -771,6 +773,9 @@ export function ChannelMessageBody({
       ? message.attachments
       : message.attachments?.filter((ref) => ref !== voiceAttachment);
   const attachedFiles = messageAttachmentReferences(fileAttachments ?? []);
+  const channel = store.getSnapshot().conversation.channel;
+  const interactiveReport =
+    host === undefined && channel?.id === channelId && channel?.type === 'dm';
   const renderAttachmentText = (text: string) =>
     attachmentReferenceRuns(text, attachedFiles).map((part, index) => {
       const item = part.attachment;
@@ -875,6 +880,28 @@ export function ChannelMessageBody({
               labels={labels}
             />
           ) : null}
+        </div>
+      )}
+      {message.genuiUnavailable && <p role="status">{t('genui.documentUnsupported')}</p>}
+      {message.genui !== undefined && (
+        <div className="bh-bubble-body">
+          {message.genui.version === 2 ? (
+            <GenuiDocumentCard
+              document={message.genui}
+              channelId={channelId ?? ''}
+              messageId={message.id}
+              {...(interactiveReport && actions ? { actions } : {})}
+              t={t}
+            />
+          ) : (
+            <GenuiReportCard
+              report={message.genui}
+              channelId={channelId ?? ''}
+              messageId={message.id}
+              {...(interactiveReport && actions ? { actions } : {})}
+              t={t}
+            />
+          )}
         </div>
       )}
       {fileAttachments?.length ? (

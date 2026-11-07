@@ -7,6 +7,10 @@ import {
 } from './native-agent-compat.js';
 import { PRIVATE_INPUT_TOOLS } from '../credentials/tool-contract.js';
 import { createBotMessageTool } from './bot-message-tool.js';
+import { createGenuiPreviewTool } from './genui-preview-tool.js';
+import { createGenuiDiagramTool } from './genui-diagram-tool.js';
+import { GENUI_STYLE_GUIDANCE } from '../channels/genui-appearance.js';
+import type { GenuiPreviewDiagnostic } from './genui-preview.js';
 import { assertOrchestratorWorkingDirectory } from './orchestrator-working-directory.js';
 import { TOB_CLI_PROMPT } from '../tob/service.js';
 import { AssignmentInboxAcceptanceUncertainError } from './assignment-delivery.js';
@@ -277,6 +281,8 @@ export interface DshAgentPresetHost {
 }
 
 export interface DshBotAgentAdapterOptions {
+  onGenuiDiagnostic?: (event: GenuiPreviewDiagnostic) => void;
+  genuiAttachmentContext?: Pick<Context, 'get'>;
   agents: DshAgentHost;
   defaultModel: DshDefaultModelHost;
   resolveModelPlan?: (botSlug: string) => PersonaBotModelPlan | undefined;
@@ -488,6 +494,8 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   readonly #turnRefusal: DshBotAgentAdapterOptions['turnRefusal'];
   readonly #promptText: (sessionId: string) => PromptText;
   readonly #hasSession: DshBotAgentAdapterOptions['hasSession'];
+  readonly #onGenuiDiagnostic: DshBotAgentAdapterOptions['onGenuiDiagnostic'];
+  readonly #genuiAttachmentContext: DshBotAgentAdapterOptions['genuiAttachmentContext'];
   readonly #orchestratorCwd: ((bot: PersonaBotRecord) => string | undefined) | undefined;
   readonly #defaultAgentPreset: string | undefined;
   readonly #authorizeBorrow:
@@ -524,6 +532,8 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   #closed = false;
 
   constructor(options: DshBotAgentAdapterOptions) {
+    this.#onGenuiDiagnostic = options.onGenuiDiagnostic;
+    this.#genuiAttachmentContext = options.genuiAttachmentContext;
     this.#agents = options.agents;
     this.#defaultModel = options.defaultModel;
     this.#resolveModelPlan = options.resolveModelPlan;
@@ -1058,6 +1068,12 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         text: () => orchestratorPromptSections(this.#promptText(run.sessionId)).replyDelivery,
       });
       if (borrowed) borrowedDisposers.push(disposeReplyPrompt);
+      const disposeGenuiPrompt = agentCtx.systemPrompt.section({
+        name: 'botharness:genui-authoring',
+        order: 10_451,
+        text: `Use GenUI for information that benefits from visual exploration, not every reply. ${GENUI_STYLE_GUIDANCE} For flowchart, sequence and XY diagrams use genui_diagram, insert the returned SVG unchanged and include a readable caption/data alternative. Preview the complete document with genui_preview, then explicitly deliver its readable summary and the same genui_json with bot_send_message to the authorized Human DM. Never load a CDN or embed a renderer library. Local document controls are private exploration, not permission to execute business actions.`,
+      });
+      if (borrowed) borrowedDisposers.push(disposeGenuiPrompt);
       this.#orchestratorTools(run, agentCtx, registerTool, registerBridgeTool);
       let bridgeDisposers: Array<() => void> | undefined;
       const listBridgeTools = (connected: boolean) => {
@@ -1151,6 +1167,22 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     registerTool: (tool: ToolDefinition) => unknown,
     registerBridgeTool: (tool: ToolDefinition) => unknown,
   ): void {
+    registerTool(
+      createGenuiDiagramTool({
+        onDiagnostic: (event) => this.#onGenuiDiagnostic?.({ ...event, component: 'diagram' }),
+      }),
+    );
+    registerTool(
+      createGenuiPreviewTool({
+        onDiagnostic: this.#onGenuiDiagnostic,
+        saveImage: async (data) => {
+          const attachments =
+            agentCtx.get('attachments') ?? this.#genuiAttachmentContext?.get('attachments');
+          if (attachments === undefined) throw new Error('DSH attachment service is unavailable.');
+          return attachments.saveImage({ data, mediaType: 'image/png', name: 'GenUI preview' });
+        },
+      }),
+    );
     registerTool(
       createChannelActionTool(
         () => {

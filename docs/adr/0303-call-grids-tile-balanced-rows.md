@@ -1,4 +1,4 @@
-# ADR-0300: Call grids tile balanced rows of at most three
+# ADR-0303: Call grids tile balanced rows of at most three
 
 - Status: Accepted (T1)
 - Date: 2026-11-07

@@ -697,6 +697,8 @@ describe('plugin entry', () => {
       'channelAllBotPreview',
       'channelSend',
       'channelSendStatus',
+      'channelGenuiView',
+      'channelGenuiViewSave',
       'botAttention',
       'botSourcePolicies',
       'botSourcePolicySet',

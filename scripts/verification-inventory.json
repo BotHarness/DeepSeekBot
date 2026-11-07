@@ -289,6 +289,14 @@
       "gap": null
     },
     {
+      "id": "web.genui.reports",
+      "label": "Compose bounded report components, explore private views and submit ordinary Human messages",
+      "source": "packages/client/src/client/genui-report.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/conversation-timeline.md",
+      "task": 3685,
+      "gap": "Web DM only; fault-injection browser scenes, full accessibility, matched performance, desktop shell, installed native and Human acceptance qualify separately."
+    },
+    {
       "id": "desktop.personabot.create",
       "label": "Create PersonaBot, Memory and DM; retain identity after restart",
       "source": "packages/core/src/bots/registry.ts",
@@ -964,6 +972,22 @@
       "reason": "Read the real isolated Host account status and capture the actual Connect recovery UI using synthetic account failure preconditions.",
       "task": 3567,
       "sha256": "fc7032d9c6045cdc8135d21af99520b64cc0862d11764885bc4d4f3578a80529"
+    },
+    {
+      "path": "scripts/e2e-genui-documents.mjs",
+      "category": "mapped",
+      "behaviors": ["web.genui.reports"],
+      "reason": "Synthetic HTML document journey through preview/publication, isolated frames, nine content scenes, Host-owned private state and ordinary Human continuation. Hard execution containment and installed-native qualification remain open.",
+      "task": 3685,
+      "sha256": "a9a677a094e976b6701e1c6adf43c5bd1917908045b8a777ea66807da7869945"
+    },
+    {
+      "path": "scripts/e2e-genui-reports.mjs",
+      "category": "mapped",
+      "behaviors": ["web.genui.reports"],
+      "reason": "Synthetic headed Web DM catalog and interaction journey through canonical Tool, Host view and ordinary Human-message owners; screenshots and provenance retained per scene.",
+      "task": 3685,
+      "sha256": "9e3e8022d28dd58a4faff879f82b238b0de302bbe8f9961bdcaadbf16b437b4c"
     },
     {
       "path": "scripts/e2e-zip-import-proof.mjs",
