@@ -98,4 +98,5 @@ it('rewrites square call grid layouts as balanced rows at generation 133', () =>
   expect(byId.get('r-8').voiceCallRecord.layout).toBe('3+3+2');
   expect(byId.get('r-8').body).toBe(recordBody(8, '3+3+2'));
   for (const message of byId.values()) expect(isChannelMessage(message)).toBe(true);
+  current.close();
 });
