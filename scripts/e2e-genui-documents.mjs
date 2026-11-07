@@ -326,6 +326,7 @@ async function qualifyFaults() {
     'Explicit pre-request transport failure retains the live draft and original canonical state; trusted retry saves through the actual Host owner.',
   );
 
+  await call('resume', { slug: bot.bot.slug });
   await page.evaluate(() => {
     window.__genuiFaultQa.fault = {
       method: 'botharness/channelSend',
@@ -339,6 +340,8 @@ async function qualifyFaults() {
     fault: window.__genuiFaultQa.fault,
     calls: window.__genuiFaultQa.calls.filter((call) => call.method === 'botharness/channelSend'),
   }));
+  manifest.faultTransport = uncertain;
+  save();
   assert.equal(uncertain.fault.committed, true, 'Drop only an actual successful Host response.');
   const uncertainId = uncertain.calls.at(-1)?.messageId;
   assert.ok(uncertainId, 'The Client supplies its stable Human message ID.');
@@ -366,6 +369,7 @@ async function qualifyFaults() {
   manifest.checks.push(
     'Actual Host commit followed by explicitly injected response loss shows unconfirmed UI; retry reuses the same UUID and one canonical Human message.',
   );
+  await stopGenuiQaBot(call, { slug: bot.bot.slug, channelId });
 
   const database = new DatabaseSync(join(instance.home, 'botharness/botharness.db'), {
     readOnly: true,

@@ -26,6 +26,7 @@ export function installGenuiFaultTransport() {
     const response = await original(...args);
     const envelope = await response.clone().json();
     fault.committed = response.ok && envelope?.result?.ok === true;
+    fault.refusalCode = envelope?.result?.error?.code;
     if (!fault.committed) throw new Error('The Host did not commit the uncertain-response fixture');
     throw new TypeError('Synthetic GenUI lost response after Host commit');
   };

@@ -43,9 +43,10 @@ describe('explicit GenUI browser transport fault fixtures', () => {
   });
   it('never manufactures a committed outcome from an unsuccessful Host result', async () => {
     const fault = { method: 'botharness/channelSend', mode: 'after-commit' };
-    const { context } = setup(fault, { result: { ok: false } });
+    const { context } = setup(fault, { result: { ok: false, error: { code: 'archived-bot' } } });
     await expect(send(context, fault.method)).rejects.toThrow('did not commit');
     expect(fault.committed).toBe(false);
+    expect(fault.refusalCode).toBe('archived-bot');
   });
   it('does not interfere with other endpoints or retain request bodies', async () => {
     const { context, original } = setup({
