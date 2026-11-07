@@ -1,8 +1,8 @@
-# ADR-0277: GenUI diagrams compile before publication
+# ADR-0302: GenUI diagrams compile before publication
 
 - Status: Accepted; implementation and runtime qualification tracked by #3691
 - Date: 2026-11-08
-- Parent: ADR-0275 and ADR-0276; specification #3684
+- Parent: ADR-0300 and ADR-0301; specification #3684
 
 ## Context
 
@@ -22,5 +22,5 @@ The shared product-owned default stylesheet supplies semantic surface/well/selec
 - SVG geometry is fixed before publication; responsive scaling is available, but exact client-width re-layout and loaded-font remeasurement are not promised. CJK, narrow-width readability and accessible alternatives need actual visual checks.
 - A client-side library/Worker could later support re-layout, but would add packaging, offline loading, lifecycle and policy obligations without being needed for this first slice.
 - Tool-returned SVG consumes model context and must fit final HTML; it is not a compact transport for arbitrarily large diagrams. A future declarative document extension requires a separate justified decision, not a hidden rewrite of stored HTML.
-- The SVG result's size and timeout checks do not solve ADR-0276's arbitrary-HTML execution/memory isolation gate. Desktop/native, foreground performance and Human acceptance remain separate qualifications.
+- The SVG result's size and timeout checks do not solve ADR-0301's arbitrary-HTML execution/memory isolation gate. Desktop/native, foreground performance and Human acceptance remain separate qualifications.
 - Preserve Pele's MIT notice and bundled ISC notice in the distributed core package. Source tests and upstream benchmark claims are not proof of a package-level or end-to-end speedup.

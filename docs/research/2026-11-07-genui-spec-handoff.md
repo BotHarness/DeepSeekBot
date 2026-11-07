@@ -2,13 +2,13 @@
 
 Date: 2026-11-07 (Asia/Tokyo)
 
-Later amendment, 2026-11-08: the Human approved T3 Code-style rich HTML documents rather than treating the three-component report as the long-term GenUI shape. [ADR-0276](../adr/0276-genui-rich-documents-use-isolated-html.md) records the new target; the original specification body and #3685 below describe the earlier declarative slice. The specification discussion records the amendment. Existing Web report evidence is retained, not relabelled as HTML or native qualification.
+Later amendment, 2026-11-08: the Human approved T3 Code-style rich HTML documents rather than treating the three-component report as the long-term GenUI shape. [ADR-0301](../adr/0301-genui-rich-documents-use-isolated-html.md) records the new target; the original specification body and #3685 below describe the earlier declarative slice. The specification discussion records the amendment. Existing Web report evidence is retained, not relabelled as HTML or native qualification.
 
 ## Published specification
 
 The Human confirmed Q1–Q15 and authorized `to-spec` followed by tracer-bullet ticket planning. [Specification #3684](https://github.com/BotHarness/DeepSeekBot/issues/3684) is the canonical implementation specification, labelled `ready-for-agent` and `scope:spec`. It contains the user stories, accepted decisions, highest existing testing seam and explicit exclusions. The Human subsequently approved the first ticket and Project and explicitly selected milestone `v1.8.0`; no implementation claim was made.
 
-[ADR-0275](../adr/0275-genui-is-ordinary-message-content.md), the bilingual Context and the living architecture record the architectural authorities. The [interview](2026-11-07-genui-design-decisions.md) retains confirmation provenance, and the linked research reports retain source identities and verification gaps. These documents remain local working-tree changes until reviewed and committed; the GitHub specification does not pretend that they are published main-branch evidence.
+[ADR-0300](../adr/0300-genui-is-ordinary-message-content.md), the bilingual Context and the living architecture record the architectural authorities. The [interview](2026-11-07-genui-design-decisions.md) retains confirmation provenance, and the linked research reports retain source identities and verification gaps. These documents remain local working-tree changes until reviewed and committed; the GitHub specification does not pretend that they are published main-branch evidence.
 
 ## Published first tracer bullet
 

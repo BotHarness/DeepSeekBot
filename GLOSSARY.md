@@ -537,7 +537,7 @@ _Avoid_: inbox message, mailbox copy, notification payload, stimulus
 
 **GenUI content**:
 Interactive visual information within an ordinary Channel message, shared under that message's read authority. Each Human's exploration is private until they explicitly publish relevant context in an ordinary message.
-The rich-content target is an isolated HTML document, not a fixed report-component catalog; generated presentation never acquires Host or business authority ([ADR-0276](docs/adr/0276-genui-rich-documents-use-isolated-html.md)).
+The rich-content target is an isolated HTML document, not a fixed report-component catalog; generated presentation never acquires Host or business authority ([ADR-0301](docs/adr/0301-genui-rich-documents-use-isolated-html.md)).
 _Avoid_: separate GenUI conversation, publisher-bound callback channel
 
 **Provider Echo**:

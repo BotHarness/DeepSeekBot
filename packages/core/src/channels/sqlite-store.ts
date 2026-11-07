@@ -1048,6 +1048,8 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         message.replyTo,
         grantRequestId,
         message.takeoverResolution?.requestMessageId,
+        message.genui?.predecessorMessageId,
+        message.genuiReply?.messageId,
       ]),
       ...grantResolutions(id, grantRequestId === undefined ? [] : [grantRequestId]),
     ];
@@ -1225,7 +1227,27 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
             );
           }
           assertGrantRequestReply(channel, durable, previous);
-          assertGenuiMessage(channel, durable, previous);
+          const snapshot =
+            durable.genui === undefined
+              ? undefined
+              : (db
+                  .prepare(`SELECT p.message_id, e.payload_json, e.body
+                    FROM channel_placements p
+                    JOIN source_events e ON e.source_event_id = p.source_event_id
+                    WHERE p.channel_id = ? AND json_extract(e.payload_json, '$.genui.snapshotId') = ?
+                    LIMIT 1`)
+                  .get(id, durable.genui.snapshotId) as
+                  | { message_id: string; payload_json: string; body: string }
+                  | undefined);
+          const snapshotMessage =
+            snapshot === undefined
+              ? undefined
+              : parseMessage(snapshot.payload_json, snapshot.body, snapshot.message_id, id);
+          assertGenuiMessage(
+            channel,
+            durable,
+            snapshotMessage === undefined ? previous : [...previous, snapshotMessage],
+          );
           assertAssignmentHumanReply(db, channel, durable);
           if (
             durable.grantRequestResolution !== undefined &&

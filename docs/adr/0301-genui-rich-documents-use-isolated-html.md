@@ -3,7 +3,7 @@
 - Status: Accepted; Web candidate implemented, release qualification pending
 - Date: 2026-11-08
 - Authority: Human explicitly preferred the T3 Code approach after reviewing the fixed-catalog limitation
-- Supersedes: ADR-0275's declarative-only, trusted-native-renderer decision, not its message ownership
+- Supersedes: ADR-0300's declarative-only, trusted-native-renderer decision, not its message ownership
 - Specification: [#3684](https://github.com/BotHarness/DeepSeekBot/issues/3684); amendment recorded in its discussion
 - Existing implementation: [#3685](https://github.com/BotHarness/DeepSeekBot/issues/3685) includes a version-2 Web HTML candidate; qualification remains separate from implementation
 
@@ -55,7 +55,7 @@ The version-2 implementation uses a shared compiler for preview and Web presenta
 
 ## Diagram authoring and default appearance
 
-[ADR-0277](0277-genui-diagrams-compile-before-publication.md) adds the Human-approved borderless semantic surfaces, categorical chart palette and product-pinned offline Pele authoring Tool. It compiles selected Mermaid families to SVG before publication; the resulting document still uses this ADR's unchanged message, private-state and authority boundaries. This is not a replacement renderer or a resolution of the hard HTML execution gate.
+[ADR-0302](0302-genui-diagrams-compile-before-publication.md) adds the Human-approved borderless semantic surfaces, categorical chart palette and product-pinned offline Pele authoring Tool. It compiles selected Mermaid families to SVG before publication; the resulting document still uses this ADR's unchanged message, private-state and authority boundaries. This is not a replacement renderer or a resolution of the hard HTML execution gate.
 
 ## Evidence
 
