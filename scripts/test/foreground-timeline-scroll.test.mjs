@@ -7,6 +7,38 @@ import {
 } from '../foreground-timeline-scroll.mjs';
 
 describe('active animation requirement', () => {
+  it('fails and releases observation resources when animation stops during sampling', async () => {
+    vi.useFakeTimers();
+    try {
+      const stop = vi.fn().mockResolvedValue(undefined);
+      const page = {
+        bringToFront: async () => undefined,
+        waitForFunction: async () => undefined,
+        $: async () => ({ boundingBox: async () => ({ x: 0, y: 0, width: 600, height: 600 }) }),
+        $eval: vi.fn().mockResolvedValue({}),
+        mouse: { move: async () => undefined, wheel: vi.fn().mockResolvedValue(undefined) },
+        evaluate: vi
+          .fn()
+          .mockResolvedValueOnce(undefined)
+          .mockResolvedValueOnce(true)
+          .mockResolvedValueOnce(false)
+          .mockResolvedValueOnce(undefined),
+        tracing: { start: vi.fn().mockResolvedValue(undefined), stop },
+      };
+      const assertion = expect(
+        observeForegroundTimelineScroll(page, 'unused.trace.json', { requireAnimation: true }),
+      ).rejects.toThrow('The scroll animation stopped during sampling');
+      await vi.runAllTimersAsync();
+      await assertion;
+      expect(page.mouse.wheel).toHaveBeenCalledTimes(8);
+      expect(page.$eval).toHaveBeenCalledTimes(8);
+      expect(page.evaluate).toHaveBeenCalledTimes(4);
+      expect(stop).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('fails and releases observation resources when the animation never started', async () => {
     const stop = vi.fn().mockResolvedValue(undefined);
     const page = {
