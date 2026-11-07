@@ -541,6 +541,13 @@ Soniox 每句识别只接受明确的完成标记。异常断流（1006）可在
 ### 本地语音服务（ADR-0283）
 
 [ADR-0283](../adr/0283-bot-deployed-local-speech-service.md)：运行时 skill `setting-up-local-voice` 指导 Bot 在 Host 所在的 macOS 或 Windows 电脑上部署一个 Python 脚本（sherpa-onnx：SenseVoice 识别、Kokoro 合成），它只监听 `127.0.0.1:8790` 并提供 OpenAI 兼容的 `/v1/audio/speech` 与 `/v1/audio/transcriptions`。`deepseekbot voice-local-kit` 离线写出脚本；Tob 的受限 CLI 可读取、测试、登记无密钥的 `local`／`custom` TTS 和 ASR Provider，并绑定 Bot 的语音与语音识别（`voice-set`、`voice-asr-set`），写操作走审批卡片，密钥从不经过 Bot。Host 不启动也不保活该服务；服务未运行时 `VoiceProviders` 返回带启动方法的 `provider-unavailable`。
+### GenUI as ordinary message content — accepted target
+
+[ADR-0275](../adr/0275-genui-is-ordinary-message-content.md) defines an accepted, not-yet-implemented GenUI path. Bounded declarative report content and its readable summary share an ordinary canonical Source Event; Channel read authority, explicit publication, Admission, routing and retention remain with existing Messaging owners. No separate report transcript, publisher-bound callback channel or automatic Tool-result publication is introduced.
+
+Each Human explores the shared snapshot privately. Product-owned operational state stores bounded Human/snapshot-scoped view preferences and selection references, recoverable on authorized devices connected to the same Host; this is new work, not an existing multi-account guarantee. Explicit submission publishes an ordinary attributable Human message with validated snapshot/selection context. Refresh appends a linked new report rather than changing the old answer. Access loss and purge fence both content and dependent drafts.
+
+Web/desktop use trusted DOM adapters and mobile uses trusted React Native adapters over shared catalog/validation/interaction semantics. The first comparison-report slice publishes only fully validated content, supports local exploration and ordinary follow-up, and falls back to the same message's summary on unsupported rendering. No runtime dependency is selected; json-render core/catalog is a candidate, not a required foundation. Generated executable code, bundled WebView rendering, actionable partial streams, business controls and universal external card delivery are outside this slice. CLI parity, performance regression guards, desktop/installed-native evidence and Human acceptance remain required implementation gates.
 
 ### 外部 CLI 的在线请求与回复
 

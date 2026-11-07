@@ -193,6 +193,23 @@ deepseekbot group-create "Skill Lab" --member <bot-id> --member <bot-id>
 
 `access-set` 设置 `danger-full-access` 时必须带 `--acknowledge-risk`：完全访问下普通工具请求不再逐次弹卡；识别出的权限／策略变更仍需 Human 本次决定，浏览器和 Computer 保留各自能力检查。`--scope chat` 同时作用于 Bot 自己的对话；`assignments` 只作用于新的 Assignment。`settings` 返回一个命名空间的 `{ns, revision, value}`；`settings-set` 从标准输入读取一个字段 JSON 对象，并基于该版本号应用，所以并发修改会失败而不是被覆盖。只有 Host 标记为可在线修改的字段才能这样改。 `botHopLimit`（1–1000 的整数，默认 128，「设置 → 消息」）是由一条 Human 消息开始的 Bot 接力链的最大层数。会唤醒其他 Bot 的发送（@ 提及或 Bot 私信）超限时以 `collaboration-hop-limit` 被拒，且不会写入任何消息；不 @ 任何 Bot 的群消息仍会发出，只是不唤醒任何 Bot。Tob 的受限 CLI 不能修改它。`workspace-create` 接受绝对路径并返回 Host 工作区，其 id 供 `grant-create` 使用。
 
+### Bot 私聊中的 GenUI 报告
+
+GenUI 是有界的普通消息内容，不执行生成的 HTML。通过既有 direct Tool 路径发布完整报告，无需模型：
+
+```bash
+cat ./report-send.json | deepseekbot bot-tool <bot-id> bot_send_message --args-stdin
+deepseekbot genui-view dm-<bot-id> --message-id <report-message-id>
+deepseekbot genui-view-save dm-<bot-id> --message-id <report-message-id> --genui-file ./view.json
+deepseekbot genui-submit dm-<bot-id> --message-id human-<uuid> --genui-file ./request.json
+```
+
+`report-send.json` 包含 `channel_id`、可读摘要 `body`，以及将完整报告序列化成 JSON 字符串的 `genui_json`。版本 1 支持指标、表格和条形图；参见[明确标为 synthetic 的比较 fixture](../packages/core/test/fixtures/genui-report.ts)。上限为 64 KiB、100 行、8 列、12 个元素及 20 个选择项。本切片只支持 Bot 现有的 Human 私聊，完整验证通过后才追加 canonical 消息。
+
+`view.json` 格式为 `{ "snapshotId": "synthetic-comparison-v1", "expectedVersion": 0, "state": { "filter": "", "sortColumnId": null, "sortDirection": "asc", "view": "table", "selectedIds": [], "expandedId": null } }`。先读取当前版本；旧版本保存返回 `genui-view-conflict`，重新读取后再决定是否覆盖。重置时，以当前版本保存空状态。视图属于 Host 的本地 Human 和精确报告，不写入浏览器存储或 Bot Memory。
+
+`request.json` 格式为 `{ "body": "比较我的选择", "genuiReply": { "messageId": "<report-message-id>", "snapshotId": "<exact-snapshot-id>", "selectedIds": ["alpha"], "intent": "continue" } }`。`refresh` 表示请求关联的新快照。提交形成可见的普通 Human 消息，携带经过验证的快照上下文，走普通路由和准入。相同逻辑请求以同一 `human-<uuid>` 和不变的输入重试；修改内容复用标识会被拒绝。刷新发布必须使用新 `snapshotId`，并以 `predecessorMessageId` 指向旧报告，不改写旧消息。输入须在 `--genui-file` 与 `--genui-stdin` 中二选一，最大 32 KiB。三个命令均要求在线认证 Host，并重新检查访问权限。
+
 ### 频道与群组
 
 这些命令通过与 Web 界面相同的 Host 接口和检查来管理频道和群组。频道 ID 取自 `channels`：

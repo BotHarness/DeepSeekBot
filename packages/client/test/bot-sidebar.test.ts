@@ -164,6 +164,9 @@ const NO_INSTALL = { installable: false, install: { phase: 'idle' as const } };
 
 function stubActions(): BridgeActions {
   return {
+    genuiView: vi.fn(),
+    saveGenuiView: vi.fn(),
+    sendGenuiReply: vi.fn(),
     humanIdentity: vi.fn(),
     tobHome: vi.fn(),
     sendHome: vi.fn(),

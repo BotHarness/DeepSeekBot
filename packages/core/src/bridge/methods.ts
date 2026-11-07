@@ -3,6 +3,12 @@ import type { VoiceProviders } from '../voice/providers.js';
 import { networkBotId, type BotContact } from '../runtime/bot-contact-discovery.js';
 import { BotNetworkDeliveryError } from '../runtime/bot-network.js';
 import { join } from 'node:path';
+import {
+  GenuiError,
+  parseGenuiReport,
+  validateGenuiReply,
+  type GenuiView,
+} from '../channels/genui.js';
 import { createBotImports, type BotImportsService } from '../bots/imports.js';
 import { SessionRecoveryError } from '../runtime/session-recovery.js';
 import type { BotContextWindow } from '../runtime/context-window.js';
@@ -824,6 +830,8 @@ export interface BridgeMethods {
   channelAllBotPreview(payload: unknown): BridgeResult<AllBotPreview>;
   channelSend(payload: unknown): Promise<BridgeResult<{ message: ChannelMessage }>>;
   channelSendStatus(payload: unknown): BridgeResult<ChannelSendStatus>;
+  channelGenuiView(payload: unknown): BridgeResult<GenuiView>;
+  channelGenuiViewSave(payload: unknown): BridgeResult<GenuiView>;
   botAttention(payload: unknown): BridgeResult<BotAttentionPage>;
   botSourcePolicies(payload: unknown): BridgeResult<{ policies: BotSourcePolicy[] }>;
   botSourcePolicySet(payload: unknown): BridgeResult<{ policy: BotSourcePolicy }>;
@@ -6077,6 +6085,51 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const value = deps.channels.humanSendStatus?.(channelId, messageId);
       return value === undefined ? invalidInput('Unknown Human DM request') : { ok: true, value };
     },
+    channelGenuiView(payload) {
+      const source = asObject(payload);
+      const channelId = asNonBlank(source, 'channelId');
+      const messageId = asNonBlank(source, 'messageId');
+      if (!channelId || !messageId || deps.channels.genuiView === undefined)
+        return invalidInput('Report view is unavailable');
+      try {
+        return { ok: true, value: deps.channels.genuiView(channelId, messageId) };
+      } catch (error) {
+        if (error instanceof GenuiError)
+          return { ok: false, error: { code: error.code, message: error.message } };
+        throw error;
+      }
+    },
+    channelGenuiViewSave(payload) {
+      const source = asObject(payload);
+      const channelId = asNonBlank(source, 'channelId');
+      const messageId = asNonBlank(source, 'messageId');
+      const snapshotId = asNonBlank(source, 'snapshotId');
+      const expectedVersion = source['expectedVersion'];
+      if (
+        !channelId ||
+        !messageId ||
+        !snapshotId ||
+        typeof expectedVersion !== 'number' ||
+        deps.channels.saveGenuiView === undefined
+      )
+        return invalidInput('Report view and expectedVersion are required');
+      try {
+        return {
+          ok: true,
+          value: deps.channels.saveGenuiView(
+            channelId,
+            messageId,
+            snapshotId,
+            expectedVersion,
+            source['state'],
+          ),
+        };
+      } catch (error) {
+        if (error instanceof GenuiError)
+          return { ok: false, error: { code: error.code, message: error.message } };
+        throw error;
+      }
+    },
     async channelSend(payload) {
       const source = asObject(payload);
       const channelId = asNonBlank(source, 'channelId');
@@ -6181,10 +6234,11 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         )
           return invalidInput('overlapping selected tokens');
       }
-      const replyTo = source['replyTo'];
-      if (replyTo !== undefined && (typeof replyTo !== 'string' || replyTo.length === 0)) {
+      const rawReplyTo = source['replyTo'];
+      if (rawReplyTo !== undefined && (typeof rawReplyTo !== 'string' || rawReplyTo.length === 0)) {
         return invalidInput('replyTo must be a message id');
       }
+      let replyTo = typeof rawReplyTo === 'string' ? rawReplyTo : undefined;
       const rawGrantResolution = source['grantRequestResolution'];
       let grantRequestResolution: ChannelMessage['grantRequestResolution'];
       if (rawGrantResolution !== undefined) {
@@ -6252,6 +6306,46 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       }
       const channel = deps.channels.get(channelId);
       if (channel === undefined) return unknownChannel(channelId);
+      let genuiReply: ChannelMessage['genuiReply'];
+      if (source['genuiReply'] !== undefined) {
+        try {
+          if (requestedMessageId === undefined || rawBody.length > 2000)
+            throw new GenuiError(
+              'invalid-genui',
+              'A stable messageId and a request of at most 2000 characters are required.',
+            );
+          const raw = source['genuiReply'];
+          const parsed =
+            typeof raw === 'object' &&
+            raw !== null &&
+            'messageId' in raw &&
+            typeof raw.messageId === 'string'
+              ? deps.channels.message(channelId, raw.messageId)
+              : undefined;
+          if (channel.type !== 'dm' || channel.botSlug === undefined || parsed?.genui === undefined)
+            throw new GenuiError(
+              'genui-unavailable',
+              'The report is unavailable in this Human DM.',
+            );
+          const report = parseGenuiReport(parsed.genui);
+          genuiReply = validateGenuiReply(report, raw);
+          if (replyTo !== undefined && replyTo !== parsed.id)
+            throw new GenuiError('invalid-genui', 'The reply target must be the report message.');
+          replyTo = parsed.id;
+          const selected = report.rows.filter((row) => genuiReply?.selectedIds.includes(row.id));
+          const context = `Report: ${report.title}\nReport message: ${parsed.id}\nSnapshot: ${report.snapshotId} (${report.observedAt})\nIntent: ${genuiReply.intent}\nSelected items: ${JSON.stringify(selected)}`;
+          if (context.length > 6000)
+            throw new GenuiError(
+              'invalid-genui',
+              'Selection context is too large. Select fewer entries.',
+            );
+          body = `${body}\n\n${context}`;
+        } catch (error) {
+          if (error instanceof GenuiError)
+            return { ok: false, error: { code: error.code, message: error.message } };
+          throw error;
+        }
+      }
       if (channel.type === 'dm' && channel.botSlug === undefined)
         return invalidInput('Bot-to-Bot DMs are read-only for Human');
       if (
@@ -6282,6 +6376,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           existing.author.kind === 'human' &&
           existing.body === body &&
           existing.replyTo === replyTo &&
+          JSON.stringify(existing.genuiReply) === JSON.stringify(genuiReply) &&
           existing.memorySwitchTarget === memorySwitchTarget &&
           JSON.stringify(existing.assignmentReply) === JSON.stringify(assignmentReply) &&
           JSON.stringify(attachmentIntent(existing.attachments ?? [])) ===
@@ -6386,6 +6481,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         ...(assignmentReply === undefined ? {} : { assignmentReply }),
         ...(memorySwitchTarget === undefined ? {} : { memorySwitchTarget }),
         ...(voiceCall === undefined ? {} : { voiceCall }),
+        ...(genuiReply === undefined ? {} : { genuiReply }),
       };
       if (
         channel.type === 'dm' &&
@@ -6415,6 +6511,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           };
         if (
           error instanceof ChannelReplyTargetError ||
+          error instanceof GenuiError ||
           error instanceof AssignmentReplyTargetError ||
           error instanceof ChannelMentionTargetError ||
           error instanceof ChannelAttachmentError

@@ -1,4 +1,6 @@
 import { approveWorkspaceGrantRequest } from './bridge.js';
+import { loadGenuiView, saveGenuiView } from './bridge.js';
+import type { GenuiReply, GenuiView, GenuiViewState } from '../../../core/src/channels/genui.js';
 import type { ClientTelemetryEventName } from '../../../core/src/telemetry/events.js';
 import { telemetrySurface } from './telemetry-surface.js';
 import type { PixelBannerRecipe } from '@botharness/pixel-banner';
@@ -402,6 +404,20 @@ export interface HostDirectoryListing {
 }
 
 export interface BridgeActions {
+  genuiView(channelId: string, messageId: string): Promise<GenuiView>;
+  saveGenuiView(
+    channelId: string,
+    messageId: string,
+    snapshotId: string,
+    expectedVersion: number,
+    state: GenuiViewState,
+  ): Promise<GenuiView>;
+  sendGenuiReply(
+    channelId: string,
+    body: string,
+    submissionId: string,
+    reply: GenuiReply,
+  ): Promise<void>;
   humanIdentity(signal?: AbortSignal): Promise<import('./bridge.js').LocalHumanIdentity>;
   tobHome(): Promise<
     import('../../../core/src/tob/service.js').TobHome & {
@@ -1838,6 +1854,30 @@ export function createActions(
     return result.value as T;
   };
   const actions: BridgeActions = {
+    genuiView: (channelId, messageId) => loadGenuiView(call, channelId, messageId),
+    saveGenuiView: (channelId, messageId, snapshotId, expectedVersion, state) =>
+      saveGenuiView(call, channelId, messageId, snapshotId, expectedVersion, state),
+    async sendGenuiReply(channelId, body, submissionId, reply) {
+      const channel = clientStore.getSnapshot().conversation.channel;
+      if (channel?.id !== channelId || channel.type !== 'dm') throw new Error('genui-unavailable');
+      await sendChannelMessage(
+        call,
+        channelId,
+        body,
+        undefined,
+        undefined,
+        submissionId,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        reply,
+      );
+      await actions.refreshChannelMessages(channelId);
+    },
     tobHome: () => invoke('tobHome', {}),
     humanIdentity: (signal) => loadHumanIdentity(call, signal),
     async sendHome(channelId, body, messageId, attachments) {

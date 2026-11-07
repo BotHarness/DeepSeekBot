@@ -23,6 +23,8 @@ import { WORKSPACE_GRANTS_CHANGED } from '../src/client/workspace-grants-entry.j
 import { store, type ChannelMessage } from '../src/client/store.js';
 import { createHostClient } from '../../../apps/mobile/src/host/client.js';
 import { MessageHostContext } from '../src/client/message-host.js';
+import { initialGenuiView, parseGenuiReport } from '../../core/src/channels/genui.js';
+import { comparisonReport } from '../../core/test/fixtures/genui-report.js';
 import { RemoteMessageBody } from '../src/client/remote-message-body.js';
 import type { ConversationMessage } from '../../../apps/mobile/src/host/conversation.js';
 
@@ -50,6 +52,69 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Button: ({ children, ...props }: { children: ReactNode }) =>
     createElement('button', props, children),
 }));
+
+describe('GenUI ordinary message integration', () => {
+  it.each(['dm', 'group'] as const)(
+    'retains the summary and enables Host view reads only in a Web DM: %s',
+    async (type) => {
+      Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+      const previous = store.getSnapshot().conversation;
+      const channel = {
+        id: `${type}-genui`,
+        type,
+        name: 'GenUI',
+        members: ['ada'],
+        createdAt: '2026-11-07T00:00:00Z',
+        updatedAt: '2026-11-07T00:00:00Z',
+      };
+      const message: ChannelMessage = {
+        id: 'report-integration',
+        at: channel.createdAt,
+        author: { kind: 'bot', slug: 'ada' },
+        body: 'Always readable report summary',
+        format: 'text',
+        genui: parseGenuiReport(comparisonReport),
+      };
+      store.setConversation({ status: 'ready', channel, messages: [message], revision: 0 });
+      const call = vi.fn(async () => ({
+        ok: true as const,
+        value: { version: 0, state: initialGenuiView() },
+      }));
+      const container = document.createElement('div');
+      document.body.append(container);
+      const root = createRoot(container);
+      try {
+        await act(async () =>
+          root.render(
+            createElement(ChannelMessageBody, {
+              message,
+              channelId: channel.id,
+              actions: createActions(call, store),
+              t: zhTranslate,
+            }),
+          ),
+        );
+        expect(container.textContent).toContain(message.body);
+        expect(container.querySelector('table')).not.toBeNull();
+        if (type === 'dm') {
+          expect(call).toHaveBeenCalledTimes(1);
+          expect(call).toHaveBeenCalledWith(
+            'channelGenuiView',
+            { channelId: channel.id, messageId: message.id },
+            undefined,
+          );
+        } else {
+          expect(call).not.toHaveBeenCalled();
+          expect(container.querySelector('input')).toBeNull();
+        }
+      } finally {
+        await act(async () => root.unmount());
+        container.remove();
+        store.setConversation(previous);
+      }
+    },
+  );
+});
 
 it('maintains the DM session without retrying a failed message', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });

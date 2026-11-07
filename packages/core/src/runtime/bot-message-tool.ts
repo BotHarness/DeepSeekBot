@@ -5,6 +5,7 @@ import {
 } from '../messaging/mention-text.js';
 import { isChannelAttachmentRef } from '../attachments/ref.js';
 import { createHash } from 'node:crypto';
+import { parseGenuiReport } from '../channels/genui.js';
 import { SendReviewRequired, GroupReplySourceRevoked } from '../channels/send-review.js';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import type { ChannelMessage } from '../channels/channel.js';
@@ -183,6 +184,11 @@ export function createBotMessageTool(
           'Default false. true also sends this message as a voice message: the Human sees the same text with a playable voice bar, spoken with your configured voice. Decide per message; give voice before body. Code, paths and tables are not read aloud. Local Channels only.',
       },
       body: { type: 'string', required: true, description: 'The actual message to deliver.' },
+      genui_json: {
+        type: 'string',
+        description:
+          'Optional complete report JSON for a Human DM only (64 KiB maximum). version:1, snapshotId, observedAt ISO date, title, columns:[{id,label,kind:text|number}], rows:[{id,values,details?}], elements:[{kind:metric,label,value}|{kind:table,columnIds}|{kind:bar-chart,labelColumnId,valueColumnId}]. At most 100 rows, 8 columns, 12 elements. body is the readable summary. Refresh uses a new snapshotId and predecessorMessageId. No executable content or callbacks.',
+      },
       resolve_inbox_ids: {
         type: 'array',
         items: { type: 'string' },
@@ -254,6 +260,19 @@ export function createBotMessageTool(
           'invalid-review',
           'Recovery requires draft_id and a fresh observation_id.',
         );
+      const genui =
+        args.genui_json === undefined
+          ? undefined
+          : (() => {
+              if (external || channel?.kind !== 'human-dm' || !args.body.trim())
+                throw new BotMessageError(
+                  'unsupported-genui-destination',
+                  'Reports require a Human DM and a readable summary.',
+                );
+              if (args.genui_json.length > 65_536)
+                throw new BotMessageError('invalid-genui', 'Report JSON exceeds its budget.');
+              return parseGenuiReport(JSON.parse(args.genui_json));
+            })();
       if (
         args.freshness_override &&
         (!args.draft_id ||
@@ -385,6 +404,7 @@ export function createBotMessageTool(
             channelId: channelId!,
             body: args.body,
             deliveryKey: String(exec.callId),
+            ...(genui === undefined ? {} : { genui }),
             ...(args.attachments === undefined ? {} : { attachments: args.attachments }),
             ...(args.mention_bot_ids === undefined ? {} : { mentionBotIds: args.mention_bot_ids }),
             ...(args.mention_human_ids === undefined

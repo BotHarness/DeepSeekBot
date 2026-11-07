@@ -5,6 +5,15 @@ import {
 import { parseFailureAutoContinue, parseFailureProgress } from '../shared/turn-continuation.js';
 import { isPixelBannerRecipe, type PixelBannerRecipe } from '@botharness/pixel-banner';
 import { clientLog } from './diagnostic-log.js';
+import {
+  genuiReplySchema,
+  genuiViewSchema,
+  parseGenuiReport,
+  type GenuiReport,
+  type GenuiReply,
+  type GenuiView,
+  type GenuiViewState,
+} from '../../../core/src/channels/genui.js';
 import { parseToolApprovalActor } from '../../../core/src/workspaces/tool-approval-actor.js';
 import { isChannelVoiceCallRecord } from '../../../core/src/channels/voice-call-record.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
@@ -1031,6 +1040,17 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
   if (typeof body !== 'string') return undefined;
   const author = parseAuthor(record['author']);
   if (author === undefined) return undefined;
+  let genui: GenuiReport | undefined;
+  if (author.kind === 'bot' && record['genui'] !== undefined) {
+    try {
+      genui = parseGenuiReport(record['genui']);
+    } catch {
+      genui = undefined;
+    }
+  }
+  const parsedGenuiReply =
+    author.kind === 'human' ? genuiReplySchema.safeParse(record['genuiReply']) : undefined;
+  const genuiReply = parsedGenuiReply?.success ? parsedGenuiReply.data : undefined;
   const perf = author.kind === 'bot' ? parseMessagePerf(record['perf']) : undefined;
   const memorySwitchTarget = record['memorySwitchTarget'];
   if (
@@ -1736,6 +1756,8 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       ? { contentPurged: true as const }
       : {}),
     ...(memorySwitchTarget === undefined ? {} : { memorySwitchTarget }),
+    ...(genui === undefined ? {} : { genui }),
+    ...(genuiReply === undefined ? {} : { genuiReply }),
     ...(mentions === undefined
       ? {}
       : { mentions: mentions as NonNullable<ChannelMessage['mentions']> }),
@@ -4040,6 +4062,7 @@ export async function sendChannelMessage(
   grantRequestResolution?: ChannelMessage['grantRequestResolution'],
   assignmentReply?: ChannelMessage['assignmentReply'],
   allBotMention?: AllBotMention,
+  genuiReply?: GenuiReply,
 ): Promise<ChannelMessage> {
   const value = await unwrap(
     call,
@@ -4056,12 +4079,54 @@ export async function sendChannelMessage(
       ...(grantRequestResolution === undefined ? {} : { grantRequestResolution }),
       ...(assignmentReply === undefined ? {} : { assignmentReply }),
       ...(allBotMention === undefined ? {} : { allBotMention }),
+      ...(genuiReply === undefined ? {} : { genuiReply }),
     },
     signal,
   );
   const message = parseChannelMessage(asRecord(value)?.['message']);
   if (message === undefined) throw new Error('invalid channelSend response');
   return message;
+}
+
+export function parseGenuiView(value: unknown): GenuiView {
+  const record = asRecord(value);
+  const version = record?.['version'];
+  const state = genuiViewSchema.safeParse(record?.['state']);
+  if (
+    typeof version !== 'number' ||
+    !Number.isSafeInteger(version) ||
+    version < 0 ||
+    !state.success
+  )
+    throw new Error('Invalid private report view');
+  return { version, state: state.data };
+}
+
+export async function loadGenuiView(
+  call: BridgeCall,
+  channelId: string,
+  messageId: string,
+): Promise<GenuiView> {
+  return parseGenuiView(await unwrap(call, 'channelGenuiView', { channelId, messageId }));
+}
+
+export async function saveGenuiView(
+  call: BridgeCall,
+  channelId: string,
+  messageId: string,
+  snapshotId: string,
+  expectedVersion: number,
+  state: GenuiViewState,
+): Promise<GenuiView> {
+  return parseGenuiView(
+    await unwrap(call, 'channelGenuiViewSave', {
+      channelId,
+      messageId,
+      snapshotId,
+      expectedVersion,
+      state,
+    }),
+  );
 }
 
 export interface AssignmentAccessPresetView {

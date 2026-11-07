@@ -205,6 +205,8 @@ export interface ChannelReaction {
 }
 
 export interface ChannelMessage {
+  genui?: import('../../../core/src/channels/genui.js').GenuiReport;
+  genuiReply?: import('../../../core/src/channels/genui.js').GenuiReply;
   onboardingWelcome?: { version: 1; kind?: 'tob' };
   contentPurged?: true;
   bridgeOrigin?: import('../../../core/src/channels/channel.js').ChannelMessage['bridgeOrigin'];

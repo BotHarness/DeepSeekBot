@@ -198,6 +198,23 @@ deepseekbot group-create "Skill Lab" --member <bot-id> --member <bot-id>
 
 `access-set` refuses `danger-full-access` unless `--acknowledge-risk` is given: full access lets the Bot perform ordinary work and use the Browser and Computer without routine approval cards; permission and approval-policy management still needs an individual Human decision. `--scope chat` also applies it to the Bot's own chat; `assignments` keeps it to new Assignments. `settings` returns `{ns, revision, value}` for one namespace; `settings-set` reads a JSON object of fields from stdin and applies it against that revision, so a concurrent change fails instead of being overwritten. Only fields the Host marks as live can be changed this way. `botHopLimit` (integer 1–1000, default 128, Settings → Messaging) is the maximum depth of a Bot-to-Bot chain started by one Human message. A Bot send that would wake another Bot (an @ mention or a Bot DM) past it is refused with `collaboration-hop-limit` and nothing is committed; a Group message without Bot mentions is still posted but wakes no one. The scoped Tob CLI cannot change it. `workspace-create` takes an absolute path and returns the Host workspace, whose id `grant-create` uses.
 
+### GenUI reports in a Bot DM
+
+GenUI is bounded ordinary message content, not executable HTML. Publish a complete report through the existing direct Tool runner (no model required):
+
+```bash
+cat ./report-send.json | deepseekbot bot-tool <bot-id> bot_send_message --args-stdin
+deepseekbot genui-view dm-<bot-id> --message-id <report-message-id>
+deepseekbot genui-view-save dm-<bot-id> --message-id <report-message-id> --genui-file ./view.json
+deepseekbot genui-submit dm-<bot-id> --message-id human-<uuid> --genui-file ./request.json
+```
+
+`report-send.json` contains `channel_id`, a readable `body`, and `genui_json`: the complete report serialized as a JSON string. The version-1 catalog supports metrics, tables and bar charts; see the [synthetic comparison fixture](../packages/core/test/fixtures/genui-report.ts). Limits are 64 KiB, 100 rows, eight columns, 12 elements and 20 selected rows. Only the Bot's existing Human DM is supported in this slice. Publication validates the whole report before appending its canonical message.
+
+`view.json` has `{ "snapshotId": "synthetic-comparison-v1", "expectedVersion": 0, "state": { "filter": "", "sortColumnId": null, "sortDirection": "asc", "view": "table", "selectedIds": [], "expandedId": null } }`. Read the current version first. A stale save returns `genui-view-conflict`; reload before deciding whether to overwrite. To reset, save the empty state against the current version. Views belong to the Host's local Human and exact report, not browser storage or Bot Memory.
+
+`request.json` has `{ "body": "Compare my selection", "genuiReply": { "messageId": "<report-message-id>", "snapshotId": "<exact-snapshot-id>", "selectedIds": ["alpha"], "intent": "continue" } }`. Use `refresh` to request a new linked snapshot. Submission is an ordinary visible Human message with validated snapshot context, using normal routing and admission. Retry the same logical request with the same `human-<uuid>` and unchanged input; changed-content reuse is refused. Refresh publication requires a new `snapshotId` and `predecessorMessageId` pointing to the previous report; it never edits the old message. Inputs accept exactly one of `--genui-file` or `--genui-stdin`, at most 32 KiB. All three commands require a live authenticated Host and recheck access.
+
 ### Channels and groups
 
 These commands manage Channels and groups through the same Host owners and checks as the Web UI. Each takes a Channel ID from `channels`:
