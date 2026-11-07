@@ -77,7 +77,7 @@ export function callMessages(
         startedAt,
         source: 'camera',
         frames: 1,
-        layout: '1x1',
+        layout: '1',
         fromMs: 16_000,
         toMs: 20_000,
       },
