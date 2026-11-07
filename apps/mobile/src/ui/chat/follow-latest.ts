@@ -342,6 +342,7 @@ export function useFollowLatest<Row>(
     ready,
     canRetry,
     retry,
+    reflow: pin,
     browsed,
     unseen: following ? 0 : unseenSince(messages, anchor),
     hold,

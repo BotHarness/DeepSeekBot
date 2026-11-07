@@ -1,4 +1,4 @@
-import { useCallback, useState, type RefObject } from 'react';
+import { useCallback, useLayoutEffect, useState, type RefObject } from 'react';
 import type { FlatList, LayoutChangeEvent } from 'react-native';
 import { useSharedValue, useReducedMotion } from 'react-native-reanimated';
 
@@ -30,6 +30,8 @@ export function useChannelViewport<Row>(
   const renderScrollComponent = useChatScrollAdapter(latest.keyboard, latest.away);
   const [composerHeight, setComposerHeight] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
+  const reflow = latest.reflow;
+  useLayoutEffect(() => reflow(), [composerHeight, start, reflow]);
   const viewportLayout = useSharedValue(0);
   const onComposerLayout = useCallback((event: LayoutChangeEvent) => {
     setComposerHeight(event.nativeEvent.layout.height);
