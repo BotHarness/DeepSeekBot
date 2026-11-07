@@ -1,5 +1,9 @@
 import { createHash } from 'node:crypto';
 
+export function genuiMessageSelector(messageId) {
+  return `[data-message-id=${JSON.stringify(messageId)}] section[aria-label]`;
+}
+
 export function findGenuiModelFollowup(messages, trace, request) {
   if (typeof trace?.sessionId !== 'string' || trace.sessionId === 'direct') return;
   const after = Date.parse(request.after);

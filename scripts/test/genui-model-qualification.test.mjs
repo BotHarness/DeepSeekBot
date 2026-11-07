@@ -1,7 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { findGenuiModelFollowup, genuiVerificationDigest } from '../genui-model-qualification.mjs';
+import {
+  findGenuiModelFollowup,
+  genuiVerificationDigest,
+  genuiMessageSelector,
+} from '../genui-model-qualification.mjs';
 import { genuiDocumentIdentity } from '../../packages/core/src/channels/genui-document.ts';
 import { syntheticGenuiDocument } from '../../packages/core/test/fixtures/genui-document.ts';
+
+describe('canonical document capture scope', () => {
+  it('distinguishes two published messages that reuse the same document title', () => {
+    expect(genuiMessageSelector('original')).toBe(
+      '[data-message-id="original"] section[aria-label]',
+    );
+    expect(genuiMessageSelector('followup')).toBe(
+      '[data-message-id="followup"] section[aria-label]',
+    );
+    expect(genuiMessageSelector('original')).not.toBe(genuiMessageSelector('followup'));
+  });
+});
 
 const request = {
   channelId: 'dm-synthetic',

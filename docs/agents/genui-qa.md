@@ -115,6 +115,10 @@ The runner pauses its own synthetic Bot before stopping its activity in `finally
 so queued model continuations cannot silently outlive a run. Cleanup failure fails
 the run and is retained separately from the original failure. A busy preview remains
 a refusal, not a passing render; do not raise its timeout to obtain a green result.
+Document titles are not unique. Scope rendered-content checks and screenshots to the
+canonical message ID, particularly when a model reuses its predecessor's title.
+Capture records retain the matched message ID and selector; verify the document is
+still in the viewport after layout settles, not just before scroll/window updates.
 
 Keep PNG originals, ARIA observations and the manifest under the task's private evidence directory, with an index in the machine's main checkout. Preserve source SHA plus dirty diff identity, built Host/Client hashes, browser identity, fixtures, canonical references, capture times, viewport and theme. Bind any pre-commit capture to the final source only after verifying production source and bundle identities have not changed.
 

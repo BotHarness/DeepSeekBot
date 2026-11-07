@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { syntheticGenuiDocument } from '../packages/core/test/fixtures/genui-document.ts';
 import { syntheticGenuiDiagrams } from '../packages/core/test/fixtures/genui-diagrams.ts';
 import { rpc } from './verify-app.mjs';
-import { findGenuiModelFollowup } from './genui-model-qualification.mjs';
+import { findGenuiModelFollowup, genuiMessageSelector } from './genui-model-qualification.mjs';
 import { stopGenuiQaBot } from './genui-qa-cleanup.mjs';
 import {
   openTimelineConversation,
@@ -72,7 +72,7 @@ const store = join(root, 'node_modules/.pnpm');
 const entry = readdirSync(store).find((name) => name.startsWith('puppeteer@'));
 assert.ok(entry, 'Install workspace dependencies first.');
 const puppeteer = createRequire(join(store, entry, 'node_modules/'))('puppeteer');
-const panel = `section[aria-label=${JSON.stringify(manifest.document.title)}]`;
+let panel = `section[aria-label=${JSON.stringify(manifest.document.title)}]`;
 let browser, page, bot, channelId, messageId;
 save();
 
@@ -164,6 +164,7 @@ async function capture(name, target = page, selector = panel) {
     'A hidden mounted conversation is not visible UI evidence.',
   );
   const section = await target.$(selector);
+  assert.ok(section || name === '00-before-publication', 'Published document must be mounted.');
   if (section) await section.evaluate((node) => node.scrollIntoView({ block: 'start' }));
   if (section)
     assert.ok(
@@ -171,9 +172,17 @@ async function capture(name, target = page, selector = panel) {
       'The captured GenUI section must intersect the viewport.',
     );
   await new Promise((resolve) => setTimeout(resolve, 200));
-  await captureObservation(name, target, 'verified-conversation');
+  if (section)
+    assert.ok(
+      await section.isIntersectingViewport(),
+      'Document must remain visible after layout settles.',
+    );
+  const messageId = section
+    ? await section.evaluate((node) => node.closest('[data-message-id]')?.dataset.messageId)
+    : undefined;
+  await captureObservation(name, target, 'verified-conversation', { selector, messageId });
 }
-async function captureObservation(name, target, kind) {
+async function captureObservation(name, target, kind, evidence = {}) {
   const path = join(out, `${name}.png`);
   await target.screenshot({ path });
   writeFileSync(
@@ -183,6 +192,7 @@ async function captureObservation(name, target, kind) {
   manifest.captures.push({
     name,
     kind,
+    ...evidence,
     file: `${name}.png`,
     sha256: hash(readFileSync(path)),
     viewport: target.viewport(),
@@ -345,6 +355,7 @@ try {
   });
   assert.equal(sent.result.status, 'committed');
   messageId = sent.result.messageId;
+  panel = genuiMessageSelector(messageId);
   manifest.messageId = messageId;
   let inner = await frame();
   await capture('01-composed');
@@ -484,7 +495,7 @@ try {
       manifest.modelFollowup,
       'A real model must preview and explicitly publish a canonical linked HTML follow-up within 180 seconds. Direct Tools and text-only replies do not qualify.',
     );
-    const modelPanel = `section[aria-label=${JSON.stringify(manifest.modelFollowup.message.genui.title)}]`;
+    const modelPanel = genuiMessageSelector(manifest.modelFollowup.message.id);
     await revealPublished(modelPanel);
     await page.waitForSelector(`${modelPanel} iframe`);
     await page.waitForFunction(
@@ -595,7 +606,7 @@ try {
     snapshotId: refreshed.snapshotId,
     predecessorMessageId: messageId,
   };
-  const refreshedPanel = `section[aria-label=${JSON.stringify(refreshed.title)}]`;
+  const refreshedPanel = genuiMessageSelector(refreshedSend.result.messageId);
   await revealPublished(refreshedPanel);
   await page.waitForSelector(`${refreshedPanel} iframe`);
   await page.waitForFunction(
@@ -632,7 +643,7 @@ try {
       },
     });
     assert.equal(published.result.status, 'committed');
-    const selector = `section[aria-label=${JSON.stringify(document.title)}]`;
+    const selector = genuiMessageSelector(published.result.messageId);
     await revealPublished(selector);
     await page.waitForFunction(
       (selector) => !document.querySelector(selector)?.textContent.includes('Loading document'),
