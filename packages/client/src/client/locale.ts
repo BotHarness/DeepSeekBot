@@ -4768,7 +4768,6 @@ export const zh = {
   'call.cameraPreview': '摄像头预览',
   'call.cameraKeyframes': '已发给 Bot 的关键帧：{count}',
   'call.cameraWaiting': '画面变化时会发给 Bot',
-  'call.saveFrames': '保存画面到聊天',
   'call.cameraDenied': '摄像头权限被拒绝。请在系统的隐私设置里允许本应用使用摄像头，然后再试一次。',
   'call.cameraMissing': '没有找到可用的摄像头，或摄像头正被其他应用占用。',
   'call.screenOn': '共享屏幕',
@@ -9900,7 +9899,6 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'call.cameraPreview': 'Camera preview',
   'call.cameraKeyframes': 'Keyframes sent to the Bot: {count}',
   'call.cameraWaiting': 'Changes in the picture go to the Bot',
-  'call.saveFrames': 'Save frames to the chat',
   'call.cameraDenied':
     "Camera access was denied. Allow this app to use the camera in your system's privacy settings, then try again.",
   'call.cameraMissing': 'No camera was found, or another app is using it.',

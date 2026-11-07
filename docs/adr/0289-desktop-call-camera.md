@@ -4,6 +4,8 @@
 - Date: 2026-11-04
 - Issue: #3495 (spec #3490, hub #3491; builds on ADR-0286 and ADR-0288)
 
+> Amended by spec [#3688](https://github.com/BotHarness/DeepSeekBot/issues/3688) ([#3697](https://github.com/BotHarness/DeepSeekBot/issues/3697)): the preview no longer holds the "Save frames to the chat" switch, and `visual` carries no `save` setting; shared frames are always saved.
+
 ## Context
 
 ADR-0286 gave the Host keyframe grids and a `frame` command, and `call-simulate --video` proved them. The Mac, Windows and Web clients still had no way to turn a camera on during a call.

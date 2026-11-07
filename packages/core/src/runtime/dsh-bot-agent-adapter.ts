@@ -2959,8 +2959,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           cell: {
             type: 'integer',
             required: true,
-            description:
-              'Tile number printed on the grid, from 1; 0 returns the whole grid of a message whose frames were not saved.',
+            description: 'Tile number printed on the grid, from 1.',
           },
         },
         output: {

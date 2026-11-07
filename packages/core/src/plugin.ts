@@ -3258,20 +3258,18 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           : { records: [...visual.records] };
       if (visual !== undefined && 'image' in visual) {
         const image = visual.image.jpeg;
-        if (visual.saved)
-          attachments = [
-            await core.attachments.upload({
-              data: (async function* () {
-                yield image;
-              })(),
-              name: `call-${visual.source}-${messageId.slice(-12)}.jpg`,
-            }),
-          ];
+        attachments = [
+          await core.attachments.upload({
+            data: (async function* () {
+              yield image;
+            })(),
+            name: `call-${visual.source}-${messageId.slice(-12)}.jpg`,
+          }),
+        ];
         meta = {
           source: visual.source,
           frames: visual.frames,
           layout: visual.image.layout,
-          ...(visual.saved ? {} : { unsaved: true as const }),
           ...(visual.unseen === true ? { unseen: true as const } : {}),
           ...records,
         };

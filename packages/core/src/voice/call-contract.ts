@@ -202,7 +202,6 @@ export type VoiceCallEvent =
       at: number;
       type: 'visual';
       source: CallVisualSource | 'off';
-      unsaved?: true;
     }
   | {
       seq: number;
@@ -319,7 +318,6 @@ export type VoiceCallCommand =
       readonly kind: 'visual';
       readonly callId: string;
       readonly source: CallVisualSource | 'off';
-      readonly save?: boolean;
       readonly stopped?: boolean;
       readonly paused?: boolean;
       readonly resumed?: boolean;

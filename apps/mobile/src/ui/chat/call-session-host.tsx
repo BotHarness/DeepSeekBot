@@ -165,7 +165,7 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
         if (cancelled || !cameraState.on || cameraState.paused === paused) return;
         setCamera({ paused });
         if (testAudio) mark('camera', { paused });
-        void call.visual(paused ? 'off' : 'camera', true, paused ? 'paused' : 'resumed');
+        void call.visual(paused ? 'off' : 'camera', paused ? 'paused' : 'resumed');
       },
     });
     callSessions.publish(key, { cameraSupported: camera !== undefined });

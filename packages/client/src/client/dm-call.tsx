@@ -102,7 +102,6 @@ export function DmCallControl({
                 visual={snapshot.visual}
                 t={t}
                 place={panelPlace(anchor.current)}
-                onSave={(save) => void call.saveFrames(save)}
                 onClose={() => call.dismissVisual()}
               />,
               document.body,
@@ -179,13 +178,11 @@ export function CallCameraPanel({
   visual,
   t,
   place,
-  onSave,
   onClose,
 }: {
   visual: DesktopCallVisual;
   t: BotHarnessTranslate;
   place: { top: number; right: number } | undefined;
-  onSave: (save: boolean) => void;
   onClose: () => void;
 }): ReactElement {
   const attach = (element: HTMLVideoElement | null) => {
@@ -236,15 +233,6 @@ export function CallCameraPanel({
           ? t('call.cameraKeyframes', { count: String(visual.keyframes) })
           : t('call.cameraWaiting')}
       </p>
-      <label className="bh-call-camera-save">
-        <input
-          id="bh-call-save-frames"
-          type="checkbox"
-          checked={visual.save}
-          onChange={(event) => onSave(event.currentTarget.checked)}
-        />
-        <span>{t('call.saveFrames')}</span>
-      </label>
     </div>
   );
 }

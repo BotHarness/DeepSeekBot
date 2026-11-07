@@ -3081,6 +3081,20 @@ const WORKSPACE_GRANT_PATH_MIGRATION: SchemaMigration = {
   },
 };
 
+const CALL_VISUAL_UNSAVED_MIGRATION: SchemaMigration = {
+  generation: 134,
+  module: 'messaging',
+  description: 'Drop the removed unsaved marker from call message visuals',
+  migrate(database) {
+    database.exec(`
+      UPDATE source_events
+         SET payload_json = json_remove(payload_json, '$.voiceCall.visual.unsaved')
+       WHERE json_valid(payload_json)
+         AND json_type(payload_json, '$.voiceCall.visual.unsaved') IS NOT NULL;
+    `);
+  },
+};
+
 const GENUI_PRIVATE_VIEW_MIGRATION: SchemaMigration = {
   generation: 132,
   module: 'messaging',
@@ -3267,4 +3281,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   WORKSPACE_GRANT_PATH_MIGRATION,
   GENUI_PRIVATE_VIEW_MIGRATION,
   CALL_GRID_ROWS_MIGRATION,
+  CALL_VISUAL_UNSAVED_MIGRATION,
 ]);

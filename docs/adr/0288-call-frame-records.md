@@ -5,6 +5,7 @@
 - Issue: #3494 (spec #3490, hub #3491; builds on ADR-0286 and ADR-0287)
 
 > Amended by [ADR-0303](0303-call-grids-tile-balanced-rows.md): a frame record holds nine keyframes in a 3+3+3 grid.
+> Superseded in part by spec [#3688](https://github.com/BotHarness/DeepSeekBot/issues/3688) ([#3697](https://github.com/BotHarness/DeepSeekBot/issues/3697)): the "Don't save frames" switch below is removed. Sharing the camera or screen always saves frames, the `visual` command refuses a `save` field with `invalid-input`, messages no longer carry `visual.unsaved`, `call-simulate --no-save` is gone and `call_frame` accepts cells from 1 only. Privacy relies on deleting the attachments afterwards.
 
 ## Context
 
