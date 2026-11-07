@@ -112,12 +112,13 @@ pure thumbnail, scaling and NV21 math; it does not prove CameraX capture or prev
 2. Show a printed page or a QR-sized label, wait for the keyframe counter to rise, and ask the
    Bot what it sees with the latest DeepSeek model. Confirm the Host receives `frame` commands
    and the DM carries the expected grid.
-3. Tap `call-camera-flip`; confirm the preview switches camera and the next keyframe is from the
-   other side. Front preview is mirrored; text in the frame sent to the Bot is not.
+3. Tap `call-camera-flip`; confirm the preview switches camera and require a new keyframe from the
+   other side in the Host facts or keyframe counter. A preview-only change is not a pass. Front
+   preview is mirrored; text in the frame sent to the Bot is not.
 4. Use a `.dev` build and open `deepseekbot-dev://call/<bot>?script=<url>` with a timeline that
    contains `{"at": 0, "video": "<url>"}`, then `{"at": 3000, "camera": "flip"}` and
-   `{"at": 6000, "camera": "off"}`. Confirm the report's `video` and `keyframe` marks, JPEG byte
-   sizes and preparation times.
+   `{"at": 6000, "camera": "off"}`. Require the report's `camera` mark with the new position, a
+   later `keyframe` mark, and the `video` mark; record JPEG byte sizes and preparation times.
 5. Background camera pause/resume is blocked on #3423: today Android calls end on background
    (ADR-0284), so the `share-paused` and `share-resumed` DM records cannot be observed until
    that slice keeps the call alive. Record the row as **blocked**, not passed, until then.
