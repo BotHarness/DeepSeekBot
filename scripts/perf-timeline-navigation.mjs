@@ -7,8 +7,8 @@ export async function openTimelineConversation(page, channelId, dismissOverlays)
   const row = `${workspace ? '[data-workspace-dock] ' : ''}button.bh-channel-row[data-channel-id="${channelId}"]`;
   const channel = await page.$(row);
   if (!channel || !(await channel.isVisible())) {
-    const messages = await page.$('[data-workspace-dock] button[aria-label="Messages"]');
-    if (messages) await messages.click();
+    const channels = await page.$('[data-workspace-dock] button[aria-label="Channels"]');
+    if (channels) await channels.click();
   }
   await page.waitForSelector(row, { visible: true });
   await dismissOverlays();

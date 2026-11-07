@@ -9,13 +9,15 @@ function fixture({ active = true, listVisible = true, rail = true } = {}) {
       if (selector === '.bh-root.bh-main, [data-workspace-dock]') return active ? {} : null;
       if (selector === '[data-workspace-dock]') return rail ? {} : null;
       if (selector === row) return listVisible ? { isVisible: async () => true } : null;
-      if (selector === '[data-workspace-dock] button[aria-label="Messages"]' && rail)
+      if (selector === '[data-workspace-dock] button[aria-label="Channels"]' && rail)
         return {
           click: async () => {
-            clicks.push('Messages');
+            clicks.push('Channels');
             listVisible = !listVisible;
           },
         };
+      if (selector === '[data-workspace-dock] button[aria-label="Messages"]' && rail)
+        return { click: async () => clicks.push('Messages') };
       throw new Error(`Unexpected selector: ${selector}`);
     }),
     waitForSelector: vi.fn(async (selector) => {
@@ -51,7 +53,7 @@ describe('timeline performance navigation', () => {
     const { page, clicks } = fixture({ listVisible: false });
     await openTimelineConversation(page, 'group', vi.fn());
     expect(clicks).toEqual([
-      'Messages',
+      'Channels',
       '[data-workspace-dock] button.bh-channel-row[data-channel-id="group"]',
     ]);
   });
