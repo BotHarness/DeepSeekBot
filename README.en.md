@@ -18,6 +18,8 @@
 
 [Website](https://tobs.app/en/) · [Video](#video) · [Install](#install) · [Features](#features) · [Releases](#releases) · [vs. DS Bot](#deepseek-bot-projects) · [Community](#community) · [Docs](https://tobs.app/en/docs/overview/)
 
+<sub>Sponsored by</sub>&nbsp;&nbsp;<picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/sponsors/wellmei-night.png" /><img src="docs/assets/readme/sponsors/wellmei-day.png" height="32" alt="Wellmei Holding Group (WELLMEI)" /></picture>&nbsp;&nbsp;·&nbsp;&nbsp;<a href="https://x.com/XXXX540515">𝕏 <b>eric_0721</b> @XXXX540515</a> Founder
+
 </div>
 
 <a id="video"></a>
