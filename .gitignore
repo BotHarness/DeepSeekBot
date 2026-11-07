@@ -31,6 +31,13 @@ vps.local.env
 reference/
 .release-provider/
 
+# local multi-checkout and scratch dirs (sibling worktrees, agent drafts, QA output; never committed)
+.worktrees/
+.tmp/
+n/
+n1/
+output/
+
 # local state (sessions, memory, caches)
 .cache/
 tmp/
