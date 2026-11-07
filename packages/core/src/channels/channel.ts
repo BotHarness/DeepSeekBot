@@ -7,6 +7,7 @@ import { isChannelVoiceCallRecord, type ChannelVoiceCallRecord } from './voice-c
 
 export { isChannelTurnStopTarget, type ChannelTurnStopTarget };
 export { isChannelVoiceCallRecord, type ChannelVoiceCallRecord };
+import type { GenuiContent, GenuiMessageReply } from './genui.js';
 
 import {
   isChannelAttachmentRef,
@@ -485,6 +486,8 @@ export function isChannelCallVisual(value: unknown): value is ChannelCallVisual 
 }
 
 export interface ChannelMessage {
+  genui?: GenuiContent;
+  genuiReply?: GenuiMessageReply;
   id: string;
   at: string;
   author: ChannelMessageAuthor;

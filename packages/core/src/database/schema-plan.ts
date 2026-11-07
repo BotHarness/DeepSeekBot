@@ -3081,6 +3081,25 @@ const WORKSPACE_GRANT_PATH_MIGRATION: SchemaMigration = {
   },
 };
 
+const GENUI_PRIVATE_VIEW_MIGRATION: SchemaMigration = {
+  generation: 132,
+  module: 'messaging',
+  description:
+    'Private Human view drafts reference canonical report placements and cascade on purge',
+  migrate(database) {
+    database.exec(`CREATE TABLE genui_private_views (
+      human_id TEXT NOT NULL,
+      channel_id TEXT NOT NULL,
+      message_id TEXT NOT NULL,
+      snapshot_id TEXT NOT NULL,
+      version INTEGER NOT NULL CHECK (version > 0),
+      state_json TEXT NOT NULL,
+      PRIMARY KEY (human_id, channel_id, message_id),
+      FOREIGN KEY (channel_id, message_id) REFERENCES channel_placements(channel_id, message_id) ON DELETE CASCADE
+    )`);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -3212,4 +3231,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   VOICE_SETTINGS_MIGRATION,
   CHANNEL_CHANGE_LOG_MIGRATION,
   WORKSPACE_GRANT_PATH_MIGRATION,
+  GENUI_PRIVATE_VIEW_MIGRATION,
 ]);

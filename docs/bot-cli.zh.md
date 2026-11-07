@@ -193,6 +193,35 @@ deepseekbot group-create "Skill Lab" --member <bot-id> --member <bot-id>
 
 `access-set` 设置 `danger-full-access` 时必须带 `--acknowledge-risk`：完全访问下普通工具请求不再逐次弹卡；识别出的权限／策略变更仍需 Human 本次决定，浏览器和 Computer 保留各自能力检查。`--scope chat` 同时作用于 Bot 自己的对话；`assignments` 只作用于新的 Assignment。`settings` 返回一个命名空间的 `{ns, revision, value}`；`settings-set` 从标准输入读取一个字段 JSON 对象，并基于该版本号应用，所以并发修改会失败而不是被覆盖。只有 Host 标记为可在线修改的字段才能这样改。 `botHopLimit`（1–1000 的整数，默认 128，「设置 → 消息」）是由一条 Human 消息开始的 Bot 接力链的最大层数。会唤醒其他 Bot 的发送（@ 提及或 Bot 私信）超限时以 `collaboration-hop-limit` 被拒，且不会写入任何消息；不 @ 任何 Bot 的群消息仍会发出，只是不唤醒任何 Bot。Tob 的受限 CLI 不能修改它。`workspace-create` 接受绝对路径并返回 Host 工作区，其 id 供 `grant-create` 使用。
 
+### Bot 私聊中的 GenUI 文档
+
+GenUI 是有界的普通消息内容。版本 2 在隔离文档中渲染自包含 HTML、内联 CSS、SVG 和本地 JavaScript；版本 1 报告保持可读。通过既有 direct Tool 路径预览并显式发布，无需模型：
+
+```bash
+cat ./document-preview.json | deepseekbot bot-tool <bot-id> genui_preview --args-stdin
+printf '%s' '{"source":"flowchart LR\n A[输入] --> B[结果]","width":728}' | deepseekbot bot-tool <bot-id> genui_diagram --args-stdin
+cat ./report-send.json | deepseekbot bot-tool <bot-id> bot_send_message --args-stdin
+deepseekbot genui-view dm-<bot-id> --message-id <report-message-id>
+deepseekbot genui-view-save dm-<bot-id> --message-id <report-message-id> --genui-file ./view.json
+deepseekbot genui-submit dm-<bot-id> --message-id human-<uuid> --genui-file ./request.json
+```
+
+`document-preview.json` 包含 `genui_json`（完整文档序列化后的 JSON 字符串）、可选 `width`（240–1600）和 `theme`（`light` 或 `dark`）。预览使用已安装的 Chrome、Edge 或 Chromium 和一次性 Profile，不自动下载浏览器。结果包含文档／策略标识、有界诊断和 DSH 图片附件，不发布 Channel 消息。预览期限为 15 秒，只允许一个并发任务，图片上限为 1 MiB；浏览器收尾可能延长返回时间。这不是硬 CPU／内存沙箱。
+
+版本 2 文档包含 `version: 2`、`snapshotId`、`observedAt`、`title`、`html`，以及可选的 `predecessorMessageId` 和 `stateContract`。完整信封上限 256 KiB，HTML 上限 192 KiB。不允许远程脚本、字体或其他网络资源、外部导航或 Host／工具调用。参见[丰富内容合成样例](../packages/core/test/fixtures/genui-document.ts)。状态契约最多注册 16 个字符串、数字、布尔或枚举字段。`window.genui.getState()` 返回当前值；`window.genui.setState(values)` 提交完整值对象。监听 `genui:state`，在 Host 恢复状态后重新绘制。未注册的 DOM 状态重新打开后复位。
+
+版本 2 的 `view.json` 形如 `{ "snapshotId": "<snapshot-id>", "expectedVersion": 0, "state": { "version": 1, "values": { "filter": "" } } }`，值必须严格匹配注册契约。`request.json` 形如 `{ "body": "继续处理我的视图", "genuiReply": { "version": 2, "messageId": "<document-message-id>", "snapshotId": "<snapshot-id>", "intent": "continue", "state": { "version": 1, "values": { "filter": "" } } } }`。沿用下文相同的 CAS、访问、普通消息、重试和刷新规则。生成脚本只能提出个人视图值，提交由外层可信控件负责。预览成功不代表发布、Web 渲染、原生或 Human 验收通过。
+
+`report-send.json` 包含 `channel_id`、可读摘要 `body`，以及将完整报告序列化成 JSON 字符串的 `genui_json`。版本 1 支持指标、表格和条形图；参见[明确标为 synthetic 的比较 fixture](../packages/core/test/fixtures/genui-report.ts)。上限为 64 KiB、100 行、8 列、12 个元素及 20 个选择项。本切片只支持 Bot 现有的 Human 私聊，完整验证通过后才追加 canonical 消息。
+
+`view.json` 格式为 `{ "snapshotId": "synthetic-comparison-v1", "expectedVersion": 0, "state": { "filter": "", "sortColumnId": null, "sortDirection": "asc", "view": "table", "selectedIds": [], "expandedId": null } }`。先读取当前版本；旧版本保存返回 `genui-view-conflict`，重新读取后再决定是否覆盖。重置时，以当前版本保存空状态。视图属于 Host 的本地 Human 和精确报告，不写入浏览器存储或 Bot Memory。
+
+`request.json` 格式为 `{ "body": "比较我的选择", "genuiReply": { "messageId": "<report-message-id>", "snapshotId": "<exact-snapshot-id>", "selectedIds": ["alpha"], "intent": "continue" } }`。`refresh` 表示请求关联的新快照。提交形成可见的普通 Human 消息，携带经过验证的快照上下文，走普通路由和准入。相同逻辑请求以同一 `human-<uuid>` 和不变的输入重试；修改内容复用标识会被拒绝。刷新发布必须使用新 `snapshotId`，并以 `predecessorMessageId` 指向旧报告，不改写旧消息。输入须在 `--genui-file` 与 `--genui-stdin` 中二选一，最大 32 KiB。三个命令均要求在线认证 Host，并重新检查访问权限。
+
+`genui_diagram` 只做离线创作，不发布：必填 `source` 是最多 8 KiB UTF-8 的 Mermaid，可选整数 `width` 为 240–1600，默认 728。固定 Pele 1.13.0 Worker 只注册 flowchart、sequenceDiagram 和 xychart-beta，禁用链接／图片。返回 `svg`、字节数、尺寸、图种、编译器版本及源文／SVG SHA-256。将 SVG 原样放进 `html`，附可读说明或等价数据，再预览并显式发送同一完整文档。XY 中文类别加引号，例如 `x-axis ["一月", "二月"]`。不使用 CDN，也不在消息里嵌入图表库。SVG 的 48 KiB 上限和最终 HTML 的 192 KiB 上限独立检查。只允许一个并发编译，3 秒期限，取消／结束时回收 Worker；V8 heap 限制不是整个进程内存保证。
+
+默认样式提供 `.genui-surface`、`.genui-well`、`.genui-selection`、`.genui-grid`、`.genui-table`、`.genui-legend`，以及八色 `--chart-*` 和对应 Pele 变量。同一类别保持同色，并配数值、文字、形状等非颜色提示；用色块和留白分组，不画装饰性卡片边框。必要连接线／坐标线和键盘焦点保留。默认 CSS 可覆盖，不是 sanitizer，也不改写任意作者 HTML。参见 [ADR-0302](adr/0302-genui-diagrams-compile-before-publication.md)。
+
 ### 频道与群组
 
 这些命令通过与 Web 界面相同的 Host 接口和检查来管理频道和群组。频道 ID 取自 `channels`：
