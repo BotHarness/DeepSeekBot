@@ -419,6 +419,7 @@ import {
   type HumanAttentionItem,
 } from '../runtime/human-attention.js';
 import { DirectBotToolError, queryAssignmentDirectory } from '../runtime/bot-runtime.js';
+import { ChannelCallReadError } from '../channels/call-window.js';
 import type {
   AssignmentActivity,
   AssignmentDetail,
@@ -8102,6 +8103,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           error: {
             code:
               error instanceof DirectBotToolError ||
+              error instanceof ChannelCallReadError ||
               error instanceof TobError ||
               error instanceof BotNetworkDeliveryError
                 ? error.code

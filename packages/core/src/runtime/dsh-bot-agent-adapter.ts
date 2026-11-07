@@ -2384,7 +2384,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       defineTool({
         name: 'channel_read',
         description:
-          'Read actionable joined Channel messages as bounded JSON (at most 12000 characters). Follow nextCursor with unchanged filters. For an oversized message, use message_id alone and follow contentCursor; concatenate JSON fragments to retrieve complete content. Omitted or partially read messages remain pending. A voice call in a DM leaves system notices with voiceCallRecord at its start and end; text "voice call" with author_kind system finds them, and from/to set to the call\'s startedAt/endedAt reads what was said on it.',
+          'Read actionable joined Channel messages as bounded JSON (at most 12000 characters). Follow nextCursor with unchanged filters. For an oversized message, use message_id alone and follow contentCursor; concatenate JSON fragments to retrieve complete content. Omitted or partially read messages remain pending. A voice call in a DM leaves system notices with voiceCallRecord at its start and end; text "voice call" with author_kind system lists the calls. To read one call, pass its callId as call: alone it returns the whole call oldest first (what the Human said, your replies and the camera or screen records); add from_ms/to_ms, milliseconds from the call\'s start (minute 5 is from_ms 300000), for part of it.',
         parameters: {
           channel_id: {
             type: 'string',
@@ -2427,6 +2427,21 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             type: 'string',
             description: 'Inclusive timestamp upper bound; YYYY-MM-DD includes the whole UTC day.',
           },
+          call: {
+            type: 'string',
+            description:
+              'Voice call id (call-<16 hex>) from a call notice in this Channel; results are oldest first. Not with from/to or scope joined.',
+          },
+          from_ms: {
+            type: 'number',
+            description:
+              'With call: inclusive start, whole milliseconds from the call start (default 0).',
+          },
+          to_ms: {
+            type: 'number',
+            description:
+              'With call: inclusive end, whole milliseconds from the call start (default the call end).',
+          },
           cursor: { type: 'string', description: 'Opaque nextCursor; reuse the same filters.' },
           limit: {
             type: 'number',
@@ -2453,6 +2468,9 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             ...(args.author_kind === undefined ? {} : { authorKind: args.author_kind }),
             ...(args.from === undefined ? {} : { from: args.from }),
             ...(args.to === undefined ? {} : { to: args.to }),
+            ...(args.call === undefined ? {} : { call: args.call }),
+            ...(args.from_ms === undefined ? {} : { fromMs: args.from_ms }),
+            ...(args.to_ms === undefined ? {} : { toMs: args.to_ms }),
             ...(args.cursor === undefined ? {} : { cursor: args.cursor }),
             ...(args.limit === undefined ? {} : { limit: args.limit }),
           });

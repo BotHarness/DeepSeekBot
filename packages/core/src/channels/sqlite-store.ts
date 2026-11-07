@@ -3291,8 +3291,9 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       const values: Array<string | number> = [id];
       if (before !== undefined) {
         if (query.orderBy === 'time') {
+          const after = query.ascending === true ? '>' : '<';
           where.push(
-            '(julianday(e.created_at) < julianday(?) OR (julianday(e.created_at) = julianday(?) AND p.message_id < ?))',
+            `(julianday(e.created_at) ${after} julianday(?) OR (julianday(e.created_at) = julianday(?) AND p.message_id ${after} ?))`,
           );
           values.push(before.at, before.at, before.message_id);
         } else {
@@ -3318,13 +3319,14 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         where.push("json_extract(e.payload_json, '$.author.kind') = ?");
         values.push(query.authorKind);
       }
+      const julian = (ms: number) => (ms + 210_866_760_000_000) / 86_400_000;
       if (query.from !== undefined) {
         where.push('julianday(e.created_at) >= ?');
-        values.push(query.from / 86_400_000 + 2_440_587.5);
+        values.push(julian(query.from));
       }
       if (query.to !== undefined) {
         where.push('julianday(e.created_at) <= ?');
-        values.push(query.to / 86_400_000 + 2_440_587.5);
+        values.push(julian(query.to));
       }
       const rows = database.read((db) => {
         registerLower(db);
@@ -3335,7 +3337,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
             FROM channel_placements p
             JOIN source_events e ON e.source_event_id = p.source_event_id
            WHERE ${where.join(' AND ')}
-           ORDER BY ${query.orderBy === 'time' ? 'julianday(e.created_at) DESC, p.message_id DESC' : 'p.revision DESC'} LIMIT ?
+           ORDER BY ${query.orderBy === 'time' ? (query.ascending === true ? 'julianday(e.created_at) ASC, p.message_id ASC' : 'julianday(e.created_at) DESC, p.message_id DESC') : 'p.revision DESC'} LIMIT ?
         `)
           .all(...values, query.limit + 1);
       }) as unknown as PlacementRow[];

@@ -818,6 +818,15 @@ ASR 预设有 `custom`（任何兼容 OpenAI `/audio/transcriptions` 的端点�
 
 Host 保存一个默认 TTS Provider（可带音色）和一个默认 ASR Provider（可带语言）。没有用 `voice-set` 或 `voice-asr-set` 单独绑定的 Bot，在语音消息、通话、输入框语音输入、`voice-transcribe`、`voice-synthesize` 和 `call-readiness` 中都使用它们；Bot 自己的绑定始终优先。`voice-defaults` 输出 `{defaults: {tts, asr}}`，`voice-providers` 也返回同样的 `defaults`。`voice-default-set` 接 `tts` 或 `asr` 和一个同类型的 Provider，或者 `off`；`--voice` 只用于 `tts`，`--language` 只用于 `asr`。每种类型添加的第一个 Provider 会在还没有默认值时自动成为默认；移除 Provider 时，用它的默认值也会一起清除。`voice-vad-set` 设置 Host 的说话阈值（dBFS，限制在 -70 到 -20），`default` 恢复默认的 -50。负数前要加 `--`（`voice-vad-set -- -55`），否则会被当成选项。Host 的语音活动检测只把比这个阈值响、并且比背景噪声高 12 dB 的声音算作说话，所以数值越低，越能听到小声的麦克风。它影响按停顿分段的语音输入（不支持流式的 ASR Provider，例如本地 SenseVoice）和通话里的说话检测；Soniox 语音输入会发送全部音频，由 Soniox 自己判断断句。`voice-defaults` 和 `voice-providers` 以 `speechThreshold: {dbfs, custom, defaultDbfs, min, max}` 显示它。设置 › 语音里的「麦克风测试」有实时音量条，同一个阈值可以用滑块调。Provider 名称可以不填：不带 `--name` 时 Host 使用预设名，重名时自动加编号（`OpenAI 2`）。设置 › 语音在 TTS 和 ASR 两部分顶部显示同样的默认值，每个 Bot 的语音面板里两项都有「跟随全局默认」。
 
+### DM 里的历史通话
+
+```bash
+deepseekbot call-list <bot-id>
+deepseekbot call-read <bot-id> <call-id> [--from-ms <ms>] [--to-ms <ms>] [--limit 20] [--cursor <next-cursor>]
+```
+
+同一个 Bot 和 Human 在一个 DM 里可以打很多通电话。`call-list` 从 DM 里的通话开始/结束记录按新到旧列出：`{botId, channelId, calls: [{callId, startedAt, state, endedAt, durationMs, reason, heard}]}`。`state` 为 `ended`；还没有结束记录时为 `started`（通话进行中，或 Host 在通话中停止）。`call-read` 按 Bot 的方式读一通电话：通过直接 Bot 工具执行器运行该 Bot 的 `channel_read`（参数 `call`、`from_ms`、`to_ms`），原样输出工具的 JSON。`--from-ms` 和 `--to-ms` 是从接通起的毫秒数，`--from-ms 13000 --to-ms 40000` 即这通电话的 00:13 到 00:40；不给时读整通电话，从开始记录到结束记录，进行中则一直到现在。消息按时间升序：Human 说的话、Bot 的回复和摄像头/屏幕记录；`call` 字段给出换算后的窗口（`callId`、`startedAt`、`endedAt`、`durationMs`、`fromMs`、`toMs` 以及绝对时间 `from`、`to`）。用同样的参数加 `nextCursor` 读后面的消息。Host 在该 DM 中按开始记录查找通话：未知通话或其他 Channel 的通话返回 `call-not-found`，格式错误的 id 返回 `invalid-call`，负数或小数时间、`from_ms` 晚于 `to_ms`、起点超过通话结束返回 `invalid-call-window`，`call` 与 `from`/`to` 或 `scope: joined` 同用返回 `call-range-conflict`。同样的参数也可用于 `bot-tool <bot-id> channel_read --args-stdin`。图片用 Bot 的 `channel_read_image` 打开，通话中可用 `call-frame` 查看原尺寸格子。
+
 ### 审批员模型
 
 默认情况下，每个 Bot 的审批员用这个 Bot 自己的模型。一个 Profile 级设置可以改成所有 Bot 共用一个审批员模型，比如一个便宜又快的模型。

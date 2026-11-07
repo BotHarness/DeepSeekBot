@@ -111,6 +111,12 @@ import {
   type SessionFailureProgress,
 } from '../channels/channel.js';
 import { voiceCallDuration, type ChannelVoiceCallRecord } from '../channels/voice-call-record.js';
+import {
+  ChannelCallReadError,
+  hasChannelCallWindow,
+  resolveChannelCallWindow,
+  type ChannelCallWindow,
+} from '../channels/call-window.js';
 import { ChannelReplyTargetError, MAX_MESSAGE_PAGE } from '../channels/store.js';
 import type { TakeoverResolution } from '../takeover/contracts.js';
 import type { MessagePerfTracker } from '../usage/message-perf.js';
@@ -530,11 +536,15 @@ export interface ChannelListPage {
 export type ChannelQueryInput = ChannelMessageQueryOptions & {
   channelId?: string;
   scope?: 'channel' | 'joined';
+  call?: string;
+  fromMs?: number;
+  toMs?: number;
 };
 
 export interface ChannelQueryPage {
   messages: ChannelMessageView[];
   nextCursor?: string;
+  call?: ChannelCallWindow;
 }
 
 export interface BotCreateInput {
@@ -3988,7 +3998,7 @@ class BotRuntimeImplementation implements BotRuntime {
       return undefined;
     }
     if (typed.at(-1)?.id !== messageId) return undefined;
-    return `[Last voice call with the Human in this DM: ${record.callId}, from ${record.startedAt} to ${record.endedAt} (${voiceCallDuration(record.durationMs)}, ${record.heard} spoken message${record.heard === 1 ? '' : 's'} heard). The Human is typing again now. The DM messages between the call's start and end notices are what was said on that call; read them with channel_read from=${record.startedAt} to=${record.endedAt}. channel_read text "voice call" with author_kind system lists earlier calls.]`;
+    return `[Last voice call with the Human in this DM: ${record.callId}, from ${record.startedAt} to ${record.endedAt} (${voiceCallDuration(record.durationMs)}, ${record.heard} spoken message${record.heard === 1 ? '' : 's'} heard). The Human is typing again now. Read what was said and shown on it with channel_read call=${record.callId}; add from_ms/to_ms (milliseconds from the call's start) for part of it. channel_read text "voice call" with author_kind system lists earlier calls, each read the same way by its callId.]`;
   }
 
   #groupMentionPrompt(botSlug: string, channelId: string, messageId: string, body: string): string {
@@ -7103,6 +7113,32 @@ class BotRuntimeImplementation implements BotRuntime {
       if (input.scope !== undefined && input.scope !== 'channel' && input.scope !== 'joined') {
         throw new Error('channel_read: invalid scope');
       }
+      if (hasChannelCallWindow(input)) {
+        if (input.scope === 'joined')
+          throw new ChannelCallReadError(
+            'call-range-conflict',
+            'call reads one Channel; omit scope joined',
+          );
+        const channel = resolve(input.channelId);
+        const window = resolveChannelCallWindow(
+          (messageId) => this.#channels.message(channel.id, messageId),
+          input,
+        )!;
+        const { call: _call, fromMs: _fromMs, toMs: _toMs, ...filters } = input;
+        const page = this.#channels.queryMessages(channel.id, {
+          ...filters,
+          from: window.from,
+          ...(window.to === undefined ? {} : { to: window.to }),
+          orderBy: 'time',
+          ascending: true,
+        });
+        const humans = humanNames(channel);
+        return {
+          messages: page.messages.map((message) => viewOf(channel, message, humans)),
+          ...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
+          call: window,
+        };
+      }
       if (input.scope !== 'joined') {
         const channel = resolve(input.channelId);
         const page = this.#channels.queryMessages(channel.id, input);
@@ -7802,6 +7838,8 @@ class BotRuntimeImplementation implements BotRuntime {
         if (input.contentCursor !== undefined)
           throw new Error('channel_read: content_cursor requires message_id');
         const page = queryPage(input);
+        const callMeta =
+          page.call === undefined ? 0 : JSON.stringify({ call: page.call }).length + 1;
         const bounded = boundModelPage(
           page,
           (count) => queryPage({ ...input, limit: count }).nextCursor,
@@ -7809,10 +7847,13 @@ class BotRuntimeImplementation implements BotRuntime {
             const ids = [...new Set(included.map((view) => view.channelId))].filter((id) =>
               this.groupSendReview.enabled(id),
             );
-            return ids.length === 0
-              ? 0
-              : JSON.stringify(Object.fromEntries(ids.map((id) => [id, 'x'.repeat(36)]))).length +
-                  24;
+            return (
+              callMeta +
+              (ids.length === 0
+                ? 0
+                : JSON.stringify(Object.fromEntries(ids.map((id) => [id, 'x'.repeat(36)]))).length +
+                  24)
+            );
           },
         );
         if (observeReads) this.#observeReadMessages(botSlug, bounded.included, readAdmissions);
@@ -7822,9 +7863,13 @@ class BotRuntimeImplementation implements BotRuntime {
             observations.has(id) ? [[id, observations.get(id)]] : [],
           ),
         );
-        return Object.keys(observationIds).length === 0
+        return Object.keys(observationIds).length === 0 && page.call === undefined
           ? bounded.output
-          : JSON.stringify({ ...JSON.parse(bounded.output), observationIds });
+          : JSON.stringify({
+              ...JSON.parse(bounded.output),
+              ...(page.call === undefined ? {} : { call: page.call }),
+              ...(Object.keys(observationIds).length === 0 ? {} : { observationIds }),
+            });
       },
       openAttachment: (input) => {
         const target = this.#originalAttachments.open(sessionId, input, () => {

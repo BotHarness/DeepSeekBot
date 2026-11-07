@@ -140,6 +140,7 @@ export interface ChannelMessageQueryOptions {
   visibleFrom?: number;
 
   orderBy?: 'time';
+  ascending?: boolean;
 }
 
 export interface ChannelMessageQueryPage {
@@ -174,6 +175,7 @@ export interface PreparedChannelMessageQuery {
   beforeId?: string;
   visibleFrom?: number;
   orderBy?: 'time';
+  ascending?: true;
   filter: string;
   limit: number;
 }
@@ -211,6 +213,9 @@ export function prepareChannelMessageQuery(
     (!Number.isSafeInteger(options.visibleFrom) || options.visibleFrom < 0)
   )
     throw new Error('channel_read: invalid visible revision');
+  if (options.ascending === true && options.orderBy !== 'time')
+    throw new Error('channel_read: ascending order needs time order');
+  const ascending = options.ascending === true ? true : undefined;
   const text = options.text?.trim().toLowerCase();
   const filter = createHash('sha256')
     .update(
@@ -222,6 +227,7 @@ export function prepareChannelMessageQuery(
         from,
         to,
         orderBy: options.orderBy,
+        ascending,
         visibleFrom: options.visibleFrom,
       }),
     )
@@ -256,6 +262,7 @@ export function prepareChannelMessageQuery(
     ...(beforeId === undefined ? {} : { beforeId }),
     ...(options.visibleFrom === undefined ? {} : { visibleFrom: options.visibleFrom }),
     ...(options.orderBy === undefined ? {} : { orderBy: options.orderBy }),
+    ...(ascending === undefined ? {} : { ascending }),
     filter,
     limit: Math.max(
       1,
@@ -276,8 +283,9 @@ export function queryChannelMessages(
           .filter((message) => Number.isFinite(Date.parse(message.at)))
           .sort(
             (left, right) =>
-              Date.parse(right.at) - Date.parse(left.at) ||
-              (right.id < left.id ? -1 : right.id > left.id ? 1 : 0),
+              (Date.parse(right.at) - Date.parse(left.at) ||
+                (right.id < left.id ? -1 : right.id > left.id ? 1 : 0)) *
+              (query.ascending === true ? -1 : 1),
           )
       : [...messages].reverse();
   const beforeIndex =
