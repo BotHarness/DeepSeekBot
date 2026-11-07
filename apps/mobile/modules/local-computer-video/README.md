@@ -4,6 +4,8 @@ This app-local Expo module receives a single video-only WebRTC offer. The Comput
 authorizes observation and control; this view owns only its ephemeral native peer, decoder
 and renderer. Input uses the existing authenticated Host client. No camera, microphone,
 DataChannel, clipboard, picture-in-picture, image decoding or public STUN/TURN is configured.
+The Computer viewer is receive-only: the phone does not send its camera or screen; Bot calls
+use the separate camera path below.
 
 ## Bot calls (iOS)
 
@@ -42,6 +44,21 @@ each recorded buffer with WAV files queued by `callInject` (silence when empty),
 the remote track records the downlink to a WAV in the cache folder with `downlink-start`/`downlink-end`. The
 module manifest declares `RECORD_AUDIO` and `MODIFY_AUDIO_SETTINGS`. A rebuilt development client is needed.
 
+Android also runs the call camera (#3498, ADR-0299). `CallCameraModule` exposes the same
+`callCameraStart`, `callCameraKeyframe`, `callCameraStop`, `onCallCameraThumb` and
+`onCallCameraState` contract as iPhone, plus the `CallCamera` self-preview view. CameraX captures
+1280×720, keeps only the latest rotated YUV frame, and sends JS a 64 px grey thumbnail twice a
+second; JS runs the shared picker and asks for a JPEG only for a keyframe, at most 1280 px on the
+long edge with quality 80, 60 and 45. Front and back cameras restart the same session, `PreviewView`
+mirrors the front preview, and the JPEGs stay unmirrored. A module-owned lifecycle pauses capture
+in the background with `paused` and restarts it with `resumed`; JS turns that into the existing
+`visual` changes. Android calls are foreground only until #3423, so the paused/resumed DM records
+need that slice to be observable end to end. A camera-permission dialog pauses the activity, so the
+call owner ignores that one pause while the permission request is open; a real background still
+ends the call. In `.dev` builds a test-video path reads a file with `MediaMetadataRetriever` at its
+own pace and drives the same thumbnails, keyframes and preview on an emulator. The module manifest
+declares `CAMERA`. Rebuild the Android development client.
+
 The Android development client must be rebuilt after adding this module. It uses the
 existing Expo Modules Gradle plugin and local-module autolinking; no JavaScript package
 or config plugin is added. The iOS receiver also requires a rebuilt native client.
@@ -49,6 +66,7 @@ or config plugin is added. The iOS receiver also requires a rebuilt native clien
 ## Dependency provenance
 
 - Maven coordinate: `io.github.webrtc-sdk:android:144.7559.15`.
+- AndroidX CameraX `1.6.0` (Apache 2.0), the same line `expo-camera` resolves, for the call camera.
 - [Upstream release](https://github.com/webrtc-sdk/android/releases/tag/v144.7559.15).
 - WebRTC source revision: `30d5e63ae91da483e06577b5c35ee91cc5e5c3db`.
 - Maven Central AAR SHA-256 published for this version:
