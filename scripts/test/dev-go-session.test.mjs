@@ -93,6 +93,6 @@ it('native Go adapter forwards actual per-conversation IDs, replaces a stale sta
     sessionId: 'other-provider-session',
   })) {
   }
-  expect(requests.at(-1)['x-opencode-session']).toBe('wrong-static-id');
-  expect(requests.at(-1)['X-OpenCode-Session']).toBe('wrong-case-id');
+  expect(requests.at(-1)['x-opencode-session']).toBe('wrong-case-id');
+  expect(requests.at(-1)['X-OpenCode-Session']).toBeUndefined();
 });

@@ -39,7 +39,20 @@ export function withoutAxRuntimePatch(source) {
 }
 
 export function goSessionPatch(adapterSource) {
-  const template = readFileSync(GO_SESSION_PATCH, 'utf8');
+  const templates = [
+    GO_SESSION_PATCH,
+    resolve(import.meta.dirname, '../patches/@deepseek-ai__dsh-llm-pi-ai@0.2.2-rc.1.patch'),
+  ].map((file) => readFileSync(file, 'utf8').replaceAll('\r\n', '\n'));
+  const matches = templates.flatMap((template) => {
+    const result = matchingGoSessionPatch(adapterSource, template);
+    return result === undefined ? [] : [result];
+  });
+  if (matches.length !== 1)
+    throw new Error('AX Go adapter request shape is unsupported or ambiguous');
+  return matches[0];
+}
+
+function matchingGoSessionPatch(adapterSource, template) {
   const lines = template.split('\n');
   const hunk = lines.findIndex((line) => line.startsWith('@@ '));
   const original = lines
@@ -62,10 +75,9 @@ export function goSessionPatch(adapterSource) {
     throw new Error('AX Go adapter request shape is ambiguous');
   }
   const offset = adapterSource.indexOf(original);
-  if (offset < 0 || adapterSource.indexOf(original, offset + 1) >= 0)
-    throw new Error(
-      'AX Go adapter request shape is unsupported; cannot safely apply the Session header patch',
-    );
+  if (offset < 0) return undefined;
+  if (adapterSource.indexOf(original, offset + 1) >= 0)
+    throw new Error('AX Go adapter request shape is ambiguous');
   const line = adapterSource.slice(0, offset).split('\n').length;
   return template.replace(/^@@ -\d+,7 \+\d+,10 @@$/m, `@@ -${line},7 +${line},10 @@`);
 }

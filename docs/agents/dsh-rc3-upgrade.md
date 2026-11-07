@@ -2,6 +2,8 @@
 
 Tracking: [#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713).
 
+This is the historical rc.3 record. Follow [the recurring DSH upgrade workflow](dsh-upgrade.md) for subsequent RCs; retain the evidence below with its original versions.
+
 ## Upstream scope
 
 Reviewed [rc.2 → rc.3](https://github.com/deepseek-ai/deepseek-harness/compare/dsh-v0.2.1-rc.2...dsh-v0.2.1-rc.3), ending at `1f81c047fc48fa190a683e469daa699857e9afe8`. The changes add region-owned navigation menus, preserve new-Session drafts, and share official model-list discovery between account and API-key routes. The API-key route can now fetch `/models`; saved custom catalogs still override discovery. Do not overwrite a Human's model catalog to enable discovery.

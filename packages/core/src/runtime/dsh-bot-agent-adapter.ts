@@ -1,4 +1,10 @@
 import { createChannelActionTool } from './channel-action-tool.js';
+import {
+  executeNativeTool,
+  installNativeModelSelection,
+  installAgentNativeTools,
+  selectNativeModel,
+} from './native-agent-compat.js';
 import { PRIVATE_INPUT_TOOLS } from '../credentials/tool-contract.js';
 import { createBotMessageTool } from './bot-message-tool.js';
 import { assertOrchestratorWorkingDirectory } from './orchestrator-working-directory.js';
@@ -8,7 +14,6 @@ import type { Context } from '@deepseek-ai/cordis';
 import { mkdirSync } from 'node:fs';
 
 import {
-  installModelSelection,
   type Agent,
   type AgentHandle,
   type AssistantStreamFrame,
@@ -326,7 +331,7 @@ type ActiveRun =
   | { role: 'assignment'; run: AssignmentAgentRun; reported: boolean };
 
 function agentOptions(
-  run: OrchestratorAgentRun | AssignmentAgentRun,
+  run: Pick<OrchestratorAgentRun, 'bot' | 'inboundChannelId'> | AssignmentAgentRun,
   defaultSelection: ModelSelection,
   plan: PersonaBotModelPlan | undefined,
 ): ModelSelection {
@@ -662,6 +667,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           this.#resolveModelPlan?.(run.bot.slug) ?? run.bot.modelPlan,
         );
       }
+      selectNativeModel(handle.agent, selection?.current);
       const fromSeq = handle.agent.session.seq;
       run.setExecutionReady?.(true);
       const text = [run.message, run.inbox].filter((part) => part.trim().length > 0).join('\n\n');
@@ -780,6 +786,18 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       this.#orchestratorSelections.get(sessionId)?.current ??
       this.#assignmentSelections.get(sessionId)?.current
     );
+  }
+
+  captureNativeOrchestratorModel(sessionId: string, bot: PersonaBotRecord): void {
+    if (this.#runs.has(sessionId)) return;
+    const selection = this.#orchestratorSelections.get(sessionId);
+    if (selection === undefined) return;
+    selection.current = agentOptions(
+      { bot, inboundChannelId: '' },
+      this.#defaultModel.currentSelection(),
+      this.#resolveModelPlan?.(bot.slug) ?? bot.modelPlan,
+    );
+    selectNativeModel(this.#handles.get(sessionId)?.agent, selection.current);
   }
 
   async runAssignment(run: AssignmentAgentRun): Promise<void> {
@@ -978,7 +996,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       }
       const disposeFiles = await this.#onOrchestratorFileSetup?.(agentCtx, agent);
       if (borrowed && disposeFiles !== undefined) borrowedDisposers.push(disposeFiles);
-      const disposeSelection = installModelSelection(agentCtx, selection);
+      const disposeSelection = installNativeModelSelection(agentCtx, agent, selection);
       if (borrowed) borrowedDisposers.push(disposeSelection);
       const registerTool = (tool: Parameters<typeof agentCtx.tools.register>[0]) => {
         if (run.tobCli && TOB_CLI_ONLY_TOOLS.has(tool.name)) return () => undefined;
@@ -990,7 +1008,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       const registerBridgeTool = (tool: Parameters<typeof agentCtx.tools.register>[0]) => {
         bridgeTools.push(tool);
       };
-      const disposePresentation = agentCtx.tools.presentAs('native');
+      const disposePresentation = await installAgentNativeTools(agentCtx, agent);
       if (borrowed) borrowedDisposers.push(disposePresentation);
       const disposeNativeSchedules = agentCtx.tools.guard(({ name }) =>
         NATIVE_SCHEDULE_TOOLS.has(name)
@@ -3865,7 +3883,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             'tool-not-direct',
             'This private tool is unavailable to the Bot',
           );
-        const result = await parent.ctx.tools.execute({
+        const result = await executeNativeTool(parent.ctx, {
           callId: ToolCallId(run.sessionId),
           name,
           arguments: args,
@@ -3970,14 +3988,14 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         if (!borrowed) {
           await this.#composePreset(agentCtx, run.bot);
         }
-        const disposeSelection = installModelSelection(agentCtx, selection);
+        const disposeSelection = installNativeModelSelection(agentCtx, agent, selection);
         if (borrowed) borrowedDisposers.push(disposeSelection);
         const registerTool = (tool: Parameters<typeof agentCtx.tools.register>[0]) => {
           const dispose = agentCtx.tools.register(tool);
           if (borrowed) borrowedDisposers.push(dispose);
           return dispose;
         };
-        const disposePresentation = agentCtx.tools.presentAs('native');
+        const disposePresentation = await installAgentNativeTools(agentCtx, agent);
         if (borrowed) borrowedDisposers.push(disposePresentation);
         const disposeRolePrompt = agentCtx.systemPrompt.section({
           name: 'botharness:assignment-role',
@@ -4096,6 +4114,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       this.#defaultModel.currentSelection(),
       this.#resolveModelPlan?.(run.bot.slug) ?? run.bot.modelPlan,
     );
+    selectNativeModel(this.#handles.get(run.sessionId)?.agent, selection.current);
   }
 
   #assertOpen(): void {

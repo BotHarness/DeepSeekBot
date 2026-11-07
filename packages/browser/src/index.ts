@@ -73,7 +73,7 @@ export const DEFAULT_CONFIG: BrowserConfig = {
   autoAllowActions: false,
 };
 
-export const Config = Schema.object({
+export const Config: Schema<Partial<BrowserConfig>, Parameters<typeof apply>[1]> = Schema.object({
   target: Schema.union([
     Schema.const('local'),
     Schema.const('container'),

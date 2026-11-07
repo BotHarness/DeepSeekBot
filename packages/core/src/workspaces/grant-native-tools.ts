@@ -1,4 +1,4 @@
-import { lstatSync, realpathSync } from 'node:fs';
+import { lstatSync, realpathSync, statSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 import type { Session } from '@deepseek-ai/dsh-session';
@@ -48,7 +48,9 @@ function canonicalTarget(path: string): string | undefined {
     const parent = dirname(current);
     if (parent === current) return undefined;
     try {
-      return join(realpathSync(parent), ...missing);
+      const real = realpathSync(parent);
+      if (!statSync(real).isDirectory()) return undefined;
+      return join(real, ...missing);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined;
     }

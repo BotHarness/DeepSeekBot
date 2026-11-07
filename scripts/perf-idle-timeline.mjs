@@ -269,13 +269,14 @@ try {
 
   await page.reload({ waitUntil: 'networkidle2' });
   await dismissOverlays();
-  if (!(await page.$('.bh-workspace-rail'))) await page.locator('::-p-aria(Bot mode)').click();
-  await page.waitForSelector('.bh-workspace-rail');
+  if (!(await page.$('.bh-root.bh-main'))) await page.locator('::-p-aria(Bot mode)').click();
+  await page.waitForSelector('.bh-root.bh-main');
   await dismissOverlays();
   const messagesButton = await page.$('.bh-workspace-rail button[aria-label="Messages"]');
   if (messagesButton) await messagesButton.click();
-  const row = `[data-dock-panel="bh:channels"] button[data-channel-id="${fixture.channelId}"]`;
+  const row = `button.bh-channel-row[data-channel-id="${fixture.channelId}"]`;
   await page.waitForSelector(row);
+  await dismissOverlays();
   await page.locator(row).click();
   await page.waitForSelector('.bh-chat-body [data-message-id]');
   await sleep(1500);

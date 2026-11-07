@@ -8,6 +8,8 @@ import type { BotAgentAdapter, OrchestratorAgentRun } from '../src/runtime/bot-r
 import { createTempRoot } from './helpers.js';
 import { createTestWorkspaceGrants, TEST_GRANT_ID } from './workspace-grant-fixture.js';
 
+const eventually = (assertion: () => void) => vi.waitFor(assertion, { timeout: 10_000 });
+
 const cleanup: (() => Promise<void>)[] = [];
 afterEach(async () => {
   for (const close of cleanup.splice(0).reverse()) await close();
@@ -160,7 +162,7 @@ async function fixture({
       { signal: consumer.signal },
     );
     await tick();
-    await vi.waitFor(() => expect(runs).toHaveLength(1));
+    await eventually(() => expect(runs).toHaveLength(1));
   };
   const query = (sql: string) =>
     attachOperationalModule(core.operationalDatabase, 'typing-test').read((db) =>
@@ -199,7 +201,7 @@ it.each([true, false])(
       inheritTyping,
     });
     await f.receive();
-    await vi.waitFor(() => expect(f.typingInputs).toHaveLength(1));
+    await eventually(() => expect(f.typingInputs).toHaveLength(1));
     const {
       revision,
       changedAt: _at,
@@ -225,7 +227,7 @@ it.each([true, false])(
 it('keeps one native lease alive for related Assignment work after the Inbox turn ends', async () => {
   const f = await fixture({ deferAssignment: true });
   await f.receive();
-  await vi.waitFor(() => expect(f.typingInputs).toHaveLength(1));
+  await eventually(() => expect(f.typingInputs).toHaveLength(1));
   const created = f.runs[0]!.assignments.create({
     title: 'Assignment',
     grantId: TEST_GRANT_ID,
@@ -233,7 +235,7 @@ it('keeps one native lease alive for related Assignment work after the Inbox tur
   });
   if (created.outcome !== 'created') throw new Error('Assignment refused');
   f.release();
-  await vi.waitFor(() =>
+  await eventually(() =>
     expect(
       f.query(
         "SELECT a.attempt_state FROM inbox_admissions a JOIN source_events e USING (source_event_id) WHERE e.body = '911 controlled work' AND a.bot_slug = 'ada'",
@@ -284,7 +286,7 @@ it('waits for native follow-up acceptance before starting another typing lease',
   await tick();
   expect(f.typingInputs).toHaveLength(1);
   accept();
-  await vi.waitFor(() => expect(f.typingInputs).toHaveLength(2));
+  await eventually(() => expect(f.typingInputs).toHaveLength(2));
   expect(f.stops).toHaveBeenCalledTimes(1);
   finish();
   await f.core.runtime.whenIdle();
@@ -296,7 +298,7 @@ it.each([false, true])(
   async (failure) => {
     const f = await fixture({ failure });
     await f.receive();
-    await vi.waitFor(() => expect(f.typingInputs).toHaveLength(1));
+    await eventually(() => expect(f.typingInputs).toHaveLength(1));
     const snapshot = await f.core.externalMessaging.snapshot('ada');
     expect(snapshot.identities![0]).toMatchObject({
       typingEnabled: true,
@@ -319,7 +321,7 @@ it.each(['grant', 'binding', 'preference', 'provider', 'unregister', 'runtime-cl
   async (change) => {
     const f = await fixture();
     await f.receive();
-    await vi.waitFor(() => expect(f.typingInputs).toHaveLength(1));
+    await eventually(() => expect(f.typingInputs).toHaveLength(1));
     const identity = (await f.core.externalMessaging.snapshot('ada')).identities![0]!;
     let closing: Promise<void> | undefined;
     if (change === 'grant') f.core.externalMessaging.revoke('ada', f.grant.id);
@@ -335,7 +337,7 @@ it.each(['grant', 'binding', 'preference', 'provider', 'unregister', 'runtime-cl
         enabled: change !== 'binding',
         ...(change === 'preference' ? { typingEnabled: false } : {}),
       });
-    await vi.waitFor(() => expect(f.stops).toHaveBeenCalledTimes(1));
+    await eventually(() => expect(f.stops).toHaveBeenCalledTimes(1));
     expect(f.typingInputs[0]!.signal.aborted).toBe(true);
     expect(f.typingInputs[0]!.beforeSend()).toBe(false);
     f.release();
@@ -369,7 +371,7 @@ it('local DM work never borrows an existing paired WeChat identity to show typin
   });
   expect(admission.admitted).toBe(true);
   if (!admission.admitted) throw new Error('local admission refused');
-  await vi.waitFor(() => expect(f.runs).toHaveLength(1));
+  await eventually(() => expect(f.runs).toHaveLength(1));
   expect(f.typingInputs).toEqual([]);
   f.release();
   await admission.settled;

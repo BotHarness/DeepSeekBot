@@ -231,6 +231,7 @@ export default defineConfig([
       '@deepseek-ai/dsh-subagent',
       '@deepseek-ai/dsh-tool-bash',
       '@deepseek-ai/dsh-tool-pwsh',
+      '@deepseek-ai/dsh-tool-executor-native',
     ],
   },
   coreCliBundleOptions,

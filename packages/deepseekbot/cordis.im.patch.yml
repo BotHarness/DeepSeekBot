@@ -51,6 +51,9 @@
             disabled: !!js process.platform !== 'win32'
           - id: tool-fs
             name: '@deepseek-ai/dsh-tool-fs'
+            config:
+              # Set false to drop the apply_patch tool beside edit.
+              applyPatch: false
           - id: tool-fs-search
             name: '@deepseek-ai/dsh-tool-fs-search'
             config:
@@ -117,7 +120,8 @@
                 config:
                   provider: spawn
                   toolName: subagent
-                  modelSelectionSettings: true
+                  modelSelection: true
+                  modelDiscovery: true
               - id: tool-subagent-fork
                 name: '@deepseek-ai/dsh-tool-subagent'
                 disabled: true

@@ -717,6 +717,7 @@ export class DirectBotToolError extends Error {
 }
 
 export interface BotAgentAdapter {
+  captureNativeOrchestratorModel?(sessionId: string, bot: PersonaBotRecord): void;
   runOrchestrator(run: OrchestratorAgentRun): Promise<void>;
   loadOrchestrator?(run: OrchestratorAgentRun): Promise<void>;
 
@@ -815,6 +816,7 @@ export interface BotRuntime {
     requestMessageId: string,
   ): ((deliver: () => boolean) => Promise<boolean>) | undefined;
   nativeQuestionAvailable?(sessionId: string, channelId: string): boolean;
+  captureNativeOrchestratorModel?(sessionId: string): void;
   prepareNativeOrchestratorStep?(
     sessionId: string,
     senderSessionIds: readonly string[],
@@ -4380,6 +4382,20 @@ class BotRuntimeImplementation implements BotRuntime {
         ? channel.members.includes(owner.botSlug)
         : channel?.botSlug === owner.botSlug)
     );
+  }
+
+  captureNativeOrchestratorModel(sessionId: string): void {
+    if (this.#closed || this.#preparedOrchestrators.has(sessionId)) return;
+    const owner = this.#ownership.resolve(sessionId);
+    if (owner?.rootRole !== 'orchestrator' || owner.parentSessionId !== undefined) return;
+    const bot = this.#registry.get(owner.botSlug);
+    if (
+      bot === undefined ||
+      bot.paused ||
+      this.currentOrchestratorSessionId(bot.slug) !== sessionId
+    )
+      return;
+    this.#agents.captureNativeOrchestratorModel?.(sessionId, bot);
   }
 
   async prepareNativeOrchestratorStep(

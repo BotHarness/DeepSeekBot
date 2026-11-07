@@ -121,6 +121,8 @@ describe('formatChannelListTime', () => {
   });
 
   it('reuses bounded formatters without native per-row locale formatter construction', async () => {
+    vi.stubEnv('TZ', 'UTC');
+    const localNow = new Date(2026, 9, 19, 22, 30).getTime();
     vi.resetModules();
     const fresh = await import('../src/client/channel-row-status.js');
     const constructor = vi.spyOn(Intl, 'DateTimeFormat');
@@ -130,7 +132,7 @@ describe('formatChannelListTime', () => {
       for (let index = 0; index < 100; index++) {
         for (const translate of [enTranslate, zhTranslate]) {
           for (const timestamp of [at(10, 19), at(10, 15), at(10, 12), at(12, 30, 9, 5, 2025)])
-            expect(fresh.formatChannelListTime(timestamp, NOW, translate)).not.toBe('');
+            expect(fresh.formatChannelListTime(timestamp, localNow, translate)).not.toBe('');
         }
       }
       expect(constructor.mock.calls.length).toBeLessThanOrEqual(8);
@@ -149,13 +151,14 @@ describe('formatChannelListTime', () => {
       ]) {
         const translate = ((key: string) =>
           key === 'time.intlLocale' ? locale : key) as BotHarnessTranslate;
-        fresh.formatChannelListTime(at(10, 15), NOW, translate);
+        fresh.formatChannelListTime(at(10, 15), localNow, translate);
       }
       const before = constructor.mock.calls.length;
-      fresh.formatChannelListTime(at(10, 19), NOW, enTranslate);
+      fresh.formatChannelListTime(at(10, 19), localNow, enTranslate);
       expect(constructor.mock.calls.length).toBe(before + 1);
     } finally {
       vi.restoreAllMocks();
+      vi.unstubAllEnvs();
     }
   });
 });

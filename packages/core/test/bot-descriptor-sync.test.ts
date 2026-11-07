@@ -10,10 +10,9 @@ import {
   type PixelAvatarRecipe,
 } from '@botharness/pixel-avatar';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import {
   canonicalAvatarRecipe,
@@ -30,6 +29,7 @@ import { readSharedPresentation } from '../src/bots/shared-presentation.js';
 import { MAX_DESCRIPTOR_BYTES, parseBotDescriptor } from '../src/marketplace/descriptor.js';
 import { ensureMemoryRepository } from '../src/memory/repository.js';
 import { createTestRegistry } from './registry-fixture.js';
+import { createTempRoot } from './helpers.js';
 
 const PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
@@ -37,16 +37,8 @@ const PNG = Buffer.from(
 );
 const PNG_URL = `data:image/png;base64,${PNG.toString('base64')}`;
 
-const roots: string[] = [];
-
-afterEach(() => {
-  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
-});
-
 function tempRoot(): string {
-  const root = mkdtempSync(join(tmpdir(), 'botharness-descriptor-'));
-  roots.push(root);
-  return root;
+  return createTempRoot('botharness-descriptor-');
 }
 
 function git(cwd: string, ...args: string[]): string {

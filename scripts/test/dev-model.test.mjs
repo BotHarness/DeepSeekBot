@@ -92,22 +92,31 @@ describe('AX native OpenCode Go reuse', () => {
       '@deepseek-ai/dsh-llm-pi-ai@0.2.0-rc.2',
     ]);
   });
-  it('relocates the reviewed patch to matching code rather than a version-specific line', () => {
-    const patch = readFileSync(GO_SESSION_PATCH, 'utf8');
-    const lines = patch.split('\n');
-    const start = lines.findIndex((line) => line.startsWith('@@ '));
-    const original = lines
-      .slice(start + 1)
-      .filter((line) => line.startsWith(' ') || line.startsWith('-'))
-      .map((line) => line.slice(1))
-      .join('\n');
-    expect(goSessionPatch('prefix\n' + original)).toContain('@@ -2,7 +2,10 @@');
-    expect(() => goSessionPatch('changed upstream')).toThrow('request shape');
-    expect(() => goSessionPatch(original + '\n' + original)).toThrow('request shape');
-  });
-  it('skips an exact native repair without adding a redundant patch', () => {
+  it.each([
+    GO_SESSION_PATCH,
+    resolve(import.meta.dirname, '../../patches/@deepseek-ai__dsh-llm-pi-ai@0.2.2-rc.1.patch'),
+  ])(
+    'relocates the reviewed patch to matching code rather than a version-specific line: %s',
+    (file) => {
+      const patch = readFileSync(file, 'utf8').replaceAll('\r\n', '\n');
+      const lines = patch.split('\n');
+      const start = lines.findIndex((line) => line.startsWith('@@ '));
+      const original = lines
+        .slice(start + 1)
+        .filter((line) => line.startsWith(' ') || line.startsWith('-'))
+        .map((line) => line.slice(1))
+        .join('\n');
+      expect(goSessionPatch('prefix\n' + original)).toContain('@@ -2,7 +2,10 @@');
+      expect(() => goSessionPatch('changed upstream')).toThrow('request shape');
+      expect(() => goSessionPatch(original + '\n' + original)).toThrow('request shape');
+    },
+  );
+  it.each([
+    GO_SESSION_PATCH,
+    resolve(import.meta.dirname, '../../patches/@deepseek-ai__dsh-llm-pi-ai@0.2.2-rc.1.patch'),
+  ])('skips an exact native repair without adding a redundant patch: %s', (file) => {
     const { root } = fixture();
-    const lines = readFileSync(GO_SESSION_PATCH, 'utf8').split('\n');
+    const lines = readFileSync(file, 'utf8').replaceAll('\r\n', '\n').split('\n');
     const repaired = lines
       .slice(lines.findIndex((line) => line.startsWith('@@ ')) + 1)
       .filter((line) => line.startsWith(' ') || line.startsWith('+'))

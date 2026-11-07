@@ -20,6 +20,18 @@ async function until(predicate) {
     await delay(25);
   }
 }
+async function jsonWhenReady(file) {
+  let parsed;
+  await until(() => {
+    try {
+      parsed = JSON.parse(readFileSync(file, 'utf8'));
+      return true;
+    } catch {
+      return false;
+    }
+  });
+  return parsed;
+}
 function members(pid) {
   return execFileSync('ps', ['-eo', 'pid=,pgid='], { encoding: 'utf8' })
     .trim()
@@ -395,10 +407,8 @@ it.skipIf(process.platform === 'win32')(
     );
     let pids = [];
     try {
-      await until(() => existsSync(marker));
-      const workerInfo = JSON.parse(readFileSync(marker, 'utf8'));
-      const resource = JSON.parse(readFileSync(join(home, '.botharness-host.json'), 'utf8'))
-        .resources[0];
+      const workerInfo = await jsonWhenReady(marker);
+      const resource = (await jsonWhenReady(join(home, '.botharness-host.json'))).resources[0];
       pids = [workerInfo.pid, workerInfo.parent, resource.pid];
       expect(resource.ownershipToken).toMatch(/^[a-f0-9-]{36}$/u);
       launcher.kill('SIGKILL');

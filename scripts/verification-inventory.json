@@ -1785,9 +1785,9 @@
       "path": "scripts/e2e-lark-provider-contract.mjs",
       "category": "needs-repair",
       "behaviors": ["im.lark.delivery"],
-      "reason": "Injectable dshIm probe, not standalone journey; pins rc.1/provider revision in reports and sends checked replies. Requalify current provider metadata and authorized receiver; provider receipt cannot prove PersonaBot/visible IM delivery.",
+      "reason": "Injectable dshIm probe, not standalone journey; pins rc.1/provider revision in reports and sends checked replies. Requalify current provider metadata and authorized receiver; provider receipt cannot prove PersonaBot/visible IM delivery. Directory fsync is skipped on Windows (unsupported), without changing the probe journey.",
       "task": 1978,
-      "sha256": "97a5bdbec53537520a529cc2db50f0f75d4682f1fd61740a1f8c8380d49c474c"
+      "sha256": "9569c68f5d7b8fdaff4e0d82765d737863e9a1f567bc4999fe2863f72ca44053"
     },
     {
       "path": "scripts/e2e-local-computer-idle.mjs",

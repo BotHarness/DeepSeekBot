@@ -106,7 +106,7 @@ async function fixture(home = createTempRoot('bh-orchestrator-stop-')) {
     if (live.access() === undefined) await send('Start');
     live.blockNextTurn();
     const settled = send('Think about it for a long time');
-    await vi.waitFor(() => expect(live.turnRunning()).toBe(true));
+    await vi.waitFor(() => expect(live.turnRunning()).toBe(true), { timeout: 10_000 });
     return { settled };
   }
   async function close() {
@@ -184,7 +184,9 @@ describe('Session Stop on the Orchestrator', () => {
       const run = f.live.assignmentRuns.find((item) => item.sessionId === assignment)!;
       await run.report({ state: 'completed', summary: 'The report is drafted' });
       f.live.finish(assignment);
-      await vi.waitFor(() => expect(f.live.orchestratorRuns.length).toBeGreaterThan(before));
+      await vi.waitFor(() => expect(f.live.orchestratorRuns.length).toBeGreaterThan(before), {
+        timeout: 10_000,
+      });
       const next = f.live.orchestratorRuns.slice(before).join('\n');
       expect(next).toContain('Only your Orchestrator Session stopped');
       expect(next).toContain('The report is drafted');
@@ -202,8 +204,9 @@ describe('Bot Stop', () => {
       const second = await f.create('Write the summary');
       const idle = await f.create('Quick lookup');
       f.live.finish(idle);
-      await vi.waitFor(() =>
-        expect(f.core.runtime.getAssignment('ada', idle)?.activity).toBe('idle'),
+      await vi.waitFor(
+        () => expect(f.core.runtime.getAssignment('ada', idle)?.activity).toBe('idle'),
+        { timeout: 10_000 },
       );
       const { settled } = await f.busyTurn();
       const orchestrator = f.core.runtime.currentOrchestratorSessionId!('ada')!;

@@ -18,6 +18,7 @@ function memoryTable() {
       },
       put: async (key: string, value: TodoRecord) => void rows.set(key, value),
       delete: async (key: string) => rows.delete(key),
+      deleteMany: async (keys: readonly string[]) => keys.filter((key) => rows.delete(key)).length,
       update: async (key: string, fn: (current: TodoRecord) => TodoRecord) => {
         const next = fn(rows.get(key)!);
         rows.set(key, next);

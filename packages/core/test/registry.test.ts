@@ -171,6 +171,7 @@ describe('createPersonaBotRegistry', () => {
     const source = join(root, 'source');
     mkdirSync(source);
     execFileSync('git', ['init', '-q', source]);
+    writeFileSync(join(source, '.gitattributes'), '* text eol=lf\n');
     writeFileSync(join(source, 'PERSONA.md'), '# Imported persona\n');
     writeFileSync(join(source, 'notes.txt'), 'Imported memory\n');
     execFileSync('git', ['-C', source, 'add', '.']);

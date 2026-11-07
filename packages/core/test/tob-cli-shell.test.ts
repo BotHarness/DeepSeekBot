@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { delimiter, join } from 'node:path';
 import { promisify } from 'node:util';
 import { Context } from '@deepseek-ai/cordis';
 import {
@@ -216,13 +216,20 @@ describe('Tob native Shell scoped CLI leases', () => {
       expect(supplied.sandboxPolicy).toBe(spec.sandboxPolicy);
       expect(supplied.env?.['KEEP']).toBe('yes');
       expect(supplied.env?.['DEEPSEEKBOT_HOST_TOKEN']).toBe('');
-      directory = supplied.env!['PATH']!.split(':')[0]!;
-      expect(readFileSync(join(directory, 'deepseekbot'), 'utf8')).not.toContain(
+      directory = supplied.env!['PATH']!.split(delimiter)[0]!;
+      const shimName = process.platform === 'win32' ? 'deepseekbot.cmd' : 'deepseekbot';
+      expect(readFileSync(join(directory, shimName), 'utf8')).not.toContain(
         supplied.env!['DEEPSEEKBOT_AGENT_TOKEN'],
       );
-      const child = await promisify(execFile)('/bin/sh', ['-c', spec.command], {
-        env: { ...process.env, ...supplied.env },
-      });
+      const child = await (process.platform === 'win32'
+        ? promisify(execFile)(
+            process.env['ComSpec'] ?? 'cmd.exe',
+            ['/d', '/s', '/c', spec.command],
+            { env: { ...process.env, ...supplied.env }, windowsHide: true },
+          )
+        : promisify(execFile)('/bin/sh', ['-c', spec.command], {
+            env: { ...process.env, ...supplied.env },
+          }));
       expect(JSON.parse(child.stdout)).toMatchObject({
         ok: true,
         value: { commands: ['capabilities', 'settings', 'settings-set'] },

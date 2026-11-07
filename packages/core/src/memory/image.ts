@@ -10,6 +10,7 @@ import {
   closeSync,
   constants,
   fstatSync,
+  lstatSync,
   openSync,
   readSync,
   realpathSync,
@@ -54,6 +55,13 @@ export function readMemoryBytes(
   let bytes: Buffer;
   if (source === 'worktree') {
     const target = resolveMemoryPath(root, path);
+    try {
+      if (lstatSync(target).isSymbolicLink()) return fail('missing');
+    } catch (error) {
+      if (['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? ''))
+        return fail('missing');
+      throw error;
+    }
     let fd: number;
     try {
       fd = openSync(

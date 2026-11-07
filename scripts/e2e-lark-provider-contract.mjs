@@ -15,6 +15,7 @@ function save(path, value) {
     closeSync(file);
   }
   renameSync(temporary, path);
+  if (process.platform === 'win32') return;
   const directory = openSync(dirname(path), 'r');
   try {
     fsyncSync(directory);

@@ -134,7 +134,8 @@ describe('channel move menu', () => {
   });
 
   it('marks the current scope with the trailing check and only that row', () => {
-    const label = (item: MenuItem): string => renderToStaticMarkup(item.label as never);
+    const label = (item: NonNullable<MenuItem['submenu']>[number]): string =>
+      renderToStaticMarkup(('label' in item ? item.label : '') as never);
     const inSection = (moveItem('s2').submenu ?? []).map(label);
     expect(inSection[2]).toContain('data-icon="IconCheckOutlineRegular"');
     expect(inSection[1]).not.toContain('data-icon="IconCheckOutlineRegular"');
