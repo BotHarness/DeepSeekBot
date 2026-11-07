@@ -12,6 +12,11 @@ const nativeRoot = resolve(require.resolve('react-native/package.json'), '..');
 const schedulerRoot = join(nativeRoot, 'ReactCommon/react/renderer/scheduler');
 const source = readFileSync(join(schedulerRoot, 'Scheduler.cpp'), 'utf8');
 const header = readFileSync(join(schedulerRoot, 'Scheduler.h'), 'utf8');
+const delegateHeader = readFileSync(join(schedulerRoot, 'SchedulerDelegate.h'), 'utf8');
+const retainedCallback = delegateHeader.match(
+  /virtual std::shared_ptr<SchedulerDelegate> retainForDeferredCallback\(\)\s*\{\s*return \{\};\s*\}/u,
+)?.[0];
+assert.ok(retainedCallback, 'Missing delegate ownership contract');
 
 function method(name) {
   const start = source.indexOf(`void Scheduler::${name}(`);
@@ -42,16 +47,26 @@ struct ShadowNode { int getSurfaceId() const { return 1; } };
 struct ShadowView { explicit ShadowView(const ShadowNode&) {} };
 struct SchedulerDelegate {
   virtual ~SchedulerDelegate() = default;
+  ${retainedCallback}
   virtual void schedulerDidFinishTransaction(std::shared_ptr<const MountingCoordinator>) = 0;
   virtual void schedulerShouldRenderTransactions(std::shared_ptr<const MountingCoordinator>) = 0;
   virtual void schedulerDidDispatchCommand(const ShadowView&, const std::string&, const folly::dynamic&) = 0;
 };
-struct RecordingDelegate final : SchedulerDelegate {
+struct RecordingDelegate : SchedulerDelegate {
   int& calls;
   explicit RecordingDelegate(int& value) : calls(value) {}
   void schedulerDidFinishTransaction(std::shared_ptr<const MountingCoordinator>) override {}
   void schedulerShouldRenderTransactions(std::shared_ptr<const MountingCoordinator>) override { calls++; }
   void schedulerDidDispatchCommand(const ShadowView&, const std::string&, const folly::dynamic&) override { calls++; }
+};
+struct RetainedDelegate final : RecordingDelegate, std::enable_shared_from_this<RetainedDelegate> {
+  std::function<void()> duringDispatch;
+  explicit RetainedDelegate(int& value) : RecordingDelegate(value) {}
+  std::shared_ptr<SchedulerDelegate> retainForDeferredCallback() override { return shared_from_this(); }
+  void schedulerDidDispatchCommand(const ShadowView&, const std::string&, const folly::dynamic&) override {
+    if (duringDispatch) duringDispatch();
+    calls++;
+  }
 };
 struct RuntimeScheduler {
   std::vector<std::function<void()>> pending;
@@ -78,6 +93,28 @@ int main(int argc, char** argv) {
   auto delegate = std::make_unique<RecordingDelegate>(calls);
   Scheduler scheduler(delegate.get(), &runtime);
   auto node = std::make_shared<const ShadowNode>();
+  if (scenario == "retained" || scenario == "in-flight") {
+    auto retained = std::make_shared<RetainedDelegate>(calls);
+    std::weak_ptr<RetainedDelegate> lifetime = retained;
+    scheduler.setDelegate(retained.get());
+    if (scenario == "in-flight") {
+      retained->duringDispatch = [&] {
+        scheduler.setDelegate(nullptr);
+        retained.reset();
+        assert(!lifetime.expired());
+      };
+    }
+    scheduler.uiManagerDidDispatchCommand(node, "focus", {});
+    if (scenario == "retained") {
+      scheduler.setDelegate(nullptr);
+      retained.reset();
+      assert(!lifetime.expired());
+    }
+    runtime.drain();
+    assert(calls == (scenario == "in-flight" ? 1 : 0));
+    assert(lifetime.expired());
+    return 0;
+  }
   auto queue = [&] {
     if (scenario == "transaction") scheduler.uiManagerDidFinishTransaction(std::make_shared<const MountingCoordinator>(), false);
     else scheduler.uiManagerDidDispatchCommand(node, "focus", {});
@@ -117,7 +154,7 @@ test('native Scheduler drops stale commands and transactions after delegate tear
       { encoding: 'utf8', timeout: 30_000 },
     );
     assert.equal(build.status, 0, build.stderr);
-    for (const scenario of ['command', 'transaction', 'replace', 'live']) {
+    for (const scenario of ['command', 'transaction', 'replace', 'live', 'retained', 'in-flight']) {
       const run = spawnSync(executable, [scenario], {
         encoding: 'utf8',
         env: { ...process.env, ASAN_OPTIONS: 'detect_leaks=0' },
@@ -128,3 +165,20 @@ test('native Scheduler drops stale commands and transactions after delegate tear
     rmSync(directory, { recursive: true, force: true });
   }
 }, 60_000);
+
+test('iOS deferred proxies retain themselves without retaining their Objective-C owner', () => {
+  const iosSource = readFileSync(join(nativeRoot, 'React/Fabric/RCTScheduler.mm'), 'utf8');
+  const proxy = iosSource.slice(
+    iosSource.indexOf('class SchedulerDelegateProxy'),
+    iosSource.indexOf('class LayoutAnimationDelegateProxy'),
+  );
+  assert.match(proxy, /std::enable_shared_from_this<SchedulerDelegateProxy>/u);
+  assert.match(
+    proxy,
+    /retainForDeferredCallback\(\) override\s*\{\s*return shared_from_this\(\);/u,
+  );
+  assert.match(proxy, /__weak RCTScheduler \*scheduler_;/u);
+  assert.doesNotMatch(proxy, /\(__bridge RCTScheduler \*\)scheduler_;/u);
+  assert.match(iosSource, /std::shared_ptr<SchedulerDelegateProxy> _delegateProxy;/u);
+  assert.match(iosSource, /_delegateProxy = std::make_shared<SchedulerDelegateProxy>/u);
+});
