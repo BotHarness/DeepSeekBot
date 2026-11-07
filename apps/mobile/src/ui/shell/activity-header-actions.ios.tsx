@@ -4,6 +4,7 @@ import {
   accessibilityIdentifier,
   accessibilityLabel,
   buttonStyle,
+  dynamicTypeSize,
   font,
   foregroundStyle,
   frame,
@@ -36,6 +37,7 @@ export function ActivityHeaderActions({
       systemName={name}
       modifiers={[
         font({ textStyle: 'body', weight: 'medium' }),
+        dynamicTypeSize({ max: 'xxxLarge' }),
         foregroundStyle(on ? theme.color.accent : theme.color.fg),
         frame({ width: theme.touch, height: theme.touch }),
       ]}

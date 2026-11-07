@@ -22,6 +22,7 @@ export function ContextMenuArea({
   const icons = actions.every((action) => action.systemImage !== undefined);
   return (
     <Host
+      key={theme.fontScale}
       matchContents={{ vertical: true }}
       colorScheme={theme.scheme}
       style={fill ? { flex: 1 } : { alignSelf: 'stretch' }}
