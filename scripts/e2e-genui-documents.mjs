@@ -15,6 +15,7 @@ import { stopGenuiQaBot } from './genui-qa-cleanup.mjs';
 import { installGenuiFaultTransport } from './genui-fault-transport.mjs';
 import {
   openTimelineConversation,
+  revealEarlierTimelineMessage,
   timelineConversationVisible as conversationVisible,
 } from './perf-timeline-navigation.mjs';
 
@@ -268,7 +269,7 @@ async function restoreConversation() {
 
 async function qualifyFaults() {
   await stopGenuiQaBot(call, { slug: bot.bot.slug, channelId });
-  await revealPublished(panel);
+  await revealEarlierTimelineMessage(page, panel);
   let inner = await frame();
   const setFilter = async (value) =>
     inner.evaluate((filter) => {

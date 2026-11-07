@@ -1,10 +1,40 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   openTimelineConversation,
+  revealEarlierTimelineMessage,
   timelineConversationVisible,
 } from '../perf-timeline-navigation.mjs';
 
 afterEach(() => vi.unstubAllGlobals());
+
+describe('retained message navigation', () => {
+  it('scrolls back to a virtualized older document instead of waiting at the latest edge', async () => {
+    let steps = 0;
+    const reveal = vi.fn();
+    const page = {
+      $: vi.fn(async () => (steps >= 3 ? { evaluate: reveal } : null)),
+      $eval: vi.fn(async () => {
+        steps++;
+      }),
+    };
+    await revealEarlierTimelineMessage(page, '[data-message-id="older"]');
+    expect(steps).toBe(3);
+    expect(reveal).toHaveBeenCalledOnce();
+    expect(page.$).toHaveBeenLastCalledWith('[data-message-id="older"]');
+  });
+  it('does not scroll when the exact retained document is mounted', async () => {
+    const page = { $: vi.fn(async () => ({ evaluate: vi.fn() })), $eval: vi.fn() };
+    await revealEarlierTimelineMessage(page, '[data-message-id="older"]');
+    expect(page.$eval).not.toHaveBeenCalled();
+  });
+  it('fails boundedly instead of accepting a missing historical message', async () => {
+    const page = { $: vi.fn(async () => null), $eval: vi.fn(async () => undefined) };
+    await expect(revealEarlierTimelineMessage(page, '[data-message-id="missing"]')).rejects.toThrow(
+      'Earlier message did not mount',
+    );
+    expect(page.$eval).toHaveBeenCalledTimes(30);
+  });
+});
 
 describe('actual conversation visibility', () => {
   function pageWithPane({

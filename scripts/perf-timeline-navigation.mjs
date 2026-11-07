@@ -13,6 +13,21 @@ export async function timelineConversationVisible(page) {
   });
 }
 
+export async function revealEarlierTimelineMessage(page, selector) {
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const message = await page.$(selector);
+    if (message) {
+      await message.evaluate((node) => node.scrollIntoView({ block: 'start' }));
+      return;
+    }
+    await page.$eval('.bh-chat-body', async (pane) => {
+      pane.scrollTop = Math.max(0, pane.scrollTop - pane.clientHeight);
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    });
+  }
+  throw new Error(`Earlier message did not mount after bounded history scrolling: ${selector}`);
+}
+
 export async function openTimelineConversation(page, channelId, dismissOverlays) {
   const shell = '.bh-root.bh-main, [data-workspace-dock]';
   if (!(await page.$(shell))) await page.locator('::-p-aria(Bot mode)').click();
