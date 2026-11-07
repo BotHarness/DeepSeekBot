@@ -49,8 +49,10 @@ vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 
 vi.mock('../src/ui/chat/header-chrome', () => ({ titleChipFill: () => ({}) }));
 vi.mock('../src/ui/chat/native-header', () => ({
+  glassHeader: false,
   barLabelProps: {},
   barLabelStyle: {},
+  headerContentScale: () => 1,
   headerControlHeight: (theme: { touch: number }) => theme.touch,
 }));
 vi.mock('../src/ui/primitives/loading-indicator', () => ({ LoadingIndicator: () => null }));

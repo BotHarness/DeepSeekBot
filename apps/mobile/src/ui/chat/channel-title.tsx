@@ -10,7 +10,13 @@ import { radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { titleChipFill } from './header-chrome';
-import { barLabelStyle, barLabelProps, headerControlHeight } from './native-header';
+import {
+  barLabelStyle,
+  barLabelProps,
+  headerContentScale,
+  headerControlHeight,
+  glassHeader,
+} from './native-header';
 import { GroupMark } from './group-mark';
 
 const MARK = 28;
@@ -32,6 +38,8 @@ export function ChannelTitle({
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
+  const contentScale = glassHeader ? headerContentScale(theme) : 1;
+  const avatarSize = MARK * contentScale;
   const headerStatus = useHeaderStatus(undefined, channel, bots);
   const name = channel?.name ?? fallback;
   const members = channel === undefined ? undefined : t.members(channel.memberCount);
@@ -60,13 +68,18 @@ export function ChannelTitle({
         alignItems: 'center',
         gap: space.x3,
         minHeight: headerControlHeight(theme),
-        paddingLeft: (theme.touch - MARK) / 2,
+        paddingLeft: ((glassHeader ? headerControlHeight(theme) : theme.touch) - avatarSize) / 2,
         paddingRight: theme.touch / 2,
         borderRadius: radius.round,
         ...titleChipFill(theme, pressed),
       })}
     >
-      <GroupMark avatar={channel?.avatar} size={MARK} corner={radius.round} />
+      <GroupMark
+        avatar={channel?.avatar}
+        size={avatarSize}
+        labelScale={contentScale}
+        corner={radius.round}
+      />
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text
           {...barLabelProps}
@@ -78,7 +91,7 @@ export function ChannelTitle({
           {name}
         </Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}>
-          <HeaderBotStack bots={headerStatus.bots} size={theme.type.meta.line} />
+          <HeaderBotStack bots={headerStatus.bots} size={theme.type.meta.line * contentScale} />
           <Text
             {...barLabelProps}
             variant="meta"

@@ -12,6 +12,7 @@ export function GroupMark({
   fill,
   variant = 'body',
   strong = true,
+  labelScale = 1,
 }: {
   avatar: string | undefined;
   initial?: string;
@@ -20,6 +21,7 @@ export function GroupMark({
   fill?: string;
   variant?: TextVariant;
   strong?: boolean;
+  labelScale?: number;
 }) {
   const theme = useDesignTheme();
   return (
@@ -35,7 +37,16 @@ export function GroupMark({
       }}
     >
       {avatar === undefined ? (
-        <Text allowFontScaling={false} variant={variant} strong={strong} tone="muted">
+        <Text
+          allowFontScaling={false}
+          variant={variant}
+          strong={strong}
+          tone="muted"
+          style={{
+            fontSize: theme.type[variant].size * labelScale,
+            lineHeight: theme.type[variant].line * labelScale,
+          }}
+        >
           {initial}
         </Text>
       ) : (

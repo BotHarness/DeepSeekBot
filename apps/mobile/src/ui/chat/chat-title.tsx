@@ -10,7 +10,13 @@ import { radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { titleChipFill } from './header-chrome';
-import { barLabelStyle, barLabelProps, headerControlHeight } from './native-header';
+import {
+  barLabelStyle,
+  barLabelProps,
+  headerContentScale,
+  headerControlHeight,
+  glassHeader,
+} from './native-header';
 
 const AVATAR = 28;
 
@@ -27,6 +33,8 @@ export function ChatTitle({
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
+  const contentScale = glassHeader ? headerContentScale(theme) : 1;
+  const avatarSize = AVATAR * contentScale;
   const headerStatus = useHeaderStatus(bot, undefined);
   const name = bot?.displayName ?? fallback;
   const chip = (press: () => void) => (
@@ -45,16 +53,16 @@ export function ChatTitle({
         alignItems: 'center',
         gap: space.x3,
         minHeight: headerControlHeight(theme),
-        paddingLeft: (theme.touch - AVATAR) / 2,
+        paddingLeft: ((glassHeader ? headerControlHeight(theme) : theme.touch) - avatarSize) / 2,
         paddingRight: theme.touch / 2,
         borderRadius: radius.round,
         ...titleChipFill(theme, pressed),
       })}
     >
       {bot ? (
-        <BotAvatar bot={bot} size={AVATAR} ring={false} />
+        <BotAvatar bot={bot} size={avatarSize} ring={false} />
       ) : (
-        <View style={{ width: AVATAR, height: AVATAR }} />
+        <View style={{ width: avatarSize, height: avatarSize }} />
       )}
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text

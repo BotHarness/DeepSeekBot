@@ -22,9 +22,11 @@ export const barLabelStyle: TextStyle = glassHeader ? { color: PlatformColor('la
 export const barLabelProps: Pick<TextProps, 'maxFontSizeMultiplier'> =
   Platform.OS === 'ios' ? { maxFontSizeMultiplier: 1.35 } : {};
 
+export function headerContentScale(theme: DesignTheme): number {
+  return Math.min(theme.fontScale, barLabelProps.maxFontSizeMultiplier ?? Infinity);
+}
+
 export function headerControlHeight(theme: DesignTheme): number {
-  const lines =
-    (theme.type.body.line + theme.type.meta.line) *
-    Math.min(theme.fontScale, barLabelProps.maxFontSizeMultiplier ?? Infinity);
+  const lines = (theme.type.body.line + theme.type.meta.line) * headerContentScale(theme);
   return Math.max(theme.touch, glassHeader ? Math.ceil(lines) + space.x2 : lines);
 }
