@@ -5,6 +5,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { checkBudget, readBudget } from './perf-budget.mjs';
+import { openTimelineConversation } from './perf-timeline-navigation.mjs';
 
 export const usage = `Usage: node scripts/perf-idle-timeline.mjs [options]
 
@@ -141,6 +142,11 @@ const browser = await puppeteer.launch({
   protocolTimeout: 600_000,
 });
 const page = await browser.newPage();
+const localeSession = await page.createCDPSession();
+await localeSession.send('Emulation.setUserAgentOverride', {
+  userAgent: await browser.userAgent(),
+  acceptLanguage: 'en-US,en',
+});
 const errors = [];
 page.on('pageerror', (error) => errors.push(error.message));
 
@@ -269,16 +275,7 @@ try {
 
   await page.reload({ waitUntil: 'networkidle2' });
   await dismissOverlays();
-  if (!(await page.$('.bh-root.bh-main'))) await page.locator('::-p-aria(Bot mode)').click();
-  await page.waitForSelector('.bh-root.bh-main');
-  await dismissOverlays();
-  const messagesButton = await page.$('.bh-workspace-rail button[aria-label="Messages"]');
-  if (messagesButton) await messagesButton.click();
-  const row = `button.bh-channel-row[data-channel-id="${fixture.channelId}"]`;
-  await page.waitForSelector(row);
-  await dismissOverlays();
-  await page.locator(row).click();
-  await page.waitForSelector('.bh-chat-body [data-message-id]');
+  await openTimelineConversation(page, fixture.channelId, dismissOverlays);
   await sleep(1500);
 
   if (loadAll) {
