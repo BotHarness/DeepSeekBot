@@ -14,7 +14,7 @@ describe('call visual unsaved migration', () => {
     const prior = mountOperationalDatabase({
       dshHome: home,
       schemaPlan: defineSchemaPlan(
-        BOT_HARNESS_SCHEMA_PLAN.migrations.filter((migration) => migration.generation < 132),
+        BOT_HARNESS_SCHEMA_PLAN.migrations.filter((migration) => migration.generation < 133),
       ),
     });
     const visual = { source: 'screen', frames: 4, layout: '2x2' };
@@ -59,7 +59,11 @@ describe('call visual unsaved migration', () => {
       ]);
       expect(
         messages.map((message) => (message['voiceCall'] as { visual: unknown }).visual),
-      ).toEqual([visual, visual, { ...visual, unseen: true }]);
+      ).toEqual([
+        { ...visual, layout: '2+2' },
+        { ...visual, layout: '2+2' },
+        { ...visual, layout: '2+2', unseen: true },
+      ]);
     } finally {
       owner.close();
       rmSync(home, { recursive: true, force: true });

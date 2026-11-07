@@ -2651,6 +2651,8 @@ describe('DSH Bot Agent adapter', () => {
     ]);
     expect(preparedWorkspaces).toEqual(['/memory/ada']);
     expect(host.scopes.get('orchestrator-ada')?.tools.map((tool) => tool.name)).toEqual([
+      'genui_diagram',
+      'genui_preview',
       'channel_action',
       'bot_send_message',
       'memory_switch_branch',

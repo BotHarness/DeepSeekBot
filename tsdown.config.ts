@@ -210,6 +210,7 @@ export default defineConfig([
     entry: {
       index: 'packages/core/src/index.ts',
       'folder-browse-worker': 'packages/core/src/workspaces/folder-browse-worker.ts',
+      'genui-diagram-worker': 'packages/core/src/runtime/genui-diagram-worker.ts',
     },
     outDir: 'packages/core/dist',
     define: { __BOTHARNESS_SOURCE__: JSON.stringify(sourceBuildStamp()) },
@@ -217,6 +218,7 @@ export default defineConfig([
     platform: 'node',
     dts: true,
     clean: true,
+    noExternal: [/^pele(?:\/|$)/],
     external: [
       '@resvg/resvg-js',
       'silk-wasm',

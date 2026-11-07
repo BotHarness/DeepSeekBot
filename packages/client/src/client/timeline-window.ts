@@ -162,6 +162,8 @@ export function useTimelineWindow(
     const top = element.scrollTop - origin - keep;
     const bottom = element.scrollTop - origin + element.clientHeight + keep;
     const next = nearKeys(order, sizes, top, bottom);
+    if (next.size === 0 && order.length > 0)
+      next.add(element.scrollTop > origin ? order[order.length - 1]! : order[0]!);
     if (
       !reported.current &&
       order.length > 0 &&

@@ -1474,6 +1474,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const turnRefusals = new Map<string, string>();
   ctx.effect(() => () => turnRefusals.clear(), 'botharness: refused Turn reasons');
   const agentAdapter = createDshBotAgentAdapter({
+    onGenuiDiagnostic: (event) =>
+      ctx.logger.info('genui-%s %j', event.component ?? 'preview', event),
+    genuiAttachmentContext: ctx,
     agents: ctx.agents,
     promptText: (sessionId) => core.prompts.textForSession(sessionId),
     defaultModel,

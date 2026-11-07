@@ -1,4 +1,5 @@
 import { runDeviceActivity } from './cli-live-activity.js';
+import { GENUI_COMMANDS, GENUI_OPTIONS, runGenuiCommand } from './cli-genui.js';
 import { HOST_LOOK_COMMANDS, runHostLook } from './cli-host-look.js';
 import {
   PROFILE_BACKUP_COMMANDS,
@@ -175,6 +176,7 @@ import {
 export { CliLiveError } from './cli-live-error.js';
 
 export const LIVE_OPTIONS = {
+  ...GENUI_OPTIONS,
   'new-home': { type: 'string' },
 
   'connection-id': { type: 'string' },
@@ -293,6 +295,7 @@ const CONTROL_COMMANDS = [
 ] as const;
 
 export const LIVE_COMMANDS = [
+  ...GENUI_COMMANDS,
   ...PROFILE_BACKUP_COMMANDS,
   ...BROWSER_NOTIFICATION_COMMANDS,
   ...CONNECTION_COMMANDS,
@@ -1176,6 +1179,10 @@ export async function runLiveCli(
       ...(offset === undefined ? {} : { offset }),
     });
   }
+  if (GENUI_COMMANDS.some((entry) => entry.command === command))
+    return runGenuiCommand(command, rest, values, io, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
   if (command === 'grants') {
     if (rest.length !== 1 || !rest[0]?.trim()) usage('grants needs exactly one bot id.');
     const signal = AbortSignal.timeout(timeoutMs(values.timeout));

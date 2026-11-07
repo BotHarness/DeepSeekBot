@@ -198,6 +198,16 @@ export function mountContentPurge(options: {
           db.prepare(
             'DELETE FROM group_send_review_drafts WHERE channel_id = ? OR source_event_id = ?',
           ).run(fact.channelId, fact.sourceEventId);
+          if (
+            db
+              .prepare(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'genui_private_views'",
+              )
+              .get()
+          )
+            db.prepare(
+              'DELETE FROM genui_private_views WHERE (channel_id, message_id) IN (SELECT channel_id, message_id FROM channel_placements WHERE source_event_id = ?)',
+            ).run(fact.sourceEventId);
           db.prepare('DELETE FROM attachment_file_bindings WHERE source_event_id = ?').run(
             fact.sourceEventId,
           );

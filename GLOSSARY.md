@@ -535,6 +535,11 @@ _Avoid_: name-matched text, stored display name as identity
 An immutable local fact received from a Channel, Bridge, webhook, Session, or system source, holding the sole local copy of its content and trusted provenance. It may appear in a Channel and may be admitted to any number of Bot Inboxes, but neither relationship owns another copy.
 _Avoid_: inbox message, mailbox copy, notification payload, stimulus
 
+**GenUI content**:
+Interactive visual information within an ordinary Channel message, shared under that message's read authority. Each Human's exploration is private until they explicitly publish relevant context in an ordinary message.
+The rich-content target is an isolated HTML document, not a fixed report-component catalog; generated presentation never acquires Host or business authority ([ADR-0301](docs/adr/0301-genui-rich-documents-use-isolated-html.md)).
+_Avoid_: separate GenUI conversation, publisher-bound callback channel
+
 **Provider Echo**:
 A provider's inbound reflection of a message BotHarness already sent. When correlated, it enriches the existing Source Event and Outbox receipt rather than creating new attention; an unmatched own-sender echo remains unresolved and cannot wake a PersonaBot.
 _Avoid_: new user message, duplicate Channel message, delivery success by assumption

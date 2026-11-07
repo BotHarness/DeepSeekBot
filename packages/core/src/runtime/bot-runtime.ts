@@ -650,6 +650,7 @@ export interface OrchestratorChannelAccess {
     yieldToMessageIds?: string[];
   }): import('../channels/send-review.js').SendReviewOutcome;
   send(input: {
+    genui?: import('../channels/genui.js').GenuiContent;
     replySourceEventId?: string;
     observationId?: string;
     draftId?: string;
@@ -8061,6 +8062,8 @@ class BotRuntimeImplementation implements BotRuntime {
           );
         const channel = resolve(input.channelId);
         const exhaustedDraftId = exhaustedDrops.get(channel.id);
+        if (input.genui !== undefined && (channel.type !== 'dm' || channel.botSlug !== botSlug))
+          throw new Error('GenUI reports require the Bot Human DM');
         if (exhaustedDraftId)
           throw new SendReviewRequired({
             status: 'requires-review',
@@ -8210,6 +8213,7 @@ class BotRuntimeImplementation implements BotRuntime {
           ...(input.attachments === undefined ? {} : { attachments: input.attachments }),
           ...(input.replyTo === undefined ? {} : { replyTo: input.replyTo }),
           ...this.#perf(sessionId, body),
+          ...(input.genui === undefined ? {} : { genui: input.genui }),
         };
         const originId = input.replySourceEventId ?? sourceEventId;
         const origin = {

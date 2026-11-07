@@ -118,7 +118,7 @@ describe('deepseekbot call commands', () => {
       samples: 6,
       keyframes: 3,
       sentFrames: 3,
-      grids: [{ frames: 3, layout: '2x2', messageId: expect.any(String) }],
+      grids: [{ frames: 3, layout: '3', messageId: expect.any(String) }],
       failed: [],
     });
     const gridMessage = (report.visual['grids'] as { messageId: string }[])[0]!.messageId;

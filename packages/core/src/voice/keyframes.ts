@@ -96,15 +96,48 @@ export function createKeyframePicker(options: KeyframeOptions): KeyframePicker {
   };
 }
 
-export type CallGridLayout = '1x1' | '2x2' | '3x3' | '4x4';
+export const CALL_GRID_LAYOUTS = [
+  '1',
+  '2',
+  '3',
+  '2+2',
+  '3+2',
+  '3+3',
+  '3+2+2',
+  '3+3+2',
+  '3+3+3',
+] as const;
 
-export const MAX_GRID_FRAMES = 16;
+export type CallGridLayout = (typeof CALL_GRID_LAYOUTS)[number];
 
-export function gridLayout(frames: number): { layout: CallGridLayout; cols: number } {
-  if (frames <= 1) return { layout: '1x1', cols: 1 };
-  if (frames <= 4) return { layout: '2x2', cols: 2 };
-  if (frames <= 9) return { layout: '3x3', cols: 3 };
-  return { layout: '4x4', cols: 4 };
+export const MAX_GRID_FRAMES = 9;
+
+export const MAX_GRID_COLUMNS = 3;
+
+export function callGridRows(frames: number): number[] {
+  const count = Math.min(MAX_GRID_FRAMES, Math.max(1, Math.floor(frames)));
+  const rows = Math.ceil(count / MAX_GRID_COLUMNS);
+  const base = Math.floor(count / rows);
+  const longer = count % rows;
+  return Array.from({ length: rows }, (_, row) => base + (row < longer ? 1 : 0));
+}
+
+export function gridLayout(frames: number): {
+  layout: CallGridLayout;
+  rows: number[];
+  cols: number;
+} {
+  const rows = callGridRows(frames);
+  return { layout: rows.join('+') as CallGridLayout, rows, cols: Math.max(...rows) };
+}
+
+export function isCallGridLayout(frames: unknown, layout: unknown): boolean {
+  return (
+    Number.isSafeInteger(frames) &&
+    (frames as number) >= 1 &&
+    (frames as number) <= MAX_GRID_FRAMES &&
+    layout === gridLayout(frames as number).layout
+  );
 }
 
 export function pickGridFrames<T extends { readonly score: number }>(

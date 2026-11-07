@@ -1,9 +1,24 @@
-import { gridLayout, type CallGridLayout } from './keyframes.js';
+import { gridLayout, MAX_GRID_COLUMNS, MAX_GRID_FRAMES, type CallGridLayout } from './keyframes.js';
 
 export const GRID_LONG_EDGE = 1536;
 const TILE_SOURCE_EDGE = GRID_LONG_EDGE / 2;
 const MAX_INPUT_PIXELS = 40_000_000;
 const GRID_QUALITY = 80;
+
+export function gridCells(
+  rows: readonly number[],
+  tileWidth: number,
+  tileHeight: number,
+): { left: number; top: number }[] {
+  const widest = Math.max(...rows);
+  return rows.flatMap((count, row) => {
+    const offset = Math.floor(((widest - count) * tileWidth) / 2);
+    return Array.from({ length: count }, (_, col) => ({
+      left: offset + col * tileWidth,
+      top: row * tileHeight,
+    }));
+  });
+}
 
 export interface PreparedFrame {
   readonly tile: Buffer;
@@ -129,8 +144,10 @@ export function createCallImaging(): CallImaging {
     },
     async compose(frames, labels) {
       if (frames.length === 0) throw new CallFrameError('A grid needs at least one frame.');
+      if (frames.length > MAX_GRID_FRAMES)
+        throw new CallFrameError(`A grid holds at most ${MAX_GRID_FRAMES} frames.`);
       const sharp = await loadSharp();
-      const { layout, cols } = gridLayout(frames.length);
+      const { layout, rows, cols } = gridLayout(frames.length);
       if (frames.length === 1) {
         const { data, info } = await sharp(frames[0]!.jpeg, { limitInputPixels: MAX_INPUT_PIXELS })
           .rotate()
@@ -141,12 +158,14 @@ export function createCallImaging(): CallImaging {
       }
       const reference = frames.at(-1)!;
       const aspect = reference.tileWidth / reference.tileHeight;
+      const sizing = Math.min(frames.length, MAX_GRID_COLUMNS);
       const tileWidth = Math.floor(
-        aspect >= 1 ? GRID_LONG_EDGE / cols : (GRID_LONG_EDGE / cols) * aspect,
+        aspect >= 1 ? GRID_LONG_EDGE / sizing : (GRID_LONG_EDGE / sizing) * aspect,
       );
       const tileHeight = Math.floor(tileWidth / aspect);
       const width = tileWidth * cols;
-      const height = tileHeight * Math.ceil(frames.length / cols);
+      const height = tileHeight * rows.length;
+      const cells = gridCells(rows, tileWidth, tileHeight);
       const canvas = Buffer.alloc(width * height * 3);
       const scale = Math.max(2, Math.round(tileWidth / 160));
       await Promise.all(
@@ -157,8 +176,7 @@ export function createCallImaging(): CallImaging {
             .resize(tileWidth, tileHeight, { fit: 'contain', background: { r: 0, g: 0, b: 0 } })
             .raw()
             .toBuffer({ resolveWithObject: true });
-          const left = (index % cols) * tileWidth;
-          const top = Math.floor(index / cols) * tileHeight;
+          const { left, top } = cells[index]!;
           for (let row = 0; row < info.height; row += 1) {
             const from = row * info.width * 3;
             data.copy(canvas, ((top + row) * width + left) * 3, from, from + info.width * 3);
