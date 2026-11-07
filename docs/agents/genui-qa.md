@@ -101,6 +101,13 @@ Record pass, fail or untested for every layer, never a blanket end-to-end claim:
 
 ## PR evidence
 
+Mounted conversation DOM is not proof that the conversation is visible. At responsive
+breakpoints the Messages list can cover the conversation while its DOM remains mounted.
+The HTML runner reopens the conversation after resizing, requires a frontmost viewport
+hit-test, and rejects captures whose document section does not intersect the viewport.
+Earlier narrow captures without these assertions must be inspected and cannot establish
+narrow GenUI acceptance merely because the runner exited successfully.
+
 Keep PNG originals, ARIA observations and the manifest under the task's private evidence directory, with an index in the machine's main checkout. Preserve source SHA plus dirty diff identity, built Host/Client hashes, browser identity, fixtures, canonical references, capture times, viewport and theme. Bind any pre-commit capture to the final source only after verifying production source and bundle identities have not changed.
 
 Inspect every selected image for secrets, login URLs, private content and misleading clipping. Retain failed attempts separately. Publish only reviewed derivatives through the repository's R2 evidence publisher with the full frozen source commit; never commit screenshots or use a Git evidence branch. Verify public readback, retain upload receipts and put representative images plus a complete scene index in the PR Change outline. Verify GitHub-rendered images after writing the PR. An absence state captured in the candidate is labelled as such, not passed off as an older source build.

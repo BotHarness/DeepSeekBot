@@ -1,5 +1,42 @@
-import { describe, expect, it, vi } from 'vitest';
-import { openTimelineConversation } from '../perf-timeline-navigation.mjs';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  openTimelineConversation,
+  timelineConversationVisible,
+} from '../perf-timeline-navigation.mjs';
+
+afterEach(() => vi.unstubAllGlobals());
+
+describe('actual conversation visibility', () => {
+  function pageWithPane({
+    bounds = { left: 0, top: 0, right: 800, bottom: 1000 },
+    covered = false,
+    mounted = true,
+  } = {}) {
+    const content = {};
+    const pane = { getBoundingClientRect: () => bounds, contains: (node) => node === content };
+    vi.stubGlobal('innerWidth', 800);
+    vi.stubGlobal('innerHeight', 1100);
+    vi.stubGlobal('document', {
+      querySelector: () => (mounted ? pane : null),
+      elementFromPoint: () => (covered ? {} : content),
+    });
+    return { evaluate: async (callback) => callback() };
+  }
+
+  it('requires the conversation to be in the viewport and frontmost', async () => {
+    await expect(timelineConversationVisible(pageWithPane())).resolves.toBe(true);
+  });
+
+  it.each([
+    { mounted: false },
+    { covered: true },
+    { bounds: { left: 800, top: 0, right: 1600, bottom: 1000 } },
+    { bounds: { left: 0, top: 0, right: 0, bottom: 0 } },
+    { bounds: { left: 0, top: 1100, right: 800, bottom: 2100 } },
+  ])('does not count hidden/mounted DOM as screenshot evidence: %j', async (state) => {
+    await expect(timelineConversationVisible(pageWithPane(state))).resolves.toBe(false);
+  });
+});
 
 function fixture({ active = true, listVisible = true, rail = true } = {}) {
   const clicks = [];

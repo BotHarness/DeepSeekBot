@@ -11,6 +11,10 @@ import { syntheticGenuiDocument } from '../packages/core/test/fixtures/genui-doc
 import { syntheticGenuiDiagrams } from '../packages/core/test/fixtures/genui-diagrams.ts';
 import { rpc } from './verify-app.mjs';
 import { findGenuiModelFollowup } from './genui-model-qualification.mjs';
+import {
+  openTimelineConversation,
+  timelineConversationVisible as conversationVisible,
+} from './perf-timeline-navigation.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const { values } = parseArgs({
@@ -169,8 +173,17 @@ async function frame(target = page) {
 async function capture(name, target = page, selector = panel) {
   await dismiss(target);
   await target.bringToFront();
+  assert.ok(
+    await conversationVisible(target),
+    'A hidden mounted conversation is not visible UI evidence.',
+  );
   const section = await target.$(selector);
   if (section) await section.evaluate((node) => node.scrollIntoView({ block: 'start' }));
+  if (section)
+    assert.ok(
+      await section.isIntersectingViewport(),
+      'The captured GenUI section must intersect the viewport.',
+    );
   await new Promise((resolve) => setTimeout(resolve, 200));
   const path = join(out, `${name}.png`);
   await target.screenshot({ path });
@@ -239,6 +252,15 @@ async function revealPublished(selector) {
   const button = await page.$(latest);
   if (button && (await button.boundingBox())) await button.click();
   await page.waitForSelector(selector);
+}
+
+async function restoreConversation() {
+  if (!(await conversationVisible(page)))
+    await openTimelineConversation(page, channelId, () => dismiss(page));
+  assert.ok(
+    await conversationVisible(page),
+    'Changing responsive layout must reopen the actual conversation.',
+  );
 }
 
 try {
@@ -513,6 +535,7 @@ try {
   await page.evaluate(() => document.body.removeAttribute('data-ds-dark-theme'));
   await capture('13-light');
   await page.setViewport({ width: 800, height: 1100 });
+  await restoreConversation();
   await capture('14-narrow-web-not-native');
   if (values.pele) {
     for (const theme of ['light', 'dark']) {
@@ -523,6 +546,7 @@ try {
       );
       for (const width of [1440, 800]) {
         await page.setViewport({ width, height: 1100 });
+        await restoreConversation();
         for (const fixture of syntheticGenuiDiagrams) {
           inner = await frame();
           await inner.select('#scene', fixture.id);
@@ -558,6 +582,7 @@ try {
     await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'light' }]);
   }
   await page.setViewport({ width: 1440, height: 1100 });
+  await restoreConversation();
   const refreshed = {
     ...manifest.document,
     snapshotId: `refresh-${runId}`,
