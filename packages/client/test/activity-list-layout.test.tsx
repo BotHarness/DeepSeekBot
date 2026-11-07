@@ -27,9 +27,12 @@ let browser: Awaited<ReturnType<typeof puppeteer.launch>>;
 beforeAll(async () => {
   browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
 }, 60_000);
-afterAll(async () => {
-  await browser?.close();
-}, 30_000);
+afterAll(
+  async () => {
+    await browser?.close();
+  },
+  process.platform === 'win32' ? 120_000 : 30_000,
+);
 
 const actions = createActions(async () => ({ ok: true, value: { items: [] } }), store);
 const source: ActivityListSource = {
