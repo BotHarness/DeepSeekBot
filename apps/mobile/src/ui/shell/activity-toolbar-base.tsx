@@ -52,12 +52,12 @@ export function ActivityToolbar({
     ref,
     () => ({
       dismissSearch() {
-        setSearching(false);
+        if (search === '') setSearching(false);
         onSearchFocus(false);
         Keyboard.dismiss();
       },
     }),
-    [onSearchFocus],
+    [onSearchFocus, search],
   );
   return (
     <>
@@ -136,7 +136,7 @@ export function ActivityToolbar({
                 onChangeText={(value) => onSearch(value.slice(0, 200))}
                 onFocusChange={(focused) => {
                   onSearchFocus(focused);
-                  if (!focused) setSearching(false);
+                  if (!focused && search === '') setSearching(false);
                 }}
                 onClose={() => {
                   onSearchFocus(false);
