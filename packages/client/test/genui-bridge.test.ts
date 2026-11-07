@@ -9,6 +9,15 @@ import {
   type BridgeCall,
 } from '../src/client/bridge.js';
 import { createStore } from '../src/client/store.js';
+import {
+  initialGenuiDocumentState,
+  parseGenuiDocument,
+} from '../../core/src/channels/genui-document.js';
+import {
+  loadGenuiDocumentView,
+  saveGenuiDocumentView,
+  parseGenuiDocumentView,
+} from '../src/client/bridge.js';
 
 const channel = {
   id: 'dm-ada',
@@ -25,6 +34,144 @@ const reply: GenuiReply = {
   selectedIds: ['alpha'],
   intent: 'continue',
 };
+
+const document = parseGenuiDocument({
+  version: 2,
+  snapshotId: 'document-1',
+  title: 'Synthetic document',
+  observedAt: '2026-11-08T00:00:00Z',
+  html: '<p>Synthetic document</p>',
+  stateContract: { version: 1, fields: { count: { type: 'number', initial: 0, min: 0, max: 10 } } },
+});
+
+describe('GenUI document client bridge', () => {
+  it('rejects document payloads at legacy v1 wrappers before any Host call', async () => {
+    const store = createStore();
+    store.setConversation({ status: 'ready', channel, messages: [], revision: 0 });
+    const call = vi.fn<BridgeCall>(async () => ({ ok: true, value: {} }));
+    const mixedView = { ...initialGenuiView(), version: 1, values: {} };
+    await expect(
+      saveGenuiView(call, channel.id, 'message-1', 'snapshot-1', 0, mixedView),
+    ).rejects.toThrow();
+    const mixedReply = { ...reply, version: 2, state: initialGenuiDocumentState(document) };
+    await expect(
+      createActions(call, store).sendGenuiReply(channel.id, 'Continue', 'uuid', mixedReply),
+    ).rejects.toThrow();
+    expect(call).not.toHaveBeenCalled();
+  });
+  it('uses the existing RPC and validates both request and response against the registered contract', async () => {
+    const state = initialGenuiDocumentState(document);
+    const call = vi.fn<BridgeCall>(async () => ({ ok: true, value: { version: 2, state } }));
+    await expect(
+      loadGenuiDocumentView(call, channel.id, 'document-message', document),
+    ).resolves.toEqual({ version: 2, state });
+    expect(call).toHaveBeenLastCalledWith(
+      'channelGenuiView',
+      { channelId: channel.id, messageId: 'document-message' },
+      undefined,
+    );
+    await saveGenuiDocumentView(call, channel.id, 'document-message', document, 1, state);
+    expect(call).toHaveBeenLastCalledWith(
+      'channelGenuiViewSave',
+      {
+        channelId: channel.id,
+        messageId: 'document-message',
+        snapshotId: document.snapshotId,
+        expectedVersion: 1,
+        state,
+      },
+      undefined,
+    );
+    call.mockClear();
+    await expect(
+      saveGenuiDocumentView(call, channel.id, 'document-message', document, 1, {
+        version: 1,
+        values: { count: 11 },
+      }),
+    ).rejects.toThrow();
+    expect(call).not.toHaveBeenCalled();
+    expect(() =>
+      parseGenuiDocumentView(
+        { version: 1, state: { version: 1, values: { count: 11 } } },
+        document,
+      ),
+    ).toThrow();
+    expect(() => parseGenuiView({ version: 1, state })).toThrow();
+    expect(() =>
+      parseGenuiDocumentView({ version: 1, state: initialGenuiView() }, document),
+    ).toThrow();
+  });
+
+  it.each([-1, 0.5, Infinity, '1', undefined])(
+    'rejects malformed document CAS version %s',
+    (version) => {
+      expect(() =>
+        parseGenuiDocumentView({ version, state: initialGenuiDocumentState(document) }, document),
+      ).toThrow();
+    },
+  );
+
+  it('sends a v2 ordinary Human message and fences stale channels', async () => {
+    const store = createStore();
+    store.setConversation({ status: 'ready', channel, messages: [], revision: 0 });
+    const reply = {
+      version: 2 as const,
+      messageId: 'document-message',
+      snapshotId: document.snapshotId,
+      intent: 'continue' as const,
+      state: initialGenuiDocumentState(document),
+    };
+    const call = vi.fn<BridgeCall>(async (endpoint, payload) => {
+      if (endpoint === 'channelSend')
+        return {
+          ok: true,
+          value: {
+            message: {
+              id: payload['messageId'],
+              at: channel.createdAt,
+              body: payload['body'],
+              author: { kind: 'human' },
+              genuiReply: payload['genuiReply'],
+            },
+          },
+        };
+      if (endpoint === 'channelTimeline')
+        return {
+          ok: true,
+          value: {
+            revision: 1,
+            page: {
+              entries: [],
+              olderCursor: null,
+              newerCursor: null,
+              hasOlder: false,
+              hasNewer: false,
+            },
+          },
+        };
+      throw new Error(`Unexpected call: ${endpoint}`);
+    });
+    const actions = createActions(call, store);
+    await actions.sendGenuiDocumentReply(channel.id, 'Continue', 'stable-uuid', reply);
+    expect(call).toHaveBeenNthCalledWith(
+      1,
+      'channelSend',
+      { channelId: channel.id, body: 'Continue', messageId: 'stable-uuid', genuiReply: reply },
+      undefined,
+    );
+    expect(call).toHaveBeenNthCalledWith(
+      2,
+      'channelTimeline',
+      { channelId: channel.id },
+      undefined,
+    );
+    call.mockClear();
+    await expect(
+      actions.sendGenuiDocumentReply('dm-stale', 'Continue', 'stable-uuid', reply),
+    ).rejects.toMatchObject({ code: 'genui-unavailable' });
+    expect(call).not.toHaveBeenCalled();
+  });
+});
 
 describe('GenUI client bridge', () => {
   it('loads and saves only the Host-owned view using the exact snapshot and CAS version', async () => {

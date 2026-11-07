@@ -1,5 +1,5 @@
 import { allBotPreview, assertAllBotPreview, type AllBotPreview } from './all-bot-mention.js';
-import { GenuiError, initialGenuiView, parseGenuiReport, validateGenuiView } from './genui.js';
+import { GenuiError, genuiPrivateView, parseGenuiContent } from './genui.js';
 import { projectBridgeMessage } from '../messaging/channel-target.js';
 import { assertGenuiMessage } from './genui-message.js';
 import type { ExternalSource } from '../messaging/inbound.js';
@@ -3159,7 +3159,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     },
     genuiView(channelId, messageId) {
       const message = readGenuiMessage(channelId, messageId);
-      const report = parseGenuiReport(message.genui);
+      const report = parseGenuiContent(message.genui);
       return database.read((db) => {
         const row = db
           .prepare(
@@ -3169,8 +3169,8 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
           | { version: number; state_json: string }
           | undefined;
         return row === undefined
-          ? { version: 0, state: initialGenuiView() }
-          : { version: row.version, state: validateGenuiView(report, JSON.parse(row.state_json)) };
+          ? genuiPrivateView(report, 0)
+          : genuiPrivateView(report, row.version, JSON.parse(row.state_json));
       });
     },
     saveGenuiView(channelId, messageId, snapshotId, expectedVersion, value) {
@@ -3185,7 +3185,14 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
             expectedVersion >= Number.MAX_SAFE_INTEGER
           )
             throw new GenuiError('invalid-genui', 'Expected view version is invalid.');
-          const state = validateGenuiView(parseGenuiReport(message.genui), value);
+          if (value === undefined)
+            throw new GenuiError('invalid-genui', 'An explicit private view state is required.');
+          const view = genuiPrivateView(
+            parseGenuiContent(message.genui),
+            expectedVersion + 1,
+            value,
+          );
+          const state = view.state;
           const humanId = humanIdentity().humanId;
           const row = db
             .prepare(
@@ -3208,7 +3215,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
             version,
             JSON.stringify(state),
           );
-          return { version, state };
+          return view;
         });
       } catch (error) {
         if (error instanceof OperationalDatabaseError && error.cause instanceof GenuiError)

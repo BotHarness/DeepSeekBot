@@ -1,5 +1,6 @@
 import type { BotImportsService } from '../bots/imports.js';
-import type { GenuiReply, GenuiView, GenuiViewState } from '../channels/genui.js';
+import type { GenuiMessageReply, GenuiPrivateView, GenuiViewState } from '../channels/genui.js';
+import type { GenuiDocumentState } from '../channels/genui-document.js';
 import { isAuthenticatedOwner } from './owner-compat.js';
 import type {
   VoiceProvidersView,
@@ -1864,7 +1865,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     grantRequestResolution?: ChannelMessage['grantRequestResolution'],
     assignmentReply?: ChannelMessage['assignmentReply'],
     allBotMention?: AllBotMention,
-    genuiReply?: GenuiReply,
+    genuiReply?: GenuiMessageReply,
   ): Promise<{ message: ChannelMessage }> {
     return unwrap(
       await this.methods.channelSend({
@@ -1884,7 +1885,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     );
   }
 
-  channelGenuiView(channelId: string, messageId: string): GenuiView {
+  channelGenuiView(channelId: string, messageId: string): GenuiPrivateView {
     return unwrap(this.methods.channelGenuiView({ channelId, messageId }));
   }
   channelGenuiViewSave(
@@ -1892,8 +1893,8 @@ export class BotharnessBridgeService extends TypertRemoteService {
     messageId: string,
     snapshotId: string,
     expectedVersion: number,
-    state: GenuiViewState,
-  ): GenuiView {
+    state: GenuiViewState | GenuiDocumentState,
+  ): GenuiPrivateView {
     return unwrap(
       this.methods.channelGenuiViewSave({
         channelId,

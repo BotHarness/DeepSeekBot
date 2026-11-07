@@ -3,7 +3,6 @@ import {
   validateGenuiView,
   type GenuiReport,
   type GenuiReply,
-  type GenuiView,
   type GenuiViewState,
 } from '../../../core/src/channels/genui.js';
 
@@ -16,16 +15,17 @@ type ViewStatus =
   | 'conflict'
   | 'resolving'
   | 'conflict-ready';
-interface ViewActions {
-  genuiView(channelId: string, messageId: string): Promise<GenuiView>;
+export interface PrivateViewActions<State> {
+  genuiView(channelId: string, messageId: string): Promise<{ version: number; state: State }>;
   saveGenuiView(
     channelId: string,
     messageId: string,
     snapshotId: string,
     version: number,
-    state: GenuiViewState,
-  ): Promise<GenuiView>;
+    state: State,
+  ): Promise<{ version: number; state: State }>;
 }
+type ViewActions = PrivateViewActions<GenuiViewState>;
 interface SubmissionAttempt {
   payload: string;
   id: string;
@@ -56,11 +56,12 @@ export function getGenuiPrivateView(
   return view;
 }
 
-export class GenuiPrivateView {
+export class PrivateViewController<State> {
   private snapshot: {
-    state: GenuiViewState;
+    state: State;
     status: ViewStatus;
     sendStatus: 'idle' | 'sending' | 'sent' | 'error';
+    available: boolean;
   };
   readonly attempts: Record<GenuiReply['intent'], SubmissionAttempt | undefined> = {
     continue: undefined,
@@ -75,15 +76,18 @@ export class GenuiPrivateView {
   private timer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(
-    private report: GenuiReport,
+    private snapshotId: string,
     private channelId: string,
     private messageId: string,
-    private actions?: ViewActions,
+    private actions: PrivateViewActions<State> | undefined,
+    private initial: () => State,
+    private validate: (value: unknown) => State,
   ) {
     this.snapshot = {
-      state: initialGenuiView(),
+      state: initial(),
       status: actions ? 'loading' : 'ready',
       sendStatus: 'idle',
+      available: true,
     };
   }
 
@@ -121,14 +125,14 @@ export class GenuiPrivateView {
       }, 600);
   }
 
-  edit = (next: GenuiViewState) => {
-    const state = validateGenuiView(this.report, next);
+  edit = (next: State) => {
+    const state = this.validate(next);
     this.changed++;
     this.update(this.snapshot.status, state);
   };
 
   reload = () => this.load(true);
-  reset = () => this.edit(initialGenuiView());
+  reset = () => this.edit(this.initial());
   private load = async (discard: boolean) => {
     const current = ++this.generation;
     if (!this.actions) return;
@@ -137,7 +141,8 @@ export class GenuiPrivateView {
     try {
       const view = await this.actions.genuiView(this.channelId, this.messageId);
       if (this.generation !== current) return;
-      const state = validateGenuiView(this.report, view.state);
+      const state = this.validate(view.state);
+      this.snapshot = { ...this.snapshot, available: true };
       if (
         !discard &&
         this.changed !== this.saved &&
@@ -151,12 +156,7 @@ export class GenuiPrivateView {
       this.update('ready', state);
     } catch (error) {
       if (this.generation === current) {
-        if (error instanceof Error && 'code' in error && error.code === 'genui-unavailable') {
-          this.changed = this.saved = 0;
-          this.attempts.continue = this.attempts.refresh = undefined;
-          this.snapshot = { ...this.snapshot, sendStatus: 'idle' };
-          this.update('load-error', initialGenuiView());
-        } else this.update('load-error');
+        if (!this.accessLost(error)) this.update('load-error');
       }
     } finally {
       if (this.generation === current) this.pending = false;
@@ -164,7 +164,13 @@ export class GenuiPrivateView {
   };
 
   save = async () => {
-    if (!this.actions || this.pending || this.changed === this.saved) return;
+    if (
+      !this.actions ||
+      this.pending ||
+      this.changed === this.saved ||
+      !['ready', 'save-error', 'conflict-ready'].includes(this.snapshot.status)
+    )
+      return;
     this.pending = true;
     const current = this.generation;
     const savingRevision = this.changed;
@@ -174,22 +180,24 @@ export class GenuiPrivateView {
       const view = await this.actions.saveGenuiView(
         this.channelId,
         this.messageId,
-        this.report.snapshotId,
+        this.snapshotId,
         this.version,
         state,
       );
       if (this.generation !== current) return;
-      validateGenuiView(this.report, view.state);
+      this.validate(view.state);
       this.version = view.version;
       this.saved = savingRevision;
       this.update('ready');
     } catch (error) {
-      if (this.generation === current)
+      if (this.generation === current) {
+        if (this.accessLost(error)) return;
         this.update(
           error instanceof Error && 'code' in error && error.code === 'genui-view-conflict'
             ? 'conflict'
             : 'save-error',
         );
+      }
     } finally {
       if (this.generation === current) this.pending = false;
     }
@@ -203,13 +211,33 @@ export class GenuiPrivateView {
     try {
       const view = await this.actions.genuiView(this.channelId, this.messageId);
       if (this.generation !== current) return;
-      validateGenuiView(this.report, view.state);
+      this.validate(view.state);
       this.version = view.version;
       this.update('conflict-ready');
-    } catch {
-      if (this.generation === current) this.update('conflict');
+    } catch (error) {
+      if (this.generation === current && !this.accessLost(error)) this.update('conflict');
     } finally {
       if (this.generation === current) this.pending = false;
     }
   };
+
+  accessLost = (error: unknown) => {
+    if (!(error instanceof Error) || !('code' in error) || error.code !== 'genui-unavailable')
+      return false;
+    this.generation++;
+    this.pending = false;
+    this.changed = this.saved = 0;
+    this.attempts.continue = this.attempts.refresh = undefined;
+    this.snapshot = { ...this.snapshot, sendStatus: 'idle', available: false };
+    this.update('load-error', this.initial());
+    return true;
+  };
+}
+
+export class GenuiPrivateView extends PrivateViewController<GenuiViewState> {
+  constructor(report: GenuiReport, channelId: string, messageId: string, actions?: ViewActions) {
+    super(report.snapshotId, channelId, messageId, actions, initialGenuiView, (value) =>
+      validateGenuiView(report, value),
+    );
+  }
 }

@@ -650,7 +650,7 @@ export interface OrchestratorChannelAccess {
     yieldToMessageIds?: string[];
   }): import('../channels/send-review.js').SendReviewOutcome;
   send(input: {
-    genui?: import('../channels/genui.js').GenuiReport;
+    genui?: import('../channels/genui.js').GenuiContent;
     replySourceEventId?: string;
     observationId?: string;
     draftId?: string;

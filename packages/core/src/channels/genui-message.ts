@@ -1,5 +1,5 @@
 import type { ChannelMessage, ChannelRecord } from './channel.js';
-import { GenuiError, parseGenuiReport, validateGenuiReply } from './genui.js';
+import { GenuiError, parseGenuiContent, validateGenuiMessageReply } from './genui.js';
 
 export function assertGenuiMessage(
   channel: ChannelRecord,
@@ -18,7 +18,7 @@ export function assertGenuiMessage(
         'invalid-genui',
         'Reports require an explicit Bot message with a summary in its Human DM.',
       );
-    const report = parseGenuiReport(message.genui);
+    const report = parseGenuiContent(message.genui);
     if (
       previous.some(
         (entry) => entry.genui?.snapshotId === report.snapshotId && entry.id !== message.id,
@@ -44,6 +44,6 @@ export function assertGenuiMessage(
       message.replyTo !== target.id
     )
       throw new GenuiError('genui-unavailable', 'The report is unavailable in this Channel.');
-    validateGenuiReply(parseGenuiReport(target.genui), message.genuiReply);
+    validateGenuiMessageReply(parseGenuiContent(target.genui), message.genuiReply);
   }
 }

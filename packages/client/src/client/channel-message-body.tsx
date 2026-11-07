@@ -53,6 +53,7 @@ import { messagePerfView } from './message-perf.js';
 import { store, type BotSummary, type ChannelMessage } from './store.js';
 import { useMountedResource } from './mounted-resource.js';
 import { GenuiReportCard } from './genui-report.js';
+import { GenuiDocumentCard } from './genui-document.js';
 
 const ChannelMarkdownText = MarkdownText as unknown as (
   props: Parameters<typeof MarkdownText>[0],
@@ -881,15 +882,26 @@ export function ChannelMessageBody({
           ) : null}
         </div>
       )}
+      {message.genuiUnavailable && <p role="status">{t('genui.documentUnsupported')}</p>}
       {message.genui !== undefined && (
         <div className="bh-bubble-body">
-          <GenuiReportCard
-            report={message.genui}
-            channelId={channelId ?? ''}
-            messageId={message.id}
-            {...(interactiveReport && actions ? { actions } : {})}
-            t={t}
-          />
+          {message.genui.version === 2 ? (
+            <GenuiDocumentCard
+              document={message.genui}
+              channelId={channelId ?? ''}
+              messageId={message.id}
+              {...(interactiveReport && actions ? { actions } : {})}
+              t={t}
+            />
+          ) : (
+            <GenuiReportCard
+              report={message.genui}
+              channelId={channelId ?? ''}
+              messageId={message.id}
+              {...(interactiveReport && actions ? { actions } : {})}
+              t={t}
+            />
+          )}
         </div>
       )}
       {fileAttachments?.length ? (

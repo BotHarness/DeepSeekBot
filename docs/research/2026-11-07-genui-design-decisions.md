@@ -2,6 +2,8 @@
 
 Date: 2026-11-07 (Asia/Tokyo)
 
+Later amendment, 2026-11-08: the Human explicitly preferred T3 Code-style rich content. [ADR-0276](../adr/0276-genui-rich-documents-use-isolated-html.md) supersedes the declarative-only/per-platform-native rendering choice below, while retaining ordinary-message and authority boundaries. This interview remains the historical Q1–Q15 record, not the latest renderer decision.
+
 Status: Q1–Q15 and the final shared understanding are Human-confirmed, including the corrected ordinary-message semantics in Q11 and trusted per-platform rendering in Q13. The architecture is recorded in [ADR-0275](../adr/0275-genui-is-ordinary-message-content.md) and the living architecture; this file retains the interview evidence. The Human authorized specification and tracer-bullet issue planning; the published specification is [#3684](https://github.com/BotHarness/DeepSeekBot/issues/3684). No dependency, concrete wire schema or product implementation is approved.
 
 ## Purpose and authority

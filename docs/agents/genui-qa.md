@@ -1,5 +1,43 @@
 # GenUI T1 verification matrix
 
+## HTML document candidate
+
+The current #3685 direction is version-2 isolated HTML, not expansion of the version-1 catalog below. Run the production-shaped HTML journey against a task-owned Host:
+
+```bash
+BH_E2E_INSTANCE=.humanlayer/verify/<name>/instance.json \
+  node scripts/e2e-genui-documents.mjs --out <private-evidence-directory>
+```
+
+It creates a synthetic Bot, invokes the model-free `genui_preview` Tool, explicitly publishes the document, and drives its actual isolated frames. It closes its own browser; the caller owns the Host. Default captures are headed. Keep every failure in its original run directory.
+
+| Content or interaction               | Required evidence                                                 |
+| ------------------------------------ | ----------------------------------------------------------------- |
+| Composed document                    | Readable ordinary summary plus rich HTML                          |
+| Metrics, comparison, table           | One screenshot per independently selected scene                   |
+| Bar, line, donut                     | SVG rendering with readable equivalent labels                     |
+| Flow, relationships, timeline        | One screenshot per diagram/content scene                          |
+| Filter, no matches, numeric sort     | Visible result and bounded canonical private state                |
+| Selection and details                | Local changes without Channel messages                            |
+| Reopen and another authorized Client | Restored exact snapshot values                                    |
+| CAS conflict and explicit save       | Draft retained, no silent overwrite                               |
+| Reset, Continue and Refresh          | Trusted controls, visible Human message, appended linked snapshot |
+| Light, dark and narrow Web           | Actual theme and viewport recorded, never called native evidence  |
+
+These nine fixture scenes are examples of arbitrary self-contained documents, **not** nine protocol component types or exhaustive coverage of possible HTML. New supported journeys extend the fixture and scene index. Approval/Question/private-input owners remain separate.
+
+Run `BH_GENUI_BROWSER_QA=1 pnpm exec vitest run packages/core/test/genui-html-browser.test.ts --maxWorkers=1` separately for real Chromium loading and blocked fetch, image, stylesheet, frame, form, navigation, refresh and popup requests. It does not intercept requests to manufacture a pass. Unit tests cover checked bridge messages, retained drafts, stale instances, retries and owner limits. None replaces installed WebView or desktop-shell validation.
+
+**Unresolved execution boundary:** iframe sandbox/CSP restrict capabilities, not CPU or memory. The heartbeat, startup deadline, height/message limits and reload state do not guarantee recovery when generated code blocks the Client event loop. Hard independently interruptible execution/memory containment remains a release gate; do not run untrusted runaway-script fixtures in the Human's daily browser or claim the candidate is production-qualified.
+
+## Offline Pele and default-style slice (#3691)
+
+Add `--pele` to `scripts/e2e-genui-documents.mjs`. Before publication it invokes the real online `genui_diagram` Tool through the existing CLI, five times for each frozen flowchart/sequence/XY fixture. It checks stable SVG identities, records CLI durations and embeds exactly those SVG bytes into the ordinary v2 document. Extra selectable scenes retain the original nine examples and all existing interaction checks. It captures each compiled scene in light/dark and wide/narrow Web with explicit captions, CJK and numeric data equivalents, and checks borderless grouping and theme-token mapping.
+
+These compiler/CLI timings are not a Pele-versus-Mermaid comparison or foreground timeline measurement. SVG scales without promising exact narrow-device re-layout or loaded-font measurement. Images remain private staging for the future PR; final-head binding, privacy review, R2 publication/readback and GitHub rendering verification are still required. No native qualification is implied.
+
+## Historical version-1 report candidate
+
 Use this matrix for #3685. A passing parser, unit test or publication RPC is not evidence that a report renders or that an interaction works in the Web Client. Test through the existing canonical publication, private-view and ordinary Human-message owners.
 
 ## Run the Web journey

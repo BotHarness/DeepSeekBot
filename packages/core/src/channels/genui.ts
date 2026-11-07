@@ -1,4 +1,13 @@
 import { z } from 'zod';
+import {
+  initialGenuiDocumentState,
+  parseGenuiDocument,
+  validateGenuiDocumentReply,
+  validateGenuiDocumentState,
+  type GenuiDocument,
+  type GenuiDocumentReply,
+  type GenuiDocumentView,
+} from './genui-document.js';
 
 export const GENUI_LIMITS = Object.freeze({
   bytes: 65_536,
@@ -75,6 +84,44 @@ export type GenuiViewState = z.infer<typeof genuiViewSchema>;
 export interface GenuiView {
   version: number;
   state: GenuiViewState;
+}
+
+export type GenuiContent = GenuiReport | GenuiDocument;
+export type GenuiMessageReply = GenuiReply | GenuiDocumentReply;
+export type GenuiPrivateView = GenuiView | GenuiDocumentView;
+
+export function parseGenuiContent(value: unknown): GenuiContent {
+  return typeof value === 'object' && value !== null && 'version' in value && value.version === 2
+    ? parseGenuiDocument(value)
+    : parseGenuiReport(value);
+}
+
+export function validateGenuiMessageReply(
+  content: GenuiContent,
+  value: unknown,
+): GenuiMessageReply {
+  return content.version === 2
+    ? validateGenuiDocumentReply(content, value)
+    : validateGenuiReply(content, value);
+}
+
+export function genuiPrivateView(
+  content: GenuiContent,
+  version: number,
+  value?: unknown,
+): GenuiPrivateView {
+  return content.version === 2
+    ? {
+        version,
+        state:
+          value === undefined
+            ? initialGenuiDocumentState(content)
+            : validateGenuiDocumentState(content, value),
+      }
+    : {
+        version,
+        state: value === undefined ? initialGenuiView() : validateGenuiView(content, value),
+      };
 }
 
 export class GenuiError extends Error {

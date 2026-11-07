@@ -8,12 +8,17 @@ import { clientLog } from './diagnostic-log.js';
 import {
   genuiReplySchema,
   genuiViewSchema,
-  parseGenuiReport,
-  type GenuiReport,
-  type GenuiReply,
+  parseGenuiContent,
+  type GenuiMessageReply,
   type GenuiView,
   type GenuiViewState,
 } from '../../../core/src/channels/genui.js';
+import {
+  genuiDocumentReplySchema,
+  validateGenuiDocumentState,
+  type GenuiDocument,
+  type GenuiDocumentState,
+} from '../../../core/src/channels/genui-document.js';
 import { parseToolApprovalActor } from '../../../core/src/workspaces/tool-approval-actor.js';
 import { isChannelVoiceCallRecord } from '../../../core/src/channels/voice-call-record.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
@@ -1040,16 +1045,21 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
   if (typeof body !== 'string') return undefined;
   const author = parseAuthor(record['author']);
   if (author === undefined) return undefined;
-  let genui: GenuiReport | undefined;
+  let genui: ReturnType<typeof parseGenuiContent> | undefined;
   if (author.kind === 'bot' && record['genui'] !== undefined) {
     try {
-      genui = parseGenuiReport(record['genui']);
+      genui = parseGenuiContent(record['genui']);
     } catch {
       genui = undefined;
     }
   }
   const parsedGenuiReply =
-    author.kind === 'human' ? genuiReplySchema.safeParse(record['genuiReply']) : undefined;
+    author.kind === 'human'
+      ? (asRecord(record['genuiReply'])?.['version'] === 2
+          ? genuiDocumentReplySchema
+          : genuiReplySchema
+        ).safeParse(record['genuiReply'])
+      : undefined;
   const genuiReply = parsedGenuiReply?.success ? parsedGenuiReply.data : undefined;
   const perf = author.kind === 'bot' ? parseMessagePerf(record['perf']) : undefined;
   const memorySwitchTarget = record['memorySwitchTarget'];
@@ -1757,6 +1767,9 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       : {}),
     ...(memorySwitchTarget === undefined ? {} : { memorySwitchTarget }),
     ...(genui === undefined ? {} : { genui }),
+    ...(record['genui'] !== undefined && genui === undefined && author.kind === 'bot'
+      ? { genuiUnavailable: true as const }
+      : {}),
     ...(genuiReply === undefined ? {} : { genuiReply }),
     ...(mentions === undefined
       ? {}
@@ -4062,7 +4075,7 @@ export async function sendChannelMessage(
   grantRequestResolution?: ChannelMessage['grantRequestResolution'],
   assignmentReply?: ChannelMessage['assignmentReply'],
   allBotMention?: AllBotMention,
-  genuiReply?: GenuiReply,
+  genuiReply?: GenuiMessageReply,
 ): Promise<ChannelMessage> {
   const value = await unwrap(
     call,
@@ -4118,6 +4131,7 @@ export async function saveGenuiView(
   expectedVersion: number,
   state: GenuiViewState,
 ): Promise<GenuiView> {
+  state = genuiViewSchema.parse(state);
   return parseGenuiView(
     await unwrap(call, 'channelGenuiViewSave', {
       channelId,
@@ -4126,6 +4140,52 @@ export async function saveGenuiView(
       expectedVersion,
       state,
     }),
+  );
+}
+
+export function parseGenuiDocumentView(
+  value: unknown,
+  document: GenuiDocument,
+): {
+  version: number;
+  state: GenuiDocumentState;
+} {
+  const record = asRecord(value);
+  const version = record?.['version'];
+  if (typeof version !== 'number' || !Number.isSafeInteger(version) || version < 0)
+    throw new Error('Invalid private document view');
+  return { version, state: validateGenuiDocumentState(document, record?.['state']) };
+}
+
+export async function loadGenuiDocumentView(
+  call: BridgeCall,
+  channelId: string,
+  messageId: string,
+  document: GenuiDocument,
+) {
+  return parseGenuiDocumentView(
+    await unwrap(call, 'channelGenuiView', { channelId, messageId }),
+    document,
+  );
+}
+
+export async function saveGenuiDocumentView(
+  call: BridgeCall,
+  channelId: string,
+  messageId: string,
+  document: GenuiDocument,
+  expectedVersion: number,
+  state: GenuiDocumentState,
+) {
+  return parseGenuiDocumentView(
+    await unwrap(call, 'channelGenuiViewSave', {
+      channelId,
+      messageId,
+      snapshotId: document.snapshotId,
+      expectedVersion,
+      state: validateGenuiDocumentState(document, state),
+    }),
+    document,
   );
 }
 

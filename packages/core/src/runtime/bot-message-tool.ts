@@ -5,7 +5,8 @@ import {
 } from '../messaging/mention-text.js';
 import { isChannelAttachmentRef } from '../attachments/ref.js';
 import { createHash } from 'node:crypto';
-import { parseGenuiReport } from '../channels/genui.js';
+import { parseGenuiContent } from '../channels/genui.js';
+import { GENUI_DOCUMENT_LIMITS } from '../channels/genui-document.js';
 import { SendReviewRequired, GroupReplySourceRevoked } from '../channels/send-review.js';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import type { ChannelMessage } from '../channels/channel.js';
@@ -187,7 +188,7 @@ export function createBotMessageTool(
       genui_json: {
         type: 'string',
         description:
-          'Optional complete report JSON for a Human DM only (64 KiB maximum). version:1, snapshotId, observedAt ISO date, title, columns:[{id,label,kind:text|number}], rows:[{id,values,details?}], elements:[{kind:metric,label,value}|{kind:table,columnIds}|{kind:bar-chart,labelColumnId,valueColumnId}]. At most 100 rows, 8 columns, 12 elements. body is the readable summary. Refresh uses a new snapshotId and predecessorMessageId. No executable content or callbacks.',
+          'Optional complete GenUI JSON for a Human DM only (256 KiB maximum). Prefer version:2, snapshotId, observedAt ISO date, title, html (self-contained HTML/CSS/local JavaScript, at most 192 KiB UTF-8). No network or external resources. The isolated compiler provides the global genui bridge; no Host APIs. Optional stateContract:{version:1,fields:{key:{type:string|number|boolean|choice,initial,...}}} declares at most 16 primitive fields (string maxLength<=500; number min/max; choice options<=20). Legacy version:1 reports remain supported within 64 KiB. body is the readable summary. Refresh uses a new snapshotId and predecessorMessageId.',
       },
       resolve_inbox_ids: {
         type: 'array',
@@ -269,9 +270,9 @@ export function createBotMessageTool(
                   'unsupported-genui-destination',
                   'Reports require a Human DM and a readable summary.',
                 );
-              if (args.genui_json.length > 65_536)
+              if (new TextEncoder().encode(args.genui_json).length > GENUI_DOCUMENT_LIMITS.bytes)
                 throw new BotMessageError('invalid-genui', 'Report JSON exceeds its budget.');
-              return parseGenuiReport(JSON.parse(args.genui_json));
+              return parseGenuiContent(JSON.parse(args.genui_json));
             })();
       if (
         args.freshness_override &&

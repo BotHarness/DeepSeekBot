@@ -4,6 +4,8 @@ Reading a Bot DM or group: where the timeline opens, how it keeps your place, an
 
 ## Sub-features
 
+- `genui-document` renders version-2 self-contained HTML in an ordinary Web Bot DM message, keeping its readable summary. Run `scripts/e2e-genui-documents.mjs` with `BH_E2E_INSTANCE` pointing to this task's isolated Host. It creates synthetic data and uses the direct preview/publication Tools, actual isolated frames, nine rich-content scenes, filtering/sorting/selection, private-state restoration, CAS conflict resolution and ordinary Human continuation with appended refresh. The [GenUI matrix](../../../../docs/agents/genui-qa.md) owns the complete scene list and release gaps. Capability isolation is not hard CPU/memory interruption; this candidate does not qualify desktop-shell, installed mobile, foreground performance or Human acceptance.
+
 - `genui-report` renders a synthetic version-1 comparison report in an ordinary Web Bot DM message, after its readable summary. Publish through `deepseekbot bot-tool <bot-id> bot_send_message` with complete `genui_json` from `packages/core/test/fixtures/genui-report.ts`. Filter, sort, expand details, select rows, switch Table/Chart and Reset without Channel writes or model calls; wait for the 600 ms private-view save. Reopen and connect a second authorized Web client to the same Host: recover the same view, retain a stale client's draft on conflict, and require reload or explicit save after fetching the current version. Continue with selection and Refresh produce ordinary visible Human messages with exact report references; correlate canonical Source Event and Admission, retry the same request id, then explicitly publish a linked new snapshot. Unsupported reports retain the summary. Test keyboard, large text, dark/light, table-equivalent chart data, invalid references, access loss and purge. CLI `genui-view`, `genui-view-save` and `genui-submit` use the same Host owners; full wire examples are in `docs/bot-cli.md`. This Web slice is not desktop-shell, installed-native or Human acceptance evidence.
 
 - `static-avatars` keeps ordinary UI Bot portraits static in the timeline, Channels roster, headers, Group stacks and member/receipt surfaces. Generated portraits use SVG images instead of inline SVG descendants; Activity and attention remain independent static markers with truthful accessible labels. Still companions retain inline SVG head anchors; only explicitly enabled Window Companions retain their separate animation path.
@@ -42,6 +44,10 @@ Reading a Bot DM or group: where the timeline opens, how it keeps your place, an
 - In a group Channel, open Members in the Channel sidebar. Right-click a Bot row (or use its ellipsis button / Shift+F10), then choose Mention (`@ TA` in Chinese).
 
 ## Driving it with verify-app
+
+### GenUI offline diagrams and default style (#3691)
+
+Add `--pele` to the HTML journey in `scripts/e2e-genui-documents.mjs`. Verify actual direct-CLI flowchart/sequence/XY compilation, immutable SVG publication, borderless semantic surfaces, distinct series and captions, plus light/dark and wide/narrow scene captures. Preserve the original rich scenes, private state and Human-continuation checks. Compiler timing is separate from foreground performance; this does not clear #3685's HTML execution or installed-native gates.
 
 ### GenUI report catalog (#3685)
 

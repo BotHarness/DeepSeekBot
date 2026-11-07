@@ -325,14 +325,14 @@ export interface CreateChannelGroupInput {
 }
 
 export interface ChannelStore {
-  genuiView?(channelId: string, messageId: string): import('./genui.js').GenuiView;
+  genuiView?(channelId: string, messageId: string): import('./genui.js').GenuiPrivateView;
   saveGenuiView?(
     channelId: string,
     messageId: string,
     snapshotId: string,
     expectedVersion: number,
     state: unknown,
-  ): import('./genui.js').GenuiView;
+  ): import('./genui.js').GenuiPrivateView;
   rootDir: string;
   humanIdentity(): LocalHumanIdentity;
   setHumanDefaultName(displayName: string | null): LocalHumanIdentity;

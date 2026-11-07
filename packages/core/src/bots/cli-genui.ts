@@ -1,6 +1,7 @@
 import { readFileSync, statSync } from 'node:fs';
 import { z } from 'zod';
 import { genuiReplySchema, genuiViewSchema } from '../channels/genui.js';
+import { genuiDocumentReplySchema, genuiDocumentStateSchema } from '../channels/genui-document.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
 
@@ -9,14 +10,14 @@ export const GENUI_OPTIONS = {
   'genui-stdin': { type: 'boolean' },
 } as const;
 export const GENUI_COMMANDS = [
-  { command: 'genui-view', description: 'read your private report view from the live Host' },
+  { command: 'genui-view', description: 'read your private GenUI view from the live Host' },
   {
     command: 'genui-view-save',
-    description: 'save a bounded report view with its expected version',
+    description: 'save a bounded GenUI view with its expected version',
   },
   {
     command: 'genui-submit',
-    description: 'submit report context as an ordinary Human Channel message',
+    description: 'submit GenUI context as an ordinary Human Channel message',
   },
 ] as const;
 
@@ -65,7 +66,7 @@ export async function runGenuiCommand(
           .int()
           .nonnegative()
           .max(Number.MAX_SAFE_INTEGER - 1),
-        state: genuiViewSchema,
+        state: z.union([genuiViewSchema, genuiDocumentStateSchema]),
       })
       .safeParse(input);
     if (!parsed.success)
@@ -81,7 +82,10 @@ export async function runGenuiCommand(
       'genui-submit requires a stable --message-id human-UUID for safe retries.',
     );
   const parsed = z
-    .strictObject({ body: z.string().trim().min(1).max(2000), genuiReply: genuiReplySchema })
+    .strictObject({
+      body: z.string().trim().min(1).max(2000),
+      genuiReply: z.union([genuiReplySchema, genuiDocumentReplySchema]),
+    })
     .safeParse(input);
   if (!parsed.success)
     throw new CliLiveError(

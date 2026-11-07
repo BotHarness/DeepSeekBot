@@ -25,6 +25,10 @@ import { createHostClient } from '../../../apps/mobile/src/host/client.js';
 import { MessageHostContext } from '../src/client/message-host.js';
 import { initialGenuiView, parseGenuiReport } from '../../core/src/channels/genui.js';
 import { comparisonReport } from '../../core/test/fixtures/genui-report.js';
+import {
+  initialGenuiDocumentState,
+  parseGenuiDocument,
+} from '../../core/src/channels/genui-document.js';
 import { RemoteMessageBody } from '../src/client/remote-message-body.js';
 import type { ConversationMessage } from '../../../apps/mobile/src/host/conversation.js';
 
@@ -115,6 +119,75 @@ describe('GenUI ordinary message integration', () => {
     },
   );
 });
+
+it.each(['dm', 'group'] as const)(
+  'renders v2 guardian content beside the readable summary in %s',
+  async (type) => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const previous = store.getSnapshot().conversation;
+    const channel = {
+      id: `${type}-document`,
+      type,
+      name: 'Synthetic document',
+      members: ['ada'],
+      createdAt: '2026-11-08T00:00:00Z',
+      updatedAt: '2026-11-08T00:00:00Z',
+    };
+    const genui = parseGenuiDocument({
+      version: 2,
+      snapshotId: 'document-1',
+      title: 'Synthetic document',
+      observedAt: channel.createdAt,
+      html: '<p>Synthetic</p>',
+      stateContract: { version: 1, fields: { expanded: { type: 'boolean', initial: false } } },
+    });
+    const message: ChannelMessage = {
+      id: 'document-message',
+      at: channel.createdAt,
+      author: { kind: 'bot', slug: 'ada' },
+      body: 'Always readable document summary',
+      format: 'text',
+      genui,
+    };
+    store.setConversation({ status: 'ready', channel, messages: [message], revision: 0 });
+    const call = vi.fn(async () => ({
+      ok: true as const,
+      value: { version: 0, state: initialGenuiDocumentState(genui) },
+    }));
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    try {
+      await act(async () =>
+        root.render(
+          createElement(ChannelMessageBody, {
+            message,
+            channelId: channel.id,
+            actions: createActions(call, store),
+            t: zhTranslate,
+          }),
+        ),
+      );
+      expect(container.textContent).toContain(message.body);
+      expect(container.querySelector('iframe')?.getAttribute('sandbox')).toBe('allow-scripts');
+      expect(container.querySelector('iframe')?.srcdoc).toContain('genui-guardian');
+      if (type === 'dm')
+        expect(call).toHaveBeenCalledWith(
+          'channelGenuiView',
+          { channelId: channel.id, messageId: message.id },
+          undefined,
+        );
+      else {
+        expect(call).not.toHaveBeenCalled();
+        expect(container.textContent).not.toContain('保存我的视图');
+      }
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+      store.setConversation(previous);
+    }
+  },
+);
 
 it('maintains the DM session without retrying a failed message', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });

@@ -1,12 +1,12 @@
 # GenUI is ordinary message content with private exploration
 
-- Status: Accepted design; Web DM T1 implementation in #3685, qualification tracked separately
+- Status: Message ownership retained; presentation decision superseded by ADR-0276; Web DM T1 candidate in #3685
 - Date: 2026-11-07
 - Authority: Human-confirmed design interview, Q1–Q15
 - Specification: [#3684](https://github.com/BotHarness/DeepSeekBot/issues/3684)
 - First implementation slice: [#3685](https://github.com/BotHarness/DeepSeekBot/issues/3685), milestone v1.8.0
 
-GenUI must let Humans examine visual results and continue the conversation on Web, desktop and native mobile. We choose bounded declarative content in ordinary messages, rather than an independent task-app transcript, model-authored executable UI or callbacks privately bound to the report's publishing Bot. This preserves message visibility, provenance and routing while allowing platform-specific presentation.
+GenUI must let Humans examine visual results and continue the conversation on Web, desktop and native mobile. This decision originally chose bounded declarative content in ordinary messages, rather than an independent task-app transcript, model-authored executable UI or callbacks privately bound to the report's publishing Bot. On 2026-11-08 the Human preferred T3 Code-style rich content; [ADR-0276](0276-genui-rich-documents-use-isolated-html.md) supersedes the declarative-only/native-renderer restriction. Message visibility, provenance, explicit publication and routing remain unchanged. Catalog-specific contracts below describe the original report slice, not the future HTML wire format.
 
 ## Ownership and behavior
 
@@ -17,6 +17,8 @@ GenUI must let Humans examine visual results and continue the conversation on We
 - **Refresh.** An explicit request for fresh data follows ordinary messaging. A completed refresh appends a new report message linked to its predecessor; it does not rewrite the old answer, migrate old selections silently or add an inline revision-management interface. The predecessor relationship is not itself a Source Revision. It does not override ordinary deletion, purge or retention.
 
 ## Presentation decision
+
+Historical presentation choice, superseded by [ADR-0276](0276-genui-rich-documents-use-isolated-html.md). It still describes the existing #3685 candidate, not the current rich-document target.
 
 Share a bounded, versioned semantic catalog, validation rules and interaction meanings. Use trusted DOM presentation for Web/desktop and trusted React Native presentation for mobile. The model composes allowed semantic elements; trusted code owns layout, theme, accessibility and controls. Do not share DOM components into React Native or introduce a universal provider protocol without demonstrated consumers.
 

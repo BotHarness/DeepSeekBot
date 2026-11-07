@@ -4,6 +4,18 @@ import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots';
 export const LOCALE_NS = 'botharness';
 
 export const zh = {
+  'genui.documentFailed': '文档未能运行。消息摘要仍可阅读，可重新载入。',
+  'genui.documentUnsupported': '此文档暂不支持显示，消息摘要仍可阅读。',
+  'genui.documentLoading': '正在载入文档…',
+  'genui.documentReload': '重新载入文档',
+  'genui.documentReadOnly': '此处不支持提交或保存个人视图。',
+  'genui.documentNoState': '此文档不保存个人视图，重新打开后恢复初始状态。',
+  'genui.documentUnavailable': '文档已不可用，个人草稿已清除。',
+  'genui.documentRefresh': '刷新文档',
+  'genui.documentContinue': '继续处理',
+  'genui.documentContinueBody': '继续处理文档“{title}”，使用我当前的视图。',
+  'genui.documentRefreshBody': '刷新文档“{title}”，发布新的快照。',
+  'genui.documentPredecessor': '接续上一份文档',
   'genui.filter': '筛选报告',
   'genui.reset': '重置视图',
   'genui.table': '表格',
@@ -4819,6 +4831,20 @@ export function zhTranslate(key: BotHarnessKey | string, params?: Record<string,
 }
 
 export const en = {
+  'genui.documentFailed':
+    'The document could not run. You can still read the message summary or reload.',
+  'genui.documentLoading': 'Loading document…',
+  'genui.documentUnsupported':
+    'This document cannot be displayed. The message summary is still available.',
+  'genui.documentReload': 'Reload document',
+  'genui.documentReadOnly': 'Submitting and saving a private view are unavailable here.',
+  'genui.documentNoState': 'This document does not save a private view. Reopening starts over.',
+  'genui.documentUnavailable': 'This document is unavailable. Your private draft was cleared.',
+  'genui.documentRefresh': 'Refresh document',
+  'genui.documentContinue': 'Continue',
+  'genui.documentContinueBody': 'Continue with document “{title}” using my current view.',
+  'genui.documentRefreshBody': 'Refresh document “{title}” and publish a new snapshot.',
+  'genui.documentPredecessor': 'Continues an earlier document',
   'genui.filter': 'Filter report',
   'genui.reset': 'Reset view',
   'genui.table': 'Table',

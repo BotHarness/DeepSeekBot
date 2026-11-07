@@ -534,6 +534,7 @@ _避免使用_：inbox message、mailbox copy、notification payload、stimulus
 
 **GenUI content**：
 普通 Channel 消息中的交互式可视化信息，按该消息的读取权限共享。每个 Human 的探索状态保持私有，直到其显式通过普通消息发布相关上下文。
+丰富内容的目标采用隔离 HTML 文档，而不是固定的报告组件 catalog；生成的展示内容不获得 Host 或业务执行权限（[ADR-0276](docs/adr/0276-genui-rich-documents-use-isolated-html.md)）。
 _避免使用_：独立 GenUI 会话、绑定发布者的回调通道
 
 **Provider Echo**：
