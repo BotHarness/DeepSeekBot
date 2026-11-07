@@ -94,6 +94,39 @@ describe('native tool API generations', () => {
     });
   });
 
+  it('passes Agent identity and cancellation only to the selected batch API', async () => {
+    const result = { isError: false, value: 'written', content: [] };
+    const execute = vi.fn(async () => ({ results: [{ callId: ToolCallId('direct'), result }] }));
+    const presentAs = vi.fn();
+    const agent = { session: { id: 'direct-agent' } } as Agent;
+    const ctx = { tools: { setExecutor: vi.fn(), presentAs, execute } } as unknown as Context;
+    const call = { ...input(), agent };
+    expect(await executeNativeTool(ctx, call)).toBe(result);
+    expect(execute).toHaveBeenCalledExactlyOnceWith({
+      calls: [
+        {
+          type: 'tool-call',
+          id: call.callId,
+          name: call.name,
+          arguments: JSON.stringify(call.arguments),
+        },
+      ],
+      agent,
+      signal: call.signal,
+    });
+    expect(presentAs).not.toHaveBeenCalled();
+  });
+
+  it('propagates a legacy refusal without repeating the operation', async () => {
+    const refusal = new Error('legacy execution authority unavailable');
+    const execute = vi.fn(async () => {
+      throw refusal;
+    });
+    const ctx = { tools: { presentAs: vi.fn(), execute } } as unknown as Context;
+    await expect(executeNativeTool(ctx, input())).rejects.toBe(refusal);
+    expect(execute).toHaveBeenCalledOnce();
+  });
+
   it.each([
     { results: [] },
     { results: [{ callId: 'other', result: {} }] },
