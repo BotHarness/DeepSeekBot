@@ -1,5 +1,5 @@
 export interface AccessTokenVerifier {
-  verify(token: string): Promise<string | undefined>;
+  verify(token: string): Promise<{ account: string; sessionId?: string } | undefined>;
 }
 
 export interface Jwk {
@@ -17,6 +17,7 @@ export interface VerifierOptions {
 }
 
 const SUBJECT = /^user_[A-Za-z0-9]+$/u;
+const SESSION = /^session_[A-Za-z0-9]+$/u;
 const KEY_TTL_MS = 10 * 60 * 1000;
 
 function base64UrlBytes(value: string): Uint8Array<ArrayBuffer> | undefined {
@@ -116,10 +117,12 @@ export function createAccessTokenVerifier(options: VerifierOptions): AccessToken
       );
       if (!valid) return undefined;
       const seconds = now() / 1000;
-      const { sub, iss, exp, nbf } = payload;
+      const { sub, iss, exp, nbf, sid } = payload;
       if (iss !== issuer || typeof exp !== 'number' || exp <= seconds) return undefined;
       if (typeof nbf === 'number' && nbf > seconds + 60) return undefined;
-      return typeof sub === 'string' && SUBJECT.test(sub) ? sub : undefined;
+      if (typeof sub !== 'string' || !SUBJECT.test(sub)) return undefined;
+      if (sid !== undefined && (typeof sid !== 'string' || !SESSION.test(sid))) return undefined;
+      return { account: sub, ...(typeof sid === 'string' ? { sessionId: sid } : {}) };
     },
   };
 }

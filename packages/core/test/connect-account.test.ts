@@ -84,6 +84,7 @@ function fakeServices(
     signer?: boolean;
     onList?: () => Promise<void>;
     refreshExpired?: boolean;
+    sessionRevoked?: boolean;
   } = {},
 ) {
   let pending = options.pending ?? 1;
@@ -150,6 +151,14 @@ function fakeServices(
       return Response.json({ error: { code: 'unauthorized' } }, { status: 401 });
     if (options.allowed === false)
       return Response.json({ error: { code: 'account-not-allowed' } }, { status: 403 });
+    if (options.sessionRevoked)
+      return Response.json({ error: { code: 'session-revoked' } }, { status: 401 });
+    if (url.pathname.endsWith('/revoke') && method === 'POST') {
+      const hostId = url.pathname.split('/')[3] ?? '';
+      if (!hosts.delete(hostId))
+        return Response.json({ error: { code: 'host-not-found' } }, { status: 404 });
+      return Response.json({ deleted: true, sessionKnown: true, sessionRevoked: false });
+    }
     if (url.pathname === '/v1/hosts' && method === 'GET') {
       await options.onList?.();
       const listed = [...hosts]
@@ -218,6 +227,174 @@ function setup(services = fakeServices(), port = 41001, watchMs = 60_000) {
   });
   return { account, credentials, tunnel, services };
 }
+
+describe('linked account computers', () => {
+  it('refuses signed-out operations without any network calls', async () => {
+    const { account, services } = setup();
+    try {
+      expect(await account.connectedHosts()).toEqual({ ok: false, code: 'signed-out' });
+      expect(await account.revokeConnectedHost('hother')).toEqual({
+        ok: false,
+        code: 'signed-out',
+      });
+      expect(services.calls).toHaveLength(0);
+    } finally {
+      await account.close();
+    }
+  });
+
+  it('sanitizes the on-demand list, derives current and refuses self before the network', async () => {
+    const services = fakeServices({
+      pending: 0,
+      listBody: {
+        hosts: [
+          {
+            id: 'hstudioaaaaa',
+            name: 'Studio',
+            hostname: 'studio.test',
+            createdAt: '2026-01-01T00:00:00Z',
+            connected: true,
+            sessionKnown: true,
+            account: 'private',
+            session_id: 'private',
+            relayKey: 'private',
+          },
+          {
+            id: 'hother',
+            name: 'Old',
+            hostname: 'old.test',
+            createdAt: '2026-01-01T00:00:00Z',
+            refreshToken: 'private',
+          },
+        ],
+      },
+    });
+    const { account } = setup(services);
+    try {
+      await account.signIn();
+      await settle(account);
+      const listed = await account.connectedHosts();
+      expect(listed).toEqual({
+        ok: true,
+        hosts: [
+          {
+            id: 'hstudioaaaaa',
+            name: 'Studio',
+            hostname: 'studio.test',
+            createdAt: '2026-01-01T00:00:00Z',
+            connected: true,
+            current: true,
+            sessionKnown: true,
+          },
+          {
+            id: 'hother',
+            name: 'Old',
+            hostname: 'old.test',
+            createdAt: '2026-01-01T00:00:00Z',
+            current: false,
+            sessionKnown: false,
+          },
+        ],
+      });
+      expect(JSON.stringify(listed)).not.toMatch(
+        /private|account|session_id|relayKey|refreshToken/u,
+      );
+      const before = services.calls.length;
+      expect(await account.revokeConnectedHost('hstudioaaaaa')).toEqual({
+        ok: false,
+        code: 'current-host',
+      });
+      expect(services.calls).toHaveLength(before);
+      expect(await account.revokeConnectedHost('hmissing')).toEqual({
+        ok: false,
+        code: 'host-not-found',
+      });
+    } finally {
+      await account.close();
+    }
+  });
+
+  it('retries a host-limit only after revoke leaves serial and returns the updated status', async () => {
+    const services = fakeServices({ pending: 0, maxHosts: 1 });
+    services.hosts.add('hother');
+    services.owners.set('hother', 'user_alice');
+    const { account } = setup(services);
+    try {
+      await account.signIn();
+      await settle(account);
+      expect(account.status().issue).toBe('host-limit');
+      expect(await account.revokeConnectedHost('hother')).toMatchObject({
+        ok: true,
+        status: { state: 'signed-in', hostId: 'hstudioaaaaa' },
+        sessionKnown: true,
+        sessionRevoked: false,
+      });
+      expect(services.hosts.has('hother')).toBe(false);
+      expect(services.hosts.has('hstudioaaaaa')).toBe(true);
+    } finally {
+      await account.close();
+    }
+  });
+
+  it('keeps host-limit actionable if another Host takes the freed slot', async () => {
+    const services = fakeServices({ pending: 0, maxHosts: 0 });
+    services.hosts.add('hother');
+    services.owners.set('hother', 'user_alice');
+    const { account } = setup(services);
+    try {
+      await account.signIn();
+      await settle(account);
+      expect(await account.revokeConnectedHost('hother')).toMatchObject({
+        ok: true,
+        status: { state: 'error', issue: 'host-limit' },
+      });
+      expect(
+        services.calls.filter(
+          (call) => call.method === 'POST' && call.path === `${RELAY}/v1/hosts`,
+        ),
+      ).toHaveLength(2);
+    } finally {
+      await account.close();
+    }
+  });
+
+  it('retires a tombstoned session instead of re-registering', async () => {
+    const options = { pending: 0, sessionRevoked: false };
+    const services = fakeServices(options);
+    const { account, credentials, tunnel } = setup(services);
+    try {
+      await account.signIn();
+      await settle(account);
+      options.sessionRevoked = true;
+      expect(await account.connectedHosts()).toEqual({ ok: false, code: 'session-revoked' });
+      expect(account.status()).toMatchObject({ state: 'error', issue: 'session-revoked' });
+      expect(tunnel.connect.status().state).toBe('off');
+      expect(JSON.stringify([...credentials.records.values()])).not.toContain('refreshToken');
+      expect(await account.revokeConnectedHost('hother')).toEqual({
+        ok: false,
+        code: 'signed-out',
+      });
+    } finally {
+      await account.close();
+    }
+  });
+
+  it('reports unavailable or malformed lists without leaking raw relay bodies', async () => {
+    for (const options of [
+      { listStatus: 503 },
+      { listBody: { hosts: [{ id: 'hbad', private: 'secret' }] } },
+    ]) {
+      const { account } = setup(fakeServices({ pending: 0, ...options }));
+      try {
+        await account.signIn();
+        await settle(account);
+        expect(await account.connectedHosts()).toEqual({ ok: false, code: 'relay-unavailable' });
+      } finally {
+        await account.close();
+      }
+    }
+  });
+});
 
 describe('Connect account sign-in', () => {
   it('rejects a token returned after timeout abort before the wall-clock deadline', async () => {

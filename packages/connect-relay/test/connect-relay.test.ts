@@ -7,7 +7,11 @@ import { createAccessTokenVerifier, type Jwk } from '../src/auth.js';
 import { createCloudflareApi, GATEWAY_PATH, type TunnelApi } from '../src/cloudflare.js';
 import type { D1Database, D1PreparedStatement, D1Value } from '../src/d1.js';
 import { createRelay, hmac, type RelayOptions } from '../src/relay.js';
-import { marketplaceAuthorDeleter, workosUserDeleter } from '../src/worker.js';
+import {
+  marketplaceAuthorDeleter,
+  workosSessionRevoker,
+  workosUserDeleter,
+} from '../src/worker.js';
 
 const CLIENT_ID = 'client_01TEST';
 const ISSUER = `https://api.workos.com/user_management/${CLIENT_ID}`;
@@ -175,6 +179,174 @@ async function setup(
   };
 }
 
+describe('linked computer sessions', () => {
+  it('validates optional sid without accepting malformed claims or expired tokens', async () => {
+    const { keys, sign } = await signer();
+    const verifier = createAccessTokenVerifier({
+      clientId: CLIENT_ID,
+      keys: async () => keys,
+      now: () => 100_000,
+    });
+    const claims = { sub: 'user_alice', iss: ISSUER, exp: 200 };
+    expect(await verifier.verify(await sign(claims))).toEqual({ account: 'user_alice' });
+    expect(await verifier.verify(await sign({ ...claims, sid: 'session_alpha' }))).toEqual({
+      account: 'user_alice',
+      sessionId: 'session_alpha',
+    });
+    for (const sid of [null, 1, '', 'bad', {}, 'session_bad value']) {
+      expect(await verifier.verify(await sign({ ...claims, sid }))).toBeUndefined();
+    }
+    expect(
+      await verifier.verify(await sign({ ...claims, exp: 99, sid: 'session_alpha' })),
+    ).toBeUndefined();
+  });
+
+  it('frees a slot, rejects self and cross-account revoke, and tombstones every target route', async () => {
+    const removed: string[] = [];
+    const { call, tokenFor, tunnels } = await setup(undefined, {
+      revokeSession: async (sessionId) => {
+        removed.push(sessionId);
+      },
+    });
+    const caller = await tokenFor('user_alice', { sid: 'session_caller' });
+    const target = await tokenFor('user_alice', { sid: 'session_target' });
+    const current = await call('POST', '/v1/hosts', { token: caller, body: { name: 'Current' } });
+    const other = await call('POST', '/v1/hosts', { token: target, body: { name: 'Other' } });
+    const otherId = other.body.host.id;
+    await call('POST', `/v1/hosts/${otherId}/tunnel`, {
+      token: target,
+      body: { originPort: 3000 },
+    });
+    for (let index = 0; index < 3; index += 1)
+      await call('POST', '/v1/hosts', { token: caller, body: { name: `Extra ${index}` } });
+    expect(
+      (await call('POST', '/v1/hosts', { token: caller, body: { name: 'Sixth' } })).body.error.code,
+    ).toBe('host-limit');
+    expect(
+      (await call('POST', `/v1/hosts/${current.body.host.id}/revoke`, { token: caller })).body.error
+        .code,
+    ).toBe('current-host');
+    expect((await call('POST', `/v1/hosts/${otherId}/revoke`, { as: 'user_bob' })).status).toBe(
+      404,
+    );
+    expect(
+      (await call('POST', `/v1/hosts/${otherId}/revoke`, { as: 'user_alice' })).body.error.code,
+    ).toBe('session-unknown');
+    expect(await call('POST', `/v1/hosts/${otherId}/revoke`, { token: caller })).toEqual({
+      status: 200,
+      body: { deleted: true, sessionKnown: true, sessionRevoked: true },
+    });
+    expect(removed).toEqual(['session_target']);
+    expect(tunnels.records.size).toBe(0);
+    expect(tunnels.tunnels.size).toBe(0);
+    for (const [method, path] of [
+      ['GET', '/v1/hosts'],
+      ['POST', '/v1/hosts'],
+      ['POST', `/v1/hosts/${otherId}/tunnel`],
+      ['DELETE', '/v1/account'],
+    ]) {
+      expect(
+        await call(method!, path!, {
+          token: target,
+          body: method === 'POST' ? { name: 'Return' } : undefined,
+        }),
+      ).toEqual({ status: 401, body: { error: { code: 'session-revoked' } } });
+    }
+    expect(
+      (await call('POST', '/v1/hosts', { token: caller, body: { name: 'Sixth' } })).status,
+    ).toBe(201);
+    const listed = await call('GET', '/v1/hosts', { token: caller });
+    expect(listed.body.hosts).toHaveLength(5);
+    expect(listed.body.hosts[0].sessionKnown).toBe(true);
+    expect(JSON.stringify(listed)).not.toMatch(
+      /session_id|session_caller|session_target|relayKey|refresh_token/u,
+    );
+    expect((await call('POST', `/v1/hosts/${otherId}/revoke`, { token: caller })).status).toBe(404);
+  });
+
+  it('enforces tombstones even when WorkOS fails or is not configured', async () => {
+    for (const revokeSession of [
+      undefined,
+      async () => {
+        throw new Error('offline');
+      },
+    ]) {
+      const { call, tokenFor } = await setup(
+        undefined,
+        revokeSession === undefined ? {} : { revokeSession },
+      );
+      const caller = await tokenFor('user_alice', { sid: 'session_caller' });
+      const target = await tokenFor('user_alice', { sid: 'session_target' });
+      const registered = await call('POST', '/v1/hosts', {
+        token: target,
+        body: { name: 'Other' },
+      });
+      expect(
+        (await call('POST', `/v1/hosts/${registered.body.host.id}/revoke`, { token: caller })).body,
+      ).toEqual({ deleted: true, sessionKnown: true, sessionRevoked: false });
+      expect((await call('GET', '/v1/hosts', { token: target })).body.error.code).toBe(
+        'session-revoked',
+      );
+    }
+  });
+
+  it('reports legacy unlink honestly and rebinds a reused registration after re-login', async () => {
+    const { call, tokenFor } = await setup();
+    const caller = await tokenFor('user_alice', { sid: 'session_caller' });
+    const target = await tokenFor('user_alice', { sid: 'session_target' });
+    const legacy = await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Legacy' } });
+    expect(legacy.body.host.sessionKnown).toBe(false);
+    expect(
+      (await call('POST', `/v1/hosts/${legacy.body.host.id}/revoke`, { token: caller })).body,
+    ).toEqual({ deleted: true, sessionKnown: false, sessionRevoked: false });
+    const online = await call('POST', '/v1/hosts', {
+      as: 'user_alice',
+      body: { name: 'Online legacy' },
+    });
+    await call('POST', `/v1/hosts/${online.body.host.id}/tunnel`, {
+      token: target,
+      body: { originPort: 3000 },
+    });
+    expect(
+      (await call('POST', `/v1/hosts/${online.body.host.id}/revoke`, { token: target })).body.error
+        .code,
+    ).toBe('current-host');
+    await call('POST', `/v1/hosts/${online.body.host.id}/tunnel`, {
+      token: caller,
+      body: { originPort: 3000 },
+    });
+    expect((await call('GET', '/v1/hosts', { token: caller })).body.hosts[0].sessionKnown).toBe(
+      true,
+    );
+    expect(
+      (await call('POST', `/v1/hosts/${online.body.host.id}/revoke`, { token: caller })).body.error
+        .code,
+    ).toBe('current-host');
+    expect(
+      (await call('DELETE', `/v1/hosts/${online.body.host.id}`, { token: target })).body,
+    ).toEqual({ deleted: true });
+    expect((await call('GET', '/v1/hosts', { token: target })).status).toBe(200);
+  });
+
+  it('calls only the targeted WorkOS API and accepts an already-ended session', async () => {
+    for (const status of [200, 404]) {
+      const revoke = workosSessionRevoker('private-key', async (input, init) => {
+        expect(input).toBe('https://api.workos.com/user_management/sessions/revoke');
+        expect(new Headers(init?.headers).get('authorization')).toBe('Bearer private-key');
+        expect(JSON.parse(String(init?.body))).toEqual({ session_id: 'session_target' });
+        return new Response(null, { status });
+      });
+      await expect(revoke('session_target')).resolves.toBeUndefined();
+    }
+    await expect(
+      workosSessionRevoker(
+        'key',
+        async () => new Response(null, { status: 503 }),
+      )('session_target'),
+    ).rejects.toThrow('workos 503');
+  });
+});
+
 describe('Connect relay accounts', () => {
   it('publishes the WorkOS client the Host signs in with', async () => {
     const { call } = await setup();
@@ -243,6 +415,7 @@ describe('Connect relay accounts', () => {
           hostname: 'haaaaaaaaaaab.deepseekbot.dev',
           createdAt: '2026-10-20T12:00:00.000Z',
           tunnel: false,
+          sessionKnown: false,
         },
       },
     });

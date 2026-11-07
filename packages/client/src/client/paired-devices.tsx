@@ -7,6 +7,7 @@ import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import { Callout } from './ds/callout.js';
+import { ConnectAccountHosts } from './connect-account-hosts.js';
 import { LanBotSettings } from './lan-bot-settings.js';
 import type { LanBotSnapshot } from '../../../core/src/devices/bot-lan-control.js';
 import { ChoiceButton } from './ds/choice-button.js';
@@ -44,6 +45,7 @@ type RouteStatus = PhoneRouteStatus;
 interface ConnectAccountStatus {
   state: 'signed-out' | 'signing-in' | 'signed-in' | 'error';
   email?: string;
+  hostId?: string;
   userCode?: string;
   verificationUri?: string;
   issue?: string;
@@ -537,15 +539,17 @@ export function PairedDevicesSettings({
                     ? 'devices.connect.notAllowed'
                     : signIn.issue === 'host-limit'
                       ? 'devices.connect.hostLimit'
-                      : signIn.issue === 'session-expired' ||
-                          signIn.issue === 'sign-in-expired' ||
-                          signIn.issue === 'sign-in-denied'
-                        ? 'devices.connect.signInAgain'
-                        : signIn.issue === 'credential-unavailable'
-                          ? 'devices.connect.credentialUnavailable'
-                          : signIn.recovery === 'automatic'
-                            ? 'devices.connect.relayDown'
-                            : 'devices.connect.relaySignIn',
+                      : signIn.issue === 'session-revoked'
+                        ? 'devices.connect.sessionRevoked'
+                        : signIn.issue === 'session-expired' ||
+                            signIn.issue === 'sign-in-expired' ||
+                            signIn.issue === 'sign-in-denied'
+                          ? 'devices.connect.signInAgain'
+                          : signIn.issue === 'credential-unavailable'
+                            ? 'devices.connect.credentialUnavailable'
+                            : signIn.recovery === 'automatic'
+                              ? 'devices.connect.relayDown'
+                              : 'devices.connect.relaySignIn',
                 )}
               </Callout>
             ) : null}
@@ -585,6 +589,7 @@ export function PairedDevicesSettings({
             </SettingsRow>
           ) : null}
         </SettingsSection>
+        <ConnectAccountHosts t={t} account={signIn} reloadSnapshot={load} />
       </div>
     );
 

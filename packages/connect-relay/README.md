@@ -20,6 +20,40 @@ Every account signed in to TOB's WorkOS environment may use the relay, up to `MA
 
 Two limits keep open sign-up inside Cloudflare's quota. A Host whose tunnel would push the relay past `MAX_TUNNELS` live tunnels answers `503 relay-full`, and a `POST` beyond the `CONNECT_LIMIT` rate answers `429 rate-limited`. Human operations use an account key; Bot identity/grant operations use a separate account-and-owned-Host key after the ownership check. Both keys have a configured rate of 20 per minute. The rate is approximate: Cloudflare counts it per location and its counters are eventually consistent, so it slows churn rather than enforcing an exact quota. `DELETE` is never limited, so a Host can always unlink.
 
+## Linked computer sign-out
+
+| Route                        | Result                                                                                                                                                                                                                                                              |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /v1/hosts/{id}/revoke` | `{ deleted: true, sessionRevoked, sessionKnown }`; account-owned target only. `404 host-not-found`, `409 current-host`, `409 session-unknown` when the caller has no validated `sid`. A repeated removal returns `404 host-not-found` without further side effects. |
+
+`GET /v1/hosts` and registration responses also include `sessionKnown`. No route returns the
+session ID. Migration `0005_host_sessions.sql` adds `hosts.session_id` and the indexed composite
+key on `revoked_sessions(account, session_id)`. Registration binds the caller's validated WorkOS
+`sid`; an account-owned tunnel refresh binds its current `sid` using `COALESCE(?, session_id)`.
+This both backfills online legacy Hosts and rebinds the existing Host ID after a new sign-in.
+A token without `sid` cannot overwrite an existing binding. A backfill-only expression would
+incorrectly keep the old session after registration reuse.
+
+Authorization rejects a tombstoned `(account, session_id)` with `401 session-revoked` before route
+dispatch, including registration and tunnel refresh. Revoke writes that tombstone before removing
+the tunnel, DNS, live activities and Host row. If cleanup fails, it fails closed and retains the
+tombstone; the caller may retry cleanup. An optional `WORKOS_API_KEY` additionally revokes that
+one WorkOS session, with a bounded request; provider failure reports `sessionRevoked: false`
+without undoing the relay-local refusal. This is Connect access revocation, not a guarantee that
+other WorkOS-consuming services discard existing access tokens immediately.
+
+Legacy rows with no bound session return `sessionKnown: false`: unlink only, with no sign-out
+promise. `DELETE /v1/hosts/{id}` remains the existing self-service unlink and never tombstones a
+session. Apply the D1 migration before deploying the Worker; both remote actions remain Human/AX
+gates. The Host/CLI/Desktop changes can be reviewed and tested before that rollout, but must not
+be reported as production-qualified.
+
+Performance: each authenticated request with `sid` adds one composite-primary-key D1 lookup.
+Management lists are on-demand, not part of the Host's three-second Devices snapshot; the UI
+regression checks repeated snapshots do not re-fetch. Account rows remain bounded by `MAX_HOSTS`.
+Relay tests guard the five-link limit, self/ownership refusal, tombstone enforcement, slot reuse,
+re-login binding and legacy behavior; they do not measure Cloudflare latency.
+
 ## Bot collaboration control plane
 
 `POST /v1/hosts/{id}/bot-network` registers `{ hostId, publicKey, issuedAt, proof }` for a Host already owned by the authenticated account. `hostId` is the existing stable Bot Host identity, not the Connect registration ID. The proof is base64url HMAC-SHA256 with that registration's `relayKey` over the exact JSON object `{ purpose: "bot-network-registration-v1", connectHostId: id, hostId, publicKey, issuedAt }` in that property order. The request is limited to 4096 bytes and the timestamp must be within 60 seconds. The identity/key pair is immutable for a registration; another registration in the same account cannot claim the same identity. A successful repeat is idempotent. The response is `{ host }`; `GET /v1/hosts` adds `botNetwork: { hostId, publicKey }` only for registered identities.

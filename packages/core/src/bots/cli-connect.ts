@@ -21,6 +21,14 @@ export const CONNECT_COMMANDS = [
     command: 'connect-sign-out',
     description: 'unlink this Host from its account, stop the tunnel and forget the session',
   },
+  {
+    command: 'connect-account-hosts',
+    description: 'list computers linked to the current Connect account',
+  },
+  {
+    command: 'connect-account-revoke',
+    description: 'sign out another linked computer by host ID (--confirm)',
+  },
 ] as const;
 export const CONNECT_OPTIONS = {
   hostname: { type: 'string' },
@@ -34,7 +42,7 @@ export function isConnectCommand(command: string): boolean {
 export async function runConnectCommand(
   command: string,
   rest: string[],
-  values: { hostname?: string; 'token-stdin'?: boolean; wait?: boolean },
+  values: { hostname?: string; 'token-stdin'?: boolean; wait?: boolean; confirm?: boolean },
   io: { readStdin?: () => Promise<string>; stderr?: (text: string) => void },
   connect: () => Promise<{
     http(path: string, body?: Record<string, unknown>): Promise<{ bytes: Uint8Array }>;
@@ -42,7 +50,14 @@ export async function runConnectCommand(
   sleep: (ms: number) => Promise<void> = (ms) => new Promise((done) => setTimeout(done, ms)),
 ): Promise<unknown> {
   const enable = command === 'connect-enable';
-  if (rest.length) throw new CliLiveError('usage', `${command} takes no positional arguments.`);
+  const revoke = command === 'connect-account-revoke';
+  if (revoke ? rest.length !== 1 : rest.length !== 0)
+    throw new CliLiveError(
+      'usage',
+      revoke ? `${command} requires one host ID.` : `${command} takes no positional arguments.`,
+    );
+  if (revoke && !values.confirm)
+    throw new CliLiveError('confirm-required', 'Signing out another computer requires --confirm.');
   if (values.wait && command !== 'connect-sign-in')
     throw new CliLiveError('usage', '--wait requires connect-sign-in.');
   if (!enable && (values.hostname !== undefined || values['token-stdin']))
@@ -56,6 +71,17 @@ export async function runConnectCommand(
   }
   const host = await connect();
   const decode = (bytes: Uint8Array) => JSON.parse(new TextDecoder().decode(bytes)) as unknown;
+  if (command === 'connect-account-hosts')
+    return decode((await host.http('/api/botharness/devices/account-hosts')).bytes);
+  if (revoke)
+    return decode(
+      (
+        await host.http('/api/botharness/devices/account-hosts/revoke', {
+          hostId: rest[0],
+          confirm: true,
+        })
+      ).bytes,
+    );
   if (command === 'connect-status') {
     const snapshot = decode((await host.http(DEVICES)).bytes) as Record<string, unknown>;
     return { connect: snapshot['connect'], routes: snapshot['routes'] };

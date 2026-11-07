@@ -269,7 +269,8 @@ export function createMarketHandler(
     ) {
       if (deps.uploads === undefined) return failure(503, 'uploads-unavailable');
       const token = bearer(request);
-      const account = token === undefined ? undefined : await deps.uploads.verifier.verify(token);
+      const account =
+        token === undefined ? undefined : (await deps.uploads.verifier.verify(token))?.account;
       if (account === undefined) return failure(401, 'unauthorized');
       const store = deps.uploads.store;
       if (url.pathname === '/v1/me') {

@@ -1501,6 +1501,8 @@ the stored token; paired devices keep their credentials.
 ```sh
 deepseekbot connect-sign-in --wait --host <host> --token-file <private-file>
 deepseekbot connect-sign-out --host <host> --token-file <private-file>
+deepseekbot connect-account-hosts --host <host> --token-file <private-file>
+deepseekbot connect-account-revoke <host-id> --confirm --host <host> --token-file <private-file>
 ```
 
 `connect-sign-in` starts WorkOS CLI Auth (the device authorization grant) with the client that the
@@ -1520,6 +1522,29 @@ stops the tunnel, deletes the stored session and reports `error` with `session-e
 deletes the session. Any signed-in account can link Hosts.
 
 For account errors, `connect.account.recovery` distinguishes `automatic` (a saved session can retry registration or tunnel setup) from `sign-in` (another explicit sign-in is required). Failed ownership verification never resumes the previous account; the UI gives the same recovery instruction. Device authorization polling backs off after transport failures and HTTP 408/429/5xx without an OAuth error, stops at the original expiry, and still stops for explicit OAuth refusals. `authorization_pending` keeps the interval and `slow_down` adds five seconds, as specified by [RFC 8628](https://www.rfc-editor.org/rfc/rfc8628.html#section-3.5).
+
+`connect-account-hosts` loads the signed-in account's computers on demand, including this computer
+when linked. Rows contain only `id`, `name`, `hostname`, `createdAt`, optional `connected`, `current`
+and `sessionKnown`; an absent connection value means unknown. It does not add a relay request to
+the Devices snapshot poll. A saved account session can list computers even when this computer is
+blocked by the five-computer limit.
+
+`connect-account-revoke` requires `--confirm` and refuses `current-host` before making a relay
+request. Use `connect-sign-out` for this computer. The relay tombstones the other computer's
+WorkOS session before unlinking its tunnel and DNS; the other Host retires its credentials on
+`401 session-revoked` rather than re-registering. Optional WorkOS revocation is reported honestly
+as `sessionRevoked`; relay-local enforcement remains in place when WorkOS is unavailable.
+The result includes the updated account `status`, `sessionKnown` and `sessionRevoked`.
+
+For `sessionKnown: false`, this is **Remove from account**, not sign-out: the older computer may
+reconnect until it is updated or signed out there. A successful removal while at `host-limit`
+triggers one registration attempt after the owner releases its serial queue. Another computer can
+take the slot first; the returned status then remains `host-limit`. `signed-out`, `host-not-found`,
+`session-unknown` and `relay-unavailable` are coded refusals, never silent local removal.
+
+The relay's session migration and Worker rollout are prerequisites for remote sign-out. Local code
+and tests alone do not prove the deployed service supports it. See the [ADR-0241 linked-computer
+amendment](adr/0241-hosted-connect-reaches-the-host-through-a-managed-tunnel.md#amendment--linked-computer-sign-out-2026-11-07-3672).
 
 ## Device-local DeepSeekBot appearance
 
