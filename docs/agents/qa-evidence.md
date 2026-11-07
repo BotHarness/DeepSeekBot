@@ -33,7 +33,7 @@ scene, before/after state, locale, theme and OS text size, for example
 `max` alone cannot identify the setting. Reruns get new run IDs rather than overwriting evidence.
 Keep feature-showcase images under a named scene in the same layout.
 
-Existing tools keep their output contracts. In particular, `android-qa.ps1` writes captures and
+Existing tools keep their output contracts. In particular, `android-qa.mjs` writes captures and
 private serial manifests under the Windows queue's `evidence/<batch>/<lane>/`; verification
 tools may use their own task directories. Add links from the task index to these originals, or
 copy selected files and record their source and SHA-256. Do not move live runner output, alter

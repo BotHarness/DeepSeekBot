@@ -29,6 +29,7 @@ AX default model setup and credential reuse: follow `docs/agents/ax-model.md` fo
 ## Conventions
 
 - TypeScript ESM; tests live in `packages/*/test/` (vitest).
+- Repo scripts are Node `.mjs` run as `node scripts/<name>.mjs` — no new `.ps1`/`.cmd`/`.bat` files. Spawn child processes with direct `argv` (`shell: false`; resolve `.cmd` shims through `scripts/dev-package-manager.mjs`) and `windowsHide: true` on every spawn so no conhost window flashes on Windows; keep CLI action/flag names, exit codes and JSON shapes stable when porting a helper.
 - Never commit secrets: the Feishu App Secret goes to the DSH credentials service, never to config or the repo (ADR-0006).
 - Memory terminology lives in `GLOSSARY.md`; durable memory choices live in ADR-0002/0003/0004/0012/0014/0021 and are integrated into the living architecture.
 - Record durable architecture choices as ADRs under `docs/adr/`, then integrate their current result into the living architecture instead of leaving decisions in chat or a mutable PRD.
@@ -89,7 +90,7 @@ The dev VPS lives on the Human's Tailscale tailnet. Per-machine values (SSH host
 
 ### Shared device QA (AX)
 
-Native checks for `apps/mobile` share devices and QA Hosts among coding agents. Before booting an emulator/Simulator, building the app, starting a Host or touching a phone, follow [shared device QA](docs/agents/device-qa.md): choose the Mac/iOS or Windows/Android queue, submit to its owner-cut batch, use the dedicated QA Host, and report redacted results. Windows emulator and USB-phone checks use the shared `android-qa.ps1` lease and scrcpy capture workflow.
+Native checks for `apps/mobile` share devices and QA Hosts among coding agents. Before booting an emulator/Simulator, building the app, starting a Host or touching a phone, follow [shared device QA](docs/agents/device-qa.md): choose the Mac/iOS or Windows/Android queue, submit to its owner-cut batch, use the dedicated QA Host, and report redacted results. Windows emulator and USB-phone checks use the shared `android-qa.mjs` lease and scrcpy capture workflow.
 
 ### QA evidence (AX)
 

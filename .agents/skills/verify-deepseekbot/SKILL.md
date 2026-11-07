@@ -77,7 +77,7 @@ Submit the feature's steps to the queue; only its designated runner drives the s
 The Mac runner uses `scripts/e2e-mobile-sim.mjs` and the Maestro flows in `apps/mobile/.maestro/`
 ([phone-notifications.md](features/phone-notifications.md)). Read every captured screenshot.
 The Windows runner uses [Android device QA](../../../docs/agents/android-device-qa.md) and
-`scripts/android-qa.ps1` for its queued emulator/USB-phone lane, XML snapshots and scrcpy video.
+`scripts/android-qa.mjs` for its queued emulator/USB-phone lane, XML snapshots and scrcpy video.
 Web-export checks qualify their named web paths; native-only behavior remains untested until
 its device result is recorded.
 
