@@ -977,9 +977,9 @@
       "path": "scripts/e2e-genui-documents.mjs",
       "category": "mapped",
       "behaviors": ["web.genui.reports"],
-      "reason": "Synthetic HTML document journey through preview/publication, isolated frames, nine content scenes, Host-owned private state and ordinary Human continuation. Hard execution containment and installed-native qualification remain open.",
-      "task": 3685,
-      "sha256": "a9a677a094e976b6701e1c6adf43c5bd1917908045b8a777ea66807da7869945"
+      "reason": "Synthetic HTML document journey through preview/publication, isolated frames, nine content scenes, Host-owned private state and ordinary Human continuation; opt-in real-model canonical identity, frontmost viewport assertions and owned Bot-activity cleanup reject hidden captures and retained model work. Hard execution containment, foreground performance and installed-native qualification remain open.",
+      "task": 3703,
+      "sha256": "2fd253b679fb65662d8200f21d2f6fe118f73c31bd9a75b5fc8d4ef61ee14651"
     },
     {
       "path": "scripts/e2e-genui-reports.mjs",

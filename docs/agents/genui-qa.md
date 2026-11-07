@@ -1,8 +1,8 @@
-# GenUI T1 verification matrix
+# GenUI verification matrix
 
 ## HTML document candidate
 
-The current #3685 direction is version-2 isolated HTML, not expansion of the version-1 catalog below. Run the production-shaped HTML journey against a task-owned Host:
+The version-2 isolated HTML implementation shipped in PR #3699. Current-main Web qualification is tracked in #3703, independent execution/resource containment in #3704, and installed mobile in #3705; the cross-platform parent #3684 remains open. Closing implementation tickets #3685/#3691 did not turn their outstanding acceptance checkboxes into passes. Run the production-shaped HTML journey against a task-owned Host:
 
 ```bash
 BH_E2E_INSTANCE=.humanlayer/verify/<name>/instance.json \
@@ -10,6 +10,32 @@ BH_E2E_INSTANCE=.humanlayer/verify/<name>/instance.json \
 ```
 
 It creates a synthetic Bot, invokes the model-free `genui_preview` Tool, explicitly publishes the document, and drives its actual isolated frames. It closes its own browser; the caller owns the Host. Default captures are headed. Keep every failure in its original run directory.
+
+Add `--with-model` to require a real model-generated linked HTML follow-up after the visible Human continuation. This opts into real provider work on the newly created synthetic Bot. The runner requires the canonical Source Event, correct Channel/Bot/predecessor, and an ordered successful preview/publication in the actual orchestrator trace whose committed message ID matches that canonical message. A direct Tool run, a text-only reply, an earlier message or unrelated Bot does not satisfy this gate. The new message must also render in the actual conversation. The deterministic default is not model acceptance, even if a background model happens to reply.
+
+```bash
+BH_E2E_INSTANCE=.humanlayer/verify/<name>/instance.json \
+  node scripts/e2e-genui-documents.mjs --pele --with-model \
+  --out <private-evidence-directory>
+```
+
+The model evidence covers explicit publication of a linked generated document; it does not imply model reliability for every possible document. Inspect the retained preview diagnostics and failures separately. Neither successful model calls nor synthetic screenshot coverage clears #3704 or the independent foreground-performance/native/Human gates.
+
+Add `--faults` for live bridge replay/oversize/unknown/mount checks, failed-save
+recovery, uncertain-response deduplication and scoped Content Purge while open.
+The two transport failures are explicitly injected in the task browser: one rejects
+before a save request; the other drops the response only after the actual Host
+reports a successful Human-message commit. They are controlled fault fixtures, not
+evidence of a naturally occurring network outage. The retry must reuse the same
+Human message ID and leave exactly one canonical message. The runner pauses/stops
+its own synthetic Bot before this stage, resumes it only for the eligible DM
+submission, then pauses/stops it again. The ended-Group purge API intentionally
+refuses a DM. Use the scoped DM message-cleanup preview/confirm owner instead,
+with an exact Channel and a cutoff just after the original document's canonical
+creation time. Assert exactly one candidate before confirmation and one deletion
+afterward; never widen the scope to get a passing result.
+
+The public `channelMessages` projection intentionally does not expose `channelId` or `sourceEventId` on every message. The verification runner correlates its already-authorized scoped read with read-only Source Event/placement and Human-request Admission evidence from its own isolated Profile. This is observation only, never a write bypass or another message store. The orchestrator trace must be non-`direct`, and its committed result must identify the very same canonical message.
 
 | Content or interaction               | Required evidence                                                 |
 | ------------------------------------ | ----------------------------------------------------------------- |
@@ -76,7 +102,16 @@ The three T1 catalog components are metric, table and bar-chart. Approval, Quest
 
 ## Separate remaining gates
 
+For a foreground diagnostic, `scripts/perf-idle-timeline.mjs --headed --foreground-scroll --trace` records native trusted wheel input, focus/visibility, sampled gaps/anchors, bounded rAF diagnostics and a separate compositor trace. `--foreground-scroll` refuses headless mode. Its sample checks are not a full zero-jump proof, presented FPS, or a performance acceptance verdict. Use a frozen fixture and at least three interleaved baseline/candidate runs, inspect compositor evidence and real display identity, and retain busy-machine failures instead of relaxing budgets. The existing headless default remains a structural/idle diagnostic for CI.
+
 Record pass, fail or untested for every layer, never a blanket end-to-end claim:
+
+Headed runs disable Puppeteer viewport emulation and fit the actual native window to
+the display's available bounds. The summary records inner/outer dimensions, native
+window bounds, display coordinates and actual device pixel ratio. Oversized emulated
+viewports and off-screen native bounds fail calibration; do not count a clipped
+1440px emulation in a smaller window as fully visible foreground evidence. This
+calibration does not prove compositor presentation or exclusive machine ownership.
 
 - Focused automated coverage: malformed/oversized/versioned reports, forged selections, publication failures, idempotent retries, dirty-draft remounts, access loss and canonical Content Purge.
 - Additional real Web fault journeys: failed saves, uncertain-response retry, access revocation and purge while a report is open. Unit coverage does not qualify these browser scenes.
@@ -87,6 +122,37 @@ Record pass, fail or untested for every layer, never a blanket end-to-end claim:
 
 ## PR evidence
 
+Mounted conversation DOM is not proof that the conversation is visible. At responsive
+breakpoints the Messages list can cover the conversation while its DOM remains mounted.
+The HTML runner reopens the conversation after resizing, requires a frontmost viewport
+hit-test, and rejects captures whose document section does not intersect the viewport.
+Earlier narrow captures without these assertions must be inspected and cannot establish
+narrow GenUI acceptance merely because the runner exited successfully.
+Navigate by the visible Channel row's exact `data-channel-id`, including DM contacts;
+do not substring-match the Bot name against arbitrary buttons, because call controls
+also include that name. Failure screenshots are retained as observations even when
+the conversation is hidden, and are never counted as verified content captures.
+The runner pauses its own synthetic Bot before stopping its activity in `finally`,
+so queued model continuations cannot silently outlive a run. Cleanup failure fails
+the run and is retained separately from the original failure. A busy preview remains
+a refusal, not a passing render; do not raise its timeout to obtain a green result.
+Document titles are not unique. Scope rendered-content checks and screenshots to the
+canonical message ID, particularly when a model reuses its predecessor's title.
+Capture records retain the matched message ID and selector; verify the document is
+still in the viewport after layout settles, not just before scroll/window updates.
+
 Keep PNG originals, ARIA observations and the manifest under the task's private evidence directory, with an index in the machine's main checkout. Preserve source SHA plus dirty diff identity, built Host/Client hashes, browser identity, fixtures, canonical references, capture times, viewport and theme. Bind any pre-commit capture to the final source only after verifying production source and bundle identities have not changed.
+
+For a separate natural-GC diagnostic, run the same frozen performance driver and fixture
+with `--trace --heap-observe 30` in at least three interleaved baseline/change pairs.
+The driver retains raw boundary samples in `<label>.heap-observation.json`, including
+browser timestamps when available, then observes an untouched fixed window after the
+original idle endpoint and before typing. It never forces GC or replaces that endpoint
+with a later minimum. The unchanged budget still uses `heapMB` (rounded decimal MB,
+bytes divided by 1,000,000, not MiB). Correlate samples with natural GC events in the
+trace; no observed major GC means the resident-memory question is inconclusive.
+This diagnostic adds observer overhead and changes the subsequent typing phase; it is
+not a replacement for the canonical performance qualification or a passing result for
+an earlier budget failure. Do not combine it with CPU profiling.
 
 Inspect every selected image for secrets, login URLs, private content and misleading clipping. Retain failed attempts separately. Publish only reviewed derivatives through the repository's R2 evidence publisher with the full frozen source commit; never commit screenshots or use a Git evidence branch. Verify public readback, retain upload receipts and put representative images plus a complete scene index in the PR Change outline. Verify GitHub-rendered images after writing the PR. An absence state captured in the candidate is labelled as such, not passed off as an older source build.
