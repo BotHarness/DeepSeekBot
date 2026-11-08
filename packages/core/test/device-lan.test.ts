@@ -11,7 +11,8 @@ import { noisePublicKey } from '../src/devices/noise/xk.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
-import { pairHost } from '../../../apps/mobile/src/host/pairing.js';
+import { createDeviceGateway } from '../src/devices/gateway.js';
+import { pairHost, revokePairing } from '../../../apps/mobile/src/host/pairing.js';
 import { encryptedCarrier } from '../../../apps/mobile/src/host/encrypted-carrier.js';
 import type { SavedHost } from '../../../apps/mobile/src/host/hosts.js';
 import type { HostCarrier } from '../../../apps/mobile/src/host/carrier.js';
@@ -83,7 +84,12 @@ it.each([undefined, 'http://127.0.0.1:4100', 'https://desktop.example.ts.net', '
       hostName: 'LAN Host',
     });
     const key = randomBytes(32);
+    const gateway = createDeviceGateway({ pairing, port: () => 0, authenticatedUrl: (url) => url });
     const upstream = createServer((req, res) => {
+      if (req.url === '/botharness-device/unpair') {
+        void gateway.handle(req, res);
+        return;
+      }
       expect(req.url).toBe('/botharness-device/api/botharness/list');
       expect(pairing.admit(req.headers.authorization).ok).toBe(true);
       res.end('private-host-feed');
@@ -189,7 +195,21 @@ it.each([undefined, 'http://127.0.0.1:4100', 'https://desktop.example.ts.net', '
       expect(wire.join('')).not.toContain('private-host-feed');
       expect(wire.join('')).not.toContain('private-phone-input');
       expect(wire.join('')).not.toContain(saved!.credential);
-      pairing.revoke(saved!.deviceId);
+      const unavailable: HostCarrier = {
+        request: raw.request,
+        openSocket: (_url, events) => {
+          queueMicrotask(() => events.closed('channel-send-failed'));
+          return { send: () => {}, close: () => {} };
+        },
+      };
+      expect(await revokePairing({ host: saved!, carrier: unavailable, timeoutMs: 1000 })).toBe(
+        'unreachable',
+      );
+      expect(pairing.admit(`Device ${saved!.credential}`).ok).toBe(true);
+      expect(await revokePairing({ host: saved!, carrier: raw, timeoutMs: 1000 })).toBe('revoked');
+      expect(
+        pairing.list().find((device) => device.id === saved!.deviceId)?.revokedAt,
+      ).toBeDefined();
       await expect(read()).rejects.toThrow();
       await post('lan', { action: 'disable' });
       expect(lan.status()).toEqual({ state: 'off' });

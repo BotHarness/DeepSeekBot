@@ -268,7 +268,7 @@ export async function revokePairing(options: {
           return 'revoked';
         if (isConnectRoute(route)) return 'unreachable';
       } catch (error) {
-        if (isConnectRoute(route)) {
+        if (isEncryptedRoute(route, options.host.encryption)) {
           if (error instanceof ConnectRefused && error.code === 'device-revoked') return 'revoked';
           try {
             await carrier.request(`${route}${DEVICE_PREFIX}/api/botharness/list`, {
