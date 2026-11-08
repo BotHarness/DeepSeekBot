@@ -57,12 +57,35 @@ export function createCloudflareApi(options: CloudflareOptions): TunnelApi {
       success?: boolean;
       result?: T;
       result_info?: { total_pages?: number };
+      errors?: unknown;
     };
-    if (!response.ok || parsed.success !== true)
+    if (!response.ok || parsed.success !== true) {
+      const codes = (Array.isArray(parsed.errors) ? parsed.errors : [])
+        .flatMap((error: unknown) => {
+          if (typeof error !== 'object' || error === null || !('code' in error)) return [];
+          const code = error.code;
+          return typeof code === 'number' &&
+            Number.isSafeInteger(code) &&
+            code >= 0 &&
+            code <= 1_000_000
+            ? [code]
+            : [];
+        })
+        .slice(0, 8);
+      console.warn(
+        JSON.stringify({
+          event: 'connect-upstream-error',
+          method,
+          resource: path.startsWith(records) ? 'dns' : 'tunnel',
+          status: response.status,
+          codes,
+        }),
+      );
       throw new CloudflareError(
         response.status,
         `${method} ${path.split('/').slice(0, 4).join('/')}`,
       );
+    }
     return { result: parsed.result as T, pages: parsed.result_info?.total_pages ?? 1 };
   };
 
