@@ -6,18 +6,7 @@ import {
   GENUI_STYLE_GUIDANCE,
 } from '../src/channels/genui-appearance.js';
 import { parseGenuiDocument } from '../src/channels/genui-document.js';
-import { buildGenuiHtmlDocument } from '../src/channels/genui-html.js';
 import { syntheticGenuiDocument } from './fixtures/genui-document.js';
-
-function innerDocument(theme: 'light' | 'dark', html = syntheticGenuiDocument.html): string {
-  const compiled = buildGenuiHtmlDocument(
-    { ...syntheticGenuiDocument, html },
-    { instanceId: 'appearance-test', theme },
-  );
-  const match = compiled.html.match(/frame\.srcdoc = ("(?:\\.|[^"\\])*");/u);
-  if (!match) throw new Error('Missing isolated content document.');
-  return JSON.parse(match[1]!) as string;
-}
 
 function channels(color: string): number[] {
   return [1, 3, 5].map((offset) => Number.parseInt(color.slice(offset, offset + 2), 16) / 255);
@@ -101,14 +90,6 @@ describe('shared GenUI appearance', () => {
       name: 'layer',
       params: 'genui-default',
     });
-    const author =
-      '<style>html{font-family:serif}body{background:var(--well)}.custom{border:3px dotted currentColor}</style><section class="custom">Authored</section>';
-    for (const theme of ['light', 'dark'] as const) {
-      const inner = innerDocument(theme, author);
-      expect(inner).toContain(`<style>:root{color-scheme:${theme}}${GENUI_DEFAULT_CSS}</style>`);
-      expect(inner).toContain('document.documentElement.style.colorScheme = message.theme');
-      expect(inner).toContain(`<body>${author}</body>`);
-    }
     expect(GENUI_DEFAULT_CSS).not.toMatch(/:root\s*\{[^}]*font-family/u);
   });
 

@@ -206,7 +206,7 @@ deepseekbot genui-view-save dm-<bot-id> --message-id <report-message-id> --genui
 deepseekbot genui-submit dm-<bot-id> --message-id human-<uuid> --genui-file ./request.json
 ```
 
-`document-preview.json` 包含 `genui_json`（完整文档序列化后的 JSON 字符串）、可选 `width`（240–1600）和 `theme`（`light` 或 `dark`）。预览使用已安装的 Chrome、Edge 或 Chromium 和一次性 Profile，不自动下载浏览器。结果包含文档／策略标识、有界诊断和 DSH 图片附件，不发布 Channel 消息。预览期限为 15 秒，只允许一个并发任务，图片上限为 1 MiB；浏览器收尾可能延长返回时间。这不是硬 CPU／内存沙箱。
+`document-preview.json` 包含 `genui_json`（完整文档序列化后的 JSON 字符串）、可选 `width`（240–1600）和 `theme`（`light` 或 `dark`）。预览使用已安装的 Chrome、Edge 或 Chromium 和一次性 Profile，不自动下载浏览器。结果包含文档／策略标识、精确打包渲染器的 `runtimeSha256`、有界诊断和 DSH 图片附件，不发布 Channel 消息。预览期限为 15 秒，只允许一个并发任务，图片上限为 1 MiB；浏览器收尾可能延长返回时间。生成脚本在独立监督的 QuickJS Worker 和有限 DOM 适配层中运行，不在浏览器镜像文档中执行。解释器／WASM 限额不代表浏览器／进程总内存上限，也不保证物理内存立即回收。运行时资源缺失、损坏或不受支持时明确拒绝，不退回浏览器原生脚本执行。
 
 版本 2 文档包含 `version: 2`、`snapshotId`、`observedAt`、`title`、`html`，以及可选的 `predecessorMessageId` 和 `stateContract`。完整信封上限 256 KiB，HTML 上限 192 KiB。不允许远程脚本、字体或其他网络资源、外部导航或 Host／工具调用。参见[丰富内容合成样例](../packages/core/test/fixtures/genui-document.ts)。状态契约最多注册 16 个字符串、数字、布尔或枚举字段。`window.genui.getState()` 返回当前值；`window.genui.setState(values)` 提交完整值对象。监听 `genui:state`，在 Host 恢复状态后重新绘制。未注册的 DOM 状态重新打开后复位。
 

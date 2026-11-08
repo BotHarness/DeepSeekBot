@@ -21,7 +21,8 @@ beforeEach(() => {
   preview.mockReset();
   preview.mockResolvedValue({
     documentId: 'a'.repeat(64),
-    policyVersion: 'botharness-html-1',
+    policyVersion: 'botharness-html-vm-1',
+    runtimeSha256: 'b'.repeat(64),
     width: 728,
     height: 100,
     diagnostics: [],
@@ -46,7 +47,8 @@ describe('GenUI preview Tool', () => {
         type: 'text',
         text: JSON.stringify({
           documentId: 'a'.repeat(64),
-          policyVersion: 'botharness-html-1',
+          policyVersion: 'botharness-html-vm-1',
+          runtimeSha256: 'b'.repeat(64),
           width: 728,
           height: 100,
           diagnostics: [],

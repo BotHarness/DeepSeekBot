@@ -10,6 +10,7 @@ import {
 } from '../../../browser/src/runtime/browser.js';
 import { buildGenuiHtmlDocument } from '../channels/genui-html.js';
 import { parseGenuiDocument } from '../channels/genui-document.js';
+import { loadGenuiRuntimeSource } from './genui-runtime-source.js';
 
 export interface GenuiPreviewDiagnostic {
   component?: 'preview' | 'diagram';
@@ -21,6 +22,7 @@ export interface GenuiPreviewDiagnostic {
 export interface GenuiPreviewResult {
   documentId: string;
   policyVersion: string;
+  runtimeSha256: string;
   width: number;
   height: number;
   diagnostics: string[];
@@ -38,34 +40,6 @@ export class GenuiPreviewError extends Error {
 }
 
 let previewActive = false;
-
-function escapeAttribute(value: string): string {
-  return value.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;');
-}
-
-export function genuiPreviewPage(
-  html: string,
-  instanceId: string,
-  theme: 'light' | 'dark',
-): string {
-  return `<!doctype html><html style="color-scheme:${theme}"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; frame-src 'none'; base-uri 'none'; form-action 'none'"><style>html,body{margin:0;background:Canvas}iframe{display:block;border:0;width:100%;height:48px}</style></head><body><iframe title="GenUI preview" sandbox="allow-scripts" referrerpolicy="no-referrer" srcdoc="${escapeAttribute(html)}"></iframe><script nonce="genui-preview">(() => {
-    const frame = document.querySelector('iframe');
-    window.__genuiPreview = { ready: false, measured: false, height: 48, diagnostics: [] };
-    addEventListener('message', (event) => {
-      if (event.source !== frame.contentWindow || event.origin !== 'null') return;
-      const message = event.data;
-      if (!message || message.protocol !== 'botharness-genui-v1' || message.instanceId !== ${JSON.stringify(instanceId)}) return;
-      if (message.type === 'ready') window.__genuiPreview.ready = true;
-      if (message.type === 'height' && Number.isFinite(message.height) && message.height >= 48 && message.height <= 20000) {
-        frame.style.height = message.height + 'px';
-        window.__genuiPreview.height = message.height;
-        window.__genuiPreview.measured = true;
-      }
-      if (message.type === 'error' && typeof message.message === 'string' && window.__genuiPreview.diagnostics.length < 8)
-        window.__genuiPreview.diagnostics.push(message.message.slice(0, 1000));
-    });
-  })();</script></body></html>`;
-}
 
 export async function previewGenuiDocument(
   value: unknown,
@@ -106,6 +80,8 @@ export async function previewGenuiDocument(
   ]);
   try {
     record('starting');
+    const runtimeSource = await loadGenuiRuntimeSource();
+    signal.throwIfAborted();
     directory = await mkdtemp(join(tmpdir(), 'botharness-genui-preview-'));
     browser = createBotBrowserRuntime({
       userDataDir: directory,
@@ -141,14 +117,17 @@ export async function previewGenuiDocument(
       const compiled = buildGenuiHtmlDocument(document, {
         instanceId,
         theme: options.theme ?? 'dark',
+        runtime: runtimeSource,
       });
-      await client.send(
-        'Page.setDocumentContent',
-        { frameId, html: genuiPreviewPage(compiled.html, instanceId, options.theme ?? 'dark') },
-        sessionId,
-      );
+      await client.send('Page.setDocumentContent', { frameId, html: compiled.html }, sessionId);
       let observed:
-        | { ready: boolean; measured: boolean; height: number; diagnostics: string[] }
+        | {
+            ready: boolean;
+            measured: boolean;
+            failed?: boolean;
+            height: number;
+            diagnostics: string[];
+          }
         | undefined;
       while (!signal.aborted) {
         const result = await client.send(
@@ -157,6 +136,11 @@ export async function previewGenuiDocument(
           sessionId,
         );
         observed = (result['result'] as { value?: typeof observed }).value;
+        if (observed?.failed)
+          throw new GenuiPreviewError(
+            'genui-preview-failed',
+            'The document was refused by the isolated renderer.',
+          );
         if (observed?.ready && observed.measured) break;
         await new Promise<void>((resolve) => setTimeout(resolve, 50));
       }
@@ -183,6 +167,7 @@ export async function previewGenuiDocument(
       return {
         documentId: compiled.documentId,
         policyVersion: compiled.policyVersion,
+        runtimeSha256: compiled.runtimeSha256,
         width,
         height: observed.height,
         diagnostics: observed.diagnostics,

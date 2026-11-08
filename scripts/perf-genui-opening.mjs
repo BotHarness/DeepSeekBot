@@ -229,9 +229,12 @@ async function measure(target, parking) {
       const frameElement = await page.$(
         `[data-message-id=${JSON.stringify(target.messageId)}] section[aria-label] iframe`,
       );
-      const guardian = await frameElement.contentFrame();
-      const inner = guardian.childFrames()[0];
-      assert.ok(inner, 'Nested document frame must exist.');
+      assert.equal(
+        await frameElement.evaluate((node) => node.getAttribute('sandbox')),
+        'allow-same-origin',
+      );
+      const inner = await frameElement.contentFrame();
+      assert.ok(inner, 'Script-disabled document mirror must exist.');
       await inner.waitForSelector('#scene');
       assert.ok(await inner.$eval('body', (node) => node.innerText.includes('Project')));
       row.innerDocumentVerified = true;

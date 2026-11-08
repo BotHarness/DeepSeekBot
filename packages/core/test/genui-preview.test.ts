@@ -2,6 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { existsSync } from 'node:fs';
 import { syntheticGenuiDocument } from './fixtures/genui-document.js';
 
+const packagedRuntime = vi.hoisted(() => ({ load: vi.fn() }));
+vi.mock('../src/runtime/genui-runtime-source.js', () => ({
+  loadGenuiRuntimeSource: packagedRuntime.load,
+}));
+
 const runtime = vi.hoisted(() => ({
   binary: '/synthetic/chrome' as string | undefined,
   directory: '',
@@ -30,7 +35,13 @@ vi.mock('../../browser/src/runtime/browser.js', () => ({
 
 import { previewGenuiDocument } from '../src/runtime/genui-preview.js';
 
-beforeEach(() => {
+beforeEach(async () => {
+  const { createHash } = await import('node:crypto');
+  const source = 'globalThis.__BotHarnessGenuiRuntime = {};';
+  packagedRuntime.load.mockResolvedValue({
+    source,
+    sha256: createHash('sha256').update(source).digest('hex'),
+  });
   runtime.binary = '/synthetic/chrome';
   runtime.ensure.mockResolvedValue();
   runtime.stop.mockResolvedValue();
@@ -48,6 +59,46 @@ beforeEach(() => {
 afterEach(() => vi.clearAllMocks());
 
 describe('isolated GenUI preview lifecycle', () => {
+  it('refuses missing or changed runtime assets before starting a browser and releases the owner', async () => {
+    packagedRuntime.load.mockRejectedValueOnce(new Error('Missing asset'));
+    await expect(previewGenuiDocument(syntheticGenuiDocument)).rejects.toMatchObject({
+      code: 'genui-preview-failed',
+    });
+    expect(runtime.ensure).not.toHaveBeenCalled();
+    packagedRuntime.load.mockResolvedValueOnce({ source: 'changed', sha256: '0'.repeat(64) });
+    await expect(previewGenuiDocument(syntheticGenuiDocument)).rejects.toMatchObject({
+      code: 'genui-preview-failed',
+    });
+    await expect(previewGenuiDocument(syntheticGenuiDocument)).resolves.toMatchObject({
+      height: 48,
+    });
+  });
+
+  it('stops promptly on shared runtime refusal instead of polling to the deadline', async () => {
+    const previous = runtime.send.getMockImplementation()!;
+    runtime.send.mockImplementation(async (method: string, ...args: unknown[]) =>
+      method === 'Runtime.evaluate'
+        ? {
+            result: {
+              value: {
+                ready: false,
+                measured: false,
+                failed: true,
+                height: 48,
+                diagnostics: ['Refused'],
+              },
+            },
+          }
+        : previous(method, ...args),
+    );
+    await expect(previewGenuiDocument(syntheticGenuiDocument)).rejects.toMatchObject({
+      code: 'genui-preview-failed',
+    });
+    expect(
+      runtime.send.mock.calls.filter(([method]) => method === 'Runtime.evaluate'),
+    ).toHaveLength(1);
+    expect(runtime.stop).toHaveBeenCalledOnce();
+  });
   it('returns a tiny document preview and removes its disposable profile after stopping', async () => {
     runtime.stop.mockImplementationOnce(async () => {
       expect(existsSync(runtime.directory)).toBe(true);

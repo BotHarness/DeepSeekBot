@@ -13,12 +13,9 @@ import {
   type GenuiDocument,
   type GenuiDocumentState,
 } from '../../../core/src/channels/genui-document.js';
-import {
-  buildGenuiHtmlDocument,
-  parseGenuiHtmlMessage,
-  GENUI_HTML_PROTOCOL,
-  GENUI_HTML_RUNTIME_LIMITS,
-} from '../../../core/src/channels/genui-html.js';
+import { GENUI_EXECUTION_LIMITS } from '../../../core/src/channels/genui-execution-limits.js';
+import type { GenuiDocumentHandle } from '../../../core/src/channels/genui-document-runtime.js';
+import { loadGenuiDocumentRuntime } from './genui-document-runtime.js';
 import { getGenuiDocumentView, type GenuiDocumentActions } from './genui-document-view.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { ActionButton, ActionGroup } from './ds/action-button.js';
@@ -34,7 +31,6 @@ const styles = stylex.create({
   },
   meta: { color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
   scroll: { overflow: 'auto', maxHeight: 1000, minWidth: 0 },
-  frame: { display: 'block', width: '100%', borderWidth: 0 },
 });
 
 interface DocumentProps {
@@ -239,123 +235,118 @@ interface FrameProps {
   onStatus: (status: 'loading' | 'ready' | 'error') => void;
 }
 
-export class DocumentFrame extends Component<FrameProps, { height: number; failed: boolean }> {
-  override state: { height: number; failed: boolean } = {
-    height: GENUI_HTML_RUNTIME_LIMITS.minHeight,
-    failed: false,
-  };
+export class DocumentFrame extends Component<FrameProps, { failed: boolean }> {
+  override state = { failed: false };
   private readonly instanceId = crypto.randomUUID();
-  private readonly compiled = buildGenuiHtmlDocument(this.props.document, {
-    instanceId: this.instanceId,
-    theme: this.theme(),
-    state: this.props.state,
-  });
-  private frame: HTMLIFrameElement | null = null;
-  private owner: Window | null = null;
+  private container: HTMLDivElement | null = null;
+  private surface: GenuiDocumentHandle | undefined;
   private observer?: MutationObserver;
   private timer?: ReturnType<typeof setTimeout>;
-  private ready = false;
   private disposed = false;
+  private failed = false;
+  private generation = 0;
   private stateIdentity = JSON.stringify(this.props.state);
 
   private theme() {
-    return globalThis.document?.body.hasAttribute('data-ds-dark-theme') ? 'dark' : 'light';
+    return this.container?.ownerDocument.body.hasAttribute('data-ds-dark-theme') ? 'dark' : 'light';
   }
 
   override componentDidMount() {
     this.disposed = false;
-    if (!this.frame || !('srcdoc' in this.frame) || typeof MutationObserver === 'undefined') {
+    const generation = ++this.generation;
+    const container = this.container;
+    const owner = container?.ownerDocument.defaultView;
+    if (!container || !owner || typeof owner.MutationObserver !== 'function') {
       this.fail();
       return;
     }
-    this.owner = this.frame?.ownerDocument.defaultView ?? null;
-    this.owner?.addEventListener('message', this.message);
-    this.observer = new MutationObserver(() => this.post({ type: 'theme', theme: this.theme() }));
-    this.observer.observe(this.frame?.ownerDocument.body ?? document.body, {
+    this.observer = new owner.MutationObserver(() => this.surface?.theme(this.theme()));
+    this.observer.observe(container.ownerDocument.body, {
       attributes: true,
       attributeFilter: ['data-ds-dark-theme'],
     });
-    this.timer = setTimeout(this.fail, GENUI_HTML_RUNTIME_LIMITS.startupMs);
+    this.timer = setTimeout(this.fail, GENUI_EXECUTION_LIMITS.startupMs);
+    void loadGenuiDocumentRuntime()
+      .then(
+        (runtime) => {
+          if (!this.active(generation)) return;
+          clearTimeout(this.timer);
+          const surface = runtime.mountGenuiDocument(container, {
+            document: this.props.document,
+            state: this.props.state,
+            theme: this.theme(),
+            instanceId: this.instanceId,
+            generation,
+            onState: (value) => {
+              if (!this.active(generation) || !this.props.document.stateContract) return;
+              try {
+                const state = validateGenuiDocumentState(this.props.document, value);
+                const identity = JSON.stringify(state);
+                if (identity === this.stateIdentity) return;
+                this.stateIdentity = identity;
+                this.props.onState(state);
+              } catch {
+                this.fail();
+              }
+            },
+            onHeight: () => {},
+            onFailure: () => {
+              if (this.active(generation)) this.fail();
+            },
+          });
+          void surface.ready.then(
+            () => {
+              if (this.active(generation)) this.props.onStatus('ready');
+            },
+            () => {
+              if (this.active(generation)) this.fail();
+            },
+          );
+          if (!this.active(generation)) {
+            surface.dispose();
+            return;
+          }
+          this.surface = surface;
+        },
+        () => {
+          if (this.active(generation)) this.fail();
+        },
+      )
+      .catch(() => {
+        if (this.active(generation)) this.fail();
+      });
   }
 
   override componentDidUpdate() {
     const identity = JSON.stringify(this.props.state);
     if (identity !== this.stateIdentity) {
       this.stateIdentity = identity;
-      if (this.ready) this.post({ type: 'restore', state: this.props.state });
+      this.surface?.restore(this.props.state);
     }
   }
 
   override componentWillUnmount() {
     this.disposed = true;
+    this.generation++;
     clearTimeout(this.timer);
     this.observer?.disconnect();
-    this.owner?.removeEventListener('message', this.message);
+    this.surface?.dispose();
+    this.surface = undefined;
   }
 
-  private post(
-    message:
-      | { type: 'restore'; state: GenuiDocumentState }
-      | { type: 'theme'; theme: 'light' | 'dark' },
-  ) {
-    this.frame?.contentWindow?.postMessage(
-      { protocol: GENUI_HTML_PROTOCOL, instanceId: this.instanceId, ...message },
-      '*',
-    );
+  private active(generation: number): boolean {
+    return !this.disposed && !this.failed && generation === this.generation;
   }
 
   private fail = () => {
-    if (this.disposed || this.state.failed) return;
+    if (this.disposed || this.failed) return;
+    this.failed = true;
     clearTimeout(this.timer);
     this.observer?.disconnect();
-    this.owner?.removeEventListener('message', this.message);
+    this.surface?.dispose();
+    this.surface = undefined;
     this.props.onStatus('error');
     this.setState({ failed: true });
-  };
-
-  private sequence = 0;
-
-  private message = (event: MessageEvent) => {
-    if (
-      this.disposed ||
-      this.state.failed ||
-      !this.frame ||
-      event.source !== this.frame.contentWindow ||
-      event.origin !== 'null'
-    )
-      return;
-    const message = parseGenuiHtmlMessage(event.data, this.instanceId);
-    if (!message || message.sequence <= this.sequence) return;
-    this.sequence = message.sequence;
-    if (message.type === 'error') {
-      this.fail();
-      return;
-    }
-    if (message.type === 'ready') {
-      if (this.ready) return;
-      this.ready = true;
-      this.post({ type: 'restore', state: this.props.state });
-      this.post({ type: 'theme', theme: this.theme() });
-      this.props.onStatus('ready');
-    }
-    if (message.type === 'ready' || (message.type === 'heartbeat' && this.ready)) {
-      clearTimeout(this.timer);
-      this.timer = setTimeout(this.fail, GENUI_HTML_RUNTIME_LIMITS.heartbeatTimeoutMs);
-    }
-    if (!this.ready) return;
-    if (message.type === 'height' && message.height !== this.state.height)
-      this.setState({ height: message.height });
-    if (message.type === 'state' && this.props.document.stateContract) {
-      try {
-        const state = validateGenuiDocumentState(this.props.document, message.state);
-        const identity = JSON.stringify(state);
-        if (identity === this.stateIdentity) return;
-        this.stateIdentity = identity;
-        this.props.onState(state);
-      } catch {
-        this.fail();
-      }
-    }
   };
 
   override render() {
@@ -367,19 +358,10 @@ export class DocumentFrame extends Component<FrameProps, { height: number; faile
         tabIndex={0}
         {...stylex.props(styles.scroll)}
       >
-        <iframe
-          ref={(frame) => {
-            this.frame = frame;
+        <div
+          ref={(container) => {
+            this.container = container;
           }}
-          title={this.props.document.title}
-          sandbox="allow-scripts"
-          referrerPolicy="no-referrer"
-          srcDoc={this.compiled.html}
-          data-document-id={this.compiled.documentId}
-          data-policy-version={this.compiled.policyVersion}
-          onError={this.fail}
-          {...stylex.props(styles.frame)}
-          style={{ height: this.state.height }}
         />
       </div>
     );

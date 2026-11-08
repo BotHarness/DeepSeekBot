@@ -2,16 +2,9 @@ import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
 import { z } from 'zod';
 import { GenuiError } from './genui.js';
+import { GENUI_DOCUMENT_LIMITS } from './genui-document-limits.js';
 
-export const GENUI_DOCUMENT_LIMITS = Object.freeze({
-  bytes: 262_144,
-  htmlBytes: 196_608,
-  stateBytes: 8_192,
-  fields: 16,
-  options: 20,
-  stringLength: 500,
-  depth: 8,
-});
+export { GENUI_DOCUMENT_LIMITS } from './genui-document-limits.js';
 
 const identity = z
   .string()

@@ -19,7 +19,7 @@ summary; rich content adds the maintained nine-scene document fixture.
 
 Readiness requires a frontmost canonical message, a composer, no history skeleton,
 and, for rich content, a visible iframe and enabled product-owned Continue button.
-It rechecks readiness after two rAF callbacks and separately checks nested document
+It rechecks readiness after two rAF callbacks and separately checks script-disabled mirror
 content. This is visible-ready evidence, not proof of physical presentation or full
 interaction. Headed runs use matching actual native viewports, checked before and
 after each opening. `--headless` is the CI diagnostic, not foreground acceptance.
@@ -41,14 +41,16 @@ does not clear execution containment (#3704), native (#3705) or Human acceptance
 
 ## HTML document candidate
 
-The version-2 isolated HTML implementation shipped in PR #3699. Current-main Web qualification is tracked in #3703, independent execution/resource containment in #3704, and installed mobile in #3705; the cross-platform parent #3684 remains open. Closing implementation tickets #3685/#3691 did not turn their outstanding acceptance checkboxes into passes. Run the production-shaped HTML journey against a task-owned Host:
+The original version-2 isolated HTML implementation shipped in PR #3699. Remaining Web qualification is tracked in #3711 (carried forward from closed #3703), independent execution/resource containment in #3704, and installed mobile in #3705; the cross-platform parent #3684 remains open. Closing implementation tickets #3685/#3691 did not turn their outstanding acceptance checkboxes into passes. Run the production-shaped HTML journey against a task-owned Host:
 
 ```bash
 BH_E2E_INSTANCE=.humanlayer/verify/<name>/instance.json \
   node scripts/e2e-genui-documents.mjs --out <private-evidence-directory>
 ```
 
-It creates a synthetic Bot, invokes the model-free `genui_preview` Tool, explicitly publishes the document, and drives its actual isolated frames. It closes its own browser; the caller owns the Host. Default captures are headed. Keep every failure in its original run directory.
+It creates a synthetic Bot, invokes the model-free `genui_preview` Tool, explicitly publishes the document, and drives the actual script-disabled mirror backed by the shared supervised execution runtime. The manifest retains renderer metadata and the lazy Client companion hash. Generated scripts execute only in the Worker VM; Browser automation inspecting the mirror's native DOM is not guest capability evidence. Probe forbidden capabilities from generated guest scripts instead. It closes its own browser; the caller owns the Host. Default captures are headed. Keep every failure in its original run directory.
+
+Poll changing mirror controls from the trusted parent page: animation-frame polling inside a script-disabled iframe can time out even when the visible DOM changes. Use native keyboard input rather than manufacturing private state. The installed Puppeteer click API uses `count` for repeated clicks, not `clickCount`; assert the visible value and canonical state separately. Optional `BH_GENUI_DIAGNOSTIC=1` retains a bounded Worker/native-event trace for this synthetic journey only; do not use instrumented runs as performance qualification.
 
 Add `--with-model` to require a real model-generated linked HTML follow-up after the visible Human continuation. This opts into real provider work on the newly created synthetic Bot. The runner requires the canonical Source Event, correct Channel/Bot/predecessor, and an ordered successful preview/publication in the actual orchestrator trace whose committed message ID matches that canonical message. A direct Tool run, a text-only reply, an earlier message or unrelated Bot does not satisfy this gate. The new message must also render in the actual conversation. The deterministic default is not model acceptance, even if a background model happens to reply.
 
@@ -91,9 +93,9 @@ The public `channelMessages` projection intentionally does not expose `channelId
 
 These nine fixture scenes are examples of arbitrary self-contained documents, **not** nine protocol component types or exhaustive coverage of possible HTML. New supported journeys extend the fixture and scene index. Approval/Question/private-input owners remain separate.
 
-Run `BH_GENUI_BROWSER_QA=1 pnpm exec vitest run packages/core/test/genui-html-browser.test.ts --maxWorkers=1` separately for real Chromium loading and blocked fetch, image, stylesheet, frame, form, navigation, refresh and popup requests. It does not intercept requests to manufacture a pass. Unit tests cover checked bridge messages, retained drafts, stale instances, retries and owner limits. None replaces installed WebView or desktop-shell validation.
+After `pnpm build`, run `BH_GENUI_BROWSER_QA=1 pnpm exec vitest run packages/core/test/genui-html-browser.test.ts` separately for real Chromium loading and blocked fetch, image, stylesheet, frame, form, navigation, refresh and popup requests. The spec locates the built renderer explicitly while exercising the source preview owner; a live Host/direct CLI run separately proves packaged asset resolution. Unsupported resource attempts may be explicitly refused, not silently treated as supported content. The test does not intercept requests to manufacture a pass. Unit tests cover generation/sequence/command acknowledgements, retained drafts, stale callbacks, retries and owner limits. VM real-time deadline tests run in the serial `genui-budgeted` project without increased execution budgets. None replaces installed WebView or desktop-shell validation.
 
-**Unresolved execution boundary:** iframe sandbox/CSP restrict capabilities, not CPU or memory. The heartbeat, startup deadline, height/message limits and reload state do not guarantee recovery when generated code blocks the Client event loop. Hard independently interruptible execution/memory containment remains a release gate; do not run untrusted runaway-script fixtures in the Human's daily browser or claim the candidate is production-qualified.
+**Containment qualification:** the old nested-iframe candidate did not independently interrupt generated scripts. The #3704 replacement uses an offline QuickJS Worker with interpreter/WASM budgets and an external Supervisor, then independently validates inert snapshots for a script-disabled mirror. Qualify runaway execution, heartbeat-producing memory pressure, startup failure, delayed overflow, restart and cleanup through the actual consumers. Do not run fault fixtures in the Human's daily browser. One physical Worker and one aggregate 64 MiB WASM module admit at most four independent document runtimes. Verify original and appended reports actually render simultaneously, private/global/timer isolation, sibling survival on normal unmount, capacity fallback without eviction, and explicit sibling failure/reload after a hard Worker stop. Source tests are not this consumer proof. WASM linear-memory limits and Worker termination are not total-process memory containment or proof of immediate physical reclamation. Preserve failures and qualify actual Web, desktop-shell and installed native separately.
 
 ## Offline Pele and default-style slice (#3691)
 

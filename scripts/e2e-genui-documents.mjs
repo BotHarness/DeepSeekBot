@@ -13,7 +13,11 @@ import { rpc } from './verify-app.mjs';
 import { findGenuiModelFollowup, genuiMessageSelector } from './genui-model-qualification.mjs';
 import { stopGenuiQaBot } from './genui-qa-cleanup.mjs';
 import { installGenuiFaultTransport } from './genui-fault-transport.mjs';
-import { clickGenuiDocumentAction, fillGenuiDocumentFilter } from './genui-document-action.mjs';
+import {
+  clickGenuiDocumentAction,
+  fillGenuiDocumentFilter,
+  waitForGenuiMirrorControl,
+} from './genui-document-action.mjs';
 import {
   openTimelineConversation,
   revealEarlierTimelineMessage,
@@ -59,6 +63,9 @@ const manifest = {
   diffSha256: hash(git('diff', 'HEAD')),
   hostSha256: hash(readFileSync(join(root, 'packages/core/dist/index.mjs'))),
   clientSha256: hash(readFileSync(join(root, 'packages/client/lib/client.js'))),
+  renderer: JSON.parse(readFileSync(join(root, 'packages/core/dist/genui-runtime.json'), 'utf8'))
+    .renderer,
+  clientRuntimeSha256: hash(readFileSync(join(root, 'packages/client/lib/client.genui.js'))),
   document: {
     ...structuredClone(syntheticGenuiDocument),
     snapshotId: `html-${runId}`,
@@ -120,6 +127,58 @@ async function dismiss(target) {
   }
 }
 async function open(target) {
+  if (process.env.BH_GENUI_DIAGNOSTIC === '1')
+    await target.evaluateOnNewDocument(() => {
+      window.__genuiExecutionTrace = [];
+      const record = (value) => {
+        window.__genuiExecutionTrace.push(value);
+        if (window.__genuiExecutionTrace.length > 80) window.__genuiExecutionTrace.shift();
+      };
+      const NativeWorker = window.Worker;
+      window.Worker = class extends NativeWorker {
+        constructor(...args) {
+          super(...args);
+          this.addEventListener('message', (event) => {
+            const reply = event.data.reply;
+            record({
+              direction: 'reply',
+              type: reply?.type,
+              portId: event.data.portId,
+              state: reply?.state,
+              commandSequence: reply?.commandSequence,
+            });
+          });
+        }
+        postMessage(value, ...args) {
+          const command = value.command;
+          record({
+            direction: 'send',
+            portId: value.portId,
+            type: command?.type,
+            event: command?.event,
+            targetId: command?.targetId,
+            value: command?.value,
+          });
+          if (command?.type === 'boot')
+            for (const frame of document.querySelectorAll('iframe[data-policy-version]')) {
+              for (const type of ['input', 'change', 'click'])
+                frame.contentDocument?.body.addEventListener(type, (event) =>
+                  record({
+                    direction: 'native',
+                    type,
+                    target: event.target.id,
+                    value: event.target.value,
+                    targetId: event.target.getAttribute('data-genui-node'),
+                    realm: event.target instanceof frame.contentWindow.Element,
+                    connected: event.target.isConnected,
+                    sameDocument: event.target.ownerDocument === frame.contentDocument,
+                  }),
+                );
+            }
+          return super.postMessage(value, ...args);
+        }
+      };
+    });
   if (values.faults) await target.evaluateOnNewDocument(installGenuiFaultTransport);
   await target.evaluateOnNewDocument(() => {
     Object.defineProperty(navigator, 'language', { configurable: true, get: () => 'en-US' });
@@ -139,20 +198,22 @@ async function open(target) {
       document.body.innerText.includes('Bot mode') ||
       document.querySelector('.bh-root.bh-main, [data-workspace-dock]'),
   );
+  await dismiss(target);
   await openTimelineConversation(target, channelId, () => dismiss(target));
   await target.waitForSelector('.bh-chat-body');
   await target.waitForFunction(() => !document.querySelector('.bh-skeleton-messages'));
 }
 async function frame(target = page) {
   await target.waitForSelector(`${panel} iframe`);
-  const guardian = await (await target.$(`${panel} iframe`)).contentFrame();
+  const element = await target.$(`${panel} iframe`);
+  assert.equal(await element.evaluate((node) => node.getAttribute('sandbox')), 'allow-same-origin');
   await target.waitForFunction(
     (selector) => !document.querySelector(selector)?.textContent.includes('Loading document'),
     {},
     panel,
   );
-  const inner = guardian.childFrames()[0];
-  assert.ok(inner, 'Isolated document frame must exist.');
+  const inner = await element.contentFrame();
+  assert.ok(inner, 'Script-disabled document mirror must exist.');
   await inner.waitForSelector('#scene');
   await target.waitForFunction(
     (selector) => document.querySelector(selector)?.textContent.includes('Private view saved'),
@@ -208,26 +269,23 @@ async function captureObservation(name, target, kind, evidence = {}) {
 }
 async function saved(predicate) {
   const deadline = Date.now() + 10_000;
+  let latest;
   while (Date.now() < deadline) {
     const view = await call('channelGenuiView', { channelId, messageId });
+    latest = view;
     if (predicate(view.state.values)) return view;
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
-  throw new Error('Private state did not reach the expected canonical value.');
+  throw new Error(
+    `Private state did not reach the expected canonical value: ${JSON.stringify(latest)}`,
+  );
 }
 async function button(label, target = page) {
   await clickGenuiDocumentAction(target, panel, label);
 }
 async function filter(text, target = page) {
   const inner = await frame(target);
-  await inner.$eval(
-    '#filter',
-    (node, value) => {
-      node.value = value;
-      node.dispatchEvent(new Event('input', { bubbles: true }));
-    },
-    text,
-  );
+  await fillGenuiDocumentFilter(inner, text);
 }
 
 async function revealPublished(selector) {
@@ -270,7 +328,7 @@ async function qualifyFaults() {
   await saved((state) => state.filter === 'Alpha');
   const stale = await page.evaluate(() =>
     window.__genuiFaultQa.messages.findLast(
-      (message) => message.type === 'state' && message.state.values.filter === 'Alpha',
+      (message) => message.envelope.reply.state.values.filter === 'Alpha',
     ),
   );
   assert.ok(stale, 'Observe an actual accepted state envelope before replay.');
@@ -285,16 +343,26 @@ async function qualifyFaults() {
   await page.evaluate((stale) => window.postMessage(stale, '*'), stale);
   await new Promise((resolve) => setTimeout(resolve, 1200));
   assert.deepEqual(await call('channelGenuiView', { channelId, messageId }), before);
-  await setFilter('Alpha');
-  await saved((state) => state.filter === 'Alpha');
-  await capture('fault-invalid-bridge-retained-state');
+  await page.evaluate((stale) => {
+    const worker = window.__genuiFaultQa.workers[stale.workerIndex];
+    worker.dispatchEvent(new MessageEvent('message', { data: stale.envelope }));
+  }, stale);
+  await waitText('The document could not run');
+  assert.deepEqual(await call('channelGenuiView', { channelId, messageId }), before);
+  await capture('fault-replayed-worker-snapshot-refused');
   await button('Reload document');
   inner = await frame();
-  await inner.evaluate((stale) => parent.postMessage({ ...stale, sequence: 999999 }, '*'), stale);
+  await page.evaluate((stale) => {
+    const worker = window.__genuiFaultQa.workers[stale.workerIndex];
+    worker.dispatchEvent(new MessageEvent('message', { data: stale.envelope }));
+  }, stale);
+  await setFilter('Alpha');
+  await saved((state) => state.filter === 'Alpha');
   await setFilter('Beta');
   await saved((state) => state.filter === 'Beta');
+  await capture('fault-remount-stale-worker-lease-ignored');
   manifest.checks.push(
-    'Live same-mount replay, wrong source/mount, oversized and unknown bridge envelopes do not roll back state; remount accepts fresh traffic.',
+    'Window-message probes have no presentation authority; an actual same-mount Worker snapshot replay refuses the surface without rolling back canonical state. The old lease cannot affect a remount, which accepts fresh local traffic. Protocol shape/size rejection has separate automated coverage.',
   );
 
   await page.evaluate(() => {
@@ -315,7 +383,7 @@ async function qualifyFaults() {
     (await call('channelGenuiView', { channelId, messageId })).state.values.filter,
     'Beta',
   );
-  assert.equal(await inner.evaluate(() => window.genui.getState().filter), 'Retained draft');
+  assert.equal(await inner.$eval('#filter', (node) => node.value), 'Retained draft');
   await capture('fault-failed-save-retained-draft');
   await button('Save my view');
   await saved((state) => state.filter === 'Retained draft');
@@ -548,10 +616,11 @@ try {
   assert.equal(await inner.$$eval('#rows tr', (rows) => rows.length), 1);
   await capture('02-filter');
   await filter('not-a-project');
-  await inner.waitForFunction(() => !document.querySelector('#empty').hidden);
+  await waitForGenuiMirrorControl(page, panel, '#empty', 'hidden', false);
   await capture('03-no-matches');
   await filter('');
   await inner.select('#sort', 'ascending');
+  await saved((state) => state.sort === 'ascending');
   assert.match(await inner.$eval('#rows tr', (node) => node.textContent), /Beta/);
   await capture('04-sort');
   await inner.click('input[aria-label="Select Alpha"]');
@@ -568,7 +637,13 @@ try {
   const second = await context.newPage();
   await open(second);
   const secondFrame = await frame(second);
-  await secondFrame.waitForFunction(() => window.genui.getState().selected === 'alpha');
+  await waitForGenuiMirrorControl(
+    second,
+    panel,
+    'input[aria-label="Select Alpha"]',
+    'checked',
+    true,
+  );
   assert.equal(await secondFrame.$eval('#filter', (node) => node.value), '');
   assert.equal(
     await secondFrame.$eval('input[aria-label="Select Alpha"]', (node) => node.checked),
@@ -597,13 +672,14 @@ try {
   await context.close();
   await page.reload({ waitUntil: 'networkidle2' });
   inner = await frame();
-  await inner.waitForFunction(() => window.genui.getState().filter === 'Beta');
+  await waitForGenuiMirrorControl(page, panel, '#filter', 'value', 'Beta');
   assert.equal(await inner.$eval('#filter', (node) => node.value), 'Beta');
   await capture('09-reopen');
   await button('Reset view');
   await saved((state) => state.filter === '' && state.selected === 'none');
   await capture('10-reset');
   await inner.select('#scene', 'table');
+  await saved((state) => state.scene === 'table');
   await inner.click('input[aria-label="Select Alpha"]');
   await saved((state) => state.selected === 'alpha');
   await button('Continue');
@@ -678,9 +754,8 @@ try {
       {},
       modelPanel,
     );
-    const modelGuardian = await (await page.$(`${modelPanel} iframe`)).contentFrame();
-    const modelFrame = modelGuardian.childFrames()[0];
-    assert.ok(modelFrame, 'The model-authored isolated document must actually mount.');
+    const modelFrame = await (await page.$(`${modelPanel} iframe`)).contentFrame();
+    assert.ok(modelFrame, 'The model-authored script-disabled mirror must actually mount.');
     await modelFrame.waitForSelector('table');
     assert.ok(
       (await modelFrame.$eval('table', (node) => node.textContent.toLowerCase())).includes(
@@ -780,6 +855,17 @@ try {
     {},
     refreshedPanel,
   );
+  assert.equal(
+    await page.$eval(refreshedPanel, (node) =>
+      node.textContent.includes('The document could not run'),
+    ),
+    false,
+    'The linked refresh must actually render, not merely keep its summary.',
+  );
+  assert.ok(
+    await page.$(`${refreshedPanel} iframe`),
+    'The linked refresh must retain a live document mirror.',
+  );
   await capture('15-linked-refresh', page, refreshedPanel);
   for (const [name, html] of [
     [
@@ -791,6 +877,15 @@ try {
       '<h2>Invalid document</h2><script>throw new Error("Synthetic fixture failure")</script>',
     ],
     ['height-failure', '<div style="height:25001px">Synthetic over-limit document</div>'],
+    ...(values.faults
+      ? [
+          ['execution-failure', '<p>Bounded guest fault</p><script>for(;;){}</script>'],
+          [
+            'memory-failure',
+            '<p>Bounded guest allocation fault</p><script>globalThis.retained=[];for(let index=0;index<96;index++)retained.push(String.fromCharCode(65+index%26).repeat(1048576-16)+index)</script>',
+          ],
+        ]
+      : []),
   ]) {
     const document = {
       version: 2,
@@ -823,6 +918,15 @@ try {
         {},
         selector,
       );
+    else {
+      const frameElement = await page.$(`${selector} iframe`);
+      assert.ok(frameElement, 'A supported stateless document must actually render.');
+      const rendered = await frameElement.contentFrame();
+      assert.equal(
+        await rendered.$eval('h2', (node) => node.textContent),
+        'Static visual explanation',
+      );
+    }
     await capture(`16-${name}`, page, selector);
   }
   manifest.checks.push(
@@ -840,6 +944,10 @@ try {
 } catch (error) {
   manifest.status = 'failed';
   manifest.failure = error.stack ?? String(error);
+  if (page && process.env.BH_GENUI_DIAGNOSTIC === '1')
+    manifest.executionDiagnostic = await page
+      .evaluate(() => window.__genuiExecutionTrace)
+      .catch(() => undefined);
   if (page) await captureObservation('failure', page, 'failure-observation').catch(() => undefined);
   process.exitCode = 1;
 } finally {
