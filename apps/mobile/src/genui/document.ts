@@ -1,21 +1,25 @@
 import {
   parseGenuiDocument,
+  validateGenuiDocumentState,
   type GenuiDocument,
+  type GenuiDocumentState,
 } from '../../../../packages/core/src/channels/genui-document';
 import { GENUI_EXECUTION_LIMITS } from '../../../../packages/core/src/channels/genui-execution-limits';
 import {
   buildGenuiPageHtml,
+  GENUI_NATIVE_INBOUND_BYTES,
   GENUI_PAGE_FAILURES,
 } from '../../../../packages/core/src/channels/genui-page';
 
-export type { GenuiDocument };
+export type { GenuiDocument, GenuiDocumentState };
 export type GenuiDocumentFailure = (typeof GENUI_PAGE_FAILURES)[number];
 export type GenuiBridgeMessage =
   | { type: 'ready' }
   | { type: 'height'; height: number }
-  | { type: 'failure'; reason: GenuiDocumentFailure };
+  | { type: 'failure'; reason: GenuiDocumentFailure }
+  | { type: 'state'; state: GenuiDocumentState };
 
-export const GENUI_BRIDGE_BYTES = 512;
+export const GENUI_BRIDGE_BYTES = GENUI_NATIVE_INBOUND_BYTES;
 export const GENUI_FRAME_MAX_HEIGHT =
   GENUI_EXECUTION_LIMITS.mirrorMaxHeight * GENUI_EXECUTION_LIMITS.mirrorMaxTextScale;
 
@@ -44,11 +48,13 @@ export function genuiDocumentPage(
     theme: 'light' | 'dark';
     fontScale: number;
     runtimeBase64: string;
+    state?: GenuiDocumentState;
   },
 ): string {
   return buildGenuiPageHtml(document, {
     instanceId: options.instanceId,
     theme: options.theme,
+    ...(options.state === undefined ? {} : { state: options.state }),
     textScale: genuiTextScale(options.fontScale),
     runtimeBase64: options.runtimeBase64,
     bridge: 'native',
@@ -62,6 +68,7 @@ function keys(value: object): string {
 export function parseGenuiBridgeMessage(
   data: unknown,
   instanceId: string,
+  document?: GenuiDocument,
 ): GenuiBridgeMessage | undefined {
   if (typeof data !== 'string' || data.length === 0 || data.length > GENUI_BRIDGE_BYTES)
     return undefined;
@@ -86,6 +93,14 @@ export function parseGenuiBridgeMessage(
       return { type: 'height', height: Math.ceil(height) };
     return undefined;
   }
+  if (message['type'] === 'state' && keys(message) === 'instanceId,state,type') {
+    if (document?.stateContract === undefined) return undefined;
+    try {
+      return { type: 'state', state: validateGenuiDocumentState(document, message['state']) };
+    } catch {
+      return undefined;
+    }
+  }
   if (message['type'] === 'failure' && keys(message) === 'instanceId,reason,type') {
     const reason = message['reason'];
     return GENUI_PAGE_FAILURES.includes(reason as GenuiDocumentFailure)
@@ -97,4 +112,21 @@ export function parseGenuiBridgeMessage(
 
 export function genuiNavigationAllowed(url: string): boolean {
   return url === 'about:blank' || url === 'about:srcdoc';
+}
+
+export function genuiRestoreMessage(
+  instanceId: string,
+  document: GenuiDocument,
+  state: GenuiDocumentState,
+): string | undefined {
+  try {
+    const data = JSON.stringify({
+      instanceId,
+      type: 'restore',
+      state: validateGenuiDocumentState(document, state),
+    });
+    return data.length <= GENUI_NATIVE_INBOUND_BYTES ? data : undefined;
+  } catch {
+    return undefined;
+  }
 }

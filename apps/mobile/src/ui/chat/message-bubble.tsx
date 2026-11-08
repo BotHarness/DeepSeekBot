@@ -167,7 +167,11 @@ export function BubbleBody({
       {message.voice === undefined ? null : <VoiceBar voice={message.voice} />}
       <MessageBody message={message} streaming={streaming} />
       {message.genuiDocument === undefined ? null : (
-        <GenuiDocumentCard document={message.genuiDocument} />
+        <GenuiDocumentCard
+          document={message.genuiDocument}
+          channelId={message.source?.channelId}
+          messageId={message.id}
+        />
       )}
       {message.attachments.length > 0 ? (
         <MessageAttachments

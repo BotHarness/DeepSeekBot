@@ -1,4 +1,12 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import {
+  use,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ComponentRef,
+} from 'react';
 import { View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 
@@ -6,27 +14,41 @@ import { GENUI_EXECUTION_LIMITS } from '../../../../../packages/core/src/channel
 import {
   genuiDocumentPage,
   genuiNavigationAllowed,
+  genuiRestoreMessage,
   parseGenuiBridgeMessage,
   type GenuiDocument,
 } from '../../genui/document';
+import { genuiDocumentView, type GenuiDocumentViewModel } from '../../genui/view';
 import { genuiFrame, radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
+import { GenuiViewHost } from './genui-view-client';
 
 type Status = 'loading' | 'ready' | 'failed';
 
 let mounts = 0;
 
-function GenuiFrame({ document, onFailure }: { document: GenuiDocument; onFailure(): void }) {
+function GenuiFrame({
+  document,
+  view,
+  onFailure,
+}: {
+  document: GenuiDocument;
+  view: GenuiDocumentViewModel;
+  onFailure(): void;
+}) {
   const theme = useDesignTheme();
   const t = useStrings();
   const instanceId = useMemo(() => `genui-mobile-${++mounts}`, []);
+  const [initial] = useState(() => view.getSnapshot().state);
   const [status, setStatus] = useState<Status>('loading');
   const [height, setHeight] = useState<number>(GENUI_EXECUTION_LIMITS.mirrorMinHeight);
+  const web = useRef<ComponentRef<typeof WebView>>(null);
   const failed = useRef(false);
   const settled = useRef(false);
+  const synced = useRef(JSON.stringify(initial));
   const failRef = useRef<() => void>(() => {});
   const fail = () => {
     if (failed.current) return;
@@ -36,6 +58,16 @@ function GenuiFrame({ document, onFailure }: { document: GenuiDocument; onFailur
     onFailure();
   };
   failRef.current = fail;
+  const sync = useCallback(() => {
+    if (failed.current || !settled.current) return;
+    const state = view.getSnapshot().state;
+    const identity = JSON.stringify(state);
+    if (identity === synced.current) return;
+    const data = genuiRestoreMessage(instanceId, document, state);
+    if (data === undefined) return;
+    synced.current = identity;
+    web.current?.postMessage(data);
+  }, [document, instanceId, view]);
   const html = useMemo(() => {
     const { GENUI_RUNTIME } =
       require('../../genui/runtime.generated') as typeof import('../../genui/runtime.generated');
@@ -44,23 +76,37 @@ function GenuiFrame({ document, onFailure }: { document: GenuiDocument; onFailur
       theme: theme.scheme,
       fontScale: theme.fontScale,
       runtimeBase64: GENUI_RUNTIME.base64,
+      state: initial,
     });
-  }, [document, instanceId, theme.scheme, theme.fontScale]);
-  const watchdog = useCallback((node: unknown): void | (() => void) => {
-    if (node === null) return;
-    const timer = setTimeout(() => {
-      if (!settled.current) failRef.current();
-    }, GENUI_EXECUTION_LIMITS.startupMs * 2);
-    return () => clearTimeout(timer);
-  }, []);
+  }, [document, instanceId, theme.scheme, theme.fontScale, initial]);
+  const attach = useCallback(
+    (node: unknown): void | (() => void) => {
+      if (node === null) return;
+      const timer = setTimeout(() => {
+        if (!settled.current) failRef.current();
+      }, GENUI_EXECUTION_LIMITS.startupMs * 2);
+      const unsubscribe = view.subscribe(sync);
+      return () => {
+        clearTimeout(timer);
+        unsubscribe();
+      };
+    },
+    [view, sync],
+  );
   const receive = (event: WebViewMessageEvent) => {
-    const message = parseGenuiBridgeMessage(event.nativeEvent.data, instanceId);
+    const message = parseGenuiBridgeMessage(event.nativeEvent.data, instanceId, document);
     if (message === undefined || failed.current) return;
     if (message.type === 'ready') {
       settled.current = true;
       setStatus('ready');
+      sync();
     } else if (message.type === 'height') setHeight(message.height);
-    else fail();
+    else if (message.type === 'state') {
+      const identity = JSON.stringify(message.state);
+      if (identity === synced.current) return;
+      synced.current = identity;
+      view.edit(message.state);
+    } else fail();
   };
   const visible = Math.min(height, genuiFrame.maxHeight);
   return (
@@ -74,9 +120,10 @@ function GenuiFrame({ document, onFailure }: { document: GenuiDocument; onFailur
         }}
         accessibilityLabel={document.title}
         testID="genui-document-frame"
-        ref={watchdog}
+        ref={attach}
       >
         <WebView
+          ref={web}
           source={{ html }}
           originWhitelist={['about:blank', 'about:srcdoc']}
           onShouldStartLoadWithRequest={(request) => genuiNavigationAllowed(request.url)}
@@ -113,8 +160,109 @@ function GenuiFrame({ document, onFailure }: { document: GenuiDocument; onFailur
   );
 }
 
-export function GenuiDocumentCard({ document }: { document: GenuiDocument }) {
+function ViewControls({ view, stateful }: { view: GenuiDocumentViewModel; stateful: boolean }) {
   const t = useStrings();
+  const snapshot = useSyncExternalStore(view.subscribe, view.getSnapshot, view.getSnapshot);
+  if (!snapshot.available)
+    return (
+      <Text variant="meta" tone="muted" accessibilityRole="alert">
+        {t.genuiUnavailable}
+      </Text>
+    );
+  if (!stateful) return null;
+  const status = snapshot.status;
+  const label =
+    status === 'saving'
+      ? t.genuiSaving
+      : status === 'save-error'
+        ? t.genuiSaveError
+        : status === 'load-error'
+          ? t.genuiLoadError
+          : status === 'conflict' || status === 'conflict-ready' || status === 'resolving'
+            ? t.genuiConflict
+            : status === 'loading'
+              ? t.genuiLoading
+              : t.genuiSaved;
+  const alert = status === 'save-error' || status === 'load-error' || status === 'conflict';
+  return (
+    <View style={{ gap: space.x2, alignItems: 'flex-start' }}>
+      <Text
+        variant="meta"
+        tone="muted"
+        accessibilityRole={alert ? 'alert' : undefined}
+        accessibilityLiveRegion="polite"
+        testID="genui-document-status"
+      >
+        {label}
+      </Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.x2 }}>
+        {status === 'conflict' ? (
+          <>
+            <Button
+              label={t.genuiUseSaved}
+              variant="text"
+              testID="genui-document-use-saved"
+              onPress={() => void view.reload()}
+            />
+            <Button
+              label={t.genuiKeepMine}
+              variant="text"
+              testID="genui-document-keep-mine"
+              onPress={() => void view.keepDraft()}
+            />
+          </>
+        ) : null}
+        {status === 'save-error' || status === 'conflict-ready' ? (
+          <Button
+            label={t.genuiSave}
+            variant="text"
+            testID="genui-document-save"
+            onPress={() => void view.save()}
+          />
+        ) : null}
+        {status === 'load-error' ? (
+          <Button
+            label={t.genuiReload}
+            variant="text"
+            testID="genui-document-reload"
+            onPress={() => void view.reload()}
+          />
+        ) : null}
+        {status === 'ready' || status === 'saving' ? (
+          <Button
+            label={t.genuiReset}
+            variant="text"
+            testID="genui-document-reset"
+            onPress={view.reset}
+          />
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+export function GenuiDocumentCard({
+  document,
+  channelId,
+  messageId,
+}: {
+  document: GenuiDocument;
+  channelId?: string | undefined;
+  messageId: string;
+}) {
+  const t = useStrings();
+  const client = use(GenuiViewHost);
+  const view = useMemo(
+    () =>
+      genuiDocumentView(
+        document,
+        channelId ?? '',
+        messageId,
+        channelId === undefined ? undefined : client,
+      ),
+    [document, channelId, messageId, client],
+  );
+  const snapshot = useSyncExternalStore(view.subscribe, view.getSnapshot, view.getSnapshot);
   const [attempt, setAttempt] = useState(0);
   const [failed, setFailed] = useState(false);
   return (
@@ -122,7 +270,7 @@ export function GenuiDocumentCard({ document }: { document: GenuiDocument }) {
       <Text variant="body" strong>
         {document.title}
       </Text>
-      {failed ? (
+      {!snapshot.available ? null : failed ? (
         <View style={{ gap: space.x2, alignItems: 'flex-start' }}>
           <Text variant="meta" tone="muted" accessibilityRole="alert">
             {t.genuiFailed}
@@ -138,10 +286,19 @@ export function GenuiDocumentCard({ document }: { document: GenuiDocument }) {
           />
         </View>
       ) : (
-        <GenuiFrame key={attempt} document={document} onFailure={() => setFailed(true)} />
+        <GenuiFrame
+          key={attempt}
+          document={document}
+          view={view}
+          onFailure={() => setFailed(true)}
+        />
       )}
+      <ViewControls
+        view={view}
+        stateful={document.stateContract !== undefined && client !== undefined}
+      />
       <Text variant="meta" tone="muted">
-        {t.genuiReadOnly}
+        {t.genuiContinueOnComputer}
       </Text>
     </View>
   );
