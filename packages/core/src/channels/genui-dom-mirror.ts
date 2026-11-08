@@ -5,9 +5,7 @@ import type {
   GenuiExecutionSnapshot,
 } from './genui-execution-supervisor.js';
 
-export const GENUI_MIRROR_CSP =
-  "default-src 'none';script-src 'none';style-src 'unsafe-inline';img-src 'none';media-src 'none';font-src 'none';connect-src 'none';frame-src 'none';object-src 'none';base-uri 'none';form-action 'none'";
-export const GENUI_MIRROR_SHELL = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${GENUI_MIRROR_CSP}"><meta name="referrer" content="no-referrer"></head><body></body></html>`;
+export { GENUI_MIRROR_CSP, GENUI_MIRROR_SHELL } from './genui-mirror-shell.js';
 const htmlTags = new Set(
   'a abbr address article aside b bdi bdo blockquote br button caption code col colgroup data datalist dd del details dfn div dl dt em fieldset figcaption figure footer form h1 h2 h3 h4 h5 h6 header hr i input ins kbd label legend li main mark meter nav ol optgroup option output p pre progress q rp rt ruby s samp section select small span strong style sub summary sup table tbody td textarea tfoot th thead time tr u ul var wbr'.split(
     ' ',

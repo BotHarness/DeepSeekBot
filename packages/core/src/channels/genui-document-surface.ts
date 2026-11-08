@@ -29,6 +29,7 @@ export class GenuiDocumentSurface {
       state: GenuiDocumentState;
       theme: 'light' | 'dark';
       textScale?: number;
+      shell?: HTMLIFrameElement;
       instanceId: string;
       generation: number;
       workerSource: string;
@@ -51,6 +52,7 @@ export class GenuiDocumentSurface {
         title: options.document.title,
         theme: options.theme,
         textScale: options.textScale ?? 1,
+        ...(options.shell ? { shell: options.shell } : {}),
         onCommand: (command) => this.supervisor?.send(command),
         onHeight: options.onHeight,
         onFailure: (reason) => this.fail(reason),

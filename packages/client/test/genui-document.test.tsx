@@ -13,6 +13,7 @@ import type {
   GenuiDocumentRuntime,
 } from '../../core/src/channels/genui-document-runtime.js';
 import { GENUI_EXECUTION_LIMITS } from '../../core/src/channels/genui-execution-limits.js';
+import { GENUI_MIRROR_SHELL } from '../../core/src/channels/genui-mirror-shell.js';
 import { GenuiDocumentCard } from '../src/client/genui-document.js';
 import { en, zhTranslate, type BotHarnessTranslate } from '../src/client/locale.js';
 import type { GenuiDocumentActions } from '../src/client/genui-document-view.js';
@@ -59,10 +60,10 @@ const updateTextScale = vi.fn();
 
 const mount = vi.fn(
   (container: HTMLElement, options: GenuiDocumentMountOptions): GenuiDocumentHandle => {
-    const frame = document.createElement('iframe');
+    const frame = options.shell ?? document.createElement('iframe');
     frame.title = options.document.title;
     frame.setAttribute('sandbox', 'allow-same-origin');
-    container.append(frame);
+    if (!frame.isConnected) container.append(frame);
     let resolve: (() => void) | undefined;
     const handle = {
       ready: new Promise<void>((complete) => {
@@ -150,9 +151,26 @@ describe('GenUI card integration with the shared renderer owner', () => {
     expect(latest().options.document).toEqual(fixture);
     expect(latest().options.instanceId).toMatch(/^[a-f0-9-]+$/);
     expect(button('Continue').disabled).toBe(true);
-    expect(container.querySelector('iframe[srcdoc]')).toBeNull();
+    const frames = container.querySelectorAll('iframe');
+    expect(frames).toHaveLength(1);
+    expect(latest().options.shell).toBe(frames[0]);
+    expect(frames[0]?.srcdoc).toBe(GENUI_MIRROR_SHELL);
+    expect(frames[0]?.srcdoc).not.toContain(fixture.html);
     await ready();
     expect(button('Continue').disabled).toBe(false);
+  });
+
+  it('starts only the fixed script-disabled shell while the runtime loads and removes it on early unmount', async () => {
+    runtime.load.mockReturnValue(new Promise(() => {}));
+    await render();
+    const shell = container.querySelector('iframe');
+    expect(shell?.srcdoc).toBe(GENUI_MIRROR_SHELL);
+    expect(shell?.getAttribute('sandbox')).toBe('allow-same-origin');
+    expect(shell?.referrerPolicy).toBe('no-referrer');
+    expect(mount).not.toHaveBeenCalled();
+    await act(async () => root.unmount());
+    expect(container.querySelector('iframe')).toBeNull();
+    root = createRoot(container);
   });
 
   it('does not remount the runtime for local state or theme changes', async () => {

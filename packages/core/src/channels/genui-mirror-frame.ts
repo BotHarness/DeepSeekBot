@@ -1,9 +1,10 @@
+import { GenuiDomMirror, GenuiMirrorError } from './genui-dom-mirror.js';
 import {
-  GenuiDomMirror,
-  GenuiMirrorError,
+  adoptGenuiMirrorShell,
+  createGenuiMirrorShell,
+  genuiMirrorShellLoaded,
   GENUI_MIRROR_CSP,
-  GENUI_MIRROR_SHELL,
-} from './genui-dom-mirror.js';
+} from './genui-mirror-shell.js';
 import { GENUI_EXECUTION_LIMITS } from './genui-execution-limits.js';
 import type {
   GenuiExecutionCommand,
@@ -60,6 +61,7 @@ export class GenuiMirrorFrame {
       title: string;
       theme: 'light' | 'dark';
       textScale?: number;
+      shell?: HTMLIFrameElement;
       onCommand: (command: GenuiExecutionCommand) => void;
       onHeight: (height: number) => void;
       onFailure: (reason: GenuiExecutionFailure) => void;
@@ -78,17 +80,14 @@ export class GenuiMirrorFrame {
     this.onCommand = options.onCommand;
     this.onHeight = options.onHeight;
     this.onFailure = options.onFailure;
-    this.frame = container.ownerDocument.createElement('iframe');
+    const frame = adoptGenuiMirrorShell(
+      container,
+      options.shell ?? createGenuiMirrorShell(container, options.title),
+    );
+    if (!frame)
+      throw new GenuiMirrorError('unsupported', 'A bounded document frame is unavailable.');
+    this.frame = frame;
     this.frame.title = options.title;
-    this.frame.setAttribute('sandbox', 'allow-same-origin');
-    this.frame.referrerPolicy = 'no-referrer';
-    Object.assign(this.frame.style, {
-      display: 'block',
-      width: '100%',
-      height: `${this.height}px`,
-      border: '0',
-      zoom: '1',
-    });
     this.ready = new Promise<void>((resolve, reject) => {
       this.settle = resolve;
       this.reject = reject;
@@ -96,8 +95,7 @@ export class GenuiMirrorFrame {
     this.frame.addEventListener('load', this.loaded);
     this.frame.addEventListener('error', this.failed);
     this.startup = setTimeout(() => this.fail('startup'), GENUI_EXECUTION_LIMITS.mirrorStartupMs);
-    this.frame.srcdoc = GENUI_MIRROR_SHELL;
-    container.append(this.frame);
+    if (genuiMirrorShellLoaded(frame)) queueMicrotask(this.loaded);
     this.textScale(options.textScale ?? 1);
   }
 
