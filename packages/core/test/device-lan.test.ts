@@ -206,7 +206,13 @@ it.each([undefined, 'http://127.0.0.1:4100', 'https://desktop.example.ts.net', '
         'unreachable',
       );
       expect(pairing.admit(`Device ${saved!.credential}`).ok).toBe(true);
-      expect(await revokePairing({ host: saved!, carrier: raw, timeoutMs: 1000 })).toBe('revoked');
+      expect(
+        await revokePairing({
+          host: { ...saved!, routes: [...saved!.routes].reverse() },
+          carrier: raw,
+          timeoutMs: 1000,
+        }),
+      ).toBe('revoked');
       expect(
         pairing.list().find((device) => device.id === saved!.deviceId)?.revokedAt,
       ).toBeDefined();

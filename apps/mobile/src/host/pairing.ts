@@ -280,7 +280,7 @@ export async function revokePairing(options: {
             if (probe instanceof ConnectRefused && probe.code === 'device-revoked')
               return 'revoked';
           }
-          return 'unreachable';
+          if (isConnectRoute(route)) return 'unreachable';
         }
         continue;
       } finally {
