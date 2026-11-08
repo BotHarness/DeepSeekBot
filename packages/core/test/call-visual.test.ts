@@ -951,6 +951,18 @@ describe('call frame harvest, scenario by scenario', () => {
     await h.say(call.callId);
     expect(h.sent[0]!.visual).toBeUndefined();
   });
+
+  it('writes what waits as a commit when the Human hangs up, and finishes queued commits', async () => {
+    let release = () => {};
+    const hold = new Promise<void>((resolve) => (release = resolve));
+    const h = host([], undefined, { hold });
+    const call = await h.ok({ kind: 'open', slug: 'mira', media: 'synthetic' });
+    await h.ok({ kind: 'visual', callId: call.callId, source: 'camera' });
+    for (let index = 0; index < 13; index += 1) await h.frame(call.callId, 'camera', index);
+    await h.ok({ kind: 'hangup', callId: call.callId });
+    release();
+    await vi.waitFor(() => expect(h.records.map((record) => record.frames)).toEqual([9, 4]));
+  });
 });
 
 describe('call visuals in Channel messages', () => {

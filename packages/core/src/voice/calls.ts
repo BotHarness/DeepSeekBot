@@ -597,6 +597,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     call.replies = [];
     call.interrupted = [];
     call.barge = undefined;
+    if (call.visual !== 'off') commit(call, call.visualSession, call.visual, call.harvest.flush());
     call.harvest.clear();
     release(call.id);
     call.vad.reset();
@@ -833,7 +834,6 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     source: CallVisualSource,
     taken: readonly VisualFrame[],
   ) => {
-    if (ended(call)) return;
     const endAt = now();
     const started = now();
     try {
@@ -842,7 +842,6 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         taken.map((entry, index) => frameLabel(index, (endAt - entry.at) / 1000)),
       );
       const composeMs = now() - started;
-      if (ended(call)) return;
       const { fromMs, toMs } = pictureRange(call, taken);
       const messageId = await deps.recordFrames!({
         slug: call.slug,

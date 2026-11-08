@@ -18,7 +18,7 @@ A call grid holds at most nine keyframes (ADR-0303). Until now a sentence with m
 - **Dropped sentence** (filler, nothing heard, failed send): commits already written stay; only the sentence's own keyframes go back to pending, ahead of what arrived since, and wait for the next sentence until a new keyframe arrives.
 - **No new keyframe:** the sentence points `sameAs` the last picture of this share, a sentence or a commit; before any picture it carries none. No single image is sent twice.
 - **Dated by picture:** a frame record's message time is the end of its picture range (`startedAt + toMs`, never later than now), so a `channel_read` call window finds a record written late, such as one cut while the Human spoke, by what it shows.
-- **Share off or switched:** what waits is written as commits of the old source rather than thrown away.
+- **Share off, switched or hung up:** what waits is written as commits of the old source rather than thrown away, and commits already queued still land after the call ends.
 - **Safety net:** at most 32 keyframes wait. Commits are written one at a time, so a stuck write lets pending grow; past 32 the oldest are dropped and a `frames-dropped` event (`source`, `dropped`, `total`) reports them. Nothing is picked by score any more, and `pickGridFrames` is gone.
 
 **Two ranges on a sentence.** Times count in ms from call connect, the same anchor as commits. `voiceCall.visual.fromMs/toMs` is the picture range of the sentence's keyframes (the same meaning as a commit's), and `voiceCall.speechFromMs/speechToMs` is when the Human spoke, taken from the VAD utterance and mapped to wall time. Validators require the picture range on a grid visual and accept the speech range only as a pair.
