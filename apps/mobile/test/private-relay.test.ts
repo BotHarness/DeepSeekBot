@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { checkRoute } from '../src/host/route';
 import { parseEncryption, parseSavedHost } from '../src/host/hosts';
-import { parsePairingLink, redeemPairing } from '../src/host/pairing';
+import { parsePairingLink, pairingLinkMode, redeemPairing } from '../src/host/pairing';
 import { encryptedCarrier } from '../src/host/encrypted-carrier';
 import { learnedRoutes } from '../src/host/learned-routes';
 
@@ -48,6 +48,7 @@ describe('private relay trust boundary', () => {
     const link = (value: unknown) =>
       'deepseekbot://pair?p=' + Buffer.from(JSON.stringify(value)).toString('base64url');
     const valid = parsePairingLink(link(payload));
+    expect(pairingLinkMode(new URL(link(payload)).searchParams.get('p')!)).toBe('private');
     expect(valid.ok && valid.payload.encryption?.privateRelay).toEqual(admission);
     expect(
       parsePairingLink(

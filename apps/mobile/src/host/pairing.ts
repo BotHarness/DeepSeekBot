@@ -74,9 +74,10 @@ function record(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
 }
 
-export function pairingLinkMode(encoded: string, now = Date.now()): 'lan' | undefined {
+export function pairingLinkMode(encoded: string, now = Date.now()): 'lan' | 'private' | undefined {
   const parsed = parsePairingLink(`deepseekbot://pair?p=${encodeURIComponent(encoded)}`, now);
   if (!parsed.ok) return undefined;
+  if (parsed.payload.encryption?.privateRelay) return 'private';
   const { routes } = parsed.payload;
   const lan = (route: string) => isLanRoute(route) && !isTailscaleRoute(route);
   return routes.some(lan) && routes.every((route) => lan(route) || isLoopbackRoute(route))

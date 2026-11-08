@@ -1076,6 +1076,17 @@ const en = {
     step: (index: number, total: number) => `step ${index} of ${total}`,
   },
   pairChoice: {
+    private: 'Docker private connection',
+    privateDetail: 'Recommended. Pair through your own service, without an account.',
+    privateHint:
+      'Your phone and computer must both reach the private service over HTTPS. Docker inside a home network alone does not guarantee remote access.',
+    privatePath: [
+      'Settings',
+      'Connections',
+      'Add connection',
+      'Connect a device to this Host',
+      'Docker private connection',
+    ],
     needs: `Your computer needs DeepSeek Harness (DSH) and the ${productName.en} plugin.`,
     account: `Sign in with a ${productName.en} account`,
     accountDetail: 'Pick a computer on your account.',
@@ -3428,6 +3439,11 @@ const zh: typeof en = {
     step: (index: number, total: number) => `第 ${index} 步，共 ${total} 步`,
   },
   pairChoice: {
+    private: 'Docker 私有连接',
+    privateDetail: '推荐。通过自己的服务配对，无需账号。',
+    privateHint:
+      '手机和电脑都需要能访问私有服务的 HTTPS 地址。只在家中内网运行 Docker，不能保证在外连接成功。',
+    privatePath: ['设置', '连接', '添加连接', '让设备连接本机', 'Docker 私有连接'],
     needs: `电脑上需要安装 DSH（DeepSeek Harness）和 ${productName.zh} 插件。`,
     account: `登录 ${productName.zh} 账号`,
     accountDetail: '选择账号下的电脑。',
