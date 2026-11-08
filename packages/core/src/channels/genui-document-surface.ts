@@ -28,6 +28,7 @@ export class GenuiDocumentSurface {
       document: GenuiDocument;
       state: GenuiDocumentState;
       theme: 'light' | 'dark';
+      textScale?: number;
       instanceId: string;
       generation: number;
       workerSource: string;
@@ -49,6 +50,7 @@ export class GenuiDocumentSurface {
       const frame = new GenuiMirrorFrame(container, {
         title: options.document.title,
         theme: options.theme,
+        textScale: options.textScale ?? 1,
         onCommand: (command) => this.supervisor?.send(command),
         onHeight: options.onHeight,
         onFailure: (reason) => this.fail(reason),
@@ -102,6 +104,10 @@ export class GenuiDocumentSurface {
     this.themeValue = theme;
     this.frame?.theme(theme);
     this.supervisor?.send({ type: 'theme', theme });
+  }
+
+  textScale(scale: number): void {
+    if (!this.closed) this.frame?.textScale(scale);
   }
 
   dispose(): void {

@@ -251,6 +251,15 @@ export class DocumentFrame extends Component<FrameProps, { failed: boolean }> {
     return this.container?.ownerDocument.body.hasAttribute('data-ds-dark-theme') ? 'dark' : 'light';
   }
 
+  private textScale() {
+    const body = this.container?.ownerDocument.body;
+    const owner = body?.ownerDocument.defaultView;
+    const size = Number.parseFloat(
+      body && owner ? owner.getComputedStyle(body).getPropertyValue('--dsh-content-font-size') : '',
+    );
+    return Number.isFinite(size) && size > 0 ? size / GENUI_EXECUTION_LIMITS.mirrorBaseFontSize : 1;
+  }
+
   override componentDidMount() {
     this.disposed = false;
     const generation = ++this.generation;
@@ -260,10 +269,15 @@ export class DocumentFrame extends Component<FrameProps, { failed: boolean }> {
       this.fail();
       return;
     }
-    this.observer = new owner.MutationObserver(() => this.surface?.theme(this.theme()));
+    this.observer = new owner.MutationObserver((records) => {
+      if (records.some((record) => record.attributeName === 'data-ds-dark-theme'))
+        this.surface?.theme(this.theme());
+      if (records.some((record) => record.attributeName === 'style'))
+        this.surface?.textScale(this.textScale());
+    });
     this.observer.observe(container.ownerDocument.body, {
       attributes: true,
-      attributeFilter: ['data-ds-dark-theme'],
+      attributeFilter: ['data-ds-dark-theme', 'style'],
     });
     this.timer = setTimeout(this.fail, GENUI_EXECUTION_LIMITS.startupMs);
     void loadGenuiDocumentRuntime()
@@ -275,6 +289,7 @@ export class DocumentFrame extends Component<FrameProps, { failed: boolean }> {
             document: this.props.document,
             state: this.props.state,
             theme: this.theme(),
+            textScale: this.textScale(),
             instanceId: this.instanceId,
             generation,
             onState: (value) => {

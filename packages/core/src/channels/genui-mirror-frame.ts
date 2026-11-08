@@ -11,7 +11,7 @@ import type {
 } from './genui-execution-supervisor.js';
 import type { GenuiExecutionFailure } from './genui-execution.js';
 
-export function genuiMirrorHeight(document: Document): number {
+export function genuiMirrorHeight(document: Document, textScale = 1): number {
   const rectangle = document.body.getBoundingClientRect();
   const height = Math.ceil(
     Math.max(
@@ -21,7 +21,13 @@ export function genuiMirrorHeight(document: Document): number {
       rectangle.bottom + (document.defaultView?.scrollY ?? 0),
     ),
   );
-  if (!Number.isFinite(height) || height > GENUI_EXECUTION_LIMITS.mirrorMaxHeight)
+  if (
+    !Number.isFinite(height) ||
+    height > GENUI_EXECUTION_LIMITS.mirrorMaxHeight ||
+    !Number.isFinite(textScale) ||
+    textScale <= 0 ||
+    Math.ceil(height * textScale) > GENUI_EXECUTION_LIMITS.mirrorMaxHeight
+  )
     throw new GenuiMirrorError('resource', 'Document height budget exceeded.');
   return height;
 }
@@ -41,6 +47,7 @@ export class GenuiMirrorFrame {
   private writes = 0;
   private width = 0;
   private measured = false;
+  private textScaleValue = 1;
   private onCommand: ((command: GenuiExecutionCommand) => void) | undefined;
   private onHeight: ((height: number) => void) | undefined;
   private onFailure: ((reason: GenuiExecutionFailure) => void) | undefined;
@@ -52,6 +59,7 @@ export class GenuiMirrorFrame {
     options: {
       title: string;
       theme: 'light' | 'dark';
+      textScale?: number;
       onCommand: (command: GenuiExecutionCommand) => void;
       onHeight: (height: number) => void;
       onFailure: (reason: GenuiExecutionFailure) => void;
@@ -79,6 +87,7 @@ export class GenuiMirrorFrame {
       width: '100%',
       height: `${this.height}px`,
       border: '0',
+      zoom: '1',
     });
     this.ready = new Promise<void>((resolve, reject) => {
       this.settle = resolve;
@@ -89,6 +98,7 @@ export class GenuiMirrorFrame {
     this.startup = setTimeout(() => this.fail('startup'), GENUI_EXECUTION_LIMITS.mirrorStartupMs);
     this.frame.srcdoc = GENUI_MIRROR_SHELL;
     container.append(this.frame);
+    this.textScale(options.textScale ?? 1);
   }
 
   paint(snapshot: GenuiExecutionSnapshot, preserveControls?: ReadonlySet<string>): boolean {
@@ -109,6 +119,23 @@ export class GenuiMirrorFrame {
     if (this.closed) return;
     this.themeValue = theme;
     this.mirror?.theme(theme);
+    this.schedule();
+  }
+
+  textScale(scale: number): void {
+    if (this.closed) return;
+    const value = Number.isFinite(scale)
+      ? Math.min(
+          GENUI_EXECUTION_LIMITS.mirrorMaxTextScale,
+          Math.max(GENUI_EXECUTION_LIMITS.mirrorMinTextScale, scale),
+        )
+      : 1;
+    if (value === this.textScaleValue) return;
+    this.textScaleValue = value;
+    this.frame.style.zoom = String(value);
+    this.frame.style.width = `${100 / value}%`;
+    this.writes = 0;
+    this.measured = false;
     this.schedule();
   }
 
@@ -193,11 +220,12 @@ export class GenuiMirrorFrame {
           this.fail('unsupported');
           return;
         }
-        const height = genuiMirrorHeight(document);
+        const height = genuiMirrorHeight(document, this.textScaleValue);
+        const visibleHeight = Math.ceil(height * this.textScaleValue);
         if (height === this.height) {
           if (!this.measured) {
             this.measured = true;
-            this.onHeight?.(height);
+            this.onHeight?.(visibleHeight);
           }
           return;
         }
@@ -208,7 +236,7 @@ export class GenuiMirrorFrame {
         this.height = height;
         this.measured = true;
         this.frame.style.height = `${height}px`;
-        this.onHeight?.(height);
+        this.onHeight?.(visibleHeight);
       } catch (error) {
         this.fail(error instanceof GenuiMirrorError ? error.reason : 'invalid-content');
       }

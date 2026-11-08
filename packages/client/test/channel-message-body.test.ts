@@ -49,6 +49,7 @@ const mountDocument = vi.fn((container: HTMLElement, options: GenuiDocumentMount
     ready: Promise.resolve(),
     restore: vi.fn(),
     theme: vi.fn(),
+    textScale: vi.fn(),
     dispose: vi.fn(() => frame.remove()),
   };
 });

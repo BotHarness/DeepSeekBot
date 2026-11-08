@@ -4,7 +4,7 @@ declare const __GENUI_WORKER_SOURCE__: string;
 
 export type GenuiDocumentHandle = Pick<
   GenuiDocumentSurface,
-  'ready' | 'restore' | 'theme' | 'dispose'
+  'ready' | 'restore' | 'theme' | 'textScale' | 'dispose'
 >;
 export type GenuiDocumentMountOptions = Omit<
   ConstructorParameters<typeof GenuiDocumentSurface>[1],

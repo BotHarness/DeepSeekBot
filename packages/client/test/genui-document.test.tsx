@@ -55,6 +55,7 @@ let container: HTMLDivElement;
 let root: Root;
 let actions: GenuiDocumentActions;
 const surfaces: ControlledSurface[] = [];
+const updateTextScale = vi.fn();
 
 const mount = vi.fn(
   (container: HTMLElement, options: GenuiDocumentMountOptions): GenuiDocumentHandle => {
@@ -69,6 +70,7 @@ const mount = vi.fn(
       }),
       restore: vi.fn(),
       theme: vi.fn(),
+      textScale: updateTextScale,
       dispose: vi.fn(() => frame.remove()),
     };
     surfaces.push({ frame, options, handle, complete: () => resolve?.() });
@@ -82,6 +84,7 @@ beforeEach(() => {
   runtime.load.mockReset();
   runtime.load.mockResolvedValue({ mountGenuiDocument: mount });
   mount.mockClear();
+  updateTextScale.mockClear();
   container = document.createElement('div');
   document.body.append(container);
   root = createRoot(container);
@@ -102,6 +105,7 @@ afterEach(async () => {
   container.remove();
   surfaces.length = 0;
   document.body.removeAttribute('data-ds-dark-theme');
+  document.body.style.removeProperty('--dsh-content-font-size');
   vi.restoreAllMocks();
   vi.useRealTimers();
 });
@@ -164,6 +168,26 @@ describe('GenUI card integration with the shared renderer owner', () => {
     expect(surface.handle.theme).toHaveBeenLastCalledWith('dark');
     expect(mount).toHaveBeenCalledTimes(count);
     expect(actions.sendGenuiDocumentReply).not.toHaveBeenCalled();
+  });
+
+  it('inherits the current content font preference and updates without remounting or saving state', async () => {
+    document.body.style.setProperty('--dsh-content-font-size', '22px');
+    await render();
+    const surface = latest();
+    await ready(surface);
+    expect(surface.options).toMatchObject({ textScale: 22 / 14 });
+    const count = mount.mock.calls.length;
+    await act(async () => document.body.style.setProperty('--dsh-content-font-size', '10px'));
+    expect(updateTextScale).toHaveBeenLastCalledWith(10 / 14);
+    expect(surface.handle.theme).not.toHaveBeenCalled();
+    expect(mount).toHaveBeenCalledTimes(count);
+    expect(actions.saveGenuiDocumentView).not.toHaveBeenCalled();
+    await act(async () => document.body.style.removeProperty('--dsh-content-font-size'));
+    expect(updateTextScale).toHaveBeenLastCalledWith(1);
+    await act(async () => root.unmount());
+    updateTextScale.mockClear();
+    await act(async () => document.body.style.setProperty('--dsh-content-font-size', '22px'));
+    expect(updateTextScale).not.toHaveBeenCalled();
   });
 
   it('fences the first asynchronous load during StrictMode cleanup/remount', async () => {

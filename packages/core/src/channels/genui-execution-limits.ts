@@ -30,6 +30,9 @@ export const GENUI_EXECUTION_LIMITS = Object.freeze({
   libraryBytes: 1_048_576,
   mirrorMinHeight: 48,
   mirrorMaxHeight: 20_000,
+  mirrorBaseFontSize: 14,
+  mirrorMinTextScale: 0.5,
+  mirrorMaxTextScale: 3,
   mirrorLayoutPasses: 4,
   mirrorStartupMs: 2000,
 });

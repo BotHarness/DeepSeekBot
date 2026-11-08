@@ -20,6 +20,7 @@ const controlled = vi.hoisted(() => {
     release: (() => void) | undefined;
     readonly paint = vi.fn(() => true);
     readonly theme = vi.fn();
+    readonly textScale = vi.fn();
     readonly dispose = vi.fn();
 
     constructor(
@@ -137,6 +138,23 @@ describe('GenUI document surface lifecycle composition', () => {
     supervisor.options.onSnapshot(snapshot(state));
     await surface.ready;
     expect(onState).not.toHaveBeenCalled();
+  });
+
+  it('changes only trusted mirror layout for text scaling without execution commands or private state', async () => {
+    const { surface, frame, onState } = open();
+    surface.textScale(22 / 14);
+    expect(frame.textScale).toHaveBeenLastCalledWith(22 / 14);
+    const supervisor = await load(frame);
+    supervisor.options.onSnapshot(snapshot());
+    await surface.ready;
+    surface.textScale(2);
+    expect(frame.textScale).toHaveBeenLastCalledWith(2);
+    expect(supervisor.send).not.toHaveBeenCalled();
+    expect(onState).not.toHaveBeenCalled();
+    surface.dispose();
+    frame.textScale.mockClear();
+    surface.textScale(1);
+    expect(frame.textScale).not.toHaveBeenCalled();
   });
 
   it('publishes only changed state after successful paint and tears down both owners on failure', async () => {
