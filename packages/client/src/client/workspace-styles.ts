@@ -70,6 +70,7 @@ html[data-platform="darwin"]:not([data-fullscreen]):has(style[data-bh-appearance
 .bh-subpanel-entry { display:flex; flex-direction:column; flex:none; min-width:0; }
 .bh-subpanel-entry + .bh-subpanel-entry { border-top:var(--bh-workspace-header-gap) solid ${color.base}; }
 .bh-subpanel-entry-header { flex:none; }
+.bh-subpanel-drop-line { flex:none; height:${space.x1}; border-radius:${radius.xs}; background:${color.accent}; }
 .bh-subpanel-entry-body { display:flex; flex-direction:column; min-height:0; overflow:hidden; }
 .bh-subpanel-entry-body > section { flex:1; min-height:0; overflow:auto; }
 .bh-subpanel-entry-resize { position:relative; flex:none; height:${space.x1}; cursor:row-resize; touch-action:none; }

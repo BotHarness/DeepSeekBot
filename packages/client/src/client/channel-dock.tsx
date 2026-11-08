@@ -30,6 +30,7 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  type DragEvent as ReactDragEvent,
   type ReactElement,
   type ReactNode,
 } from 'react';
@@ -92,6 +93,8 @@ import {
   channelSidebarPrefs,
   channelSidebarScopeKey,
 } from './channel-sidebar-prefs.js';
+import { insertEntryBefore, resolveEntryOrder } from './channel-sidebar-order.js';
+import { rowDropHalf } from './roster-order.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 import { IconButton } from './ds/icon-button.js';
@@ -211,6 +214,7 @@ interface SubpanelColumnView {
   setHidden(id: string, hidden: boolean): void;
   setWidth(width: number): void;
   setHeight(id: string, height: number): void;
+  setOrder(order: readonly string[]): void;
 }
 
 interface DockContextValue {
@@ -553,12 +557,126 @@ function columnEntries(dock: DockContextValue): ColumnEntry[] {
   ];
 }
 
+const SUBPANEL_DROP_TYPE = 'application/x-bh-subpanel';
+
+function mergeVisibleSubpanelOrder(
+  fullOrder: readonly string[],
+  visibleOrder: readonly string[],
+): readonly string[] {
+  const visible = new Set(visibleOrder);
+  const queue = [...visibleOrder];
+  return fullOrder.map((id) => (visible.has(id) ? queue.shift()! : id));
+}
+
+interface SubpanelReorderApi {
+  readonly activeId: string | undefined;
+  begin(id: string, event: ReactDragEvent<HTMLElement>): void;
+  over(id: string, event: ReactDragEvent<HTMLElement>): void;
+  drop(event: ReactDragEvent<HTMLElement>): void;
+  finish(): void;
+  cancel(): void;
+  nudge(id: string, delta: -1 | 1): void;
+}
+
 function SimpleMessageContent({ column }: { column: SubpanelColumnView }): ReactElement {
   const dock = useDock();
-  const entries = columnEntries(dock).filter((entry) => !column.state.hidden.includes(entry.id));
+  const all = columnEntries(dock);
+  const byId = new Map(all.map((entry) => [entry.id, entry]));
+  const baseOrder = resolveEntryOrder(
+    all.map((entry) => entry.id),
+    column.state.order,
+  );
+  const [preview, setPreview] = useState<
+    | { id: string; order: readonly string[]; anchor: { id: string; half: 'before' | 'after' } }
+    | undefined
+  >(undefined);
+  const escapeRef = useRef<((event: KeyboardEvent) => void) | undefined>(undefined);
+  const unmountCleanup = useMountedResource(
+    () => () => {
+      if (escapeRef.current) window.removeEventListener('keydown', escapeRef.current);
+    },
+    [],
+  );
+  const fullOrder = preview?.order ?? baseOrder;
+  const visibleIds = (order: readonly string[]): string[] =>
+    order.flatMap((id) => {
+      const entry = byId.get(id);
+      return entry === undefined || column.state.hidden.includes(id) ? [] : [id];
+    });
+  const commitVisible = (visible: readonly string[]): void => {
+    column.setOrder(mergeVisibleSubpanelOrder(baseOrder, visible));
+  };
+  const endPreview = (): void => {
+    if (escapeRef.current) {
+      window.removeEventListener('keydown', escapeRef.current);
+      escapeRef.current = undefined;
+    }
+    setPreview(undefined);
+  };
+  const reorder: SubpanelReorderApi = {
+    activeId: preview?.id,
+    begin: (id, event) => {
+      const transfer = event.dataTransfer;
+      if (!transfer) return;
+      transfer.setData(SUBPANEL_DROP_TYPE, id);
+      transfer.effectAllowed = 'move';
+      const header = event.currentTarget.closest('[data-subpanel-entry-header]');
+      if (header instanceof HTMLElement && typeof transfer.setDragImage === 'function')
+        transfer.setDragImage(header, 0, 0);
+      escapeRef.current = (keyEvent) => {
+        if (keyEvent.key === 'Escape') {
+          keyEvent.preventDefault();
+          endPreview();
+        }
+      };
+      window.addEventListener('keydown', escapeRef.current);
+      setPreview({ id, order: baseOrder, anchor: { id, half: 'before' } });
+    },
+    over: (id, event) => {
+      const transfer = event.dataTransfer;
+      if (preview === undefined || !transfer?.types.includes(SUBPANEL_DROP_TYPE)) return;
+      event.preventDefault();
+      transfer.dropEffect = 'move';
+      const header =
+        event.currentTarget.querySelector('[data-subpanel-entry-header]') ?? event.currentTarget;
+      const dropHalf = rowDropHalf(event.clientY, header.getBoundingClientRect());
+      const visible = visibleIds(preview.order);
+      const anchor = dropHalf === 'before' ? id : visible[visible.indexOf(id) + 1];
+      const nextVisible = insertEntryBefore(visible, preview.id, anchor);
+      if (nextVisible.join('') === visible.join('')) return;
+      setPreview({
+        id: preview.id,
+        order: mergeVisibleSubpanelOrder(baseOrder, nextVisible),
+        anchor: { id, half: dropHalf },
+      });
+    },
+    drop: (event) => {
+      if (preview === undefined) return;
+      event.preventDefault();
+      const order = preview.order;
+      endPreview();
+      column.setOrder(order);
+    },
+    finish: () => endPreview(),
+    cancel: () => endPreview(),
+    nudge: (id, delta) => {
+      const visible = visibleIds(baseOrder);
+      const index = visible.indexOf(id);
+      if (index < 0 || (delta < 0 && index === 0)) return;
+      const anchor = delta < 0 ? visible[index - 1] : visible[index + 2];
+      const nextVisible = insertEntryBefore(visible, id, anchor);
+      if (nextVisible.join('') === visible.join('')) return;
+      commitVisible(nextVisible);
+    },
+  };
+  const anchor = preview?.anchor;
+  const entries = visibleIds(fullOrder).flatMap((id) => {
+    const entry = byId.get(id);
+    return entry === undefined ? [] : [entry];
+  });
   const label = dock.t('workspace.subpanelColumn');
   return (
-    <div className="bh-dock-body bh-message-split">
+    <div ref={unmountCleanup} className="bh-dock-body bh-message-split">
       <div className="bh-message-content">
         <DockBodySlot />
       </div>
@@ -600,9 +718,25 @@ function SimpleMessageContent({ column }: { column: SubpanelColumnView }): React
             {entries.length === 0 ? (
               <PanelEmptyState icon="panel-right">{dock.t('dock.empty')}</PanelEmptyState>
             ) : (
-              entries.map((entry) => (
-                <SubpanelColumnEntry key={entry.id} entry={entry} column={column} />
-              ))
+              entries.flatMap((entry) => {
+                const section = (
+                  <SubpanelColumnEntry
+                    key={entry.id}
+                    entry={entry}
+                    column={column}
+                    reorder={reorder}
+                  />
+                );
+                if (anchor?.id !== entry.id) return [section];
+                const line = (
+                  <div
+                    key={`${entry.id}-drop-line`}
+                    className="bh-subpanel-drop-line"
+                    data-drop-line=""
+                  />
+                );
+                return anchor.half === 'before' ? [line, section] : [section, line];
+              })
             )}
           </aside>
         </>
@@ -614,9 +748,11 @@ function SimpleMessageContent({ column }: { column: SubpanelColumnView }): React
 function SubpanelColumnEntry({
   entry,
   column,
+  reorder,
 }: {
   entry: ColumnEntry;
   column: SubpanelColumnView;
+  reorder: SubpanelReorderApi;
 }): ReactElement {
   const dock = useDock();
   const panel = dock.panels.get(entry.id);
@@ -653,12 +789,34 @@ function SubpanelColumnEntry({
       className="bh-subpanel-entry"
       data-subpanel-entry={entry.id}
       data-expanded={expanded ? '' : undefined}
+      data-dragging={reorder.activeId === entry.id ? '' : undefined}
+      onDragOver={(event) => reorder.over(entry.id, event)}
+      onDrop={(event) => reorder.drop(event)}
     >
-      <div className="bh-subpanel-entry-header" {...contextMenu.triggerProps}>
+      <div
+        className="bh-subpanel-entry-header"
+        data-subpanel-entry-header=""
+        {...contextMenu.triggerProps}
+      >
         {contextMenu.menu}
         <PanelHeader
           icon={<ChannelSidebarIcon name={entry.icon} />}
           label={entry.label}
+          headDrag={{
+            onDragStart: (event) => reorder.begin(entry.id, event),
+            onDragEnd: () => reorder.finish(),
+            onKeyDown: (event) => {
+              if (event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
+                event.preventDefault();
+                reorder.nudge(entry.id, event.key === 'ArrowUp' ? -1 : 1);
+                return;
+              }
+              if (event.key === 'Escape' && reorder.activeId !== undefined) {
+                event.preventDefault();
+                reorder.cancel();
+              }
+            },
+          }}
           disclosure={{
             expanded,
             controls: bodyId,
@@ -717,11 +875,13 @@ function SubpanelColumnEntry({
             aria-valuemin={MIN_SUBPANEL_HEIGHT}
             aria-valuenow={Math.round(height)}
             onKeyDown={(event) => {
+              if (reorder.activeId !== undefined) return;
               if (!['ArrowUp', 'ArrowDown'].includes(event.key)) return;
               event.preventDefault();
               column.setHeight(entry.id, height + (event.key === 'ArrowDown' ? 16 : -16));
             }}
             onPointerDown={(event) => {
+              if (reorder.activeId !== undefined) return;
               if (event.button !== 0) return;
               drag.current = { y: event.clientY, height };
               event.currentTarget.setPointerCapture(event.pointerId);
@@ -2090,6 +2250,8 @@ export function ChannelDock({
         heights: { ...column.heights, [id]: Math.max(MIN_SUBPANEL_HEIGHT, Math.round(height)) },
       });
     },
+    setColumnOrder: (order: readonly string[]) =>
+      setColumn({ ...simpleRef.current.column, order: [...order] }),
     open,
     close,
   };
@@ -2104,6 +2266,7 @@ export function ChannelDock({
     setColumnHidden: (id: string, hidden: boolean) => actions.current.setColumnHidden(id, hidden),
     setColumnWidth: (width: number) => actions.current.setColumnWidth(width),
     setColumnHeight: (id: string, height: number) => actions.current.setColumnHeight(id, height),
+    setColumnOrder: (order: readonly string[]) => actions.current.setColumnOrder(order),
     setMembersOpen: (open: boolean) => actions.current.setMembers({ open }),
     setMembersRatio: (ratio: number) => actions.current.setMembers({ ratio }),
     subpanel: (id: string) => ({
@@ -2167,6 +2330,7 @@ export function ChannelDock({
             setHidden: stable.setColumnHidden,
             setWidth: stable.setColumnWidth,
             setHeight: stable.setColumnHeight,
+            setOrder: stable.setColumnOrder,
           }
         : undefined,
     [simpleMode, layoutMode.column, columnFocus, stable],

@@ -359,6 +359,323 @@ describe('Simple Side column', () => {
   });
 });
 
+describe('Subpanel order', () => {
+  const openColumn = (column: unknown) => {
+    values = new Map([
+      [
+        LAYOUT_MODE_STORAGE_KEY,
+        JSON.stringify({ mode: 'simple', sideColumn: WORKSPACE_CHANNELS, column }),
+      ],
+    ]);
+  };
+  const defaultColumn = () => ({
+    open: true,
+    width: 0.34,
+    expanded: ['sessions', 'schedules', 'memory-files'],
+    hidden: [],
+    heights: {},
+    order: [],
+  });
+  const mountWithSubpanels = async () => {
+    const ws = mountWorkspace();
+    for (const [id, label] of [
+      ['schedules', 'Schedules'],
+      ['memory-files', 'Memory files'],
+    ] as const)
+      ws.registry.registerEntry({
+        id,
+        label,
+        scope: 'personabot',
+        component: () => createElement('div', { 'data-body': id }),
+      });
+    await ws.render();
+    return ws;
+  };
+  const entryOrder = () =>
+    [...host.querySelectorAll('[data-subpanel-entry]')].map((node) =>
+      node.getAttribute('data-subpanel-entry')!,
+    );
+  const head = (id: string) =>
+    host.querySelector<HTMLElement>(`[data-subpanel-entry="${id}"] [data-panel-head]`)!;
+  const press = async (id: string, key: string, alt = true) => {
+    act(() => {
+      head(id).dispatchEvent(new KeyboardEvent('keydown', { key, altKey: alt, bubbles: true }));
+    });
+    await settle();
+  };
+
+  it('makes the header itself draggable while keeping click-to-collapse', async () => {
+    openColumn(defaultColumn());
+    await mountWithSubpanels();
+    const sessions = head('sessions');
+    expect(sessions.draggable).toBe(true);
+    expect(
+      host.querySelector('[data-subpanel-entry="sessions"]')!.hasAttribute('data-expanded'),
+    ).toBe(true);
+    act(() => {
+      sessions.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await settle();
+    expect(
+      host.querySelector('[data-subpanel-entry="sessions"]')!.hasAttribute('data-expanded'),
+    ).toBe(false);
+    expect(host.querySelector('#bh-subpanel-sessions')).toBeNull();
+  });
+
+  it('suppresses the toggle after a drag-like press', async () => {
+    openColumn(defaultColumn());
+    await mountWithSubpanels();
+    const header = head('sessions');
+    act(() => {
+      header.dispatchEvent(
+        new PointerEvent('pointerdown', { bubbles: true, button: 0, clientX: 10, clientY: 10 }),
+      );
+      header.dispatchEvent(
+        new PointerEvent('pointermove', { bubbles: true, clientX: 30, clientY: 10 }),
+      );
+      header.dispatchEvent(
+        new MouseEvent('click', { bubbles: true, detail: 1, clientX: 30, clientY: 10 }),
+      );
+    });
+    await settle();
+    expect(
+      host.querySelector('[data-subpanel-entry="sessions"]')!.hasAttribute('data-expanded'),
+    ).toBe(true);
+    expect(host.querySelector('[data-dragging]')).toBeNull();
+  });
+
+  it('renders subpanels in registration order by default', async () => {
+    openColumn(defaultColumn());
+    await mountWithSubpanels();
+    expect(entryOrder()).toEqual(['sessions', 'memory-files', 'schedules']);
+  });
+
+  it('honours a saved order', async () => {
+    openColumn({ ...defaultColumn(), order: ['memory-files', 'sessions', 'schedules'] });
+    await mountWithSubpanels();
+    expect(entryOrder()).toEqual(['memory-files', 'sessions', 'schedules']);
+  });
+
+  it('moves a subpanel with Alt+Arrow and persists heights and expanded state', async () => {
+    openColumn({ ...defaultColumn(), heights: { sessions: 260 } });
+    await mountWithSubpanels();
+    await press('sessions', 'ArrowDown');
+    expect(entryOrder()).toEqual(['memory-files', 'sessions', 'schedules']);
+    expect(readLayoutMode(storage).column).toMatchObject({
+      order: ['memory-files', 'sessions', 'schedules'],
+      heights: { sessions: 260 },
+      expanded: ['sessions', 'schedules', 'memory-files'],
+      hidden: [],
+    });
+
+    await press('sessions', 'ArrowUp');
+    expect(entryOrder()).toEqual(['sessions', 'memory-files', 'schedules']);
+  });
+
+  it('ignores Alt+ArrowUp on the first subpanel', async () => {
+    openColumn(defaultColumn());
+    await mountWithSubpanels();
+    await press('sessions', 'ArrowUp');
+    expect(entryOrder()).toEqual(['sessions', 'memory-files', 'schedules']);
+    expect(readLayoutMode(storage).column.order).toEqual([]);
+  });
+
+  it('keeps a hidden subpanel in its order position', async () => {
+    openColumn({
+      ...defaultColumn(),
+      hidden: ['schedules'],
+      order: ['schedules', 'sessions', 'memory-files'],
+    });
+    await mountWithSubpanels();
+    expect(entryOrder()).toEqual(['sessions', 'memory-files']);
+    await press('sessions', 'ArrowDown');
+    expect(entryOrder()).toEqual(['memory-files', 'sessions']);
+    expect(readLayoutMode(storage).column.order).toEqual(['schedules', 'memory-files', 'sessions']);
+  });
+
+  it('drags a collapsed block without expanding it', async () => {
+    openColumn(defaultColumn());
+    await mountWithSubpanels();
+    const section = () => host.querySelector('[data-subpanel-entry="sessions"]')!;
+    act(() => {
+      head('sessions').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await settle();
+    expect(section().hasAttribute('data-expanded')).toBe(false);
+
+    const headers = () => [...host.querySelectorAll<HTMLElement>('[data-subpanel-entry-header]')];
+    const rect = (top: number) =>
+      ({
+        top,
+        left: 0,
+        bottom: top + 40,
+        right: 200,
+        width: 200,
+        height: 40,
+        x: 0,
+        y: top,
+      }) as DOMRect;
+    headers()[0]!.getBoundingClientRect = () => rect(0);
+    headers()[1]!.getBoundingClientRect = () => rect(40);
+    headers()[2]!.getBoundingClientRect = () => rect(80);
+    const data = new Map<string, string>();
+    const shared = {
+      dropEffect: 'none' as string,
+      effectAllowed: 'none' as string,
+      types: [] as string[],
+      setData: (type: string, value: string) => {
+        data.set(type, value);
+        shared.types = [...data.keys()];
+      },
+      getData: (type: string) => data.get(type) ?? '',
+      setDragImage: () => {},
+    };
+    const withTransfer = (type: string) => {
+      const event = new Event(type, { bubbles: true, cancelable: true }) as Event & {
+        clientY?: number;
+        dataTransfer?: unknown;
+      };
+      Object.defineProperty(event, 'dataTransfer', { value: shared });
+      return event;
+    };
+    act(() => {
+      head('sessions').dispatchEvent(withTransfer('dragstart'));
+    });
+    await settle();
+    const over = withTransfer('dragover') as Event & { clientY?: number };
+    over.clientY = 115;
+    act(() => {
+      headers()[2]!.closest('[data-subpanel-entry]')!.dispatchEvent(over);
+    });
+    await settle();
+    act(() => {
+      headers()[2]!.closest('[data-subpanel-entry]')!.dispatchEvent(withTransfer('drop'));
+    });
+    await settle();
+    expect(entryOrder()).toEqual(['memory-files', 'schedules', 'sessions']);
+    expect(section().hasAttribute('data-expanded')).toBe(false);
+    expect(readLayoutMode(storage).column.order).toEqual(['memory-files', 'schedules', 'sessions']);
+  });
+
+  it('drags a subpanel to a new position and persists it', async () => {
+    openColumn(defaultColumn());
+    await mountWithSubpanels();
+    const transfer = () => {
+      const data = new Map<string, string>();
+      const mock = {
+        dropEffect: 'none' as string,
+        effectAllowed: 'none' as string,
+        files: [],
+        items: [],
+        types: [] as string[],
+        setData: (type: string, value: string) => {
+          data.set(type, value);
+          mock.types = [...data.keys()];
+        },
+        getData: (type: string) => data.get(type) ?? '',
+        clearData: () => data.clear(),
+        setDragImage: () => {},
+      };
+      return mock;
+    };
+    const shared = transfer();
+    const withTransfer = (type: string, init: EventInit = {}) => {
+      const event = new Event(type, { bubbles: true, cancelable: true, ...init }) as Event & {
+        clientY?: number;
+        dataTransfer?: unknown;
+      };
+      Object.defineProperty(event, 'dataTransfer', { value: shared });
+      return event;
+    };
+    const sections = () => [...host.querySelectorAll<HTMLElement>('[data-subpanel-entry]')];
+    const headers = () => [...host.querySelectorAll<HTMLElement>('[data-subpanel-entry-header]')];
+    const rect = (top: number) =>
+      ({
+        top,
+        left: 0,
+        bottom: top + 40,
+        right: 200,
+        width: 200,
+        height: 40,
+        x: 0,
+        y: top,
+      }) as DOMRect;
+    headers()[0]!.getBoundingClientRect = () => rect(0);
+    headers()[1]!.getBoundingClientRect = () => rect(40);
+    headers()[2]!.getBoundingClientRect = () => rect(80);
+
+    act(() => {
+      head('sessions').dispatchEvent(withTransfer('dragstart'));
+    });
+    await settle();
+    expect(
+      host.querySelector('[data-subpanel-entry="sessions"]')!.hasAttribute('data-dragging'),
+    ).toBe(true);
+
+    const over = withTransfer('dragover') as Event & { clientY?: number };
+    over.clientY = 115;
+    act(() => {
+      sections()[2]!.dispatchEvent(over);
+    });
+    await settle();
+    expect(entryOrder()).toEqual(['memory-files', 'schedules', 'sessions']);
+    expect(host.querySelector('[data-drop-line]')).not.toBeNull();
+
+    act(() => {
+      sections()[2]!.dispatchEvent(withTransfer('drop'));
+    });
+    await settle();
+    expect(entryOrder()).toEqual(['memory-files', 'schedules', 'sessions']);
+    expect(readLayoutMode(storage).column.order).toEqual(['memory-files', 'schedules', 'sessions']);
+    expect(host.querySelector('[data-dragging]')).toBeNull();
+    expect(host.querySelector('[data-drop-line]')).toBeNull();
+  });
+
+  it('ignores resize input during a drag', async () => {
+    openColumn({ ...defaultColumn(), heights: { sessions: 260 } });
+    await mountWithSubpanels();
+    const start = new Event('dragstart', { bubbles: true, cancelable: true });
+    Object.defineProperty(start, 'dataTransfer', {
+      value: { setData: () => {}, effectAllowed: 'none', setDragImage: () => {} },
+    });
+    act(() => {
+      head('sessions').dispatchEvent(start);
+    });
+    await settle();
+    const resize = host.querySelector<HTMLElement>(
+      '[data-subpanel-entry="sessions"] .bh-subpanel-entry-resize',
+    )!;
+    act(() => {
+      resize.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    });
+    await settle();
+    expect(readLayoutMode(storage).column.heights).toEqual({ sessions: 260 });
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    await settle();
+    expect(host.querySelector('[data-dragging]')).toBeNull();
+    expect(readLayoutMode(storage).column.order).toEqual([]);
+  });
+
+  it('cancels a drag on Escape without changing the order', async () => {
+    openColumn(defaultColumn());
+    await mountWithSubpanels();
+    const start = new Event('dragstart', { bubbles: true, cancelable: true });
+    Object.defineProperty(start, 'dataTransfer', {
+      value: { setData: () => {}, effectAllowed: 'none', setDragImage: () => {} },
+    });
+    act(() => {
+      head('sessions').dispatchEvent(start);
+    });
+    await settle();
+    await press('sessions', 'Escape', false);
+    expect(entryOrder()).toEqual(['sessions', 'memory-files', 'schedules']);
+    expect(host.querySelector('[data-dragging]')).toBeNull();
+    expect(readLayoutMode(storage).column.order).toEqual([]);
+  });
+});
+
 describe('Advanced rail', () => {
   it('keeps the Messages and Channel list switches and has no Tob switch', async () => {
     values = new Map([[LAYOUT_MODE_STORAGE_KEY, JSON.stringify({ mode: 'advanced' })]]);
