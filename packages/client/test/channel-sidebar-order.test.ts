@@ -19,6 +19,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   }) => createElement('button', { onClick: onSelect, disabled }, children),
 }));
 import { ChannelSidebarContents } from '../src/client/channel-sidebar-view.js';
+import { edgeScrollStep } from '../src/client/channel-sidebar-order.js';
 import {
   channelSidebarScopeKey,
   createChannelSidebarPrefs,
@@ -569,5 +570,17 @@ describe('Channel sidebar personal order editor', () => {
     expect(prefs.getSnapshot().width).toBe(420);
     expect(prefs.getSnapshot().memoryTerminology).toBe('git');
     expect(prefs.isSidebarCollapsed('channel:team')).toBe(true);
+  });
+});
+
+describe('edgeScrollStep', () => {
+  it('scrolls near the edges and stays put inside or outside', () => {
+    expect(edgeScrollStep(10, 0, 400)).toBe(-8);
+    expect(edgeScrollStep(390, 0, 400)).toBe(8);
+    expect(edgeScrollStep(200, 0, 400)).toBe(0);
+    expect(edgeScrollStep(-5, 0, 400)).toBe(0);
+    expect(edgeScrollStep(405, 0, 400)).toBe(0);
+    expect(edgeScrollStep(31, 0, 400)).toBe(-8);
+    expect(edgeScrollStep(32, 0, 400)).toBe(0);
   });
 });
