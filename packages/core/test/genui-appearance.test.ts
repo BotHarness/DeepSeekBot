@@ -78,6 +78,8 @@ describe('shared GenUI appearance', () => {
     ).toBe('0');
     expect(rules.get(':where(.genui-well)')?.get('background')).toBe('var(--well)');
     expect(rules.get(':where(.genui-selection)')?.get('background')).toBe('var(--selection)');
+    expect(rules.get(':where(.genui-table)')?.get('overflow-wrap')).toBe('normal');
+    expect(rules.get(':where(.genui-table-scroll)')?.get('overflow-x')).toBe('auto');
     expect(rules.get(':where(:focus-visible)')?.get('outline')).toBe('2px solid var(--primary)');
     expect(rules.get(':where(.genui-axis)')?.get('stroke')).toBe('var(--axis)');
     expect(GENUI_DEFAULT_CSS).not.toMatch(/!important|border(?:-bottom)?:[^;}]*solid/u);

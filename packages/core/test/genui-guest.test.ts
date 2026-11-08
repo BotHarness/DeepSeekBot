@@ -175,11 +175,34 @@ describe('GenUI bounded guest DOM adapter', () => {
     const nextRadioId = parseHTML(guest.snapshot().html)
       .document.querySelector('[aria-label="Select Alpha"]')
       ?.getAttribute('data-genui-node');
-    if (!nextRadioId) throw Error('Rebuilt radio was not found.');
-    expect(nextRadioId).not.toBe(radioId);
+    if (!nextRadioId) throw Error('Retained radio was not found.');
+    expect(nextRadioId).toBe(radioId);
     guest.event({ event: 'change', targetId: nextRadioId, checked: true });
     expect(guest.snapshot().state.values['selected']).toBe('alpha');
-    expect(guest.snapshot().controls.find((control) => control.id === nextRadioId)).toBeUndefined();
+    expect(guest.snapshot().controls.find((control) => control.id === nextRadioId)).toMatchObject({
+      checked: true,
+    });
+  });
+
+  it('still refuses detached control identities when an author rebuilds their tree', async () => {
+    const guest = await open(
+      `<div id="rows"><input id="pick" type="radio"></div><script>document.querySelector('#pick').addEventListener('change',()=>{const replacement=document.createElement('input');replacement.id='pick';replacement.type='radio';document.querySelector('#rows').replaceChildren(replacement)});</script>`,
+    );
+    const radioId = parseHTML(guest.snapshot().html)
+      .document.querySelector('#pick')
+      ?.getAttribute('data-genui-node');
+    if (!radioId) throw Error('Missing initial radio identity.');
+    guest.event({ event: 'change', targetId: radioId, checked: true });
+    const next = guest.snapshot();
+    const replacementId = parseHTML(next.html)
+      .document.querySelector('#pick')
+      ?.getAttribute('data-genui-node');
+    expect(replacementId).toBeDefined();
+    expect(replacementId).not.toBe(radioId);
+    expect(next.controls.some((control) => control.id === radioId)).toBe(false);
+    expect(() => guest.event({ event: 'change', targetId: radioId, checked: true })).toThrow(
+      /node/iu,
+    );
   });
 
   it('bounds native number formatting and does not introduce native platform capabilities', async () => {

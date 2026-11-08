@@ -85,7 +85,8 @@ export const GENUI_DEFAULT_CSS = `@layer genui-default {
   :where(.genui-well) { background:var(--well) }
   :where(.genui-selection) { background:var(--selection) }
   :where(.genui-grid) { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr)); gap:var(--space-5) }
-  :where(.genui-table) { width:100%; border-collapse:separate; border-spacing:0 var(--space-2); text-align:left }
+  :where(.genui-table-scroll) { overflow-x:auto }
+  :where(.genui-table) { width:100%; border-collapse:separate; border-spacing:0 var(--space-2); text-align:left; overflow-wrap:normal }
   :where(.genui-table tr,.genui-table th,.genui-table td) { border:0 }
   :where(.genui-table th,.genui-table td) { padding:var(--space-3) var(--space-4) }
   :where(.genui-table thead,.genui-table tbody tr:nth-child(even)) { background:var(--well) }
@@ -114,7 +115,7 @@ export const GENUI_DEFAULT_CSS = `@layer genui-default {
 export const GENUI_STYLE_GUIDANCE =
   'Use the shared CSS variables for color, spacing and radius; never add ad hoc hex colors. ' +
   'Group content with borderless genui-surface cards, recessed genui-well blocks and genui-selection accents, not decorative borders. ' +
-  'Use genui-grid, genui-table and genui-legend for layout; retain meaningful graph/axis lines and keyboard focus-visible cues. ' +
+  'Use genui-grid, genui-table and genui-legend for layout; wrap tables in genui-table-scroll to preserve readable words on narrow screens. Retain meaningful graph/axis lines and keyboard focus-visible cues. ' +
   'Assign stable categories to distinct --chart-1 through --chart-8 colors (genui-series with data-series="1" through "8" exposes --series-color); never use same-primary shades for categories. ' +
   'Label chart values and legends and pair colors with line dashes, marker shapes or numbered sectors so color is not the only cue. ' +
   'Tokens follow the root color-scheme in both themes; author typography and CSS remain customizable.';
