@@ -760,7 +760,7 @@ describe('Subpanel group filtering', () => {
         component: () => createElement('div', { 'data-body': id }),
       });
     await ws.render();
-    await ws.selectChannel({ id: 'group-1', type: 'group' });
+    await ws.selectChannel({ id: 'group-1', type: 'group', botSlug: undefined });
     expect(entryOrder()).toEqual(['members', 'sessions']);
     await press('members', 'ArrowDown');
     expect(entryOrder()).toEqual(['sessions', 'members']);

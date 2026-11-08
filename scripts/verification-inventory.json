@@ -2107,6 +2107,14 @@
       "sha256": "426de32eb3795d7be639fddfa85d51616a7639cafd7c0344a439ef7649a20bc4"
     },
     {
+      "path": "scripts/e2e-subpanel-drag.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.bot-mode.dock"],
+      "reason": "Simple Channel subpanel drag against a real isolated Client: hover affordance, HTML drag with insertion line, reload persistence and Group filtering. No model call.",
+      "task": 3717,
+      "sha256": "2a3d5e0894bb928e336df8180dbac3530462e578a2ebde3b011770d15a14e32a"
+    },
+    {
       "path": "scripts/e2e-tool-detail-capability.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.activity.tool-details"],

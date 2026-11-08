@@ -1,15 +1,3 @@
-// Simple Channel subpanel drag journey for #3717 (T4 evidence).
-//
-// Seed first through the same public API the Client calls (task-owned instance):
-//   node scripts/verify-app.mjs rpc botharness/create '{"displayName":"QA Ada"}' --name <n>
-//   node scripts/verify-app.mjs rpc botharness/channelCreate '{"name":"QA Group","members":["<ada-slug>"]}' --name <n>
-//
-// Run:
-//   BH_E2E_INSTANCE=.humanlayer/verify/<n>/instance.json BH_BROWSER_PROFILE=<empty-dir> node scripts/e2e-subpanel-drag.mjs
-//
-// The journey enters Bot mode, opens a Bot DM Subpanel column, drags Sessions
-// below Memory files with a mid-drag insertion-line capture, reloads to prove
-// persistence, then checks Group filtering. No model call is needed.
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
