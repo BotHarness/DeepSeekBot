@@ -70,6 +70,7 @@ class FakeTunnels implements TunnelApi {
   >();
   records = new Map<string, { name: string; target: string }>();
   failCreate = false;
+  failDns = false;
   listComplete = true;
   listCalls = 0;
   deleteCalls = 0;
@@ -111,6 +112,7 @@ class FakeTunnels implements TunnelApi {
     this.tunnels.delete(tunnelId);
   }
   async pointHostname(hostname: string, tunnelId: string, recordId?: string) {
+    if (this.failDns) throw new Error('DNS unavailable');
     const id = recordId && this.records.has(recordId) ? recordId : `record-${hostname}`;
     this.records.set(id, { name: hostname, target: `${tunnelId}.cfargotunnel.com` });
     return id;
@@ -178,6 +180,47 @@ async function setup(
     at: () => new Date(clock).toISOString(),
   };
 }
+
+describe('partial tunnel provisioning recovery', () => {
+  it.each([false, true])(
+    'repairs DNS before returning a connector token (repoint=%s)',
+    async (repoint) => {
+      const { call, tunnels } = await setup();
+      const registered = await call('POST', '/v1/hosts', {
+        as: 'user_alice',
+        body: { name: 'Recovery QA' },
+      });
+      const id = registered.body.host.id;
+      const provision = () =>
+        call('POST', `/v1/hosts/${id}/tunnel`, {
+          as: 'user_alice',
+          body: { originPort: 3000 },
+        });
+      if (repoint) {
+        expect((await provision()).status).toBe(200);
+        tunnels.tunnels.clear();
+      }
+      tunnels.failDns = true;
+      expect((await provision()).status).toBe(502);
+      expect((await provision()).status).toBe(502);
+      expect(tunnels.tunnels.size).toBe(1);
+      const tunnelId = [...tunnels.tunnels.keys()][0]!;
+      tunnels.failDns = false;
+      expect((await provision()).status).toBe(200);
+      expect([...tunnels.tunnels.keys()]).toEqual([tunnelId]);
+      expect([...tunnels.records.values()]).toEqual([
+        {
+          name: `${id}.deepseekbot.dev`,
+          target: `${tunnelId}.cfargotunnel.com`,
+        },
+      ]);
+      expect(tunnels.tunnels.get(tunnelId)?.ingress).toEqual({
+        hostname: `${id}.deepseekbot.dev`,
+        originPort: 3000,
+      });
+    },
+  );
+});
 
 describe('linked computer sessions', () => {
   it('validates optional sid without accepting malformed claims or expired tokens', async () => {
