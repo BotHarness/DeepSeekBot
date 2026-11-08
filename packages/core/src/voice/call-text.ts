@@ -55,7 +55,11 @@ export function createCallTextHarvest(deps: {
       visual = await callVisualMessage(deps.attachments, messageId, harvested.visual);
     } catch {
       harvested.settle(false);
-      return undefined;
+      return {
+        voiceCall: { callId: harvested.callId, atMs: harvested.atMs },
+        attachments: [],
+        settle: () => {},
+      };
     }
     return {
       voiceCall: {

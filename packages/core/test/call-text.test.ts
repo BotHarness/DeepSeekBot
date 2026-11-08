@@ -182,3 +182,60 @@ describe('text typed into a Bot DM during a call', () => {
     ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
   });
 });
+
+describe('call text harvest', () => {
+  it('keeps the call id and arrival time and returns the keyframes when the grid upload fails', async () => {
+    const settled: boolean[] = [];
+    const harvest = createCallTextHarvest({
+      calls: () => ({
+        text: async () => ({
+          callId: 'call-0123456789abcdef',
+          atMs: 4_200,
+          visual: { source: 'camera', sameAs: 'human-1' },
+          settle: (sent: boolean) => settled.push(sent),
+        }),
+      }),
+      attachments: {
+        upload: async () => {
+          throw new Error('The attachment store is full.');
+        },
+      },
+    });
+    const failing = createCallTextHarvest({
+      calls: () => ({
+        text: async () => ({
+          callId: 'call-0123456789abcdef',
+          atMs: 4_200,
+          visual: {
+            source: 'camera',
+            frames: 1,
+            fromMs: 1_000,
+            toMs: 1_000,
+            saved: true,
+            image: { jpeg: new Uint8Array([1]), width: 1, height: 1, layout: '1' },
+          } as never,
+          settle: (sent: boolean) => settled.push(sent),
+        }),
+      }),
+      attachments: {
+        upload: async () => {
+          throw new Error('The attachment store is full.');
+        },
+      },
+    });
+    const pointer = await harvest({ channelId: 'dm-mira', messageId: 'human-2', picture: true });
+    expect(pointer!.voiceCall).toEqual({
+      callId: 'call-0123456789abcdef',
+      atMs: 4_200,
+      visual: { source: 'camera', sameAs: 'human-1' },
+    });
+    const plain = await failing({ channelId: 'dm-mira', messageId: 'human-3', picture: true });
+    expect(plain).toMatchObject({
+      voiceCall: { callId: 'call-0123456789abcdef', atMs: 4_200 },
+      attachments: [],
+    });
+    expect(plain!.voiceCall.visual).toBeUndefined();
+    plain!.settle(true);
+    expect(settled).toEqual([false]);
+  });
+});
