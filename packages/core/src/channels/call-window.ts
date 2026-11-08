@@ -114,3 +114,24 @@ export function resolveChannelCallWindow(
     ...(upper === undefined ? {} : { to: iso(upper) }),
   };
 }
+
+export interface ChannelCallWindowFilter {
+  callId: string;
+  fromMs: number;
+  toMs?: number;
+  from: string;
+  to?: string;
+}
+
+export function channelCallPictureRange(
+  message: ChannelMessage,
+  callId: string,
+): { fromMs: number; toMs: number } | undefined {
+  const record = message.voiceCallRecord;
+  if (record?.state === 'frames')
+    return record.callId === callId ? { fromMs: record.fromMs, toMs: record.toMs } : undefined;
+  const visual = message.voiceCall?.visual;
+  return message.voiceCall?.callId === callId && visual !== undefined && 'fromMs' in visual
+    ? { fromMs: visual.fromMs, toMs: visual.toMs }
+    : undefined;
+}

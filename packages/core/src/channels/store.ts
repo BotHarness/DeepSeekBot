@@ -1,4 +1,5 @@
 import { isChannelNotice } from './channel-notice.js';
+import { channelCallPictureRange, type ChannelCallWindowFilter } from './call-window.js';
 import { assertGenuiMessage } from './genui-message.js';
 import {
   compareToolApprovalHistory,
@@ -141,6 +142,7 @@ export interface ChannelMessageQueryOptions {
 
   orderBy?: 'time';
   ascending?: boolean;
+  callWindow?: ChannelCallWindowFilter;
 }
 
 export interface ChannelMessageQueryPage {
@@ -176,8 +178,55 @@ export interface PreparedChannelMessageQuery {
   visibleFrom?: number;
   orderBy?: 'time';
   ascending?: true;
+  callWindow?: PreparedChannelCallWindow;
   filter: string;
   limit: number;
+}
+
+export interface PreparedChannelCallWindow {
+  callId: string;
+  fromMs: number;
+  toMs?: number;
+  from: number;
+  to?: number;
+}
+
+function prepareCallWindow(
+  window: ChannelCallWindowFilter | undefined,
+): PreparedChannelCallWindow | undefined {
+  if (window === undefined) return undefined;
+  const from = Date.parse(window.from);
+  const to = window.to === undefined ? undefined : Date.parse(window.to);
+  const offset = (value: number | undefined) =>
+    value === undefined || (Number.isSafeInteger(value) && value >= 0);
+  if (
+    !Number.isFinite(from) ||
+    (to !== undefined && (!Number.isFinite(to) || from > to)) ||
+    !offset(window.fromMs) ||
+    !offset(window.toMs) ||
+    (window.toMs !== undefined && window.fromMs > window.toMs)
+  )
+    throw new Error('channel_read: invalid call window');
+  return {
+    callId: window.callId,
+    fromMs: window.fromMs,
+    ...(window.toMs === undefined ? {} : { toMs: window.toMs }),
+    from,
+    ...(to === undefined ? {} : { to }),
+  };
+}
+
+export function inChannelCallWindow(
+  message: ChannelMessage,
+  window: PreparedChannelCallWindow,
+): boolean {
+  const picture = channelCallPictureRange(message, window.callId);
+  if (picture !== undefined)
+    return (
+      picture.toMs >= window.fromMs && (window.toMs === undefined || picture.fromMs <= window.toMs)
+    );
+  const at = Date.parse(message.at);
+  return Number.isFinite(at) && at >= window.from && (window.to === undefined || at <= window.to);
 }
 
 export function prepareChannelMessageQuery(
@@ -216,6 +265,7 @@ export function prepareChannelMessageQuery(
   if (options.ascending === true && options.orderBy !== 'time')
     throw new Error('channel_read: ascending order needs time order');
   const ascending = options.ascending === true ? true : undefined;
+  const callWindow = prepareCallWindow(options.callWindow);
   const text = options.text?.trim().toLowerCase();
   const filter = createHash('sha256')
     .update(
@@ -229,6 +279,7 @@ export function prepareChannelMessageQuery(
         orderBy: options.orderBy,
         ascending,
         visibleFrom: options.visibleFrom,
+        callWindow,
       }),
     )
     .digest('hex')
@@ -263,6 +314,7 @@ export function prepareChannelMessageQuery(
     ...(options.visibleFrom === undefined ? {} : { visibleFrom: options.visibleFrom }),
     ...(options.orderBy === undefined ? {} : { orderBy: options.orderBy }),
     ...(ascending === undefined ? {} : { ascending }),
+    ...(callWindow === undefined ? {} : { callWindow }),
     filter,
     limit: Math.max(
       1,
@@ -308,6 +360,8 @@ export function queryChannelMessages(
     if ((query.from !== undefined || query.to !== undefined) && !Number.isFinite(at)) return false;
     if (query.from !== undefined && at < query.from) return false;
     if (query.to !== undefined && at > query.to) return false;
+    if (query.callWindow !== undefined && !inChannelCallWindow(message, query.callWindow))
+      return false;
     return true;
   });
   const page = matching.slice(0, query.limit + 1);
