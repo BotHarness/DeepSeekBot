@@ -93,7 +93,7 @@ import {
   channelSidebarPrefs,
   channelSidebarScopeKey,
 } from './channel-sidebar-prefs.js';
-import { insertEntryBefore, resolveEntryOrder } from './channel-sidebar-order.js';
+import { edgeScrollStep, insertEntryBefore, resolveEntryOrder } from './channel-sidebar-order.js';
 import { rowDropHalf } from './roster-order.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -594,9 +594,38 @@ function SimpleMessageContent({ column }: { column: SubpanelColumnView }): React
   const unmountCleanup = useMountedResource(
     () => () => {
       if (escapeRef.current) window.removeEventListener('keydown', escapeRef.current);
+      if (scrollRaf.current !== undefined && typeof cancelAnimationFrame === 'function')
+        cancelAnimationFrame(scrollRaf.current);
     },
     [],
   );
+  const columnRef = useRef<HTMLElement | null>(null);
+  const pointerY = useRef<number | undefined>(undefined);
+  const scrollRaf = useRef<number | undefined>(undefined);
+  const previewRef = useRef<typeof preview>(undefined);
+  previewRef.current = preview;
+  const focusNonce = useRef(0);
+  const [focusSignal, setFocusSignal] = useState<{ id: string; nonce: number } | undefined>(
+    undefined,
+  );
+  const [announcement, setAnnouncement] = useState<string | undefined>(undefined);
+  const stopScroll = (): void => {
+    if (scrollRaf.current !== undefined && typeof cancelAnimationFrame === 'function')
+      cancelAnimationFrame(scrollRaf.current);
+    scrollRaf.current = undefined;
+    pointerY.current = undefined;
+  };
+  const tickScroll = (): void => {
+    scrollRaf.current = undefined;
+    const view = columnRef.current;
+    const y = pointerY.current;
+    if (view !== null && y !== undefined && typeof requestAnimationFrame === 'function') {
+      const box = view.getBoundingClientRect();
+      view.scrollTop += edgeScrollStep(y, box.top, box.bottom);
+    }
+    if (previewRef.current !== undefined && typeof requestAnimationFrame === 'function')
+      scrollRaf.current = requestAnimationFrame(tickScroll);
+  };
   const fullOrder = preview?.order ?? baseOrder;
   const visibleIds = (order: readonly string[]): string[] =>
     order.flatMap((id) => {
@@ -611,7 +640,21 @@ function SimpleMessageContent({ column }: { column: SubpanelColumnView }): React
       window.removeEventListener('keydown', escapeRef.current);
       escapeRef.current = undefined;
     }
+    stopScroll();
     setPreview(undefined);
+  };
+  const announceMove = (id: string, visible: readonly string[]): void => {
+    setAnnouncement(
+      dock.t('workspace.subpanelColumn.moved', {
+        label: byId.get(id)?.label ?? id,
+        position: String(visible.indexOf(id) + 1),
+        total: String(visible.length),
+      }),
+    );
+  };
+  const requestFocus = (id: string): void => {
+    focusNonce.current += 1;
+    setFocusSignal({ id, nonce: focusNonce.current });
   };
   const reorder: SubpanelReorderApi = {
     activeId: preview?.id,
@@ -630,6 +673,16 @@ function SimpleMessageContent({ column }: { column: SubpanelColumnView }): React
         }
       };
       window.addEventListener('keydown', escapeRef.current);
+      const reduceMotion =
+        typeof window !== 'undefined' &&
+        typeof window.matchMedia === 'function' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (
+        !reduceMotion &&
+        typeof requestAnimationFrame === 'function' &&
+        scrollRaf.current === undefined
+      )
+        scrollRaf.current = requestAnimationFrame(tickScroll);
       setPreview({ id, order: baseOrder, anchor: { id, half: 'before' } });
     },
     over: (id, event) => {
@@ -637,6 +690,7 @@ function SimpleMessageContent({ column }: { column: SubpanelColumnView }): React
       if (preview === undefined || !transfer?.types.includes(SUBPANEL_DROP_TYPE)) return;
       event.preventDefault();
       transfer.dropEffect = 'move';
+      pointerY.current = event.clientY;
       const header =
         event.currentTarget.querySelector('[data-subpanel-entry-header]') ?? event.currentTarget;
       const dropHalf = rowDropHalf(event.clientY, header.getBoundingClientRect());
@@ -654,8 +708,12 @@ function SimpleMessageContent({ column }: { column: SubpanelColumnView }): React
       if (preview === undefined) return;
       event.preventDefault();
       const order = preview.order;
+      const moved = preview.id;
       endPreview();
       column.setOrder(order);
+      const visible = visibleIds(order);
+      if (order.join('') !== baseOrder.join('')) announceMove(moved, visible);
+      requestFocus(moved);
     },
     finish: () => endPreview(),
     cancel: () => endPreview(),
@@ -667,6 +725,8 @@ function SimpleMessageContent({ column }: { column: SubpanelColumnView }): React
       const nextVisible = insertEntryBefore(visible, id, anchor);
       if (nextVisible.join('') === visible.join('')) return;
       commitVisible(nextVisible);
+      announceMove(id, nextVisible);
+      requestFocus(id);
     },
   };
   const anchor = preview?.anchor;
@@ -710,11 +770,29 @@ function SimpleMessageContent({ column }: { column: SubpanelColumnView }): React
             }}
           />
           <aside
+            ref={columnRef}
             className="bh-subpanel-column"
             data-subpanel-column=""
             aria-label={label}
             style={{ width: `${column.state.width * 100}%` }}
+            onDragLeave={(event) => {
+              if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+              pointerY.current = undefined;
+            }}
+            onDragOver={(event) => {
+              if (preview !== undefined) pointerY.current = event.clientY;
+            }}
           >
+            {announcement === undefined ? null : (
+              <span
+                className="bh-sr-only"
+                role="status"
+                aria-live="polite"
+                data-subpanel-announce=""
+              >
+                {announcement}
+              </span>
+            )}
             {entries.length === 0 ? (
               <PanelEmptyState icon="panel-right">{dock.t('dock.empty')}</PanelEmptyState>
             ) : (
@@ -725,6 +803,7 @@ function SimpleMessageContent({ column }: { column: SubpanelColumnView }): React
                     entry={entry}
                     column={column}
                     reorder={reorder}
+                    focusSignal={focusSignal}
                   />
                 );
                 if (anchor?.id !== entry.id) return [section];
@@ -749,10 +828,12 @@ function SubpanelColumnEntry({
   entry,
   column,
   reorder,
+  focusSignal,
 }: {
   entry: ColumnEntry;
   column: SubpanelColumnView;
   reorder: SubpanelReorderApi;
+  focusSignal: { id: string; nonce: number } | undefined;
 }): ReactElement {
   const dock = useDock();
   const panel = dock.panels.get(entry.id);
@@ -767,6 +848,15 @@ function SubpanelColumnEntry({
       if (focused) node.scrollIntoView?.({ block: 'nearest' });
     },
     [focused, column.focus?.nonce],
+  );
+  const focusFollow = useMountedResource<HTMLElement>(
+    (node) => {
+      if (focusSignal?.id !== entry.id) return;
+      const head = node.querySelector<HTMLElement>('[data-panel-head]');
+      head?.scrollIntoView?.({ block: 'nearest' });
+      head?.focus({ preventScroll: true });
+    },
+    [focusSignal, entry.id],
   );
   const drag = useRef<{ y: number; height: number } | undefined>(undefined);
   const contextMenu = usePanelMenu({
@@ -785,7 +875,10 @@ function SubpanelColumnEntry({
   const PanelAction = panel?.headerAction;
   return (
     <section
-      ref={focusMount}
+      ref={(node) => {
+        focusMount(node);
+        focusFollow(node);
+      }}
       className="bh-subpanel-entry"
       data-subpanel-entry={entry.id}
       data-expanded={expanded ? '' : undefined}

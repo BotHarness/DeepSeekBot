@@ -359,50 +359,95 @@ describe('Simple Side column', () => {
   });
 });
 
-describe('Subpanel order', () => {
-  const openColumn = (column: unknown) => {
-    values = new Map([
-      [
-        LAYOUT_MODE_STORAGE_KEY,
-        JSON.stringify({ mode: 'simple', sideColumn: WORKSPACE_CHANNELS, column }),
-      ],
-    ]);
-  };
-  const defaultColumn = () => ({
+function openColumn(column: unknown) {
+  values = new Map([
+    [
+      LAYOUT_MODE_STORAGE_KEY,
+      JSON.stringify({ mode: 'simple', sideColumn: WORKSPACE_CHANNELS, column }),
+    ],
+  ]);
+}
+function defaultColumn() {
+  return {
     open: true,
     width: 0.34,
     expanded: ['sessions', 'schedules', 'memory-files'],
     hidden: [],
     heights: {},
     order: [],
-  });
-  const mountWithSubpanels = async () => {
-    const ws = mountWorkspace();
-    for (const [id, label] of [
-      ['schedules', 'Schedules'],
-      ['memory-files', 'Memory files'],
-    ] as const)
-      ws.registry.registerEntry({
-        id,
-        label,
-        scope: 'personabot',
-        component: () => createElement('div', { 'data-body': id }),
-      });
-    await ws.render();
-    return ws;
   };
-  const entryOrder = () =>
-    [...host.querySelectorAll('[data-subpanel-entry]')].map((node) =>
-      node.getAttribute('data-subpanel-entry')!,
-    );
-  const head = (id: string) =>
-    host.querySelector<HTMLElement>(`[data-subpanel-entry="${id}"] [data-panel-head]`)!;
-  const press = async (id: string, key: string, alt = true) => {
-    act(() => {
-      head(id).dispatchEvent(new KeyboardEvent('keydown', { key, altKey: alt, bubbles: true }));
+}
+async function mountWithSubpanels() {
+  const ws = mountWorkspace();
+  for (const [id, label] of [
+    ['schedules', 'Schedules'],
+    ['memory-files', 'Memory files'],
+  ] as const)
+    ws.registry.registerEntry({
+      id,
+      label,
+      scope: 'personabot',
+      component: () => createElement('div', { 'data-body': id }),
     });
-    await settle();
+  await ws.render();
+  return ws;
+}
+const entryOrder = () =>
+  [...host.querySelectorAll('[data-subpanel-entry]')].map((node) =>
+    node.getAttribute('data-subpanel-entry')!,
+  );
+const subpanelHead = (id: string) =>
+  host.querySelector<HTMLElement>(`[data-subpanel-entry="${id}"] [data-panel-head]`)!;
+const press = async (id: string, key: string, alt = true) => {
+  act(() => {
+    subpanelHead(id).dispatchEvent(
+      new KeyboardEvent('keydown', { key, altKey: alt, bubbles: true }),
+    );
+  });
+  await settle();
+};
+function mockTransfer() {
+  const data = new Map<string, string>();
+  const mock = {
+    dropEffect: 'none' as string,
+    effectAllowed: 'none' as string,
+    files: [],
+    items: [],
+    types: [] as string[],
+    setData: (type: string, value: string) => {
+      data.set(type, value);
+      mock.types = [...data.keys()];
+    },
+    getData: (type: string) => data.get(type) ?? '',
+    clearData: () => data.clear(),
+    setDragImage: () => {},
   };
+  return mock;
+}
+function withTransfer(mock: ReturnType<typeof mockTransfer>, type: string) {
+  const event = new Event(type, { bubbles: true, cancelable: true }) as Event & {
+    clientY?: number;
+    dataTransfer?: unknown;
+  };
+  Object.defineProperty(event, 'dataTransfer', { value: mock });
+  return event;
+}
+function stubRect(node: HTMLElement, top: number, height = 40) {
+  node.getBoundingClientRect = () =>
+    ({
+      top,
+      left: 0,
+      bottom: top + height,
+      right: 200,
+      width: 200,
+      height,
+      x: 0,
+      y: top,
+    }) as DOMRect;
+}
+
+describe('Subpanel order', () => {
+  const head = subpanelHead;
 
   it('makes the header itself draggable while keeping click-to-collapse', async () => {
     openColumn(defaultColumn());
@@ -504,52 +549,23 @@ describe('Subpanel order', () => {
     expect(section().hasAttribute('data-expanded')).toBe(false);
 
     const headers = () => [...host.querySelectorAll<HTMLElement>('[data-subpanel-entry-header]')];
-    const rect = (top: number) =>
-      ({
-        top,
-        left: 0,
-        bottom: top + 40,
-        right: 200,
-        width: 200,
-        height: 40,
-        x: 0,
-        y: top,
-      }) as DOMRect;
-    headers()[0]!.getBoundingClientRect = () => rect(0);
-    headers()[1]!.getBoundingClientRect = () => rect(40);
-    headers()[2]!.getBoundingClientRect = () => rect(80);
-    const data = new Map<string, string>();
-    const shared = {
-      dropEffect: 'none' as string,
-      effectAllowed: 'none' as string,
-      types: [] as string[],
-      setData: (type: string, value: string) => {
-        data.set(type, value);
-        shared.types = [...data.keys()];
-      },
-      getData: (type: string) => data.get(type) ?? '',
-      setDragImage: () => {},
-    };
-    const withTransfer = (type: string) => {
-      const event = new Event(type, { bubbles: true, cancelable: true }) as Event & {
-        clientY?: number;
-        dataTransfer?: unknown;
-      };
-      Object.defineProperty(event, 'dataTransfer', { value: shared });
-      return event;
-    };
+    stubRect(headers()[0]!, 0);
+    stubRect(headers()[1]!, 40);
+    stubRect(headers()[2]!, 80);
+    const shared = mockTransfer();
+    const transfer = (type: string) => withTransfer(shared, type);
     act(() => {
-      head('sessions').dispatchEvent(withTransfer('dragstart'));
+      head('sessions').dispatchEvent(transfer('dragstart'));
     });
     await settle();
-    const over = withTransfer('dragover') as Event & { clientY?: number };
+    const over = transfer('dragover') as Event & { clientY?: number };
     over.clientY = 115;
     act(() => {
       headers()[2]!.closest('[data-subpanel-entry]')!.dispatchEvent(over);
     });
     await settle();
     act(() => {
-      headers()[2]!.closest('[data-subpanel-entry]')!.dispatchEvent(withTransfer('drop'));
+      headers()[2]!.closest('[data-subpanel-entry]')!.dispatchEvent(transfer('drop'));
     });
     await settle();
     expect(entryOrder()).toEqual(['memory-files', 'schedules', 'sessions']);
@@ -560,59 +576,23 @@ describe('Subpanel order', () => {
   it('drags a subpanel to a new position and persists it', async () => {
     openColumn(defaultColumn());
     await mountWithSubpanels();
-    const transfer = () => {
-      const data = new Map<string, string>();
-      const mock = {
-        dropEffect: 'none' as string,
-        effectAllowed: 'none' as string,
-        files: [],
-        items: [],
-        types: [] as string[],
-        setData: (type: string, value: string) => {
-          data.set(type, value);
-          mock.types = [...data.keys()];
-        },
-        getData: (type: string) => data.get(type) ?? '',
-        clearData: () => data.clear(),
-        setDragImage: () => {},
-      };
-      return mock;
-    };
-    const shared = transfer();
-    const withTransfer = (type: string, init: EventInit = {}) => {
-      const event = new Event(type, { bubbles: true, cancelable: true, ...init }) as Event & {
-        clientY?: number;
-        dataTransfer?: unknown;
-      };
-      Object.defineProperty(event, 'dataTransfer', { value: shared });
-      return event;
-    };
+    const shared = mockTransfer();
+    const transfer = (type: string) => withTransfer(shared, type);
     const sections = () => [...host.querySelectorAll<HTMLElement>('[data-subpanel-entry]')];
     const headers = () => [...host.querySelectorAll<HTMLElement>('[data-subpanel-entry-header]')];
-    const rect = (top: number) =>
-      ({
-        top,
-        left: 0,
-        bottom: top + 40,
-        right: 200,
-        width: 200,
-        height: 40,
-        x: 0,
-        y: top,
-      }) as DOMRect;
-    headers()[0]!.getBoundingClientRect = () => rect(0);
-    headers()[1]!.getBoundingClientRect = () => rect(40);
-    headers()[2]!.getBoundingClientRect = () => rect(80);
+    stubRect(headers()[0]!, 0);
+    stubRect(headers()[1]!, 40);
+    stubRect(headers()[2]!, 80);
 
     act(() => {
-      head('sessions').dispatchEvent(withTransfer('dragstart'));
+      head('sessions').dispatchEvent(transfer('dragstart'));
     });
     await settle();
     expect(
       host.querySelector('[data-subpanel-entry="sessions"]')!.hasAttribute('data-dragging'),
     ).toBe(true);
 
-    const over = withTransfer('dragover') as Event & { clientY?: number };
+    const over = transfer('dragover') as Event & { clientY?: number };
     over.clientY = 115;
     act(() => {
       sections()[2]!.dispatchEvent(over);
@@ -622,7 +602,7 @@ describe('Subpanel order', () => {
     expect(host.querySelector('[data-drop-line]')).not.toBeNull();
 
     act(() => {
-      sections()[2]!.dispatchEvent(withTransfer('drop'));
+      sections()[2]!.dispatchEvent(transfer('drop'));
     });
     await settle();
     expect(entryOrder()).toEqual(['memory-files', 'schedules', 'sessions']);
@@ -673,6 +653,95 @@ describe('Subpanel order', () => {
     expect(entryOrder()).toEqual(['sessions', 'memory-files', 'schedules']);
     expect(host.querySelector('[data-dragging]')).toBeNull();
     expect(readLayoutMode(storage).column.order).toEqual([]);
+  });
+});
+
+describe('Subpanel auto-scroll and focus', () => {
+  it('scrolls the column near its edges while dragging and stops outside', async () => {
+    openColumn(defaultColumn());
+    await mountWithSubpanels();
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    vi.stubGlobal('cancelAnimationFrame', () => {});
+    const column = host.querySelector<HTMLElement>('[data-subpanel-column]')!;
+    stubRect(column, 0, 400);
+    const headers = () => [...host.querySelectorAll<HTMLElement>('[data-subpanel-entry-header]')];
+    stubRect(headers()[1]!, 40);
+    const shared = mockTransfer();
+    act(() => {
+      subpanelHead('sessions').dispatchEvent(withTransfer(shared, 'dragstart'));
+    });
+    await settle();
+    const runFrames = () => {
+      const pending = frames.splice(0);
+      act(() => {
+        for (const frame of pending) frame(0);
+      });
+    };
+    const over = withTransfer(shared, 'dragover') as Event & { clientY?: number };
+    over.clientY = 390;
+    act(() => {
+      headers()[1]!.closest('[data-subpanel-entry]')!.dispatchEvent(over);
+    });
+    await settle();
+    runFrames();
+    expect(column.scrollTop).toBeGreaterThan(0);
+    const held = column.scrollTop;
+    act(() => {
+      column.dispatchEvent(new Event('dragleave', { bubbles: true, cancelable: true }));
+    });
+    await settle();
+    runFrames();
+    expect(column.scrollTop).toBe(held);
+  });
+
+  it('moves focus to the keyboard-moved header, scrolls it into view and announces the move', async () => {
+    openColumn(defaultColumn());
+    await mountWithSubpanels();
+    window.HTMLElement.prototype.scrollIntoView ??= () => {};
+    const scrollSpy = vi
+      .spyOn(window.HTMLElement.prototype, 'scrollIntoView')
+      .mockImplementation(() => {});
+    await press('sessions', 'ArrowDown');
+    expect(document.activeElement).toBe(subpanelHead('sessions'));
+    expect(scrollSpy).toHaveBeenCalled();
+    expect(host.querySelector('[data-subpanel-announce]')?.textContent).toBe(
+      'sessions，第 2 项，共 3 项',
+    );
+    scrollSpy.mockRestore();
+  });
+
+  it('moves focus to the dropped header and announces the move', async () => {
+    openColumn(defaultColumn());
+    await mountWithSubpanels();
+    const headers = () => [...host.querySelectorAll<HTMLElement>('[data-subpanel-entry-header]')];
+    stubRect(headers()[0]!, 0);
+    stubRect(headers()[1]!, 40);
+    stubRect(headers()[2]!, 80);
+    const shared = mockTransfer();
+    act(() => {
+      subpanelHead('sessions').dispatchEvent(withTransfer(shared, 'dragstart'));
+    });
+    await settle();
+    const sections = () => [...host.querySelectorAll<HTMLElement>('[data-subpanel-entry]')];
+    const over = withTransfer(shared, 'dragover') as Event & { clientY?: number };
+    over.clientY = 115;
+    act(() => {
+      sections()[2]!.dispatchEvent(over);
+    });
+    await settle();
+    act(() => {
+      sections()[2]!.dispatchEvent(withTransfer(shared, 'drop'));
+    });
+    await settle();
+    expect(entryOrder()).toEqual(['memory-files', 'schedules', 'sessions']);
+    expect(document.activeElement).toBe(subpanelHead('sessions'));
+    expect(host.querySelector('[data-subpanel-announce]')?.textContent).toBe(
+      'sessions，第 3 项，共 3 项',
+    );
   });
 });
 
