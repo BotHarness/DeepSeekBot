@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   authorizeWithLateRedirect,
   createConnectAccount,
+  isConnectOAuthCallback,
   visibleBrowserRefusal,
   type AuthSessionOpener,
   type EmailCodeFlow,
@@ -344,5 +345,31 @@ describe('browser cancel display (#3732)', () => {
       'sign-in-failed',
     ];
     for (const code of codes) expect(visibleBrowserRefusal(code)).toBe(code);
+  });
+});
+
+describe('OAuth callback routing (#3734)', () => {
+  it('recognizes the Connect callback in single- and double-slash forms', () => {
+    for (const target of [
+      'ai.botharness.deepseekbot.dev:/oauth2redirect?code=a&state=b',
+      'ai.botharness.deepseekbot.dev://oauth2redirect?code=a&state=b',
+      'ai.botharness.deepseekbot.dev:/oauth2redirect',
+      'ai.botharness.deepseekbot.dev://oauth2redirect#code=a',
+      'AI.BOTHARNESS.DEEPSEKBOT.DEV://oauth2redirect?code=a&state=b',
+    ])
+      expect(isConnectOAuthCallback(target)).toBe(true);
+  });
+
+  it('leaves every other intent alone', () => {
+    for (const target of [
+      '',
+      '/',
+      'deepseekbot://pair?p=host',
+      'ai.botharness.deepseekbot.dev://cloud-join?link=x',
+      'ai.botharness.deepseekbot.dev://oauth2redirect.evil.example',
+      'ai.botharness.deepseekbot.dev:/oauth2redirect-extra?code=a',
+      'https://example.test/oauth2redirect?code=a',
+    ])
+      expect(isConnectOAuthCallback(target)).toBe(false);
   });
 });
