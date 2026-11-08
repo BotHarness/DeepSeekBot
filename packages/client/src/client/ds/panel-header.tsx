@@ -1,4 +1,13 @@
-import { useRef, useState, type ReactElement, type ReactNode } from 'react';
+import {
+  useRef,
+  useState,
+  type DragEvent as ReactDragEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { IconChevronDownOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
 
@@ -47,7 +56,7 @@ const styles = stylex.create({
   compact: { flexGrow: 0, flexBasis: 'auto', cursor: 'grab' },
   hugged: { flexGrow: 0, flexBasis: 'auto' },
   context: { display: 'flex', alignItems: 'center', minWidth: 0, flexShrink: 1 },
-  dragHandle: { display: 'inline-flex', alignItems: 'center', flexShrink: 0 },
+  draggableHead: { cursor: { default: 'grab', ':active': 'grabbing' } },
   spacer: { flexGrow: 1 },
   chevron: {
     display: 'inline-flex',
@@ -109,6 +118,58 @@ export interface PanelHeaderDisclosure {
   readonly onToggle: (() => void) | undefined;
 }
 
+export interface PanelHeadDrag {
+  readonly onDragStart: (event: ReactDragEvent<HTMLElement>) => void;
+  readonly onDragEnd: () => void;
+  readonly onKeyDown: (event: ReactKeyboardEvent<HTMLElement>) => void;
+}
+
+interface PressOrigin {
+  x: number;
+  y: number;
+  moved: boolean;
+}
+
+function usePressOrigin(): {
+  readonly trackDown: (event: ReactPointerEvent<HTMLElement>) => void;
+  readonly trackMove: (event: ReactPointerEvent<HTMLElement>) => void;
+  readonly trackCancel: () => void;
+  readonly markMoved: () => void;
+  readonly reset: () => void;
+  readonly pressedMove: (event: ReactMouseEvent<HTMLElement>) => boolean;
+} {
+  const pointer = useRef<PressOrigin | undefined>(undefined);
+  return {
+    trackDown: (event) => {
+      if (event.button === 0)
+        pointer.current = { x: event.clientX, y: event.clientY, moved: false };
+    },
+    trackMove: (event) => {
+      const origin = pointer.current;
+      if (origin && Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > 5)
+        origin.moved = true;
+    },
+    trackCancel: () => {
+      if (pointer.current) pointer.current.moved = true;
+    },
+    markMoved: () => {
+      if (pointer.current) pointer.current.moved = true;
+    },
+    reset: () => {
+      pointer.current = undefined;
+    },
+    pressedMove: (event) => {
+      const origin = pointer.current;
+      pointer.current = undefined;
+      return (
+        event.detail !== 0 &&
+        !!origin &&
+        (origin.moved || Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > 5)
+      );
+    },
+  };
+}
+
 export function PanelHeader({
   icon,
   label,
@@ -116,7 +177,7 @@ export function PanelHeader({
   tabs,
   action,
   context,
-  dragHandle,
+  headDrag,
   disclosure,
   onHide,
   hideLabel,
@@ -131,7 +192,7 @@ export function PanelHeader({
   readonly tabs?: ReactNode;
   readonly action?: ReactNode;
   readonly context?: ReactNode;
-  readonly dragHandle?: ReactNode;
+  readonly headDrag?: PanelHeadDrag | undefined;
   readonly disclosure?: PanelHeaderDisclosure | undefined;
   readonly onHide?: () => void;
   readonly hideLabel?: string;
@@ -140,7 +201,7 @@ export function PanelHeader({
   readonly locked?: boolean;
   readonly struck?: boolean;
 }): ReactElement {
-  const pointer = useRef<{ x: number; y: number; moved: boolean } | undefined>(undefined);
+  const press = usePressOrigin();
   const [dragging, setDragging] = useState(false);
   const labelRef = useRef<HTMLSpanElement>(null);
   const hint = () => {
@@ -183,32 +244,17 @@ export function PanelHeader({
             data-window-drag-recall
             draggable
             aria-label={hideLabel}
-            onPointerDown={(event) => {
-              if (event.button === 0)
-                pointer.current = { x: event.clientX, y: event.clientY, moved: false };
-            }}
-            onPointerMove={(event) => {
-              const origin = pointer.current;
-              if (origin && Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > 5)
-                origin.moved = true;
-            }}
-            onPointerCancel={() => {
-              if (pointer.current) pointer.current.moved = true;
-            }}
+            onPointerDown={(event) => press.trackDown(event)}
+            onPointerMove={(event) => press.trackMove(event)}
+            onPointerCancel={() => press.trackCancel()}
             onDragStart={() => {
-              if (pointer.current) pointer.current.moved = true;
+              press.markMoved();
               setDragging(true);
             }}
             onDragEnd={() => setDragging(false)}
             onClick={(event) => {
               event.stopPropagation();
-              const origin = pointer.current;
-              const moved =
-                origin &&
-                (origin.moved ||
-                  Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > 5);
-              if (event.detail === 0 || !moved) onHide();
-              pointer.current = undefined;
+              if (!press.pressedMove(event)) onHide();
             }}
             {...stylex.props(styles.head, fixed && styles.fixed, styles.compact)}
           >
@@ -236,12 +282,35 @@ export function PanelHeader({
           aria-controls={disclosure.controls}
           aria-disabled={dimmed ? true : undefined}
           disabled={disclosure.disabled}
-          onClick={disclosure.onToggle}
+          draggable={headDrag !== undefined}
+          aria-keyshortcuts={headDrag === undefined ? undefined : 'Alt+ArrowUp Alt+ArrowDown'}
+          onPointerDown={(event) => {
+            if (headDrag !== undefined) press.trackDown(event);
+          }}
+          onPointerMove={(event) => press.trackMove(event)}
+          onPointerCancel={() => press.trackCancel()}
+          onDragStart={(event) => {
+            press.markMoved();
+            headDrag?.onDragStart(event);
+          }}
+          onDragEnd={() => {
+            press.reset();
+            headDrag?.onDragEnd();
+          }}
+          onClick={(event) => {
+            if (press.pressedMove(event)) {
+              event.stopPropagation();
+              return;
+            }
+            disclosure.onToggle?.();
+          }}
+          onKeyDown={headDrag === undefined ? undefined : (event) => headDrag.onKeyDown(event)}
           {...stylex.props(
             styles.head,
             fixed && styles.fixed,
             dimmed && styles.dimmed,
             locked && styles.locked,
+            headDrag !== undefined && styles.draggableHead,
           )}
         >
           {disclosure.chevron ? (
@@ -279,11 +348,6 @@ export function PanelHeader({
       {action === undefined ? null : (
         <span data-panel-actions="" data-window-drag-recall {...stylex.props(styles.action)}>
           <InstantTooltipScope>{action}</InstantTooltipScope>
-        </span>
-      )}
-      {dragHandle === undefined ? null : (
-        <span data-panel-drag-handle="" {...stylex.props(styles.dragHandle)}>
-          {dragHandle}
         </span>
       )}
     </div>

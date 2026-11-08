@@ -157,7 +157,6 @@ const styles = stylex.create({
     outlineOffset: '-2px',
   },
   actions: { display: 'inline-flex', alignItems: 'center', minWidth: 0, gap: space.x1 },
-  orderHandle: { opacity: 0, cursor: { default: 'grab', ':active': 'grabbing' } },
 });
 
 const DOCK_DND_EDGES = {
@@ -804,30 +803,21 @@ function SubpanelColumnEntry({
         <PanelHeader
           icon={<ChannelSidebarIcon name={entry.icon} />}
           label={entry.label}
-          dragHandle={
-            <IconButton
-              size="row"
-              data-order-handle={entry.id}
-              draggable
-              aria-label={dock.t('workspace.subpanelColumn.move', { label: entry.label })}
-              xstyle={styles.orderHandle}
-              onDragStart={(event) => reorder.begin(entry.id, event)}
-              onDragEnd={() => reorder.finish()}
-              onKeyDown={(event) => {
-                if (event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
-                  event.preventDefault();
-                  reorder.nudge(entry.id, event.key === 'ArrowUp' ? -1 : 1);
-                  return;
-                }
-                if (event.key === 'Escape' && reorder.activeId !== undefined) {
-                  event.preventDefault();
-                  reorder.cancel();
-                }
-              }}
-            >
-              <ChannelSidebarIcon name="grip-vertical" />
-            </IconButton>
-          }
+          headDrag={{
+            onDragStart: (event) => reorder.begin(entry.id, event),
+            onDragEnd: () => reorder.finish(),
+            onKeyDown: (event) => {
+              if (event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
+                event.preventDefault();
+                reorder.nudge(entry.id, event.key === 'ArrowUp' ? -1 : 1);
+                return;
+              }
+              if (event.key === 'Escape' && reorder.activeId !== undefined) {
+                event.preventDefault();
+                reorder.cancel();
+              }
+            },
+          }}
           disclosure={{
             expanded,
             controls: bodyId,
