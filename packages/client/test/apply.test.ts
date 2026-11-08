@@ -277,10 +277,10 @@ describe('client apply', () => {
     ]);
     expect(specs[5]).toMatchObject({
       name: 'sidebar.workspaces',
-      priority: -100,
+      priority: -101,
       locale: 'botharness',
     });
-    expect(specs[6]).toMatchObject({ name: 'main', key: 'conversation', priority: -100 });
+    expect(specs[6]).toMatchObject({ name: 'main', key: 'conversation', priority: -101 });
 
     store.setMode('dsh');
     expect(disposed.map((spec) => spec.name)).toEqual(['sidebar.workspaces', 'main']);
@@ -288,7 +288,7 @@ describe('client apply', () => {
       expect(disposed).not.toContain(overlay);
   });
 
-  it('shadows the whole sidebar at -1 in desktop Bot mode and returns it on exit', () => {
+  it('shadows the whole sidebar at -2 in desktop Bot mode and returns it on exit', () => {
     store.setMode('dsh');
     ownSidebar.desktop = true;
     try {
@@ -299,7 +299,7 @@ describe('client apply', () => {
 
       store.setMode('bot');
       const sidebar = registrations.find((spec) => spec.name === 'sidebar');
-      expect(sidebar).toMatchObject({ name: 'sidebar', priority: -1, locale: 'botharness' });
+      expect(sidebar).toMatchObject({ name: 'sidebar', priority: -2, locale: 'botharness' });
       expect(sidebar?.inject?.()).toMatchObject({
         exitBotMode: expect.any(Function),
         toggleSidebar: expect.any(Function),
