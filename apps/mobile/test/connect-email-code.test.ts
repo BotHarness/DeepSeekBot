@@ -1,9 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  authorizeWithLateRedirect,
   createConnectAccount,
+  visibleBrowserRefusal,
+  type AuthSessionOpener,
   type EmailCodeFlow,
   type EmailCodeOutcome,
+  type EmailCodeRefusal,
+  type RedirectWatcher,
 } from '../src/host/connect-account';
 import { startEmailCodeSignIn, takeEmailCodeSignIn } from '../src/host/email-code-bridge';
 
@@ -179,5 +184,165 @@ describe('email-code sheet bridge', () => {
     takeEmailCodeSignIn()?.finish({ kind: 'signed-in', email: 'a@b.co' });
     expect(await second).toEqual({ kind: 'signed-in', email: 'a@b.co' });
     expect(takeEmailCodeSignIn()).toBeUndefined();
+  });
+});
+
+describe('auth session late redirects (#3732)', () => {
+  const URL = 'https://auth.test/start';
+  const CALLBACK = 'myapp:/oauth2redirect';
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  function harness(open: AuthSessionOpener, sleep?: (ms: number) => Promise<void>) {
+    const handlers: Array<(url: string) => void> = [];
+    const removed: Array<string> = [];
+    const seen: string[] = [];
+    const watch: RedirectWatcher = (callback, onRedirect) => {
+      seen.push(callback);
+      handlers.push(onRedirect);
+      const id = `${seen.length}`;
+      return {
+        remove: () => {
+          removed.push(id);
+        },
+      };
+    };
+    const run = (graceMs = 1500) =>
+      authorizeWithLateRedirect(
+        URL,
+        CALLBACK,
+        open,
+        watch,
+        graceMs,
+        sleep ?? (() => sleepForever()),
+      );
+    return { handlers, removed, seen, run };
+  }
+
+  function sleepForever(): Promise<void> {
+    return new Promise(() => undefined);
+  }
+
+  it('returns the session url on success without waiting', async () => {
+    const sleep = vi.fn(async () => undefined);
+    const opened: string[] = [];
+    const session = harness(async (url, callback) => {
+      opened.push(`${url} ${callback}`);
+      return { type: 'success', url: `${CALLBACK}?code=auth&state=live` };
+    }, sleep);
+    expect(await session.run()).toBe(`${CALLBACK}?code=auth&state=live`);
+    expect(opened).toEqual([`${URL} ${CALLBACK}`]);
+    expect(sleep).not.toHaveBeenCalled();
+    expect(session.removed).toEqual(['1']);
+  });
+
+  it('uses a redirect captured while the session is open when the session is dismissed', async () => {
+    let resolveOpen: ((result: { type: string }) => void) | undefined;
+    const session = harness(
+      () =>
+        new Promise<{ type: string }>((resolve) => {
+          resolveOpen = resolve;
+        }),
+    );
+    const pending = session.run();
+    await flush();
+    expect(session.handlers).toHaveLength(1);
+    session.handlers[0]!(`${CALLBACK}?code=early&state=live`);
+    resolveOpen!({ type: 'dismiss' });
+    expect(await pending).toBe(`${CALLBACK}?code=early&state=live`);
+    expect(session.removed).toEqual(['1']);
+  });
+
+  it('waits out the grace period for a redirect that lands just after dismiss', async () => {
+    let resolveOpen: ((result: { type: string }) => void) | undefined;
+    const session = harness(
+      () =>
+        new Promise<{ type: string }>((resolve) => {
+          resolveOpen = resolve;
+        }),
+    );
+    const pending = session.run();
+    await flush();
+    resolveOpen!({ type: 'dismiss' });
+    await flush();
+    expect(session.handlers).toHaveLength(2);
+    session.handlers[1]!(`${CALLBACK}?code=late&state=live`);
+    expect(await pending).toBe(`${CALLBACK}?code=late&state=live`);
+    expect(session.removed).toEqual(['2', '1']);
+  });
+
+  it('returns null when the grace period expires with no redirect', async () => {
+    const session = harness(
+      async () => ({ type: 'dismiss' }),
+      async () => undefined,
+    );
+    expect(await session.run(5)).toBeNull();
+    expect(session.removed).toEqual(['2', '1']);
+  });
+
+  it('captures a redirect whose slashes the platform normalized', async () => {
+    let resolveOpen: ((result: { type: string }) => void) | undefined;
+    const session = harness(
+      () =>
+        new Promise<{ type: string }>((resolve) => {
+          resolveOpen = resolve;
+        }),
+    );
+    const pending = session.run();
+    await flush();
+    const arrived = `${CALLBACK.replace(':/', '://')}?code=slash&state=live`;
+    session.handlers[0]!(arrived);
+    resolveOpen!({ type: 'dismiss' });
+    expect(await pending).toBe(arrived);
+    expect(session.removed).toEqual(['1']);
+  });
+
+  it('ignores urls for other targets', async () => {
+    let resolveOpen: ((result: { type: string }) => void) | undefined;
+    const session = harness(
+      () =>
+        new Promise<{ type: string }>((resolve) => {
+          resolveOpen = resolve;
+        }),
+      async () => undefined,
+    );
+    const pending = session.run();
+    await flush();
+    session.handlers[0]!('otherapp:/oauth2redirect?code=x&state=y');
+    resolveOpen!({ type: 'dismiss' });
+    expect(await pending).toBeNull();
+    expect(session.removed).toEqual(['2', '1']);
+  });
+
+  it('returns null immediately on cancel without waiting', async () => {
+    const sleep = vi.fn(async () => undefined);
+    const session = harness(async () => ({ type: 'cancel' }), sleep);
+    expect(await session.run()).toBeNull();
+    expect(sleep).not.toHaveBeenCalled();
+    expect(session.removed).toEqual(['1']);
+  });
+
+  it('watches the authorize callback', async () => {
+    const session = harness(async () => ({ type: 'locked' }));
+    expect(await session.run()).toBeNull();
+    expect(session.seen).toEqual([CALLBACK]);
+  });
+});
+
+describe('browser cancel display (#3732)', () => {
+  it('shows a failed sign-in instead of staying silent when the browser is cancelled', () => {
+    expect(visibleBrowserRefusal('cancelled')).toBe('sign-in-failed');
+  });
+
+  it('keeps every other refusal as-is', () => {
+    const codes: EmailCodeRefusal[] = [
+      'invalid-email',
+      'invalid-code',
+      'rate-limited',
+      'use-browser-sign-in',
+      'email-code-unavailable',
+      'relay-unavailable',
+      'sign-in-failed',
+    ];
+    for (const code of codes) expect(visibleBrowserRefusal(code)).toBe(code);
   });
 });
