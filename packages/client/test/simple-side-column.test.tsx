@@ -14,6 +14,7 @@ import type { DockviewApi } from 'dockview-react';
 import type { ShortcutCommand } from '@deepseek-ai/dsh-client-shortcuts/client';
 import { effectiveShortcuts } from '@deepseek-ai/dsh-client-shortcuts/protocol';
 import { ChannelDock } from '../src/client/channel-dock.js';
+import type { ChannelFilesView } from '../src/client/channel-dock.js';
 import { CHANNEL_BODY_PANEL, CHANNEL_DOCK_STORAGE_KEY } from '../src/client/channel-dock-layout.js';
 import type { ChannelSidebarEntryProps } from '../src/client/channel-sidebar.js';
 import { createDockPanelRegistry, type DockPanelChannel } from '../src/client/dock-panels.js';
@@ -93,7 +94,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function mountWorkspace() {
+function mountWorkspace(files?: ChannelFilesView) {
   let dock: DockviewApi | undefined;
   let layoutMode: { mode: 'simple' | 'advanced'; setMode(mode: 'simple' | 'advanced'): void };
   let channel: DockPanelChannel = { id: 'dm-ada', type: 'dm', botSlug: 'ada' };
@@ -145,6 +146,7 @@ function mountWorkspace() {
         shows: () => true,
         t: zhTranslate,
         storage,
+        files,
       }),
     );
   const rail = () =>
@@ -377,8 +379,8 @@ function defaultColumn() {
     order: [],
   };
 }
-async function mountWithSubpanels() {
-  const ws = mountWorkspace();
+async function mountWithSubpanels(files?: ChannelFilesView) {
+  const ws = mountWorkspace(files);
   for (const [id, label] of [
     ['schedules', 'Schedules'],
     ['memory-files', 'Memory files'],
@@ -746,9 +748,17 @@ describe('Subpanel auto-scroll and focus', () => {
 });
 
 describe('Subpanel group filtering', () => {
+  const filesStub = () => ({
+    open: false,
+    setOpen: () => {},
+    content: createElement('div', { 'data-body': 'files' }),
+  });
   it('orders group subpanels, excludes DM-only panels and retains their slots', async () => {
-    openColumn({ ...defaultColumn(), order: ['members', 'sessions', 'schedules'] });
-    const ws = mountWorkspace();
+    openColumn({
+      ...defaultColumn(),
+      order: ['schedules', 'sessions', 'members', 'generated-files'],
+    });
+    const ws = mountWorkspace(filesStub());
     for (const [id, label] of [
       ['members', 'Members'],
       ['schedules', 'Schedules'],
@@ -761,10 +771,15 @@ describe('Subpanel group filtering', () => {
       });
     await ws.render();
     await ws.selectChannel({ id: 'group-1', type: 'group', botSlug: undefined });
-    expect(entryOrder()).toEqual(['members', 'sessions']);
+    expect(entryOrder()).toEqual(['sessions', 'members', 'generated-files']);
     await press('members', 'ArrowDown');
-    expect(entryOrder()).toEqual(['sessions', 'members']);
-    expect(readLayoutMode(storage).column.order).toEqual(['sessions', 'members', 'schedules']);
+    expect(entryOrder()).toEqual(['sessions', 'generated-files', 'members']);
+    expect(readLayoutMode(storage).column.order).toEqual([
+      'schedules',
+      'sessions',
+      'generated-files',
+      'members',
+    ]);
   });
 });
 

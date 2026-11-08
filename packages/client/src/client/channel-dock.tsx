@@ -185,7 +185,7 @@ interface ChannelInboxView {
   setOpen(open: boolean): void;
 }
 
-interface ChannelFilesView {
+export interface ChannelFilesView {
   open: boolean;
   setOpen(open: boolean): void;
   content: ReactNode;

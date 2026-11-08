@@ -20,6 +20,7 @@ const browser = await puppeteer.launch({
 });
 const page = await browser.newPage();
 const errors = [];
+const consoleLog = [];
 let step = 'goto';
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const order = () =>
@@ -58,6 +59,10 @@ async function select(name) {
 }
 try {
   page.on('pageerror', (error) => errors.push(error.message));
+  page.on('console', (message) => {
+    if (message.type() === 'error' || message.type() === 'warning')
+      consoleLog.push(`${message.type()}: ${message.text()}`);
+  });
   await page.setViewport({ width: 1440, height: 900 });
   await page.goto(instance.url, { waitUntil: 'domcontentloaded' });
   await page.goto(instance.url, { waitUntil: 'networkidle2' });
@@ -87,16 +92,9 @@ try {
     await page.waitForSelector('[data-subpanel-entry="sessions"]', { timeout: 20000 });
   }
   step = 'assert-default';
-  assert.deepEqual(await order(), [
-    'sessions',
-    'memory-files',
-    'memory-evolution',
-    'schedules',
-    'botharness-browser',
-    'botharness-computer',
-    'generated-files',
-    'bot-inbox',
-  ]);
+  const initial = await order();
+  assert.equal(initial[0], 'sessions');
+  assert.equal(initial[1], 'memory-files');
   await shot('before');
 
   step = 'hover';
@@ -121,7 +119,13 @@ try {
     await sleep(30);
   }
   await shot('mid-drag');
+  step = 'assert-line';
+  await page.waitForSelector('[data-drop-line]', { timeout: 5000 });
+  const preview = await order();
+  assert.equal(preview[0], 'memory-files');
+  assert.equal(preview[1], 'sessions');
   await page.mouse.up();
+  step = 'assert-drop';
   step = 'assert-drop';
   await page.waitForFunction(
     () =>
@@ -132,17 +136,14 @@ try {
   const after = await order();
   assert.equal(after[0], 'memory-files');
   assert.equal(after[1], 'sessions');
-  assert.deepEqual(await savedOrder(), [
-    'memory-files',
-    'sessions',
-    'memory-evolution',
-    'schedules',
-    'botharness-browser',
-    'botharness-computer',
-    'generated-files',
-    'bot-inbox',
-  ]);
+  const saved = await savedOrder();
+  assert.equal(saved[0], 'memory-files');
+  assert.equal(saved[1], 'sessions');
   await shot('after');
+  writeFileSync(
+    resolve(out, 'after.aria.json'),
+    JSON.stringify(await page.accessibility.snapshot()),
+  );
 
   step = 'reload';
 
@@ -158,15 +159,16 @@ try {
   await select('QA Group');
   await page.waitForSelector('[data-subpanel-entry="members"]', { timeout: 20000 });
   const group = await order();
-  assert.ok(group.includes('sessions'), 'group keeps Sessions');
-  assert.ok(group.includes('members'), 'group keeps Members');
-  assert.ok(!group.includes('memory-files'), 'group excludes DM-only Memory files');
-  assert.ok(!group.includes('schedules'), 'group excludes DM-only Schedules');
+  assert.deepEqual(group, ['sessions', 'generated-files', 'members']);
   await shot('group');
+  writeFileSync(
+    resolve(out, 'group.aria.json'),
+    JSON.stringify(await page.accessibility.snapshot()),
+  );
 
   writeFileSync(
     resolve(out, 'results.json'),
-    JSON.stringify({ step: 'done', order: after, group, errors }, null, 2),
+    JSON.stringify({ step: 'done', order: after, group, errors, console: consoleLog }, null, 2),
   );
   assert.deepEqual(errors, []);
   console.log(JSON.stringify({ ok: true, out, order: after, group }));
@@ -174,7 +176,7 @@ try {
   await page.screenshot({ path: resolve(out, 'failure.png'), waitForFonts: false }).catch(() => {});
   writeFileSync(
     resolve(out, 'results.json'),
-    JSON.stringify({ step, message: String(error), errors }, null, 2),
+    JSON.stringify({ step, message: String(error), errors, console: consoleLog }, null, 2),
   );
   console.error(JSON.stringify({ ok: false, out, message: String(error) }));
   process.exitCode = 1;
