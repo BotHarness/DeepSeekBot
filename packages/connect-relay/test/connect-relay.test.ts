@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createAccessTokenVerifier, type Jwk } from '../src/auth.js';
 import { createCloudflareApi, GATEWAY_PATH, type TunnelApi } from '../src/cloudflare.js';
@@ -982,6 +982,47 @@ describe('Connect relay phone offers', () => {
 });
 
 describe('Cloudflare API client', () => {
+  it('records bounded upstream codes without credentials or response text', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const api = createCloudflareApi({
+        token: 'private-token',
+        accountId: 'private-account',
+        zoneId: 'private-zone',
+        fetcher: async () =>
+          Response.json(
+            {
+              success: false,
+              errors: [
+                null,
+                'private-text',
+                { code: 'private-code' },
+                { code: 81057, message: 'private-hostname' },
+                ...Array.from({ length: 20 }, () => ({ code: 10000 })),
+              ],
+            },
+            { status: 403 },
+          ),
+      });
+      await expect(api.pointHostname('private-hostname', 'private-tunnel')).rejects.toMatchObject({
+        status: 403,
+      });
+      expect(warn.mock.calls).toEqual([
+        [
+          JSON.stringify({
+            event: 'connect-upstream-error',
+            method: 'POST',
+            resource: 'dns',
+            status: 403,
+            codes: [81057, 10000, 10000, 10000, 10000, 10000, 10000, 10000],
+          }),
+        ],
+      ]);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it.each([
     { stage: 'connections', path: '/accounts/acct/cfd_tunnel/target/connections' },
     { stage: 'tunnel', path: '/accounts/acct/cfd_tunnel/target' },
