@@ -2,13 +2,28 @@ import type { GenuiDocumentRuntime } from '../../../core/src/channels/genui-docu
 
 declare const require: { async(spec: string): Promise<GenuiDocumentRuntime> };
 
-let pending: Promise<GenuiDocumentRuntime> | undefined;
-
-export function loadGenuiDocumentRuntime(): Promise<GenuiDocumentRuntime> {
-  return (pending ??= Promise.resolve()
-    .then(() => require.async('./client.genui.js'))
-    .catch((error: unknown) => {
-      pending = undefined;
+export function createGenuiRuntimeLoader(
+  request: () => Promise<GenuiDocumentRuntime>,
+): () => Promise<GenuiDocumentRuntime> {
+  let pending: Promise<GenuiDocumentRuntime> | undefined;
+  return () => {
+    if (pending) return pending;
+    let started: Promise<GenuiDocumentRuntime>;
+    try {
+      started = Promise.resolve(request());
+    } catch (error) {
+      started = Promise.reject(error);
+    }
+    const loading = started.catch((error: unknown) => {
+      if (pending === loading) pending = undefined;
       throw error;
-    }));
+    });
+    loading.catch(() => {});
+    pending = loading;
+    return loading;
+  };
 }
+
+export const loadGenuiDocumentRuntime = createGenuiRuntimeLoader(() =>
+  require.async('./client.genui.js'),
+);

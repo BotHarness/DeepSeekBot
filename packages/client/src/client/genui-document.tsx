@@ -248,6 +248,7 @@ export class DocumentFrame extends Component<FrameProps, { failed: boolean }> {
   private failed = false;
   private generation = 0;
   private stateIdentity = JSON.stringify(this.props.state);
+  private readonly runtime = loadGenuiDocumentRuntime();
 
   private theme() {
     return this.container?.ownerDocument.body.hasAttribute('data-ds-dark-theme') ? 'dark' : 'light';
@@ -284,7 +285,7 @@ export class DocumentFrame extends Component<FrameProps, { failed: boolean }> {
     this.timer = setTimeout(this.fail, GENUI_EXECUTION_LIMITS.startupMs);
     const shell = createGenuiMirrorShell(container, this.props.document.title);
     this.shell = shell;
-    void loadGenuiDocumentRuntime()
+    void this.runtime
       .then(
         (runtime) => {
           if (!this.active(generation)) return;
