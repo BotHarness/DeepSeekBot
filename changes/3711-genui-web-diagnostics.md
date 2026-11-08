@@ -4,7 +4,7 @@ section: Fixed
 
 ## en
 
-- GenUI Web documents follow the conversation font-size preference, retaining authored proportions and reflow without resetting private selections ([#3711](https://github.com/BotHarness/DeepSeekBot/issues/3711)).
+- GenUI Web documents follow the conversation font-size preference, retaining authored proportions and reflow without resetting private selections; default form controls stay within narrow viewports ([#3711](https://github.com/BotHarness/DeepSeekBot/issues/3711)).
 
 - Clearing message content also removes its retained GenUI private drafts and submission attempts, including views that are not open; late save responses cannot restore them ([#3711](https://github.com/BotHarness/DeepSeekBot/issues/3711)).
 
@@ -16,7 +16,7 @@ section: Fixed
 
 ## zh
 
-- GenUI Web 文档随对话字号偏好缩放，保留作者设定的排版比例并重新换行，不重置私有选择（[#3711](https://github.com/BotHarness/DeepSeekBot/issues/3711)）。
+- GenUI Web 文档随对话字号偏好缩放，保留作者设定的排版比例并重新换行，不重置私有选择；默认表单控件保持在窄屏视口内（[#3711](https://github.com/BotHarness/DeepSeekBot/issues/3711)）。
 
 - 清除消息内容时，同时移除其缓存的 GenUI 私有草稿和提交尝试，包括当前未打开的视图；迟到的保存响应不会恢复这些状态（[#3711](https://github.com/BotHarness/DeepSeekBot/issues/3711)）。
 

@@ -78,7 +78,7 @@ export const GENUI_DEFAULT_CSS = `@layer genui-default {
   :where(html,body) { margin:0; min-height:0 }
   :where(html) { font-family:var(--font-sans) }
   :where(body) { color:var(--foreground); background:var(--background); overflow-wrap:anywhere }
-  :where(button,input,select,textarea) { font:inherit; accent-color:var(--primary) }
+  :where(button,input,select,textarea) { font:inherit; accent-color:var(--primary); max-width:100% }
   :where(:focus-visible) { outline:2px solid var(--primary); outline-offset:2px }
   :where(.genui-surface,.genui-well,.genui-selection) { border:0; border-radius:var(--radius); padding:var(--space-5) }
   :where(.genui-surface) { background:var(--surface) }
