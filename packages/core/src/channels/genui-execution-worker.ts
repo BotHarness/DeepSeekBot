@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod/mini';
 import { parseGenuiDocument, validateGenuiDocumentState } from './genui-document.js';
 import {
   createGenuiExecutionSession,
@@ -15,20 +15,16 @@ declare const __GENUI_WASM_BASE64__: string;
 const bootSchema = z.strictObject({
   protocol: z.literal(GENUI_EXECUTION_PROTOCOL),
   type: z.literal('boot'),
-  instanceId: z
-    .string()
-    .min(1)
-    .max(100)
-    .regex(/^[a-zA-Z0-9._:-]+$/u),
-  generation: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
+  instanceId: z.string().check(z.minLength(1), z.maxLength(100), z.regex(/^[a-zA-Z0-9._:-]+$/u)),
+  generation: z.int().check(z.gte(1), z.lte(Number.MAX_SAFE_INTEGER)),
   document: z.unknown(),
   state: z.unknown(),
   theme: z.enum(['light', 'dark']),
 });
 
 const envelopeSchema = z.union([
-  z.strictObject({ portId: z.number().int().positive().safe(), command: z.unknown() }),
-  z.strictObject({ portId: z.number().int().positive().safe(), dispose: z.literal(true) }),
+  z.strictObject({ portId: z.int().check(z.positive()), command: z.unknown() }),
+  z.strictObject({ portId: z.int().check(z.positive()), dispose: z.literal(true) }),
 ]);
 interface Slot {
   closed: boolean;

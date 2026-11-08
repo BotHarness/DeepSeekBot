@@ -1,39 +1,30 @@
-import { z } from 'zod';
+import * as z from 'zod/mini';
 import type { GenuiVm } from './genui-vm.js';
 
+const digits = (minimum: number, maximum: number) =>
+  z.optional(z.int().check(z.gte(minimum), z.lte(maximum)));
 const requestSchema = z.strictObject({
-  locale: z
-    .string()
-    .max(35)
-    .regex(/^[a-zA-Z0-9-]+$/u)
-    .optional(),
-  number: z.number().finite(),
-  options: z
-    .strictObject({
-      style: z.enum(['decimal', 'percent', 'currency', 'unit']).optional(),
-      currency: z
-        .string()
-        .regex(/^[A-Z]{3}$/u)
-        .optional(),
-      currencyDisplay: z.enum(['symbol', 'narrowSymbol', 'code', 'name']).optional(),
-      currencySign: z.enum(['standard', 'accounting']).optional(),
-      unit: z
-        .string()
-        .max(40)
-        .regex(/^[a-z-]+$/u)
-        .optional(),
-      unitDisplay: z.enum(['short', 'long', 'narrow']).optional(),
-      useGrouping: z.boolean().optional(),
-      notation: z.enum(['standard', 'scientific', 'engineering', 'compact']).optional(),
-      compactDisplay: z.enum(['short', 'long']).optional(),
-      signDisplay: z.enum(['auto', 'never', 'always', 'exceptZero']).optional(),
-      minimumIntegerDigits: z.number().int().min(1).max(21).optional(),
-      minimumFractionDigits: z.number().int().min(0).max(20).optional(),
-      maximumFractionDigits: z.number().int().min(0).max(20).optional(),
-      minimumSignificantDigits: z.number().int().min(1).max(21).optional(),
-      maximumSignificantDigits: z.number().int().min(1).max(21).optional(),
-    })
-    .optional(),
+  locale: z.optional(z.string().check(z.maxLength(35), z.regex(/^[a-zA-Z0-9-]+$/u))),
+  number: z.number(),
+  options: z.optional(
+    z.strictObject({
+      style: z.optional(z.enum(['decimal', 'percent', 'currency', 'unit'])),
+      currency: z.optional(z.string().check(z.regex(/^[A-Z]{3}$/u))),
+      currencyDisplay: z.optional(z.enum(['symbol', 'narrowSymbol', 'code', 'name'])),
+      currencySign: z.optional(z.enum(['standard', 'accounting'])),
+      unit: z.optional(z.string().check(z.maxLength(40), z.regex(/^[a-z-]+$/u))),
+      unitDisplay: z.optional(z.enum(['short', 'long', 'narrow'])),
+      useGrouping: z.optional(z.boolean()),
+      notation: z.optional(z.enum(['standard', 'scientific', 'engineering', 'compact'])),
+      compactDisplay: z.optional(z.enum(['short', 'long'])),
+      signDisplay: z.optional(z.enum(['auto', 'never', 'always', 'exceptZero'])),
+      minimumIntegerDigits: digits(1, 21),
+      minimumFractionDigits: digits(0, 20),
+      maximumFractionDigits: digits(0, 20),
+      minimumSignificantDigits: digits(1, 21),
+      maximumSignificantDigits: digits(1, 21),
+    }),
+  ),
 });
 
 export function installGenuiNumberFormat(vm: GenuiVm): () => void {
