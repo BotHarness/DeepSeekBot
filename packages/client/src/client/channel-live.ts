@@ -9,6 +9,8 @@ import {
   type ChannelEventSource,
 } from './messaging-defaults-live.js';
 import { parseContentRedactions } from './content-redactions.js';
+import { purgeGenuiPrivateViews } from './genui-view.js';
+import { purgeGenuiDocumentViews } from './genui-document-view.js';
 import {
   parseChannelMessage,
   parseStoredChannelMessage,
@@ -834,7 +836,10 @@ export function mountRosterLive(
           } catch {}
         });
         source.addEventListener('content/purged', (event) => {
-          store.purgeContent(parseContentRedactions(event));
+          const placements = parseContentRedactions(event);
+          purgeGenuiPrivateViews(actions, placements);
+          purgeGenuiDocumentViews(actions, placements);
+          store.purgeContent(placements);
           schedule();
         });
         stopSource = () => source.close();
@@ -842,6 +847,8 @@ export function mountRosterLive(
         stopSource = subscribeMessagingDefaults(
           schedule,
           (placements) => {
+            purgeGenuiPrivateViews(actions, placements);
+            purgeGenuiDocumentViews(actions, placements);
             store.purgeContent(placements);
             schedule();
           },

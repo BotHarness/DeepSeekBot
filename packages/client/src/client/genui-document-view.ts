@@ -8,6 +8,7 @@ import {
 } from '../../../core/src/channels/genui-document.js';
 import type { BridgeActions } from './actions.js';
 import { PrivateViewController } from './genui-view.js';
+import type { PurgedPlacement } from '../../../core/src/purge/contracts.js';
 
 export type GenuiDocumentActions = Pick<
   BridgeActions,
@@ -15,6 +16,21 @@ export type GenuiDocumentActions = Pick<
 >;
 
 const retained = new WeakMap<GenuiDocumentActions, Map<string, GenuiDocumentView>>();
+
+export function purgeGenuiDocumentViews(
+  actions: GenuiDocumentActions,
+  placements: readonly PurgedPlacement[],
+): void {
+  const cache = retained.get(actions);
+  if (!cache) return;
+  for (const [key, view] of cache)
+    if (
+      placements.some((placement) => view.matchesMessage(placement.channelId, placement.messageId))
+    ) {
+      cache.delete(key);
+      view.revoke();
+    }
+}
 
 export function getGenuiDocumentView(
   document: GenuiDocument,
