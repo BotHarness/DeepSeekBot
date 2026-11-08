@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { existsSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import { syntheticGenuiDocument } from './fixtures/genui-document.js';
+import { BrowserProvisionError } from '../../browser/src/runtime/provision.js';
 
 const packagedRuntime = vi.hoisted(() => ({ load: vi.fn() }));
 vi.mock('../src/runtime/genui-runtime-source.js', () => ({
@@ -142,6 +144,28 @@ describe('isolated GenUI preview lifecycle', () => {
     });
   });
 
+  it('retains a safe Browser owner failure kind without process stderr or private paths', async () => {
+    runtime.ensure.mockRejectedValueOnce(
+      new BrowserProvisionError('startup-timeout', 'private browser detail', '/private/profile'),
+    );
+    const onDiagnostic = vi.fn();
+    await expect(
+      previewGenuiDocument(syntheticGenuiDocument, { onDiagnostic }),
+    ).rejects.toMatchObject({
+      code: 'genui-preview-browser-startup-timeout',
+      message: 'The isolated preview browser could not start.',
+    });
+    expect(onDiagnostic).toHaveBeenCalledWith(
+      expect.objectContaining({
+        phase: 'refused',
+        reason: 'genui-preview-browser-startup-timeout',
+      }),
+    );
+    expect(JSON.stringify(onDiagnostic.mock.calls)).not.toContain('private');
+    expect(runtime.stop).toHaveBeenCalledOnce();
+    expect(existsSync(runtime.directory)).toBe(false);
+  });
+
   it('refuses concurrent work, cancels an active preview, and releases the owner', async () => {
     const controller = new AbortController();
     let release = () => {};
@@ -175,4 +199,33 @@ describe('isolated GenUI preview lifecycle', () => {
     expect(runtime.stop).toHaveBeenCalledOnce();
     expect(existsSync(runtime.directory)).toBe(false);
   });
+
+  it.each([false, true])(
+    'classifies failed cleanup without erasing a prior refusal: %s',
+    async (refused) => {
+      if (refused) runtime.ensure.mockRejectedValueOnce(new Error('private launch detail'));
+      runtime.stop.mockRejectedValueOnce(new Error('private cleanup detail'));
+      const onDiagnostic = vi.fn();
+      try {
+        await expect(
+          previewGenuiDocument(syntheticGenuiDocument, { onDiagnostic }),
+        ).rejects.toMatchObject({
+          code: 'genui-preview-cleanup-browser-failed',
+          message: refused
+            ? 'Preview browser cleanup failed after genui-preview-browser-failed.'
+            : 'Preview browser cleanup failed.',
+        });
+        const reasons = onDiagnostic.mock.calls.map(([event]) => event.reason).filter(Boolean);
+        expect(reasons).toEqual([
+          ...(refused ? ['genui-preview-browser-failed'] : []),
+          'genui-preview-cleanup-browser-failed',
+        ]);
+        expect(onDiagnostic.mock.calls.some(([event]) => event.phase === 'stopped')).toBe(false);
+        expect(JSON.stringify(onDiagnostic.mock.calls)).not.toContain('private');
+        expect(existsSync(runtime.directory)).toBe(true);
+      } finally {
+        await rm(runtime.directory, { recursive: true, force: true });
+      }
+    },
+  );
 });

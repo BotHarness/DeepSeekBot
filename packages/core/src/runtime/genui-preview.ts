@@ -11,6 +11,10 @@ import {
 import { buildGenuiHtmlDocument } from '../channels/genui-html.js';
 import { parseGenuiDocument } from '../channels/genui-document.js';
 import { loadGenuiRuntimeSource } from './genui-runtime-source.js';
+import {
+  BrowserProvisionError,
+  isBrowserFailureKind,
+} from '../../../browser/src/runtime/provision.js';
 
 export interface GenuiPreviewDiagnostic {
   component?: 'preview' | 'diagram';
@@ -79,6 +83,9 @@ export async function previewGenuiDocument(
     ...(options.signal ? [options.signal] : []),
   ]);
   let stage: 'assets' | 'browser' | 'document' | 'renderer' | 'capture' = 'assets';
+  let refusalCode: string | undefined;
+  let result: GenuiPreviewResult | undefined;
+  let failure: GenuiPreviewError | undefined;
   try {
     record('starting');
     const runtimeSource = await loadGenuiRuntimeSource();
@@ -191,7 +198,7 @@ export async function previewGenuiDocument(
         screenshot: { mimeType: 'image/png', data },
       };
     };
-    return await new Promise<GenuiPreviewResult>((resolve, reject) => {
+    result = await new Promise<GenuiPreviewResult>((resolve, reject) => {
       const abort = () =>
         reject(
           new GenuiPreviewError(
@@ -207,11 +214,26 @@ export async function previewGenuiDocument(
           .finally(() => signal.removeEventListener('abort', abort));
     });
   } catch (error) {
-    const code = `genui-preview-${stage}-failed`;
-    record('refused', error instanceof GenuiPreviewError ? error.code : code);
-    if (error instanceof GenuiPreviewError) throw error;
-    throw new GenuiPreviewError(code, `The isolated document preview failed during ${stage}.`);
+    const browserFailure =
+      stage === 'browser' &&
+      error instanceof BrowserProvisionError &&
+      isBrowserFailureKind(error.code);
+    const code = browserFailure
+      ? `genui-preview-browser-${error.code}`
+      : `genui-preview-${stage}-failed`;
+    refusalCode = error instanceof GenuiPreviewError ? error.code : code;
+    record('refused', refusalCode);
+    failure =
+      error instanceof GenuiPreviewError
+        ? error
+        : new GenuiPreviewError(
+            code,
+            browserFailure
+              ? 'The isolated preview browser could not start.'
+              : `The isolated document preview failed during ${stage}.`,
+          );
   } finally {
+    let cleanupStage: 'browser' | 'profile' = 'browser';
     try {
       if (client !== undefined) {
         let closeTimer: ReturnType<typeof setTimeout> | undefined;
@@ -227,10 +249,30 @@ export async function previewGenuiDocument(
         }
       }
       await browser?.stop();
+      cleanupStage = 'profile';
       if (directory !== undefined) await rm(directory, { recursive: true, force: true });
       record('stopped');
+    } catch (error) {
+      const suffix =
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        typeof error.code === 'string' &&
+        ['ENOTEMPTY', 'EBUSY', 'EPERM', 'EACCES'].includes(error.code)
+          ? error.code.toLowerCase()
+          : 'failed';
+      const code = `genui-preview-cleanup-${cleanupStage}-${suffix}`;
+      record('refused', code);
+      failure = new GenuiPreviewError(
+        code,
+        `Preview ${cleanupStage} cleanup failed${refusalCode ? ` after ${refusalCode}` : ''}.`,
+      );
     } finally {
       previewActive = false;
     }
   }
+  if (failure !== undefined) throw failure;
+  if (result === undefined)
+    throw new GenuiPreviewError('genui-preview-failed', 'The isolated preview produced no result.');
+  return result;
 }

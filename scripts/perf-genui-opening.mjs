@@ -11,7 +11,11 @@ import { rpc } from './verify-app.mjs';
 import { stopGenuiQaBot } from './genui-qa-cleanup.mjs';
 import { genuiDirtySourceHashes } from './perf-genui-provenance.mjs';
 import { checkBudget, readBudget } from './perf-budget.mjs';
-import { observeGenuiOpening, summarizeGenuiOpening } from './perf-genui-opening-observer.mjs';
+import {
+  observeGenuiOpening,
+  summarizeGenuiOpening,
+  traceGenuiOpening,
+} from './perf-genui-opening-observer.mjs';
 import { openTimelineConversation } from './perf-timeline-navigation.mjs';
 import { dismissGenuiOpeningOverlays as dismiss } from './perf-genui-opening-overlays.mjs';
 import {
@@ -24,13 +28,14 @@ const { values } = parseArgs({
   options: {
     out: { type: 'string', default: '.humanlayer/perf/genui-opening' },
     headless: { type: 'boolean', default: false },
+    trace: { type: 'boolean', default: false },
     budget: { type: 'string', default: 'scripts/perf-budgets/genui-opening.json' },
     help: { type: 'boolean', default: false },
   },
 });
 if (values.help) {
   console.log(
-    'BH_E2E_INSTANCE=<instance.json> node scripts/perf-genui-opening.mjs [--out <new-directory>] [--headless] [--budget <file>]\nThree model-free plain/rich DM pairs; fresh browser per opening. Headless is CI diagnostic evidence, not foreground acceptance. The caller owns Host cleanup.',
+    'BH_E2E_INSTANCE=<instance.json> node scripts/perf-genui-opening.mjs [--out <new-directory>] [--headless] [--trace] [--budget <file>]\nThree model-free plain/rich DM pairs; fresh browser per opening. Headless is CI diagnostic evidence, not foreground acceptance. --trace records a separate instrumented diagnostic, never a qualification run. The caller owns Host cleanup.',
   );
   process.exit(0);
 }
@@ -62,6 +67,7 @@ const manifest = {
   scope:
     'Fresh-browser unvisited synthetic DM openings; no model, physical paint, desktop shell, native or Human acceptance',
   headed: !values.headless,
+  diagnosticTrace: values.trace,
   sourceSha: git('rev-parse', 'HEAD').toString().trim(),
   diffSha256: hash(git('diff', 'HEAD')),
   sourceFiles: genuiDirtySourceHashes(root),
@@ -181,12 +187,40 @@ async function measure(target, parking) {
     );
     browserRecord.phase = 'measured-opening';
     save();
-    const observation = await observeGenuiOpening(
+    const observation = await traceGenuiOpening(
       page,
-      { ...target, rich: target.arm === 'rich', continueLabel: 'Continue', previsited },
-      () => openTimelineConversation(page, target.channelId, () => dismiss(page)),
+      values.trace ? join(out, `${target.pair}-${target.arm}.opening.trace.json`) : undefined,
+      () =>
+        observeGenuiOpening(
+          page,
+          {
+            ...target,
+            rich: target.arm === 'rich',
+            continueLabel: 'Continue',
+            previsited,
+            diagnosticTrace: values.trace,
+          },
+          () => openTimelineConversation(page, target.channelId, () => dismiss(page)),
+        ),
     );
     const row = { ...target, ...observation, nativeViewport };
+    if (values.trace)
+      row.resourceTimings = await page.evaluate(() =>
+        performance
+          .getEntriesByType('resource')
+          .filter((entry) =>
+            /\/(?:client(?:\.genui)?|genui-runtime)\.js$/u.test(new URL(entry.name).pathname),
+          )
+          .map((entry) => ({
+            asset: new URL(entry.name).pathname.split('/').at(-1),
+            startTime: entry.startTime,
+            duration: entry.duration,
+            responseStart: entry.responseStart,
+            responseEnd: entry.responseEnd,
+            transferSize: entry.transferSize,
+            encodedBodySize: entry.encodedBodySize,
+          })),
+      );
     manifest.openings.push(row);
     save();
     if (target.arm === 'rich') {
@@ -314,6 +348,7 @@ try {
   manifest.status = 'failed';
   manifest.failure = redact(error);
   if (error.cleanupFailure) manifest.cleanupFailures.push(redact(error.cleanupFailure));
+  if (error.traceCleanupFailure) manifest.cleanupFailures.push(redact(error.traceCleanupFailure));
   process.exitCode = 1;
 } finally {
   for (const bot of manifest.bots) {
@@ -328,7 +363,7 @@ try {
   manifest.summary = summarizeGenuiOpening(manifest);
   manifest.budgetResult = checkBudget(manifest.summary, budget, { strictTiming: true });
   if (!manifest.budgetResult.pass || manifest.status === 'failed') process.exitCode = 1;
-  manifest.status = process.exitCode ? 'failed' : 'passed';
+  manifest.status = process.exitCode ? 'failed' : values.trace ? 'diagnostic' : 'passed';
   save();
   writeFileSync(
     join(out, 'summary.json'),

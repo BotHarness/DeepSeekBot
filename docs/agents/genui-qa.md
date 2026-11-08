@@ -188,6 +188,22 @@ FPS. Retain compositor traces, source/browser/build identities and at least thre
 base/change pairs. Distinguish Chromium's presentation feedback, diagnostic-observer cost,
 physical display behavior, opening latency and installed-native acceptance.
 
+For a separate opening-latency diagnostic, add `--trace` to
+`scripts/perf-genui-opening.mjs` and use a new output directory. The same six fresh-browser
+plain/rich journeys and original readiness deadlines still run. Per-opening traces start
+before the trusted Channel-row click and stop after the unchanged ready/two-rAF endpoint;
+static user-timing markers identify the click and first observed readiness. After that
+endpoint, the runner records bounded timing fields for the Client/GenUI runtime assets.
+This can distinguish asset delivery, compilation and execution evidence without guessing
+which phase caused an earlier slow opening. It does not automatically attribute the delay.
+
+Tracing adds overhead: every summary sets `qualificationEligible: false`, and a fully
+successful instrumented run has status `diagnostic`, never `passed`. It cannot replace an
+untraced failure, qualify foreground presentation, or justify relaxing a deadline. A trace
+cleanup failure fails the run and is retained separately from an opening failure. Retain
+the private raw traces; they may contain local authenticated URLs and must not be uploaded
+as public PR artifacts without a separate privacy review.
+
 ## PR evidence
 
 Mounted conversation DOM is not proof that the conversation is visible. At responsive
