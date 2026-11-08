@@ -133,6 +133,15 @@ scrolling, requires it to be running at the foreground segment's boundaries, and
 user-timing start/end markers in the trace. The unchanged heap endpoint and budget still
 apply. Do not pool the two protocols.
 
+For headed runs, `startupNativeViewport` records window calibration before navigation;
+it is not the measured content viewport. Native outer-window dimensions can update before
+the content viewport does. `nativeViewport` is sampled after the actual conversation opens,
+before history loading/scrolling; every foreground wheel sample records its content dimensions,
+and `nativeViewportAtEnd` rechecks the native window after typing. Any sampled change fails the
+run. Compare actual measured viewports across arms as well: internal stability alone does not
+establish a matched A/B. Older summaries lack this measured-phase evidence and must not be
+retroactively relabelled from their startup geometry.
+
 Active-animation assertions, zero sampled gaps and rAF cadence do not establish presented
 FPS. Retain compositor traces, source/browser/build identities and at least three interleaved
 base/change pairs. Distinguish Chromium's presentation feedback, diagnostic-observer cost,

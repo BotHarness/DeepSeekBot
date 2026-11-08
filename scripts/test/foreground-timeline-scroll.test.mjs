@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   assertNativeViewport,
+  assertNativeViewportUnchanged,
   fittingWindowBounds,
   observeForegroundTimelineScroll,
+  readNativeViewport,
   summarizeForegroundScroll,
 } from '../foreground-timeline-scroll.mjs';
 
@@ -69,6 +71,58 @@ describe('actual foreground window calibration', () => {
     devicePixelRatio: 2,
     windowBounds: { left: 0, top: 25, width: 1440, height: 900 },
   };
+  it('reads the current content viewport rather than retaining startup geometry', async () => {
+    const detach = vi.fn().mockResolvedValue(undefined);
+    const cdp = {
+      send: vi
+        .fn()
+        .mockResolvedValueOnce({ windowId: 1 })
+        .mockResolvedValueOnce({ bounds: geometry.windowBounds })
+        .mockResolvedValueOnce({ windowId: 1 })
+        .mockResolvedValueOnce({ bounds: geometry.windowBounds }),
+      detach,
+    };
+    const current = { ...geometry };
+    delete current.windowBounds;
+    const page = {
+      createCDPSession: async () => cdp,
+      evaluate: vi
+        .fn()
+        .mockResolvedValueOnce({ ...current, innerWidth: 800, innerHeight: 600 })
+        .mockResolvedValueOnce(current),
+    };
+    await expect(readNativeViewport(page)).resolves.toMatchObject({
+      innerWidth: 800,
+      innerHeight: 600,
+    });
+    await expect(readNativeViewport(page)).resolves.toEqual(geometry);
+    expect(detach).toHaveBeenCalledTimes(2);
+  });
+  it('releases its CDP session when current viewport sampling fails', async () => {
+    const detach = vi.fn().mockResolvedValue(undefined);
+    const page = {
+      createCDPSession: async () => ({
+        send: vi.fn().mockRejectedValue(new Error('sampling failed')),
+        detach,
+      }),
+    };
+    await expect(readNativeViewport(page)).rejects.toThrow('sampling failed');
+    expect(detach).toHaveBeenCalledOnce();
+  });
+  it('accepts unchanged native geometry throughout a measured journey', () => {
+    expect(() => assertNativeViewportUnchanged(geometry, structuredClone(geometry))).not.toThrow();
+  });
+  it.each([
+    { innerWidth: 800, innerHeight: 600 },
+    { innerHeight: 799 },
+    { devicePixelRatio: 1 },
+    { windowBounds: { ...geometry.windowBounds, top: 26 } },
+    { screen: { ...screen, availWidth: 1600 } },
+  ])('rejects viewport identity changes even if each snapshot fits: %j', (change) => {
+    expect(() => assertNativeViewportUnchanged(geometry, { ...geometry, ...change })).toThrow(
+      'native viewport changed during measurement',
+    );
+  });
   it('fits the native window to available display coordinates, including small displays', () => {
     expect(fittingWindowBounds(screen)).toEqual({ left: 0, top: 25, width: 1440, height: 900 });
     expect(

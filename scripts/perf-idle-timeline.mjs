@@ -9,8 +9,10 @@ import { openTimelineConversation } from './perf-timeline-navigation.mjs';
 import { createHeapObservation } from './perf-heap-observation.mjs';
 import { installTimelineActivity, timelineActivityPlan } from './perf-timeline-activity.mjs';
 import {
+  assertNativeViewportUnchanged,
   calibrateNativeViewport,
   observeForegroundTimelineScroll,
+  readNativeViewport,
 } from './foreground-timeline-scroll.mjs';
 
 export const usage = `Usage: node scripts/perf-idle-timeline.mjs [options]
@@ -300,7 +302,7 @@ async function stopProfile(cdp, phase) {
 const metric = (list, name) => list.metrics.find((item) => item.name === name)?.value ?? 0;
 
 try {
-  const nativeViewport = options.headed ? await calibrateNativeViewport(page) : undefined;
+  const startupNativeViewport = options.headed ? await calibrateNativeViewport(page) : undefined;
   if (!options.headed) await page.setViewport({ width: 1440, height: 900 });
   await page.goto(instance.url, { waitUntil: 'networkidle2' });
   await dismissOverlays();
@@ -319,6 +321,7 @@ try {
   await openTimelineConversation(page, fixture.channelId, dismissOverlays);
   await sleep(1500);
   await heapObservation?.sample('conversation-open');
+  const nativeViewport = options.headed ? await readNativeViewport(page) : undefined;
 
   if (loadAll) {
     let mounted = 0;
@@ -355,6 +358,12 @@ try {
         { requireAnimation: activity.phase === 'before-scroll' },
       )
     : undefined;
+  if (nativeViewport && foregroundScroll) {
+    for (const sample of foregroundScroll.samples) {
+      assert.ok(sample.viewport, 'Each foreground sample must record its actual viewport.');
+      assertNativeViewportUnchanged(nativeViewport, { ...nativeViewport, ...sample.viewport });
+    }
+  }
   await heapObservation?.sample('scroll-finished');
   if (activity.phase === 'after-scroll')
     await installTimelineActivity(page, { waitUntilRunning: false });
@@ -435,6 +444,8 @@ try {
   await page.keyboard.press('KeyA');
   await page.keyboard.up('Control');
   await page.keyboard.press('Backspace');
+  const nativeViewportAtEnd = options.headed ? await readNativeViewport(page) : undefined;
+  if (nativeViewport) assertNativeViewportUnchanged(nativeViewport, nativeViewportAtEnd);
 
   const summary = {
     label: options.label,
@@ -462,7 +473,9 @@ try {
     },
     scroll,
     headed: options.headed,
+    startupNativeViewport,
     nativeViewport,
+    nativeViewportAtEnd,
     foregroundScroll,
     idleHottest,
     trace: options.trace ? traceFile : undefined,

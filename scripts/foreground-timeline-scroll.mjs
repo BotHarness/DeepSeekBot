@@ -42,6 +42,41 @@ export function assertNativeViewport(geometry) {
   );
 }
 
+export function assertNativeViewportUnchanged(before, after) {
+  assertNativeViewport(before);
+  assert.deepEqual(after, before, 'The native viewport changed during measurement.');
+}
+
+async function nativeViewportSnapshot(page, cdp) {
+  const { windowId } = await cdp.send('Browser.getWindowForTarget');
+  const { bounds } = await cdp.send('Browser.getWindowBounds', { windowId });
+  const geometry = await page.evaluate(() => ({
+    innerWidth: window.innerWidth,
+    innerHeight: window.innerHeight,
+    outerWidth: window.outerWidth,
+    outerHeight: window.outerHeight,
+    devicePixelRatio: window.devicePixelRatio,
+    screen: {
+      availLeft: window.screen.availLeft,
+      availTop: window.screen.availTop,
+      availWidth: window.screen.availWidth,
+      availHeight: window.screen.availHeight,
+    },
+  }));
+  const result = { ...geometry, windowBounds: bounds };
+  assertNativeViewport(result);
+  return result;
+}
+
+export async function readNativeViewport(page) {
+  const cdp = await page.createCDPSession();
+  try {
+    return await nativeViewportSnapshot(page, cdp);
+  } finally {
+    await cdp.detach();
+  }
+}
+
 export async function calibrateNativeViewport(page) {
   await page.setViewport(null);
   const cdp = await page.createCDPSession();
@@ -62,17 +97,7 @@ export async function calibrateNativeViewport(page) {
       {},
       desired,
     );
-    const { bounds } = await cdp.send('Browser.getWindowBounds', { windowId });
-    const geometry = await page.evaluate(() => ({
-      innerWidth: window.innerWidth,
-      innerHeight: window.innerHeight,
-      outerWidth: window.outerWidth,
-      outerHeight: window.outerHeight,
-      devicePixelRatio: window.devicePixelRatio,
-    }));
-    const result = { ...geometry, screen, windowBounds: bounds };
-    assertNativeViewport(result);
-    return result;
+    return await nativeViewportSnapshot(page, cdp);
   } finally {
     await cdp.detach();
   }
@@ -211,6 +236,13 @@ export async function observeForegroundTimelineScroll(
           return {
             visible: document.visibilityState === 'visible',
             focused: document.hasFocus(),
+            viewport: {
+              innerWidth: window.innerWidth,
+              innerHeight: window.innerHeight,
+              outerWidth: window.outerWidth,
+              outerHeight: window.outerHeight,
+              devicePixelRatio: window.devicePixelRatio,
+            },
             gapPixels,
             scrollTop: pane.scrollTop,
             scrollHeight: pane.scrollHeight,
