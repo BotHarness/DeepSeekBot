@@ -98,6 +98,10 @@ export function visibleBrowserRefusal(code: EmailCodeRefusal | 'cancelled'): Ema
   return code === 'cancelled' ? 'sign-in-failed' : code;
 }
 
+export function isConnectOAuthCallback(path: string): boolean {
+  return /^[A-Za-z][A-Za-z0-9+.-]*:\/+oauth2redirect([?#]|$)/iu.test(path);
+}
+
 export type EmailCodeOutcome =
   | { kind: 'signed-in'; email: string | undefined }
   | { kind: 'cancelled' };
