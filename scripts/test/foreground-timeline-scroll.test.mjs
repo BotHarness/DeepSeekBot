@@ -1,9 +1,64 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   assertNativeViewport,
+  assertNativeViewportUnchanged,
   fittingWindowBounds,
+  observeForegroundTimelineScroll,
+  readNativeViewport,
   summarizeForegroundScroll,
 } from '../foreground-timeline-scroll.mjs';
+
+describe('active animation requirement', () => {
+  it('fails and releases observation resources when animation stops during sampling', async () => {
+    vi.useFakeTimers();
+    try {
+      const stop = vi.fn().mockResolvedValue(undefined);
+      const page = {
+        bringToFront: async () => undefined,
+        waitForFunction: async () => undefined,
+        $: async () => ({ boundingBox: async () => ({ x: 0, y: 0, width: 600, height: 600 }) }),
+        $eval: vi.fn().mockResolvedValue({}),
+        mouse: { move: async () => undefined, wheel: vi.fn().mockResolvedValue(undefined) },
+        evaluate: vi
+          .fn()
+          .mockResolvedValueOnce(undefined)
+          .mockResolvedValueOnce(true)
+          .mockResolvedValueOnce(false)
+          .mockResolvedValueOnce(undefined),
+        tracing: { start: vi.fn().mockResolvedValue(undefined), stop },
+      };
+      const assertion = expect(
+        observeForegroundTimelineScroll(page, 'unused.trace.json', { requireAnimation: true }),
+      ).rejects.toThrow('The scroll animation stopped during sampling');
+      await vi.runAllTimersAsync();
+      await assertion;
+      expect(page.mouse.wheel).toHaveBeenCalledTimes(8);
+      expect(page.$eval).toHaveBeenCalledTimes(8);
+      expect(page.evaluate).toHaveBeenCalledTimes(4);
+      expect(stop).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('fails and releases observation resources when the animation never started', async () => {
+    const stop = vi.fn().mockResolvedValue(undefined);
+    const page = {
+      bringToFront: async () => undefined,
+      waitForFunction: async () => undefined,
+      $: async () => ({ boundingBox: async () => ({ x: 0, y: 0, width: 600, height: 600 }) }),
+      mouse: { move: async () => undefined, wheel: vi.fn() },
+      evaluate: vi.fn().mockResolvedValueOnce(undefined).mockResolvedValueOnce(false),
+      tracing: { start: vi.fn().mockResolvedValue(undefined), stop },
+    };
+    await expect(
+      observeForegroundTimelineScroll(page, 'unused.trace.json', { requireAnimation: true }),
+    ).rejects.toThrow('The scroll animation must be running');
+    expect(page.mouse.wheel).not.toHaveBeenCalled();
+    expect(page.evaluate).toHaveBeenCalledTimes(3);
+    expect(stop).toHaveBeenCalledOnce();
+  });
+});
 
 describe('actual foreground window calibration', () => {
   const screen = { availLeft: 0, availTop: 25, availWidth: 1470, availHeight: 900 };
@@ -16,6 +71,58 @@ describe('actual foreground window calibration', () => {
     devicePixelRatio: 2,
     windowBounds: { left: 0, top: 25, width: 1440, height: 900 },
   };
+  it('reads the current content viewport rather than retaining startup geometry', async () => {
+    const detach = vi.fn().mockResolvedValue(undefined);
+    const cdp = {
+      send: vi
+        .fn()
+        .mockResolvedValueOnce({ windowId: 1 })
+        .mockResolvedValueOnce({ bounds: geometry.windowBounds })
+        .mockResolvedValueOnce({ windowId: 1 })
+        .mockResolvedValueOnce({ bounds: geometry.windowBounds }),
+      detach,
+    };
+    const current = { ...geometry };
+    delete current.windowBounds;
+    const page = {
+      createCDPSession: async () => cdp,
+      evaluate: vi
+        .fn()
+        .mockResolvedValueOnce({ ...current, innerWidth: 800, innerHeight: 600 })
+        .mockResolvedValueOnce(current),
+    };
+    await expect(readNativeViewport(page)).resolves.toMatchObject({
+      innerWidth: 800,
+      innerHeight: 600,
+    });
+    await expect(readNativeViewport(page)).resolves.toEqual(geometry);
+    expect(detach).toHaveBeenCalledTimes(2);
+  });
+  it('releases its CDP session when current viewport sampling fails', async () => {
+    const detach = vi.fn().mockResolvedValue(undefined);
+    const page = {
+      createCDPSession: async () => ({
+        send: vi.fn().mockRejectedValue(new Error('sampling failed')),
+        detach,
+      }),
+    };
+    await expect(readNativeViewport(page)).rejects.toThrow('sampling failed');
+    expect(detach).toHaveBeenCalledOnce();
+  });
+  it('accepts unchanged native geometry throughout a measured journey', () => {
+    expect(() => assertNativeViewportUnchanged(geometry, structuredClone(geometry))).not.toThrow();
+  });
+  it.each([
+    { innerWidth: 800, innerHeight: 600 },
+    { innerHeight: 799 },
+    { devicePixelRatio: 1 },
+    { windowBounds: { ...geometry.windowBounds, top: 26 } },
+    { screen: { ...screen, availWidth: 1600 } },
+  ])('rejects viewport identity changes even if each snapshot fits: %j', (change) => {
+    expect(() => assertNativeViewportUnchanged(geometry, { ...geometry, ...change })).toThrow(
+      'native viewport changed during measurement',
+    );
+  });
   it('fits the native window to available display coordinates, including small displays', () => {
     expect(fittingWindowBounds(screen)).toEqual({ left: 0, top: 25, width: 1440, height: 900 });
     expect(

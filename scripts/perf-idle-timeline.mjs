@@ -7,9 +7,12 @@ import { parseArgs } from 'node:util';
 import { checkBudget, readBudget } from './perf-budget.mjs';
 import { openTimelineConversation } from './perf-timeline-navigation.mjs';
 import { createHeapObservation } from './perf-heap-observation.mjs';
+import { installTimelineActivity, timelineActivityPlan } from './perf-timeline-activity.mjs';
 import {
+  assertNativeViewportUnchanged,
   calibrateNativeViewport,
   observeForegroundTimelineScroll,
+  readNativeViewport,
 } from './foreground-timeline-scroll.mjs';
 
 export const usage = `Usage: node scripts/perf-idle-timeline.mjs [options]
@@ -24,7 +27,9 @@ BH_E2E_INSTANCE=.humanlayer/verify/<name>/instance.json (from verify-app launch)
   --no-load-all       Keep only the opening window mounted.
   --seconds <n>       Idle measurement window (default 15).
   --animate           Add one small infinite CSS animation, standing in for Tob or a
-                      working indicator, so per-frame cost becomes visible.
+                      working indicator, after scrolling (legacy idle-only protocol).
+  --animate-scroll    Start that animation before scrolling; requires --animate,
+                      --foreground-scroll and --headed. Recorded as a distinct protocol.
   --trace             Save a Chrome trace of the idle window (open in DevTools).
   --heap-observe <s>   Separate diagnostic: raw boundary samples and 1–60 seconds of
                       untouched observation AFTER the unchanged canonical endpoint.
@@ -52,6 +57,7 @@ const { values: options } = parseArgs({
     'no-load-all': { type: 'boolean', default: false },
     seconds: { type: 'string', default: '15' },
     animate: { type: 'boolean', default: false },
+    'animate-scroll': { type: 'boolean', default: false },
     trace: { type: 'boolean', default: false },
     'heap-observe': { type: 'string' },
     headed: { type: 'boolean', default: false },
@@ -73,6 +79,12 @@ if (options.help) {
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 assert.ok(!options['foreground-scroll'] || options.headed, '--foreground-scroll requires --headed');
+const activity = timelineActivityPlan({
+  animate: options.animate,
+  animateScroll: options['animate-scroll'],
+  foregroundScroll: options['foreground-scroll'],
+  headed: options.headed,
+});
 const heapObservationSeconds =
   options['heap-observe'] === undefined ? 0 : Number(options['heap-observe']);
 assert.ok(
@@ -290,7 +302,7 @@ async function stopProfile(cdp, phase) {
 const metric = (list, name) => list.metrics.find((item) => item.name === name)?.value ?? 0;
 
 try {
-  const nativeViewport = options.headed ? await calibrateNativeViewport(page) : undefined;
+  const startupNativeViewport = options.headed ? await calibrateNativeViewport(page) : undefined;
   if (!options.headed) await page.setViewport({ width: 1440, height: 900 });
   await page.goto(instance.url, { waitUntil: 'networkidle2' });
   await dismissOverlays();
@@ -309,6 +321,7 @@ try {
   await openTimelineConversation(page, fixture.channelId, dismissOverlays);
   await sleep(1500);
   await heapObservation?.sample('conversation-open');
+  const nativeViewport = options.headed ? await readNativeViewport(page) : undefined;
 
   if (loadAll) {
     let mounted = 0;
@@ -333,6 +346,7 @@ try {
     });
   }
   await heapObservation?.sample('history-loaded');
+  if (activity.phase === 'before-scroll') await installTimelineActivity(page);
   const scroll =
     loadAll && options['scroll-check'] && !options['no-scroll-check']
       ? await scrollCheck()
@@ -341,21 +355,18 @@ try {
     ? await observeForegroundTimelineScroll(
         page,
         resolve(out, `${options.label}.scroll.trace.json`),
+        { requireAnimation: activity.phase === 'before-scroll' },
       )
     : undefined;
+  if (nativeViewport && foregroundScroll) {
+    for (const sample of foregroundScroll.samples) {
+      assert.ok(sample.viewport, 'Each foreground sample must record its actual viewport.');
+      assertNativeViewportUnchanged(nativeViewport, { ...nativeViewport, ...sample.viewport });
+    }
+  }
   await heapObservation?.sample('scroll-finished');
-  if (options.animate)
-    await page.evaluate(() => {
-      const style = document.createElement('style');
-      style.textContent =
-        '@keyframes perf-bob{from{transform:translateY(0)}to{transform:translateY(6px)}}' +
-        '.perf-animated{position:fixed;right:24px;bottom:24px;width:16px;height:16px;' +
-        'border-radius:50%;background:currentColor;animation:perf-bob .6s ease-in-out infinite alternate}';
-      document.head.append(style);
-      const node = document.createElement('div');
-      node.className = 'perf-animated';
-      document.body.append(node);
-    });
+  if (activity.phase === 'after-scroll')
+    await installTimelineActivity(page, { waitUntilRunning: false });
   await sleep(3000);
 
   const cdp = await page.createCDPSession();
@@ -433,12 +444,15 @@ try {
   await page.keyboard.press('KeyA');
   await page.keyboard.up('Control');
   await page.keyboard.press('Backspace');
+  const nativeViewportAtEnd = options.headed ? await readNativeViewport(page) : undefined;
+  if (nativeViewport) assertNativeViewportUnchanged(nativeViewport, nativeViewportAtEnd);
 
   const summary = {
     label: options.label,
     channelId: fixture.channelId,
     seeded: fixture.messageIds.length,
     animate: options.animate,
+    activity,
     seconds: Number(elapsed.toFixed(1)),
     ...dom,
     mainThreadBusyPct: Number(((delta('TaskDuration') / elapsed) * 100).toFixed(1)),
@@ -459,7 +473,9 @@ try {
     },
     scroll,
     headed: options.headed,
+    startupNativeViewport,
     nativeViewport,
+    nativeViewportAtEnd,
     foregroundScroll,
     idleHottest,
     trace: options.trace ? traceFile : undefined,
