@@ -1047,6 +1047,9 @@ describe('call visuals in Channel messages', () => {
     );
     expect(grid).toContain('a 3+2 grid of 5 keyframes');
     expect(grid).toContain('picture 0:58–1:20 of the call');
+    expect(grid).toContain(
+      'before 0:58 on this call is saved as frame records: channel_read with call call-0123456789abcdef and to_ms 58000',
+    );
     expect(grid).toContain(`attachment_id ${image.fileId}`);
     expect(grid).toContain('channel_id dm-mira');
     expect(grid).toContain('HINT');

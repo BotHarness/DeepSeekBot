@@ -18,7 +18,7 @@ import { VoiceProviders } from './voice/providers.js';
 import { createVoiceMessages, type VoiceMessages } from './voice/messages.js';
 import { createVoiceCalls, type VoiceCallMedia, type VoiceCalls } from './voice/calls.js';
 import { withVoiceDefaults } from './voice/defaults.js';
-import { voiceCallRecordBody } from './channels/voice-call-record.js';
+import { voiceCallFramesAt, voiceCallRecordBody } from './channels/voice-call-record.js';
 import { VOICE_CALL_PATH } from './voice/call-contract.js';
 import { createVoiceCallHttp } from './voice/call-http.js';
 import { CloudConnections } from './cloud/connections.js';
@@ -3318,7 +3318,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       });
       const appended = await core.channels.appendMessage(channelId, {
         id: `voice-call-frames-${callId}-${toMs}`,
-        at: new Date().toISOString(),
+        at: voiceCallFramesAt(startedAt, toMs, Date.now()),
         author: { kind: 'system' },
         body: voiceCallRecordBody(record),
         attachments: [attachment],

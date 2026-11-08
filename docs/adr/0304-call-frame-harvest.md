@@ -17,6 +17,7 @@ A call grid holds at most nine keyframes (ADR-0303). Until now a sentence with m
 - **Sentence end:** the newest 9 at most ride with the sentence; older ones are cut into commits. Those commits are composed and written before the sentence message is sent (the send waits at most the operation timeout), so the DM is in time order.
 - **Dropped sentence** (filler, nothing heard, failed send): commits already written stay; only the sentence's own keyframes go back to pending, ahead of what arrived since, and wait for the next sentence until a new keyframe arrives.
 - **No new keyframe:** the sentence points `sameAs` the last picture of this share, a sentence or a commit; before any picture it carries none. No single image is sent twice.
+- **Dated by picture:** a frame record's message time is the end of its picture range (`startedAt + toMs`, never later than now), so a `channel_read` call window finds a record written late, such as one cut while the Human spoke, by what it shows.
 - **Share off or switched:** what waits is written as commits of the old source rather than thrown away.
 - **Safety net:** at most 32 keyframes wait. Commits are written one at a time, so a stuck write lets pending grow; past 32 the oldest are dropped and a `frames-dropped` event (`source`, `dropped`, `total`) reports them. Nothing is picked by score any more, and `pickGridFrames` is gone.
 

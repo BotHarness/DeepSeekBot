@@ -10528,7 +10528,11 @@ export function callVisualNote(
     return `[Call ${visual.source} view] The Human is sharing their ${visual.source}, and this message keeps ${what} (picture ${span}) for the DM history, but your current model cannot read images, so do not open it. If they ask about what they are showing, tell them you cannot see it with this model and ask them to describe it.`;
   const image = message.attachments?.find((ref) => ref.mime === 'image/jpeg');
   if (image === undefined) return undefined;
-  return `[Call ${visual.source} view] This message carries ${what} from the Human's ${visual.source}, picture ${span} of the call: channel_read_image with channel_id ${channelId}, message_id ${message.id} and attachment_id ${attachmentIdentity(image)}. ${hint}`;
+  const earlier =
+    visual.fromMs > 0
+      ? ` Anything shown before ${voiceCallDuration(visual.fromMs)} on this call is saved as frame records: channel_read with call ${message.voiceCall!.callId} and to_ms ${visual.fromMs}, then channel_read_image on a record.`
+      : '';
+  return `[Call ${visual.source} view] This message carries ${what} from the Human's ${visual.source}, picture ${span} of the call: channel_read_image with channel_id ${channelId}, message_id ${message.id} and attachment_id ${attachmentIdentity(image)}.${earlier} ${hint}`;
 }
 
 const timelineSuffix = (note: string | undefined) => (note === undefined ? '' : `: ${note}`);

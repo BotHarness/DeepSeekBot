@@ -115,6 +115,11 @@ export function isChannelVoiceCallRecord(value: unknown): value is ChannelVoiceC
   );
 }
 
+export function voiceCallFramesAt(startedAt: string, toMs: number, now: number): string {
+  const at = Date.parse(startedAt) + toMs;
+  return new Date(Number.isFinite(at) ? Math.min(now, at) : now).toISOString();
+}
+
 export function voiceCallDuration(ms: number): string {
   const total = Math.max(0, Math.round(ms / 1000));
   const hours = Math.floor(total / 3600);
