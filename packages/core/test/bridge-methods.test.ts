@@ -24,6 +24,8 @@ import { createModelPresetStore } from '../src/models/presets.js';
 import type { ModelCatalog } from '../src/models/catalog.js';
 import { createModelRouteReadiness } from '../src/models/readiness.js';
 import { DirectBotToolError, type BotRuntime } from '../src/runtime/bot-runtime.js';
+import { GenuiDiagramError } from '../src/runtime/genui-diagram.js';
+import { GenuiPreviewError } from '../src/runtime/genui-preview.js';
 import type { WorkspaceGrantStore } from '../src/workspaces/grants.js';
 import { createBotStateTracker } from '../src/state/bot-state.js';
 import { createTestOwnership } from './helpers.js';
@@ -509,6 +511,9 @@ describe('bridge methods', () => {
       if (tool === 'create_assignment')
         throw new DirectBotToolError('tool-not-direct', 'create_assignment cannot run');
       if (tool === 'bot_send_message') throw new Error('bot_send_message: no Channel');
+      if (tool === 'genui_preview')
+        throw new GenuiPreviewError('genui-preview-cleanup-failed', 'Profile still in use');
+      if (tool === 'genui_diagram') throw new GenuiDiagramError('genui-diagram-invalid', 'Bad');
       return { tool, sessionId: 'direct' as const, result: { channels: [] } };
     });
     const runtime = {
@@ -573,6 +578,14 @@ describe('bridge methods', () => {
     expect(await methods.botToolRun({ slug: 'ada', tool: 'bot_send_message' })).toEqual({
       ok: false,
       error: { code: 'tool-failed', message: 'bot_send_message: no Channel' },
+    });
+    expect(await methods.botToolRun({ slug: 'ada', tool: 'genui_preview' })).toEqual({
+      ok: false,
+      error: { code: 'genui-preview-cleanup-failed', message: 'Profile still in use' },
+    });
+    expect(await methods.botToolRun({ slug: 'ada', tool: 'genui_diagram' })).toMatchObject({
+      ok: false,
+      error: { code: 'genui-diagram-invalid' },
     });
     expect(await methods.botToolRun({ slug: 'ada', tool: 'network_send' })).toMatchObject({
       ok: false,

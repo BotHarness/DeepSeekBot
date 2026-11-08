@@ -96,11 +96,24 @@ async function createBot(name) {
   return bot;
 }
 
+async function clickAttached(handle) {
+  try {
+    await handle.click();
+  } catch (error) {
+    const message = String(error?.message);
+    if (
+      !message.includes('Node is detached from document') &&
+      !message.includes('Node is either not clickable or not an Element')
+    )
+      throw error;
+  }
+}
+
 async function dismiss(page) {
   for (let round = 0; round < 8; round++) {
     const tutorial = await page.$('.driver-popover-close-btn');
     if (tutorial && (await tutorial.isVisible())) {
-      await tutorial.click();
+      await clickAttached(tutorial);
       continue;
     }
     let clicked = false;
@@ -124,7 +137,7 @@ async function dismiss(page) {
         ].includes(label) &&
         (await button.isVisible())
       ) {
-        await button.click();
+        await clickAttached(button);
         clicked = true;
         break;
       }
@@ -308,6 +321,14 @@ try {
           slug: bot.slug,
           tool: 'genui_preview',
           args: { genui_json: serialized, width: 900, theme: 'light' },
+        }).catch((error) => {
+          target.previewFailure = {
+            code: error.code ?? 'invalid-response',
+            message: redact(error.bridgeMessage ?? error.message),
+            elapsedMs: performance.now() - before,
+          };
+          save();
+          throw error;
         });
         target.previewMs = performance.now() - before;
         target.previewDocumentId = preview.result?.documentId;

@@ -8,6 +8,7 @@ import {
   discoverBrowserBinary,
   type CdpClient,
 } from '../../../browser/src/runtime/browser.js';
+import { BrowserProvisionError } from '../../../browser/src/runtime/provision.js';
 import { buildGenuiHtmlDocument } from '../channels/genui-html.js';
 import { parseGenuiDocument } from '../channels/genui-document.js';
 
@@ -38,6 +39,43 @@ export class GenuiPreviewError extends Error {
 }
 
 let previewActive = false;
+
+async function initialPage(client: CdpClient, signal: AbortSignal): Promise<string> {
+  for (;;) {
+    signal.throwIfAborted();
+    const targets = (await client.send('Target.getTargets'))['targetInfos'];
+    const page = Array.isArray(targets)
+      ? (targets as { targetId?: unknown; type?: unknown }[]).find(
+          (target) => target.type === 'page' && typeof target.targetId === 'string',
+        )
+      : undefined;
+    if (page !== undefined) return page.targetId as string;
+    await new Promise<void>((resolve) => setTimeout(resolve, 50));
+  }
+}
+
+async function removeProfile(directory: string): Promise<GenuiPreviewError | undefined> {
+  try {
+    await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    return undefined;
+  } catch (error) {
+    return new GenuiPreviewError(
+      'genui-preview-cleanup-failed',
+      `The preview browser profile could not be removed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+function codedPreviewError(error: unknown): GenuiPreviewError {
+  if (error instanceof GenuiPreviewError) return error;
+  if (error instanceof BrowserProvisionError)
+    return new GenuiPreviewError(`genui-preview-browser-${error.code}`, error.message);
+  const reason = error instanceof Error ? error.message : String(error);
+  return new GenuiPreviewError(
+    'genui-preview-failed',
+    `The isolated document preview failed: ${reason.slice(0, 500)}`,
+  );
+}
 
 function escapeAttribute(value: string): string {
   return value.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;');
@@ -100,6 +138,7 @@ export async function previewGenuiDocument(
   let directory: string | undefined;
   let browser: ReturnType<typeof createBotBrowserRuntime> | undefined;
   let client: CdpClient | undefined;
+  let refusal: GenuiPreviewError | undefined;
   const signal = AbortSignal.any([
     AbortSignal.timeout(15_000),
     ...(options.signal ? [options.signal] : []),
@@ -123,11 +162,8 @@ export async function previewGenuiDocument(
       signal.throwIfAborted();
       if (client === undefined) throw new Error('Preview connection unavailable.');
       record('ready');
-      const target = await client.send('Target.createTarget', { url: 'about:blank' });
-      const attached = await client.send('Target.attachToTarget', {
-        targetId: target['targetId'],
-        flatten: true,
-      });
+      const targetId = await initialPage(client, signal);
+      const attached = await client.send('Target.attachToTarget', { targetId, flatten: true });
       const sessionId = attached['sessionId'] as string;
       await client.send('Page.enable', {}, sessionId);
       await client.send(
@@ -164,6 +200,15 @@ export async function previewGenuiDocument(
       if (!observed?.ready)
         throw new GenuiPreviewError('genui-preview-failed', 'The document did not become ready.');
       const height = Math.min(2000, Math.max(80, observed.height));
+      await client.send(
+        'Runtime.evaluate',
+        {
+          expression:
+            'new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))',
+          awaitPromise: true,
+        },
+        sessionId,
+      );
       const capture = await client.send(
         'Page.captureScreenshot',
         {
@@ -205,9 +250,9 @@ export async function previewGenuiDocument(
           .finally(() => signal.removeEventListener('abort', abort));
     });
   } catch (error) {
-    record('refused', error instanceof GenuiPreviewError ? error.code : 'genui-preview-failed');
-    if (error instanceof GenuiPreviewError) throw error;
-    throw new GenuiPreviewError('genui-preview-failed', 'The isolated document preview failed.');
+    refusal = codedPreviewError(error);
+    record('refused', refusal.code);
+    throw refusal;
   } finally {
     try {
       if (client !== undefined) {
@@ -224,7 +269,11 @@ export async function previewGenuiDocument(
         }
       }
       await browser?.stop();
-      if (directory !== undefined) await rm(directory, { recursive: true, force: true });
+      const cleanup = directory === undefined ? undefined : await removeProfile(directory);
+      if (cleanup !== undefined) {
+        record('refused', cleanup.code);
+        if (refusal === undefined) throw cleanup;
+      }
       record('stopped');
     } finally {
       previewActive = false;

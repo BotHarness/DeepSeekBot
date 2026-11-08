@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { existsSync } from 'node:fs';
+import { existsSync, rmSync } from 'node:fs';
 import { syntheticGenuiDocument } from './fixtures/genui-document.js';
+import { startupTimeoutFailure } from '../../browser/src/runtime/provision.js';
 
 const runtime = vi.hoisted(() => ({
   binary: '/synthetic/chrome' as string | undefined,
@@ -8,7 +9,20 @@ const runtime = vi.hoisted(() => ({
   ensure: vi.fn<() => Promise<void>>(),
   stop: vi.fn<() => Promise<void>>(),
   send: vi.fn(),
+  rmFailure: undefined as Error | undefined,
 }));
+
+vi.mock('node:fs/promises', async (original) => {
+  const actual = await original<typeof import('node:fs/promises')>();
+  return {
+    ...actual,
+    rm: async (...args: Parameters<typeof actual.rm>) => {
+      expect(args[1]).toMatchObject({ maxRetries: 10 });
+      if (runtime.rmFailure) throw runtime.rmFailure;
+      return actual.rm(...args);
+    },
+  };
+});
 
 vi.mock('../../browser/src/runtime/browser.js', () => ({
   discoverBrowserBinary: () => runtime.binary,
@@ -31,11 +45,13 @@ vi.mock('../../browser/src/runtime/browser.js', () => ({
 import { previewGenuiDocument } from '../src/runtime/genui-preview.js';
 
 beforeEach(() => {
+  runtime.rmFailure = undefined;
   runtime.binary = '/synthetic/chrome';
   runtime.ensure.mockResolvedValue();
   runtime.stop.mockResolvedValue();
   runtime.send.mockImplementation(async (method: string) => {
-    if (method === 'Target.createTarget') return { targetId: 'target' };
+    if (method === 'Target.getTargets')
+      return { targetInfos: [{ targetId: 'target', type: 'page' }] };
     if (method === 'Target.attachToTarget') return { sessionId: 'session' };
     if (method === 'Page.getFrameTree') return { frameTree: { frame: { id: 'frame' } } };
     if (method === 'Runtime.evaluate')
@@ -55,6 +71,19 @@ describe('isolated GenUI preview lifecycle', () => {
     });
     const result = await previewGenuiDocument(syntheticGenuiDocument, { width: 390 });
     expect(result).toMatchObject({ width: 390, height: 48, screenshot: { mimeType: 'image/png' } });
+    const methods = runtime.send.mock.calls.map(([method]) => method as string);
+    expect(methods).not.toContain('Target.createTarget');
+    expect(runtime.send).toHaveBeenCalledWith('Target.attachToTarget', {
+      targetId: 'target',
+      flatten: true,
+    });
+    const frameWait = runtime.send.mock.calls.findIndex(
+      ([method, params]) =>
+        method === 'Runtime.evaluate' &&
+        (params as { awaitPromise?: boolean }).awaitPromise === true,
+    );
+    expect(frameWait).toBeGreaterThan(-1);
+    expect(frameWait).toBeLessThan(methods.indexOf('Page.captureScreenshot'));
     expect(runtime.stop).toHaveBeenCalledOnce();
     expect(existsSync(runtime.directory)).toBe(false);
   });
@@ -74,9 +103,37 @@ describe('isolated GenUI preview lifecycle', () => {
     runtime.ensure.mockRejectedValueOnce(new Error('Synthetic launch failure'));
     await expect(previewGenuiDocument(syntheticGenuiDocument)).rejects.toMatchObject({
       code: 'genui-preview-failed',
+      message: 'The isolated document preview failed: Synthetic launch failure',
     });
     expect(runtime.stop).toHaveBeenCalledOnce();
     expect(existsSync(runtime.directory)).toBe(false);
+    await expect(previewGenuiDocument(syntheticGenuiDocument)).resolves.toMatchObject({
+      height: 48,
+    });
+  });
+
+  it('names browser startup and profile cleanup failures', async () => {
+    runtime.ensure.mockRejectedValueOnce(startupTimeoutFailure(8000));
+    await expect(previewGenuiDocument(syntheticGenuiDocument)).rejects.toMatchObject({
+      code: 'genui-preview-browser-startup-timeout',
+      message: expect.stringContaining('longer than 8s'),
+    });
+    runtime.rmFailure = Object.assign(new Error('ENOTEMPTY: directory not empty'), {
+      code: 'ENOTEMPTY',
+    });
+    await expect(previewGenuiDocument(syntheticGenuiDocument)).rejects.toMatchObject({
+      code: 'genui-preview-cleanup-failed',
+      message: expect.stringContaining('ENOTEMPTY'),
+    });
+    runtime.rmFailure = undefined;
+    rmSync(runtime.directory, { recursive: true, force: true });
+    runtime.rmFailure = new Error('ENOTEMPTY: directory not empty');
+    runtime.ensure.mockRejectedValueOnce(startupTimeoutFailure(8000));
+    await expect(previewGenuiDocument(syntheticGenuiDocument)).rejects.toMatchObject({
+      code: 'genui-preview-browser-startup-timeout',
+    });
+    runtime.rmFailure = undefined;
+    rmSync(runtime.directory, { recursive: true, force: true });
     await expect(previewGenuiDocument(syntheticGenuiDocument)).resolves.toMatchObject({
       height: 48,
     });
