@@ -1297,4 +1297,26 @@ describe('text typed during a call', () => {
     await h.say(call.callId);
     expect(h.order).toEqual(['sent:1', 'text:1', 'sent:same']);
   });
+
+  it('does not wait on the end record when the call ends while text is queued', async () => {
+    let hear!: () => void;
+    const h = host(['先说一句'], undefined, {
+      asr: new Promise<void>((resolve) => {
+        hear = resolve;
+      }),
+    });
+    const call = await h.ok({ kind: 'open', slug: 'mira', media: 'synthetic' });
+    await h.ok({ kind: 'visual', callId: call.callId, source: 'camera' });
+    await h.frame(call.callId, 'camera', 10);
+    await h.say(call.callId);
+    await h.frame(call.callId, 'camera', 200);
+    const typed = h.type(call.channelId);
+    await h.settle();
+    await h.ok({ kind: 'hangup', callId: call.callId });
+    hear();
+    const { harvested } = await typed;
+    expect(harvested!.visual).toBeUndefined();
+    await vi.waitFor(() => expect(h.records.map((record) => record.frames)).toEqual([1]));
+    await vi.waitFor(() => expect(h.lifecycle.map((record) => record.state)).toContain('ended'));
+  });
 });

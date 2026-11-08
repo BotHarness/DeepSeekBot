@@ -1071,6 +1071,18 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     prune(call);
   };
 
+  const bounded = async (work: Promise<unknown> | undefined) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([
+      Promise.resolve(work).catch(() => undefined),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, VOICE_CALL_LIMITS.operationTimeoutMs);
+        timer.unref?.();
+      }),
+    ]);
+    clearTimeout(timer);
+  };
+
   const text = async (input: {
     channelId: string;
     messageId: string;
@@ -1082,28 +1094,25 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     );
     if (call === undefined) return undefined;
     const atMs = Math.max(0, now() - visualBase(call));
-    const grid = input.picture === false ? undefined : takeGrid(call);
+    let grid = input.picture === false ? undefined : takeGrid(call);
     let land!: () => void;
     const landed = new Promise<void>((resolve) => {
       land = resolve;
     });
-    const prepared = call.transcription.then(async () => {
-      await call.recorded;
+    const before = call.transcription;
+    const recorded = call.recorded;
+    const prepared = (async () => {
+      await bounded(before);
+      await bounded(recorded);
+      if (ended(call)) {
+        if (grid !== undefined && grid.frames.length > 0)
+          commit(call, grid.session, grid.source, [grid.frames]);
+        grid = undefined;
+        return { visual: undefined, waitedMs: 0 };
+      }
       return gridVisual(call, grid);
-    });
-    call.transcription = prepared
-      .then(async () => {
-        let timer: ReturnType<typeof setTimeout> | undefined;
-        await Promise.race([
-          landed,
-          new Promise<void>((resolve) => {
-            timer = setTimeout(resolve, VOICE_CALL_LIMITS.operationTimeoutMs);
-            timer.unref?.();
-          }),
-        ]);
-        clearTimeout(timer);
-      })
-      .catch(() => undefined);
+    })();
+    call.transcription = prepared.then(() => bounded(landed)).catch(() => undefined);
     const { visual, waitedMs } = await prepared.catch(() => ({
       visual: undefined,
       waitedMs: 0,
