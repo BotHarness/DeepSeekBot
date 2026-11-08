@@ -1091,14 +1091,20 @@ export async function runLiveCli(
           ? 600_000
           : timeoutMs(values.timeout),
       );
-      const { http } = await connectLiveHost(values, io, signal);
-      return async (body) => {
-        const { bytes } = await http(CALL_PATH, body);
-        try {
-          return record(JSON.parse(new TextDecoder().decode(bytes)));
-        } catch {
-          throw new CliLiveError('host-protocol-error', 'The Host returned no JSON for the call.');
-        }
+      const { http, rpc } = await connectLiveHost(values, io, signal);
+      return {
+        async post(body) {
+          const { bytes } = await http(CALL_PATH, body);
+          try {
+            return record(JSON.parse(new TextDecoder().decode(bytes)));
+          } catch {
+            throw new CliLiveError(
+              'host-protocol-error',
+              'The Host returned no JSON for the call.',
+            );
+          }
+        },
+        text: async (input) => record(await rpc('channelSend', input)),
       };
     });
   if (isCallTimelineCommand(command))

@@ -10506,6 +10506,7 @@ export function callTimelineNote(voiceCall: ChannelMessage['voiceCall']): string
     parts.push(
       `this message ${voiceCallDuration(voiceCall.speechFromMs)}–${voiceCallDuration(voiceCall.speechToMs)}`,
     );
+  if (voiceCall.atMs !== undefined) parts.push(`typed at ${voiceCallDuration(voiceCall.atMs)}`);
   const visual = voiceCall.visual;
   if (visual !== undefined && 'fromMs' in visual)
     parts.push(`picture ${voiceCallDuration(visual.fromMs)}–${voiceCallDuration(visual.toMs)}`);
@@ -10526,7 +10527,7 @@ export function callVisualNote(
   const span = `${voiceCallDuration(visual.fromMs)}–${voiceCallDuration(visual.toMs)}`;
   if (visual.unseen === true)
     return `[Call ${visual.source} view] The Human is sharing their ${visual.source}, and this message keeps ${what} (picture ${span}) for the DM history, but your current model cannot read images, so do not open it. If they ask about what they are showing, tell them you cannot see it with this model and ask them to describe it.`;
-  const image = message.attachments?.find((ref) => ref.mime === 'image/jpeg');
+  const image = message.attachments?.findLast((ref) => ref.mime === 'image/jpeg');
   if (image === undefined) return undefined;
   const earlier =
     visual.fromMs > 0

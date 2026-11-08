@@ -17,6 +17,7 @@ import { APPEARANCE_CONTROL_PATH, createAppearanceControl } from './appearance/c
 import { VoiceProviders } from './voice/providers.js';
 import { createVoiceMessages, type VoiceMessages } from './voice/messages.js';
 import { createVoiceCalls, type VoiceCallMedia, type VoiceCalls } from './voice/calls.js';
+import { callVisualMessage, createCallTextHarvest } from './voice/call-text.js';
 import { withVoiceDefaults } from './voice/defaults.js';
 import { voiceCallFramesAt, voiceCallRecordBody } from './channels/voice-call-record.js';
 import { VOICE_CALL_PATH } from './voice/call-contract.js';
@@ -325,8 +326,7 @@ import {
 } from './runtime/assignment-tail.js';
 import type { DshSessionEvent, DshSessionStore } from './sessions/source.js';
 import { turnProgress } from './bots/tool-trace.js';
-import type { ChannelCallVisual, SessionFailureProgress } from './channels/channel.js';
-import type { ChannelAttachmentRef } from './attachments/ref.js';
+import type { SessionFailureProgress } from './channels/channel.js';
 import { DEFAULT_BOT_HOP_LIMIT, isBotHopLimit } from './channels/channel.js';
 import {
   createBotStateTracker,
@@ -2881,6 +2881,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     log: (event) => ctx.logger.info(JSON.stringify(event)),
   });
   const bridgeMethods = createBridgeMethods({
+    callText: createCallTextHarvest({ calls: () => voiceCalls, attachments: core.attachments }),
     voiceProviders: core.voiceProviders,
     voiceLog: (phase, fields) => diagnosticEvents.record('voice', phase, fields),
     prompts: core.prompts,
@@ -3250,27 +3251,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     media: () =>
       (ctx.get('botharnessComputer') as { callMedia?: VoiceCallMedia } | undefined)?.callMedia,
     async send({ channelId, messageId, body, callId, speech, visual }) {
-      let attachments: ChannelAttachmentRef[] | undefined;
-      let meta: ChannelCallVisual | undefined;
-      if (visual !== undefined && 'image' in visual) {
-        const image = visual.image.jpeg;
-        attachments = [
-          await core.attachments.upload({
-            data: (async function* () {
-              yield image;
-            })(),
-            name: `call-${visual.source}-${messageId.slice(-12)}.jpg`,
-          }),
-        ];
-        meta = {
-          source: visual.source,
-          frames: visual.frames,
-          layout: visual.image.layout,
-          fromMs: visual.fromMs,
-          toMs: visual.toMs,
-          ...(visual.unseen === true ? { unseen: true as const } : {}),
-        };
-      } else if (visual !== undefined) meta = { source: visual.source, sameAs: visual.sameAs };
+      const { attachments, meta } = await callVisualMessage(core.attachments, messageId, visual);
       const result = await bridgeMethods.channelSend({
         channelId,
         messageId,

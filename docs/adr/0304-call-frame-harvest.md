@@ -32,3 +32,13 @@ A call grid holds at most nine keyframes (ADR-0303). Until now a sentence with m
 ## Consequences
 
 A busy camera writes more frame records into the DM, one per 9 keyframes, and every keyframe stays reachable by time. The tile cache still keeps the newest 64 originals, so `call_frame` on an old record may report `released`. Restored keyframes of a dropped sentence can land in a commit written after a newer commit when 9 or more keyframes arrive while the sentence was being recognised; the records still carry their own ranges.
+
+## Update (2026-11-08, #3694): text typed during a call
+
+A Human DM message typed while a call with that Bot runs in that DM goes through the same harvest as a sentence end. The Channel does not know call state: the Human send path (`channelSend`) asks the call owner through `createCallTextHarvest` (`packages/core/src/voice/call-text.ts`) and gets nothing back outside a call, in another DM, before the call connects, or after it ends.
+
+- **Same cut.** The newest 9 waiting keyframes ride with the text as a grid attached after the Human's own attachments (none when they already attached 10, and the keyframes keep waiting); older ones become frame records written before the text lands; with no new keyframe the text points `sameAs` the last picture of the share, and before any picture it carries none.
+- **Fields.** The message carries `voiceCall: {callId, atMs, visual?}`: `atMs` is when it arrived, in ms from call connect, and it has no speech range. Validators accept `atMs` only without `speechFromMs/speechToMs`. The turn header reads `[Voice call <id>: typed at 1:24, picture 1:20–1:23]`, the voice-call hints say a typed message is not a transcript, and its tiles open with `call_frame` like a sentence's.
+- **Order.** The text joins the call's sentence queue at arrival: a sentence whose speech ended earlier and is still being recognised lands first, and the next sentence waits until the text has landed (at most the operation timeout). Turns and `busy` follow ADR-0281 in that order; a text starts the Bot's own turn like a sentence, so it does not show `busy`.
+- **Failed send.** Commits stay and the riding keyframes go back to pending; if the call ended meanwhile they are written as a frame record instead. A retried send with the same message id compares only the Human's own attachments.
+- **CLI.** A `call-simulate --script` step `{"at": ms, "text": "…"}` types through the real `channelSend` path; the report adds `texts` (`frames`, `commitsBefore`, `fromMs/toMs`, `layout`, `sameAs`) and `visual.harvest.textFrames`, and events add `text`.
