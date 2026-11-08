@@ -68,6 +68,7 @@ export interface ChannelWireMessage extends WireMessage {
   reactions?: WireReaction[];
   deliveries?: WireDelivery[];
   attachments?: readonly AttachmentRef[];
+  genui?: unknown;
   voice?: WireMessageVoice;
   clearedAttachments?: readonly {
     name: string;

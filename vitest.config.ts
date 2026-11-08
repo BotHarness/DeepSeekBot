@@ -21,6 +21,9 @@ function sourceOptions(): ViteUserConfig {
         'expo-audio': fileURLToPath(
           new URL('./apps/mobile/test/support/expo-audio.ts', import.meta.url),
         ),
+        'react-native-webview': fileURLToPath(
+          new URL('./apps/mobile/test/support/react-native-webview.ts', import.meta.url),
+        ),
         '@deepseek-ai/dsh-api-gateway/client': fileURLToPath(
           new URL('./packages/client/test/support/gateway-client.ts', import.meta.url),
         ),
