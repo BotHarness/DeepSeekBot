@@ -53,11 +53,12 @@ export function buildGenuiHtmlDocument(
     generation: 1,
   };
   const bootstrap = `(() => {
-    const status = { ready: false, measured: false, failed: false, height: 48, diagnostics: [] };
+    const status = { ready: false, measured: false, failed: false, failure: undefined, height: 48, diagnostics: [] };
     window.__genuiPreview = status;
     const failed = (reason) => {
       status.failed = true;
       status.ready = false;
+      status.failure = ['startup', 'execution', 'memory', 'resource', 'unsupported', 'invalid-content'].includes(reason) ? reason : 'unsupported';
       if (status.diagnostics.length < 8) status.diagnostics.push('The document could not run: ' + reason);
     };
     try {

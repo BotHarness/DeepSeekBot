@@ -419,6 +419,7 @@ import {
   type HumanAttentionItem,
 } from '../runtime/human-attention.js';
 import { DirectBotToolError, queryAssignmentDirectory } from '../runtime/bot-runtime.js';
+import { GenuiPreviewError } from '../runtime/genui-preview.js';
 import { ChannelCallReadError } from '../channels/call-window.js';
 import type {
   AssignmentActivity,
@@ -8105,7 +8106,8 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
               error instanceof DirectBotToolError ||
               error instanceof ChannelCallReadError ||
               error instanceof TobError ||
-              error instanceof BotNetworkDeliveryError
+              error instanceof BotNetworkDeliveryError ||
+              error instanceof GenuiPreviewError
                 ? error.code
                 : 'tool-failed',
             message: error instanceof Error ? error.message : String(error),

@@ -62,19 +62,27 @@ describe('isolated GenUI preview lifecycle', () => {
   it('refuses missing or changed runtime assets before starting a browser and releases the owner', async () => {
     packagedRuntime.load.mockRejectedValueOnce(new Error('Missing asset'));
     await expect(previewGenuiDocument(syntheticGenuiDocument)).rejects.toMatchObject({
-      code: 'genui-preview-failed',
+      code: 'genui-preview-assets-failed',
     });
     expect(runtime.ensure).not.toHaveBeenCalled();
     packagedRuntime.load.mockResolvedValueOnce({ source: 'changed', sha256: '0'.repeat(64) });
     await expect(previewGenuiDocument(syntheticGenuiDocument)).rejects.toMatchObject({
-      code: 'genui-preview-failed',
+      code: 'genui-preview-document-failed',
     });
     await expect(previewGenuiDocument(syntheticGenuiDocument)).resolves.toMatchObject({
       height: 48,
     });
   });
 
-  it('stops promptly on shared runtime refusal instead of polling to the deadline', async () => {
+  it.each([
+    'memory',
+    'execution',
+    'startup',
+    'resource',
+    'invalid-content',
+    'unsupported',
+    'private-detail',
+  ])('stops promptly with a bounded renderer refusal: %s', async (failure) => {
     const previous = runtime.send.getMockImplementation()!;
     runtime.send.mockImplementation(async (method: string, ...args: unknown[]) =>
       method === 'Runtime.evaluate'
@@ -84,6 +92,7 @@ describe('isolated GenUI preview lifecycle', () => {
                 ready: false,
                 measured: false,
                 failed: true,
+                failure,
                 height: 48,
                 diagnostics: ['Refused'],
               },
@@ -92,7 +101,7 @@ describe('isolated GenUI preview lifecycle', () => {
         : previous(method, ...args),
     );
     await expect(previewGenuiDocument(syntheticGenuiDocument)).rejects.toMatchObject({
-      code: 'genui-preview-failed',
+      code: `genui-preview-renderer-${failure === 'private-detail' ? 'unsupported' : failure}`,
     });
     expect(
       runtime.send.mock.calls.filter(([method]) => method === 'Runtime.evaluate'),
@@ -124,7 +133,7 @@ describe('isolated GenUI preview lifecycle', () => {
   it('cleans up failed browser startup before accepting another preview', async () => {
     runtime.ensure.mockRejectedValueOnce(new Error('Synthetic launch failure'));
     await expect(previewGenuiDocument(syntheticGenuiDocument)).rejects.toMatchObject({
-      code: 'genui-preview-failed',
+      code: 'genui-preview-browser-failed',
     });
     expect(runtime.stop).toHaveBeenCalledOnce();
     expect(existsSync(runtime.directory)).toBe(false);

@@ -78,10 +78,12 @@ export async function previewGenuiDocument(
     AbortSignal.timeout(15_000),
     ...(options.signal ? [options.signal] : []),
   ]);
+  let stage: 'assets' | 'browser' | 'document' | 'renderer' | 'capture' = 'assets';
   try {
     record('starting');
     const runtimeSource = await loadGenuiRuntimeSource();
     signal.throwIfAborted();
+    stage = 'browser';
     directory = await mkdtemp(join(tmpdir(), 'botharness-genui-preview-'));
     browser = createBotBrowserRuntime({
       userDataDir: directory,
@@ -113,6 +115,7 @@ export async function previewGenuiDocument(
       );
       const tree = await client.send('Page.getFrameTree', {}, sessionId);
       const frameId = (tree['frameTree'] as { frame: { id: string } }).frame.id;
+      stage = 'document';
       const instanceId = randomUUID();
       const compiled = buildGenuiHtmlDocument(document, {
         instanceId,
@@ -120,11 +123,13 @@ export async function previewGenuiDocument(
         runtime: runtimeSource,
       });
       await client.send('Page.setDocumentContent', { frameId, html: compiled.html }, sessionId);
+      stage = 'renderer';
       let observed:
         | {
             ready: boolean;
             measured: boolean;
             failed?: boolean;
+            failure?: string;
             height: number;
             diagnostics: string[];
           }
@@ -138,7 +143,18 @@ export async function previewGenuiDocument(
         observed = (result['result'] as { value?: typeof observed }).value;
         if (observed?.failed)
           throw new GenuiPreviewError(
-            'genui-preview-failed',
+            `genui-preview-renderer-${
+              [
+                'startup',
+                'execution',
+                'memory',
+                'resource',
+                'unsupported',
+                'invalid-content',
+              ].includes(observed.failure ?? '')
+                ? observed.failure
+                : 'unsupported'
+            }`,
             'The document was refused by the isolated renderer.',
           );
         if (observed?.ready && observed.measured) break;
@@ -148,6 +164,7 @@ export async function previewGenuiDocument(
       if (!observed?.ready)
         throw new GenuiPreviewError('genui-preview-failed', 'The document did not become ready.');
       const height = Math.min(2000, Math.max(80, observed.height));
+      stage = 'capture';
       const capture = await client.send(
         'Page.captureScreenshot',
         {
@@ -190,9 +207,10 @@ export async function previewGenuiDocument(
           .finally(() => signal.removeEventListener('abort', abort));
     });
   } catch (error) {
-    record('refused', error instanceof GenuiPreviewError ? error.code : 'genui-preview-failed');
+    const code = `genui-preview-${stage}-failed`;
+    record('refused', error instanceof GenuiPreviewError ? error.code : code);
     if (error instanceof GenuiPreviewError) throw error;
-    throw new GenuiPreviewError('genui-preview-failed', 'The isolated document preview failed.');
+    throw new GenuiPreviewError(code, `The isolated document preview failed during ${stage}.`);
   } finally {
     try {
       if (client !== undefined) {

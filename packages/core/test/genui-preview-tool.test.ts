@@ -3,7 +3,10 @@ import type { ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
 
 const preview = vi.hoisted(() => vi.fn());
-vi.mock('../src/runtime/genui-preview.js', () => ({ previewGenuiDocument: preview }));
+vi.mock('../src/runtime/genui-preview.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../src/runtime/genui-preview.js')>()),
+  previewGenuiDocument: preview,
+}));
 import { createGenuiPreviewTool } from '../src/runtime/genui-preview-tool.js';
 
 const execution: ToolRunContext = {
@@ -73,5 +76,16 @@ describe('GenUI preview Tool', () => {
       tool.execute({ genui_json: '{}' }, { ...execution, signal: AbortSignal.abort() }),
     ).rejects.toThrow();
     expect(saveImage).not.toHaveBeenCalled();
+  });
+
+  it('classifies attachment failures without exposing service details', async () => {
+    const tool = createGenuiPreviewTool({
+      saveImage: vi.fn().mockRejectedValue(new Error('private attachment service detail')),
+    });
+    await expect(tool.execute({ genui_json: '{}' }, execution)).rejects.toMatchObject({
+      name: 'GenuiPreviewError',
+      code: 'genui-preview-image-unavailable',
+      message: 'The preview rendered, but its image could not be saved.',
+    });
   });
 });

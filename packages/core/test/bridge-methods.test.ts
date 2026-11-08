@@ -24,6 +24,7 @@ import { createModelPresetStore } from '../src/models/presets.js';
 import type { ModelCatalog } from '../src/models/catalog.js';
 import { createModelRouteReadiness } from '../src/models/readiness.js';
 import { DirectBotToolError, type BotRuntime } from '../src/runtime/bot-runtime.js';
+import { GenuiPreviewError } from '../src/runtime/genui-preview.js';
 import type { WorkspaceGrantStore } from '../src/workspaces/grants.js';
 import { createBotStateTracker } from '../src/state/bot-state.js';
 import { createTestOwnership } from './helpers.js';
@@ -505,6 +506,10 @@ describe('bridge methods', () => {
   });
   it('lists and runs direct Bot tools through the runtime and traces them as session direct', async () => {
     const run = vi.fn(async (_slug: string, tool: string) => {
+      if (tool === 'genui_preview')
+        throw new GenuiPreviewError('genui-preview-timeout', 'The isolated preview timed out.');
+      if (tool === 'untrusted_error')
+        throw Object.assign(new Error('Untrusted error'), { code: 'genui-preview-timeout' });
       if (tool === 'network_send') throw new BotNetworkDeliveryError('delivery-unknown');
       if (tool === 'create_assignment')
         throw new DirectBotToolError('tool-not-direct', 'create_assignment cannot run');
@@ -577,6 +582,14 @@ describe('bridge methods', () => {
     expect(await methods.botToolRun({ slug: 'ada', tool: 'network_send' })).toMatchObject({
       ok: false,
       error: { code: 'delivery-unknown' },
+    });
+    expect(await methods.botToolRun({ slug: 'ada', tool: 'genui_preview' })).toMatchObject({
+      ok: false,
+      error: { code: 'genui-preview-timeout' },
+    });
+    expect(await methods.botToolRun({ slug: 'ada', tool: 'untrusted_error' })).toMatchObject({
+      ok: false,
+      error: { code: 'tool-failed' },
     });
     expect((await methods.botToolRun({ slug: 'ada', tool: 'x', args: [] })).ok).toBe(false);
     expect((await methods.botToolRun({ slug: 'nobody', tool: 'channel_list' })).ok).toBe(false);
