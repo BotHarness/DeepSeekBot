@@ -115,6 +115,11 @@ export function isChannelVoiceCallRecord(value: unknown): value is ChannelVoiceC
   );
 }
 
+export function voiceCallFramesAt(startedAt: string, toMs: number, now: number): string {
+  const at = Date.parse(startedAt) + toMs;
+  return new Date(Number.isFinite(at) ? Math.min(now, at) : now).toISOString();
+}
+
 export function voiceCallDuration(ms: number): string {
   const total = Math.max(0, Math.round(ms / 1000));
   const hours = Math.floor(total / 3600);
@@ -127,7 +132,7 @@ export function voiceCallDuration(ms: number): string {
 
 export function voiceCallRecordBody(record: ChannelVoiceCallRecord): string {
   if (record.state === 'frames')
-    return `${record.source === 'camera' ? 'Camera' : 'Screen'} record of call ${record.callId} from ${voiceCallDuration(record.fromMs)} to ${voiceCallDuration(record.toMs)} while the Human was silent: ${record.frames === 1 ? 'one keyframe' : `a ${record.layout} grid of ${record.frames} keyframes`}, oldest first.`;
+    return `${record.source === 'camera' ? 'Camera' : 'Screen'} record of call ${record.callId} from ${voiceCallDuration(record.fromMs)} to ${voiceCallDuration(record.toMs)}: ${record.frames === 1 ? 'one keyframe' : `a ${record.layout} grid of ${record.frames} keyframes`}, oldest first.`;
   if ('atMs' in record) {
     const what = `${record.source === 'camera' ? 'The camera' : 'Screen sharing'} in call ${record.callId}`;
     const at = voiceCallDuration(record.atMs);

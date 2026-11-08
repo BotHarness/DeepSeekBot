@@ -172,7 +172,13 @@ function harness(
   } = {},
 ) {
   let clock = 1_000_000;
-  const sent: { body: string; callId: string; channelId: string; messageId: string }[] = [];
+  const sent: {
+    body: string;
+    callId: string;
+    channelId: string;
+    messageId: string;
+    speech?: { fromMs: number; toMs: number } | undefined;
+  }[] = [];
   const log: string[] = [];
   const records: ChannelVoiceCallRecord[] = [];
   const bot: VoiceCallBot | undefined =
@@ -309,8 +315,11 @@ describe('Host call owner', () => {
         messageId: expect.stringMatching(/^human-/u),
         body: '明天上海会下雨吗？',
         callId,
+        speech: { fromMs: expect.any(Number), toMs: expect.any(Number) },
       },
     ]);
+    const heardRange = h.sent[0]!.speech!;
+    expect(heardRange.toMs - heardRange.fromMs).toBeGreaterThan(1_000);
     let current = await view(h, callId);
     expect(types(current.events)).toEqual([
       'connected',

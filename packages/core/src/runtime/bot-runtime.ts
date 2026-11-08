@@ -4066,7 +4066,7 @@ class BotRuntimeImplementation implements BotRuntime {
     ];
     if (message.voiceCall !== undefined) {
       parts.push(
-        `[Voice call ${message.voiceCall.callId}] ${this.#promptText(botSlug)('voice-call-hint')}`,
+        `[Voice call ${message.voiceCall.callId}${timelineSuffix(callTimelineNote(message.voiceCall))}] ${this.#promptText(botSlug)('voice-call-hint')}`,
       );
       const visual = callVisualNote(
         channelId,
@@ -10499,6 +10499,19 @@ export function createBotRuntime(options: BotRuntimeOptions): BotRuntime {
   return new BotRuntimeImplementation(options);
 }
 
+export function callTimelineNote(voiceCall: ChannelMessage['voiceCall']): string | undefined {
+  if (voiceCall === undefined) return undefined;
+  const parts: string[] = [];
+  if (voiceCall.speechFromMs !== undefined && voiceCall.speechToMs !== undefined)
+    parts.push(
+      `this message ${voiceCallDuration(voiceCall.speechFromMs)}–${voiceCallDuration(voiceCall.speechToMs)}`,
+    );
+  const visual = voiceCall.visual;
+  if (visual !== undefined && 'fromMs' in visual)
+    parts.push(`picture ${voiceCallDuration(visual.fromMs)}–${voiceCallDuration(visual.toMs)}`);
+  return parts.length === 0 ? undefined : parts.join(', ');
+}
+
 export function callVisualNote(
   channelId: string,
   message: ChannelMessage,
@@ -10506,17 +10519,20 @@ export function callVisualNote(
 ): string | undefined {
   const visual = message.voiceCall?.visual;
   if (visual === undefined) return undefined;
-  const records =
-    visual.records === undefined
-      ? ''
-      : ` Before this message, while the Human was silent, the call saved ${visual.records.length === 1 ? 'one frame record' : `${visual.records.length} frame records`} in this DM (message ${visual.records.join(', ')}), oldest first; each carries a grid image you can open with channel_read_image to follow what happened.`;
   if ('sameAs' in visual)
-    return `[Call ${visual.source} view] Nothing changed in the Human's ${visual.source} since message ${visual.sameAs}; that message's image is still what they see.${records}`;
+    return `[Call ${visual.source} view] Nothing changed in the Human's ${visual.source} since message ${visual.sameAs}; that message's image is still what they see. To look at it again, open it with channel_read_image, channel_id ${channelId} and message_id ${visual.sameAs}.`;
   const what =
     visual.frames === 1 ? 'one keyframe' : `a ${visual.layout} grid of ${visual.frames} keyframes`;
+  const span = `${voiceCallDuration(visual.fromMs)}–${voiceCallDuration(visual.toMs)}`;
   if (visual.unseen === true)
-    return `[Call ${visual.source} view] The Human is sharing their ${visual.source}, and this message keeps ${what} for the DM history, but your current model cannot read images, so do not open it. If they ask about what they are showing, tell them you cannot see it with this model and ask them to describe it.`;
+    return `[Call ${visual.source} view] The Human is sharing their ${visual.source}, and this message keeps ${what} (picture ${span}) for the DM history, but your current model cannot read images, so do not open it. If they ask about what they are showing, tell them you cannot see it with this model and ask them to describe it.`;
   const image = message.attachments?.find((ref) => ref.mime === 'image/jpeg');
   if (image === undefined) return undefined;
-  return `[Call ${visual.source} view] This message carries ${what} from the Human's ${visual.source}: channel_read_image with channel_id ${channelId}, message_id ${message.id} and attachment_id ${attachmentIdentity(image)}.${records} ${hint}`;
+  const earlier =
+    visual.fromMs > 0
+      ? ` Anything shown before ${voiceCallDuration(visual.fromMs)} on this call is saved as frame records: channel_read with call ${message.voiceCall!.callId} and to_ms ${visual.fromMs}, then channel_read_image on a record.`
+      : '';
+  return `[Call ${visual.source} view] This message carries ${what} from the Human's ${visual.source}, picture ${span} of the call: channel_read_image with channel_id ${channelId}, message_id ${message.id} and attachment_id ${attachmentIdentity(image)}.${earlier} ${hint}`;
 }
+
+const timelineSuffix = (note: string | undefined) => (note === undefined ? '' : `: ${note}`);

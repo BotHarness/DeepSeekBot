@@ -17,7 +17,7 @@ describe('call visual unsaved migration', () => {
         BOT_HARNESS_SCHEMA_PLAN.migrations.filter((migration) => migration.generation < 133),
       ),
     });
-    const visual = { source: 'screen', frames: 4, layout: '2x2' };
+    const visual = { source: 'screen', frames: 4, layout: '2x2', fromMs: 0, toMs: 4_000 };
     const payload = (id: string, extra: Record<string, unknown>) =>
       JSON.stringify({
         id,
@@ -63,6 +63,85 @@ describe('call visual unsaved migration', () => {
         { ...visual, layout: '2+2' },
         { ...visual, layout: '2+2' },
         { ...visual, layout: '2+2', unseen: true },
+      ]);
+    } finally {
+      owner.close();
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  it('strips the removed frame-record list and grid metadata that has no picture range', () => {
+    const home = createTempRoot('botharness-call-timeline-migration-');
+    const prior = mountOperationalDatabase({
+      dshHome: home,
+      schemaPlan: defineSchemaPlan(
+        BOT_HARNESS_SCHEMA_PLAN.migrations.filter((migration) => migration.generation < 135),
+      ),
+    });
+    const range = { fromMs: 58_000, toMs: 80_000 };
+    const payload = (id: string, visual: Record<string, unknown>) =>
+      JSON.stringify({
+        id,
+        at: '2026-11-04T00:00:00.000Z',
+        author: { kind: 'human' },
+        voiceCall: { callId: 'call-0123456789abcdef', visual },
+      });
+    attachOperationalModule(prior, 'messaging').transaction((database) => {
+      const insert = database.prepare(
+        `INSERT INTO source_events (source_event_id, source_kind, bot_slug, channel_id, message_id, body, created_at, payload_json)
+         VALUES (?, 'human-message', 'mira', 'dm-mira', ?, '这是什么', '2026-11-04T00:00:00.000Z', ?)`,
+      );
+      insert.run(
+        'event-1',
+        'human-1',
+        payload('human-1', { source: 'screen', frames: 4, layout: '2+2', records: ['r-1'] }),
+      );
+      insert.run(
+        'event-2',
+        'human-2',
+        payload('human-2', { source: 'screen', sameAs: 'human-1', records: ['r-1', 'r-2'] }),
+      );
+      insert.run(
+        'event-3',
+        'human-3',
+        payload('human-3', { source: 'camera', frames: 2, layout: '2', ...range, records: ['r'] }),
+      );
+      insert.run(
+        'event-4',
+        'human-4',
+        payload('human-4', { source: 'camera', frames: 1, layout: '1', ...range }),
+      );
+    });
+    prior.close();
+    const owner = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
+    try {
+      const rows = attachOperationalModule(owner, 'messaging').read((database) =>
+        database
+          .prepare('SELECT body, payload_json FROM source_events ORDER BY source_event_id')
+          .all(),
+      ) as { body: string; payload_json: string }[];
+      const messages = rows.map((row): Record<string, unknown> => ({
+        ...(JSON.parse(row.payload_json) as Record<string, unknown>),
+        body: row.body,
+      }));
+      expect(messages.map((message) => isChannelMessage(message))).toEqual([
+        true,
+        true,
+        true,
+        true,
+      ]);
+      expect(rows.some((row) => row.payload_json.includes('records'))).toBe(false);
+      expect(messages.map((message) => message['voiceCall'])).toEqual([
+        { callId: 'call-0123456789abcdef' },
+        { callId: 'call-0123456789abcdef', visual: { source: 'screen', sameAs: 'human-1' } },
+        {
+          callId: 'call-0123456789abcdef',
+          visual: { source: 'camera', frames: 2, layout: '2', ...range },
+        },
+        {
+          callId: 'call-0123456789abcdef',
+          visual: { source: 'camera', frames: 1, layout: '1', ...range },
+        },
       ]);
     } finally {
       owner.close();

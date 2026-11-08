@@ -1764,8 +1764,8 @@ const en = {
     recordEnded: 'Voice call ended',
     recordStartedAt: (time: string) => `Started ${time}`,
     recordLength: (time: string) => `Lasted ${time}`,
-    recordCamera: 'Camera while you were silent',
-    recordScreen: 'Screen while you were silent',
+    recordCamera: 'Camera frames',
+    recordScreen: 'Screen frames',
     recordFrames: (from: string, to: string, frames: number) =>
       `${from}–${to} · ${frames} ${frames === 1 ? 'keyframe' : 'keyframes'}`,
     recordShareStoppedCamera: 'Camera disconnected',
@@ -4072,8 +4072,8 @@ const zh: typeof en = {
     recordEnded: '语音通话结束',
     recordStartedAt: (time: string) => `开始于 ${time}`,
     recordLength: (time: string) => `时长 ${time}`,
-    recordCamera: '你沉默时的摄像头画面',
-    recordScreen: '你沉默时的屏幕画面',
+    recordCamera: '摄像头画面',
+    recordScreen: '屏幕画面',
     recordFrames: (from: string, to: string, frames: number) =>
       `${from}–${to} · ${frames} 个关键帧`,
     recordShareStoppedCamera: '摄像头已断开',

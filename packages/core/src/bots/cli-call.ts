@@ -452,11 +452,22 @@ async function simulate(
           pickMs: visual.pickMs,
           prepareMs: of('frame-received').map((event) => event.prepareMs),
           framePostMs: sentFrames.map((frame) => frame.postMs),
+          harvest: {
+            commits: of('frame-record').length,
+            commitFrames: of('frame-record').reduce((sum, event) => sum + event.frames, 0),
+            sentenceFrames: of('grid-sent').map(
+              (event) => of('grid-built').find((built) => built.grid === event.grid)?.frames ?? 0,
+            ),
+            unchanged: of('grid-unchanged').length,
+            dropped: of('frames-dropped').reduce((sum, event) => sum + event.dropped, 0),
+          },
           grids: of('grid-built').map((built) => {
             const sent = of('grid-sent').find((event) => event.grid === built.grid);
             return {
               frames: built.frames,
-              dropped: built.dropped,
+              commits: built.commits,
+              fromMs: built.fromMs,
+              toMs: built.toMs,
               layout: built.layout,
               bytes: built.bytes,
               composeMs: built.composeMs,

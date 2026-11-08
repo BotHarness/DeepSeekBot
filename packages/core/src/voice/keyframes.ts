@@ -139,18 +139,3 @@ export function isCallGridLayout(frames: unknown, layout: unknown): boolean {
     layout === gridLayout(frames as number).layout
   );
 }
-
-export function pickGridFrames<T extends { readonly score: number }>(
-  frames: readonly T[],
-  max = MAX_GRID_FRAMES,
-): T[] {
-  if (frames.length <= max) return [...frames];
-  const ranked = frames
-    .slice(1)
-    .map((frame, index) => ({ frame, index: index + 1 }))
-    .sort((left, right) => right.frame.score - left.frame.score || left.index - right.index)
-    .slice(0, max - 1)
-    .map((entry) => entry.index);
-  const keep = new Set([0, ...ranked]);
-  return frames.filter((_, index) => keep.has(index));
-}

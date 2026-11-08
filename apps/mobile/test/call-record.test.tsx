@@ -63,7 +63,7 @@ it('reads a silent frame record as camera or screen activity with its time range
   } as const;
   expect(activityOf(message(frames))).toEqual({ kind: 'voice-call', record: frames });
   expect(callRecordLines(frames, callStrings.en)).toEqual({
-    title: 'Screen while you were silent',
+    title: 'Screen frames',
     detail: '0:12–0:40 · 9 keyframes',
   });
 });
