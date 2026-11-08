@@ -381,6 +381,9 @@ jobs:
       - run: >-
           node scripts/perf-idle-timeline.mjs --messages 600 --label ci
           --budget scripts/perf-budgets/timeline.json --out .humanlayer/perf/ci > /dev/null
+      - run: >-
+          node scripts/perf-genui-opening.mjs --headless
+          --out .humanlayer/perf/genui-ci > /dev/null
       - if: always()
         run: node scripts/verify-app.mjs stop --name perf
       - if: always()
@@ -390,6 +393,7 @@ jobs:
           path: |
             .humanlayer/perf/ci/*.json
             .humanlayer/perf/ci/*.png
+            .humanlayer/perf/genui-ci/*.json
           if-no-files-found: ignore
 
   verify:

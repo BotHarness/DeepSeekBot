@@ -1,0 +1,95 @@
+{
+  "name": "genui-opening",
+  "fixture": "Three sequential plain/rich pairs, fresh browser per target, one canonical message per DM, bundled nine-scene HTML document; no model",
+  "always": [
+    {
+      "metric": "plain.count",
+      "kind": "structure",
+      "min": 3,
+      "max": 3,
+      "why": "Three text-only controls"
+    },
+    {
+      "metric": "rich.count",
+      "kind": "structure",
+      "min": 3,
+      "max": 3,
+      "why": "Three rich-document journeys"
+    },
+    {
+      "metric": "publication.count",
+      "kind": "structure",
+      "min": 6,
+      "max": 6,
+      "why": "Every target is explicitly published"
+    },
+    {
+      "metric": "preview.count",
+      "kind": "structure",
+      "min": 3,
+      "max": 3,
+      "why": "Every document has a successful prior exact-input preview"
+    },
+    {
+      "metric": "invalidPairs",
+      "kind": "structure",
+      "max": 0,
+      "why": "Missing or duplicate arms cannot qualify"
+    },
+    {
+      "metric": "invalidMeasurements",
+      "kind": "structure",
+      "max": 0,
+      "why": "Missing, nonfinite or negative durations cannot pass"
+    },
+    {
+      "metric": "invalidReadiness",
+      "kind": "structure",
+      "max": 0,
+      "why": "Trusted click, frontmost canonical content, visible iframe, enabled controls and settled readiness are required"
+    },
+    {
+      "metric": "invalidPreviews",
+      "kind": "structure",
+      "max": 0,
+      "why": "Preview input must equal publication input without preview errors"
+    },
+    {
+      "metric": "invalidPublications",
+      "kind": "structure",
+      "max": 0,
+      "why": "Read back the exact canonical message after explicit publication"
+    },
+    { "metric": "pageErrors", "kind": "structure", "max": 0, "why": "No uncaught page errors" },
+    {
+      "metric": "cleanupFailures",
+      "kind": "structure",
+      "max": 0,
+      "why": "Every owned Bot and browser has a checked cleanup result"
+    },
+    {
+      "metric": "plain.ready.maxMs",
+      "kind": "timing",
+      "max": 1500,
+      "why": "Previously preregistered total visible-ready target; every sample must fit, not only the median"
+    },
+    {
+      "metric": "rich.ready.maxMs",
+      "kind": "timing",
+      "max": 1500,
+      "why": "Same preregistered total opening deadline for added document work"
+    },
+    {
+      "metric": "publication.maxMs",
+      "kind": "timing",
+      "max": 1000,
+      "why": "Previously preregistered explicit publication RPC target"
+    },
+    {
+      "metric": "preview.maxMs",
+      "kind": "timing",
+      "max": 15000,
+      "why": "Previously preregistered end-to-end preview target, consistent with the owner's 15-second deadline"
+    }
+  ]
+}
