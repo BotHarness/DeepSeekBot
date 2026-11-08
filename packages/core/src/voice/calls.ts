@@ -84,6 +84,13 @@ export type VoiceCallSentVisual =
       readonly sameAs: string;
     };
 
+export interface VoiceCallText {
+  readonly callId: string;
+  readonly atMs: number;
+  readonly visual?: VoiceCallSentVisual;
+  settle(sent: boolean): void;
+}
+
 export interface VoiceCallSpeechRange {
   readonly fromMs: number;
   readonly toMs: number;
@@ -315,6 +322,11 @@ export interface VoiceCalls {
     signal?: AbortSignal | undefined;
   }): Promise<CallSpeech | undefined>;
   zoom(input: { slug?: string; messageId: string; cell: number }): VoiceCallZoom;
+  text(input: {
+    channelId: string;
+    messageId: string;
+    picture?: boolean | undefined;
+  }): Promise<VoiceCallText | undefined>;
   revoke(deviceId: string): Promise<void>;
   dispose(): Promise<void>;
 }
@@ -995,6 +1007,149 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     reportDropped(call, grid.source, call.harvest.restore(grid.frames));
   };
 
+  const gridVisual = async (
+    call: Call,
+    grid: GridJob | undefined,
+  ): Promise<{ visual: VoiceCallSentVisual | undefined; waitedMs: number }> => {
+    if (grid === undefined) return { visual: undefined, waitedMs: 0 };
+    const unseen =
+      deps.seesImages !== undefined && !(await deps.seesImages(call.slug).catch(() => true));
+    await commitsWritten(call, grid.written);
+    let visual: VoiceCallSentVisual | undefined;
+    let waitedMs = 0;
+    if (grid.frames.length === 0) {
+      const last = call.lastGrid;
+      if (last !== undefined && last.session === grid.session)
+        visual = { source: grid.source, sameAs: last.messageId };
+    } else {
+      const waitFrom = now();
+      try {
+        visual = await grid.result;
+      } catch (error) {
+        const message =
+          error instanceof CallFrameError ? error.message : 'The grid image could not be built.';
+        if (!ended(call)) push(call, { type: 'grid-failed', message: message.slice(0, 200) });
+        log('call-grid-failed', { call: call.id, message: message.slice(0, 200) });
+      }
+      waitedMs = now() - waitFrom;
+    }
+    if (unseen && visual !== undefined && 'image' in visual) {
+      visual = { ...visual, unseen: true };
+      log('call-grid-unseen', { call: call.id, source: visual.source });
+    }
+    return { visual, waitedMs };
+  };
+
+  const gridSent = (
+    call: Call,
+    grid: GridJob | undefined,
+    visual: VoiceCallSentVisual | undefined,
+    messageId: string,
+    waitedMs: number,
+  ) => {
+    if (visual !== undefined && 'image' in visual) {
+      if (grid !== undefined && call.visualSession === grid.session)
+        call.lastGrid = { source: visual.source, session: grid.session, messageId };
+      keep(call, messageId, visual.source, grid?.picked ?? []);
+      push(call, {
+        type: 'grid-sent',
+        grid: grid?.id ?? 0,
+        messageId,
+        layout: visual.image.layout,
+        waitedMs,
+      });
+    } else if (visual !== undefined && 'sameAs' in visual)
+      push(call, { type: 'grid-unchanged', messageId, sameAs: visual.sameAs });
+  };
+
+  const noteHeard = (call: Call) => {
+    call.lastHeardAt = now();
+    if (!call.busy && call.ownTurn === 'none') {
+      call.ownTurn = 'sent';
+      call.ownTurnAt = now();
+    }
+    prune(call);
+  };
+
+  const bounded = async (work: Promise<unknown> | undefined) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([
+      Promise.resolve(work).catch(() => undefined),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, VOICE_CALL_LIMITS.operationTimeoutMs);
+        timer.unref?.();
+      }),
+    ]);
+    clearTimeout(timer);
+  };
+
+  const text = async (input: {
+    channelId: string;
+    messageId: string;
+    picture?: boolean | undefined;
+  }): Promise<VoiceCallText | undefined> => {
+    const call = [...calls.values()].find(
+      (candidate) =>
+        !ended(candidate) && candidate.connected && candidate.channelId === input.channelId,
+    );
+    if (call === undefined) return undefined;
+    const atMs = Math.max(0, now() - visualBase(call));
+    let grid = input.picture === false ? undefined : takeGrid(call);
+    let land!: () => void;
+    const landed = new Promise<void>((resolve) => {
+      land = resolve;
+    });
+    const before = call.transcription;
+    const recorded = call.recorded;
+    const prepared = (async () => {
+      await bounded(Promise.all([before, recorded]));
+      if (ended(call)) {
+        if (grid !== undefined && grid.frames.length > 0)
+          commit(call, grid.session, grid.source, [grid.frames]);
+        grid = undefined;
+        return { visual: undefined, waitedMs: 0 };
+      }
+      return gridVisual(call, grid);
+    })();
+    call.transcription = prepared.then(() => bounded(landed)).catch(() => undefined);
+    const { visual, waitedMs } = await prepared.catch(() => ({
+      visual: undefined,
+      waitedMs: 0,
+    }));
+    let settled = false;
+    return {
+      callId: call.id,
+      atMs,
+      ...(visual === undefined ? {} : { visual }),
+      settle(sent) {
+        if (settled) return;
+        settled = true;
+        land();
+        if (!sent) {
+          if (grid !== undefined && grid.frames.length > 0 && ended(call))
+            commit(call, grid.session, grid.source, [grid.frames]);
+          else restoreGrid(call, grid);
+          log('call-text-failed', { call: call.id, atMs });
+          return;
+        }
+        if (ended(call)) return;
+        gridSent(call, grid, visual, input.messageId, waitedMs);
+        noteHeard(call);
+        push(call, {
+          type: 'text',
+          messageId: input.messageId,
+          atMs,
+          ...(grid === undefined || grid.frames.length === 0 ? {} : { grid: grid.id }),
+        });
+        log('call-text', {
+          call: call.id,
+          atMs,
+          frames: visual !== undefined && 'image' in visual ? visual.frames : 0,
+        });
+      },
+    };
+  };
+
   const transcribe = (
     call: Call,
     pcm: Int16Array,
@@ -1076,35 +1231,8 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       const messageId = `human-${randomUUID()}`;
       await call.recorded;
       if (ended(call)) return;
-      let visual: VoiceCallSentVisual | undefined;
-      let waitedMs = 0;
-      const unseen =
-        grid !== undefined &&
-        deps.seesImages !== undefined &&
-        !(await deps.seesImages(call.slug).catch(() => true));
-      if (grid !== undefined) await commitsWritten(call, grid.written);
+      const { visual, waitedMs } = await gridVisual(call, grid);
       if (ended(call)) return;
-      if (grid !== undefined && grid.frames.length === 0) {
-        const last = call.lastGrid;
-        if (last !== undefined && last.session === grid.session)
-          visual = { source: grid.source, sameAs: last.messageId };
-      } else if (grid !== undefined) {
-        const waitFrom = now();
-        try {
-          visual = await grid.result;
-        } catch (error) {
-          const message =
-            error instanceof CallFrameError ? error.message : 'The grid image could not be built.';
-          if (!ended(call)) push(call, { type: 'grid-failed', message: message.slice(0, 200) });
-          log('call-grid-failed', { call: call.id, message: message.slice(0, 200) });
-        }
-        waitedMs = now() - waitFrom;
-        if (ended(call)) return;
-      }
-      if (unseen && visual !== undefined && 'image' in visual) {
-        visual = { ...visual, unseen: true };
-        log('call-grid-unseen', { call: call.id, source: visual.source });
-      }
       try {
         await deps.send({
           slug: call.slug,
@@ -1128,26 +1256,9 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         });
         return;
       }
-      if (visual !== undefined && 'image' in visual) {
-        if (grid !== undefined && call.visualSession === grid.session)
-          call.lastGrid = { source: visual.source, session: grid.session, messageId };
-        keep(call, messageId, visual.source, grid?.picked ?? []);
-        push(call, {
-          type: 'grid-sent',
-          grid: grid?.id ?? 0,
-          messageId,
-          layout: visual.image.layout,
-          waitedMs,
-        });
-      } else if (visual !== undefined && 'sameAs' in visual)
-        push(call, { type: 'grid-unchanged', messageId, sameAs: visual.sameAs });
-      call.lastHeardAt = now();
+      gridSent(call, grid, visual, messageId, waitedMs);
       call.heard += 1;
-      if (!call.busy && call.ownTurn === 'none') {
-        call.ownTurn = 'sent';
-        call.ownTurnAt = now();
-      }
-      prune(call);
+      noteHeard(call);
       push(call, {
         type: 'sent',
         messageId,
@@ -2176,6 +2287,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     draft: onDraft,
     speak,
     zoom,
+    text,
     async revoke(deviceId) {
       await Promise.all(
         [...calls.values()]

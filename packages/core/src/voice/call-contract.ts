@@ -128,6 +128,7 @@ export type VoiceCallEvent =
       streamed?: boolean;
       segments?: number;
     }
+  | { seq: number; at: number; type: 'text'; messageId: string; atMs: number; grid?: number }
   | { seq: number; at: number; type: 'asr-failed'; code: string; message: string }
   | { seq: number; at: number; type: 'send-failed'; code: string; message: string }
   | { seq: number; at: number; type: 'ack'; ms: number }

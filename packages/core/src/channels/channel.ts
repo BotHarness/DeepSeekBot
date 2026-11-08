@@ -475,23 +475,22 @@ export interface ChannelVoiceCallMessage {
   callId: string;
   speechFromMs?: number;
   speechToMs?: number;
+  atMs?: number;
   visual?: ChannelCallVisual;
 }
+
+const VOICE_CALL_MESSAGE_KEYS = new Set(['callId', 'visual', 'speechFromMs', 'speechToMs', 'atMs']);
 
 export function isChannelVoiceCallMessage(value: unknown): value is ChannelVoiceCallMessage {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const call = value as Record<string, unknown>;
-  if (
-    Object.keys(call).some(
-      (key) =>
-        key !== 'callId' && key !== 'visual' && key !== 'speechFromMs' && key !== 'speechToMs',
-    )
-  )
-    return false;
+  if (Object.keys(call).some((key) => !VOICE_CALL_MESSAGE_KEYS.has(key))) return false;
   if (typeof call['callId'] !== 'string' || !/^call-[a-f0-9]{16}$/u.test(call['callId']))
     return false;
   if (call['visual'] !== undefined && !isChannelCallVisual(call['visual'])) return false;
-  if (call['speechFromMs'] === undefined && call['speechToMs'] === undefined) return true;
+  const spoken = call['speechFromMs'] !== undefined || call['speechToMs'] !== undefined;
+  if (call['atMs'] !== undefined) return !spoken && callOffset(call['atMs']);
+  if (!spoken) return true;
   return callRange(call['speechFromMs'], call['speechToMs']);
 }
 

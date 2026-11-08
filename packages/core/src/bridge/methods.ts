@@ -283,6 +283,7 @@ import {
 } from '../channels/store.js';
 import { ChannelAttachmentError } from '../attachments/store.js';
 import { isChannelAttachmentRef } from '../attachments/ref.js';
+import type { CallTextHarvest, CallTextInput } from '../voice/call-text.js';
 import type { ChannelAttachmentRef } from '../attachments/ref.js';
 import type { ComposerRecoveryIdentity } from './composer-recovery.js';
 import type {
@@ -1179,6 +1180,7 @@ function storageFailure(
 
 export interface BridgeMethodsDeps {
   voiceProviders?: VoiceProviders;
+  callText?: (input: CallTextInput) => Promise<CallTextHarvest | undefined>;
   voiceLog?: (phase: string, fields: Record<string, string | number>) => void;
   botContext?(slug: string): Promise<BotContextWindow>;
   botSystemPrompt?(slug: string): Promise<BotSystemPromptView>;
@@ -1913,6 +1915,22 @@ function historyPosition(cursor: string): ToolApprovalHistoryPosition | undefine
     return undefined;
   }
 }
+const MAX_CHANNEL_SEND_ATTACHMENTS = 10;
+
+function ownAttachments(
+  message: ChannelMessage,
+  requested: ChannelMessage['voiceCall'],
+): readonly ChannelAttachmentRef[] {
+  const attachments = message.attachments ?? [];
+  const visual = message.voiceCall?.visual;
+  return requested === undefined &&
+    message.voiceCall?.atMs !== undefined &&
+    visual !== undefined &&
+    'frames' in visual
+    ? attachments.slice(0, -1)
+    : attachments;
+}
+
 export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
   async function appendStopNotice(
     channelId: string,
@@ -6142,7 +6160,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (
         attachments !== undefined &&
         (!Array.isArray(attachments) ||
-          attachments.length > 10 ||
+          attachments.length > MAX_CHANNEL_SEND_ATTACHMENTS ||
           !attachments.every(isChannelAttachmentRef))
       )
         return invalidInput('invalid attachments');
@@ -6276,14 +6294,15 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           return invalidInput('voiceCall.visual must describe the call grid');
         if (!isChannelVoiceCallMessage(rawVoiceCall))
           return invalidInput(
-            'voiceCall takes callId, visual and speechFromMs/speechToMs in ms from call connect',
+            'voiceCall takes callId, visual and either speechFromMs/speechToMs or atMs in ms from call connect',
           );
-        const { speechFromMs, speechToMs } = rawVoiceCall;
+        const { speechFromMs, speechToMs, atMs } = rawVoiceCall;
         voiceCall = {
           callId,
           ...(speechFromMs === undefined || speechToMs === undefined
             ? {}
             : { speechFromMs, speechToMs }),
+          ...(atMs === undefined ? {} : { atMs }),
           ...(visual === undefined ? {} : { visual }),
         };
       }
@@ -6415,7 +6434,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           JSON.stringify(existing.genuiReply) === JSON.stringify(genuiReply) &&
           existing.memorySwitchTarget === memorySwitchTarget &&
           JSON.stringify(existing.assignmentReply) === JSON.stringify(assignmentReply) &&
-          JSON.stringify(attachmentIntent(existing.attachments ?? [])) ===
+          JSON.stringify(attachmentIntent(ownAttachments(existing, voiceCall))) ===
             JSON.stringify(attachmentIntent(attachments ?? [])) &&
           JSON.stringify(existing.mentions ?? []) === JSON.stringify(mentions) &&
           JSON.stringify(existing.channelRefs ?? []) === JSON.stringify(channelRefs) &&
@@ -6504,21 +6523,6 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
             return invalidInput('Referenced Group Channel is no longer available');
         }
       }
-      const message: ChannelMessage = {
-        id: requestedMessageId ?? randomUUID(),
-        at: new Date().toISOString(),
-        author: { kind: 'human' },
-        body,
-        ...(attachments === undefined ? {} : { attachments }),
-        ...(mentions.length === 0 ? {} : { mentions }),
-        ...(channelRefs.length === 0 ? {} : { channelRefs }),
-        ...(replyTo === undefined ? {} : { replyTo }),
-        ...(grantRequestResolution === undefined ? {} : { grantRequestResolution }),
-        ...(assignmentReply === undefined ? {} : { assignmentReply }),
-        ...(memorySwitchTarget === undefined ? {} : { memorySwitchTarget }),
-        ...(voiceCall === undefined ? {} : { voiceCall }),
-        ...(genuiReply === undefined ? {} : { genuiReply }),
-      };
       if (
         channel.type === 'dm' &&
         channel.botSlug !== undefined &&
@@ -6528,6 +6532,32 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       ) {
         return dmAdmissionFailure(channelId, channel.botSlug, 'archived-bot');
       }
+      const id = requestedMessageId ?? randomUUID();
+      const harvest =
+        voiceCall === undefined && channel.type === 'dm' && channel.botSlug !== undefined
+          ? await deps.callText?.({
+              channelId,
+              messageId: id,
+              picture: (attachments?.length ?? 0) < MAX_CHANNEL_SEND_ATTACHMENTS,
+            })
+          : undefined;
+      if (harvest !== undefined) voiceCall = harvest.voiceCall;
+      const sent = [...(attachments ?? []), ...(harvest?.attachments ?? [])];
+      const message: ChannelMessage = {
+        id,
+        at: new Date().toISOString(),
+        author: { kind: 'human' },
+        body,
+        ...(sent.length === 0 ? {} : { attachments: sent }),
+        ...(mentions.length === 0 ? {} : { mentions }),
+        ...(channelRefs.length === 0 ? {} : { channelRefs }),
+        ...(replyTo === undefined ? {} : { replyTo }),
+        ...(grantRequestResolution === undefined ? {} : { grantRequestResolution }),
+        ...(assignmentReply === undefined ? {} : { assignmentReply }),
+        ...(memorySwitchTarget === undefined ? {} : { memorySwitchTarget }),
+        ...(voiceCall === undefined ? {} : { voiceCall }),
+        ...(genuiReply === undefined ? {} : { genuiReply }),
+      };
       let appendResult;
       try {
         appendResult = await deps.channels.appendMessageOnce(
@@ -6535,7 +6565,9 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           message,
           allBotMention?.preview,
         );
+        harvest?.settle(appendResult.status === 'appended');
       } catch (error) {
+        harvest?.settle(false);
         if (error instanceof AllBotPreviewChangedError)
           return {
             ok: false,

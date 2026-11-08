@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
+import { randomUUID } from 'node:crypto';
 
 import { CliLiveError } from './cli-live-error.js';
 import type { VoiceCallEvent, VoiceCallView } from '../voice/call-contract.js';
@@ -8,6 +9,17 @@ import { MAX_GRID_FRAMES } from '../voice/keyframes.js';
 import { CallVideoError, videoKeyframes, type VideoKeyframes } from '../voice/call-video.js';
 
 export type CallPost = (body: Record<string, unknown>) => Promise<Record<string, unknown>>;
+
+export type CallText = (input: {
+  channelId: string;
+  messageId: string;
+  body: string;
+}) => Promise<Record<string, unknown>>;
+
+export interface CallHost {
+  readonly post: CallPost;
+  readonly text: CallText;
+}
 
 export const CALL_PATH = '/api/voice/call';
 
@@ -54,7 +66,7 @@ export const CALL_COMMANDS = [
   {
     command: 'call-simulate',
     description:
-      'call a Bot with synthetic audio: plays --file <abs.wav> (or a --script <abs.json> timeline, where a step can wait for the Bot to start speaking to test barge-in) into a Host call without a phone, optionally sharing --video (camera) or --screen <abs video file or JPEG folder> as keyframes (--share-ends-at <ms> ends the share as the system would, leaving the call voice only; --share-pause <from>-<to> pauses it as a phone app in the background does), waits for the spoken reply and reports event timings',
+      'call a Bot with synthetic audio: plays --file <abs.wav> (or a --script <abs.json> timeline, where a step can wait for the Bot to start speaking to test barge-in, or type a "text" into the DM during the call) into a Host call without a phone, optionally sharing --video (camera) or --screen <abs video file or JPEG folder> as keyframes (--share-ends-at <ms> ends the share as the system would, leaving the call voice only; --share-pause <from>-<to> pauses it as a phone app in the background does), waits for the spoken reply and reports event timings',
   },
 ] as const;
 
@@ -77,11 +89,12 @@ function result(value: Record<string, unknown>): Record<string, unknown> {
   return value;
 }
 
-interface ScriptEntry {
-  at: number;
-  file: string;
-  after?: 'playing';
-}
+type ScriptEntry = { at: number; after?: 'playing' } & (
+  | { file: string; text?: undefined }
+  | { text: string; file?: undefined }
+);
+
+const MAX_SCRIPT_TEXT = 2_000;
 
 function script(values: CallValues): ScriptEntry[] {
   if ((values.file === undefined) === (values.script === undefined))
@@ -99,7 +112,9 @@ function script(values: CallValues): ScriptEntry[] {
   }
   const steps = Array.isArray(parsed) ? parsed : (parsed as { steps?: unknown })?.steps;
   if (!Array.isArray(steps) || steps.length === 0 || steps.length > 20)
-    usage('--script holds 1–20 steps like [{"at": 0, "file": "/abs/question.wav"}].');
+    usage(
+      '--script holds 1–20 steps like [{"at": 0, "file": "/abs/question.wav"}, {"at": 6000, "text": "and this?"}].',
+    );
   return steps.map((step) => {
     const entry = (typeof step === 'object' && step !== null ? step : {}) as Record<
       string,
@@ -110,18 +125,22 @@ function script(values: CallValues): ScriptEntry[] {
       !Number.isFinite(entry['at']) ||
       entry['at'] < 0 ||
       entry['at'] > 600_000 ||
-      typeof entry['file'] !== 'string' ||
-      !isAbsolute(entry['file']) ||
+      (entry['file'] === undefined) === (entry['text'] === undefined) ||
+      (entry['file'] !== undefined &&
+        (typeof entry['file'] !== 'string' || !isAbsolute(entry['file']))) ||
+      (entry['text'] !== undefined &&
+        (typeof entry['text'] !== 'string' ||
+          entry['text'].trim() === '' ||
+          entry['text'].length > MAX_SCRIPT_TEXT)) ||
       (entry['after'] !== undefined && entry['after'] !== 'playing')
     )
       usage(
-        'Each script step needs "at" (ms from call start, or from the next reply audio with "after": "playing") and an absolute "file".',
+        `Each script step needs "at" (ms from call start, or from the next reply audio with "after": "playing") and either an absolute "file" or a "text" of at most ${MAX_SCRIPT_TEXT} characters to type into the DM.`,
       );
-    return {
-      at: entry['at'],
-      file: entry['file'],
-      ...(entry['after'] === 'playing' ? { after: 'playing' as const } : {}),
-    };
+    const after = entry['after'] === 'playing' ? { after: 'playing' as const } : {};
+    return typeof entry['text'] === 'string'
+      ? { at: entry['at'], text: entry['text'], ...after }
+      : { at: entry['at'], file: entry['file'] as string, ...after };
   });
 }
 
@@ -165,10 +184,12 @@ async function loadVisual(values: CallValues): Promise<VideoKeyframes | undefine
 async function simulate(
   slug: string,
   values: CallValues,
-  post: CallPost,
+  host: CallHost,
   clock: { now(): number; sleep(ms: number): Promise<void> },
 ): Promise<unknown> {
+  const post = host.post;
   const parsed = script(values).map((step) => {
+    if (step.text !== undefined) return { ...step, audio: new Int16Array(0) };
     let audio: Int16Array;
     try {
       audio = readWavAs16kMono(readFileSync(step.file));
@@ -237,6 +258,24 @@ async function simulate(
   let streamMs = 0;
   let position = 0;
   const missed: number[] = [];
+  const typed: { messageId: string; atMs: number; sent: boolean; error?: string }[] = [];
+  const typeText = async (body: string) => {
+    await shareDue();
+    const messageId = `human-${randomUUID()}`;
+    const atMs = Math.round(clock.now() - started);
+    try {
+      await host.text({ channelId: call.channelId, messageId, body });
+      typed.push({ messageId, atMs, sent: true });
+    } catch (error) {
+      typed.push({
+        messageId,
+        atMs,
+        sent: false,
+        error: (error instanceof Error ? error.message : 'The text was not sent.').slice(0, 200),
+      });
+    }
+    await heartbeat();
+  };
   let shareEndedAt: number | undefined;
   let pausedAt: number | undefined;
   let resumedAt: number | undefined;
@@ -358,7 +397,8 @@ async function simulate(
       }
       while (position < start) await inject(silence.subarray(0, Math.min(CHUNK, start - position)));
       previous = seq;
-      await inject(step.audio);
+      if (step.text !== undefined) await typeText(step.text);
+      else await inject(step.audio);
     }
     await inject(new Int16Array(24_000));
     const deadline = clock.now() + replyWaitMs;
@@ -371,7 +411,7 @@ async function simulate(
       count('speech-start') <= count('transcribing', 'noise-discarded') &&
       count('transcribing') <=
         count('sent', 'asr-failed', 'send-failed', 'nothing-heard') + filtered() &&
-      count('reply-done') >= count('sent');
+      count('reply-done') >= count('sent', 'text');
     while (clock.now() < deadline) {
       await clock.sleep(1_000);
       await shareDue();
@@ -440,6 +480,30 @@ async function simulate(
   );
   const of = <T extends VoiceCallEvent['type']>(type: T) =>
     events.filter((event): event is Extract<VoiceCallEvent, { type: T }> => event.type === type);
+  const textIds = new Set(of('text').map((event) => event.messageId));
+  const texts = typed.map((entry) => {
+    const harvested = of('text').find((event) => event.messageId === entry.messageId);
+    const built =
+      harvested?.grid === undefined
+        ? undefined
+        : of('grid-built').find((event) => event.grid === harvested.grid);
+    const same = of('grid-unchanged').find((event) => event.messageId === entry.messageId);
+    return {
+      ...entry,
+      inCall: harvested !== undefined,
+      ...(harvested === undefined ? {} : { callAtMs: harvested.atMs }),
+      frames: built?.frames ?? 0,
+      ...(built === undefined
+        ? {}
+        : {
+            commitsBefore: built.commits,
+            fromMs: built.fromMs,
+            toMs: built.toMs,
+            layout: built.layout,
+          }),
+      ...(same === undefined ? {} : { sameAs: same.sameAs }),
+    };
+  });
   const visualReport =
     visual === undefined
       ? undefined
@@ -455,9 +519,12 @@ async function simulate(
           harvest: {
             commits: of('frame-record').length,
             commitFrames: of('frame-record').reduce((sum, event) => sum + event.frames, 0),
-            sentenceFrames: of('grid-sent').map(
-              (event) => of('grid-built').find((built) => built.grid === event.grid)?.frames ?? 0,
-            ),
+            sentenceFrames: of('grid-sent')
+              .filter((event) => !textIds.has(event.messageId))
+              .map(
+                (event) => of('grid-built').find((built) => built.grid === event.grid)?.frames ?? 0,
+              ),
+            textFrames: texts.filter((entry) => entry.inCall).map((entry) => entry.frames),
             unchanged: of('grid-unchanged').length,
             dropped: of('frames-dropped').reduce((sum, event) => sum + event.dropped, 0),
           },
@@ -505,6 +572,7 @@ async function simulate(
       ...(event.streamed === true ? { streamed: true } : {}),
       ...(event.segments === undefined ? {} : { segments: event.segments }),
     })),
+    ...(texts.length === 0 ? {} : { texts }),
     hearing: events
       .filter(
         (event): event is Extract<VoiceCallEvent, { type: 'hearing' }> => event.type === 'hearing',
@@ -528,7 +596,7 @@ async function simulate(
     firstTextMs: first('textMs'),
     firstAudioMs: first('responseMs'),
     answered:
-      heard.length > 0 &&
+      (heard.length > 0 || texts.some((entry) => entry.inCall)) &&
       events.some((event) => event.type === 'reply-done' && event.sentences > 0),
     events,
   };
@@ -538,7 +606,7 @@ export async function runCallCommand(
   command: Command,
   rest: string[],
   values: CallValues,
-  connect: () => Promise<CallPost>,
+  connect: () => Promise<CallHost>,
   clock: { now(): number; sleep(ms: number): Promise<void> } = { now: Date.now, sleep },
 ): Promise<unknown> {
   const one = (shape: string) => {
@@ -547,11 +615,11 @@ export async function runCallCommand(
   };
   if (command === 'call-status') {
     if (rest.length !== 0) usage('call-status takes no positional arguments.');
-    return result(await (await connect())({ kind: 'status' }));
+    return result(await (await connect()).post({ kind: 'status' }));
   }
   if (command === 'call-readiness') {
     const slug = one('one bot id');
-    return result(await (await connect())({ kind: 'readiness', slug }));
+    return result(await (await connect()).post({ kind: 'readiness', slug }));
   }
   if (command === 'call-frame') {
     if (rest.length !== 2 || !rest[0]!.trim())
@@ -564,9 +632,7 @@ export async function runCallCommand(
     if (values.out !== undefined && !isAbsolute(values.out))
       usage('--out must be an absolute path.');
     const reply = result(
-      await (
-        await connect()
-      )({ kind: 'zoom', messageId: rest[0]!.trim(), cell }),
+      await (await connect()).post({ kind: 'zoom', messageId: rest[0]!.trim(), cell }),
     );
     const zoom = reply['zoom'] as Record<string, unknown> | undefined;
     if (zoom === undefined)
@@ -579,7 +645,7 @@ export async function runCallCommand(
   }
   if (command === 'call-hangup') {
     const callId = one('one call id');
-    return result(await (await connect())({ kind: 'hangup', callId }));
+    return result(await (await connect()).post({ kind: 'hangup', callId }));
   }
   const slug = one('one bot id');
   script(values);
