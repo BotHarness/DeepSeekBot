@@ -1534,7 +1534,7 @@ const ASSIGNMENT_RECOVERY_NOTE =
   '[Host: your previous Turn in this Session did not finish cleanly (it ended with an error, was cancelled, or was interrupted by a Host restart). Your context is intact. Check the current state of your workspace and any side effects before redoing work, and do not repeat a side effect blindly; an earlier request may already have reached you.]\n\n';
 
 const HUMAN_SESSION_STOP_NOTICE =
-  'The Human stopped this Assignment. Do not send it another Assignment Request or redispatch this work unless the Human asks you to. Its history is kept: after an explicit Human instruction to continue, call unarchive_assignment with this Session id first and then send the request again.';
+  'The Human stopped this Assignment. Do not send it another Assignment Request or redispatch this work unless the Human asks you to. Its history is kept: after an explicit Human instruction to continue, call unarchive_assignment with this Session id and pass the request as its message to revive and continue it in one call.';
 
 interface PendingAutoContinue {
   timer: NodeJS.Timeout;
@@ -9160,7 +9160,7 @@ class BotRuntimeImplementation implements BotRuntime {
       throw new Error(
         `Assignment Session ${input.sessionId} was stopped by the Human; nothing was delivered. ` +
           `Do not redispatch this work unless the Human asks for it. To continue it after an explicit ` +
-          `Human instruction, call unarchive_assignment first and then send the request again.`,
+          `Human instruction, call unarchive_assignment with this request as its message.`,
       );
     }
     if (row.stop_state !== 'running') {

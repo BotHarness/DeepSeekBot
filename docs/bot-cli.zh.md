@@ -279,6 +279,8 @@ deepseekbot channel-purge-preview <channel> --source-event <id> | jq '{token}' \
 发送中断后，通过 `bot-tool <bot> channel_action --args-stdin` 传入
 `{"channel_id":"...","action":"inspect"}`，读取自己最多 20 条草稿／回执元数据，
 待处理记录优先，并返回 `hasMore`；指定 `draft_id` 可查更早的准确记录。检查不发送消息、不结清 Inbox。
+每条记录的 `state` 在草稿未结束时为 `held` 或 `requires-review`，结束后为 `committed`、`dropped`
+或 `expired`；结束状态不再改变，被停止的草稿在复核时限过后仍显示 `dropped`。
 Host 重启后，先读取当前群聊，再用 `recover:true`、`draft_id`、新 `observation_id`
 和修正后的 `body` 恢复。旧观察无效，过期时间及已消耗的复核预算不重置。
 已提交回执给出原 `messageId`，可读取规范消息核实；同 `draft_id`、同正文重放只返回原消息 ID，
@@ -497,7 +499,11 @@ deepseekbot private-mcp-remove <bot-id> --server <name> --confirm
 
 `session-stop <bot-id> --activity <activity-id>` 停止 Bot 实时活动快照中某一行（`sessions[].id`）对应的 Session，与消息面板顶部弹出框中该行的停止按钮相同。该行已消失表示 Session 已结束，命令返回空的 `stopped` 和 `alreadyIdle` 列表，仍然成功。Session id 和 `--activity` 只能传其中一个。
 
-停止 **Assignment** 不会唤醒 Orchestrator；它的下一轮会读到一条 Host 生命周期通知，说明 Human 停止了该 Assignment，除非 Human 要求，否则不要重新派发。该 Assignment 保留历史且不会被归档；在它保持停止期间，新的 Assignment Request 会被拒绝。只有显式恢复能让它继续：在 Human 明确指示继续后，先调用 `unarchive_assignment`，再重新发送请求。
+停止 **Assignment** 不会唤醒 Orchestrator；它的下一轮会读到一条 Host 生命周期通知，说明 Human 停止了该 Assignment，除非 Human 要求，否则不要重新派发。该 Assignment 保留历史且不会被归档；在它保持停止期间，新的 Assignment Request 会被拒绝。只有显式恢复能让它继续：在 Human 明确指示继续后，调用 `unarchive_assignment` 并把请求作为可选的 `message` 传入，一次调用即可恢复并继续（也可以先取消归档，再重新发送请求）。不带 `message` 时，`unarchive_assignment` 只恢复它，不发送任何内容。带 `message`（以及可选的 `mode`，默认 `next-turn`，或 `next-step`）时，请求走与 `send_assignment_request` 相同的 Assignment Request 投递路径和拒绝规则；`delivery` 为 `steer` 或 `followup` 表示已投递，`code: "request-not-delivered"`（请求被带码拒绝时附带 `requestCode`）表示 Assignment 已取消归档但没有收到请求。无效的 `mode`、空白的 `message`，或只给 `mode` 不给 `message`，会在取消归档之前被拒绝。不经过模型：
+
+```bash
+printf '{"session_id":"<assignment-session-id>","message":"Human 还是要这个，继续"}' | deepseekbot bot-tool <bot-id> unarchive_assignment --args-stdin
+```
 
 停止 **Orchestrator** 只打断它当前的回合（或等待中的自动继续）。它的 Assignment 继续运行，其他一切不变：下一条消息、Assignment 汇报或其他唤醒照常开启新回合，这一回合会带上一条关于停止的 Host 说明。在 Sessions 面板中，如果有正在运行的 Assignment，停止前会先询问，并可选择一并停止它们（Bot Stop）。
 

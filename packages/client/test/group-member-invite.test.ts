@@ -162,3 +162,28 @@ it('stops a selected Bot from being invited after it becomes unavailable', async
   await act(async () => dialog().querySelector('form')!.requestSubmit());
   expect(inviteGroupBot).not.toHaveBeenCalled();
 });
+
+it('clears the previous error while a retry is pending and shows it again only if the retry fails', async () => {
+  inviteGroupBot.mockResolvedValueOnce(false);
+  await openInvite();
+  await act(async () => buttonNamed('Bob', dialog()).click());
+  await act(async () => dialog().querySelector('form')!.requestSubmit());
+  expect(dialog().querySelector('[role="alert"]')?.textContent).toBe(t('members.error'));
+
+  let settle: (ok: boolean) => void = () => undefined;
+  inviteGroupBot.mockReturnValueOnce(new Promise<boolean>((resolve) => (settle = resolve)));
+  await act(async () => dialog().querySelector('form')!.requestSubmit());
+  expect(dialog().querySelector('[role="alert"]')).toBeNull();
+
+  await act(async () => settle(false));
+  expect(dialog().querySelector('[role="alert"]')?.textContent).toBe(t('members.error'));
+});
+
+it('shows the error when the invitation request throws', async () => {
+  inviteGroupBot.mockRejectedValueOnce(new Error('bridge offline'));
+  await openInvite();
+  await act(async () => buttonNamed('Bob', dialog()).click());
+  await act(async () => dialog().querySelector('form')!.requestSubmit());
+  expect(dialog().querySelector('[role="alert"]')?.textContent).toBe(t('members.error'));
+  expect(dialog().querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(false);
+});

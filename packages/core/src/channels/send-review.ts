@@ -7,6 +7,13 @@ import { isChannelNotice } from './channel-notice.js';
 
 const TTL = 10 * 60_000;
 const MAX_RECHECKS = 2;
+export const OPEN_DRAFT_STATES = ['held', 'requires-review'] as const;
+export const TERMINAL_DRAFT_STATES = ['committed', 'dropped', 'expired'] as const;
+export type OpenDraftState = (typeof OPEN_DRAFT_STATES)[number];
+export type ReviewDraftState = OpenDraftState | (typeof TERMINAL_DRAFT_STATES)[number];
+export const isOpenDraft = (state: ReviewDraftState): state is OpenDraftState =>
+  (OPEN_DRAFT_STATES as readonly ReviewDraftState[]).includes(state);
+const OPEN_DRAFT_SQL = `json_extract(record_json, '$.state') IN (${OPEN_DRAFT_STATES.map((state) => `'${state}'`).join(', ')})`;
 type Seen = { id: string; revision: number; hash: string; readSerial?: number };
 type Observation = { owner: string; channelId: string; seen: Seen[]; expires: number };
 export type FreshnessOverride = { draftVersion: number; reason: string };
@@ -53,7 +60,7 @@ export type ReviewDraft = {
   sourceEventId: string;
   boot: string;
   expires: number;
-  state: string;
+  state: ReviewDraftState;
   attempts: number;
   original: ChannelMessage;
   current: ChannelMessage;
@@ -86,7 +93,7 @@ export type DraftInspection = {
   hasMore: boolean;
   drafts: {
     draftId: string;
-    state: string;
+    state: ReviewDraftState;
     sourceEventId: string;
     expiresAt: string;
     requiresRecovery: boolean;
@@ -165,7 +172,7 @@ export class GroupSendReview {
         draftId === undefined
           ? db
               .prepare(`SELECT record_json FROM group_send_review_drafts WHERE owner = ? AND channel_id = ?
-          ORDER BY CASE WHEN json_extract(record_json, '$.state') IN ('held', 'requires-review') THEN 0 ELSE 1 END,
+          ORDER BY CASE WHEN ${OPEN_DRAFT_SQL} THEN 0 ELSE 1 END,
           json_extract(record_json, '$.expires') DESC, id DESC LIMIT 21`)
               .all(owner, channelId)
               .map((row) => JSON.parse(String(row.record_json)) as ReviewDraft)
@@ -181,22 +188,13 @@ export class GroupSendReview {
         drafts: records.slice(0, 20).map((draft) => {
           const botSlug = draft.original.author.kind === 'bot' ? draft.original.author.slug : '';
           requireSourceEffects(db, draft.sourceEventId, botSlug);
-          if (
-            draft.state !== 'committed' &&
-            draft.state !== 'dropped' &&
-            draft.expires <= this.now().getTime()
-          ) {
-            draft.state = 'expired';
-            this.#save(db, draft);
-          }
+          this.#expire(db, draft);
           return {
             draftId: draft.id,
             state: draft.state,
             sourceEventId: draft.sourceEventId,
             expiresAt: new Date(draft.expires).toISOString(),
-            requiresRecovery:
-              (draft.state === 'held' || draft.state === 'requires-review') &&
-              draft.boot !== this.#boot,
+            requiresRecovery: isOpenDraft(draft.state) && draft.boot !== this.#boot,
             ...(draft.committed ? { messageId: draft.committed.messageId } : {}),
           };
         }),
@@ -232,32 +230,23 @@ export class GroupSendReview {
   }
 
   stop(botSlug: string): void {
-    this.database.transaction((db) => {
-      const rows = db
-        .prepare(`SELECT record_json FROM group_send_review_drafts
-        WHERE json_extract(record_json, '$.original.author.slug') = ?
-        AND json_extract(record_json, '$.state') IN ('held', 'requires-review')`)
-        .all(botSlug);
-      for (const row of rows) {
-        const draft = JSON.parse(String(row.record_json)) as ReviewDraft;
-        draft.state = 'dropped';
-        draft.terminationReason = 'stopped';
-        this.#save(db, draft);
-      }
-    });
+    this.#stopOpen("json_extract(record_json, '$.original.author.slug') = ?", botSlug);
   }
 
   stopOwner(owner: string): void {
+    this.#stopOpen('owner = ?', owner);
+  }
+
+  #stopOpen(match: string, value: string): void {
     this.database.transaction((db) => {
       const rows = db
         .prepare(`SELECT record_json FROM group_send_review_drafts
-        WHERE owner = ? AND json_extract(record_json, '$.state') IN ('held', 'requires-review')`)
-        .all(owner);
+        WHERE ${match} AND ${OPEN_DRAFT_SQL}`)
+        .all(value);
       for (const row of rows) {
         const draft = JSON.parse(String(row.record_json)) as ReviewDraft;
-        draft.state = 'dropped';
         draft.terminationReason = 'stopped';
-        this.#save(db, draft);
+        this.#move(db, draft, 'dropped');
       }
     });
   }
@@ -272,11 +261,8 @@ export class GroupSendReview {
       const draft = this.#load(db, owner, channelId, draftId);
       if (!draft || draft.state === 'committed')
         return { status: 'refused', channelId, draftId, reason: 'draft-unavailable' };
-      if (draft.expires <= this.now().getTime()) {
-        draft.state = 'expired';
-        this.#save(db, draft);
+      if (this.#expire(db, draft))
         return { status: 'expired', channelId, draftId, reason: 'draft-expired' };
-      }
       if (evidence && draft.state !== 'dropped') {
         const observation = this.#observations.get(evidence.observationId);
         const botSlug = draft.original.author.kind === 'bot' ? draft.original.author.slug : '';
@@ -322,8 +308,7 @@ export class GroupSendReview {
           };
         draft.yieldedToMessageIds = [...new Set(evidence.messageIds)];
       }
-      draft.state = 'dropped';
-      this.#save(db, draft);
+      this.#move(db, draft, 'dropped');
       const { budget, suggestedSnoozeUntil } = this.#progress(draft);
       const keepOpenInboxIds =
         budget.exhausted && !draft.yieldedToMessageIds
@@ -380,16 +365,12 @@ export class GroupSendReview {
     if (!input.draftId) {
       const pending = db
         .prepare(`SELECT record_json FROM group_send_review_drafts
-        WHERE owner = ? AND channel_id = ?
-        AND json_extract(record_json, '$.state') IN ('held', 'requires-review') LIMIT 1`)
+        WHERE owner = ? AND channel_id = ? AND ${OPEN_DRAFT_SQL} LIMIT 1`)
         .get(owner, channelId);
       if (pending) {
         const held = JSON.parse(String(pending.record_json)) as ReviewDraft;
-        if (held.expires <= this.now().getTime()) {
-          held.state = 'expired';
-          this.#save(db, held);
+        if (this.#expire(db, held))
           return { status: 'expired', channelId, draftId: held.id, reason: 'draft-expired' };
-        }
         if (held.boot !== this.#boot)
           return {
             status: 'requires-review',
@@ -407,13 +388,8 @@ export class GroupSendReview {
       }
     }
     if (previous) {
-      if (previous.expires <= this.now().getTime()) {
-        previous.state = 'expired';
-        this.#save(db, previous);
-        return fail('expired', 'draft-expired');
-      }
-      if (previous.state !== 'held' && previous.state !== 'requires-review')
-        return fail('refused', 'draft-terminal');
+      if (this.#expire(db, previous)) return fail('expired', 'draft-expired');
+      if (!isOpenDraft(previous.state)) return fail('refused', 'draft-terminal');
       if (previous.boot !== this.#boot && !input.recover)
         return fail('requires-review', 'host-restarted');
       if (!input.draftId) return fail('held', 'use-explicit-draft-id');
@@ -523,11 +499,10 @@ export class GroupSendReview {
     if (input.freshnessOverride) {
       draft.overrideAttemptedAt = this.now().toISOString();
       if (changed.length > 0) {
-        draft.state = 'requires-review';
         draft.requiredReview = currentBasis;
         draft.requiredObservationSerial = this.#observationSerial;
         draft.requiredObservationBoot = this.#boot;
-        this.#save(db, draft);
+        this.#move(db, draft, 'requires-review');
         return {
           ...fail('requires-review', 'override-context-changed-defer'),
           ...this.#progress(draft),
@@ -550,14 +525,14 @@ export class GroupSendReview {
       return undefined;
     }
     if (basis.length === 0 || changed.length > 0) {
-      draft.state = draft.attempts >= MAX_RECHECKS ? 'requires-review' : 'held';
+      const state = draft.attempts >= MAX_RECHECKS ? 'requires-review' : 'held';
       draft.requiredReview = currentBasis;
       draft.requiredObservationSerial = this.#observationSerial;
       draft.requiredObservationBoot = this.#boot;
-      this.#save(db, draft);
+      this.#move(db, draft, state);
       return {
         ...fail(
-          draft.state as 'held' | 'requires-review',
+          state,
           draft.attempts >= MAX_RECHECKS
             ? 'retry-budget-exhausted'
             : 'read-new-context-then-revise-or-drop',
@@ -573,7 +548,6 @@ export class GroupSendReview {
   }
 
   #commit(db: DatabaseSync, draft: ReviewDraft, message: ChannelMessage): void {
-    draft.state = 'committed';
     draft.committed = {
       messageId: message.id,
       intent: fingerprint(message),
@@ -588,7 +562,20 @@ export class GroupSendReview {
     draft.current = { id: message.id, at: message.at, author: message.author, body: '' };
     draft.basis = [];
     draft.initialBasis = [];
+    this.#move(db, draft, 'committed');
+  }
+
+  #move(db: DatabaseSync, draft: ReviewDraft, next: ReviewDraftState): void {
+    if (!isOpenDraft(draft.state) && draft.state !== next)
+      throw new Error(`Group send review draft cannot move from ${draft.state} to ${next}`);
+    draft.state = next;
     this.#save(db, draft);
+  }
+
+  #expire(db: DatabaseSync, draft: ReviewDraft): boolean {
+    if (draft.expires > this.now().getTime()) return false;
+    if (isOpenDraft(draft.state)) this.#move(db, draft, 'expired');
+    return true;
   }
 
   #progress(
