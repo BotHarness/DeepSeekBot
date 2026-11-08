@@ -78,9 +78,7 @@ it('shows a silent frame record with its source, time range and keyframe count',
       toMs: 40_000,
     },
   })!.voiceCallRecord!;
-  expect(voiceCallRecordText(frames, zhTranslate)).toBe(
-    '你沉默时的屏幕画面 · 0:12–0:40 · 9 个关键帧',
-  );
+  expect(voiceCallRecordText(frames, zhTranslate)).toBe('屏幕画面 · 0:12–0:40 · 9 个关键帧');
   const html = renderToStaticMarkup(
     <VoiceCallRecordBubble messageId="m" record={frames} t={zhTranslate} />,
   );

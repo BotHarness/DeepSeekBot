@@ -222,10 +222,20 @@ export type VoiceCallEvent =
       grid: number;
       source: CallVisualSource;
       frames: number;
-      dropped: number;
+      commits: number;
       layout: CallGridLayout;
       bytes: number;
       composeMs: number;
+      fromMs: number;
+      toMs: number;
+    }
+  | {
+      seq: number;
+      at: number;
+      type: 'frames-dropped';
+      source: CallVisualSource;
+      dropped: number;
+      total: number;
     }
   | {
       seq: number;

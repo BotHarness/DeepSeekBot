@@ -127,7 +127,7 @@ export function voiceCallDuration(ms: number): string {
 
 export function voiceCallRecordBody(record: ChannelVoiceCallRecord): string {
   if (record.state === 'frames')
-    return `${record.source === 'camera' ? 'Camera' : 'Screen'} record of call ${record.callId} from ${voiceCallDuration(record.fromMs)} to ${voiceCallDuration(record.toMs)} while the Human was silent: ${record.frames === 1 ? 'one keyframe' : `a ${record.layout} grid of ${record.frames} keyframes`}, oldest first.`;
+    return `${record.source === 'camera' ? 'Camera' : 'Screen'} record of call ${record.callId} from ${voiceCallDuration(record.fromMs)} to ${voiceCallDuration(record.toMs)}: ${record.frames === 1 ? 'one keyframe' : `a ${record.layout} grid of ${record.frames} keyframes`}, oldest first.`;
   if ('atMs' in record) {
     const what = `${record.source === 'camera' ? 'The camera' : 'Screen sharing'} in call ${record.callId}`;
     const at = voiceCallDuration(record.atMs);

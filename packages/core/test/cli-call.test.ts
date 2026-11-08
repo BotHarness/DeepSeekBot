@@ -17,9 +17,12 @@ afterEach(async () => {
   for (const close of cleanup.splice(0).reverse()) await close();
 });
 
-function host(options: { reply?: boolean; clip?: Uint8Array; mime?: string } = {}) {
+function host(
+  options: { reply?: boolean; clip?: Uint8Array; mime?: string; records?: boolean } = {},
+) {
   let clock = 5_000_000;
   const posts: Record<string, unknown>[] = [];
+  let records = 0;
   const transcripts = ['what is on my calendar', 'and tomorrow'];
   const calls = createVoiceCalls({
     bot: (slug) =>
@@ -54,6 +57,9 @@ function host(options: { reply?: boolean; clip?: Uint8Array; mime?: string } = {
     },
     busy: () => false,
     now: () => clock,
+    ...(options.records === true
+      ? { recordFrames: async () => `voice-call-frames-${(records += 1)}` }
+      : {}),
   });
   cleanup.push(() => calls.dispose());
   const connect = async () => async (body: Record<string, unknown>) => {
@@ -118,7 +124,17 @@ describe('deepseekbot call commands', () => {
       samples: 6,
       keyframes: 3,
       sentFrames: 3,
-      grids: [{ frames: 3, layout: '3', messageId: expect.any(String) }],
+      harvest: { commits: 0, commitFrames: 0, sentenceFrames: [3], unchanged: 0, dropped: 0 },
+      grids: [
+        {
+          frames: 3,
+          commits: 0,
+          layout: '3',
+          fromMs: expect.any(Number),
+          toMs: expect.any(Number),
+          messageId: expect.any(String),
+        },
+      ],
       failed: [],
     });
     const gridMessage = (report.visual['grids'] as { messageId: string }[])[0]!.messageId;
@@ -178,6 +194,43 @@ describe('deepseekbot call commands', () => {
     await expect(run('call-simulate', ['ada'], { file, screen: 'relative' })).rejects.toMatchObject(
       { code: 'usage' },
     );
+  });
+
+  it('call-simulate --video reports commits, sentence frames and safety-net drops', async () => {
+    const root = createTempRoot('cli-call-');
+    const file = wav(root, 'q.wav', concat(silence(300), speech(1400), silence(200)));
+    const frames = join(root, 'frames');
+    mkdirSync(frames);
+    for (let index = 0; index < 40; index += 1)
+      await sharp({
+        create: {
+          width: 320,
+          height: 180,
+          channels: 3,
+          background: index % 4 < 2 ? { r: 230, g: 20, b: 20 } : { r: 20, g: 20, b: 230 },
+        },
+      })
+        .jpeg()
+        .toFile(join(frames, `${String(index + 1).padStart(2, '0')}.jpg`));
+    const script = join(root, 'script.json');
+    writeFileSync(script, JSON.stringify([{ at: 21_000, file }]));
+    const { run } = host({ records: true });
+    const report = (await run('call-simulate', ['ada'], {
+      script,
+      video: frames,
+      'reply-wait': '20',
+    })) as { visual: { keyframes: number; harvest: Record<string, unknown> } };
+    const shown = report.visual.keyframes;
+    expect(shown).toBeGreaterThan(9);
+    const harvest = report.visual.harvest as {
+      commits: number;
+      commitFrames: number;
+      sentenceFrames: number[];
+      dropped: number;
+    };
+    expect(harvest.commits).toBe(Math.floor(shown / 9));
+    expect(harvest.commitFrames + harvest.sentenceFrames.reduce((a, b) => a + b, 0)).toBe(shown);
+    expect(harvest.dropped).toBe(0);
   });
 
   it('call-simulate plays a WAV into a synthetic call and reports heard text and reply timing', async () => {

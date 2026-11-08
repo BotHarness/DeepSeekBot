@@ -3249,13 +3249,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     providers: core.voiceProviders,
     media: () =>
       (ctx.get('botharnessComputer') as { callMedia?: VoiceCallMedia } | undefined)?.callMedia,
-    async send({ channelId, messageId, body, callId, visual }) {
+    async send({ channelId, messageId, body, callId, speech, visual }) {
       let attachments: ChannelAttachmentRef[] | undefined;
       let meta: ChannelCallVisual | undefined;
-      const records =
-        visual?.records === undefined || visual.records.length === 0
-          ? {}
-          : { records: [...visual.records] };
       if (visual !== undefined && 'image' in visual) {
         const image = visual.image.jpeg;
         attachments = [
@@ -3270,17 +3266,21 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           source: visual.source,
           frames: visual.frames,
           layout: visual.image.layout,
+          fromMs: visual.fromMs,
+          toMs: visual.toMs,
           ...(visual.unseen === true ? { unseen: true as const } : {}),
-          ...records,
         };
-      } else if (visual !== undefined)
-        meta = { source: visual.source, sameAs: visual.sameAs, ...records };
+      } else if (visual !== undefined) meta = { source: visual.source, sameAs: visual.sameAs };
       const result = await bridgeMethods.channelSend({
         channelId,
         messageId,
         body,
         ...(attachments === undefined ? {} : { attachments }),
-        voiceCall: meta === undefined ? { callId } : { callId, visual: meta },
+        voiceCall: {
+          callId,
+          ...(speech === undefined ? {} : { speechFromMs: speech.fromMs, speechToMs: speech.toMs }),
+          ...(meta === undefined ? {} : { visual: meta }),
+        },
       });
       if (!result.ok)
         throw Object.assign(new Error(result.error.message), {
