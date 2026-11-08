@@ -7,6 +7,7 @@ import {
 import { GENUI_EXECUTION_PROTOCOL, type GenuiExecutionReply } from './genui-execution.js';
 import { createGenuiVmFactory, GenuiVmError, type GenuiVm } from './genui-vm.js';
 import { GENUI_EXECUTION_LIMITS } from './genui-execution-limits.js';
+import { decodeGenuiBase64 } from './genui-base64-bytes.js';
 
 declare const __GENUI_GUEST_LIBRARY__: string;
 declare const __GENUI_WASM_BASE64__: string;
@@ -81,10 +82,7 @@ globalThis.addEventListener('message', async (event: MessageEvent<unknown>) => {
     const document = parseGenuiDocument(boot.data.document);
     const state = validateGenuiDocumentState(document, boot.data.state);
     if (!factory) {
-      const wasmBinary = Uint8Array.from(atob(__GENUI_WASM_BASE64__), (character) =>
-        character.charCodeAt(0),
-      ).buffer;
-      factory = createGenuiVmFactory(wasmBinary);
+      factory = createGenuiVmFactory(decodeGenuiBase64(__GENUI_WASM_BASE64__));
     }
     const createVm = await factory;
     if (slot.closed) return;
