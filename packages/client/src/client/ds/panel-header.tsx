@@ -47,6 +47,7 @@ const styles = stylex.create({
   compact: { flexGrow: 0, flexBasis: 'auto', cursor: 'grab' },
   hugged: { flexGrow: 0, flexBasis: 'auto' },
   context: { display: 'flex', alignItems: 'center', minWidth: 0, flexShrink: 1 },
+  dragHandle: { display: 'inline-flex', alignItems: 'center', flexShrink: 0 },
   spacer: { flexGrow: 1 },
   chevron: {
     display: 'inline-flex',
@@ -115,6 +116,7 @@ export function PanelHeader({
   tabs,
   action,
   context,
+  dragHandle,
   disclosure,
   onHide,
   hideLabel,
@@ -129,6 +131,7 @@ export function PanelHeader({
   readonly tabs?: ReactNode;
   readonly action?: ReactNode;
   readonly context?: ReactNode;
+  readonly dragHandle?: ReactNode;
   readonly disclosure?: PanelHeaderDisclosure | undefined;
   readonly onHide?: () => void;
   readonly hideLabel?: string;
@@ -276,6 +279,11 @@ export function PanelHeader({
       {action === undefined ? null : (
         <span data-panel-actions="" data-window-drag-recall {...stylex.props(styles.action)}>
           <InstantTooltipScope>{action}</InstantTooltipScope>
+        </span>
+      )}
+      {dragHandle === undefined ? null : (
+        <span data-panel-drag-handle="" {...stylex.props(styles.dragHandle)}>
+          {dragHandle}
         </span>
       )}
     </div>
