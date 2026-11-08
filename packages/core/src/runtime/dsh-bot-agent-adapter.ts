@@ -1594,7 +1594,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       defineTool({
         name: 'unarchive_assignment',
         description:
-          'Restore one archived Assignment Session to your default list_assignments view so you can send it requests again. Its continuity key is not restored.',
+          'Restore one archived Assignment Session to your default list_assignments view so you can send it requests again. Its continuity key is not restored. It also revives a Human-stopped Assignment Session so a later explicit request is accepted again: use it only after an explicit Human instruction to continue stopped work, never to bypass a stop on your own.',
         parameters: {
           session_id: {
             type: 'string',
