@@ -10,7 +10,11 @@ import {
   type ChannelVoiceCallRecord,
 } from '../src/channels/voice-call-record.js';
 import { callTimelineNote, callVisualNote } from '../src/runtime/bot-runtime.js';
-import type { VoiceCallEvent, VoiceCallView } from '../src/voice/call-contract.js';
+import {
+  VOICE_CALL_LIMITS,
+  type VoiceCallEvent,
+  type VoiceCallView,
+} from '../src/voice/call-contract.js';
 import { createCallImaging, drawLabel, frameLabel, gridCells } from '../src/voice/call-frames.js';
 import { createVoiceCalls, type VoiceCallsDeps } from '../src/voice/calls.js';
 import {
@@ -1296,6 +1300,33 @@ describe('text typed during a call', () => {
     );
     await h.say(call.callId);
     expect(h.order).toEqual(['sent:1', 'text:1', 'sent:same']);
+  });
+
+  it('lands typed text after at most the operation timeout when recognition is stuck', async () => {
+    let hear!: () => void;
+    const h = host(['先说一句'], undefined, {
+      asr: new Promise<void>((resolve) => {
+        hear = resolve;
+      }),
+    });
+    const call = await h.ok({ kind: 'open', slug: 'mira', media: 'synthetic' });
+    await h.ok({ kind: 'visual', callId: call.callId, source: 'camera' });
+    await h.frame(call.callId, 'camera', 10);
+    await h.say(call.callId);
+    await h.frame(call.callId, 'camera', 200);
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const typed = h.type(call.channelId);
+      await vi.advanceTimersByTimeAsync(VOICE_CALL_LIMITS.operationTimeoutMs + 1);
+      const { harvested } = await typed;
+      expect(imageFrames(harvested!.visual)).toBe(1);
+      expect(h.order).toEqual(['text:1']);
+    } finally {
+      vi.useRealTimers();
+    }
+    hear();
+    await vi.waitFor(() => expect(h.order).toEqual(['text:1', 'sent:1']));
+    expect(await h.dropped(call.callId)).toBe(0);
   });
 
   it('does not wait on the end record when the call ends while text is queued', async () => {

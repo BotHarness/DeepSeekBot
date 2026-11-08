@@ -1102,8 +1102,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     const before = call.transcription;
     const recorded = call.recorded;
     const prepared = (async () => {
-      await bounded(before);
-      await bounded(recorded);
+      await bounded(Promise.all([before, recorded]));
       if (ended(call)) {
         if (grid !== undefined && grid.frames.length > 0)
           commit(call, grid.session, grid.source, [grid.frames]);
