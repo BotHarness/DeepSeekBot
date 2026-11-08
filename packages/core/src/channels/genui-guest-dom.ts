@@ -1,5 +1,5 @@
 import './genui-guest-base64.js';
-import { parseHTML } from 'linkedom/worker';
+import { parseHTML } from 'linkedom';
 import { GENUI_EXECUTION_LIMITS } from './genui-execution-limits.js';
 import { GENUI_DOCUMENT_LIMITS } from './genui-document-limits.js';
 import type { GenuiDocumentState } from './genui-document.js';

@@ -15,6 +15,7 @@ import {
 } from '../../../core/src/channels/genui-document.js';
 import { GENUI_EXECUTION_LIMITS } from '../../../core/src/channels/genui-execution-limits.js';
 import type { GenuiDocumentHandle } from '../../../core/src/channels/genui-document-runtime.js';
+import { createGenuiMirrorShell } from '../../../core/src/channels/genui-mirror-shell.js';
 import { loadGenuiDocumentRuntime } from './genui-document-runtime.js';
 import { getGenuiDocumentView, type GenuiDocumentActions } from './genui-document-view.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -240,6 +241,7 @@ export class DocumentFrame extends Component<FrameProps, { failed: boolean }> {
   private readonly instanceId = crypto.randomUUID();
   private container: HTMLDivElement | null = null;
   private surface: GenuiDocumentHandle | undefined;
+  private shell: HTMLIFrameElement | undefined;
   private observer?: MutationObserver;
   private timer?: ReturnType<typeof setTimeout>;
   private disposed = false;
@@ -280,12 +282,16 @@ export class DocumentFrame extends Component<FrameProps, { failed: boolean }> {
       attributeFilter: ['data-ds-dark-theme', 'style'],
     });
     this.timer = setTimeout(this.fail, GENUI_EXECUTION_LIMITS.startupMs);
+    const shell = createGenuiMirrorShell(container, this.props.document.title);
+    this.shell = shell;
     void loadGenuiDocumentRuntime()
       .then(
         (runtime) => {
           if (!this.active(generation)) return;
           clearTimeout(this.timer);
+          this.shell = undefined;
           const surface = runtime.mountGenuiDocument(container, {
+            shell,
             document: this.props.document,
             state: this.props.state,
             theme: this.theme(),
@@ -347,6 +353,8 @@ export class DocumentFrame extends Component<FrameProps, { failed: boolean }> {
     this.observer?.disconnect();
     this.surface?.dispose();
     this.surface = undefined;
+    this.shell?.remove();
+    this.shell = undefined;
   }
 
   private active(generation: number): boolean {
@@ -360,6 +368,8 @@ export class DocumentFrame extends Component<FrameProps, { failed: boolean }> {
     this.observer?.disconnect();
     this.surface?.dispose();
     this.surface = undefined;
+    this.shell?.remove();
+    this.shell = undefined;
     this.props.onStatus('error');
     this.setState({ failed: true });
   };

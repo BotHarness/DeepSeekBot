@@ -1,27 +1,19 @@
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
-import { build } from 'esbuild';
 import { parseHTML } from 'linkedom/worker';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createGenuiGuest, type GenuiGuest } from '../src/channels/genui-guest.js';
 import { GENUI_EXECUTION_LIMITS } from '../src/channels/genui-execution-limits.js';
 import { initialGenuiDocumentState } from '../src/channels/genui-document.js';
 import { syntheticGenuiDocument } from './fixtures/genui-document.js';
+import { buildGenuiGuestLibrary } from '../../../scripts/genui-runtime-assets.mjs';
 
 const require = createRequire(import.meta.url);
 const wasmBinary = new Uint8Array(
   await readFile(require.resolve('@jitl/quickjs-wasmfile-release-sync/wasm')),
 ).buffer;
-const library = await build({
-  entryPoints: [fileURLToPath(new URL('../src/channels/genui-guest-dom.ts', import.meta.url))],
-  bundle: true,
-  write: false,
-  platform: 'browser',
-  format: 'iife',
-  minify: true,
-});
-const librarySource = library.outputFiles[0]?.text ?? '';
+const library = await buildGenuiGuestLibrary();
+const librarySource = library.text;
 const guests: GenuiGuest[] = [];
 
 async function open(html = syntheticGenuiDocument.html) {
@@ -41,6 +33,13 @@ afterEach(() => {
 });
 
 describe('GenUI bounded guest DOM adapter', () => {
+  it('parses author stylesheets on first access without evaluating the parser at startup', async () => {
+    const guest = await open(
+      '<style>p{color:red}.note{margin:0}</style><p id="out">pending</p><script>document.getElementById("out").textContent=String(document.querySelector("style").sheet.cssRules.length)</script>',
+    );
+    expect(parseHTML(guest.snapshot().html).document.querySelector('#out')?.textContent).toBe('2');
+  });
+
   it('runs the unchanged rich fixture with script-free snapshots and bounded library bytes', async () => {
     expect(new TextEncoder().encode(librarySource).byteLength).toBeLessThanOrEqual(
       GENUI_EXECUTION_LIMITS.libraryBytes,

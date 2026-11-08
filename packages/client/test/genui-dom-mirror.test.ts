@@ -1,7 +1,5 @@
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
-import { build } from 'esbuild';
 import { afterEach, describe, expect, it } from 'vitest';
 import { GenuiDomMirror, GENUI_MIRROR_CSP } from '../../core/src/channels/genui-dom-mirror.js';
 import { createGenuiGuest } from '../../core/src/channels/genui-guest.js';
@@ -12,6 +10,7 @@ import type {
   GenuiExecutionSnapshot,
 } from '../../core/src/channels/genui-execution-supervisor.js';
 import { syntheticGenuiDocument } from '../../core/test/fixtures/genui-document.js';
+import { buildGenuiGuestLibrary } from '../../../scripts/genui-runtime-assets.mjs';
 
 const require = createRequire(new URL('../../core/package.json', import.meta.url));
 interface TestConsole {
@@ -30,16 +29,7 @@ const {
 const wasmBinary = new Uint8Array(
   await readFile(require.resolve('@jitl/quickjs-wasmfile-release-sync/wasm')),
 ).buffer;
-const library = await build({
-  entryPoints: [
-    fileURLToPath(new URL('../../core/src/channels/genui-guest-dom.ts', import.meta.url)),
-  ],
-  bundle: true,
-  write: false,
-  platform: 'browser',
-  format: 'iife',
-  minify: true,
-});
+const library = await buildGenuiGuestLibrary();
 const retained: (() => void)[] = [];
 
 function open() {
@@ -105,7 +95,7 @@ describe('GenUI trusted script-disabled DOM mirror', () => {
       document: syntheticGenuiDocument,
       state: initialGenuiDocumentState(syntheticGenuiDocument),
       wasmBinary,
-      librarySource: library.outputFiles[0]?.text ?? '',
+      librarySource: library.text,
     });
     retained.push(() => guest.dispose());
     const { dom, document, mirror, commands } = open();

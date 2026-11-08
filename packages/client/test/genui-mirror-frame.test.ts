@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GenuiMirrorFrame, genuiMirrorHeight } from '../../core/src/channels/genui-mirror-frame.js';
 import { GENUI_EXECUTION_LIMITS } from '../../core/src/channels/genui-execution-limits.js';
+import { createGenuiMirrorShell } from '../../core/src/channels/genui-mirror-shell.js';
 
 const frames: GenuiMirrorFrame[] = [];
 
@@ -11,7 +12,15 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function open(textScale?: number) {
+function writeShell(frame: HTMLIFrameElement) {
+  const shell = frame.contentDocument;
+  if (!shell) throw Error('Missing shell document.');
+  shell.open();
+  shell.write(frame.srcdoc);
+  shell.close();
+}
+
+function open(textScale?: number, shell?: HTMLIFrameElement) {
   vi.stubGlobal(
     'ResizeObserver',
     class {
@@ -23,6 +32,7 @@ function open(textScale?: number) {
     title: 'Scaled synthetic document',
     theme: 'light',
     textScale: textScale ?? 1,
+    ...(shell ? { shell } : {}),
     onCommand: vi.fn(),
     onHeight: vi.fn(),
     onFailure: vi.fn(),
@@ -68,5 +78,36 @@ describe('GenUI trusted mirror text scaling', () => {
     expect(() => genuiMirrorHeight(document, 0.5)).toThrow('height budget');
     height.mockReturnValue(9000);
     expect(genuiMirrorHeight(document, 2)).toBe(9000);
+  });
+});
+
+describe('GenUI pre-started mirror shell', () => {
+  it('adopts the pre-started shell once and finishes startup whether it loaded before or after', async () => {
+    const early = createGenuiMirrorShell(document.body, 'Early shell');
+    writeShell(early);
+    const before = open(1, early);
+    expect(before.frame).toBe(early);
+    expect(early.hasAttribute('data-genui-shell')).toBe(false);
+    await expect(before.ready).resolves.toBeUndefined();
+    expect(() => open(1, early)).toThrow('unavailable');
+    const late = createGenuiMirrorShell(document.body, 'Late shell');
+    const after = open(1, late);
+    let settled = false;
+    void after.ready.then(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    writeShell(late);
+    late.dispatchEvent(new Event('load'));
+    await expect(after.ready).resolves.toBeUndefined();
+  });
+
+  it('refuses a shell whose isolation attributes changed before adoption', () => {
+    const shell = createGenuiMirrorShell(document.body, 'Tampered shell');
+    shell.setAttribute('sandbox', 'allow-same-origin allow-scripts');
+    expect(() => open(1, shell)).toThrow('unavailable');
+    const moved = createGenuiMirrorShell(document.createElement('div'), 'Detached shell');
+    expect(() => open(1, moved)).toThrow('unavailable');
   });
 });

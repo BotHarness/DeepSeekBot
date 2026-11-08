@@ -1,6 +1,6 @@
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
-import { z } from 'zod';
+import * as z from 'zod/mini';
 import { GenuiError } from './genui.js';
 import { GENUI_DOCUMENT_LIMITS } from './genui-document-limits.js';
 
@@ -8,26 +8,24 @@ export { GENUI_DOCUMENT_LIMITS } from './genui-document-limits.js';
 
 const identity = z
   .string()
-  .min(1)
-  .max(100)
-  .regex(/^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/);
+  .check(z.minLength(1), z.maxLength(100), z.regex(/^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/));
 const fieldSchema = z.discriminatedUnion('type', [
   z.strictObject({
     type: z.literal('string'),
-    initial: z.string().max(500),
-    maxLength: z.number().int().min(0).max(500),
+    initial: z.string().check(z.maxLength(500)),
+    maxLength: z.int().check(z.gte(0), z.lte(500)),
   }),
   z.strictObject({
     type: z.literal('number'),
-    initial: z.number().finite(),
-    min: z.number().finite(),
-    max: z.number().finite(),
+    initial: z.number(),
+    min: z.number(),
+    max: z.number(),
   }),
   z.strictObject({ type: z.literal('boolean'), initial: z.boolean() }),
   z.strictObject({
     type: z.literal('choice'),
-    initial: z.string().max(500),
-    options: z.array(z.string().max(500)).min(1).max(20),
+    initial: z.string().check(z.maxLength(500)),
+    options: z.array(z.string().check(z.maxLength(500))).check(z.minLength(1), z.maxLength(20)),
   }),
 ]);
 export type GenuiDocumentField = z.infer<typeof fieldSchema>;
@@ -35,27 +33,32 @@ const documentSchema = z.strictObject({
   version: z.literal(2),
   snapshotId: identity,
   observedAt: z.iso.datetime({ offset: true }),
-  title: z.string().trim().min(1).max(200),
-  predecessorMessageId: identity.optional(),
-  html: z.string().min(1),
-  stateContract: z
-    .strictObject({ version: z.literal(1), fields: z.record(identity, fieldSchema) })
-    .optional(),
+  title: z.string().check(z.trim(), z.minLength(1), z.maxLength(200)),
+  predecessorMessageId: z.optional(identity),
+  html: z.string().check(z.minLength(1)),
+  stateContract: z.optional(
+    z.strictObject({ version: z.literal(1), fields: z.record(identity, fieldSchema) }),
+  ),
 });
 export type GenuiDocument = z.infer<typeof documentSchema>;
 export const genuiDocumentStateSchema = z
   .strictObject({
     version: z.literal(1),
-    values: z.record(identity, z.union([z.string().max(500), z.number().finite(), z.boolean()])),
+    values: z.record(
+      identity,
+      z.union([z.string().check(z.maxLength(500)), z.number(), z.boolean()]),
+    ),
   })
-  .superRefine((value, context) => {
-    if (
-      Object.keys(value.values).length > GENUI_DOCUMENT_LIMITS.fields ||
-      encodedSize(value) > GENUI_DOCUMENT_LIMITS.stateBytes ||
-      Object.keys(value.values).some(unsafeKey)
-    )
-      context.addIssue({ code: 'custom', message: 'Invalid document state limits or keys.' });
-  });
+  .check(
+    z.superRefine((value, context) => {
+      if (
+        Object.keys(value.values).length > GENUI_DOCUMENT_LIMITS.fields ||
+        encodedSize(value) > GENUI_DOCUMENT_LIMITS.stateBytes ||
+        Object.keys(value.values).some(unsafeKey)
+      )
+        context.addIssue({ code: 'custom', message: 'Invalid document state limits or keys.' });
+    }),
+  );
 export type GenuiDocumentState = z.infer<typeof genuiDocumentStateSchema>;
 export interface GenuiDocumentView {
   version: number;

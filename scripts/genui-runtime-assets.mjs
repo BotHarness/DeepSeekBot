@@ -1,32 +1,85 @@
 import { createHash } from 'node:crypto';
+import { realpathSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { build } from 'esbuild';
 
 const rootDir = fileURLToPath(new URL('../', import.meta.url));
 const globalName = '__BotHarnessGenuiRuntime';
 const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
 
-export async function buildGenuiRuntimeAssets() {
-  const require = createRequire(join(rootDir, 'packages/core/package.json'));
-  const wasm = await readFile(require.resolve('@jitl/quickjs-wasmfile-release-sync/wasm'));
-  const options = {
-    absWorkingDir: rootDir,
-    bundle: true,
-    write: false,
-    platform: 'browser',
-    format: 'iife',
-    minify: true,
-    metafile: true,
-  };
+const buildOptions = {
+  absWorkingDir: rootDir,
+  bundle: true,
+  write: false,
+  platform: 'browser',
+  format: 'iife',
+  minify: true,
+  metafile: true,
+};
+
+export async function buildGenuiGuestLibrary() {
+  const linkedom = dirname(
+    createRequire(join(rootDir, 'packages/core/package.json')).resolve('linkedom/package.json'),
+  );
+  const parser = realpathSync(join(linkedom, '..', 'htmlparser2'));
+  const cssom = await build({
+    ...buildOptions,
+    stdin: { contents: "export { parse } from 'cssomnom/parse';", resolveDir: linkedom },
+    globalName: '__genuiCssom',
+  });
+  const cssomFile = cssom.outputFiles[0];
+  if (!cssomFile) throw Error('The GenUI Guest stylesheet parser was not built.');
+  const lazyCssom = `const source=${JSON.stringify(`(()=>{${cssomFile.text};return __genuiCssom})()`)};const evaluate=globalThis.eval;let loaded;export function parse(text){loaded??=evaluate(source);return loaded.parse(text)}`;
   const library = await build({
-    ...options,
+    ...buildOptions,
     entryPoints: ['packages/core/src/channels/genui-guest-dom.ts'],
+    plugins: [
+      {
+        name: 'botharness:genui-lazy-cssom',
+        setup(plugin) {
+          plugin.onResolve({ filter: /^entities$/ }, (args) =>
+            args.pluginData === 'genui-entities'
+              ? undefined
+              : plugin.resolve('entities', {
+                  kind: args.kind,
+                  resolveDir: parser,
+                  pluginData: 'genui-entities',
+                }),
+          );
+          plugin.onResolve({ filter: /^cssomnom\/parse$/ }, () => ({
+            path: 'cssomnom/parse',
+            namespace: 'genui-lazy-cssom',
+          }));
+          plugin.onLoad({ filter: /.*/, namespace: 'genui-lazy-cssom' }, () => ({
+            contents: lazyCssom,
+            loader: 'js',
+          }));
+        },
+      },
+    ],
   });
   const libraryFile = library.outputFiles[0];
   if (!libraryFile) throw Error('The GenUI Guest library was not built.');
+  return {
+    text: libraryFile.text,
+    contents: libraryFile.contents,
+    inputs: [
+      ...Object.keys(cssom.metafile.inputs).filter((input) => input !== '<stdin>'),
+      ...Object.keys(library.metafile.inputs).filter(
+        (input) => !input.startsWith('genui-lazy-cssom:'),
+      ),
+    ],
+  };
+}
+
+export async function buildGenuiRuntimeAssets() {
+  const require = createRequire(join(rootDir, 'packages/core/package.json'));
+  const wasm = await readFile(require.resolve('@jitl/quickjs-wasmfile-release-sync/wasm'));
+  const options = buildOptions;
+  const libraryFile = await buildGenuiGuestLibrary();
   const worker = await build({
     ...options,
     entryPoints: ['packages/core/src/channels/genui-execution-worker.ts'],
@@ -57,7 +110,7 @@ export async function buildGenuiRuntimeAssets() {
     metadata,
     inputs: [
       ...new Set([
-        ...Object.keys(library.metafile.inputs),
+        ...libraryFile.inputs,
         ...Object.keys(worker.metafile.inputs),
         ...Object.keys(renderer.metafile.inputs),
       ]),

@@ -5,6 +5,12 @@ interface AssetIdentity {
   sha256: string;
 }
 
+export declare function buildGenuiGuestLibrary(): Promise<{
+  text: string;
+  contents: Uint8Array;
+  inputs: string[];
+}>;
+
 export declare function buildGenuiRuntimeAssets(): Promise<{
   rendererSource: string;
   clientModuleSource: string;
