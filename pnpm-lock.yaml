@@ -582,6 +582,12 @@ importers:
         specifier: ^19.2.5
         version: 19.3.0(@types/react@19.3.0)
 
+  deploy/private-relay:
+    dependencies:
+      ws:
+        specifier: 8.21.3
+        version: 8.21.3
+
   packages/browser:
     dependencies:
       '@deepseek-ai/dsh-mcp-client':

@@ -15,7 +15,7 @@ import {
   isTailscaleRoute,
 } from './route';
 import { channelFailureDetail, joinFailureDetails } from './pairing-detail';
-import type { HostEncryption } from './hosts';
+import { parsePrivateAdmission, type HostEncryption } from './hosts';
 import type { HostCarrier, LocalNetworkStatus } from './carrier';
 import { checkRoute } from './route';
 import type { ConnectRefusal } from './connect-account';
@@ -26,7 +26,12 @@ export const DEVICE_PREFIX = '/botharness-device';
 
 export interface PairingPayload {
   enrollment?: { body: string; signature: string };
-  encryption?: { protocol: 'connect-noise-xk-v1'; publicKey: string; loopback?: 'encrypted' };
+  encryption?: {
+    protocol: 'connect-noise-xk-v1';
+    publicKey: string;
+    loopback?: 'encrypted';
+    privateRelay?: { origin: string; token: string };
+  };
   host: { id: string; name: string };
   offer: string;
   routes: string[];
@@ -118,8 +123,17 @@ export function parsePairingLink(text: string, now = Date.now()): ParsedLink {
       return { ok: false, code: 'link-invalid' };
   }
   if (Date.parse(value['expiresAt']) <= now) return { ok: false, code: 'link-expired' };
+  const privateRelay = parsePrivateAdmission(record(value['encryption'])['privateRelay']);
+  if (privateRelay && (value['routes'].length !== 1 || value['routes'][0] !== privateRelay.origin))
+    return { ok: false, code: 'no-route' };
   const routes = value['routes'].flatMap((route) => {
-    const checked = typeof route === 'string' ? checkRoute(route) : undefined;
+    const checked =
+      typeof route === 'string'
+        ? checkRoute(
+            route,
+            parsePrivateAdmission(record(value['encryption'])['privateRelay'])?.origin,
+          )
+        : undefined;
     return checked?.ok === true ? [checked.origin] : [];
   });
   if (routes.length === 0) return { ok: false, code: 'no-route' };
@@ -135,6 +149,13 @@ export function parsePairingLink(text: string, now = Date.now()): ParsedLink {
       /^[0-9a-f]{64}$/u.test(String(record(value['encryption'])['publicKey']))
         ? {
             encryption: {
+              ...(parsePrivateAdmission(record(value['encryption'])['privateRelay'])
+                ? {
+                    privateRelay: parsePrivateAdmission(
+                      record(value['encryption'])['privateRelay'],
+                    )!,
+                  }
+                : {}),
               protocol: 'connect-noise-xk-v1' as const,
               ...(record(value['encryption'])['loopback'] === 'encrypted'
                 ? { loopback: 'encrypted' as const }
@@ -162,7 +183,15 @@ export async function redeemPairing(options: {
   signal?: AbortSignal;
 }): Promise<Redemption> {
   const { payload } = options;
-  if (payload.routes.length === 0 || payload.routes.some((route) => !checkRoute(route).ok))
+  if (
+    payload.encryption?.privateRelay &&
+    (payload.routes.length !== 1 || payload.routes[0] !== payload.encryption.privateRelay.origin)
+  )
+    return { ok: false, code: 'no-route' };
+  if (
+    payload.routes.length === 0 ||
+    payload.routes.some((route) => !checkRoute(route, payload.encryption?.privateRelay?.origin).ok)
+  )
     return { ok: false, code: 'no-route' };
   if (payload.enrollment && payload.routes.some((route) => !isConnectRoute(route)))
     return { ok: false, code: 'no-route' };
@@ -431,7 +460,7 @@ export async function updatePairedRoutes(
   try {
     for (const route of payload.routes.slice(0, 12)) {
       if (signal?.aborted) return { ok: false, code: 'unreachable' };
-      if (!checkRoute(route).ok) continue;
+      if (!checkRoute(route, host.encryption?.privateRelay?.origin).ok) continue;
       try {
         const deadline = AbortSignal.timeout(8000);
         const response = await carrier.request(`${route}${DEVICE_PREFIX}/api/botharness/devices`, {
@@ -501,6 +530,7 @@ async function redeemEncrypted(options: {
     return { ok: false, code: 'host-key-confirmation-required' };
   if (options.signal?.aborted) return { ok: false, code: 'unreachable' };
   const encryption: HostEncryption = {
+    ...(advertised.privateRelay ? { privateRelay: advertised.privateRelay } : {}),
     ...(advertised.loopback === 'encrypted' ? { loopback: 'encrypted' as const } : {}),
     protocol: advertised.protocol,
     hostKey: advertised.publicKey,

@@ -1,0 +1,4 @@
+node_modules
+bootstrap.secret
+.env
+*.test.mjs

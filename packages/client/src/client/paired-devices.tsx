@@ -1,3 +1,4 @@
+import { PrivateRelaySettings } from './private-relay-settings.js';
 import { noiseFingerprint } from '../../../core/src/devices/noise/xk.js';
 import { keyBytes } from '../../../../apps/mobile/src/host/encrypted-carrier.js';
 import { checkRoute, isConnectRoute, isLanRoute } from '../../../../apps/mobile/src/host/route.js';
@@ -61,6 +62,7 @@ interface ConnectStatus {
 }
 
 interface DevicesSnapshot {
+  privateRelay?: { state: string; origin?: string; issue?: string };
   lanBots?: LanBotSnapshot;
   lan?: { state: 'off' | 'listening' | 'error'; issue?: string };
   host: { id: string; name: string };
@@ -201,7 +203,15 @@ export function PairedDevicesSettings({
   const [copied, setCopied] = useState(false);
   const [showTailscale, setShowTailscale] = useState(false);
   const [manage, setManage] = useState(false);
-  type Setup = 'closed' | 'direction' | 'method' | 'lan' | 'tailscale' | 'connect' | 'remote';
+  type Setup =
+    | 'private'
+    | 'closed'
+    | 'direction'
+    | 'method'
+    | 'lan'
+    | 'tailscale'
+    | 'connect'
+    | 'remote';
   const [setup, setSetupState] = useState<Setup>('closed');
   const setupVersion = useRef(0);
   const setSetup = (next: Setup) => {
@@ -744,6 +754,13 @@ export function PairedDevicesSettings({
             ) : setup === 'method' ? (
               <>
                 <ConnectionMethod
+                  title={t('privateRelay.title')}
+                  description={t('privateRelay.description')}
+                  detail={t('privateRelay.requirement')}
+                  disabled={!freshSnapshot}
+                  onClick={() => setSetup('private')}
+                />
+                <ConnectionMethod
                   title={t('connections.lan')}
                   description={t('connections.lanDescription')}
                   detail={t('connections.lanDetail')}
@@ -780,6 +797,16 @@ export function PairedDevicesSettings({
                   }}
                 />
               </>
+            ) : setup === 'private' ? (
+              <PrivateRelaySettings
+                t={t}
+                {...(snapshot?.privateRelay ? { status: snapshot.privateRelay } : {})}
+                refresh={load}
+                pair={() => {
+                  setSetup('closed');
+                  open();
+                }}
+              />
             ) : setup === 'lan' ? (
               <>
                 <Note>{t('devices.lan.notice')}</Note>
