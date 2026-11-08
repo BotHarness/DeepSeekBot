@@ -467,6 +467,7 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
   let lastUrl: string | undefined;
   let foreground = false;
   const sessions = new Map<string, string>();
+  const closedChildren = new WeakSet<ChildProcess>();
 
   const isRunning = (): boolean =>
     client !== undefined &&
@@ -558,6 +559,7 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
       { stdio: ['ignore', 'ignore', 'pipe'] },
     );
     child = proc;
+    proc.once('close', () => closedChildren.add(proc));
     const endpoint = await new Promise<string>((resolve, reject) => {
       let stderr = '';
       const settle = (action: () => void): void => {
@@ -604,7 +606,6 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
       client = await connect(endpoint);
     } catch (error) {
       proc.kill('SIGTERM');
-      child = undefined;
       throw error;
     }
     onEvent('ready');
@@ -613,6 +614,10 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
   const ensure = async (): Promise<void> => {
     if (stopping !== undefined) await stopping;
     if (isRunning()) return;
+    if (starting === undefined && child !== undefined) {
+      if (closedChildren.has(child)) child = undefined;
+      else await stop();
+    }
     client?.close();
     client = undefined;
     sessions.clear();
@@ -1252,7 +1257,6 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
     await starting?.catch(() => undefined);
     const proc = child;
     const live = client;
-    child = undefined;
     client = undefined;
     sessions.clear();
     if (options.execution !== undefined) {
@@ -1275,21 +1279,45 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
       return;
     }
     live?.close();
-    if (proc === undefined || proc.exitCode !== null) {
-      if (proc !== undefined) onEvent('stopped');
-      return;
-    }
-    await new Promise<void>((resolve) => {
-      const done = setTimeout(() => {
-        proc.kill('SIGKILL');
-        resolve();
-      }, 4_000);
-      proc.once('exit', () => {
-        clearTimeout(done);
-        resolve();
+    if (proc === undefined) return;
+    if (!closedChildren.has(proc)) {
+      await new Promise<void>((resolve, reject) => {
+        let forced: ReturnType<typeof setTimeout> | undefined;
+        let deadline: ReturnType<typeof setTimeout> | undefined;
+        const settle = (error?: Error): void => {
+          clearTimeout(forced);
+          clearTimeout(deadline);
+          proc.off('close', onClose);
+          proc.off('error', onError);
+          if (error === undefined) resolve();
+          else {
+            onEvent('phase=stop outcome=error reason=process-close-unconfirmed');
+            reject(error);
+          }
+        };
+        const onClose = (): void => settle();
+        const onError = (error: Error): void => settle(error);
+        const signal = (name: NodeJS.Signals): void => {
+          if (proc.exitCode !== null || proc.signalCode != null) return;
+          try {
+            proc.kill(name);
+          } catch (error) {
+            settle(error instanceof Error ? error : new Error('Browser shutdown failed'));
+          }
+        };
+        proc.once('close', onClose);
+        proc.once('error', onError);
+        forced = setTimeout(() => {
+          deadline = setTimeout(
+            () => settle(new Error('Browser process did not close after shutdown')),
+            2_000,
+          );
+          signal('SIGKILL');
+        }, 4_000);
+        signal('SIGTERM');
       });
-      proc.kill('SIGTERM');
-    });
+    }
+    if (child === proc) child = undefined;
     onEvent('stopped');
   };
 

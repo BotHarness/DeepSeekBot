@@ -188,7 +188,18 @@ FPS. Retain compositor traces, source/browser/build identities and at least thre
 base/change pairs. Distinguish Chromium's presentation feedback, diagnostic-observer cost,
 physical display behavior, opening latency and installed-native acceptance.
 
-For a separate opening-latency diagnostic, add `--trace` to
+Preserve phase-specific
+refusals: the `ad37421ab` Linux CI run completed two rich openings before returning
+`genui-preview-cleanup-profile-enotempty` on its third preview; that is distinct from
+the separately observed local Browser startup timeout. The local Browser owner now
+waits for the child `close` event (process exit plus inherited stdio closure), not just
+`exit` or a sent `SIGKILL`. A missing close after the unchanged four-second termination
+grace and a two-second kill-confirmation window is an explicit shutdown failure;
+retain the Profile and process ownership. This does not establish that all descendants
+or file users have exited, nor prove that the CI filesystem failure is resolved.
+Recheck actual owned processes and the full original journey independently.
+
+For an instrumented opening run, add `--trace` to
 `scripts/perf-genui-opening.mjs` and use a new output directory. The same six fresh-browser
 plain/rich journeys and original readiness deadlines still run. Per-opening traces start
 before the trusted Channel-row click and stop after the unchanged ready/two-rAF endpoint;
