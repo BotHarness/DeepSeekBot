@@ -100,7 +100,6 @@ export function createPrivateRelay({ directory, bootstrap }) {
     const phone = request.url === '/botharness-device/channel';
     const token = request.headers.authorization?.replace(/^Bearer /u, '');
     if (
-      request.headers.origin ||
       !owner ||
       (!hosting && !phone) ||
       !equal(token, hosting ? owner.owner : owner.phone) ||
