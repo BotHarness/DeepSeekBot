@@ -7127,10 +7127,17 @@ class BotRuntimeImplementation implements BotRuntime {
         const { call: _call, fromMs: _fromMs, toMs: _toMs, ...filters } = input;
         const page = this.#channels.queryMessages(channel.id, {
           ...filters,
-          from: window.from,
-          ...(window.to === undefined ? {} : { to: window.to }),
+          from: window.startedAt,
+          ...(window.endedAt === undefined ? {} : { to: window.endedAt }),
           orderBy: 'time',
           ascending: true,
+          callWindow: {
+            callId: window.callId,
+            fromMs: window.fromMs,
+            ...(window.toMs === undefined ? {} : { toMs: window.toMs }),
+            from: window.from,
+            ...(window.to === undefined ? {} : { to: window.to }),
+          },
         });
         const humans = humanNames(channel);
         return {
