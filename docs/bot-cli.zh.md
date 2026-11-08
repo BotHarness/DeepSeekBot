@@ -279,6 +279,8 @@ deepseekbot channel-purge-preview <channel> --source-event <id> | jq '{token}' \
 发送中断后，通过 `bot-tool <bot> channel_action --args-stdin` 传入
 `{"channel_id":"...","action":"inspect"}`，读取自己最多 20 条草稿／回执元数据，
 待处理记录优先，并返回 `hasMore`；指定 `draft_id` 可查更早的准确记录。检查不发送消息、不结清 Inbox。
+每条记录的 `state` 在草稿未结束时为 `held` 或 `requires-review`，结束后为 `committed`、`dropped`
+或 `expired`；结束状态不再改变，被停止的草稿在复核时限过后仍显示 `dropped`。
 Host 重启后，先读取当前群聊，再用 `recover:true`、`draft_id`、新 `observation_id`
 和修正后的 `body` 恢复。旧观察无效，过期时间及已消耗的复核预算不重置。
 已提交回执给出原 `messageId`，可读取规范消息核实；同 `draft_id`、同正文重放只返回原消息 ID，

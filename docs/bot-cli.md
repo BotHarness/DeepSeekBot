@@ -288,7 +288,9 @@ missing content first. Then pass `draft_id` with the new observation and revised
 After an interrupted Group send, use `bot-tool <bot> channel_action --args-stdin` with
 `{"channel_id":"...","action":"inspect"}`. This returns at most 20 own
 draft/receipt metadata entries (pending first) and `hasMore`; supply `draft_id` for an exact
-older record. It sends nothing and does not resolve Inbox work. After a Host restart, read the
+older record. It sends nothing and does not resolve Inbox work. Each entry's `state` is `held` or
+`requires-review` while the draft is open, then `committed`, `dropped` or `expired`; a final state
+never changes, so a stopped draft still reads `dropped` after its review window passes. After a Host restart, read the
 current Channel, then send `recover:true`, `draft_id`, the fresh `observation_id`
 and corrected `body`. Old observations, expiry and exhausted retry budgets cannot be reset.
 For a committed receipt, read its canonical `messageId`; resubmitting that `draft_id` with the
