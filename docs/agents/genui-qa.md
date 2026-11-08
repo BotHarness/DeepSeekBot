@@ -1,5 +1,44 @@
 # GenUI verification matrix
 
+## Opening and added-document budget
+
+```bash
+BH_E2E_INSTANCE=.humanlayer/verify/<name>/instance.json \
+  node scripts/perf-genui-opening.mjs --out <new-private-evidence-directory>
+```
+
+This model-free runner creates three plain/rich pairs of synthetic DMs and one
+neutral parking DM. Each measured target has one explicitly published canonical
+message. Rich publication uses the exact serialized input passed to a successful
+`genui_preview`; the runner reads the canonical message back from the Host. Every
+run skips onboarding through its Host owner before either arm, outside measurement;
+fresh-browser welcome tours must not intercept the measured Channel-row click. Each
+opening uses a fresh browser, parks in the neutral conversation, and refuses a
+target observed before its trusted Channel-row click. Both arms share the same
+summary; rich content adds the maintained nine-scene document fixture.
+
+Readiness requires a frontmost canonical message, a composer, no history skeleton,
+and, for rich content, a visible iframe and enabled product-owned Continue button.
+It rechecks readiness after two rAF callbacks and separately checks nested document
+content. This is visible-ready evidence, not proof of physical presentation or full
+interaction. Headed runs use matching actual native viewports, checked before and
+after each opening. `--headless` is the CI diagnostic, not foreground acceptance.
+
+The strict budget in `scripts/perf-budgets/genui-opening.json` keeps the previously
+preregistered targets: **1500 ms** total opening for either arm, **1000 ms** explicit
+publication RPC, and **15000 ms** preview RPC. Every sample must fit; a median cannot
+hide an outlier. The manifest retains per-arm min/median/max and signed paired added
+opening costs. The first preview is recorded separately from later calls; a fresh
+browser does not imply a cold OS cache. Prior exploratory observations and failed
+ordinary-history budgets remain separate evidence, not replaced by this protocol.
+
+Source, dirty-file, build, fixture and budget hashes, browser identities, canonical
+references, failures and cleanup outcomes are retained in JSON. Existing manifests
+cannot be overwritten. The runner closes its browsers and pauses/stops its synthetic
+Bots; the caller retains ownership of the Host and Profile. No business data or
+real-model calls are needed. This QA-only tooling adds no product runtime path and
+does not clear execution containment (#3704), native (#3705) or Human acceptance.
+
 ## HTML document candidate
 
 The version-2 isolated HTML implementation shipped in PR #3699. Current-main Web qualification is tracked in #3703, independent execution/resource containment in #3704, and installed mobile in #3705; the cross-platform parent #3684 remains open. Closing implementation tickets #3685/#3691 did not turn their outstanding acceptance checkboxes into passes. Run the production-shaped HTML journey against a task-owned Host:

@@ -204,6 +204,13 @@ describe('CI test plan', () => {
     );
     expect(timelinePerf('affected', [{ path: 'scripts/perf-budgets/timeline.json' }])).toBe(true);
     expect(timelinePerf('affected', [{ path: 'scripts/perf-idle-timeline.mjs' }])).toBe(true);
+    for (const path of [
+      'scripts/perf-genui-opening.mjs',
+      'scripts/perf-genui-opening-observer.mjs',
+      'scripts/perf-budgets/genui-opening.json',
+    ]) {
+      expect(timelinePerf('affected', [{ path }])).toBe(true);
+    }
     expect(timelinePerf('affected', [{ path: 'scripts/foreground-timeline-scroll.mjs' }])).toBe(
       true,
     );
