@@ -537,7 +537,7 @@ deepseekbot private-mcp-remove <bot-id> --server <name> --confirm
 
 `session-stop <bot-id> --activity <activity-id>` stops the Session behind one row of the Bot's live activity snapshot (`sessions[].id`), as the stop on a row of the Messages header popover does. A row that has already gone means the Session finished, so the command returns empty `stopped` and `alreadyIdle` lists and still succeeds. Pass either a Session id or `--activity`, not both.
 
-Stopping an **Assignment** does not wake the Orchestrator. Its next turn reads a Host lifecycle notice that the Human stopped the Assignment and must not be redispatched unless the Human asks. The Assignment keeps its history and stays unarchived; only an Assignment Request from the Orchestrator (`send_assignment_request`) resumes it.
+Stopping an **Assignment** does not wake the Orchestrator. Its next turn reads a Host lifecycle notice that the Human stopped the Assignment and must not be redispatched unless the Human asks. The Assignment keeps its history and stays unarchived; a further Assignment Request is refused while it stays stopped. Only an explicit resume revives it: after an explicit Human instruction to continue, call `unarchive_assignment` first and then send the request again.
 
 Stopping the **Orchestrator** only interrupts its current turn (or a waiting automatic continuation). Its Assignments keep running, and nothing else changes: the next message, Assignment Report or other wake starts a turn as usual, and that turn carries a Host note about the stop. In the Sessions panel, when Assignments are running, the stop asks first and offers to stop them too (Bot Stop).
 
