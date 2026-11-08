@@ -157,7 +157,7 @@ import {
 } from './live-snapshots.js';
 import { sessionBotReference } from './mentions.js';
 import { en, LOCALE_NS, zh } from './locale.js';
-import { registerModeShadow } from './mode.js';
+import { registerModeShadow, registerShadowEntry } from './mode.js';
 import { browserSystemMotionSource, mountMotionPolicyAttribute } from './motion-preference.js';
 import { defaultStorage, loadRosterConfig } from './roster-config.js';
 import { mountDevClientRefresh } from './dev-client-refresh.js';
@@ -1243,25 +1243,27 @@ export function apply(ctx: ClientContext): void {
     ctx,
     'sidebar',
     () =>
-      ctx.slots.register(
-        {
-          name: 'sidebar',
-          priority: -1,
-          locale: LOCALE_NS,
-          inject: () => ({
-            actions,
-            companion,
-            channelSidebar,
-            dockPanels,
-            shortcutBindings,
-            ...botModePrefsFace(prefs),
-            exitBotMode: () => ctx.layout.selectPanel(null),
-            toggleSidebar: () => ctx.layout.toggleSidebar(),
-            openBotSettings: (sectionId?: string) => botSettings.open(sectionId),
-            quickSwitcherSettings,
-          }),
-        },
-        BotModeSidebar,
+      registerShadowEntry(ctx, 'sidebar', (priority) =>
+        ctx.slots.register(
+          {
+            name: 'sidebar',
+            priority,
+            locale: LOCALE_NS,
+            inject: () => ({
+              actions,
+              companion,
+              channelSidebar,
+              dockPanels,
+              shortcutBindings,
+              ...botModePrefsFace(prefs),
+              exitBotMode: () => ctx.layout.selectPanel(null),
+              toggleSidebar: () => ctx.layout.toggleSidebar(),
+              openBotSettings: (sectionId?: string) => botSettings.open(sectionId),
+              quickSwitcherSettings,
+            }),
+          },
+          BotModeSidebar,
+        ),
       ),
     store,
     {
@@ -1280,20 +1282,22 @@ export function apply(ctx: ClientContext): void {
     ctx,
     'sidebar.workspaces',
     () =>
-      ctx.slots.register(
-        {
-          name: 'sidebar.workspaces',
-          priority: -100,
-          locale: LOCALE_NS,
-          inject: () => ({
-            actions,
-            companion,
-            channelSidebar,
-            shortcutBindings,
-            ...botModePrefsFace(prefs),
-          }),
-        },
-        BotSidebar,
+      registerShadowEntry(ctx, 'sidebar.workspaces', (priority) =>
+        ctx.slots.register(
+          {
+            name: 'sidebar.workspaces',
+            priority,
+            locale: LOCALE_NS,
+            inject: () => ({
+              actions,
+              companion,
+              channelSidebar,
+              shortcutBindings,
+              ...botModePrefsFace(prefs),
+            }),
+          },
+          BotSidebar,
+        ),
       ),
     store,
     {
@@ -1305,25 +1309,27 @@ export function apply(ctx: ClientContext): void {
     ctx,
     'main',
     () =>
-      ctx.slots.register(
-        {
-          name: 'main',
-          key: 'conversation' as MainPanelId,
-          priority: -100,
-          inject: () => ({
-            actions,
-            companion,
-            channelSidebar,
-            dockPanels,
-            profileCards,
-            appearance,
-            nativeChatT,
-            nativeSessions,
-            prefs,
-            workspace,
-          }),
-        },
-        BotMain,
+      registerShadowEntry(ctx, 'main', (priority) =>
+        ctx.slots.register(
+          {
+            name: 'main',
+            key: 'conversation' as MainPanelId,
+            priority,
+            inject: () => ({
+              actions,
+              companion,
+              channelSidebar,
+              dockPanels,
+              profileCards,
+              appearance,
+              nativeChatT,
+              nativeSessions,
+              prefs,
+              workspace,
+            }),
+          },
+          BotMain,
+        ),
       ),
     store,
   );
