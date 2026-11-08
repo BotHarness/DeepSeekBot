@@ -26,7 +26,6 @@ import { WorkspaceContext, WORKSPACE_RAIL, WORKSPACE_CHANNELS } from './workspac
 import {
   createContext,
   useContext,
-  useEffect,
   useMemo,
   useRef,
   useState,
@@ -592,7 +591,7 @@ function SimpleMessageContent({ column }: { column: SubpanelColumnView }): React
     | undefined
   >(undefined);
   const escapeRef = useRef<((event: KeyboardEvent) => void) | undefined>(undefined);
-  useEffect(
+  const unmountCleanup = useMountedResource(
     () => () => {
       if (escapeRef.current) window.removeEventListener('keydown', escapeRef.current);
     },
@@ -677,7 +676,7 @@ function SimpleMessageContent({ column }: { column: SubpanelColumnView }): React
   });
   const label = dock.t('workspace.subpanelColumn');
   return (
-    <div className="bh-dock-body bh-message-split">
+    <div ref={unmountCleanup} className="bh-dock-body bh-message-split">
       <div className="bh-message-content">
         <DockBodySlot />
       </div>
