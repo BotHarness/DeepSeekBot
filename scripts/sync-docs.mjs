@@ -520,6 +520,20 @@ export const PAGES = [
     },
   },
   {
+    slug: 'docs/private-connect',
+    order: 15,
+    en: {
+      source: 'docs/private-connect.md',
+      title: 'Docker private connection',
+      description: 'Deploy your private relay, verify public reachability and pair your phone.',
+    },
+    zh: {
+      source: 'docs/private-connect.zh.md',
+      title: 'Docker 私有连接',
+      description: '部署私有中继，检查公网可达性并配对手机。',
+    },
+  },
+  {
     slug: 'docs/mobile-pairing',
     order: 16,
     en: {

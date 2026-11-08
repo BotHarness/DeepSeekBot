@@ -1,0 +1,33 @@
+services:
+  relay:
+    build: .
+    restart: unless-stopped
+    volumes:
+      - relay-data:/data
+    environment:
+      RELAY_BOOTSTRAP: ${RELAY_BOOTSTRAP:?Run setup.mjs to create the private setup key}
+    networks:
+      - private
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+  https:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    environment:
+      RELAY_DOMAIN: ${RELAY_DOMAIN:?Set the public DNS name that points to this server}
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - private
+volumes:
+  relay-data:
+  caddy-data:
+  caddy-config:
+networks:
+  private:

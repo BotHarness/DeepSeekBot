@@ -1,6 +1,10 @@
 import { CliLiveError } from './cli-live-error.js';
 export const CONNECT_COMMANDS = [
   {
+    command: 'private-connect',
+    description: 'claim a Docker relay: --hostname <https-origin> --token-stdin --confirm',
+  },
+  {
     command: 'connect-status',
     description: 'read Tobs Connect state and the phone routes',
   },
@@ -49,6 +53,23 @@ export async function runConnectCommand(
   }>,
   sleep: (ms: number) => Promise<void> = (ms) => new Promise((done) => setTimeout(done, ms)),
 ): Promise<unknown> {
+  if (command === 'private-connect') {
+    if (rest.length || !values.hostname || !values['token-stdin'] || !values.confirm || values.wait)
+      throw new CliLiveError(
+        'usage',
+        'private-connect requires --hostname <https-origin> --token-stdin --confirm.',
+      );
+    const bootstrap = (await (io.readStdin?.() ?? Promise.resolve(''))).trim();
+    if (!/^[a-f0-9]{64}$/u.test(bootstrap))
+      throw new CliLiveError('usage', 'Read the initial setup key from stdin.');
+    const host = await connect();
+    const response = await host.http(DEVICES + '/private', {
+      origin: values.hostname,
+      bootstrap,
+      confirm: true,
+    });
+    return JSON.parse(new TextDecoder().decode(response.bytes)) as unknown;
+  }
   const enable = command === 'connect-enable';
   const revoke = command === 'connect-account-revoke';
   if (revoke ? rest.length !== 1 : rest.length !== 0)

@@ -4,6 +4,20 @@ import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots';
 export const LOCALE_NS = 'botharness';
 
 export const zh = {
+  'privateRelay.title': 'Docker 私有连接（推荐）',
+  'privateRelay.description': '使用自己的服务器，不需要官方账号。',
+  'privateRelay.requirement':
+    '需要手机和电脑都能访问的公网入口。仅在家中内网运行 Docker，不能保证远程连接。',
+  'privateRelay.deploy':
+    '先在已有公网服务器或已配置公网访问的 NAS 上部署 Docker 服务，再填写 HTTPS 地址和首次设置密钥。',
+  'privateRelay.address': '私有服务 HTTPS 地址',
+  'privateRelay.secret': '首次设置密钥',
+  'privateRelay.claim': '认领并连接',
+  'privateRelay.connecting': '正在连接…',
+  'privateRelay.connected': '已连接，可以配对手机。',
+  'privateRelay.pair': '显示手机配对码',
+  'privateRelay.failed':
+    '连接未完成。请检查公网地址、HTTPS 证书和设置密钥；若服务已被认领，请回到原电脑继续。不会自动使用官方中继。',
   'genui.documentFailed': '文档未能运行。消息摘要仍可阅读，可重新载入。',
   'genui.documentUnsupported': '此文档暂不支持显示，消息摘要仍可阅读。',
   'genui.documentLoading': '正在载入文档…',
@@ -4831,6 +4845,20 @@ export function zhTranslate(key: BotHarnessKey | string, params?: Record<string,
 }
 
 export const en = {
+  'privateRelay.title': 'Docker private connection (recommended)',
+  'privateRelay.description': 'Use your own server without an official account.',
+  'privateRelay.requirement':
+    'Your phone and computer must both reach a public endpoint. Running Docker only inside your home network does not guarantee remote access.',
+  'privateRelay.deploy':
+    'First deploy the Docker service on an existing public server or publicly reachable NAS, then enter its HTTPS address and initial setup key.',
+  'privateRelay.address': 'Private service HTTPS address',
+  'privateRelay.secret': 'Initial setup key',
+  'privateRelay.claim': 'Claim and connect',
+  'privateRelay.connecting': 'Connecting…',
+  'privateRelay.connected': 'Connected. You can now pair your phone.',
+  'privateRelay.pair': 'Show phone pairing code',
+  'privateRelay.failed':
+    'Connection did not complete. Check public reachability, HTTPS and the setup key. If already claimed, continue from the original computer. The official relay will not be used automatically.',
   'genui.documentFailed':
     'The document could not run. You can still read the message summary or reload.',
   'genui.documentLoading': 'Loading document…',

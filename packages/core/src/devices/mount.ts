@@ -1,3 +1,4 @@
+import { createPrivateConnection } from './private-relay.js';
 import { createConnectBotBridge } from './bot-connect-bridge.js';
 import { BOT_CONNECT_PATH } from './bot-connect-channel.js';
 import { createLanBotBridge } from './bot-lan-bridge.js';
@@ -721,9 +722,28 @@ export function mountDevicePairing(
     });
     const publishingReady = publishing.start();
     webCtx.effect(() => () => publishing.close(), 'botharness: managed Tailscale publishing');
+    const privateConnection = createPrivateConnection({
+      credentials: options.credentials ?? (() => undefined),
+      port: () => webServer.port,
+      log: (phase) => write('private-relay', phase, 'private-relay phase=' + phase),
+    });
+    webCtx.effect(() => {
+      void privateConnection
+        .restore()
+        .catch(() =>
+          write('private-relay', 'restore-failed', 'private-relay phase=restore-failed'),
+        );
+      return () => privateConnection.close();
+    }, 'botharness: private relay');
     const routes = async () => {
       await publishingReady;
       const status = await publishing.status();
+      const privateRoute = privateConnection.admission();
+      if (privateRoute)
+        return {
+          ...status,
+          routes: [{ url: privateRoute.origin, kind: 'private' as const, ready: true }],
+        };
       status.routes.unshift(...lan.routes());
       const tunnel = connect.route();
       if (tunnel === undefined) return status;
@@ -732,6 +752,7 @@ export function mountDevicePairing(
       return { ...status, routes: [...others, tunnel, ...loopback] };
     };
     const http = createDevicesHttp({
+      privateConnection,
       pairing,
       encryption,
       routes,
@@ -756,6 +777,7 @@ export function mountDevicePairing(
       [`${DEVICES_PATH}/approve-key`, ['POST']],
       [`${DEVICES_PATH}/revoke`, ['POST']],
       [`${DEVICES_PATH}/connect`, ['POST']],
+      [`${DEVICES_PATH}/private`, ['POST']],
       [`${DEVICES_PATH}/account-hosts`, ['GET']],
       [`${DEVICES_PATH}/account-hosts/revoke`, ['POST']],
       [`${DEVICES_PATH}/lan`, ['POST']],

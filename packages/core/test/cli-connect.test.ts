@@ -4,6 +4,33 @@ const reply = (value: unknown) => ({
   bytes: new TextEncoder().encode(JSON.stringify(value)),
 });
 describe('connect CLI', () => {
+  it('claims private connectivity only with explicit confirmation and a stdin setup key', async () => {
+    const http = vi.fn(async () => reply({ ok: true, status: { state: 'connecting' } }));
+    const connect = vi.fn(async () => ({ http }));
+    await expect(
+      runConnectCommand(
+        'private-connect',
+        [],
+        { hostname: 'https://relay.example.com', 'token-stdin': true },
+        {},
+        connect,
+      ),
+    ).rejects.toMatchObject({ code: 'usage' });
+    expect(connect).not.toHaveBeenCalled();
+    const result = await runConnectCommand(
+      'private-connect',
+      [],
+      { hostname: 'https://relay.example.com', 'token-stdin': true, confirm: true },
+      { readStdin: async () => 'a'.repeat(64) },
+      connect,
+    );
+    expect(http).toHaveBeenCalledWith('/api/botharness/devices/private', {
+      origin: 'https://relay.example.com',
+      bootstrap: 'a'.repeat(64),
+      confirm: true,
+    });
+    expect(JSON.stringify(result)).not.toContain('a'.repeat(64));
+  });
   it('lists linked computers through the on-demand route', async () => {
     const http = vi.fn(async () => reply({ hosts: [] }));
     expect(
