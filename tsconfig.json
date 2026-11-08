@@ -47,6 +47,7 @@
     "apps/mobile/test/catch-up-power.test.ts",
     "apps/mobile/test/mobile-telemetry-wire-live.test.ts",
     "apps/mobile/test/native-telemetry.test.ts",
+    "apps/mobile/test/native-push-resolve.test.ts",
     "apps/mobile/test/native-connection-mode.test.ts",
     "apps/mobile/test/native-lan-socket.test.ts",
     "apps/mobile/test/call-camera.test.ts",

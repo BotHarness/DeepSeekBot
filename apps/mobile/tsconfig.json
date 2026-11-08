@@ -17,6 +17,7 @@
     "test/workspace-panel-root.test.ts",
     "test/mobile-telemetry-wire-live.test.ts",
     "test/native-telemetry.test.ts",
+    "test/native-push-resolve.test.ts",
     "test/native-connection-mode.test.ts",
     "test/call-camera.test.ts",
     "test/call-media-native.test.ts",
