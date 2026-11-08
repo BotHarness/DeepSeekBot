@@ -13,6 +13,7 @@ import { genuiDirtySourceHashes } from './perf-genui-provenance.mjs';
 import { checkBudget, readBudget } from './perf-budget.mjs';
 import { observeGenuiOpening, summarizeGenuiOpening } from './perf-genui-opening-observer.mjs';
 import { openTimelineConversation } from './perf-timeline-navigation.mjs';
+import { dismissGenuiOpeningOverlays as dismiss } from './perf-genui-opening-overlays.mjs';
 import {
   assertNativeViewportUnchanged,
   calibrateNativeViewport,
@@ -94,43 +95,6 @@ async function createBot(name) {
   manifest.bots.push(bot);
   save();
   return bot;
-}
-
-async function dismiss(page) {
-  for (let round = 0; round < 8; round++) {
-    const tutorial = await page.$('.driver-popover-close-btn');
-    if (tutorial && (await tutorial.isVisible())) {
-      await tutorial.click();
-      continue;
-    }
-    let clicked = false;
-    for (const button of await page.$$('button')) {
-      const label = await button.evaluate((node) =>
-        node.closest('.bh-chat-body')
-          ? ''
-          : (node.getAttribute('aria-label') ?? node.textContent).trim(),
-      );
-      if (
-        [
-          'Continue',
-          '继续',
-          'Skip tutorial',
-          '跳过教程',
-          'Configure later',
-          '稍后配置',
-          'Skip',
-          '跳过',
-          'Don’t show again',
-        ].includes(label) &&
-        (await button.isVisible())
-      ) {
-        await button.click();
-        clicked = true;
-        break;
-      }
-    }
-    if (!clicked) break;
-  }
 }
 
 async function measure(target, parking) {
