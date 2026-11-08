@@ -133,7 +133,6 @@ export class GenuiMirrorFrame {
     if (value === this.textScaleValue) return;
     this.textScaleValue = value;
     this.frame.style.zoom = String(value);
-    this.frame.style.width = `${100 / value}%`;
     this.writes = 0;
     this.measured = false;
     this.schedule();

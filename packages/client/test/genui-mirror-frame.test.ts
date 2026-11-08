@@ -33,11 +33,11 @@ function open(textScale?: number) {
 }
 
 describe('GenUI trusted mirror text scaling', () => {
-  it('scales the script-disabled frame and inversely bounds its width without changing its document', () => {
+  it('scales the script-disabled frame within its full containing width without changing its document', () => {
     const frame = open(22 / 14);
     const source = frame.frame.srcdoc;
     expect(Number(frame.frame.style.zoom)).toBe(22 / 14);
-    expect(frame.frame.style.width).toBe(`${100 / (22 / 14)}%`);
+    expect(frame.frame.style.width).toBe('100%');
     expect(frame.frame.getAttribute('sandbox')).toBe('allow-same-origin');
     frame.textScale(1);
     expect(frame.frame.style.zoom).toBe('1');
