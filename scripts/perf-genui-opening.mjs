@@ -9,6 +9,7 @@ import { parseArgs } from 'node:util';
 import { syntheticGenuiDocument } from '../packages/core/test/fixtures/genui-document.ts';
 import { rpc } from './verify-app.mjs';
 import { stopGenuiQaBot } from './genui-qa-cleanup.mjs';
+import { genuiDirtySourceHashes } from './perf-genui-provenance.mjs';
 import { checkBudget, readBudget } from './perf-budget.mjs';
 import { observeGenuiOpening, summarizeGenuiOpening } from './perf-genui-opening-observer.mjs';
 import { openTimelineConversation } from './perf-timeline-navigation.mjs';
@@ -62,17 +63,7 @@ const manifest = {
   headed: !values.headless,
   sourceSha: git('rev-parse', 'HEAD').toString().trim(),
   diffSha256: hash(git('diff', 'HEAD')),
-  sourceFiles: Object.fromEntries(
-    [
-      ...new Set(
-        `${git('diff', '--name-only', 'HEAD')}\n${git('ls-files', '--others', '--exclude-standard')}`
-          .trim()
-          .split('\n'),
-      ),
-    ]
-      .filter((path) => path && /\.(?:mjs|ts|tsx|json|yml)$/u.test(path))
-      .map((path) => [path, hash(readFileSync(join(root, path)))]),
-  ),
+  sourceFiles: genuiDirtySourceHashes(root),
   hostSha256: hash(readFileSync(join(root, 'packages/core/dist/index.mjs'))),
   clientSha256: hash(readFileSync(join(root, 'packages/client/lib/client.js'))),
   fixtureSha256: hash(readFileSync(join(root, 'packages/core/test/fixtures/genui-document.ts'))),

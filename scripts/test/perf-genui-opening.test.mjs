@@ -1,4 +1,9 @@
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { genuiDirtySourceHashes } from '../perf-genui-provenance.mjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { checkBudget } from '../perf-budget.mjs';
 import {
@@ -32,6 +37,39 @@ const healthy = () => ({
   })),
   pageErrors: [],
   cleanupFailures: [],
+});
+
+describe('dirty opening-run provenance', () => {
+  it('hashes changed and untracked inputs without reading deleted source paths', () => {
+    const root = mkdtempSync(join(tmpdir(), 'genui-provenance-'));
+    const git = (...args) => execFileSync('git', args, { cwd: root, stdio: 'pipe' });
+    try {
+      git('init', '-q');
+      writeFileSync(join(root, 'deleted.ts'), 'old source');
+      writeFileSync(join(root, 'changed.json'), '{}');
+      git('add', '.');
+      git(
+        '-c',
+        'user.name=GenUI test',
+        '-c',
+        'user.email=genui@example.invalid',
+        'commit',
+        '-qm',
+        'fixture',
+      );
+      rmSync(join(root, 'deleted.ts'));
+      writeFileSync(join(root, 'changed.json'), '{"changed":true}');
+      writeFileSync(join(root, 'new.mjs'), 'export const added = true;');
+      const hash = (text) => createHash('sha256').update(text).digest('hex');
+      expect(genuiDirtySourceHashes(root)).toEqual({
+        'changed.json': hash('{"changed":true}'),
+        'new.mjs': hash('export const added = true;'),
+      });
+      expect(git('diff', 'HEAD').toString()).toContain('deleted file mode');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('GenUI opening and added-work budget', () => {

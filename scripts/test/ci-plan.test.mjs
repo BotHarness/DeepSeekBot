@@ -207,6 +207,7 @@ describe('CI test plan', () => {
     for (const path of [
       'scripts/perf-genui-opening.mjs',
       'scripts/perf-genui-opening-observer.mjs',
+      'scripts/perf-genui-provenance.mjs',
       'scripts/perf-budgets/genui-opening.json',
     ]) {
       expect(timelinePerf('affected', [{ path }])).toBe(true);
