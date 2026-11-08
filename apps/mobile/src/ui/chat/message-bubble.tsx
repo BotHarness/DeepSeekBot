@@ -58,6 +58,7 @@ import {
 } from './bubble-shape';
 import { DeliveryReceiptButton, ReadingBadge } from './delivery-stack';
 import { MessageAttachments } from './message-attachments';
+import { GenuiDocumentCard } from './genui-document-card';
 import { VoiceBar } from './voice-bar';
 import { openMessageMenu } from './message-menu';
 import { ReactionChips } from './message-reactions';
@@ -165,6 +166,9 @@ export function BubbleBody({
       {quote}
       {message.voice === undefined ? null : <VoiceBar voice={message.voice} />}
       <MessageBody message={message} streaming={streaming} />
+      {message.genuiDocument === undefined ? null : (
+        <GenuiDocumentCard document={message.genuiDocument} />
+      )}
       {message.attachments.length > 0 ? (
         <MessageAttachments
           attachments={message.attachments}
@@ -469,6 +473,7 @@ export const MessageBubble = memo(function MessageBubble({
         {
           alignSelf: human ? 'flex-end' : 'flex-start',
           maxWidth: BUBBLE_MAX,
+          ...(message.genuiDocument === undefined ? {} : { width: BUBBLE_MAX }),
           transformOrigin: human ? 'right bottom' : 'left bottom',
         },
         pop.style,

@@ -1384,6 +1384,10 @@ const en = {
   downloading: 'Downloading…',
   shareFailed: 'That file could not be downloaded from your computer.',
   card: 'Open the full client to respond to this.',
+  genuiLoading: 'Loading document…',
+  genuiFailed: 'This document could not run here. The summary above still applies.',
+  genuiRetry: 'Try again',
+  genuiReadOnly: 'View only on phone. Save or continue from your computer.',
   alwaysAllow: 'Always allow',
   alwaysToolScope: (tool: string) =>
     `Always allow lets this Bot use ${tool} in the current authorization scope without asking again, even with different inputs. Shell commands may access files outside the current folder.`,
@@ -3715,6 +3719,10 @@ const zh: typeof en = {
   downloading: '正在下载…',
   shareFailed: '从你的电脑下载这个文件失败。',
   card: '请在本机客户端中处理这条消息。',
+  genuiLoading: '正在加载文档…',
+  genuiFailed: '这份文档无法在这里运行，上方摘要仍然有效。',
+  genuiRetry: '重试',
+  genuiReadOnly: '手机上仅可查看。请在电脑上保存或续问。',
   alwaysAllow: '始终允许',
   alwaysToolScope: (tool: string) =>
     `选择“始终允许”后，此 Bot 在当前授权范围使用 ${tool} 不再询问，换参数也一样。终端命令可能访问当前目录之外。`,

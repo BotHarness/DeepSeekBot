@@ -1,4 +1,5 @@
 import type { HostClient, RemoteSource } from './client';
+import { genuiDocumentOf, type GenuiDocument } from '../genui/document';
 import { forgetMedia } from './media-cache';
 import { sessionFailure } from './session-failure';
 import { activityOf, type ChannelActivity } from './channel-activity';
@@ -156,6 +157,7 @@ export interface ConversationMessage {
   replyTo?: string;
   replyPreview?: WireReplyPreview | null;
   attachments: MessageAttachment[];
+  genuiDocument?: GenuiDocument;
   card?: MessageCard;
   resolves?: { requestId: string; resolution: CardResolution };
   reactions?: ConversationReaction[];
@@ -580,6 +582,7 @@ function present(
   const card = cardOf(entry.channelId, message);
   const resolves = resolvesOf(message);
   const activity = activityOf(message);
+  const genuiDocument = genuiDocumentOf(message.genui);
   const failure = kind === 'bot' ? sessionFailure(message.sessionFailure) : undefined;
   const { attachments, voice } = voiceOf(message, attachmentsOf(entry, resolve, picked));
   return {
@@ -596,6 +599,7 @@ function present(
       : { replyTo: message.replyTo, replyPreview: message.replyToPreview ?? null }),
     attachments,
     ...(voice === undefined ? {} : { voice }),
+    ...(genuiDocument === undefined ? {} : { genuiDocument }),
     ...(card === undefined ? {} : { card }),
     ...(resolves === undefined ? {} : { resolves }),
     ...(activity === undefined ? {} : { activity }),

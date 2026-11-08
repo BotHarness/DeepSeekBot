@@ -14,7 +14,8 @@
     "expo:doctor": "expo-doctor",
     "e2e:ios": "maestro test --platform ios .maestro",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "generate:palette": "node scripts/generate-palette.mjs"
+    "generate:palette": "node scripts/generate-palette.mjs",
+    "generate:genui-runtime": "node scripts/generate-genui-runtime.mjs"
   },
   "dependencies": {
     "@botharness/pixel-banner": "0.1.0",
