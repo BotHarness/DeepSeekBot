@@ -125,6 +125,26 @@ function initialState(): Parameters<typeof stack.getStateForAction>[0] {
   };
 }
 let state = initialState();
+function hydrateTabs(index = 0) {
+  state = {
+    ...state,
+    routes: state.routes.map((route) => ({
+      ...route,
+      state: {
+        stale: false,
+        type: 'tab',
+        key: 'initial-tabs',
+        routeKeySeq: 0,
+        index,
+        routeNames: ['(home)', '(activity)'],
+        routes: [
+          { key: 'home', name: '(home)' },
+          { key: 'activity', name: '(activity)' },
+        ],
+      },
+    })),
+  };
+}
 const navigation = {
   isReady: () => fixture.navigationReady,
   addListener: (_event: string, listener: () => void) => {
@@ -168,6 +188,7 @@ let container: HTMLDivElement | undefined;
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 afterEach(() => {
   act(() => root?.unmount());
+  expect(fixture.navigationListeners.size).toBe(0);
   container?.remove();
   vi.useRealTimers();
 });
@@ -212,7 +233,7 @@ it('waits for the cold navigator to mount before dispatching', async () => {
     for (const listener of fixture.navigationListeners) listener();
   });
   expect(state.routes[state.index]).toMatchObject({ name: 'channel/[id]' });
-  expect(fixture.navigationListeners.size).toBe(0);
+  expect(fixture.navigationListeners.size).toBe(1);
 });
 
 it('opens interruption details without waiting for the conversation list', async () => {
@@ -322,6 +343,24 @@ it('waits for cold source initialization and its Roster before opening', async (
     params: { hostId: 'host-a' },
   });
   expect(fixture.listeners.size).toBe(0);
+});
+
+it('keeps cold notification intent when the initial tabs state is hydrated', async () => {
+  fixture.ready = false;
+  fixture.hostId = 'host-b';
+  await mount();
+  await act(async () => fixture.tap?.(notification('host-a')));
+  await act(async () => {
+    hydrateTabs();
+    fixture.ready = true;
+    for (const listener of fixture.sessionListeners) listener();
+  });
+  expect(fixture.hostId).toBe('host-a');
+  expect(state.routes[state.index]).toMatchObject({
+    name: 'channel/[id]',
+    params: { hostId: 'host-a', id: 'group-a' },
+  });
+  expect(fixture.alerts).toEqual([]);
 });
 
 it('bounds the wait and reports a failure instead of silently ignoring a tap', async () => {
@@ -489,5 +528,28 @@ it('a newer ordinary page navigation wins over a pending notification approval',
   });
   expect(state).toBe(selected);
   expect(state.routes[state.index]).toMatchObject({ name: 'dm/[slug]', params: { slug: 'grace' } });
+  expect(fixture.alerts).toEqual([]);
+});
+
+it('a manual tab round trip cancels a pending notification even after returning to the same tab', async () => {
+  hydrateTabs();
+  let release = () => {};
+  fixture.approvalGate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await mount();
+  await act(async () =>
+    fixture.tap?.({ ...notification(), kind: 'tool-approval', messageId: 'approval' }, 'approve'),
+  );
+  expect(fixture.approvals).toBe(1);
+  await act(async () => {
+    for (const index of [1, 0]) {
+      hydrateTabs(index);
+      for (const listener of fixture.navigationListeners) listener();
+    }
+    release();
+    await vi.runAllTimersAsync();
+  });
+  expect(state.routes).toHaveLength(1);
   expect(fixture.alerts).toEqual([]);
 });
