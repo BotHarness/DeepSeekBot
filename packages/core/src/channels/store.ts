@@ -586,6 +586,7 @@ function sameMessageIntent(left: ChannelMessage, right: ChannelMessage): boolean
     JSON.stringify(left.author) === JSON.stringify(right.author) &&
     JSON.stringify(left.genui) === JSON.stringify(right.genui) &&
     JSON.stringify(left.genuiReply) === JSON.stringify(right.genuiReply) &&
+    left.genuiReplyContext === right.genuiReplyContext &&
     left.body === right.body &&
     left.replyTo === right.replyTo &&
     JSON.stringify(left.grantRequestResolution) === JSON.stringify(right.grantRequestResolution) &&

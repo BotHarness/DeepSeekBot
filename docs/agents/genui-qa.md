@@ -84,6 +84,8 @@ afterward; never widen the scope to get a passing result.
 
 The public `channelMessages` projection intentionally does not expose `channelId` or `sourceEventId` on every message. The verification runner correlates its already-authorized scoped read with read-only Source Event/placement and Human-request Admission evidence from its own isolated Profile. This is observation only, never a write bypass or another message store. The orchestrator trace must be non-`direct`, and its committed result must identify the very same canonical message.
 
+For new continuations, assert that the visible and canonical Human body equals the readable request, without injected developer context JSON. Separately verify canonical `genuiReplyContext` metadata matches the referenced document identity and submitted state, excludes HTML, and reaches the actual model once. Immediate and recovered/pending DM paths retain their existing context budgets; purge must remove the metadata with the message. Historical appended-body messages are not rewritten. Earlier screenshots are evidence only for their recorded source head, not acceptance of this separation.
+
 | Content or interaction               | Required evidence                                                 |
 | ------------------------------------ | ----------------------------------------------------------------- |
 | Composed document                    | Readable ordinary summary plus rich HTML                          |

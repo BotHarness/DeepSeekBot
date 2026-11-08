@@ -200,6 +200,8 @@ deepseekbot group-create "Skill Lab" --member <bot-id> --member <bot-id>
 
 ### GenUI documents in a Bot DM
 
+For new `genui-submit` continuations, `request.json.body` remains the ordinary readable Human message. The Host adds validated, bounded `genuiReplyContext` metadata to the same canonical Source Event for Bot model projection, not to the visible body. Callers cannot supply this metadata. Existing appended-body messages and their same-intent retries remain unchanged.
+
 GenUI is bounded ordinary message content. Version 2 renders self-contained HTML, inline CSS, SVG and local JavaScript in an isolated document; version 1 reports remain readable. Preview and explicitly publish through the existing direct Tool runner (no model required):
 
 ```bash

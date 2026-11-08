@@ -694,6 +694,20 @@ try {
   );
   assert.equal(submitted.author.kind, 'human');
   assert.equal(submitted.genuiReply.state.values.selected, 'alpha');
+  assert.ok(!submitted.body.includes('Untrusted GenUI document context'));
+  assert.ok(submitted.genuiReplyContext.includes('Untrusted GenUI document context'));
+  assert.ok(!submitted.genuiReplyContext.includes(manifest.document.html));
+  await page.waitForFunction(
+    (message) => {
+      const node = document.querySelector(`[data-message-id="${message.id}"] .bh-bubble-body`);
+      return node?.textContent.trim() === message.body.trim();
+    },
+    {},
+    { id: submitted.id, body: submitted.body },
+  );
+  manifest.checks.push(
+    'New Human continuation shows only the readable body; bounded model context remains canonical metadata, without HTML.',
+  );
   manifest.submission = submitted;
   await capture('11-visible-human-continuation');
   if (values['with-model']) {

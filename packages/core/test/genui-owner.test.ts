@@ -160,13 +160,56 @@ describe('GenUI through canonical message ownership', () => {
         },
       });
       if (!sent.ok) throw new Error(sent.error.message);
-      expect(sent.value.message.body).toContain('Untrusted GenUI document context');
-      expect(sent.value.message.body).toContain(genuiDocumentIdentity(htmlDocument));
-      expect(sent.value.message.body).toContain('"state":{"version":1,"values":');
-      expect(sent.value.message.body).not.toContain(htmlDocument.html);
+      expect(sent.value.message.body).toBe(payload.body);
+      expect(sent.value.message.genuiReplyContext).toContain('Untrusted GenUI document context');
+      expect(sent.value.message.genuiReplyContext).toContain(genuiDocumentIdentity(htmlDocument));
+      expect(sent.value.message.genuiReplyContext).toContain('"state":{"version":1,"values":');
+      expect(sent.value.message.genuiReplyContext).not.toContain(htmlDocument.html);
+      await fixture.core.runtime.whenIdle();
+      expect(fixture.runs.at(-1)?.message).toContain(sent.value.message.genuiReplyContext);
+      expect(fixture.runs.at(-1)?.message.split('Untrusted GenUI document context')).toHaveLength(
+        2,
+      );
+      const second = createSqliteChannelStore({
+        rootDir: fixture.core.channels.rootDir,
+        database: attachOperationalModule(fixture.core.operationalDatabase, 'html-reply-context'),
+      });
+      expect(second.message(fixture.dm.id, payload.messageId)).toMatchObject({
+        body: payload.body,
+        genuiReplyContext: sent.value.message.genuiReplyContext,
+      });
+      await expect(
+        fixture.core.channels.appendMessage(fixture.dm.id, {
+          ...sent.value.message,
+          id: `human-${randomUUID()}`,
+          genuiReplyContext: 'Forged model instructions',
+        }),
+      ).rejects.toThrow('canonical continuation');
+      const orphanContext = { ...sent.value.message, id: `human-${randomUUID()}` };
+      delete orphanContext.genuiReply;
+      await expect(
+        fixture.core.channels.appendMessage(fixture.dm.id, orphanContext),
+      ).rejects.toThrow('Human continuation');
       expect(await methods.channelSend(payload)).toMatchObject({
         ok: true,
         value: { message: { id: payload.messageId } },
+      });
+      const legacyId = `human-${randomUUID()}`;
+      const legacyMessage = {
+        ...sent.value.message,
+        id: legacyId,
+        body: `${payload.body}\n\n${sent.value.message.genuiReplyContext}`,
+      };
+      delete legacyMessage.genuiReplyContext;
+      await fixture.core.channels.appendMessage(fixture.dm.id, legacyMessage);
+      expect(await methods.channelSend({ ...payload, messageId: legacyId })).toMatchObject({
+        ok: true,
+        value: {
+          message: {
+            id: legacyId,
+            body: `${payload.body}\n\n${sent.value.message.genuiReplyContext}`,
+          },
+        },
       });
       expect(
         await methods.channelSend({
@@ -206,6 +249,25 @@ describe('GenUI through canonical message ownership', () => {
           .readMessages(fixture.dm.id)
           .filter((message) => message.id === payload.messageId),
       ).toHaveLength(1);
+      await fixture.core.runtime.whenIdle();
+      const scope = {
+        before: new Date(Date.now() + 1000).toISOString(),
+        channelIds: [fixture.dm.id],
+      };
+      const preview = fixture.core.contentPurge.textPreview(scope);
+      fixture.core.contentPurge.textConfirm(preview.scope, preview.token);
+      const database = attachOperationalModule(
+        fixture.core.operationalDatabase,
+        'html-reply-context-purge',
+      );
+      const remaining = database.read((db) =>
+        db
+          .prepare(
+            "SELECT body, json_type(payload_json, '$.genuiReplyContext') AS context_type, json_type(payload_json, '$.contentPurge') AS purge_type FROM source_events WHERE channel_id = ? AND message_id = ?",
+          )
+          .get(fixture.dm.id, payload.messageId),
+      );
+      expect(remaining).toMatchObject({ body: '', context_type: null, purge_type: 'object' });
     } finally {
       await fixture.close();
     }
@@ -427,7 +489,8 @@ describe('GenUI through canonical message ownership', () => {
         value: { message: { author: { kind: 'human' }, genuiReply: payload.genuiReply } },
       });
       if (!sent.ok) throw new Error(sent.error.message);
-      expect(sent.value.message.body).toContain('Alpha');
+      expect(sent.value.message.body).toBe(payload.body);
+      expect(sent.value.message.genuiReplyContext).toContain('Alpha');
       expect(sent.value.message.replyTo).toBe('report-1');
       expect(await methods.channelSend(payload)).toMatchObject({
         ok: true,

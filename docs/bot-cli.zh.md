@@ -195,6 +195,8 @@ deepseekbot group-create "Skill Lab" --member <bot-id> --member <bot-id>
 
 ### Bot 私聊中的 GenUI 文档
 
+新建的 `genui-submit` 续接将 `request.json.body` 保留为普通、可读的 Human 消息正文。Host 在同一条规范 Source Event 中加入经过校验的有界 `genuiReplyContext` 元数据，供 Bot 模型投影使用，不追加到可见正文；调用方不能指定这项元数据。已有的拼接正文消息及其同意图重试保持不变。
+
 GenUI 是有界的普通消息内容。版本 2 在隔离文档中渲染自包含 HTML、内联 CSS、SVG 和本地 JavaScript；版本 1 报告保持可读。通过既有 direct Tool 路径预览并显式发布，无需模型：
 
 ```bash

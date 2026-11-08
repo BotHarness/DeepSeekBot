@@ -479,6 +479,7 @@ export function isChannelCallVisual(value: unknown): value is ChannelCallVisual 
 export interface ChannelMessage {
   genui?: GenuiContent;
   genuiReply?: GenuiMessageReply;
+  genuiReplyContext?: string;
   id: string;
   at: string;
   author: ChannelMessageAuthor;
