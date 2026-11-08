@@ -209,7 +209,13 @@ export async function rpc(instance, endpoint, args = {}) {
   const envelope = await response.json().catch(() => undefined);
   if (response.status !== 200 || envelope?.result?.ok !== true) {
     const code = envelope?.result?.error?.code ?? 'invalid-response';
-    throw new Error(`${endpoint} failed: HTTP ${response.status}, ${code}`);
+    const message = envelope?.result?.error?.message;
+    throw Object.assign(
+      new Error(
+        `${endpoint} failed: HTTP ${response.status}, ${code}${message ? `: ${message}` : ''}`,
+      ),
+      { code, ...(message ? { bridgeMessage: message } : {}) },
+    );
   }
   return envelope.result.value;
 }
