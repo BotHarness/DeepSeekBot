@@ -3,7 +3,15 @@ import { describe, expect, it } from 'vitest';
 import { runCallTimelineCommand } from '../src/bots/cli-call-timeline.js';
 import { CliLiveError } from '../src/bots/cli-live-error.js';
 import { LIVE_COMMANDS } from '../src/bots/cli-live.js';
-import { at, CALLS, OTHER_CALL, setup } from './channel-call-fixture.js';
+import {
+  at,
+  CALLS,
+  OTHER_CALL,
+  PICTURE_CALLS,
+  pictureMessages,
+  pictureWindowIds,
+  setup,
+} from './channel-call-fixture.js';
 
 function connectTo(methods: Awaited<ReturnType<typeof setup>>['methods'], seen: unknown[] = []) {
   return async () => ({
@@ -70,6 +78,27 @@ describe('deepseekbot call-list and call-read (#3693)', () => {
           },
         },
       ]);
+    } finally {
+      await close();
+    }
+  });
+
+  it('reads pictures that overlap the window like the channel_read tool (#3713)', async () => {
+    const { core, dm, methods, read, close } = await setup();
+    try {
+      for (const call of PICTURE_CALLS)
+        for (const message of pictureMessages(call))
+          await core.channels.appendMessage(dm.id, message);
+      for (const call of PICTURE_CALLS) {
+        const cli = (await runCallTimelineCommand(
+          'call-read',
+          ['ada', call.id],
+          { 'from-ms': '5000', 'to-ms': '9000' },
+          connectTo(methods),
+        )) as { messages: Array<{ message: { id: string } }> };
+        expect(cli).toEqual(await read({ call: call.id, from_ms: 5_000, to_ms: 9_000 }));
+        expect(cli.messages.map((entry) => entry.message.id)).toEqual(pictureWindowIds(call));
+      }
     } finally {
       await close();
     }

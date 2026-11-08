@@ -2384,7 +2384,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       defineTool({
         name: 'channel_read',
         description:
-          'Read actionable joined Channel messages as bounded JSON (at most 12000 characters). Follow nextCursor with unchanged filters. For an oversized message, use message_id alone and follow contentCursor; concatenate JSON fragments to retrieve complete content. Omitted or partially read messages remain pending. A voice call in a DM leaves system notices with voiceCallRecord at its start and end; text "voice call" with author_kind system lists the calls. To read one call, pass its callId as call: alone it returns the whole call oldest first (what the Human said, your replies and the camera or screen records); add from_ms/to_ms, milliseconds from the call\'s start (minute 5 is from_ms 300000), for part of it.',
+          'Read actionable joined Channel messages as bounded JSON (at most 12000 characters). Follow nextCursor with unchanged filters. For an oversized message, use message_id alone and follow contentCursor; concatenate JSON fragments to retrieve complete content. Omitted or partially read messages remain pending. A voice call in a DM leaves system notices with voiceCallRecord at its start and end; text "voice call" with author_kind system lists the calls. To read one call, pass its callId as call: alone it returns the whole call oldest first (what the Human said, your replies and the camera or screen records); add from_ms/to_ms, milliseconds from the call\'s start (minute 5 is from_ms 300000), for part of it: a camera or screen picture (a frame record, or a message with voiceCall.visual) comes back when its picture range overlaps that window, any other message when its time is in it.',
         parameters: {
           channel_id: {
             type: 'string',
@@ -2435,12 +2435,12 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           from_ms: {
             type: 'number',
             description:
-              'With call: inclusive start, whole milliseconds from the call start (default 0).',
+              'With call: inclusive start, whole milliseconds from the call start (default 0). Pictures match by overlap.',
           },
           to_ms: {
             type: 'number',
             description:
-              'With call: inclusive end, whole milliseconds from the call start (default the call end).',
+              'With call: inclusive end, whole milliseconds from the call start (default the call end). Pictures match by overlap.',
           },
           cursor: { type: 'string', description: 'Opaque nextCursor; reuse the same filters.' },
           limit: {
