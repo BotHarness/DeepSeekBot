@@ -684,6 +684,13 @@
       "skillPath": "harness/pstack/claude-code/skills/swarm/SKILL.md",
       "computedHash": "86aaafc0cad22e26c16a88de71ba278aaa23fae10dcd30e3248c524bfe1efeba"
     },
+    "swiftui-expert-skill": {
+      "source": "AvdLee/SwiftUI-Agent-Skill",
+      "ref": "62bd760f005093d1e2e4de5db156e456a5f96400",
+      "sourceType": "github",
+      "skillPath": "skills/swiftui-expert-skill/SKILL.md",
+      "computedHash": "b8f57fdb06ccc7c2a70c3836dc96b38408ca2d84c977a0b6804dc68f752289db"
+    },
     "tdd": {
       "source": "mattpocock/skills",
       "sourceType": "github",
