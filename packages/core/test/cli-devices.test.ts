@@ -77,12 +77,14 @@ describe('devices CLI', () => {
         devices: [{ id: 'd', name: 'Pixel', pairedAt: '2026-10-21T00:00:00.000Z' }],
         routes: { tailscale: 'running', routes: [] },
         connect: { state: 'off' },
+        privateRelay: { state: 'connected', origin: 'https://relay.example.com' },
       }),
     );
     expect(await runDevicesCommand('devices', [], {}, async () => ({ http }))).toEqual({
       host: { id: 'h', name: 'studio' },
       devices: [{ id: 'd', name: 'Pixel', pairedAt: '2026-10-21T00:00:00.000Z' }],
       routes: { tailscale: 'running', routes: [] },
+      privateRelay: { state: 'connected', origin: 'https://relay.example.com' },
     });
     expect(http.mock.calls[0]).toEqual(['/api/botharness/devices']);
   });

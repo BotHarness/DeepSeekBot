@@ -33,9 +33,12 @@ test(
       assert.equal((await claim(bootstrap)).status, 409);
       assert.equal((await fetch(origin + '/status')).status, 404);
       assert.ok(!readFileSync(join(directory, 'owner.json'), 'utf8').includes(ownerToken));
-      const connect = async (route, token) => {
+      const connect = async (route, token, nativeOrigin) => {
         const ws = new WebSocket(origin.replace('http', 'ws') + route, {
-          headers: { Authorization: 'Bearer ' + token },
+          headers: {
+            ...(token ? { Authorization: 'Bearer ' + token } : {}),
+            ...(nativeOrigin ? { Origin: nativeOrigin } : {}),
+          },
         });
         sockets.push(ws);
         await once(ws, 'open');
@@ -43,8 +46,9 @@ test(
       };
       await assert.rejects(connect('/host', phoneToken));
       const host = await connect('/host', ownerToken);
+      await assert.rejects(connect('/botharness-device/channel', undefined, origin));
       const opening = once(host, 'message');
-      const phone = await connect('/botharness-device/channel', phoneToken);
+      const phone = await connect('/botharness-device/channel', phoneToken, origin);
       const opened = JSON.parse((await opening)[0].toString());
       assert.equal(opened.type, 'open');
       const inbound = once(host, 'message');
