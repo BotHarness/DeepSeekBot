@@ -43,6 +43,61 @@ export interface EmailCodeFlow {
 
 export type SocialProvider = 'GoogleOAuth' | 'AppleOAuth';
 
+export type AuthSessionOpener = (
+  url: string,
+  callback: string,
+) => Promise<{
+  type: string;
+  url?: string;
+}>;
+
+export type RedirectWatcher = (
+  callback: string,
+  onRedirect: (url: string) => void,
+) => { remove(): void };
+
+export async function authorizeWithLateRedirect(
+  url: string,
+  callback: string,
+  open: AuthSessionOpener,
+  watch: RedirectWatcher,
+  graceMs: number,
+  sleep: (ms: number) => Promise<void>,
+): Promise<string | null> {
+  const canonical = (value: string) => value.replace(/^([A-Za-z][A-Za-z0-9+.-]*):\/{2,}/u, '$1:/');
+  const target = canonical(callback);
+  const matches = (redirect: string) => canonical(redirect).startsWith(target);
+  let redirected: string | undefined;
+  const session = watch(callback, (redirect) => {
+    if (redirected === undefined && matches(redirect)) redirected = redirect;
+  });
+  try {
+    const result = await open(url, callback);
+    if (result.type === 'success' && typeof result.url === 'string') return result.url;
+    if (redirected !== undefined) return redirected;
+    if (result.type !== 'dismiss') return null;
+    let notify: ((redirect: string) => void) | undefined;
+    const arrived = new Promise<string>((resolve) => {
+      notify = resolve;
+    });
+    const retry = watch(callback, (redirect) => {
+      if (matches(redirect)) notify?.(redirect);
+    });
+    try {
+      return (await Promise.race([sleep(graceMs).then(() => undefined), arrived])) ?? null;
+    } finally {
+      notify = undefined;
+      retry.remove();
+    }
+  } finally {
+    session.remove();
+  }
+}
+
+export function visibleBrowserRefusal(code: EmailCodeRefusal | 'cancelled'): EmailCodeRefusal {
+  return code === 'cancelled' ? 'sign-in-failed' : code;
+}
+
 export type EmailCodeOutcome =
   | { kind: 'signed-in'; email: string | undefined }
   | { kind: 'cancelled' };

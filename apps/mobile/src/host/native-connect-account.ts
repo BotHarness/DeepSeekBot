@@ -1,5 +1,6 @@
 import * as Application from 'expo-application';
 import * as Crypto from 'expo-crypto';
+import * as Linking from 'expo-linking';
 import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
 import { fetch } from 'expo/fetch';
@@ -7,7 +8,7 @@ import { router } from 'expo-router';
 
 import { MOBILE_REDIRECT_URI } from '../cloud/instance-contract';
 import { hostSession } from './host-session';
-import { createConnectAccount } from './connect-account';
+import { authorizeWithLateRedirect, createConnectAccount } from './connect-account';
 import { startEmailCodeSignIn } from './email-code-bridge';
 
 const KEY = 'botharness.connect-account.v1';
@@ -39,11 +40,26 @@ export const connectAccount = createConnectAccount({
       ),
     now: () => Date.now(),
     request: (url, init) => fetch(url, { ...init, signal: AbortSignal.timeout(15000) }),
-    authorize: async (url, callback) => {
-      const result = await WebBrowser.openAuthSessionAsync(url, callback, {
-        preferEphemeralSession: true,
+    authorize: (url, callback) => {
+      let ended: string | undefined;
+      return authorizeWithLateRedirect(
+        url,
+        callback,
+        async (authUrl, returnUrl) => {
+          const result = await WebBrowser.openAuthSessionAsync(authUrl, returnUrl, {
+            preferEphemeralSession: true,
+          });
+          if (result.type !== 'success') ended = result.type;
+          return result.type === 'success' ? result : { type: result.type };
+        },
+        (_prefix, onRedirect) => Linking.addEventListener('url', (event) => onRedirect(event.url)),
+        1500,
+        (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+      ).then((redirect) => {
+        if (redirect === null)
+          console.warn(`[connect] auth session ended without a redirect: ${ended ?? 'unknown'}`);
+        return redirect;
       });
-      return result.type === 'success' ? result.url : null;
     },
     collectEmailCode: (flow) => startEmailCodeSignIn(flow, () => router.push('/sign-in')),
   },
