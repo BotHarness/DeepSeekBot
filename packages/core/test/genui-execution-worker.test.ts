@@ -18,17 +18,11 @@ import {
   type GenuiExecutionPort,
   type GenuiExecutionSnapshot,
 } from '../src/channels/genui-execution-supervisor.js';
+import { buildGenuiGuestLibrary } from '../../../scripts/genui-runtime-assets.mjs';
 
 const require = createRequire(import.meta.url);
 const wasm = await readFile(require.resolve('@jitl/quickjs-wasmfile-release-sync/wasm'));
-const library = await build({
-  entryPoints: [fileURLToPath(new URL('../src/channels/genui-guest-dom.ts', import.meta.url))],
-  bundle: true,
-  write: false,
-  platform: 'browser',
-  format: 'iife',
-  minify: true,
-});
+const library = await buildGenuiGuestLibrary();
 const bundle = await build({
   entryPoints: [
     fileURLToPath(new URL('../src/channels/genui-execution-worker.ts', import.meta.url)),
@@ -39,7 +33,7 @@ const bundle = await build({
   format: 'iife',
   minify: true,
   define: {
-    __GENUI_GUEST_LIBRARY__: JSON.stringify(library.outputFiles[0]?.text ?? ''),
+    __GENUI_GUEST_LIBRARY__: JSON.stringify(library.text),
     __GENUI_WASM_BASE64__: JSON.stringify(wasm.toString('base64')),
   },
 });
@@ -166,7 +160,7 @@ describe('GenUI actual independently owned Worker entry', () => {
   });
 
   it('keeps the offline guest library and complete Worker within separate source budgets', () => {
-    expect(library.outputFiles[0]?.contents.byteLength).toBeLessThanOrEqual(393_216);
+    expect(library.contents.byteLength).toBeLessThanOrEqual(393_216);
     expect(bundle.outputFiles[0]?.contents.byteLength).toBeLessThanOrEqual(1_572_864);
   });
 

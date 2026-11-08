@@ -13,6 +13,7 @@ section: Fixed
 - GenUI preview refusals preserve recognized Browser startup failure kinds and report cleanup failures without discarding an earlier refusal code or exposing process output and private profile paths ([#3711](https://github.com/BotHarness/DeepSeekBot/issues/3711)).
 - Local Bot Browser shutdown waits for process and inherited stdio closure before releasing its profile; an unconfirmed shutdown fails explicitly and retains ownership instead of reporting success immediately after a kill signal ([#3711](https://github.com/BotHarness/DeepSeekBot/issues/3711)).
 - GenUI's default table style keeps words intact inside an opt-in horizontal scroll region on narrow screens; the maintained interactive example reuses row identities so selecting a row does not discard keyboard focus ([#3711](https://github.com/BotHarness/DeepSeekBot/issues/3711)).
+- Rich GenUI documents start faster: the trusted guest DOM defers its stylesheet parser until a document first reads a `<style>` sheet and ships one copy of its HTML entity tables, so each document no longer parses about 200 KB of unused interpreter code at startup ([#3711](https://github.com/BotHarness/DeepSeekBot/issues/3711)).
 
 ## zh
 
@@ -25,3 +26,4 @@ section: Fixed
 - GenUI 预览拒绝保留已识别的 Browser 启动失败分类，并明确报告收尾失败，不丢弃此前的拒绝码，也不暴露进程输出或私有 Profile 路径（[#3711](https://github.com/BotHarness/DeepSeekBot/issues/3711)）。
 - 本地 Bot Browser 收尾会等待进程及继承的标准流关闭后再释放 Profile；无法确认收尾时明确失败并保留所有权，不再将已发送终止信号误报为停止成功（[#3711](https://github.com/BotHarness/DeepSeekBot/issues/3711)）。
 - GenUI 默认表格样式在窄屏保留完整词语，并提供可选的横向滚动区域；维护的交互示例复用表格行身份，避免选中一行时丢失键盘焦点（[#3711](https://github.com/BotHarness/DeepSeekBot/issues/3711)）。
+- 富 GenUI 文档启动更快：可信 guest DOM 在文档首次读取 `<style>` 样式表时才加载样式表解析器，并只保留一份 HTML 实体表，每个文档启动时不再解析约 200 KB 未使用的解释器代码（[#3711](https://github.com/BotHarness/DeepSeekBot/issues/3711)）。

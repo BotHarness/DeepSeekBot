@@ -1,7 +1,5 @@
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
-import { build } from 'esbuild';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   createGenuiExecutionSession,
@@ -14,20 +12,14 @@ import {
 } from '../src/channels/genui-execution.js';
 import { initialGenuiDocumentState } from '../src/channels/genui-document.js';
 import { syntheticGenuiDocument } from './fixtures/genui-document.js';
+import { buildGenuiGuestLibrary } from '../../../scripts/genui-runtime-assets.mjs';
 
 const require = createRequire(import.meta.url);
 const wasmBinary = new Uint8Array(
   await readFile(require.resolve('@jitl/quickjs-wasmfile-release-sync/wasm')),
 ).buffer;
-const library = await build({
-  entryPoints: [fileURLToPath(new URL('../src/channels/genui-guest-dom.ts', import.meta.url))],
-  bundle: true,
-  write: false,
-  platform: 'browser',
-  format: 'iife',
-  minify: true,
-});
-const librarySource = library.outputFiles[0]?.text ?? '';
+const library = await buildGenuiGuestLibrary();
+const librarySource = library.text;
 const sessions: GenuiExecutionSession[] = [];
 const header = { protocol: GENUI_EXECUTION_PROTOCOL, instanceId: 'session-test', generation: 2 };
 
