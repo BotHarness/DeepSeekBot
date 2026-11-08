@@ -745,6 +745,29 @@ describe('Subpanel auto-scroll and focus', () => {
   });
 });
 
+describe('Subpanel group filtering', () => {
+  it('orders group subpanels, excludes DM-only panels and retains their slots', async () => {
+    openColumn({ ...defaultColumn(), order: ['members', 'sessions', 'schedules'] });
+    const ws = mountWorkspace();
+    for (const [id, label] of [
+      ['members', 'Members'],
+      ['schedules', 'Schedules'],
+    ] as const)
+      ws.registry.registerEntry({
+        id,
+        label,
+        scope: 'personabot',
+        component: () => createElement('div', { 'data-body': id }),
+      });
+    await ws.render();
+    await ws.selectChannel({ id: 'group-1', type: 'group' });
+    expect(entryOrder()).toEqual(['members', 'sessions']);
+    await press('members', 'ArrowDown');
+    expect(entryOrder()).toEqual(['sessions', 'members']);
+    expect(readLayoutMode(storage).column.order).toEqual(['sessions', 'members', 'schedules']);
+  });
+});
+
 describe('Advanced rail', () => {
   it('keeps the Messages and Channel list switches and has no Tob switch', async () => {
     values = new Map([[LAYOUT_MODE_STORAGE_KEY, JSON.stringify({ mode: 'advanced' })]]);
