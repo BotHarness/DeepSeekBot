@@ -175,7 +175,10 @@ export function openNoiseSocket(options: {
         closed: (reason) => fail(reason || 'channel-disconnected'),
       },
       options.encryption.privateRelay?.origin === options.origin
-        ? { Authorization: 'Bearer ' + options.encryption.privateRelay.token }
+        ? {
+            Authorization: 'Bearer ' + options.encryption.privateRelay.token,
+            'X-BotHarness-Admission': options.encryption.privateRelay.token,
+          }
         : undefined,
     );
   } catch (error) {

@@ -154,12 +154,17 @@ export function createDevicesHttp(options: {
         const result = await options.privateTunnel.disable();
         return json(result, result.ok ? 200 : 409);
       }
-      if (input['action'] !== 'enable' || (input['mode'] !== 'quick' && input['mode'] !== 'named'))
+      if (
+        input['action'] !== 'enable' ||
+        (input['mode'] !== 'quick' && input['mode'] !== 'named' && input['mode'] !== 'ingress')
+      )
         return json({ code: 'private-tunnel-input-invalid' }, 400);
       const result = await options.privateTunnel.enable({
         mode: input['mode'],
         ...(typeof input['hostname'] === 'string' ? { hostname: input['hostname'] } : {}),
         ...(typeof input['token'] === 'string' ? { token: input['token'] } : {}),
+        ...(typeof input['origin'] === 'string' ? { origin: input['origin'] } : {}),
+        ...(input['lan'] === true ? { lan: true } : {}),
         inUse: (options.privateConnection?.status().state ?? 'off') !== 'off',
       });
       return json(result, result.ok ? 200 : 409);

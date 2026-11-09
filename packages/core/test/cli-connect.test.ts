@@ -77,6 +77,39 @@ describe('connect CLI', () => {
       confirm: true,
     });
   });
+  it('registers a bring-your-own ingress origin only with --origin and --confirm', async () => {
+    const http = vi.fn(async () => reply({ ok: true, status: { state: 'verifying' } }));
+    const connect = vi.fn(async () => ({ http }));
+    for (const [command, values] of [
+      ['private-ingress-enable', { confirm: true }],
+      ['private-ingress-enable', { origin: 'https://bot.example.com' }],
+      ['private-ingress-enable', { origin: 'https://bot.example.com', quick: true, confirm: true }],
+      ['private-ingress-disable', { confirm: true, lan: true }],
+    ] as const)
+      await expect(runConnectCommand(command, [], values, {}, connect)).rejects.toMatchObject({
+        code: 'usage',
+      });
+    expect(connect).not.toHaveBeenCalled();
+    await runConnectCommand(
+      'private-ingress-enable',
+      [],
+      { origin: 'https://bot.example.com', lan: true, confirm: true },
+      {},
+      connect,
+    );
+    expect(http).toHaveBeenLastCalledWith('/api/botharness/devices/private-tunnel', {
+      action: 'enable',
+      mode: 'ingress',
+      origin: 'https://bot.example.com',
+      lan: true,
+      confirm: true,
+    });
+    await runConnectCommand('private-ingress-disable', [], { confirm: true }, {}, connect);
+    expect(http).toHaveBeenLastCalledWith('/api/botharness/devices/private-tunnel', {
+      action: 'disable',
+      confirm: true,
+    });
+  });
   it('lists linked computers through the on-demand route', async () => {
     const http = vi.fn(async () => reply({ hosts: [] }));
     expect(

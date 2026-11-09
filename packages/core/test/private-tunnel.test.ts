@@ -339,3 +339,99 @@ it('restarts cloudflared after it exits even while a public probe is pending, an
     addressChanged: true,
   });
 }, 30_000);
+
+it('accepts a bring-your-own HTTPS origin only after its public check, with admission in the dedicated header', async () => {
+  const credentials = memoryCredentials();
+  const cloudflared = fakeCloudflared();
+  const seen: string[] = [];
+  let reachable = false;
+  let target = '';
+  const tunnel = createPrivateTunnel({
+    credentials: () => credentials,
+    port: () => 1,
+    resolveBinary,
+    spawn: cloudflared.spawn,
+    fetch: (async (input: string, init?: RequestInit) => {
+      seen.push(input);
+      if (!reachable)
+        throw Object.assign(new TypeError('fetch failed'), {
+          cause: { code: 'UNABLE_TO_VERIFY_LEAF_SIGNATURE' },
+        });
+      return fetch(`${target}${new URL(input).pathname}`, init);
+    }) as typeof fetch,
+    probeIntervalMs: 10,
+    probeWindowMs: 100,
+    reprobeMs: 20,
+  });
+  tunnels.push(tunnel);
+  for (const refused of [
+    'http://bot.example.com',
+    'https://bot.example.com/path',
+    'https://x.ts.net',
+    'https://127.0.0.1:8443',
+    'https://deepseekbot.dev',
+  ])
+    expect(await tunnel.enable({ mode: 'ingress', origin: refused })).toEqual({
+      ok: false,
+      code: 'private-ingress-origin-invalid',
+    });
+  expect(
+    await tunnel.enable({ mode: 'ingress', origin: 'https://bot.corp.internal:8443' }),
+  ).toMatchObject({
+    ok: true,
+    status: { mode: 'ingress', origin: 'https://bot.corp.internal:8443', lan: false },
+  });
+  expect(cloudflared.runs).toHaveLength(0);
+  target = `http://127.0.0.1:${String(tunnel.status().originPort)}`;
+  await vi.waitFor(() =>
+    expect(tunnel.status()).toMatchObject({
+      state: 'error',
+      issue: 'tunnel-unreachable',
+      probe: 'tls',
+    }),
+  );
+  expect(tunnel.admission()).toBeUndefined();
+  reachable = true;
+  await vi.waitFor(() => expect(tunnel.status().state).toBe('connected'));
+  expect(seen.at(-1)).toMatch(
+    /^https:\/\/bot\.corp\.internal:8443\/\.well-known\/botharness-tunnel\//u,
+  );
+  const admission = tunnel.admission()!;
+  expect(admission.origin).toBe('https://bot.corp.internal:8443');
+
+  const gateway = createServer();
+  const headers: Record<string, string | string[] | undefined>[] = [];
+  gateway.on('upgrade', (request, socket) => {
+    headers.push(request.headers);
+    socket.end('HTTP/1.1 404 Not Found\r\ncontent-length: 0\r\n\r\n');
+  });
+  gateway.listen(0, '127.0.0.1');
+  await once(gateway, 'listening');
+  const port = (gateway.address() as AddressInfo).port;
+  const forwarded = createPrivateTunnel({
+    credentials: () => credentials,
+    port: () => port,
+    resolveBinary,
+    spawn: cloudflared.spawn,
+    fetch: (async (input: string, init?: RequestInit) =>
+      fetch(
+        `http://127.0.0.1:${String(forwarded.status().originPort)}${new URL(input).pathname}`,
+        init,
+      )) as typeof fetch,
+    probeIntervalMs: 10,
+  });
+  tunnels.push(forwarded);
+  await tunnel.close();
+  await forwarded.restore();
+  await vi.waitFor(() => expect(forwarded.status().state).toBe('connected'));
+  expect(forwarded.admission()!.token).toBe(admission.token);
+  const socket = new WebSocket(
+    `ws://127.0.0.1:${String(forwarded.status().originPort)}/botharness-device/channel`,
+    { headers: { 'X-BotHarness-Admission': admission.token } },
+  );
+  await once(socket, 'error');
+  expect(headers).toHaveLength(1);
+  expect(headers[0]!['x-botharness-admission']).toBeUndefined();
+  expect(headers[0]!['authorization']).toBeUndefined();
+  gateway.close();
+});

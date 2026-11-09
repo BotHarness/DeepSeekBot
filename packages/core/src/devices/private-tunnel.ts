@@ -17,7 +17,7 @@ import type { PrivateRelayAdmission } from './private-relay.js';
 
 type Credentials = Pick<CredentialProvider, 'readRecord' | 'modifyRecord' | 'deleteRecord'>;
 
-export type PrivateTunnelMode = 'quick' | 'named';
+export type PrivateTunnelMode = 'quick' | 'named' | 'ingress';
 
 export type PrivateTunnelIssue =
   | 'cloudflared-missing'
@@ -35,6 +35,7 @@ export interface PrivateTunnelStatus {
   mode?: PrivateTunnelMode;
   origin?: string;
   originPort?: number;
+  lan?: boolean;
   issue?: PrivateTunnelIssue;
   probe?: string;
   cloudflared?: CloudflaredSource;
@@ -45,6 +46,7 @@ export type PrivateTunnelRefusal =
   | 'private-tunnel-input-invalid'
   | 'private-tunnel-hostname-invalid'
   | 'private-tunnel-token-invalid'
+  | 'private-ingress-origin-invalid'
   | 'private-route-in-use'
   | 'credential-unavailable';
 
@@ -58,6 +60,8 @@ interface TunnelRecord {
   originPort: number;
   hostname?: string;
   token?: string;
+  origin?: string;
+  lan?: boolean;
 }
 
 export const PROBE_PREFIX = '/.well-known/botharness-tunnel/';
@@ -87,6 +91,43 @@ export function privateTunnelHostname(input: string): string | undefined {
   return hostname;
 }
 
+const TLS_FAILURES = new Set([
+  'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+  'UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
+  'SELF_SIGNED_CERT_IN_CHAIN',
+  'DEPTH_ZERO_SELF_SIGNED_CERT',
+  'CERT_HAS_EXPIRED',
+  'ERR_TLS_CERT_ALTNAME_INVALID',
+]);
+
+export function privateIngressOrigin(input: string): string | undefined {
+  let url: URL;
+  try {
+    url = new URL(input.trim());
+  } catch {
+    return undefined;
+  }
+  const host = url.hostname.toLowerCase();
+  if (
+    url.protocol !== 'https:' ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash ||
+    url.pathname !== '/' ||
+    host === 'localhost' ||
+    host.endsWith('.localhost') ||
+    host === '[::1]' ||
+    /^127\./u.test(host) ||
+    host === 'deepseekbot.dev' ||
+    host.endsWith('.deepseekbot.dev') ||
+    host.endsWith('.ts.net') ||
+    /^100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d+\.\d+$/u.test(host)
+  )
+    return undefined;
+  return url.origin;
+}
+
 function parseRecord(payload: unknown): TunnelRecord | undefined {
   if (typeof payload !== 'object' || payload === null) return undefined;
   const value = payload as Record<string, unknown>;
@@ -94,7 +135,7 @@ function parseRecord(payload: unknown): TunnelRecord | undefined {
   const originPort = value['originPort'];
   const phoneToken = value['phoneToken'];
   if (
-    (mode !== 'quick' && mode !== 'named') ||
+    (mode !== 'quick' && mode !== 'named' && mode !== 'ingress') ||
     typeof phoneToken !== 'string' ||
     !SECRET.test(phoneToken) ||
     typeof originPort !== 'number' ||
@@ -103,6 +144,12 @@ function parseRecord(payload: unknown): TunnelRecord | undefined {
     originPort > 65535
   )
     return undefined;
+  if (mode === 'ingress') {
+    const origin =
+      typeof value['origin'] === 'string' ? privateIngressOrigin(value['origin']) : undefined;
+    if (origin === undefined) return undefined;
+    return { mode, phoneToken, originPort, origin, lan: value['lan'] === true };
+  }
   const hostname =
     typeof value['hostname'] === 'string' ? privateTunnelHostname(value['hostname']) : undefined;
   if (mode === 'named') {
@@ -138,7 +185,11 @@ export function createTunnelOrigin(options: {
     response.end(JSON.stringify({ code: 'not-found' }));
   });
   server.on('upgrade', (request: IncomingMessage, socket: Duplex, head: Buffer) => {
-    const presented = request.headers.authorization?.replace(/^Bearer /u, '') ?? '';
+    const header = request.headers['x-botharness-admission'];
+    const presented =
+      (typeof header === 'string' ? header : undefined) ??
+      request.headers.authorization?.replace(/^Bearer /u, '') ??
+      '';
     if (
       request.url !== CONNECT_CHANNEL_PATH ||
       request.headers.cookie !== undefined ||
@@ -150,7 +201,8 @@ export function createTunnelOrigin(options: {
     let raw = `${request.method ?? 'GET'} ${CONNECT_CHANNEL_PATH} HTTP/${request.httpVersion}\r\n`;
     for (let index = 0; index < request.rawHeaders.length; index += 2) {
       const name = request.rawHeaders[index] ?? '';
-      if (name.toLowerCase() === 'authorization') continue;
+      const lower = name.toLowerCase();
+      if (lower === 'authorization' || lower === 'x-botharness-admission') continue;
       raw += `${name}: ${request.rawHeaders[index + 1] ?? ''}\r\n`;
     }
     const upstream = tcpConnect(options.port(), '127.0.0.1', () => {
@@ -175,7 +227,10 @@ const spawnTunnel: SpawnTunnel = (binary, args, env) =>
 
 function probeFailure(error: unknown): string {
   const cause = (error as { cause?: { code?: unknown } }).cause;
-  if (typeof cause?.code === 'string') return cause.code === 'ENOTFOUND' ? 'dns' : cause.code;
+  if (typeof cause?.code === 'string') {
+    if (cause.code === 'ENOTFOUND') return 'dns';
+    return TLS_FAILURES.has(cause.code) ? 'tls' : cause.code;
+  }
   return error instanceof Error && error.name === 'TimeoutError' ? 'timeout' : 'network';
 }
 
@@ -256,11 +311,11 @@ export function createPrivateTunnel(options: {
     }
   };
 
-  const verify = (run: number, session: number, hostname: string, deadline: number): void => {
+  const verify = (run: number, session: number, origin: string, deadline: number): void => {
     if (run !== generation || session !== probing) return;
     nonce = randomBytes(16).toString('hex');
     const expected = nonce;
-    void fetchImpl(`https://${hostname}${PROBE_PREFIX}${expected}`, {
+    void fetchImpl(`${origin}${PROBE_PREFIX}${expected}`, {
       redirect: 'error',
       signal: AbortSignal.timeout(10_000),
     })
@@ -277,7 +332,7 @@ export function createPrivateTunnel(options: {
           delete status.probe;
           backoff = RESTART_MIN_MS;
           record('verified', `mode=${status.mode ?? ''}`);
-          probeLater(() => verify(run, session, hostname, Date.now() + probeWindow), reprobe * 4);
+          probeLater(() => verify(run, session, origin, Date.now() + probeWindow), reprobe * 4);
         },
         (error: unknown) => {
           if (run !== generation || session !== probing) return;
@@ -287,12 +342,12 @@ export function createPrivateTunnel(options: {
               : probeFailure(error);
           status = { ...status, probe };
           if (Date.now() < deadline) {
-            probeLater(() => verify(run, session, hostname, deadline), probeInterval);
+            probeLater(() => verify(run, session, origin, deadline), probeInterval);
             return;
           }
           status = { ...status, state: 'error', issue: 'tunnel-unreachable' };
           record('unreachable', `probe=${probe}`);
-          probeLater(() => verify(run, session, hostname, Date.now() + probeWindow), reprobe);
+          probeLater(() => verify(run, session, origin, Date.now() + probeWindow), reprobe);
         },
       );
   };
@@ -304,6 +359,12 @@ export function createPrivateTunnel(options: {
     if (run !== generation) return;
     status = { ...status, state: 'starting' };
     delete status.issue;
+    if (next.mode === 'ingress' && next.origin !== undefined) {
+      status = { ...status, state: 'verifying' };
+      record('ingress-started', `lan=${String(next.lan === true)}`);
+      verify(run, ++probing, next.origin, Date.now() + probeWindow);
+      return;
+    }
     let resolved;
     try {
       resolved = await resolveBinary();
@@ -357,7 +418,7 @@ export function createPrivateTunnel(options: {
       if (!registered && REGISTERED.test(chunk)) registered = true;
       if (registered && hostname !== undefined && status.state === 'starting') {
         status = { ...status, state: 'verifying' };
-        verify(run, ++probing, hostname, Date.now() + probeWindow);
+        verify(run, ++probing, `https://${hostname}`, Date.now() + probeWindow);
       }
     });
     const exited = (issue: PrivateTunnelIssue, detail: string): void => {
@@ -401,10 +462,12 @@ export function createPrivateTunnel(options: {
     }
   };
 
-  const listen = (origin: Server, port: number): Promise<number | undefined> =>
+  const listen = (origin: Server, port: number, lan = false): Promise<number | undefined> =>
     new Promise((resolve) => {
       origin.once('error', () => resolve(undefined));
-      origin.listen(port, '127.0.0.1', () => resolve((origin.address() as AddressInfo).port));
+      origin.listen(port, lan ? '0.0.0.0' : '127.0.0.1', () =>
+        resolve((origin.address() as AddressInfo).port),
+      );
     });
 
   const run = async (next: TunnelRecord): Promise<TunnelRecord | undefined> => {
@@ -414,12 +477,14 @@ export function createPrivateTunnel(options: {
       phoneToken: () => next.phoneToken,
       probe: () => nonce,
     });
+    const lan = next.mode === 'ingress' && next.lan === true;
     const bound =
-      (await listen(origin, next.originPort)) ??
-      (next.mode === 'quick' && next.originPort !== 0 ? await listen(origin, 0) : undefined);
+      (await listen(origin, next.originPort, lan)) ??
+      (next.mode === 'quick' && next.originPort !== 0 ? await listen(origin, 0, lan) : undefined);
     const base = {
       mode: next.mode,
       ...(next.mode === 'named' && next.hostname ? { origin: `https://${next.hostname}` } : {}),
+      ...(next.mode === 'ingress' && next.origin ? { origin: next.origin, lan } : {}),
     };
     if (bound === undefined) {
       status = { ...base, state: 'error', issue: 'origin-port-busy', originPort: next.originPort };
@@ -466,14 +531,21 @@ export function createPrivateTunnel(options: {
       mode: PrivateTunnelMode;
       hostname?: string;
       token?: string;
+      origin?: string;
+      lan?: boolean;
       inUse?: boolean;
     }) =>
       serial(async (): Promise<PrivateTunnelResult> => {
         if (input.inUse) return { ok: false, code: 'private-route-in-use' };
-        if (input.mode !== 'quick' && input.mode !== 'named')
+        if (input.mode !== 'quick' && input.mode !== 'named' && input.mode !== 'ingress')
           return { ok: false, code: 'private-tunnel-input-invalid' };
         let hostname: string | undefined;
         let token: string | undefined;
+        let origin: string | undefined;
+        if (input.mode === 'ingress') {
+          origin = privateIngressOrigin(input.origin ?? '');
+          if (origin === undefined) return { ok: false, code: 'private-ingress-origin-invalid' };
+        }
         if (input.mode === 'named') {
           hostname = privateTunnelHostname(input.hostname ?? '');
           if (hostname === undefined) return { ok: false, code: 'private-tunnel-hostname-invalid' };
@@ -485,12 +557,21 @@ export function createPrivateTunnel(options: {
         const previous = await read();
         const kept = typeof previous === 'object' ? previous : undefined;
         if (input.mode === 'quick' && kept?.mode === 'quick') hostname = kept.hostname;
+        const keptOrigin =
+          kept?.mode === 'ingress'
+            ? kept.origin
+            : kept?.hostname === undefined
+              ? undefined
+              : `https://${kept.hostname}`;
+        if (origin !== undefined && keptOrigin !== undefined && keptOrigin !== origin)
+          status = { ...status, addressChanged: true };
         const next: TunnelRecord = {
           mode: input.mode,
           phoneToken: kept?.phoneToken ?? randomBytes(32).toString('hex'),
           originPort: kept?.originPort ?? 0,
           ...(hostname === undefined ? {} : { hostname }),
           ...(token === undefined ? {} : { token }),
+          ...(origin === undefined ? {} : { origin, lan: input.lan === true }),
         };
         current = next;
         const started = await run(next);

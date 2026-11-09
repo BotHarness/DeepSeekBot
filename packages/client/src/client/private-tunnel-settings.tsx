@@ -1,13 +1,15 @@
 import { useState, type ReactElement } from 'react';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Button, Switch } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 import { ChoiceButton } from './ds/choice-button.js';
 import { FieldStack, TextField } from './ds/field.js';
 import { Note } from './ds/note.js';
+import { SettingsRow } from './ds/settings-row.js';
 
 export interface PrivateTunnelView {
   state: 'off' | 'starting' | 'verifying' | 'connected' | 'error';
-  mode?: 'quick' | 'named';
+  mode?: 'quick' | 'named' | 'ingress';
+  lan?: boolean;
   origin?: string;
   originPort?: number;
   issue?: string;
@@ -15,7 +17,7 @@ export interface PrivateTunnelView {
   addressChanged?: boolean;
 }
 
-type Step = 'choose' | 'named';
+type Step = 'choose' | 'named' | 'ingress';
 
 export function PrivateTunnelSettings({
   t,
@@ -32,6 +34,8 @@ export function PrivateTunnelSettings({
   const [step, setStep] = useState<Step>('choose');
   const [hostname, setHostname] = useState('');
   const [token, setToken] = useState('');
+  const [origin, setOrigin] = useState('');
+  const [lan, setLan] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string>();
   async function send(body: Record<string, unknown>): Promise<void> {
@@ -73,7 +77,13 @@ export function PrivateTunnelSettings({
     return (
       <>
         <Note>
-          {t(status.mode === 'named' ? 'privateTunnel.namedTitle' : 'privateTunnel.quickTitle')}
+          {t(
+            status.mode === 'named'
+              ? 'privateTunnel.namedTitle'
+              : status.mode === 'ingress'
+                ? 'privateTunnel.ingressTitle'
+                : 'privateTunnel.quickTitle',
+          )}
           {status.origin ? ` · ${status.origin}` : ''}
         </Note>
         <Note
@@ -89,6 +99,13 @@ export function PrivateTunnelSettings({
         {status.mode === 'named' && status.state !== 'connected' && status.originPort ? (
           <Note>{t('privateTunnel.namedService', { port: String(status.originPort) })}</Note>
         ) : null}
+        {status.mode === 'ingress' && status.originPort ? (
+          <Note>
+            {t(status.lan ? 'privateTunnel.ingressTargetLan' : 'privateTunnel.ingressTarget', {
+              port: String(status.originPort),
+            })}
+          </Note>
+        ) : null}
         {status.addressChanged ? (
           <Note tone="warning">{t('privateTunnel.addressChanged')}</Note>
         ) : null}
@@ -102,6 +119,43 @@ export function PrivateTunnelSettings({
       </>
     );
   }
+
+  if (step === 'ingress')
+    return (
+      <>
+        <Note>{t('privateTunnel.ingressHelp')}</Note>
+        <FieldStack>
+          <TextField
+            label={t('privateTunnel.ingressOrigin')}
+            value={origin}
+            onChange={setOrigin}
+            autoComplete="off"
+          />
+        </FieldStack>
+        <SettingsRow
+          title={t('privateTunnel.ingressLan')}
+          description={t('privateTunnel.ingressLanDescription')}
+          control={
+            <Switch
+              label={t('privateTunnel.ingressLan')}
+              checked={lan}
+              onChange={() => setLan(!lan)}
+            />
+          }
+        />
+        {failed}
+        <Button
+          variant="primary"
+          disabled={busy || !origin.trim()}
+          onClick={() => void send({ action: 'enable', mode: 'ingress', origin, lan })}
+        >
+          {t(busy ? 'privateRelay.connecting' : 'privateTunnel.ingressEnable')}
+        </Button>
+        <Button variant="outline" disabled={busy} onClick={() => setStep('choose')}>
+          {t('privateTunnel.back')}
+        </Button>
+      </>
+    );
 
   if (step === 'named')
     return (
@@ -150,6 +204,12 @@ export function PrivateTunnelSettings({
         description={t('privateTunnel.namedDescription')}
         disabled={busy}
         onClick={() => setStep('named')}
+      />
+      <ChoiceButton
+        title={t('privateTunnel.ingressTitle')}
+        description={t('privateTunnel.ingressDescription')}
+        disabled={busy}
+        onClick={() => setStep('ingress')}
       />
       <ChoiceButton
         title={t('privateTunnel.advancedTitle')}

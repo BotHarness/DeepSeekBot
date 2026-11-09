@@ -534,6 +534,21 @@ export const PAGES = [
     },
   },
   {
+    slug: 'docs/private-ingress',
+    order: 15,
+    en: {
+      source: 'docs/private-ingress.md',
+      title: 'Bring your own proxy or tunnel',
+      description:
+        'Connect phones through your own HTTPS proxy or tunnel using the ingress standard.',
+    },
+    zh: {
+      source: 'docs/private-ingress.zh.md',
+      title: '使用自己的代理或隧道',
+      description: '按入站标准，通过自己的 HTTPS 代理或隧道连接手机。',
+    },
+  },
+  {
     slug: 'docs/mobile-pairing',
     order: 16,
     en: {

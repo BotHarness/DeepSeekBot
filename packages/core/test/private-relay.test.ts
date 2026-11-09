@@ -124,7 +124,10 @@ it('pairs through the private outbound relay, authorizes exact device keys, carr
       },
       openSocket: (url, events, headers) => {
         expect(url).toBe('wss://relay.example.com/botharness-device/channel');
-        expect(headers).toEqual({ Authorization: 'Bearer ' + admission.token });
+        expect(headers).toEqual({
+          Authorization: 'Bearer ' + admission.token,
+          'X-BotHarness-Admission': admission.token,
+        });
         const socket = new WebSocket(url, { headers });
         socket.on('open', events.open);
         socket.on('message', (data) => events.message(data.toString()));

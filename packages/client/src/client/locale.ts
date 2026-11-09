@@ -19,6 +19,17 @@ export const zh = {
   'privateTunnel.token': 'Tunnel 连接器令牌',
   'privateTunnel.namedEnable': '保存并连接',
   'privateTunnel.namedService': '在 Cloudflare 把这个主机名的服务设为 http://127.0.0.1:{port}',
+  'privateTunnel.ingressTitle': '自己的代理或隧道（专业）',
+  'privateTunnel.ingressDescription': '使用你已部署的 nginx、Caddy、frp、公司网关或自己的隧道。',
+  'privateTunnel.ingressHelp':
+    '填写手机访问的 HTTPS 地址。保存后，把这个地址的 /botharness-device/channel 原样转发（包括 WebSocket 升级）到页面显示的本机端口。电脑会先从这个地址做一次实测，通过后才给配对码。',
+  'privateTunnel.ingressOrigin': 'HTTPS 地址（例如 https://bot.example.com）',
+  'privateTunnel.ingressLan': '允许局域网内其他机器转发',
+  'privateTunnel.ingressLanDescription':
+    '代理装在另一台机器上时开启。开启后同一局域网内的机器都能访问这个端口，但它只开放加密手机通道。',
+  'privateTunnel.ingressEnable': '保存并检查',
+  'privateTunnel.ingressTarget': '把代理转发到 http://127.0.0.1:{port}',
+  'privateTunnel.ingressTargetLan': '把代理转发到这台电脑的局域网地址，端口 {port}',
   'privateTunnel.advancedTitle': '自己的中继服务器（Docker，高级）',
   'privateTunnel.advancedDescription': '在你已有的公网服务器上部署 Docker 中继。',
   'privateTunnel.starting': '正在启动 cloudflared…',
@@ -4889,6 +4900,19 @@ export const en = {
   'privateTunnel.namedEnable': 'Save and connect',
   'privateTunnel.namedService':
     'In Cloudflare, set this hostname’s service to http://127.0.0.1:{port}',
+  'privateTunnel.ingressTitle': 'Your own proxy or tunnel (advanced)',
+  'privateTunnel.ingressDescription':
+    'Use nginx, Caddy, frp, a company gateway or your own tunnel that you already run.',
+  'privateTunnel.ingressHelp':
+    'Enter the HTTPS address your phone will use. After saving, forward /botharness-device/channel on that address unchanged, including the WebSocket upgrade, to the local port shown next. This computer checks the address before it offers a pairing code.',
+  'privateTunnel.ingressOrigin': 'HTTPS address (for example https://bot.example.com)',
+  'privateTunnel.ingressLan': 'Accept forwarding from other LAN machines',
+  'privateTunnel.ingressLanDescription':
+    'Turn on when the proxy runs on another machine. Machines on the same LAN can then reach this port, which serves only the encrypted phone channel.',
+  'privateTunnel.ingressEnable': 'Save and check',
+  'privateTunnel.ingressTarget': 'Forward your proxy to http://127.0.0.1:{port}',
+  'privateTunnel.ingressTargetLan':
+    "Forward your proxy to this computer's LAN address, port {port}",
   'privateTunnel.advancedTitle': 'Your own relay server (Docker, advanced)',
   'privateTunnel.advancedDescription':
     'Deploy the Docker relay on a public server you already have.',

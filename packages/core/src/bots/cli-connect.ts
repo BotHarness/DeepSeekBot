@@ -15,6 +15,15 @@ export const CONNECT_COMMANDS = [
       'stop the private tunnel and forget its connector token and phone admission (--confirm)',
   },
   {
+    command: 'private-ingress-enable',
+    description:
+      'use your own HTTPS reverse proxy or tunnel: --origin <https-origin> [--lan] --confirm',
+  },
+  {
+    command: 'private-ingress-disable',
+    description: 'stop accepting the custom ingress and forget its phone admission (--confirm)',
+  },
+  {
     command: 'connect-status',
     description: 'read Tobs Connect state and the phone routes',
   },
@@ -49,6 +58,8 @@ export const CONNECT_OPTIONS = {
   'token-stdin': { type: 'boolean' },
   wait: { type: 'boolean' },
   quick: { type: 'boolean' },
+  origin: { type: 'string' },
+  lan: { type: 'boolean' },
 } as const;
 const DEVICES = '/api/botharness/devices';
 export function isConnectCommand(command: string): boolean {
@@ -63,6 +74,8 @@ export async function runConnectCommand(
     wait?: boolean;
     confirm?: boolean;
     quick?: boolean;
+    origin?: string;
+    lan?: boolean;
   },
   io: { readStdin?: () => Promise<string>; stderr?: (text: string) => void },
   connect: () => Promise<{
@@ -70,6 +83,38 @@ export async function runConnectCommand(
   }>,
   sleep: (ms: number) => Promise<void> = (ms) => new Promise((done) => setTimeout(done, ms)),
 ): Promise<unknown> {
+  if (command === 'private-ingress-enable' || command === 'private-ingress-disable') {
+    const enable = command === 'private-ingress-enable';
+    if (
+      rest.length ||
+      !values.confirm ||
+      values.wait ||
+      values.quick ||
+      values.hostname !== undefined ||
+      values['token-stdin'] ||
+      (enable ? !values.origin : values.origin !== undefined || values.lan)
+    )
+      throw new CliLiveError(
+        'usage',
+        enable
+          ? 'private-ingress-enable requires --origin <https-origin> and --confirm; add --lan to accept a proxy on another LAN machine.'
+          : 'private-ingress-disable requires --confirm.',
+      );
+    const host = await connect();
+    const response = await host.http(
+      DEVICES + '/private-tunnel',
+      enable
+        ? {
+            action: 'enable',
+            mode: 'ingress',
+            origin: values.origin,
+            ...(values.lan ? { lan: true } : {}),
+            confirm: true,
+          }
+        : { action: 'disable', confirm: true },
+    );
+    return JSON.parse(new TextDecoder().decode(response.bytes)) as unknown;
+  }
   if (command === 'private-tunnel-enable' || command === 'private-tunnel-disable') {
     const enable = command === 'private-tunnel-enable';
     const quick = values.quick === true;
