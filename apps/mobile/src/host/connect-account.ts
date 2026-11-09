@@ -125,6 +125,7 @@ export interface ConnectHost {
   name: string;
   hostname: string;
   online: boolean;
+  waiting?: boolean;
 }
 
 export type ConnectResult<T> =
@@ -516,6 +517,7 @@ export function createConnectAccount(options: {
                     typeof host['connected'] === 'boolean'
                       ? host['connected']
                       : host['tunnel'] === true,
+                  ...(host['state'] === 'waiting' ? { waiting: true } : {}),
                 },
               ]
             : [];
