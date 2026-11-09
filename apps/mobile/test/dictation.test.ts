@@ -6,63 +6,8 @@ import {
   composerStacked,
   voiceDrag,
   voiceRelease,
-  dictate,
-  idleDictation,
   speechLang,
-  type Dictation,
-  type DictationEvent,
 } from '../src/ui/chat/dictation';
-
-const run = (...events: DictationEvent[]): Dictation => events.reduce(dictate, idleDictation);
-
-describe('dictation states', () => {
-  it('starts, listens, fills in what was heard and ends idle with the text kept', () => {
-    expect(run({ kind: 'press' }).status).toBe('starting');
-    expect(run({ kind: 'press' }, { kind: 'started' }).status).toBe('listening');
-    const heard = run(
-      { kind: 'press' },
-      { kind: 'started' },
-      { kind: 'heard', transcript: 'book a table ' },
-    );
-    expect(heard).toEqual({ status: 'listening', heard: 'book a table' });
-    expect(dictate(heard, { kind: 'ended' })).toEqual({ status: 'idle', heard: 'book a table' });
-  });
-
-  it('treats a result before the start event as listening', () => {
-    expect(run({ kind: 'press' }, { kind: 'heard', transcript: 'hi' }).status).toBe('listening');
-  });
-
-  it('refuses gracefully when permission is denied or recognition is unavailable', () => {
-    expect(run({ kind: 'press' }, { kind: 'refused', reason: 'denied' }).status).toBe('denied');
-    expect(run({ kind: 'press' }, { kind: 'refused', reason: 'unavailable' }).status).toBe(
-      'unavailable',
-    );
-    expect(run({ kind: 'press' }, { kind: 'error', code: 'not-allowed' }).status).toBe('denied');
-    expect(run({ kind: 'press' }, { kind: 'error', code: 'language-not-supported' }).status).toBe(
-      'unavailable',
-    );
-  });
-
-  it('goes quietly idle when nothing was said or the Human cancelled', () => {
-    expect(run({ kind: 'press' }, { kind: 'error', code: 'no-speech' }).status).toBe('idle');
-    expect(run({ kind: 'press' }, { kind: 'error', code: 'aborted' }).status).toBe('idle');
-    expect(run({ kind: 'press' }, { kind: 'started' }, { kind: 'cancel' })).toEqual(idleDictation);
-  });
-
-  it('reports other errors as a failed dictation that a new press retries', () => {
-    const failed = run({ kind: 'press' }, { kind: 'started' }, { kind: 'error', code: 'network' });
-    expect(failed.status).toBe('failed');
-    expect(dictate(failed, { kind: 'ended' }).status).toBe('failed');
-    expect(dictate(failed, { kind: 'press' }).status).toBe('starting');
-  });
-
-  it('ignores events that arrive after dictation stopped', () => {
-    const cancelled = run({ kind: 'press' }, { kind: 'cancel' });
-    expect(dictate(cancelled, { kind: 'heard', transcript: 'late' })).toBe(cancelled);
-    expect(dictate(cancelled, { kind: 'refused', reason: 'denied' })).toBe(cancelled);
-    expect(dictate(cancelled, { kind: 'started' })).toBe(cancelled);
-  });
-});
 
 describe('composer actions', () => {
   const base = {

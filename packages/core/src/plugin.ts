@@ -18,7 +18,6 @@ import { VoiceProviders } from './voice/providers.js';
 import { createVoiceMessages, type VoiceMessages } from './voice/messages.js';
 import { createVoiceCalls, type VoiceCallMedia, type VoiceCalls } from './voice/calls.js';
 import { callVisualMessage, createCallTextHarvest } from './voice/call-text.js';
-import { withVoiceDefaults } from './voice/defaults.js';
 import { voiceCallFramesAt, voiceCallRecordBody } from './channels/voice-call-record.js';
 import { VOICE_CALL_PATH } from './voice/call-contract.js';
 import { createVoiceCallHttp } from './voice/call-http.js';
@@ -1119,7 +1118,7 @@ export function createCore(
   } = {};
   const voiceMessages = createVoiceMessages({
     providers: voiceProviders,
-    bot: (slug) => withVoiceDefaults(registry.get(slug), () => voiceProviders.defaults()),
+    bot: (slug) => voiceProviders.effective(registry.get(slug)),
     channels,
     attachments: () => attachments,
     speak: async (input) => voiceSpeech.speak?.(input),
@@ -3250,7 +3249,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     isProtectedBot: (slug) => core.tob.isTob(slug),
   });
   voiceCalls = createVoiceCalls({
-    bot: (slug) => withVoiceDefaults(core.registry.get(slug), () => core.voiceProviders.defaults()),
+    bot: (slug) => core.voiceProviders.effective(core.registry.get(slug)),
     speechDbfs: () => core.voiceProviders.speechThreshold().dbfs,
     async seesImages(slug) {
       const route =
