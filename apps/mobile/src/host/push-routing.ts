@@ -1,4 +1,5 @@
 import { useNavigationContainerRef, useRouter } from 'expo-router';
+import type { NavigationState, PartialState } from 'expo-router/react-navigation';
 import type { RefCallback } from 'react';
 import { Alert, type ViewInstance } from 'react-native';
 
@@ -29,6 +30,30 @@ const channelKinds = new Set([
   'user-question',
   'workspace-grant-request',
 ]);
+
+function sameNavigationSelection(
+  before: NavigationState | PartialState<NavigationState>,
+  after: NavigationState | PartialState<NavigationState>,
+): boolean {
+  if ((before.index ?? 0) !== (after.index ?? 0) || before.routes.length !== after.routes.length)
+    return false;
+  const previous = before.routes[before.index ?? 0];
+  const next = after.routes[after.index ?? 0];
+  if (!previous || !next || previous.key !== next.key || previous.name !== next.name) return false;
+  const previousParams = previous.params ?? {};
+  const nextParams = next.params ?? {};
+  if (
+    Object.keys(previousParams).length !== Object.keys(nextParams).length ||
+    Object.entries(previousParams).some(
+      ([key, value]) => !Object.is(value, Reflect.get(nextParams, key)),
+    )
+  )
+    return false;
+  return (
+    previous.state === undefined ||
+    (next.state !== undefined && sameNavigationSelection(previous.state, next.state))
+  );
+}
 
 function readyDestination(
   client: HostClient,
@@ -81,12 +106,21 @@ export function usePushRouting(
       version: number;
       selection: number;
       workspaceCurrent: () => boolean;
-      routeState: ReturnType<typeof navigation.getRootState> | undefined;
+      navigationVersion: number;
     }> = [];
     let version = 0;
     let running = false;
     let disposed = false;
     let waiting: AbortController | undefined;
+    let routeState = navigation.isReady() ? navigation.getRootState() : undefined;
+    let navigationVersion = 0;
+    const refreshNavigation = () => {
+      if (!navigation.isReady()) return;
+      const next = navigation.getRootState();
+      if (routeState && !sameNavigationSelection(routeState, next)) navigationVersion++;
+      routeState = next;
+    };
+    const offNavigation = navigation.addListener('state', refreshNavigation);
     const current = (value: number) => !disposed && value === version;
     const drain = async (): Promise<void> => {
       if (running || disposed || hostSession.getState().saved === undefined) return;
@@ -98,10 +132,8 @@ export function usePushRouting(
           const { target, action } = next;
           const isCurrent = () => {
             if (!current(next.version) || !next.workspaceCurrent()) return false;
-            if (!navigation.isReady()) return true;
-            const state = navigation.getRootState();
-            if (!next.routeState) next.routeState = state;
-            return state === next.routeState;
+            refreshNavigation();
+            return next.navigationVersion === navigationVersion;
           };
           try {
             const removed = await removeFromPush(
@@ -190,13 +222,14 @@ export function usePushRouting(
       if (action === undefined) recordFeature('notification:push_open', {});
       version++;
       waiting?.abort();
+      refreshNavigation();
       queue.push({
         target,
         action,
         version,
         selection: hostSession.getSelectionRevision(),
         workspaceCurrent: captureWorkspaceSelection(),
-        routeState: navigation.isReady() ? navigation.getRootState() : undefined,
+        navigationVersion,
       });
       onPending(true);
       void drain();
@@ -210,6 +243,7 @@ export function usePushRouting(
       offTap();
       offBanner();
       offSession();
+      offNavigation();
     };
   }, [router, navigation, onPending, captureWorkspaceSelection]);
 }
