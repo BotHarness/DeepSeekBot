@@ -242,7 +242,7 @@ async function measure(target, parking) {
       );
       assert.equal(
         await frameElement.evaluate((node) => node.getAttribute('sandbox')),
-        'allow-same-origin',
+        'allow-same-origin allow-scripts',
       );
       const inner = await frameElement.contentFrame();
       assert.ok(inner, 'Script-disabled document mirror must exist.');

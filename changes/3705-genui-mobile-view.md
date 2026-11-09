@@ -12,9 +12,12 @@ section: Added
 
 - Scrolling back to a GenUI document on the phone keeps it at its measured height, so messages around it no longer jump while it reloads ([#3705](https://github.com/BotHarness/DeepSeekBot/issues/3705)).
 
+- Buttons, filters and choices inside a GenUI document now respond on iPhone and in Safari, and Chinese input is saved only once the text is committed ([#3705](https://github.com/BotHarness/DeepSeekBot/issues/3705)).
+
 ## zh
 
 - 手机 App 现在会在对话中显示 Bot 发送的富 GenUI 文档，与可读摘要并列，放在隔离的框中，并跟随 App 的主题和字号（[#3705](https://github.com/BotHarness/DeepSeekBot/issues/3705)）。
 - 手机上的 GenUI 文档现在会通过与电脑相同的私有视图恢复并保存筛选、选择等已声明的视图状态；可以重置，其他设备先改动时也能处理冲突（[#3705](https://github.com/BotHarness/DeepSeekBot/issues/3705)）。
 - 在手机上的 Bot 私聊中，“继续处理”和“刷新文档”会把你当前的视图作为普通消息发给 Bot，重试和送达状态与你发送的其他消息一致（[#3705](https://github.com/BotHarness/DeepSeekBot/issues/3705)）。
 - 在手机上滚回 GenUI 文档时，它会保持上次测得的高度，重新加载期间周围的消息不再跳动（[#3705](https://github.com/BotHarness/DeepSeekBot/issues/3705)）。
+- GenUI 文档中的按钮、筛选和选项现在在 iPhone 和 Safari 上也能响应；中文输入法只在确认上屏后才保存（[#3705](https://github.com/BotHarness/DeepSeekBot/issues/3705)）。

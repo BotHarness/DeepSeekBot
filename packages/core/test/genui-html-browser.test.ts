@@ -184,7 +184,7 @@ describe.skipIf(!enabled)('real Chromium isolated HTML documents', () => {
       JSON.stringify(Array(6).fill('undefined')),
     );
     expect(await page.$eval('iframe', (element) => element.getAttribute('sandbox'))).toBe(
-      'allow-same-origin',
+      'allow-same-origin allow-scripts',
     );
   });
 

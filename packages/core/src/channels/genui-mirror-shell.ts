@@ -2,6 +2,7 @@ import { GENUI_EXECUTION_LIMITS } from './genui-execution-limits.js';
 
 export const GENUI_MIRROR_CSP =
   "default-src 'none';script-src 'none';style-src 'unsafe-inline';img-src 'none';media-src 'none';font-src 'none';connect-src 'none';frame-src 'none';object-src 'none';base-uri 'none';form-action 'none'";
+export const GENUI_MIRROR_SANDBOX = 'allow-same-origin allow-scripts';
 export const GENUI_MIRROR_SHELL = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${GENUI_MIRROR_CSP}"><meta name="referrer" content="no-referrer"></head><body></body></html>`;
 
 const pending = 'data-genui-shell';
@@ -9,7 +10,7 @@ const pending = 'data-genui-shell';
 export function createGenuiMirrorShell(container: HTMLElement, title: string): HTMLIFrameElement {
   const frame = container.ownerDocument.createElement('iframe');
   frame.title = title;
-  frame.setAttribute('sandbox', 'allow-same-origin');
+  frame.setAttribute('sandbox', GENUI_MIRROR_SANDBOX);
   frame.referrerPolicy = 'no-referrer';
   Object.assign(frame.style, {
     display: 'block',
@@ -32,7 +33,7 @@ export function adoptGenuiMirrorShell(
     !frame.hasAttribute(pending) ||
     frame.parentElement !== container ||
     frame.referrerPolicy !== 'no-referrer' ||
-    frame.getAttribute('sandbox') !== 'allow-same-origin' ||
+    frame.getAttribute('sandbox') !== GENUI_MIRROR_SANDBOX ||
     frame.srcdoc !== GENUI_MIRROR_SHELL
   )
     return undefined;

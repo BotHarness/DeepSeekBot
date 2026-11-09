@@ -206,7 +206,10 @@ async function open(target) {
 async function frame(target = page) {
   await target.waitForSelector(`${panel} iframe`);
   const element = await target.$(`${panel} iframe`);
-  assert.equal(await element.evaluate((node) => node.getAttribute('sandbox')), 'allow-same-origin');
+  assert.equal(
+    await element.evaluate((node) => node.getAttribute('sandbox')),
+    'allow-same-origin allow-scripts',
+  );
   await target.waitForFunction(
     (selector) => !document.querySelector(selector)?.textContent.includes('Loading document'),
     {},

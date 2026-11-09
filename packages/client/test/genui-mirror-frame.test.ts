@@ -48,7 +48,7 @@ describe('GenUI trusted mirror text scaling', () => {
     const source = frame.frame.srcdoc;
     expect(Number(frame.frame.style.zoom)).toBe(22 / 14);
     expect(frame.frame.style.width).toBe('100%');
-    expect(frame.frame.getAttribute('sandbox')).toBe('allow-same-origin');
+    expect(frame.frame.getAttribute('sandbox')).toBe('allow-same-origin allow-scripts');
     frame.textScale(1);
     expect(frame.frame.style.zoom).toBe('1');
     expect(frame.frame.style.width).toBe('100%');
@@ -105,7 +105,7 @@ describe('GenUI pre-started mirror shell', () => {
 
   it('refuses a shell whose isolation attributes changed before adoption', () => {
     const shell = createGenuiMirrorShell(document.body, 'Tampered shell');
-    shell.setAttribute('sandbox', 'allow-same-origin allow-scripts');
+    shell.setAttribute('sandbox', 'allow-scripts');
     expect(() => open(1, shell)).toThrow('unavailable');
     const moved = createGenuiMirrorShell(document.createElement('div'), 'Detached shell');
     expect(() => open(1, moved)).toThrow('unavailable');

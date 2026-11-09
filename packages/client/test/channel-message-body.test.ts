@@ -43,7 +43,7 @@ vi.mock('../src/client/genui-document-runtime.js', () => ({
 const mountDocument = vi.fn((container: HTMLElement, options: GenuiDocumentMountOptions) => {
   const frame = document.createElement('iframe');
   frame.title = options.document.title;
-  frame.setAttribute('sandbox', 'allow-same-origin');
+  frame.setAttribute('sandbox', 'allow-same-origin allow-scripts');
   container.append(frame);
   return {
     ready: Promise.resolve(),

@@ -62,7 +62,7 @@ const mount = vi.fn(
   (container: HTMLElement, options: GenuiDocumentMountOptions): GenuiDocumentHandle => {
     const frame = options.shell ?? document.createElement('iframe');
     frame.title = options.document.title;
-    frame.setAttribute('sandbox', 'allow-same-origin');
+    frame.setAttribute('sandbox', 'allow-same-origin allow-scripts');
     if (!frame.isConnected) container.append(frame);
     let resolve: (() => void) | undefined;
     const handle = {
@@ -165,7 +165,7 @@ describe('GenUI card integration with the shared renderer owner', () => {
     await render();
     const shell = container.querySelector('iframe');
     expect(shell?.srcdoc).toBe(GENUI_MIRROR_SHELL);
-    expect(shell?.getAttribute('sandbox')).toBe('allow-same-origin');
+    expect(shell?.getAttribute('sandbox')).toBe('allow-same-origin allow-scripts');
     expect(shell?.referrerPolicy).toBe('no-referrer');
     expect(mount).not.toHaveBeenCalled();
     await act(async () => root.unmount());
