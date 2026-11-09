@@ -5,6 +5,7 @@ import { useSharedValue, useReducedMotion } from 'react-native-reanimated';
 import type { ConversationMessage } from '../../host/conversation';
 import { useChatScrollAdapter, useChatOverlayStyle } from '../primitives/chat-scroll';
 import { useFollowLatest } from './follow-latest';
+import { LatestAnchor } from './latest-anchor';
 
 export function useChannelViewport<Row>(
   list: RefObject<FlatList<Row> | null>,
@@ -25,6 +26,7 @@ export function useChannelViewport<Row>(
     !reducedMotion,
     minIndexForVisible,
     inverted,
+    !inverted && LatestAnchor !== undefined,
   );
   const overlayStyle = useChatOverlayStyle();
   const renderScrollComponent = useChatScrollAdapter(latest.keyboard, latest.away);
@@ -42,6 +44,7 @@ export function useChannelViewport<Row>(
     [viewportLayout],
   );
   return {
+    reducedMotion,
     away: latest.away,
     ready: latest.ready,
     canRetry: latest.canRetry,
