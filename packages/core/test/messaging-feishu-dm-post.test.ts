@@ -5,12 +5,6 @@ import { createDshImProvider, type DshImOutboundService } from '../src/messaging
 import type { MessagingInboundEvent } from '../src/messaging/provider.js';
 import { createTempRoot } from './helpers.js';
 
-// #3842: a Bot whose owner has already chatted with it in a Feishu DM holds an
-// implicit DM grant. That grant was listed as postable, but implicit grants post
-// through the checked group-only conversation API, so every proactive DM send
-// was refused with send-permission-denied. The saved (explicit) DM target posts
-// through the saved-target route with a checked receipt instead.
-
 const cores: BotHarnessCore[] = [];
 afterEach(async () => {
   for (const core of cores.splice(0)) {
@@ -78,8 +72,6 @@ async function fixture() {
       receipt: { version: 1, messageId: 'om_reply', conversationId: route.conversationId },
     }),
     listReachableConversations: async () => ({ version: 1, conversations: [], hasMore: false }),
-    // Mirrors the Feishu host: the checked conversation post proves group
-    // speaking permission, which a private chat never has.
     postConversationChecked: async (_account, conversationId) => {
       groupChecks.push(conversationId);
       throw Object.assign(new Error('send-permission-denied'), {
@@ -117,7 +109,6 @@ async function fixture() {
     enabled: true,
     newConversations: 'auto',
   });
-  // The owner chats with the Bot first, which admits an implicit DM grant.
   const source: MessagingInboundEvent = {
     version: 1,
     channel: 'feishu',
@@ -142,7 +133,6 @@ async function fixture() {
     (grant) => grant.origin === 'implicit',
   )!;
   expect(implicit.receiveScope).toEqual({ kind: 'dm', conversationId: 'oc_ownerdm' });
-  // Settings then saves the same DM as an explicit send target.
   const target = (await provider.targets('feishu-qa'))[0]!;
   const explicit = await core.externalMessaging.authorize({
     botSlug: 'tob',

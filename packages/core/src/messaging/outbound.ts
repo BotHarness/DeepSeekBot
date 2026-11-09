@@ -2234,9 +2234,6 @@ export function createOutboundMessaging(options: {
     async post(botSlug, grantId, requestId, text) {
       const value = grant(botSlug, grantId);
       if (value.origin === 'implicit' && value.receiveScope?.kind === 'dm') {
-        // The checked conversation API only proves Group speaking permission,
-        // so an implicit DM grant posts through the saved target for the same
-        // private chat, or refuses as unsupported (#3842).
         const saved = await savedDmGrant(value);
         if (saved === undefined) throw new MessagingError('capability-unavailable');
         return service.post(botSlug, saved, requestId, text);
@@ -2470,9 +2467,7 @@ export function createOutboundMessaging(options: {
               canPost =
                 checked.inspected.account.postSupported !== false &&
                 (value.origin === 'implicit'
-                  ? // Implicit grants post through the checked group conversation
-                    // API only; a DM posts through its saved target (#3842).
-                    checked.provider.postConversation !== undefined &&
+                  ? checked.provider.postConversation !== undefined &&
                     checked.inspected.target.receiveScope?.kind === 'group'
                   : checked.provider.post !== undefined ||
                     checked.provider.postConversation !== undefined) &&
