@@ -65,7 +65,7 @@ function hintText(t: Strings, hint: CallHint): string {
 export function callScreenModel(
   t: Strings,
   state: CallClientState,
-  options: { interrupted?: boolean } = {},
+  options: { interrupted?: boolean; now?: number } = {},
 ): CallScreenModel {
   const ended = callEndView(state);
   if (ended !== undefined)
@@ -76,7 +76,7 @@ export function callScreenModel(
       ended: ended.notice === undefined ? t.call.ended.hangup : noticeText(t, ended.notice),
       retry: ended.retry,
     };
-  const view = callLiveView(state);
+  const view = callLiveView(state, options.now === undefined ? {} : { now: options.now });
   if (view === undefined || state.status !== 'live')
     return { status: t.call.connecting, live: false, muted: false, retry: false };
   const hint =

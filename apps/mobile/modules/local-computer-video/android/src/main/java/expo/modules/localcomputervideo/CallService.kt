@@ -16,6 +16,11 @@ import android.os.IBinder
 import android.os.PowerManager
 import android.provider.Settings
 import android.util.Log
+import com.facebook.react.ReactApplication
+import com.facebook.react.bridge.Arguments
+import com.facebook.react.jstasks.HeadlessJsTaskConfig
+import com.facebook.react.jstasks.HeadlessJsTaskContext
+import java.util.UUID
 
 /**
  * Keeps a Bot call running while the app is in the background or the phone is locked
@@ -29,6 +34,7 @@ class CallService : Service() {
   private var wake: PowerManager.WakeLock? = null
   private var wifi: WifiManager.WifiLock? = null
   private var overlay: CallOverlay? = null
+  private var task: Pair<HeadlessJsTaskContext, Int>? = null
 
   override fun onBind(intent: Intent?): IBinder? = null
 
@@ -54,15 +60,26 @@ class CallService : Service() {
         startForeground(NOTIFICATION_ID, notification)
       }
       current = this
+      if (task == null) {
+        val react = (application as ReactApplication).reactHost?.currentReactContext
+          ?: error("call-runtime-unavailable")
+        val tasks = HeadlessJsTaskContext.getInstance(react)
+        val token = UUID.randomUUID().toString()
+        backgroundToken = token
+        val data = Arguments.createMap().apply { putString("token", token) }
+        task = tasks to tasks.startTask(HeadlessJsTaskConfig("BotharnessCall", data, 0, true))
+      }
       running = true
       failure = null
       hold()
       syncOverlay()
       Log.i(TAG, "phase=started")
+      changed?.invoke()
     } catch (error: Exception) {
       // Android 14 refuses a microphone service the app did not start while visible.
       running = false
       failure = error.javaClass.simpleName
+      backgroundToken = null
       Log.e(TAG, "phase=start-failed reason=${error.javaClass.simpleName}")
       stopSelf()
       changed?.invoke()
@@ -73,6 +90,7 @@ class CallService : Service() {
   override fun onDestroy() {
     if (current === this) current = null
     running = false
+    backgroundToken = null
     // A stop the app asked for clears the request; a later call starts a new service.
     if (notice == null) requested = false
     overlay?.hide()
@@ -84,6 +102,8 @@ class CallService : Service() {
     stopForeground(STOP_FOREGROUND_REMOVE)
     Log.i(TAG, "phase=stopped")
     changed?.invoke()
+    task?.let { (tasks, id) -> if (tasks.isTaskRunning(id)) tasks.finishTask(id) }
+    task = null
     super.onDestroy()
   }
 
@@ -134,6 +154,8 @@ class CallService : Service() {
 
     /** True once Android accepted the foreground service; false again after it stops. */
     @Volatile var running = false
+      private set
+    @Volatile var backgroundToken: String? = null
       private set
     @Volatile var failure: String? = null
       private set

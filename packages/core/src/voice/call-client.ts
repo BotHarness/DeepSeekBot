@@ -29,6 +29,7 @@ export type CallClientState =
       readonly events: readonly VoiceCallEvent[];
       readonly muted: boolean;
       readonly reconnecting: boolean;
+      readonly syncedAt: number;
     }
   | {
       readonly status: 'ended';
@@ -49,6 +50,7 @@ export interface CallClient {
   ): Promise<VoiceCallResult | undefined>;
   frame(input: CallClientFrame): Promise<VoiceCallResult | undefined>;
   hangup(): Promise<void>;
+  background(hidden: boolean): void;
   dispose(): void;
 }
 
@@ -63,6 +65,7 @@ export interface CallClientOptions {
   readonly post: CallPost;
   readonly media: CallClientMedia;
   readonly onChange: (state: CallClientState) => void;
+  readonly emit?: 'every-heartbeat' | 'visible-changes';
   readonly now?: () => number;
   readonly setInterval?: (run: () => void, ms: number) => unknown;
   readonly clearInterval?: (handle: unknown) => void;
@@ -92,6 +95,9 @@ export function createCallClient(options: CallClientOptions): CallClient {
   let seq = 0;
   let muted = false;
   let lastAnswer = 0;
+  let syncedAt = 0;
+  let shown: string | undefined;
+  let hidden = false;
   let timer: unknown;
   let beating = false;
   let unsubscribe: (() => void) | undefined;
@@ -105,13 +111,34 @@ export function createCallClient(options: CallClientOptions): CallClient {
   const absorb = (view: VoiceCallView | undefined) => {
     if (view === undefined) return;
     call = view;
+    syncedAt = now();
     for (const event of view.events) if (event.seq > seq) events.push(event);
     if (events.length > EVENT_LIMIT) events = events.slice(-EVENT_LIMIT);
     seq = Math.max(seq, view.lastSeq);
   };
+  const visible = (view: VoiceCallView, reconnecting: boolean) =>
+    [
+      view.phase,
+      view.busy,
+      view.muted,
+      view.visual ?? '',
+      view.endReason ?? '',
+      seq,
+      muted,
+      reconnecting,
+    ].join('|');
   const live = (reconnecting = false) => {
     if (call === undefined) return;
-    set({ status: 'live', call, events: [...events], muted, reconnecting });
+    const key = visible(call, reconnecting);
+    if (options.emit === 'visible-changes' && state.status === 'live' && key === shown) return;
+    shown = key;
+    set({ status: 'live', call, events: [...events], muted, reconnecting, syncedAt });
+  };
+  const period = () =>
+    hidden ? VOICE_CALL_LIMITS.backgroundHeartbeatMs : VOICE_CALL_LIMITS.heartbeatMs;
+  const schedule = () => {
+    if (timer !== undefined) stopEvery(timer);
+    timer = every(() => void heartbeat(), period());
   };
   const finish = (
     reason: VoiceCallEndReason | 'refused',
@@ -170,6 +197,7 @@ export function createCallClient(options: CallClientOptions): CallClient {
       events = [];
       seq = 0;
       muted = false;
+      shown = undefined;
       set({ status: 'opening' });
       let result: VoiceCallResult;
       try {
@@ -246,7 +274,7 @@ export function createCallClient(options: CallClientOptions): CallClient {
       }
       absorb(signalled.call);
       lastAnswer = now();
-      timer = every(() => void heartbeat(), VOICE_CALL_LIMITS.heartbeatMs);
+      schedule();
       live();
     },
     async mute(next) {
@@ -308,6 +336,13 @@ export function createCallClient(options: CallClientOptions): CallClient {
         if (result.ok) absorb(result.call);
       } catch {}
       finish('hangup');
+    },
+    background(next) {
+      if (next === hidden) return;
+      hidden = next;
+      if (timer === undefined || status() !== 'live') return;
+      schedule();
+      if (!next) void heartbeat();
     },
     dispose() {
       if (status() !== 'ended' && call !== undefined)

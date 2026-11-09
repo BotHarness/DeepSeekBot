@@ -1032,6 +1032,7 @@ interface InboxReportRow {
   continuity_key: string | null;
   activity: AssignmentActivity | null;
   paired_report_id?: string | null;
+  lifecycle_cause?: string | null;
 }
 
 interface DigestRow {
@@ -1113,7 +1114,7 @@ interface InboxUnit {
   repeats: number;
   lifecycleNotices?: Array<{
     sourceEventId: string;
-    reportSourceEventId: string;
+    reportSourceEventId?: string;
     summary: string;
   }>;
 }
@@ -1298,21 +1299,29 @@ export function queryAssignmentDirectory(
   };
 }
 
+function keptLifecycleNotice(
+  row: InboxReportRow,
+): NonNullable<InboxUnit['lifecycleNotices']>[number] | undefined {
+  if (row.source_kind !== 'assignment-lifecycle') return undefined;
+  if (row.paired_report_id != null)
+    return {
+      sourceEventId: row.source_event_id,
+      reportSourceEventId: row.paired_report_id,
+      summary: row.body,
+    };
+  if (row.lifecycle_cause?.startsWith('direct-') === true)
+    return { sourceEventId: row.source_event_id, summary: row.body };
+  return undefined;
+}
+
 function coalesceInbox(rows: InboxReportRow[]): InboxUnit[] {
   const units = new Map<string, InboxUnit>();
   for (const row of rows) {
     const key = row.assignment_session_id ?? row.source_event_id;
     const existing = units.get(key);
-    if (
-      row.source_kind === 'assignment-lifecycle' &&
-      row.paired_report_id != null &&
-      existing !== undefined
-    ) {
-      (existing.lifecycleNotices ??= []).push({
-        sourceEventId: row.source_event_id,
-        reportSourceEventId: row.paired_report_id,
-        summary: row.body,
-      });
+    const kept = keptLifecycleNotice(row);
+    if (kept !== undefined && existing !== undefined) {
+      (existing.lifecycleNotices ??= []).push(kept);
       existing.repeats += 1;
       continue;
     }
@@ -1338,17 +1347,7 @@ function coalesceInbox(rows: InboxReportRow[]): InboxUnit[] {
         continuityKey: row.continuity_key,
         activity: row.activity,
         repeats: 1,
-        ...(row.paired_report_id == null
-          ? {}
-          : {
-              lifecycleNotices: [
-                {
-                  sourceEventId: row.source_event_id,
-                  reportSourceEventId: row.paired_report_id,
-                  summary: row.body,
-                },
-              ],
-            }),
+        ...(kept === undefined ? {} : { lifecycleNotices: [kept] }),
       });
       continue;
     }
@@ -1406,9 +1405,10 @@ function renderInbox(units: InboxUnit[], text: PromptText = DEFAULT_PROMPT_TEXT)
     }
     const target = unit.assignmentSessionId ?? 'unknown Assignment';
     const lifecycle = (unit.lifecycleNotices ?? [])
-      .map(
-        (notice) =>
-          ` Host lifecycle notice [Source Event ${notice.sourceEventId}; same native Turn as Report ${notice.reportSourceEventId}]: ${notice.summary}`,
+      .map((notice) =>
+        notice.reportSourceEventId === undefined
+          ? ` Host lifecycle notice [Source Event ${notice.sourceEventId}]: ${notice.summary}`
+          : ` Host lifecycle notice [Source Event ${notice.sourceEventId}; same native Turn as Report ${notice.reportSourceEventId}]: ${notice.summary}`,
       )
       .join('');
     const facts = [
@@ -1425,7 +1425,7 @@ function renderInbox(units: InboxUnit[], text: PromptText = DEFAULT_PROMPT_TEXT)
     )
       return `- ${target} (${facts})${lifecycle}`;
     if (unit.sourceKind === 'assignment-lifecycle') {
-      return `- ${target} (${facts}) Host lifecycle notice [Source Event ${unit.sourceEventId}]: ${unit.summary}`;
+      return `- ${target} (${facts}) Host lifecycle notice [Source Event ${unit.sourceEventId}]: ${unit.summary}${lifecycle}`;
     }
     return `- ${target} (${facts}) reported [Source Event ${unit.sourceEventId}]: ${unit.summary}${lifecycle}`;
   });
@@ -1533,6 +1533,12 @@ function interruptedToolsNote(calls: readonly InterruptedToolCall[]): string {
 
 const ASSIGNMENT_RECOVERY_NOTE =
   '[Host: your previous Turn in this Session did not finish cleanly (it ended with an error, was cancelled, or was interrupted by a Host restart). Your context is intact. Check the current state of your workspace and any side effects before redoing work, and do not repeat a side effect blindly; an earlier request may already have reached you.]\n\n';
+
+const DIRECT_NOTICE_TEXT_LIMIT = 2_000;
+const DIRECT_ASSIGNMENT_TOOLS: ReadonlySet<string> = new Set([
+  'create_assignment',
+  'send_assignment_request',
+]);
 
 const HUMAN_SESSION_STOP_NOTICE =
   'The Human stopped this Assignment. Do not send it another Assignment Request or redispatch this work unless the Human asks you to. Its history is kept: after an explicit Human instruction to continue, call unarchive_assignment with this Session id and pass the request as its message to revive and continue it in one call.';
@@ -4714,9 +4720,13 @@ class BotRuntimeImplementation implements BotRuntime {
           this.#requireMembership(botSlug, source.channel_id);
       });
     }
+    const directOrigin =
+      sourceEventId === undefined && DIRECT_ASSIGNMENT_TOOLS.has(tool)
+        ? this.#recordDirectToolSource(bot.slug, tool)
+        : sourceEventId;
     const directSource =
-      sourceEventId !== undefined
-        ? { source_event_id: sourceEventId }
+      directOrigin !== undefined
+        ? { source_event_id: directOrigin }
         : directChannel === undefined
           ? undefined
           : this.#database.read((db) =>
@@ -4770,11 +4780,120 @@ class BotRuntimeImplementation implements BotRuntime {
         delegation ? parentSessionId : this.currentOrchestratorSessionId(botSlug),
       );
       record('ok', typeof result === 'string' ? result : JSON.stringify(result));
+      if (DIRECT_ASSIGNMENT_TOOLS.has(tool)) {
+        try {
+          this.#noticeDirectAssignmentCall(bot.slug, tool, args, result);
+        } catch (error) {
+          this.#warn?.(
+            `Direct ${tool} succeeded but its Orchestrator notice was not recorded: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      }
       return { tool, sessionId: 'direct', result };
     } catch (error) {
       record('error', error instanceof Error ? error.message : String(error));
       throw error;
     }
+  }
+
+  #recordDirectToolSource(botSlug: string, tool: string): string {
+    const id = this.#createEventId();
+    const at = this.#now().toISOString();
+    this.#database.transaction(
+      (database) => {
+        database
+          .prepare(
+            `INSERT INTO source_events (source_event_id, source_kind, bot_slug, body, created_at,
+               handled_at, attempt_state, expects_reply, payload_json)
+             VALUES (?, 'system-message', ?, ?, ?, ?, 'handled', 0, ?)`,
+          )
+          .run(
+            id,
+            botSlug,
+            `Direct ${tool} call from the deepseekbot CLI.`,
+            at,
+            at,
+            JSON.stringify({ author: { kind: 'system' }, directBotTool: { tool } }),
+          );
+      },
+      ['source-event'],
+    );
+    return id;
+  }
+
+  #noticeDirectAssignmentCall(
+    botSlug: string,
+    tool: string,
+    args: Record<string, unknown>,
+    result: unknown,
+  ): void {
+    if (typeof result !== 'object' || result === null) return;
+    const outcome = result as { outcome?: unknown; sessionId?: unknown; delivery?: unknown };
+    if (typeof outcome.sessionId !== 'string') return;
+    const sessionId = outcome.sessionId;
+    const quoted = (value: unknown) =>
+      typeof value !== 'string'
+        ? undefined
+        : value.length > DIRECT_NOTICE_TEXT_LIMIT
+          ? `${JSON.stringify(value.slice(0, DIRECT_NOTICE_TEXT_LIMIT))} (${value.length - DIRECT_NOTICE_TEXT_LIMIT} more characters omitted)`
+          : JSON.stringify(value);
+    let body: string;
+    let cause: string;
+    if (tool === 'create_assignment') {
+      if (outcome.outcome !== 'created' && outcome.outcome !== 'reused') return;
+      cause = outcome.outcome === 'created' ? 'direct-create' : 'direct-reuse';
+      body = [
+        outcome.outcome === 'created'
+          ? 'The Human created this Assignment directly through the deepseekbot CLI, not through you.'
+          : 'The Human continued this keyed Assignment directly through the deepseekbot CLI, not through you.',
+        `Title: ${quoted(args.title) ?? '(none)'}.`,
+        `Description: ${quoted(args.description) ?? '(none)'}.`,
+        ...(quoted(args.instructions) === undefined
+          ? []
+          : [`Instructions: ${quoted(args.instructions)}.`]),
+        'It is yours to manage like any Assignment you created: its reports come to you; continue it with send_assignment_request and archive it when its work is finished.',
+      ].join(' ');
+    } else {
+      if (outcome.delivery !== 'steer' && outcome.delivery !== 'followup') return;
+      cause = 'direct-request';
+      body = `The Human sent this Assignment a request directly through the deepseekbot CLI, not through you: ${quoted(args.text) ?? '(empty)'}. Its next report answers that request.`;
+    }
+    const id = this.#createEventId();
+    const at = this.#now().toISOString();
+    this.#database.transaction(
+      (database) => {
+        const owned = database
+          .prepare('SELECT 1 FROM assignments WHERE bot_slug = ? AND session_id = ?')
+          .get(botSlug, sessionId);
+        if (owned === undefined) return;
+        const rule = this.#sourcePolicy.resolveIn(database, botSlug, 'assignment-lifecycle');
+        database
+          .prepare(
+            `INSERT INTO source_events (source_event_id, source_kind, bot_slug, assignment_session_id,
+               body, created_at, handled_at, attempt_state, expects_reply, payload_json)
+             VALUES (?, 'assignment-lifecycle', ?, ?, ?, ?, ?, 'handled', 0, ?)`,
+          )
+          .run(
+            id,
+            botSlug,
+            sessionId,
+            body,
+            at,
+            at,
+            JSON.stringify({
+              author: { kind: 'system' },
+              assignmentLifecycle: { state: 'directed', cause },
+            }),
+          );
+        database
+          .prepare(
+            `INSERT INTO inbox_admissions (source_event_id, bot_slug, reason, source_policy_revision, source_policy_wake_mode)
+             VALUES (?, ?, 'assignment-lifecycle', ?, 'silent')`,
+          )
+          .run(id, botSlug, rule.revision);
+      },
+      ['source-event', 'bot-inbox'],
+    );
   }
 
   currentOrchestratorSessionId(botSlug: string): string | undefined {
@@ -10091,6 +10210,7 @@ class BotRuntimeImplementation implements BotRuntime {
                     e.body, e.created_at, e.expects_reply, a.continuity_key,
                     CASE WHEN e.source_kind = 'schedule' THEN e.payload_json END AS schedule_json,
                     json_extract(e.payload_json, '$.assignmentLifecycle.reportSourceEventId') AS paired_report_id,
+                    json_extract(e.payload_json, '$.assignmentLifecycle.cause') AS lifecycle_cause,
                     CASE WHEN a.stop_state = 'running' THEN a.open_ask_source_event_id END AS open_ask_id,
                     (SELECT body FROM source_events WHERE source_event_id = a.open_ask_source_event_id) AS open_ask_summary,
                     CASE WHEN a.stop_state = 'stopped' THEN 'stopped'
@@ -10277,7 +10397,9 @@ class BotRuntimeImplementation implements BotRuntime {
           WHERE bot_slug = ? AND reason IN ('assignment-report', 'assignment-lifecycle')
             AND attempt_state IN ('pending', 'retryable')
             AND source_event_id IN (SELECT source_event_id FROM source_events
-              WHERE bot_slug = ? AND assignment_session_id = ?)
+              WHERE bot_slug = ? AND assignment_session_id = ?
+                AND COALESCE(json_extract(payload_json, '$.assignmentLifecycle.cause'), '')
+                  NOT LIKE 'direct-%')
           RETURNING source_event_id`,
           )
           .all(at, botSlug, botSlug, sessionId) as unknown as Array<{

@@ -39,6 +39,7 @@ const live = (
   events: extra.events ?? [],
   muted: extra.muted ?? false,
   reconnecting: extra.reconnecting ?? false,
+  syncedAt: 50_000,
 });
 
 const readiness = (patch: Partial<VoiceCallReadiness> = {}): VoiceCallReadiness => ({
@@ -121,6 +122,14 @@ describe('call view: live call', () => {
         callLiveView(live({}, { events: [{ seq: 1, at, type, code: 'x', message: 'x' } as never] }))
           ?.hint,
       ).toBe(hint);
+  });
+
+  it('ages a problem on the phone clock between Host updates', () => {
+    const events: VoiceCallEvent[] = [{ seq: 3, at: 9_000, type: 'nothing-heard' }];
+    const state = live({}, { events });
+    expect(callLiveView(state, { now: 52_000 })?.hint).toBe('not-heard');
+    expect(callLiveView(state, { now: 54_500 })?.hint).toBeUndefined();
+    expect(callLiveView(state, { now: 40_000 })?.hint).toBe('not-heard');
   });
 
   it('drops a problem once a later turn went through', () => {

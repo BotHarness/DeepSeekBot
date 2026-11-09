@@ -37,6 +37,7 @@ const live = (patch: Partial<VoiceCallView> = {}, extra: Partial<CallClientState
     events: [],
     muted: false,
     reconnecting: false,
+    syncedAt: 50_000,
     ...extra,
   }) as CallClientState;
 
@@ -58,6 +59,14 @@ describe('call screen model', () => {
   it('shows the busy hint on screen only', () => {
     expect(callScreenModel(zh, live({ busy: true })).hint).toBe('它在忙，下一轮会听到');
     expect(callScreenModel(en, live()).hint).toBeUndefined();
+  });
+
+  it('expires a hint on the phone clock between Host updates', () => {
+    const events = [{ seq: 3, at: 9_000, type: 'nothing-heard' as const }];
+    const state = live({}, { events } as never);
+    expect(callScreenModel(en, state, { now: 52_000 }).hint).toBe('Didn’t catch that. Try again.');
+    expect(callScreenModel(en, state, { now: 54_500 }).hint).toBeUndefined();
+    expect(callScreenModel(en, state, { now: 40_000 }).hint).toBe('Didn’t catch that. Try again.');
   });
 
   it('ends clearly and keeps Connect separate', () => {

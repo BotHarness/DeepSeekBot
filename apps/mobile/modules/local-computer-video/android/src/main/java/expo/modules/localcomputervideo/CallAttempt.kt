@@ -189,6 +189,14 @@ class CallAttempt(
         .setUseHardwareAcousticEchoCanceler(JavaAudioDeviceModule.isBuiltInAcousticEchoCancelerSupported())
         .setUseHardwareNoiseSuppressor(JavaAudioDeviceModule.isBuiltInNoiseSuppressorSupported())
         .setAudioAttributes(route.playbackAttributes())
+        // Mute and interruptions disable the track; with every track disabled WebRTC stops
+        // the AudioRecord, so the microphone, its effects and the privacy indicator turn
+        // off. Unmuting restarts it cold.
+        .setStopRecordingOnMute(true)
+        .setAudioRecordStateCallback(object : JavaAudioDeviceModule.AudioRecordStateCallback {
+          override fun onWebRtcAudioRecordStart() { tap?.note("mic", mapOf("recording" to true)) }
+          override fun onWebRtcAudioRecordStop() { tap?.note("mic", mapOf("recording" to false)) }
+        })
         .setAudioRecordErrorCallback(object : JavaAudioDeviceModule.AudioRecordErrorCallback {
           override fun onWebRtcAudioRecordInitError(message: String) = state("failed", "microphone-failed")
           override fun onWebRtcAudioRecordStartError(code: JavaAudioDeviceModule.AudioRecordStartErrorCode, message: String) =

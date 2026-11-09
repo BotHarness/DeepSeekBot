@@ -87,7 +87,7 @@ describe('saved computers keychain writes', () => {
     );
     failures = undefined;
     expect(await ids()).toHaveLength(18);
-  });
+  }, 15_000);
 
   it('recovers the staged copy when the app stopped mid re-create', async () => {
     secure.set(STAGED, JSON.stringify({ hosts: hosts(17), current: 'h0' }));

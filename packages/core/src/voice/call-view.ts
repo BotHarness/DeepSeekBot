@@ -120,7 +120,10 @@ function heardText(events: readonly VoiceCallEvent[], hostNow: number): CallHear
   return live === undefined ? undefined : { text: live, final: false };
 }
 
-export function callLiveView(state: CallClientState): CallLiveView | undefined {
+export function callLiveView(
+  state: CallClientState,
+  options: { now?: number } = {},
+): CallLiveView | undefined {
   if (state.status === 'opening')
     return {
       activity: 'connecting',
@@ -132,13 +135,15 @@ export function callLiveView(state: CallClientState): CallLiveView | undefined {
       durationMs: 0,
     };
   if (state.status !== 'live') return undefined;
-  const { call, muted, reconnecting, events } = state;
+  const { call, muted, reconnecting, events, syncedAt } = state;
+  const hostNow =
+    call.durationMs + (options.now === undefined ? 0 : Math.max(0, options.now - syncedAt));
   const connected = call.phase !== 'connecting';
   const base = {
     muted,
     connected,
     durationMs: connected ? call.durationMs : 0,
-    heard: heardText(events, call.durationMs),
+    heard: heardText(events, hostNow),
   };
   if (reconnecting) return { ...base, activity: 'reconnecting', hint: undefined, tone: 'warning' };
   if (!connected) return { ...base, activity: 'connecting', hint: undefined, tone: 'live' };
@@ -154,7 +159,7 @@ export function callLiveView(state: CallClientState): CallLiveView | undefined {
             : 'listening';
   if (call.busy && call.phase !== 'bot-speaking')
     return { ...base, activity, hint: 'busy', tone: 'busy' };
-  const problem = call.phase === 'listening' ? recentProblem(events, call.durationMs) : undefined;
+  const problem = call.phase === 'listening' ? recentProblem(events, hostNow) : undefined;
   if (problem !== undefined) return { ...base, activity, hint: problem, tone: 'warning' };
   return { ...base, activity, hint: undefined, tone: activity === 'muted' ? 'muted' : 'live' };
 }
