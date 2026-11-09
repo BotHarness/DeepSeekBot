@@ -2,6 +2,7 @@ import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
+import { alertBanners, alertFromPush } from './alert-banners';
 import { attentionFocus } from './attention-focus';
 import {
   APPROVAL_ACTIONS,
@@ -13,15 +14,20 @@ import type { NotificationsPort, PermissionState } from './push-session';
 
 export const REQUESTS_CHANNEL = 'requests';
 
+const presentation = (show: boolean) => ({
+  shouldShowBanner: show,
+  shouldShowList: show,
+  shouldPlaySound: show,
+  shouldSetBadge: true,
+});
+
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
-    const show = !attentionFocus.covers(notification.request.content.data);
-    return {
-      shouldShowBanner: show,
-      shouldShowList: show,
-      shouldPlaySound: show,
-      shouldSetBadge: true,
-    };
+    const { title, body, data } = notification.request.content;
+    const alert = alertFromPush(title, body, data);
+    if (alert === undefined) return presentation(true);
+    if (!attentionFocus.covers(alert.data)) alertBanners.present(alert);
+    return presentation(false);
   },
 });
 

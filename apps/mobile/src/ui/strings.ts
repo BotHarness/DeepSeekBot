@@ -1689,7 +1689,8 @@ const en = {
   inAppAlertStyle: 'Alert style',
   inAppAlertInline: 'Push page down',
   inAppAlertOverlay: 'Top overlay',
-  inAppAlertsHint: 'Show alerts while using the app. System notifications stay unchanged.',
+  inAppAlertsHint:
+    'Show a banner for new requests and replies while the app is open. System notifications only appear when the app is not open.',
   localNotificationsDenied:
     'System notifications are off. Keep connected can stay on, but its ongoing notification may be hidden. In-app alerts have a separate setting.',
   cloudPushUnavailable: 'Cloud push is unavailable',
@@ -4024,7 +4025,7 @@ const zh: typeof en = {
   inAppAlertStyle: '提醒样式',
   inAppAlertInline: '推下页面',
   inAppAlertOverlay: '顶部浮层',
-  inAppAlertsHint: '使用 App 时显示提醒，不影响系统通知。',
+  inAppAlertsHint: '打开 App 时，新的请求和回复以 App 内横幅提醒；系统通知只在 App 未打开时出现。',
   localNotificationsDenied:
     '系统通知已关闭，仍可保持连接，但常驻通知可能不在通知栏显示。应用内提醒可单独设置。',
   cloudPushUnavailable: '云推送暂不可用',
