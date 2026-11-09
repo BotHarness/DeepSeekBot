@@ -7,6 +7,28 @@ import {
 } from './call-client.js';
 import type { CallVisualSource } from './call-contract.js';
 
+const VISUAL_OFF_BEFORE_HANGUP_MS = 1_500;
+
+function settleWithin(work: Promise<unknown>, ms: number): Promise<void> {
+  return new Promise((done) => {
+    const timer = setTimeout(done, ms);
+    void work.then(
+      () => {
+        clearTimeout(timer);
+        done();
+      },
+      () => {
+        clearTimeout(timer);
+        done();
+      },
+    );
+  });
+}
+
+export interface CallHangupOptions {
+  readonly now?: boolean;
+}
+
 export class CallCaptureFailure<Code extends string = string> extends Error {
   constructor(
     readonly code: Code,
@@ -68,7 +90,7 @@ export interface CallSession<Capture extends CallCapture, Code extends string = 
   share(source: CallVisualSource, options?: { restart?: boolean }): Promise<boolean>;
   unshare(source?: CallVisualSource): Promise<void>;
   dismissVisual(): void;
-  hangup(): Promise<void>;
+  hangup(options?: CallHangupOptions): Promise<void>;
   dispose(): void;
 }
 
@@ -91,6 +113,7 @@ export function createCallSession<Capture extends CallCapture, Code extends stri
   let generation = 0;
   let callId: string | undefined;
   let pending: number | undefined;
+  let turningOff: Promise<void> | undefined;
 
   const emit = () => {
     if (!disposed) options.onChange({ call, visual });
@@ -226,11 +249,19 @@ export function createCallSession<Capture extends CallCapture, Code extends stri
     dismissVisual() {
       if (visual.error !== undefined) setVisual({ error: undefined });
     },
-    async hangup() {
+    async hangup(options = {}) {
       pending = undefined;
       release();
-      if (visual.source !== 'off' || visual.starting)
+      const shared = visual.source !== 'off';
+      if (shared || visual.starting)
         visual = { ...visual, source: 'off', starting: false, paused: false };
+      if (shared && live()) {
+        const wait = settleWithin(client.visual('off'), VISUAL_OFF_BEFORE_HANGUP_MS).finally(() => {
+          if (turningOff === wait) turningOff = undefined;
+        });
+        turningOff = wait;
+      }
+      if (options.now !== true && turningOff !== undefined) await turningOff;
       await client.hangup();
     },
     dispose() {

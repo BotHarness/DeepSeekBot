@@ -103,6 +103,7 @@ import type {
   ReleaseUpdate,
 } from '../release/service.js';
 import type { PluginInstall, PluginRestart, PluginUpdates } from '../release/plugins.js';
+import type { UpdateCancel, UpdateRun } from '../release/update-runs.js';
 import type { TelemetryStatus } from '../telemetry/service.js';
 import type { OverviewMemory } from '../memory/overview.js';
 import type {
@@ -2684,8 +2685,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrapAsync(this.methods.releaseUpdate({ force }));
   }
 
-  async releaseInstall(version: string): Promise<ReleaseInstall> {
-    return unwrapAsync(this.methods.releaseInstall({ version }));
+  async releaseInstall(version: string, requestId?: string): Promise<ReleaseInstall> {
+    return unwrapAsync(
+      this.methods.releaseInstall(requestId === undefined ? { version } : { version, requestId }),
+    );
   }
 
   async releaseRestart(): Promise<ReleaseRestart> {
@@ -2696,12 +2699,24 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrapAsync(this.methods.pluginUpdates({ force }));
   }
 
-  async pluginInstall(name: string, version: string): Promise<PluginInstall> {
-    return unwrapAsync(this.methods.pluginInstall({ name, version }));
+  async pluginInstall(name: string, version: string, requestId?: string): Promise<PluginInstall> {
+    return unwrapAsync(
+      this.methods.pluginInstall(
+        requestId === undefined ? { name, version } : { name, version, requestId },
+      ),
+    );
   }
 
   async pluginRestart(): Promise<PluginRestart> {
     return unwrapAsync(this.methods.pluginRestart({}));
+  }
+
+  updateRun(id?: string): UpdateRun | null {
+    return unwrap(this.methods.updateRun(id === undefined ? {} : { id }));
+  }
+
+  async updateCancel(id: string): Promise<UpdateCancel> {
+    return unwrapAsync(this.methods.updateCancel({ id }));
   }
 
   telemetryStatus(): TelemetryStatus {
@@ -3084,6 +3099,8 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'pluginUpdates',
   'pluginInstall',
   'pluginRestart',
+  'updateRun',
+  'updateCancel',
   'telemetryStatus',
   'telemetrySet',
   'gitStatus',
