@@ -459,7 +459,9 @@ describe('release notes views', () => {
         await Promise.resolve();
       });
       expect(view.host.textContent).toContain('当前版本 1.0.1，新版本 1.1.0 可用');
-      expect(view.host.querySelector('code')?.textContent).toBe(releaseUpdateCommand('1.1.0'));
+      expect(view.host.querySelector('[data-release-command]')?.textContent).toBe(
+        releaseUpdateCommand('1.1.0'),
+      );
       expect(releaseUpdateCommand('1.1.0')).toBe('dsh plugin --profile web add deepseekbot@1.1.0');
       expect(view.host.querySelector('[role="dialog"]')).toBeNull();
       const notes = [...view.host.querySelectorAll('button')].find(
@@ -501,7 +503,7 @@ describe('release notes views', () => {
       await act(async () => {
         await Promise.resolve();
       });
-      expect(view.host.querySelector('code')).toBeNull();
+      expect(view.host.querySelector('[data-release-command]')).toBeNull();
       expect(view.host.textContent).toContain('直接在这里安装新版本');
       await act(async () => {
         buttonNamed(view.host, '立即更新')?.click();
@@ -582,7 +584,9 @@ describe('release notes views', () => {
       expect(view.host.querySelector('[role="alert"]')?.textContent).toBe(
         '更新失败：新版本与当前 DSH 不兼容，请先升级 DSH',
       );
-      expect(view.host.querySelector('code')?.textContent).toBe(releaseUpdateCommand('1.1.0'));
+      expect(view.host.querySelector('[data-release-command]')?.textContent).toBe(
+        releaseUpdateCommand('1.1.0'),
+      );
       expect(buttonNamed(view.host, '立即更新')?.disabled).toBe(false);
     } finally {
       view.unmount();
@@ -756,7 +760,9 @@ it('keeps the upgrade notice short and says in one line why an install failed', 
     expect(dialog()?.querySelector('[role="alert"]')?.textContent).toBe(
       '更新失败：ERR_PNPM_LOCKED profile is locked',
     );
-    expect(dialog()?.querySelector('code')?.textContent).toBe(releaseUpdateCommand('1.1.0'));
+    expect(dialog()?.querySelector('[data-release-command]')?.textContent).toBe(
+      releaseUpdateCommand('1.1.0'),
+    );
   } finally {
     view.unmount();
   }
