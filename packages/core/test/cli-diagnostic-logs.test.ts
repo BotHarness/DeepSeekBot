@@ -197,6 +197,26 @@ describe('diagnostic log CLI', () => {
     ).rejects.toMatchObject({ code: 'log-unreadable' });
   });
 
+  it('falls back to logs.db when the Host answers with something that is not a log list', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'diagnostic-home-'));
+    dirs.push(home);
+    openLogDatabase({ dir: join(home, 'botharness') }).close();
+    for (const body of ['<html>proxy error</html>', '{"error":"busy"}', 'null']) {
+      const http = vi.fn(async () => ({
+        bytes: new TextEncoder().encode(body),
+        response: new Response(),
+      }));
+      expect(
+        await runDiagnosticLogCommand(
+          'diagnostic-logs',
+          { home, host: 'http://127.0.0.1:1' },
+          io() as never,
+          (async () => ({ http })) as unknown as Connect,
+        ),
+      ).toMatchObject({ source: 'offline', fallback: 'host-protocol-error', entries: [] });
+    }
+  });
+
   it('reads entries straight from logs.db when the Host is down', async () => {
     const home = mkdtempSync(join(tmpdir(), 'diagnostic-home-'));
     dirs.push(home);

@@ -42,6 +42,22 @@ const OFFLINE_FALLBACK = new Set([
   'not-found',
 ]);
 
+function hostLogList(bytes: Uint8Array): object {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(Buffer.from(bytes).toString('utf8'));
+  } catch {
+    parsed = undefined;
+  }
+  if (
+    typeof parsed !== 'object' ||
+    parsed === null ||
+    !Array.isArray((parsed as { entries?: unknown }).entries)
+  )
+    throw new CliLiveError('host-protocol-error', 'The Host returned an unreadable log list.');
+  return parsed;
+}
+
 export function diagnosticHome(values: { home?: string }, io: BotCreateCliIo): string {
   return values.home?.trim() || io.env['DSH_HOME']?.trim() || resolveDshHome(io.env);
 }
@@ -215,15 +231,16 @@ export async function runDiagnosticLogCommand(
     });
     if (values.offline === true) return offline();
     if (!hostConfigured(values, io)) return offline('host-not-configured');
-    let bytes: Uint8Array;
+    let list: object;
     try {
       const host = await connect();
-      ({ bytes } = await host.http(`/api/botharness/diagnostic-logs?${query}`));
+      const { bytes } = await host.http(`/api/botharness/diagnostic-logs?${query}`);
+      list = hostLogList(bytes);
     } catch (error) {
       if (isOfflineFallback(error)) return offline(error.code);
       throw error;
     }
-    return { ...JSON.parse(Buffer.from(bytes).toString('utf8')), source: 'host' };
+    return { ...list, source: 'host' };
   }
   if (command === 'diagnostic-logs-export') {
     if (!values.out) throw new CliLiveError('usage', 'Pass --out for the log ZIP.');
