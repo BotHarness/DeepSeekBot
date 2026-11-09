@@ -32,6 +32,7 @@ export interface TunnelApi {
 export interface ConnectZone {
   name: string;
   id: string;
+  records?: number;
 }
 
 export interface CloudflareOptions {
@@ -67,12 +68,15 @@ export function parseZones(value: string | undefined): ConnectZone[] {
     .map((entry) => entry.trim())
     .filter(Boolean)
     .flatMap((entry) => {
-      const [name, id] = entry.split('=').map((part) => part.trim().toLowerCase());
+      const [name, value] = entry.split('=').map((part) => part.trim().toLowerCase());
+      const [id, limit] = (value ?? '').split(':');
+      const records = limit === undefined ? undefined : Number(limit);
       return name &&
         id &&
         /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/u.test(name) &&
-        /^[a-f0-9]{32}$/u.test(id)
-        ? [{ name, id }]
+        /^[a-f0-9]{32}$/u.test(id) &&
+        (records === undefined || (Number.isInteger(records) && records > 0 && records <= 1000))
+        ? [{ name, id, ...(records === undefined ? {} : { records }) }]
         : [];
     });
 }
