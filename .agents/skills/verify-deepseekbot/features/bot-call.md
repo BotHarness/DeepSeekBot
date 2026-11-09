@@ -47,6 +47,8 @@ On a Mac or Windows Host, add an ASR and a TTS Provider in Settings › Voice or
 
 ## Android background connection (#3802)
 
+Use a rebuilt Android development client: the service must own its Headless JS task as well as the audio foreground service. A Metro-only reload cannot add that task. Verify that a failed or stopped service releases the task, repeated notice updates do not create additional tasks, and a later call gets a fresh lifetime. Keeping the carrier alive without background JavaScript timers is insufficient: it still misses the Host heartbeat deadline.
+
 On the assigned Android phone, turn notification “Keep connected” off and start a development-build call with delayed WAV injection. Leave the app before the injection, wait at least 60 seconds, then lock the phone. Require the same live Host call ID, the injected sentence in the DM, and native downlink playback evidence. Return through the ongoing call notification (do not replay the scripted launch intent), and verify no second call was started. Repeat with Keep connected on. End the call through the notification and verify its service stops and the ordinary background connection policy resumes. Check overlay permission denied and granted separately: granting it adds the floating call surface; tapping that surface returns to the same call. Restore the original notification and overlay preferences after QA. A system microphone block plus injected WAV proves synthetic transport and lifecycle only, not acoustic quality.
 
 ## Android output menu (#3632)
