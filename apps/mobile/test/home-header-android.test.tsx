@@ -204,7 +204,7 @@ describe('Android Chats header', () => {
 
 describe('Chats header Host name', () => {
   it.each(['ios', 'android'])(
-    'keeps the Host name on one line at accessibility text sizes on %s',
+    'wraps the Host name to at most two lines at accessibility text sizes on %s',
     (os) => {
       platform.OS = os;
       device.fontScale = 3.12;
@@ -220,7 +220,7 @@ describe('Chats header Host name', () => {
         const name = [...view.querySelectorAll<HTMLElement>('span')].find(
           (node) => node.textContent === 'DoodleBeardeMacBook-Air',
         )!;
-        expect(name.dataset.lines).toBe('1');
+        expect(name.dataset.lines).toBe('2');
       } finally {
         platform.OS = 'android';
         device.fontScale = 1;

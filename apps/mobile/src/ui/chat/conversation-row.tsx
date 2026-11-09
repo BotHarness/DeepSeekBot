@@ -206,6 +206,7 @@ export function ConversationRowFrame({
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
+  const large = theme.largeText;
   return (
     <Pressable
       ref={ref}
@@ -240,7 +241,7 @@ export function ConversationRowFrame({
     >
       <View>
         {avatar}
-        {badge === undefined ? null : (
+        {badge === undefined || large ? null : (
           <View
             style={{
               position: 'absolute',
@@ -266,13 +267,31 @@ export function ConversationRowFrame({
             gap: space.x3,
           }}
         >
-          <SourceName name={title} source={source} look={look} sourceLabel={sourceLabel} />
-          {time === '' ? null : (
+          <SourceName
+            name={title}
+            source={source}
+            look={look}
+            sourceLabel={sourceLabel}
+            lines={large ? 2 : 1}
+          />
+          {time === '' || large ? null : (
             <Text variant="meta" tone="subtle" style={{ flexShrink: 0 }}>
               {time}
             </Text>
           )}
         </View>
+        {large && (time !== '' || badge !== undefined) ? (
+          <View
+            style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.x3 }}
+          >
+            {badge === undefined ? null : <CountBadge count={badge.count} tone={badge.tone} />}
+            {time === '' ? null : (
+              <Text variant="meta" tone="subtle">
+                {time}
+              </Text>
+            )}
+          </View>
+        ) : null}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
           <Text
             variant="meta"

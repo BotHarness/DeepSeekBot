@@ -28,7 +28,8 @@ export function DrawerListItem({
   onLongPress,
 }: DrawerListItemProps) {
   const theme = useDesignTheme();
-  const lines = singleLine ? { maxLines: 1, overflow: 'ellipsis' as const } : {};
+  const lines =
+    singleLine && !theme.largeText ? { maxLines: 1, overflow: 'ellipsis' as const } : {};
   return (
     <View
       accessible

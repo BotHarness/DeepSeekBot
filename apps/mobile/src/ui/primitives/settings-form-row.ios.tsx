@@ -15,6 +15,7 @@ import {
 import {
   accessibilityAddTraits,
   accessibilityElement,
+  accessibilityHidden,
   accessibilityLabel as labelModifier,
   accessibilityValue,
   bold,
@@ -24,6 +25,7 @@ import {
   lineLimit,
   listRowBackground,
   foregroundStyle,
+  labelsHidden,
   monospacedDigit,
   tint,
   truncationMode,
@@ -160,7 +162,7 @@ export function FormRow({
   onPress,
 }: SettingsRowProps) {
   const theme = useDesignTheme();
-  const lines = singleLine ? [lineLimit(1), truncationMode('tail')] : [];
+  const lines = singleLine && !theme.largeText ? [lineLimit(1), truncationMode('tail')] : [];
   const symbol =
     icon === undefined
       ? nativeLeading(leading)
@@ -241,8 +243,8 @@ export function FormRow({
     .filter((part): part is string => part !== undefined)
     .join(', ');
 
-  if (end.kind === 'toggle')
-    return (
+  if (end.kind === 'toggle') {
+    const toggle = (
       <NativeToggle
         {...(end.props.testID === undefined ? {} : { testID: end.props.testID })}
         isOn={end.props.value}
@@ -251,11 +253,22 @@ export function FormRow({
           disabledModifier(end.props.disabled === true),
           labelModifier(end.props.label),
           ...(detail === undefined ? [] : [accessibilityValue(detail)]),
+          ...(theme.largeText ? [labelsHidden()] : []),
         ]}
       >
         {label}
       </NativeToggle>
     );
+    if (!theme.largeText) return toggle;
+    return (
+      <VStack alignment="leading" spacing={space.x3}>
+        <VStack alignment="leading" modifiers={[accessibilityHidden(true)]}>
+          {label}
+        </VStack>
+        {toggle}
+      </VStack>
+    );
+  }
 
   const trailingView =
     end.kind === 'check' ? (

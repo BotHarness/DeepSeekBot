@@ -129,7 +129,7 @@ export function HomeHeader({
                 variant="title"
                 strong
                 accessibilityRole="header"
-                numberOfLines={1}
+                numberOfLines={theme.largeText ? 2 : 1}
                 ellipsizeMode="tail"
                 style={{ flexShrink: 1 }}
               >

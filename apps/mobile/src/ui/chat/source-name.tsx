@@ -11,8 +11,10 @@ export function SourceName({
   source,
   look,
   sourceLabel,
+  lines = 1,
 }: {
   sourceLabel?: string | undefined;
+  lines?: number;
   name: string;
   source: 'computer' | 'cloud';
   look?: HostLook | undefined;
@@ -35,7 +37,7 @@ export function SourceName({
     >
       <Text
         dynamicTypeRamp="headline"
-        numberOfLines={1}
+        numberOfLines={lines}
         ellipsizeMode="tail"
         style={[conversationType.name, { flex: 1, minWidth: 0 }]}
       >
