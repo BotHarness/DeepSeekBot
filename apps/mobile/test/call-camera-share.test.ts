@@ -109,6 +109,7 @@ describe('phone camera share', () => {
     await world.session.share('camera');
     await world.session.hangup();
     expect(world.stops()).toBe(1);
+    expect(world.visuals()).toEqual(['camera', 'off']);
     expect(phoneCameraState(world.session.state().visual, 'front').on).toBe(false);
   });
 

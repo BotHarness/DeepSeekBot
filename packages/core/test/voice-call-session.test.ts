@@ -295,6 +295,24 @@ describe('call session visual sharing', () => {
     expect(world.session.state().visual.source).toBe('off');
   });
 
+  it('tells the Host the share is off before hanging up with it on', async () => {
+    const world = setup();
+    await world.session.client.open('mira');
+    await world.session.share('camera');
+    await world.session.hangup();
+    expect(world.captures.last().stopped).toBe(true);
+    expect(world.host.visuals()).toEqual([{ source: 'camera' }, { source: 'off' }]);
+    const kinds = world.host.posts.map((body) => body['kind']);
+    expect(kinds.lastIndexOf('visual')).toBeLessThan(kinds.indexOf('hangup'));
+  });
+
+  it('hangs up without a Host visual when nothing is shared', async () => {
+    const world = setup();
+    await world.session.client.open('mira');
+    await world.session.hangup();
+    expect(world.host.visuals()).toEqual([]);
+  });
+
   it('drops a share that finishes after the call ended', async () => {
     let release: (() => void) | undefined;
     const host = fakeHost();

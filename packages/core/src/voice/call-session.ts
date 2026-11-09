@@ -229,8 +229,10 @@ export function createCallSession<Capture extends CallCapture, Code extends stri
     async hangup() {
       pending = undefined;
       release();
-      if (visual.source !== 'off' || visual.starting)
+      const shared = visual.source !== 'off';
+      if (shared || visual.starting)
         visual = { ...visual, source: 'off', starting: false, paused: false };
+      if (shared && live()) await client.visual('off');
       await client.hangup();
     },
     dispose() {
