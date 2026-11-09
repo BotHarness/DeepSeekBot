@@ -4688,7 +4688,7 @@ export const zh = {
   'devices.connect.copyLink': '复制登录链接',
   'devices.connect.copied': '已复制',
   'devices.connect.notAllowed': '这个账号暂时不能使用 Tobs Connect。',
-  'devices.connect.hostLimit': '这个账号已关联 5 台电脑，请在下方退出另一台电脑的登录。',
+  'devices.connect.hostLimit': '这个账号已关联 3 台电脑，请在下方退出另一台电脑的登录。',
   'devices.connect.sessionRevoked': '这台电脑已从账号退出，请重新登录。',
   'devices.connect.computers': '账号中的电脑',
   'devices.connect.computersStatus': '已关联的电脑',
@@ -9919,7 +9919,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'devices.connect.copied': 'Copied',
   'devices.connect.notAllowed': 'This account cannot use Tobs Connect yet.',
   'devices.connect.hostLimit':
-    'This account already links 5 computers. Sign out another computer below.',
+    'This account already links 3 computers. Sign out another computer below.',
   'devices.connect.sessionRevoked': 'This computer was signed out of the account. Sign in again.',
   'devices.connect.computers': 'Computers on this account',
   'devices.connect.computersStatus': 'Linked computers',

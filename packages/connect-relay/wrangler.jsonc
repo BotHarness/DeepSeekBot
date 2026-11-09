@@ -10,7 +10,7 @@
   "triggers": { "crons": ["* * * * *"] },
   "vars": {
     "CONNECT_ZONE": "deepseekbot.dev",
-    "MAX_HOSTS": "5",
+    "MAX_HOSTS": "3",
     // stay under Cloudflare's 1000 tunnels per account
     "MAX_TUNNELS": "900",
     "RECLAIM_AFTER_MINUTES": "5",

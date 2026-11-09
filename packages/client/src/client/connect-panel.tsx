@@ -301,7 +301,7 @@ export function ConnectPanel({
   onAccount(action: 'sign-in' | 'sign-out'): void;
   reloadSnapshot(): Promise<unknown>;
 }): ReactElement {
-  const [manage, setManage] = useState(false);
+  const [manage, setManage] = useState(account.issue === 'host-limit');
   const [copied, setCopied] = useState(false);
   const copy = (value: string) => {
     void navigator.clipboard
@@ -313,7 +313,7 @@ export function ConnectPanel({
       .catch(() => undefined);
   };
   const waiting = account.state === 'error' && account.issue === 'relay-full';
-  const linked = account.state === 'signed-in' || waiting;
+  const linked = account.state === 'signed-in' || waiting || account.issue === 'host-limit';
   const pool = account.pool;
   const signInButton = (
     <Button

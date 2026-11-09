@@ -44,7 +44,7 @@ const relay = createRelay({
   clientId: 'e2e',
   zone,
   allowedUsers: [],
-  maxHosts: 5,
+  maxHosts: 3,
   maxTunnels: 2,
   reclaimAfterMs: WINDOW_MS,
   tunnelPrefix: PREFIX,

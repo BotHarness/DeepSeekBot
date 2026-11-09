@@ -277,8 +277,8 @@ describe('Connect relay accounts', () => {
     });
   });
 
-  it('links at most five Hosts per account and keeps accounts apart', async () => {
-    const { call } = await setup();
+  it('links at most three Hosts per account and keeps accounts apart', async () => {
+    const { call } = await setup(undefined, { maxHosts: 3 });
     expect((await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: '' } })).status).toBe(
       400,
     );
@@ -297,13 +297,15 @@ describe('Connect relay accounts', () => {
         },
       },
     });
-    for (let index = 0; index < 4; index += 1)
+    for (let index = 0; index < 2; index += 1)
       await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: `Host ${index}` } });
-    expect(await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Sixth' } })).toEqual({
-      status: 409,
-      body: { error: { code: 'host-limit' } },
-    });
-    expect((await call('GET', '/v1/hosts', { as: 'user_alice' })).body['hosts']).toHaveLength(5);
+    expect(await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Fourth' } })).toEqual(
+      {
+        status: 409,
+        body: { error: { code: 'host-limit' } },
+      },
+    );
+    expect((await call('GET', '/v1/hosts', { as: 'user_alice' })).body['hosts']).toHaveLength(3);
     expect(await call('GET', '/v1/hosts', { as: 'user_bob' })).toMatchObject({
       body: { hosts: [] },
     });
