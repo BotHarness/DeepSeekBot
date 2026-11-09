@@ -5,6 +5,8 @@
 - Issue: #3492 (spec #3490, hub #3491; builds on ADR-0281)
 
 > Amended by [ADR-0303](0303-call-grids-tile-balanced-rows.md): grids tile one to nine keyframes in balanced rows of at most three (`layout` such as `3+2`), not square 2x2, 3x3 or 4x4 grids.
+>
+> Amended by [ADR-0307](0307-call-keyframes-pick-by-perceptual-hash.md): keyframes are picked by a perceptual hash of the grey thumbnail, with a local block check on screens, not by the mean pixel difference; the thresholds below are superseded.
 
 ## Context
 

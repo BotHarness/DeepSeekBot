@@ -161,6 +161,20 @@ The `llm e2e` workflow runs them nightly, after a push to `main` that touches a 
 
 > > > > > > > origin/claude/bot-mention-wake-te5p0m
 
+## Call keyframe evaluation (VC8)
+
+`scripts/call-keyframe-eval.mjs` tunes the call keyframe picker ([ADR-0307](../adr/0307-call-keyframes-pick-by-perceptual-hash.md)). It renders six call videos with known ground truth (reading a document, scrolling code, switching windows, a film clip, holding things up to the camera, five silent minutes), runs the shared picker over them and judges each case: keyframes per page, screen, window, shot or held object, none caught mid-scroll. `--compare` sweeps the grayscale pixel difference, the perceptual hash and the hash with the local detail check over several thresholds. With `--bot` it also calls that Bot on an isolated Host through `deepseekbot call-simulate --screen/--video`, types the case's question at the end, and judges the spoken answer by keywords (in order where the case asks for order), the keyframes, uplink bytes, grid compose time, the time from the grid to the first reply audio, `call_frame` zooms and dropped keyframes. Grids are saved next to `report.md`.
+
+```bash
+pnpm build
+node scripts/call-keyframe-eval.mjs --compare                  # picker only, about 2 minutes, no Host
+node scripts/verify-app.mjs launch --name vc8 --build
+node scripts/dev-model.mjs setup --from-env --model deepseek-v4.1-flash   # once per machine
+node scripts/call-keyframe-eval.mjs --bot <bot-id> --stub-voice      # all six live, about 15 minutes
+```
+
+`--stub-voice` binds a local stand-in ASR and TTS endpoint to the Bot, so an isolated Host needs only the model credential; questions are typed into the call and replies play as silence of speech length. Leave it out on a Host whose Bot already has real voice Providers. The live run uses the Host's model, which must be the newest DeepSeek model (`opencode-go/deepseek-v4.1-flash`).
+
 ## Generated assets and pages
 
 | Command or script                | Source and output contract                                                                                                                                                                                                                                                                                                               |
