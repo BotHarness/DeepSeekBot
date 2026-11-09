@@ -17,7 +17,6 @@ export interface PrivateTunnelView {
 
 type Step = 'choose' | 'named';
 
-// The no-Docker private route: this computer runs cloudflared and publishes only its encrypted phone channel.
 export function PrivateTunnelSettings({
   t,
   status,

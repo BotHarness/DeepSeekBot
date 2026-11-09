@@ -34,13 +34,10 @@ export interface PrivateTunnelStatus {
   state: 'off' | 'starting' | 'verifying' | 'connected' | 'error';
   mode?: PrivateTunnelMode;
   origin?: string;
-  // Named tunnels route their public hostname to this loopback port in the provider dashboard.
   originPort?: number;
   issue?: PrivateTunnelIssue;
-  // The last public probe failure, coded so a person can tell DNS from HTTP from timeouts.
   probe?: string;
   cloudflared?: CloudflaredSource;
-  // A Quick Tunnel restart got a new address, so phones paired to the old one need an update QR.
   addressChanged?: boolean;
 }
 
@@ -75,7 +72,6 @@ const SECRET = /^[a-f0-9]{64}$/u;
 
 const digest = (value: string): Buffer => createHash('sha256').update(value).digest();
 
-// A public hostname the person owns; Tobs Connect, tailnet, loopback and literal addresses are refused.
 export function privateTunnelHostname(input: string): string | undefined {
   const hostname = input.trim().toLowerCase();
   if (
@@ -120,8 +116,6 @@ function parseRecord(payload: unknown): TunnelRecord | undefined {
 
 type TunnelOrigin = Server & { upgraded: Set<Duplex> };
 
-// Only the encrypted device channel is published. The phone presents the deployment's admission token,
-// which is checked and stripped here; device control is still granted only by the Noise gateway.
 export function createTunnelOrigin(options: {
   port: () => number;
   phoneToken: () => string;
@@ -255,7 +249,6 @@ export function createPrivateTunnel(options: {
     }
   };
 
-  // Ready only after a request through the public address reaches this Host's origin.
   const verify = (run: number, hostname: string, deadline: number): void => {
     if (run !== generation) return;
     nonce = randomBytes(16).toString('hex');
@@ -277,7 +270,6 @@ export function createPrivateTunnel(options: {
           delete status.probe;
           backoff = RESTART_MIN_MS;
           record('verified', `mode=${status.mode ?? ''}`);
-          // Keep checking so a dead address is reported instead of a stale "connected".
           later(() => verify(run, hostname, Date.now() + probeWindow), reprobe * 4);
         },
         (error: unknown) => {
@@ -480,9 +472,7 @@ export function createPrivateTunnel(options: {
           return { ok: false, code: 'credential-unavailable' };
         const previous = await read();
         const kept = typeof previous === 'object' ? previous : undefined;
-        // Remember the last Quick address so a new one is reported as a change, not silently swapped.
         if (input.mode === 'quick' && kept?.mode === 'quick') hostname = kept.hostname;
-        // Keeping the admission token across a mode change keeps phones paired to this Host admitted.
         const next: TunnelRecord = {
           mode: input.mode,
           phoneToken: kept?.phoneToken ?? randomBytes(32).toString('hex'),

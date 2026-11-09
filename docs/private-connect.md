@@ -1,6 +1,23 @@
-# Docker private connection
+# Private connection
 
-Docker private deployment is the recommended remote connection for this candidate. It does not require an official account or Cloudflare account. This first slice connects one desktop Host to its phones. Multi-Host enrollment and upgrades have separate v2.0 acceptance gates.
+Private connection lets your phone reach this computer from mobile data or outside Wi-Fi without an official account, Docker or a VPN app. The desktop Host runs its bundled `cloudflared` and publishes **only the encrypted phone channel**; settings, files and APIs stay private. Phones still pair by QR, compare the Host fingerprint, and need you to approve the exact phone key on the desktop.
+
+## Turn it on
+
+Open **Settings → Connections → Add connection → Connect a device to this Host → Private connection (recommended)** and choose one:
+
+- **Temporary address (Quick Tunnel).** Free, no Cloudflare account. The Host checks that a request through the public address reaches it before it offers a pairing code. The address changes whenever the tunnel restarts (Host restart, network loss, turning it off and on). The connection stays turned on across restarts, but phones paired to the old address then need a new pairing code; the settings page says so. Cloudflare documents Quick Tunnels as testing-only with no uptime guarantee.
+- **Fixed address (your Cloudflare Tunnel).** Create a Tunnel in your own Cloudflare account, copy its connector token and add a public hostname on a domain in that account. After you save the hostname and token, point that hostname's service at the `http://127.0.0.1:<port>` address the page shows. The address survives restarts. A free account without a payment method could create a Tunnel in our test (2026-11-09); a fixed hostname still needs a domain on that account.
+
+Wait for **The public address reaches this computer**, choose **Show phone pairing code**, scan it on the phone, compare fingerprints and approve the exact phone. Turning the connection off stops `cloudflared`, forgets the connector token and the phone admission token; paired phones then need a new code.
+
+The Host never falls back to the official relay. When the public check fails, the page shows the coded reason (for example `dns` while a new Quick address propagates) and keeps retrying.
+
+CLI: `deepseekbot private-tunnel-enable --quick --confirm`, `deepseekbot private-tunnel-enable --hostname <name> --token-stdin --confirm` (pipe the connector token) and `deepseekbot private-tunnel-disable --confirm`. `deepseekbot devices` shows `privateTunnel` status.
+
+# Advanced: Docker private relay
+
+Use this only if you already run a public server. It does not require an official account or Cloudflare account. This first slice connects one desktop Host to its phones. Multi-Host enrollment and upgrades have separate v2.0 acceptance gates.
 
 **You need a public HTTPS endpoint reachable by both your phone and computer.** Use an existing public server, or a home/NAS endpoint with correctly configured public connectivity. A domain alone or Docker running only behind home NAT does not provide remote access. This setup does not purchase infrastructure, open router ports, configure DNS, or guarantee connectivity across every carrier.
 
@@ -19,7 +36,7 @@ Setup creates private `.env` and `bootstrap.secret` files without printing the k
 
 ## Claim and pair
 
-1. On your trusted desktop, open **Settings → Connections → Add connection → Connect a device to this Host → Docker private connection (recommended)**.
+1. On your trusted desktop, open **Settings → Connections → Add connection → Connect a device to this Host → Private connection (recommended) → Your own relay server (Docker, advanced)**.
 2. Enter the HTTPS origin and privately copy the initial setup key from the server's `bootstrap.secret` file. Do not send it to another person or put it into command arguments.
 3. Choose **Claim and connect**. Wait for **Connected**. A successful local setup, container start or health response alone is not proof that your phone can reach it.
 4. Choose **Show phone pairing code**. On the native phone, scan it and verify the full Host fingerprint against the trusted desktop. On the desktop, compare and approve the exact phone key.

@@ -41,8 +41,6 @@ function memoryCredentials(): Credentials & { records: Map<string, CredentialRec
   };
 }
 
-// A cloudflared stand-in: it announces a Quick address and registration, and the test's fetch maps that
-// public address to the local origin, standing in for Cloudflare's edge.
 function fakeCloudflared() {
   const runs: { args: readonly string[]; env: NodeJS.ProcessEnv; child: EventEmitter }[] = [];
   let address = 0;
@@ -135,7 +133,6 @@ it('reports connected only after the public address reaches this Host, and keeps
   expect(first.token).toMatch(/^[a-f0-9]{64}$/u);
   await tunnel.close();
 
-  // A restarted Host restores the enabled tunnel by itself; Quick gets a new address, which is reported.
   const restored = createPrivateTunnel(options);
   tunnels.push(restored);
   await restored.restore();

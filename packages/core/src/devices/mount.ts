@@ -736,7 +736,6 @@ export function mountDevicePairing(
         );
       return () => privateConnection.close();
     }, 'botharness: private relay');
-    // Host-run cloudflared publishing only the encrypted device channel: the no-Docker private route.
     const privateTunnel = createPrivateTunnel({
       credentials: options.credentials ?? (() => undefined),
       port: () => webServer.port,

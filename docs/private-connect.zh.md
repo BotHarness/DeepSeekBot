@@ -1,4 +1,21 @@
-# Docker 私有连接
+# 私有连接
+
+私有连接让手机在使用流量或外部 Wi-Fi 时也能连到这台电脑，不需要官方账号、Docker 或 VPN 应用。电脑上的 Host 运行内置的 `cloudflared`，**只公开加密的手机通道**；设置、文件和接口都不会公开。手机仍然扫码配对、核对电脑指纹，并需要你在电脑上批准这台手机的确切密钥。
+
+## 开启
+
+打开 **设置 → 连接 → 添加连接 → 让设备连接本机 → 私有连接（推荐）**，选择一种：
+
+- **临时地址（Quick Tunnel）**。免费，不需要 Cloudflare 账号。只有通过公网地址确实连到这台电脑后，才会提供配对码。隧道每次重启（电脑重启、断网、关掉再打开）地址都会变。重启后连接会自动恢复，但用旧地址配对的手机需要扫描新的配对码，设置页会提示。Cloudflare 说明 Quick Tunnel 仅用于测试，不保证在线。
+- **固定地址（自己的 Cloudflare Tunnel）**。在自己的 Cloudflare 账号中创建 Tunnel，复制连接器令牌，并在该账号的域名上添加公共主机名。保存主机名和令牌后，把该主机名的服务指向页面显示的 `http://127.0.0.1:<端口>`。重启后地址不变。2026-11-09 实测：未绑付款方式的免费账号可以创建 Tunnel；固定主机名仍需要该账号下有域名。
+
+等页面显示 **公网地址已确认可以连到这台电脑**，选择 **显示手机配对码**，在手机上扫码、核对指纹并批准这台手机。关闭私有连接会停止 `cloudflared`，并删除连接器令牌和手机准入令牌；已配对的手机需要新的配对码。
+
+Host 不会改用官方中继。公网检查失败时，页面会显示原因代码（例如新 Quick 地址尚未生效时的 `dns`），并自动重试。
+
+CLI：`deepseekbot private-tunnel-enable --quick --confirm`、`deepseekbot private-tunnel-enable --hostname <主机名> --token-stdin --confirm`（通过 stdin 传入令牌）和 `deepseekbot private-tunnel-disable --confirm`。`deepseekbot devices` 会显示 `privateTunnel` 状态。
+
+# 高级：Docker 私有中继
 
 本候选推荐使用 Docker 私有部署，不需要官方账号或 Cloudflare 账号。第一条路径支持一台桌面 Host 和它配对的手机；多电脑及升级另有 v2.0 验收项。
 
