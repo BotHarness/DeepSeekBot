@@ -81,9 +81,8 @@ const styles = stylex.create({
     flexDirection: 'column',
     gap: space.x2,
     minWidth: 0,
-    marginInlineStart: '44px',
   },
-  panelActions: { display: 'flex', flexWrap: 'wrap', gap: space.x2, marginInlineStart: '44px' },
+  panelActions: { display: 'flex', flexWrap: 'wrap', gap: space.x2 },
   failure: {
     display: 'flex',
     flexDirection: 'column',
