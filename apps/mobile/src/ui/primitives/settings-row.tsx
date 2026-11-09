@@ -100,6 +100,7 @@ function ReactNativeSettingsRow({
 }: SettingsRowProps) {
   const theme = useDesignTheme();
   const layer = theme.layer[on];
+  const oneLine = singleLine && !theme.largeText;
   const row = (
     <Pressable
       testID={testID}
@@ -134,12 +135,7 @@ function ReactNativeSettingsRow({
       )}
       {leading}
       <View style={{ flex: 1, minWidth: 0, gap: space.x1 }}>
-        <Text
-          variant="body"
-          tone={tone}
-          strong={strong}
-          {...(singleLine ? { numberOfLines: 1 } : {})}
-        >
+        <Text variant="body" tone={tone} strong={strong} {...(oneLine ? { numberOfLines: 1 } : {})}>
           {title}
         </Text>
         {detail === undefined ? null : (
@@ -157,7 +153,7 @@ function ReactNativeSettingsRow({
             <Text
               variant="meta"
               tone="muted"
-              {...(singleLine ? { numberOfLines: 1 } : {})}
+              {...(oneLine ? { numberOfLines: 1 } : {})}
               style={{ flexShrink: 1 }}
             >
               {detail}

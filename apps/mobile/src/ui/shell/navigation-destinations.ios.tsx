@@ -3,15 +3,18 @@ import {
   accessibilityAddTraits,
   accessibilityElement,
   accessibilityLabel,
-  buttonBorderShape,
+  background,
   buttonStyle,
   font,
   foregroundStyle,
   frame,
+  glassEffect,
   lineLimit,
   minimumScaleFactor,
   monospacedDigit,
   onLongPressGesture,
+  padding,
+  shapes,
 } from '@expo/ui/swift-ui/modifiers';
 import { Platform } from 'react-native';
 import { useDesignTheme } from '../design/theme';
@@ -42,8 +45,19 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
               testID={item.settings ? 'settings-button' : `tab-${item.key}`}
               onPress={item.onPress}
               modifiers={[
-                buttonStyle(item.focused ? (glass ? 'glass' : 'bordered') : 'plain'),
-                buttonBorderShape('capsule'),
+                // Every tab keeps the plain style so all labels get the same width and scale;
+                // the selected capsule is drawn behind it instead of by a padded button style.
+                buttonStyle('plain'),
+                ...(item.focused
+                  ? [
+                      glass
+                        ? glassEffect({
+                            glass: { variant: 'regular', interactive: true },
+                            shape: 'capsule',
+                          })
+                        : background(theme.layer.raised.pressed, shapes.capsule()),
+                    ]
+                  : []),
                 onLongPressGesture(item.onLongPress),
                 frame({ maxWidth: Infinity, maxHeight: Infinity }),
                 accessibilityElement('ignore'),
@@ -54,7 +68,10 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
             >
               <VStack
                 spacing={space.x1}
-                modifiers={[frame({ maxWidth: Infinity, minHeight: theme.touch })]}
+                modifiers={[
+                  padding({ horizontal: space.x2, vertical: space.x1 }),
+                  frame({ maxWidth: Infinity, minHeight: theme.touch }),
+                ]}
               >
                 {item.activity && !item.focused && item.count > 0 ? (
                   <Text
