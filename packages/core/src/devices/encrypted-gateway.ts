@@ -18,6 +18,7 @@ import {
   VOICE_CALL_PATH,
   type VoiceCallResult,
 } from '../voice/call-contract.js';
+import { DIRECT_PATH, type DirectResult } from './direct.js';
 
 const BODY_LIMIT = 4 * 1024 * 1024;
 const QUEUE_LIMIT = 20 * 1024 * 1024;
@@ -75,6 +76,11 @@ export function createEncryptedGateway(options: {
     command: unknown;
     signal: AbortSignal;
   }) => Promise<LocalVideoResult>;
+  direct?: (input: {
+    deviceId: string;
+    offer: unknown;
+    signal: AbortSignal;
+  }) => Promise<DirectResult>;
   voiceCall?: (input: {
     deviceId: string;
     command: unknown;
@@ -322,6 +328,45 @@ export function createEncryptedGateway(options: {
           videoPending--;
         });
     };
+    const direct = (id: string, input: Record<string, unknown>) => {
+      const respond = (result: DirectResult) =>
+        send({
+          type: 'response',
+          id,
+          status: result.ok ? 200 : 409,
+          contentType: 'application/json',
+          body: Buffer.from(JSON.stringify(result)).toString('base64'),
+        });
+      const dispatch = options.direct;
+      if (!dispatch || options.route === 'lan' || input['method'] !== 'POST')
+        return respond({ ok: false, code: 'direct-invalid' });
+      const bytes = Buffer.from(
+        field(input, 'body') ?? '',
+        input['encoding'] === 'base64' ? 'base64' : 'utf8',
+      );
+      let offer: unknown;
+      try {
+        if (bytes.length > 20_000) throw new Error();
+        offer = (JSON.parse(bytes.toString('utf8')) as { offer?: unknown }).offer;
+      } catch {
+        return respond({ ok: false, code: 'direct-invalid' });
+      }
+      const abort = new AbortController();
+      const cancel = () => abort.abort();
+      requests.set(id, cancel);
+      void dispatch({ deviceId: deviceId!, offer, signal: abort.signal }).then(
+        (result) => {
+          if (requests.get(id) !== cancel) return;
+          requests.delete(id);
+          respond(result);
+        },
+        () => {
+          if (requests.get(id) !== cancel) return;
+          requests.delete(id);
+          respond({ ok: false, code: 'direct-failed' });
+        },
+      );
+    };
     const call = (id: string, input: Record<string, unknown>) => {
       const respond = (result: VoiceCallResult) =>
         send({
@@ -430,6 +475,7 @@ export function createEncryptedGateway(options: {
         throw new Error('channel-request-invalid');
       if (path === `/botharness-device${LOCAL_VIDEO_PATH}`) return video(id, input);
       if (path === `/botharness-device${VOICE_CALL_PATH}`) return call(id, input);
+      if (path === `/botharness-device${DIRECT_PATH}`) return direct(id, input);
       if (!pathAllowed(path)) throw new Error('channel-request-invalid');
       const body = field(input, 'body') ?? '';
       const bytes = Buffer.from(body, input['encoding'] === 'base64' ? 'base64' : 'utf8');

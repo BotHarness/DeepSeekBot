@@ -1,3 +1,4 @@
+import type { DirectPeers } from './direct.js';
 import type {
   PrivateConnection,
   PrivateRelayAdmission,
@@ -44,6 +45,7 @@ export interface PairingPayload {
 export interface DevicesSnapshot {
   privateRelay?: PrivateRelayStatus;
   privateTunnel?: PrivateTunnelStatus;
+  direct?: { open: number; devices: string[] };
   lanBots?: LanBotSnapshot;
   lan?: LanStatus;
   host: HostIdentity;
@@ -119,6 +121,7 @@ async function body(request: Request): Promise<Record<string, unknown>> {
 export function createDevicesHttp(options: {
   privateConnection?: PrivateConnection;
   privateTunnel?: PrivateTunnel;
+  direct?: Pick<DirectPeers, 'status'>;
   pairing: DevicePairing;
   encryption?: () => Promise<
     EncryptionIdentity & { state: 'negotiating' | 'encrypted' | 'disconnected' }
@@ -192,6 +195,14 @@ export function createDevicesHttp(options: {
       const snapshot: DevicesSnapshot = {
         ...(options.privateConnection ? { privateRelay: options.privateConnection.status() } : {}),
         ...(options.privateTunnel ? { privateTunnel: options.privateTunnel.status() } : {}),
+        ...(options.direct
+          ? {
+              direct: {
+                open: options.direct.status().open,
+                devices: options.direct.status().devices,
+              },
+            }
+          : {}),
         ...(options.lan ? { lan: options.lan.status() } : {}),
         ...(options.lanBots ? { lanBots: await options.lanBots.snapshot() } : {}),
         host: pairing.host(),

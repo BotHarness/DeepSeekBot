@@ -1,3 +1,4 @@
+import { createDirectPeers } from './direct.js';
 import { createPrivateConnection } from './private-relay.js';
 import { createPrivateTunnel } from './private-tunnel.js';
 import { createConnectBotBridge } from './bot-connect-bridge.js';
@@ -525,10 +526,17 @@ export function mountDevicePairing(
             ? ('negotiating' as const)
             : ('disconnected' as const),
     });
+    const directPeers = createDirectPeers({
+      port: () => webServer.port,
+      log: (phase, info) =>
+        write('device-direct', phase, `device-direct phase=${phase}${info ? ` ${info}` : ''}`),
+    });
+    webCtx.effect(() => () => directPeers.close(), 'botharness: direct device peers');
     const encrypted = createEncryptedGateway({
       pairing,
       key: identity.key,
       port: () => webServer.port,
+      direct: (input) => directPeers.answer(input),
       changed: (state) => {
         channels = state;
       },
@@ -771,6 +779,7 @@ export function mountDevicePairing(
     const http = createDevicesHttp({
       privateConnection,
       privateTunnel,
+      direct: directPeers,
       pairing,
       encryption,
       routes,

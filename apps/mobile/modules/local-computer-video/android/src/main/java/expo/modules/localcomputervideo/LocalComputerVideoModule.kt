@@ -25,6 +25,7 @@ class LocalComputerVideoModule : Module() {
   private var foreground = true
   /** The one Bot call this app may hold. A new attempt replaces it. Main thread only. */
   @Volatile private var call: CallAttempt? = null
+  private val directs = java.util.concurrent.ConcurrentHashMap<String, DirectChannel>()
 
   /**
    * Ends the call natively. A call keeps running in the background while [CallService]
@@ -89,7 +90,33 @@ class LocalComputerVideoModule : Module() {
     Name("LocalComputerVideo")
     Constant("callAudioSupported") { android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S }
     Constant("callAudioModeSupported") { android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU }
-    Events("onCallState", "onCallTap", "onCallAudio", "onCallAction")
+    Events("onCallState", "onCallTap", "onCallAudio", "onCallAction", "onDirect")
+
+    AsyncFunction("directOffer") { id: String, iceServers: List<String>, promise: Promise ->
+      val context = context() ?: return@AsyncFunction promise.reject("native-unavailable", "Direct connection could not start.", null)
+      directs.remove(id)?.close()
+      val channel = DirectChannel(id, context) { kind, body ->
+        if (kind == "closed") directs.remove(id)
+        sendEvent("onDirect", body + mapOf("id" to id, "kind" to kind))
+      }
+      directs[id] = channel
+      channel.offer(iceServers) { sdp, code ->
+        if (sdp != null) promise.resolve(sdp) else promise.reject(code ?: "offer-failed", "Direct connection could not start.", null)
+      }
+    }
+
+    AsyncFunction("directAnswer") { id: String, answer: String, promise: Promise ->
+      val channel = directs[id]
+      if (channel == null || !answer.startsWith("v=0") || answer.length > 16384)
+        return@AsyncFunction promise.reject("answer-invalid", "Direct answer was refused.", null)
+      channel.answer(answer) { code ->
+        if (code != null) promise.reject(code, "Direct answer was refused.", null) else promise.resolve(null)
+      }
+    }
+
+    Function("directSend") { id: String, text: String -> directs[id]?.send(text) ?: false }
+
+    Function("directClose") { id: String -> directs[id]?.close() }
 
     OnCreate {
       attachService()
