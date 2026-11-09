@@ -247,7 +247,7 @@ class CallOverlayView(context: Context) : View(context) {
       if (breathAlpha != 255) { breathAlpha = 255; invalidate() }
       return
     }
-    if (breath != null) return
+    if (breath?.isRunning == true) return
     breath = ValueAnimator.ofFloat(0f, 1f).apply {
       duration = CallRingBreath.PERIOD_MS / 2
       repeatCount = ValueAnimator.INFINITE
@@ -257,6 +257,16 @@ class CallOverlayView(context: Context) : View(context) {
         breathAlpha = CallRingBreath.alpha(it.animatedValue as Float)
         invalidate()
       }
+      // Turning system animations off ends a running animator wherever it is; drop it and
+      // show the full ring, so the next bind can start a fresh breath once they are back.
+      addListener(object : android.animation.AnimatorListenerAdapter() {
+        override fun onAnimationEnd(animation: android.animation.Animator) {
+          if (breath !== animation) return
+          breath = null
+          breathAlpha = 255
+          invalidate()
+        }
+      })
       start()
     }
   }
