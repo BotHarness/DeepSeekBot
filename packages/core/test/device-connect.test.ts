@@ -240,7 +240,9 @@ describe('device Connect tunnel', () => {
     });
 
     const origin = connect.status().origin ?? '';
+    expect(connect.idleSeconds?.()).toBeUndefined();
     expect((await get(origin, '/botharness-device/pair')).status).toBe(404);
+    expect(connect.idleSeconds?.()).toBeUndefined();
     expect(await get(origin, '/botharness-device/channel')).toEqual({
       status: 200,
       body: 'dsh /botharness-device/channel',
@@ -251,6 +253,7 @@ describe('device Connect tunnel', () => {
       'x-path: /botharness-device/channel',
     );
     expect(await upgrade(origin, '/botharness-device/api/remote.mux')).toContain('404 Not Found');
+    expect(connect.idleSeconds?.()).toBeLessThanOrEqual(1);
     expect(await upgrade(origin, '/api/remote.mux')).toContain('404 Not Found');
 
     const stored = [...credentials.records.values()][0] as {
