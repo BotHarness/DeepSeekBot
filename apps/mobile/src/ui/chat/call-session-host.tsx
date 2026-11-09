@@ -148,6 +148,7 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
     const call = createCallClient({
       post: createCallPost(client),
       media,
+      emit: 'visible-changes',
       onChange: (next) => {
         if (cancelled) return;
         current = next;
@@ -258,6 +259,12 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
       showActivity();
       if (testAudio) mark('audio', event);
     });
+    call.background(AppState.currentState === 'background');
+    const appState = AppState.addEventListener('change', (next) => {
+      if (next !== 'active' && next !== 'background') return;
+      call.background(next === 'background');
+      if (testAudio) mark('app-state', { state: next });
+    });
     const removeActions = onCallActivityAction((action) => {
       if (cancelled) return;
       if (testAudio) mark('activity-action', { action });
@@ -318,6 +325,7 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
       removeTap?.();
       removeAudio?.();
       removeActions();
+      appState.remove();
       activity.end();
       call.dispose();
       cancelled = true;

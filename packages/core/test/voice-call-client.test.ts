@@ -21,7 +21,7 @@ const flush = async (times = 5) => {
     await new Promise((resolve) => setImmediate(resolve));
 };
 
-function setup(options: { readyAsr?: boolean } = {}) {
+function setup(options: { readyAsr?: boolean; emit?: 'visible-changes' } = {}) {
   let clock = 2_000_000;
   const hostSide = {
     onPcm: undefined as ((samples: Int16Array) => void) | undefined,
@@ -98,13 +98,21 @@ function setup(options: { readyAsr?: boolean } = {}) {
   };
   const states: CallClientState[] = [];
   let tick: (() => void) | undefined;
+  const periods: number[] = [];
+  const beats: number[] = [];
+  const counted: CallPost = async (body) => {
+    if (body['kind'] === 'heartbeat') beats.push(clock);
+    return post(body);
+  };
   const client = createCallClient({
-    post,
+    post: counted,
     media,
     onChange: (state) => states.push(state),
+    ...(options.emit === undefined ? {} : { emit: options.emit }),
     now: () => clock,
-    setInterval: (run) => {
+    setInterval: (run, ms) => {
       tick = run;
+      periods.push(ms);
       return 1;
     },
     clearInterval: () => {
@@ -119,6 +127,8 @@ function setup(options: { readyAsr?: boolean } = {}) {
     hostSide,
     phone,
     sent,
+    periods,
+    beats,
     speak: (input: Omit<Parameters<typeof calls.speak>[0], 'at'>) =>
       calls.speak({ ...input, at: new Date(clock).toISOString() }),
     advance: async (ms: number) => {
@@ -202,6 +212,74 @@ describe('phone call client', () => {
       code: 'unreachable',
     });
     expect(world.phone.stopped).toBeGreaterThan(0);
+  });
+
+  it('slows the heartbeat in the background and beats at once on return', async () => {
+    const world = setup();
+    await world.client.open('mira');
+    expect(world.periods).toEqual([1_000]);
+    world.client.background(true);
+    expect(world.periods).toEqual([1_000, 3_000]);
+    const before = world.beats.length;
+    world.client.background(true);
+    expect(world.periods).toHaveLength(2);
+    world.client.background(false);
+    await flush();
+    expect(world.periods).toEqual([1_000, 3_000, 1_000]);
+    expect(world.beats.length).toBe(before + 1);
+  });
+
+  it('keeps a background call alive within the Host loss window', async () => {
+    const world = setup();
+    await world.client.open('mira');
+    world.client.background(true);
+    for (let index = 0; index < 10; index += 1) await world.advance(3_000);
+    expect(world.client.state()).toMatchObject({ status: 'live', reconnecting: false });
+    expect(await world.post({ kind: 'status' })).toMatchObject({
+      calls: [{ phase: 'listening' }],
+    });
+  });
+
+  it('starts in the background cadence when the app is already hidden', async () => {
+    const world = setup();
+    world.client.background(true);
+    await world.client.open('mira');
+    expect(world.periods).toEqual([3_000]);
+  });
+
+  it('renders only visible changes when asked, with the sync time for local clocks', async () => {
+    const world = setup({ emit: 'visible-changes' });
+    await world.client.open('mira');
+    await world.advance(1_000);
+    const settled = world.states.length;
+    await world.advance(1_000);
+    await world.advance(1_000);
+    expect(world.states).toHaveLength(settled);
+    const quiet = world.client.state();
+    if (quiet.status !== 'live') throw new Error(quiet.status);
+    expect(quiet.syncedAt).toBeLessThan(2_003_000);
+    world.hostSide.onPcm!(concat(silence(200), speech(1200), silence(900)));
+    await world.advance(1_000);
+    expect(world.states.length).toBeGreaterThan(settled);
+    const heard = world.client.state();
+    if (heard.status !== 'live') throw new Error(heard.status);
+    expect(heard.syncedAt).toBe(2_004_000);
+    world.offline();
+    await world.advance(1_000);
+    await world.advance(1_000);
+    const reconnecting = world.states.filter(
+      (state) => state.status === 'live' && state.reconnecting,
+    );
+    expect(reconnecting).toHaveLength(1);
+  });
+
+  it('still renders every heartbeat by default', async () => {
+    const world = setup();
+    await world.client.open('mira');
+    const opened = world.states.length;
+    await world.advance(1_000);
+    await world.advance(1_000);
+    expect(world.states).toHaveLength(opened + 2);
   });
 
   it('ends when the phone peer fails and tells the Host', async () => {
