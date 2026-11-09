@@ -3931,7 +3931,7 @@ html[data-botharness-motion='reduce'] [data-badge-motion='leave'] { animation-na
 .bh-bridge-image-state { display: flex; align-items: center; gap: ${space.x3}; min-height: 96px; color: var(--dsw-alias-label-secondary); }
 .bh-bridge-image-expanded { display: block; max-width: 100%; max-height: 75vh; margin: auto; object-fit: contain; }
 .bh-message-image { display: block; max-width: 100%; max-height: 320px; border-radius: ${radius.md}; object-fit: contain; }
-.bh-message-album { display: grid; gap: ${space.x1}; width: 320px; max-width: 100%; overflow: hidden; border-radius: ${radius.md}; }
+.bh-message-album { display: grid; gap: 0; width: 320px; max-width: 100%; overflow: hidden; border-radius: ${radius.md}; }
 .bh-message-album-cell { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
 .bh-message-album-tile { display: block; width: 100%; height: 100%; padding: 0; border: 0; background: color-mix(in srgb, currentColor 8%, transparent); color: inherit; font: inherit; font-size: ${text.metaSize}; cursor: zoom-in; }
 .bh-message-album-tile:focus-visible { outline: ${border.focus} solid var(--bh-accent); outline-offset: -2px; }

@@ -2080,7 +2080,7 @@ describe('B2 chat bubbles', () => {
       expect(tiles('a8')[4]!.textContent).toBe('+3');
       expect(tiles('a8')[3]!.textContent).toBe('');
       expect(bubble(host, 'a8')!.querySelectorAll('.bh-message-file')).toHaveLength(0);
-      expect(CSS).toMatch(/\.bh-message-album \{[^}]*display: grid;[^}]*gap: 2px;/);
+      expect(CSS).toMatch(/\.bh-message-album \{[^}]*display: grid;[^}]*gap: 0;/);
     } finally {
       restore(previous);
     }

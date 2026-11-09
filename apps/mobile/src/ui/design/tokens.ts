@@ -334,7 +334,7 @@ export const replyThumb = { size: 32 } as const;
 export const mediaBubble = {
   maxWidth: 280,
   widthRatio: 0.72,
-  gap: 2,
+  gap: 0,
   scrim: '#00000073',
   more: '#0000008c',
   ink: '#ffffff',
