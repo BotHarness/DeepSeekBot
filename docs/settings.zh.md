@@ -78,17 +78,18 @@ DSH 版本只记录备份来源；兼容性由归档格式、数据库代数及�
 
 ![Bot 设置：图标、动效、排序、开发者模式和任务并发](/guides/settings/settings-bot-global-zh.webp)
 
-| 参数                | 默认值 / 可选值                                    | 如何保存与用途                                                                                                                |
-| ------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Bot 图标            | DeepSeekBot 吉祥物；可选简约、生成形象、通用机器人 | 点击即保存。改变应用侧边栏和设置导航的 Bot 标记，不替代单个 Bot 的头像。                                                      |
-| 界面动效            | 跟随系统；可选减少动效、完整动效                   | 选择即保存；下方预览显示实际采用的动效。                                                                                      |
-| Bot 列表排序        | 最近更新；可选手动                                 | 默认列表排序。手动排序时拖动条目；置顶区 / 各分区可有自己的排序设置。                                                         |
-| 开发者模式          | 关                                                 | 开启后显示工作区授权的历史和高级选项，不会授予文件权限。                                                                      |
-| 自动接受入群邀请    | 开                                                 | 自动加入受邀群聊，不唤醒 Bot；关闭后由受邀 Bot 决定是否加入。指 BotHarness 群邀请，不会配置 IM 连接。                         |
-| Assignment 并发上限 | 8；整数 1–32                                       | 输入后点「保存」。所有 Bot 共用的同时执行任务上限，不限制历史会话；降低上限不会中止正在执行的任务。                           |
-| DeepSeekBot 版本    | 显示运行中的版本                                   | 「检查更新」查询 npm；有新版本时可「立即更新」，Web 版装完可「立即重启」。见[更新 DeepSeekBot](/zh/docs/update-deepseekbot)。 |
-| 我的默认名字        | 留空，显示 Human；最长 128 字符                    | 填写后点「保存名字」，用于聊天、提及及 Bot 上下文。点「恢复默认」或保存空值恢复 Human。                                       |
-| 匿名使用统计        | 开                                                 | 切换即保存，立即生效、无需重启；被插件配置或环境变量关闭时锁定为关。见[匿名使用统计](#匿名使用统计)。                         |
+| 参数                | 默认值 / 可选值                                    | 如何保存与用途                                                                                                                               |
+| ------------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| 新手教程（通用）    | 按教程状态显示「开始 / 继续 / 重新开始教程」       | 始终显示在 **Bot 设置 → 通用**。点击后关闭设置、打开默认 Bot 私聊，开始、继续或重放引导浮层。重新开始不影响 Bot 身份、凭据、对话和完成记录。 |
+| Bot 图标            | DeepSeekBot 吉祥物；可选简约、生成形象、通用机器人 | 点击即保存。改变应用侧边栏和设置导航的 Bot 标记，不替代单个 Bot 的头像。                                                                     |
+| 界面动效            | 跟随系统；可选减少动效、完整动效                   | 选择即保存；下方预览显示实际采用的动效。                                                                                                     |
+| Bot 列表排序        | 最近更新；可选手动                                 | 默认列表排序。手动排序时拖动条目；置顶区 / 各分区可有自己的排序设置。                                                                        |
+| 开发者模式          | 关                                                 | 开启后显示工作区授权的历史和高级选项，不会授予文件权限。                                                                                     |
+| 自动接受入群邀请    | 开                                                 | 自动加入受邀群聊，不唤醒 Bot；关闭后由受邀 Bot 决定是否加入。指 BotHarness 群邀请，不会配置 IM 连接。                                        |
+| Assignment 并发上限 | 8；整数 1–32                                       | 输入后点「保存」。所有 Bot 共用的同时执行任务上限，不限制历史会话；降低上限不会中止正在执行的任务。                                          |
+| DeepSeekBot 版本    | 显示运行中的版本                                   | 「检查更新」查询 npm；有新版本时可「立即更新」，Web 版装完可「立即重启」。见[更新 DeepSeekBot](/zh/docs/update-deepseekbot)。                |
+| 我的默认名字        | 留空，显示 Human；最长 128 字符                    | 填写后点「保存名字」，用于聊天、提及及 Bot 上下文。点「恢复默认」或保存空值恢复 Human。                                                      |
+| 匿名使用统计        | 开                                                 | 切换即保存，立即生效、无需重启；被插件配置或环境变量关闭时锁定为关。见[匿名使用统计](#匿名使用统计)。                                        |
 
 下方「外部平台默认行为」属于 IM 收件与身份设置，参见 [Lark / 飞书](/zh/docs/lark-connection)、[Slack](/zh/docs/slack-connection) 与 Discord。各平台的默认值和版本独立保存。Profile 身份及群收件策略可以继承默认值或保留自定义选项；恢复继承时使用该平台的当前默认值。Discord 普通消息收件仍需 Message Content Intent 和实际投递验证，修改默认值不会授予这些能力。
 
@@ -118,7 +119,7 @@ Bot 的主会话（Orchestrator Session）会随着每轮对话变长。压缩�
 
 ## 快速搜索与快捷键
 
-在 Bot 模式下按 **Alt+K**（macOS 为 Option+K）可搜索 Bot、群聊、频道以及 Bot 设置里的具体一行；浏览器能收到 Ctrl+K 或 ⌘K 时也可以使用。中文名称可用全拼或首字母搜索。选中设置结果会打开对应页面并高亮那一行。按 `?` 或 Ctrl/⌘+/ 查看全部快捷键，在 **Bot 设置 → 键盘快捷键** 中修改。
+在 Bot 模式下按 **Alt+K**（macOS 为 Option+K），或点左侧控制栏底部设置齿轮上方的**搜索**（放大镜）按钮，可搜索 Bot、群聊、频道以及 Bot 设置里的具体一行；浏览器能收到 Ctrl+K 或 ⌘K 时也可以使用。中文名称可用全拼或首字母搜索。设置结果会匹配每一行的标题、说明文字和常用同义词（例如搜「引导」「教程」「restart」都能找到新手教程那一行）。选中设置结果会打开对应页面并高亮那一行。按 `?` 或 Ctrl/⌘+/ 查看全部快捷键，在 **Bot 设置 → 键盘快捷键** 中修改。
 
 ## 创建 Bot 与编辑 Profile
 
@@ -196,7 +197,7 @@ DeepSeekBot 默认由 DSH 后台发送匿名使用统计；首次打开 Bot 模�
 - 市场：`marketplace:bot_install` 和 `marketplace:bot_open`（`entry`，从哪里打开的 Bot：`list`、`hot`、`new`、`rising` 或 `digest`；`marketplace:bot_open` 还记录打开的是详情还是安装步骤）；`marketplace:section_view` 和 `marketplace:digest_view`（只记录显示了热门、新上架、上升最快三排或每日精选）；`marketplace:digest_open`（从面板还是往期列表打开）；以及 `marketplace:digest_archive_open`。不包含 Bot 名称、条目 ID 或搜索文字。
 - `im:connector_enable`：只记录连接器类型（`feishu`、`lark`、`slack`、`discord`、`weixin` 或 `other`）。
 - 首次进入引导和新手教程：`onboarding:intro_view`；`onboarding:intro_step_view`（步骤名）；`onboarding:intro_dismiss`（停在哪一步，点的是跳过还是关闭）；`onboarding:intro_complete`（选了哪种开场：身份任务、采访或自己输入，以及所选身份和任务展示的 Bot 能力，不含文字）；`onboarding:intro_complete` 还带上每个身份是否被选中、是否选了细分方向；`onboarding:persona_select`（每个被选中的起步身份：`engineer`、`creator`、`operator` 或 `learner`，可多选）；`onboarding:persona_detail_select`（身份下选中的细分方向，例如 `backend`、`video`）；`onboarding:theme_update`（只记 `scheme`、`preset`、`layout` 或 `wallpaper`）；`onboarding:model_save`（只记是否用了进阶的执行模型）；`onboarding:community_link_click`（`github`、`discord` 或 `qq`）；以及 `onboarding:tutorial_start`、`_pause`、`_skip`、`_resume`、`_restart`、`_complete`。不包含模型名称、壁纸文件或输入的文字。
-- 功能使用，每条都带界面（`desktop_app` 或 `browser`），只记录操作类型：`search:switcher_open` 和 `search:result_open`（`channel`、`message` 或 `setting`）；`layout:mode_select`（`simple` 或 `advanced`；`app:bot_mode_enter` 也带当前布局）；`viewer:subpanel_open`（`browser` 或 `computer`）；`activity:inbox_open`、`activity:approval_submit`（`allow_once`、`allow_always` 或 `reject`）、`activity:question_submit`、`activity:grant_request_submit`、`activity:inbox_reply_send`（`message` 或 `assignment`）、`activity:inbox_item_dismiss` 和 `activity:inbox_item_snooze`；`model:plan_update`（方案怎么改的）；`remote_host:host_pair_complete`（`success`、`refused` 或 `failed`）和 `remote_host:conversation_open`。Host 还会发送 `connect:sign_in_start`、`connect:sign_in_complete`（`success`、`denied` 或 `expired`），以及 Tob 给同事 Bot 发消息时的 `tob:delegation_send`。不包含搜索文字、模型名称、工具名称、文件夹或消息内容。
+- 功能使用，每条都带界面（`desktop_app` 或 `browser`），只记录操作类型：`search:switcher_open`（`shortcut` 或 `rail`）和 `search:result_open`（`channel`、`message` 或 `setting`）；`layout:mode_select`（`simple` 或 `advanced`；`app:bot_mode_enter` 也带当前布局）；`viewer:subpanel_open`（`browser` 或 `computer`）；`activity:inbox_open`、`activity:approval_submit`（`allow_once`、`allow_always` 或 `reject`）、`activity:question_submit`、`activity:grant_request_submit`、`activity:inbox_reply_send`（`message` 或 `assignment`）、`activity:inbox_item_dismiss` 和 `activity:inbox_item_snooze`；`model:plan_update`（方案怎么改的）；`remote_host:host_pair_complete`（`success`、`refused` 或 `failed`）和 `remote_host:conversation_open`。Host 还会发送 `connect:sign_in_start`、`connect:sign_in_complete`（`success`、`denied` 或 `expired`），以及 Tob 给同事 Bot 发消息时的 `tob:delegation_send`。不包含搜索文字、模型名称、工具名称、文件夹或消息内容。
 - `app:usage_report`：每天最多一次，记录 PersonaBot 数量、自上次汇总以来新增的会话数和消息数，以及这段统计时长（整小时数）；不会按单条消息发送事件。
 - `$exception`：BotHarness 代码在后台出现未处理的错误时，记录错误类型和调用栈中的函数名与行号，文件只保留包内相对路径（如 `@botharness/core/dist/index.mjs`）或文件名；调用栈中没有 BotHarness 代码的错误会被丢弃。报告先保存在本机，下次启动时发送；从不包含错误信息正文。
 - `app:client_issue_report`：Web Client 出现未捕获错误、Host 请求失败或过慢、超过一秒的长帧或长任务，或 UI 不变量被破坏时，只记录是哪一种，慢的那几种再带一个耗时区间（`under_1s`、`1s_3s`、`3s_10s` 或 `over_10s`）。每种情况在一次 Client 会话里最多发送一次，每小时最多 60 次。带调用栈的 Web Client 未捕获错误还会作为 `$exception` 发送，只包含错误类型、函数名、行号和文件名（每小时最多 20 次）。从不包含错误信息正文、请求名称或页面内容。

@@ -1,8 +1,14 @@
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({ Input: () => null }));
 import { expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { PLUGIN_INDEX, SETTINGS_INDEX, searchSettings } from '../src/client/settings-search.js';
-import { en, zh, zhTranslate } from '../src/client/locale.js';
+import {
+  PLUGIN_INDEX,
+  SETTINGS_DESCRIPTIONS,
+  SETTINGS_INDEX,
+  searchSettings,
+} from '../src/client/settings-search.js';
+import { en, zh, zhTranslate, type BotHarnessKey } from '../src/client/locale.js';
+import { CLIENT_ENTRY, registeredSections, scanSettingsRows } from './settings-rows-scan.js';
 const rows = [
   { id: 'appearance', order: 5, label: '界面设置' },
   { id: 'messaging', order: 20, label: '消息' },
@@ -119,4 +125,102 @@ it('reaches individual rows on the right-hand side of every page', () => {
   });
   const enT = ((key: keyof typeof en) => en[key] ?? key) as unknown as typeof zhTranslate;
   expect(searchSettings(all, 'local driver', enT)[0]).toMatchObject({ title: 'Local driver' });
+});
+
+const zhSections = [
+  { id: 'general', order: 0, label: '通用' },
+  { id: 'appearance', order: 5, label: '界面设置' },
+  { id: 'models', order: 10, label: '模型与运行' },
+  { id: 'messaging', order: 20, label: '消息' },
+  { id: 'prompts', order: 14, label: '提示词' },
+  { id: 'voice', order: 15, label: '语音' },
+  { id: 'devices', order: 40, label: '连接' },
+  { id: 'data-privacy', order: 50, label: '数据与隐私' },
+];
+const enTranslate = ((key: keyof typeof en) => en[key] ?? key) as unknown as typeof zhTranslate;
+
+it('finds the onboarding tutorial row by the words Humans use for it (#3768)', () => {
+  for (const query of [
+    '引导',
+    '新手引导',
+    '新手教程',
+    '重新开始',
+    '教程',
+    'tutorial',
+    'onboarding',
+    'restart',
+  ])
+    expect(searchSettings(zhSections, query, zhTranslate)[0], query).toMatchObject({
+      section: 'general',
+      target: '新手教程',
+    });
+  expect(searchSettings(zhSections, 'tour', enTranslate)[0]).toMatchObject({
+    section: 'general',
+    target: 'Onboarding tutorial',
+  });
+  expect(searchSettings(zhSections, '通用 教程', zhTranslate)[0]).toMatchObject({
+    target: '新手教程',
+  });
+});
+
+it('finds rows by words that appear only in their description', () => {
+  expect(searchSettings(zhSections, '记忆', zhTranslate).map((row) => row.target)).toContain(
+    '新手教程',
+  );
+  expect(searchSettings(zhSections, '提示缓存', zhTranslate)[0]).toMatchObject({
+    section: 'models',
+    target: '空闲时提前压缩上下文',
+  });
+  expect(searchSettings(zhSections, 'prompt cache', enTranslate)[0]).toMatchObject({
+    section: 'models',
+  });
+});
+
+it('ranks a title match above a synonym and a synonym above a description', () => {
+  const zoom = searchSettings(zhSections, '缩放', zhTranslate).map((row) => row.target);
+  expect(zoom.slice(0, 2)).toEqual(['当前窗口缩放', '默认缩放']);
+  expect(searchSettings(zhSections, '压缩', zhTranslate)[0]).toMatchObject({
+    target: '空闲时提前压缩上下文',
+  });
+});
+
+it('reaches rows in the newer sections', () => {
+  const first = (query: string) => searchSettings(zhSections, query, zhTranslate)[0];
+  expect(first('麦克风')).toMatchObject({ section: 'voice' });
+  expect(first('说话阈值')).toMatchObject({ section: 'voice', target: '说话阈值' });
+  expect(first('全局预设')).toMatchObject({ section: 'prompts', target: '全局预设' });
+  expect(first('Tailscale')).toMatchObject({ section: 'devices', target: '通过 Tailscale' });
+  expect(first('局域网')).toMatchObject({ section: 'devices', target: '同一局域网' });
+  expect(first('备份')).toMatchObject({ section: 'data-privacy', target: '环境备份' });
+  expect(first('逐字')).toMatchObject({ section: 'messaging', target: '逐字显示 Bot 回复' });
+  expect(first('自动压缩阈值')).toMatchObject({ section: 'models' });
+});
+
+it('does not match descriptions by pinyin initials', () => {
+  expect(
+    searchSettings(zhSections, 'jy', zhTranslate).some((row) => row.target === '新手教程'),
+  ).toBe(false);
+});
+
+it('every row registered Bot settings sections render is searchable by its title and description', () => {
+  const notSettings = new Set([
+    'accountProfile.loadFailed',
+    'accountProfile.signInHint',
+    'plugins.restart.title',
+  ]);
+  const missing: string[] = [];
+  const sections = registeredSections();
+  expect(sections.map((section) => section.id)).toContain('general');
+  for (const section of sections) {
+    const rows = scanSettingsRows(CLIENT_ENTRY, section.component);
+    for (const row of rows) {
+      if (row.key === undefined || notSettings.has(row.key)) continue;
+      const key = row.key as BotHarnessKey;
+      if (!(SETTINGS_INDEX[section.id] ?? []).includes(key))
+        missing.push(`${section.id}: ${row.key} (${row.at})`);
+      else if (row.description !== undefined && SETTINGS_DESCRIPTIONS[key] !== row.description)
+        missing.push(`${section.id}: ${row.key} description ${row.description} (${row.at})`);
+    }
+  }
+  expect(missing).toEqual([]);
 });

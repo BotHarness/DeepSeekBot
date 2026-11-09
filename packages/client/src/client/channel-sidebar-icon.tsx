@@ -37,6 +37,10 @@ const glyphs: Record<string, readonly [string, Record<string, string | number>][
     ['path', { d: 'M4 10.95V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8.05' }],
   ],
   house: [['path', { d: 'm3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z' }]],
+  search: [
+    ['path', { d: 'm21 21-4.34-4.34' }],
+    ['circle', { cx: '11', cy: '11', r: '8' }],
+  ],
   hash: [
     ['line', { x1: '4', x2: '20', y1: '9', y2: '9' }],
     ['line', { x1: '4', x2: '20', y1: '15', y2: '15' }],
