@@ -102,6 +102,7 @@ function PluginRow({
 }): ReactElement {
   const { run } = useUpdateRuns(controller.runs);
   const shown = run?.kind === 'plugin' && run.name === plugin.name;
+  const following = shown && updateRunActive(run);
   const installing = row.status === 'installing';
   const reloading = row.status === 'reloading';
   const available = plugin.status === 'available';
@@ -119,7 +120,7 @@ function PluginRow({
         </span>
       }
       control={
-        available && installable ? (
+        available && installable && !following ? (
           <Button
             size="sm"
             variant="primary"

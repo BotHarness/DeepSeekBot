@@ -2685,8 +2685,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrapAsync(this.methods.releaseUpdate({ force }));
   }
 
-  async releaseInstall(version: string): Promise<ReleaseInstall> {
-    return unwrapAsync(this.methods.releaseInstall({ version }));
+  async releaseInstall(version: string, requestId?: string): Promise<ReleaseInstall> {
+    return unwrapAsync(
+      this.methods.releaseInstall(requestId === undefined ? { version } : { version, requestId }),
+    );
   }
 
   async releaseRestart(): Promise<ReleaseRestart> {
@@ -2697,8 +2699,12 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrapAsync(this.methods.pluginUpdates({ force }));
   }
 
-  async pluginInstall(name: string, version: string): Promise<PluginInstall> {
-    return unwrapAsync(this.methods.pluginInstall({ name, version }));
+  async pluginInstall(name: string, version: string, requestId?: string): Promise<PluginInstall> {
+    return unwrapAsync(
+      this.methods.pluginInstall(
+        requestId === undefined ? { name, version } : { name, version, requestId },
+      ),
+    );
   }
 
   async pluginRestart(): Promise<PluginRestart> {
