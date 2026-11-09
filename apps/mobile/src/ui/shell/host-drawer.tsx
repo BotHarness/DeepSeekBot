@@ -103,13 +103,11 @@ export const hostDrawer = createHostDrawer({
   pair: () => router.push('/pair'),
   notifications: () => router.push('/notifications'),
   failed: (error) =>
-    showAppDialog(
-      error instanceof SavedHostsWriteError
-        ? t.savedComputersKeychainFailed
-        : t.channelOpeningFailed,
-      undefined,
-      [{ text: t.done }],
-    ),
+    error instanceof SavedHostsWriteError
+      ? showAppDialog(t.savedComputersKeychainFailed, t.savedComputersErrorDetail(error.message), [
+          { text: t.done },
+        ])
+      : showAppDialog(t.channelOpeningFailed, undefined, [{ text: t.done }]),
 });
 
 const progress = makeMutable(0);
@@ -295,13 +293,17 @@ function confirmUnpair(row: HostDrawerRow, name: string): void {
             noticeHostKept(result, name);
           },
           (error: unknown) =>
-            showAppDialog(
-              error instanceof SavedHostsWriteError
-                ? `${t.unpairFailed} ${t.savedComputersKeychainFailed}`
-                : `${t.unpairFailed} ${error instanceof Error ? error.message : String(error)}`,
-              undefined,
-              [{ text: t.done }],
-            ),
+            error instanceof SavedHostsWriteError
+              ? showAppDialog(
+                  `${t.unpairFailed} ${t.savedComputersKeychainFailed}`,
+                  t.savedComputersErrorDetail(error.message),
+                  [{ text: t.done }],
+                )
+              : showAppDialog(
+                  `${t.unpairFailed} ${error instanceof Error ? error.message : String(error)}`,
+                  undefined,
+                  [{ text: t.done }],
+                ),
         );
       },
     },

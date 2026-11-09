@@ -1152,6 +1152,7 @@ const en = {
   } satisfies Partial<Record<PairingFailure, string>>,
   unpair: 'Unpair',
   unpairFailed: 'Could not unpair:',
+  savedComputersErrorDetail: (detail: string) => `Error details: ${detail}`,
   savedComputersKeychainFailed:
     'This phone could not save the change. Its storage may be full: free up space in Settings → General → iPhone Storage, keep the phone unlocked and try again.',
   exitWebMode: 'Exit web mode',
@@ -3498,6 +3499,7 @@ const zh: typeof en = {
   },
   unpair: '取消配对',
   unpairFailed: '取消配对失败：',
+  savedComputersErrorDetail: (detail: string) => `错误详情：${detail}`,
   savedComputersKeychainFailed:
     '这台手机暂时无法保存更改，可能是存储空间已满。请在“设置 → 通用 → iPhone 储存空间”中清理空间，保持手机解锁后重试。',
   exitWebMode: '退出网页模式',

@@ -38,7 +38,7 @@ it('counts a submitted invalid link once and requires saved-Host persistence for
   expect(await pairHost({ ...base, text })).toEqual({
     ok: false,
     code: 'storage-failure',
-    detail: 'app:storage-error',
+    detail: 'app:storage-error: SENTINEL disk error',
   });
   expect(finish).toHaveBeenLastCalledWith('failed', 'storage-failure', 'app:storage-error');
   host.offer = 'offer-1';
@@ -72,6 +72,10 @@ it('names a keychain save failure so a full phone is told apart from other stora
       method: 'paste',
       text,
     }),
-  ).toEqual({ ok: false, code: 'storage-failure', detail: 'app:storage-keychain' });
+  ).toEqual({
+    ok: false,
+    code: 'storage-failure',
+    detail: 'app:storage-keychain: No keychain is available.',
+  });
   expect(finish).toHaveBeenLastCalledWith('failed', 'storage-failure', 'app:storage-keychain');
 });

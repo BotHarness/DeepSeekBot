@@ -398,7 +398,12 @@ export async function pairHost(options: {
             : '';
       const detail = `app:storage-${/^[a-z][a-z0-9-]{0,39}$/u.test(message) ? message : 'error'}`;
       observation.finish('failed', 'storage-failure', detail);
-      return { ok: false, code: 'storage-failure', detail };
+      const raw = error instanceof Error ? error.message : String(error);
+      return {
+        ok: false,
+        code: 'storage-failure',
+        detail: raw && !detail.endsWith(raw) ? `${detail}: ${raw}` : detail,
+      };
     }
     observation.finish('success');
     return { ok: true };
