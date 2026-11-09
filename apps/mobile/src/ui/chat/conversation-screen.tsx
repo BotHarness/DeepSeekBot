@@ -531,6 +531,7 @@ function ChatConversation({
     preview: WireAllBotPreview;
   }>();
   const [files, setFiles] = useState<PickedFile[]>([]);
+  const sentFiles = useRef<readonly PickedFile[] | undefined>(undefined);
   const [attachError, setAttachError] = useState(false);
   const dictation = useDictation(
     (text, nextCaret) => {
@@ -940,12 +941,14 @@ function ChatConversation({
     const live = draftPersistence.read();
     const submitted = submittedMessage(live, mentions);
     const body = submitted.body;
+    const attached = files === sentFiles.current ? [] : files;
     const tags =
       replyTarget === undefined ? submitted.tags : { ...submitted.tags, replyTo: replyTarget.id };
-    if ((body === '' && files.length === 0) || conversation === undefined) return;
+    if ((body === '' && attached.length === 0) || conversation === undefined) return;
     if (tags.allBotMention?.preview.recipients.length === 0) return;
     if (dictation.state.status !== 'idle') dictation.cancel();
     draftPersistence.take(live);
+    sentFiles.current = files;
     setMentions([]);
     setFiles([]);
     setReplying(undefined);
@@ -960,9 +963,9 @@ function ChatConversation({
       asking?.card === undefined ||
       client === undefined ||
       slug === undefined ||
-      files.length > 0
+      attached.length > 0
     ) {
-      const messageId = fly(conversation.send(body, files, tags));
+      const messageId = fly(conversation.send(body, attached, tags));
       if (dm && saved && slug)
         setInitiatedRequest({
           hostId: saved.hostId,
@@ -981,7 +984,7 @@ function ChatConversation({
       .catch(() => false)
       .then((done) => {
         if (!done) {
-          const messageId = conversation.send(body, files);
+          const messageId = conversation.send(body, attached);
           if (saved && slug)
             setInitiatedRequest({
               hostId: saved.hostId,

@@ -18,6 +18,7 @@ import type { RosterBot } from '../src/host/client';
 import type { ConversationTimelineSnapshot } from '../src/host/conversation';
 import type { ActivityTarget } from '../src/host/live-activity-session';
 import type { DialogAction } from '../src/ui/primitives/dialog-state';
+import { pickFiles, type PickedFile } from '../src/host/pick-files';
 
 vi.mock('../src/ui/chat/profile-swipe-preview', () => ({ ProfileSwipePreview: () => null }));
 vi.mock('expo-image', () => ({ Image: () => null }));
@@ -379,13 +380,33 @@ vi.mock('../src/ui/chat/chat-title', () => ({
   ChatTitle: ({ onPress }: { onPress(): void }) => <button onClick={onPress}>Open profile</button>,
 }));
 vi.mock('../src/ui/chat/composer', () => ({
-  Composer: ({ onChange, onSend }: { onChange(value: string): void; onSend(): void }) => (
+  Composer: ({
+    onChange,
+    onSend,
+    onPick,
+  }: {
+    onChange(value: string): void;
+    onSend(): void;
+    onPick(source: 'photos'): void;
+  }) => (
     <>
       <button type="button" onClick={() => onChange('What is six times seven?')}>
         Write question
       </button>
       <button type="button" onClick={onSend}>
         Send question
+      </button>
+      <button type="button" onClick={() => onPick('photos')}>
+        Attach photo
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          onSend();
+          onSend();
+        }}
+      >
+        Send twice
       </button>
     </>
   ),
@@ -570,6 +591,35 @@ const flushFrames = () =>
       for (const callback of pending) callback(round * 16);
     }
   });
+
+it('sends picked attachments once when send runs twice before the composer re-renders', async () => {
+  const photo: PickedFile = {
+    id: 'photo-1',
+    kind: 'image',
+    uri: 'file:///photo.jpg',
+    name: 'photo.jpg',
+    read: async () => new Blob(),
+  };
+  vi.mocked(pickFiles).mockResolvedValue([photo]);
+  stream.publish({ messages: [], drafts: [] });
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  const button = (label: string) =>
+    [...container.querySelectorAll('button')].find((node) => node.textContent === label)!;
+  try {
+    await act(async () =>
+      root.render(<ConversationScreen place={{ kind: 'dm', slug: 'ada' }} focus={undefined} />),
+    );
+    await act(async () => button('Attach photo').click());
+    await act(async () => button('Send twice').click());
+    expect(stream.conversation.send).toHaveBeenCalledOnce();
+    expect(stream.conversation.send.mock.calls[0]?.[1]).toEqual([photo]);
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});
 
 it('re-renders only the streaming row when a draft token arrives', async () => {
   const container = document.createElement('div');
