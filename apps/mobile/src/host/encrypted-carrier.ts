@@ -154,9 +154,20 @@ export function openNoiseSocket(options: {
           }
         },
         message: (wire) => {
+          let result: ReturnType<ConnectChannel['receive']>;
           try {
-            const result = channel.receive(wire);
+            result = channel.receive(wire);
+          } catch {
+            fail('channel-authentication-failed');
+            return;
+          }
+          try {
             if (result.reply) socket.send(result.reply);
+          } catch (error) {
+            fail(`channel-handshake-failed:${sendFailure(error)}`);
+            return;
+          }
+          try {
             if (result.ready) {
               clearTimeout(timer);
               resolve();
@@ -402,6 +413,7 @@ export function encryptedCarrier(options: {
     return state;
   };
   const blockDirect = (origin: string) => {
+    if (closedCarrier) return;
     const state = retryState(origin);
     state.blocked = true;
     clearTimeout(state.timer);

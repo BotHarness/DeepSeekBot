@@ -18,7 +18,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-function fakeHost(direct: () => 'answer' | 'refuse' | 'auth-fail') {
+function fakeHost(direct: () => 'answer' | 'refuse' | 'auth-fail' | 'send-fails') {
   const hostKey = randomBytes(32);
   const served: { via: 'relay' | 'direct'; path: string }[] = [];
   const offers: number[] = [];
@@ -78,7 +78,16 @@ function fakeHost(direct: () => 'answer' | 'refuse' | 'auth-fail') {
             close: () => {},
           };
         }
-        return responder('direct', events);
+        const socket = responder('direct', events);
+        if (mode !== 'send-fails') return socket;
+        let sends = 0;
+        return {
+          send: (wire: string) => {
+            if (++sends > 1) throw new Error('direct-closed');
+            socket.send(wire);
+          },
+          close: socket.close,
+        };
       };
     },
   };
@@ -187,6 +196,22 @@ it('stops offering after a direct link fails Noise authentication', async () => 
     await vi.advanceTimersByTimeAsync(DIRECT_RETRY_MAX_MS * 2);
     expect(host.offers).toHaveLength(1);
     expect(await host.call()).toBe('relay');
+  } finally {
+    host.carrier.close?.();
+  }
+});
+
+it('keeps retrying when the direct link drops while sending its handshake reply', async () => {
+  let mode: 'answer' | 'send-fails' = 'send-fails';
+  const host = fakeHost(() => mode);
+  try {
+    await host.call();
+    await vi.advanceTimersByTimeAsync(10);
+    expect(host.offers).toHaveLength(1);
+    mode = 'answer';
+    await vi.advanceTimersByTimeAsync(DIRECT_RETRY_MIN_MS + 100);
+    expect(host.offers).toHaveLength(2);
+    expect(await host.call()).toBe('direct');
   } finally {
     host.carrier.close?.();
   }
