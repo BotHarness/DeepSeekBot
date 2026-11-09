@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { CONNECT_HOSTNAME } from './connect-zones.js';
 import { isLanAddress } from './lan-address.js';
 import { stalePhoneRoutes, type StalePhoneRoute } from './route-targets.js';
 
@@ -138,7 +139,7 @@ function serveArgs(port: number, published: number): string[] {
   ];
 }
 
-export const CONNECT_HOSTNAME = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.deepseekbot\.dev$/u;
+export { CONNECT_HOSTNAME, CONNECT_ZONES, isConnectZoneHost } from './connect-zones.js';
 
 export const TAILNET_IPV4 = /^100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d+\.\d+$/u;
 

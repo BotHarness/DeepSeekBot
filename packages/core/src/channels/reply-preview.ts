@@ -1,5 +1,5 @@
 import { isChannelAttachmentRef, type ChannelAttachmentRef } from '../attachments/ref.js';
-import type { ChannelMessageAuthor } from './channel.js';
+import type { ChannelMessageAuthor } from './message-author.js';
 
 export type ChannelReplyPreviewMedia<Ref = ChannelAttachmentRef> =
   | { kind: 'image'; count: number; thumbnail?: Ref }
