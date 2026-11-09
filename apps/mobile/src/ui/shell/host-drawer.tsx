@@ -689,7 +689,7 @@ function AccountHostRow({
   onPress(): void;
   form?: boolean;
 }) {
-  const look = useHostLook(accountHostLookId(host.hostname));
+  const look = useHostLook(accountHostLookId(host.id));
   return (
     <AccountComputerRow
       host={host}

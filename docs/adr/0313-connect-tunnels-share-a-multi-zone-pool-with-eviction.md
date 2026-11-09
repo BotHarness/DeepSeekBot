@@ -22,7 +22,9 @@ On 2026-11-09 the production relay had 205 tunnels and `deepseekbot.dev` held 20
 
 ### 1. A record lives exactly as long as its tunnel
 
-The CNAME is created with the tunnel and deleted with it, whether the tunnel is reclaimed, evicted, unlinked or found missing. The hostname `<host-id>.<zone>` stays deterministic, so the next provisioning recreates the same name. Phones keep a working saved route because the record returns as soon as the Host is back.
+The CNAME is created with the tunnel and deleted with it, whether the tunnel is reclaimed, evicted, unlinked or found missing.
+
+A Host's first hostname is `<host-id>.<zone>`. Once its record has been deleted, the Host gets a new random label (`h` plus 12 base32 characters) and returns on `<label>.<zone>`. Resolvers cache a missing name for the zone's SOA minimum, which is 30 minutes on Cloudflare Free zones and cannot be changed there, so recreating the old name would leave the Host unreachable on many networks for up to 30 minutes. A name that was never published has no cached answer. The relay lists the current hostname in `GET /v1/hosts`; phones paired through the account remember the Connect host id and replace their saved Connect route whenever a listing (opening the computer list, or returning to the app) shows a new hostname. A phone paired only by QR keeps its old route and needs pairing again or the account list.
 
 Records used now equal tunnels live now, so each zone holds about 195 live Hosts, not 195 Hosts ever linked.
 
@@ -117,7 +119,7 @@ Every Host reads `GET /v1/hosts` once a minute, so the pool numbers are read far
 ## Consequences
 
 - Capacity is bounded by live tunnels. Six zones (`deepseekbot.dev` 195, `botharness.dev` 195, `kite-u.com` 194, `tobs.app` 194, `deepseekbot.app` 189, `botharness.ai` 188) give 1,155 records, so `MAX_TUNNELS` (980) becomes the limit again, as ADR-0241 intended. Pricing is still decided near 800 concurrent Hosts.
-- An evicted Host has no remote route until it returns. LAN and Tailscale routes are unaffected.
+- An evicted or reclaimed Host has no remote route until it returns, and it returns on a new hostname. LAN and Tailscale routes are unaffected.
 - Hosts and phones from before this change report no use, so they look idle and are evicted first when the pool is full. This favours updated clients and is accepted.
 - Extra zones cost a domain each and must hold nothing else.
 

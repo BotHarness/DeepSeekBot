@@ -183,6 +183,7 @@ export function createConnectAccount(options: {
   redirectUri: string;
   relay?: string;
   removeConnections?: (owner: AccountOwner) => Promise<void>;
+  listedHosts?: (hosts: readonly ConnectHost[]) => Promise<void>;
 }) {
   const { runtime } = options;
   const relay = (options.relay ?? CONNECT_RELAY).replace(/\/+$/u, '');
@@ -503,7 +504,7 @@ export function createConnectAccount(options: {
       settle(async (): Promise<ConnectHost[]> => {
         const body = await relayCall('/v1/hosts', await access());
         const hosts = Array.isArray(body['hosts']) ? body['hosts'] : [];
-        return hosts.flatMap((entry) => {
+        const listed = hosts.flatMap((entry): ConnectHost[] => {
           const host = record(entry);
           return typeof host['id'] === 'string' &&
             typeof host['name'] === 'string' &&
@@ -522,6 +523,8 @@ export function createConnectAccount(options: {
               ]
             : [];
         });
+        await options.listedHosts?.(listed).catch(() => undefined);
+        return listed;
       }),
 
     offer: (hostId: string, deviceName: string) =>
