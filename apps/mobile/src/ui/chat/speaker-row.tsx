@@ -21,7 +21,7 @@ import { useMounted } from '../mounted';
 import { Text } from '../primitives/text';
 import { AVATAR_CORNER } from './bubble-shape';
 import { usePopIn } from './pop-in';
-import { groupSpan, speakerLift, type SpeakerRowLayout } from './speaker-span';
+import { groupSpan, speakerContentTop, speakerLift, type SpeakerRowLayout } from './speaker-span';
 
 export type Speaker = {
   name: string;
@@ -79,6 +79,9 @@ export type SpeakerStage = {
   scroll: SharedValue<number>;
   viewport: AnimatedRef<ViewInstance>;
   viewportLayout: SharedValue<number>;
+  frame: AnimatedRef<ViewInstance>;
+  content: AnimatedRef<ViewInstance>;
+  inverted: boolean;
   floor: number;
 };
 
@@ -173,20 +176,52 @@ function StickyAvatar({
   const scroll = stage?.scroll;
   const viewport = stage?.viewport;
   const viewportLayout = stage?.viewportLayout;
+  const frame = stage?.frame;
+  const content = stage?.content;
+  const inverted = stage?.inverted === true;
   const floor = stage?.floor ?? 0;
   const span = stage?.registry.span(speaker.group);
   const place = useAnimatedStyle(() => {
-    if (scroll === undefined || viewport === undefined || span === undefined)
+    if (
+      scroll === undefined ||
+      viewport === undefined ||
+      frame === undefined ||
+      content === undefined ||
+      span === undefined
+    )
       return { opacity: 1, transform: [{ translateY: 0 }] };
+    const offset = scroll.value;
     const settled =
-      Number.isFinite(scroll.value) && laidOut.value > 0 && (viewportLayout?.value ?? 1) > 0;
+      Number.isFinite(offset) && laidOut.value > 0 && (viewportLayout?.value ?? 1) > 0;
     const rowFrame = measure(row);
     const bubbleFrame = measure(surface);
+    const contentFrame = measure(content);
+    const listFrame = measure(frame);
     const viewFrame = measure(viewport);
-    if (rowFrame === null || bubbleFrame === null || viewFrame === null || !settled)
+    if (
+      rowFrame === null ||
+      bubbleFrame === null ||
+      contentFrame === null ||
+      listFrame === null ||
+      viewFrame === null ||
+      !settled
+    )
       return { opacity: 0, transform: [{ translateY: 0 }] };
-    const bubbleBottom = bubbleFrame.pageY + bubbleFrame.height;
-    const rest = bubbleBottom - rowFrame.pageY - SPEAKER_AVATAR;
+    // measure() reads the committed shadow tree, whose scroll offset trails the
+    // native scroll view. Only differences between rows inside the list are
+    // trusted; the list origin comes from the live scroll offset instead.
+    const bubbleBottom =
+      speakerContentTop({
+        top: listFrame.pageY,
+        height: listFrame.height,
+        content: contentFrame.height,
+        offset,
+        inverted,
+      }) +
+      bubbleFrame.pageY +
+      bubbleFrame.height -
+      contentFrame.pageY;
+    const rest = bubbleFrame.pageY + bubbleFrame.height - rowFrame.pageY - SPEAKER_AVATAR;
     const lift = speakerLift({
       bubbleBottom,
       floor: viewFrame.pageY + viewFrame.height - floor,

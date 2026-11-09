@@ -644,17 +644,19 @@ function ChatConversation({
   const scroll = useScrollOffset(list);
   const viewport = useAnimatedRef<ViewInstance>();
   const content = useAnimatedRef<ViewInstance>();
+  const frame = useAnimatedRef<ViewInstance>();
   const attachList = useCallback(
     (node: FlatList<Row> | null) => {
       list(node);
       const scroll = node?.getNativeScrollRef?.();
+      frame(scroll === null || scroll === undefined ? null : (scroll as ViewInstance));
       content(
         scroll !== null && scroll !== undefined && 'getInnerViewRef' in scroll
           ? scroll.getInnerViewRef()
           : null,
       );
     },
-    [list, content],
+    [list, content, frame],
   );
   const latest = useChannelViewport(
     list,
@@ -672,9 +674,12 @@ function ChatConversation({
       scroll,
       viewport,
       viewportLayout,
+      frame,
+      content,
+      inverted: android,
       floor: composerHeight + edgeFade.bottom,
     }),
-    [speakers, scroll, viewport, viewportLayout, composerHeight],
+    [speakers, scroll, viewport, viewportLayout, frame, content, android, composerHeight],
   );
   const composerInput = useRef<ComposerInput>(null);
   const [typing, setTyping] = useState(false);
@@ -1912,7 +1917,10 @@ function ChatConversation({
                           }
                           jump();
                         }}
-                        scrollEventThrottle={Platform.OS === 'android' && !latest.ready ? 16 : 32}
+                        // Sticky speaker avatars follow the scroll offset, so group chats need it every frame.
+                        scrollEventThrottle={
+                          !dm || (Platform.OS === 'android' && !latest.ready) ? 16 : 32
+                        }
                         keyboardDismissMode={ios ? 'interactive' : 'on-drag'}
                         keyboardShouldPersistTaps="handled"
                         {...{
