@@ -1017,7 +1017,7 @@ deepseekbot pairing-review <bot-id> <pairing-id> --decision revoke --confirm
 
 `plugin-check`、`plugin-install` 和 `plugin-restart` 对应 **Bot 设置 → 插件** 页面，覆盖除 `deepseekbot` 以外已安装的 `@botharness/*` 插件 Bundle，例如 `@botharness/vrm-companion`。`plugin-check` 返回 `installable`、`restartable`，以及每个插件一条记录，`status` 为 `current`、`available`、`blocked`、`restart-required`、`development` 或 `unavailable`；`--force` 绕过六小时的检查缓存。兼容判断复用运行中 DSH 的评估器，读取该插件在 registry 上的清单。`plugin-install <package> <version> --confirm` 会再次检查兼容性，通过原生 Plugin Manager 安装；Manager 拒绝覆盖已安装的包名时，改用 registry 的安装包地址。返回 `applied: true` 表示 Host 已经加载新版本，只需刷新页面；否则用 `plugin-restart --confirm` 重启 Host，让所有待生效的插件更新生效。失败时以非零退出，错误码为 `plugin-<原因>`，例如 `plugin-incompatible`、`plugin-unknown-plugin` 或 `plugin-not-pending`。
 
-`update-status` 和 `update-cancel` 对应更新提醒、**Bot 设置 → 关于** 和 **Bot 设置 → 插件** 共用的更新进度面板（[ADR-0312](adr/0311-in-app-updates-are-host-owned-runs.md)）。每一次 `release-install` 和 `plugin-install`，无论来自哪个界面还是 Tob，都是 Host 记录的一次**更新运行**。`update-status` 返回 `{ run }`：正在进行的更新，否则是最近一次（还没有时为 `null`），包含 `id`、`kind`（`release` 或 `plugin`）、`name`、`version`、`phase`（`checking`、`installing`、`cancelling`、`applying`、`installed`、`failed` 或 `cancelled`）、`attempt`（正在访问的 registry）、`commands`（原生 Plugin Manager 启动的每次 pnpm 运行：`command`、`output` 末尾、`truncated` 和 `exitCode`）、`cancellable`，结束后还有 `installed.applied` 或 `failure`（`reason`、`diagnostic`、`logPath`）。`update-cancel` 终止正在进行的更新：pnpm 启动前直接以 `cancelled` 结束；pnpm 运行中则请 Plugin Manager 停止，并等到 profile 文件恢复原样。没有可终止的更新时以 `update-not-running` 非零退出；新版本已开始应用时为 `update-too-late`；DSH 不支持终止安装时为 `update-unsupported`。被终止的安装以 `release-cancelled` 或 `plugin-cancelled` 退出。
+`update-status` 和 `update-cancel` 对应更新提醒、**Bot 设置 → 关于** 和 **Bot 设置 → 插件** 共用的更新进度面板（[ADR-0311](adr/0311-in-app-updates-are-host-owned-runs.md)）。每一次 `release-install` 和 `plugin-install`，无论来自哪个界面还是 Tob，都是 Host 记录的一次**更新运行**。`update-status` 返回 `{ run }`：正在进行的更新，否则是最近一次（还没有时为 `null`），包含 `id`、`kind`（`release` 或 `plugin`）、`name`、`version`、`phase`（`checking`、`installing`、`cancelling`、`applying`、`installed`、`failed` 或 `cancelled`）、`attempt`（正在访问的 registry）、`commands`（原生 Plugin Manager 启动的每次 pnpm 运行：`command`、`output` 末尾、`truncated` 和 `exitCode`）、`cancellable`，结束后还有 `installed.applied` 或 `failure`（`reason`、`diagnostic`、`logPath`）。`update-cancel` 终止正在进行的更新：pnpm 启动前直接以 `cancelled` 结束；pnpm 运行中则请 Plugin Manager 停止，并等到 profile 文件恢复原样。没有可终止的更新时以 `update-not-running` 非零退出；新版本已开始应用时为 `update-too-late`；DSH 不支持终止安装时为 `update-unsupported`。被终止的安装以 `release-cancelled` 或 `plugin-cancelled` 退出。
 
 `--lang zh|en` 按该语言读取列表，与市场页面按界面语言读取一致：名称和简介依次取作者 `bot.json` 里 `i18n` 的翻译、本来就是该语言的简介、市场生成的摘要（`descriptionGenerated: true`）；`marketplace-detail` 返回仓库里该语言的 README，并在 `readmeLanguage` 里注明，没有就返回 `README.md`：`zh` 依次取 `README.zh-CN.md`、`README.zh.md`，再取 `README_CN.md`、`README-zh.md` 等其他写法；`en` 取 `README.en.md`。`marketplace-submit` 和 `marketplace-report` 会像网页一样先完成 Host 下发的工作量证明，因此可能需要几秒；市场本身的拒绝（`repository-missing-topic`、`rate-limited` 等）作为错误码返回。举报说明最多 500 个字符。`release-check` 返回更新状态（`current`、`available`、`restart-required`、`development`、`unknown` 或 `unavailable`）。`release-install` 和 `release-restart` 必须带 `--confirm`；安装或重启失败时以非零退出，错误码为 `release-<原因>`，例如 `release-network` 或 `release-not-pending`。重启会中断所有正在运行的 Bot 回合，只在自己负责的 Host 上执行。`pairing-list` 列出 Bot 的配对请求和角色；`pairing-review` 自行读取当前版本号，期间被改动过的请求会被拒绝而不是被覆盖。对话类请求用一个 `--role` 批准，管理类请求用 `--capability` 批准。
 
@@ -1524,7 +1524,7 @@ Host 离线后被回收的隧道会在同一个 `<host-id>.deepseekbot.dev` 上�
 复查一次账号；relay 或 WorkOS 拒绝会话后（例如 `DELETE /v1/account` 之后），Host 停掉隧道、退役
 保存的会话，并报告 `error`；relay 返回 `401 session-revoked` 时，`issue` 为 `session-revoked`，
 其他会话拒绝为 `session-expired`。`connect.account.pool` 给出共享隧道池：`capacity`、`inUse`、
-`free`、`waiting`、`guaranteedMinutes`（新隧道无论如何都保留的分钟数，默认 30），以及没有空位时的
+`free`、`waiting`、`guaranteedMinutes`（电脑在线时新隧道至少保留的分钟数，默认 30），以及没有空位时的
 `nextFreeAt`（最早可能有隧道让出的时间）。登录期间 `protectedUntil` 是这台 Host 自己的隧道最早可能
 让给排队者的时间，手机每次使用都会往后推。隧道池满时账号报告 `error`，`issue` 为 `relay-full`，
 `recovery` 为 `automatic`，并带 `wait`（`reason` 为 `pool-full`、`zone-full` 或 `queued`，先来先到
@@ -1536,7 +1536,7 @@ Host 离线后被回收的隧道会在同一个 `<host-id>.deepseekbot.dev` 上�
 
 `connect-account-hosts` 按需读取账号中的电脑；本机已关联时会标为 `current`。每行仅含
 `id`、`name`、`hostname`、`createdAt`、可选 `connected`、`current` 和 `sessionKnown`；
-缺少连接状态表示未知。它不会给 Devices 快照轮询增加 relay 请求。本机因五台限制而未关联时，
+缺少连接状态表示未知。它不会给 Devices 快照轮询增加 relay 请求。本机因三台限制而未关联时，
 仍可用已保存的账号会话读取列表。
 
 `connect-account-revoke` 必须带 `--confirm`，owner 在发请求前拒绝 `current-host`；本机退出仍用

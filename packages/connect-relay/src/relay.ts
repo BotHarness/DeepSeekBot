@@ -181,6 +181,7 @@ class RelayFull extends Error {
 
 const WAIT_STALE_MS = 3 * 60 * 1000;
 const POOL_CACHE_MS = 30_000;
+const MAX_IDLE_SECONDS = 365 * 24 * 60 * 60;
 const NO_VICTIM_RECHECK_MS = 60_000;
 const RETRY_AFTER_SECONDS = 60;
 
@@ -871,6 +872,7 @@ export function createRelay(options: RelayOptions) {
           reporter !== null &&
           Number.isInteger(idle) &&
           idle >= 0 &&
+          idle <= MAX_IDLE_SECONDS &&
           results.some((row) => row.id === reporter)
         )
           await touch(reporter, now().getTime() - idle * 1000);

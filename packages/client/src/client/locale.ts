@@ -4776,7 +4776,7 @@ export const zh = {
   'devices.connect.full.since': '从 {time} 开始等待',
   'devices.connect.pool': '共享隧道：已用 {inUse} / {capacity}，空余 {free}，排队 {waiting}',
   'devices.connect.poolRule':
-    '每台电脑连上后至少保留 {minutes} 分钟。之后如果隧道全满，离线超过 2 分钟或 30 分钟没用过的电脑先让出隧道，最久没用的先让。在手机上使用 Tobs 会让这台电脑保留隧道。',
+    '在线的电脑连上后至少保留 {minutes} 分钟。之后隧道全满时，离线或最久没用的电脑先让出，在手机上使用 Tobs 能让这台电脑保住隧道。',
   'devices.connect.full.eta': '最早 {time} 会有隧道空出来。',
   'devices.connect.protected': '这台电脑的隧道至少保留到 {time}，手机每次使用都会延长。',
 
@@ -10052,7 +10052,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'devices.connect.pool':
     'Shared tunnels: {inUse} of {capacity} in use, {free} free, {waiting} waiting',
   'devices.connect.poolRule':
-    "Every computer keeps a new tunnel for at least {minutes} minutes. After that, when every tunnel is busy, computers offline for 2 minutes or unused for 30 minutes give theirs up first, least recently used first. Using Tobs on your phone keeps this computer's tunnel.",
+    "An online computer keeps a new tunnel for at least {minutes} minutes. After that, when every tunnel is busy, offline and least recently used computers give theirs up first, and using Tobs on your phone keeps this one's.",
   'devices.connect.full.eta': 'A tunnel can free up at {time} at the earliest.',
   'devices.connect.protected':
     'This computer keeps its tunnel until at least {time}. Each use from your phone extends it.',

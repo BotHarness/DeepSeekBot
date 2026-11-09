@@ -551,6 +551,16 @@ describe('request cost', () => {
     expect(counts('AS waiting')).toBe(3);
   });
 
+  it('ignores an idle report too large to be a time', async () => {
+    const env = await pool();
+    const a = await env.link('user_a');
+    const listed = await env.call('GET', `/v1/hosts?host=${a}&idle=100000000000000000000`, {
+      as: 'user_a',
+    });
+    expect(listed.status).toBe(200);
+    expect((await env.row(a))?.['last_used_at']).toBeNull();
+  });
+
   it('rate-limits status reads per account', async () => {
     const env = await pool(undefined, { limitRead: async (account) => account !== 'user_b' });
     expect((await env.call('GET', '/v1/hosts', { as: 'user_a' })).status).toBe(200);
