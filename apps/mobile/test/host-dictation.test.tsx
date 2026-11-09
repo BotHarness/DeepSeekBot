@@ -46,7 +46,7 @@ type HostClient = import('../src/host/client').HostClient;
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
-function fakeHost(options: { ready: boolean | 'hang'; text?: string }) {
+function fakeHost(options: { ready: boolean | 'hang'; text?: string; truncated?: boolean }) {
   const calls: Array<Record<string, unknown>> = [];
   const view = (state: string) => ({
     dictation: { id: 'dict-0000000000000001', text: options.text ?? '', state, mode: 'stream' },
@@ -62,7 +62,10 @@ function fakeHost(options: { ready: boolean | 'hang'; text?: string }) {
       }
       if (args['kind'] === 'stop') return view('done');
       if (args['kind'] === 'cancel') return view('cancelled');
-      return view('listening');
+      const live = view('listening');
+      return options.truncated === true && args['kind'] === 'push'
+        ? { dictation: { ...live.dictation, truncated: true } }
+        : live;
     }),
   } as unknown as HostClient;
   return { client, calls };
@@ -150,8 +153,30 @@ describe('mobile dictation source', () => {
     expect(problems).toEqual([]);
     await act(async () => api!.start());
     await flush();
-    expect(status()).toBe('unavailable');
+    expect(status()).toBe('missing');
     expect(problems).toEqual(['unavailable']);
+  });
+
+  it('puts a space between the draft and Host speech: Book + a table (#3784)', async () => {
+    const { client } = fakeHost({ ready: true, text: 'a table' });
+    await mount(client);
+    await act(async () => api!.start({ text: 'Book' }));
+    await flush();
+    await act(async () => speech.emit!(new Int16Array(16_000)));
+    await flush();
+    expect(draft()).toBe('Book a table');
+  });
+
+  it('shows the limit notice when the Host stops at the length limit (#3784)', async () => {
+    const { client } = fakeHost({ ready: true, text: 'long', truncated: true });
+    await mount(client);
+    await act(async () => api!.start());
+    await flush();
+    await act(async () => speech.emit!(new Int16Array(16_000)));
+    for (let index = 0; index < 4; index += 1) await flush();
+    expect(status()).toBe('limited');
+    expect(problems).toEqual(['limited']);
+    expect(draft()).toBe('long');
   });
 
   it('cancelling a Host dictation restores the draft', async () => {
@@ -161,7 +186,7 @@ describe('mobile dictation source', () => {
     await flush();
     await act(async () => speech.emit!(new Int16Array(16_000)));
     await flush();
-    expect(draft()).toBe('keepnope');
+    expect(draft()).toBe('keep nope');
     await act(async () => api!.cancel());
     await flush();
     expect(draft()).toBe('keep');
