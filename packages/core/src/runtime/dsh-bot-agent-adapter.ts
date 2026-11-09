@@ -71,8 +71,6 @@ import {
 import { DEFAULT_PROMPT_TEXT, type PromptText } from '../prompts/prompt-parts.js';
 
 export const TURN_ONLY_BOT_TOOLS: ReadonlySet<string> = new Set([
-  'create_assignment',
-  'send_assignment_request',
   'wait_for_assignment',
   'channel_read_image',
   'call_frame',

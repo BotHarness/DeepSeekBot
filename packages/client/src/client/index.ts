@@ -71,6 +71,7 @@ import {
   botSettingsSectionSource,
 } from './bot-settings.js';
 import type { QuickSwitcherSettings } from './quick-switcher.js';
+import { createQuickSwitcherLauncher } from './quick-switcher-launcher.js';
 import { searchSettings } from './settings-search.js';
 import { startConnectSignIn } from './connect-sign-in.js';
 import { DshBotSettingsItem } from './dsh-bot-settings-item.js';
@@ -91,6 +92,7 @@ import {
 } from './bot-settings-sections.js';
 import { PluginsSection } from './plugin-updates-view.js';
 import { ReleaseNotesController } from './release-notes.js';
+import { UpdateRunsController } from './update-runs.js';
 import { TelemetryNoticeController } from './telemetry-notice.js';
 import './bot-settings-slot.js';
 import { BotMain } from './bot-main.js';
@@ -397,6 +399,7 @@ export function apply(ctx: ClientContext): void {
   const quickSwitcherSettings: QuickSwitcherSettings = {
     search: (query) => searchSettings(botSettingsSections.getSnapshot(), query, t),
     open: (result) => botSettings.open(result.section, result.target),
+    launcher: createQuickSwitcherLauncher(),
   };
   ctx.slots.inject('shell.overlay', () =>
     ctx.slots.register(
@@ -410,7 +413,8 @@ export function apply(ctx: ClientContext): void {
       BotSettingsView,
     ),
   );
-  const releaseNotes = new ReleaseNotesController(call, storage);
+  const updateRuns = new UpdateRunsController(call);
+  const releaseNotes = new ReleaseNotesController(call, storage, undefined, updateRuns);
   const telemetryNotice = new TelemetryNoticeController(call, storage, () => {
     botSettings.open(BOT_SETTINGS_SECTIONS.dataPrivacy);
   });
@@ -1077,7 +1081,7 @@ export function apply(ctx: ClientContext): void {
           order: 65,
           label: () => t('botSettings.section.plugins'),
           locale: LOCALE_NS,
-          inject: () => ({ call }),
+          inject: () => ({ call, updateRuns }),
         },
         PluginsSection,
       ),

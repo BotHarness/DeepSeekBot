@@ -685,7 +685,9 @@ printf '{"channel_id":"dm-<bot-id>","body":"检查已通过。"}' | deepseekbot 
 
 `channel_action` 通过同一 `bot-tool` 执行表情与草稿动作：明确指定 `channel_id`，`action` 使用 `inspect`、`drop` 或 `react`，并提供相应草稿或消息引用。它不能发送正文。模型仅看到 `bot_send_message` 发送入口，旧发送名仅供直接 CLI 兼容。主动联系同事使用 `bot_id`；可达外部会话使用 `binding_id` 与 `conversation_id`，均与其他目标形式互斥。
 
-`bot-tools` 列出可直接调用的工具及其输入 schema。`bot-tool` 从标准输入读取参数 JSON 对象，执行与 Bot 回合中完全相同的工具代码，保留工具自身的参数校验、成员资格和权限检查，返回 `{slug, tool, sessionId: "direct", result}`。直接调用没有入站 Channel，回合中默认使用入站 Channel 的地方要显式传 `channel_id`。直接读取不会把 Inbox 条目标为已读。Bot 之间发送时，使用 `--cause-event <source-event-id>` 指定本 Bot 已接收的真实 Source Event；Host 检查接收归属、当前 Channel 成员资格及来源副作用限制。缺少来源仍会拒绝；其他 Bot 的来源返回 `source-unavailable`。该参数独立于工具的唯一发送目标。失败时以非零退出并给出错误码：只能在 Bot 回合内运行的工具（创建或等待 Assignment、提问卡片、切换 Memory 分支、申请工作区授权、交给模型的图片）返回 `tool-not-direct`，此外还有 `invalid-args`、`unknown-bot`、`bot-paused`，以及带工具原始消息的 `tool-failed`。每次调用都记入 Host 的近期直接调用记录，`bot-trace --session direct` 可读取，Host 重启后清空。
+`bot-tools` 列出可直接调用的工具及其输入 schema。`bot-tool` 从标准输入读取参数 JSON 对象，执行与 Bot 回合中完全相同的工具代码，保留工具自身的参数校验、成员资格和权限检查，返回 `{slug, tool, sessionId: "direct", result}`。直接调用没有入站 Channel，回合中默认使用入站 Channel 的地方要显式传 `channel_id`。直接读取不会把 Inbox 条目标为已读。Bot 之间发送时，使用 `--cause-event <source-event-id>` 指定本 Bot 已接收的真实 Source Event；Host 检查接收归属、当前 Channel 成员资格及来源副作用限制。缺少来源仍会拒绝；其他 Bot 的来源返回 `source-unavailable`。该参数独立于工具的唯一发送目标。失败时以非零退出并给出错误码：只能在 Bot 回合内运行的工具（等待 Assignment、提问卡片、切换 Memory 分支、申请工作区授权、交给模型的图片）返回 `tool-not-direct`，此外还有 `invalid-args`、`unknown-bot`、`bot-paused`，以及带工具原始消息的 `tool-failed`。每次调用都记入 Host 的近期直接调用记录，`bot-trace --session direct` 可读取，Host 重启后清空。
+
+通过 `bot-tool <bot-id> create_assignment --args-stdin` 传入 `{"title":"核对发布状态","description":"检查发布流水线并报告卡住的环节。","instructions":"先看最新一次 CI。","grant_id":"<grant-id>","key":"release-status"}`，无需模型即可创建 Assignment；通过 `bot-tool <bot-id> send_assignment_request --args-stdin` 传入 `{"session_id":"<assignment-session-id>","text":"顺便列出失败的 job。"}` 继续投递。两者都以该 Bot 的 Orchestrator 身份运行，结果归 Orchestrator 所有和管理：Host 记录一条直调 Source Event 作为来源，并给 Orchestrator 留一条静默通知，它下一轮 turn 读取，不会被唤醒。`grant_id` 从 `bot-tool <bot-id> list_workspace_grants` 中选取。同一 `key` 的 create 不会建第二个 Session，但不能盲目重试：Assignment 仍在工作时返回 `key-busy`；空闲时会再次发送 instructions 并返回 `reused`，可能重复执行工作。create 或请求结果不确定时，先读取 `assignment` 或 `assignment-timeline`，再决定是否重发。并发上限、Grant 与归档规则与 Orchestrator 一致；投递给已归档的 Assignment 会先解除归档。`wait_for_assignment` 仍只在 turn 内可用，请轮询 `assignment` 或 `assignment-timeline`。见 [ADR-0306](adr/0306-direct-cli-calls-reach-orchestrator-owned-assignments.md)。
 
 通过 `bot-tool <bot-id> inspect_assignment --args-stdin` 传入 `{"session_id":"<assignment-session-id>","report_offset":0}`，无需模型即可选定最新已接受报告。续读传入 `{"session_id":"<assignment-session-id>","report_offset":2000,"report_source_event_id":"<reportPage.reportSourceEventId>"}`，偏移量使用返回的 `reportPage.nextOffset`，不要假定页长。每页最多 2,000 个 Unicode 码点。新报告到达或 Host 重启后，携带身份仍读取原报告；从偏移 0 开始且不带身份时才重新选择最新报告。非零偏移缺少身份会以 `REPORT_ID_REQUIRED` 拒绝；旧调用者应从偏移 0 重新开始并保留返回的身份。该身份属于报告 Source Event，不是 Assignment 起因的 `sourceEventId`。
 
@@ -996,6 +998,8 @@ deepseekbot release-restart --confirm
 deepseekbot plugin-check [--force]
 deepseekbot plugin-install <package> <version> --confirm
 deepseekbot plugin-restart --confirm
+deepseekbot update-status
+deepseekbot update-cancel
 deepseekbot telemetry-status
 deepseekbot telemetry-set --enabled | --disabled
 deepseekbot git-status
@@ -1012,6 +1016,8 @@ deepseekbot pairing-review <bot-id> <pairing-id> --decision revoke --confirm
 `release-info` 包含可选的 Host 所有 `identity`：带源码 revision／dirty 的 `development`、带版本的 `release`，或带元数据／组合原因的 `unknown`。旧 Host 缺少该字段，不代表发布身份已经核实。源码内部版本占位仍为 `0.0.0`，关于页面显示源码身份。`release-check` 可返回 `unknown`，此时安装／重启以 `release-identity-invalid` 拒绝。已安装／待生效版本与运行版本分开，直到新 Host 返回精确目标版本。
 
 `plugin-check`、`plugin-install` 和 `plugin-restart` 对应 **Bot 设置 → 插件** 页面，覆盖除 `deepseekbot` 以外已安装的 `@botharness/*` 插件 Bundle，例如 `@botharness/vrm-companion`。`plugin-check` 返回 `installable`、`restartable`，以及每个插件一条记录，`status` 为 `current`、`available`、`blocked`、`restart-required`、`development` 或 `unavailable`；`--force` 绕过六小时的检查缓存。兼容判断复用运行中 DSH 的评估器，读取该插件在 registry 上的清单。`plugin-install <package> <version> --confirm` 会再次检查兼容性，通过原生 Plugin Manager 安装；Manager 拒绝覆盖已安装的包名时，改用 registry 的安装包地址。返回 `applied: true` 表示 Host 已经加载新版本，只需刷新页面；否则用 `plugin-restart --confirm` 重启 Host，让所有待生效的插件更新生效。失败时以非零退出，错误码为 `plugin-<原因>`，例如 `plugin-incompatible`、`plugin-unknown-plugin` 或 `plugin-not-pending`。
+
+`update-status` 和 `update-cancel` 对应更新提醒、**Bot 设置 → 关于** 和 **Bot 设置 → 插件** 共用的更新进度面板（[ADR-0311](adr/0311-in-app-updates-are-host-owned-runs.md)）。每一次 `release-install` 和 `plugin-install`，无论来自哪个界面还是 Tob，都是 Host 记录的一次**更新运行**。`update-status` 返回 `{ run }`：正在进行的更新，否则是最近一次（还没有时为 `null`），包含 `id`、`kind`（`release` 或 `plugin`）、`name`、`version`、`phase`（`checking`、`installing`、`cancelling`、`applying`、`installed`、`failed` 或 `cancelled`）、`attempt`（正在访问的 registry）、`commands`（原生 Plugin Manager 启动的每次 pnpm 运行：`command`、`output` 末尾、`truncated` 和 `exitCode`）、`cancellable`，结束后还有 `installed.applied` 或 `failure`（`reason`、`diagnostic`、`logPath`）。`update-cancel` 终止正在进行的更新：pnpm 启动前直接以 `cancelled` 结束；pnpm 运行中则请 Plugin Manager 停止，并等到 profile 文件恢复原样。没有可终止的更新时以 `update-not-running` 非零退出；新版本已开始应用时为 `update-too-late`；DSH 不支持终止安装时为 `update-unsupported`。被终止的安装以 `release-cancelled` 或 `plugin-cancelled` 退出。
 
 `--lang zh|en` 按该语言读取列表，与市场页面按界面语言读取一致：名称和简介依次取作者 `bot.json` 里 `i18n` 的翻译、本来就是该语言的简介、市场生成的摘要（`descriptionGenerated: true`）；`marketplace-detail` 返回仓库里该语言的 README，并在 `readmeLanguage` 里注明，没有就返回 `README.md`：`zh` 依次取 `README.zh-CN.md`、`README.zh.md`，再取 `README_CN.md`、`README-zh.md` 等其他写法；`en` 取 `README.en.md`。`marketplace-submit` 和 `marketplace-report` 会像网页一样先完成 Host 下发的工作量证明，因此可能需要几秒；市场本身的拒绝（`repository-missing-topic`、`rate-limited` 等）作为错误码返回。举报说明最多 500 个字符。`release-check` 返回更新状态（`current`、`available`、`restart-required`、`development`、`unknown` 或 `unavailable`）。`release-install` 和 `release-restart` 必须带 `--confirm`；安装或重启失败时以非零退出，错误码为 `release-<原因>`，例如 `release-network` 或 `release-not-pending`。重启会中断所有正在运行的 Bot 回合，只在自己负责的 Host 上执行。`pairing-list` 列出 Bot 的配对请求和角色；`pairing-review` 自行读取当前版本号，期间被改动过的请求会被拒绝而不是被覆盖。对话类请求用一个 `--role` 批准，管理类请求用 `--capability` 批准。
 
@@ -1730,3 +1736,11 @@ printf '%s' '{"token":"<preview-token>","feedback":{"rating":"bad","tags":["no-r
 Bot 已有存活的 Orchestrator Agent 后，`bot-tools` 也会列出其注册的 `ask_secret`、`protected_cli`、`secret_http`、`secret_cli` 和 `secret_mcp_connect`。用 `bot-tool <bot-id> <tool> --args-stdin` 调用，参数 JSON 从 stdin 传入；不要把原值或引用放进命令行参数。执行复用已有 Agent 的原生工具与审批链，不调用模型、不创建新的来源；没有存活的工具注册时拒绝。命令可等待执行审批，由通常的审批命令或 Web 卡片处理。直接调用与原生诊断轨迹都省略私密工具参数和结果。
 
 同轮存在多条 IM 请求时，先用原账号和字段声明调用 `ask_secret`，并传入正在处理的那条已接受请求的精确 `source_event_id`，再消费引用。已配置账号会复用原值，不新建卡片，也不要求 Web 通知地址。Web 与 Schedule 复用不传来源选择器。`private-source-required` 给出这条恢复路径；`private-source-invalid`、`private-source-unavailable`、`private-source-ambiguous`、`private-source-revoked`、`private-account-unavailable` 分别区分其他拒绝原因。不要重复原样调用、选择历史来源，或把 Host 拒绝当成远端故障。同账号来源冲突需要新一轮；撤销检查始终保留。
+
+## 私有连接（无需 Docker）
+
+`private-tunnel-enable --quick --confirm` 启动 Quick Tunnel；`private-tunnel-enable --hostname <主机名> --token-stdin --confirm` 用 stdin 传入的连接器令牌运行你自己的 Named Tunnel。两者都通过 Host 内置的 cloudflared 只公开加密设备通道，并持久化开启状态，Host 重启后自动恢复。`devices` 返回 `privateTunnel`（`state`、`mode`、`origin`、`originPort`、编码的 `issue`/`probe`、`addressChanged`）。公网地址确认连到本机之前，配对邀请会以 `private-tunnel-unreachable` 拒绝。`private-tunnel-disable --confirm` 停止隧道并删除令牌和手机准入。见[私有连接](private-connect.zh.md)。
+
+## Docker 私有连接
+
+`private-connect --hostname <https-origin> --token-stdin --confirm` 经本机已认证 Host 认领尚未认领的私有中继。首次设置密钥只从标准输入读取，不放在命令参数中。`devices` 返回 `privateRelay` 状态；连接成功后，`device-offer --out <absolute-new-file>` 将敏感配对邀请写入新建的绝对路径文件。使用 `device-requests`、`device-approve-key`、`device-revoke` 批准准确设备并撤销。参见[私有部署](private-connect.zh.md)。未知认领结果不会自动重试，也不会暗中切换到官方中继。

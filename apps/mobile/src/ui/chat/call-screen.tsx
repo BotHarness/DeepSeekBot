@@ -1,5 +1,5 @@
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { Linking, Platform, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -8,8 +8,10 @@ import {
   type CallAudioOutputId,
   type CallMicrophoneId,
 } from '../../host/call-audio-route';
+import { openCallOverlaySettings } from '../../host/call-notice';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { callAudioPreference } from '../../host/native-call-audio-route';
+import { useAppActive } from '../app-active';
 import { BotAvatar } from '../bot-avatar';
 import { radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
@@ -23,6 +25,7 @@ import { callAudioDeviceName } from './call-audio-symbol';
 import { callScreenModel, formatCallDuration, microphoneRecovery } from './call-model';
 import { callSessions, sameCall } from './call-session';
 import { useCallSession } from './call-session-host';
+import { CallVoiceVolumeSheet } from './call-voice-volume-sheet';
 
 const symbols = {
   mic: { ios: 'mic.fill', android: 'mic' },
@@ -59,6 +62,11 @@ export function CallScreen({
   const key = session?.key;
   const [now, setNow] = useState(Date.now());
   const [audioFailed, setAudioFailed] = useState(false);
+  const [volumeOpen, setVolumeOpen] = useState(false);
+  const voiceVolume = useSyncExternalStore(
+    callAudioPreference.subscribe,
+    () => callAudioPreference.getSnapshot().audio.voiceVolume,
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -71,7 +79,8 @@ export function CallScreen({
   );
 
   const state = session?.state ?? { status: 'idle' as const };
-  const ticking = state.status === 'live';
+  const appActive = useAppActive();
+  const ticking = state.status === 'live' && appActive;
   useFocusEffect(
     useCallback(() => {
       if (!ticking) return;
@@ -92,6 +101,7 @@ export function CallScreen({
   const microphone = session?.microphone;
   const model = callScreenModel(t, state, {
     interrupted: session?.interrupted === true,
+    now,
   });
   const recovery = microphoneRecovery(t, microphone);
   const camera = session?.camera;
@@ -352,6 +362,46 @@ export function CallScreen({
               </Text>
             </View>
           )}
+          {session?.notifications === false && state.status === 'live' ? (
+            <View testID="call-notifications-off" style={{ marginTop: space.x4, gap: space.x3 }}>
+              <Text variant="meta" tone="subtle" style={{ textAlign: 'center' }}>
+                {t.call.notificationsOff}
+              </Text>
+              <Button
+                testID="call-notifications-settings"
+                label={t.call.openSettings}
+                onPress={() => void Linking.openSettings()}
+              />
+            </View>
+          ) : null}
+          {session?.overlay === false &&
+          session.overlayDismissed !== true &&
+          state.status === 'live' ? (
+            <View testID="call-overlay-off" style={{ marginTop: space.x4, gap: space.x3 }}>
+              <Text variant="meta" tone="subtle" style={{ textAlign: 'center' }}>
+                {t.call.overlayOff}
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.x3 }}>
+                <View style={{ flexGrow: 1 }}>
+                  <Button
+                    testID="call-overlay-not-now"
+                    label={t.call.overlayNotNow}
+                    onPress={() => {
+                      if (key !== undefined) callSessions.publish(key, { overlayDismissed: true });
+                    }}
+                  />
+                </View>
+                <View style={{ flexGrow: 1 }}>
+                  <Button
+                    testID="call-overlay-turn-on"
+                    label={t.call.overlayTurnOn}
+                    tone="primary"
+                    onPress={() => void openCallOverlaySettings()}
+                  />
+                </View>
+              </View>
+            </View>
+          ) : null}
           {report === undefined ? null : (
             <Text testID="call-test-report" variant="meta" tone="subtle" selectable>
               {report}
@@ -439,6 +489,9 @@ export function CallScreen({
                         },
                       }
                     : {})}
+                  {...(control()?.volume
+                    ? { voiceVolume, onVoiceVolume: () => setVolumeOpen(true) }
+                    : {})}
                 />
                 <Text variant="meta" tone="muted" style={{ width: '100%', textAlign: 'center' }}>
                   {callAudioDeviceName(
@@ -459,6 +512,15 @@ export function CallScreen({
           </ScrollView>
         )}
       </View>
+      <CallVoiceVolumeSheet
+        visible={volumeOpen && model.live}
+        value={voiceVolume}
+        onChange={(level) => {
+          callAudioPreference.setVoiceVolume(level);
+          control()?.volume?.(callAudioPreference.getSnapshot().audio.voiceVolume);
+        }}
+        onClose={() => setVolumeOpen(false)}
+      />
     </>
   );
 }

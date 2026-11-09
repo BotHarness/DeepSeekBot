@@ -30,6 +30,7 @@ const live = (patch: Partial<VoiceCallView> = {}, extra: Record<string, unknown>
     events: [],
     muted: false,
     reconnecting: false,
+    syncedAt: 0,
     ...extra,
   }) as CallClientState;
 
@@ -173,7 +174,7 @@ describe('floating call bubble model (#3468)', () => {
       tone: 'listening',
       status: 'Listening',
       muted: false,
-      duration: '01:05',
+      duration: '1:05',
     });
     expect(at(live({ phase: 'user-speaking' })).tone).toBe('hearing');
     expect(at(live({ phase: 'transcribing' })).tone).toBe('thinking');

@@ -1,11 +1,14 @@
 import { requireOptionalNativeModule } from 'expo';
 import { getRecordingPermissionsAsync, requestRecordingPermissionsAsync } from 'expo-audio';
-import type {
-  CallClientMedia,
-  CallMediaState,
+import {
+  CallMediaFailure,
+  type CallClientMedia,
+  type CallMediaCode,
+  type CallMediaState,
 } from '../../../../packages/core/src/voice/call-client';
 import {
   DEFAULT_CALL_AUDIO,
+  callVoiceVolume,
   parseCallAudioRouteState,
   type CallAudioControl,
   type CallAudioOutputId,
@@ -34,6 +37,7 @@ interface CallNativeModule {
     headsetMicrophone?: CallMicrophoneId,
   ): Promise<string>;
   callMute(attemptId: string, muted: boolean): void;
+  callVoiceVolume?(attemptId: string, volume: number): void;
   callAudio?(
     attemptId: string,
     output: CallAudioOutputId,
@@ -48,6 +52,25 @@ interface CallNativeModule {
 }
 
 const native = requireOptionalNativeModule<CallNativeModule>('LocalComputerVideo');
+
+const NATIVE_MEDIA_CODES: Readonly<Record<string, CallMediaCode>> = {
+  background: 'background',
+  'microphone-denied': 'microphone-denied',
+  'microphone-failed': 'microphone-missing',
+  'connection-lost': 'ice-failed',
+  'ice-failed': 'ice-failed',
+};
+
+export function nativeCallMediaCode(code: unknown): CallMediaCode {
+  return (typeof code === 'string' ? NATIVE_MEDIA_CODES[code] : undefined) ?? 'unknown';
+}
+
+export function nativeCallMediaFailure(error: unknown): CallMediaFailure {
+  const code = nativeCallMediaCode((error as { code?: unknown } | undefined)?.code);
+  return error instanceof Error
+    ? new CallMediaFailure(code, error.message)
+    : new CallMediaFailure(code);
+}
 
 export const callMediaSupported =
   native !== null && typeof (native as Partial<CallNativeModule>).callStart === 'function';
@@ -84,9 +107,16 @@ export function createCallMedia(
   const media: CallClientMedia & { audio?: CallAudioControl; test?: CallTestAudio } = {
     async start({ callId, offer }) {
       attempt = callId;
-      if (typeof module.callAudio !== 'function') return module.callStart(callId, offer, testAudio);
-      const audio = options.audio?.() ?? DEFAULT_CALL_AUDIO;
-      return module.callStart(callId, offer, testAudio, audio.headsetMicrophone);
+      try {
+        if (typeof module.callAudio !== 'function')
+          return await module.callStart(callId, offer, testAudio);
+        const audio = options.audio?.() ?? DEFAULT_CALL_AUDIO;
+        const answer = await module.callStart(callId, offer, testAudio, audio.headsetMicrophone);
+        if (attempt === callId) module.callVoiceVolume?.(callId, audio.voiceVolume);
+        return answer;
+      } catch (error) {
+        throw nativeCallMediaFailure(error);
+      }
     },
     mute(muted) {
       if (attempt !== undefined) module.callMute(attempt, muted);
@@ -104,7 +134,11 @@ export function createCallMedia(
     },
     onState(listener) {
       const subscription = module.addListener('onCallState', (event) => {
-        if (event.attemptId === attempt) listener(event.state, event.code);
+        if (event.attemptId === attempt)
+          listener(
+            event.state,
+            event.code === undefined ? undefined : nativeCallMediaCode(event.code),
+          );
       });
       return () => subscription.remove();
     },
@@ -130,6 +164,13 @@ export function createCallMedia(
         const current = await module.callAudioState?.(attempt).catch(() => undefined);
         return parseCallAudioRouteState(current) ?? null;
       },
+      ...(typeof module.callVoiceVolume === 'function'
+        ? {
+            volume(level: number) {
+              if (attempt !== undefined) module.callVoiceVolume?.(attempt, callVoiceVolume(level));
+            },
+          }
+        : {}),
       onChange(listener) {
         const subscription = module.addListener('onCallAudio', (event) => {
           if (event.attemptId !== attempt) return;

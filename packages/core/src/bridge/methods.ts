@@ -200,6 +200,12 @@ import type {
   PluginUpdateService,
   PluginUpdates,
 } from '../release/plugins.js';
+import {
+  isUpdateRequestId,
+  type UpdateCancel,
+  type UpdateRun,
+  type UpdateRuns,
+} from '../release/update-runs.js';
 import type { ActiveDay } from '../telemetry/active-day.js';
 import {
   isClientTelemetryEventName,
@@ -1085,6 +1091,8 @@ export interface BridgeMethods {
   pluginUpdates(payload?: unknown): Promise<BridgeResult<PluginUpdates>>;
   pluginInstall(payload: unknown): Promise<BridgeResult<PluginInstall>>;
   pluginRestart(payload: unknown): Promise<BridgeResult<PluginRestart>>;
+  updateRun(payload?: unknown): BridgeResult<UpdateRun | null>;
+  updateCancel(payload: unknown): Promise<BridgeResult<UpdateCancel>>;
   telemetryStatus(): BridgeResult<TelemetryStatus>;
   gitStatus(): BridgeResult<GitStatus>;
   gitInstall(): BridgeResult<GitStatus>;
@@ -1258,6 +1266,7 @@ export interface BridgeMethodsDeps {
   marketplaceReceipts?: InstallReceipts;
   release?: ReleaseService;
   plugins?: PluginUpdateService;
+  updates?: UpdateRuns;
   telemetry?: {
     status(): TelemetryStatus;
     setPreference(enabled: boolean): TelemetryStatus;
@@ -4106,9 +4115,13 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     },
     async releaseInstall(payload) {
       if (deps.release === undefined) return releaseUnavailable();
-      const version = asObject(payload)['version'];
+      const source = asObject(payload);
+      const version = source['version'];
+      const requestId = source['requestId'];
       if (typeof version !== 'string') return invalidInput('version is required');
-      return { ok: true, value: await deps.release.install(version) };
+      if (requestId !== undefined && !isUpdateRequestId(requestId))
+        return invalidInput('invalid requestId');
+      return { ok: true, value: await deps.release.install(version, undefined, requestId) };
     },
     async releaseRestart() {
       if (deps.release === undefined) return releaseUnavailable();
@@ -4126,12 +4139,27 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const name = source['name'];
       const version = source['version'];
       if (typeof name !== 'string') return invalidInput('name is required');
+      const requestId = source['requestId'];
       if (typeof version !== 'string') return invalidInput('version is required');
-      return { ok: true, value: await deps.plugins.install(name, version) };
+      if (requestId !== undefined && !isUpdateRequestId(requestId))
+        return invalidInput('invalid requestId');
+      return { ok: true, value: await deps.plugins.install(name, version, undefined, requestId) };
     },
     async pluginRestart() {
       if (deps.plugins === undefined) return releaseUnavailable();
       return { ok: true, value: await deps.plugins.restart() };
+    },
+    updateRun(payload) {
+      if (deps.updates === undefined) return releaseUnavailable();
+      const id = asObject(payload)['id'];
+      if (id !== undefined && !isUpdateRequestId(id)) return invalidInput('invalid id');
+      return { ok: true, value: deps.updates.get(id) ?? null };
+    },
+    async updateCancel(payload) {
+      if (deps.updates === undefined) return releaseUnavailable();
+      const id = asObject(payload)['id'];
+      if (!isUpdateRequestId(id)) return invalidInput('id is required');
+      return { ok: true, value: await deps.updates.cancel(id) };
     },
     telemetryStatus() {
       return {

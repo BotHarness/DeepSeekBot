@@ -37,6 +37,7 @@ import { notificationPreferences } from './native-notification-preferences';
 import { connectionMode } from './native-connection-mode';
 import { createDeviceAlerts } from './device-alerts';
 import { alertBanners } from './alert-banners';
+import { attentionFocus, dmChannel } from './attention-focus';
 import { createConnectionLifetime } from './connection-lifetime';
 import { connectionSummary } from './connection-summary';
 import { createQuietChannels } from './quiet-channels';
@@ -64,8 +65,22 @@ export interface ConnectedHost {
 
 const sessions = new Map<string, { host: ConnectedHost; dispose(): void }>();
 const connectionLifetime = createConnectionLifetime(AppState.currentState === 'active');
+const callRetains = new Map<HostClient, number>();
+export function retainHostConnection(client: HostClient): () => void {
+  callRetains.set(client, (callRetains.get(client) ?? 0) + 1);
+  const release = connectionLifetime.retain(client);
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    const left = (callRetains.get(client) ?? 1) - 1;
+    if (left > 0) callRetains.set(client, left);
+    else callRetains.delete(client);
+    release();
+  };
+}
 const feedListeners = new Set<() => void>();
-const visibleConversations = new Map<Conversation, { hostId: string; channelId: string }>();
+const visibleConversations = new Map<Conversation, () => void>();
 let feeds: readonly ConnectedHost[] = [];
 function publishFeeds(): void {
   feeds = [...sessions.values()].map(({ host }) => ({
@@ -104,9 +119,7 @@ const deviceAlerts = createDeviceAlerts(connectionMode, {
           approvalText: t.localApprovalText,
           ...(preferences ? { preferences } : {}),
           quietChannelIds: quietChannels.get(host.saved.hostId),
-          visibleChannelId: [...visibleConversations.values()].find(
-            (entry) => entry.hostId === host.saved.hostId,
-          )?.channelId,
+          focusedChannelIds: attentionFocus.channels(host.saved.hostId),
           text: {
             approval: t.localApprovalText,
             question: t.localQuestionText,
@@ -133,6 +146,10 @@ function scheduleAlerts(): void {
   deviceAlerts.refresh();
 }
 if (connectionMode.supported) notificationPreferences.subscribe(scheduleAlerts);
+attentionFocus.subscribe(() => {
+  alertBanners.discard((alert) => attentionFocus.covers(alert.data));
+  scheduleAlerts();
+});
 let previousMode = connectionMode.getSnapshot();
 connectionMode.subscribe(() => {
   const mode = connectionMode.getSnapshot();
@@ -434,7 +451,9 @@ AppState.addEventListener('change', (next) => {
   pushSession.reflectAgain();
   void pushSession.refreshPermission();
   for (const { host } of sessions.values()) {
-    host.client.retryNow('resume');
+    host.client.retryNow('resume', {
+      preserveConnected: callRetains.has(host.client),
+    });
     if (host.client.getSnapshot().connection.status === 'connected') void host.inbox.refresh();
   }
 });
@@ -472,13 +491,25 @@ export const hostSession = {
       void revokePairing({ host: previous, carrier: nativeCarrier() });
     });
   },
-  async updateRoutes(hostId: string, credential: string, routes: string[]): Promise<void> {
+  async updateRoutes(
+    hostId: string,
+    credential: string,
+    routes: string[],
+    privateRelay?: { origin: string; token: string },
+  ): Promise<void> {
     return serialize(async () => {
       const existing = stored.hosts.find((host) => host.hostId === hostId);
       if (!existing || existing.credential !== credential) throw new Error('pairing-changed');
+      if (privateRelay && !existing.encryption) throw new Error('pairing-changed');
       await commit({
         ...stored,
-        hosts: stored.hosts.map((host) => (host.hostId === hostId ? { ...host, routes } : host)),
+        hosts: stored.hosts.map((host) =>
+          host.hostId !== hostId
+            ? host
+            : privateRelay && host.encryption
+              ? { ...host, routes, encryption: { ...host.encryption, privateRelay } }
+              : { ...host, routes },
+        ),
       });
       void pushSession.sync(stored.hosts);
     });
@@ -726,6 +757,20 @@ export function prepareConversation(
   preparedConversations.set(client, { conversation, release });
 }
 
+function dmChannelOf(client: HostClient, slug: string | undefined): string | undefined {
+  if (slug === undefined) return undefined;
+  const bot = client.getSnapshot().roster?.bots.find((entry) => entry.slug === slug);
+  return bot?.dmChannelId ?? dmChannel(slug);
+}
+
+export function focusCall(hostId: string, slug: string): () => void {
+  const client = sessions.get(hostId)?.host.client;
+  return attentionFocus.hold({
+    hostId,
+    channelId: (client && dmChannelOf(client, slug)) ?? dmChannel(slug),
+  });
+}
+
 function conversationFor(
   client: HostClient,
   key: string,
@@ -770,12 +815,14 @@ function conversationFor(
     setForeground(active) {
       inner.setForeground?.(active);
       const hostId = clientHosts.get(client);
-      if (active && hostId && options.channelId)
-        visibleConversations.set(conversation, { hostId, channelId: options.channelId });
-      else visibleConversations.delete(conversation);
-      scheduleAlerts();
+      const channelId = options.channelId ?? dmChannelOf(client, options.botSlug);
+      visibleConversations.get(conversation)?.();
+      visibleConversations.delete(conversation);
+      if (active && hostId && channelId)
+        visibleConversations.set(conversation, attentionFocus.hold({ hostId, channelId }));
     },
     stop() {
+      visibleConversations.get(conversation)?.();
       visibleConversations.delete(conversation);
       releasePreparedConversation(client, conversation);
       clearTimeout(idle);

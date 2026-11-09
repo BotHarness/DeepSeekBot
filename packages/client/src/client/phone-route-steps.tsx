@@ -16,7 +16,7 @@ export interface PhoneRouteStatus {
   managed?: { enabled: boolean; owned: boolean };
   routes: {
     url: string;
-    kind: 'lan' | 'tailscale' | 'connect' | 'loopback';
+    kind: 'lan' | 'tailscale' | 'connect' | 'loopback' | 'private';
     ready: boolean;
     issue?: string;
   }[];

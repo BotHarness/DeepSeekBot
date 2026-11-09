@@ -130,6 +130,12 @@ export const HOST_ADMIN_COMMANDS = [
     description: 'restart the Host to finish plugin updates; needs --confirm',
   },
   {
+    command: 'update-status',
+    description:
+      'show the running (or last) release or plugin update: phase, commands, output and outcome',
+  },
+  { command: 'update-cancel', description: 'stop the running release or plugin update' },
+  {
     command: 'data-reset-preview',
     description:
       'list every BotHarness folder a full data reset removes, with its confirmation token',
@@ -196,6 +202,8 @@ const POSITIONALS: Record<HostAdminCommand, number> = {
   'plugin-check': 0,
   'plugin-install': 2,
   'plugin-restart': 0,
+  'update-status': 0,
+  'update-cancel': 0,
   'data-reset-preview': 0,
   'data-reset-confirm': 0,
   'telemetry-status': 0,
@@ -589,6 +597,28 @@ export async function runHostAdminCommand(
             : 'This Host cannot restart itself; restart it from its launcher.',
         );
       return result;
+    }
+    case 'update-status':
+      return { run: await rpc('updateRun', {}) };
+    case 'update-cancel': {
+      const run = record(await rpc('updateRun', {}));
+      const phase = run['phase'];
+      if (
+        typeof run['id'] !== 'string' ||
+        phase === 'installed' ||
+        phase === 'failed' ||
+        phase === 'cancelled'
+      )
+        throw new CliLiveError('update-not-running', 'No release or plugin update is running.');
+      const result = record(await rpc('updateCancel', { id: run['id'] }));
+      if (result['status'] === 'too-late' || result['status'] === 'unsupported')
+        throw new CliLiveError(
+          `update-${String(result['status'])}`,
+          result['status'] === 'too-late'
+            ? 'The update is already being applied and can no longer be stopped.'
+            : 'This DSH version cannot stop a running install.',
+        );
+      return { id: run['id'], ...result };
     }
     case 'data-reset-preview':
       return rpc('dataResetPreview', {});
