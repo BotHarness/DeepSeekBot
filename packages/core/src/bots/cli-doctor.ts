@@ -163,10 +163,7 @@ export async function runDoctor(
     } catch (error) {
       if (!(error instanceof CliLiveError)) throw error;
       fallback = error.code;
-      if (
-        error.code === 'not-found' ||
-        (error.code === 'host-refused' && error.message.includes('HTTP 404'))
-      )
+      if (error.code === 'not-found' || (error.code === 'host-refused' && error.status === 404))
         checks.push(
           { id: 'host', status: 'ok' },
           {

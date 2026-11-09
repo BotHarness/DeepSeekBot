@@ -103,13 +103,11 @@ describe('doctor CLI', () => {
     expect(check(result, 'errors-24h')).toMatchObject({ status: 'ok', count: 0 });
   });
 
-  it.each([
-    ['not-found', 'Not found'],
-    ['host-refused', 'The Host refused /api/botharness/diagnostic-logs with HTTP 404.'],
-  ])('says the plugin did not load when the Host answers %s', async (code, message) => {
+  it('says the plugin did not load when the Host answers not-found', async () => {
+    const code = 'not-found';
     const home = homeWithErrors(['boot-failed']);
     const http = vi.fn(async () => {
-      throw new CliLiveError(code, message);
+      throw new CliLiveError(code, 'Not found');
     });
     const result = await runDoctor(
       { home, host: 'http://127.0.0.1:1' },
@@ -178,5 +176,48 @@ describe('doctor through the tobs entry point', () => {
       source: 'offline',
       entries: [{ code: 'boot-failed' }],
     });
+  });
+});
+
+describe('doctor against a real Host response', () => {
+  async function fakeHost(status: number, body: string) {
+    const { createServer } = await import('node:http');
+    const server = createServer((req, res) => {
+      const url = new URL(req.url!, 'http://localhost');
+      if (req.method === 'GET' && url.searchParams.has('token')) {
+        res.setHeader('set-cookie', 'authority=signed; HttpOnly');
+        res.writeHead(302, { location: '/' }).end();
+        return;
+      }
+      res.writeHead(status, { 'content-type': 'text/plain' }).end(body);
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('no address');
+    return { url: `http://127.0.0.1:${address.port}`, close: () => server.close() };
+  }
+
+  it.each([
+    [404, 'not found', { id: 'plugin', status: 'fail', code: 'plugin-not-loaded' }],
+    [503, 'busy', { id: 'host', status: 'fail', code: 'host-refused' }],
+  ])('maps a plain-text %i from the log route', async (status, body, expected) => {
+    const { runBotCreateCli } = await import('../src/bots/bot-create-cli.js');
+    const home = homeWithErrors(['boot-failed'], Date.now);
+    const host = await fakeHost(status, body);
+    try {
+      const lines: string[] = [];
+      const code = await runBotCreateCli(['doctor', '--home', home], {
+        env: { DEEPSEEKBOT_HOST: host.url, DEEPSEEKBOT_HOST_TOKEN: 'doctor-token' },
+        stdout: (text: string) => lines.push(text),
+        stderr: () => {},
+      });
+      expect(code).toBe(0);
+      const result = JSON.parse(lines.join(''));
+      expect(result).toMatchObject({ source: 'offline', fallback: 'host-refused' });
+      expect(check(result, expected.id)).toMatchObject(expected);
+      if (status !== 404) expect(check(result, 'plugin')).toBeUndefined();
+    } finally {
+      host.close();
+    }
   });
 });

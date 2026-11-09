@@ -887,7 +887,7 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
     const packages = Array.isArray(detail['packages'])
       ? detail['packages'].filter((name): name is string => typeof name === 'string')
       : [];
-    throw new CliLiveError(
+    const error = new CliLiveError(
       code === undefined ? 'host-refused' : scrub(code),
       scrub(
         (typeof detail['error'] === 'string' && detail['error'] !== ''
@@ -898,6 +898,8 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
           (packages.length === 0 ? '' : ` Packages: ${packages.join(' ')}.`),
       ),
     );
+    error.status = status;
+    throw error;
   };
   const http = async (
     path: string,
