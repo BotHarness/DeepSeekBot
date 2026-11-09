@@ -372,16 +372,24 @@ export function createEncryptedGateway(options: {
         abort.abort();
         clearTimeout(timer);
       };
-      const timer = setTimeout(() => {
-        if (requests.get(id) !== cancel) return;
-        requests.delete(id);
-        cancel();
-        respond({
-          ok: false,
-          code: 'operation-timeout',
-          error: 'The call command did not complete.',
-        });
-      }, VOICE_CALL_LIMITS.operationTimeoutMs);
+      const timer = setTimeout(
+        () => {
+          if (requests.get(id) !== cancel) return;
+          requests.delete(id);
+          cancel();
+          respond({
+            ok: false,
+            code: 'operation-timeout',
+            error: 'The call command did not complete.',
+          });
+        },
+        typeof command === 'object' &&
+          command !== null &&
+          'kind' in command &&
+          command.kind === 'open'
+          ? VOICE_CALL_LIMITS.connectTimeoutMs
+          : VOICE_CALL_LIMITS.operationTimeoutMs,
+      );
       requests.set(id, cancel);
       callPending++;
       void Promise.resolve()
