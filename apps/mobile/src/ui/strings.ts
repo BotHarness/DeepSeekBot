@@ -1694,6 +1694,7 @@ const en = {
     'System notifications are off. Keep connected can stay on, but its ongoing notification may be hidden. In-app alerts have a separate setting.',
   cloudPushUnavailable: 'Cloud push is unavailable',
   localAlertsFailed: 'Could not sync approval alerts. Open the app to retry.',
+  notificationDecisionFailed: 'Your decision was not sent. Tap to open the request.',
   notificationsHint:
     'These alert types apply to every Host paired with this phone. Private input stays hidden.',
   notificationsOn: (host: string) => `Notifications from ${host} are on.`,
@@ -4028,6 +4029,7 @@ const zh: typeof en = {
     '系统通知已关闭，仍可保持连接，但常驻通知可能不在通知栏显示。应用内提醒可单独设置。',
   cloudPushUnavailable: '云推送暂不可用',
   localAlertsFailed: '审批提醒未能同步，请打开应用重试。',
+  notificationDecisionFailed: '你的决定没有发出，点按打开这条请求。',
   notificationsHint: '通知类型适用于此手机配对的所有远程。私密输入不会显示。',
   notificationsOn: (host: string) => `已开启来自 ${host} 的通知。`,
   notificationsOff: '这台手机的通知已关闭。',

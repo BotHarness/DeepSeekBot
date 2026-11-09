@@ -46,7 +46,7 @@ export function nativeNotifications(
     identifier,
     buttonTitle: buttons[identifier],
     options: {
-      opensAppToForeground: true,
+      opensAppToForeground: Platform.OS !== 'android' || APPROVAL_ACTIONS[identifier] === undefined,
       isAuthenticationRequired: true,
       isDestructive: identifier === 'reject' || identifier === REMOVE_DEVICE_ACTION,
     },
@@ -106,19 +106,23 @@ export function nativeNotifications(
   };
 }
 
+const claimed = new Set<string>();
+export function claimResponse(id: string): boolean {
+  if (claimed.has(id)) return false;
+  claimed.add(id);
+  return true;
+}
+
 export function onNotificationTap(
   open: (data: unknown, action: string | undefined) => void,
 ): () => void {
-  const seen = new Set<string>();
   const handle = (response: Notifications.NotificationResponse | null): void => {
     if (response === null) return;
     const action = response.actionIdentifier;
     const tapped = action === Notifications.DEFAULT_ACTION_IDENTIFIER;
     if (!tapped && APPROVAL_ACTIONS[action] === undefined && action !== REMOVE_DEVICE_ACTION)
       return;
-    const id = response.notification.request.identifier;
-    if (seen.has(id)) return;
-    seen.add(id);
+    if (!claimResponse(response.notification.request.identifier)) return;
     open(response.notification.request.content.data, tapped ? undefined : action);
     Notifications.clearLastNotificationResponse();
   };
