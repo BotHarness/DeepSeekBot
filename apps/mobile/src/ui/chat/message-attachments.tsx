@@ -13,6 +13,7 @@ import { useDesignTheme } from '../design/theme';
 import { Text } from '../primitives/text';
 import { FileIcon, PhotoIcon } from '../shell/icons';
 import { useStrings } from '../strings';
+import { useMediaLongPress } from './media-long-press';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import { ChatOffline } from './chat-offline';
 
@@ -101,6 +102,7 @@ function AttachmentImage({
   const t = useStrings();
   const theme = useDesignTheme();
   const offline = use(ChatOffline);
+  const longPress = useMediaLongPress();
   const [attempt, setAttempt] = useState(0);
   const [failed, setFailed] = useState(false);
   const source = attachment.preview ?? attachment.source;
@@ -119,6 +121,7 @@ function AttachmentImage({
         accessibilityRole="button"
         accessibilityLabel={`${attachment.name}, ${fallback}`}
         disabled={source === undefined || offline}
+        {...longPress}
         onPress={() => {
           setFailed(false);
           setAttempt((value) => value + 1);
@@ -145,6 +148,7 @@ function AttachmentImage({
       accessibilityRole="imagebutton"
       accessibilityLabel={t.openImage(attachment.name)}
       onPress={() => onOpen(attachment)}
+      {...longPress}
       style={box}
     >
       <Image
@@ -259,6 +263,7 @@ function AttachmentFile({
   const t = useStrings();
   const theme = useDesignTheme();
   const [busy, setBusy] = useState(false);
+  const longPress = useMediaLongPress();
   const ink = human ? 'onAccent' : 'fg';
   const unavailable = attachment.source === undefined;
   const type = fileType(attachment.name);
@@ -287,6 +292,7 @@ function AttachmentFile({
       }
       accessibilityState={{ busy, disabled: unavailable }}
       disabled={busy || unavailable}
+      {...longPress}
       onPress={() => {
         setBusy(true);
         void onShare(attachment).finally(() => setBusy(false));

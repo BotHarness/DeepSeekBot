@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useReplyHaptic } from './reply-haptic';
+import { MediaLongPress } from './media-long-press';
 import {
   AppState,
   Platform,
@@ -424,6 +425,14 @@ function PressableBubble({
     if (anchor.current !== undefined) onLongPress(anchor.current);
     else measure(onLongPress);
   };
+  const hold =
+    onLongPress === undefined
+      ? undefined
+      : () => {
+          haptic('menu');
+          if (shrinks) scale.value = withSpring(1, spring.spatial.fast);
+          open();
+        };
   return (
     <Animated.View
       ref={ref}
@@ -467,15 +476,7 @@ function PressableBubble({
                 open();
               },
             })}
-        {...(onLongPress === undefined
-          ? {}
-          : {
-              onLongPress: () => {
-                haptic('menu');
-                if (shrinks) scale.value = withSpring(1, spring.spatial.fast);
-                open();
-              },
-            })}
+        {...(hold === undefined ? {} : { onLongPress: hold })}
         {...(onPress !== undefined
           ? { onPress }
           : onDoubleTap === undefined
@@ -508,7 +509,7 @@ function PressableBubble({
           if (shrinks) scale.value = withSpring(1, spring.spatial.fast);
         }}
       >
-        {children}
+        <MediaLongPress.Provider value={hold}>{children}</MediaLongPress.Provider>
       </Pressable>
     </Animated.View>
   );

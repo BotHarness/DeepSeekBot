@@ -10,6 +10,7 @@ import { LoadingIndicator } from '../primitives/loading-indicator';
 import { Text } from '../primitives/text';
 import { PauseIcon, PlayIcon } from '../shell/icons';
 import { useStrings } from '../strings';
+import { useMediaLongPress } from './media-long-press';
 
 const BARS = 28;
 
@@ -40,6 +41,7 @@ export function VoiceBar({ voice, human = false }: { voice: MessageVoice; human?
   const theme = useDesignTheme();
   const player = useAudioPlayer(null, { updateInterval: 250 });
   const status = useAudioPlayerStatus(player);
+  const longPress = useMediaLongPress();
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
   const loaded = useRef(false);
@@ -105,6 +107,7 @@ export function VoiceBar({ voice, human = false }: { voice: MessageVoice; human?
       }
       disabled={loading || audio.source === undefined}
       onPress={() => void toggle()}
+      {...longPress}
       style={{
         minHeight: theme.touch,
         minWidth: theme.touch * 4,
