@@ -1,6 +1,7 @@
 import {
   memo,
   useCallback,
+  useContext,
   useMemo,
   useRef,
   useState,
@@ -70,6 +71,8 @@ import { PopIn, usePopIn } from './pop-in';
 import { bubbleTime } from './message-groups';
 import type { Rect } from './menu-placement';
 import { SpeakerRow, type Speaker } from './speaker-row';
+import { SendFlightsContext } from './send-fly';
+import { SendFlyBackdrop, SendFlyFrame } from './send-fly-frame';
 
 export type { Speaker } from './speaker-row';
 
@@ -223,6 +226,7 @@ export function BubbleBody({
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
+  const backdrop = useContext(SendFlyBackdrop);
   const human = message.author === 'human';
   const ink = human ? 'onAccent' : 'fg';
   const time = messageTime(message, streaming);
@@ -297,10 +301,28 @@ export function BubbleBody({
         ...fill,
         ...(album ? { width, padding: 0, paddingHorizontal: 0, paddingVertical: 0 } : null),
         overflow: album || fill?.maxHeight !== undefined ? 'hidden' : 'visible',
-        backgroundColor: human ? theme.color.accent : theme.color.surface,
+        backgroundColor:
+          backdrop !== undefined ? 'transparent' : human ? theme.color.accent : theme.color.surface,
         gap: album ? 0 : space.x2,
       }}
     >
+      {backdrop === undefined ? null : (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            {
+              position: 'absolute',
+              top: 0,
+              right: 0,
+              bottom: 0,
+              left: 0,
+              ...bubbleCorners(human, group),
+              backgroundColor: human ? theme.color.accent : theme.color.surface,
+            },
+            backdrop,
+          ]}
+        />
+      )}
       {deliveryAccessibility && human && message.delivery === 'pending' ? (
         <View
           accessible
@@ -563,6 +585,8 @@ export const MessageBubble = memo(function MessageBubble({
     return fresh;
   });
   const pop = usePopIn(enter);
+  const flights = useContext(SendFlightsContext);
+  const [flight] = useState(() => (human ? flights?.flight(message.id) : undefined));
   const [readingStill, setReadingStill] = useState(readers.length > 0);
   if (readingStill && readers.length === 0) setReadingStill(false);
   const [reactionsStill] = useState(
@@ -663,18 +687,13 @@ export const MessageBubble = memo(function MessageBubble({
       bubble
     );
   const badged = chipsMounted || shownReading.length > 0;
-  const framed = (
-    <Animated.View
-      ref={pop.ref}
-      style={[
-        {
-          alignSelf: human ? 'flex-end' : 'flex-start',
-          maxWidth: BUBBLE_MAX,
-          transformOrigin: human ? 'right bottom' : 'left bottom',
-        },
-        pop.style,
-      ]}
-    >
+  const frame = {
+    alignSelf: human ? 'flex-end' : 'flex-start',
+    maxWidth: BUBBLE_MAX,
+    transformOrigin: human ? 'right bottom' : 'left bottom',
+  } as const;
+  const framedContent = (
+    <>
       {onReply === undefined ? (
         content
       ) : (
@@ -721,8 +740,18 @@ export const MessageBubble = memo(function MessageBubble({
           )}
         </View>
       ) : null}
-    </Animated.View>
+    </>
   );
+  const framed =
+    flight !== undefined && flights !== undefined ? (
+      <SendFlyFrame messageId={message.id} flight={flight} flights={flights} style={frame}>
+        {framedContent}
+      </SendFlyFrame>
+    ) : (
+      <Animated.View ref={pop.ref} style={[frame, pop.style]}>
+        {framedContent}
+      </Animated.View>
+    );
   const surface = human ? (
     <View
       style={{

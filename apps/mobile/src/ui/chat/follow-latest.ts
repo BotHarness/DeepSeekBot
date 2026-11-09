@@ -20,6 +20,16 @@ export function atLatest(distance: number): boolean {
   return distance <= LATEST_SLOP;
 }
 
+export function shouldFly({
+  atLatest,
+  reducedMotion,
+}: {
+  atLatest: boolean;
+  reducedMotion: boolean;
+}): boolean {
+  return atLatest && !reducedMotion;
+}
+
 export function distanceFromLatest(metrics: ListMetrics, inverted = false): number {
   if (inverted) return metrics.offset;
   return metrics.content + (metrics.inset ?? 0) - metrics.layout - metrics.offset;
@@ -327,6 +337,15 @@ export function useFollowLatest<Row>(
     scrollToLatest(true);
   }, [scrollToLatest, follow]);
 
+  const send = useCallback((): boolean => {
+    if (!followingNow.current) return false;
+    if (!settled.current) {
+      jumpToLatest();
+      return false;
+    }
+    return shouldFly({ atLatest: true, reducedMotion: !animateScroll });
+  }, [jumpToLatest, animateScroll]);
+
   const retry = useCallback(() => {
     attempts.current = 0;
     checks.current = 0;
@@ -348,6 +367,7 @@ export function useFollowLatest<Row>(
     unseen: following ? 0 : unseenSince(messages, anchor),
     hold,
     jumpToLatest,
+    send,
     listProps: {
       onScroll,
       onScrollToTop: hold,

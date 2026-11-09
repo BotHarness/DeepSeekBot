@@ -5,6 +5,13 @@ import type { Appearance } from './appearance.js';
 import { onboardingFor, type OnboardingViewState } from './onboarding.js';
 import { PointerMenu } from './ds/pointer-menu.js';
 import { useScopedRef, useScopedState } from './scoped-state.js';
+import {
+  flySentBubble,
+  launchSendFlight,
+  sendFollowsLatest,
+  sentMessageId,
+  type SendFlight,
+} from './send-fly.js';
 import { PanelEmptyState } from './ds/empty-state.js';
 import { Workspace, type WorkspaceOptions } from './workspace.js';
 import { WorkspaceContext } from './workspace-context.js';
@@ -1345,6 +1352,7 @@ function ConversationView({
   };
   const followingLatest = useScopedRef(scopeKey, true);
   const lastTimelineTop = useScopedRef(scopeKey, 0);
+  const sendFlight = useScopedRef<SendFlight | undefined>(scopeKey, undefined);
   const pinTimelineToLatest = (element: HTMLElement): void => {
     element.scrollTop = element.scrollHeight;
     lastTimelineTop.current = element.scrollTop;
@@ -2320,6 +2328,15 @@ function ConversationView({
           setUnseen((count) => count + conversation.revision - previousRevision);
         }
         lastRevision.current = conversation.revision;
+        const flight = sendFlight.current;
+        const sentId = flight === undefined ? undefined : sentMessageId(flight, messages);
+        if (flight !== undefined && sentId !== undefined) {
+          sendFlight.current = undefined;
+          const bubble = element.querySelector<HTMLElement>(
+            `[data-message-id="${CSS.escape(sentId)}"] .bh-bubble`,
+          );
+          if (bubble !== null && followingLatest.current) flySentBubble(bubble, flight.from);
+        }
       }
       const id = conversation.focusMessageId;
       let focusTimer: number | undefined;
@@ -2548,10 +2565,12 @@ function ConversationView({
       document.activeElement instanceof Element &&
       document.activeElement.closest('.bh-composer-shell') !== null;
     const viewport = scrollRef.current;
-    followingLatest.current =
-      viewport !== null &&
-      !conversation.timeline.hasNewer &&
-      viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= 80;
+    followingLatest.current = sendFollowsLatest(viewport, conversation.timeline.hasNewer);
+    sendFlight.current = launchSendFlight(
+      viewport,
+      conversation.timeline.hasNewer,
+      store.getSnapshot().conversation.messages,
+    );
     setAtLatest(followingLatest.current);
     if (followingLatest.current) setUnseen(0);
     const submittedFor = currentChannel.current;

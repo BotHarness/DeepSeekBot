@@ -292,6 +292,8 @@ export const decelerate: Record<PlatformOS, readonly [number, number, number, nu
 
 export const popScale = { bubble: 0.92, badge: 0.9 } as const;
 
+export const sendFly = { duration: 360 } as const;
+
 export const pullToCompose = { threshold: 40, flick: 0.3 } as const;
 
 export const doubleTap = { window: 300, emoji: '👍' } as const;
