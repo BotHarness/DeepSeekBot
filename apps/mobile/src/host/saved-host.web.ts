@@ -1,5 +1,6 @@
 import { parseSavedHosts, serializeSavedHost, type SavedHosts } from './hosts';
 
+export { SavedHostsWriteError } from './hosts';
 export type { SavedHost, SavedHosts } from './hosts';
 
 const KEY = 'deepseekbot.hosts.v3';

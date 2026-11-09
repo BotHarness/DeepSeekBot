@@ -1,10 +1,16 @@
 package expo.modules.localcomputervideo
 
 import android.Manifest
+import android.app.Activity
+import android.app.Application
+import android.app.NotificationManager
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.provider.Settings
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.WindowManager
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.functions.Queues
 import expo.modules.kotlin.modules.Module
@@ -20,19 +26,57 @@ class LocalComputerVideoModule : Module() {
   /** The one Bot call this app may hold. A new attempt replaces it. Main thread only. */
   @Volatile private var call: CallAttempt? = null
 
-  private fun keepScreenOn(on: Boolean) {
-    val window = appContext.currentActivity?.window ?: return
-    if (on) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-    else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-  }
-
-  /** Calls are foreground only (ADR-0284): leaving the app or locking the phone ends one. */
+  /**
+   * Ends the call natively. A call keeps running in the background while [CallService]
+   * holds it (ADR-0305); without the service, leaving the app ends it as before.
+   */
   private fun endCall(code: String?) {
     val current = call ?: return
     call = null
-    keepScreenOn(false)
     if (code != null) sendEvent("onCallState", mapOf("attemptId" to current.id, "state" to "closed", "code" to code))
     current.close { }
+  }
+
+  private fun audioEvent(attempt: CallAttempt, extra: Map<String, Any?> = emptyMap()) {
+    if (call !== attempt) return
+    // Every event carries the interruption, so a route change never clears it in JS.
+    sendEvent("onCallAudio", mapOf("attemptId" to attempt.id, "interrupted" to attempt.interrupted) + extra)
+  }
+
+  private fun context() = appContext.reactContext?.applicationContext
+
+  /**
+   * Whether any of the app's activities is started. A permission dialog only pauses the
+   * activity, so the bubble over other apps waits for the app to be really hidden.
+   */
+  private var startedActivities = 0
+  private var application: Application? = null
+  private val visibility = object : Application.ActivityLifecycleCallbacks {
+    override fun onActivityStarted(activity: Activity) {
+      startedActivities += 1
+      CallService.setOverlay(false)
+    }
+    override fun onActivityStopped(activity: Activity) {
+      // The module can load after the activity started, so the count never goes below 0.
+      startedActivities = maxOf(0, startedActivities - 1)
+      if (startedActivities == 0 && call != null && CallService.keeping) CallService.setOverlay(true)
+    }
+    override fun onActivityCreated(activity: Activity, state: Bundle?) = Unit
+    override fun onActivityResumed(activity: Activity) = Unit
+    override fun onActivityPaused(activity: Activity) = Unit
+    override fun onActivitySaveInstanceState(activity: Activity, state: Bundle) = Unit
+    override fun onActivityDestroyed(activity: Activity) = Unit
+  }
+
+  private fun attachService() {
+    CallService.actions = { action -> main.post { sendEvent("onCallAction", mapOf("action" to action)) } }
+    CallService.changed = {
+      main.post {
+        // The service could not start or was stopped by Android while the app is away:
+        // the call can no longer record, so end it like a foreground-only call.
+        if (!foreground && call != null && !CallService.keeping) endCall("background")
+      }
+    }
   }
 
   private fun stopViews(reason: String) {
@@ -45,7 +89,44 @@ class LocalComputerVideoModule : Module() {
     Name("LocalComputerVideo")
     Constant("callAudioSupported") { android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S }
     Constant("callAudioModeSupported") { android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU }
-    Events("onCallState", "onCallTap", "onCallAudio")
+    Events("onCallState", "onCallTap", "onCallAudio", "onCallAction")
+
+    OnCreate {
+      attachService()
+      application = context() as? Application
+      application?.registerActivityLifecycleCallbacks(visibility)
+    }
+
+    // The ongoing call notification (#3423). Starting it needs the app to be visible.
+    AsyncFunction("callNoticeShow") { notice: Map<String, Any?> ->
+      val context = context() ?: return@AsyncFunction false
+      val parsed = CallNotice.from(notice) ?: return@AsyncFunction false
+      CallService.show(context, parsed)
+    }.runOnQueue(Queues.MAIN)
+
+    AsyncFunction("callNoticeEnd") {
+      context()?.let { CallService.end(it) }
+      Unit
+    }.runOnQueue(Queues.MAIN)
+
+    Function("callNotificationsAllowed") {
+      context()?.getSystemService(NotificationManager::class.java)?.areNotificationsEnabled() ?: false
+    }
+
+    // The bubble over other apps (#3469) needs "Display over other apps".
+    Function("callOverlayAllowed") { context()?.let { Settings.canDrawOverlays(it) } ?: false }
+
+    AsyncFunction("callOverlaySettings") {
+      val context = context() ?: return@AsyncFunction false
+      val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}"))
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      runCatching { (appContext.currentActivity ?: context).startActivity(intent) }.isSuccess
+    }.runOnQueue(Queues.MAIN)
+
+    // The notification or the bubble brought the app forward: JavaScript shows the call.
+    OnNewIntent { intent ->
+      if (intent.action == CallService.ACTION_OPEN) sendEvent("onCallAction", mapOf("action" to "open"))
+    }
 
     // Answers the Host's audio offer with the microphone. `testAudio` (test builds only)
     // replaces the microphone with injected files and records the downlink.
@@ -68,7 +149,8 @@ class LocalComputerVideoModule : Module() {
       }
       call?.close { }
       call = null
-      val attempt = CallAttempt(attemptId, offer, testAudio, context,
+      lateinit var attempt: CallAttempt
+      attempt = CallAttempt(attemptId, offer, testAudio, context,
         onState = { state, code ->
           if (call?.id == attemptId) {
             val body = mutableMapOf<String, Any?>("attemptId" to attemptId, "state" to state)
@@ -79,8 +161,12 @@ class LocalComputerVideoModule : Module() {
         onTap = { kind, detail ->
           if (call?.id == attemptId) sendEvent("onCallTap", detail + mapOf("attemptId" to attemptId, "kind" to kind))
         },
-        onAudio = { route ->
-          if (call?.id == attemptId) sendEvent("onCallAudio", mapOf("attemptId" to attemptId, "route" to route))
+        onAudio = { route -> audioEvent(attempt, mapOf("route" to route)) },
+        onInterrupt = { interrupted ->
+          audioEvent(attempt, buildMap {
+            if (!interrupted) put("resumed", true)
+            attempt.audioState()?.let { put("route", it) }
+          })
         })
       if (!attempt.beginAudio(headsetMicrophone)) {
         attempt.close { }
@@ -88,8 +174,6 @@ class LocalComputerVideoModule : Module() {
         return@AsyncFunction
       }
       call = attempt
-      // A call keeps the screen on; the call ends when the app leaves the foreground.
-      keepScreenOn(true)
       attempt.start { result ->
         result.fold(
           onSuccess = { promise.resolve(it) },
@@ -131,7 +215,6 @@ class LocalComputerVideoModule : Module() {
       val current = call
       if (current == null || current.id != attemptId) { promise.resolve(null); return@AsyncFunction }
       call = null
-      keepScreenOn(false)
       current.close { recording -> promise.resolve(recording) }
     }.runOnQueue(Queues.MAIN)
 
@@ -139,19 +222,29 @@ class LocalComputerVideoModule : Module() {
       foreground = false
       // Native lifecycle is authoritative even while the JS thread is suspended.
       stopViews("background")
-      // Calls are foreground only: leaving the app or locking the phone ends the call.
-      // A live camera-permission dialog is the one exception: the user is still in the
-      // call and the dialog returns at once. #3423 removes this temporary bridge.
-      if (!CallCamera.askingPermission) main.post { endCall("background") }
+      // The call notification's service keeps the call (ADR-0305) and shows the bubble
+      // over other apps when allowed. Without the service, leaving the app ends the call;
+      // a live camera-permission dialog is not leaving it.
+      main.post {
+        if (call != null && !CallService.keeping && !CallCamera.askingPermission) endCall("background")
+      }
     }
     OnActivityEntersForeground {
       foreground = true
+      call?.regainAudio()
       synchronized(views) { views.toList() }.forEach { it.setAppForeground(true) }
     }
     OnDestroy {
       stopViews("disposed"); views.clear()
       // The JavaScript side is gone with the module; only native resources need releasing.
-      main.post { endCall(null) }
+      main.post {
+        endCall(null)
+        context()?.let { CallService.end(it) }
+        CallService.actions = null
+        CallService.changed = null
+        application?.unregisterActivityLifecycleCallbacks(visibility)
+        application = null
+      }
     }
     View(LocalComputerVideoView::class) {
       Events("onDescription", "onMediaState", "onPresentation")

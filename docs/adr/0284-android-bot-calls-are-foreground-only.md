@@ -1,6 +1,6 @@
 # ADR-0284: Android Bot calls are foreground only
 
-- Status: Accepted (Android call path)
+- Status: Superseded by [ADR-0305](./0305-android-bot-calls-keep-running-in-the-background.md) for background behaviour; the call path, echo cancellation, test audio and microphone refusal still stand
 - Date: 2026-11-03
 - Issue: #3405 (spec #3397, hub #3398; builds on ADR-0281)
 

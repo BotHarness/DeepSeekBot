@@ -1,4 +1,16 @@
-import type { CallActivityPhase } from './call-model';
+import { callStrings } from '../strings';
+import type { CallActivityPhase, CallBubbleTone } from './call-model';
+
+export type CallActivityPalette = {
+  success: string;
+  accent: string;
+  warning: string;
+  danger: string;
+  muted: string;
+  surface: string;
+  fg: string;
+  base: string;
+};
 
 export type CallActivityProps = {
   name: string;
@@ -6,12 +18,69 @@ export type CallActivityProps = {
   startedAt: number;
   muted: boolean;
   locale: 'en' | 'zh';
+  palette?: CallActivityPalette | undefined;
 };
+
+export function callToneColor(color: CallActivityPalette, tone: CallBubbleTone): string {
+  switch (tone) {
+    case 'listening':
+    case 'hearing':
+      return color.success;
+    case 'thinking':
+    case 'speaking':
+      return color.accent;
+    case 'paused':
+      return color.warning;
+    case 'ended':
+      return color.danger;
+    default:
+      return color.muted;
+  }
+}
+
+export function callActivityTone(phase: CallActivityPhase): Exclude<CallBubbleTone, 'ended'> {
+  if (phase === 'connecting' || phase === 'reconnecting') return 'connecting';
+  if (phase === 'interrupted') return 'paused';
+  return phase;
+}
+
+export function callNotice(props: CallActivityProps, palette: CallActivityPalette) {
+  const t = callStrings[props.locale];
+  const tone = callActivityTone(props.phase);
+  const status = {
+    connecting: t.connecting,
+    listening: t.listening,
+    hearing: t.hearing,
+    thinking: t.thinking,
+    speaking: t.speaking,
+    muted: t.muted,
+    interrupted: t.paused,
+    reconnecting: t.reconnecting,
+  }[props.phase];
+  return {
+    name: props.name,
+    status,
+    tone,
+    startedAt: props.phase === 'connecting' ? 0 : props.startedAt,
+    muted: props.muted,
+    muteLabel: t.mute,
+    unmuteLabel: t.unmute,
+    hangUpLabel: t.hangUp,
+    channelName: t.noticeChannel,
+    bubbleLabel: t.bubble(props.name, status, undefined),
+    ringColor: callToneColor(palette, tone),
+    surfaceColor: palette.surface,
+    fgColor: palette.fg,
+    baseColor: palette.base,
+  };
+}
 
 export interface CallActivityHandle {
   update(props: CallActivityProps): Promise<void>;
   end(): Promise<void>;
 }
+
+export type CallActivityAction = 'hang-up' | 'mute' | 'open';
 
 export interface CallActivityNative {
   start(props: CallActivityProps): Promise<CallActivityHandle | undefined>;
@@ -27,7 +96,14 @@ const same = (a: CallActivityProps, b: CallActivityProps) =>
   a.phase === b.phase &&
   a.startedAt === b.startedAt &&
   a.muted === b.muted &&
-  a.locale === b.locale;
+  a.locale === b.locale &&
+  samePalette(a.palette, b.palette);
+
+const samePalette = (a: CallActivityPalette | undefined, b: CallActivityPalette | undefined) =>
+  a === b ||
+  (a !== undefined &&
+    b !== undefined &&
+    (Object.keys(a) as (keyof CallActivityPalette)[]).every((key) => a[key] === b[key]));
 
 export function createCallActivity(native: CallActivityNative) {
   let handle: CallActivityHandle | undefined;

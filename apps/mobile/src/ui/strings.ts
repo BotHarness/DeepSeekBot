@@ -1134,7 +1134,8 @@ const en = {
       'Enable local access on your computer, or set up Tailscale or Connect, then get a new code.',
     'offer-invalid': 'This code was already used. Show a new code on your computer.',
     'offer-expired': 'This code has expired. Show a new code on your computer.',
-    'storage-failure': 'Could not save the pairing on this phone. Show a new code and try again.',
+    'storage-failure':
+      'Could not save the pairing on this phone. Check that it has free storage, then show a new code and try again.',
     cancelled: 'Pairing was cancelled.',
     unknown: 'Could not pair. Show a new code and try again.',
     unreachable: `Cannot reach your computer. Check that it is awake with ${productName.en} open, and that this phone is on the same Wi-Fi or tailnet, then retry.`,
@@ -1162,6 +1163,9 @@ const en = {
   } satisfies Partial<Record<PairingFailure, string>>,
   unpair: 'Unpair',
   unpairFailed: 'Could not unpair:',
+  savedComputersErrorDetail: (detail: string) => `Error details: ${detail}`,
+  savedComputersKeychainFailed:
+    'This phone could not save the change. Its storage may be full: free up space in Settings → General → iPhone Storage, keep the phone unlocked and try again.',
   exitWebMode: 'Exit web mode',
   exitWebModeHint: 'Hold for help. Drag to move.',
   inbox: 'Activity',
@@ -1832,6 +1836,12 @@ const en = {
     duration: (text: string) => `Call time ${text}`,
     minimize: 'Minimize',
     paused: 'Paused',
+    noticeChannel: 'Bot calls',
+    notificationsOff:
+      'Notifications are off. The call keeps going, but won’t show outside the app.',
+    overlayOff: 'Turn on Display over other apps to keep the call bubble when you leave the app.',
+    overlayTurnOn: 'Turn on',
+    overlayNotNow: 'Not now',
     bubble: (name: string, status: string, time: string | undefined) =>
       `Back to call with ${name}. ${status}${time === undefined ? '' : `. ${time}`}`,
     heard: (text: string) => `Heard: ${text}`,
@@ -3476,7 +3486,8 @@ const zh: typeof en = {
     'no-route': '请在电脑上开启局域网连接，或设置 Tailscale、Connect，然后获取新二维码。',
     'offer-invalid': '这个二维码已经用过了，请在电脑上换一个。',
     'offer-expired': '二维码已失效，请在电脑上换一个。',
-    'storage-failure': '在手机上保存配对失败，请在电脑上换一个二维码后重试。',
+    'storage-failure':
+      '在手机上保存配对失败。请确认手机存储空间充足，然后在电脑上换一个二维码重试。',
     cancelled: '已取消配对。',
     unknown: '无法配对，换一个二维码后重试。',
     unreachable: `连不上你的电脑。请确认电脑未休眠且已打开 ${productName.zh}，手机与电脑在同一 Wi-Fi 或 tailnet 中，然后重试。`,
@@ -3503,6 +3514,9 @@ const zh: typeof en = {
   },
   unpair: '取消配对',
   unpairFailed: '取消配对失败：',
+  savedComputersErrorDetail: (detail: string) => `错误详情：${detail}`,
+  savedComputersKeychainFailed:
+    '这台手机暂时无法保存更改，可能是存储空间已满。请在“设置 → 通用 → iPhone 储存空间”中清理空间，保持手机解锁后重试。',
   exitWebMode: '退出网页模式',
   exitWebModeHint: '按住查看说明，拖动可移开。',
   inbox: '活动',
@@ -4144,6 +4158,11 @@ const zh: typeof en = {
     duration: (text: string) => `通话时长 ${text}`,
     minimize: '最小化',
     paused: '已暂停',
+    noticeChannel: 'Bot 通话',
+    notificationsOff: '通知已关闭。通话会继续，但离开 App 后看不到它。',
+    overlayOff: '开启“显示在其他应用的上层”，离开 App 后通话悬浮球仍会显示。',
+    overlayTurnOn: '去开启',
+    overlayNotNow: '暂不',
     bubble: (name: string, status: string, time: string | undefined) =>
       `回到与 ${name} 的通话，${status}${time === undefined ? '' : `，${time}`}`,
     heard: (text: string) => `听到：${text}`,

@@ -201,3 +201,10 @@ export function parseEncryption(input: unknown): HostEncryption | undefined {
       }
     : undefined;
 }
+
+export class SavedHostsWriteError extends Error {
+  constructor(override readonly cause: unknown) {
+    super(cause instanceof Error ? cause.message : String(cause));
+    this.name = 'SavedHostsWriteError';
+  }
+}
