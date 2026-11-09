@@ -160,8 +160,9 @@ export const TELEMETRY_EVENTS = {
   },
   'search:switcher_open': {
     origin: 'client',
-    description: 'The quick switcher (search Channels, messages and settings) opened.',
-    properties: SURFACE,
+    description:
+      'The quick switcher (search Channels, messages and settings) opened, from its keyboard shortcut or the control-rail Search button.',
+    properties: { source: ['shortcut', 'rail'], ...SURFACE },
   },
   'search:result_open': {
     origin: 'client',
