@@ -30,6 +30,7 @@ import type { ClientState } from './store.js';
 import { BotIcon } from './bot-icon.js';
 import { ExitIcon } from './exit-icon.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { RailSearchButton } from './rail-search-button.js';
 import { PinnedPanelCards } from './pinned-panel-cards.js';
 import { useChannelDockActive, useChannelsHeader } from './channel-dock.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -288,6 +289,7 @@ function WorkspaceRail({
     keepOpen: true,
     onSelect: (id) => setControlVisible(id, hiddenControls.includes(id)),
   });
+  const launcher = options.quickSwitcherSettings?.launcher;
   const [menu, setMenu] = useState(false);
   const [settingsTarget, setSettingsTarget] = useState<HTMLDivElement | null>(null);
   const settingsMount = useMountedResource<HTMLSpanElement>(
@@ -445,6 +447,9 @@ function WorkspaceRail({
 
       <MobileAppsEntry t={t} />
       <DiagnosticLogsEntry t={t} />
+      {launcher ? (
+        <RailSearchButton launcher={launcher} bindings={options.shortcutBindings} t={t} />
+      ) : null}
       <Tooltip label={t('panel.settings')} side="right">
         <button aria-label={t('panel.settings')} onClick={() => options.openBotSettings()}>
           <ChannelSidebarIcon name="settings" />

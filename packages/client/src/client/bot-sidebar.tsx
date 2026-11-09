@@ -1368,6 +1368,7 @@ export function BotSidebar({
   const navigationIdsRef = useRef<readonly string[]>([]);
   navigationIdsRef.current = [...railPinnedChannels, ...railChannels].map((channel) => channel.id);
   const dragActiveRef = useRef(false);
+  const launcher = quickSwitcherSettings?.launcher;
   const rosterMount = useMountedResource<HTMLDivElement>(() => {
     const acceptDrag = (event: DragEvent): void => {
       if (!dragActiveRef.current) return;
@@ -1477,8 +1478,13 @@ export function BotSidebar({
       event.preventDefault();
       setShowShortcutHints(false);
       setQuickSwitcherOpen(true);
-      actions.telemetryEvent('search:switcher_open');
+      actions.telemetryEvent('search:switcher_open', { source: 'shortcut' });
     };
+    const stopLauncher = launcher?.subscribe((source) => {
+      setShowShortcutHints(false);
+      setQuickSwitcherOpen(true);
+      actions.telemetryEvent('search:switcher_open', { source });
+    });
     document.addEventListener('keydown', onChannelShortcut);
     document.addEventListener('keydown', onConversationStep);
     document.addEventListener('keydown', onQuickSwitcher);
@@ -1493,11 +1499,12 @@ export function BotSidebar({
       document.removeEventListener('keydown', onChannelShortcut);
       document.removeEventListener('keydown', onConversationStep);
       document.removeEventListener('keydown', onQuickSwitcher);
+      stopLauncher?.();
       document.removeEventListener('dragover', acceptDrag);
       document.removeEventListener('drop', acceptDrop);
       if (pinZoneArmTimer.current !== undefined) window.clearTimeout(pinZoneArmTimer.current);
     };
-  }, [actions, shortcutBindings]);
+  }, [actions, shortcutBindings, launcher]);
   const shortcutFor = (channelId: string): string | undefined =>
     webChannelShortcutLabel(shortcutIds.indexOf(channelId));
   const hiddenItems: HiddenChannelItem[] = hiddenChannelSequence(

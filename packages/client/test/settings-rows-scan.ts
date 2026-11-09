@@ -96,7 +96,6 @@ function translationKey(value: Node | undefined): string | undefined {
   return named && first?.type === 'StringLiteral' ? (first.value as string) : undefined;
 }
 
-/** Every `SettingsRow` statically reachable from a component, by its title key. */
 export function scanSettingsRows(file: string, component: string): ScannedRow[] {
   const rows: ScannedRow[] = [];
   const seen = new Set<string>();
@@ -133,7 +132,6 @@ export function scanSettingsRows(file: string, component: string): ScannedRow[] 
   return rows;
 }
 
-/** Bot settings sections registered by the Client entry: section id → root component. */
 export function registeredSections(): { id: string; component: string }[] {
   const entry = resolve(CLIENT, 'index.ts');
   const sectionIds = Object.fromEntries(

@@ -107,7 +107,6 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
   ],
 };
 
-/** A row's description, searched with a lower rank than its title and synonyms. */
 export const SETTINGS_DESCRIPTIONS: Partial<Record<BotHarnessKey, BotHarnessKey>> = {
   'zoom.current': 'zoom.current.description',
   'zoom.default': 'zoom.default.description',
@@ -193,7 +192,6 @@ export const PLUGIN_INDEX: Readonly<Record<string, readonly { zh: string; en: st
   ],
 };
 
-/** Words Humans search with that the row's title does not contain. */
 const SEARCH_ALIASES: Partial<Record<BotHarnessKey, string>> = {
   'onboarding.settings.title':
     '引导 新手引导 新手 教程 重新开始 重看 继续 开始 导览 onboarding tutorial tour walkthrough guide restart replay',
@@ -236,7 +234,6 @@ const SEARCH_ALIASES: Partial<Record<BotHarnessKey, string>> = {
   'companion.speechSound': 'sound audio 声音',
 };
 
-/** Descriptions match plain substrings only: pinyin initials would hit most long sentences. */
 function describes(text: string, term: string): boolean {
   const score = searchTextScore(text, term);
   return score !== undefined && score <= 3;

@@ -203,7 +203,6 @@ it('does not match descriptions by pinyin initials', () => {
 });
 
 it('every row registered Bot settings sections render is searchable by its title and description', () => {
-  // State and notice rows that are not settings a Human looks for.
   const notSettings = new Set([
     'accountProfile.loadFailed',
     'accountProfile.signInHint',
