@@ -62,6 +62,7 @@ function mount(
   empty = false,
   animateScroll = false,
   inverted = false,
+  nativeFollow = false,
 ) {
   const following = vi.fn();
   const scrollToOffset = vi.fn();
@@ -77,6 +78,7 @@ function mount(
       animateScroll,
       0,
       inverted,
+      nativeFollow,
     );
     return null;
   }
@@ -817,6 +819,29 @@ it('animates settled streaming growth without unchanged callbacks snapping the a
     act(() => view.current.listProps.onContentSizeChange(0, CONTENT + 120));
     flushFrames();
     expect(view.scrollToOffset).not.toHaveBeenCalled();
+  } finally {
+    view.unmount();
+  }
+});
+
+it('leaves settled growth to the native latest anchor but still pins the first placement', () => {
+  const view = mount([message('latest', 'bot')], 0, false, true, false, true);
+  try {
+    act(() => {
+      view.current.listProps.onLayout(layout(LAYOUT));
+      view.current.listProps.onContentSizeChange(0, CONTENT);
+    });
+    flushFrames();
+    expect(view.scrollToOffset).toHaveBeenCalledWith({ offset: END, animated: false });
+    act(() => view.current.listProps.onScroll(event(0)));
+    flushFrames();
+    expect(view.current.ready).toBe(true);
+    view.scrollToOffset.mockClear();
+    act(() => view.current.listProps.onContentSizeChange(0, CONTENT + 60));
+    flushFrames();
+    expect(view.scrollToOffset).not.toHaveBeenCalled();
+    act(() => view.current.jumpToLatest());
+    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END + 60, animated: true });
   } finally {
     view.unmount();
   }

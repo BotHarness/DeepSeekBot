@@ -1564,7 +1564,7 @@ deepseekbot connect-account-revoke <host-id> --confirm --host <host> --token-fil
 relay at `https://connect.botharness.ai` publishes (`DEEPSEEKBOT_CONNECT_RELAY` overrides it). The
 reply carries `userCode` and `verificationUri`; with `--wait` the CLI prints them to stderr and waits
 until the Host finishes. The Host then stores only the refresh token in the DSH credential store,
-links itself to the account (at most five Hosts per account), asks the relay for its tunnel and runs
+links itself to the account (at most three Hosts per account), asks the relay for its tunnel and runs
 it as `connect-enable` would, with no hand-made token. While signed in it asks the relay again when
 the tunnel stops, so a tunnel the relay reclaimed after the Host was offline comes back on the same
 `<host-id>.deepseekbot.dev`. `connect-status` adds `connect.account` with `state` (`signed-out`,
@@ -1574,6 +1574,14 @@ the tunnel stops, so a tunnel the relay reclaimed after the Host was offline com
 minute; once the relay or WorkOS refuses the session (for example after `DELETE /v1/account`), it
 stops the tunnel, retires the stored session and reports `error` with `session-revoked` for a relay
 `401 session-revoked`, or `session-expired` for other session refusals.
+`connect.account.pool` gives the shared tunnel pool: `capacity`, `inUse`, `free`, `waiting`,
+`guaranteedMinutes` (how long a new tunnel is kept while its computer is online, 30 by default) and, when no
+tunnel is free, `nextFreeAt` (the earliest time a tunnel can be released). While signed in,
+`protectedUntil` is when this Host's own tunnel could first be given to someone waiting; any use
+from a paired phone pushes it back. When the pool is full the account reports `error` with
+`relay-full`, `recovery: automatic` and `wait` (`reason` `pool-full`, `zone-full` or `queued`,
+`position` in the first-come queue, `retryAfter` seconds and `since`); the Host retries on its own
+([ADR-0313](adr/0313-connect-tunnels-share-a-multi-zone-pool-with-eviction.md)).
 `connect-sign-out` unlinks the Host at the relay, stops the tunnel and
 deletes the session. Any signed-in account can link Hosts.
 
@@ -1583,7 +1591,7 @@ For account errors, `connect.account.recovery` distinguishes `automatic` (a save
 when linked. Rows contain only `id`, `name`, `hostname`, `createdAt`, optional `connected`, `current`
 and `sessionKnown`; an absent connection value means unknown. It does not add a relay request to
 the Devices snapshot poll. A saved account session can list computers even when this computer is
-blocked by the five-computer limit.
+blocked by the three-computer limit.
 
 `connect-account-revoke` requires `--confirm` and refuses `current-host` before making a relay
 request. Use `connect-sign-out` for this computer. The relay tombstones the other computer's

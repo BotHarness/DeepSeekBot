@@ -12,7 +12,7 @@ import {
 } from './mic-device.js';
 import { Note } from './ds/note.js';
 import { Select } from './ds/select.js';
-import { SettingsRow, SettingsSection } from './ds/settings-row.js';
+import { StatusGroup, StatusList, StatusListRow } from './ds/status-block.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -201,121 +201,132 @@ export function VoiceMicTest({
     if (draft !== undefined && draft !== threshold.dbfs) commit(draft);
   };
   return (
-    <SettingsSection title={t('voice.mic.section')} description={t('voice.mic.sectionHint')}>
-      <SettingsRow
-        rootRef={listMount}
-        title={t('voice.mic.device')}
-        description={
-          fellBack
-            ? t('voice.mic.fellBack')
-            : devices.length > 0 && devices.every((item) => item.label === '')
-              ? t('voice.mic.labelsHint')
-              : t('voice.mic.deviceHint')
-        }
-        data={{ 'data-voice-mic-device': '' }}
-        control={
-          <Select
-            label={t('voice.mic.device')}
-            value={device ?? SYSTEM_DEFAULT}
-            options={[
-              { value: SYSTEM_DEFAULT, label: t('voice.mic.systemDefault') },
-              ...devices.map((item, index) => ({
-                value: item.id,
-                label: item.label || t('voice.mic.unnamed', { number: index + 1 }),
-              })),
-            ]}
-            onChange={(next) => {
-              const id = next === SYSTEM_DEFAULT ? undefined : next;
-              writeMicDevice(id);
-              setDevice(id);
-              setFellBack(false);
-            }}
-          />
-        }
-      />
-      <SettingsRow
-        rootRef={meterMount}
-        title={t('voice.mic.title')}
-        description={t('voice.mic.description')}
-        data={{ 'data-voice-mic-test': '' }}
-        control={
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setProblem(undefined);
-              if (!running && typeof AudioContext === 'function') {
-                const audio = new AudioContext();
-                void audio.resume().catch(() => undefined);
-                unlocked.current = audio;
+    <StatusGroup title={t('voice.mic.section')} info={t('voice.mic.sectionHint')}>
+      <StatusList>
+        {[
+          <div key="device" ref={listMount}>
+            <StatusListRow
+              title={t('voice.mic.device')}
+              info={t('voice.mic.deviceHint')}
+              tone={fellBack ? 'warning' : 'neutral'}
+              meta={
+                fellBack
+                  ? t('voice.mic.fellBack')
+                  : devices.length > 0 && devices.every((item) => item.label === '')
+                    ? t('voice.mic.labelsHint')
+                    : undefined
               }
-              setRunning(!running);
-            }}
+              data={{ 'data-voice-mic-device': '' }}
+              action={
+                <Select
+                  label={t('voice.mic.device')}
+                  value={device ?? SYSTEM_DEFAULT}
+                  options={[
+                    { value: SYSTEM_DEFAULT, label: t('voice.mic.systemDefault') },
+                    ...devices.map((item, index) => ({
+                      value: item.id,
+                      label: item.label || t('voice.mic.unnamed', { number: index + 1 }),
+                    })),
+                  ]}
+                  onChange={(next) => {
+                    const id = next === SYSTEM_DEFAULT ? undefined : next;
+                    writeMicDevice(id);
+                    setDevice(id);
+                    setFellBack(false);
+                  }}
+                />
+              }
+            />
+          </div>,
+          <div key="test" ref={meterMount}>
+            <StatusListRow
+              title={t('voice.mic.title')}
+              info={t('voice.mic.description')}
+              data={{ 'data-voice-mic-test': '' }}
+              open
+              action={
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setProblem(undefined);
+                    if (!running && typeof AudioContext === 'function') {
+                      const audio = new AudioContext();
+                      void audio.resume().catch(() => undefined);
+                      unlocked.current = audio;
+                    }
+                    setRunning(!running);
+                  }}
+                >
+                  {running ? t('voice.mic.stop') : t('voice.mic.start')}
+                </Button>
+              }
+            >
+              <div {...stylex.props(styles.meterLine)}>
+                <div
+                  {...stylex.props(styles.meter)}
+                  role="meter"
+                  aria-label={t('voice.mic.level')}
+                  aria-valuemin={METER_FLOOR_DBFS}
+                  aria-valuemax={0}
+                >
+                  <div ref={fill} {...stylex.props(styles.fill)} />
+                  <div {...stylex.props(styles.marker)} style={{ insetInlineStart: marker }} />
+                </div>
+                <span {...stylex.props(styles.readout)}>
+                  <span ref={readout}>{running ? '…' : t('voice.mic.idle')}</span>
+                  <span ref={speech} />
+                </span>
+              </div>
+              {using === undefined ? null : (
+                <Note tone="muted">{t('voice.mic.using', { name: using })}</Note>
+              )}
+              {problem === undefined ? null : (
+                <Note tone="danger">
+                  {problem === 'denied' ? t('voice.mic.denied') : t('voice.mic.missing')}
+                </Note>
+              )}
+            </StatusListRow>
+          </div>,
+          <StatusListRow
+            key="threshold"
+            title={t('voice.mic.threshold')}
+            info={t('voice.mic.thresholdHint')}
+            data={{ 'data-voice-speech-threshold': '' }}
+            open
+            action={
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={save === undefined || busy || (!threshold.custom && draft === undefined)}
+                onClick={() => commit(null)}
+              >
+                {t('voice.mic.reset')}
+              </Button>
+            }
           >
-            {running ? t('voice.mic.stop') : t('voice.mic.start')}
-          </Button>
-        }
-      >
-        <div {...stylex.props(styles.meterLine)}>
-          <div
-            {...stylex.props(styles.meter)}
-            role="meter"
-            aria-label={t('voice.mic.level')}
-            aria-valuemin={METER_FLOOR_DBFS}
-            aria-valuemax={0}
-          >
-            <div ref={fill} {...stylex.props(styles.fill)} />
-            <div {...stylex.props(styles.marker)} style={{ insetInlineStart: marker }} />
-          </div>
-          <span {...stylex.props(styles.readout)}>
-            <span ref={readout}>{running ? '…' : t('voice.mic.idle')}</span>
-            <span ref={speech} />
-          </span>
-        </div>
-        {using === undefined ? null : (
-          <Note tone="muted">{t('voice.mic.using', { name: using })}</Note>
-        )}
-        {problem === undefined ? null : (
-          <Note tone="danger">
-            {problem === 'denied' ? t('voice.mic.denied') : t('voice.mic.missing')}
-          </Note>
-        )}
-      </SettingsRow>
-      <SettingsRow
-        title={t('voice.mic.threshold')}
-        description={t('voice.mic.thresholdHint')}
-        data={{ 'data-voice-speech-threshold': '' }}
-        control={
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={save === undefined || busy || (!threshold.custom && draft === undefined)}
-            onClick={() => commit(null)}
-          >
-            {t('voice.mic.reset')}
-          </Button>
-        }
-      >
-        <div {...stylex.props(styles.meterLine)}>
-          <input
-            {...stylex.props(styles.range)}
-            id="voice-speech-threshold"
-            aria-label={t('voice.mic.threshold')}
-            type="range"
-            min={threshold.min}
-            max={threshold.max}
-            step={1}
-            value={value}
-            disabled={save === undefined || busy}
-            onChange={(event) => setDraft(Number(event.currentTarget.value))}
-            onPointerUp={release}
-            onKeyUp={release}
-            onBlur={release}
-          />
-          <span {...stylex.props(styles.readout)}>{t('voice.mic.dbfs', { value })}</span>
-        </div>
-        {error === undefined ? null : <Note tone="danger">{error}</Note>}
-      </SettingsRow>
-    </SettingsSection>
+            <div {...stylex.props(styles.meterLine)}>
+              <input
+                {...stylex.props(styles.range)}
+                id="voice-speech-threshold"
+                aria-label={t('voice.mic.threshold')}
+                type="range"
+                min={threshold.min}
+                max={threshold.max}
+                step={1}
+                value={value}
+                disabled={save === undefined || busy}
+                onChange={(event) => setDraft(Number(event.currentTarget.value))}
+                onPointerUp={release}
+                onKeyUp={release}
+                onBlur={release}
+              />
+              <span {...stylex.props(styles.readout)}>{t('voice.mic.dbfs', { value })}</span>
+            </div>
+            {error === undefined ? null : <Note tone="danger">{error}</Note>}
+          </StatusListRow>,
+        ]}
+      </StatusList>
+    </StatusGroup>
   );
 }

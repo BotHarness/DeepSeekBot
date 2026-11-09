@@ -157,6 +157,7 @@ import { MessageIdentities } from './message-identities';
 import { copyMessage, shareText } from './message-menu';
 import type { Rect } from './menu-placement';
 import { chatRows, messageGroups, type ChatRow } from './message-groups';
+import { LatestAnchor } from './latest-anchor';
 import { SpeakerAnchor } from './speaker-anchor';
 import { SPEAKER_VIEWPORT } from './speaker-span';
 import { createSpeakerRegistry, SpeakerStageContext } from './speaker-row';
@@ -537,10 +538,7 @@ function ChatConversation({
     ids: readonly string[];
   }>();
   const selected = picked?.scope === selectionScope ? picked.ids : undefined;
-  const [replying, setReplying] = useState<{
-    scope: string;
-    message: ConversationMessage;
-  }>();
+  const [replying, setReplying] = useState<{ scope: string; message: ConversationMessage }>();
   const replyTarget = replying?.scope === selectionScope ? replying.message : undefined;
   const [imageSelection, setImageSelection] = useState<{
     scope: string;
@@ -596,10 +594,7 @@ function ChatConversation({
             isViewable && item.kind === 'message' && item.message.id === attempt.message,
         )
       ) {
-        setAnchoredFocus({
-          message: attempt.message,
-          request: attempt.request,
-        });
+        setAnchoredFocus({ message: attempt.message, request: attempt.request });
         focusAttempt.current = undefined;
       }
       focusNeedsLayout.current = false;
@@ -926,14 +921,15 @@ function ChatConversation({
   const send = () => {
     if (host.connection.status !== 'connected') return;
     if (!draftPersistence.loaded || draftPersistence.failed) return;
-    const submitted = submittedMessage(draft, mentions);
+    const live = draftPersistence.read();
+    const submitted = submittedMessage(live, mentions);
     const body = submitted.body;
     const tags =
       replyTarget === undefined ? submitted.tags : { ...submitted.tags, replyTo: replyTarget.id };
     if ((body === '' && files.length === 0) || conversation === undefined) return;
     if (tags.allBotMention?.preview.recipients.length === 0) return;
     if (dictation.state.status !== 'idle') dictation.cancel();
-    setDraft('');
+    draftPersistence.take(live);
     setMentions([]);
     setFiles([]);
     setReplying(undefined);
@@ -1389,22 +1385,10 @@ function ChatConversation({
       }
     : (paging?.open ?? pushProfile);
   const swipeProfile = dm
-    ? () =>
-        router.push({
-          ...profileHref,
-          params: { ...profileHref.params, entry: swipeEntry },
-        })
+    ? () => router.push({ ...profileHref, params: { ...profileHref.params, entry: swipeEntry } })
     : botDm
-      ? () =>
-          router.push({
-            ...pairHref,
-            params: { ...pairHref.params, entry: swipeEntry },
-          })
-      : () =>
-          router.push({
-            ...groupHref,
-            params: { ...groupHref.params, entry: swipeEntry },
-          });
+      ? () => router.push({ ...pairHref, params: { ...pairHref.params, entry: swipeEntry } })
+      : () => router.push({ ...groupHref, params: { ...groupHref.params, entry: swipeEntry } });
   const headerStatus = useHeaderStatus(dm ? bot : undefined, channel, members);
   const title = dm ? (
     <ChatTitle
@@ -1448,12 +1432,7 @@ function ChatConversation({
                 onPress: placeCall,
               },
             ]),
-        {
-          icon: 'more',
-          label: t.openProfile,
-          testID: 'chat-profile-button',
-          onPress: openProfile,
-        },
+        { icon: 'more', label: t.openProfile, testID: 'chat-profile-button', onPress: openProfile },
       ]}
     />
   ) : null;
@@ -1631,10 +1610,7 @@ function ChatConversation({
                                 type: 'button' as const,
                                 label: t.openProfile,
                                 identifier: 'chat-profile-button',
-                                icon: {
-                                  type: 'sfSymbol' as const,
-                                  name: 'ellipsis' as const,
-                                },
+                                icon: { type: 'sfSymbol' as const, name: 'ellipsis' as const },
                                 sharesBackground: placeCall !== undefined,
                                 onPress: openProfile,
                               },
@@ -1645,10 +1621,7 @@ function ChatConversation({
                                       type: 'button' as const,
                                       label: t.call.button,
                                       identifier: 'chat-call-button',
-                                      icon: {
-                                        type: 'sfSymbol' as const,
-                                        name: 'phone' as const,
-                                      },
+                                      icon: { type: 'sfSymbol' as const, name: 'phone' as const },
                                       sharesBackground: true,
                                       onPress: placeCall,
                                     },
@@ -1833,10 +1806,7 @@ function ChatConversation({
                         }
                         onDictate={() => {
                           setAttachError(false);
-                          dictation.start({
-                            text: draft,
-                            ...(typing ? { caret } : {}),
-                          });
+                          dictation.start({ text: draft, ...(typing ? { caret } : {}) });
                         }}
                         onStopDictation={dictation.stop}
                         onCancelDictation={dictation.cancel}
@@ -1871,11 +1841,7 @@ function ChatConversation({
                           <Animated.FlatList
                             inverted={android}
                             {...(android
-                              ? {
-                                  initialNumToRender: 6,
-                                  maxToRenderPerBatch: 6,
-                                  windowSize: 5,
-                                }
+                              ? { initialNumToRender: 6, maxToRenderPerBatch: 6, windowSize: 5 }
                               : {})}
                             ref={attachList}
                             renderScrollComponent={latest.renderScrollComponent}
@@ -1952,10 +1918,7 @@ function ChatConversation({
                               focusCancelled.current = true;
                               focusAttempt.current = undefined;
                               if (android)
-                                setAnchoredFocus({
-                                  message: focus,
-                                  request: focusRequest,
-                                });
+                                setAnchoredFocus({ message: focus, request: focusRequest });
                               pull.onScrollBeginDrag(event);
                               latest.listProps.onScrollBeginDrag();
                             }}
@@ -1983,6 +1946,16 @@ function ChatConversation({
                                 ? 16
                                 : 32
                             }
+                            {...{
+                              [android ? 'ListHeaderComponent' : 'ListFooterComponent']:
+                                LatestAnchor === undefined ? undefined : (
+                                  <LatestAnchor
+                                    following={latest.ready && !latest.away}
+                                    animated={!latest.reducedMotion}
+                                    style={{ height: 0 }}
+                                  />
+                                ),
+                            }}
                             keyboardDismissMode={ios ? 'interactive' : 'on-drag'}
                             keyboardShouldPersistTaps="handled"
                             {...{
@@ -2008,10 +1981,7 @@ function ChatConversation({
                                   <Text
                                     variant="meta"
                                     tone="muted"
-                                    style={{
-                                      textAlign: 'center',
-                                      padding: space.x5,
-                                    }}
+                                    style={{ textAlign: 'center', padding: space.x5 }}
                                   >
                                     {dm ? t.beginning : t.beginningChannel}
                                   </Text>
@@ -2026,13 +1996,7 @@ function ChatConversation({
                         collapsable={false}
                         pointerEvents="box-none"
                         style={[
-                          {
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                          },
+                          { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
                           latest.overlayStyle,
                         ]}
                         onLayout={() => {
@@ -2198,21 +2162,13 @@ function ChatConversation({
               backID="chat-page-back"
               action={
                 canOpenProfile
-                  ? {
-                      label: t.openProfile,
-                      testID: 'chat-profile-button',
-                      onPress: openProfile,
-                    }
+                  ? { label: t.openProfile, testID: 'chat-profile-button', onPress: openProfile }
                   : undefined
               }
               call={
                 placeCall === undefined
                   ? undefined
-                  : {
-                      label: t.call.button,
-                      testID: 'chat-call-button',
-                      onPress: placeCall,
-                    }
+                  : { label: t.call.button, testID: 'chat-call-button', onPress: placeCall }
               }
             />
           )}

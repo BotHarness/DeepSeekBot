@@ -89,6 +89,9 @@ const usage = {
   ],
 };
 
+const cleanupCalls = (call: { mock: { calls: unknown[][] } }) =>
+  call.mock.calls.filter(([endpoint]) => endpoint !== 'storageUsage');
+
 function preview(scope: Record<string, unknown>) {
   return {
     token: 'reviewed',
@@ -207,9 +210,11 @@ describe('StorageSettings', () => {
     const view = await render(call);
     try {
       await view.open();
-      expect(view.host.querySelector('[data-storage-total]')?.textContent).toBe('共占用 8.0 MB');
       expect(
-        Array.from(view.host.querySelectorAll('[data-storage-part]')).map(
+        view.host.querySelector('[data-storage-usage] [data-storage-total]')?.textContent,
+      ).toBe('共占用 8.0 MB');
+      expect(
+        Array.from(view.host.querySelectorAll('[data-storage-usage] [data-storage-part]')).map(
           (node) => node.textContent,
         ),
       ).toEqual(['图片和文件 6.0 MB', '聊天记录 1.0 MB', '记忆 512.0 KB', '其他 512.0 KB']);
@@ -222,7 +227,7 @@ describe('StorageSettings', () => {
       await act(async () => view.checkbox('Team').click());
       await act(async () => view.checkbox('文件').click());
       await view.press(view.host.querySelector<HTMLButtonElement>('[data-storage-review]')!);
-      const [endpoint, scope] = call.mock.calls[1]!;
+      const [endpoint, scope] = cleanupCalls(call)[0]!;
       expect(endpoint).toBe('storageCleanupPreview');
       expect(scope).toMatchObject({ channelIds: ['dm-ada'], kinds: ['image', 'video', 'audio'] });
       expect(Date.parse((scope as { before: string }).before)).toBeLessThan(
@@ -236,7 +241,7 @@ describe('StorageSettings', () => {
       expect(confirm.disabled).toBe(true);
       await act(async () => view.checkbox('我了解这些文件会被永久删除').click());
       await view.press(confirm);
-      expect(call.mock.calls[2]).toEqual([
+      expect(cleanupCalls(call)[1]).toEqual([
         'storageCleanupConfirm',
         {
           before: (scope as { before: string }).before,
@@ -269,7 +274,7 @@ describe('StorageSettings', () => {
     try {
       await view.open();
       await view.press(view.host.querySelector<HTMLButtonElement>('[data-storage-review]')!);
-      expect(call.mock.calls[1]![1]).not.toHaveProperty('channelIds');
+      expect(cleanupCalls(call)[0]![1]).not.toHaveProperty('channelIds');
       await act(async () => view.checkbox('我了解这些文件会被永久删除').click());
       await view.press(view.host.querySelector<HTMLButtonElement>('[data-storage-confirm]')!);
       expect(view.host.textContent).toContain('内容有变化，请重新预览。');
@@ -319,7 +324,7 @@ describe('StorageSettings', () => {
       ).toEqual(['dm-ada', 'group-team', 'dm-text']);
       await act(async () => view.checkbox('Team').click());
       await view.press(view.host.querySelector<HTMLButtonElement>('[data-storage-review]')!);
-      const [endpoint, scope] = call.mock.calls[1]!;
+      const [endpoint, scope] = cleanupCalls(call)[0]!;
       expect(endpoint).toBe('storageMessagesCleanupPreview');
       expect(scope).toMatchObject({ channelIds: ['dm-ada', 'dm-text'] });
       expect(scope).not.toHaveProperty('kinds');
@@ -331,7 +336,7 @@ describe('StorageSettings', () => {
       expect(view.host.textContent).toContain('还有更多旧消息');
       await act(async () => view.checkbox('我了解这些消息会被永久删除').click());
       await view.press(view.host.querySelector<HTMLButtonElement>('[data-storage-confirm]')!);
-      expect(call.mock.calls[2]).toEqual([
+      expect(cleanupCalls(call)[1]).toEqual([
         'storageMessagesCleanupConfirm',
         {
           before: (scope as { before: string }).before,

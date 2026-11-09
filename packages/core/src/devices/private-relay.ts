@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { credentialKey, type CredentialProvider } from '@deepseek-ai/dsh-credentials';
 import { WebSocket } from 'ws';
 import { CONNECT_CHANNEL_PATH } from './noise/channel.js';
+import { isConnectZoneHost } from './routes.js';
 
 export interface PrivateRelayAdmission {
   origin: string;
@@ -31,8 +32,7 @@ export function privateRelayOrigin(value: string): string | undefined {
       url.hostname === '[::1]' ||
       url.hostname.startsWith('127.') ||
       url.hostname.endsWith('.ts.net') ||
-      url.hostname === 'deepseekbot.dev' ||
-      url.hostname.endsWith('.deepseekbot.dev') ||
+      isConnectZoneHost(url.hostname) ||
       /^100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d+\.\d+$/u.test(url.hostname)
     )
       return;

@@ -116,8 +116,15 @@ export function AccountComputerRow({
   const theme = useDesignTheme();
   const glass = useLiquidGlass();
   const name = shownHostName(look, host.name);
-  const status = host.online ? t.pairAccount.online : t.pairAccount.offline;
-  const dot = computerStatusDot(theme, host.online ? 'online' : 'offline');
+  const status = host.online
+    ? t.pairAccount.online
+    : host.waiting
+      ? t.pairAccount.waiting
+      : t.pairAccount.offline;
+  const dot = computerStatusDot(
+    theme,
+    host.online ? 'online' : host.waiting ? 'checking' : 'offline',
+  );
   const actions: MenuAction[] = [
     {
       label: t.hostCustomize,
