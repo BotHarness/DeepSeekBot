@@ -275,6 +275,9 @@ describe.each(['android', 'ios'])('Empty conversation time on %s', (os) => {
         );
         expect(text).toBeDefined();
         expect(style(text!)).toMatchObject({ flexShrink: 0 });
+        expect(host.querySelector('button')!.getAttribute('aria-label')).toMatch(
+          new RegExp(`, ${time}$`),
+        );
         if (at !== undefined) expect(host.textContent).not.toContain(shortTime(createdAt, now));
       }
     },
