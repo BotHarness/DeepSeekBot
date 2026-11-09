@@ -1,7 +1,5 @@
 import {
-  createCallClient,
   readCallReadiness,
-  type CallClient,
   type CallClientMedia,
   type CallClientState,
   type CallPost,
@@ -20,7 +18,12 @@ import {
 } from '../../../core/src/voice/call-view.js';
 import type { CallVisualSource } from '../../../core/src/voice/keyframes.js';
 import {
-  CallCameraError,
+  createCallSession,
+  type CallCapture,
+  type CallSession,
+  type CallVisualState,
+} from '../../../core/src/voice/call-session.js';
+import {
   createBrowserCallCamera,
   type CallCamera,
   type CallCameraKeyframe,
@@ -127,6 +130,21 @@ export function createCallPost(
   };
 }
 
+interface DesktopCapture extends CallCapture {
+  readonly camera: CallCamera;
+}
+
+function desktopCapture(camera: CallCamera): DesktopCapture {
+  return {
+    camera,
+    async acquire() {
+      await camera.start();
+    },
+    run: () => camera.run(),
+    stop: () => camera.stop(),
+  };
+}
+
 export function createDesktopCall(
   options: {
     post?: CallPost;
@@ -139,10 +157,8 @@ export function createDesktopCall(
   const media = options.media ?? (() => createBrowserCallMedia());
   const makeCapture =
     options.capture ?? ((source, handlers) => createBrowserCallCamera({ source, ...handlers }));
-  const clock = options.now ?? Date.now;
-  let camera: CallCamera | undefined;
   const listeners = new Set<() => void>();
-  let client: CallClient | undefined;
+  let session: CallSession<DesktopCapture, CallCaptureErrorCode> | undefined;
   let current: DesktopCallSnapshot = {
     slug: undefined,
     checking: false,
@@ -155,73 +171,20 @@ export function createDesktopCall(
     for (const listener of [...listeners]) listener();
   };
   const active = () => current.state.status === 'opening' || current.state.status === 'live';
-  const setVisual = (next: Partial<DesktopCallVisual>) =>
-    set({ visual: { ...current.visual, ...next } });
-  const stopCamera = () => {
-    camera?.stop();
-    camera = undefined;
-  };
-  const unshare = async (source: CallVisualSource) => {
-    const owned = client;
-    if (owned === undefined || current.visual.source !== source) return;
-    stopCamera();
-    setVisual({ source: 'off', stream: undefined, label: undefined });
-    await owned.visual('off');
-  };
-  const share = async (source: CallVisualSource) => {
-    const owned = client;
-    if (owned === undefined || current.state.status !== 'live' || current.visual.starting) return;
-    if (current.visual.source === source) return;
-    setVisual({ starting: true, error: undefined });
-    const started: CallCamera = makeCapture(source, {
-      onKeyframe: async (frame) => {
-        if (camera !== started || client !== owned) return;
-        setVisual({ keyframes: current.visual.keyframes + 1, keyframeAt: clock() });
-        await owned.frame(frame);
-      },
-      onEnded: () => {
-        if (camera !== started) return;
-        camera = undefined;
-        setVisual({
-          source: 'off',
-          stream: undefined,
-          label: undefined,
-          error: source === 'camera' ? 'camera-stopped' : 'screen-stopped',
-        });
-        if (client === owned) void owned.visual('off', 'stopped');
-      },
-    });
-    let stream: MediaStream;
-    try {
-      stream = await started.start();
-    } catch (error) {
-      started.stop();
-      const code = error instanceof CallCameraError ? error.code : (`${source}-missing` as const);
-      setVisual({ starting: false, error: code === 'screen-cancelled' ? undefined : code });
-      return;
-    }
-    if (client !== owned || current.state.status !== 'live') {
-      started.stop();
-      setVisual({ starting: false });
-      return;
-    }
-    const refused = await owned.visual(source);
-    if (client !== owned || (refused !== undefined && !refused.ok)) {
-      started.stop();
-      setVisual({ starting: false });
-      return;
-    }
-    stopCamera();
-    camera = started;
-    started.run();
-    setVisual({
-      source,
-      starting: false,
-      stream,
-      label: started.label(),
-      keyframes: 0,
-      keyframeAt: undefined,
-    });
+  const visualOf = (
+    owned: CallSession<DesktopCapture, CallCaptureErrorCode>,
+    visual: CallVisualState<CallCaptureErrorCode>,
+  ): DesktopCallVisual => {
+    const camera = visual.source === 'off' ? undefined : owned.capture()?.camera;
+    return {
+      source: visual.source,
+      starting: visual.starting,
+      stream: camera?.stream(),
+      label: camera?.label(),
+      keyframes: visual.keyframes,
+      keyframeAt: visual.keyframeAt,
+      error: visual.error as DesktopCallVisualError | undefined,
+    };
   };
   return {
     subscribe(listener) {
@@ -231,9 +194,8 @@ export function createDesktopCall(
     snapshot: () => current,
     async start(slug, place) {
       if (current.checking || active()) return;
-      client?.dispose();
-      client = undefined;
-      stopCamera();
+      session?.dispose();
+      session = undefined;
       set({
         slug,
         place,
@@ -255,34 +217,45 @@ export function createDesktopCall(
         });
         return;
       }
-      const owned = createCallClient({
+      const owned: CallSession<DesktopCapture, CallCaptureErrorCode> = createCallSession<
+        DesktopCapture,
+        CallCaptureErrorCode
+      >({
         post,
         media: media(),
+        ...(options.now === undefined ? {} : { now: options.now }),
+        capture: (source, events) =>
+          desktopCapture(
+            makeCapture(source, { onKeyframe: events.keyframe, onEnded: events.ended }),
+          ),
         onChange: (state) => {
-          if (client !== owned) return;
-          if (state.status === 'ended' && camera !== undefined) {
-            stopCamera();
-            set({ state, visual: { ...current.visual, source: 'off', stream: undefined } });
-            return;
-          }
-          set({ state });
+          if (session !== owned) return;
+          set({
+            state: state.call,
+            visual: visualOf(owned, state.visual as CallVisualState<CallCaptureErrorCode>),
+          });
         },
       });
-      client = owned;
+      session = owned;
       set({ checking: false });
-      await owned.open(slug);
+      await owned.client.open(slug);
     },
     async mute(muted) {
-      await client?.mute(muted);
+      await session?.client.mute(muted);
     },
-    camera: (on) => (on ? share('camera') : unshare('camera')),
-    screen: (on) => (on ? share('screen') : unshare('screen')),
+    camera: async (on) => {
+      if (on) await session?.share('camera');
+      else await session?.unshare('camera');
+    },
+    screen: async (on) => {
+      if (on) await session?.share('screen');
+      else await session?.unshare('screen');
+    },
     dismissVisual() {
-      if (current.visual.error !== undefined) setVisual({ error: undefined });
+      session?.dismissVisual();
     },
     async hangup() {
-      stopCamera();
-      await client?.hangup();
+      await session?.hangup();
       set({ block: undefined, state: { status: 'idle' }, visual: DESKTOP_CALL_VISUAL_OFF });
     },
     dismiss() {

@@ -4,17 +4,11 @@ import { useRouter } from 'expo-router';
 import { useMemo, useRef, useSyncExternalStore } from 'react';
 import { AppState, View } from 'react-native';
 
-import {
-  createCallClient,
-  type CallClientState,
-} from '../../../../../packages/core/src/voice/call-client';
+import type { CallClientState } from '../../../../../packages/core/src/voice/call-client';
+import { createCallSession } from '../../../../../packages/core/src/voice/call-session';
 import { callLiveView } from '../../../../../packages/core/src/voice/call-view';
 import { createCallPost } from '../../host/call-post';
-import {
-  PhoneCallCameraFailure,
-  createPhoneCallCamera,
-  type CallCameraPosition,
-} from '../../host/call-camera';
+import { createPhoneCallCamera, type CallCameraPosition } from '../../host/call-camera';
 import { createCallMedia, microphoneAccess, microphoneGranted } from '../../host/call-media';
 import { askCallNotifications, callOverlayAllowed } from '../../host/call-notice';
 import { retainHostConnection, useHostSession, useHostSnapshot } from '../../host/host-session';
@@ -32,6 +26,7 @@ import { useMounted } from '../mounted';
 import { locale } from '../strings';
 import { createCallActivity, type CallActivityPalette } from './call-activity';
 import { CallBubble } from './call-bubble';
+import { createPhoneCameraShare, phoneCameraState } from './call-camera-share';
 import { callActivityPhase } from './call-model';
 import {
   CALL_CAMERA_OFF,
@@ -170,17 +165,22 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
       showActivity();
     });
     let cameraState: CallCameraState = CALL_CAMERA_OFF;
-    const setCamera = (patch: Partial<CallCameraState>) => {
-      cameraState = { ...cameraState, ...patch };
-      if (!cancelled) callSessions.publish(key, { camera: cameraState });
-    };
-    let stopCamera = () => undefined as void;
-    const call = createCallClient({
+    let position: CallCameraPosition = 'front';
+    const share = createPhoneCameraShare(() => camera);
+    const call = createCallSession({
       post: createCallPost(client),
       media,
       emit: 'visible-changes',
-      onChange: (next) => {
+      capture: share.capture,
+      onChange: ({ call: next, visual }) => {
         if (cancelled) return;
+        const nextCamera = phoneCameraState(visual, position);
+        const cameraChanged = JSON.stringify(nextCamera) !== JSON.stringify(cameraState);
+        cameraState = nextCamera;
+        if (next === current) {
+          if (cameraChanged) callSessions.publish(key, { camera: cameraState });
+          return;
+        }
         current = next;
         const view = callLiveView(next);
         if (view?.connected === true) connectedAt ??= Date.now() - view.durationMs;
@@ -188,14 +188,10 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
           releaseConnection?.();
           releaseConnection = undefined;
           paused = false;
-          if (cameraState.on) {
-            stopCamera();
-            cameraState = CALL_CAMERA_OFF;
-            callSessions.publish(key, { camera: cameraState });
-          }
         }
         callSessions.publish(key, {
           state: next,
+          ...(cameraChanged ? { camera: cameraState } : {}),
           ...(connectedAt === undefined ? {} : { startedAt: connectedAt }),
           ...(next.status === 'ended' ? { interrupted: false } : {}),
         });
@@ -210,69 +206,32 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
     });
     const camera = createPhoneCallCamera({
       onKeyframe: async (frame) => {
-        if (cancelled || !cameraState.on) return;
-        setCamera({
-          keyframes: cameraState.keyframes + 1,
-          keyframeAt: Date.now(),
-        });
-        if (testAudio) mark('keyframe', { bytes: frame.bytes, prepareMs: frame.prepareMs });
-        await call.frame(frame);
+        if (testAudio && !cancelled)
+          mark('keyframe', { bytes: frame.bytes, prepareMs: frame.prepareMs });
+        await share.keyframe(frame);
       },
-      onPause: (paused) => {
-        if (cancelled || !cameraState.on || cameraState.paused === paused) return;
-        setCamera({ paused });
-        if (testAudio) mark('camera', { paused });
-        void call.visual(paused ? 'off' : 'camera', paused ? 'paused' : 'resumed');
+      onPause: (next) => {
+        if (testAudio && !cancelled) mark('camera', { paused: next });
+        share.pause(next);
       },
     });
     callSessions.publish(key, { cameraSupported: camera !== undefined });
-    stopCamera = () => camera?.stop();
-    const turnCamera = async (on: boolean, position: CallCameraPosition, testVideo?: string) => {
-      if (camera === undefined || current.status !== 'live' || cameraState.starting) return;
+    const turnCamera = async (on: boolean, next: CallCameraPosition, testVideo?: string) => {
+      if (camera === undefined) return;
       if (!on) {
-        if (!cameraState.on) return;
-        camera.stop();
-        setCamera({ on: false, paused: false });
-        await call.visual('off');
+        await call.unshare('camera');
         return;
       }
-      setCamera({ starting: true, error: undefined });
-      const accepted = cameraState.on ? undefined : await call.visual('camera');
-      if (accepted !== undefined && !accepted.ok) {
-        setCamera({ starting: false });
-        return;
-      }
-      try {
-        await camera.start(position, testVideo);
-      } catch (error) {
-        camera.stop();
-        const code = error instanceof PhoneCallCameraFailure ? error.code : 'camera-missing';
-        setCamera(CALL_CAMERA_OFF);
-        if (code === 'camera-cancelled') return;
-        setCamera({ ...CALL_CAMERA_OFF, error: code });
-        await call.visual('off');
-        return;
-      }
-      if (cancelled) {
-        camera.stop();
-        return;
-      }
-      if (current.status !== 'live') {
-        camera.stop();
-        setCamera(CALL_CAMERA_OFF);
-        return;
-      }
-      setCamera({
-        on: true,
-        starting: false,
-        paused: false,
-        position,
-        ...(cameraState.on ? {} : { keyframes: 0, keyframeAt: undefined }),
-      });
+      share.aim(next, testVideo);
+      const shared = await call.share('camera', { restart: cameraState.on });
+      if (!shared || cancelled) return;
+      position = next;
+      cameraState = { ...cameraState, position };
+      callSessions.publish(key, { camera: cameraState });
       if (testAudio) mark('camera', { on: true, position, test: testVideo !== undefined });
     };
     const detach = callSessions.attach(key, {
-      mute: (muted) => void call.mute(muted),
+      mute: (muted) => void call.client.mute(muted),
       hangup: () => void call.hangup(),
       choose: async (output, microphone) => (await media.audio?.choose(output, microphone)) ?? null,
       ...(media.audio?.mode
@@ -298,10 +257,10 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
       showActivity();
       if (testAudio) mark('audio', event);
     });
-    call.background(AppState.currentState === 'background');
+    call.client.background(AppState.currentState === 'background');
     const appState = AppState.addEventListener('change', (next) => {
       if (next !== 'active' && next !== 'background') return;
-      call.background(next === 'background');
+      call.client.background(next === 'background');
       if (testAudio) mark('app-state', { state: next });
     });
     const removeActions = onCallActivityAction((action) => {
@@ -317,7 +276,7 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
               ...(request.hostId === undefined ? {} : { hostId: request.hostId }),
             },
           });
-      } else if (current.status === 'live') void call.mute(!current.muted);
+      } else if (current.status === 'live') void call.client.mute(!current.muted);
     });
     void (async () => {
       const access = await microphoneAccess();
@@ -327,7 +286,7 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
       await callAudioPreference.ready;
       if (cancelled) return;
       releaseConnection = retainHostConnection(client);
-      await call.open(slug);
+      await call.client.open(slug);
       const opened = await media.audio?.state();
       if (!cancelled && opened !== undefined && opened !== null)
         callSessions.publish(key, { audioRoute: opened });
@@ -369,7 +328,6 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
       }
     })();
     return () => {
-      camera?.stop();
       detach();
       removeTap?.();
       removeAudio?.();
