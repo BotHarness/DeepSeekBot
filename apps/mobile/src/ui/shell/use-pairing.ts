@@ -115,7 +115,12 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
         }
         const existing = hostSession.getState().hosts.find((saved) => saved.hostId === host.hostId);
         if (existing?.credential === host.credential) {
-          await hostSession.updateRoutes(host.hostId, host.credential, host.routes);
+          await hostSession.updateRoutes(
+            host.hostId,
+            host.credential,
+            host.routes,
+            host.encryption?.privateRelay,
+          );
           return;
         }
         if (

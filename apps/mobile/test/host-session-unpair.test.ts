@@ -616,3 +616,34 @@ it.each([false, true])(
     expect(clearedCaches).toEqual(['old']);
   },
 );
+
+it('keeps a private-tunnel Computer saved after authenticated address recovery moves it', async () => {
+  const token = 'b'.repeat(64);
+  const privateHost = {
+    ...host('old'),
+    routes: ['https://old-quick.trycloudflare.com'],
+    encryption: {
+      protocol: 'connect-noise-xk-v1',
+      hostKey: 'c'.repeat(64),
+      deviceKey: 'd'.repeat(64),
+      privateRelay: { origin: 'https://old-quick.trycloudflare.com', token },
+    },
+  };
+  secure.set(
+    'deepseekbot.hosts.v3',
+    JSON.stringify({ hosts: [privateHost, host('new')], current: 'new' }),
+  );
+  const { hostSession } = await import('../src/host/host-session');
+  await vi.waitFor(() => expect(hostSession.getState().hosts).toHaveLength(2));
+  const origin = 'https://new-quick.trycloudflare.com';
+  await hostSession.updateRoutes('old', 'cred-old', [origin], { origin, token });
+  const moved = {
+    ...privateHost,
+    routes: [origin],
+    encryption: { ...privateHost.encryption, privateRelay: { origin, token } },
+  };
+  expect(parseSavedHosts(secure.get('deepseekbot.hosts.v3'))).toEqual({
+    hosts: [moved, host('new')],
+    current: 'new',
+  });
+});

@@ -1,0 +1,41 @@
+# 使用自己的代理或隧道
+
+如果你已经有反向代理或隧道，Tobs 可以直接使用它，不必用内置的 Cloudflare 选项。只要满足下面的**入站标准**就能接入，就像任何 S3 兼容服务都能用 S3 客户端一样。
+
+## 入站标准
+
+你的代理需要：
+
+1. 提供一个手机能访问的 HTTPS 地址，例如 `https://bot.example.com`，或手机已信任证书的内网地址 `https://bot.corp.internal`。手机不信任的自签名证书会被拒绝，Tobs 不会跳过证书校验。
+2. 把 `GET /botharness-device/channel` 原样转发到 Tobs 显示的端口，**包括 WebSocket 升级**（`Upgrade` 和 `Connection` 头）以及 `X-BotHarness-Admission` 头。
+3. 同样转发 `GET /.well-known/botharness-tunnel/<nonce>`。Tobs 用它确认地址可达后才给配对码。
+4. 空闲 WebSocket 连接至少保持 60 秒（Tobs 会发心跳）。
+
+其他路径都可以拦掉，这个端口对其他路径一律返回 404。代理前面可以加公司登录层（Cloudflare Access、OAuth2 Proxy），只要让手机的 WebSocket 升级请求通过即可。手机能否控制电脑，仍取决于在电脑上核对指纹并批准这台手机。
+
+## 开启
+
+设置 → 连接 → 添加连接 → 让设备连接本机 → 私有连接（推荐）→ **自己的代理或隧道**。填写 HTTPS 地址，选择 **保存并检查**，页面会显示要转发到的本机端口。这个端口默认只监听 `127.0.0.1`，所以代理要装在同一台电脑上；代理在局域网另一台机器上时，打开 **允许局域网内其他机器转发**。
+
+CLI：`deepseekbot private-ingress-enable --origin https://bot.example.com --confirm`（代理在其他机器上时加 `--lan`），用 `deepseekbot devices` 查看状态（`privateTunnel.originPort` 就是要转发到的端口），关闭用 `deepseekbot private-ingress-disable --confirm`。
+
+端口在重启后保持不变。换成新地址时，先开启新地址，再让每台手机扫描新的配对码；只有经过这台电脑的固定密钥校验后，手机才会迁移到新地址。
+
+## 参考配置
+
+把 `PORT` 换成 Tobs 显示的端口，把 `bot.example.com` 换成你的地址。配置内容见[英文版](private-ingress.md#reference-configs)：nginx 和 Caddy 已于 2026-11-09 实测（配对、真实回复、撤销均通过；测试时由 Cloudflare Quick Tunnel 终止 HTTPS，证书需你自己配置）；frp、ngrok 为参考配置，尚未实测；自己的 Cloudflare Named Tunnel 建议直接用内置的 **固定地址** 选项。
+
+## 没有外网的公司内网
+
+使用自己的代理，配一个内网地址，例如 `https://bot.corp.internal`。这种模式下连接不依赖外网或官方服务：手机、代理和这台电脑只在你的网络里通信（Bot 的模型服务另算）。
+
+- **内网 DNS**：手机和这台电脑都要能把这个名称解析到代理，例如通过公司 DNS 或 mDNS（`电脑名.local`）。
+- **证书信任**：用公司 CA 为代理签发证书，并通过设备管理（MDM）把这个 CA 安装为手机和这台电脑都信任的证书。Tobs 只接受系统已经信任的证书，不会自己导入 CA，也不会跳过证书校验。
+- **信任缺失时的表现**：这台电脑不信任证书时，检查结果显示 `tls`；手机会拒绝配对，提示"这台手机不信任电脑地址的证书……"，错误代码 `socket-tls`。
+- **何时改用同一 Wi-Fi**：如果手机能连到和电脑相同的 Wi-Fi，加密的局域网模式（设置 → 连接 → 管理 → 局域网访问）不需要证书、DNS 或代理，最简单。
+
+2026-11-09 在 iOS 27 模拟器上用测试公司 CA 实测：未装 CA 时拒绝配对；装上 CA 后通过 mDNS `.local` 地址完成配对、收到真实回复并成功撤销。Android 尚未实测。
+
+## 出错时
+
+设置页和 `deepseekbot devices` 会显示原因代码：`dns`（域名解析不到）、`tls`（证书不受信任）、`http-404` 或 `http-502`（代理没有转发检查路径）、`timeout`。Tobs 会持续重试，不会改用官方中继。

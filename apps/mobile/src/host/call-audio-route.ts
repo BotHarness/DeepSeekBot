@@ -45,6 +45,7 @@ export interface CallAudioControl {
     microphone: CallMicrophoneId,
   ): Promise<CallAudioRouteState | null>;
   state(): Promise<CallAudioRouteState | null>;
+  volume?(level: number): void;
   onChange(listener: (event: CallAudioEvent) => void): () => void;
 }
 
@@ -62,18 +63,37 @@ const KINDS: readonly CallAudioDeviceKind[] = [
   'other',
 ];
 
-export type CallAudioPreference = { readonly headsetMicrophone: CallMicrophoneId };
+export type CallAudioPreference = {
+  readonly headsetMicrophone: CallMicrophoneId;
+  readonly voiceVolume: number;
+};
 
-export const DEFAULT_CALL_AUDIO: CallAudioPreference = { headsetMicrophone: 'headset' };
+export const CALL_VOICE_VOLUME_MAX = 2;
+
+export const DEFAULT_CALL_AUDIO: CallAudioPreference = {
+  headsetMicrophone: 'headset',
+  voiceVolume: 1,
+};
+
+export function callVoiceVolume(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_CALL_AUDIO.voiceVolume;
+  return Math.round(Math.max(0, Math.min(CALL_VOICE_VOLUME_MAX, value)) * 100) / 100;
+}
+
+function savedVoiceVolume(value: unknown): number {
+  return typeof value === 'number' && value >= 0 && value <= CALL_VOICE_VOLUME_MAX
+    ? callVoiceVolume(value)
+    : DEFAULT_CALL_AUDIO.voiceVolume;
+}
 
 export function parseCallAudioPreference(value: unknown): CallAudioPreference | undefined {
   if (value === 'speaker' || value === 'receiver') return DEFAULT_CALL_AUDIO;
-  if (value === 'media') return { headsetMicrophone: 'iphone' };
+  if (value === 'media') return { ...DEFAULT_CALL_AUDIO, headsetMicrophone: 'iphone' };
   if (typeof value !== 'object' || value === null) return undefined;
-  const { headsetMicrophone, type, builtIn } = value as Record<string, unknown>;
+  const { headsetMicrophone, voiceVolume, type, builtIn } = value as Record<string, unknown>;
   if (headsetMicrophone === 'iphone' || headsetMicrophone === 'headset')
-    return { headsetMicrophone };
-  if (type === 'media') return { headsetMicrophone: 'iphone' };
+    return { headsetMicrophone, voiceVolume: savedVoiceVolume(voiceVolume) };
+  if (type === 'media') return { ...DEFAULT_CALL_AUDIO, headsetMicrophone: 'iphone' };
   if (type === 'call' && (builtIn === 'speaker' || builtIn === 'receiver'))
     return DEFAULT_CALL_AUDIO;
   return undefined;
@@ -193,7 +213,18 @@ export function createCallAudioPreference(storage: {
     setHeadsetMicrophone(headsetMicrophone: CallMicrophoneId) {
       touched = true;
       if (headsetMicrophone === snapshot.audio.headsetMicrophone) return;
-      snapshot = { ...snapshot, audio: { headsetMicrophone } };
+      snapshot = {
+        ...snapshot,
+        audio: { ...snapshot.audio, headsetMicrophone },
+      };
+      if (snapshot.loaded) persist();
+      notify();
+    },
+    setVoiceVolume(level: number) {
+      touched = true;
+      const voiceVolume = callVoiceVolume(level);
+      if (voiceVolume === snapshot.audio.voiceVolume) return;
+      snapshot = { ...snapshot, audio: { ...snapshot.audio, voiceVolume } };
       if (snapshot.loaded) persist();
       notify();
     },

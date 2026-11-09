@@ -13,10 +13,10 @@ import { nativeCarrier } from './native-carrier';
 import { onNotificationTap } from './native-notifications';
 import { alertBanners } from './alert-banners';
 import { parsePushData, pushHref, type PushTarget } from './push';
-import { decideFromPush, removeFromPush } from './push-actions';
+import { ANSWERED, decideFromPush, removeFromPush } from './push-actions';
+import { decideOverRoute } from './native-push-decide';
 import { removeDevice } from './pairing';
 import { t } from '../ui/strings';
-import { decideApproval } from './requests';
 import { recordFeature } from '../telemetry/features';
 
 class RoutingFailure extends Error {}
@@ -31,28 +31,29 @@ const channelKinds = new Set([
   'workspace-grant-request',
 ]);
 
+type NavigationRoute = (NavigationState | PartialState<NavigationState>)['routes'][number];
+
+function sameParams(before: NavigationRoute['params'], after: NavigationRoute['params']): boolean {
+  const previous = before ?? {};
+  const next = after ?? {};
+  return (
+    Object.keys(previous).length === Object.keys(next).length &&
+    Object.entries(previous).every(([key, value]) => Object.is(value, Reflect.get(next, key)))
+  );
+}
+
 function sameNavigationSelection(
   before: NavigationState | PartialState<NavigationState>,
   after: NavigationState | PartialState<NavigationState>,
 ): boolean {
-  if ((before.index ?? 0) !== (after.index ?? 0) || before.routes.length !== after.routes.length)
-    return false;
   const previous = before.routes[before.index ?? 0];
   const next = after.routes[after.index ?? 0];
-  if (!previous || !next || previous.key !== next.key || previous.name !== next.name) return false;
-  const previousParams = previous.params ?? {};
-  const nextParams = next.params ?? {};
-  if (
-    Object.keys(previousParams).length !== Object.keys(nextParams).length ||
-    Object.entries(previousParams).some(
-      ([key, value]) => !Object.is(value, Reflect.get(nextParams, key)),
-    )
-  )
-    return false;
-  return (
-    previous.state === undefined ||
-    (next.state !== undefined && sameNavigationSelection(previous.state, next.state))
-  );
+  if (!previous) return true;
+  if (!next || previous.name !== next.name) return false;
+  if (previous.key !== undefined && previous.key !== next.key) return false;
+  if (previous.state === undefined)
+    return next.state !== undefined || sameParams(previous.params, next.params);
+  return next.state !== undefined && sameNavigationSelection(previous.state, next.state);
 }
 
 function readyDestination(
@@ -147,24 +148,15 @@ export function usePushRouting(
                 Alert.alert(removed === 'removed' ? t.deviceRemoved : t.deviceRemoveFailed);
               continue;
             }
-            if (action !== undefined)
-              await decideFromPush(
+            if (action !== undefined) {
+              const decision = await decideFromPush(
                 hostSession.getState().hosts,
                 target,
                 action,
-                async (host, route, ref, outcome) => {
-                  const client = createHostClient({
-                    ...host,
-                    routes: [route],
-                    carrier: nativeCarrier(),
-                  });
-                  try {
-                    return await decideApproval(client, ref, outcome, 'notification');
-                  } finally {
-                    client.stop();
-                  }
-                },
+                decideOverRoute,
               );
+              if (decision !== undefined && ANSWERED.has(decision)) continue;
+            }
             if (!isCurrent()) continue;
             if (next.selection !== hostSession.getSelectionRevision()) continue;
             if (!(await hostSession.switchTo(target.hostId, () => isCurrent())))

@@ -158,7 +158,7 @@ export interface HostClient {
   subscribe(listener: () => void): () => void;
   start(): void;
   stop(): void;
-  retryNow(trigger?: 'resume' | 'manual_retry'): void;
+  retryNow(trigger?: 'resume' | 'manual_retry', options?: { preserveConnected?: boolean }): void;
   refresh(): Promise<void>;
   call<T>(method: string, args?: Record<string, unknown>): Promise<T>;
   upload(name: string, data: Blob): Promise<AttachmentRef>;
@@ -525,7 +525,10 @@ export function createHostClient(options: HostClientOptions): HostClient {
 
   const scope = options.hostId ? { scope: options.hostId } : {};
   const resource = (path: string): RemoteSource => {
-    if (checkRoute(route).ok && !isEncryptedRoute(route, options.encryption))
+    if (
+      checkRoute(route, options.encryption?.privateRelay?.origin).ok &&
+      !isEncryptedRoute(route, options.encryption)
+    )
       return { uri: absolute(path), headers: authorization, ...scope };
     const origin = route;
     return {
@@ -548,7 +551,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     };
   };
   const avatar = (path: string): { avatarUrl?: string; avatarHeaders?: Record<string, string> } => {
-    if (!checkRoute(route).ok) return {};
+    if (!checkRoute(route, options.encryption?.privateRelay?.origin).ok) return {};
     if (!isEncryptedRoute(route, options.encryption))
       return { avatarUrl: absolute(path), avatarHeaders: authorization };
     const key = route + path;
@@ -1388,8 +1391,16 @@ export function createHostClient(options: HostClientOptions): HostClient {
       publish({ status: 'stopped', route });
       options.telemetry?.dispose();
     },
-    retryNow(trigger = 'manual_retry') {
+    retryNow(trigger = 'manual_retry', retryOptions) {
       if (!running) return;
+      if (
+        trigger === 'resume' &&
+        retryOptions?.preserveConnected === true &&
+        snapshot.connection.status === 'connected'
+      ) {
+        resumeRequested = false;
+        return;
+      }
       if (trigger === 'manual_retry') {
         fetchedArrangement = undefined;
         fetchedSorting = undefined;
@@ -1451,7 +1462,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     },
     resource,
     secretInputAllowed: () =>
-      checkRoute(route).ok &&
+      checkRoute(route, options.encryption?.privateRelay?.origin).ok &&
       (!isEncryptedRoute(route, options.encryption) || options.encryption !== undefined),
     onLive(listener) {
       liveListeners.add(listener);

@@ -609,7 +609,12 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     call.replies = [];
     call.interrupted = [];
     call.barge = undefined;
-    if (call.visual !== 'off') commit(call, call.visualSession, call.visual, call.harvest.flush());
+    if (call.visual !== 'off') {
+      commit(call, call.visualSession, call.visual, call.harvest.flush());
+      call.visual = 'off';
+      push(call, { type: 'visual', source: 'off' });
+      log('call-visual', { call: call.id, source: 'off' });
+    }
     call.harvest.clear();
     release(call.id);
     call.vad.reset();
@@ -1802,12 +1807,12 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     if (
       call.media === 'webrtc' &&
       !call.connected &&
-      at - call.startedAt > VOICE_CALL_LIMITS.connectTimeoutMs
+      at - call.startedAt >= VOICE_CALL_LIMITS.connectTimeoutMs
     ) {
       void end(call, 'connect-timeout');
       return;
     }
-    if (at - call.lastHeartbeat > VOICE_CALL_LIMITS.heartbeatLossMs) {
+    if (call.connected && at - call.lastHeartbeat > VOICE_CALL_LIMITS.heartbeatLossMs) {
       void end(call, 'connection-lost');
       return;
     }
@@ -1881,12 +1886,14 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     return call;
   };
 
-  const open = async (
+  const prepareCall = async (
     caller: VoiceCaller,
     slug: string,
     kind: 'webrtc' | 'synthetic',
-    signal: AbortSignal | undefined,
+    signal: AbortSignal,
+    startedAt: number,
   ): Promise<Call> => {
+    signal.throwIfAborted();
     const bot = deps.bot(slug);
     if (bot === undefined) throw new CallRefusal('unknown-bot', `unknown PersonaBot: ${slug}`);
     if (bot.paused === true) throw new CallRefusal('bot-paused', 'This Bot is paused.');
@@ -1904,6 +1911,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     if (kind === 'webrtc') {
       const availability =
         media === undefined ? 'unsupported-platform' : await media.availability();
+      signal.throwIfAborted();
       if (availability === 'unsupported-platform')
         throw new CallRefusal(
           'media-unsupported',
@@ -1921,7 +1929,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         throw new CallRefusal('call-active', 'Another device is already on a call with this Host.');
       await end(active, 'replaced');
     }
-    const startedAt = now();
+    signal.throwIfAborted();
     const segmented = deps.providers.streams?.(bot.asr.providerId) !== true;
     const call: Call = {
       id: `call-${randomBytes(8).toString('hex')}`,
@@ -1980,6 +1988,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       if (call.connected || call.phase === 'ended') return;
       call.connected = true;
       call.connectedAt = now();
+      call.lastHeartbeat = call.connectedAt;
       call.phase = 'listening';
       recordStart(call);
       push(call, { type: 'connected' });
@@ -1992,10 +2001,15 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       call.peer = syntheticPeer();
       connected();
     } else {
-      const abort = () => call.abort.abort();
+      const abort = () => {
+        call.abort.abort();
+        void end(call, 'media-failed');
+      };
       signal?.addEventListener('abort', abort, { once: true });
+      if (signal.aborted) abort();
       try {
-        call.peer = await media!.open({
+        call.abort.signal.throwIfAborted();
+        const peer = await media!.open({
           callId: call.id,
           signal: call.abort.signal,
           onPcm: (samples) => hear(call, samples),
@@ -2004,6 +2018,9 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
             else void end(call, 'media-failed');
           },
         });
+        if (call.abort.signal.aborted) await peer.close();
+        call.abort.signal.throwIfAborted();
+        call.peer = peer;
         if (call.peer.offer === undefined) throw new Error('offer');
         call.offer = call.peer.offer;
       } catch (error) {
@@ -2021,6 +2038,36 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     call.timer = setInterval(() => tick(call), VOICE_CALL_LIMITS.heartbeatMs);
     call.timer.unref?.();
     return call;
+  };
+
+  const open = async (
+    caller: VoiceCaller,
+    slug: string,
+    kind: 'webrtc' | 'synthetic',
+    signal: AbortSignal | undefined,
+  ): Promise<Call> => {
+    const cancellation = new AbortController();
+    const cancel = () => cancellation.abort();
+    signal?.addEventListener('abort', cancel, { once: true });
+    if (signal?.aborted) cancel();
+    const startedAt = now();
+    const timer = setTimeout(cancel, VOICE_CALL_LIMITS.connectTimeoutMs);
+    let rejectCancelled!: () => void;
+    const cancelled = new Promise<never>((_resolve, reject) => {
+      rejectCancelled = () => reject(cancellation.signal.reason);
+      cancellation.signal.addEventListener('abort', rejectCancelled, { once: true });
+      if (cancellation.signal.aborted) rejectCancelled();
+    });
+    try {
+      return await Promise.race([
+        prepareCall(caller, slug, kind, cancellation.signal, startedAt),
+        cancelled,
+      ]);
+    } finally {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', cancel);
+      cancellation.signal.removeEventListener('abort', rejectCancelled);
+    }
   };
 
   const run = async (

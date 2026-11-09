@@ -1,4 +1,4 @@
-import { Host, Image, Menu, Section, Text, Toggle } from '@expo/ui/swift-ui';
+import { Button, Host, Image, Label, Menu, Section, Text, Toggle } from '@expo/ui/swift-ui';
 import {
   accessibilityIdentifier,
   accessibilityLabel,
@@ -7,11 +7,12 @@ import {
   buttonStyle,
   contentShape,
   disabled as disabledModifier,
-  font,
+  aspectRatio,
   foregroundStyle,
   frame,
   menuOrder,
   opacity,
+  resizable,
   shapes,
 } from '@expo/ui/swift-ui/modifiers';
 
@@ -28,6 +29,8 @@ export function CallAudioMenu({
   disabled,
   onOutput,
   onMicrophone,
+  voiceVolume,
+  onVoiceVolume,
 }: CallAudioMenuProps) {
   const t = useStrings();
   const theme = useDesignTheme();
@@ -52,7 +55,9 @@ export function CallAudioMenu({
           <Image
             systemName={callAudioDeviceSymbol(output)}
             modifiers={[
-              font({ textStyle: 'title2' }),
+              resizable(),
+              aspectRatio({ contentMode: 'fit' }),
+              frame({ width: theme.type.title.line, height: theme.type.title.line }),
               foregroundStyle(ink),
               frame({ width: size, height: size }),
               background(fill, shapes.circle()),
@@ -90,6 +95,14 @@ export function CallAudioMenu({
             </Toggle>
           ))}
         </Section>
+        {onVoiceVolume === undefined || voiceVolume === undefined ? null : (
+          <Section>
+            <Button onPress={onVoiceVolume}>
+              <Label title={t.call.voiceVolume} systemImage="speaker.wave.2" />
+              <Text>{t.call.voiceVolumeValue(Math.round(voiceVolume * 100))}</Text>
+            </Button>
+          </Section>
+        )}
       </Menu>
     </Host>
   );

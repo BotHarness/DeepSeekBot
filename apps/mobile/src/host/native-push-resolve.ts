@@ -22,6 +22,11 @@ TaskManager.defineTask<Notifications.NotificationTaskPayload>(
   PUSH_RESOLVE_TASK,
   async ({ data, error }) => {
     if (error !== null || data === undefined) return;
+    if ('actionIdentifier' in data) {
+      const { answerResponse } = await import('./native-push-answer');
+      await answerResponse(data);
+      return;
+    }
     const resolved = parsePushResolved(data);
     if (resolved !== undefined) await dismissResolved(port, resolved).catch(() => undefined);
     const badge = parsePushBadge(data);

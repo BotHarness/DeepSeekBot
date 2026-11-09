@@ -71,9 +71,10 @@ export function ComputerRowLabel({
   status: string;
   dot: string;
 }) {
+  const theme = useDesignTheme();
   return (
     <View style={{ flex: 1, minWidth: 0, gap: space.x1 }}>
-      <Text strong numberOfLines={1} ellipsizeMode="tail">
+      <Text strong numberOfLines={theme.largeText ? undefined : 1} ellipsizeMode="tail">
         {name}
       </Text>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
@@ -85,7 +86,12 @@ export function ComputerRowLabel({
             backgroundColor: dot,
           }}
         />
-        <Text variant="meta" tone="muted" numberOfLines={1} style={{ flexShrink: 1 }}>
+        <Text
+          variant="meta"
+          tone="muted"
+          numberOfLines={theme.largeText ? undefined : 1}
+          style={{ flexShrink: 1 }}
+        >
           {status}
         </Text>
       </View>
