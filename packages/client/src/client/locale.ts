@@ -4683,7 +4683,10 @@ export const zh = {
   'devices.connect.signOut': '退出登录',
   'devices.connect.confirm': '在浏览器里登录账号，并确认页面上显示的代码是',
   'devices.connect.openPage': '打开登录页',
-  'devices.connect.switchAccount': '要换一个账号，请在浏览器的无痕窗口里打开这个链接：',
+  'devices.connect.switchAccount':
+    '想用其他浏览器或换个账号？点下面的链接复制，换账号时用无痕窗口打开。',
+  'devices.connect.copyLink': '复制登录链接',
+  'devices.connect.copied': '已复制',
   'devices.connect.notAllowed': '这个账号暂时不能使用 Tobs Connect。',
   'devices.connect.hostLimit': '这个账号已关联 5 台电脑，请在下方退出另一台电脑的登录。',
   'devices.connect.sessionRevoked': '这台电脑已从账号退出，请重新登录。',
@@ -9911,7 +9914,9 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'devices.connect.confirm': 'Sign in in your browser and check that the page shows the code',
   'devices.connect.openPage': 'Open sign-in page',
   'devices.connect.switchAccount':
-    'To use a different account, open this link in a private window:',
+    'Another browser or account? Click the link to copy it. Use a private window to switch accounts.',
+  'devices.connect.copyLink': 'Copy sign-in link',
+  'devices.connect.copied': 'Copied',
   'devices.connect.notAllowed': 'This account cannot use Tobs Connect yet.',
   'devices.connect.hostLimit':
     'This account already links 5 computers. Sign out another computer below.',

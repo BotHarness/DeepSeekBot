@@ -97,8 +97,17 @@ it('signs in, shows the code to confirm, then the connected address', async () =
   expect(button('登录')).toBeUndefined();
   expect(host.querySelector('[data-connect-code]')?.textContent).toContain('KQXP-7HMD');
   expect(host.querySelector('[data-connect-switch]')?.textContent).toBe(
-    `${zhTranslate('devices.connect.switchAccount')} https://auth.example/device?code=KQXP-7HMD`,
+    zhTranslate('devices.connect.switchAccount'),
   );
+  const writeText = vi.fn(async () => undefined);
+  Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+  const chip = host.querySelector<HTMLButtonElement>('[data-connect-copy]');
+  expect(chip?.getAttribute('aria-label')).toBe(zhTranslate('devices.connect.copyLink'));
+  expect(chip?.textContent).toContain('https://auth.example/device?code=KQXP-7HMD');
+  await act(async () => chip?.click());
+  expect(writeText).toHaveBeenCalledWith('https://auth.example/device?code=KQXP-7HMD');
+  expect(chip?.getAttribute('data-connect-copy')).toBe('copied');
+  expect(chip?.textContent).toContain(zhTranslate('devices.connect.copied'));
   const open = vi.spyOn(window, 'open').mockReturnValue(null);
   await act(async () => button('打开登录页')?.click());
   expect(open).toHaveBeenCalledWith(

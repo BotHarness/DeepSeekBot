@@ -99,6 +99,44 @@ const styles = stylex.create({
     letterSpacing: '0.08em',
     color: color.fg,
   },
+  chip: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: space.x2,
+    maxWidth: '100%',
+    minWidth: 0,
+    paddingBlock: space.x2,
+    paddingInline: space.x3,
+    borderWidth: 0,
+    borderStyle: 'none',
+    borderRadius: radius.lg,
+    outlineWidth: { default: 0, ':focus-visible': border.focus },
+    outlineStyle: 'solid',
+    outlineColor: color.accent,
+    backgroundColor: { default: color.surface, ':hover': color.hover },
+    color: color.fg,
+    cursor: 'pointer',
+    font: 'inherit',
+    textAlign: 'start',
+  },
+  chipText: {
+    minWidth: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontFamily: 'var(--dsw-font-mono, ui-monospace, monospace)',
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
+  chipIcon: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: space.x1,
+    flexShrink: 0,
+    color: color.accent,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
   meta: {
     margin: 0,
     color: color.muted,
@@ -264,6 +302,16 @@ export function ConnectPanel({
   reloadSnapshot(): Promise<unknown>;
 }): ReactElement {
   const [manage, setManage] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const copy = (value: string) => {
+    void navigator.clipboard
+      ?.writeText(value)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch(() => undefined);
+  };
   const waiting = account.state === 'error' && account.issue === 'relay-full';
   const linked = account.state === 'signed-in' || waiting;
   const pool = account.pool;
@@ -348,8 +396,22 @@ export function ConnectPanel({
               {t('devices.connect.openPage')}
             </Button>
             <p data-connect-switch="" {...stylex.props(styles.meta)}>
-              {t('devices.connect.switchAccount')} {account.verificationUri}
+              {t('devices.connect.switchAccount')}
             </p>
+            <button
+              type="button"
+              data-connect-copy={copied ? 'copied' : ''}
+              aria-label={t('devices.connect.copyLink')}
+              title={account.verificationUri}
+              onClick={() => copy(account.verificationUri ?? '')}
+              {...stylex.props(styles.chip)}
+            >
+              <span {...stylex.props(styles.chipText)}>{account.verificationUri}</span>
+              <span {...stylex.props(styles.chipIcon)}>
+                <ChannelSidebarIcon name={copied ? 'check' : 'copy'} size={14} />
+                {copied ? t('devices.connect.copied') : null}
+              </span>
+            </button>
           </div>
         )}
       </Card>
