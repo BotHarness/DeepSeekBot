@@ -12,6 +12,20 @@ import { ACTIVITY_INBOX_CSS } from './activity-inbox-styles.js';
 import { MOBILE_APPS_CSS } from './mobile-apps-styles.js';
 import { STYLEX_CSS } from './ds/stylex-css.js';
 
+const STAMP_TEXT_ENDS = [
+  '.bh-bubble-body:last-child',
+  '.bh-bubble-content > .bh-bubble-body:not(.bh-bubble-body-markdown):last-child',
+  '.bh-bubble-content > .bh-bubble-body-markdown:last-child > div > :is(p, h1, h2, h3, h4, h5, h6):last-child',
+  '.bh-bubble-content > .bh-bubble-body-markdown:last-child > div > :is(ul, ol):last-child > li:last-child',
+  '.bh-bubble-content > .bh-bubble-body-markdown:last-child > .bh-bot-mention-prefix:last-child',
+];
+const STAMP_SPACERS = STAMP_TEXT_ENDS.map(
+  (end) => `.bh-bubble-stamped > [data-message-fold] > ${end}::after`,
+).join(',\n');
+const STAMP_INLINE = STAMP_TEXT_ENDS.map(
+  (end) => `> [data-message-fold]:nth-last-child(2) > ${end}`,
+).join(',\n  ');
+
 export const CSS =
   WORKSPACE_CSS +
   COMPOSER_CONTEXT_CSS +
@@ -3453,8 +3467,7 @@ html[data-botharness-motion='reduce'] .bh-chat-body { transition: none; }
   padding: 0;
   background: transparent;
 }
-.bh-message-group-avatar-link,
-.bh-message-group-avatar-focus {
+.bh-message-group-avatar-link {
   display: flex;
   width: 28px;
   height: 28px;
@@ -3501,8 +3514,7 @@ html[data-botharness-motion='reduce'] .bh-header-working { animation-name: bh-fa
   from { opacity: 1; }
   to { opacity: 0; }
 }
-.bh-message-group-avatar-link:focus-visible,
-.bh-message-group-avatar-focus:focus-visible {
+.bh-message-group-avatar-link:focus-visible {
   outline: ${border.focus} solid var(--dsw-alias-label-primary);
   outline-offset: 2px;
 }
@@ -3722,12 +3734,21 @@ html[data-botharness-motion='reduce'] .bh-message-group-enter .bh-message-group-
 .bh-message-group-me .bh-bubble-badges {
   flex-direction: row-reverse;
 }
+/* The time sits inside the bubble at the bottom-right, so the reading chip takes the
+   bottom-left on every bubble, and the Human's reactions keep clear of the time with an
+   invisible copy of it at the row's right end. */
 .bh-bubble-badges .bh-reading {
-  margin-left: auto;
+  order: 1;
 }
 .bh-message-group-me .bh-bubble-badges .bh-reading {
-  margin-left: 0;
   margin-right: auto;
+}
+.bh-message-group-me .bh-bubble-badges::before {
+  content: var(--bh-stamp, '');
+  visibility: hidden;
+  font-size: ${text.metaSize};
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .bh-message-stack > .bh-bubble-wrap:last-child,
 .bh-message-group > .bh-message-group-avatar {
@@ -3806,45 +3827,56 @@ html[data-botharness-motion='reduce'] [data-badge-motion='leave'] { animation-na
   outline-offset: 2px;
 }
 .bh-bubble-reply {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: ${space.x1};
+  width: 100%;
   min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
-  margin: 0 0 ${space.x3};
-  padding: ${space.x2} ${space.x3};
+  margin: 0 0 ${space.x2};
+  padding: ${space.x1} ${space.x3} ${space.x1} ${space.x4};
+  overflow: hidden;
   border: 0;
-  border-left: ${border.hairline} solid var(--dsw-alias-label-secondary);
   border-radius: ${radius.xs};
-  background: color-mix(in srgb, var(--dsw-alias-label-primary) 7%, transparent);
-  color: var(--dsw-alias-label-secondary);
+  background: color-mix(in srgb, currentColor 13%, transparent);
+  color: ${color.accentText};
+  font: inherit;
+  font-size: ${text.metaSize};
+  line-height: ${text.metaLine};
   text-align: left;
   cursor: pointer;
 }
+/* The bar and the name take the quoted author's colour; the preview keeps the bubble's text. */
+.bh-bubble-reply::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: currentColor;
+}
+.bh-bubble-reply[data-bubble-quote='other'],
+.bh-bubble-reply-unavailable {
+  color: var(--dsw-alias-label-secondary);
+}
 .bh-bubble-reply:hover {
-  background: color-mix(in srgb, var(--dsw-alias-label-primary) 12%, transparent);
+  background: color-mix(in srgb, currentColor 20%, transparent);
 }
 .bh-bubble-reply:focus-visible {
-  outline: ${border.focus} solid var(--dsw-alias-label-primary);
+  outline: ${border.focus} solid currentColor;
   outline-offset: 2px;
 }
 .bh-bubble-me .bh-bubble-reply {
-  border-left-color: color-mix(in srgb, currentColor 60%, transparent);
-  background: color-mix(in srgb, currentColor 10%, transparent);
   color: inherit;
-}
-.bh-bubble-me .bh-bubble-reply:hover {
-  background: color-mix(in srgb, currentColor 16%, transparent);
-}
-.bh-bubble-me .bh-bubble-reply:focus-visible {
-  outline-color: currentColor;
 }
 .bh-bubble-reply-unavailable {
   cursor: default;
 }
 .bh-bubble-reply-author {
-  font-size: ${text.metaSize};
+  overflow: hidden;
+  max-width: 100%;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   font-weight: ${text.strong};
 }
 .bh-bubble-reply-body {
@@ -3852,7 +3884,11 @@ html[data-botharness-motion='reduce'] [data-badge-motion='leave'] { animation-na
   max-width: 100%;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: ${text.metaSize};
+  color: ${color.fg};
+  opacity: 0.9;
+}
+.bh-bubble-me .bh-bubble-reply-body {
+  color: inherit;
 }
 
 /* Files stay part of the same message grouping as their text. */
@@ -3950,37 +3986,46 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
 .bh-bubble-side .bh-delivery-trigger {
   position: static;
 }
-.bh-bubble-meta {
+/* B2: the time sits inside the bubble at the bottom-right. An invisible copy of it ends the
+   body's last line of text, so the time shares that line when it fits and wraps to its own
+   line otherwise. Content that does not end in a line of text (code, tables, files, cards)
+   gives the time a line of its own. */
+.bh-bubble {
+  position: relative;
+}
+.bh-bubble-stamp {
   position: absolute;
-  left: 100%;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  gap: ${space.x2};
-  width: max-content;
-  color: var(--dsw-alias-label-tertiary);
-  opacity: 0;
-  pointer-events: none;
-}
-.bh-message-group-me .bh-bubble-meta {
-  left: auto;
-  right: 100%;
-}
-.bh-bubble-wrap:hover .bh-bubble-meta,
-.bh-bubble-wrap:focus-within .bh-bubble-meta {
-  opacity: 1;
-  pointer-events: auto;
-}
-.bh-bubble-time {
+  right: ${space.x4};
+  bottom: ${space.x4};
   color: var(--dsw-alias-label-tertiary);
   font-size: ${text.metaSize};
-  line-height: 1.5;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
-  opacity: 0;
+  pointer-events: auto;
 }
-.bh-message-group:hover .bh-bubble-time,
-.bh-message-group:focus-within .bh-bubble-time {
-  opacity: 1;
+.bh-bubble-me .bh-bubble-stamp {
+  color: color-mix(in srgb, currentColor 72%, transparent);
+}
+.bh-bubble-stamped::after {
+  content: '';
+  display: block;
+  height: ${text.metaLine};
+}
+.bh-bubble-stamped:has(
+  ${STAMP_INLINE}
+)::after {
+  display: none;
+}
+${STAMP_SPACERS} {
+  content: var(--bh-stamp);
+  display: inline-block;
+  visibility: hidden;
+  margin-left: ${space.x3};
+  font-size: ${text.metaSize};
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .bh-bubble-status {
   display: block;
@@ -4030,17 +4075,9 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
 .bh-bubble-wrap.bh-bubble-selecting .bh-bubble-toolbar {
   display: none;
 }
-@media (hover: none) {
-  .bh-bubble-meta,
-  .bh-bubble-time {
-    opacity: 1;
-    pointer-events: auto;
-  }
-}
 /* Narrow screens: inline copy/reply actions crowd the bubble, so they move
    into the long-press message menu and the bubble keeps the full width. */
 @media (max-width: 640px) {
-  .bh-bubble-meta,
   .bh-bubble-toolbar {
     display: none;
   }

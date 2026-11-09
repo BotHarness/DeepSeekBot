@@ -109,6 +109,7 @@ import {
   botNameColor,
   botNameSource,
   humanBubbleColors,
+  paintBotName,
   useConversationSurface,
 } from './bot-primary-color.js';
 import {
@@ -334,14 +335,6 @@ const messageStyles = stylex.create({
     borderRadius: radius.xs,
   },
   emptyContainer: { display: 'flex', flexDirection: 'column', flexGrow: 1 },
-  metaTime: {
-    color: color.subtle,
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
-    fontVariantNumeric: 'tabular-nums',
-    whiteSpace: 'nowrap',
-    display: { default: 'inline', '@media (hover: none)': 'none' },
-  },
 });
 
 function Welcome({
@@ -386,28 +379,41 @@ function ReplyQuote({
   const preview = message.replyToPreview;
   if (preview === undefined || preview === null) {
     return (
-      <div className="bh-bubble-reply bh-bubble-reply-unavailable">
+      <div className="bh-bubble-reply bh-bubble-reply-unavailable" data-bubble-quote="unavailable">
         {t('message.replyUnavailable')}
       </div>
     );
   }
+  const quoted = preview.author;
+  const author = authorLabel({ ...message, author: quoted }, bots, t, humanName);
+  const colorSource =
+    message.author.kind === 'human' || quoted.kind !== 'bot'
+      ? undefined
+      : botNameSource(bots.find((bot) => bot.slug === quoted.slug));
   return (
     <button
       type="button"
       className="bh-bubble-reply"
+      data-bubble-quote={quoted.kind === 'bot' || quoted.kind === 'human' ? quoted.kind : 'other'}
+      ref={(element) => paintBotName(element, colorSource)}
       onClick={() => onJump(targetId)}
-      aria-label={t('message.replyJump', {
-        author: authorLabel({ ...message, author: preview.author }, bots, t, humanName),
-      })}
+      aria-label={t('message.replyJump', { author })}
     >
-      <span className="bh-bubble-reply-author">
-        {authorLabel({ ...message, author: preview.author }, bots, t, humanName)}
+      <span className="bh-bubble-reply-author" data-bubble-quote-author="">
+        {author}
       </span>
       <span className="bh-bubble-reply-body">
         {toolApprovalReplyPreview(message, preview.body, t)}
       </span>
     </button>
   );
+}
+
+function bubbleStamp(message: ChannelMessage): string | undefined {
+  if (message.pending === true || message.streaming === true || message.failed !== undefined)
+    return undefined;
+  const clock = clockTime(message.at);
+  return clock === '' ? undefined : clock;
 }
 
 function ReplyIcon(): ReactElement {
@@ -658,8 +664,9 @@ const MessageGroupView = memo(function MessageGroupView({
   const nameSource = first.bridgeOrigin ? undefined : botNameSource(displayBot);
   const nameColor =
     nameSource === undefined ? undefined : botNameColor(nameSource, surface.background);
+  const dm = currentDmBotSlug !== undefined;
   const avatar =
-    displayBot === undefined ? undefined : (
+    dm || displayBot === undefined ? undefined : (
       <PersonaBotAvatar
         t={t}
         personaBotId={displayBot.slug}
@@ -722,76 +729,62 @@ const MessageGroupView = memo(function MessageGroupView({
       className={`bh-message-group${human ? ' bh-message-group-me' : ''}${arriving && group.messages.length === 1 ? ' bh-message-group-enter' : ''}`}
       data-group-size={group.messages.length}
       style={bubbleStyle}
+      ref={surface.probe}
     >
-      {avatar === undefined ? null : (
+      {avatar === undefined || author.kind !== 'bot' ? null : (
         <span ref={follow} className="bh-message-group-avatar">
           {withAuthorCard(
-            author.kind === 'bot' && currentDmBotSlug !== author.slug ? (
-              <button
-                type="button"
-                className="bh-message-group-avatar-link"
-                aria-label={t('message.mention.openDm', { bot: displayBot?.displayName ?? '' })}
-                {...(onAvatarMenu === undefined ? {} : { 'aria-haspopup': 'menu' as const })}
-                onClick={() => void actions.openBot(author.slug)}
-                onContextMenu={
-                  onAvatarMenu === undefined
-                    ? undefined
-                    : (event) => {
-                        event.preventDefault();
-                        const box = event.currentTarget.getBoundingClientRect();
-                        const keyboard = event.clientX === 0 && event.clientY === 0;
-                        onAvatarMenu(
-                          author.slug,
-                          keyboard ? box.left : event.clientX,
-                          keyboard ? box.bottom : event.clientY,
-                        );
-                      }
-                }
-              >
-                {avatar}
-              </button>
-            ) : (
-              <span
-                className="bh-message-group-avatar-focus"
-                role="group"
-                tabIndex={0}
-                aria-label={t('message.authorCard.label', {
-                  name: displayBot?.displayName ?? '',
-                })}
-              >
-                {avatar}
-              </span>
-            ),
+            <button
+              type="button"
+              className="bh-message-group-avatar-link"
+              aria-label={t('message.mention.openDm', { bot: displayBot?.displayName ?? '' })}
+              {...(onAvatarMenu === undefined ? {} : { 'aria-haspopup': 'menu' as const })}
+              onClick={() => void actions.openBot(author.slug)}
+              onContextMenu={
+                onAvatarMenu === undefined
+                  ? undefined
+                  : (event) => {
+                      event.preventDefault();
+                      const box = event.currentTarget.getBoundingClientRect();
+                      const keyboard = event.clientX === 0 && event.clientY === 0;
+                      onAvatarMenu(
+                        author.slug,
+                        keyboard ? box.left : event.clientX,
+                        keyboard ? box.bottom : event.clientY,
+                      );
+                    }
+              }
+            >
+              {avatar}
+            </button>,
           )}
         </span>
       )}
       <div className="bh-message-stack">
-        <div className="bh-message-identity">
-          {first.bridgeOrigin ? (
-            <BridgeSourceAuthor origin={first.bridgeOrigin} t={t} />
-          ) : (
-            withAuthorCard(
-              <span
-                className="bh-bubble-author"
-                ref={surface.probe}
-                {...(author.kind === 'remote-bot'
-                  ? {
-                      role: 'group',
-                      tabIndex: 0,
-                      'aria-label': t('message.authorCard.label', { name: authorName }),
-                    }
-                  : {})}
-                data-bot-name-color={nameColor}
-                style={nameColor === undefined ? undefined : { color: nameColor }}
-              >
-                {authorName}
-              </span>,
-            )
-          )}
-          <time className="bh-bubble-time" dateTime={first.at} title={fullTime(first.at, t)}>
-            {clockTime(first.at)}
-          </time>
-        </div>
+        {dm ? null : (
+          <div className="bh-message-identity">
+            {first.bridgeOrigin ? (
+              <BridgeSourceAuthor origin={first.bridgeOrigin} t={t} />
+            ) : (
+              withAuthorCard(
+                <span
+                  className="bh-bubble-author"
+                  {...(author.kind === 'remote-bot'
+                    ? {
+                        role: 'group',
+                        tabIndex: 0,
+                        'aria-label': t('message.authorCard.label', { name: authorName }),
+                      }
+                    : {})}
+                  data-bot-name-color={nameColor}
+                  style={nameColor === undefined ? undefined : { color: nameColor }}
+                >
+                  {authorName}
+                </span>,
+              )
+            )}
+          </div>
+        )}
         {group.messages.map((message, index) => {
           const position =
             group.messages.length === 1
@@ -801,6 +794,7 @@ const MessageGroupView = memo(function MessageGroupView({
                 : index === group.messages.length - 1
                   ? 'last'
                   : 'middle';
+          const stamp = bubbleStamp(message);
           return (
             <MessageBubbleWrap
               key={message.id}
@@ -811,6 +805,11 @@ const MessageGroupView = memo(function MessageGroupView({
             >
               <div
                 className={`bh-bubble-surface${message.failed === undefined ? '' : ' bh-bubble-surface-failed'}`}
+                style={
+                  stamp === undefined
+                    ? undefined
+                    : ({ '--bh-stamp': JSON.stringify(stamp) } as CSSProperties)
+                }
               >
                 {human && message.pending === true && message.failed === undefined ? (
                   <PendingDelivery message={message} t={t} />
@@ -842,7 +841,7 @@ const MessageGroupView = memo(function MessageGroupView({
                   </button>
                 )}
                 <div
-                  className={`bh-bubble${human ? ' bh-bubble-me' : ''}${message.pending === true || message.streaming === true ? ' bh-bubble-pending' : ''}${message.failed === undefined ? '' : ' bh-bubble-failed'}`}
+                  className={`bh-bubble${human ? ' bh-bubble-me' : ''}${message.pending === true || message.streaming === true ? ' bh-bubble-pending' : ''}${message.failed === undefined ? '' : ' bh-bubble-failed'}${stamp === undefined ? '' : ' bh-bubble-stamped'}`}
                   data-group-position={position}
                 >
                   <ReplyQuote
@@ -873,6 +872,16 @@ const MessageGroupView = memo(function MessageGroupView({
                       {t(message.streaming === true ? 'message.generating' : 'message.sending')}
                     </span>
                   ) : null}
+                  {stamp === undefined ? null : (
+                    <time
+                      className="bh-bubble-stamp"
+                      data-bubble-time=""
+                      dateTime={message.at}
+                      title={fullTime(message.at, t)}
+                    >
+                      {stamp}
+                    </time>
+                  )}
                 </div>
                 <BubbleBadges
                   reactions={message.reactions ?? NO_REACTIONS}
@@ -927,17 +936,6 @@ const MessageGroupView = memo(function MessageGroupView({
                   }
                   t={t}
                 />
-                <div className="bh-bubble-meta">
-                  {index === 0 || clockTime(message.at) === '' ? null : (
-                    <time
-                      dateTime={message.at}
-                      title={fullTime(message.at, t)}
-                      {...stylex.props(messageStyles.metaTime)}
-                    >
-                      {clockTime(message.at)}
-                    </time>
-                  )}
-                </div>
               </div>
             </MessageBubbleWrap>
           );
