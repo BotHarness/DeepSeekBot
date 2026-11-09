@@ -74,6 +74,7 @@
     "apps/mobile/test/host-session-unpair.test.ts",
     "apps/mobile/test/host-session-multiple.test.ts",
     "apps/mobile/test/host-session-background.test.ts",
+    "apps/mobile/test/host-session-ios-call-resume.test.ts",
     "apps/mobile/test/conversation-cache-host.test.ts",
     "apps/mobile/test/native-conversation-cache.test.ts",
     "apps/mobile/test/reanimated-shim.ts",
