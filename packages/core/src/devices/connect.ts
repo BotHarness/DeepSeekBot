@@ -66,6 +66,7 @@ export type SpawnTunnel = (
 export interface DeviceConnect {
   status(): ConnectStatus;
   route(): PhoneRoute | undefined;
+  idleSeconds?(): number | undefined;
   start(): Promise<void>;
   enable(input: { hostname: string; token: string }): Promise<ConnectResult>;
   disable(): Promise<ConnectResult>;
@@ -142,10 +143,11 @@ function notFound(response: ServerResponse): void {
   response.end(JSON.stringify({ code: 'not-found' }));
 }
 
-type GatewayOrigin = Server & { upgraded: Set<Duplex> };
+type GatewayOrigin = Server & { upgraded: Set<Duplex>; lastRequestAt: () => number | undefined };
 
 export function createGatewayOrigin(port: () => number): GatewayOrigin {
   const upgraded = new Set<Duplex>();
+  let lastRequestAt: number | undefined;
   const server = createServer((request, response) => {
     stampConnectRoute(request);
     const botRequest =
@@ -161,6 +163,7 @@ export function createGatewayOrigin(port: () => number): GatewayOrigin {
       notFound(response);
       return;
     }
+    lastRequestAt = Date.now();
     const upstream = httpRequest(
       {
         host: '127.0.0.1',
@@ -196,6 +199,7 @@ export function createGatewayOrigin(port: () => number): GatewayOrigin {
       socket.end('HTTP/1.1 404 Not Found\r\nconnection: close\r\ncontent-length: 0\r\n\r\n');
       return;
     }
+    lastRequestAt = Date.now();
     const upstream: Socket = tcpConnect(port(), '127.0.0.1', () => {
       upstream.write(rawHead(request));
       if (head.length > 0) upstream.write(head);
@@ -207,10 +211,11 @@ export function createGatewayOrigin(port: () => number): GatewayOrigin {
     upgraded.add(socket);
     socket.on('close', () => {
       upgraded.delete(socket);
+      lastRequestAt = Date.now();
       upstream.destroy();
     });
   });
-  return Object.assign(server, { upgraded });
+  return Object.assign(server, { upgraded, lastRequestAt: () => lastRequestAt });
 }
 
 function listen(server: Server, port: number): Promise<number> {
@@ -385,8 +390,18 @@ export function createDeviceConnect(options: {
     }
   };
 
+  let lastUsedAt: number | undefined;
+  const idleSeconds = (): number | undefined => {
+    if (server !== undefined && server.upgraded.size > 0) return 0;
+    const last = server?.lastRequestAt() ?? lastUsedAt;
+    if (last === undefined) return undefined;
+    lastUsedAt = last;
+    return Math.max(0, Math.floor((Date.now() - last) / 1000));
+  };
+
   return {
     status: () => ({ ...status }),
+    idleSeconds,
     route() {
       if (status.hostname === undefined || status.state === 'off') return undefined;
       return {

@@ -663,6 +663,17 @@ describe('DM conversation', () => {
     const target = open(host);
     const live = await until(target, (s) => s.status === 'live');
     expect(live.messages.at(-1)?.replyPreview?.media).toEqual({ kind: 'voice', durationMs: 7000 });
+    expect(live.messages[0]?.voice).toEqual({ state: 'ready', durationMs: 7000 });
+    expect(live.messages.at(-1)).not.toHaveProperty('replyThumbnail');
+    const quoted = (replyTo: string) => {
+      target.send('re', [], { replyTo });
+      return target.getSnapshot().messages.at(-1);
+    };
+    const thumbnail = quoted('human-photo')?.replyThumbnail;
+    expect(thumbnail?.thumbhash).toBe('abc');
+    expect(thumbnail?.source.uri).toContain('messageId=human-photo');
+    expect(thumbnail?.source.uri).toContain(encodeURIComponent(photo.fileId));
+    expect(quoted('human-file')).not.toHaveProperty('replyThumbnail');
     const pending = (replyTo: string) => {
       target.send('re', [], { replyTo });
       return target.getSnapshot().messages.at(-1)?.replyPreview;

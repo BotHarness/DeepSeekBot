@@ -1199,3 +1199,191 @@ describe('replies', () => {
     expect(replyable(human({ welcome: true }))).toBe(false);
   });
 });
+
+describe('media bubbles', () => {
+  const source = { uri: 'https://host/a', headers: {} };
+  const image = (index: number) => ({
+    key: `img-${index}`,
+    kind: 'image' as const,
+    name: `photo-${index}.jpg`,
+    source,
+    local: false,
+  });
+  const render = (message: ConversationMessage, props: Record<string, unknown> = {}) => {
+    const container = document.createElement('div');
+    container.innerHTML = renderToStaticMarkup(<MessageBubble message={message} {...props} />);
+    return container;
+  };
+  const byTest = (container: Element, id: string) =>
+    container.querySelectorAll(`[data-testid="${id}"]`);
+
+  it('puts the time of an uncaptioned image on a pill over the image', () => {
+    const container = render(human({ body: '', attachments: [image(1)] }));
+    const album = byTest(container, 'message-album')[0]!;
+    expect(byTest(album, 'message-album-tile')).toHaveLength(1);
+    const pill = byTest(container, 'message-image-time')[0]!;
+    expect(album.contains(pill)).toBe(true);
+    expect(pill.querySelector('[data-testid="message-time"]')?.textContent).toMatch(/✓$/);
+    expect(byTest(container, 'message-time')).toHaveLength(1);
+  });
+
+  it('puts a caption below the image with the time after it', () => {
+    const container = render(human({ body: 'Sunset', attachments: [image(1)] }));
+    const album = byTest(container, 'message-album')[0]!;
+    const caption = byTest(container, 'message-text')[0]!;
+    expect(album.compareDocumentPosition(caption) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(byTest(container, 'message-image-time')).toHaveLength(0);
+    expect(album.querySelector('[data-testid="message-time"]')).toBeNull();
+    expect(byTest(container, 'message-time')).toHaveLength(1);
+  });
+
+  it('gathers several images into one album with +N on the last tile', () => {
+    const opened: string[] = [];
+    const images = Array.from({ length: 7 }, (_, index) => image(index + 1));
+    const container = render(human({ body: '', attachments: images }), {
+      onOpenImage: (attachment: { key: string }) => opened.push(attachment.key),
+    });
+    const albums = byTest(container, 'message-album');
+    expect(albums).toHaveLength(1);
+    expect(albums[0]!.getAttribute('data-accessibilitylabel')).toBe(t.imageCount(7));
+    const tiles = byTest(container, 'message-album-tile');
+    expect(tiles).toHaveLength(5);
+    expect(tiles[4]!.textContent).toContain('+2');
+    expect(tiles[3]!.textContent).not.toContain('+');
+    native.presses.get(t.openImage('photo-3.jpg'))!();
+    expect(opened).toEqual(['img-3']);
+  });
+
+  it('plays voice from one row with the played and total time, no title or download', () => {
+    const audio = {
+      key: 'voice-key',
+      identity: 'voice-hash',
+      kind: 'audio' as const,
+      name: 'voice-m.mp3',
+      size: 4096,
+      local: false,
+      source,
+    };
+    const container = render(
+      human({
+        author: 'bot',
+        bot: 'ada',
+        body: 'Spoken',
+        voice: { state: 'ready', audio, durationMs: 7000 },
+      }),
+    );
+    const row = byTest(container, 'voice-bar')[0]!;
+    expect(row.getAttribute('data-accessibilitylabel')).toBe(t.playVoice);
+    expect(byTest(row, 'voice-time')[0]?.textContent).toBe('0:00 / 0:07');
+    expect(row.textContent).not.toContain(t.voiceLabel);
+    expect(row.textContent).not.toContain('4 KB');
+    expect(container.querySelectorAll('[data-accessibilityrole="button"]')).toHaveLength(1);
+  });
+
+  it('shows a file as one row with a type tile, its name, and size · type', () => {
+    const container = render(
+      human({
+        author: 'bot',
+        body: '',
+        attachments: [
+          { key: 'f', kind: 'file', name: 'Q3 report.pdf', size: 3_500_000, source, local: false },
+        ],
+      }),
+    );
+    const row = byTest(container, 'message-file')[0]!;
+    expect(row.getAttribute('data-accessibilitylabel')).toBe(t.shareFile('Q3 report.pdf'));
+    expect(byTest(row, 'message-file-tile')[0]?.textContent).toBe('PDF');
+    expect(row.textContent).toContain('Q3 report.pdf');
+    expect(row.textContent).toContain('3.3 MB · PDF');
+    expect(row.querySelectorAll('[data-accessibilityrole="button"]')).toHaveLength(0);
+  });
+
+  it('hints at quoted media: a thumbnail for images, the length for voice, the name for files', () => {
+    const quote = (media: never, body = '', extra: Partial<ConversationMessage> = {}) => {
+      const container = render(
+        human({
+          body: 'this',
+          replyTo: 'm-1',
+          replyPreview: { author: { kind: 'bot', slug: 'ada' }, body, media },
+          ...extra,
+        }),
+      );
+      return {
+        text: byTest(container, 'reply-quote-text')[0]?.textContent,
+        thumb: byTest(container, 'reply-quote-thumb')[0],
+      };
+    };
+    const photo = quote({ kind: 'image', count: 1 } as never, '', {
+      replyThumbnail: { source, thumbhash: 'abc' },
+    });
+    expect(photo.text).toBe(t.reply.photo);
+    expect(photo.thumb?.getAttribute('data-native')).toBe('Image');
+    expect(quote({ kind: 'image', count: 3 } as never, 'Trip').text).toBe('Trip');
+    expect(quote({ kind: 'image', count: 3 } as never).text).toBe(t.reply.photos(3));
+    expect(quote({ kind: 'image', count: 3 } as never).thumb).toBeUndefined();
+    expect(quote({ kind: 'voice', durationMs: 7000 } as never, 'Spoken').text).toBe(
+      t.reply.voice('0:07'),
+    );
+    expect(quote({ kind: 'voice' } as never, 'Spoken').text).toBe(t.reply.voice('Spoken'));
+    expect(quote({ kind: 'file', name: 'Q3.pdf', count: 1 } as never).text).toBe(
+      t.reply.file('Q3.pdf'),
+    );
+    expect(quote({ kind: 'file', name: 'Q3.pdf', count: 1 } as never, 'See this').text).toBe(
+      'See this',
+    );
+  });
+
+  it('moves downloading and sharing attachments into the long-press menu', () => {
+    const shared: string[] = [];
+    const file = {
+      key: 'f',
+      kind: 'file' as const,
+      name: 'Q3.pdf',
+      size: 10,
+      source,
+      local: false,
+    };
+    const photo = image(1);
+    const message = human({ author: 'bot', body: '', attachments: [photo, file] });
+    renderToStaticMarkup(
+      <MessageActions
+        target={{
+          message,
+          anchor: { x: 0, y: 400, width: 200, height: 60 },
+          group: { first: true, last: true },
+        }}
+        onClose={() => {}}
+        onReact={() => {}}
+        onCopy={() => {}}
+        onShareText={() => {}}
+        onShareAttachment={(attachment) => shared.push(attachment.key)}
+      />,
+    );
+    expect(messageMenuActions(message).map((action) => action.label)).toEqual([
+      t.shareFile('photo-1.jpg'),
+      t.shareFile('Q3.pdf'),
+    ]);
+    native.presses.get(t.shareFile('Q3.pdf'))!();
+    expect(shared).toEqual([]);
+    native.dismiss();
+    expect(shared).toEqual(['f']);
+    const audio = { ...file, key: 'v', kind: 'audio' as const, name: 'voice.mp3' };
+    expect(
+      messageMenuActions(
+        human({ author: 'bot', body: 'Hi', voice: { state: 'ready', audio } }),
+      ).map((action) => action.label),
+    ).toContain(t.shareFile('voice.mp3'));
+    expect(
+      messageMenuActions(
+        human({ author: 'bot', body: '', attachments: [{ ...file, source: undefined } as never] }),
+      ),
+    ).toEqual([]);
+  });
+
+  it('keeps two images side by side in one album', () => {
+    const container = render(human({ body: '', attachments: [image(1), image(2)] }));
+    expect(byTest(container, 'message-album')).toHaveLength(1);
+    expect(byTest(container, 'message-album-tile')).toHaveLength(2);
+    expect(container.textContent).not.toContain('+');
+  });
+});

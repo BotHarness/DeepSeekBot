@@ -41,7 +41,7 @@ import {
 import type { RosterBot } from '../../host/client';
 import type { ConversationPlayback } from '../../host/conversation-playback';
 import { spring } from '../design/motion';
-import { doubleTap, lift, motion, space } from '../design/tokens';
+import { doubleTap, lift, mediaBubble, motion, radius, space } from '../design/tokens';
 import { pressTint, useDesignTheme } from '../design/theme';
 import { MessageBody } from './message-body';
 import { Text } from '../primitives/text';
@@ -60,7 +60,7 @@ import {
   type BubbleGroup,
 } from './bubble-shape';
 import { DeliveryReceiptButton, ReadingBadge } from './delivery-stack';
-import { MessageAttachments } from './message-attachments';
+import { MessageAlbum, MessageFiles, QuoteThumbnail, albumWidth } from './message-attachments';
 import { VoiceBar } from './voice-bar';
 import { openMessageMenu } from './message-menu';
 import { ReactionChips } from './message-reactions';
@@ -97,10 +97,12 @@ function MessageTime({
   time,
   human,
   floating = false,
+  onMedia = false,
 }: {
   time: string;
   human: boolean;
   floating?: boolean;
+  onMedia?: boolean;
 }) {
   return (
     <Text
@@ -110,6 +112,7 @@ function MessageTime({
       numberOfLines={1}
       style={[
         { alignSelf: 'flex-end', fontVariant: ['tabular-nums'] },
+        onMedia ? { color: mediaBubble.ink } : null,
         floating
           ? {
               position: 'absolute',
@@ -121,6 +124,26 @@ function MessageTime({
     >
       {time}
     </Text>
+  );
+}
+
+function ImageTime({ time, human }: { time: string; human: boolean }) {
+  return (
+    <View
+      testID="message-image-time"
+      pointerEvents="none"
+      style={{
+        position: 'absolute',
+        right: space.x3,
+        bottom: space.x3,
+        paddingHorizontal: space.x3,
+        paddingVertical: space.x1,
+        borderRadius: radius.round,
+        backgroundColor: mediaBubble.scrim,
+      }}
+    >
+      <MessageTime time={time} human={human} onMedia />
+    </View>
   );
 }
 
@@ -203,19 +226,68 @@ export function BubbleBody({
   const human = message.author === 'human';
   const ink = human ? 'onAccent' : 'fg';
   const time = messageTime(message, streaming);
-  const { fontScale } = useWindowDimensions();
+  const { fontScale, width: screen } = useWindowDimensions();
   const [wrapped, setWrapped] = useState<string | undefined>(undefined);
+  const images = message.attachments.filter((attachment) => attachment.kind === 'image');
+  const files = message.attachments.filter((attachment) => attachment.kind !== 'image');
+  const album = images.length > 0;
+  const hasBody = message.body.trim() !== '';
   const lastInBubble =
-    time !== undefined &&
-    message.attachments.length === 0 &&
-    message.card === undefined &&
-    message.body.trim() !== '';
+    time !== undefined && files.length === 0 && message.card === undefined && hasBody;
   const beside =
     lastInBubble &&
     !human &&
     wrapped !== message.body &&
     !message.body.includes('\n') &&
     message.body.length <= BESIDE_MAX;
+  const captioned =
+    hasBody ||
+    streaming ||
+    files.length > 0 ||
+    message.card !== undefined ||
+    message.voice !== undefined;
+  const pillTime = album && !captioned ? time : undefined;
+  const width = album ? albumWidth(screen) : undefined;
+  const body =
+    !hasBody && !streaming && message.attachments.length > 0 ? null : beside ? (
+      <View
+        testID="message-body-row"
+        style={{ flexDirection: 'row', alignItems: 'flex-end', gap: space.x3 }}
+      >
+        <View
+          testID="message-body"
+          style={{ flexShrink: 1 }}
+          onLayout={(event) => {
+            if (!oneLine(event.nativeEvent.layout.height, theme.type.body.line, fontScale))
+              setWrapped(message.body);
+          }}
+        >
+          <MessageBody message={message} streaming={streaming} />
+        </View>
+        <MessageTime time={time} human={human} />
+      </View>
+    ) : (
+      <MessageBody
+        message={message}
+        streaming={streaming}
+        trail={lastInBubble && human ? <TimeSpacer time={time} /> : undefined}
+      />
+    );
+  const details = (
+    <>
+      {message.voice === undefined ? null : <VoiceBar voice={message.voice} human={human} />}
+      {body}
+      {files.length > 0 ? <MessageFiles files={files} human={human} onShare={onShare} /> : null}
+      {message.card ? (
+        <Text variant="meta" tone={human ? ink : 'muted'} style={{ fontStyle: 'italic' }}>
+          {t.card}
+        </Text>
+      ) : null}
+      {time === undefined || beside || pillTime !== undefined ? null : (
+        <MessageTime time={time} human={human} floating={lastInBubble && human} />
+      )}
+    </>
+  );
   return (
     <StreamSurface
       active={streaming}
@@ -223,9 +295,10 @@ export function BubbleBody({
       style={{
         ...bubbleShape(human, group),
         ...fill,
-        overflow: fill?.maxHeight === undefined ? 'visible' : 'hidden',
+        ...(album ? { width, padding: 0, paddingHorizontal: 0, paddingVertical: 0 } : null),
+        overflow: album || fill?.maxHeight !== undefined ? 'hidden' : 'visible',
         backgroundColor: human ? theme.color.accent : theme.color.surface,
-        gap: space.x2,
+        gap: album ? 0 : space.x2,
       }}
     >
       {deliveryAccessibility && human && message.delivery === 'pending' ? (
@@ -236,48 +309,44 @@ export function BubbleBody({
           style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden' }}
         />
       ) : null}
-      {quote}
-      {message.voice === undefined ? null : <VoiceBar voice={message.voice} />}
-      {beside ? (
+      {quote === undefined ? null : album ? (
         <View
-          testID="message-body-row"
-          style={{ flexDirection: 'row', alignItems: 'flex-end', gap: space.x3 }}
+          style={{
+            paddingHorizontal: space.x3,
+            paddingTop: space.x3,
+            paddingBottom: space.x3,
+          }}
         >
-          <View
-            testID="message-body"
-            style={{ flexShrink: 1 }}
-            onLayout={(event) => {
-              if (!oneLine(event.nativeEvent.layout.height, theme.type.body.line, fontScale))
-                setWrapped(message.body);
-            }}
-          >
-            <MessageBody message={message} streaming={streaming} />
-          </View>
-          <MessageTime time={time} human={human} />
+          {quote}
         </View>
       ) : (
-        <MessageBody
-          message={message}
-          streaming={streaming}
-          trail={lastInBubble && human ? <TimeSpacer time={time} /> : undefined}
-        />
+        quote
       )}
-      {message.attachments.length > 0 ? (
-        <MessageAttachments
-          attachments={message.attachments}
+      {album ? (
+        <MessageAlbum
+          images={images}
           human={human}
+          width={width!}
           onOpenImage={onOpenImage}
-          onShare={onShare}
           onImageReady={onImageReady}
-        />
+        >
+          {pillTime === undefined ? null : <ImageTime time={pillTime} human={human} />}
+        </MessageAlbum>
       ) : null}
-      {message.card ? (
-        <Text variant="meta" tone={human ? ink : 'muted'} style={{ fontStyle: 'italic' }}>
-          {t.card}
-        </Text>
-      ) : null}
-      {time === undefined || beside ? null : (
-        <MessageTime time={time} human={human} floating={lastInBubble && human} />
+      {album ? (
+        captioned ? (
+          <View
+            style={{
+              paddingHorizontal: BUBBLE_PADDING.horizontal,
+              paddingVertical: BUBBLE_PADDING.vertical,
+              gap: space.x2,
+            }}
+          >
+            {details}
+          </View>
+        ) : null
+      ) : (
+        details
       )}
     </StreamSurface>
   );
@@ -541,6 +610,12 @@ export const MessageBubble = memo(function MessageBubble({
         replyTo === undefined ? undefined : (
           <ReplyQuote
             preview={message.replyPreview}
+            thumbnail={
+              message.replyPreview?.media?.kind === 'image' &&
+              message.replyThumbnail !== undefined ? (
+                <QuoteThumbnail thumbnail={message.replyThumbnail} />
+              ) : undefined
+            }
             botName={botName}
             onAccent={human}
             onOpen={onOpenReply === undefined ? undefined : () => onOpenReply(replyTo)}
@@ -695,7 +770,7 @@ export const MessageBubble = memo(function MessageBubble({
   );
   const row = {
     ...bubbleRow(first),
-    ...(reactions.length > 0 || shownReading.length > 0
+    ...(reactions.length > 0
       ? { paddingBottom: BADGE_OVERLAP + space.x2 }
       : last
         ? { paddingBottom: space.x2 }

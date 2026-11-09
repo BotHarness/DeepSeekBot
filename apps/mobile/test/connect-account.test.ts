@@ -41,6 +41,13 @@ function fakeRelay(
         hosts: [
           { id: 'hstudio', name: 'Studio', hostname: 'hstudio.deepseekbot.dev', tunnel: true },
           { id: 'hlaptop', name: 'Laptop', hostname: 'hlaptop.deepseekbot.dev', tunnel: false },
+          {
+            id: 'hqueued',
+            name: 'Queued',
+            hostname: 'hqueued.deepseekbot.dev',
+            tunnel: false,
+            state: 'waiting',
+          },
           { id: 7 },
         ],
       });
@@ -109,6 +116,13 @@ describe('phone Connect account', () => {
       value: [
         { id: 'hstudio', name: 'Studio', hostname: 'hstudio.deepseekbot.dev', online: true },
         { id: 'hlaptop', name: 'Laptop', hostname: 'hlaptop.deepseekbot.dev', online: false },
+        {
+          id: 'hqueued',
+          name: 'Queued',
+          hostname: 'hqueued.deepseekbot.dev',
+          online: false,
+          waiting: true,
+        },
       ],
     });
     expect(relay.calls.at(-1)).toMatchObject({ auth: 'Bearer access-1' });

@@ -16,6 +16,7 @@ import {
 import { validTunnelToken, type SpawnTunnel, type TunnelProcess } from './connect.js';
 import { CONNECT_CHANNEL_PATH } from './noise/channel.js';
 import type { PrivateRelayAdmission } from './private-relay.js';
+import { isConnectZoneHost } from './routes.js';
 
 type Credentials = Pick<CredentialProvider, 'readRecord' | 'modifyRecord' | 'deleteRecord'>;
 
@@ -83,8 +84,7 @@ export function privateTunnelHostname(input: string): string | undefined {
   if (
     hostname.length > 253 ||
     !/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,62}$/u.test(hostname) ||
-    hostname === 'deepseekbot.dev' ||
-    hostname.endsWith('.deepseekbot.dev') ||
+    isConnectZoneHost(hostname) ||
     hostname.endsWith('.ts.net') ||
     hostname === 'localhost' ||
     hostname.endsWith('.localhost')
@@ -123,8 +123,7 @@ export function privateIngressOrigin(input: string): string | undefined {
     host.endsWith('.localhost') ||
     host === '[::1]' ||
     /^127\./u.test(host) ||
-    host === 'deepseekbot.dev' ||
-    host.endsWith('.deepseekbot.dev') ||
+    isConnectZoneHost(host) ||
     host.endsWith('.ts.net') ||
     /^100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d+\.\d+$/u.test(host)
   )

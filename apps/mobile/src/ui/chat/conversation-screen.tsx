@@ -155,6 +155,7 @@ import { MessageIdentities } from './message-identities';
 import { copyMessage, shareText } from './message-menu';
 import type { Rect } from './menu-placement';
 import { chatRows, messageGroups, type ChatRow } from './message-groups';
+import { LatestAnchor } from './latest-anchor';
 import { SpeakerAnchor } from './speaker-anchor';
 import { SPEAKER_VIEWPORT } from './speaker-span';
 import { createSpeakerRegistry, SpeakerStageContext } from './speaker-row';
@@ -926,14 +927,15 @@ function ChatConversation({
   const send = () => {
     if (host.connection.status !== 'connected') return;
     if (!draftPersistence.loaded || draftPersistence.failed) return;
-    const submitted = submittedMessage(draft, mentions);
+    const live = draftPersistence.read();
+    const submitted = submittedMessage(live, mentions);
     const body = submitted.body;
     const tags =
       replyTarget === undefined ? submitted.tags : { ...submitted.tags, replyTo: replyTarget.id };
     if ((body === '' && files.length === 0) || conversation === undefined) return;
     if (tags.allBotMention?.preview.recipients.length === 0) return;
     if (dictation.state.status !== 'idle') dictation.cancel();
-    setDraft('');
+    draftPersistence.take(live);
     setMentions([]);
     setFiles([]);
     setReplying(undefined);
@@ -1938,6 +1940,16 @@ function ChatConversation({
                             ? 16
                             : 32
                         }
+                        {...{
+                          [android ? 'ListHeaderComponent' : 'ListFooterComponent']:
+                            LatestAnchor === undefined ? undefined : (
+                              <LatestAnchor
+                                following={latest.ready && !latest.away}
+                                animated={!latest.reducedMotion}
+                                style={{ height: 0 }}
+                              />
+                            ),
+                        }}
                         keyboardDismissMode={ios ? 'interactive' : 'on-drag'}
                         keyboardShouldPersistTaps="handled"
                         {...{
@@ -2126,6 +2138,7 @@ function ChatConversation({
         onReact={(message, emoji, active) => react(message.id, emoji, active)}
         onCopy={copyMessage}
         onShareText={shareText}
+        onShareAttachment={(attachment) => void share(attachment)}
       />
       {paging === undefined ? null : (
         <NativePageHeader
