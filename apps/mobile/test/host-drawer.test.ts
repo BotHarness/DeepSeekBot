@@ -219,6 +219,24 @@ describe('Host drawer', () => {
     expect(showView.mock.calls).toEqual([['tower']]);
   });
 
+  it('lets a source change cancel workspace work without counting as the person choosing', () => {
+    const drawer = createHostDrawer({
+      showView: vi.fn(),
+      switchTo: vi.fn(async () => true),
+      pair: vi.fn(),
+      notifications: vi.fn(),
+    });
+    const selecting = drawer.beginWorkspaceSelection();
+    const scoped = drawer.captureWorkspaceSelection();
+    const chosen = drawer.captureChosenWorkspace();
+    drawer.invalidateWorkspaceSources();
+    expect(selecting()).toBe(false);
+    expect(scoped()).toBe(false);
+    expect(chosen()).toBe(true);
+    drawer.selectAll();
+    expect(chosen()).toBe(false);
+  });
+
   it('opens the pairing flow from "Pair a new computer" and closes', () => {
     const pair = vi.fn();
     const drawer = createHostDrawer({
