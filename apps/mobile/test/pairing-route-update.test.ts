@@ -198,7 +198,7 @@ it('moves a private-tunnel phone to a changed address only after the pinned Host
   expect(real.admitted).toEqual(['existing.secret']);
   expect(real.sockets[0]).toEqual({
     url: `${origin.replace('https', 'wss')}/botharness-device/channel`,
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${token}`, 'X-BotHarness-Admission': token },
   });
 
   const impostor = privatePeer(randomBytes(32), payload);
