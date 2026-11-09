@@ -23,8 +23,9 @@ function fakeHost(options: { refuseVisual?: boolean } = {}) {
   let phase: VoiceCallView['phase'] = 'listening';
   let endReason: VoiceCallView['endReason'];
   let gate: Promise<void> | undefined;
+  let opens = 0;
   const view = (): VoiceCallView => ({
-    callId: 'call-0000000000000001',
+    callId: `call-000000000000000${opens}`,
     slug: 'mira',
     channelId: 'dm-mira',
     phase,
@@ -40,6 +41,11 @@ function fakeHost(options: { refuseVisual?: boolean } = {}) {
   });
   const post: CallPost = async (body) => {
     posts.push(body);
+    if (body['kind'] === 'open') {
+      opens += 1;
+      phase = 'listening';
+      endReason = undefined;
+    }
     if (body['kind'] === 'visual' && gate !== undefined) await gate;
     if (body['kind'] === 'visual' && options.refuseVisual === true)
       return { ok: false, code: 'invalid-input', error: 'no' } as VoiceCallResult;
@@ -301,6 +307,55 @@ describe('call session visual sharing', () => {
     release!();
     expect(await sharing).toBe(false);
     await hangup;
+    expect(world.captures.last().stopped).toBe(true);
+    expect(world.captures.last().running).toBe(false);
+    expect(world.session.state().visual).toMatchObject({ source: 'off', starting: false });
+  });
+
+  it('drops a pending switch when the old capture ends and turns the Host off again', async () => {
+    let release: (() => void) | undefined;
+    const host = fakeHost();
+    const world = setup(host);
+    await world.session.client.open('mira');
+    await world.session.share('screen');
+    const screen = world.captures.last();
+    host.holdVisual(new Promise<void>((done) => (release = done)));
+    const switching = world.session.share('camera');
+    await flush();
+    screen.events.ended();
+    release!();
+    expect(await switching).toBe(false);
+    await flush();
+    const camera = world.captures.last();
+    expect(camera.stopped).toBe(true);
+    expect(camera.running).toBe(false);
+    expect(world.session.state().visual).toMatchObject({
+      source: 'off',
+      starting: false,
+      error: 'screen-stopped',
+    });
+    expect(world.host.visuals()).toEqual([
+      { source: 'screen' },
+      { source: 'camera' },
+      { source: 'off', stopped: true },
+      { source: 'off' },
+    ]);
+  });
+
+  it('drops a share whose call was replaced while the Host answered', async () => {
+    let release: (() => void) | undefined;
+    const host = fakeHost();
+    const world = setup(host);
+    await world.session.client.open('mira');
+    host.holdVisual(new Promise<void>((done) => (release = done)));
+    const sharing = world.session.share('camera');
+    await flush();
+    host.end('host-stopped');
+    await world.advance();
+    await world.session.client.open('mira');
+    expect(world.session.state().call.status).toBe('live');
+    release!();
+    expect(await sharing).toBe(false);
     expect(world.captures.last().stopped).toBe(true);
     expect(world.captures.last().running).toBe(false);
     expect(world.session.state().visual).toMatchObject({ source: 'off', starting: false });

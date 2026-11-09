@@ -88,6 +88,8 @@ export function createCallSession<Capture extends CallCapture, Code extends stri
   let visual: CallVisualState<Code> = CALL_VISUAL_OFF;
   let active: Capture | undefined;
   let disposed = false;
+  let generation = 0;
+  let callId: string | undefined;
 
   const emit = () => {
     if (!disposed) options.onChange({ call, visual });
@@ -98,6 +100,7 @@ export function createCallSession<Capture extends CallCapture, Code extends stri
   };
   const live = () => !disposed && client.state().status === 'live';
   const release = () => {
+    generation += 1;
     const capture = active;
     active = undefined;
     capture?.stop();
@@ -107,6 +110,9 @@ export function createCallSession<Capture extends CallCapture, Code extends stri
     ...options,
     onChange: (next) => {
       call = next;
+      const nextId = next.status === 'live' ? next.call.callId : undefined;
+      if (nextId !== callId) generation += 1;
+      callId = nextId;
       if (next.status === 'ended' && (active !== undefined || visual.starting)) {
         release();
         visual = { ...visual, source: 'off', starting: false, paused: false };
@@ -122,6 +128,8 @@ export function createCallSession<Capture extends CallCapture, Code extends stri
     if (!live() || visual.starting) return false;
     const restart = visual.source === source;
     if (restart && shareOptions.restart !== true) return true;
+    const ticket = (generation += 1);
+    const current = () => ticket === generation && live();
     setVisual({ starting: true, error: undefined });
     const capture: Capture = options.capture(source, {
       keyframe: async (frame) => {
@@ -132,6 +140,7 @@ export function createCallSession<Capture extends CallCapture, Code extends stri
       ended: () => {
         if (active !== capture) return;
         active = undefined;
+        generation += 1;
         setVisual({ source: 'off', paused: false, error: `${source}-stopped` });
         if (live()) void client.visual('off', 'stopped');
       },
@@ -149,7 +158,7 @@ export function createCallSession<Capture extends CallCapture, Code extends stri
         error instanceof CallCaptureFailure
           ? (error as CallCaptureFailure<Code>)
           : new CallCaptureFailure<`${CallVisualSource}-missing`>(`${source}-missing`);
-      const lost = restart && active !== undefined;
+      const lost = restart && ticket === generation && active !== undefined;
       if (lost) release();
       setVisual({
         starting: false,
@@ -159,16 +168,17 @@ export function createCallSession<Capture extends CallCapture, Code extends stri
       if (lost && live()) await client.visual('off');
       return false;
     }
-    if (!live() || (restart && active === undefined)) {
+    if (!current()) {
       capture.stop();
       if (!disposed) setVisual({ starting: false });
       return false;
     }
     if (!restart) {
       const answer = await client.visual(source);
-      if (!live() || (answer !== undefined && !answer.ok)) {
+      if (!current() || (answer !== undefined && !answer.ok)) {
         capture.stop();
         if (!disposed) setVisual({ starting: false });
+        if (answer?.ok === true && live() && visual.source === 'off') await client.visual('off');
         return false;
       }
     }
