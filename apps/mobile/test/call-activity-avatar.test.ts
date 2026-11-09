@@ -133,4 +133,16 @@ describe('call Live Activity avatar', () => {
     expect(widget).toContain('minimal: portrait(');
     expect(widget).toContain('uiImage={props.avatar}');
   });
+
+  it('counts the call up as m:ss and keeps large text from wrapping the Lock Screen row', () => {
+    const widget = readFileSync(
+      new URL('../src/ui/widgets/call-activity.tsx', import.meta.url),
+      'utf8',
+    );
+    expect(widget).not.toContain('dateStyle="timer"');
+    expect(widget.match(/timerInterval=\{elapsed\}/g)).toHaveLength(2);
+    expect(widget.match(/countsDown=\{false\}/g)).toHaveLength(2);
+    expect(widget).toContain("dynamicTypeSize({ max: 'xxLarge' })");
+    expect(widget).toContain('modifiers={[padding({ all: 16 }), fitted]}');
+  });
 });
