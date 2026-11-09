@@ -80,11 +80,11 @@ function mount(content: ReactNode) {
 }
 
 describe('computer identity rows', () => {
-  it('keeps the shared title to one ellipsized line without dropping the full text', () => {
+  it('wraps the shared title at accessibility text sizes without dropping the full text', () => {
     const name = '非常长的电脑名称 — studio '.repeat(20);
     const node = mount(<ComputerRowLabel name={name} status="Online" dot="green" />);
     expect(node.querySelector('[data-ellipsis="tail"]')?.textContent).toBe(name);
-    expect(node.querySelector('[data-ellipsis="tail"]')?.getAttribute('data-lines')).toBe('1');
+    expect(node.querySelector('[data-ellipsis="tail"]')?.getAttribute('data-lines')).toBeNull();
     expect(node.querySelectorAll('span')).toHaveLength(2);
     expect(node.textContent).toContain('Online');
   });

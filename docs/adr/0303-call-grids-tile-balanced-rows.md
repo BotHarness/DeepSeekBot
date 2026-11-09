@@ -5,6 +5,8 @@
 - Issue: #3689 (spec #3688; amends ADR-0286 and ADR-0288)
 
 > Amended by [ADR-0304](0304-call-frame-harvest.md): no keyframe is dropped by score; keyframes past the newest nine become frame records, and `grid-built` reports `commits` instead of `dropped`.
+>
+> Amended by [ADR-0308](0308-call-grid-labels-sit-above-tiles.md): each tile row gains a label strip above it, and tiles shrink when the strips would pass the 1536 px long edge.
 
 ## Context
 

@@ -123,7 +123,7 @@ describe('device alert presentation', () => {
     expect(snapshots.at(-1)?.silent).toEqual(['old']);
     await owner.update({
       ...input,
-      visibleChannelId: 'dm:helper',
+      focusedChannelIds: ['dm:helper'],
       items: [item('channel-reply', 'new'), item('user-question')],
     });
     expect(snapshots.at(-1)?.silent).toEqual(['new']);

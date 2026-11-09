@@ -75,7 +75,7 @@ export interface DeviceAlertInput {
   approvalText: string;
   preferences?: PushPreferences;
   quietChannelIds?: readonly string[];
-  visibleChannelId?: string | undefined;
+  focusedChannelIds?: readonly string[] | undefined;
   text?: Record<PushKind, string>;
 }
 
@@ -214,7 +214,7 @@ export function createDeviceAlerts(port: DeviceAlertPort, source?: DeviceAlertSo
           if (
             kind === 'reply' &&
             ((port.recoverySession === undefined && !baselined.has(input.hostId)) ||
-              (input.foreground && input.visibleChannelId === item.channelId))
+              (item.channelId !== undefined && input.focusedChannelIds?.includes(item.channelId)))
           ) {
             silent.push(item.id);
             return [];

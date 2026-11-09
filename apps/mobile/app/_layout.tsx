@@ -79,8 +79,8 @@ function RootNavigator() {
   const design = useDesignTheme();
   const reducedMotion = useSystemReducedMotion();
   const [routingPending, setRoutingPending] = useState(false);
-  const routing = usePushRouting(setRoutingPending, hostDrawer.captureWorkspaceSelection);
-  const workspace = useWorkspaceNavigation(hostDrawer.beginWorkspaceSelection);
+  const routing = usePushRouting(setRoutingPending, hostDrawer.captureChosenWorkspace);
+  const workspace = useWorkspaceNavigation(hostDrawer.invalidateWorkspaceSources);
   const activity = useMounted(watchRequestActivity, []);
   const back = usePredictiveBack();
   const settingsPages: [string, string | undefined][] = [

@@ -170,7 +170,7 @@ The one- or two-sentence statement of what an Assignment sets out to do, chosen 
 _Avoid_: purpose (historical), prompt, Assignment Request, Assignment Report
 
 **Assignment Session**:
-A PersonaBot-owned independent root Session that executes exactly one Assignment in exactly one working directory in v1, created and managed by its Orchestrator without requiring the Human to open another Conversation. A PersonaBot may have several at once, and a DSH Subagent never counts as one.
+A PersonaBot-owned independent root Session that executes exactly one Assignment in exactly one working directory in v1, created by its Orchestrator, or by the Human through a direct CLI call on its behalf, and always managed by its Orchestrator, without requiring the Human to open another Conversation. A PersonaBot may have several at once, and a DSH Subagent never counts as one.
 _Avoid_: Work Session, Worker Session, Executor Session, task Session, child Session
 
 **Assignment Agent**:
@@ -190,7 +190,7 @@ A stable PersonaBot-local key explicitly assigned to one continuing line of work
 _Avoid_: title similarity, cwd, most-recent Session, global id
 
 **Assignment Request**:
-A durable, addressed, auditable Orchestrator message to one owned Assignment Session, optionally correlated to an Inbox Admission or earlier report. Its semantic mode is `context-update`, `next-step`, or `next-turn`; Assignment Runtime maps that to DSH injection, steer, or follow-up without interrupting the current step.
+A durable, addressed, auditable Orchestrator message, or a Human's direct CLI request on its behalf, to one owned Assignment Session, optionally correlated to an Inbox Admission or earlier report. Its semantic mode is `context-update`, `next-step`, or `next-turn`; Assignment Runtime maps that to DSH injection, steer, or follow-up without interrupting the current step.
 _Avoid_: Channel message, Subagent prompt, broadcast, inferred Session
 
 **Assignment Delivery Intent**:
@@ -1198,11 +1198,13 @@ Counterparts by job. The Android column uses Material 3 names, the iOS column HI
 | Label or hint for an element                        | Tooltip                                                              | `TooltipBox`, `PlainTooltip`                                                    | — on iPhone (help tags are macOS and iPadOS pointer)                                   | —                                                                                                                  |
 | Scroll through a set of items horizontally          | Carousel                                                             | `HorizontalMultiBrowseCarousel`                                                 | Collection; page control for ordered pages                                             | `ScrollView(.horizontal)`, `TabView` + `.tabViewStyle(.page)` · `UICollectionView`, `UIPageControl`                |
 | Go back                                             | System Back and predictive back; top app bar navigation icon         | `BackHandler`, `PredictiveBackHandler`                                          | Back button and the interactive pop (edge or content swipe)                            | `NavigationStack` · `UINavigationController`                                                                       |
+| An ongoing call outside the app                     | Ongoing call notification (of a foreground service)                  | `Notification.CallStyle.forOngoingCall`                                         | Live Activity (Lock Screen and Dynamic Island)                                         | ActivityKit `Activity` · `expo-widgets`                                                                            |
 
 How this app pairs them today (`apps/mobile/DESIGN.md`, #3002):
 
 - Buttons: primary → filled ↔ bordered prominent (glass prominent on iOS 26); secondary and tonal → filled tonal ↔ bordered (glass); text → text button ↔ borderless; danger → filled with the Material error colours ↔ the destructive role.
 - Sheets: Android `ModalBottomSheet` ↔ iOS form sheet with detents (`presentation: 'formSheet'` through Expo Router, or SwiftUI `BottomSheet` in `@expo/ui`).
+- A Bot call outside the app: Android ongoing call notification (`Notification.CallStyle`) plus the custom call bubble over other apps ↔ iOS Live Activity (ADR-0305).
 - The Chats "-1 screen": Android `DismissibleNavigationDrawer` ↔ iOS retained navigation pages, Workspaces beside the complete Chats tab shell (`UIPageViewController` through `PagerView`).
 - Top-level navigation: Android navigation bar with a creation FAB ↔ the iOS tab island with its **+** (a custom surface, ADR-0235).
 - Activity and workspace tabs: Android primary tabs (`PrimaryTabRow`).

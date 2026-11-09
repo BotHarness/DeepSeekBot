@@ -6,6 +6,7 @@ import {
   createKeyframePicker,
   type KeyframePicker,
 } from '../../../../packages/core/src/voice/keyframes';
+import { CallCaptureFailure } from '../../../../packages/core/src/voice/call-session';
 import type { CallCameraPosition, PhoneCallCameraError } from '../ui/chat/call-session';
 
 type Subscription = { remove(): void };
@@ -53,9 +54,9 @@ const native = requireOptionalNativeModule<CallCameraNative>('CallCamera');
 export const callCameraSupported =
   native !== null && typeof (native as Partial<CallCameraNative>).callCameraStart === 'function';
 
-export class PhoneCallCameraFailure extends Error {
-  constructor(readonly code: PhoneCallCameraError) {
-    super(code);
+export class PhoneCallCameraFailure extends CallCaptureFailure<PhoneCallCameraError> {
+  constructor(code: PhoneCallCameraError) {
+    super(code, code === 'camera-cancelled');
   }
 }
 

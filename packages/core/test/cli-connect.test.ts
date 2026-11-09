@@ -4,6 +4,112 @@ const reply = (value: unknown) => ({
   bytes: new TextEncoder().encode(JSON.stringify(value)),
 });
 describe('connect CLI', () => {
+  it('claims private connectivity only with explicit confirmation and a stdin setup key', async () => {
+    const http = vi.fn(async () => reply({ ok: true, status: { state: 'connecting' } }));
+    const connect = vi.fn(async () => ({ http }));
+    await expect(
+      runConnectCommand(
+        'private-connect',
+        [],
+        { hostname: 'https://relay.example.com', 'token-stdin': true },
+        {},
+        connect,
+      ),
+    ).rejects.toMatchObject({ code: 'usage' });
+    expect(connect).not.toHaveBeenCalled();
+    const result = await runConnectCommand(
+      'private-connect',
+      [],
+      { hostname: 'https://relay.example.com', 'token-stdin': true, confirm: true },
+      { readStdin: async () => 'a'.repeat(64) },
+      connect,
+    );
+    expect(http).toHaveBeenCalledWith('/api/botharness/devices/private', {
+      origin: 'https://relay.example.com',
+      bootstrap: 'a'.repeat(64),
+      confirm: true,
+    });
+    expect(JSON.stringify(result)).not.toContain('a'.repeat(64));
+  });
+  it('enables a Quick or Named private tunnel only with --confirm and reads the token from stdin', async () => {
+    const http = vi.fn(async () => reply({ ok: true, status: { state: 'starting' } }));
+    const connect = vi.fn(async () => ({ http }));
+    for (const values of [
+      { quick: true },
+      { quick: true, hostname: 'bot.example.com', confirm: true },
+      { hostname: 'bot.example.com', confirm: true },
+      { confirm: true },
+    ])
+      await expect(
+        runConnectCommand('private-tunnel-enable', [], values, {}, connect),
+      ).rejects.toMatchObject({ code: 'usage' });
+    expect(connect).not.toHaveBeenCalled();
+    await runConnectCommand(
+      'private-tunnel-enable',
+      [],
+      { quick: true, confirm: true },
+      {},
+      connect,
+    );
+    expect(http).toHaveBeenLastCalledWith('/api/botharness/devices/private-tunnel', {
+      action: 'enable',
+      mode: 'quick',
+      confirm: true,
+    });
+    const result = await runConnectCommand(
+      'private-tunnel-enable',
+      [],
+      { hostname: 'bot.example.com', 'token-stdin': true, confirm: true },
+      { readStdin: async () => ' connector-token \n' },
+      connect,
+    );
+    expect(http).toHaveBeenLastCalledWith('/api/botharness/devices/private-tunnel', {
+      action: 'enable',
+      mode: 'named',
+      hostname: 'bot.example.com',
+      token: 'connector-token',
+      confirm: true,
+    });
+    expect(JSON.stringify(result)).not.toContain('connector-token');
+    await runConnectCommand('private-tunnel-disable', [], { confirm: true }, {}, connect);
+    expect(http).toHaveBeenLastCalledWith('/api/botharness/devices/private-tunnel', {
+      action: 'disable',
+      confirm: true,
+    });
+  });
+  it('registers a bring-your-own ingress origin only with --origin and --confirm', async () => {
+    const http = vi.fn(async () => reply({ ok: true, status: { state: 'verifying' } }));
+    const connect = vi.fn(async () => ({ http }));
+    for (const [command, values] of [
+      ['private-ingress-enable', { confirm: true }],
+      ['private-ingress-enable', { origin: 'https://bot.example.com' }],
+      ['private-ingress-enable', { origin: 'https://bot.example.com', quick: true, confirm: true }],
+      ['private-ingress-disable', { confirm: true, lan: true }],
+    ] as const)
+      await expect(runConnectCommand(command, [], values, {}, connect)).rejects.toMatchObject({
+        code: 'usage',
+      });
+    expect(connect).not.toHaveBeenCalled();
+    await runConnectCommand(
+      'private-ingress-enable',
+      [],
+      { origin: 'https://bot.example.com', lan: true, confirm: true },
+      {},
+      connect,
+    );
+    expect(http).toHaveBeenLastCalledWith('/api/botharness/devices/private-tunnel', {
+      action: 'enable',
+      mode: 'ingress',
+      origin: 'https://bot.example.com',
+      lan: true,
+      confirm: true,
+    });
+    await runConnectCommand('private-ingress-disable', [], { confirm: true }, {}, connect);
+    expect(http).toHaveBeenLastCalledWith('/api/botharness/devices/private-tunnel', {
+      action: 'disable',
+      confirm: true,
+    });
+  });
   it('lists linked computers through the on-demand route', async () => {
     const http = vi.fn(async () => reply({ hosts: [] }));
     expect(
