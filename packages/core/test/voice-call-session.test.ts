@@ -361,6 +361,37 @@ describe('call session visual sharing', () => {
     expect(world.session.state().visual).toMatchObject({ source: 'off', starting: false });
   });
 
+  it('keeps a stale share from settling the share of the next call', async () => {
+    let failFirst: (() => void) | undefined;
+    let finishSecond: (() => void) | undefined;
+    const first = new Promise<void>((done) => (failFirst = done));
+    const second = new Promise<void>((done) => (finishSecond = done));
+    const world = setup(
+      fakeHost(),
+      fakeCaptures({
+        hold: (index) => (index === 0 ? first : second),
+        fail: (index) => (index === 0 ? new CallCaptureFailure('camera-denied') : undefined),
+      }),
+    );
+    await world.session.client.open('mira');
+    const stale = world.session.share('camera');
+    await flush();
+    await world.session.hangup();
+    await world.session.client.open('mira');
+    const fresh = world.session.share('camera');
+    await flush();
+    failFirst!();
+    expect(await stale).toBe(false);
+    expect(world.session.state().visual).toMatchObject({ starting: true, error: undefined });
+    expect(await world.session.share('screen')).toBe(false);
+    finishSecond!();
+    expect(await fresh).toBe(true);
+    expect(world.captures.made).toHaveLength(2);
+    expect(world.captures.last().running).toBe(true);
+    expect(world.session.state().visual).toMatchObject({ source: 'camera', starting: false });
+    expect(world.host.visuals()).toEqual([{ source: 'camera' }]);
+  });
+
   it('ignores keyframes from a disposed session', async () => {
     const world = setup();
     await world.session.client.open('mira');

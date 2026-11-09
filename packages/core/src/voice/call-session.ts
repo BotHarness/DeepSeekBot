@@ -90,6 +90,7 @@ export function createCallSession<Capture extends CallCapture, Code extends stri
   let disposed = false;
   let generation = 0;
   let callId: string | undefined;
+  let pending: number | undefined;
 
   const emit = () => {
     if (!disposed) options.onChange({ call, visual });
@@ -114,6 +115,7 @@ export function createCallSession<Capture extends CallCapture, Code extends stri
       if (nextId !== callId) generation += 1;
       callId = nextId;
       if (next.status === 'ended' && (active !== undefined || visual.starting)) {
+        pending = undefined;
         release();
         visual = { ...visual, source: 'off', starting: false, paused: false };
       }
@@ -129,7 +131,15 @@ export function createCallSession<Capture extends CallCapture, Code extends stri
     const restart = visual.source === source;
     if (restart && shareOptions.restart !== true) return true;
     const ticket = (generation += 1);
+    const sharedCall = callId;
     const current = () => ticket === generation && live();
+    const settle = (patch: Partial<CallVisualState<Code>> = {}) => {
+      if (disposed || pending !== ticket) return false;
+      pending = undefined;
+      setVisual({ ...patch, starting: false });
+      return true;
+    };
+    pending = ticket;
     setVisual({ starting: true, error: undefined });
     const capture: Capture = options.capture(source, {
       keyframe: async (frame) => {
@@ -158,11 +168,11 @@ export function createCallSession<Capture extends CallCapture, Code extends stri
         error instanceof CallCaptureFailure
           ? (error as CallCaptureFailure<Code>)
           : new CallCaptureFailure<`${CallVisualSource}-missing`>(`${source}-missing`);
-      const lost = restart && ticket === generation && active !== undefined;
+      const fresh = current();
+      const lost = restart && fresh && active !== undefined;
       if (lost) release();
-      setVisual({
-        starting: false,
-        error: failure.cancelled ? undefined : failure.code,
+      settle({
+        ...(fresh ? { error: failure.cancelled ? undefined : failure.code } : {}),
         ...(lost ? { source: 'off' as const, paused: false } : {}),
       });
       if (lost && live()) await client.visual('off');
@@ -170,21 +180,29 @@ export function createCallSession<Capture extends CallCapture, Code extends stri
     }
     if (!current()) {
       capture.stop();
-      if (!disposed) setVisual({ starting: false });
+      settle();
       return false;
     }
     if (!restart) {
       const answer = await client.visual(source);
       if (!current() || (answer !== undefined && !answer.ok)) {
         capture.stop();
-        if (!disposed) setVisual({ starting: false });
-        if (answer?.ok === true && live() && visual.source === 'off') await client.visual('off');
+        const owned = settle();
+        if (
+          owned &&
+          answer?.ok === true &&
+          live() &&
+          callId === sharedCall &&
+          visual.source === 'off'
+        )
+          await client.visual('off');
         return false;
       }
     }
     if (active !== capture) release();
     active = capture;
     capture.run();
+    pending = undefined;
     setVisual({
       source,
       starting: false,
@@ -209,6 +227,7 @@ export function createCallSession<Capture extends CallCapture, Code extends stri
       if (visual.error !== undefined) setVisual({ error: undefined });
     },
     async hangup() {
+      pending = undefined;
       release();
       if (visual.source !== 'off' || visual.starting)
         visual = { ...visual, source: 'off', starting: false, paused: false };
