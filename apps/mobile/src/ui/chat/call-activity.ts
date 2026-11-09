@@ -77,6 +77,7 @@ export function callNotice(props: CallActivityProps, palette: CallActivityPalett
     surfaceColor: palette.surface,
     fgColor: palette.fg,
     baseColor: palette.base,
+    ...(props.avatar === undefined ? {} : { avatar: props.avatar }),
   };
 }
 

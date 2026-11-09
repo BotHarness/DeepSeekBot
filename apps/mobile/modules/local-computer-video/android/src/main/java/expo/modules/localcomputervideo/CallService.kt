@@ -259,7 +259,9 @@ class CallService : Service() {
         if (value.muted) value.unmuteLabel else value.muteLabel, mute).build()
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         builder.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
-        val person = Person.Builder().setName(value.name).setImportant(true).build()
+        val person = Person.Builder().setName(value.name).setImportant(true)
+          .apply { CallAvatar.load(context, value.avatarPath)?.let { setIcon(Icon.createWithBitmap(it)) } }
+          .build()
         builder.setStyle(Notification.CallStyle.forOngoingCall(person, hangUp))
         builder.addAction(muteAction)
       } else {
