@@ -178,7 +178,7 @@ export function CallAudioMenu({
           overflow: 'hidden',
         }}
       >
-        <SystemSymbol name={symbol(output)} color={ink} size={theme.type.title.size} />
+        <SystemSymbol name={symbol(output)} color={ink} size={theme.type.title.line} />
       </Pressable>
     </View>
   );
