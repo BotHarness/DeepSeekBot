@@ -1,4 +1,4 @@
-# ADR-0307: Desktop Bot calls keep running when the window is hidden
+# ADR-0309: Desktop Bot calls keep running when the window is hidden
 
 - Status: Accepted (V10; Mac accepted on DSH 0.2.2-rc.1, Windows acceptance by the Windows lane)
 - Date: 2026-11-09
