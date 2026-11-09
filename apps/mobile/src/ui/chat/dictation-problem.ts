@@ -10,9 +10,11 @@ export function showDictationProblem(problem: DictationProblem): void {
       ? t.dictationDenied
       : problem === 'unavailable'
         ? t.dictationUnavailable
-        : t.dictationFailed;
+        : problem === 'limited'
+          ? t.dictationLimit
+          : t.dictationFailed;
   showAppDialog(
-    t.dictationProblem,
+    problem === 'limited' ? t.dictationLimitTitle : t.dictationProblem,
     message,
     problem === 'denied'
       ? [

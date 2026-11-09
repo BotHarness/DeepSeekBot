@@ -22,6 +22,7 @@
     "test/call-camera.test.ts",
     "test/call-media-native.test.ts",
     "test/dictation-mic.test.ts",
+    "test/os-dictation.test.ts",
     "test/native-persistence.test.ts",
     "test/native-zip-import-file.test.ts",
     "test/share-attachment.test.ts",

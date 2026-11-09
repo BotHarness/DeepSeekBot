@@ -1310,6 +1310,8 @@ const en = {
   dictationUnavailable:
     'This phone has no speech recognition right now, and the Host has no speech-to-text Provider. Add one on the computer (Settings › Voice) to dictate.',
   dictationFailed: 'Dictation stopped before it finished. Tap the mic to try again.',
+  dictationLimitTitle: 'Dictation limit reached',
+  dictationLimit: 'Recording stopped at the 2-minute limit. The text is kept.',
   attachFailed: 'That could not be opened. Check the app’s access in Settings.',
   sent: 'Sent',
   notSent: 'Not sent',
@@ -3645,6 +3647,8 @@ const zh: typeof en = {
   dictationUnavailable:
     '这台手机现在无法使用语音识别，Host 也还没有语音转文字 Provider。请在电脑上添加一个（设置 › 语音）后再语音输入。',
   dictationFailed: '语音输入中途停止了。点麦克风重试。',
+  dictationLimitTitle: '已到语音输入上限',
+  dictationLimit: '已到 2 分钟上限，录音已自动结束，文字已保留。',
   attachFailed: '打不开，请在系统设置里检查 App 的权限。',
   sent: '已送达',
   notSent: '未发送',
