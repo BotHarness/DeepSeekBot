@@ -68,7 +68,6 @@
       "scope": "Profile",
       "surfaces": [
         "route:packages/core/src/devices/mount.ts:path in [ [DEVICES_PATH, ['GET']], [`${DEVICES_PATH}/requests`, ['GET']], [`${DEVICES_PATH}/offer`, ['POST']], [`${DEVICES_PATH}/offer-status`, ['POST']], [`${DEVICES_PATH}/approve-key`, ['POST']], [`${DEVICES_PATH}/revoke`, ['POST']], [`${DEVICES_PATH}/connect`, ['POST']], [`${DEVICES_PATH}/private`, ['POST']], [`${DEVICES_PATH}/private-tunnel`, ['POST']], [`${DEVICES_PATH}/account-hosts`, ['GET']], [`${DEVICES_PATH}/account-hosts/revoke`, ['POST']], [`${DEVICES_PATH}/lan`, ['POST']], [`${DEVICES_PATH}/lan-bots`, ['GET', 'POST']], ] as const",
-        "setting:packages/client/src/client/paired-devices.tsx:{t('devices.lan.title')}",
         "setting:packages/client/src/client/lan-bot-settings.tsx:{peer.name}",
         "setting:packages/client/src/client/private-tunnel-settings.tsx:{t('privateTunnel.ingressLan')}",
         "setting:packages/client/src/client/lan-bot-settings.tsx:{review.peer.name}",
@@ -123,10 +122,7 @@
       "id": "phone-route",
       "description": "Phone route status and the confirmed tailscale serve publish under the separate Tailscale connection entry.",
       "scope": "Profile",
-      "surfaces": [
-        "route:packages/core/src/devices/mount.ts:DEVICES_SERVE_PATH",
-        "setting:packages/client/src/client/paired-devices.tsx:{t('devices.tailscale.title')}"
-      ],
+      "surfaces": ["route:packages/core/src/devices/mount.ts:DEVICES_SERVE_PATH"],
       "commands": ["phone-route", "phone-route-publish"]
     },
     {
