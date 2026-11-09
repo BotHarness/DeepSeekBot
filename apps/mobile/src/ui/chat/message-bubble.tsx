@@ -770,7 +770,7 @@ export const MessageBubble = memo(function MessageBubble({
   );
   const row = {
     ...bubbleRow(first),
-    ...(reactions.length > 0 || shownReading.length > 0
+    ...(reactions.length > 0
       ? { paddingBottom: BADGE_OVERLAP + space.x2 }
       : last
         ? { paddingBottom: space.x2 }
