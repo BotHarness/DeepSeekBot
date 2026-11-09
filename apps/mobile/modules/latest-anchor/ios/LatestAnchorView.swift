@@ -28,7 +28,13 @@ private final class LatestTicker: NSObject {
 
 final class LatestAnchorView: ExpoView {
   var following = true {
-    didSet { if !following { stop() } }
+    didSet {
+      if !following {
+        stop()
+      } else if !oldValue, let scroll = scroller {
+        catchUp(scroll)
+      }
+    }
   }
   var animated = true
   private weak var scroller: UIScrollView?
@@ -74,7 +80,12 @@ final class LatestAnchorView: ExpoView {
   }
 
   func grew(_ scroll: UIScrollView, from height: CGFloat) {
-    guard following, height > 0, !scroll.isTracking, !scroll.isDecelerating else {
+    guard height > 0 else { return }
+    catchUp(scroll)
+  }
+
+  func catchUp(_ scroll: UIScrollView) {
+    guard following, !scroll.isTracking, !scroll.isDecelerating else {
       stop()
       return
     }

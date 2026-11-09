@@ -63,6 +63,23 @@ final class LatestAnchorTests: XCTestCase {
     XCTAssertFalse(anchor.gliding)
   }
 
+  func testGrowthWhileHeldIsCaughtUpWhenFollowingResumes() {
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 300, height: 600))
+    let scroll = UIScrollView(frame: window.bounds)
+    scroll.contentInsetAdjustmentBehavior = .never
+    scroll.contentSize = CGSize(width: 300, height: 1000)
+    scroll.contentOffset.y = 400
+    window.addSubview(scroll)
+    let anchor = LatestAnchorView()
+    anchor.following = false
+    anchor.animated = false
+    scroll.addSubview(anchor)
+    scroll.contentSize = CGSize(width: 300, height: 1100)
+    XCTAssertEqual(scroll.contentOffset.y, 400)
+    anchor.following = true
+    XCTAssertEqual(scroll.contentOffset.y, 500)
+  }
+
   func testReducedMotionSnapsToTheLatestRow() {
     let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 300, height: 600))
     let scroll = UIScrollView(frame: window.bounds)
