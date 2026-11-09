@@ -571,10 +571,12 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
       return send({ ok: false, code: 'queue-full', error: 'Too many pending call commands.' });
     }
     const cancellation = new AbortController();
-    const timer = setTimeout(() => {
+    const started = performance.now();
+    const expire = () => {
       cancellation.abort();
       request.destroy();
-    }, VOICE_CALL_LIMITS.operationTimeoutMs);
+    };
+    let timer = setTimeout(expire, VOICE_CALL_LIMITS.operationTimeoutMs);
     const detach = pairing.attachStream(admission.device.id, () => {
       cancellation.abort();
       request.destroy();
@@ -605,6 +607,18 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
           code: 'device-revoked',
           error: 'The device connection is no longer admitted.',
         });
+      if (
+        typeof command === 'object' &&
+        command !== null &&
+        'kind' in command &&
+        command.kind === 'open'
+      ) {
+        clearTimeout(timer);
+        timer = setTimeout(
+          expire,
+          Math.max(0, VOICE_CALL_LIMITS.connectTimeoutMs - (performance.now() - started)),
+        );
+      }
       send(
         options.voiceCall === undefined
           ? { ok: false, code: 'not-ready', error: 'Calls are not ready on this Host.' }

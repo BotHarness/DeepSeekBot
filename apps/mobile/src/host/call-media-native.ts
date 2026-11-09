@@ -6,6 +6,7 @@ import type {
 } from '../../../../packages/core/src/voice/call-client';
 import {
   DEFAULT_CALL_AUDIO,
+  callVoiceVolume,
   parseCallAudioRouteState,
   type CallAudioControl,
   type CallAudioOutputId,
@@ -34,6 +35,7 @@ interface CallNativeModule {
     headsetMicrophone?: CallMicrophoneId,
   ): Promise<string>;
   callMute(attemptId: string, muted: boolean): void;
+  callVoiceVolume?(attemptId: string, volume: number): void;
   callAudio?(
     attemptId: string,
     output: CallAudioOutputId,
@@ -86,7 +88,9 @@ export function createCallMedia(
       attempt = callId;
       if (typeof module.callAudio !== 'function') return module.callStart(callId, offer, testAudio);
       const audio = options.audio?.() ?? DEFAULT_CALL_AUDIO;
-      return module.callStart(callId, offer, testAudio, audio.headsetMicrophone);
+      const answer = await module.callStart(callId, offer, testAudio, audio.headsetMicrophone);
+      if (attempt === callId) module.callVoiceVolume?.(callId, audio.voiceVolume);
+      return answer;
     },
     mute(muted) {
       if (attempt !== undefined) module.callMute(attempt, muted);
@@ -130,6 +134,13 @@ export function createCallMedia(
         const current = await module.callAudioState?.(attempt).catch(() => undefined);
         return parseCallAudioRouteState(current) ?? null;
       },
+      ...(typeof module.callVoiceVolume === 'function'
+        ? {
+            volume(level: number) {
+              if (attempt !== undefined) module.callVoiceVolume?.(attempt, callVoiceVolume(level));
+            },
+          }
+        : {}),
       onChange(listener) {
         const subscription = module.addListener('onCallAudio', (event) => {
           if (event.attemptId !== attempt) return;

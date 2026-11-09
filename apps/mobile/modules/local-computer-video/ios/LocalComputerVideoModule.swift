@@ -75,6 +75,12 @@ public final class LocalComputerVideoModule: Module {
       call.mute(muted)
     }
 
+    // Sets the Bot's voice gain for this call, 0 to 2 where 1 is unity.
+    Function("callVoiceVolume") { (attemptId: String, volume: Double) in
+      guard let call = self.call, call.id == attemptId else { return }
+      call.setVoiceVolume(volume)
+    }
+
     // Chooses the live call's output (`receiver`, `speaker` or `external`) and microphone
     // (`iphone` or `headset`); resolves with the route now in use.
     AsyncFunction("callAudio") { (attemptId: String, output: String, microphone: String) -> [String: Any]? in

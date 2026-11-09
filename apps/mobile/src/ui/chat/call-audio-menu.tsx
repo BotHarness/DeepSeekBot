@@ -13,6 +13,8 @@ export interface CallAudioMenuProps {
   onOutput(output: CallAudioOutputId): void;
   onMicrophone(microphone: CallMicrophoneId): void;
   onMode?(music: boolean): void;
+  voiceVolume?: number;
+  onVoiceVolume?(): void;
 }
 
 export function CallAudioMenu(_props: CallAudioMenuProps) {

@@ -54,6 +54,42 @@ class CallNoticeTest {
     assertEquals(1400L, CallRingBreath.PERIOD_MS)
   }
 
+  @Test fun readsTheAvatarFromAFileUrl() {
+    assertNull(CallNotice.from(valid)!!.avatarPath)
+    val url = "file:///data/user/0/app/files/notification-avatars/host_1/bot-mira%20x.png"
+    assertEquals("/data/user/0/app/files/notification-avatars/host_1/bot-mira x.png",
+      CallNotice.from(valid + ("avatar" to url))!!.avatarPath)
+    for (bad in listOf(
+      "https://host/bot-mira.png", "content://media/bot-mira.png", "file://evil/x/bot-mira.png",
+      "file:///data/files/../secrets/bot-mira.png", "file:///data/files/bot-mira.jpg",
+      "relative/bot-mira.png", "", 42,
+    )) {
+      val notice = CallNotice.from(valid + ("avatar" to bad))
+      assertNotNull("a bad avatar must not drop the notice: $bad", notice)
+      assertNull("refused $bad", notice!!.avatarPath)
+    }
+  }
+
+  @Test fun resolvesAvatarsOnlyUnderTheCacheRoot() {
+    val dir = java.nio.file.Files.createTempDirectory("call-avatar").toFile()
+    try {
+      val root = java.io.File(dir, CallAvatarFiles.ROOT)
+      java.io.File(root, "host").mkdirs()
+      val png = java.io.File(root, "host/bot-mira.png").apply { writeBytes(byteArrayOf(1)) }
+      val outside = java.io.File(dir, "outside.png").apply { writeBytes(byteArrayOf(1)) }
+      assertEquals(png.canonicalFile, CallAvatarFiles.resolve(root, png.toURI().toString()))
+      assertEquals(png.canonicalFile, CallAvatarFiles.resolve(root, png.path))
+      assertNull(CallAvatarFiles.resolve(root, java.io.File(root, "host/bot-missing.png").path))
+      assertNull(CallAvatarFiles.resolve(root, outside.path))
+      assertNull(CallAvatarFiles.resolve(root, null))
+      val link = java.io.File(root, "link")
+      runCatching { java.nio.file.Files.createSymbolicLink(link.toPath(), dir.toPath()) }
+      if (link.exists()) assertNull(CallAvatarFiles.resolve(root, java.io.File(link, "outside.png").path))
+    } finally {
+      dir.deleteRecursively()
+    }
+  }
+
   @Test fun treatsAMissingStartAsNotLive() {
     assertNull(CallNotice.from(valid - "startedAt")!!.startedAt)
     assertNull(CallNotice.from(valid + ("startedAt" to 0))!!.startedAt)

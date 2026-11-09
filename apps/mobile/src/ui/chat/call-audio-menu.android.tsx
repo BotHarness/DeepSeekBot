@@ -21,6 +21,8 @@ export function CallAudioMenu({
   onOutput,
   onMicrophone,
   onMode,
+  voiceVolume,
+  onVoiceVolume,
 }: CallAudioMenuProps) {
   const theme = useDesignTheme();
   const t = useStrings();
@@ -121,6 +123,32 @@ export function CallAudioMenu({
                   }))}
                 />
               ) : null}
+              {onVoiceVolume === undefined || voiceVolume === undefined ? null : (
+                <MaterialMenuGroup
+                  items={[
+                    {
+                      key: 'voice-volume',
+                      label: `${t.call.voiceVolume} · ${t.call.voiceVolumeValue(Math.round(voiceVolume * 100))}`,
+                      selected: false,
+                      testID: 'call-audio-voice-volume',
+                      icon: (
+                        <SystemSymbol
+                          name={{
+                            ios: 'speaker.wave.2',
+                            android: 'graphic_eq',
+                          }}
+                          color={ink}
+                          size={materialMenu.iconSize}
+                        />
+                      ),
+                      onPress: () => {
+                        setOpen(false);
+                        onVoiceVolume();
+                      },
+                    },
+                  ]}
+                />
+              )}
             </Column>
           </DropdownMenu.Items>
         </DropdownMenu>

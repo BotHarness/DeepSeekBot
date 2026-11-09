@@ -20,7 +20,7 @@ function root(): Directory | undefined {
 }
 
 export function callAvatarUri(host: string, slug: string): string | undefined {
-  if (Platform.OS !== 'ios') return undefined;
+  if (Platform.OS !== 'ios' && Platform.OS !== 'android') return undefined;
   try {
     const uri = avatarImageUri(host, avatarFile('bot', slug));
     return uri !== undefined && new File(uri).exists ? uri : undefined;
