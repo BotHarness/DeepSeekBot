@@ -20,6 +20,7 @@ import { OnboardingWelcome } from './onboarding-view.js';
 import { BridgeImage } from './bridge-image.js';
 import { ExternalMessageText } from './external-message-text.js';
 import { ClearedMessageAttachment, MessageAttachment } from './message-attachment.js';
+import { MessageAlbum, messageFileAttachments } from './message-album.js';
 import { useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 
 import {
@@ -764,15 +765,13 @@ export function ChannelMessageBody({
     );
   };
   const voice = message.voice;
-  const voiceAttachment =
-    voice?.state === 'ready'
-      ? message.attachments?.find((ref) => (ref.fileId ?? ref.hash) === voice.attachment)
-      : undefined;
-  const fileAttachments =
-    voiceAttachment === undefined
-      ? message.attachments
-      : message.attachments?.filter((ref) => ref !== voiceAttachment);
-  const attachedFiles = messageAttachmentReferences(fileAttachments ?? []);
+  const {
+    voice: voiceAttachment,
+    images: albumImages,
+    files: fileAttachments,
+    all: allAttachments,
+  } = messageFileAttachments(message);
+  const attachedFiles = messageAttachmentReferences(allAttachments);
   const channel = store.getSnapshot().conversation.channel;
   const interactiveReport =
     host === undefined && channel?.id === channelId && channel?.type === 'dm';
@@ -790,9 +789,10 @@ export function ChannelMessageBody({
             const attachmentIndex = attachedFiles.findIndex(
               (candidate) => candidate.id === item.id,
             );
-            const card = event.currentTarget
-              .closest('.bh-bubble-content')
-              ?.querySelector('.bh-message-attachments')?.children[attachmentIndex];
+            const content = event.currentTarget.closest('.bh-bubble-content');
+            const card =
+              content?.querySelector(`[data-attachment-index="${attachmentIndex}"]`) ??
+              content?.querySelector('.bh-message-album');
             card?.scrollIntoView({ block: 'nearest' });
             card?.querySelector<HTMLElement>('button, a')?.focus();
           }}
@@ -806,6 +806,16 @@ export function ChannelMessageBody({
     });
   return (
     <div className="bh-bubble-content">
+      {albumImages.length === 0 ? null : (
+        <MessageAlbum
+          images={albumImages}
+          channelId={channelId}
+          messageId={message.id}
+          actions={actions}
+          indexOf={(ref) => allAttachments.indexOf(ref)}
+          t={t}
+        />
+      )}
       {voice === undefined ? null : (
         <div className="bh-message-voice" data-voice-state={voice.state}>
           {voiceAttachment !== undefined ? (
@@ -815,6 +825,7 @@ export function ChannelMessageBody({
               messageId={message.id}
               actions={actions}
               displayName={t('message.voice.label')}
+              durationMs={voice.durationMs}
               t={t}
             />
           ) : voice.state === 'pending' ? (
@@ -904,7 +915,7 @@ export function ChannelMessageBody({
           )}
         </div>
       )}
-      {fileAttachments?.length ? (
+      {fileAttachments.length ? (
         <div className="bh-message-attachments">
           {fileAttachments.map((ref, index) => (
             <MessageAttachment
@@ -913,6 +924,7 @@ export function ChannelMessageBody({
               channelId={channelId}
               messageId={message.id}
               actions={actions}
+              index={allAttachments.indexOf(ref)}
               t={t}
             />
           ))}
