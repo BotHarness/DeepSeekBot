@@ -10,6 +10,7 @@ import {
 } from 'react';
 
 import {
+  createBrowserDictationMic,
   createComposerDictation,
   dictationActive,
   DICTATION_HOLD_MS,
@@ -71,7 +72,7 @@ export function useComposerVoice({
         ? undefined
         : createComposerDictation({
             port,
-            ...(mic === undefined ? {} : { mic }),
+            mic: mic ?? createBrowserDictationMic(),
             onText: (text) => {
               const next = spliceDictation(base.current.before, text, base.current.after);
               latest.current.apply(next.value, next.caret);

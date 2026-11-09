@@ -11,6 +11,29 @@ import {
   type DictationEvent,
 } from '../ui/chat/dictation';
 import { useMounted } from '../ui/mounted';
+import {
+  createComposerDictation,
+  type ComposerDictation,
+  type ComposerDictationStatus,
+} from '../../../../packages/core/src/voice/dictation-client';
+import type { HostClient } from './client';
+import { createDictationMic } from './dictation-mic';
+import { createHostDictationPort, hostDictationReady } from './host-dictation';
+
+export type DictationProblem = 'denied' | 'unavailable' | 'failed';
+
+function problemOf(status: Dictation['status']): DictationProblem | undefined {
+  return status === 'denied' || status === 'unavailable' || status === 'failed'
+    ? status
+    : undefined;
+}
+
+function hostStatus(status: ComposerDictationStatus): Dictation['status'] {
+  if (status === 'finishing') return 'listening';
+  if (status === 'limited') return 'idle';
+  if (status === 'missing') return 'unavailable';
+  return status;
+}
 
 async function permitted(): Promise<'denied' | 'unavailable' | undefined> {
   if (!ExpoSpeechRecognitionModule.isRecognitionAvailable()) return 'unavailable';
@@ -20,20 +43,42 @@ async function permitted(): Promise<'denied' | 'unavailable' | undefined> {
   return permission.granted ? undefined : 'denied';
 }
 
-export function useDictation(onText: (text: string, caret?: number) => void) {
+export function useDictation(
+  onText: (text: string, caret?: number) => void,
+  options: {
+    client?: HostClient | undefined;
+    slug?: string | undefined;
+    onProblem?(problem: DictationProblem): void;
+  } = {},
+) {
+  const latest = useRef(options);
+  latest.current = options;
   const current = useRef<Dictation>(idleDictation);
+  const hosted = useRef<ComposerDictation | undefined>(undefined);
   const finalized = useRef('');
   const insertion = useRef({ before: '', after: '' });
   const [state, setState] = useState(idleDictation);
   const apply = (event: DictationEvent) => {
-    const next = dictate(current.current, event);
+    return settle(dictate(current.current, event));
+  };
+  const settle = (next: Dictation) => {
+    const was = current.current.status;
     current.current = next;
     setState(next);
+    const problem = problemOf(next.status);
+    if (problem !== undefined && next.status !== was) latest.current.onProblem?.(problem);
     return next;
   };
+  const splice = (heard: string) => {
+    const { before, after } = insertion.current;
+    onText(before + heard + after, before.length + heard.length);
+  };
 
-  useSpeechRecognitionEvent('start', () => apply({ kind: 'started' }));
+  useSpeechRecognitionEvent('start', () => {
+    if (hosted.current === undefined) apply({ kind: 'started' });
+  });
   useSpeechRecognitionEvent('result', (event) => {
+    if (hosted.current !== undefined) return;
     const before = current.current;
     const text = event.results[0]?.transcript.trim() ?? '';
     const transcript =
@@ -45,16 +90,22 @@ export function useDictation(onText: (text: string, caret?: number) => void) {
     const next = apply({ kind: 'heard', transcript });
     if (next !== before) {
       if (Platform.OS === 'android' && event.isFinal) finalized.current = next.heard;
-      const { before, after } = insertion.current;
-      onText(before + next.heard + after, before.length + next.heard.length);
+      splice(next.heard);
     }
   });
-  useSpeechRecognitionEvent('error', (event) => apply({ kind: 'error', code: event.error }));
-  useSpeechRecognitionEvent('end', () => apply({ kind: 'ended' }));
+  useSpeechRecognitionEvent('error', (event) => {
+    if (hosted.current === undefined) apply({ kind: 'error', code: event.error });
+  });
+  useSpeechRecognitionEvent('end', () => {
+    if (hosted.current === undefined) apply({ kind: 'ended' });
+  });
 
   const mountRef = useMounted<unknown>(
     () => () => {
-      if (dictating(current.current.status)) ExpoSpeechRecognitionModule.abort();
+      const host = hosted.current;
+      hosted.current = undefined;
+      if (host !== undefined) host.dispose();
+      else if (dictating(current.current.status)) ExpoSpeechRecognitionModule.abort();
       current.current = idleDictation;
     },
     [],
@@ -67,8 +118,15 @@ export function useDictation(onText: (text: string, caret?: number) => void) {
     insertion.current = { before: text.slice(0, caret), after: text.slice(caret) };
     finalized.current = '';
     apply({ kind: 'press' });
-    permitted()
-      .then((refusal) => {
+    const { client, slug } = latest.current;
+    hostDictationReady(client, slug)
+      .then(async (ready) => {
+        if (current.current.status !== 'starting') return;
+        if (ready && client !== undefined) {
+          startHosted(client, slug);
+          return;
+        }
+        const refusal = await permitted();
         if (current.current.status !== 'starting') return;
         if (refusal !== undefined) {
           apply({ kind: 'refused', reason: refusal });
@@ -84,13 +142,48 @@ export function useDictation(onText: (text: string, caret?: number) => void) {
       .catch(() => apply({ kind: 'refused', reason: 'unavailable' }));
   };
 
+  const startHosted = (client: HostClient, slug: string | undefined) => {
+    const controller = createComposerDictation({
+      port: createHostDictationPort(client, slug),
+      mic: createDictationMic(),
+      onText: (heard) => {
+        if (hosted.current === controller) splice(heard.trim());
+      },
+    });
+    hosted.current = controller;
+    controller.subscribe(() => {
+      if (hosted.current !== controller) return;
+      const snapshot = controller.snapshot();
+      const status = hostStatus(snapshot.status);
+      if (!dictating(status)) hosted.current = undefined;
+      if (status !== current.current.status)
+        settle({ status, heard: snapshot.text.trim() || current.current.heard });
+    });
+    controller.start('toggle');
+  };
+
   const stop = () => {
+    const host = hosted.current;
+    if (host !== undefined) {
+      if (current.current.status === 'listening') void host.stop();
+      else cancel();
+      return;
+    }
     if (current.current.status === 'listening') ExpoSpeechRecognitionModule.stop();
     else cancel();
   };
 
   const cancel = () => {
     const was = current.current.status;
+    const host = hosted.current;
+    hosted.current = undefined;
+    if (host !== undefined) {
+      host.dispose();
+      settle(idleDictation);
+      if (dictating(was))
+        onText(insertion.current.before + insertion.current.after, insertion.current.before.length);
+      return;
+    }
     apply({ kind: 'cancel' });
     if (dictating(was)) {
       ExpoSpeechRecognitionModule.abort();
