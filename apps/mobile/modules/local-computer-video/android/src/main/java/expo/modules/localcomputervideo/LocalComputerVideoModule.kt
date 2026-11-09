@@ -201,6 +201,12 @@ class LocalComputerVideoModule : Module() {
       if (current != null && current.id == attemptId) current.mute(muted)
     }
 
+    // Sets the Bot's voice gain for this call, 0 to 2 where 1 is unity.
+    Function("callVoiceVolume") { attemptId: String, volume: Double ->
+      val current = call
+      if (current != null && current.id == attemptId) current.setVoiceVolume(volume)
+    }
+
     // Test builds: queue a 16-bit WAV file into the uplink in place of the microphone.
     AsyncFunction("callInject") { attemptId: String, path: String ->
       val current = call

@@ -20,6 +20,7 @@ final class CallAttempt: NSObject, RTCPeerConnectionDelegate {
   private var track: RTCAudioTrack?
   private var music = false
   private var remoteTrack: RTCAudioTrack?
+  private var voiceVolume = 1.0
   private var answered: ((Result<String, CallError>) -> Void)?
   private var settleScheduled = false
   private var sampling = false
@@ -160,6 +161,16 @@ final class CallAttempt: NSObject, RTCPeerConnectionDelegate {
     }
   }
 
+  /// Scales only the Bot's voice: WebRTC's remote source gain, where 1 is unity and the
+  /// call screen offers 0 to 2. Other apps' audio in music mode is not touched.
+  func setVoiceVolume(_ volume: Double) {
+    let gain = volume.isFinite ? min(max(volume, 0), 2) : 1
+    queue.async { [self] in
+      voiceVolume = gain
+      remoteTrack?.source.volume = gain
+    }
+  }
+
   func inject(_ samples: [Float], rate: Double) -> Bool {
     guard let tap else { return false }
     tap.capture.enqueue(samples, rate: rate)
@@ -269,6 +280,7 @@ final class CallAttempt: NSObject, RTCPeerConnectionDelegate {
     queue.async { [self] in
       guard !ended, remoteTrack == nil else { return }
       remoteTrack = remote
+      remote.source.volume = voiceVolume
       if let render = tap?.render { remote.add(render) }
     }
   }

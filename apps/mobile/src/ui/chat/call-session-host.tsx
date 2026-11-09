@@ -241,6 +241,7 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
       ...(media.audio?.mode
         ? { mode: async (music: boolean) => (await media.audio?.mode?.(music)) ?? null }
         : {}),
+      ...(media.audio?.volume ? { volume: (level: number) => media.audio?.volume?.(level) } : {}),
       camera: (on) => void turnCamera(on, cameraState.position),
       flip: () => {
         if (cameraState.on)

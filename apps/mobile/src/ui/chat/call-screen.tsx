@@ -1,5 +1,5 @@
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { Linking, Platform, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -24,6 +24,7 @@ import { callAudioDeviceName } from './call-audio-symbol';
 import { callScreenModel, formatCallDuration, microphoneRecovery } from './call-model';
 import { callSessions, sameCall } from './call-session';
 import { useCallSession } from './call-session-host';
+import { CallVoiceVolumeSheet } from './call-voice-volume-sheet';
 
 const symbols = {
   mic: { ios: 'mic.fill', android: 'mic' },
@@ -60,6 +61,11 @@ export function CallScreen({
   const key = session?.key;
   const [now, setNow] = useState(Date.now());
   const [audioFailed, setAudioFailed] = useState(false);
+  const [volumeOpen, setVolumeOpen] = useState(false);
+  const voiceVolume = useSyncExternalStore(
+    callAudioPreference.subscribe,
+    () => callAudioPreference.getSnapshot().audio.voiceVolume,
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -480,6 +486,9 @@ export function CallScreen({
                         },
                       }
                     : {})}
+                  {...(control()?.volume
+                    ? { voiceVolume, onVoiceVolume: () => setVolumeOpen(true) }
+                    : {})}
                 />
                 <Text variant="meta" tone="muted" style={{ width: '100%', textAlign: 'center' }}>
                   {callAudioDeviceName(
@@ -500,6 +509,15 @@ export function CallScreen({
           </ScrollView>
         )}
       </View>
+      <CallVoiceVolumeSheet
+        visible={volumeOpen && model.live}
+        value={voiceVolume}
+        onChange={(level) => {
+          callAudioPreference.setVoiceVolume(level);
+          control()?.volume?.(callAudioPreference.getSnapshot().audio.voiceVolume);
+        }}
+        onClose={() => setVolumeOpen(false)}
+      />
     </>
   );
 }

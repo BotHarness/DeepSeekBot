@@ -84,6 +84,7 @@ class CallAttempt(
   private var source: AudioSource? = null
   private var track: AudioTrack? = null
   private var remoteTrack: AudioTrack? = null
+  private var voiceVolume = 1.0
   private var answered: ((Result<String>) -> Unit)? = null
   private var settleScheduled = false
   private var sampling = false
@@ -284,6 +285,7 @@ class CallAttempt(
       enqueue {
         if (remoteTrack != null) return@enqueue
         remoteTrack = incoming
+        incoming.setVolume(voiceVolume)
         tap?.let { incoming.addSink(it.render) }
       }
     }
@@ -376,6 +378,18 @@ class CallAttempt(
       finish(Result.failure(CallError("signal-too-large"))); return
     }
     finish(Result.success(description.description))
+  }
+
+  /**
+   * Scales only the Bot's voice: WebRTC's remote source gain, where 1 is unity and the
+   * call screen offers 0 to 2. Media mode leaves other apps' music at its own level.
+   */
+  fun setVoiceVolume(volume: Double) {
+    val gain = voiceGain(volume)
+    enqueue {
+      voiceVolume = gain
+      remoteTrack?.setVolume(gain)
+    }
   }
 
   fun mute(muted: Boolean) {
@@ -845,6 +859,9 @@ class CallAudioTap(
     }
   }
 }
+
+/** The Bot voice gain the call screen may set: 0 to 2, unity when the value is unusable. */
+fun voiceGain(volume: Double): Double = if (volume.isFinite()) volume.coerceIn(0.0, 2.0) else 1.0
 
 fun resample(samples: FloatArray, from: Double, to: Double): FloatArray {
   if (from == to || samples.isEmpty()) return samples

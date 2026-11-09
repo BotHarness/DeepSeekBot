@@ -6,6 +6,7 @@ const native = vi.hoisted(() => ({
   callAudioMode: vi.fn(async (_attempt: string, music: boolean) => ({ ...route, music })),
   callStart: vi.fn(async () => 'answer'),
   callMute: vi.fn(),
+  callVoiceVolume: vi.fn() as ((attempt: string, volume: number) => void) | undefined,
   callAudio: vi.fn(async () => route),
   callAudioState: vi.fn(async () => route),
   callStop: vi.fn(async () => null),
@@ -36,11 +37,14 @@ beforeEach(() => {
   listeners.clear();
   native.callAudioSupported = true;
   native.callAudioModeSupported = false;
+  native.callVoiceVolume = vi.fn();
 });
 
 describe('native call audio capability', () => {
   it('restores the saved headset input request and forwards refusal without inventing a selected microphone', async () => {
-    const media = createCallMedia({ audio: () => ({ headsetMicrophone: 'iphone' }) });
+    const media = createCallMedia({
+      audio: () => ({ headsetMicrophone: 'iphone', voiceVolume: 1 }),
+    });
     const changed = vi.fn();
     media?.audio?.onChange(changed);
     await media?.start({ callId: 'mic-call', offer: 'offer' });
@@ -99,5 +103,28 @@ describe('native call audio capability', () => {
     expect(native.callAudio).not.toHaveBeenCalled();
     unsubscribe?.();
     expect(listeners.has('onCallAudio')).toBe(false);
+  });
+
+  it('applies the saved voice volume once the call starts and scopes changes to the active call', async () => {
+    const media = createCallMedia({
+      audio: () => ({ headsetMicrophone: 'headset', voiceVolume: 1.5 }),
+    });
+    await media?.start({ callId: 'loud', offer: 'offer' });
+    expect(native.callVoiceVolume).toHaveBeenCalledWith('loud', 1.5);
+    media?.audio?.volume?.(5);
+    expect(native.callVoiceVolume).toHaveBeenLastCalledWith('loud', 2);
+    media?.audio?.volume?.(0.333);
+    expect(native.callVoiceVolume).toHaveBeenLastCalledWith('loud', 0.33);
+    media?.stop();
+    media?.audio?.volume?.(1);
+    expect(native.callVoiceVolume).toHaveBeenCalledTimes(3);
+  });
+
+  it('hides the voice volume control on a client built before it existed', async () => {
+    native.callVoiceVolume = undefined;
+    const media = createCallMedia();
+    expect(media?.audio?.volume).toBeUndefined();
+    await media?.start({ callId: 'old', offer: 'offer' });
+    expect(native.callStart).toHaveBeenCalledWith('old', 'offer', false, 'headset');
   });
 });
