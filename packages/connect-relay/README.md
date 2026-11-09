@@ -81,6 +81,14 @@ A failed step stamps `cleanup_at` and the next run starts with the rows least re
 
 When provisioning finds `MAX_TUNNELS` live tunnels, or `ZONE_RECORDS` records in the Host's zone, it evicts the cheapest tunnel: gone, then offline longest (beyond 2 minutes), then the least recently used online Host outside `EVICT_PROTECT_MINUTES` (default 30) that is older in use than the requester. It logs `connect-evicted`; with no candidate it answers `503 relay-full` and logs `connect-full`. Last use comes from pairing offers, Live Activity registrations and the Host's own report on its once-a-minute `GET /v1/hosts?host=<id>&idle=<seconds>`.
 
+### Live end-to-end check
+
+`scripts/e2e-lifecycle.ts` drives the real relay code against Cloudflare: a local D1, real tunnels with the pinned `cloudflared`, and a dedicated test zone. It covers provisioning, reaching the gateway through the edge, record repair, eviction, reclamation after the window and orphan sweeps, then deletes everything it created. It refuses `deepseekbot.dev` and uses the `dsbe2e-` tunnel prefix, so it never touches production tunnels or records. The env file holds `CLOUDFLARE_API_TOKEN` (Tunnel Edit and DNS Edit on the test zone), `CLOUDFLARE_ACCOUNT_ID`, `E2E_ZONE_NAME` and `E2E_ZONE_ID`.
+
+```sh
+pnpm --filter @botharness/connect-relay exec unrun scripts/e2e-lifecycle.ts ~/.config/deepseekbot-connect/e2e.env report.json
+```
+
 ## Configuration
 
 | Name                    | Kind   | Meaning                                                                                                                                                          |
