@@ -95,9 +95,12 @@ describe('GenUI trusted script-disabled DOM mirror', () => {
     mirror.paint(snapshot('<input data-genui-node="1">', [{ id: '1', value: '' }]));
     const input = document.querySelector('input');
     if (!input) throw Error('Missing control.');
+    input.dispatchEvent(new dom.window.CompositionEvent('compositionstart', { bubbles: true }));
     input.value = 'a l';
     input.dispatchEvent(new dom.window.InputEvent('input', { bubbles: true, isComposing: true }));
     expect(commands).toEqual([]);
+    mirror.paint(snapshot('<input data-genui-node="1">', [{ id: '1', value: 'older' }]));
+    expect(input.value).toBe('a l');
     input.value = '阿里';
     input.dispatchEvent(new dom.window.CompositionEvent('compositionend', { bubbles: true }));
     expect(commands).toEqual([

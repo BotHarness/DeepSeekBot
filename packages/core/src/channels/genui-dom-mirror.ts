@@ -220,6 +220,7 @@ export class GenuiDomMirror {
   private readonly removers: (() => void)[] = [];
   private readonly document: Document;
   private send: ((command: GenuiExecutionCommand) => void) | undefined;
+  private composing: Element | undefined;
 
   constructor(document: Document, send: (command: GenuiExecutionCommand) => void) {
     this.document = document;
@@ -233,7 +234,15 @@ export class GenuiDomMirror {
       document.body.addEventListener(type, listener);
       this.removers.push(() => document.body.removeEventListener(type, listener));
     }
-    const composed = (event: Event) => this.event('input', event);
+    const started = (event: Event) => {
+      if (ownedElement(event.target, this.document)) this.composing = event.target;
+    };
+    document.body.addEventListener('compositionstart', started);
+    this.removers.push(() => document.body.removeEventListener('compositionstart', started));
+    const composed = (event: Event) => {
+      this.composing = undefined;
+      this.event('input', event);
+    };
     document.body.addEventListener('compositionend', composed);
     this.removers.push(() => document.body.removeEventListener('compositionend', composed));
     const submit = (event: Event) => event.preventDefault();
@@ -264,7 +273,7 @@ export class GenuiDomMirror {
     );
     for (const control of snapshot.controls) {
       const node = nodes.get(control.id);
-      if (!node || preserveControls.has(control.id)) continue;
+      if (!node || preserveControls.has(control.id) || node === this.composing) continue;
       if (control.value !== undefined && 'value' in node && node.value !== control.value)
         node.value = control.value;
       if (control.checked !== undefined && 'checked' in node && node.checked !== control.checked)
@@ -275,6 +284,7 @@ export class GenuiDomMirror {
       retained.focus({ preventScroll: true });
       if (
         selection &&
+        retained !== this.composing &&
         'selectionStart' in retained &&
         typeof retained.selectionStart === 'number' &&
         'setSelectionRange' in retained &&

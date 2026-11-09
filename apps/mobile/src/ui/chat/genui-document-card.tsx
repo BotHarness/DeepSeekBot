@@ -353,7 +353,10 @@ export function GenuiDocumentCard({
   const snapshot = useSyncExternalStore(view.subscribe, view.getSnapshot, view.getSnapshot);
   const [attempt, setAttempt] = useState(0);
   const [failed, setFailed] = useState(false);
-  const [ready, setReady] = useState(false);
+  const theme = useDesignTheme();
+  const frame = `${attempt}:${theme.scheme}:${genuiTextScale(theme.fontScale)}`;
+  const [readyFrame, setReadyFrame] = useState<string>();
+  const ready = readyFrame === frame;
   const send = use(GenuiReplies);
   return (
     <View style={{ gap: space.x3 }} testID="genui-document-card">
@@ -377,13 +380,13 @@ export function GenuiDocumentCard({
         </View>
       ) : (
         <GenuiFrame
-          key={attempt}
+          key={frame}
           document={document}
           messageId={messageId}
           view={view}
-          onReady={() => setReady(true)}
+          onReady={() => setReadyFrame(frame)}
           onFailure={() => {
-            setReady(false);
+            setReadyFrame(undefined);
             setFailed(true);
           }}
         />

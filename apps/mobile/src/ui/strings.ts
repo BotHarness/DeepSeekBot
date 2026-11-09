@@ -3794,7 +3794,7 @@ const zh: typeof en = {
   genuiSaved: '已保存',
   genuiSaving: '正在保存…',
   genuiSaveError: '更改没有保存成功。',
-  genuiLoadError: '无法加载已保存的视图。',
+  genuiLoadError: '已保存的视图加载失败，再试一次。',
   genuiConflict: '这个视图已在其他设备上更改。',
   genuiUnavailable: '这份文档已不可用。',
   genuiSave: '保存',
