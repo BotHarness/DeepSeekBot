@@ -1,6 +1,7 @@
 import { Button, Circle, HStack, Image, Spacer, Text, VStack, ZStack } from '@expo/ui/swift-ui';
 import {
   clipShape,
+  dynamicTypeSize,
   font,
   foregroundStyle,
   frame,
@@ -53,10 +54,15 @@ function CallActivity(props: CallActivityProps, environment: LiveActivityEnviron
                   : zh
                     ? '在听'
                     : 'Listening';
+  const elapsed = {
+    lower: new Date(props.startedAt),
+    upper: new Date(props.startedAt + 24 * 60 * 60 * 1000),
+  };
+  const fitted = dynamicTypeSize({ max: 'xxLarge' });
   const timer = (
     <Text
-      date={new Date(props.startedAt)}
-      dateStyle="timer"
+      timerInterval={elapsed}
+      countsDown={false}
       modifiers={[
         monospacedDigit(),
         font({ textStyle: 'headline' }),
@@ -125,7 +131,7 @@ function CallActivity(props: CallActivityProps, environment: LiveActivityEnviron
     </HStack>
   );
   const banner = (
-    <VStack alignment="leading" spacing={8} modifiers={[padding({ all: 16 })]}>
+    <VStack alignment="leading" spacing={8} modifiers={[padding({ all: 16 }), fitted]}>
       <HStack spacing={10}>
         {avatar(40)}
         {name}
@@ -145,8 +151,8 @@ function CallActivity(props: CallActivityProps, environment: LiveActivityEnviron
     compactLeading: portrait(22),
     compactTrailing: (
       <Text
-        date={new Date(props.startedAt)}
-        dateStyle="timer"
+        timerInterval={elapsed}
+        countsDown={false}
         modifiers={[
           monospacedDigit(),
           multilineTextAlignment('trailing'),
@@ -156,14 +162,14 @@ function CallActivity(props: CallActivityProps, environment: LiveActivityEnviron
     ),
     minimal: portrait(22),
     expandedLeading: (
-      <HStack spacing={8} modifiers={[padding({ leading: 8 })]}>
+      <HStack spacing={8} modifiers={[padding({ leading: 8 }), fitted]}>
         {avatar(36)}
         {name}
       </HStack>
     ),
-    expandedTrailing: <HStack modifiers={[padding({ trailing: 8 })]}>{timer}</HStack>,
+    expandedTrailing: <HStack modifiers={[padding({ trailing: 8 }), fitted]}>{timer}</HStack>,
     expandedBottom: (
-      <HStack>
+      <HStack modifiers={[fitted]}>
         <Text modifiers={[foregroundStyle('secondary'), lineLimit(1)]}>{status}</Text>
         <Spacer />
         {controls}
