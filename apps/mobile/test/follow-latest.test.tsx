@@ -36,7 +36,7 @@ vi.mock('react-native', async () => {
 });
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 
-const { atLatest, distanceFromLatest, latestOffset, unseenSince } =
+const { atLatest, distanceFromLatest, latestOffset, shouldFly, unseenSince } =
   await import('../src/ui/chat/follow-latest');
 const { JumpToLatest } = await import('../src/ui/chat/jump-to-latest');
 const { t } = await import('../src/ui/strings');
@@ -53,6 +53,18 @@ function message(id: string, author: ConversationMessage['author']): Conversatio
 }
 
 describe('following the latest message', () => {
+  it.each([
+    { atLatest: true, reducedMotion: false, fly: true },
+    { atLatest: true, reducedMotion: true, fly: false },
+    { atLatest: false, reducedMotion: false, fly: false },
+    { atLatest: false, reducedMotion: true, fly: false },
+  ])(
+    'flies a sent message only at the newest message with motion on (%o)',
+    ({ atLatest, reducedMotion, fly }) => {
+      expect(shouldFly({ atLatest, reducedMotion })).toBe(fly);
+    },
+  );
+
   it('treats the last few points above the end of the list as the latest', () => {
     expect(atLatest(0)).toBe(true);
     expect(atLatest(-12)).toBe(true);

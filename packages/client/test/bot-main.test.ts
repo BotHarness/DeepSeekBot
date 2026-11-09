@@ -86,6 +86,7 @@ import { ChannelSidebarEntrySection } from '../src/client/channel-sidebar-view.j
 import { zhTranslate } from '../src/client/locale.js';
 import { store, type ChannelMessage } from '../src/client/store.js';
 import { WindowCompanions } from '../src/client/window-companions.js';
+import { CSS } from '../src/client/styles.js';
 import { inertSubmissionActions } from './inert-submissions.js';
 import * as messageAuthorCards from '../src/client/message-author-card.js';
 
@@ -821,14 +822,13 @@ describe('Bot main Sessions pane', () => {
       store.setConversation(previous.conversation);
     }
   });
-  it('keeps the own identity row inside the mirrored group while name still precedes time in DOM order', () => {
+  it('shows no own name above the Human in a group row and no header time', () => {
     const previous = store.getSnapshot();
     const channel = {
-      id: 'dm-ada',
-      type: 'dm' as const,
-      name: 'Ada',
+      id: 'group-ada',
+      type: 'group' as const,
+      name: 'Team',
       members: ['ada'],
-      botSlug: 'ada',
       createdAt: '2026-09-21T00:00:00.000Z',
       updatedAt: '2026-09-21T00:01:00.000Z',
     };
@@ -842,7 +842,7 @@ describe('Bot main Sessions pane', () => {
     };
     try {
       store.setRoster([bot], [channel]);
-      store.select({ kind: 'bot', slug: 'ada' });
+      store.select({ kind: 'channel', channelId: channel.id });
       store.setConversation({
         status: 'ready',
         channel,
@@ -863,19 +863,16 @@ describe('Bot main Sessions pane', () => {
         }),
       );
       expect(markup).toContain('bh-message-group-me');
-      const identity = markup.indexOf('bh-message-identity');
-      expect(identity).toBeGreaterThan(-1);
-      const author = markup.indexOf('bh-bubble-author', identity);
-      const time = markup.indexOf('bh-bubble-time', identity);
-      expect(author).toBeGreaterThan(-1);
-      expect(time).toBeGreaterThan(author);
+      expect(markup).not.toContain('bh-message-identity');
+      expect(markup).not.toContain('bh-bubble-author');
+      expect(markup).not.toContain('bh-bubble-time');
     } finally {
       store.setRoster(previous.bots, previous.channels);
       store.select(previous.selection);
       store.setConversation(previous.conversation);
     }
   });
-  it('colors DM and Group Bot author names from the saved Bot Primary Color and nothing else', () => {
+  it('colors Group Bot author names from the saved Bot Primary Color and shows none in a DM', () => {
     const previous = store.getSnapshot();
     const at = '2026-10-12T00:00:00.000Z';
     const dm = {
@@ -931,30 +928,28 @@ describe('Bot main Sessions pane', () => {
     const contrast = (name: string, theme: 'light' | 'dark') =>
       contrastRatio(parseColor(name)!.rgb, parseColor(REFERENCE_SURFACES[theme].background)!.rgb);
     try {
-      const [human, automatic] = authors(bot(), dm);
-      expect(human!.hasAttribute('data-bot-name-color')).toBe(false);
-      expect(human!.getAttribute('style')).toBeNull();
+      expect(authors(bot(), dm)).toHaveLength(0);
+      const [automatic] = authors(bot(), group);
+      expect(authors(bot(), group)).toHaveLength(1);
       const hair = seededAvatarFor('Ada', undefined).hairColor;
       expect(automatic!.getAttribute('data-bot-name-color')).toBe(botNameColor(hair, '#ffffff'));
 
       const white = bot({ mode: 'custom', color: '#ffffff' });
-      const light = authors(white, dm)[1]!.getAttribute('data-bot-name-color')!;
+      const light = authors(white, group)[0]!.getAttribute('data-bot-name-color')!;
       expect(light).not.toBe('#ffffff');
       expect(contrast(light, 'light')).toBeGreaterThanOrEqual(4.5);
       document.body.setAttribute('data-ds-dark-theme', '');
-      const dark = authors(white, dm)[1]!;
+      const dark = authors(white, group)[0]!;
       expect(dark.getAttribute('data-bot-name-color')).toBe('#ffffff');
       expect(dark.style.color).not.toBe('');
       expect(contrast('#ffffff', 'dark')).toBeGreaterThanOrEqual(4.5);
 
-      const [groupHuman, groupBot] = authors(white, group);
-      expect(groupHuman!.hasAttribute('data-bot-name-color')).toBe(false);
+      const [groupBot] = authors(white, group);
       expect(groupBot!.getAttribute('data-bot-name-color')).toBe('#ffffff');
       document.body.removeAttribute('data-ds-dark-theme');
-      expect(authors(white, group)[1]!.getAttribute('data-bot-name-color')).toBe(light);
+      expect(authors(white, group)[0]!.getAttribute('data-bot-name-color')).toBe(light);
       const gone = bot({ mode: 'custom', color: '#ffffff', retained: '#1d1b22' }, true);
-      expect(authors(gone, group)[1]!.getAttribute('data-bot-name-color')).toBe('#1d1b22');
-      expect(authors(gone, dm)[1]!.getAttribute('data-bot-name-color')).toBe('#1d1b22');
+      expect(authors(gone, group)[0]!.getAttribute('data-bot-name-color')).toBe('#1d1b22');
     } finally {
       document.body.removeAttribute('data-ds-dark-theme');
       store.setRoster(previous.bots, previous.channels);
@@ -1005,7 +1000,7 @@ describe('Bot main Sessions pane', () => {
         }),
       );
       expect(markup).toMatch(
-        /aria-haspopup="dialog"[^>]*>Alex · 【Lark\/飞书 QA group】<\/button>.*class="bh-bubble"/,
+        /aria-haspopup="dialog"[^>]*>Alex · 【Lark\/飞书 QA group】<\/button>.*class="bh-bubble[ "]/,
       );
       expect(markup).toContain('original external text');
       expect(markup).not.toContain('sender-private-id');
@@ -1017,7 +1012,7 @@ describe('Bot main Sessions pane', () => {
       store.setConversation(previous.conversation);
     }
   });
-  it('renders one group timestamp and individual inline actions for adjacent Bot messages', () => {
+  it('renders a time inside each bubble and individual inline actions for adjacent Bot messages', () => {
     const bot = {
       slug: 'ada',
       displayName: 'Ada',
@@ -1027,16 +1022,15 @@ describe('Bot main Sessions pane', () => {
       createdAt: '2026-09-21T00:00:00.000Z',
     };
     const channel = {
-      id: 'dm-ada',
-      type: 'dm' as const,
-      name: 'Ada',
+      id: 'group-ada',
+      type: 'group' as const,
+      name: 'Team',
       members: ['ada'],
-      botSlug: 'ada',
       createdAt: '2026-09-21T00:00:00.000Z',
       updatedAt: '2026-09-21T00:01:00.000Z',
     };
     store.setRoster([bot], [channel]);
-    store.select({ kind: 'bot', slug: 'ada' });
+    store.select({ kind: 'channel', channelId: channel.id });
     store.setConversation({
       status: 'ready',
       channel,
@@ -1068,15 +1062,15 @@ describe('Bot main Sessions pane', () => {
     expect(markup).toContain('data-group-position="first"');
     expect(markup).toContain('data-group-position="last"');
     expect(markup.match(/class="bh-message-group-avatar"/g)).toHaveLength(1);
-    expect(markup).not.toContain('bh-message-group-avatar-link');
+    expect(markup.match(/class="bh-message-group-avatar-link"/g)).toHaveLength(1);
     expect(markup.match(/data-hover-card="author"/g)).toHaveLength(2);
-    expect(markup).toContain('class="bh-message-group-avatar-focus" role="group" tabindex="0"');
-    const group = markup.slice(markup.indexOf('class="bh-message-group"'));
+    const start = markup.indexOf('class="bh-message-group"');
+    const group = markup.slice(start, markup.indexOf('class="bh-bubble-wrap', start));
     expect(group).toContain('class="bh-persona-avatar"');
     expect(group).not.toMatch(/class="bh-persona-avatar"[^>]*title=/);
-    expect(markup.match(/class="bh-bubble-time"/g)).toHaveLength(1);
-    expect(markup).toContain('dateTime="2026-09-21T00:01:00.000Z"');
-    expect(markup.match(/class="bh-bubble-meta"/g)).toHaveLength(2);
+    expect(markup).not.toContain('bh-bubble-time');
+    expect(markup).not.toContain('bh-bubble-meta');
+    expect(markup.match(/<time[^>]*dateTime="2026-09-21T00:01:00.000Z"/g)).toHaveLength(1);
     expect(markup.match(/class="bh-bubble-toolbar"/g)).toHaveLength(2);
     expect(markup.match(/aria-label="回复"/g)).toHaveLength(2);
     expect(markup.match(/aria-label="复制消息"/g)).toHaveLength(2);
@@ -1794,6 +1788,433 @@ describe('return to latest messages', () => {
       store.setRoster(previous.bots, previous.channels);
       store.select(previous.selection);
       store.setConversation(previous.conversation);
+    }
+  });
+});
+
+describe('B2 chat bubbles', () => {
+  const at = '2026-11-09T09:41:00.000Z';
+  const ada = {
+    slug: 'ada',
+    displayName: 'Ada',
+    roles: [],
+    aggregateState: 'idle' as const,
+    workspaces: [],
+    createdAt: at,
+    primaryColor: { mode: 'custom' as const, color: '#e8590c' },
+  };
+  const bob = { ...ada, slug: 'bob', displayName: 'Bob' };
+  const dm = {
+    id: 'dm-ada',
+    type: 'dm' as const,
+    name: 'Ada',
+    members: ['ada'],
+    botSlug: 'ada',
+    createdAt: at,
+    updatedAt: at,
+  };
+  const group = {
+    id: 'group-team',
+    type: 'group' as const,
+    name: 'Team',
+    members: ['ada', 'bob'],
+    createdAt: at,
+    updatedAt: at,
+  };
+  const show = (channel: typeof dm | typeof group, messages: ChannelMessage[]): HTMLElement => {
+    store.setRoster([ada, bob], [channel]);
+    store.select(
+      channel.type === 'dm'
+        ? { kind: 'bot', slug: 'ada' }
+        : { kind: 'channel', channelId: channel.id },
+    );
+    store.setConversation({ status: 'ready', channel, sending: false, messages });
+    const host = document.createElement('div');
+    host.innerHTML = renderToStaticMarkup(
+      createElement(BotMain, {
+        actions: { ...inertSubmissionActions } as BridgeActions,
+        channelSidebar: sidebarRegistry(),
+      }),
+    );
+    return host;
+  };
+  const bubble = (host: HTMLElement, id: string) =>
+    host.querySelector<HTMLElement>(`[data-message-id="${id}"] .bh-bubble`);
+  const restore = (previous: ReturnType<typeof store.getSnapshot>) => {
+    store.setRoster(previous.bots, previous.channels);
+    store.select(previous.selection);
+    store.setConversation(previous.conversation);
+  };
+
+  it('shows each committed message time inside its bubble and no avatar or name in a DM', () => {
+    const previous = store.getSnapshot();
+    try {
+      const host = show(dm, [
+        { id: 'h1', at, author: { kind: 'human' }, body: 'hello' },
+        { id: 'b1', at, author: { kind: 'bot', slug: 'ada' }, body: 'hi there' },
+        { id: 'b2', at, author: { kind: 'bot', slug: 'ada' }, body: 'how can I help' },
+        { id: 'h2', at, author: { kind: 'human' }, body: 'sending', pending: true },
+      ]);
+      const timeline = host.querySelector('.bh-chat-body')!;
+      expect(timeline.querySelector('.bh-message-identity')).toBeNull();
+      expect(timeline.querySelector('.bh-message-group-avatar')).toBeNull();
+      expect(timeline.textContent).not.toContain('Ada');
+      for (const id of ['h1', 'b1', 'b2']) {
+        const time = bubble(host, id)?.querySelector('time[data-bubble-time]');
+        expect(time?.getAttribute('datetime')).toBe(at);
+        expect(time?.textContent).toMatch(/\d{1,2}:\d{2}/);
+      }
+      expect(bubble(host, 'h2')?.querySelector('[data-bubble-time]')).toBeNull();
+      expect(timeline.querySelectorAll('time')).toHaveLength(3);
+    } finally {
+      restore(previous);
+    }
+  });
+
+  it('keeps the Bot name outside the first bubble of a group run without a header time', () => {
+    const previous = store.getSnapshot();
+    try {
+      const host = show(group, [
+        { id: 'b1', at, author: { kind: 'bot', slug: 'ada' }, body: 'first' },
+        { id: 'b2', at, author: { kind: 'bot', slug: 'ada' }, body: 'second' },
+      ]);
+      const identities = host.querySelectorAll('.bh-message-identity');
+      expect(identities).toHaveLength(1);
+      expect(identities[0]!.textContent).toBe('Ada');
+      expect(identities[0]!.querySelector('time')).toBeNull();
+      expect(host.querySelectorAll('.bh-message-group-avatar')).toHaveLength(1);
+      expect(bubble(host, 'b1')?.querySelector('[data-bubble-time]')).not.toBeNull();
+      expect(bubble(host, 'b2')?.querySelector('[data-bubble-time]')).not.toBeNull();
+    } finally {
+      restore(previous);
+    }
+  });
+
+  it('floats the reading chip opposite the time without adding anything to the row', () => {
+    const previous = store.getSnapshot();
+    const message: ChannelMessage = { id: 'h1', at, author: { kind: 'human' }, body: 'hello' };
+    try {
+      const idle = show(group, [message]);
+      const reading = show(group, [
+        { ...message, deliveries: [{ botSlug: 'ada', state: 'running' }] },
+      ]);
+      const surface = (host: HTMLElement) =>
+        host.querySelector<HTMLElement>('[data-message-id="h1"] .bh-bubble-surface')!;
+      const chip = surface(reading).querySelector('.bh-bubble-badges [data-message-reading]');
+      expect(chip).not.toBeNull();
+      expect(surface(idle).querySelector('.bh-bubble-badges')).toBeNull();
+      expect(bubble(reading, 'h1')!.outerHTML).toBe(bubble(idle, 'h1')!.outerHTML);
+      const badges = surface(reading).querySelector('.bh-bubble-badges')!;
+      badges.remove();
+      expect(surface(reading).outerHTML).toBe(surface(idle).outerHTML);
+      expect(CSS).toMatch(/\n\.bh-bubble-badges \{\s*position: absolute;/);
+      expect(CSS).toMatch(/\n\.bh-bubble-stamp \{\s*position: absolute;\s*right: /);
+      expect(CSS).toMatch(
+        /\n\.bh-message-group-me \.bh-bubble-badges \.bh-reading \{\s*margin-right: auto;/,
+      );
+      expect(CSS).not.toMatch(/\n\.bh-bubble-badges \.bh-reading \{[^}]*margin-left: auto/);
+    } finally {
+      restore(previous);
+    }
+  });
+
+  it('opens a reply with a quote block naming the quoted author, ahead of the body', async () => {
+    const previous = store.getSnapshot();
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const quoted = { author: { kind: 'bot' as const, slug: 'ada' }, body: 'the question' };
+    const openAround = vi.fn(async () => undefined);
+    try {
+      store.setRoster([ada, bob], [group]);
+      store.select({ kind: 'channel', channelId: group.id });
+      store.setConversation({
+        status: 'ready',
+        channel: group,
+        sending: false,
+        messages: [
+          {
+            id: 'h1',
+            at,
+            author: { kind: 'human' },
+            body: 'my answer',
+            replyTo: 'b0',
+            replyToPreview: quoted,
+          },
+          {
+            id: 'b1',
+            at,
+            author: { kind: 'bot', slug: 'bob' },
+            body: 'adding to that',
+            replyTo: 'b0',
+            replyToPreview: quoted,
+          },
+          {
+            id: 'b2',
+            at,
+            author: { kind: 'bot', slug: 'bob' },
+            body: 'noted',
+            replyTo: 'h1',
+            replyToPreview: { author: { kind: 'human' }, body: 'my answer' },
+          },
+        ],
+      });
+      const actions = {
+        modelPlanState: async () => ({}),
+        listWorkspaceGrants: async () => [],
+        botSourcePolicies: async () => [],
+        allBotPreview: async () => ({ recipients: [], excluded: [] }),
+        listWorkspaceOptions: async () => [],
+        markRead: async () => undefined,
+        openAround,
+        ...inertSubmissionActions,
+      } as unknown as BridgeActions;
+      await act(async () =>
+        root.render(createElement(BotMain, { actions, channelSidebar: sidebarRegistry() })),
+      );
+      const quote = (id: string) =>
+        container.querySelector<HTMLButtonElement>(
+          `[data-message-id="${id}"] .bh-bubble [data-bubble-quote]`,
+        )!;
+      const mine = quote('h1');
+      expect(mine.tagName).toBe('BUTTON');
+      expect(mine.getAttribute('aria-label')).toContain('Ada');
+      expect(mine.querySelector('[data-bubble-quote-author]')?.textContent).toBe('Ada');
+      expect(mine.textContent).toContain('the question');
+      expect(mine.hasAttribute('data-bot-name-color')).toBe(false);
+      const body = container.querySelector('[data-message-id="h1"] .bh-bubble-body')!;
+      expect(mine.compareDocumentPosition(body) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+      const quotedBot = quote('b1');
+      const colour = quotedBot.getAttribute('data-bot-name-color');
+      expect(colour).toMatch(/^#[0-9a-f]{6}$/);
+      expect(
+        contrastRatio(
+          parseColor(colour!)!.rgb,
+          parseColor(REFERENCE_SURFACES.light.background)!.rgb,
+        ),
+      ).toBeGreaterThanOrEqual(4.5);
+
+      const quotedHuman = quote('b2');
+      expect(quotedHuman.hasAttribute('data-bot-name-color')).toBe(false);
+      expect(quotedHuman.dataset['bubbleQuote']).toBe('human');
+
+      await act(async () => quotedHuman.click());
+      expect(openAround).toHaveBeenCalledWith(group.id, 'h1');
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+      restore(previous);
+    }
+  });
+
+  const photo = (name: string, extra: Partial<{ width: number; height: number }> = {}) => ({
+    fileId: `file:${name}`,
+    name,
+    mime: 'image/png',
+    size: 2048,
+    version: 'v1',
+    ...extra,
+  });
+  const photos = (count: number) =>
+    Array.from({ length: count }, (_, index) => photo(`p${index + 1}.png`));
+
+  it('fills an uncaptioned image to the bubble edge with its time on a pill and puts a caption below', () => {
+    const previous = store.getSnapshot();
+    try {
+      const host = show(dm, [
+        { id: 'h1', at, author: { kind: 'human' }, body: '', attachments: [photo('a.png')] },
+        {
+          id: 'h2',
+          at,
+          author: { kind: 'human' },
+          body: 'the gate',
+          attachments: [photo('b.png')],
+        },
+        { id: 'h3', at, author: { kind: 'human' }, body: 'plain text' },
+      ]);
+      const bare = bubble(host, 'h1')!;
+      expect(bare.dataset['bubbleMedia']).toBe('bare');
+      expect(bare.querySelector('[data-album-count="1"]')).not.toBeNull();
+      expect(bare.querySelector('[data-bubble-time]')).not.toBeNull();
+      const captioned = bubble(host, 'h2')!;
+      expect(captioned.dataset['bubbleMedia']).toBe('captioned');
+      const album = captioned.querySelector('.bh-message-album')!;
+      const caption = captioned.querySelector('.bh-bubble-body')!;
+      expect(
+        album.compareDocumentPosition(caption) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(bubble(host, 'h3')!.hasAttribute('data-bubble-media')).toBe(false);
+      expect(CSS).toMatch(
+        /\.bh-bubble\[data-bubble-media\] \{[^}]*padding: 0;[^}]*overflow: hidden;/,
+      );
+      expect(CSS).toMatch(
+        /\.bh-bubble\[data-bubble-media='bare'\] \.bh-bubble-stamp \{[^}]*background: color-mix\(in srgb, black 45%, transparent\);[^}]*color: white;/,
+      );
+    } finally {
+      restore(previous);
+    }
+  });
+
+  it('lays several images out as one album with +N on the last visible tile', () => {
+    const previous = store.getSnapshot();
+    try {
+      const host = show(dm, [
+        { id: 'a2', at, author: { kind: 'human' }, body: '', attachments: photos(2) },
+        { id: 'a3', at, author: { kind: 'human' }, body: '', attachments: photos(3) },
+        { id: 'a4', at, author: { kind: 'human' }, body: '', attachments: photos(4) },
+        { id: 'a8', at, author: { kind: 'bot', slug: 'ada' }, body: '', attachments: photos(8) },
+      ]);
+      const album = (id: string) =>
+        bubble(host, id)!.querySelector<HTMLElement>('.bh-message-album')!;
+      const tiles = (id: string) => album(id).querySelectorAll('[data-album-tile]');
+      expect(['a2', 'a3', 'a4', 'a8'].map((id) => tiles(id).length)).toEqual([2, 3, 4, 5]);
+      expect(album('a3').style.gridTemplateColumns).toBe('2fr 1fr');
+      expect(
+        album('a3').querySelector<HTMLElement>('.bh-message-album-cell')!.style.gridRow,
+      ).toContain('span 2');
+      expect(album('a8').getAttribute('role')).toBe('group');
+      expect(album('a8').getAttribute('aria-label')).toBe('8 张图片');
+      expect(album('a8').dataset['albumCount']).toBe('8');
+      expect(tiles('a8')[4]!.textContent).toBe('+3');
+      expect(tiles('a8')[3]!.textContent).toBe('');
+      expect(bubble(host, 'a8')!.querySelectorAll('.bh-message-file')).toHaveLength(0);
+      expect(CSS).toMatch(/\.bh-message-album \{[^}]*display: grid;[^}]*gap: 0;/);
+    } finally {
+      restore(previous);
+    }
+  });
+
+  it('shows what a quoted media message was inside the quote block', () => {
+    const previous = store.getSnapshot();
+    const quote = (media: NonNullable<ChannelMessage['replyToPreview']>['media'], body = '') => ({
+      author: { kind: 'bot' as const, slug: 'ada' },
+      body,
+      ...(media === undefined ? {} : { media }),
+    });
+    try {
+      const host = show(dm, [
+        {
+          id: 'r1',
+          at,
+          author: { kind: 'human' },
+          body: 'this one',
+          replyTo: 'q1',
+          replyToPreview: quote({ kind: 'image', count: 1, thumbnail: photo('thumb.png') }),
+        },
+        {
+          id: 'r2',
+          at,
+          author: { kind: 'human' },
+          body: 'those',
+          replyTo: 'q2',
+          replyToPreview: quote({ kind: 'image', count: 3 }),
+        },
+        {
+          id: 'r3',
+          at,
+          author: { kind: 'human' },
+          body: 'heard it',
+          replyTo: 'q3',
+          replyToPreview: quote({ kind: 'voice', durationMs: 7000 }, 'transcript'),
+        },
+        {
+          id: 'r4',
+          at,
+          author: { kind: 'human' },
+          body: 'got it',
+          replyTo: 'q4',
+          replyToPreview: quote({ kind: 'file', name: 'report.pdf', count: 1 }),
+        },
+      ]);
+      const block = (id: string) =>
+        bubble(host, id)!.querySelector<HTMLElement>('[data-bubble-quote]')!;
+      const thumb = block('r1').querySelector('img[data-bubble-quote-thumb]')!;
+      expect(thumb.getAttribute('src')).toContain('messageId=q1');
+      expect(thumb.getAttribute('src')).toContain('variant=96c');
+      expect(block('r1').querySelector('.bh-bubble-reply-body')?.textContent).toBe('图片');
+      expect(block('r2').querySelector('img')).toBeNull();
+      expect(block('r2').querySelector('.bh-bubble-reply-body')?.textContent).toBe('3 张图片');
+      expect(block('r3').querySelector('.bh-bubble-reply-body')?.textContent).toBe('语音 · 0:07');
+      expect(block('r4').querySelector('.bh-bubble-reply-body')?.textContent).toBe('report.pdf');
+    } finally {
+      restore(previous);
+    }
+  });
+
+  it('puts the delivery check after the Human time and no label above the Human in a group', () => {
+    const previous = store.getSnapshot();
+    try {
+      const host = show(group, [
+        { id: 'h1', at, author: { kind: 'human' }, body: 'hello' },
+        { id: 'b1', at, author: { kind: 'bot', slug: 'ada' }, body: 'hi' },
+        { id: 'h2', at, author: { kind: 'human' }, body: 'later', pending: true },
+      ]);
+      const identities = host.querySelectorAll('.bh-message-identity');
+      expect([...identities].map((node) => node.textContent)).toEqual(['Ada']);
+      expect(host.querySelector('.bh-message-group-me .bh-bubble-author')).toBeNull();
+      const stamp = bubble(host, 'h1')!.querySelector('.bh-bubble-stamp')!;
+      expect(stamp.querySelector('[data-bubble-check]')?.getAttribute('aria-hidden')).toBe('true');
+      expect(bubble(host, 'b1')!.querySelector('[data-bubble-check]')).toBeNull();
+      expect(bubble(host, 'h2')!.querySelector('[data-bubble-check]')).toBeNull();
+    } finally {
+      restore(previous);
+    }
+  });
+
+  it('opens the gallery at the clicked album tile, including the tile that hides the rest', async () => {
+    const previous = store.getSnapshot();
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    try {
+      store.setRoster([ada, bob], [dm]);
+      store.select({ kind: 'bot', slug: 'ada' });
+      store.setConversation({
+        status: 'ready',
+        channel: dm,
+        sending: false,
+        messages: [{ id: 'a8', at, author: { kind: 'human' }, body: '', attachments: photos(8) }],
+      });
+      await act(async () =>
+        root.render(
+          createElement(BotMain, {
+            actions: {
+              profileActivity: vi.fn().mockRejectedValue(new Error('Unavailable')),
+              listWorkspaceGrants: async () => [],
+              modelPlanState: async () => undefined,
+              botSourcePolicies: async () => [],
+              ...inertSubmissionActions,
+            } as unknown as BridgeActions,
+            channelSidebar: sidebarRegistry(),
+          }),
+        ),
+      );
+      const tiles = container.querySelectorAll<HTMLButtonElement>('[data-album-tile]');
+      expect(tiles).toHaveLength(5);
+      const dialog = () => document.body.querySelector('[role="dialog"][aria-modal="true"]');
+      await act(async () => tiles[1]!.click());
+      expect(dialog()?.getAttribute('aria-label')).toBe('图片预览：p2.png');
+      expect(dialog()?.textContent).toContain('2 / 8');
+      await act(async () => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      });
+      await act(async () => tiles[4]!.click());
+      expect(dialog()?.getAttribute('aria-label')).toBe('图片预览：p5.png');
+      expect(dialog()?.textContent).toContain('5 / 8');
+      await act(async () => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
+      });
+      expect(dialog()?.getAttribute('aria-label')).toBe('图片预览：p6.png');
+      await act(async () => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      });
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+      restore(previous);
     }
   });
 });

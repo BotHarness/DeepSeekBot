@@ -12,6 +12,24 @@ import { ACTIVITY_INBOX_CSS } from './activity-inbox-styles.js';
 import { MOBILE_APPS_CSS } from './mobile-apps-styles.js';
 import { STYLEX_CSS } from './ds/stylex-css.js';
 
+const STAMP_TEXT_ENDS = [
+  '.bh-bubble-body:last-child',
+  '.bh-bubble-content > .bh-bubble-body:not(.bh-bubble-body-markdown):last-child',
+  '.bh-bubble-content > .bh-bubble-body-markdown:last-child > div > :is(p, h1, h2, h3, h4, h5, h6):last-child',
+  '.bh-bubble-content > .bh-bubble-body-markdown:last-child > div > :is(ul, ol):last-child > li:last-child',
+  '.bh-bubble-content > .bh-bubble-body-markdown:last-child > .bh-bot-mention-prefix:last-child',
+];
+const STAMP_SPACERS = STAMP_TEXT_ENDS.map(
+  (end) => `.bh-bubble-stamped > [data-message-fold] > ${end}::after`,
+).join(',\n');
+const STAMP_ME_SPACERS = STAMP_TEXT_ENDS.map(
+  (end) => `.bh-bubble-me.bh-bubble-stamped > [data-message-fold] > ${end}::after`,
+).join(',\n');
+const STAMP_CHECK_SPACE = '16px';
+const STAMP_INLINE = STAMP_TEXT_ENDS.map(
+  (end) => `> [data-message-fold]:nth-last-child(2) > ${end}`,
+).join(',\n  ');
+
 export const CSS =
   WORKSPACE_CSS +
   COMPOSER_CONTEXT_CSS +
@@ -3453,8 +3471,7 @@ html[data-botharness-motion='reduce'] .bh-chat-body { transition: none; }
   padding: 0;
   background: transparent;
 }
-.bh-message-group-avatar-link,
-.bh-message-group-avatar-focus {
+.bh-message-group-avatar-link {
   display: flex;
   width: 28px;
   height: 28px;
@@ -3501,8 +3518,7 @@ html[data-botharness-motion='reduce'] .bh-header-working { animation-name: bh-fa
   from { opacity: 1; }
   to { opacity: 0; }
 }
-.bh-message-group-avatar-link:focus-visible,
-.bh-message-group-avatar-focus:focus-visible {
+.bh-message-group-avatar-link:focus-visible {
   outline: ${border.focus} solid var(--dsw-alias-label-primary);
   outline-offset: 2px;
 }
@@ -3722,12 +3738,22 @@ html[data-botharness-motion='reduce'] .bh-message-group-enter .bh-message-group-
 .bh-message-group-me .bh-bubble-badges {
   flex-direction: row-reverse;
 }
+/* The time sits inside the bubble at the bottom-right, so the reading chip takes the
+   bottom-left on every bubble, and the Human's reactions keep clear of the time with an
+   invisible copy of it at the row's right end. */
 .bh-bubble-badges .bh-reading {
-  margin-left: auto;
+  order: 1;
 }
 .bh-message-group-me .bh-bubble-badges .bh-reading {
-  margin-left: 0;
   margin-right: auto;
+}
+.bh-message-group-me .bh-bubble-badges::before {
+  content: var(--bh-stamp, '');
+  visibility: hidden;
+  padding-right: ${STAMP_CHECK_SPACE};
+  font-size: ${text.metaSize};
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .bh-message-stack > .bh-bubble-wrap:last-child,
 .bh-message-group > .bh-message-group-avatar {
@@ -3806,45 +3832,56 @@ html[data-botharness-motion='reduce'] [data-badge-motion='leave'] { animation-na
   outline-offset: 2px;
 }
 .bh-bubble-reply {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: ${space.x1};
+  width: 100%;
   min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
-  margin: 0 0 ${space.x3};
-  padding: ${space.x2} ${space.x3};
+  margin: 0 0 ${space.x2};
+  padding: ${space.x1} ${space.x3} ${space.x1} ${space.x4};
+  overflow: hidden;
   border: 0;
-  border-left: ${border.hairline} solid var(--dsw-alias-label-secondary);
   border-radius: ${radius.xs};
-  background: color-mix(in srgb, var(--dsw-alias-label-primary) 7%, transparent);
-  color: var(--dsw-alias-label-secondary);
+  background: color-mix(in srgb, currentColor 13%, transparent);
+  color: ${color.accentText};
+  font: inherit;
+  font-size: ${text.metaSize};
+  line-height: ${text.metaLine};
   text-align: left;
   cursor: pointer;
 }
+/* The bar and the name take the quoted author's colour; the preview keeps the bubble's text. */
+.bh-bubble-reply::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: currentColor;
+}
+.bh-bubble-reply[data-bubble-quote='other'],
+.bh-bubble-reply-unavailable {
+  color: var(--dsw-alias-label-secondary);
+}
 .bh-bubble-reply:hover {
-  background: color-mix(in srgb, var(--dsw-alias-label-primary) 12%, transparent);
+  background: color-mix(in srgb, currentColor 20%, transparent);
 }
 .bh-bubble-reply:focus-visible {
-  outline: ${border.focus} solid var(--dsw-alias-label-primary);
+  outline: ${border.focus} solid currentColor;
   outline-offset: 2px;
 }
 .bh-bubble-me .bh-bubble-reply {
-  border-left-color: color-mix(in srgb, currentColor 60%, transparent);
-  background: color-mix(in srgb, currentColor 10%, transparent);
   color: inherit;
-}
-.bh-bubble-me .bh-bubble-reply:hover {
-  background: color-mix(in srgb, currentColor 16%, transparent);
-}
-.bh-bubble-me .bh-bubble-reply:focus-visible {
-  outline-color: currentColor;
 }
 .bh-bubble-reply-unavailable {
   cursor: default;
 }
 .bh-bubble-reply-author {
-  font-size: ${text.metaSize};
+  overflow: hidden;
+  max-width: 100%;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   font-weight: ${text.strong};
 }
 .bh-bubble-reply-body {
@@ -3852,7 +3889,28 @@ html[data-botharness-motion='reduce'] [data-badge-motion='leave'] { animation-na
   max-width: 100%;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: ${text.metaSize};
+  color: ${color.fg};
+  opacity: 0.9;
+}
+.bh-bubble-me .bh-bubble-reply-body {
+  color: inherit;
+}
+.bh-bubble-reply-media {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  column-gap: ${space.x3};
+  align-items: center;
+}
+.bh-bubble-reply-media > .bh-bubble-reply-thumb {
+  grid-row: 1 / span 2;
+}
+.bh-bubble-reply-thumb {
+  display: block;
+  width: 32px;
+  height: 32px;
+  border-radius: ${radius.xs};
+  object-fit: cover;
+  background: color-mix(in srgb, currentColor 13%, transparent);
 }
 
 /* Files stay part of the same message grouping as their text. */
@@ -3861,8 +3919,8 @@ html[data-botharness-motion='reduce'] [data-badge-motion='leave'] { animation-na
 .bh-message-file-more { flex: none; color: inherit; }
 /* Bound intrinsic attachment width too, so long filenames do not widen the bubble. */
 .bh-message-attachments { display: grid; max-width: 320px; gap: ${space.x3}; margin-top: ${space.x3}; }
-.bh-message-voice { max-width: 320px; margin-bottom: ${space.x3}; }
-.bh-message-voice .bh-message-audio { width: 100%; box-sizing: border-box; }
+.bh-message-voice { max-width: 320px; }
+.bh-message-voice:not(:last-child) { margin-bottom: ${space.x3}; }
 .bh-message-voice-note { display: block; color: var(--dsw-alias-label-secondary); font-size: ${text.metaSize}; line-height: ${text.metaLine}; }
 .bh-message-voice[data-voice-state='failed'] .bh-message-voice-note { color: var(--dsw-alias-label-tertiary); }
 .bh-message-perf { margin-top: ${space.x2}; color: var(--dsw-alias-label-tertiary); font-size: ${text.metaSize}; line-height: ${text.metaLine}; font-variant-numeric: tabular-nums; }
@@ -3872,14 +3930,26 @@ html[data-botharness-motion='reduce'] [data-badge-motion='leave'] { animation-na
 .bh-bridge-image-button:focus-visible { outline: ${border.focus} solid var(--dsw-alias-state-business-primary); outline-offset: 2px; }
 .bh-bridge-image-state { display: flex; align-items: center; gap: ${space.x3}; min-height: 96px; color: var(--dsw-alias-label-secondary); }
 .bh-bridge-image-expanded { display: block; max-width: 100%; max-height: 75vh; margin: auto; object-fit: contain; }
-.bh-message-image-link { display: block; width: fit-content; max-width: 320px; min-width: 0; padding: 0; border: 0; border-radius: ${radius.md}; background: transparent; cursor: zoom-in; }
-.bh-message-image-link:focus-visible { outline: ${border.focus} solid var(--bh-accent); outline-offset: 2px; }
-.bh-message-image-row { display: flex; align-items: flex-start; gap: ${space.x2}; width: fit-content; max-width: 100%; min-width: 0; }
 .bh-message-image { display: block; max-width: 100%; max-height: 320px; border-radius: ${radius.md}; object-fit: contain; }
-/* File and audio pills share one card rhythm: icon, stacked name/size, divider, action. */
-.bh-message-file, .bh-message-audio { display: flex; align-items: center; gap: ${space.x3}; min-width: 0; width: fit-content; max-width: min(100%, 320px); min-height: 52px; padding: ${space.x3} ${space.x3} ${space.x3} ${space.x4}; border: 0; border-radius: ${radius.md}; background: color-mix(in srgb, currentColor 6%, transparent); color: inherit; }
-/* Wrap by the attachment's available width, including narrow desktop dock panels. */
+.bh-message-album { display: grid; gap: 0; width: 320px; max-width: 100%; overflow: hidden; border-radius: ${radius.md}; }
+.bh-message-album-cell { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+.bh-message-album-tile { display: block; width: 100%; height: 100%; padding: 0; border: 0; background: color-mix(in srgb, currentColor 8%, transparent); color: inherit; font: inherit; font-size: ${text.metaSize}; cursor: zoom-in; }
+.bh-message-album-tile:focus-visible { outline: ${border.focus} solid var(--bh-accent); outline-offset: -2px; }
+.bh-message-album-tile .bh-message-image { width: 100%; height: 100%; max-height: none; border-radius: 0; object-fit: cover; }
+.bh-message-album-retry { cursor: pointer; }
+.bh-message-album-more { position: absolute; inset: 0; display: grid; place-items: center; background: color-mix(in srgb, black 55%, transparent); color: white; font-size: ${text.titleSize}; font-weight: ${text.strong}; pointer-events: none; }
+.bh-message-file { display: flex; align-items: center; gap: ${space.x3}; min-width: 0; width: fit-content; max-width: min(100%, 320px); min-height: 52px; padding: ${space.x3} ${space.x3} ${space.x3} ${space.x4}; border: 0; border-radius: ${radius.md}; background: color-mix(in srgb, currentColor 6%, transparent); color: inherit; }
 .bh-message-file { box-sizing: border-box; flex-wrap: wrap; }
+.bh-message-file-row { width: 100%; min-height: 0; padding: 0; flex-wrap: nowrap; border-radius: ${radius.sm}; background: transparent; }
+.bh-message-file-row .bh-message-file-main { flex: 1 1 auto; gap: ${space.x4}; border-radius: ${radius.sm}; cursor: pointer; }
+.bh-message-file-tile { display: grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: ${radius.sm}; background: var(--bh-file-tone); color: white; font-size: ${text.metaSize}; font-weight: ${text.strong}; letter-spacing: 0.03em; line-height: 1; }
+.bh-message-file-tile[data-file-tone='red'] { --bh-file-tone: var(--dsw-alias-state-error-primary); }
+.bh-message-file-tile[data-file-tone='green'] { --bh-file-tone: var(--dsw-alias-state-success-primary); }
+.bh-message-file-tile[data-file-tone='blue'] { --bh-file-tone: var(--dsw-alias-state-business-primary); }
+.bh-message-file-tile[data-file-tone='orange'] { --bh-file-tone: var(--dsw-alias-state-warn-primary); }
+.bh-message-file-tile[data-file-tone='violet'] { --bh-file-tone: color-mix(in srgb, var(--dsw-alias-state-business-primary) 55%, var(--dsw-alias-state-error-primary)); }
+.bh-message-file-tile[data-file-tone='gray'] { background: color-mix(in srgb, currentColor 14%, transparent); color: inherit; }
+.bh-bubble-me .bh-message-file-tile { background: var(--bh-bubble-me-ink); color: var(--bh-bubble-me-fill); }
 .bh-message-file-cleared { border: ${border.hairline} dashed ${color.border}; background: transparent; color: var(--dsw-alias-label-secondary); }
 .bh-message-file-cleared .bh-message-file-icon { opacity: 0.56; }
 .bh-message-file-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: ${space.x2}; max-width: 100%; margin-inline-start: auto; }
@@ -3890,18 +3960,22 @@ button.bh-message-file-main { cursor: pointer; }
 .bh-message-file-icon { display: grid; place-items: center; flex: none; width: 28px; height: 28px; }
 .bh-message-file-copy { display: flex; flex-direction: column; flex: 1; gap: ${space.x1}; min-width: 0; }
 .bh-message-file-name { display: block; overflow: hidden; min-width: 0; white-space: nowrap; text-overflow: ellipsis; font-size: ${text.bodySize}; font-weight: ${text.strong}; line-height: ${text.bodyLine}; }
-.bh-message-file-size { color: color-mix(in srgb, currentColor 72%, transparent); font-size: ${text.metaSize}; line-height: ${text.metaLine}; white-space: nowrap; }
+.bh-message-file-size { color: color-mix(in srgb, currentColor 72%, transparent); font-size: ${text.metaSize}; line-height: ${text.metaLine}; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .bh-message-file-divider { flex: none; align-self: stretch; width: 1px; margin-block: ${space.x1}; background: var(--dsw-alias-border-l2); }
 .bh-message-file-download { display: grid; place-items: center; flex: none; width: 32px; height: 32px; border-radius: ${radius.sm}; color: inherit; text-decoration: none; }
 a.bh-message-file-download:hover, button.bh-message-file-download:hover { background: color-mix(in srgb, currentColor 8%, transparent); }
-.bh-message-audio-play { display: grid; place-items: center; flex: none; width: 32px; height: 32px; padding: 0; border: ${border.hairline} solid ${color.border}; border-radius: ${radius.round}; background: transparent; color: inherit; cursor: pointer; }
-.bh-message-audio-play:hover:not(:disabled) { background: color-mix(in srgb, currentColor 8%, transparent); }
+.bh-message-audio { display: flex; align-items: center; gap: ${space.x4}; min-width: 0; width: fit-content; max-width: 100%; color: inherit; }
+.bh-message-audio-play { display: grid; place-items: center; flex: none; width: 36px; height: 36px; padding: 0; border: 0; border-radius: ${radius.round}; corner-shape: round; background: ${color.accent}; color: ${color.onAccent}; cursor: pointer; }
+.bh-bubble-me .bh-message-audio-play { background: var(--bh-bubble-me-ink); color: var(--bh-bubble-me-fill); }
+.bh-message-audio-play:hover:not(:disabled) { opacity: 0.88; }
 .bh-message-audio-play:disabled { opacity: 0.5; cursor: default; }
-.bh-message-audio-meta { display: flex; align-items: center; gap: ${space.x2}; color: color-mix(in srgb, currentColor 72%, transparent); font-size: ${text.metaSize}; line-height: ${text.metaLine}; white-space: nowrap; }
-.bh-message-audio-spectrum { display: flex; align-items: center; gap: ${space.x1}; width: 100%; min-width: 0; height: 28px; margin-top: ${space.x2}; padding: 0; border-radius: ${radius.xs}; cursor: pointer; touch-action: none; }
+.bh-message-audio-track { display: flex; flex-direction: column; gap: ${space.x1}; min-width: 0; }
+.bh-message-audio-spectrum { display: flex; align-items: center; gap: ${space.x1}; height: 24px; padding: 0; border-radius: ${radius.xs}; cursor: pointer; touch-action: none; }
 .bh-message-audio-spectrum[aria-disabled='true'] { cursor: default; }
-.bh-message-audio-bar { flex: 1 1 0; min-width: 2px; max-width: 4px; border-radius: ${radius.xs}; background: color-mix(in srgb, currentColor 28%, transparent); }
-.bh-message-audio-bar[data-played] { background: var(--dsw-alias-state-business-primary); }
+.bh-message-audio-bar { flex: none; width: 3px; border-radius: ${radius.xs}; background: color-mix(in srgb, currentColor 30%, transparent); }
+.bh-message-audio-bar[data-played] { background: ${color.accent}; }
+.bh-bubble-me .bh-message-audio-bar[data-played] { background: currentColor; }
+.bh-message-audio-meta { color: color-mix(in srgb, currentColor 70%, transparent); font-size: ${text.metaSize}; line-height: ${text.metaLine}; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .bh-message-audio-element { display: none; }
 .bh-bubble-body {
   text-wrap: pretty;
@@ -3950,37 +4024,91 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
 .bh-bubble-side .bh-delivery-trigger {
   position: static;
 }
-.bh-bubble-meta {
+/* B2: the time sits inside the bubble at the bottom-right. An invisible copy of it ends the
+   body's last line of text, so the time shares that line when it fits and wraps to its own
+   line otherwise. Content that does not end in a line of text (code, tables, files, cards)
+   gives the time a line of its own. */
+.bh-bubble {
+  position: relative;
+}
+.bh-bubble-stamp {
   position: absolute;
-  left: 100%;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  gap: ${space.x2};
-  width: max-content;
-  color: var(--dsw-alias-label-tertiary);
-  opacity: 0;
-  pointer-events: none;
-}
-.bh-message-group-me .bh-bubble-meta {
-  left: auto;
-  right: 100%;
-}
-.bh-bubble-wrap:hover .bh-bubble-meta,
-.bh-bubble-wrap:focus-within .bh-bubble-meta {
-  opacity: 1;
-  pointer-events: auto;
-}
-.bh-bubble-time {
+  right: ${space.x4};
+  bottom: ${space.x4};
   color: var(--dsw-alias-label-tertiary);
   font-size: ${text.metaSize};
-  line-height: 1.5;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
-  opacity: 0;
+  pointer-events: auto;
 }
-.bh-message-group:hover .bh-bubble-time,
-.bh-message-group:focus-within .bh-bubble-time {
-  opacity: 1;
+.bh-bubble-me .bh-bubble-stamp {
+  color: color-mix(in srgb, currentColor 72%, transparent);
+}
+.bh-bubble-stamped::after {
+  content: '';
+  display: block;
+  height: ${text.metaLine};
+}
+.bh-bubble-stamped:has(
+  ${STAMP_INLINE}
+)::after {
+  display: none;
+}
+${STAMP_SPACERS} {
+  content: var(--bh-stamp);
+  display: inline-block;
+  visibility: hidden;
+  margin-left: ${space.x3};
+  font-size: ${text.metaSize};
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+${STAMP_ME_SPACERS} {
+  padding-right: ${STAMP_CHECK_SPACE};
+}
+.bh-bubble-stamp-check {
+  display: inline-block;
+  margin-left: ${space.x1};
+  vertical-align: -2px;
+}
+.bh-bubble[data-bubble-media] {
+  width: 320px;
+  padding: 0;
+  overflow: hidden;
+}
+.bh-bubble[data-bubble-media] > .bh-bubble-reply {
+  width: calc(100% - 2 * ${space.x3});
+  margin: ${space.x3} ${space.x3} ${space.x2};
+}
+.bh-bubble[data-bubble-media] .bh-message-album {
+  width: 100%;
+  border-radius: 0;
+}
+.bh-bubble[data-bubble-media] .bh-bubble-content > :not(.bh-message-album) {
+  margin-inline: ${space.x4};
+}
+.bh-bubble[data-bubble-media] .bh-bubble-content > .bh-message-album + * {
+  margin-top: ${space.x3};
+}
+.bh-bubble[data-bubble-media] .bh-bubble-content > :last-child:not(.bh-message-album) {
+  margin-bottom: ${space.x3};
+}
+.bh-bubble[data-bubble-media='captioned']::after {
+  height: calc(${text.metaLine} + ${space.x3});
+}
+.bh-bubble[data-bubble-media='bare']::after {
+  display: none;
+}
+.bh-bubble[data-bubble-media='bare'] .bh-bubble-stamp {
+  right: ${space.x3};
+  bottom: ${space.x3};
+  padding: ${space.x1} ${space.x3};
+  border-radius: 999px;
+  corner-shape: round;
+  background: color-mix(in srgb, black 45%, transparent);
+  color: white;
 }
 .bh-bubble-status {
   display: block;
@@ -4030,17 +4158,9 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
 .bh-bubble-wrap.bh-bubble-selecting .bh-bubble-toolbar {
   display: none;
 }
-@media (hover: none) {
-  .bh-bubble-meta,
-  .bh-bubble-time {
-    opacity: 1;
-    pointer-events: auto;
-  }
-}
 /* Narrow screens: inline copy/reply actions crowd the bubble, so they move
    into the long-press message menu and the bubble keeps the full width. */
 @media (max-width: 640px) {
-  .bh-bubble-meta,
   .bh-bubble-toolbar {
     display: none;
   }

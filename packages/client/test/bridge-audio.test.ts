@@ -17,12 +17,33 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconPlayOutlineRegular: () => null,
   IconPauseOutlineRegular: () => null,
   Tooltip: ({ children }: { children: ReactNode }) => children,
+  Menu: ({
+    anchor,
+    items,
+    onSelect,
+  }: {
+    anchor: ReactNode;
+    items: { id: string; label?: ReactNode }[];
+    onSelect: (id: string) => void;
+  }) =>
+    createElement(
+      'div',
+      { role: 'menu' },
+      anchor,
+      items.map((item) =>
+        createElement(
+          'button',
+          { key: item.id, role: 'menuitem', onClick: () => onSelect(item.id) },
+          item.label,
+        ),
+      ),
+    ),
   fileSizeText: (size: number) => `${size} B`,
 }));
 vi.mock('../src/client/messaging-defaults-live.js', () => ({
   subscribeMessagingDefaults: () => () => {},
 }));
-it('Channel voice exposes original download and prepares playback only on explicit action without autoplay', async () => {
+it('Channel voice offers the original download in its menu and prepares playback only on explicit action without autoplay', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   const fetched = vi.fn(
     async (_url: string, _options?: RequestInit) =>
@@ -41,6 +62,20 @@ it('Channel voice exposes original download and prepares playback only on explic
   const container = document.createElement('div');
   document.body.append(container);
   const root = createRoot(container);
+  const saved = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+  const downloadHref = async (): Promise<string | null> => {
+    saved.mockClear();
+    await act(async () =>
+      container
+        .querySelector('.bh-external-source-audio')!
+        .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })),
+    );
+    await act(async () => document.querySelector<HTMLButtonElement>('[role="menuitem"]')!.click());
+    expect(saved).toHaveBeenCalledTimes(1);
+    const anchor = saved.mock.contexts[0] as HTMLAnchorElement;
+    expect(anchor.getAttribute('download')).toBe('voice.silk');
+    return anchor.getAttribute('href');
+  };
   try {
     const message = parseChannelMessage({
       id: 'source',
@@ -72,12 +107,10 @@ it('Channel voice exposes original download and prepares playback only on explic
       ),
     );
     expect(container.textContent).toContain('平台转写');
-    expect(container.querySelector('a[download]')?.getAttribute('href')).toContain(
-      'channelId=group-local',
-    );
-    expect(container.querySelector('a[download]')?.getAttribute('href')).not.toContain(
-      'representation',
-    );
+    expect(container.querySelector('a[download]')).toBeNull();
+    const original = await downloadHref();
+    expect(original).toContain('channelId=group-local');
+    expect(original).not.toContain('representation');
     expect(fetched).not.toHaveBeenCalled();
     expect(container.querySelector('audio')).toBeNull();
     expect(container.querySelector('.bh-message-audio-play')?.hasAttribute('disabled')).toBe(true);
@@ -95,18 +128,16 @@ it('Channel voice exposes original download and prepares playback only on explic
       '音频播放器: voice.silk',
     );
     expect(container.querySelector('audio')?.hasAttribute('autoplay')).toBe(false);
-    expect(container.querySelector('a[download]')?.getAttribute('href')).not.toContain('blob:');
-    expect(container.querySelector('a[download]')?.getAttribute('href')).not.toContain(
-      'representation',
-    );
+    const prepared = await downloadHref();
+    expect(prepared).not.toContain('blob:');
+    expect(prepared).not.toContain('representation');
     expect(container.querySelector('.bh-message-audio-play')?.hasAttribute('disabled')).toBe(false);
     await act(async () => container.querySelector('audio')!.dispatchEvent(new Event('error')));
     expect(container.querySelector('audio')).toBeNull();
     expect(container.querySelector('[role="alert"]')).not.toBeNull();
-    expect(container.querySelector('a[download]')?.getAttribute('href')).toContain(
-      'sourceEventId=source',
-    );
+    expect(await downloadHref()).toContain('sourceEventId=source');
   } finally {
+    saved.mockRestore();
     await act(async () => root.unmount());
     container.remove();
     vi.unstubAllGlobals();

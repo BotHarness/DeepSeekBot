@@ -78,7 +78,12 @@ vi.mock('../src/ui/chat/message-menu', () => ({
   copyMessage: () => {},
   openMessageMenu: () => {},
 }));
-vi.mock('../src/ui/chat/message-attachments', () => ({ MessageAttachments: () => null }));
+vi.mock('../src/ui/chat/message-attachments', () => ({
+  MessageAlbum: () => null,
+  MessageFiles: () => null,
+  QuoteThumbnail: () => null,
+  albumWidth: () => 0,
+}));
 vi.mock('../src/ui/chat/message-reactions', () => ({ ReactionChips: () => null }));
 vi.mock('../src/ui/chat/speaker-row', () => ({ SpeakerRow: () => null }));
 vi.mock('../src/ui/chat/delivery-stack', () => ({ DeliveryReceiptButton: () => null }));

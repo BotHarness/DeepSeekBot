@@ -824,6 +824,78 @@ it('animates settled streaming growth without unchanged callbacks snapping the a
   }
 });
 
+describe('sending a message', () => {
+  function settled(animateScroll: boolean, nativeFollow = false) {
+    const view = mount([message('latest', 'bot')], 0, false, animateScroll, false, nativeFollow);
+    act(() => {
+      view.current.listProps.onLayout(layout(LAYOUT));
+      view.current.listProps.onContentSizeChange(0, CONTENT);
+    });
+    flushFrames();
+    act(() => view.current.listProps.onScroll(event(0)));
+    flushFrames();
+    expect(view.current.ready).toBe(true);
+    view.scrollToOffset.mockClear();
+    return view;
+  }
+
+  it('requests a fly at the newest message and lets the native anchor glide the growth', () => {
+    const view = settled(true, true);
+    try {
+      let fly = false;
+      act(() => {
+        fly = view.current.send();
+      });
+      expect(fly).toBe(true);
+      view.rerender([message('latest', 'bot'), message('sent', 'human')]);
+      act(() => view.current.listProps.onContentSizeChange(0, CONTENT + 60));
+      flushFrames();
+      expect(view.scrollToOffset).not.toHaveBeenCalled();
+      expect(view.current.away).toBe(false);
+    } finally {
+      view.unmount();
+    }
+  });
+
+  it('requests no fly when Reduce Motion is on but still follows the new message', () => {
+    const view = settled(false);
+    try {
+      let fly = true;
+      act(() => {
+        fly = view.current.send();
+      });
+      expect(fly).toBe(false);
+      view.rerender([message('latest', 'bot'), message('sent', 'human')]);
+      act(() => view.current.listProps.onContentSizeChange(0, CONTENT + 60));
+      flushFrames();
+      expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END + 60, animated: false });
+    } finally {
+      view.unmount();
+    }
+  });
+
+  it('requests no fly and leaves the scroll offset unchanged while reading history', () => {
+    const view = settled(true);
+    try {
+      act(() => view.current.listProps.onScrollBeginDrag());
+      act(() => view.current.listProps.onScrollEndDrag(event(300)));
+      view.scrollToOffset.mockClear();
+      let fly = true;
+      act(() => {
+        fly = view.current.send();
+      });
+      expect(fly).toBe(false);
+      view.rerender([message('latest', 'bot'), message('sent', 'human')]);
+      act(() => view.current.listProps.onContentSizeChange(0, CONTENT + 60));
+      flushFrames();
+      expect(view.scrollToOffset).not.toHaveBeenCalled();
+      expect(view.current.away).toBe(true);
+    } finally {
+      view.unmount();
+    }
+  });
+});
+
 it('leaves settled growth to the native latest anchor but still pins the first placement', () => {
   const view = mount([message('latest', 'bot')], 0, false, true, false, true);
   try {

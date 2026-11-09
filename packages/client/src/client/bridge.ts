@@ -123,6 +123,7 @@ import {
   isChannelMessageVoice,
   type ChannelMessageVoice,
 } from '../../../core/src/channels/voice.js';
+import { isChannelReplyPreviewMedia } from '../../../core/src/channels/reply-preview.js';
 import type { UsageFilter, UsageQueryResult } from '../../../core/src/usage/query.js';
 export type { UsageFilter, UsageQueryResult } from '../../../core/src/usage/query.js';
 import type { Context as ClientContext } from '@deepseek-ai/cordis';
@@ -1641,7 +1642,12 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     if (preview === undefined || typeof preview['body'] !== 'string') return undefined;
     const previewAuthor = parseAuthor(preview['author']);
     if (previewAuthor === undefined) return undefined;
-    replyToPreview = { author: previewAuthor, body: preview['body'] };
+    const media = preview['media'];
+    replyToPreview = {
+      author: previewAuthor,
+      body: preview['body'],
+      ...(isChannelReplyPreviewMedia(media) ? { media } : {}),
+    };
   }
   const mentions = record['mentions'];
   if (

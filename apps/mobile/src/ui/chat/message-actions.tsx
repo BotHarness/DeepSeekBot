@@ -4,7 +4,12 @@ import { Modal, Platform, Pressable, ScrollView, View, useWindowDimensions } fro
 import Animated, { withSpring, type EntryExitAnimationFunction } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { MENU_REACTIONS, reactedByMe, type ConversationMessage } from '../../host/conversation';
+import {
+  MENU_REACTIONS,
+  reactedByMe,
+  type ConversationMessage,
+  type MessageAttachment,
+} from '../../host/conversation';
 import { spring } from '../design/motion';
 import { edge, radius, space } from '../design/tokens';
 import { glassShadow, useDesignTheme, type DesignTheme } from '../design/theme';
@@ -14,6 +19,7 @@ import { useStrings } from '../strings';
 import { BubbleBody } from './message-bubble';
 import { placeMenu, type Rect } from './menu-placement';
 import {
+  actionId,
   dismissQueue,
   menuLabel,
   menuReactions,
@@ -137,7 +143,7 @@ function ActionIcon({
   color: string;
   size: number;
 }) {
-  return action.key === 'feedback' || action.key === 'select' ? (
+  return action.key === 'feedback' || action.key === 'select' || action.key === 'download' ? (
     <RowIcon name={action.key} color={color} size={size} />
   ) : action.key === 'open' ? (
     <ChevronRightIcon color={color} size={size} />
@@ -155,6 +161,7 @@ export function MessageActions({
   onReact,
   onCopy,
   onShareText,
+  onShareAttachment,
 }: MessageActionsProps) {
   const queue = useRef(dismissQueue(Platform.OS)).current;
   return (
@@ -175,6 +182,7 @@ export function MessageActions({
           onReact={onReact}
           onCopy={onCopy}
           onShareText={(text) => queue.after(() => onShareText(text))}
+          onShareAttachment={(attachment) => queue.after(() => onShareAttachment?.(attachment))}
           onOpen={() => queue.after(() => target.activity?.onOpen?.())}
         />
       )}
@@ -189,6 +197,7 @@ function MessageMenu({
   onReact,
   onCopy,
   onShareText,
+  onShareAttachment,
   onOpen,
 }: {
   target: MessageMenuTarget;
@@ -197,6 +206,7 @@ function MessageMenu({
   onReact(message: ConversationMessage, emoji: string, active: boolean): void;
   onCopy(text: string): void;
   onShareText(text: string): void;
+  onShareAttachment(attachment: MessageAttachment): void;
   onOpen(): void;
 }) {
   const t = useStrings();
@@ -321,7 +331,7 @@ function MessageMenu({
               {menuTime(message.at, new Date())}
             </Text>
             {actions.map((action, index) => (
-              <Fragment key={action.key}>
+              <Fragment key={actionId(action)}>
                 {index === 0 ? null : (
                   <View
                     style={{
@@ -338,6 +348,7 @@ function MessageMenu({
                     runAction(action, message, {
                       onCopy,
                       onShareText,
+                      onShareAttachment,
                       onOpen,
                       onFeedback: target.actions?.feedback,
                       onSelect: target.actions?.select,

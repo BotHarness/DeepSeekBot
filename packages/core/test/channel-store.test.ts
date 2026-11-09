@@ -353,6 +353,58 @@ describe('channel store', () => {
     ).rejects.toThrow('does not belong');
   });
 
+  it('adds a media hint to reply previews of image, voice and file messages', async () => {
+    const root = createRoot();
+    const attachments = createAttachmentStore({ rootDir: join(root, 'attachments') });
+    const upload = (name: string, bytes: Uint8Array) =>
+      attachments.upload({
+        data: (async function* () {
+          yield bytes;
+        })(),
+        name,
+      });
+    const png = await upload(
+      'photo.png',
+      new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]),
+    );
+    const notes = await upload('notes.txt', new TextEncoder().encode('hello'));
+    expect(png.mime).toBe('image/png');
+    const store = createChannelStore({ rootDir: join(root, 'channels'), attachments });
+    store.getOrCreateDm('ada', 'Ada');
+    const photo = { ...message(''), attachments: [png] };
+    const file = { ...message('see attached'), attachments: [notes] };
+    const voice = {
+      ...message('Spoken text'),
+      author: { kind: 'bot' as const, slug: 'ada' },
+      voice: { state: 'ready' as const, attachment: 'voice-file', durationMs: 7000 },
+    };
+    const text = message('just text');
+    for (const target of [photo, file, voice, text]) await store.appendMessage('dm-ada', target);
+    const replies = [photo, file, voice, text].map((target) => ({
+      ...message('re'),
+      replyTo: target.id,
+    }));
+    for (const reply of replies) await store.appendMessage('dm-ada', reply);
+    const previews = store
+      .readMessages('dm-ada', { limit: 4 })
+      .toReversed()
+      .map((entry) => entry.replyToPreview);
+    expect(previews).toEqual([
+      { author: { kind: 'human' }, body: '', media: { kind: 'image', count: 1, thumbnail: png } },
+      {
+        author: { kind: 'human' },
+        body: 'see attached',
+        media: { kind: 'file', name: 'notes.txt', count: 1 },
+      },
+      {
+        author: { kind: 'bot', slug: 'ada' },
+        body: 'Spoken text',
+        media: { kind: 'voice', durationMs: 7000 },
+      },
+      { author: { kind: 'human' }, body: 'just text' },
+    ]);
+  });
+
   it('skips directories whose channel.json is corrupt or mismatched', () => {
     const root = createRoot();
     mkdirSync(join(root, 'stale'), { recursive: true });
