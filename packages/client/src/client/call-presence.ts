@@ -1,10 +1,12 @@
 import type { DesktopCall, DesktopCallSnapshot } from './desktop-call.js';
+import { shellWindow, type ShellWindowApi, type ShellWindowState } from './desktop-shell.js';
 
 export const CALL_NOTICE_TAG = 'botharness-call';
 
 export interface CallNoticeHandle {
   close(): void;
   onclick: ((event: Event) => void) | null;
+  onclose?: ((event: Event) => void) | null;
 }
 
 export type CallNoticeFactory = (
@@ -36,9 +38,72 @@ function browserNotice(): CallNoticeFactory | undefined {
   return (title, options) => new Ctor(title, options);
 }
 
+export interface CallWindow {
+  hidden(): boolean;
+  subscribe(listener: () => void): () => void;
+  reveal(): void;
+}
+
+type PresenceDocument = Pick<
+  Document,
+  'visibilityState' | 'addEventListener' | 'removeEventListener'
+>;
+
+export function documentCallWindow(
+  doc: PresenceDocument,
+  focus: () => void = () => globalThis.focus?.(),
+): CallWindow {
+  return {
+    hidden: () => doc.visibilityState === 'hidden',
+    subscribe(listener) {
+      doc.addEventListener('visibilitychange', listener);
+      return () => doc.removeEventListener('visibilitychange', listener);
+    },
+    reveal: focus,
+  };
+}
+
+export function shellCallWindow(shell: ShellWindowApi, initial: PresenceDocument): CallWindow {
+  let state: ShellWindowState | undefined;
+  const listeners = new Set<() => void>();
+  const notify = () => {
+    for (const listener of [...listeners]) listener();
+  };
+  let stop: (() => void) | undefined;
+  return {
+    hidden: () => (state === undefined ? initial.visibilityState === 'hidden' : !state.visible),
+    subscribe(listener) {
+      listeners.add(listener);
+      if (stop === undefined) {
+        stop = shell.subscribe((next) => {
+          state = next;
+          notify();
+        });
+        void shell.state().then(
+          (next) => {
+            state ??= next;
+            notify();
+          },
+          () => undefined,
+        );
+      }
+      return () => {
+        listeners.delete(listener);
+        if (listeners.size > 0) return;
+        stop?.();
+        stop = undefined;
+      };
+    },
+    reveal() {
+      void shell.reveal().catch(() => globalThis.focus?.());
+    },
+  };
+}
+
 export interface CallPresenceOptions {
   readonly call: DesktopCall;
-  readonly doc?: Pick<Document, 'visibilityState' | 'addEventListener' | 'removeEventListener'>;
+  readonly window?: CallWindow;
+  readonly doc?: PresenceDocument;
   readonly notice?: () => CallNoticeFactory | undefined;
   readonly focus?: () => void;
 }
@@ -48,17 +113,26 @@ export function callNoticeWanted(snapshot: DesktopCallSnapshot, hidden: boolean)
 }
 
 export function watchCallPresence(options: CallPresenceOptions): () => void {
-  const doc = options.doc ?? document;
+  const where =
+    options.window ??
+    (() => {
+      const doc = options.doc ?? document;
+      const shell = options.doc === undefined ? shellWindow() : undefined;
+      return shell === undefined
+        ? documentCallWindow(doc, options.focus)
+        : shellCallWindow(shell, doc);
+    })();
   const notice = options.notice ?? browserNotice;
-  const focus = options.focus ?? (() => globalThis.focus?.());
   let shown: CallNoticeHandle | undefined;
   let shownFor: string | undefined;
+  let answered: string | undefined;
   const close = () => {
     const current = shown;
     shown = undefined;
     shownFor = undefined;
     if (current === undefined) return;
     current.onclick = null;
+    if (current.onclose !== undefined) current.onclose = null;
     try {
       current.close();
     } catch {}
@@ -66,15 +140,18 @@ export function watchCallPresence(options: CallPresenceOptions): () => void {
   const sync = () => {
     const snapshot = options.call.snapshot();
     const place = snapshot.place;
+    const hidden = where.hidden();
+    if (!hidden) answered = undefined;
     if (
       place === undefined ||
       snapshot.state.status !== 'live' ||
-      !callNoticeWanted(snapshot, doc.visibilityState === 'hidden')
+      !callNoticeWanted(snapshot, hidden)
     ) {
       close();
       return;
     }
     const key = snapshot.state.call.callId;
+    if (answered === key) return;
     if (shown !== undefined && shownFor === key) return;
     close();
     const make = notice();
@@ -92,19 +169,26 @@ export function watchCallPresence(options: CallPresenceOptions): () => void {
     }
     created.onclick = (event) => {
       event.preventDefault?.();
-      focus();
+      answered = key;
+      where.reveal();
       place.open();
       close();
+    };
+    created.onclose = () => {
+      if (shown !== created) return;
+      answered = key;
+      shown = undefined;
+      shownFor = undefined;
     };
     shown = created;
     shownFor = key;
   };
   const unsubscribe = options.call.subscribe(sync);
-  doc.addEventListener('visibilitychange', sync);
+  const unwatch = where.subscribe(sync);
   sync();
   return () => {
     unsubscribe();
-    doc.removeEventListener('visibilitychange', sync);
+    unwatch();
     close();
   };
 }

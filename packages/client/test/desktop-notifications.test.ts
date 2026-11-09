@@ -245,6 +245,27 @@ describe('desktop notifier', () => {
     env.dispose();
   });
 
+  it('brings a minimized or tray-hidden Desktop window back through the shell on click', async () => {
+    const env = setup();
+    await env.fire();
+    const approval = item({ id: 'approval:reveal', channelId: 'dm-ada', messageId: 'm2' });
+    env.setItems([approval]);
+    await env.fire();
+    const shown = env.fake.shown[0]!;
+    const focus = vi.fn();
+    const reveal = vi.fn(async () => ({ visible: true, minimized: false, focused: true }));
+    vi.stubGlobal('focus', focus);
+    vi.stubGlobal('dshDesktop', {
+      window: { state: vi.fn(), subscribe: vi.fn(), reveal },
+    });
+    shown.handle.onclick?.({ preventDefault: vi.fn() } as unknown as Event);
+    vi.unstubAllGlobals();
+    expect(reveal).toHaveBeenCalledOnce();
+    expect(focus).not.toHaveBeenCalled();
+    expect(env.open).toHaveBeenCalledWith(approval);
+    env.dispose();
+  });
+
   it('stays quiet when turned off', async () => {
     const env = setup();
     await env.fire();
