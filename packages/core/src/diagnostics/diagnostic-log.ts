@@ -572,6 +572,56 @@ export function buildDiagnosticExport(
   return { ...built, until };
 }
 
+export interface DiagnosticLogList {
+  version: number;
+  since: number;
+  filter: string;
+  entries: DiagnosticLogView[];
+}
+
+export function listDiagnosticLogs(
+  database: Pick<LogDatabase, 'query'>,
+  options: {
+    filter: string;
+    since: number;
+    limit: number;
+    homes: ReadonlyArray<{ path: string; label: string }>;
+  },
+): DiagnosticLogList {
+  const { filter, since } = options;
+  if (filter !== 'all' && LEVEL_FILTERS[filter] === undefined)
+    throw new DiagnosticLogError('invalid-input', 'filter must be all, error, perf or action.');
+  if (!Number.isFinite(since) || !Number.isInteger(options.limit) || options.limit < 1)
+    throw new DiagnosticLogError('invalid-input', 'since and limit must be numbers.');
+  const limit = Math.min(options.limit, DIAGNOSTIC_LOG_LIMITS.listMax);
+  const kinds = filter === 'all' ? undefined : LEVEL_FILTERS[filter];
+  const rows = database.query({ since, limit, ...(kinds === undefined ? {} : { kinds }) });
+  const redactor = createDiagnosticRedactor({ homes: options.homes });
+  return {
+    version: DIAGNOSTIC_LOG_VERSION,
+    since,
+    filter,
+    entries: rows.map((row) => redactor.value(diagnosticLogView(row))),
+  };
+}
+
+export function readDiagnosticLogOffline(options: {
+  dshHome: string;
+  filter: string;
+  since: number;
+  limit: number;
+  homes: ReadonlyArray<{ path: string; label: string }>;
+}): DiagnosticLogList | undefined {
+  const dir = join(options.dshHome, 'botharness');
+  if (!existsSync(join(dir, LOG_DB_FILENAME))) return;
+  const database = openLogDatabase({ dir, readOnly: true });
+  try {
+    return listDiagnosticLogs(database, options);
+  } finally {
+    database.close();
+  }
+}
+
 export function exportDiagnosticLogOffline(options: {
   dshHome: string;
   hours: number;
@@ -696,28 +746,15 @@ export function createDiagnosticLogHttp(options: DiagnosticLogHttpOptions) {
         throw new DiagnosticLogError('persistence-unavailable', 'Diagnostic log is unavailable.');
       options.writer()?.flush();
       if (url.pathname === DIAGNOSTIC_LOGS_PATH) {
-        const filter = url.searchParams.get('filter') ?? 'all';
-        if (filter !== 'all' && LEVEL_FILTERS[filter] === undefined)
-          throw new DiagnosticLogError(
-            'invalid-input',
-            'filter must be all, error, perf or action.',
-          );
         const sinceRaw = url.searchParams.get('since');
-        const since = sinceRaw === null ? now() - 24 * 3_600_000 : Number(sinceRaw);
-        const limitRaw = Number(url.searchParams.get('limit') ?? DIAGNOSTIC_LOG_LIMITS.listDefault);
-        if (!Number.isFinite(since) || !Number.isInteger(limitRaw) || limitRaw < 1)
-          throw new DiagnosticLogError('invalid-input', 'since and limit must be numbers.');
-        const limit = Math.min(limitRaw, DIAGNOSTIC_LOG_LIMITS.listMax);
-        const kinds = filter === 'all' ? undefined : LEVEL_FILTERS[filter];
-        const rows = database.query({ since, limit, ...(kinds === undefined ? {} : { kinds }) });
-        const redactor = createDiagnosticRedactor({ homes: options.homes });
+        const limitRaw = url.searchParams.get('limit');
         return Response.json(
-          {
-            version: DIAGNOSTIC_LOG_VERSION,
-            since,
-            filter,
-            entries: rows.map((row) => redactor.value(diagnosticLogView(row))),
-          },
+          listDiagnosticLogs(database, {
+            filter: url.searchParams.get('filter') ?? 'all',
+            since: sinceRaw === null ? now() - 24 * 3_600_000 : Number(sinceRaw),
+            limit: limitRaw === null ? DIAGNOSTIC_LOG_LIMITS.listDefault : Number(limitRaw),
+            homes: options.homes,
+          }),
           { headers: HEADERS },
         );
       }

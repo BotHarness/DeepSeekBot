@@ -26,6 +26,7 @@ import {
 } from './cli-browser-notifications.js';
 import { FEEDBACK_COMMANDS, runFeedbackCommand } from './cli-feedback.js';
 import { DIAGNOSTIC_LOG_COMMANDS, runDiagnosticLogCommand } from './cli-diagnostic-logs.js';
+import { DOCTOR_COMMANDS, runDoctor } from './cli-doctor.js';
 import { APPEARANCE_COMMANDS, APPEARANCE_OPTIONS, runAppearanceCommand } from './cli-appearance.js';
 import { prepareCloud, prepareCloudWork } from './cli-cloud.js';
 import { randomUUID } from 'node:crypto';
@@ -310,6 +311,7 @@ export const LIVE_COMMANDS = [
   },
   ...FEEDBACK_COMMANDS,
   ...DIAGNOSTIC_LOG_COMMANDS,
+  ...DOCTOR_COMMANDS,
   ...WINDOW_ZOOM_COMMANDS,
   ...PHONE_ROUTE_COMMANDS,
   ...DEVICES_COMMANDS,
@@ -981,6 +983,10 @@ export async function runLiveCli(
   if (command === 'phone-notifications') return runPhoneNotifications(rest, values, io);
   if (BROWSER_NOTIFICATION_COMMANDS.some((entry) => entry.command === command))
     return runBrowserNotifications(command, rest, values, io, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
+  if (command === 'doctor')
+    return runDoctor(values, io, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
   if (DIAGNOSTIC_LOG_COMMANDS.some((entry) => entry.command === command))
