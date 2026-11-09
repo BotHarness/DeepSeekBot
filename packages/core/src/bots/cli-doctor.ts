@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { release } from 'node:os';
 
-import type { DiagnosticLogList } from '../diagnostics/diagnostic-log.js';
+import type { DiagnosticLogEnvironment, DiagnosticLogList } from '../diagnostics/diagnostic-log.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import {
   diagnosticEnvironment,
@@ -31,7 +31,8 @@ export interface DoctorCheck {
   [key: string]: unknown;
 }
 
-const DAY_MS = 24 * 3_600_000;
+export const DOCTOR_DAY_MS = 24 * 3_600_000;
+export const DOCTOR_ERROR_LIMIT = 1000;
 const TOP_ERRORS = 5;
 const ISSUE_URL = 'https://github.com/BotHarness/DeepSeekBot/issues/new?template=01-bug.yml';
 
@@ -62,7 +63,7 @@ function topErrors(list: DiagnosticLogList) {
     .map((item) => ({ ...item, last: new Date(item.last).toISOString() }));
 }
 
-function updateCheck(run: unknown): DoctorCheck {
+export function updateCheck(run: unknown): DoctorCheck {
   if (typeof run !== 'object' || run === null)
     return { id: 'last-update', status: 'ok', detail: 'No update has run since the Host started.' };
   const value = run as Record<string, unknown>;
@@ -107,11 +108,11 @@ export async function runDoctor(
   const environment = diagnosticEnvironment();
   const dshHome = diagnosticHome(values, io);
   const checks: DoctorCheck[] = [];
-  const since = now() - DAY_MS;
+  const since = now() - DOCTOR_DAY_MS;
   const errorQuery = new URLSearchParams({
     filter: 'error',
     since: String(since),
-    limit: '1000',
+    limit: String(DOCTOR_ERROR_LIMIT),
   });
 
   checks.push(
@@ -150,7 +151,10 @@ export async function runDoctor(
     } catch (error) {
       if (!(error instanceof CliLiveError)) throw error;
       fallback = error.code;
-      if (error.code === 'not-found')
+      if (
+        error.code === 'not-found' ||
+        (error.code === 'host-refused' && error.message.includes('HTTP 404'))
+      )
         checks.push(
           { id: 'host', status: 'ok' },
           {
@@ -194,7 +198,7 @@ export async function runDoctor(
 
   if (errors === undefined) {
     try {
-      errors = readLogsOffline({ filter: 'error', since, limit: 1000 }, values, io);
+      errors = readLogsOffline({ filter: 'error', since, limit: DOCTOR_ERROR_LIMIT }, values, io);
       checks.push({ id: 'log', status: 'ok', source: 'offline' });
     } catch (error) {
       if (!(error instanceof CliLiveError)) throw error;
@@ -207,6 +211,33 @@ export async function runDoctor(
     }
   } else checks.push({ id: 'log', status: 'ok', source: 'host' });
 
+  const offline = source === 'offline';
+  return doctorReport({
+    checks,
+    errors,
+    source,
+    ...(fallback === undefined || !offline ? {} : { fallback }),
+    environment,
+    checkedAt: now(),
+    next: [
+      `diagnostic-logs --kind error --limit 100${offline ? ' --offline' : ''}`,
+      'diagnostic-logs-export --out tobs-logs.zip',
+    ],
+    guide: DOCTOR_GUIDE,
+  });
+}
+
+export function doctorReport(options: {
+  checks: DoctorCheck[];
+  errors: DiagnosticLogList | undefined;
+  source: 'host' | 'offline';
+  fallback?: string;
+  environment: DiagnosticLogEnvironment;
+  checkedAt: number;
+  next: readonly string[];
+  guide: readonly string[];
+}) {
+  const { checks, errors, environment } = options;
   if (errors === undefined)
     checks.push({ id: 'errors-24h', status: 'skip', code: 'log-unavailable' });
   else {
@@ -215,17 +246,15 @@ export async function runDoctor(
       id: 'errors-24h',
       status: errors.entries.length === 0 ? 'ok' : 'warn',
       count: errors.entries.length,
-      ...(errors.entries.length >= 1000 ? { truncated: true } : {}),
+      ...(errors.entries.length >= DOCTOR_ERROR_LIMIT ? { truncated: true } : {}),
       ...(top.length === 0 ? {} : { top }),
     });
   }
-
-  const offline = source === 'offline';
   return {
     ok: checks.every((check) => check.status !== 'fail'),
-    source,
-    ...(fallback === undefined || !offline ? {} : { fallback }),
-    checkedAt: new Date(now()).toISOString(),
+    source: options.source,
+    ...(options.fallback === undefined ? {} : { fallback: options.fallback }),
+    checkedAt: new Date(options.checkedAt).toISOString(),
     versions: {
       tobs: environment.version,
       ...(environment.dshVersion === undefined ? {} : { dsh: environment.dshVersion }),
@@ -233,10 +262,7 @@ export async function runDoctor(
       os: `${environment.platform} ${release()} ${environment.arch}`,
     },
     checks,
-    next: [
-      `diagnostic-logs --kind error --limit 100${offline ? ' --offline' : ''}`,
-      'diagnostic-logs-export --out tobs-logs.zip',
-    ],
-    guide: DOCTOR_GUIDE,
+    next: options.next,
+    guide: options.guide,
   };
 }

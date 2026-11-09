@@ -272,6 +272,10 @@ export interface DiagnosticEvents {
   ): void;
 }
 
+export interface MountedDiagnosticLog extends DiagnosticEvents {
+  list(query: { filter: string; since: number; limit: number }): DiagnosticLogList | undefined;
+}
+
 function eventLevel(phase: string, fields: Record<string, DiagnosticFieldValue>): 'info' | 'warn' {
   const signals = [phase, fields['state'], fields['outcome'], fields['reason'], fields['code']];
   return signals.some((value) => typeof value === 'string' && EVENT_TROUBLE.test(value))
@@ -794,7 +798,7 @@ export function mountDiagnosticLog(
     environment: () => DiagnosticLogEnvironment;
     onClientEntries?: (session: string, entries: readonly ClientLogEntry[]) => void;
   },
-): DiagnosticEvents {
+): MountedDiagnosticLog {
   let database: LogDatabase | undefined;
   let writer: DiagnosticLogWriter | undefined;
   const home = options.homes.find((entry) => entry.label === '~')?.path;
@@ -857,7 +861,14 @@ export function mountDiagnosticLog(
         'botharness: diagnostic log ' + path,
       );
   });
-  return events;
+  return {
+    ...events,
+    list(query) {
+      if (database === undefined) return undefined;
+      writer?.flush();
+      return listDiagnosticLogs(database, { ...query, homes: options.homes });
+    },
+  };
 }
 
 export function diagnosticEventRecorder(

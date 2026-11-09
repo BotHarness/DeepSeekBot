@@ -137,6 +137,57 @@ function exportOffline(
   };
 }
 
+function diagnosticLogQuery(values: { kind?: string; since?: string; limit?: string }) {
+  const filter = values.kind?.trim() || 'all';
+  if (!FILTERS.has(filter))
+    throw new CliLiveError('usage', '--kind must be all, error, perf or action.');
+  let since = Date.now() - 24 * 3_600_000;
+  let limit: number = DIAGNOSTIC_LOG_LIMITS.listDefault;
+  if (values.since !== undefined) {
+    since = Number(values.since);
+    if (!Number.isSafeInteger(since) || since < 0)
+      throw new CliLiveError('usage', '--since must be epoch milliseconds.');
+  }
+  if (values.limit !== undefined) {
+    limit = Number(values.limit);
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1000)
+      throw new CliLiveError('usage', '--limit must be 1–1000.');
+  }
+  return { filter, since, limit };
+}
+
+export const TOB_DIAGNOSTIC_COMMAND_USAGE: Readonly<Record<string, string>> = {
+  doctor: 'deepseekbot doctor',
+  'diagnostic-logs':
+    'deepseekbot diagnostic-logs [--kind all|error|perf|action] [--since <epoch ms>] [--limit 1-1000]',
+};
+
+export function parseAgentDiagnostics(
+  command: string,
+  rest: string[],
+  values: Record<string, unknown>,
+): { command: string; args: Record<string, unknown>; write: boolean } | undefined {
+  if (!Object.hasOwn(TOB_DIAGNOSTIC_COMMAND_USAGE, command)) return undefined;
+  const allowed = new Set([
+    'compact',
+    'help',
+    'timeout',
+    ...(command === 'diagnostic-logs' ? ['kind', 'since', 'limit'] : []),
+  ]);
+  if (Object.entries(values).some(([key, value]) => value !== undefined && !allowed.has(key)))
+    throw new CliLiveError(
+      'agent-scope-denied',
+      'This option is not available for the scoped CLI operation.',
+    );
+  if (rest.length) throw new CliLiveError('usage', `${command} takes no positional arguments.`);
+  if (command === 'doctor') return { command, args: {}, write: false };
+  return {
+    command,
+    args: diagnosticLogQuery(values as { kind?: string; since?: string; limit?: string }),
+    write: false,
+  };
+}
+
 export async function runDiagnosticLogCommand(
   command: string,
   values: {
@@ -153,24 +204,10 @@ export async function runDiagnosticLogCommand(
   connect: () => Promise<Awaited<ReturnType<typeof connectLiveHost>>>,
 ): Promise<unknown> {
   if (command === 'diagnostic-logs') {
-    const kind = values.kind?.trim() || 'all';
-    if (!FILTERS.has(kind))
-      throw new CliLiveError('usage', '--kind must be all, error, perf or action.');
+    const { filter: kind, since, limit } = diagnosticLogQuery(values);
     const query = new URLSearchParams({ filter: kind });
-    let since = Date.now() - 24 * 3_600_000;
-    let limit: number = DIAGNOSTIC_LOG_LIMITS.listDefault;
-    if (values.since !== undefined) {
-      since = Number(values.since);
-      if (!Number.isSafeInteger(since) || since < 0)
-        throw new CliLiveError('usage', '--since must be epoch milliseconds.');
-      query.set('since', String(since));
-    }
-    if (values.limit !== undefined) {
-      limit = Number(values.limit);
-      if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1000)
-        throw new CliLiveError('usage', '--limit must be 1–1000.');
-      query.set('limit', String(limit));
-    }
+    if (values.since !== undefined) query.set('since', String(since));
+    if (values.limit !== undefined) query.set('limit', String(limit));
     const offline = (fallback?: string) => ({
       ...readLogsOffline({ filter: kind, since, limit }, values, io),
       source: 'offline',

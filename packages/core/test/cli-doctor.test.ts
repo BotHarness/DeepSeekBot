@@ -103,10 +103,13 @@ describe('doctor CLI', () => {
     expect(check(result, 'errors-24h')).toMatchObject({ status: 'ok', count: 0 });
   });
 
-  it('says the plugin did not load when the Host answers without its routes', async () => {
+  it.each([
+    ['not-found', 'Not found'],
+    ['host-refused', 'The Host refused /api/botharness/diagnostic-logs with HTTP 404.'],
+  ])('says the plugin did not load when the Host answers %s', async (code, message) => {
     const home = homeWithErrors(['boot-failed']);
     const http = vi.fn(async () => {
-      throw new CliLiveError('not-found', 'Not found');
+      throw new CliLiveError(code, message);
     });
     const result = await runDoctor(
       { home, host: 'http://127.0.0.1:1' },
@@ -114,7 +117,7 @@ describe('doctor CLI', () => {
       (async () => ({ http, rpc: vi.fn() })) as unknown as Connect,
       () => NOW,
     );
-    expect(result).toMatchObject({ ok: false, source: 'offline', fallback: 'not-found' });
+    expect(result).toMatchObject({ ok: false, source: 'offline', fallback: code });
     expect(check(result, 'host')).toMatchObject({ status: 'ok' });
     expect(check(result, 'plugin')).toMatchObject({ status: 'fail', code: 'plugin-not-loaded' });
     expect(check(result, 'errors-24h')).toMatchObject({ count: 1 });
