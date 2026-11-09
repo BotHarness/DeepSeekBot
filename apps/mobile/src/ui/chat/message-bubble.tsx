@@ -63,6 +63,7 @@ import {
 } from './bubble-shape';
 import { DeliveryReceiptButton, ReadingBadge } from './delivery-stack';
 import { MessageAlbum, MessageFiles, QuoteThumbnail, albumWidth } from './message-attachments';
+import { GenuiDocumentCard } from './genui-document-card';
 import { VoiceBar } from './voice-bar';
 import { openMessageMenu } from './message-menu';
 import { ReactionChips } from './message-reactions';
@@ -282,6 +283,13 @@ export function BubbleBody({
     <>
       {message.voice === undefined ? null : <VoiceBar voice={message.voice} human={human} />}
       {body}
+      {message.genuiDocument === undefined ? null : (
+        <GenuiDocumentCard
+          document={message.genuiDocument}
+          channelId={message.source?.channelId}
+          messageId={message.id}
+        />
+      )}
       {files.length > 0 ? <MessageFiles files={files} human={human} onShare={onShare} /> : null}
       {message.card ? (
         <Text variant="meta" tone={human ? ink : 'muted'} style={{ fontStyle: 'italic' }}>
@@ -691,6 +699,7 @@ export const MessageBubble = memo(function MessageBubble({
   const frame = {
     alignSelf: human ? 'flex-end' : 'flex-start',
     maxWidth: BUBBLE_MAX,
+    ...(message.genuiDocument === undefined ? {} : { width: BUBBLE_MAX }),
     transformOrigin: human ? 'right bottom' : 'left bottom',
   } as const;
   const framedContent = (

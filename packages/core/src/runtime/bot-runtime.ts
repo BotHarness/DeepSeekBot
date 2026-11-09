@@ -2807,7 +2807,10 @@ class BotRuntimeImplementation implements BotRuntime {
       count: number;
     };
     if (total.count === 0) return undefined;
-    const columns = `SELECT a.source_event_id, a.bot_slug, e.message_id, e.body, e.created_at,
+    const columns = `SELECT a.source_event_id, a.bot_slug, e.message_id,
+      CASE WHEN json_type(e.payload_json, '$.genuiReplyContext') = 'text'
+        THEN e.body || char(10) || char(10) || json_extract(e.payload_json, '$.genuiReplyContext')
+        ELSE e.body END AS body, e.created_at,
       json_extract(e.payload_json, '$.author.kind') AS author_kind,
       json_extract(e.payload_json, '$.author.slug') AS author_slug,
                  json_extract(e.payload_json, '$.external.event.actor.name') AS external_sender,
@@ -4071,6 +4074,7 @@ class BotRuntimeImplementation implements BotRuntime {
     const parts = [
       `[Human DM]\nSource Event ID: ${sourceEventId}\nChannel: ${channelId}\nMessage ID: ${messageId}\n${text}`,
     ];
+    if (message.genuiReplyContext !== undefined) parts.push(message.genuiReplyContext);
     if (message.voiceCall !== undefined) {
       parts.push(
         `[Voice call ${message.voiceCall.callId}${timelineSuffix(callTimelineNote(message.voiceCall))}] ${this.#promptText(botSlug)('voice-call-hint')}`,

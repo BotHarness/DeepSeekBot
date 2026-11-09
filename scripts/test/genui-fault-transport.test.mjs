@@ -7,7 +7,12 @@ function setup(fault, envelope = { result: { ok: true } }) {
     ok: true,
     clone: () => ({ json: async () => envelope }),
   });
-  const context = { fetch: original, addEventListener: vi.fn(), structuredClone };
+  const context = {
+    fetch: original,
+    addEventListener: vi.fn(),
+    structuredClone,
+    Worker: class extends EventTarget {},
+  };
   context.window = context;
   runInNewContext(`(${installGenuiFaultTransport.toString()})()`, context);
   context.__genuiFaultQa.fault = fault;
@@ -19,6 +24,25 @@ const send = (context, method) =>
   });
 
 describe('explicit GenUI browser transport fault fixtures', () => {
+  it('captures actual routed Worker snapshots for replay without retaining unrelated replies', () => {
+    const { context } = setup();
+    const worker = new context.Worker();
+    const snapshot = {
+      portId: 1,
+      reply: {
+        protocol: 'botharness-genui-execution-v1',
+        type: 'snapshot',
+        sequence: 1,
+        state: { values: { filter: 'Alpha' } },
+      },
+    };
+    worker.dispatchEvent(new MessageEvent('message', { data: snapshot }));
+    worker.dispatchEvent(new MessageEvent('message', { data: { type: 'other' } }));
+    expect(context.__genuiFaultQa.workers).toEqual([worker]);
+    expect(context.__genuiFaultQa.messages).toEqual([{ workerIndex: 0, envelope: snapshot }]);
+    snapshot.reply.state.values.filter = 'Changed';
+    expect(context.__genuiFaultQa.messages[0].envelope.reply.state.values.filter).toBe('Alpha');
+  });
   it('refuses one save before any Host request, then permits the actual retry', async () => {
     const { context, original } = setup({
       method: 'botharness/channelGenuiViewSave',

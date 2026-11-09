@@ -1,0 +1,29 @@
+---
+section: Fixed
+---
+
+## en
+
+- GenUI Web documents follow the conversation font-size preference, retaining authored proportions and reflow without resetting private selections; default form controls stay within narrow viewports ([#3711](https://github.com/BotHarness/DeepSeekBot/issues/3711)).
+
+- Clearing message content also removes its retained GenUI private drafts and submission attempts, including views that are not open; late save responses cannot restore them ([#3711](https://github.com/BotHarness/DeepSeekBot/issues/3711)).
+
+- GenUI continuations keep the Human's readable request in the ordinary message body. Validated, bounded model context remains in the same canonical Source Event and reaches both immediate and recovered Bot turns without displaying developer JSON in new messages ([#3711](https://github.com/BotHarness/DeepSeekBot/issues/3711)).
+
+- GenUI preview refusals preserve recognized Browser startup failure kinds and report cleanup failures without discarding an earlier refusal code or exposing process output and private profile paths ([#3711](https://github.com/BotHarness/DeepSeekBot/issues/3711)).
+- Local Bot Browser shutdown waits for process and inherited stdio closure before releasing its profile; an unconfirmed shutdown fails explicitly and retains ownership instead of reporting success immediately after a kill signal ([#3711](https://github.com/BotHarness/DeepSeekBot/issues/3711)).
+- GenUI's default table style keeps words intact inside an opt-in horizontal scroll region on narrow screens; the maintained interactive example reuses row identities so selecting a row does not discard keyboard focus ([#3711](https://github.com/BotHarness/DeepSeekBot/issues/3711)).
+- Rich GenUI documents start faster: the trusted guest DOM defers its stylesheet parser until a document first reads a `<style>` sheet and ships one copy of its HTML entity tables, so each document no longer parses about 200 KB of unused interpreter code at startup; the execution Worker also decodes its packaged interpreter without a per-byte callback, and the document runtime and Worker validate with the tree-shakable Zod Mini API, shrinking the runtime from 1.8 MB to 1.2 MB; the fixed script-disabled document frame now starts loading while the runtime downloads, and the runtime request starts when the card renders instead of after the conversation commits ([#3711](https://github.com/BotHarness/DeepSeekBot/issues/3711)).
+
+## zh
+
+- GenUI Web 文档随对话字号偏好缩放，保留作者设定的排版比例并重新换行，不重置私有选择；默认表单控件保持在窄屏视口内（[#3711](https://github.com/BotHarness/DeepSeekBot/issues/3711)）。
+
+- 清除消息内容时，同时移除其缓存的 GenUI 私有草稿和提交尝试，包括当前未打开的视图；迟到的保存响应不会恢复这些状态（[#3711](https://github.com/BotHarness/DeepSeekBot/issues/3711)）。
+
+- GenUI 续接将 Human 的可读请求保留为普通消息正文；经过校验的有界模型上下文仍属于同一条规范 Source Event，并传递给即时及恢复的 Bot 回合，新消息不再显示开发者 JSON（[#3711](https://github.com/BotHarness/DeepSeekBot/issues/3711)）。
+
+- GenUI 预览拒绝保留已识别的 Browser 启动失败分类，并明确报告收尾失败，不丢弃此前的拒绝码，也不暴露进程输出或私有 Profile 路径（[#3711](https://github.com/BotHarness/DeepSeekBot/issues/3711)）。
+- 本地 Bot Browser 收尾会等待进程及继承的标准流关闭后再释放 Profile；无法确认收尾时明确失败并保留所有权，不再将已发送终止信号误报为停止成功（[#3711](https://github.com/BotHarness/DeepSeekBot/issues/3711)）。
+- GenUI 默认表格样式在窄屏保留完整词语，并提供可选的横向滚动区域；维护的交互示例复用表格行身份，避免选中一行时丢失键盘焦点（[#3711](https://github.com/BotHarness/DeepSeekBot/issues/3711)）。
+- 富 GenUI 文档启动更快：可信 guest DOM 在文档首次读取 `<style>` 样式表时才加载样式表解析器，并只保留一份 HTML 实体表，每个文档启动时不再解析约 200 KB 未使用的解释器代码；执行 Worker 解码内置解释器时也不再逐字节调用回调；文档运行时与 Worker 改用可摇树的 Zod Mini 校验，运行时体积从 1.8 MB 降至 1.2 MB；固定的禁脚本文档框架在运行时下载期间即开始加载；运行时请求在卡片渲染时即发起，不再等待对话提交完成（[#3711](https://github.com/BotHarness/DeepSeekBot/issues/3711)）。

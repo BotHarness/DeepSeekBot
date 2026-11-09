@@ -195,6 +195,8 @@ deepseekbot group-create "Skill Lab" --member <bot-id> --member <bot-id>
 
 ### Bot 私聊中的 GenUI 文档
 
+新建的 `genui-submit` 续接将 `request.json.body` 保留为普通、可读的 Human 消息正文。Host 在同一条规范 Source Event 中加入经过校验的有界 `genuiReplyContext` 元数据，供 Bot 模型投影使用，不追加到可见正文；调用方不能指定这项元数据。已有的拼接正文消息及其同意图重试保持不变。
+
 GenUI 是有界的普通消息内容。版本 2 在隔离文档中渲染自包含 HTML、内联 CSS、SVG 和本地 JavaScript；版本 1 报告保持可读。通过既有 direct Tool 路径预览并显式发布，无需模型：
 
 ```bash
@@ -206,7 +208,11 @@ deepseekbot genui-view-save dm-<bot-id> --message-id <report-message-id> --genui
 deepseekbot genui-submit dm-<bot-id> --message-id human-<uuid> --genui-file ./request.json
 ```
 
-`document-preview.json` 包含 `genui_json`（完整文档序列化后的 JSON 字符串）、可选 `width`（240–1600）和 `theme`（`light` 或 `dark`）。预览使用已安装的 Chrome、Edge 或 Chromium 和一次性 Profile，不自动下载浏览器。结果包含文档／策略标识、有界诊断和 DSH 图片附件，不发布 Channel 消息。预览在浏览器自带的第一个页面中渲染，等两帧完成绘制后再截图。预览期限为 15 秒，只允许一个并发任务，图片上限为 1 MiB；浏览器收尾可能延长返回时间。失败时保留预览错误码和消息：`invalid-genui-preview`、`genui-preview-busy`、`genui-preview-unavailable`、`genui-preview-timeout`、`genui-preview-too-large`、`genui-preview-cleanup-failed`（无法删除一次性 Profile）、浏览器启动失败时的 `genui-preview-browser-<kind>`（例如 `genui-preview-browser-startup-timeout`），以及附带底层原因的 `genui-preview-failed`。`genui_diagram` 的拒绝同样保留其 `genui-diagram-*` 错误码。这不是硬 CPU／内存沙箱。
+`document-preview.json` 包含 `genui_json`（完整文档序列化后的 JSON 字符串）、可选 `width`（240–1600）和 `theme`（`light` 或 `dark`）。预览使用已安装的 Chrome、Edge 或 Chromium 和一次性 Profile，不自动下载浏览器。结果包含文档／策略标识、精确打包渲染器的 `runtimeSha256`、有界诊断和 DSH 图片附件，不发布 Channel 消息。预览在浏览器自带的第一个页面中渲染，等两帧完成绘制后再截图。预览期限为 15 秒，只允许一个并发任务，图片上限为 1 MiB；浏览器收尾可能延长返回时间。生成脚本在独立监督的 QuickJS Worker 和有限 DOM 适配层中运行，不在浏览器镜像文档中执行。解释器／WASM 限额不代表浏览器／进程总内存上限，也不保证物理内存立即回收。运行时资源缺失、损坏或不受支持时明确拒绝，不退回浏览器原生脚本执行。
+
+直接 CLI 路径保留预览 owner 的错误码：`genui-preview-timeout`、`genui-preview-busy`、`genui-preview-unavailable`、`genui-preview-too-large`，以及按阶段区分的 `genui-preview-{assets,browser,document,renderer,capture}-failed`。已识别的 Browser owner 启动失败保留为 `genui-preview-browser-<kind>`（例如 `genui-preview-browser-startup-timeout`），不包含进程 stderr 或 Profile 路径。`genui_diagram` 的拒绝同样保留其 `genui-diagram-*` 错误码。渲染器拒绝使用 `genui-preview-renderer-{startup,execution,memory,resource,unsupported,invalid-content}`。`genui-preview-image-unavailable` 表示渲染成功，但图片附件保存失败。这些分类不包含生成内容、私有服务细节或原始传输错误；再次诊断前保留首次失败。
+
+收尾失败使用 `genui-preview-cleanup-{browser,profile}-{failed,enotempty,ebusy,eperm,eacces}`，不返回成功预览，也不宣称资源已停止。若渲染此前已经失败，安全错误消息保留原拒绝码，不包含进程细节或私有路径。浏览器停止本身失败后，不删除其 Profile。
 
 版本 2 文档包含 `version: 2`、`snapshotId`、`observedAt`、`title`、`html`，以及可选的 `predecessorMessageId` 和 `stateContract`。完整信封上限 256 KiB，HTML 上限 192 KiB。不允许远程脚本、字体或其他网络资源、外部导航或 Host／工具调用。参见[丰富内容合成样例](../packages/core/test/fixtures/genui-document.ts)。状态契约最多注册 16 个字符串、数字、布尔或枚举字段。`window.genui.getState()` 返回当前值；`window.genui.setState(values)` 提交完整值对象。监听 `genui:state`，在 Host 恢复状态后重新绘制。未注册的 DOM 状态重新打开后复位。
 

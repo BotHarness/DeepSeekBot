@@ -7,15 +7,21 @@ import {
   initialGenuiDocumentState,
   parseGenuiDocument,
 } from '../../core/src/channels/genui-document.js';
-import {
-  GENUI_HTML_PROTOCOL,
-  GENUI_HTML_RUNTIME_LIMITS,
-} from '../../core/src/channels/genui-html.js';
-import * as htmlCompiler from '../../core/src/channels/genui-html.js';
+import type {
+  GenuiDocumentHandle,
+  GenuiDocumentMountOptions,
+  GenuiDocumentRuntime,
+} from '../../core/src/channels/genui-document-runtime.js';
+import { GENUI_EXECUTION_LIMITS } from '../../core/src/channels/genui-execution-limits.js';
+import { GENUI_MIRROR_SHELL } from '../../core/src/channels/genui-mirror-shell.js';
 import { GenuiDocumentCard } from '../src/client/genui-document.js';
 import { en, zhTranslate, type BotHarnessTranslate } from '../src/client/locale.js';
 import type { GenuiDocumentActions } from '../src/client/genui-document-view.js';
 
+const runtime = vi.hoisted(() => ({ load: vi.fn<() => Promise<GenuiDocumentRuntime>>() }));
+vi.mock('../src/client/genui-document-runtime.js', () => ({
+  loadGenuiDocumentRuntime: runtime.load,
+}));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Button: ({
     children,
@@ -31,7 +37,7 @@ const fixture = parseGenuiDocument({
   snapshotId: 'doc-1',
   title: 'Synthetic document',
   observedAt: '2026-11-08T00:00:00Z',
-  html: '<button onclick="genui.setState({query:\'chosen\'})">Choose</button>',
+  html: '<button id="choose">Choose</button><script>document.querySelector("#choose").addEventListener("click",()=>genui.setState({query:"chosen"}))</script>',
   stateContract: { version: 1, fields: { query: { type: 'string', initial: '', maxLength: 20 } } },
 });
 const english: BotHarnessTranslate = (key, params) => {
@@ -40,13 +46,46 @@ const english: BotHarnessTranslate = (key, params) => {
     String(params?.[name] ?? name),
   );
 };
+interface ControlledSurface {
+  frame: HTMLIFrameElement;
+  options: GenuiDocumentMountOptions;
+  handle: GenuiDocumentHandle;
+  complete: () => void;
+}
 let container: HTMLDivElement;
 let root: Root;
 let actions: GenuiDocumentActions;
+const surfaces: ControlledSurface[] = [];
+const updateTextScale = vi.fn();
+
+const mount = vi.fn(
+  (container: HTMLElement, options: GenuiDocumentMountOptions): GenuiDocumentHandle => {
+    const frame = options.shell ?? document.createElement('iframe');
+    frame.title = options.document.title;
+    frame.setAttribute('sandbox', 'allow-same-origin allow-scripts');
+    if (!frame.isConnected) container.append(frame);
+    let resolve: (() => void) | undefined;
+    const handle = {
+      ready: new Promise<void>((complete) => {
+        resolve = complete;
+      }),
+      restore: vi.fn(),
+      theme: vi.fn(),
+      textScale: updateTextScale,
+      dispose: vi.fn(() => frame.remove()),
+    };
+    surfaces.push({ frame, options, handle, complete: () => resolve?.() });
+    return handle;
+  },
+);
 
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   vi.useFakeTimers();
+  runtime.load.mockReset();
+  runtime.load.mockResolvedValue({ mountGenuiDocument: mount });
+  mount.mockClear();
+  updateTextScale.mockClear();
   container = document.createElement('div');
   document.body.append(container);
   root = createRoot(container);
@@ -65,7 +104,9 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount());
   container.remove();
+  surfaces.length = 0;
   document.body.removeAttribute('data-ds-dark-theme');
+  document.body.style.removeProperty('--dsh-content-font-size');
   vi.restoreAllMocks();
   vi.useRealTimers();
 });
@@ -86,63 +127,88 @@ async function render(
       />,
     ),
   );
-  const frame = container.querySelector('iframe');
-  if (!frame) throw new Error('Missing document iframe');
-  const instanceId = /const instanceId = "([^"]+)"/.exec(frame.srcdoc)?.[1];
-  if (!instanceId) throw new Error('Missing document instance');
-  return { frame, instanceId };
 }
-
-const frameSequences = new WeakMap<HTMLIFrameElement, number>();
-
-async function message(
-  frame: HTMLIFrameElement,
-  instanceId: string,
-  payload: Record<string, unknown>,
-  origin = 'null',
-  source: MessageEventSource | null = frame.contentWindow,
-) {
-  const sequence = (frameSequences.get(frame) ?? 0) + 1;
-  frameSequences.set(frame, sequence);
-  await act(async () =>
-    window.dispatchEvent(
-      new MessageEvent('message', {
-        data: { protocol: GENUI_HTML_PROTOCOL, instanceId, sequence, ...payload },
-        origin,
-        source,
-      }),
-    ),
-  );
+function latest() {
+  const surface = surfaces.at(-1);
+  if (!surface) throw Error('Missing controlled shared surface.');
+  return surface;
 }
-
+async function ready(surface = latest()) {
+  await act(async () => surface.complete());
+}
 function button(label: string) {
   const found = [...container.querySelectorAll('button')].find(
     (candidate) => candidate.textContent === label,
   );
-  if (!found) throw new Error(`Missing button: ${label}`);
+  if (!found) throw Error(`Missing button: ${label}`);
   return found;
 }
 
-describe('isolated document card', () => {
-  it('does not rebuild the guardian for local state, height, heartbeat or theme updates', async () => {
-    const build = vi.spyOn(htmlCompiler, 'buildGenuiHtmlDocument');
-    const { frame, instanceId } = await render();
-    expect(build).toHaveBeenCalledTimes(1);
-    await message(frame, instanceId, { type: 'ready' });
-    for (let index = 0; index < 5; index++) {
-      await message(frame, instanceId, { type: 'height', height: 200 + index });
-      await message(frame, instanceId, { type: 'heartbeat' });
-      await message(frame, instanceId, {
-        type: 'state',
-        state: { version: 1, values: { query: `chosen-${index}` } },
-      });
-    }
+describe('GenUI card integration with the shared renderer owner', () => {
+  it('loads the lazy runtime and waits for successful native-mirror readiness', async () => {
+    await render();
+    expect(runtime.load).toHaveBeenCalled();
+    expect(latest().options.document).toEqual(fixture);
+    expect(latest().options.instanceId).toMatch(/^[a-f0-9-]+$/);
+    expect(button('Continue').disabled).toBe(true);
+    const frames = container.querySelectorAll('iframe');
+    expect(frames).toHaveLength(1);
+    expect(latest().options.shell).toBe(frames[0]);
+    expect(frames[0]?.srcdoc).toBe(GENUI_MIRROR_SHELL);
+    expect(frames[0]?.srcdoc).not.toContain(fixture.html);
+    await ready();
+    expect(button('Continue').disabled).toBe(false);
+  });
+
+  it('starts only the fixed script-disabled shell while the runtime loads and removes it on early unmount', async () => {
+    runtime.load.mockReturnValue(new Promise(() => {}));
+    await render();
+    const shell = container.querySelector('iframe');
+    expect(shell?.srcdoc).toBe(GENUI_MIRROR_SHELL);
+    expect(shell?.getAttribute('sandbox')).toBe('allow-same-origin allow-scripts');
+    expect(shell?.referrerPolicy).toBe('no-referrer');
+    expect(mount).not.toHaveBeenCalled();
+    await act(async () => root.unmount());
+    expect(container.querySelector('iframe')).toBeNull();
+    root = createRoot(container);
+  });
+
+  it('does not remount the runtime for local state or theme changes', async () => {
+    await render();
+    const surface = latest();
+    await ready(surface);
+    const count = mount.mock.calls.length;
+    for (let index = 0; index < 5; index++)
+      await act(async () =>
+        surface.options.onState({ version: 1, values: { query: `chosen-${index}` } }),
+      );
     await act(async () => document.body.setAttribute('data-ds-dark-theme', ''));
-    expect(build).toHaveBeenCalledTimes(1);
+    expect(surface.handle.theme).toHaveBeenLastCalledWith('dark');
+    expect(mount).toHaveBeenCalledTimes(count);
     expect(actions.sendGenuiDocumentReply).not.toHaveBeenCalled();
   });
 
-  it('restores lifecycle listeners after a StrictMode cleanup/remount', async () => {
+  it('inherits the current content font preference and updates without remounting or saving state', async () => {
+    document.body.style.setProperty('--dsh-content-font-size', '22px');
+    await render();
+    const surface = latest();
+    await ready(surface);
+    expect(surface.options).toMatchObject({ textScale: 22 / 14 });
+    const count = mount.mock.calls.length;
+    await act(async () => document.body.style.setProperty('--dsh-content-font-size', '10px'));
+    expect(updateTextScale).toHaveBeenLastCalledWith(10 / 14);
+    expect(surface.handle.theme).not.toHaveBeenCalled();
+    expect(mount).toHaveBeenCalledTimes(count);
+    expect(actions.saveGenuiDocumentView).not.toHaveBeenCalled();
+    await act(async () => document.body.style.removeProperty('--dsh-content-font-size'));
+    expect(updateTextScale).toHaveBeenLastCalledWith(1);
+    await act(async () => root.unmount());
+    updateTextScale.mockClear();
+    await act(async () => document.body.style.setProperty('--dsh-content-font-size', '22px'));
+    expect(updateTextScale).not.toHaveBeenCalled();
+  });
+
+  it('fences the first asynchronous load during StrictMode cleanup/remount', async () => {
     await act(async () =>
       root.render(
         <StrictMode>
@@ -156,16 +222,15 @@ describe('isolated document card', () => {
         </StrictMode>,
       ),
     );
-    const frame = container.querySelector('iframe')!;
-    const instanceId = /const instanceId = "([^"]+)"/.exec(frame.srcdoc)?.[1];
-    if (!instanceId) throw new Error('Missing document instance');
-    await message(frame, instanceId, { type: 'ready' });
+    expect(mount).toHaveBeenCalledTimes(1);
+    await ready();
     expect(button('Continue').disabled).toBe(false);
   });
 
-  it('fences an old frame and state when the trusted action owner changes', async () => {
-    const { frame, instanceId } = await render();
-    await message(frame, instanceId, { type: 'ready' });
+  it('fences callbacks and readiness when the trusted action owner changes', async () => {
+    await render();
+    const previous = latest();
+    await ready(previous);
     const nextActions = {
       ...actions,
       genuiDocumentView: vi.fn(async () => ({
@@ -173,58 +238,42 @@ describe('isolated document card', () => {
         state: initialGenuiDocumentState(fixture),
       })),
     };
-    const replacement = await render(fixture, nextActions);
-    expect(replacement.frame).not.toBe(frame);
+    await render(fixture, nextActions);
+    const replacement = latest();
+    expect(replacement.frame).not.toBe(previous.frame);
+    expect(previous.handle.dispose).toHaveBeenCalledTimes(1);
+    await act(async () => previous.options.onState({ version: 1, values: { query: 'stale' } }));
     expect(button('Continue').disabled).toBe(true);
-    await message(frame, instanceId, { type: 'ready' });
-    expect(button('Continue').disabled).toBe(true);
-    await message(replacement.frame, replacement.instanceId, { type: 'ready' });
+    await ready(replacement);
     expect(button('Continue').disabled).toBe(false);
-  });
-  it('mounts the guardian srcdoc without same-origin capability and waits for ready', async () => {
-    const { frame, instanceId } = await render();
-    expect(frame.sandbox?.toString() ?? frame.getAttribute('sandbox')).toBe('allow-scripts');
-    expect(frame.getAttribute('referrerpolicy')).toBe('no-referrer');
-    expect(frame.dataset['documentId']).toHaveLength(64);
-    expect(frame.srcdoc).toContain('genui-guardian');
-    expect(button('Continue').disabled).toBe(true);
-    await message(frame, instanceId, { type: 'ready' });
-    expect(button('Continue').disabled).toBe(false);
+    expect(nextActions.saveGenuiDocumentView).not.toHaveBeenCalled();
   });
 
-  it('ignores earlier same-mount bridge envelopes after a newer state', async () => {
-    const { frame, instanceId } = await render();
-    await message(frame, instanceId, { type: 'ready', sequence: 1 });
-    const newer = { version: 1, values: { query: 'newer' } };
-    await message(frame, instanceId, { type: 'state', sequence: 3, state: newer });
-    await message(frame, instanceId, {
-      type: 'state',
-      sequence: 2,
-      state: { version: 1, values: { query: 'earlier' } },
-    });
-    await act(async () => vi.advanceTimersByTimeAsync(600));
-    expect(actions.saveGenuiDocumentView).toHaveBeenLastCalledWith(
-      'dm-1',
-      'message-1',
-      fixture,
-      0,
-      newer,
+  it('does not accept state or readiness through the removed window-message bridge', async () => {
+    await render();
+    await act(async () =>
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: {
+            protocol: 'botharness-genui-v1',
+            type: 'state',
+            state: { version: 1, values: { query: 'injected' } },
+          },
+          source: latest().frame.contentWindow,
+          origin: 'null',
+        }),
+      ),
     );
+    await act(async () => vi.advanceTimersByTimeAsync(600));
+    expect(actions.saveGenuiDocumentView).not.toHaveBeenCalled();
+    expect(button('Continue').disabled).toBe(true);
   });
 
-  it('ignores forged source/origin/instance, unknown types and pre-ready state', async () => {
-    const { frame, instanceId } = await render();
-    const state = { version: 1, values: { query: 'chosen' } };
-    await message(frame, instanceId, { type: 'ready' }, 'https://untrusted.invalid');
-    await message(frame, instanceId, { type: 'ready' }, 'null', window);
-    await message(frame, 'stale-instance', { type: 'ready' });
-    await message(frame, instanceId, { type: 'state', state });
-    await message(frame, instanceId, { type: 'invoke', method: 'channelSend' });
-    expect(button('Continue').disabled).toBe(true);
-    expect(actions.saveGenuiDocumentView).not.toHaveBeenCalled();
-    expect(actions.sendGenuiDocumentReply).not.toHaveBeenCalled();
-    await message(frame, instanceId, { type: 'ready' });
-    await message(frame, instanceId, { type: 'state', state });
+  it('persists validated private state without publishing and uses that state for attributable continuation', async () => {
+    await render();
+    await ready();
+    const state = { version: 1 as const, values: { query: 'chosen' } };
+    await act(async () => latest().options.onState(state));
     await act(async () => vi.advanceTimersByTimeAsync(600));
     expect(actions.saveGenuiDocumentView).toHaveBeenCalledWith(
       'dm-1',
@@ -249,90 +298,104 @@ describe('isolated document card', () => {
     );
   });
 
-  it('restores validated Host state after ready and tracks actual body theme with cleanup', async () => {
+  it('starts from canonical Host state and disposes theme observation with the surface', async () => {
     const saved = { version: 1 as const, values: { query: 'saved' } };
     vi.mocked(actions.genuiDocumentView).mockResolvedValue({ version: 3, state: saved });
-    const { frame, instanceId } = await render();
-    const post = vi.spyOn(frame.contentWindow!, 'postMessage');
-    await message(frame, instanceId, { type: 'ready' });
-    expect(post).toHaveBeenCalledWith(
-      { protocol: GENUI_HTML_PROTOCOL, instanceId, type: 'restore', state: saved },
-      '*',
+    await render();
+    const surface = latest();
+    expect(vi.mocked(surface.handle.restore).mock.lastCall?.[0] ?? surface.options.state).toEqual(
+      saved,
     );
+    await ready(surface);
     await act(async () => document.body.setAttribute('data-ds-dark-theme', ''));
-    expect(post).toHaveBeenLastCalledWith(
-      { protocol: GENUI_HTML_PROTOCOL, instanceId, type: 'theme', theme: 'dark' },
-      '*',
-    );
+    expect(surface.handle.theme).toHaveBeenLastCalledWith('dark');
     await act(async () => root.render(null));
-    post.mockClear();
+    vi.mocked(surface.handle.theme).mockClear();
     await act(async () => document.body.removeAttribute('data-ds-dark-theme'));
-    await act(async () => vi.advanceTimersByTimeAsync(GENUI_HTML_RUNTIME_LIMITS.startupMs));
-    expect(post).not.toHaveBeenCalled();
+    expect(surface.handle.theme).not.toHaveBeenCalled();
+    expect(surface.handle.dispose).toHaveBeenCalledTimes(1);
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it('bounds height and provides an independently scrollable embed', async () => {
-    const { frame, instanceId } = await render();
-    await message(frame, instanceId, { type: 'ready' });
-    await message(frame, instanceId, { type: 'height', height: 2000 });
-    expect(frame.style.height).toBe('2000px');
-    await message(frame, instanceId, { type: 'height', height: 20_001 });
-    expect(frame.style.height).toBe('2000px');
-    await message(frame, instanceId, { type: 'height', height: 47 });
-    expect(frame.style.height).toBe('2000px');
+  it.each([
+    'startup',
+    'execution',
+    'memory',
+    'resource',
+    'unsupported',
+    'invalid-content',
+  ] as const)('keeps trusted recovery and disables submission after %s refusal', async (reason) => {
+    await render();
+    const surface = latest();
+    await ready(surface);
+    await act(async () => surface.options.onFailure(reason));
+    expect(container.querySelector('iframe')).toBeNull();
+    expect(container.textContent).toContain('The document could not run');
+    expect(button('Continue').disabled).toBe(true);
+    await act(async () => button('Reload document').click());
+    expect(latest().frame).not.toBe(surface.frame);
+    await ready();
+    expect(button('Continue').disabled).toBe(false);
   });
 
-  it.each(['startup', 'heartbeat', 'page-error', 'invalid-state'])(
-    'keeps trusted recovery controls after %s failure',
-    async (failure) => {
-      const { frame, instanceId } = await render();
-      if (failure === 'startup')
-        await act(async () => vi.advanceTimersByTimeAsync(GENUI_HTML_RUNTIME_LIMITS.startupMs));
-      else {
-        await message(frame, instanceId, { type: 'ready' });
-        if (failure === 'heartbeat')
-          await act(async () =>
-            vi.advanceTimersByTimeAsync(GENUI_HTML_RUNTIME_LIMITS.heartbeatTimeoutMs),
-          );
-        if (failure === 'page-error')
-          await message(frame, instanceId, { type: 'error', message: 'Untrusted failure text' });
-        if (failure === 'invalid-state')
-          await message(frame, instanceId, {
-            type: 'state',
-            state: { version: 1, values: { unknown: 'field' } },
-          });
-      }
-      expect(container.querySelector('iframe')).toBeNull();
-      expect(container.textContent).toContain('The document could not run');
-      expect(container.textContent).not.toContain('Untrusted failure text');
-      expect(button('Continue').disabled).toBe(true);
-      await act(async () => button('Reload document').click());
-      const replacement = container.querySelector('iframe');
-      expect(replacement).not.toBeNull();
-      expect(replacement?.srcdoc).not.toBe(frame.srcdoc);
-    },
-  );
+  it('fails closed on invalid owner state without exposing untrusted error text', async () => {
+    await render();
+    await ready();
+    await act(async () =>
+      latest().options.onState({ version: 1, values: { unknown: 'Untrusted failure text' } }),
+    );
+    expect(container.querySelector('iframe')).toBeNull();
+    expect(container.textContent).not.toContain('Untrusted failure text');
+    expect(actions.saveGenuiDocumentView).not.toHaveBeenCalled();
+  });
 
-  it('does not offer state recovery without a contract, or submissions without actions', async () => {
+  it('bounds a stalled asset load and refuses to mount its late completion', async () => {
+    let complete: ((value: GenuiDocumentRuntime) => void) | undefined;
+    runtime.load.mockReturnValue(
+      new Promise((resolve) => {
+        complete = resolve;
+      }),
+    );
+    await render();
+    await act(async () => vi.advanceTimersByTimeAsync(GENUI_EXECUTION_LIMITS.startupMs));
+    expect(container.textContent).toContain('The document could not run');
+    await act(async () => complete?.({ mountGenuiDocument: mount }));
+    expect(mount).not.toHaveBeenCalled();
+    expect(button('Continue').disabled).toBe(true);
+  });
+
+  it('offers retry after a missing runtime without native generated-code fallback', async () => {
+    runtime.load.mockRejectedValueOnce(Error('Private loader failure detail'));
+    await render();
+    expect(container.textContent).toContain('The document could not run');
+    expect(container.textContent).not.toContain('Private loader failure detail');
+    expect(container.querySelector('iframe')).toBeNull();
+    await act(async () => button('Reload document').click());
+    await ready();
+    expect(button('Continue').disabled).toBe(false);
+  });
+
+  it('does not offer state recovery without a contract or submissions without actions', async () => {
     const plain = parseGenuiDocument({ ...fixture, stateContract: undefined });
-    const { frame, instanceId } = await render(plain, null, zhTranslate);
-    await message(frame, instanceId, { type: 'ready' });
+    await render(plain, null, zhTranslate);
+    await ready();
     expect(container.textContent).toContain('此文档不保存个人视图');
     expect(actions.genuiDocumentView).not.toHaveBeenCalled();
-    expect(container.textContent).not.toContain('保存我的视图');
     expect(container.textContent).not.toContain('继续处理');
     expect(container.textContent).toContain('重新载入文档');
   });
 
-  it('unmounts the document when Host access is lost', async () => {
-    const { frame, instanceId } = await render();
-    await message(frame, instanceId, { type: 'ready' });
+  it('unmounts and fences the renderer when canonical Host access is lost', async () => {
+    await render();
+    const surface = latest();
+    await ready(surface);
     vi.mocked(actions.sendGenuiDocumentReply).mockRejectedValue(
       new GenuiError('genui-unavailable', 'Unavailable'),
     );
     await act(async () => button('Continue').click());
     expect(container.querySelector('iframe')).toBeNull();
-    expect(container.textContent).toContain('Your private draft was cleared');
+    expect(surface.handle.dispose).toHaveBeenCalledTimes(1);
+    await act(async () => surface.options.onState({ version: 1, values: { query: 'late' } }));
+    expect(actions.saveGenuiDocumentView).not.toHaveBeenCalled();
   });
 });

@@ -1,4 +1,6 @@
 import type { HostClient, RemoteSource } from './client';
+import { genuiDocumentOf, type GenuiDocument, type GenuiDocumentReply } from '../genui/document';
+import { forgetGenuiDocumentViews } from '../genui/view';
 import { forgetMedia } from './media-cache';
 import { sessionFailure } from './session-failure';
 import { activityOf, type ChannelActivity } from './channel-activity';
@@ -164,6 +166,7 @@ export interface ConversationMessage {
   replyPreview?: WireReplyPreview | null;
   replyThumbnail?: ReplyThumbnail;
   attachments: MessageAttachment[];
+  genuiDocument?: GenuiDocument;
   card?: MessageCard;
   resolves?: { requestId: string; resolution: CardResolution };
   reactions?: ConversationReaction[];
@@ -329,6 +332,7 @@ export interface MessageTags {
   mentions?: WireMention[];
   allBotMention?: WireAllBotMention;
   replyTo?: string;
+  genuiReply?: GenuiDocumentReply;
 }
 
 interface Outgoing {
@@ -620,6 +624,8 @@ function present(
   const card = cardOf(entry.channelId, message);
   const resolves = resolvesOf(message);
   const activity = activityOf(message);
+  const genuiDocument =
+    message.contentPurge === undefined ? genuiDocumentOf(message.genui) : undefined;
   const failure = kind === 'bot' ? sessionFailure(message.sessionFailure) : undefined;
   const { attachments, voice } = voiceOf(message, attachmentsOf(entry, resolve, picked));
   return {
@@ -642,6 +648,7 @@ function present(
         }),
     attachments,
     ...(voice === undefined ? {} : { voice }),
+    ...(genuiDocument === undefined ? {} : { genuiDocument }),
     ...(card === undefined ? {} : { card }),
     ...(resolves === undefined ? {} : { resolves }),
     ...(activity === undefined ? {} : { activity }),
@@ -715,6 +722,8 @@ export function createConversation(options: ConversationOptions): Conversation {
     if (message === undefined) {
       message = present(entry, options.host.resource, sentFiles.get(entry.message.id) ?? []);
       presented.set(entry, message);
+      if (entry.message.contentPurge !== undefined)
+        forgetGenuiDocumentViews(options.host, entry.channelId, entry.message.id);
     }
     return message;
   }
@@ -1261,6 +1270,7 @@ export function createConversation(options: ConversationOptions): Conversation {
           ? {}
           : { allBotMention: item.tags.allBotMention }),
         ...(item.tags.replyTo === undefined ? {} : { replyTo: item.tags.replyTo }),
+        ...(item.tags.genuiReply === undefined ? {} : { genuiReply: item.tags.genuiReply }),
       });
       accepted(item);
       if (outgoing.get(item.id) !== item) return;
