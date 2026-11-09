@@ -24,11 +24,11 @@ import {
   previewStorageMessages,
   type BridgeCall,
 } from './bridge.js';
-import { PillButton } from './ds/pill-button.js';
 import { FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
 import { Select } from './ds/select.js';
-import { SettingsRow } from './ds/settings-row.js';
+import { StatusBlock } from './ds/status-block.js';
+import { useMountedResource } from './mounted-resource.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessKey } from './locale.js';
 
@@ -187,6 +187,48 @@ export type StorageSettingsProps = PropsLocale<'botharness'> & { title?: string 
     | { source: StorageSettingsSource; call?: never }
   );
 
+function UsageSummary({
+  usage,
+  t,
+}: {
+  usage: StorageUsage;
+  t: StorageSettingsProps['t'];
+}): ReactElement {
+  return (
+    <section aria-label={t('storage.used')} {...stylex.props(styles.group)}>
+      <p data-storage-total={usage.totalBytes} {...stylex.props(styles.total)}>
+        {t('storage.total', { size: formatBotZipSize(usage.totalBytes) })}
+      </p>
+      <div aria-hidden="true" {...stylex.props(styles.bar)}>
+        {usage.parts.map((part) =>
+          part.bytes === 0 || usage.totalBytes === 0 ? null : (
+            <span
+              key={part.kind}
+              style={{
+                width: `${(part.bytes / usage.totalBytes) * 100}%`,
+                minWidth: 2,
+                background: PARTS[part.kind].fill,
+              }}
+            />
+          ),
+        )}
+      </div>
+      <ul {...stylex.props(styles.legend)}>
+        {usage.parts.map((part) => (
+          <li key={part.kind} data-storage-part={part.kind} {...stylex.props(styles.legendItem)}>
+            <span
+              aria-hidden="true"
+              style={{ background: PARTS[part.kind].fill }}
+              {...stylex.props(styles.swatch)}
+            />
+            {t(PARTS[part.kind].label)} {formatBotZipSize(part.bytes)}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export function StorageSettings({
   call,
   source,
@@ -203,6 +245,17 @@ export function StorageSettings({
   };
   const [open, setOpen] = useState(false);
   const [usage, setUsage] = useState<StorageUsage>();
+  const [summary, setSummary] = useState<StorageUsage>();
+  const mount = useMountedResource<HTMLDivElement>(() => {
+    const controller = new AbortController();
+    storage.usage(controller.signal).then(
+      (value) => {
+        if (!controller.signal.aborted) setSummary(value);
+      },
+      () => undefined,
+    );
+    return () => controller.abort();
+  }, []);
   const [target, setTarget] = useState<Target>('media');
   const [age, setAge] = useState<Age>('90');
   const [kinds, setKinds] = useState<StorageMediaKind[]>([...STORAGE_MEDIA_KINDS]);
@@ -220,7 +273,9 @@ export function StorageSettings({
     setUsage(undefined);
     storage.usage(controller.signal).then(
       (value) => {
-        if (!controller.signal.aborted) setUsage(value);
+        if (controller.signal.aborted) return;
+        setUsage(value);
+        setSummary(value);
       },
       () => {
         if (!controller.signal.aborted) setError(t('storage.error'));
@@ -305,16 +360,20 @@ export function StorageSettings({
     setError(undefined);
   };
   return (
-    <SettingsRow
-      title={t('storage.row.title')}
-      description={t('storage.row.description')}
-      data={{ 'data-storage-setting': '' }}
-      control={
-        <PillButton onClick={show} data-storage-open="">
-          {t('storage.row.action')}
-        </PillButton>
-      }
-    >
+    <div ref={mount} data-storage-setting="">
+      <StatusBlock
+        icon="files"
+        tone="neutral"
+        title={t('storage.row.title')}
+        body={t('storage.row.description')}
+        action={
+          <Button variant="primary" size="sm" onClick={show} data-storage-open="">
+            {t('storage.row.action')}
+          </Button>
+        }
+      >
+        {summary === undefined ? null : <UsageSummary usage={summary} t={t} />}
+      </StatusBlock>
       {!open ? null : result !== undefined ? (
         <FormDialog
           title={title}
@@ -419,41 +478,7 @@ export function StorageSettings({
             <p {...stylex.props(styles.plain)}>{t('storage.loading')}</p>
           ) : (
             <div data-storage-usage="" {...stylex.props(styles.content)}>
-              <section aria-label={t('storage.used')} {...stylex.props(styles.group)}>
-                <p data-storage-total={usage.totalBytes} {...stylex.props(styles.total)}>
-                  {t('storage.total', { size: formatBotZipSize(usage.totalBytes) })}
-                </p>
-                <div aria-hidden="true" {...stylex.props(styles.bar)}>
-                  {usage.parts.map((part) =>
-                    part.bytes === 0 || usage.totalBytes === 0 ? null : (
-                      <span
-                        key={part.kind}
-                        style={{
-                          width: `${(part.bytes / usage.totalBytes) * 100}%`,
-                          minWidth: 2,
-                          background: PARTS[part.kind].fill,
-                        }}
-                      />
-                    ),
-                  )}
-                </div>
-                <ul {...stylex.props(styles.legend)}>
-                  {usage.parts.map((part) => (
-                    <li
-                      key={part.kind}
-                      data-storage-part={part.kind}
-                      {...stylex.props(styles.legendItem)}
-                    >
-                      <span
-                        aria-hidden="true"
-                        style={{ background: PARTS[part.kind].fill }}
-                        {...stylex.props(styles.swatch)}
-                      />
-                      {t(PARTS[part.kind].label)} {formatBotZipSize(part.bytes)}
-                    </li>
-                  ))}
-                </ul>
-              </section>
+              <UsageSummary usage={usage} t={t} />
               <section
                 aria-label={t(
                   messagesTarget ? 'storage.messages.heading' : 'storage.clean.heading',
@@ -561,7 +586,7 @@ export function StorageSettings({
           )}
         </FormDialog>
       )}
-    </SettingsRow>
+    </div>
   );
 }
 
