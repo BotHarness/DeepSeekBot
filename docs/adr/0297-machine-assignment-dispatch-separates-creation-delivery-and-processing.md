@@ -1,6 +1,6 @@
 # ADR-0297: Machine Assignment dispatch separates creation, delivery and processing
 
-- Status: Proposed; frozen issue constraints recorded for implementation review
+- Status: Superseded by [ADR-0305](0305-direct-cli-calls-reach-orchestrator-owned-assignments.md); not implemented
 - Date: 2026-11-06
 - Issues: [#3578](https://github.com/BotHarness/DeepSeekBot/issues/3578), [#3351](https://github.com/BotHarness/DeepSeekBot/issues/3351)
 - Delivery status: specification only; no machine dispatch endpoint or CLI is implemented by this ADR

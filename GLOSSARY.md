@@ -170,7 +170,7 @@ The one- or two-sentence statement of what an Assignment sets out to do, chosen 
 _Avoid_: purpose (historical), prompt, Assignment Request, Assignment Report
 
 **Assignment Session**:
-A PersonaBot-owned independent root Session that executes exactly one Assignment in exactly one working directory in v1, created and managed by its Orchestrator without requiring the Human to open another Conversation. A PersonaBot may have several at once, and a DSH Subagent never counts as one.
+A PersonaBot-owned independent root Session that executes exactly one Assignment in exactly one working directory in v1, created by its Orchestrator, or by the Human through a direct CLI call on its behalf, and always managed by its Orchestrator, without requiring the Human to open another Conversation. A PersonaBot may have several at once, and a DSH Subagent never counts as one.
 _Avoid_: Work Session, Worker Session, Executor Session, task Session, child Session
 
 **Assignment Agent**:
@@ -190,7 +190,7 @@ A stable PersonaBot-local key explicitly assigned to one continuing line of work
 _Avoid_: title similarity, cwd, most-recent Session, global id
 
 **Assignment Request**:
-A durable, addressed, auditable Orchestrator message to one owned Assignment Session, optionally correlated to an Inbox Admission or earlier report. Its semantic mode is `context-update`, `next-step`, or `next-turn`; Assignment Runtime maps that to DSH injection, steer, or follow-up without interrupting the current step.
+A durable, addressed, auditable Orchestrator message, or a Human's direct CLI request on its behalf, to one owned Assignment Session, optionally correlated to an Inbox Admission or earlier report. Its semantic mode is `context-update`, `next-step`, or `next-turn`; Assignment Runtime maps that to DSH injection, steer, or follow-up without interrupting the current step.
 _Avoid_: Channel message, Subagent prompt, broadcast, inferred Session
 
 **Assignment Delivery Intent**:

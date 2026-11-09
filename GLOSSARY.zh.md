@@ -169,7 +169,7 @@ _避免使用_：purpose、task name、prompt、Continuity Key
 _避免使用_：purpose（历史用法）、prompt、Assignment Request、Assignment Report
 
 **Assignment Session**：
-执行且只执行一个 Assignment、由 PersonaBot 拥有的独立 root Session；v1 中它只有一个 working directory。它由 Orchestrator 创建和管理，不要求 Human 另开 Conversation；一个 PersonaBot 可以同时拥有多个 Assignment Session，而 DSH Subagent 永远不算 Assignment Session。
+执行且只执行一个 Assignment、由 PersonaBot 拥有的独立 root Session；v1 中它只有一个 working directory。它由 Orchestrator 创建，或由 Human 通过直调 CLI 代其创建，始终由 Orchestrator 管理，不要求 Human 另开 Conversation；一个 PersonaBot 可以同时拥有多个 Assignment Session，而 DSH Subagent 永远不算 Assignment Session。
 _避免使用_：Work Session、Worker Session、Executor Session、task Session、child Session
 
 **Assignment Agent**：
@@ -189,7 +189,7 @@ _避免使用_：deleted Assignment、stopped Assignment、auto-archive、hidden
 _避免使用_：title similarity、cwd、most-recent Session、global id
 
 **Assignment Request**：
-Orchestrator 向其拥有的某个 Assignment Session 发送的持久、定向、可审计消息，可选择关联到一个 Inbox Admission 或先前报告。其语义模式为 `context-update`、`next-step` 或 `next-turn`；Assignment Runtime 将它映射为 DSH injection、steer 或 follow-up，且不打断当前 step。
+Orchestrator（或由 Human 通过直调 CLI 代其）向其拥有的某个 Assignment Session 发送的持久、定向、可审计消息，可选择关联到一个 Inbox Admission 或先前报告。其语义模式为 `context-update`、`next-step` 或 `next-turn`；Assignment Runtime 将它映射为 DSH injection、steer 或 follow-up，且不打断当前 step。
 _避免使用_：Channel message、Subagent prompt、broadcast、inferred Session
 
 **Assignment Delivery Intent**：

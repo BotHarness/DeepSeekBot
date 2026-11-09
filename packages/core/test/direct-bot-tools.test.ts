@@ -21,7 +21,7 @@ import {
 import { FakeAgentHost } from './dsh-agent-host-fixture.js';
 import { createTempRoot, FIXED_NOW, trackTestOwner } from './helpers.js';
 import { createTestRegistry } from './registry-fixture.js';
-import { createTestWorkspaceGrants } from './workspace-grant-fixture.js';
+import { createTestWorkspaceGrants, TEST_GRANT_ID } from './workspace-grant-fixture.js';
 
 const repo = join(import.meta.dirname, '../../..');
 
@@ -57,7 +57,7 @@ function setup() {
     agents,
     now: FIXED_NOW,
   });
-  return { runtime, channels, dm, host, registry, ownership };
+  return { runtime, channels, dm, host, registry, ownership, owner };
 }
 
 describe('direct Bot tool runner', () => {
@@ -219,7 +219,7 @@ describe('direct Bot tool runner', () => {
       runtime.runDirectBotTool!('ada', 'channel_list', { limit: 'many' }, signal),
     ).rejects.toMatchObject({ code: 'invalid-args' });
     await expect(
-      runtime.runDirectBotTool!('ada', 'create_assignment', {}, signal),
+      runtime.runDirectBotTool!('ada', 'wait_for_assignment', {}, signal),
     ).rejects.toMatchObject({ code: 'tool-not-direct' });
     await expect(
       runtime.runDirectBotTool!('ada', 'ask_user_question', {}, signal),
@@ -235,6 +235,84 @@ describe('direct Bot tool runner', () => {
     await expect(
       runtime.runDirectBotTool!('ada', 'channel_list', {}, signal),
     ).rejects.toMatchObject({ code: 'bot-paused' });
+  });
+
+  it('creates and continues an Orchestrator-owned Assignment without waking the Orchestrator', async () => {
+    const { runtime, host, owner } = setup();
+    const signal = new AbortController().signal;
+    const database = attachOperationalModule(owner, 'direct-assignment-test');
+    try {
+      const created = await runtime.runDirectBotTool!(
+        'ada',
+        'create_assignment',
+        {
+          title: 'Nightly report',
+          description: 'Summarize the nightly build.',
+          instructions: 'Read the build log and summarize failures.',
+          grant_id: TEST_GRANT_ID,
+          key: 'nightly-report',
+        },
+        signal,
+      );
+      expect(created.result).toMatchObject({ outcome: 'created', title: 'Nightly report' });
+      const sessionId = (created.result as { sessionId: string }).sessionId;
+      const origin = database.read((db) =>
+        db
+          .prepare(
+            `SELECT e.source_kind, e.channel_id, e.payload_json,
+                    (SELECT COUNT(*) FROM inbox_admissions a WHERE a.source_event_id = e.source_event_id) AS admissions
+               FROM assignments s JOIN source_events e ON e.source_event_id = s.source_event_id
+              WHERE s.session_id = ?`,
+          )
+          .get(sessionId),
+      ) as {
+        source_kind: string;
+        channel_id: string | null;
+        payload_json: string;
+        admissions: number;
+      };
+      expect(origin).toMatchObject({
+        source_kind: 'system-message',
+        channel_id: null,
+        admissions: 0,
+      });
+      expect(JSON.parse(origin.payload_json)).toMatchObject({
+        directBotTool: { tool: 'create_assignment' },
+      });
+      const notices = () =>
+        database.read((db) =>
+          db
+            .prepare(
+              `SELECT e.body, json_extract(e.payload_json, '$.assignmentLifecycle.cause') AS cause,
+                      a.source_policy_wake_mode AS wake, a.attempt_state
+                 FROM source_events e JOIN inbox_admissions a ON a.source_event_id = e.source_event_id
+                WHERE e.assignment_session_id = ? AND e.source_kind = 'assignment-lifecycle'
+                ORDER BY e.rowid`,
+            )
+            .all(sessionId),
+        ) as Array<{ body: string; cause: string; wake: string; attempt_state: string }>;
+      expect(notices()).toEqual([
+        expect.objectContaining({
+          cause: 'direct-create',
+          wake: 'silent',
+          attempt_state: 'pending',
+        }),
+      ]);
+      expect(notices()[0]!.body).toContain('"Read the build log and summarize failures."');
+      expect(host.sessions.every((session) => String(session.id) === sessionId)).toBe(true);
+
+      const requested = await runtime.runDirectBotTool!(
+        'ada',
+        'send_assignment_request',
+        { session_id: sessionId, text: 'Also list flaky tests.' },
+        signal,
+      );
+      expect(requested.result).toMatchObject({ sessionId });
+      expect(notices().map((notice) => notice.cause)).toEqual(['direct-create', 'direct-request']);
+      expect(notices()[1]!.body).toContain('"Also list flaky tests."');
+    } finally {
+      await runtime.close();
+    }
   });
 
   it("runs Subagent tools only on one of the Bot's Assignment Sessions", async () => {
