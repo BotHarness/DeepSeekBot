@@ -1424,7 +1424,7 @@ function renderInbox(units: InboxUnit[], text: PromptText = DEFAULT_PROMPT_TEXT)
     )
       return `- ${target} (${facts})${lifecycle}`;
     if (unit.sourceKind === 'assignment-lifecycle') {
-      return `- ${target} (${facts}) Host lifecycle notice [Source Event ${unit.sourceEventId}]: ${unit.summary}`;
+      return `- ${target} (${facts}) Host lifecycle notice [Source Event ${unit.sourceEventId}]: ${unit.summary}${lifecycle}`;
     }
     return `- ${target} (${facts}) reported [Source Event ${unit.sourceEventId}]: ${unit.summary}${lifecycle}`;
   });
@@ -1533,6 +1533,7 @@ function interruptedToolsNote(calls: readonly InterruptedToolCall[]): string {
 const ASSIGNMENT_RECOVERY_NOTE =
   '[Host: your previous Turn in this Session did not finish cleanly (it ended with an error, was cancelled, or was interrupted by a Host restart). Your context is intact. Check the current state of your workspace and any side effects before redoing work, and do not repeat a side effect blindly; an earlier request may already have reached you.]\n\n';
 
+const DIRECT_NOTICE_TEXT_LIMIT = 2_000;
 const DIRECT_ASSIGNMENT_TOOLS: ReadonlySet<string> = new Set([
   'create_assignment',
   'send_assignment_request',
@@ -4778,8 +4779,15 @@ class BotRuntimeImplementation implements BotRuntime {
         delegation ? parentSessionId : this.currentOrchestratorSessionId(botSlug),
       );
       record('ok', typeof result === 'string' ? result : JSON.stringify(result));
-      if (DIRECT_ASSIGNMENT_TOOLS.has(tool))
-        this.#noticeDirectAssignmentCall(bot.slug, tool, args, result);
+      if (DIRECT_ASSIGNMENT_TOOLS.has(tool)) {
+        try {
+          this.#noticeDirectAssignmentCall(bot.slug, tool, args, result);
+        } catch (error) {
+          this.#warn?.(
+            `Direct ${tool} succeeded but its Orchestrator notice was not recorded: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      }
       return { tool, sessionId: 'direct', result };
     } catch (error) {
       record('error', error instanceof Error ? error.message : String(error));
@@ -4823,7 +4831,11 @@ class BotRuntimeImplementation implements BotRuntime {
     if (typeof outcome.sessionId !== 'string') return;
     const sessionId = outcome.sessionId;
     const quoted = (value: unknown) =>
-      typeof value === 'string' ? JSON.stringify(value) : undefined;
+      typeof value !== 'string'
+        ? undefined
+        : value.length > DIRECT_NOTICE_TEXT_LIMIT
+          ? `${JSON.stringify(value.slice(0, DIRECT_NOTICE_TEXT_LIMIT))} (${value.length - DIRECT_NOTICE_TEXT_LIMIT} more characters omitted)`
+          : JSON.stringify(value);
     let body: string;
     let cause: string;
     if (tool === 'create_assignment') {

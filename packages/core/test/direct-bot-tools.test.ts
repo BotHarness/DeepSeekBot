@@ -304,13 +304,46 @@ describe('direct Bot tool runner', () => {
       const requested = await runtime.runDirectBotTool!(
         'ada',
         'send_assignment_request',
-        { session_id: sessionId, text: 'Also list flaky tests.' },
+        { session_id: sessionId, text: `Also list flaky tests.${'x'.repeat(2_100)}` },
         signal,
       );
       expect(requested.result).toMatchObject({ sessionId });
       expect(notices().map((notice) => notice.cause)).toEqual(['direct-create', 'direct-request']);
-      expect(notices()[1]!.body).toContain('"Also list flaky tests."');
+      expect(notices()[1]!.body).toContain('"Also list flaky tests.');
+      expect(notices()[1]!.body).toContain('122 more characters omitted');
+      expect(notices()[1]!.body).not.toContain('x'.repeat(2_000));
       expect(notices().map((notice) => notice.attempt_state)).toEqual(['pending', 'pending']);
+
+      database.transaction(
+        (db) => {
+          const revision = (
+            db
+              .prepare(
+                `SELECT a.source_policy_revision AS revision FROM inbox_admissions a
+                   JOIN source_events e ON e.source_event_id = a.source_event_id
+                  WHERE e.assignment_session_id = ? LIMIT 1`,
+              )
+              .get(sessionId) as { revision: number }
+          ).revision;
+          db.prepare(
+            `INSERT INTO source_events (source_event_id, source_kind, bot_slug, assignment_session_id,
+               body, created_at, handled_at, attempt_state, expects_reply, payload_json)
+             VALUES ('turn-error-notice', 'assignment-lifecycle', 'ada', ?, 'The Assignment Turn ended with an error.',
+               '2026-11-09T00:00:00.000Z', '2026-11-09T00:00:00.000Z', 'handled', 0, ?)`,
+          ).run(
+            sessionId,
+            JSON.stringify({
+              author: { kind: 'system' },
+              assignmentLifecycle: { state: 'error', cause: 'native-turn-error' },
+            }),
+          );
+          db.prepare(
+            `INSERT INTO inbox_admissions (source_event_id, bot_slug, reason, source_policy_revision, source_policy_wake_mode)
+             VALUES ('turn-error-notice', 'ada', 'assignment-lifecycle', ?, 'silent')`,
+          ).run(revision);
+        },
+        ['source-event'],
+      );
 
       const admission = runtime.admitDmMessage({
         channelId: dm.id,
@@ -327,6 +360,7 @@ describe('direct Bot tool runner', () => {
         .join('\n');
       expect(turn).toContain('created this Assignment directly through the deepseekbot CLI');
       expect(turn).toContain('sent this Assignment a request directly through the deepseekbot CLI');
+      expect(turn).toContain('The Assignment Turn ended with an error.');
     } finally {
       await runtime.close();
     }
