@@ -15,7 +15,7 @@ import {
   isTailscaleRoute,
 } from './route';
 import { channelFailureDetail, joinFailureDetails } from './pairing-detail';
-import type { HostEncryption } from './hosts';
+import { SavedHostsWriteError, type HostEncryption } from './hosts';
 import type { HostCarrier, LocalNetworkStatus } from './carrier';
 import { checkRoute } from './route';
 import type { ConnectRefusal } from './connect-account';
@@ -390,10 +390,20 @@ export async function pairHost(options: {
     try {
       await options.save(redeemed.host);
     } catch (error) {
-      const message = error instanceof Error ? error.message : '';
+      const message =
+        error instanceof SavedHostsWriteError
+          ? 'keychain'
+          : error instanceof Error
+            ? error.message
+            : '';
       const detail = `app:storage-${/^[a-z][a-z0-9-]{0,39}$/u.test(message) ? message : 'error'}`;
       observation.finish('failed', 'storage-failure', detail);
-      return { ok: false, code: 'storage-failure', detail };
+      const raw = error instanceof Error ? error.message : String(error);
+      return {
+        ok: false,
+        code: 'storage-failure',
+        detail: raw && !detail.endsWith(raw) ? `${detail}: ${raw}` : detail,
+      };
     }
     observation.finish('success');
     return { ok: true };
