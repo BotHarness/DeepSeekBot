@@ -250,6 +250,16 @@ function waitForAdmission(ready: Promise<void>, signal: AbortSignal): Promise<vo
   });
 }
 
+export const DIRECT_RETRY_MIN_MS = 3_000;
+export const DIRECT_RETRY_MAX_MS = 300_000;
+
+interface DirectRetry {
+  running: boolean;
+  blocked: boolean;
+  failures: number;
+  timer: ReturnType<typeof setTimeout> | undefined;
+}
+
 export function encryptedCarrier(options: {
   requireEncryption?: boolean;
   raw: HostCarrier;
@@ -259,7 +269,7 @@ export function encryptedCarrier(options: {
 }): HostCarrier {
   const sessions = new Map<string, Session>();
   const directs = new Map<string, Session>();
-  const attempted = new Set<string>();
+  const retries = new Map<string, DirectRetry>();
   let next = 0;
   let closedCarrier = false;
   const session = (origin: string): Session => {
@@ -289,8 +299,10 @@ export function encryptedCarrier(options: {
       encryption: options.encryption,
       closed: (reason) => {
         if (registry.get(origin) === current) registry.delete(origin);
-        if (registry === directs && reason !== 'channel-authentication-failed')
-          setTimeout(() => attempted.delete(origin), 30_000);
+        if (registry === directs) {
+          if (reason === 'channel-authentication-failed') blockDirect(origin);
+          else retryDirect(origin);
+        }
         clearTimeout(deadline);
         clearInterval(heartbeat);
         const error =
@@ -316,6 +328,7 @@ export function encryptedCarrier(options: {
           clearTimeout(deadline);
           resolve();
           if (registry === sessions) upgrade(origin);
+          else retryState(origin).failures = 0;
           return;
         }
         if (value['type'] === 'pong') return;
@@ -380,14 +393,41 @@ export function encryptedCarrier(options: {
     registry.set(origin, current);
     return current;
   };
+  const retryState = (origin: string): DirectRetry => {
+    let state = retries.get(origin);
+    if (!state) {
+      state = { running: false, blocked: false, failures: 0, timer: undefined };
+      retries.set(origin, state);
+    }
+    return state;
+  };
+  const blockDirect = (origin: string) => {
+    const state = retryState(origin);
+    state.blocked = true;
+    clearTimeout(state.timer);
+    state.timer = undefined;
+  };
+  const retryDirect = (origin: string) => {
+    const state = retryState(origin);
+    if (state.blocked || state.timer || closedCarrier) return;
+    const delay = Math.min(DIRECT_RETRY_MAX_MS, DIRECT_RETRY_MIN_MS * 2 ** state.failures);
+    state.failures = Math.min(state.failures + 1, 16);
+    state.timer = setTimeout(() => {
+      state.timer = undefined;
+      upgrade(origin);
+    }, delay);
+  };
   const upgrade = (origin: string) => {
     const openDirect = options.raw.openDirect;
-    if (!openDirect || closedCarrier || attempted.has(origin) || isLanRoute(origin)) return;
-    attempted.add(origin);
+    if (!openDirect || closedCarrier || isLanRoute(origin)) return;
+    const state = retryState(origin);
+    const relay = sessions.get(origin);
+    if (state.blocked || state.running || directs.has(origin) || !relay?.admitted) return;
+    clearTimeout(state.timer);
+    state.timer = undefined;
+    state.running = true;
     void (async () => {
-      const relay = sessions.get(origin);
       const factory = await openDirect(async (offer) => {
-        if (!relay) throw new Error('direct-unavailable');
         const response = await relayRequest(relay, origin + '/botharness-device/direct', {
           method: 'POST',
           body: JSON.stringify({ offer }),
@@ -397,7 +437,11 @@ export function encryptedCarrier(options: {
         if (!value.ok || typeof value.answer !== 'string') throw new Error('direct-refused');
         return value.answer;
       });
-      if (!factory || closedCarrier) return;
+      if (!factory) {
+        blockDirect(origin);
+        return;
+      }
+      if (closedCarrier) return;
       const direct = open(
         origin,
         { ...options.raw, openSocket: (_url, events) => factory(events) },
@@ -405,9 +449,14 @@ export function encryptedCarrier(options: {
       );
       await direct.ready;
       if (closedCarrier) direct.close();
-    })().catch(() => {
-      setTimeout(() => attempted.delete(origin), 60_000);
-    });
+    })()
+      .catch((error: unknown) => {
+        if (error instanceof ConnectRefused) blockDirect(origin);
+        else retryDirect(origin);
+      })
+      .finally(() => {
+        state.running = false;
+      });
   };
   const relayRequest = async (
     current: Session,
@@ -478,6 +527,8 @@ export function encryptedCarrier(options: {
     randomBytes: () => secureRandom(options.raw),
     close: () => {
       closedCarrier = true;
+      for (const state of retries.values()) clearTimeout(state.timer);
+      retries.clear();
       for (const current of sessions.values()) current.close();
       for (const current of directs.values()) current.close();
       sessions.clear();
