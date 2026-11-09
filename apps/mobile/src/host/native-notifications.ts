@@ -2,6 +2,7 @@ import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
+import { attentionFocus } from './attention-focus';
 import {
   APPROVAL_ACTIONS,
   registerApprovalCategories,
@@ -13,12 +14,15 @@ import type { NotificationsPort, PermissionState } from './push-session';
 export const REQUESTS_CHANNEL = 'requests';
 
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
+  handleNotification: async (notification) => {
+    const show = !attentionFocus.covers(notification.request.content.data);
+    return {
+      shouldShowBanner: show,
+      shouldShowList: show,
+      shouldPlaySound: show,
+      shouldSetBadge: true,
+    };
+  },
 });
 
 function projectId(): string | undefined {

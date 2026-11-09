@@ -57,6 +57,13 @@ export function createAlertBanners() {
       queue = [];
       publish();
     },
+    discard(drop: (alert: LocalApprovalAlert) => boolean) {
+      const kept = queue.filter((alert) => !drop(alert));
+      if (kept.length === queue.length) return;
+      queue.filter(drop).forEach(retire);
+      queue = kept;
+      publish();
+    },
     dismiss() {
       retire(queue.shift());
       publish();

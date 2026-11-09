@@ -11,7 +11,12 @@ import { createCallPost } from '../../host/call-post';
 import { createPhoneCallCamera, type CallCameraPosition } from '../../host/call-camera';
 import { createCallMedia, microphoneAccess, microphoneGranted } from '../../host/call-media';
 import { askCallNotifications, callOverlayAllowed } from '../../host/call-notice';
-import { retainHostConnection, useHostSession, useHostSnapshot } from '../../host/host-session';
+import {
+  focusCall,
+  retainHostConnection,
+  useHostSession,
+  useHostSnapshot,
+} from '../../host/host-session';
 import { callActivityNative, onCallActivityAction } from '../../host/native-call-activity';
 import {
   callActivityBadges,
@@ -354,6 +359,13 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
     return () => subscription.remove();
   }, [key]);
 
+  const callHost = saved?.hostId;
+  const ended = session.state.status === 'ended';
+  const focus = useMounted(() => {
+    if (callHost === undefined || ended) return;
+    return focusCall(callHost, slug);
+  }, [callHost, slug, ended]);
+
   const waitingForMicrophone = session.microphone === 'denied' || session.microphone === 'blocked';
   const recover = useMounted(() => {
     if (!waitingForMicrophone) return;
@@ -372,6 +384,7 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
       <View ref={dial} pointerEvents="none" style={{ display: 'none' }} />
       <View ref={recover} pointerEvents="none" style={{ display: 'none' }} />
       <View ref={overlay} pointerEvents="none" style={{ display: 'none' }} />
+      <View ref={focus} pointerEvents="none" style={{ display: 'none' }} />
     </>
   );
 }
