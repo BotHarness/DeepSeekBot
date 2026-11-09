@@ -233,6 +233,9 @@ export class GenuiDomMirror {
       document.body.addEventListener(type, listener);
       this.removers.push(() => document.body.removeEventListener(type, listener));
     }
+    const composed = (event: Event) => this.event('input', event);
+    document.body.addEventListener('compositionend', composed);
+    this.removers.push(() => document.body.removeEventListener('compositionend', composed));
     const submit = (event: Event) => event.preventDefault();
     document.body.addEventListener('submit', submit, true);
     this.removers.push(() => document.body.removeEventListener('submit', submit, true));
@@ -298,6 +301,7 @@ export class GenuiDomMirror {
 
   private event(type: string, event: Event): void {
     if (this.disposed || (type !== 'input' && type !== 'change' && type !== 'click')) return;
+    if (type === 'input' && 'isComposing' in event && event.isComposing === true) return;
     const target = event.target;
     if (!ownedElement(target, this.document) || !this.document.body.contains(target)) return;
     const node = target.closest('[data-genui-node]');

@@ -90,6 +90,21 @@ describe('GenUI trusted script-disabled DOM mirror', () => {
     ]);
   });
 
+  it('holds IME composition input until the text is committed', () => {
+    const { dom, document, mirror, commands } = open();
+    mirror.paint(snapshot('<input data-genui-node="1">', [{ id: '1', value: '' }]));
+    const input = document.querySelector('input');
+    if (!input) throw Error('Missing control.');
+    input.value = 'a l';
+    input.dispatchEvent(new dom.window.InputEvent('input', { bubbles: true, isComposing: true }));
+    expect(commands).toEqual([]);
+    input.value = '阿里';
+    input.dispatchEvent(new dom.window.CompositionEvent('compositionend', { bubbles: true }));
+    expect(commands).toEqual([
+      { type: 'event', event: 'input', targetId: '1', value: '阿里', checked: false },
+    ]);
+  });
+
   it('renders and operates the unchanged rich fixture through the actual guest adapter', async () => {
     const guest = await createGenuiGuest({
       document: syntheticGenuiDocument,
