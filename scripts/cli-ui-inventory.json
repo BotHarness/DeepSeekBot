@@ -261,6 +261,7 @@
       "scope": "Host",
       "surfaces": [
         "setting:packages/client/src/client/voice-settings.tsx:{t('voice.default.title')}",
+        "setting:packages/client/src/client/voice-settings.tsx:{t('voice.default.voice')}",
         "setting:packages/client/src/client/voice-mic-test.tsx:{t('voice.mic.title')}",
         "setting:packages/client/src/client/voice-mic-test.tsx:{t('voice.mic.threshold')}",
         "setting:packages/client/src/client/voice-settings.tsx:{t('voice.bot.provider')}",
