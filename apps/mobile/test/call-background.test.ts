@@ -5,6 +5,7 @@ import type { CallClientState } from '../../../packages/core/src/voice/call-clie
 import type { VoiceCallView } from '../../../packages/core/src/voice/call-contract';
 import {
   createCallAudioPreference,
+  parseCallAudioPreference,
   parseCallAudioRouteState,
   type CallAudioPreference,
 } from '../src/host/call-audio-route';
@@ -92,22 +93,28 @@ describe('call audio preference', () => {
     });
     await preference.ready;
     expect(preference.getSnapshot()).toMatchObject({
-      audio: { headsetMicrophone: 'headset' },
+      audio: { headsetMicrophone: 'headset', voiceVolume: 1 },
       loaded: true,
     });
     preference.setHeadsetMicrophone('iphone');
     preference.setHeadsetMicrophone('iphone');
-    expect(preference.getSnapshot().audio).toEqual({ headsetMicrophone: 'iphone' });
-    expect(writes).toEqual([{ headsetMicrophone: 'iphone' }]);
+    expect(preference.getSnapshot().audio).toEqual({ headsetMicrophone: 'iphone', voiceVolume: 1 });
+    expect(writes).toEqual([{ headsetMicrophone: 'iphone', voiceVolume: 1 }]);
   });
 
   it('moves earlier saved choices to the microphone they meant', async () => {
     const cases: [unknown, CallAudioPreference][] = [
-      ['speaker', { headsetMicrophone: 'headset' }],
-      ['receiver', { headsetMicrophone: 'headset' }],
-      ['media', { headsetMicrophone: 'iphone' }],
-      [{ type: 'media', builtIn: 'speaker' }, { headsetMicrophone: 'iphone' }],
-      [{ type: 'call', builtIn: 'receiver' }, { headsetMicrophone: 'headset' }],
+      ['speaker', { headsetMicrophone: 'headset', voiceVolume: 1 }],
+      ['receiver', { headsetMicrophone: 'headset', voiceVolume: 1 }],
+      ['media', { headsetMicrophone: 'iphone', voiceVolume: 1 }],
+      [
+        { type: 'media', builtIn: 'speaker' },
+        { headsetMicrophone: 'iphone', voiceVolume: 1 },
+      ],
+      [
+        { type: 'call', builtIn: 'receiver' },
+        { headsetMicrophone: 'headset', voiceVolume: 1 },
+      ],
     ];
     for (const [saved, expected] of cases) {
       const writes: CallAudioPreference[] = [];
@@ -128,7 +135,7 @@ describe('call audio preference', () => {
       write: (audio) => writes.push(audio),
     });
     await saved.ready;
-    expect(saved.getSnapshot().audio).toEqual({ headsetMicrophone: 'iphone' });
+    expect(saved.getSnapshot().audio).toEqual({ headsetMicrophone: 'iphone', voiceVolume: 1 });
     expect(writes).toEqual([]);
 
     const odd = createCallAudioPreference({
@@ -137,7 +144,7 @@ describe('call audio preference', () => {
     });
     await odd.ready;
     expect(odd.getSnapshot()).toMatchObject({
-      audio: { headsetMicrophone: 'headset' },
+      audio: { headsetMicrophone: 'headset', voiceVolume: 1 },
       storageError: true,
     });
   });
@@ -152,8 +159,37 @@ describe('call audio preference', () => {
     preference.setHeadsetMicrophone('iphone');
     finish({ headsetMicrophone: 'headset' });
     await preference.ready;
-    expect(preference.getSnapshot().audio).toEqual({ headsetMicrophone: 'iphone' });
-    expect(writes).toEqual([{ headsetMicrophone: 'iphone' }]);
+    expect(preference.getSnapshot().audio).toEqual({ headsetMicrophone: 'iphone', voiceVolume: 1 });
+    expect(writes).toEqual([{ headsetMicrophone: 'iphone', voiceVolume: 1 }]);
+  });
+
+  it('remembers the voice volume next to the microphone and keeps it within 0 to 200 %', async () => {
+    const writes: CallAudioPreference[] = [];
+    const preference = createCallAudioPreference({
+      read: async () => ({ headsetMicrophone: 'iphone', voiceVolume: 0.6 }),
+      write: (audio) => writes.push(audio),
+    });
+    await preference.ready;
+    expect(preference.getSnapshot().audio).toEqual({
+      headsetMicrophone: 'iphone',
+      voiceVolume: 0.6,
+    });
+    preference.setVoiceVolume(1.25);
+    preference.setVoiceVolume(1.25);
+    preference.setVoiceVolume(9);
+    preference.setVoiceVolume(Number.NaN);
+    preference.setHeadsetMicrophone('headset');
+    expect(writes).toEqual([
+      { headsetMicrophone: 'iphone', voiceVolume: 1.25 },
+      { headsetMicrophone: 'iphone', voiceVolume: 2 },
+      { headsetMicrophone: 'iphone', voiceVolume: 1 },
+      { headsetMicrophone: 'headset', voiceVolume: 1 },
+    ]);
+    for (const voiceVolume of [-1, 3, 'loud', null])
+      expect(parseCallAudioPreference({ headsetMicrophone: 'iphone', voiceVolume })).toEqual({
+        headsetMicrophone: 'iphone',
+        voiceVolume: 1,
+      });
   });
 });
 

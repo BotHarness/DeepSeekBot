@@ -64,6 +64,7 @@ export interface CallControls {
   ): Promise<CallAudioRouteState | null>;
   camera(on: boolean): void;
   flip(): void;
+  volume?(level: number): void;
 }
 
 export type CallSessionPatch = Partial<
