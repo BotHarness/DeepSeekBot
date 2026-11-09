@@ -57,7 +57,7 @@ The same run caches each tunnel's status in the row (`tunnel_status`, `tunnel_in
 
 ### 3. Zones form one pool
 
-`CONNECT_ZONES` lists every Connect zone as `name=zone-id`, comma-separated, default zone first. Each zone holds at most `ZONE_RECORDS` tunnel records (default 195, leaving room for the apex and verification records). `MAX_TUNNELS` (default 900) caps the whole account.
+`CONNECT_ZONES` lists every Connect zone as `name=zone-id`, comma-separated, default zone first. Each zone holds at most `ZONE_RECORDS` tunnel records (default 195, leaving room for the apex and verification records). `MAX_TUNNELS` (default 900) caps the whole account. `MAX_HOSTS` (default 3, was 5) caps the computers one account can register, so each computer holds one tunnel and one account holds at most three; a fourth answers `409 host-limit` until one is removed. Phones never hold a tunnel: they reach a paired computer through that computer's tunnel. Accounts already above three keep their Hosts; the cap applies to new registrations.
 
 A Host's zone is fixed the first time it gets a record and is kept in `hosts.zone`. Legacy rows read as the default zone, so no existing hostname changes. A new Host gets the zone with the most free records.
 

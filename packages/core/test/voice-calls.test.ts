@@ -29,6 +29,7 @@ import {
   type VoiceCallsDeps,
 } from '../src/voice/calls.js';
 import { createVoiceCallHttp } from '../src/voice/call-http.js';
+import { createVoiceDictations } from '../src/voice/dictation.js';
 import { VoiceProviders, wavFromPcm16 } from '../src/voice/providers.js';
 import { clipDurationMs, joinAudio, type AudioClip } from '../src/voice/speech.js';
 import { createTempRoot } from './helpers.js';
@@ -604,6 +605,30 @@ describe('Host call owner', () => {
     expect(await noMedia.calls.handle(noMedia.phone, { kind: 'open', slug: 'mira' })).toMatchObject(
       { ok: false, code: 'media-unsupported' },
     );
+  });
+
+  it('agrees with dictation readiness for the same Bot while its local service is off (#3786)', async () => {
+    const providers = {
+      has: () => true,
+      listAsr: () => [{ id: 'asr-000000000002', streaming: true }],
+      streams: () => false,
+      openStream: () => undefined,
+      localServiceOff: async (id: string, kind: 'asr' | 'tts') =>
+        kind === 'asr' && id === 'asr-000000000001',
+      async transcribe() {
+        return { text: '', latencyMs: 1 };
+      },
+      synthesize: async () => ({ audio: new Uint8Array(), mime: 'audio/mpeg' }),
+    };
+    const h = harness({ media: fakeMedia().media, providers });
+    const dictations = createVoiceDictations({
+      providers: () => providers,
+      bot: () => ({ asr: { providerId: 'asr-000000000001', language: 'zh' } }),
+    });
+    const call = (await h.ok({ kind: 'readiness', slug: 'mira' })).readiness!;
+    const dictation = await dictations.readiness({ slug: 'mira' });
+    expect(call).toMatchObject({ ready: false, missing: ['local-voice-off'] });
+    expect(dictation).toMatchObject({ ready: false, reason: 'local-voice-off' });
   });
 
   it('allows one call per Host: another device is refused, the same device replaces it', async () => {

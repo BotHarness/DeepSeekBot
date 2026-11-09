@@ -147,6 +147,19 @@ it('explains a refused account', async () => {
   expect(button('登录')).toBeDefined();
 });
 
+it('opens the linked computers when the account already has three', async () => {
+  snapshot = devices({
+    state: 'off',
+    account: { state: 'error', issue: 'host-limit', email: 'qa@example.com' },
+  });
+  await render();
+  expect(host.querySelector('[data-connect-issue]')?.textContent).toBe(
+    '这个账号已关联 3 台电脑，请在下方退出另一台电脑的登录。',
+  );
+  expect(host.querySelector('[data-connect-manage]')?.getAttribute('aria-expanded')).toBe('true');
+  expect(host.querySelector('[data-connect-email]')?.textContent).toBe('qa@example.com');
+});
+
 it.each(['sign-in', undefined] as const)(
   'does not promise automatic recovery without Host confirmation (%s)',
   async (recovery) => {

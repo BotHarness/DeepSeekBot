@@ -1558,7 +1558,7 @@ deepseekbot connect-account-revoke <host-id> --confirm --host <host> --token-fil
 relay at `https://connect.botharness.ai` publishes (`DEEPSEEKBOT_CONNECT_RELAY` overrides it). The
 reply carries `userCode` and `verificationUri`; with `--wait` the CLI prints them to stderr and waits
 until the Host finishes. The Host then stores only the refresh token in the DSH credential store,
-links itself to the account (at most five Hosts per account), asks the relay for its tunnel and runs
+links itself to the account (at most three Hosts per account), asks the relay for its tunnel and runs
 it as `connect-enable` would, with no hand-made token. While signed in it asks the relay again when
 the tunnel stops, so a tunnel the relay reclaimed after the Host was offline comes back on the same
 `<host-id>.deepseekbot.dev`. `connect-status` adds `connect.account` with `state` (`signed-out`,

@@ -3,8 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
   createBrowserDictationMic,
   createComposerDictation,
-  downsampleTo16k,
-  pcmBase64,
   spliceDictation,
   withDictation,
   type DictationMic,
@@ -206,14 +204,6 @@ describe('composer dictation', () => {
     grant?.(stream);
     await started;
     expect(stoppedTracks).toBe(1);
-  });
-
-  it('downsamples to 16 kHz PCM and encodes little-endian base64', () => {
-    const input = new Float32Array(48).fill(0.5);
-    const out = downsampleTo16k(input, 48_000);
-    expect(out.length).toBe(16);
-    expect(out[0]).toBe(16_384);
-    expect(pcmBase64(Int16Array.from([1, -1]))).toBe(btoa('\u0001\u0000ÿÿ'));
   });
 
   it('inserts the transcript at the caret and keeps the text after it', () => {

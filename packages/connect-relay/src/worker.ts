@@ -116,7 +116,7 @@ export function relayForEnv(env: ConnectRelayEnv): ReturnType<typeof createRelay
       .split(',')
       .map((user) => user.trim())
       .filter(Boolean),
-    maxHosts: positive(env.MAX_HOSTS, 5),
+    maxHosts: positive(env.MAX_HOSTS, 3),
     maxTunnels: positive(env.MAX_TUNNELS, 900),
     reclaimAfterMs: positive(env.RECLAIM_AFTER_MINUTES, 5) * 60 * 1000,
     ...(limiter === undefined

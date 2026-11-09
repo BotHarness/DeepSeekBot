@@ -1515,7 +1515,7 @@ deepseekbot connect-account-revoke <host-id> --confirm --host <host> --token-fil
 `connect-sign-in` 用 `https://connect.botharness.ai` 上 relay 公布的 WorkOS client 发起 CLI Auth
 （设备授权流程；可用 `DEEPSEEKBOT_CONNECT_RELAY` 覆盖 relay 地址）。返回里有 `userCode` 和
 `verificationUri`；加 `--wait` 时 CLI 把它们打印到 stderr，并等 Host 完成登录。之后 Host 只把 refresh
-token 存进 DSH 凭据存储，把自己关联到账号（每个账号最多 5 台 Host），向 relay 申请隧道并像
+token 存进 DSH 凭据存储，把自己关联到账号（每个账号最多 3 台 Host），向 relay 申请隧道并像
 `connect-enable` 一样运行，不再需要手工 token。登录期间隧道停掉时 Host 会重新向 relay 申请，所以
 Host 离线后被回收的隧道会在同一个 `<host-id>.deepseekbot.dev` 上恢复。`connect-status` 增加
 `connect.account`：`state`（`signed-out`、`signing-in`、`signed-in`、`error`）、`email`、`hostId`

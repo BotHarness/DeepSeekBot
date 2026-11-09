@@ -309,14 +309,15 @@ function WorkspaceRail({
       <Tooltip label={t('panel.exit')} side="right">
         <button
           className="bh-workspace-exit"
+          data-glyph={icon === 'bot' ? '' : undefined}
           aria-label={t('panel.exit')}
           onClick={options.exitBotMode}
         >
           <span className="bh-workspace-brand">
-            <BotIcon icon={icon} size={24} />
+            <BotIcon icon={icon} size={icon === 'bot' ? 16 : 36} />
           </span>
           <span className="bh-workspace-exit-icon">
-            <ExitIcon size={20} />
+            <ExitIcon />
           </span>
         </button>
       </Tooltip>
@@ -457,8 +458,13 @@ function WorkspaceRail({
       </Tooltip>
       <DeviceRequestsNotice t={t} />
       <Tooltip label={t('panel.backToHarness')} side="right" portal>
-        <button type="button" aria-label={t('panel.backToHarness')} onClick={options.exitBotMode}>
-          <ExitIcon size={20} />
+        <button
+          type="button"
+          className="bh-workspace-leave"
+          aria-label={t('panel.backToHarness')}
+          onClick={options.exitBotMode}
+        >
+          <ExitIcon />
         </button>
       </Tooltip>
     </nav>

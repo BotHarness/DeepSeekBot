@@ -26,7 +26,8 @@ import type {
 } from '../channels/voice-call-record.js';
 import { createCallPerf, perfFields, type CallPerf } from './call-perf.js';
 import { createVad, VAD_SAMPLE_RATE, type VadOptions } from './vad.js';
-import { VoiceError, wavFromPcm16 } from './providers.js';
+import { PcmError, pcmFromBase64 } from './pcm.js';
+import { resolveVoice, VoiceError, wavFromPcm16 } from './providers.js';
 import type { AsrStream } from './soniox.js';
 import {
   clipDurationMs,
@@ -343,13 +344,14 @@ function slugOf(value: unknown): string {
   return value;
 }
 
-function pcmFromBase64(value: string): Int16Array {
-  const bytes = Buffer.from(value, 'base64');
-  if (bytes.byteLength % 2 !== 0)
-    throw new CallRefusal('invalid-input', 'pcm must be 16-bit little-endian samples.');
-  const out = new Int16Array(bytes.byteLength / 2);
-  for (let index = 0; index < out.length; index += 1) out[index] = bytes.readInt16LE(index * 2);
-  return out;
+function callPcm(value: string): Int16Array {
+  try {
+    return pcmFromBase64(value);
+  } catch (error) {
+    if (error instanceof PcmError)
+      throw new CallRefusal('invalid-input', 'pcm must be 16-bit little-endian samples.');
+    throw error;
+  }
 }
 
 const ended = (call: { phase: VoiceCallPhase }) => call.phase === 'ended';
@@ -1838,19 +1840,18 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     const bot = deps.bot(slug);
     const missing: VoiceCallMissing[] = [];
     if (bot === undefined || bot.paused === true) missing.push('bot');
-    const asr = bot?.asr?.providerId;
-    const tts = bot?.voice?.providerId;
-    if (asr === undefined || !deps.providers.has(asr, 'asr')) missing.push('asr');
-    if (tts === undefined || !deps.providers.has(tts, 'tts')) missing.push('tts');
-    const off = deps.providers.localServiceOff?.bind(deps.providers);
-    if (off !== undefined) {
-      const checks = [
-        ...(asr !== undefined && !missing.includes('asr') ? [off(asr, 'asr')] : []),
-        ...(tts !== undefined && !missing.includes('tts') ? [off(tts, 'tts')] : []),
-      ];
-      const results = await Promise.all(checks.map((check) => check.catch(() => false)));
-      if (results.includes(true)) missing.push('local-voice-off');
-    }
+    const [asrVoice, ttsVoice] =
+      bot === undefined
+        ? [undefined, undefined]
+        : await Promise.all([
+            resolveVoice(deps.providers, { bot, kind: 'asr' }),
+            resolveVoice(deps.providers, { bot, kind: 'tts' }),
+          ]);
+    const asr = asrVoice?.providerId ?? undefined;
+    const tts = ttsVoice?.providerId ?? undefined;
+    if (asrVoice === undefined || asrVoice.state === 'missing') missing.push('asr');
+    if (ttsVoice === undefined || ttsVoice.state === 'missing') missing.push('tts');
+    if (asrVoice?.state === 'off' || ttsVoice?.state === 'off') missing.push('local-voice-off');
     const media = deps.media();
     const availability =
       media === undefined
@@ -2167,7 +2168,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
           throw new CallRefusal('invalid-input', 'after must be an event sequence number.');
         const before = call.seq;
         call.lastHeartbeat = now();
-        hear(call, pcmFromBase64(pcm));
+        hear(call, callPcm(pcm));
         return { ok: true, call: view(call, (after as number | undefined) ?? before) };
       }
       case 'visual': {
