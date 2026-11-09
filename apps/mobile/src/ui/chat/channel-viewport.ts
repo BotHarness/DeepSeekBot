@@ -53,6 +53,7 @@ export function useChannelViewport<Row>(
     unseen: latest.unseen,
     hold: latest.hold,
     jumpToLatest: latest.jumpToLatest,
+    send: latest.send,
     listProps: latest.listProps,
     renderScrollComponent,
     overlayStyle,
