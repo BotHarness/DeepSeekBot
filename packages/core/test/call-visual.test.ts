@@ -230,6 +230,15 @@ describe('grid imaging', () => {
     expect(grid).toMatchObject({ layout: '1', width: 1536, height: 1024 });
   });
 
+  it('keeps a very narrow frame at least one pixel wide', async () => {
+    const imaging = createCallImaging();
+    const frame = await imaging.prepare(new Uint8Array(await jpeg({ r: 9, g: 9, b: 9 }, 1, 512)));
+    const frames = Array.from({ length: 9 }, () => frame);
+    const grid = await imaging.compose(frames, []);
+    expect(grid.width).toBeGreaterThanOrEqual(3);
+    expect(grid.height).toBeLessThanOrEqual(1536);
+  });
+
   it('keeps a portrait grid with label strips inside the long edge', async () => {
     const imaging = createCallImaging();
     const frame = await imaging.prepare(

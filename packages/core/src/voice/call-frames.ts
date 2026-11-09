@@ -172,7 +172,7 @@ export function createCallImaging(): CallImaging {
         Math.floor(fitted / aspect),
         Math.floor(GRID_LONG_EDGE / rows.length) - strip,
       );
-      const tileWidth = Math.min(fitted, Math.floor(tileHeight * aspect));
+      const tileWidth = Math.max(1, Math.min(fitted, Math.floor(tileHeight * aspect)));
       const width = tileWidth * cols;
       const height = (tileHeight + strip) * rows.length;
       const cells = gridCells(rows, tileWidth, tileHeight + strip);
