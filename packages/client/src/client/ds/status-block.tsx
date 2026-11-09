@@ -1,15 +1,9 @@
-import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { useRef, useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 import { ChannelSidebarIcon } from '../channel-sidebar-icon.js';
 import { border, color, radius, space, text } from './tokens.stylex.js';
 
-/**
- * Borderless status blocks shared by the connection screens (Tobs Connect, private
- * connection, LAN, Tailscale): one block per state with a colour fill and an icon,
- * one primary action, yellow when the user needs to act, and details folded under a
- * disclosure.
- */
 const NARROW = '@container (max-width: 480px)';
 
 export type StatusTone = 'neutral' | 'accent' | 'success' | 'warning';
@@ -73,8 +67,6 @@ const styles = stylex.create({
     fontWeight: text.strong,
   },
   body: { margin: 0, color: color.muted, fontSize: text.bodySize, lineHeight: text.bodyLine },
-  // In a narrow block (a small dialog) the action moves under the text instead of
-  // squeezing it, lined up with the title.
   action: {
     flexShrink: 0,
     display: 'flex',
@@ -179,7 +171,6 @@ export function StatusBadge({ icon, tone }: { icon: string; tone: StatusTone }):
   );
 }
 
-/** The small muted heading above a column of status blocks. */
 export function StatusHeading({
   data,
   children,
@@ -194,7 +185,6 @@ export function StatusHeading({
   );
 }
 
-/** A column of status blocks, optionally under a heading. */
 export function StatusStack({
   title,
   data,
@@ -212,10 +202,6 @@ export function StatusStack({
   );
 }
 
-/**
- * One state: icon badge, title, body and at most one action. A `warning` tone fills the
- * whole block yellow, which means the user has to do something.
- */
 export function StatusBlock({
   icon,
   tone,
@@ -248,7 +234,6 @@ export function StatusBlock({
   );
 }
 
-/** Folds details (account, addresses, switches) away from the status block. */
 export function StatusDisclosure({
   icon,
   title,
@@ -289,7 +274,6 @@ export function StatusDisclosure({
   );
 }
 
-/** A labelled value inside a disclosure, with an optional control on the right. */
 export function StatusFact({
   label,
   children,
@@ -316,10 +300,6 @@ export function StatusFact({
   );
 }
 
-/**
- * A URL or command shown as a chip; tapping it copies the value. Replaces a separate
- * copy button next to the value, so the user can paste it into any browser or terminal.
- */
 export function CopyChip({
   value,
   copyLabel,
@@ -330,14 +310,11 @@ export function CopyChip({
   value: string;
   copyLabel: string;
   copiedLabel: string;
-  /** Set when the chip sits outside a status block (on a well or the dialog itself). */
   well?: boolean;
-  /** Data attribute that carries '' or 'copied', for tests and e2e scripts. */
   marker?: `data-${string}`;
 }): ReactElement {
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>();
-  useEffect(() => () => clearTimeout(timer.current), []);
   const copy = () => {
     void navigator.clipboard
       ?.writeText(value)

@@ -121,8 +121,6 @@ export function PrivateTunnelSettings({
 
   if (status && status.state !== 'off') {
     const port = status.originPort === undefined ? undefined : String(status.originPort);
-    // A fixed address or own proxy is only reachable once the user points it at this
-    // computer, so until the check passes that is the one thing left for them to do.
     const forward =
       status.state !== 'connected' &&
       port !== undefined &&
