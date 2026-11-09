@@ -359,7 +359,7 @@ it('renders a preference as a native menu picker inside a form', async () => {
   expect(JSON.parse(picker.getAttribute('data-style')!)).toBe('menu');
   expect(JSON.parse(picker.getAttribute('data-tint')!)).toMatch(/^#/);
   expect(picker.querySelector('[data-system-image="circle.lefthalf.filled"]')).not.toBeNull();
-  expect(JSON.parse(picker.getAttribute('data-element')!)).toBe('ignore');
+  expect(JSON.parse(picker.getAttribute('data-element')!)).toBe('combine');
   expect(picker.getAttribute('aria-label')).toBe('Appearance');
   expect(picker.getAttribute('data-value')).toBe('Follow system');
   expect(JSON.parse(picker.getAttribute('data-traits')!)).toEqual(['isButton']);

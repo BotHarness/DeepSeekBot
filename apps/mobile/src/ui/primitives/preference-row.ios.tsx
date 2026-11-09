@@ -49,7 +49,7 @@ export function PreferenceRow<T extends string>({
         modifiers={[
           pickerStyle('menu'),
           tint(theme.color.muted),
-          accessibilityElement('ignore'),
+          accessibilityElement('combine'),
           accessibilityLabel(title),
           accessibilityValue(selected),
           accessibilityAddTraits(['isButton']),
