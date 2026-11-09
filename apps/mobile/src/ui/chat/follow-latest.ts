@@ -58,6 +58,7 @@ export function useFollowLatest<Row>(
   animateScroll = false,
   minIndexForVisible = 0,
   inverted = false,
+  nativeFollow = false,
 ) {
   const [following, setFollowing] = useState(true);
   const [away, setAway] = useState(false);
@@ -297,9 +298,10 @@ export function useFollowLatest<Row>(
         attempts.current = 0;
         if (checks.current < CHECK_BUDGET) setCanRetry(false);
       }
+      if (nativeFollow && settled.current) return;
       pin(animateScroll && settled.current && height > previous);
     },
-    [pin, animateScroll],
+    [pin, animateScroll, nativeFollow],
   );
 
   const onLayout = useCallback(
