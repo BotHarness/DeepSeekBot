@@ -3,42 +3,29 @@ import type { VoiceCallResult } from '../../../core/src/voice/call-contract.js';
 
 export const HEARTBEAT_WORKER_SOURCE = `
 let timer;
-let busy = false;
+let flying = 0;
 let config;
 let after = 0;
-const send = async () => {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
+const beat = async () => {
+  if (config === undefined || flying >= config.maxInFlight) return;
+  flying += 1;
+  const sent = config;
+  let result;
   try {
-    const response = await fetch(config.url, {
+    const response = await fetch(sent.url, {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ kind: 'heartbeat', callId: config.callId, after, client: config.client }),
-      signal: controller.signal,
+      body: JSON.stringify({ kind: 'heartbeat', callId: sent.callId, after, client: sent.client }),
     });
-    const result = await response.json();
-    if (typeof result?.ok !== 'boolean') throw new Error('bad answer');
-    return result;
-  } finally {
-    clearTimeout(timeout);
-  }
-};
-const beat = async () => {
-  if (busy || config === undefined) return;
-  busy = true;
-  let result;
-  try {
-    result = await send();
+    result = await response.json();
+    if (typeof result?.ok !== 'boolean') result = undefined;
   } catch {
-    try {
-      result = await send();
-    } catch {
-      result = undefined;
-    }
+    result = undefined;
+  } finally {
+    flying -= 1;
   }
-  busy = false;
-  postMessage({ result });
+  if (config === sent) postMessage({ result });
 };
 onmessage = (event) => {
   const message = event.data;
@@ -65,7 +52,7 @@ export interface HeartbeatWorkerLike {
 export function createWorkerHeartbeats(options: {
   readonly url: string;
   readonly client: string;
-  readonly timeoutMs: number;
+  readonly maxInFlight: number;
   readonly worker?: () => HeartbeatWorkerLike | undefined;
 }): CallHeartbeatPump | undefined {
   let source: string | undefined;
@@ -99,7 +86,7 @@ export function createWorkerHeartbeats(options: {
         callId,
         client: options.client,
         periodMs,
-        timeoutMs: options.timeoutMs,
+        maxInFlight: options.maxInFlight,
       });
       return {
         after: (seq) => worker.postMessage({ type: 'after', seq }),

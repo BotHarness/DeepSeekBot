@@ -113,18 +113,15 @@ function windowClientId(): string {
   }
 }
 
-export const HEARTBEAT_REQUEST_MS = 3_000;
-
 export function createCallPost(
   client: string,
   fetcher: typeof fetch = (...args) => fetch(...args),
 ): CallPost {
-  const send = async (body: Parameters<CallPost>[0], signal?: AbortSignal) => {
+  const send = async (body: Parameters<CallPost>[0]) => {
     const response = await fetcher(`.${VOICE_CALL_PATH}`, {
       method: 'POST',
       credentials: 'same-origin',
       ...(body.kind === 'hangup' ? { keepalive: true } : {}),
-      ...(signal === undefined ? {} : { signal }),
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ ...body, client }),
     });
@@ -136,9 +133,9 @@ export function createCallPost(
   return async (body) => {
     if (body.kind !== 'heartbeat') return await send(body);
     try {
-      return await send(body, AbortSignal.timeout(HEARTBEAT_REQUEST_MS));
+      return await send(body);
     } catch {
-      return await send(body, AbortSignal.timeout(HEARTBEAT_REQUEST_MS));
+      return await send(body);
     }
   };
 }
@@ -176,7 +173,7 @@ export function createDesktopCall(
       : createWorkerHeartbeats({
           url: new URL(`.${VOICE_CALL_PATH}`, location.href).href,
           client,
-          timeoutMs: HEARTBEAT_REQUEST_MS,
+          maxInFlight: 4,
         }));
   const media = options.media ?? (() => createBrowserCallMedia());
   const makeCapture =

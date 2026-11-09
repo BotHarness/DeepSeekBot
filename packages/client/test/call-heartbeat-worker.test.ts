@@ -25,7 +25,7 @@ describe('worker heartbeats', () => {
     const pump = createWorkerHeartbeats({
       url: 'dsh-app://app/api/voice/call',
       client: 'window-0001',
-      timeoutMs: 3_000,
+      maxInFlight: 4,
       worker: () => {
         const next = fakeWorker();
         made.push(next);
@@ -48,7 +48,7 @@ describe('worker heartbeats', () => {
         callId: 'call-1',
         client: 'window-0001',
         periodMs: 1_000,
-        timeoutMs: 3_000,
+        maxInFlight: 4,
       },
     ]);
     running.after(7);
@@ -63,35 +63,28 @@ describe('worker heartbeats', () => {
 
   it('falls back to the page timer when workers are unavailable', () => {
     expect(
-      createWorkerHeartbeats({ url: 'x', client: 'c', timeoutMs: 1, worker: () => undefined }),
+      createWorkerHeartbeats({ url: 'x', client: 'c', maxInFlight: 4, worker: () => undefined }),
     ).toBeUndefined();
   });
 
-  it('beats from the worker with the cursor, retries a failed request once, and stops', async () => {
+  it('keeps beating while earlier requests are still waiting on the Host, up to the cap', async () => {
     vi.useFakeTimers();
     try {
       const posted: unknown[] = [];
       const bodies: unknown[] = [];
+      const pending: ((value: unknown) => void)[] = [];
       let calls = 0;
       const scope: Record<string, unknown> = {
         setInterval,
         clearInterval,
-        setTimeout,
-        clearTimeout,
-        AbortController,
         JSON,
-        Error,
         postMessage: (message: unknown) => posted.push(message),
         close: vi.fn(),
-        fetch: async (_url: string, init: { body: string; signal: AbortSignal }) => {
+        fetch: async (_url: string, init: { body: string; signal?: unknown }) => {
           calls += 1;
-          bodies.push(JSON.parse(init.body));
-          if (calls === 2) throw new TypeError('fetch failed');
-          if (calls === 4)
-            return await new Promise((_resolve, reject) =>
-              init.signal.addEventListener('abort', () => reject(new Error('aborted'))),
-            );
-          return { json: async () => ({ ok: true, n: calls }) };
+          bodies.push({ ...JSON.parse(init.body), signal: init.signal !== undefined });
+          if (calls === 1) throw new TypeError('fetch failed');
+          return await new Promise((resolve) => pending.push(resolve));
         },
       };
       runInNewContext(HEARTBEAT_WORKER_SOURCE, scope);
@@ -102,22 +95,26 @@ describe('worker heartbeats', () => {
         callId: 'call-1',
         client: 'w',
         periodMs: 1_000,
-        timeoutMs: 500,
+        maxInFlight: 2,
       });
       send({ type: 'after', seq: 4 });
       await vi.advanceTimersByTimeAsync(1_000);
-      await vi.advanceTimersByTimeAsync(1_000);
-      await vi.advanceTimersByTimeAsync(1_000);
-      await vi.advanceTimersByTimeAsync(600);
-      send({ type: 'stop' });
       await vi.advanceTimersByTimeAsync(3_000);
-      expect(posted).toEqual([
-        { result: { ok: true, n: 1 } },
-        { result: { ok: true, n: 3 } },
-        { result: { ok: true, n: 5 } },
-      ]);
-      expect(bodies[0]).toEqual({ kind: 'heartbeat', callId: 'call-1', after: 4, client: 'w' });
-      expect(calls).toBe(5);
+      expect(calls).toBe(3);
+      pending.shift()?.({ json: async () => ({ ok: true, n: 2 }) });
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(calls).toBe(4);
+      send({ type: 'stop' });
+      pending.shift()?.({ json: async () => ({ ok: true, n: 3 }) });
+      await vi.advanceTimersByTimeAsync(3_000);
+      expect(posted).toEqual([{ result: undefined }, { result: { ok: true, n: 2 } }]);
+      expect(bodies[0]).toEqual({
+        kind: 'heartbeat',
+        callId: 'call-1',
+        after: 4,
+        client: 'w',
+        signal: false,
+      });
       expect(scope['close']).toHaveBeenCalled();
     } finally {
       vi.useRealTimers();

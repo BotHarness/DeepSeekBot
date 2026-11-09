@@ -503,7 +503,7 @@ describe('Host call owner', () => {
     await settled();
     expect(h.sent).toHaveLength(1);
     h.advance(9_000);
-    await new Promise((resolve) => setTimeout(resolve, 1_100));
+    await new Promise((resolve) => setTimeout(resolve, 2_200));
     const ended = (await h.calls.handle(h.phone, { kind: 'status' })) as Extract<
       VoiceCallResult,
       { ok: true }
@@ -511,6 +511,22 @@ describe('Host call owner', () => {
     expect(ended.calls?.[0]).toMatchObject({ phase: 'ended', endReason: 'connection-lost' });
     expect(state.closed).toBe(1);
     expect(h.sent).toHaveLength(1);
+  });
+
+  it('reads heartbeats that queued while the Host itself was stalled before judging the call', async () => {
+    const { media } = fakeMedia();
+    const h = harness({ media });
+    const callId = await connected(h);
+    h.advance(9_000);
+    await new Promise((resolve) => setTimeout(resolve, 1_100));
+    await h.calls.handle(h.phone, { kind: 'heartbeat', callId });
+    await new Promise((resolve) => setTimeout(resolve, 1_100));
+    const status = (await h.calls.handle(h.phone, { kind: 'status' })) as Extract<
+      VoiceCallResult,
+      { ok: true }
+    >;
+    expect(status.calls?.[0]).toMatchObject({ callId });
+    expect(status.calls?.[0]?.phase).not.toBe('ended');
   });
 
   it('samples media stats every five seconds and reports per-direction rates in the call view', async () => {

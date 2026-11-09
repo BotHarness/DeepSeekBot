@@ -276,6 +276,7 @@ interface Call {
   interrupted: Reply[];
   settledDraft?: string | undefined;
   lastHeartbeat: number;
+  tickedAt: number;
   connected: boolean;
   connectedAt?: number;
   recorded?: Promise<string | undefined>;
@@ -1799,6 +1800,8 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
   const tick = (call: Call) => {
     if (call.phase === 'ended') return;
     const at = now();
+    const stalled = at - call.tickedAt > VOICE_CALL_LIMITS.heartbeatMs * 2;
+    call.tickedAt = at;
     if (
       call.media === 'webrtc' &&
       !call.connected &&
@@ -1807,7 +1810,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       void end(call, 'connect-timeout');
       return;
     }
-    if (call.connected && at - call.lastHeartbeat > VOICE_CALL_LIMITS.heartbeatLossMs) {
+    if (call.connected && !stalled && at - call.lastHeartbeat > VOICE_CALL_LIMITS.heartbeatLossMs) {
       void end(call, 'connection-lost');
       return;
     }
@@ -1961,6 +1964,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       gain: 1,
       interrupted: [],
       lastHeartbeat: startedAt,
+      tickedAt: startedAt,
       connected: false,
       heard: 0,
       events: [],
@@ -2031,6 +2035,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         signal?.removeEventListener('abort', abort);
       }
     }
+    call.tickedAt = now();
     call.timer = setInterval(() => tick(call), VOICE_CALL_LIMITS.heartbeatMs);
     call.timer.unref?.();
     return call;

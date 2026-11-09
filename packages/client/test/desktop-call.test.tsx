@@ -23,7 +23,6 @@ import {
 import type { CallVisualSource } from '../../core/src/voice/keyframes.js';
 import {
   DESKTOP_CALL_VISUAL_OFF,
-  HEARTBEAT_REQUEST_MS,
   createCallPost,
   createDesktopCall,
   desktopCallNotice,
@@ -534,32 +533,26 @@ describe('desktop call', () => {
     ]);
   });
 
-  it('retries a heartbeat once when the request is reset or hangs, and nothing else', async () => {
-    vi.useFakeTimers();
-    cleanup.push(() => vi.useRealTimers());
-    const calls: string[] = [];
+  it('retries a reset heartbeat once and never aborts one the Host may still read', async () => {
+    const calls: { kind: string; signal: boolean }[] = [];
     let attempt = 0;
     const post = createCallPost('window-retry-0001', ((_input, init) => {
       const kind = (JSON.parse(String(init?.body)) as { kind: string }).kind;
-      calls.push(kind);
+      calls.push({ kind, signal: init?.signal !== undefined });
       attempt += 1;
-      if (kind !== 'heartbeat') return Promise.reject(new TypeError('fetch failed'));
-      if (attempt === 1) return Promise.reject(new TypeError('fetch failed'));
-      if (attempt === 3)
-        return new Promise<Response>((_resolve, reject) =>
-          init?.signal?.addEventListener('abort', () => reject(init.signal?.reason)),
-        );
+      if (kind !== 'heartbeat' || attempt === 1)
+        return Promise.reject(new TypeError('fetch failed'));
       return Promise.resolve(new Response(JSON.stringify({ ok: true })));
     }) as typeof fetch);
     await expect(post({ kind: 'heartbeat', callId: 'c' })).resolves.toEqual({ ok: true });
-    const hung = post({ kind: 'heartbeat', callId: 'c' });
-    await vi.advanceTimersByTimeAsync(HEARTBEAT_REQUEST_MS);
-    await expect(hung).resolves.toEqual({ ok: true });
     await expect(post({ kind: 'mute', callId: 'c', muted: true })).rejects.toThrow('fetch failed');
-    expect(calls).toEqual(['heartbeat', 'heartbeat', 'heartbeat', 'heartbeat', 'mute']);
+    expect(calls).toEqual([
+      { kind: 'heartbeat', signal: false },
+      { kind: 'heartbeat', signal: false },
+      { kind: 'mute', signal: false },
+    ]);
   });
 });
-
 function presenceDoc() {
   let state: DocumentVisibilityState = 'visible';
   const listeners = new Set<() => void>();
