@@ -43,6 +43,12 @@ export function genuiTextScale(fontScale: number): number {
   );
 }
 
+export type GenuiFrameMount = { readonly look: string; readonly mount: number };
+
+export function genuiFrameMount(previous: GenuiFrameMount, look: string): GenuiFrameMount {
+  return previous.look === look ? previous : { look, mount: previous.mount + 1 };
+}
+
 export const GENUI_REMEMBERED_HEIGHTS = 200;
 const rememberedHeights = new Map<string, number>();
 

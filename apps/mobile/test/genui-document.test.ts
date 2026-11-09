@@ -18,6 +18,7 @@ import {
   genuiDocumentOf,
   genuiDocumentPage,
   genuiNavigationAllowed,
+  genuiFrameMount,
   genuiHeightKey,
   genuiTextScale,
   GENUI_REMEMBERED_HEIGHTS,
@@ -325,6 +326,17 @@ describe('GenUI packaged mobile runtime', () => {
       await genuiMobileRuntimeModule(),
     );
   }, 60_000);
+});
+
+describe('GenUI frame mount', () => {
+  it('gives every theme or text-size change a new mount, even when it returns to an earlier look', () => {
+    const light = genuiFrameMount({ look: 'light:1', mount: 0 }, 'light:1');
+    expect(genuiFrameMount(light, 'light:1')).toBe(light);
+    const dark = genuiFrameMount(light, 'dark:1');
+    const lightAgain = genuiFrameMount(dark, 'light:1');
+    expect(lightAgain.look).toBe(light.look);
+    expect(new Set([light.mount, dark.mount, lightAgain.mount]).size).toBe(3);
+  });
 });
 
 describe('remembered GenUI frame height', () => {

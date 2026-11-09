@@ -17,6 +17,7 @@ import {
   genuiDocumentReply,
   genuiHeightKey,
   genuiRestoreMessage,
+  genuiFrameMount,
   genuiTextScale,
   parseGenuiBridgeMessage,
   rememberedGenuiHeight,
@@ -354,7 +355,11 @@ export function GenuiDocumentCard({
   const [attempt, setAttempt] = useState(0);
   const [failed, setFailed] = useState(false);
   const theme = useDesignTheme();
-  const frame = `${attempt}:${theme.scheme}:${genuiTextScale(theme.fontScale)}`;
+  const look = `${theme.scheme}:${genuiTextScale(theme.fontScale)}`;
+  const [mounted, setMounted] = useState(() => genuiFrameMount({ look, mount: 0 }, look));
+  const current = genuiFrameMount(mounted, look);
+  if (current !== mounted) setMounted(current);
+  const frame = `${attempt}:${current.mount}:${look}`;
   const [readyFrame, setReadyFrame] = useState<string>();
   const ready = readyFrame === frame;
   const send = use(GenuiReplies);
