@@ -1,4 +1,4 @@
-import { revealDesktopWindow } from './desktop-shell.js';
+import { revealDesktopWindow } from './desktop-window.js';
 import type { ConfigStorage } from './roster-config.js';
 import type { ChannelSummary, HumanAttentionItem } from './store.js';
 

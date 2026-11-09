@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
+  type CallHeartbeatPump,
   CallMediaFailure,
   createCallClient,
   readCallReadiness,
@@ -25,7 +26,9 @@ const flush = async (times = 5) => {
     await new Promise((resolve) => setImmediate(resolve));
 };
 
-function setup(options: { readyAsr?: boolean; emit?: 'visible-changes' } = {}) {
+function setup(
+  options: { readyAsr?: boolean; emit?: 'visible-changes'; heartbeats?: CallHeartbeatPump } = {},
+) {
   let clock = 2_000_000;
   const hostSide = {
     onPcm: undefined as ((samples: Int16Array) => void) | undefined,
@@ -115,6 +118,7 @@ function setup(options: { readyAsr?: boolean; emit?: 'visible-changes' } = {}) {
     media,
     onChange: (state) => states.push(state),
     ...(options.emit === undefined ? {} : { emit: options.emit }),
+    ...(options.heartbeats === undefined ? {} : { heartbeats: options.heartbeats }),
     now: () => clock,
     setInterval: (run, ms) => {
       tick = run;
@@ -221,6 +225,47 @@ describe('phone call client', () => {
       code: 'unreachable',
     });
     expect(world.phone.stopped).toBeGreaterThan(0);
+  });
+
+  it('lets a heartbeat pump beat instead of the page timer, and ends after the loss window', async () => {
+    const pumped: { callId: string; periodMs: number; after: number[]; stopped: boolean }[] = [];
+    let deliver: ((result: VoiceCallResult | undefined) => void) | undefined;
+    const world = setup({
+      heartbeats: {
+        start(input) {
+          const entry = {
+            callId: input.callId,
+            periodMs: input.periodMs,
+            after: [] as number[],
+            stopped: false,
+          };
+          pumped.push(entry);
+          deliver = input.onResult;
+          return {
+            after: (seq) => entry.after.push(seq),
+            stop: () => void (entry.stopped = true),
+          };
+        },
+      },
+    });
+    await world.client.open('mira');
+    const live = world.client.state();
+    if (live.status !== 'live') throw new Error(live.status);
+    expect(pumped).toEqual([
+      expect.objectContaining({ callId: live.call.callId, periodMs: 1_000, stopped: false }),
+    ]);
+    expect(world.ticking).toBe(false);
+    const answer = await world.post({ kind: 'heartbeat', callId: live.call.callId, after: 0 });
+    deliver?.(answer);
+    expect(pumped[0]?.after.at(-1)).toBeGreaterThan(0);
+    expect(world.client.state()).toMatchObject({ status: 'live', reconnecting: false });
+    await world.advance(3_000);
+    deliver?.(undefined);
+    expect(world.client.state()).toMatchObject({ status: 'live', reconnecting: true });
+    await world.advance(6_000);
+    deliver?.(undefined);
+    expect(world.client.state()).toMatchObject({ status: 'ended', reason: 'connection-lost' });
+    expect(pumped[0]?.stopped).toBe(true);
   });
 
   it('slows the heartbeat in the background and beats at once on return', async () => {

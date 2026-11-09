@@ -2,6 +2,7 @@ import {
   readCallReadiness,
   type CallClientMedia,
   type CallClientState,
+  type CallHeartbeatPump,
   type CallPost,
 } from '../../../core/src/voice/call-client.js';
 import { VOICE_CALL_PATH, type VoiceCallResult } from '../../../core/src/voice/call-contract.js';
@@ -29,8 +30,8 @@ import {
   type CallCameraKeyframe,
   type CallCaptureErrorCode,
 } from './call-camera.js';
+import { createWorkerHeartbeats } from './call-heartbeat-worker.js';
 import { createBrowserCallMedia } from './call-media.js';
-import { holdCallActivity } from './call-activity.js';
 import { watchCallPresence } from './call-presence.js';
 
 const CLIENT_KEY = 'botharness/call-client.v1';
@@ -163,9 +164,20 @@ export function createDesktopCall(
     media?: () => CallClientMedia;
     capture?: (source: CallVisualSource, handlers: DesktopCallCaptureHandlers) => CallCamera;
     now?: () => number;
+    heartbeats?: CallHeartbeatPump;
   } = {},
 ): DesktopCall {
-  const post = options.post ?? createCallPost(windowClientId());
+  const client = windowClientId();
+  const post = options.post ?? createCallPost(client);
+  const heartbeats =
+    options.heartbeats ??
+    (options.post !== undefined || typeof location === 'undefined'
+      ? undefined
+      : createWorkerHeartbeats({
+          url: new URL(`.${VOICE_CALL_PATH}`, location.href).href,
+          client,
+          timeoutMs: HEARTBEAT_REQUEST_MS,
+        }));
   const media = options.media ?? (() => createBrowserCallMedia());
   const makeCapture =
     options.capture ?? ((source, handlers) => createBrowserCallCamera({ source, ...handlers }));
@@ -234,6 +246,7 @@ export function createDesktopCall(
         CallCaptureErrorCode
       >({
         post,
+        ...(heartbeats === undefined ? {} : { heartbeats }),
         media: media(),
         ...(options.now === undefined ? {} : { now: options.now }),
         capture: (source, events) =>
@@ -284,7 +297,6 @@ export function desktopCall(): DesktopCall {
     const call = createDesktopCall();
     shared = call;
     globalThis.addEventListener?.('pagehide', () => void call.hangup());
-    holdCallActivity(call);
     if (globalThis.document !== undefined) watchCallPresence({ call });
   }
   return shared;

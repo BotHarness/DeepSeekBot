@@ -35,13 +35,11 @@ import { DmCallControl } from '../src/client/dm-call.js';
 import {
   CALL_NOTICE_TAG,
   askCallNotifications,
-  shellCallWindow,
   watchCallPresence,
   type CallNoticeFactory,
   type CallNoticeHandle,
 } from '../src/client/call-presence.js';
-import { holdCallActivity } from '../src/client/call-activity.js';
-import type { ShellWindowState } from '../src/client/desktop-shell.js';
+import { revealDesktopWindow } from '../src/client/desktop-window.js';
 import { en } from '../src/client/locale.js';
 
 const cleanup: (() => unknown)[] = [];
@@ -739,85 +737,23 @@ describe('desktop call in the background', () => {
     expect(notices.shown).toHaveLength(3);
   });
 
-  it('follows the native window and reveals it from the notice when the shell provides it', async () => {
-    const { fetcher } = host();
-    const mac = desktopWindow(fetcher, 'window-bg-0006');
-    const page = presenceDoc();
-    const notices = presenceNotices();
-    const listeners = new Set<(state: ShellWindowState) => void>();
-    let revealed = 0;
-    const native = (visible: boolean, minimized = !visible) => {
-      for (const listener of [...listeners]) listener({ visible, minimized, focused: visible });
-    };
-    const shell = {
-      state: async () => ({ visible: true, minimized: false, focused: true }),
-      subscribe(listener: (state: ShellWindowState) => void) {
-        listeners.add(listener);
-        return () => listeners.delete(listener);
-      },
-      reveal: async () => {
-        revealed += 1;
-        return { visible: true, minimized: false, focused: true };
-      },
-    };
-    const opened: string[] = [];
-    const stop = watchCallPresence({
-      call: mac.call,
-      window: shellCallWindow(shell, page.doc),
-      notice: () => notices.factory,
-    });
-    await mac.call.start('mira', {
-      title: 'On a call with Mira',
-      body: '',
-      open: () => opened.push('dm-mira'),
-    });
-    native(false);
-    expect(page.doc.visibilityState).toBe('visible');
-    expect(notices.shown).toHaveLength(1);
-    notices.shown[0]?.handle.onclick?.(new Event('click'));
-    expect(revealed).toBe(1);
-    expect(opened).toEqual(['dm-mira']);
-    expect(notices.shown[0]?.closed).toBe(true);
-    native(true);
-    expect(notices.shown).toHaveLength(1);
-    stop();
-    expect(listeners.size).toBe(0);
+  it('asks the Host to bring the Desktop window back, and focuses the page either way', async () => {
+    const requests: { url: string; body: unknown }[] = [];
+    let focused = 0;
+    const fetcher = (async (url, init) => {
+      requests.push({ url: String(url), body: JSON.parse(String(init?.body)) });
+      return new Response('{}');
+    }) as typeof fetch;
+    revealDesktopWindow(fetcher, () => (focused += 1));
+    expect(requests).toEqual([]);
+    vi.stubGlobal('dshDesktop', { protocolVersion: 1 });
+    revealDesktopWindow(fetcher, () => (focused += 1));
+    vi.unstubAllGlobals();
+    expect(focused).toBe(2);
+    expect(requests).toEqual([
+      { url: './api/botharness/desktop-window', body: { action: 'reveal' } },
+    ]);
   });
-
-  it('holds the shell background lease only while the call is opening or live', async () => {
-    const { fetcher } = host();
-    const mac = desktopWindow(fetcher, 'window-bg-0007');
-    const log: string[] = [];
-    let next = 0;
-    let gate: (() => void) | undefined;
-    const live = {
-      acquire: async (reason: 'call') => {
-        log.push(`acquire:${reason}`);
-        if (next === 1) await new Promise<void>((done) => (gate = done));
-        return `lease-${next++}`;
-      },
-      release: async (lease: string) => {
-        log.push(`release:${lease}`);
-      },
-    };
-    const stop = holdCallActivity(mac.call, live);
-    expect(log).toEqual([]);
-    await mac.call.start('mira');
-    expect(mac.call.snapshot().state.status).toBe('live');
-    expect(log).toEqual(['acquire:call']);
-    await mac.call.hangup();
-    await Promise.resolve();
-    expect(log).toEqual(['acquire:call', 'release:lease-0']);
-    await mac.call.start('mira');
-    await mac.call.hangup();
-    gate?.();
-    await vi.waitFor(() =>
-      expect(log).toEqual(['acquire:call', 'release:lease-0', 'acquire:call', 'release:lease-1']),
-    );
-    stop();
-    expect(holdCallActivity(mac.call, undefined)).toBeTypeOf('function');
-  });
-
   it('asks for notification permission only while it is undecided', async () => {
     const requests: string[] = [];
     const api = (permission: NotificationPermission) => ({

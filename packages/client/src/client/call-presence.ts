@@ -1,5 +1,5 @@
 import type { DesktopCall, DesktopCallSnapshot } from './desktop-call.js';
-import { shellWindow, type ShellWindowApi, type ShellWindowState } from './desktop-shell.js';
+import { revealDesktopWindow } from './desktop-window.js';
 
 export const CALL_NOTICE_TAG = 'botharness-call';
 
@@ -51,7 +51,7 @@ type PresenceDocument = Pick<
 
 export function documentCallWindow(
   doc: PresenceDocument,
-  focus: () => void = () => globalThis.focus?.(),
+  reveal: () => void = () => revealDesktopWindow(),
 ): CallWindow {
   return {
     hidden: () => doc.visibilityState === 'hidden',
@@ -59,44 +59,7 @@ export function documentCallWindow(
       doc.addEventListener('visibilitychange', listener);
       return () => doc.removeEventListener('visibilitychange', listener);
     },
-    reveal: focus,
-  };
-}
-
-export function shellCallWindow(shell: ShellWindowApi, initial: PresenceDocument): CallWindow {
-  let state: ShellWindowState | undefined;
-  const listeners = new Set<() => void>();
-  const notify = () => {
-    for (const listener of [...listeners]) listener();
-  };
-  let stop: (() => void) | undefined;
-  return {
-    hidden: () => (state === undefined ? initial.visibilityState === 'hidden' : !state.visible),
-    subscribe(listener) {
-      listeners.add(listener);
-      if (stop === undefined) {
-        stop = shell.subscribe((next) => {
-          state = next;
-          notify();
-        });
-        void shell.state().then(
-          (next) => {
-            state ??= next;
-            notify();
-          },
-          () => undefined,
-        );
-      }
-      return () => {
-        listeners.delete(listener);
-        if (listeners.size > 0) return;
-        stop?.();
-        stop = undefined;
-      };
-    },
-    reveal() {
-      void shell.reveal().catch(() => globalThis.focus?.());
-    },
+    reveal,
   };
 }
 
@@ -113,15 +76,7 @@ export function callNoticeWanted(snapshot: DesktopCallSnapshot, hidden: boolean)
 }
 
 export function watchCallPresence(options: CallPresenceOptions): () => void {
-  const where =
-    options.window ??
-    (() => {
-      const doc = options.doc ?? document;
-      const shell = options.doc === undefined ? shellWindow() : undefined;
-      return shell === undefined
-        ? documentCallWindow(doc, options.focus)
-        : shellCallWindow(shell, doc);
-    })();
+  const where = options.window ?? documentCallWindow(options.doc ?? document, options.focus);
   const notice = options.notice ?? browserNotice;
   let shown: CallNoticeHandle | undefined;
   let shownFor: string | undefined;

@@ -1460,6 +1460,16 @@ Manual font preferences remain in the same native `ui-theme` Patch. JSON stdout 
 `restartRequired:true` and `runtimeVerified:false`; a successful package change does not prove
 the native window has loaded it. An uncertain package operation is not retried automatically.
 
+### Bring the Windows Desktop window back
+
+A desktop notification click (a call notice, an approval, a reply) asks the Host to bring the window back: on Windows the Host relaunches its own `DeepSeek Harness.exe` with the running app's `--user-data-dir`, and the shell's single-instance handler restores, shows and focuses the existing window, including from the tray; the extra launch exits at once. The same action is available from the CLI:
+
+```sh
+deepseekbot desktop-window-reveal --host <host> --token-file <private-file>
+```
+
+It returns `{ok:true, launched}`; `launched:false` means a reveal ran in the last 1.5 seconds. Refusals: `desktop-window-platform-unsupported` (not Windows; the Client keeps page focus), `desktop-window-app-unresolved` (the Host is not running inside the Desktop app) and `desktop-window-launch-failed`.
+
 ### Enable from Bot Settings
 
 On the macOS or Windows Desktop, Bot Settings → General shows **Enable window zoom** (or **Turn off window zoom** once installed). The button asks the Host to start the same `deepseekbot-zoom-setup enable|disable --after-quit <state-file> --request <id>` transaction as a detached helper. The helper waits until the Desktop is fully quit, runs the unchanged checks and Profile change, records the outcome, then reopens the app. Cancel before quitting withdraws it; a newer request supersedes an older one. If the app is not quit within 30 minutes, the helper stops without changes and without reopening. The next Settings visit shows a failed outcome code. The Host reads the target app from its own runtime path and only offers this in the native `desktop` Profile.

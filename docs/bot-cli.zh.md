@@ -1426,6 +1426,16 @@ DSH CLI 明确拒绝管理 `desktop` Profile；原生插件管理器会优先解
 JSON 标准输出包含 `restartRequired:true`、`runtimeVerified:false`；包配置成功不表示原生窗口已加载。
 包操作结果不确定时不会自动重试。
 
+### 让 Windows 桌面端窗口回到前台
+
+点击桌面通知（通话通知、审批、回复）时，Client 会请 Host 把窗口带回前台：在 Windows 上，Host 以运行中应用的 `--user-data-dir` 重新启动自身所在的 `DeepSeek Harness.exe`，由 Shell 的单实例处理恢复、显示并聚焦已有窗口（包括托盘中的窗口），多出的这次启动会立即退出。CLI 可执行同一操作：
+
+```sh
+deepseekbot desktop-window-reveal --host <host> --token-file <私有文件>
+```
+
+返回 `{ok:true, launched}`；`launched:false` 表示 1.5 秒内已执行过一次。拒绝代码：`desktop-window-platform-unsupported`（非 Windows，Client 仍聚焦页面）、`desktop-window-app-unresolved`（Host 不在桌面应用内运行）和 `desktop-window-launch-failed`。
+
 ### 在 Bot 设置中启用
 
 在 macOS 或 Windows 桌面端，Bot 设置 → 通用会显示「启用窗口缩放」（已安装时显示「关闭窗口缩放」）。按钮让 Host 以独立后台进程运行同一个 `deepseekbot-zoom-setup enable|disable --after-quit <状态文件> --request <id>` 事务。后台进程等到桌面端完全退出后，执行原有检查与 Profile 修改，记录结果并重新打开应用。退出前可点「取消」撤回；新的请求会取代旧的。30 分钟内未退出应用时，后台进程不做任何修改、也不重新打开应用便结束。下次打开设置会显示失败代码。Host 根据自身运行路径确定目标应用，只在原生 `desktop` Profile 中提供此入口。

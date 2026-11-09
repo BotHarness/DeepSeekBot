@@ -245,7 +245,7 @@ describe('desktop notifier', () => {
     env.dispose();
   });
 
-  it('brings a minimized or tray-hidden Desktop window back through the shell on click', async () => {
+  it('asks the Host to bring a minimized or tray-hidden Desktop window back on click', async () => {
     const env = setup();
     await env.fire();
     const approval = item({ id: 'approval:reveal', channelId: 'dm-ada', messageId: 'm2' });
@@ -253,15 +253,17 @@ describe('desktop notifier', () => {
     await env.fire();
     const shown = env.fake.shown[0]!;
     const focus = vi.fn();
-    const reveal = vi.fn(async () => ({ visible: true, minimized: false, focused: true }));
+    const fetcher = vi.fn(async () => new Response('{}'));
     vi.stubGlobal('focus', focus);
-    vi.stubGlobal('dshDesktop', {
-      window: { state: vi.fn(), subscribe: vi.fn(), reveal },
-    });
+    vi.stubGlobal('fetch', fetcher);
+    vi.stubGlobal('dshDesktop', { protocolVersion: 1 });
     shown.handle.onclick?.({ preventDefault: vi.fn() } as unknown as Event);
     vi.unstubAllGlobals();
-    expect(reveal).toHaveBeenCalledOnce();
-    expect(focus).not.toHaveBeenCalled();
+    expect(fetcher).toHaveBeenCalledWith(
+      './api/botharness/desktop-window',
+      expect.objectContaining({ method: 'POST', body: JSON.stringify({ action: 'reveal' }) }),
+    );
+    expect(focus).toHaveBeenCalledOnce();
     expect(env.open).toHaveBeenCalledWith(approval);
     env.dispose();
   });
