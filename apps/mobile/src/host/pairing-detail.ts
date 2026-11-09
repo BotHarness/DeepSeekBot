@@ -21,6 +21,12 @@ export function reasonCode(reason: string): string {
   const native = /(NSURLErrorDomain|NSPOSIXErrorDomain)[^\d-]{0,16}(-?\d{1,6})/u.exec(reason);
   if (native) return `${native[1] === 'NSURLErrorDomain' ? 'nsurl' : 'posix'}${native[2]}`;
   const lower = reason.toLowerCase();
+  if (
+    /certific|zertifikat|сертификат|证书|憑證|凭证|証明書|인증서|ssl|tls|trust anchor|certpath/u.test(
+      lower,
+    )
+  )
+    return 'socket-tls';
   if (/response|http/u.test(lower)) {
     const status = lower.match(/\b[1-5]\d\d\b/gu)?.find((value) => value !== '101');
     if (status) return `http-${status}`;
@@ -31,8 +37,6 @@ export function reasonCode(reason: string): string {
   if (lower.includes('resolve') || lower.includes('hostname') || lower.includes('dns'))
     return 'socket-dns';
   if (lower.includes('offline') || lower.includes('not connected')) return 'socket-offline';
-  if (lower.includes('certificate') || lower.includes('ssl') || lower.includes('tls'))
-    return 'socket-tls';
   return 'socket-error';
 }
 

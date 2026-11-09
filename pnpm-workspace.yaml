@@ -1,6 +1,7 @@
 packages:
   - packages/*
   - apps/*
+  - deploy/private-relay
 
 linkWorkspacePackages: true
 

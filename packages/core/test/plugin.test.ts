@@ -857,6 +857,8 @@ describe('plugin entry', () => {
       'pluginUpdates',
       'pluginInstall',
       'pluginRestart',
+      'updateRun',
+      'updateCancel',
       'telemetryStatus',
       'telemetrySet',
       'gitStatus',

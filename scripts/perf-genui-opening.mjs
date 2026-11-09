@@ -29,7 +29,10 @@ const { values } = parseArgs({
     out: { type: 'string', default: '.humanlayer/perf/genui-opening' },
     headless: { type: 'boolean', default: false },
     trace: { type: 'boolean', default: false },
-    budget: { type: 'string', default: 'scripts/perf-budgets/genui-opening.json' },
+    budget: {
+      type: 'string',
+      default: 'scripts/perf-budgets/genui-opening.json',
+    },
     help: { type: 'boolean', default: false },
   },
 });
@@ -97,7 +100,10 @@ async function createBot(name) {
     persona: 'Synthetic GenUI opening QA only. No business data. Do not initiate work.',
     operationKey: randomUUID(),
   });
-  const bot = { slug: created.bot.slug, channelId: created.channelId ?? `dm-${created.bot.slug}` };
+  const bot = {
+    slug: created.bot.slug,
+    channelId: created.channelId ?? `dm-${created.bot.slug}`,
+  };
   manifest.bots.push(bot);
   save();
   return bot;
@@ -130,7 +136,10 @@ async function measure(target, parking) {
     });
     if (!values.headless) browserRecord.startupNativeViewport = await calibrateNativeViewport(page);
     await page.evaluateOnNewDocument((messageId) => {
-      Object.defineProperty(navigator, 'language', { configurable: true, get: () => 'en-US' });
+      Object.defineProperty(navigator, 'language', {
+        configurable: true,
+        get: () => 'en-US',
+      });
       Object.defineProperty(navigator, 'languages', {
         configurable: true,
         get: () => ['en-US', 'en'],
@@ -175,7 +184,11 @@ async function measure(target, parking) {
     const nativeViewport = values.headless ? undefined : await readNativeViewport(page);
     const viewport =
       nativeViewport ??
-      (await page.evaluate(() => ({ innerWidth, innerHeight, devicePixelRatio })));
+      (await page.evaluate(() => ({
+        innerWidth,
+        innerHeight,
+        devicePixelRatio,
+      })));
     if (referenceViewport)
       assert.deepEqual(viewport, referenceViewport, 'All six opening viewports must match.');
     referenceViewport ??= viewport;
@@ -309,6 +322,14 @@ try {
           slug: bot.slug,
           tool: 'genui_preview',
           args: { genui_json: serialized, width: 900, theme: 'light' },
+        }).catch((error) => {
+          target.previewFailure = {
+            code: error.code ?? 'invalid-response',
+            message: redact(error.bridgeMessage ?? error.message),
+            elapsedMs: performance.now() - before,
+          };
+          save();
+          throw error;
         });
         target.previewMs = performance.now() - before;
         target.previewDocumentId = preview.result?.documentId;
@@ -333,7 +354,10 @@ try {
       save();
       assert.equal(sent.result.status, 'committed');
       target.messageId = sent.result.messageId;
-      const timeline = await call('channelMessages', { channelId: bot.channelId, limit: 10 });
+      const timeline = await call('channelMessages', {
+        channelId: bot.channelId,
+        limit: 10,
+      });
       const canonical = timeline.messages.find((message) => message.id === target.messageId);
       assert.ok(canonical, 'Read back the explicitly committed canonical message.');
       assert.deepEqual(canonical.genui, arm === 'rich' ? document : undefined);
@@ -353,7 +377,10 @@ try {
 } finally {
   for (const bot of manifest.bots) {
     try {
-      manifest.cleanup.push({ slug: bot.slug, ...(await stopGenuiQaBot(call, bot)) });
+      manifest.cleanup.push({
+        slug: bot.slug,
+        ...(await stopGenuiQaBot(call, bot)),
+      });
     } catch (error) {
       manifest.cleanupFailures.push(redact(error));
     }
@@ -361,7 +388,9 @@ try {
   }
   manifest.finishedAt = new Date().toISOString();
   manifest.summary = summarizeGenuiOpening(manifest);
-  manifest.budgetResult = checkBudget(manifest.summary, budget, { strictTiming: true });
+  manifest.budgetResult = checkBudget(manifest.summary, budget, {
+    strictTiming: true,
+  });
   if (!manifest.budgetResult.pass || manifest.status === 'failed') process.exitCode = 1;
   manifest.status = process.exitCode ? 'failed' : values.trace ? 'diagnostic' : 'passed';
   save();
@@ -371,5 +400,9 @@ try {
   );
 }
 console.log(
-  JSON.stringify({ status: manifest.status, ...manifest.summary, budget: manifest.budgetResult }),
+  JSON.stringify({
+    status: manifest.status,
+    ...manifest.summary,
+    budget: manifest.budgetResult,
+  }),
 );

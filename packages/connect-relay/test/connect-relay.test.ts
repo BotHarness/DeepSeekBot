@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createAccessTokenVerifier, type Jwk } from '../src/auth.js';
 import { createCloudflareApi, GATEWAY_PATH, type TunnelApi } from '../src/cloudflare.js';
@@ -70,6 +70,7 @@ class FakeTunnels implements TunnelApi {
   >();
   records = new Map<string, { name: string; target: string }>();
   failCreate = false;
+  failDns = false;
   listComplete = true;
   listCalls = 0;
   deleteCalls = 0;
@@ -111,6 +112,7 @@ class FakeTunnels implements TunnelApi {
     this.tunnels.delete(tunnelId);
   }
   async pointHostname(hostname: string, tunnelId: string, recordId?: string) {
+    if (this.failDns) throw new Error('DNS unavailable');
     const id = recordId && this.records.has(recordId) ? recordId : `record-${hostname}`;
     this.records.set(id, { name: hostname, target: `${tunnelId}.cfargotunnel.com` });
     return id;
@@ -178,6 +180,47 @@ async function setup(
     at: () => new Date(clock).toISOString(),
   };
 }
+
+describe('partial tunnel provisioning recovery', () => {
+  it.each([false, true])(
+    'repairs DNS before returning a connector token (repoint=%s)',
+    async (repoint) => {
+      const { call, tunnels } = await setup();
+      const registered = await call('POST', '/v1/hosts', {
+        as: 'user_alice',
+        body: { name: 'Recovery QA' },
+      });
+      const id = registered.body.host.id;
+      const provision = () =>
+        call('POST', `/v1/hosts/${id}/tunnel`, {
+          as: 'user_alice',
+          body: { originPort: 3000 },
+        });
+      if (repoint) {
+        expect((await provision()).status).toBe(200);
+        tunnels.tunnels.clear();
+      }
+      tunnels.failDns = true;
+      expect((await provision()).status).toBe(502);
+      expect((await provision()).status).toBe(502);
+      expect(tunnels.tunnels.size).toBe(1);
+      const tunnelId = [...tunnels.tunnels.keys()][0]!;
+      tunnels.failDns = false;
+      expect((await provision()).status).toBe(200);
+      expect([...tunnels.tunnels.keys()]).toEqual([tunnelId]);
+      expect([...tunnels.records.values()]).toEqual([
+        {
+          name: `${id}.deepseekbot.dev`,
+          target: `${tunnelId}.cfargotunnel.com`,
+        },
+      ]);
+      expect(tunnels.tunnels.get(tunnelId)?.ingress).toEqual({
+        hostname: `${id}.deepseekbot.dev`,
+        originPort: 3000,
+      });
+    },
+  );
+});
 
 describe('linked computer sessions', () => {
   it('validates optional sid without accepting malformed claims or expired tokens', async () => {
@@ -939,6 +982,47 @@ describe('Connect relay phone offers', () => {
 });
 
 describe('Cloudflare API client', () => {
+  it('records bounded upstream codes without credentials or response text', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const api = createCloudflareApi({
+        token: 'private-token',
+        accountId: 'private-account',
+        zoneId: 'private-zone',
+        fetcher: async () =>
+          Response.json(
+            {
+              success: false,
+              errors: [
+                null,
+                'private-text',
+                { code: 'private-code' },
+                { code: 81057, message: 'private-hostname' },
+                ...Array.from({ length: 20 }, () => ({ code: 10000 })),
+              ],
+            },
+            { status: 403 },
+          ),
+      });
+      await expect(api.pointHostname('private-hostname', 'private-tunnel')).rejects.toMatchObject({
+        status: 403,
+      });
+      expect(warn.mock.calls).toEqual([
+        [
+          JSON.stringify({
+            event: 'connect-upstream-error',
+            method: 'POST',
+            resource: 'dns',
+            status: 403,
+            codes: [81057, 10000, 10000, 10000, 10000, 10000, 10000, 10000],
+          }),
+        ],
+      ]);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it.each([
     { stage: 'connections', path: '/accounts/acct/cfd_tunnel/target/connections' },
     { stage: 'tunnel', path: '/accounts/acct/cfd_tunnel/target' },

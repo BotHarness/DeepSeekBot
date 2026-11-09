@@ -17,7 +17,6 @@ import type {
 import { VOICE_CALL_HOST_OWNER } from '../src/voice/call-contract.js';
 import {
   isChannelVoiceCallRecord,
-  voiceCallDuration,
   voiceCallRecordBody,
   type ChannelVoiceCallRecord,
 } from '../src/channels/voice-call-record.js';
@@ -30,6 +29,7 @@ import {
   type VoiceCallsDeps,
 } from '../src/voice/calls.js';
 import { createVoiceCallHttp } from '../src/voice/call-http.js';
+import { createVoiceDictations } from '../src/voice/dictation.js';
 import { VoiceProviders, wavFromPcm16 } from '../src/voice/providers.js';
 import { clipDurationMs, joinAudio, type AudioClip } from '../src/voice/speech.js';
 import { createTempRoot } from './helpers.js';
@@ -172,7 +172,13 @@ function harness(
   } = {},
 ) {
   let clock = 1_000_000;
-  const sent: { body: string; callId: string; channelId: string; messageId: string }[] = [];
+  const sent: {
+    body: string;
+    callId: string;
+    channelId: string;
+    messageId: string;
+    speech?: { fromMs: number; toMs: number } | undefined;
+  }[] = [];
   const log: string[] = [];
   const records: ChannelVoiceCallRecord[] = [];
   const bot: VoiceCallBot | undefined =
@@ -309,8 +315,11 @@ describe('Host call owner', () => {
         messageId: expect.stringMatching(/^human-/u),
         body: '明天上海会下雨吗？',
         callId,
+        speech: { fromMs: expect.any(Number), toMs: expect.any(Number) },
       },
     ]);
+    const heardRange = h.sent[0]!.speech!;
+    expect(heardRange.toMs - heardRange.fromMs).toBeGreaterThan(1_000);
     let current = await view(h, callId);
     expect(types(current.events)).toEqual([
       'connected',
@@ -598,6 +607,30 @@ describe('Host call owner', () => {
     );
   });
 
+  it('agrees with dictation readiness for the same Bot while its local service is off (#3786)', async () => {
+    const providers = {
+      has: () => true,
+      listAsr: () => [{ id: 'asr-000000000002', streaming: true }],
+      streams: () => false,
+      openStream: () => undefined,
+      localServiceOff: async (id: string, kind: 'asr' | 'tts') =>
+        kind === 'asr' && id === 'asr-000000000001',
+      async transcribe() {
+        return { text: '', latencyMs: 1 };
+      },
+      synthesize: async () => ({ audio: new Uint8Array(), mime: 'audio/mpeg' }),
+    };
+    const h = harness({ media: fakeMedia().media, providers });
+    const dictations = createVoiceDictations({
+      providers: () => providers,
+      bot: () => ({ asr: { providerId: 'asr-000000000001', language: 'zh' } }),
+    });
+    const call = (await h.ok({ kind: 'readiness', slug: 'mira' })).readiness!;
+    const dictation = await dictations.readiness({ slug: 'mira' });
+    expect(call).toMatchObject({ ready: false, missing: ['local-voice-off'] });
+    expect(dictation).toMatchObject({ ready: false, reason: 'local-voice-off' });
+  });
+
   it('allows one call per Host: another device is refused, the same device replaces it', async () => {
     const { media } = fakeMedia();
     const h = harness({ media });
@@ -667,6 +700,7 @@ describe('Host call owner', () => {
       },
       draft: () => undefined,
       speak: async () => undefined,
+      text: async () => undefined,
       zoom: ({ messageId, cell }) => ({ released: true, messageId, cell }),
       revoke: async () => undefined,
       dispose: async () => undefined,
@@ -946,10 +980,7 @@ describe('call records in the DM (#3483)', () => {
     expect((await view(h, call.callId)).phase).not.toBe('ended');
   });
 
-  it('formats the length and a body the Bot can search', () => {
-    expect(voiceCallDuration(0)).toBe('0:00');
-    expect(voiceCallDuration(65_400)).toBe('1:05');
-    expect(voiceCallDuration(3_725_000)).toBe('1:02:05');
+  it('formats a body the Bot can search', () => {
     const body = voiceCallRecordBody({
       callId: 'call-0123456789abcdef',
       botSlug: 'mira',

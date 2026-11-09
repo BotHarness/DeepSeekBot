@@ -208,20 +208,18 @@ export function createRelay(options: RelayOptions) {
         return undefined;
       }
       current = reread;
-      if (claimed === 1) {
-        const record = await tunnels.pointHostname(
-          hostname(current.id),
-          created,
-          current.dns_record_id ?? undefined,
-        );
-        await db
-          .prepare('UPDATE hosts SET dns_record_id = ? WHERE id = ?')
-          .bind(record, current.id)
-          .run();
-        break;
-      }
+      if (claimed === 1) break;
     }
     const tunnelId = current.tunnel_id as string;
+    const record = await tunnels.pointHostname(
+      hostname(current.id),
+      tunnelId,
+      current.dns_record_id ?? undefined,
+    );
+    await db
+      .prepare('UPDATE hosts SET dns_record_id = ? WHERE id = ?')
+      .bind(record, current.id)
+      .run();
     await tunnels.configureIngress(tunnelId, hostname(current.id), originPort);
     await db
       .prepare('UPDATE hosts SET origin_port = ? WHERE id = ?')

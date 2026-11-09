@@ -3330,6 +3330,30 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         where.push('julianday(e.created_at) <= ?');
         values.push(julian(query.to));
       }
+      if (query.callWindow !== undefined) {
+        const window = query.callWindow;
+        const json = (path: string) => `json_extract(e.payload_json, '${path}')`;
+        const overlap = (from: string, to: string) => {
+          values.push(window.fromMs);
+          if (window.toMs !== undefined) values.push(window.toMs);
+          return `${to} >= ?${window.toMs === undefined ? '' : ` AND ${from} <= ?`}`;
+        };
+        const parts: string[] = [];
+        values.push(window.callId);
+        parts.push(
+          `WHEN ${json('$.voiceCallRecord.state')} = 'frames' AND ${json('$.voiceCallRecord.callId')} = ? THEN (${overlap(json('$.voiceCallRecord.fromMs'), json('$.voiceCallRecord.toMs'))})`,
+        );
+        values.push(window.callId);
+        parts.push(
+          `WHEN ${json('$.voiceCall.callId')} = ? AND json_type(e.payload_json, '$.voiceCall.visual.fromMs') IS NOT NULL THEN (${overlap(json('$.voiceCall.visual.fromMs'), json('$.voiceCall.visual.toMs'))})`,
+        );
+        values.push(julian(window.from));
+        if (window.to !== undefined) values.push(julian(window.to));
+        parts.push(
+          `ELSE (julianday(e.created_at) >= ?${window.to === undefined ? '' : ' AND julianday(e.created_at) <= ?'})`,
+        );
+        where.push(`(CASE ${parts.join(' ')} END)`);
+      }
       const rows = database.read((db) => {
         registerLower(db);
         return db

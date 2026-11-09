@@ -4,6 +4,10 @@
 - Date: 2026-11-07
 - Issue: #3689 (spec #3688; amends ADR-0286 and ADR-0288)
 
+> Amended by [ADR-0304](0304-call-frame-harvest.md): no keyframe is dropped by score; keyframes past the newest nine become frame records, and `grid-built` reports `commits` instead of `dropped`.
+>
+> Amended by [ADR-0308](0308-call-grid-labels-sit-above-tiles.md): each tile row gains a label strip above it, and tiles shrink when the strips would pass the 1536 px long edge.
+
 ## Context
 
 ADR-0286 tiled a sentence's keyframes into a square 2x2, 3x3 or 4x4 grid. Three keyframes left a black cell in a 2x2, five left four black cells in a 3x3, and a 4x4 shrank each tile to 384 px, so small text on a shared screen was often unreadable on the Bot's side and on a phone.

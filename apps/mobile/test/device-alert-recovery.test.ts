@@ -74,7 +74,7 @@ describe('durable recovery handoff', () => {
   it('preserves explicit disable and visible-conversation suppression across recovery', async () => {
     const { owner, snapshots } = setup();
     await owner.update({ ...input, approvalsEnabled: false });
-    await owner.update({ ...input, foreground: true, visibleChannelId: 'dm:helper' });
+    await owner.update({ ...input, foreground: true, focusedChannelIds: ['dm:helper'] });
     expect(snapshots[0]?.recovery?.enabled).toBe(false);
     expect(snapshots[1]).toMatchObject({
       alerts: [],

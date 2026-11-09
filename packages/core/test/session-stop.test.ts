@@ -213,7 +213,12 @@ describe('Session Stop on an Assignment', () => {
       await f.human('Something else');
       expect(f.core.runtime.getAssignment('ada', id)).toMatchObject({ activity: 'stopped' });
       expect(f.live.assignmentRuns).toHaveLength(1);
+      expect(() => f.access.request({ sessionId: id, mode: 'next-turn', text: 'Go on' })).toThrow(
+        /stopped by the Human/,
+      );
+      expect(f.core.runtime.getAssignment('ada', id)).toMatchObject({ activity: 'stopped' });
 
+      await expect(f.access.unarchive!(id)).resolves.toMatchObject({ outcome: 'unarchived' });
       const resumed = f.access.request({
         sessionId: id,
         mode: 'next-turn',

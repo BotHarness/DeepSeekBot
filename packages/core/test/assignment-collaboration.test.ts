@@ -2323,6 +2323,36 @@ describe('Assignment collaboration', () => {
     await reopened.close();
   });
 
+  it('refuses new requests to a Human-stopped Assignment until unarchive revives it', async () => {
+    const { runtime, agents, admit, close } = await setup();
+    await admit('开始调研', 'human-stop-3725');
+    const access = agents.access;
+    if (access === undefined) throw new Error('Orchestrator never ran');
+    const created = access.create({
+      title: 'Assignment',
+      grantId: TEST_GRANT_ID,
+      description: '持续调研 A 方向',
+    });
+    if (created.outcome !== 'created') throw new Error('create failed');
+    const sessionId = created.assignment.sessionId;
+    if (agents.started[0]?.run === undefined) throw new Error('Assignment never started');
+
+    const stopped = await runtime.stopSession!('ada', sessionId);
+    expect(stopped.outcome).toBe('settled');
+    if (stopped.outcome !== 'settled') throw new Error('stop refused');
+    expect(stopped.stopped).toHaveLength(1);
+    expect(runtime.getAssignment('ada', sessionId)?.activity).toBe('stopped');
+
+    expect(() => access.request({ sessionId, mode: 'next-turn', text: '继续' })).toThrow(/stopped/);
+    expect(runtime.getAssignment('ada', sessionId)?.activity).toBe('stopped');
+
+    const revived = await access.unarchive!(sessionId);
+    expect(revived).toMatchObject({ outcome: 'unarchived' });
+    const resumed = access.request({ sessionId, mode: 'next-turn', text: '继续' });
+    expect(resumed.delivery).toBe('followup');
+    await close();
+  });
+
   it('delivers one Host-origin stop notice through the Bot Inbox', async () => {
     const { runtime, agents, owner, admit, close } = await setup();
     await admit('开始调研', 'human-stop-notice');

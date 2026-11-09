@@ -3935,4 +3935,173 @@ describe('Assignment Directory Tools', () => {
       await adapter.close();
     }
   });
+
+  it('unarchives and sends an optional message through the Assignment Request path', async () => {
+    const calls: Array<Promise<unknown>> = [];
+    const unarchived: string[] = [];
+    const requests: unknown[] = [];
+    const host = new FakeAgentHost(
+      { kind: 'completed' },
+      {
+        onAgentCreated: () => {
+          const tool = host.scopes
+            .get('orchestrator-ada')
+            ?.tools.find((candidate) => candidate.name === 'unarchive_assignment');
+          if (tool === undefined) throw new Error('unarchive_assignment not registered');
+          const run = (args: Record<string, unknown>) =>
+            calls.push(
+              Promise.resolve(tool.execute(args as never, {} as ToolRunContext)).then(
+                (value) => JSON.parse(String(value)),
+                (error: unknown) => String(error),
+              ),
+            );
+          run({ session_id: 'quiet' });
+          run({ session_id: 'resume', message: 'The Human wants this after all; continue' });
+          run({ session_id: 'steer', message: 'Wrap up', mode: 'next-step' });
+          run({ session_id: 'stopped', message: 'Continue' });
+          run({ session_id: 'full', message: 'Continue' });
+          run({ session_id: 'bad-mode', message: 'Continue', mode: 'later' });
+          run({ session_id: 'blank', message: '  ' });
+          run({ session_id: 'mode-only', mode: 'next-step' });
+        },
+      },
+    );
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+    });
+    await adapter.runOrchestrator({
+      sessionId: 'orchestrator-ada',
+      resume: false,
+      bot: BOT,
+      message: 'Continue the stopped work',
+      inboundChannelId: 'dm-test',
+      inbox: '',
+      channels: {
+        ...groupTools,
+        contacts: async () => ({ outputLimit: 12_000, contacts: [] }),
+        sendToBot: async () => {
+          throw new Error('unexpected Bot DM');
+        },
+        ignore: () => {
+          throw new Error('unexpected ignore');
+        },
+        read: () => [],
+        requestGrant: async () => {
+          throw new Error('unexpected Grant request');
+        },
+        send: async (input) => ({
+          id: 'bot-1',
+          at: BOT.createdAt,
+          author: { kind: 'bot', slug: BOT.slug },
+          body: input.body,
+        }),
+      },
+      assignments: {
+        create: () => ({ outcome: 'created', assignment: ASSIGNMENT }),
+        grants: () => [],
+        list: () => [],
+        archive: async () => {
+          throw new Error('unexpected archive');
+        },
+        unarchive: async (sessionId) => {
+          unarchived.push(sessionId);
+          return {
+            outcome: 'unarchived',
+            assignment: { ...ASSIGNMENT, sessionId, activity: 'idle' },
+          };
+        },
+        inspect: (sessionId) => ({
+          ...ASSIGNMENT,
+          sessionId,
+          activity: 'stopped',
+          botSlug: BOT.slug,
+          sourceEventId: 'source-1',
+        }),
+        stop: async () => ASSIGNMENT,
+        request: (input) => {
+          requests.push(input);
+          if (input.sessionId === 'stopped')
+            throw new Error(`Assignment Session stopped was stopped by the Human`);
+          if (input.sessionId === 'full')
+            return {
+              outcome: 'capacity',
+              code: 'assignment-capacity',
+              activeCount: 4,
+              limit: 4,
+              retryable: true,
+              message: 'At capacity',
+              assignment: { ...ASSIGNMENT, sessionId: input.sessionId, activity: 'idle' },
+              delivery: 'capacity',
+            };
+          return {
+            assignment: { ...ASSIGNMENT, sessionId: input.sessionId },
+            delivery: input.mode === 'next-step' ? 'steer' : 'followup',
+          };
+        },
+      },
+    });
+    try {
+      const values = await Promise.all(calls);
+      expect(values.slice(0, 5)).toEqual([
+        { outcome: 'unarchived', sessionId: 'quiet', activity: 'idle' },
+        {
+          outcome: 'unarchived',
+          sessionId: 'resume',
+          activity: 'working',
+          delivery: 'followup',
+          acceptance: 'pending',
+        },
+        {
+          outcome: 'unarchived',
+          sessionId: 'steer',
+          activity: 'working',
+          delivery: 'steer',
+          acceptance: 'accepted',
+        },
+        {
+          outcome: 'unarchived',
+          sessionId: 'stopped',
+          activity: 'stopped',
+          delivery: 'refused',
+          code: 'request-not-delivered',
+          message:
+            'Assignment Session stopped was unarchived, but the request was not delivered: Assignment Session stopped was stopped by the Human',
+        },
+        {
+          outcome: 'unarchived',
+          sessionId: 'full',
+          activity: 'idle',
+          delivery: 'refused',
+          code: 'request-not-delivered',
+          requestCode: 'assignment-capacity',
+          activeCount: 4,
+          limit: 4,
+          retryable: true,
+          message:
+            'Assignment Session full was unarchived, but the request was not delivered: At capacity',
+        },
+      ]);
+      expect(values.slice(5)).toEqual([
+        expect.stringContaining('unarchive_assignment: mode must be next-turn or next-step'),
+        expect.stringContaining('unarchive_assignment: message must not be blank'),
+        expect.stringContaining('unarchive_assignment: mode requires message'),
+      ]);
+      expect(unarchived).toEqual(['quiet', 'resume', 'steer', 'stopped', 'full']);
+      expect(requests).toEqual([
+        {
+          sessionId: 'resume',
+          mode: 'next-turn',
+          text: 'The Human wants this after all; continue',
+        },
+        { sessionId: 'steer', mode: 'next-step', text: 'Wrap up' },
+        { sessionId: 'stopped', mode: 'next-turn', text: 'Continue' },
+        { sessionId: 'full', mode: 'next-turn', text: 'Continue' },
+      ]);
+    } finally {
+      await adapter.close();
+    }
+  });
 });

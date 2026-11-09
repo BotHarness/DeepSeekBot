@@ -4,7 +4,7 @@ import { stalePhoneRoutes, type StalePhoneRoute } from './route-targets.js';
 
 export interface PhoneRoute {
   url: string;
-  kind: 'lan' | 'tailscale' | 'connect' | 'loopback';
+  kind: 'lan' | 'tailscale' | 'connect' | 'loopback' | 'private';
   ready: boolean;
   issue?: 'serve-missing' | 'serve-other-target';
 }

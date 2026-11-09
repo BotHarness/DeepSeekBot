@@ -16,6 +16,8 @@ export const APPROVAL_ACTIONS: Readonly<Record<string, ApprovalChoice>> = {
 
 export type PushDecision = DecisionResult | 'failed';
 
+export const ANSWERED: ReadonlySet<PushDecision> = new Set(['accepted', 'decided']);
+
 export type ApprovalButton = 'always' | 'approve' | 'reject' | typeof REMOVE_DEVICE_ACTION;
 
 export async function registerApprovalCategories(

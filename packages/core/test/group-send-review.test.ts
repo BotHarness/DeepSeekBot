@@ -1158,6 +1158,44 @@ it('a Human stop invalidates a held Group draft so it can no longer be recovered
   });
 });
 
+it('keeps a terminal draft terminal after its review window passes', async () => {
+  await fixture(async ({ core, channelId, human, tool }) => {
+    await human('question', 'What is the release date?');
+    const read = await tool('channel_read', {});
+    await human('correction', 'Use October 21, not October 20.');
+    const held = await tool('bot_send_message', {
+      body: 'October 20',
+      observation_id: read.observationIds[channelId],
+      end_turn: true,
+    });
+    await core.runtime.stopTurn!('ada');
+    const owner = 'direct:ada';
+    const draft = core.runtime.groupSendReview!.inspect(owner, channelId, held.draftId!)!;
+    const database = attachOperationalModule(core.operationalDatabase, 'test');
+    const later = new GroupSendReview(database, () => new Date(draft.expires + 1));
+
+    expect(
+      database.transaction((db) =>
+        later.check(db, {
+          owner,
+          channelId,
+          sourceEventId: draft.sourceEventId,
+          message: draft.current,
+          draftId: draft.id,
+        }),
+      ),
+    ).toMatchObject({ status: 'expired', reason: 'draft-expired' });
+    expect(later.drop(owner, channelId, draft.id)).toMatchObject({ status: 'expired' });
+    expect(later.inspectRecords(owner, channelId, draft.id)).toMatchObject({
+      drafts: [{ state: 'dropped', requiresRecovery: false }],
+    });
+    expect(later.inspect(owner, channelId, draft.id)).toMatchObject({
+      state: 'dropped',
+      terminationReason: 'stopped',
+    });
+  });
+});
+
 it('channel actions cannot smuggle a message through extra delivery arguments', async () => {
   await fixture(async ({ core, channelId, human, tool }) => {
     await human('reaction-target', 'React only');

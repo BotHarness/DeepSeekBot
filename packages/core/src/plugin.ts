@@ -17,8 +17,8 @@ import { APPEARANCE_CONTROL_PATH, createAppearanceControl } from './appearance/c
 import { VoiceProviders } from './voice/providers.js';
 import { createVoiceMessages, type VoiceMessages } from './voice/messages.js';
 import { createVoiceCalls, type VoiceCallMedia, type VoiceCalls } from './voice/calls.js';
-import { withVoiceDefaults } from './voice/defaults.js';
-import { voiceCallRecordBody } from './channels/voice-call-record.js';
+import { callVisualMessage, createCallTextHarvest } from './voice/call-text.js';
+import { voiceCallFramesAt, voiceCallRecordBody } from './channels/voice-call-record.js';
 import { VOICE_CALL_PATH } from './voice/call-contract.js';
 import { createVoiceCallHttp } from './voice/call-http.js';
 import { CloudConnections } from './cloud/connections.js';
@@ -174,6 +174,7 @@ import { loadedReleaseComponents, stampReleaseComponent } from './release/compon
 import { createGitService } from './memory/managed-git.js';
 import { createProcessRestarter, type ReleaseRestarter } from './release/restart.js';
 import { createPluginUpdateService } from './release/plugins.js';
+import { createUpdateRuns } from './release/update-runs.js';
 import {
   createTelemetryService,
   installedDshVersion,
@@ -325,8 +326,7 @@ import {
 } from './runtime/assignment-tail.js';
 import type { DshSessionEvent, DshSessionStore } from './sessions/source.js';
 import { turnProgress } from './bots/tool-trace.js';
-import type { ChannelCallVisual, SessionFailureProgress } from './channels/channel.js';
-import type { ChannelAttachmentRef } from './attachments/ref.js';
+import type { SessionFailureProgress } from './channels/channel.js';
 import { DEFAULT_BOT_HOP_LIMIT, isBotHopLimit } from './channels/channel.js';
 import {
   createBotStateTracker,
@@ -1118,7 +1118,7 @@ export function createCore(
   } = {};
   const voiceMessages = createVoiceMessages({
     providers: voiceProviders,
-    bot: (slug) => withVoiceDefaults(registry.get(slug), () => voiceProviders.defaults()),
+    bot: (slug) => voiceProviders.effective(registry.get(slug)),
     channels,
     attachments: () => attachments,
     speak: async (input) => voiceSpeech.speak?.(input),
@@ -2787,6 +2787,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       };
     }, 'botharness: release installer');
   });
+  const updateRuns = createUpdateRuns({ canceller: () => releaseInstaller.current });
+  {
+    const events = ctx as unknown as {
+      on(event: string, listener: (value: unknown) => void): () => void;
+    };
+    events.on('plugin-manager/install-log', (chunk) => updateRuns.log(chunk));
+    events.on('plugin-manager/install-state', (progress) => updateRuns.state(progress));
+  }
   const releaseRestarter: { current: ReleaseRestarter | undefined } = {
     current: undefined,
   };
@@ -2836,11 +2844,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     ledgers: () => runningRelease.ledgers,
     installer: () => releaseInstaller.current,
     restarter: () => releaseRestarter.current,
+    runs: updateRuns,
     warn: (message) => ctx.logger.warn(message),
   });
   const pluginUpdates = createPluginUpdateService({
     installer: () => releaseInstaller.current,
     restarter: () => releaseRestarter.current,
+    runs: updateRuns,
   });
   const tobModelOperations = createTobModelOperations({
     registry: core.registry,
@@ -2881,6 +2891,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     log: (event) => ctx.logger.info(JSON.stringify(event)),
   });
   const bridgeMethods = createBridgeMethods({
+    callText: createCallTextHarvest({ calls: () => voiceCalls, attachments: core.attachments }),
     voiceProviders: core.voiceProviders,
     voiceLog: (phase, fields) => diagnosticEvents.record('voice', phase, fields),
     prompts: core.prompts,
@@ -3136,6 +3147,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     }),
     release: releaseService,
     plugins: pluginUpdates,
+    updates: updateRuns,
     telemetry,
     activeDay,
     git,
@@ -3237,7 +3249,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     isProtectedBot: (slug) => core.tob.isTob(slug),
   });
   voiceCalls = createVoiceCalls({
-    bot: (slug) => withVoiceDefaults(core.registry.get(slug), () => core.voiceProviders.defaults()),
+    bot: (slug) => core.voiceProviders.effective(core.registry.get(slug)),
     speechDbfs: () => core.voiceProviders.speechThreshold().dbfs,
     async seesImages(slug) {
       const route =
@@ -3249,38 +3261,18 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     providers: core.voiceProviders,
     media: () =>
       (ctx.get('botharnessComputer') as { callMedia?: VoiceCallMedia } | undefined)?.callMedia,
-    async send({ channelId, messageId, body, callId, visual }) {
-      let attachments: ChannelAttachmentRef[] | undefined;
-      let meta: ChannelCallVisual | undefined;
-      const records =
-        visual?.records === undefined || visual.records.length === 0
-          ? {}
-          : { records: [...visual.records] };
-      if (visual !== undefined && 'image' in visual) {
-        const image = visual.image.jpeg;
-        attachments = [
-          await core.attachments.upload({
-            data: (async function* () {
-              yield image;
-            })(),
-            name: `call-${visual.source}-${messageId.slice(-12)}.jpg`,
-          }),
-        ];
-        meta = {
-          source: visual.source,
-          frames: visual.frames,
-          layout: visual.image.layout,
-          ...(visual.unseen === true ? { unseen: true as const } : {}),
-          ...records,
-        };
-      } else if (visual !== undefined)
-        meta = { source: visual.source, sameAs: visual.sameAs, ...records };
+    async send({ channelId, messageId, body, callId, speech, visual }) {
+      const { attachments, meta } = await callVisualMessage(core.attachments, messageId, visual);
       const result = await bridgeMethods.channelSend({
         channelId,
         messageId,
         body,
         ...(attachments === undefined ? {} : { attachments }),
-        voiceCall: meta === undefined ? { callId } : { callId, visual: meta },
+        voiceCall: {
+          callId,
+          ...(speech === undefined ? {} : { speechFromMs: speech.fromMs, speechToMs: speech.toMs }),
+          ...(meta === undefined ? {} : { visual: meta }),
+        },
       });
       if (!result.ok)
         throw Object.assign(new Error(result.error.message), {
@@ -3318,7 +3310,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       });
       const appended = await core.channels.appendMessage(channelId, {
         id: `voice-call-frames-${callId}-${toMs}`,
-        at: new Date().toISOString(),
+        at: voiceCallFramesAt(startedAt, toMs, Date.now()),
         author: { kind: 'system' },
         body: voiceCallRecordBody(record),
         attachments: [attachment],

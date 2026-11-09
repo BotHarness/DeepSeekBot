@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const native = vi.hoisted(() => ({
   segments: ['(tabs)', '(home)'],
   reduced: false,
+  focused: true,
   selected: (_page: number) => {},
   scrollEnabled: false,
   pageLimit: 0,
@@ -14,7 +15,10 @@ const native = vi.hoisted(() => ({
   setPageWithoutAnimation: vi.fn(),
 }));
 
-vi.mock('expo-router', () => ({ useSegments: () => native.segments, useIsFocused: () => true }));
+vi.mock('expo-router', () => ({
+  useSegments: () => native.segments,
+  useIsFocused: () => native.focused,
+}));
 vi.mock('../src/host/host-session', () => ({ useHostSession: () => ({ hosts: [] }) }));
 vi.mock('../src/ui/shell/recent-chats', () => ({
   useRecentChats: () => [],
@@ -49,10 +53,14 @@ vi.mock('react-native-pager-view', async () => {
         },
         ref,
       ) => {
-        useImperativeHandle(ref, () => ({
-          setPage: native.setPage,
-          setPageWithoutAnimation: native.setPageWithoutAnimation,
-        }));
+        useImperativeHandle(
+          ref,
+          () => ({
+            setPage: native.setPage,
+            setPageWithoutAnimation: native.setPageWithoutAnimation,
+          }),
+          [],
+        );
         native.scrollEnabled = props.scrollEnabled;
         native.pageLimit = props.pageLimit;
         native.selected = (position) => props.onPageSelected({ nativeEvent: { position } });
@@ -124,6 +132,7 @@ describe('retained iOS workspace pages', () => {
   beforeEach(() => {
     native.segments = ['(tabs)', '(home)'];
     native.reduced = false;
+    native.focused = true;
     native.hasChat = false;
     native.setPage.mockClear();
     native.setPageWithoutAnimation.mockClear();
@@ -166,6 +175,26 @@ describe('retained iOS workspace pages', () => {
     expect(list.scrollTop).toBe(375);
     expect(list.closest('[aria-hidden="true"]')).toBeNull();
     expect(native.setPage).not.toHaveBeenCalled();
+  });
+
+  it('restores the retained shell after a newer notification shell is dismissed', async () => {
+    await render();
+    const input = element.querySelector('input');
+    native.focused = false;
+    await render();
+    expect(openWorkspacePage()).toBe(false);
+    const notificationElement = document.createElement('div');
+    const notificationRoot = createRoot(notificationElement);
+    native.focused = true;
+    await act(async () => notificationRoot.render(<WorkspacePager>Notification</WorkspacePager>));
+    expect(openWorkspacePage()).toBe(true);
+    await act(async () => notificationRoot.unmount());
+    await render();
+    native.setPage.mockClear();
+    expect(element.querySelector('input')).toBe(input);
+    expect(openWorkspacePage()).toBe(true);
+    expect(closeWorkspacePage()).toBe(true);
+    expect(native.setPage.mock.calls).toEqual([[0], [1]]);
   });
 
   it('uses native page commands for button navigation and follows live Reduce Motion', async () => {

@@ -27,10 +27,10 @@
     },
     "answer-me-with-html": {
       "source": "QingYunA/answer-me-with-html",
-      "ref": "533c39fd47d814a6bee3d9c1df388345f4e4c858",
+      "ref": "797c742064569ce79765b6a63506ad959c096f7a",
       "sourceType": "github",
       "skillPath": "skills/answer-me-with-html/SKILL.md",
-      "computedHash": "3df342e65dfe38707b533c3c5a8168c63e23ca11395d0bb2ea4050c381486288"
+      "computedHash": "350d7a74177a2b895177d4ec2588f0f799dccf84cceedfc5ce16229df5855f11"
     },
     "architect": {
       "source": "cursor/plugins",
@@ -683,6 +683,13 @@
       "sourceType": "github",
       "skillPath": "harness/pstack/claude-code/skills/swarm/SKILL.md",
       "computedHash": "86aaafc0cad22e26c16a88de71ba278aaa23fae10dcd30e3248c524bfe1efeba"
+    },
+    "swiftui-expert-skill": {
+      "source": "AvdLee/SwiftUI-Agent-Skill",
+      "ref": "62bd760f005093d1e2e4de5db156e456a5f96400",
+      "sourceType": "github",
+      "skillPath": "skills/swiftui-expert-skill/SKILL.md",
+      "computedHash": "b8f57fdb06ccc7c2a70c3836dc96b38408ca2d84c977a0b6804dc68f752289db"
     },
     "tdd": {
       "source": "mattpocock/skills",

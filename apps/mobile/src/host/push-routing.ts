@@ -1,4 +1,5 @@
 import { useNavigationContainerRef, useRouter } from 'expo-router';
+import type { NavigationState, PartialState } from 'expo-router/react-navigation';
 import type { RefCallback } from 'react';
 import { Alert, type ViewInstance } from 'react-native';
 
@@ -12,10 +13,10 @@ import { nativeCarrier } from './native-carrier';
 import { onNotificationTap } from './native-notifications';
 import { alertBanners } from './alert-banners';
 import { parsePushData, pushHref, type PushTarget } from './push';
-import { decideFromPush, removeFromPush } from './push-actions';
+import { ANSWERED, decideFromPush, removeFromPush } from './push-actions';
+import { decideOverRoute } from './native-push-decide';
 import { removeDevice } from './pairing';
 import { t } from '../ui/strings';
-import { decideApproval } from './requests';
 import { recordFeature } from '../telemetry/features';
 
 class RoutingFailure extends Error {}
@@ -29,6 +30,31 @@ const channelKinds = new Set([
   'user-question',
   'workspace-grant-request',
 ]);
+
+type NavigationRoute = (NavigationState | PartialState<NavigationState>)['routes'][number];
+
+function sameParams(before: NavigationRoute['params'], after: NavigationRoute['params']): boolean {
+  const previous = before ?? {};
+  const next = after ?? {};
+  return (
+    Object.keys(previous).length === Object.keys(next).length &&
+    Object.entries(previous).every(([key, value]) => Object.is(value, Reflect.get(next, key)))
+  );
+}
+
+function sameNavigationSelection(
+  before: NavigationState | PartialState<NavigationState>,
+  after: NavigationState | PartialState<NavigationState>,
+): boolean {
+  const previous = before.routes[before.index ?? 0];
+  const next = after.routes[after.index ?? 0];
+  if (!previous) return true;
+  if (!next || previous.name !== next.name) return false;
+  if (previous.key !== undefined && previous.key !== next.key) return false;
+  if (previous.state === undefined)
+    return next.state !== undefined || sameParams(previous.params, next.params);
+  return next.state !== undefined && sameNavigationSelection(previous.state, next.state);
+}
 
 function readyDestination(
   client: HostClient,
@@ -81,12 +107,21 @@ export function usePushRouting(
       version: number;
       selection: number;
       workspaceCurrent: () => boolean;
-      routeState: ReturnType<typeof navigation.getRootState> | undefined;
+      navigationVersion: number;
     }> = [];
     let version = 0;
     let running = false;
     let disposed = false;
     let waiting: AbortController | undefined;
+    let routeState = navigation.isReady() ? navigation.getRootState() : undefined;
+    let navigationVersion = 0;
+    const refreshNavigation = () => {
+      if (!navigation.isReady()) return;
+      const next = navigation.getRootState();
+      if (routeState && !sameNavigationSelection(routeState, next)) navigationVersion++;
+      routeState = next;
+    };
+    const offNavigation = navigation.addListener('state', refreshNavigation);
     const current = (value: number) => !disposed && value === version;
     const drain = async (): Promise<void> => {
       if (running || disposed || hostSession.getState().saved === undefined) return;
@@ -98,10 +133,8 @@ export function usePushRouting(
           const { target, action } = next;
           const isCurrent = () => {
             if (!current(next.version) || !next.workspaceCurrent()) return false;
-            if (!navigation.isReady()) return true;
-            const state = navigation.getRootState();
-            if (!next.routeState) next.routeState = state;
-            return state === next.routeState;
+            refreshNavigation();
+            return next.navigationVersion === navigationVersion;
           };
           try {
             const removed = await removeFromPush(
@@ -115,24 +148,15 @@ export function usePushRouting(
                 Alert.alert(removed === 'removed' ? t.deviceRemoved : t.deviceRemoveFailed);
               continue;
             }
-            if (action !== undefined)
-              await decideFromPush(
+            if (action !== undefined) {
+              const decision = await decideFromPush(
                 hostSession.getState().hosts,
                 target,
                 action,
-                async (host, route, ref, outcome) => {
-                  const client = createHostClient({
-                    ...host,
-                    routes: [route],
-                    carrier: nativeCarrier(),
-                  });
-                  try {
-                    return await decideApproval(client, ref, outcome, 'notification');
-                  } finally {
-                    client.stop();
-                  }
-                },
+                decideOverRoute,
               );
+              if (decision !== undefined && ANSWERED.has(decision)) continue;
+            }
             if (!isCurrent()) continue;
             if (next.selection !== hostSession.getSelectionRevision()) continue;
             if (!(await hostSession.switchTo(target.hostId, () => isCurrent())))
@@ -190,13 +214,14 @@ export function usePushRouting(
       if (action === undefined) recordFeature('notification:push_open', {});
       version++;
       waiting?.abort();
+      refreshNavigation();
       queue.push({
         target,
         action,
         version,
         selection: hostSession.getSelectionRevision(),
         workspaceCurrent: captureWorkspaceSelection(),
-        routeState: navigation.isReady() ? navigation.getRootState() : undefined,
+        navigationVersion,
       });
       onPending(true);
       void drain();
@@ -210,6 +235,7 @@ export function usePushRouting(
       offTap();
       offBanner();
       offSession();
+      offNavigation();
     };
   }, [router, navigation, onPending, captureWorkspaceSelection]);
 }

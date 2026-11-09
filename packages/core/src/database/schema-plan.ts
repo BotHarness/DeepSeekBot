@@ -3095,6 +3095,27 @@ const CALL_VISUAL_UNSAVED_MIGRATION: SchemaMigration = {
   },
 };
 
+const CALL_VISUAL_TIMELINE_MIGRATION: SchemaMigration = {
+  generation: 135,
+  module: 'messaging',
+  description:
+    'Drop the removed frame-record list from call message visuals, and grid metadata without a picture range',
+  migrate(database) {
+    database.exec(`
+      UPDATE source_events
+         SET payload_json = json_remove(payload_json, '$.voiceCall.visual.records')
+       WHERE json_valid(payload_json)
+         AND json_type(payload_json, '$.voiceCall.visual.records') IS NOT NULL;
+      UPDATE source_events
+         SET payload_json = json_remove(payload_json, '$.voiceCall.visual')
+       WHERE json_valid(payload_json)
+         AND json_type(payload_json, '$.voiceCall.visual.frames') IS NOT NULL
+         AND (json_type(payload_json, '$.voiceCall.visual.fromMs') IS NULL
+           OR json_type(payload_json, '$.voiceCall.visual.toMs') IS NULL);
+    `);
+  },
+};
+
 const GENUI_PRIVATE_VIEW_MIGRATION: SchemaMigration = {
   generation: 132,
   module: 'messaging',
@@ -3282,4 +3303,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   GENUI_PRIVATE_VIEW_MIGRATION,
   CALL_GRID_ROWS_MIGRATION,
   CALL_VISUAL_UNSAVED_MIGRATION,
+  CALL_VISUAL_TIMELINE_MIGRATION,
 ]);

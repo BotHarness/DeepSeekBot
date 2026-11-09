@@ -84,6 +84,7 @@ import {
   type RequestRef,
 } from '../../host/requests';
 import { useDictation } from '../../host/speech';
+import { showDictationProblem } from './dictation-problem';
 import { botColor } from '../bot-color';
 import { ApprovalCard } from './approval-card';
 import { GrantRequestCard } from './grant-request-card';
@@ -156,6 +157,8 @@ import { MessageIdentities } from './message-identities';
 import { copyMessage, shareText } from './message-menu';
 import type { Rect } from './menu-placement';
 import { chatRows, messageGroups, type ChatRow } from './message-groups';
+import { SpeakerAnchor } from './speaker-anchor';
+import { SPEAKER_VIEWPORT } from './speaker-span';
 import { createSpeakerRegistry, SpeakerStageContext } from './speaker-row';
 import { QuestionCard } from './question-card';
 import { TimeSeparator } from './time-separator';
@@ -514,13 +517,16 @@ function ChatConversation({
   }>();
   const [files, setFiles] = useState<PickedFile[]>([]);
   const [attachError, setAttachError] = useState(false);
-  const dictation = useDictation((text, nextCaret) => {
-    setDraft(text);
-    if (nextCaret !== undefined) {
-      setCaret(nextCaret);
-      setSelection({ start: nextCaret, end: nextCaret });
-    }
-  });
+  const dictation = useDictation(
+    (text, nextCaret) => {
+      setDraft(text);
+      if (nextCaret !== undefined) {
+        setCaret(nextCaret);
+        setSelection({ start: nextCaret, end: nextCaret });
+      }
+    },
+    { client, slug, onProblem: showDictationProblem },
+  );
   const [shareError, setShareError] = useState(false);
   const [viewing, setViewing] = useState<MessageAttachment>();
   const [actionsFor, setActionsFor] = useState<MessageMenuTarget>();
@@ -531,7 +537,10 @@ function ChatConversation({
     ids: readonly string[];
   }>();
   const selected = picked?.scope === selectionScope ? picked.ids : undefined;
-  const [replying, setReplying] = useState<{ scope: string; message: ConversationMessage }>();
+  const [replying, setReplying] = useState<{
+    scope: string;
+    message: ConversationMessage;
+  }>();
   const replyTarget = replying?.scope === selectionScope ? replying.message : undefined;
   const [imageSelection, setImageSelection] = useState<{
     scope: string;
@@ -587,7 +596,10 @@ function ChatConversation({
             isViewable && item.kind === 'message' && item.message.id === attempt.message,
         )
       ) {
-        setAnchoredFocus({ message: attempt.message, request: attempt.request });
+        setAnchoredFocus({
+          message: attempt.message,
+          request: attempt.request,
+        });
         focusAttempt.current = undefined;
       }
       focusNeedsLayout.current = false;
@@ -646,17 +658,19 @@ function ChatConversation({
   const scroll = useScrollOffset(list);
   const viewport = useAnimatedRef<ViewInstance>();
   const content = useAnimatedRef<ViewInstance>();
+  const frame = useAnimatedRef<ViewInstance>();
   const attachList = useCallback(
     (node: FlatList<Row> | null) => {
       list(node);
       const scroll = node?.getNativeScrollRef?.();
+      frame(scroll === null || scroll === undefined ? null : (scroll as ViewInstance));
       content(
         scroll !== null && scroll !== undefined && 'getInnerViewRef' in scroll
           ? scroll.getInnerViewRef()
           : null,
       );
     },
-    [list, content],
+    [list, content, frame],
   );
   const latest = useChannelViewport(
     list,
@@ -681,9 +695,12 @@ function ChatConversation({
       scroll,
       viewport,
       viewportLayout,
+      frame,
+      content,
+      inverted: android,
       floor: composerHeight + edgeFade.bottom,
     }),
-    [speakers, scroll, viewport, viewportLayout, composerHeight],
+    [speakers, scroll, viewport, viewportLayout, frame, content, android, composerHeight],
   );
   const composerInput = useRef<ComposerInput>(null);
   const [typing, setTyping] = useState(false);
@@ -1372,10 +1389,22 @@ function ChatConversation({
       }
     : (paging?.open ?? pushProfile);
   const swipeProfile = dm
-    ? () => router.push({ ...profileHref, params: { ...profileHref.params, entry: swipeEntry } })
+    ? () =>
+        router.push({
+          ...profileHref,
+          params: { ...profileHref.params, entry: swipeEntry },
+        })
     : botDm
-      ? () => router.push({ ...pairHref, params: { ...pairHref.params, entry: swipeEntry } })
-      : () => router.push({ ...groupHref, params: { ...groupHref.params, entry: swipeEntry } });
+      ? () =>
+          router.push({
+            ...pairHref,
+            params: { ...pairHref.params, entry: swipeEntry },
+          })
+      : () =>
+          router.push({
+            ...groupHref,
+            params: { ...groupHref.params, entry: swipeEntry },
+          });
   const headerStatus = useHeaderStatus(dm ? bot : undefined, channel, members);
   const title = dm ? (
     <ChatTitle
@@ -1419,7 +1448,12 @@ function ChatConversation({
                 onPress: placeCall,
               },
             ]),
-        { icon: 'more', label: t.openProfile, testID: 'chat-profile-button', onPress: openProfile },
+        {
+          icon: 'more',
+          label: t.openProfile,
+          testID: 'chat-profile-button',
+          onPress: openProfile,
+        },
       ]}
     />
   ) : null;
@@ -1501,22 +1535,14 @@ function ChatConversation({
                   ? t.shareFailed
                   : reactError
                     ? t.reactFailed
-                    : dictation.state.status === 'denied'
-                      ? t.dictationDenied
-                      : dictation.state.status === 'unavailable'
-                        ? t.dictationUnavailable
-                        : dictation.state.status === 'failed'
-                          ? t.dictationFailed
-                          : focus !== undefined &&
-                              !latestWindowOnly &&
-                              snapshot.status === 'live' &&
-                              !snapshot.hasOlder &&
-                              !snapshot.loadingOlder &&
-                              !rows.some(
-                                (row) => row.kind === 'message' && row.message.id === focus,
-                              )
-                            ? t.messageFocusUnavailable
-                            : undefined;
+                    : focus !== undefined &&
+                        !latestWindowOnly &&
+                        snapshot.status === 'live' &&
+                        !snapshot.hasOlder &&
+                        !snapshot.loadingOlder &&
+                        !rows.some((row) => row.kind === 'message' && row.message.id === focus)
+                      ? t.messageFocusUnavailable
+                      : undefined;
 
   const noticeView =
     notice === undefined ? null : (
@@ -1605,7 +1631,10 @@ function ChatConversation({
                                 type: 'button' as const,
                                 label: t.openProfile,
                                 identifier: 'chat-profile-button',
-                                icon: { type: 'sfSymbol' as const, name: 'ellipsis' as const },
+                                icon: {
+                                  type: 'sfSymbol' as const,
+                                  name: 'ellipsis' as const,
+                                },
                                 sharesBackground: placeCall !== undefined,
                                 onPress: openProfile,
                               },
@@ -1616,7 +1645,10 @@ function ChatConversation({
                                       type: 'button' as const,
                                       label: t.call.button,
                                       identifier: 'chat-call-button',
-                                      icon: { type: 'sfSymbol' as const, name: 'phone' as const },
+                                      icon: {
+                                        type: 'sfSymbol' as const,
+                                        name: 'phone' as const,
+                                      },
                                       sharesBackground: true,
                                       onPress: placeCall,
                                     },
@@ -1801,7 +1833,10 @@ function ChatConversation({
                         }
                         onDictate={() => {
                           setAttachError(false);
-                          dictation.start({ text: draft, ...(typing ? { caret } : {}) });
+                          dictation.start({
+                            text: draft,
+                            ...(typing ? { caret } : {}),
+                          });
                         }}
                         onStopDictation={dictation.stop}
                         onCancelDictation={dictation.cancel}
@@ -1836,7 +1871,11 @@ function ChatConversation({
                           <Animated.FlatList
                             inverted={android}
                             {...(android
-                              ? { initialNumToRender: 6, maxToRenderPerBatch: 6, windowSize: 5 }
+                              ? {
+                                  initialNumToRender: 6,
+                                  maxToRenderPerBatch: 6,
+                                  windowSize: 5,
+                                }
                               : {})}
                             ref={attachList}
                             renderScrollComponent={latest.renderScrollComponent}
@@ -1913,7 +1952,10 @@ function ChatConversation({
                               focusCancelled.current = true;
                               focusAttempt.current = undefined;
                               if (android)
-                                setAnchoredFocus({ message: focus, request: focusRequest });
+                                setAnchoredFocus({
+                                  message: focus,
+                                  request: focusRequest,
+                                });
                               pull.onScrollBeginDrag(event);
                               latest.listProps.onScrollBeginDrag();
                             }}
@@ -1936,7 +1978,10 @@ function ChatConversation({
                               jump();
                             }}
                             scrollEventThrottle={
-                              Platform.OS === 'android' && !latest.ready ? 16 : 32
+                              (!dm && SpeakerAnchor === undefined) ||
+                              (Platform.OS === 'android' && !latest.ready)
+                                ? 16
+                                : 32
                             }
                             keyboardDismissMode={ios ? 'interactive' : 'on-drag'}
                             keyboardShouldPersistTaps="handled"
@@ -1963,7 +2008,10 @@ function ChatConversation({
                                   <Text
                                     variant="meta"
                                     tone="muted"
-                                    style={{ textAlign: 'center', padding: space.x5 }}
+                                    style={{
+                                      textAlign: 'center',
+                                      padding: space.x5,
+                                    }}
                                   >
                                     {dm ? t.beginning : t.beginningChannel}
                                   </Text>
@@ -1974,10 +2022,17 @@ function ChatConversation({
                       </MarkdownViewportContext.Provider>
                       <Animated.View
                         ref={viewport}
+                        nativeID={SPEAKER_VIEWPORT}
                         collapsable={false}
                         pointerEvents="box-none"
                         style={[
-                          { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+                          {
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                          },
                           latest.overlayStyle,
                         ]}
                         onLayout={() => {
@@ -2143,13 +2198,21 @@ function ChatConversation({
               backID="chat-page-back"
               action={
                 canOpenProfile
-                  ? { label: t.openProfile, testID: 'chat-profile-button', onPress: openProfile }
+                  ? {
+                      label: t.openProfile,
+                      testID: 'chat-profile-button',
+                      onPress: openProfile,
+                    }
                   : undefined
               }
               call={
                 placeCall === undefined
                   ? undefined
-                  : { label: t.call.button, testID: 'chat-call-button', onPress: placeCall }
+                  : {
+                      label: t.call.button,
+                      testID: 'chat-call-button',
+                      onPress: placeCall,
+                    }
               }
             />
           )}

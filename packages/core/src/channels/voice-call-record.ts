@@ -1,3 +1,4 @@
+import { formatCallDuration } from '../voice/call-view.js';
 import { isCallGridLayout, type CallGridLayout } from '../voice/keyframes.js';
 
 export type ChannelVoiceCallEndReason =
@@ -115,22 +116,17 @@ export function isChannelVoiceCallRecord(value: unknown): value is ChannelVoiceC
   );
 }
 
-export function voiceCallDuration(ms: number): string {
-  const total = Math.max(0, Math.round(ms / 1000));
-  const hours = Math.floor(total / 3600);
-  const minutes = Math.floor((total % 3600) / 60);
-  const seconds = String(total % 60).padStart(2, '0');
-  return hours > 0
-    ? `${hours}:${String(minutes).padStart(2, '0')}:${seconds}`
-    : `${minutes}:${seconds}`;
+export function voiceCallFramesAt(startedAt: string, toMs: number, now: number): string {
+  const at = Date.parse(startedAt) + toMs;
+  return new Date(Number.isFinite(at) ? Math.min(now, at) : now).toISOString();
 }
 
 export function voiceCallRecordBody(record: ChannelVoiceCallRecord): string {
   if (record.state === 'frames')
-    return `${record.source === 'camera' ? 'Camera' : 'Screen'} record of call ${record.callId} from ${voiceCallDuration(record.fromMs)} to ${voiceCallDuration(record.toMs)} while the Human was silent: ${record.frames === 1 ? 'one keyframe' : `a ${record.layout} grid of ${record.frames} keyframes`}, oldest first.`;
+    return `${record.source === 'camera' ? 'Camera' : 'Screen'} record of call ${record.callId} from ${formatCallDuration(record.fromMs)} to ${formatCallDuration(record.toMs)}: ${record.frames === 1 ? 'one keyframe' : `a ${record.layout} grid of ${record.frames} keyframes`}, oldest first.`;
   if ('atMs' in record) {
     const what = `${record.source === 'camera' ? 'The camera' : 'Screen sharing'} in call ${record.callId}`;
-    const at = voiceCallDuration(record.atMs);
+    const at = formatCallDuration(record.atMs);
     if (record.state === 'share-resumed')
       return `${what} resumed at ${at} when the Human's app came back.`;
     return record.state === 'share-paused'
@@ -139,5 +135,5 @@ export function voiceCallRecordBody(record: ChannelVoiceCallRecord): string {
   }
   return record.state === 'started'
     ? `Voice call ${record.callId} started at ${record.startedAt}.`
-    : `Voice call ${record.callId} ended at ${record.endedAt} after ${voiceCallDuration(record.durationMs)} (${record.reason}). Messages from ${record.startedAt} to ${record.endedAt} in this DM are from that call.`;
+    : `Voice call ${record.callId} ended at ${record.endedAt} after ${formatCallDuration(record.durationMs)} (${record.reason}). Messages from ${record.startedAt} to ${record.endedAt} in this DM are from that call.`;
 }

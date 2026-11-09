@@ -7,6 +7,7 @@ import { createTempRoot } from './helpers.js';
 
 const AT = '2026-11-04T00:00:00.000Z';
 const CALL = 'call-0123456789abcdef';
+const RANGE = { fromMs: 1_000, toMs: 9_000 };
 const event =
   'INSERT INTO source_events (source_event_id, source_kind, bot_slug, channel_id, message_id, body, created_at, payload_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)';
 
@@ -40,13 +41,17 @@ it('rewrites square call grid layouts as balanced rows at generation 133', () =>
     ),
   });
   const rows: [string, string, object][] = [
-    ['s-5', '这是什么', sentence('s-5', { source: 'camera', frames: 5, layout: '3x3' })],
+    ['s-5', '这是什么', sentence('s-5', { source: 'camera', frames: 5, layout: '3x3', ...RANGE })],
     [
       's-4',
       '这是什么',
-      sentence('s-4', { source: 'camera', frames: 4, layout: '2x2', unseen: true }),
+      sentence('s-4', { source: 'camera', frames: 4, layout: '2x2', unseen: true, ...RANGE }),
     ],
-    ['s-16', '这是什么', sentence('s-16', { source: 'screen', frames: 16, layout: '4x4' })],
+    [
+      's-16',
+      '这是什么',
+      sentence('s-16', { source: 'screen', frames: 16, layout: '4x4', ...RANGE }),
+    ],
     ['s-same', '这是什么', sentence('s-same', { source: 'screen', sameAs: 's-5' })],
     [
       'r-8',
@@ -86,12 +91,18 @@ it('rewrites square call grid layouts as balanced rows at generation 133', () =>
   const byId = new Map(
     read.map((row) => [row.message_id, { ...JSON.parse(row.payload_json), body: row.body }]),
   );
-  expect(byId.get('s-5').voiceCall.visual).toEqual({ source: 'camera', frames: 5, layout: '3+2' });
+  expect(byId.get('s-5').voiceCall.visual).toEqual({
+    source: 'camera',
+    frames: 5,
+    layout: '3+2',
+    ...RANGE,
+  });
   expect(byId.get('s-4').voiceCall.visual).toEqual({
     source: 'camera',
     frames: 4,
     layout: '2+2',
     unseen: true,
+    ...RANGE,
   });
   expect(byId.get('s-16').voiceCall).toEqual({ callId: CALL });
   expect(byId.get('s-same').voiceCall.visual).toEqual({ source: 'screen', sameAs: 's-5' });

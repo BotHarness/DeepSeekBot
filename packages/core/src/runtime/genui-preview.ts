@@ -45,6 +45,20 @@ export class GenuiPreviewError extends Error {
 
 let previewActive = false;
 
+async function initialPage(client: CdpClient, signal: AbortSignal): Promise<string> {
+  for (;;) {
+    signal.throwIfAborted();
+    const targets = (await client.send('Target.getTargets'))['targetInfos'];
+    const page = Array.isArray(targets)
+      ? (targets as { targetId?: unknown; type?: unknown }[]).find(
+          (target) => target.type === 'page' && typeof target.targetId === 'string',
+        )
+      : undefined;
+    if (page !== undefined) return page.targetId as string;
+    await new Promise<void>((resolve) => setTimeout(resolve, 50));
+  }
+}
+
 export async function previewGenuiDocument(
   value: unknown,
   options: {
@@ -108,9 +122,9 @@ export async function previewGenuiDocument(
       signal.throwIfAborted();
       if (client === undefined) throw new Error('Preview connection unavailable.');
       record('ready');
-      const target = await client.send('Target.createTarget', { url: 'about:blank' });
+      const targetId = await initialPage(client, signal);
       const attached = await client.send('Target.attachToTarget', {
-        targetId: target['targetId'],
+        targetId,
         flatten: true,
       });
       const sessionId = attached['sessionId'] as string;
@@ -172,6 +186,15 @@ export async function previewGenuiDocument(
         throw new GenuiPreviewError('genui-preview-failed', 'The document did not become ready.');
       const height = Math.min(2000, Math.max(80, observed.height));
       stage = 'capture';
+      await client.send(
+        'Runtime.evaluate',
+        {
+          expression:
+            'new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))',
+          awaitPromise: true,
+        },
+        sessionId,
+      );
       const capture = await client.send(
         'Page.captureScreenshot',
         {
@@ -250,7 +273,13 @@ export async function previewGenuiDocument(
       }
       await browser?.stop();
       cleanupStage = 'profile';
-      if (directory !== undefined) await rm(directory, { recursive: true, force: true });
+      if (directory !== undefined)
+        await rm(directory, {
+          recursive: true,
+          force: true,
+          maxRetries: 10,
+          retryDelay: 100,
+        });
       record('stopped');
     } catch (error) {
       const suffix =

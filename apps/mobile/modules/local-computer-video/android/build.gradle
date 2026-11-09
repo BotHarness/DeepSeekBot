@@ -16,6 +16,7 @@ android {
 def cameraxVersion = '1.6.0'
 
 dependencies {
+  implementation 'com.facebook.react:react-android'
   // M144, source 30d5e63ae91da483e06577b5c35ee91cc5e5c3db. No vendor servers.
   implementation 'io.github.webrtc-sdk:android:144.7559.15'
   // Same CameraX line as expo-camera, so Gradle resolves one capture stack.

@@ -148,13 +148,8 @@ import {
   runVoiceCommand,
   type VoiceValues,
 } from './cli-voice.js';
-import {
-  CALL_COMMANDS,
-  CALL_OPTIONS,
-  CALL_PATH,
-  isCallCommand,
-  runCallCommand,
-} from './cli-call.js';
+import { CALL_COMMANDS, CALL_OPTIONS, isCallCommand, runCallCommand } from './cli-call.js';
+import { VOICE_CALL_PATH, type VoiceCallResult } from '../voice/call-contract.js';
 import {
   isStorageCommand,
   runStorageCommand,
@@ -1091,14 +1086,24 @@ export async function runLiveCli(
           ? 600_000
           : timeoutMs(values.timeout),
       );
-      const { http } = await connectLiveHost(values, io, signal);
-      return async (body) => {
-        const { bytes } = await http(CALL_PATH, body);
-        try {
-          return record(JSON.parse(new TextDecoder().decode(bytes)));
-        } catch {
-          throw new CliLiveError('host-protocol-error', 'The Host returned no JSON for the call.');
-        }
+      const { http, rpc } = await connectLiveHost(values, io, signal);
+      return {
+        async post(body) {
+          const { bytes } = await http(VOICE_CALL_PATH, body);
+          let parsed: Record<string, unknown>;
+          try {
+            parsed = record(JSON.parse(new TextDecoder().decode(bytes)));
+          } catch {
+            throw new CliLiveError(
+              'host-protocol-error',
+              'The Host returned no JSON for the call.',
+            );
+          }
+          if (typeof parsed['ok'] !== 'boolean')
+            throw new CliLiveError('host-protocol-error', 'The Host returned no call result.');
+          return parsed as unknown as VoiceCallResult;
+        },
+        text: async (input) => record(await rpc('channelSend', input)),
       };
     });
   if (isCallTimelineCommand(command))

@@ -4,6 +4,7 @@ import {
   type CallVisualSource,
 } from '../../../core/src/voice/keyframes.js';
 import { VOICE_CALL_LIMITS } from '../../../core/src/voice/call-contract.js';
+import { CallCaptureFailure } from '../../../core/src/voice/call-session.js';
 
 export const CALL_FRAME_LONG_EDGE = 1280;
 
@@ -13,9 +14,9 @@ export type CallCaptureErrorCode =
   | 'screen-cancelled'
   | 'screen-missing';
 
-export class CallCameraError extends Error {
-  constructor(readonly code: CallCaptureErrorCode) {
-    super(code);
+export class CallCameraError extends CallCaptureFailure<CallCaptureErrorCode> {
+  constructor(code: CallCaptureErrorCode) {
+    super(code, code === 'screen-cancelled');
   }
 }
 

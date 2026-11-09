@@ -1,0 +1,6 @@
+node_modules
+bootstrap.secret
+.env
+hosts
+host-*.secret
+*.test.mjs

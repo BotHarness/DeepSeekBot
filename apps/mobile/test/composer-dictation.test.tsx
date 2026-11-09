@@ -519,7 +519,7 @@ describe('Composer dictation', () => {
     speech.available = false;
     await press(t.dictate);
     expect(speech.start).not.toHaveBeenCalled();
-    expect(status()).toBe('unavailable');
+    expect(status()).toBe('missing');
   });
 
   it('does not start after the Human cancelled during the permission prompt', async () => {
@@ -559,7 +559,7 @@ describe('Composer test IDs', () => {
 describe('Holding the Android input', () => {
   it.each([
     [undefined, '@Mika Hello again'],
-    [1, '@Hello againMika '],
+    [1, '@ Hello again Mika '],
   ])('inserts streaming speech into existing text at caret %s', async (caret, expected) => {
     await act(async () => root!.render(<Harness {...(caret === undefined ? {} : { caret })} />));
     await press('Pick Mika');
@@ -585,7 +585,7 @@ describe('Holding the Android input', () => {
     await act(async () => speech.gesture!['start']!());
     await emit('start');
     await emit('result', result('temporary', false));
-    expect(field().value).toBe('@temporaryMika ');
+    expect(field().value).toBe('@ temporary Mika ');
     await act(async () => speech.gesture!['stop']!());
     await press(t.cancelDictation);
     await emit('end');

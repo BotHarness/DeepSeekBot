@@ -71,6 +71,7 @@ import {
   botSettingsSectionSource,
 } from './bot-settings.js';
 import type { QuickSwitcherSettings } from './quick-switcher.js';
+import { createQuickSwitcherLauncher } from './quick-switcher-launcher.js';
 import { searchSettings } from './settings-search.js';
 import { startConnectSignIn } from './connect-sign-in.js';
 import { DshBotSettingsItem } from './dsh-bot-settings-item.js';
@@ -91,6 +92,7 @@ import {
 } from './bot-settings-sections.js';
 import { PluginsSection } from './plugin-updates-view.js';
 import { ReleaseNotesController } from './release-notes.js';
+import { UpdateRunsController } from './update-runs.js';
 import { TelemetryNoticeController } from './telemetry-notice.js';
 import './bot-settings-slot.js';
 import { BotMain } from './bot-main.js';
@@ -157,7 +159,7 @@ import {
 } from './live-snapshots.js';
 import { sessionBotReference } from './mentions.js';
 import { en, LOCALE_NS, zh } from './locale.js';
-import { registerModeShadow } from './mode.js';
+import { registerModeShadow, registerShadowEntry } from './mode.js';
 import { browserSystemMotionSource, mountMotionPolicyAttribute } from './motion-preference.js';
 import { defaultStorage, loadRosterConfig } from './roster-config.js';
 import { mountDevClientRefresh } from './dev-client-refresh.js';
@@ -397,6 +399,7 @@ export function apply(ctx: ClientContext): void {
   const quickSwitcherSettings: QuickSwitcherSettings = {
     search: (query) => searchSettings(botSettingsSections.getSnapshot(), query, t),
     open: (result) => botSettings.open(result.section, result.target),
+    launcher: createQuickSwitcherLauncher(),
   };
   ctx.slots.inject('shell.overlay', () =>
     ctx.slots.register(
@@ -410,7 +413,8 @@ export function apply(ctx: ClientContext): void {
       BotSettingsView,
     ),
   );
-  const releaseNotes = new ReleaseNotesController(call, storage);
+  const updateRuns = new UpdateRunsController(call);
+  const releaseNotes = new ReleaseNotesController(call, storage, undefined, updateRuns);
   const telemetryNotice = new TelemetryNoticeController(call, storage, () => {
     botSettings.open(BOT_SETTINGS_SECTIONS.dataPrivacy);
   });
@@ -1077,7 +1081,7 @@ export function apply(ctx: ClientContext): void {
           order: 65,
           label: () => t('botSettings.section.plugins'),
           locale: LOCALE_NS,
-          inject: () => ({ call }),
+          inject: () => ({ call, updateRuns }),
         },
         PluginsSection,
       ),
@@ -1243,25 +1247,27 @@ export function apply(ctx: ClientContext): void {
     ctx,
     'sidebar',
     () =>
-      ctx.slots.register(
-        {
-          name: 'sidebar',
-          priority: -1,
-          locale: LOCALE_NS,
-          inject: () => ({
-            actions,
-            companion,
-            channelSidebar,
-            dockPanels,
-            shortcutBindings,
-            ...botModePrefsFace(prefs),
-            exitBotMode: () => ctx.layout.selectPanel(null),
-            toggleSidebar: () => ctx.layout.toggleSidebar(),
-            openBotSettings: (sectionId?: string) => botSettings.open(sectionId),
-            quickSwitcherSettings,
-          }),
-        },
-        BotModeSidebar,
+      registerShadowEntry(ctx, 'sidebar', (priority) =>
+        ctx.slots.register(
+          {
+            name: 'sidebar',
+            priority,
+            locale: LOCALE_NS,
+            inject: () => ({
+              actions,
+              companion,
+              channelSidebar,
+              dockPanels,
+              shortcutBindings,
+              ...botModePrefsFace(prefs),
+              exitBotMode: () => ctx.layout.selectPanel(null),
+              toggleSidebar: () => ctx.layout.toggleSidebar(),
+              openBotSettings: (sectionId?: string) => botSettings.open(sectionId),
+              quickSwitcherSettings,
+            }),
+          },
+          BotModeSidebar,
+        ),
       ),
     store,
     {
@@ -1280,20 +1286,22 @@ export function apply(ctx: ClientContext): void {
     ctx,
     'sidebar.workspaces',
     () =>
-      ctx.slots.register(
-        {
-          name: 'sidebar.workspaces',
-          priority: -100,
-          locale: LOCALE_NS,
-          inject: () => ({
-            actions,
-            companion,
-            channelSidebar,
-            shortcutBindings,
-            ...botModePrefsFace(prefs),
-          }),
-        },
-        BotSidebar,
+      registerShadowEntry(ctx, 'sidebar.workspaces', (priority) =>
+        ctx.slots.register(
+          {
+            name: 'sidebar.workspaces',
+            priority,
+            locale: LOCALE_NS,
+            inject: () => ({
+              actions,
+              companion,
+              channelSidebar,
+              shortcutBindings,
+              ...botModePrefsFace(prefs),
+            }),
+          },
+          BotSidebar,
+        ),
       ),
     store,
     {
@@ -1305,25 +1313,27 @@ export function apply(ctx: ClientContext): void {
     ctx,
     'main',
     () =>
-      ctx.slots.register(
-        {
-          name: 'main',
-          key: 'conversation' as MainPanelId,
-          priority: -100,
-          inject: () => ({
-            actions,
-            companion,
-            channelSidebar,
-            dockPanels,
-            profileCards,
-            appearance,
-            nativeChatT,
-            nativeSessions,
-            prefs,
-            workspace,
-          }),
-        },
-        BotMain,
+      registerShadowEntry(ctx, 'main', (priority) =>
+        ctx.slots.register(
+          {
+            name: 'main',
+            key: 'conversation' as MainPanelId,
+            priority,
+            inject: () => ({
+              actions,
+              companion,
+              channelSidebar,
+              dockPanels,
+              profileCards,
+              appearance,
+              nativeChatT,
+              nativeSessions,
+              prefs,
+              workspace,
+            }),
+          },
+          BotMain,
+        ),
       ),
     store,
   );

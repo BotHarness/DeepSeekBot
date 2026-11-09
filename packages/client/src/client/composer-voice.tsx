@@ -10,11 +10,11 @@ import {
 } from 'react';
 
 import {
+  createBrowserDictationMic,
   createComposerDictation,
   dictationActive,
   DICTATION_HOLD_MS,
   DICTATION_HOLD_SLOP_PX,
-  spliceDictation,
   type ComposerDictation,
   type ComposerDictationSnapshot,
   type DictationMic,
@@ -64,18 +64,14 @@ export function useComposerVoice({
   const [outside, setOutside] = useState(false);
   const latest = useRef({ value, apply, disabled, selection });
   latest.current = { value, apply, disabled, selection };
-  const base = useRef({ before: '', after: '' });
   const controller = useMemo<ComposerDictation | undefined>(
     () =>
       port === undefined
         ? undefined
         : createComposerDictation({
             port,
-            ...(mic === undefined ? {} : { mic }),
-            onText: (text) => {
-              const next = spliceDictation(base.current.before, text, base.current.after);
-              latest.current.apply(next.value, next.caret);
-            },
+            mic: mic ?? createBrowserDictationMic(),
+            onText: (next, caret) => latest.current.apply(next, caret),
           }),
     [port, mic],
   );
@@ -96,19 +92,16 @@ export function useComposerVoice({
     const range = latest.current.selection?.();
     const from = Math.max(0, Math.min(range?.start ?? current.length, current.length));
     const to = Math.max(from, Math.min(range?.end ?? from, current.length));
-    base.current = { before: current.slice(0, from), after: current.slice(to) };
     setOutside(false);
-    controller.start(mode);
+    controller.start(mode, { before: current.slice(0, from), after: current.slice(to) });
   };
   const stop = () => {
     setOutside(false);
     void controller?.stop();
   };
   const cancel = () => {
-    if (controller === undefined || !dictationActive(controller.snapshot().status)) return;
-    controller.cancel();
-    const { before, after } = base.current;
-    latest.current.apply(`${before}${after}`, before.length);
+    if (controller !== undefined && dictationActive(controller.snapshot().status))
+      controller.cancel();
   };
   const readyMount = useMountedResource<HTMLSpanElement>(() => {
     setReady(false);

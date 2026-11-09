@@ -51,6 +51,7 @@ Run `node scripts/ci-plan.mjs --base origin/main` to print the plan and the exac
 
 | Path                                                                                                                                                      | Pull request runs   | Docs site | Why                                                                                                |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | --------- | -------------------------------------------------------------------------------------------------- |
+| `deploy/private-relay/**`                                                                                                                                 | Full suite          | Yes       | Private Docker relay runtime, deployment and admission tests                                       |
 | `package.json`                                                                                                                                            | Full suite          | Yes       | Workspace manifest                                                                                 |
 | `*/*/package.json`                                                                                                                                        | Full suite          | Yes       | Package manifests                                                                                  |
 | `pnpm-lock.yaml`                                                                                                                                          | Full suite          | Yes       | Lockfile                                                                                           |
@@ -162,6 +163,20 @@ Every run uses `opencode-go/deepseek-v4.1-flash` unless `--model` names others (
 The `llm e2e` workflow runs them nightly, after a push to `main` that touches a scenario's paths (only those scenarios), on manual dispatch, and on a pull request labeled `ci:llm-e2e`. It uses the OpenCode Go subscription through the `OPENCODE_GO_API_KEY` repository secret on `deepseek-v4.1-flash` (selected with `scripts/dev-model.mjs setup --from-env --model deepseek-v4.1-flash`) and skips with a notice without it. It is never part of the required `verify` check. When a feature adds a model-driven flow, add a scenario with the paths it depends on.
 
 > > > > > > > origin/claude/bot-mention-wake-te5p0m
+
+## Call keyframe evaluation (VC8)
+
+`scripts/call-keyframe-eval.mjs` tunes the call keyframe picker ([ADR-0307](../adr/0307-call-keyframes-pick-by-perceptual-hash.md)). It renders six call videos with known ground truth (reading a document, scrolling code, switching windows, a film clip, holding things up to the camera, five silent minutes), runs the shared picker over them and judges each case: keyframes per page, screen, window, shot or held object, none caught mid-scroll. `--compare` sweeps the grayscale pixel difference, the perceptual hash and the hash with the local detail check over several thresholds. With `--bot` it also calls that Bot on an isolated Host through `deepseekbot call-simulate --screen/--video`, types the case's question at the end, and judges the spoken answer by keywords (in order where the case asks for order), the keyframes, uplink bytes, grid compose time, the time from the grid to the first reply audio, `call_frame` zooms and dropped keyframes. Grids are saved next to `report.md`.
+
+```bash
+pnpm build
+node scripts/call-keyframe-eval.mjs --compare                  # picker only, about 2 minutes, no Host
+node scripts/verify-app.mjs launch --name vc8 --build
+node scripts/dev-model.mjs setup --from-env --model deepseek-v4.1-flash   # once per machine
+node scripts/call-keyframe-eval.mjs --bot <bot-id> --stub-voice      # all six live, about 15 minutes
+```
+
+`--stub-voice` binds a local stand-in ASR and TTS endpoint to the Bot, so an isolated Host needs only the model credential; questions are typed into the call and replies play as silence of speech length. The stand-in Providers are removed again when the run ends, which unbinds them from the Bot. Leave it out on a Host whose Bot already has real voice Providers. The live run uses the Host's model, which must be the newest DeepSeek model (`opencode-go/deepseek-v4.1-flash`).
 
 ## Generated assets and pages
 

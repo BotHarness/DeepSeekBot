@@ -1,5 +1,37 @@
 import type { LocalApprovalAlert } from './device-alerts';
 
+const text = (value: unknown): string => (typeof value === 'string' ? value : '');
+
+export function alertFromPush(
+  title: string | null | undefined,
+  body: string | null | undefined,
+  input: unknown,
+): LocalApprovalAlert | undefined {
+  if (typeof input !== 'object' || input === null) return undefined;
+  const data = input as Record<string, unknown>;
+  const hostId = text(data['hostId']);
+  const itemId = text(data['itemId']);
+  const kind = text(data['kind']);
+  if (data['v'] !== 1 || hostId === '' || itemId === '' || kind === '') return undefined;
+  const sender = text(data['sender']);
+  const shownBody = body || text(data['message']) || text(data['text']);
+  return {
+    title: title || text(data['title']) || sender,
+    body: shownBody,
+    data: {
+      v: 1,
+      hostId,
+      itemId,
+      kind,
+      botSlug: text(data['botSlug']),
+      channelId: text(data['channelId']),
+      messageId: text(data['messageId']),
+      sender,
+      text: text(data['text']) || shownBody,
+    },
+  };
+}
+
 export function createAlertBanners() {
   let queue: LocalApprovalAlert[] = [];
   let enabled = true;
@@ -52,9 +84,27 @@ export function createAlertBanners() {
       queue = queue.slice(-20);
       publish();
     },
+    present(alert: LocalApprovalAlert): void {
+      if (!enabled || dismissed.has(key(alert))) return;
+      const index = queue.findIndex(
+        (entry) =>
+          entry.data.hostId === alert.data.hostId && entry.data.itemId === alert.data.itemId,
+      );
+      if (index >= 0) queue[index] = alert;
+      else queue.push(alert);
+      queue = queue.slice(-20);
+      publish();
+    },
     clear() {
       queue.forEach(retire);
       queue = [];
+      publish();
+    },
+    discard(drop: (alert: LocalApprovalAlert) => boolean) {
+      const kept = queue.filter((alert) => !drop(alert));
+      if (kept.length === queue.length) return;
+      queue.filter(drop).forEach(retire);
+      queue = kept;
       publish();
     },
     dismiss() {

@@ -18,6 +18,7 @@ export const VOICE_CALL_LIMITS = {
   heartbeatLossMs: 8_000,
   connectTimeoutMs: 20_000,
   heartbeatMs: 1_000,
+  backgroundHeartbeatMs: 3_000,
   events: 256,
   maxUtteranceMs: 30_000,
   playbackTailMs: 300,
@@ -128,6 +129,7 @@ export type VoiceCallEvent =
       streamed?: boolean;
       segments?: number;
     }
+  | { seq: number; at: number; type: 'text'; messageId: string; atMs: number; grid?: number }
   | { seq: number; at: number; type: 'asr-failed'; code: string; message: string }
   | { seq: number; at: number; type: 'send-failed'; code: string; message: string }
   | { seq: number; at: number; type: 'ack'; ms: number }
@@ -222,10 +224,20 @@ export type VoiceCallEvent =
       grid: number;
       source: CallVisualSource;
       frames: number;
-      dropped: number;
+      commits: number;
       layout: CallGridLayout;
       bytes: number;
       composeMs: number;
+      fromMs: number;
+      toMs: number;
+    }
+  | {
+      seq: number;
+      at: number;
+      type: 'frames-dropped';
+      source: CallVisualSource;
+      dropped: number;
+      total: number;
     }
   | {
       seq: number;

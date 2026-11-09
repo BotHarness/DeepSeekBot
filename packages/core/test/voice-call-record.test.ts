@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import { isChannelMessage } from '../src/channels/channel.js';
 import {
+  voiceCallFramesAt,
   voiceCallRecordBody,
   type ChannelVoiceCallLifecycle,
   type ChannelVoiceCallRecord,
@@ -145,5 +146,15 @@ describe('voice call records in the Bot DM (#3483)', () => {
       await core.runtime.close();
       core.operationalDatabase.close();
     }
+  });
+});
+
+describe('frame record time', () => {
+  it('dates a frame record at the end of its picture so a call window finds it', () => {
+    const started = '2026-11-08T03:00:00.000Z';
+    const now = Date.parse(started) + 26_000;
+    expect(voiceCallFramesAt(started, 13_641, now)).toBe('2026-11-08T03:00:13.641Z');
+    expect(voiceCallFramesAt(started, 40_000, now)).toBe('2026-11-08T03:00:26.000Z');
+    expect(voiceCallFramesAt('soon', 1_000, now)).toBe('2026-11-08T03:00:26.000Z');
   });
 });

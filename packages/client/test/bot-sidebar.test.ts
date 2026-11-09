@@ -99,6 +99,8 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
       props.open
         ? createElement('div', { role: 'dialog', 'aria-label': props.title }, props.children)
         : null,
+    ShortcutKeys: (props: { keys: readonly string[] }) =>
+      createElement('kbd', null, props.keys.join(' ')),
     StateDot: stub,
     Tag: (props: { children?: ReactNode }) => createElement('span', null, props.children),
     Tooltip: (props: { children?: unknown }) => (props.children ?? null) as never,
@@ -108,6 +110,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
 
 import type { BridgeActions } from '../src/client/actions.js';
 import { BotSidebar, BulkChannelMenu, ChannelMoveMenu } from '../src/client/bot-sidebar.js';
+import { createQuickSwitcherLauncher } from '../src/client/quick-switcher-launcher.js';
 import { typeInto } from './primitive-mocks.js';
 import { UNGROUPED_MOVE_TARGET } from '../src/client/section-management.js';
 import type { BotModePrefsSnapshot } from '../src/client/bot-mode-prefs.js';
@@ -1444,6 +1447,71 @@ describe('bot sidebar rows', () => {
     expect(search).toBeGreaterThan(-1);
     expect(ellipsis).toBeGreaterThan(search);
     expect(plus).toBeGreaterThan(ellipsis);
+  });
+
+  it('opens one quick switcher from the control-rail launcher and from Alt+K, tagged by source', async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    store.setRoster([BOT], [DM_CHANNEL]);
+    const actions = stubActions();
+    const launcher = createQuickSwitcherLauncher();
+    const node = document.createElement('div');
+    document.body.append(node);
+    const root = createRoot(node);
+    const dialogs = () =>
+      document.querySelectorAll(`[role="dialog"][aria-label="${zh['quickSwitcher.title']}"]`);
+    try {
+      await act(() =>
+        root.render(
+          createElement(BotSidebar, {
+            wide: true,
+            actions,
+            quickSwitcherSettings: { search: () => [], open: vi.fn(), launcher },
+            useBotModePrefs: ((selector: (snapshot: BotModePrefsSnapshot) => unknown) =>
+              selector(prefs)) as never,
+            setSortMode,
+            setSectionSortMode,
+            t: zhTranslate,
+          }),
+        ),
+      );
+      expect(dialogs()).toHaveLength(0);
+      await act(() => launcher.open('rail'));
+      await act(() => launcher.open('rail'));
+      expect(dialogs()).toHaveLength(1);
+      expect(actions.telemetryEvent).toHaveBeenCalledWith('search:switcher_open', {
+        source: 'rail',
+      });
+      await act(() => root.render(null));
+      await act(() =>
+        root.render(
+          createElement(BotSidebar, {
+            wide: true,
+            actions,
+            quickSwitcherSettings: { search: () => [], open: vi.fn(), launcher },
+            useBotModePrefs: ((selector: (snapshot: BotModePrefsSnapshot) => unknown) =>
+              selector(prefs)) as never,
+            setSortMode,
+            setSectionSortMode,
+            t: zhTranslate,
+          }),
+        ),
+      );
+      await act(() => {
+        document.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'k', code: 'KeyK', altKey: true, bubbles: true }),
+        );
+      });
+      expect(dialogs()).toHaveLength(1);
+      expect(actions.telemetryEvent).toHaveBeenLastCalledWith('search:switcher_open', {
+        source: 'shortcut',
+      });
+    } finally {
+      await act(() => root.unmount());
+      node.remove();
+    }
+    vi.mocked(actions.telemetryEvent).mockClear();
+    launcher.open('rail');
+    expect(actions.telemetryEvent).not.toHaveBeenCalled();
   });
 
   it('offers PersonaBot creation when channels already exist and from the create menu', () => {

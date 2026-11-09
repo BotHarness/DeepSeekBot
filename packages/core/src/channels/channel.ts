@@ -436,33 +436,25 @@ export type ChannelCallVisual =
       source: 'camera' | 'screen';
       frames: number;
       layout: CallGridLayout;
+      fromMs: number;
+      toMs: number;
       unseen?: true;
-      records?: string[];
     }
   | {
       source: 'camera' | 'screen';
       sameAs: string;
-      records?: string[];
     };
 
-export const MAX_CALL_VISUAL_RECORDS = 50;
+const callOffset = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 
-const callVisualRecords = (value: unknown) =>
-  value === undefined ||
-  (Array.isArray(value) &&
-    value.length > 0 &&
-    value.length <= MAX_CALL_VISUAL_RECORDS &&
-    value.every((id) => typeof id === 'string' && id.length > 0 && id.length <= 150));
+const callRange = (from: unknown, to: unknown) => callOffset(from) && callOffset(to) && to >= from;
 
 export function isChannelCallVisual(value: unknown): value is ChannelCallVisual {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const visual = value as Record<string, unknown>;
   if (visual['source'] !== 'camera' && visual['source'] !== 'screen') return false;
-  if (!callVisualRecords(visual['records'])) return false;
-  const keys = Object.keys(visual)
-    .filter((key) => key !== 'records')
-    .sort()
-    .join();
+  const keys = Object.keys(visual).sort().join();
   if (keys === 'sameAs,source')
     return (
       typeof visual['sameAs'] === 'string' &&
@@ -470,10 +462,36 @@ export function isChannelCallVisual(value: unknown): value is ChannelCallVisual 
       visual['sameAs'].length <= 150
     );
   return (
-    ['frames,layout,source', 'frames,layout,source,unseen'].includes(keys) &&
+    ['frames,fromMs,layout,source,toMs', 'frames,fromMs,layout,source,toMs,unseen'].includes(
+      keys,
+    ) &&
     (visual['unseen'] === undefined || visual['unseen'] === true) &&
-    isCallGridLayout(visual['frames'], visual['layout'])
+    isCallGridLayout(visual['frames'], visual['layout']) &&
+    callRange(visual['fromMs'], visual['toMs'])
   );
+}
+
+export interface ChannelVoiceCallMessage {
+  callId: string;
+  speechFromMs?: number;
+  speechToMs?: number;
+  atMs?: number;
+  visual?: ChannelCallVisual;
+}
+
+const VOICE_CALL_MESSAGE_KEYS = new Set(['callId', 'visual', 'speechFromMs', 'speechToMs', 'atMs']);
+
+export function isChannelVoiceCallMessage(value: unknown): value is ChannelVoiceCallMessage {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const call = value as Record<string, unknown>;
+  if (Object.keys(call).some((key) => !VOICE_CALL_MESSAGE_KEYS.has(key))) return false;
+  if (typeof call['callId'] !== 'string' || !/^call-[a-f0-9]{16}$/u.test(call['callId']))
+    return false;
+  if (call['visual'] !== undefined && !isChannelCallVisual(call['visual'])) return false;
+  const spoken = call['speechFromMs'] !== undefined || call['speechToMs'] !== undefined;
+  if (call['atMs'] !== undefined) return !spoken && callOffset(call['atMs']);
+  if (!spoken) return true;
+  return callRange(call['speechFromMs'], call['speechToMs']);
 }
 
 export interface ChannelMessage {
@@ -535,7 +553,7 @@ export interface ChannelMessage {
   attachments?: ChannelAttachmentRef[];
   clearedAttachments?: ChannelClearedAttachment[];
   voice?: ChannelMessageVoice;
-  voiceCall?: { callId: string; visual?: ChannelCallVisual };
+  voiceCall?: ChannelVoiceCallMessage;
   voiceCallRecord?: ChannelVoiceCallRecord;
   bridgeMedia?: {
     voice?: Pick<import('../messaging/provider.js').MessagingVoice, 'transcript' | 'durationMs'>;
@@ -824,13 +842,7 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
   const voiceCall = message['voiceCall'];
   if (
     voiceCall !== undefined &&
-    (typeof voiceCall !== 'object' ||
-      voiceCall === null ||
-      Object.keys(voiceCall).some((key) => key !== 'callId' && key !== 'visual') ||
-      ((voiceCall as { visual?: unknown }).visual !== undefined &&
-        !isChannelCallVisual((voiceCall as { visual?: unknown }).visual)) ||
-      typeof (voiceCall as { callId?: unknown }).callId !== 'string' ||
-      !/^call-[a-f0-9]{16}$/u.test((voiceCall as { callId: string }).callId) ||
+    (!isChannelVoiceCallMessage(voiceCall) ||
       (message['author'] as ChannelMessageAuthor)?.kind !== 'human')
   )
     return false;

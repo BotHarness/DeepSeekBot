@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 
-import { dmChannelId, MAX_CALL_VISUAL_RECORDS } from '../channels/channel.js';
+import { dmChannelId } from '../channels/channel.js';
 import {
   VOICE_CALL_BARGE_IN,
   VOICE_CALL_HOST_OWNER,
@@ -26,7 +26,8 @@ import type {
 } from '../channels/voice-call-record.js';
 import { createCallPerf, perfFields, type CallPerf } from './call-perf.js';
 import { createVad, VAD_SAMPLE_RATE, type VadOptions } from './vad.js';
-import { VoiceError, wavFromPcm16 } from './providers.js';
+import { PcmError, pcmFromBase64 } from './pcm.js';
+import { resolveVoice, VoiceError, wavFromPcm16 } from './providers.js';
 import type { AsrStream } from './soniox.js';
 import {
   clipDurationMs,
@@ -44,7 +45,8 @@ import {
   type GridImage,
   type PreparedFrame,
 } from './call-frames.js';
-import { MAX_GRID_FRAMES, pickGridFrames, type CallVisualSource } from './keyframes.js';
+import { createHarvest, type Harvest } from './harvest.js';
+import { MAX_GRID_FRAMES, type CallVisualSource } from './keyframes.js';
 
 export interface VoiceCallMedia {
   availability(): Promise<'ready' | 'unsupported-platform' | 'helper-missing'>;
@@ -74,14 +76,26 @@ export type VoiceCallSentVisual =
       readonly source: CallVisualSource;
       readonly image: GridImage;
       readonly frames: number;
+      readonly fromMs: number;
+      readonly toMs: number;
       readonly unseen?: true;
-      readonly records?: readonly string[];
     }
   | {
       readonly source: CallVisualSource;
       readonly sameAs: string;
-      readonly records?: readonly string[];
     };
+
+export interface VoiceCallText {
+  readonly callId: string;
+  readonly atMs: number;
+  readonly visual?: VoiceCallSentVisual;
+  settle(sent: boolean): void;
+}
+
+export interface VoiceCallSpeechRange {
+  readonly fromMs: number;
+  readonly toMs: number;
+}
 
 export interface VoiceCallBot {
   readonly slug: string;
@@ -124,6 +138,7 @@ export interface VoiceCallsDeps {
     messageId: string;
     body: string;
     callId: string;
+    speech?: VoiceCallSpeechRange | undefined;
     visual?: VoiceCallSentVisual | undefined;
   }): Promise<void>;
   busy(slug: string): boolean;
@@ -210,7 +225,6 @@ type EventInput = VoiceCallEvent extends infer E
 
 interface VisualFrame {
   readonly at: number;
-  readonly score: number;
   readonly frame: PreparedFrame;
 }
 
@@ -221,6 +235,7 @@ interface GridJob {
   readonly frames: VisualFrame[];
   readonly picked: readonly PreparedFrame[];
   readonly result: Promise<VoiceCallSentVisual | undefined>;
+  readonly written: Promise<void>;
 }
 
 interface KeptGrid {
@@ -241,9 +256,9 @@ interface Call {
   readonly abort: AbortController;
   visual: CallVisualSource | 'off';
   visualSession: number;
-  records: string[];
-  recording: boolean;
-  frames: VisualFrame[];
+  readonly harvest: Harvest<VisualFrame>;
+  committing: number;
+  commits: Promise<void>;
   grids: number;
   lastGrid?:
     | { readonly source: CallVisualSource; readonly session: number; readonly messageId: string }
@@ -308,6 +323,11 @@ export interface VoiceCalls {
     signal?: AbortSignal | undefined;
   }): Promise<CallSpeech | undefined>;
   zoom(input: { slug?: string; messageId: string; cell: number }): VoiceCallZoom;
+  text(input: {
+    channelId: string;
+    messageId: string;
+    picture?: boolean | undefined;
+  }): Promise<VoiceCallText | undefined>;
   revoke(deviceId: string): Promise<void>;
   dispose(): Promise<void>;
 }
@@ -324,13 +344,14 @@ function slugOf(value: unknown): string {
   return value;
 }
 
-function pcmFromBase64(value: string): Int16Array {
-  const bytes = Buffer.from(value, 'base64');
-  if (bytes.byteLength % 2 !== 0)
-    throw new CallRefusal('invalid-input', 'pcm must be 16-bit little-endian samples.');
-  const out = new Int16Array(bytes.byteLength / 2);
-  for (let index = 0; index < out.length; index += 1) out[index] = bytes.readInt16LE(index * 2);
-  return out;
+function callPcm(value: string): Int16Array {
+  try {
+    return pcmFromBase64(value);
+  } catch (error) {
+    if (error instanceof PcmError)
+      throw new CallRefusal('invalid-input', 'pcm must be 16-bit little-endian samples.');
+    throw error;
+  }
 }
 
 const ended = (call: { phase: VoiceCallPhase }) => call.phase === 'ended';
@@ -590,7 +611,13 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     call.replies = [];
     call.interrupted = [];
     call.barge = undefined;
-    call.frames = [];
+    if (call.visual !== 'off') {
+      commit(call, call.visualSession, call.visual, call.harvest.flush());
+      call.visual = 'off';
+      push(call, { type: 'visual', source: 'off' });
+      log('call-visual', { call: call.id, source: 'off' });
+    }
+    call.harvest.clear();
     release(call.id);
     call.vad.reset();
     dropStream(call);
@@ -806,102 +833,143 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     }
   };
 
-  const trimFrames = (call: Call) => {
-    while (call.frames.length > VOICE_CALL_LIMITS.pendingFrames) {
-      let lowest = 1;
-      for (let index = 2; index < call.frames.length; index += 1)
-        if (call.frames[index]!.score < call.frames[lowest]!.score) lowest = index;
-      call.frames.splice(lowest, 1);
+  const visualBase = (call: Call) => call.connectedAt ?? call.startedAt;
+
+  const pictureRange = (call: Call, frames: readonly VisualFrame[]) => {
+    const base = visualBase(call);
+    const fromMs = Math.max(0, frames[0]!.at - base);
+    return { fromMs, toMs: Math.max(fromMs, frames.at(-1)!.at - base) };
+  };
+
+  const reportDropped = (call: Call, source: CallVisualSource, dropped: number) => {
+    if (dropped === 0 || ended(call)) return;
+    push(call, { type: 'frames-dropped', source, dropped, total: call.harvest.dropped });
+    log('call-frames-dropped', { call: call.id, source, dropped, total: call.harvest.dropped });
+  };
+
+  const writeCommit = async (
+    call: Call,
+    session: number,
+    source: CallVisualSource,
+    taken: readonly VisualFrame[],
+  ) => {
+    const endAt = now();
+    const started = now();
+    try {
+      const image = await images().compose(
+        taken.map((entry) => entry.frame),
+        taken.map((entry, index) => frameLabel(index, (endAt - entry.at) / 1000)),
+      );
+      const composeMs = now() - started;
+      const { fromMs, toMs } = pictureRange(call, taken);
+      const messageId = await deps.recordFrames!({
+        slug: call.slug,
+        channelId: call.channelId,
+        callId: call.id,
+        startedAt: iso(visualBase(call)),
+        source,
+        image,
+        frames: taken.length,
+        fromMs,
+        toMs,
+      });
+      if (messageId === undefined || ended(call)) return;
+      keep(
+        call,
+        messageId,
+        source,
+        taken.map((entry) => entry.frame),
+      );
+      if (call.visualSession === session) call.lastGrid = { source, session, messageId };
+      push(call, {
+        type: 'frame-record',
+        messageId,
+        source,
+        frames: taken.length,
+        layout: image.layout,
+        bytes: image.jpeg.byteLength,
+        composeMs,
+        fromMs,
+        toMs,
+      });
+      log('call-frame-record', { call: call.id, source, frames: taken.length, ms: composeMs });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'The frame record could not be saved.';
+      if (!ended(call)) push(call, { type: 'grid-failed', message: message.slice(0, 200) });
+      log('call-frame-record-failed', { call: call.id, message: message.slice(0, 200) });
     }
   };
 
-  const recordSilence = (call: Call) => {
-    if (
-      deps.recordFrames === undefined ||
-      call.visual === 'off' ||
-      call.recording ||
-      call.vad.speaking ||
-      call.frames.length < MAX_GRID_FRAMES
-    )
+  const commit = (
+    call: Call,
+    session: number,
+    source: CallVisualSource,
+    batches: readonly (readonly VisualFrame[])[],
+  ) => {
+    if (batches.length === 0) return;
+    if (deps.recordFrames === undefined) {
+      reportDropped(
+        call,
+        source,
+        batches.reduce((sum, batch) => sum + batch.length, 0),
+      );
       return;
-    const source = call.visual;
-    const session = call.visualSession;
-    const taken = call.frames.splice(0, MAX_GRID_FRAMES);
-    const base = call.connectedAt ?? call.startedAt;
-    const endAt = now();
-    const started = now();
-    call.recording = true;
-    void images()
-      .compose(
-        taken.map((entry) => entry.frame),
-        taken.map((entry, index) => frameLabel(index, (endAt - entry.at) / 1000)),
-      )
-      .then(async (image) => {
-        const composeMs = now() - started;
-        if (ended(call)) return;
-        const fromMs = Math.max(0, taken[0]!.at - base);
-        const toMs = Math.max(fromMs, taken.at(-1)!.at - base);
-        const messageId = await deps.recordFrames!({
-          slug: call.slug,
-          channelId: call.channelId,
-          callId: call.id,
-          startedAt: iso(base),
-          source,
-          image,
-          frames: taken.length,
-          fromMs,
-          toMs,
-        });
-        if (messageId === undefined || ended(call)) return;
-        keep(
-          call,
-          messageId,
-          source,
-          taken.map((entry) => entry.frame),
-        );
-        call.records.push(messageId);
-        if (call.visualSession === session) call.lastGrid = { source, session, messageId };
-        if (call.records.length > MAX_CALL_VISUAL_RECORDS) call.records.shift();
-        push(call, {
-          type: 'frame-record',
-          messageId,
-          source,
-          frames: taken.length,
-          layout: image.layout,
-          bytes: image.jpeg.byteLength,
-          composeMs,
-          fromMs,
-          toMs,
-        });
-        log('call-frame-record', { call: call.id, source, frames: taken.length, ms: composeMs });
-      })
-      .catch((error: unknown) => {
-        const message =
-          error instanceof Error ? error.message : 'The frame record could not be saved.';
-        if (!ended(call)) push(call, { type: 'grid-failed', message: message.slice(0, 200) });
-        log('call-frame-record-failed', { call: call.id, message: message.slice(0, 200) });
+    }
+    call.committing += 1;
+    call.commits = call.commits
+      .then(async () => {
+        for (const batch of batches) await writeCommit(call, session, source, batch);
       })
       .finally(() => {
-        call.recording = false;
+        call.committing -= 1;
+        harvest(call);
       });
+  };
+
+  const harvest = (call: Call) => {
+    if (call.visual === 'off' || call.committing > 0 || ended(call)) return;
+    commit(call, call.visualSession, call.visual, call.harvest.due(call.vad.speaking));
+  };
+
+  const commitsWritten = async (call: Call, written: Promise<void>) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const late = await Promise.race([
+      written.then(() => false),
+      new Promise<boolean>((resolve) => {
+        timer = setTimeout(() => resolve(true), VOICE_CALL_LIMITS.operationTimeoutMs);
+        timer.unref?.();
+      }),
+    ]);
+    clearTimeout(timer);
+    if (late) log('call-frame-record-late', { call: call.id });
   };
 
   const takeGrid = (call: Call): GridJob | undefined => {
     if (call.visual === 'off') return undefined;
     const source = call.visual;
     const session = call.visualSession;
-    const frames = call.frames;
-    call.frames = [];
+    const { commits, sentence: frames } = call.harvest.cut();
+    commit(call, session, source, commits);
+    const written = call.commits;
     const endAt = now();
     const id = (call.grids += 1);
     if (frames.length === 0)
-      return { id, source, session, frames, picked: [], result: Promise.resolve(undefined) };
-    const picked = pickGridFrames(frames);
+      return {
+        id,
+        source,
+        session,
+        frames,
+        picked: [],
+        result: Promise.resolve(undefined),
+        written,
+      };
     const started = now();
+    const range = pictureRange(call, frames);
     const result = images()
       .compose(
-        picked.map((entry) => entry.frame),
-        picked.map((entry, index) => frameLabel(index, (endAt - entry.at) / 1000)),
+        frames.map((entry) => entry.frame),
+        frames.map((entry, index) => frameLabel(index, (endAt - entry.at) / 1000)),
       )
       .then((image) => {
         const composeMs = now() - started;
@@ -910,31 +978,183 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
             type: 'grid-built',
             grid: id,
             source,
-            frames: picked.length,
-            dropped: frames.length - picked.length,
+            frames: frames.length,
+            commits: commits.length,
             layout: image.layout,
             bytes: image.jpeg.byteLength,
             composeMs,
+            ...range,
           });
         log('call-grid-built', {
           call: call.id,
           source,
-          frames: picked.length,
+          frames: frames.length,
+          commits: commits.length,
           layout: image.layout,
           bytes: image.jpeg.byteLength,
           ms: composeMs,
         });
-        return { source, image, frames: picked.length } as const;
+        return { source, image, frames: frames.length, ...range } as const;
       });
     result.catch(() => undefined);
-    return { id, source, session, frames, picked: picked.map((entry) => entry.frame), result };
+    return {
+      id,
+      source,
+      session,
+      frames,
+      picked: frames.map((entry) => entry.frame),
+      result,
+      written,
+    };
   };
 
   const restoreGrid = (call: Call, grid: GridJob | undefined) => {
     if (grid === undefined || grid.frames.length === 0 || call.visualSession !== grid.session)
       return;
-    call.frames = [...grid.frames, ...call.frames];
-    trimFrames(call);
+    reportDropped(call, grid.source, call.harvest.restore(grid.frames));
+  };
+
+  const gridVisual = async (
+    call: Call,
+    grid: GridJob | undefined,
+  ): Promise<{ visual: VoiceCallSentVisual | undefined; waitedMs: number }> => {
+    if (grid === undefined) return { visual: undefined, waitedMs: 0 };
+    const unseen =
+      deps.seesImages !== undefined && !(await deps.seesImages(call.slug).catch(() => true));
+    await commitsWritten(call, grid.written);
+    let visual: VoiceCallSentVisual | undefined;
+    let waitedMs = 0;
+    if (grid.frames.length === 0) {
+      const last = call.lastGrid;
+      if (last !== undefined && last.session === grid.session)
+        visual = { source: grid.source, sameAs: last.messageId };
+    } else {
+      const waitFrom = now();
+      try {
+        visual = await grid.result;
+      } catch (error) {
+        const message =
+          error instanceof CallFrameError ? error.message : 'The grid image could not be built.';
+        if (!ended(call)) push(call, { type: 'grid-failed', message: message.slice(0, 200) });
+        log('call-grid-failed', { call: call.id, message: message.slice(0, 200) });
+      }
+      waitedMs = now() - waitFrom;
+    }
+    if (unseen && visual !== undefined && 'image' in visual) {
+      visual = { ...visual, unseen: true };
+      log('call-grid-unseen', { call: call.id, source: visual.source });
+    }
+    return { visual, waitedMs };
+  };
+
+  const gridSent = (
+    call: Call,
+    grid: GridJob | undefined,
+    visual: VoiceCallSentVisual | undefined,
+    messageId: string,
+    waitedMs: number,
+  ) => {
+    if (visual !== undefined && 'image' in visual) {
+      if (grid !== undefined && call.visualSession === grid.session)
+        call.lastGrid = { source: visual.source, session: grid.session, messageId };
+      keep(call, messageId, visual.source, grid?.picked ?? []);
+      push(call, {
+        type: 'grid-sent',
+        grid: grid?.id ?? 0,
+        messageId,
+        layout: visual.image.layout,
+        waitedMs,
+      });
+    } else if (visual !== undefined && 'sameAs' in visual)
+      push(call, { type: 'grid-unchanged', messageId, sameAs: visual.sameAs });
+  };
+
+  const noteHeard = (call: Call) => {
+    call.lastHeardAt = now();
+    if (!call.busy && call.ownTurn === 'none') {
+      call.ownTurn = 'sent';
+      call.ownTurnAt = now();
+    }
+    prune(call);
+  };
+
+  const bounded = async (work: Promise<unknown> | undefined) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([
+      Promise.resolve(work).catch(() => undefined),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, VOICE_CALL_LIMITS.operationTimeoutMs);
+        timer.unref?.();
+      }),
+    ]);
+    clearTimeout(timer);
+  };
+
+  const text = async (input: {
+    channelId: string;
+    messageId: string;
+    picture?: boolean | undefined;
+  }): Promise<VoiceCallText | undefined> => {
+    const call = [...calls.values()].find(
+      (candidate) =>
+        !ended(candidate) && candidate.connected && candidate.channelId === input.channelId,
+    );
+    if (call === undefined) return undefined;
+    const atMs = Math.max(0, now() - visualBase(call));
+    let grid = input.picture === false ? undefined : takeGrid(call);
+    let land!: () => void;
+    const landed = new Promise<void>((resolve) => {
+      land = resolve;
+    });
+    const before = call.transcription;
+    const recorded = call.recorded;
+    const prepared = (async () => {
+      await bounded(Promise.all([before, recorded]));
+      if (ended(call)) {
+        if (grid !== undefined && grid.frames.length > 0)
+          commit(call, grid.session, grid.source, [grid.frames]);
+        grid = undefined;
+        return { visual: undefined, waitedMs: 0 };
+      }
+      return gridVisual(call, grid);
+    })();
+    call.transcription = prepared.then(() => bounded(landed)).catch(() => undefined);
+    const { visual, waitedMs } = await prepared.catch(() => ({
+      visual: undefined,
+      waitedMs: 0,
+    }));
+    let settled = false;
+    return {
+      callId: call.id,
+      atMs,
+      ...(visual === undefined ? {} : { visual }),
+      settle(sent) {
+        if (settled) return;
+        settled = true;
+        land();
+        if (!sent) {
+          if (grid !== undefined && grid.frames.length > 0 && ended(call))
+            commit(call, grid.session, grid.source, [grid.frames]);
+          else restoreGrid(call, grid);
+          log('call-text-failed', { call: call.id, atMs });
+          return;
+        }
+        if (ended(call)) return;
+        gridSent(call, grid, visual, input.messageId, waitedMs);
+        noteHeard(call);
+        push(call, {
+          type: 'text',
+          messageId: input.messageId,
+          atMs,
+          ...(grid === undefined || grid.frames.length === 0 ? {} : { grid: grid.id }),
+        });
+        log('call-text', {
+          call: call.id,
+          atMs,
+          frames: visual !== undefined && 'image' in visual ? visual.frames : 0,
+        });
+      },
+    };
   };
 
   const transcribe = (
@@ -943,6 +1163,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     audioMs: number,
     segmentedSamples: number,
     grid: GridJob | undefined,
+    speech: VoiceCallSpeechRange,
     gate: 'words' | 'filler' | undefined = undefined,
   ) => {
     const gated = gate === 'words';
@@ -1017,36 +1238,8 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       const messageId = `human-${randomUUID()}`;
       await call.recorded;
       if (ended(call)) return;
-      let visual: VoiceCallSentVisual | undefined;
-      let waitedMs = 0;
-      const unseen =
-        grid !== undefined &&
-        deps.seesImages !== undefined &&
-        !(await deps.seesImages(call.slug).catch(() => true));
+      const { visual, waitedMs } = await gridVisual(call, grid);
       if (ended(call)) return;
-      if (grid !== undefined && grid.frames.length === 0) {
-        const last = call.lastGrid;
-        if (last !== undefined && last.session === grid.session)
-          visual = { source: grid.source, sameAs: last.messageId };
-      } else if (grid !== undefined) {
-        const waitFrom = now();
-        try {
-          visual = await grid.result;
-        } catch (error) {
-          const message =
-            error instanceof CallFrameError ? error.message : 'The grid image could not be built.';
-          if (!ended(call)) push(call, { type: 'grid-failed', message: message.slice(0, 200) });
-          log('call-grid-failed', { call: call.id, message: message.slice(0, 200) });
-        }
-        waitedMs = now() - waitFrom;
-        if (ended(call)) return;
-      }
-      if (unseen && visual !== undefined && 'image' in visual) {
-        visual = { ...visual, unseen: true };
-        log('call-grid-unseen', { call: call.id, source: visual.source });
-      }
-      const records = visual === undefined ? [] : call.records.splice(0);
-      if (records.length > 0) visual = { ...visual!, records };
       try {
         await deps.send({
           slug: call.slug,
@@ -1054,10 +1247,10 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
           messageId,
           body: text,
           callId: call.id,
+          speech,
           ...(visual === undefined ? {} : { visual }),
         });
       } catch (error) {
-        call.records.unshift(...records);
         restoreGrid(call, grid);
         const failure = record(error);
         push(call, {
@@ -1070,26 +1263,9 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         });
         return;
       }
-      if (visual !== undefined && 'image' in visual) {
-        if (grid !== undefined && call.visualSession === grid.session)
-          call.lastGrid = { source: visual.source, session: grid.session, messageId };
-        keep(call, messageId, visual.source, grid?.picked ?? []);
-        push(call, {
-          type: 'grid-sent',
-          grid: grid?.id ?? 0,
-          messageId,
-          layout: visual.image.layout,
-          waitedMs,
-        });
-      } else if (visual !== undefined && 'sameAs' in visual)
-        push(call, { type: 'grid-unchanged', messageId, sameAs: visual.sameAs });
-      call.lastHeardAt = now();
+      gridSent(call, grid, visual, messageId, waitedMs);
       call.heard += 1;
-      if (!call.busy && call.ownTurn === 'none') {
-        call.ownTurn = 'sent';
-        call.ownTurnAt = now();
-      }
-      prune(call);
+      noteHeard(call);
       push(call, {
         type: 'sent',
         messageId,
@@ -1578,6 +1754,11 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     return speech;
   };
 
+  const speechRange = (call: Call, startMs: number, endMs: number): VoiceCallSpeechRange => {
+    const toMs = Math.max(0, now() - visualBase(call) - (call.vad.timeMs() - endMs));
+    return { fromMs: Math.max(0, toMs - (endMs - startMs)), toMs };
+  };
+
   const hear = (call: Call, samples: Int16Array) => {
     if (call.phase === 'ended' || call.phase === 'connecting') return;
     if (call.muted) return;
@@ -1614,6 +1795,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
           event.endMs - event.startMs,
           event.segmentedSamples,
           takeGrid(call),
+          speechRange(call, event.startMs, event.endMs),
           gated ? 'words' : suspected ? 'filler' : undefined,
         );
       }
@@ -1627,12 +1809,12 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     if (
       call.media === 'webrtc' &&
       !call.connected &&
-      at - call.startedAt > VOICE_CALL_LIMITS.connectTimeoutMs
+      at - call.startedAt >= VOICE_CALL_LIMITS.connectTimeoutMs
     ) {
       void end(call, 'connect-timeout');
       return;
     }
-    if (at - call.lastHeartbeat > VOICE_CALL_LIMITS.heartbeatLossMs) {
+    if (call.connected && at - call.lastHeartbeat > VOICE_CALL_LIMITS.heartbeatLossMs) {
       void end(call, 'connection-lost');
       return;
     }
@@ -1658,19 +1840,18 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     const bot = deps.bot(slug);
     const missing: VoiceCallMissing[] = [];
     if (bot === undefined || bot.paused === true) missing.push('bot');
-    const asr = bot?.asr?.providerId;
-    const tts = bot?.voice?.providerId;
-    if (asr === undefined || !deps.providers.has(asr, 'asr')) missing.push('asr');
-    if (tts === undefined || !deps.providers.has(tts, 'tts')) missing.push('tts');
-    const off = deps.providers.localServiceOff?.bind(deps.providers);
-    if (off !== undefined) {
-      const checks = [
-        ...(asr !== undefined && !missing.includes('asr') ? [off(asr, 'asr')] : []),
-        ...(tts !== undefined && !missing.includes('tts') ? [off(tts, 'tts')] : []),
-      ];
-      const results = await Promise.all(checks.map((check) => check.catch(() => false)));
-      if (results.includes(true)) missing.push('local-voice-off');
-    }
+    const [asrVoice, ttsVoice] =
+      bot === undefined
+        ? [undefined, undefined]
+        : await Promise.all([
+            resolveVoice(deps.providers, { bot, kind: 'asr' }),
+            resolveVoice(deps.providers, { bot, kind: 'tts' }),
+          ]);
+    const asr = asrVoice?.providerId ?? undefined;
+    const tts = ttsVoice?.providerId ?? undefined;
+    if (asrVoice === undefined || asrVoice.state === 'missing') missing.push('asr');
+    if (ttsVoice === undefined || ttsVoice.state === 'missing') missing.push('tts');
+    if (asrVoice?.state === 'off' || ttsVoice?.state === 'off') missing.push('local-voice-off');
     const media = deps.media();
     const availability =
       media === undefined
@@ -1707,12 +1888,14 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     return call;
   };
 
-  const open = async (
+  const prepareCall = async (
     caller: VoiceCaller,
     slug: string,
     kind: 'webrtc' | 'synthetic',
-    signal: AbortSignal | undefined,
+    signal: AbortSignal,
+    startedAt: number,
   ): Promise<Call> => {
+    signal.throwIfAborted();
     const bot = deps.bot(slug);
     if (bot === undefined) throw new CallRefusal('unknown-bot', `unknown PersonaBot: ${slug}`);
     if (bot.paused === true) throw new CallRefusal('bot-paused', 'This Bot is paused.');
@@ -1730,6 +1913,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     if (kind === 'webrtc') {
       const availability =
         media === undefined ? 'unsupported-platform' : await media.availability();
+      signal.throwIfAborted();
       if (availability === 'unsupported-platform')
         throw new CallRefusal(
           'media-unsupported',
@@ -1747,7 +1931,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         throw new CallRefusal('call-active', 'Another device is already on a call with this Host.');
       await end(active, 'replaced');
     }
-    const startedAt = now();
+    signal.throwIfAborted();
     const segmented = deps.providers.streams?.(bot.asr.providerId) !== true;
     const call: Call = {
       id: `call-${randomBytes(8).toString('hex')}`,
@@ -1760,9 +1944,9 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       abort: new AbortController(),
       visual: 'off',
       visualSession: 0,
-      records: [],
-      recording: false,
-      frames: [],
+      harvest: createHarvest<VisualFrame>(VOICE_CALL_LIMITS.pendingFrames),
+      committing: 0,
+      commits: Promise.resolve(),
       grids: 0,
       vad: createVad({
         maxUtteranceMs: VOICE_CALL_LIMITS.maxUtteranceMs,
@@ -1806,6 +1990,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       if (call.connected || call.phase === 'ended') return;
       call.connected = true;
       call.connectedAt = now();
+      call.lastHeartbeat = call.connectedAt;
       call.phase = 'listening';
       recordStart(call);
       push(call, { type: 'connected' });
@@ -1818,10 +2003,15 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       call.peer = syntheticPeer();
       connected();
     } else {
-      const abort = () => call.abort.abort();
+      const abort = () => {
+        call.abort.abort();
+        void end(call, 'media-failed');
+      };
       signal?.addEventListener('abort', abort, { once: true });
+      if (signal.aborted) abort();
       try {
-        call.peer = await media!.open({
+        call.abort.signal.throwIfAborted();
+        const peer = await media!.open({
           callId: call.id,
           signal: call.abort.signal,
           onPcm: (samples) => hear(call, samples),
@@ -1830,6 +2020,9 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
             else void end(call, 'media-failed');
           },
         });
+        if (call.abort.signal.aborted) await peer.close();
+        call.abort.signal.throwIfAborted();
+        call.peer = peer;
         if (call.peer.offer === undefined) throw new Error('offer');
         call.offer = call.peer.offer;
       } catch (error) {
@@ -1847,6 +2040,36 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     call.timer = setInterval(() => tick(call), VOICE_CALL_LIMITS.heartbeatMs);
     call.timer.unref?.();
     return call;
+  };
+
+  const open = async (
+    caller: VoiceCaller,
+    slug: string,
+    kind: 'webrtc' | 'synthetic',
+    signal: AbortSignal | undefined,
+  ): Promise<Call> => {
+    const cancellation = new AbortController();
+    const cancel = () => cancellation.abort();
+    signal?.addEventListener('abort', cancel, { once: true });
+    if (signal?.aborted) cancel();
+    const startedAt = now();
+    const timer = setTimeout(cancel, VOICE_CALL_LIMITS.connectTimeoutMs);
+    let rejectCancelled!: () => void;
+    const cancelled = new Promise<never>((_resolve, reject) => {
+      rejectCancelled = () => reject(cancellation.signal.reason);
+      cancellation.signal.addEventListener('abort', rejectCancelled, { once: true });
+      if (cancellation.signal.aborted) rejectCancelled();
+    });
+    try {
+      return await Promise.race([
+        prepareCall(caller, slug, kind, cancellation.signal, startedAt),
+        cancelled,
+      ]);
+    } finally {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', cancel);
+      cancellation.signal.removeEventListener('abort', rejectCancelled);
+    }
   };
 
   const run = async (
@@ -1945,7 +2168,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
           throw new CallRefusal('invalid-input', 'after must be an event sequence number.');
         const before = call.seq;
         call.lastHeartbeat = now();
-        hear(call, pcmFromBase64(pcm));
+        hear(call, callPcm(pcm));
         return { ok: true, call: view(call, (after as number | undefined) ?? before) };
       }
       case 'visual': {
@@ -1980,7 +2203,8 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         else if (change !== undefined && change !== 'resumed' && call.visual !== 'off')
           recordShare(call, `share-${change}`, call.visual);
         if (call.visual !== source) {
-          call.frames = [];
+          if (call.visual !== 'off')
+            commit(call, call.visualSession, call.visual, call.harvest.flush());
           call.lastGrid = undefined;
           call.visualSession += 1;
           call.visual = source;
@@ -2034,8 +2258,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
           );
         }
         if (!ended(call) && call.visualSession === session) {
-          call.frames.push({ at: now(), score, frame });
-          trimFrames(call);
+          const dropped = call.harvest.add({ at: now(), frame });
           push(call, {
             type: 'frame-received',
             source,
@@ -2046,7 +2269,8 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
             prepareMs: now() - started,
             ...(skipped === undefined ? {} : { skipped: skipped as number }),
           });
-          recordSilence(call);
+          reportDropped(call, source, dropped);
+          harvest(call);
         }
         return { ok: true, call: view(call, (after as number | undefined) ?? before) };
       }
@@ -2111,6 +2335,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     draft: onDraft,
     speak,
     zoom,
+    text,
     async revoke(deviceId) {
       await Promise.all(
         [...calls.values()]

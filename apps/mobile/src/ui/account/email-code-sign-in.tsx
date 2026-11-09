@@ -1,11 +1,12 @@
 import { useRef, useState } from 'react';
 import { Image, Platform, View } from 'react-native';
 
-import type {
-  EmailCodeFlow,
-  EmailCodeOutcome,
-  EmailCodeRefusal,
-  SocialProvider,
+import {
+  visibleBrowserRefusal,
+  type EmailCodeFlow,
+  type EmailCodeOutcome,
+  type EmailCodeRefusal,
+  type SocialProvider,
 } from '../../host/connect-account';
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, signInBrand, space } from '../design/tokens';
@@ -123,7 +124,7 @@ export function EmailCodeSignIn({
     run(async () => {
       const result = await flow.browser(provider);
       if (result.ok) finish({ kind: 'signed-in', email: result.email });
-      else if (result.code !== 'cancelled') setError(result.code);
+      else setError(visibleBrowserRefusal(result.code));
     });
 
   const providers: { id: SocialProvider; label: string; testID: string }[] = [

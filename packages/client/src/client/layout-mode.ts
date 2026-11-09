@@ -20,6 +20,7 @@ export interface SubpanelColumn {
   readonly expanded: readonly string[];
   readonly hidden: readonly string[];
   readonly heights: Readonly<Record<string, number>>;
+  readonly order: readonly string[];
 }
 
 export interface SimpleLayout {
@@ -35,6 +36,7 @@ export const DEFAULT_SUBPANEL_COLUMN: SubpanelColumn = {
   expanded: ['sessions'],
   hidden: [],
   heights: {},
+  order: [],
 };
 
 function browserStorage(): ChannelDockStorage | undefined {
@@ -78,6 +80,7 @@ function readColumn(value: unknown): SubpanelColumn {
     expanded: ids(record['expanded']) ?? DEFAULT_SUBPANEL_COLUMN.expanded,
     hidden: ids(record['hidden']) ?? [],
     heights,
+    order: [...new Set(ids(record['order']) ?? [])],
   };
 }
 
