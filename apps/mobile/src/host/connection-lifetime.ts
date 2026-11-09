@@ -42,6 +42,10 @@ export function createConnectionLifetime(initialForeground: boolean) {
         reconcile();
       };
     },
+    retained(connection: Connection): boolean {
+      const demand = connections.get(connection);
+      return demand !== undefined && !demand.refused && demand.retained.size > 0;
+    },
     remove(connection: Connection) {
       const running = connections.get(connection)?.running;
       connections.delete(connection);
