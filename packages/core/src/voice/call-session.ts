@@ -7,8 +7,6 @@ import {
 } from './call-client.js';
 import type { CallVisualSource } from './call-contract.js';
 
-// Telling the Host the share stopped is best effort: a slow or stuck request
-// must not keep the call live after the user hung up.
 const VISUAL_OFF_BEFORE_HANGUP_MS = 1_500;
 
 function settleWithin(work: Promise<unknown>, ms: number): Promise<void> {
