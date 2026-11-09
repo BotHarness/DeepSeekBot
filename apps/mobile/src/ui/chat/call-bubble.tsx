@@ -16,6 +16,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
+import { useAppActive } from '../app-active';
 import { BotPortrait, StateRing } from '../bot-avatar';
 import { spring } from '../design/motion';
 import { glassShadow, useDesignTheme, type DesignTheme } from '../design/theme';
@@ -56,13 +57,14 @@ export function CallBubble({ session }: { session: CallSessionSnapshot }) {
     (entry) => entry.slug === session.request.slug,
   );
   const [now, setNow] = useState(Date.now());
-  const live = session.state.status === 'live';
+  const appActive = useAppActive();
+  const ticking = session.state.status === 'live' && appActive;
   const tick = useMounted(() => {
-    if (!live) return;
+    if (!ticking) return;
     setNow(Date.now());
     const timer = setInterval(() => setNow(Date.now()), 1_000);
     return () => clearInterval(timer);
-  }, [live]);
+  }, [ticking]);
 
   const model = callBubbleModel(t, session, now);
   const ringColor = bubbleRingColor(theme, model.tone);

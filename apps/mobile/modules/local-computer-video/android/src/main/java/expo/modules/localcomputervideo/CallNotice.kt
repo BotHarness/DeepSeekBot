@@ -62,6 +62,26 @@ data class CallNotice(
   }
 }
 
+/**
+ * The over-other-apps bubble breathes its ring while the Bot speaks or hears you, like the
+ * in-app bubble's pulse (#3805). It stays still when the system turns animations off.
+ */
+object CallRingBreath {
+  /** One full breath, the in-app bubble's pulse period (`callBubble.pulsePeriod`). */
+  const val PERIOD_MS = 1400L
+  /** The faintest the ring gets, as a share of its full opacity. */
+  const val MIN_ALPHA = 0.35f
+
+  fun breathes(tone: String, animationsOn: Boolean): Boolean =
+    animationsOn && (tone == "speaking" || tone == "hearing")
+
+  /** Ring alpha for an eased 0 (full) → 1 (faintest) breath fraction. */
+  fun alpha(fraction: Float): Int {
+    val level = 1f - (1f - MIN_ALPHA) * fraction.coerceIn(0f, 1f)
+    return (255 * level).toInt()
+  }
+}
+
 /** Opaque ARGB from `#rgb` or `#rrggbb`; anything else is refused. */
 fun hexColor(value: Any?): Int? {
   val text = (value as? String)?.trim()?.removePrefix("#") ?: return null
