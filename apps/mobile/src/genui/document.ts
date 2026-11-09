@@ -1,7 +1,9 @@
 import {
   parseGenuiDocument,
   validateGenuiDocumentState,
+  validateGenuiDocumentReply,
   type GenuiDocument,
+  type GenuiDocumentReply,
   type GenuiDocumentState,
 } from '../../../../packages/core/src/channels/genui-document';
 import { GENUI_EXECUTION_LIMITS } from '../../../../packages/core/src/channels/genui-execution-limits';
@@ -11,7 +13,7 @@ import {
   GENUI_PAGE_FAILURES,
 } from '../../../../packages/core/src/channels/genui-page';
 
-export type { GenuiDocument, GenuiDocumentState };
+export type { GenuiDocument, GenuiDocumentReply, GenuiDocumentState };
 export type GenuiDocumentFailure = (typeof GENUI_PAGE_FAILURES)[number];
 export type GenuiBridgeMessage =
   | { type: 'ready' }
@@ -129,4 +131,27 @@ export function genuiRestoreMessage(
   } catch {
     return undefined;
   }
+}
+
+export function genuiDocumentReply(
+  document: GenuiDocument,
+  messageId: string,
+  intent: GenuiDocumentReply['intent'],
+  state: GenuiDocumentState,
+): GenuiDocumentReply {
+  const valid = validateGenuiDocumentState(document, state);
+  return validateGenuiDocumentReply(document, {
+    version: 2,
+    messageId,
+    snapshotId: document.snapshotId,
+    intent,
+    state: {
+      version: 1,
+      values: Object.fromEntries(
+        Object.entries(valid.values).sort(([left], [right]) =>
+          left < right ? -1 : left > right ? 1 : 0,
+        ),
+      ),
+    },
+  });
 }

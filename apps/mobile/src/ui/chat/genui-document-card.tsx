@@ -14,9 +14,11 @@ import { GENUI_EXECUTION_LIMITS } from '../../../../../packages/core/src/channel
 import {
   genuiDocumentPage,
   genuiNavigationAllowed,
+  genuiDocumentReply,
   genuiRestoreMessage,
   parseGenuiBridgeMessage,
   type GenuiDocument,
+  type GenuiDocumentReply,
 } from '../../genui/document';
 import { genuiDocumentView, type GenuiDocumentViewModel } from '../../genui/view';
 import { genuiFrame, radius, space } from '../design/tokens';
@@ -24,7 +26,7 @@ import { useDesignTheme } from '../design/theme';
 import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
-import { GenuiViewHost } from './genui-view-client';
+import { GenuiReplies, GenuiViewHost, type GenuiReplySend } from './genui-view-client';
 
 type Status = 'loading' | 'ready' | 'failed';
 
@@ -33,10 +35,12 @@ let mounts = 0;
 function GenuiFrame({
   document,
   view,
+  onReady,
   onFailure,
 }: {
   document: GenuiDocument;
   view: GenuiDocumentViewModel;
+  onReady(): void;
   onFailure(): void;
 }) {
   const theme = useDesignTheme();
@@ -99,6 +103,7 @@ function GenuiFrame({
     if (message.type === 'ready') {
       settled.current = true;
       setStatus('ready');
+      onReady();
       sync();
     } else if (message.type === 'height') setHeight(message.height);
     else if (message.type === 'state') {
@@ -241,6 +246,67 @@ function ViewControls({ view, stateful }: { view: GenuiDocumentViewModel; statef
   );
 }
 
+function Replies({
+  document,
+  messageId,
+  view,
+  send,
+  ready,
+}: {
+  document: GenuiDocument;
+  messageId: string;
+  view: GenuiDocumentViewModel;
+  send: GenuiReplySend;
+  ready: boolean;
+}) {
+  const t = useStrings();
+  const snapshot = useSyncExternalStore(view.subscribe, view.getSnapshot, view.getSnapshot);
+  const [sent, setSent] = useState<Partial<Record<GenuiDocumentReply['intent'], string>>>({});
+  const blocked = !ready || !snapshot.available || !['ready', 'saving'].includes(snapshot.status);
+  const submit = (intent: GenuiDocumentReply['intent']) => {
+    if (blocked) return;
+    let reply: GenuiDocumentReply;
+    try {
+      reply = genuiDocumentReply(document, messageId, intent, snapshot.state);
+    } catch {
+      return;
+    }
+    const body =
+      intent === 'continue'
+        ? t.genuiContinueBody(document.title)
+        : t.genuiRefreshBody(document.title);
+    const payload = JSON.stringify({ reply, body });
+    if (sent[intent] === payload) return;
+    send(body, reply);
+    setSent((previous) => ({ ...previous, [intent]: payload }));
+  };
+  const justSent = Object.values(sent).length > 0;
+  return (
+    <View style={{ gap: space.x2, alignItems: 'flex-start' }}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.x2 }}>
+        <Button
+          label={t.genuiContinue}
+          tone="primary"
+          disabled={blocked}
+          testID="genui-document-continue"
+          onPress={() => submit('continue')}
+        />
+        <Button
+          label={t.genuiRefresh}
+          disabled={blocked}
+          testID="genui-document-refresh"
+          onPress={() => submit('refresh')}
+        />
+      </View>
+      {justSent ? (
+        <Text variant="meta" tone="muted" accessibilityLiveRegion="polite">
+          {t.genuiSent}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
 export function GenuiDocumentCard({
   document,
   channelId,
@@ -265,6 +331,8 @@ export function GenuiDocumentCard({
   const snapshot = useSyncExternalStore(view.subscribe, view.getSnapshot, view.getSnapshot);
   const [attempt, setAttempt] = useState(0);
   const [failed, setFailed] = useState(false);
+  const [ready, setReady] = useState(false);
+  const send = use(GenuiReplies);
   return (
     <View style={{ gap: space.x3 }} testID="genui-document-card">
       <Text variant="body" strong>
@@ -290,16 +358,26 @@ export function GenuiDocumentCard({
           key={attempt}
           document={document}
           view={view}
-          onFailure={() => setFailed(true)}
+          onReady={() => setReady(true)}
+          onFailure={() => {
+            setReady(false);
+            setFailed(true);
+          }}
         />
       )}
       <ViewControls
         view={view}
         stateful={document.stateContract !== undefined && client !== undefined}
       />
-      <Text variant="meta" tone="muted">
-        {t.genuiContinueOnComputer}
-      </Text>
+      {send === undefined || !snapshot.available ? null : (
+        <Replies
+          document={document}
+          messageId={messageId}
+          view={view}
+          send={send}
+          ready={ready && !failed}
+        />
+      )}
     </View>
   );
 }

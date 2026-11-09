@@ -483,6 +483,9 @@ export class FakeHost {
           ...(args['attachments'] === undefined
             ? {}
             : { attachments: args['attachments'] as NonNullable<ChannelMessage['attachments']> }),
+          ...(args['genuiReply'] === undefined
+            ? {}
+            : { genuiReply: args['genuiReply'] as NonNullable<ChannelMessage['genuiReply']> }),
         });
         return { message: channel.messages.at(-1) };
       };
