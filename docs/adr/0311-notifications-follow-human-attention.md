@@ -59,6 +59,6 @@ Requests use the same rules except step 4, because an approval that blocks a Bot
 
 ## Sources
 
-- Slack Engineering, notification decision flowchart (2017), and Sophie Alpert, "Everyone is wrong about that Slack flowchart" (2024): <https://sophiebits.com/2024/10/30/everyone-is-wrong-about-that-slack-flowchart>
-- Slack Help, "Configure your Slack notifications" (mobile timing while active on desktop): <https://slack.com/help/articles/201355156>
-- InfoQ, "Slack's new notification system" (2026 rebuild: intent vs delivery): <https://www.infoq.com/news/2026/04/slack-new-notification-system/>
+- Slack Engineering, notification decision flowchart (2017), and Sophie Alpert, "Everyone is wrong about that Slack flowchart" (2024): [https://sophiebits.com/2024/10/30/everyone-is-wrong-about-that-slack-flowchart](https://sophiebits.com/2024/10/30/everyone-is-wrong-about-that-slack-flowchart)
+- Slack Help, "Configure your Slack notifications" (mobile timing while active on desktop): [https://slack.com/help/articles/201355156](https://slack.com/help/articles/201355156)
+- InfoQ, "Slack's new notification system" (2026 rebuild: intent vs delivery): [https://www.infoq.com/news/2026/04/slack-new-notification-system/](https://www.infoq.com/news/2026/04/slack-new-notification-system/)
