@@ -45,8 +45,6 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
               testID={item.settings ? 'settings-button' : `tab-${item.key}`}
               onPress={item.onPress}
               modifiers={[
-                // Every tab keeps the plain style so all labels get the same width and scale;
-                // the selected capsule is drawn behind it instead of by a padded button style.
                 buttonStyle('plain'),
                 ...(item.focused
                   ? [

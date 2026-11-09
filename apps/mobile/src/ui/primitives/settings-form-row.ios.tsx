@@ -260,7 +260,6 @@ export function FormRow({
       </NativeToggle>
     );
     if (!theme.largeText) return toggle;
-    // Large text: the label takes the full row width so words are not split beside the switch.
     return (
       <VStack alignment="leading" spacing={space.x3}>
         <VStack alignment="leading" modifiers={[accessibilityHidden(true)]}>

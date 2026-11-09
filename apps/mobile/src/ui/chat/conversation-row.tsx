@@ -206,7 +206,6 @@ export function ConversationRowFrame({
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
-  // Large text gives the name the full row: the time and count move to their own line.
   const large = theme.largeText;
   return (
     <Pressable
