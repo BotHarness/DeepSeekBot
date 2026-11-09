@@ -13,7 +13,7 @@ import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import { Callout } from './ds/callout.js';
-import { ConnectAccountHosts } from './connect-account-hosts.js';
+import { ConnectPanel, type ConnectAccountStatus } from './connect-panel.js';
 import { LanBotSettings } from './lan-bot-settings.js';
 import type { LanBotSnapshot } from '../../../core/src/devices/bot-lan-control.js';
 import { ChoiceButton } from './ds/choice-button.js';
@@ -47,26 +47,6 @@ interface PairedDevice {
 }
 
 type RouteStatus = PhoneRouteStatus;
-
-interface ConnectAccountStatus {
-  state: 'signed-out' | 'signing-in' | 'signed-in' | 'error';
-  email?: string;
-  hostId?: string;
-  userCode?: string;
-  verificationUri?: string;
-  issue?: string;
-  recovery?: 'automatic' | 'sign-in';
-  pool?: {
-    capacity: number;
-    inUse: number;
-    free: number;
-    waiting: number;
-    nextFreeAt?: string;
-    guaranteedMinutes?: number;
-  };
-  protectedUntil?: string;
-  wait?: { reason: 'pool-full' | 'zone-full' | 'queued'; position: number; since: string };
-}
 
 interface ConnectStatus {
   encryption?: { fingerprint: string; state: string };
@@ -134,21 +114,7 @@ const styles = stylex.create({
     borderRadius: radius.md,
     backgroundColor: 'white',
   },
-  code: {
-    fontFamily: 'var(--dsw-font-mono, ui-monospace, monospace)',
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
-    overflowWrap: 'anywhere',
-  },
   actions: { display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: space.x3 },
-  email: {
-    color: color.fg,
-    fontSize: text.titleSize,
-    lineHeight: text.titleLine,
-    fontWeight: text.strong,
-  },
-  notYou: { color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
-  switchAccount: { marginBlock: space.x3 },
 });
 
 function ConnectionMethod({
@@ -496,179 +462,17 @@ export function PairedDevicesSettings({
   const devices = snapshot?.devices ?? [];
   const connect = snapshot?.connect;
   const signIn = connect?.account;
-  const waitingForTunnel = signIn?.state === 'error' && signIn.issue === 'relay-full';
-  const linked = signIn?.state === 'signed-in' || waitingForTunnel;
-  const poolLine =
-    signIn?.pool === undefined ? null : (
-      <div data-connect-pool="">
-        <Note>{t('devices.connect.pool', signIn.pool)}</Note>
-      </div>
-    );
-  const clock = (iso: string) =>
-    new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-  const poolRule = (
-    <Note>{t('devices.connect.poolRule', { minutes: signIn?.pool?.guaranteedMinutes ?? 30 })}</Note>
-  );
-
   const connectControls =
     signIn === undefined ? null : (
-      <div data-connect="">
-        <SettingsSection title={t('devices.connect.title')}>
-          <SettingsRow
-            title={t('devices.connect.account')}
-            description={
-              linked ? (
-                <>
-                  <span {...stylex.props(styles.email)} data-connect-email="">
-                    {signIn.email}
-                  </span>
-                  <br />
-                  {t(waitingForTunnel ? 'devices.connect.full.short' : 'devices.connect.signedIn')}
-                </>
-              ) : (
-                t('devices.connect.description')
-              )
-            }
-            data={{ 'data-connect-account': signIn.state }}
-            control={
-              linked ? (
-                <>
-                  <span {...stylex.props(styles.notYou)}>{t('devices.connect.notYou')}</span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={busy === 'sign-out'}
-                    onClick={() => void account('sign-out')}
-                  >
-                    {t('devices.connect.signOut')}
-                  </Button>
-                </>
-              ) : signIn.state === 'signing-in' ? undefined : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={busy === 'sign-in'}
-                  onClick={() => void account('sign-in')}
-                >
-                  {t('devices.connect.signIn')}
-                </Button>
-              )
-            }
-          >
-            {signIn.state === 'signing-in' && signIn.verificationUri !== undefined ? (
-              <Callout data={{ 'data-connect-code': '' }}>
-                {t('devices.connect.confirm')}{' '}
-                <code {...stylex.props(styles.code)}>{signIn.userCode}</code>
-                <div {...stylex.props(styles.switchAccount)} data-connect-switch="">
-                  {t('devices.connect.switchAccount')}{' '}
-                  <code {...stylex.props(styles.code)}>{signIn.verificationUri}</code>
-                </div>
-                <div>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => window.open(signIn.verificationUri, '_blank', 'noopener')}
-                  >
-                    {t('devices.connect.openPage')}
-                  </Button>
-                </div>
-              </Callout>
-            ) : waitingForTunnel ? (
-              <Callout
-                tone="warning"
-                title={t('devices.connect.full.title')}
-                data={{ 'data-connect-wait': signIn.wait?.reason ?? 'pool-full' }}
-              >
-                {signIn.wait?.reason === 'zone-full'
-                  ? t('devices.connect.full.zone')
-                  : signIn.wait === undefined
-                    ? t('devices.connect.relayDown')
-                    : t('devices.connect.full.queued', { position: signIn.wait.position })}
-                {signIn.wait === undefined ? null : (
-                  <div {...stylex.props(styles.switchAccount)}>
-                    {t('devices.connect.full.since', { time: clock(signIn.wait.since) })}
-                  </div>
-                )}
-                {signIn.pool?.nextFreeAt === undefined ? null : (
-                  <div data-connect-eta="">
-                    {t('devices.connect.full.eta', { time: clock(signIn.pool.nextFreeAt) })}
-                  </div>
-                )}
-                {poolLine}
-                {poolRule}
-              </Callout>
-            ) : signIn.state === 'error' ? (
-              <Callout tone="warning" data={{ 'data-connect-issue': signIn.issue ?? '' }}>
-                {t(
-                  signIn.issue === 'account-not-allowed'
-                    ? 'devices.connect.notAllowed'
-                    : signIn.issue === 'host-limit'
-                      ? 'devices.connect.hostLimit'
-                      : signIn.issue === 'session-revoked'
-                        ? 'devices.connect.sessionRevoked'
-                        : signIn.issue === 'session-expired' ||
-                            signIn.issue === 'sign-in-expired' ||
-                            signIn.issue === 'sign-in-denied'
-                          ? 'devices.connect.signInAgain'
-                          : signIn.issue === 'credential-unavailable'
-                            ? 'devices.connect.credentialUnavailable'
-                            : signIn.recovery === 'automatic'
-                              ? 'devices.connect.relayDown'
-                              : 'devices.connect.relaySignIn',
-                )}
-              </Callout>
-            ) : null}
-          </SettingsRow>
-          {signIn.state === 'signed-in' && connect?.hostname !== undefined ? (
-            <SettingsRow
-              title={t('devices.connect.tunnel')}
-              description={connect.hostname}
-              data={{ 'data-connect-tunnel': freshSnapshot ? connect.state : 'unknown' }}
-              control={
-                <Note
-                  tone={
-                    !freshSnapshot
-                      ? 'muted'
-                      : connect.state === 'connected'
-                        ? 'success'
-                        : connect.state === 'error'
-                          ? 'warning'
-                          : 'muted'
-                  }
-                >
-                  {t(
-                    !freshSnapshot
-                      ? 'devices.connection.unchecked'
-                      : connect.state === 'connected'
-                        ? 'devices.connect.connected'
-                        : connect.state === 'error'
-                          ? 'devices.connect.reconnecting'
-                          : 'devices.connect.starting',
-                  )}
-                </Note>
-              }
-            >
-              {freshSnapshot && connect.state === 'error' ? (
-                <Note tone="warning">{t('devices.connect.recovery')}</Note>
-              ) : null}
-              {poolLine}
-              {signIn.pool !== undefined && signIn.pool.free === 0 ? (
-                <>
-                  {signIn.protectedUntil === undefined ? null : (
-                    <div data-connect-protected="">
-                      <Note tone="warning">
-                        {t('devices.connect.protected', { time: clock(signIn.protectedUntil) })}
-                      </Note>
-                    </div>
-                  )}
-                  {poolRule}
-                </>
-              ) : null}
-            </SettingsRow>
-          ) : null}
-        </SettingsSection>
-        <ConnectAccountHosts t={t} account={signIn} reloadSnapshot={load} />
-      </div>
+      <ConnectPanel
+        t={t}
+        account={signIn}
+        tunnel={connect}
+        fresh={freshSnapshot}
+        busy={busy}
+        onAccount={(action) => void account(action)}
+        reloadSnapshot={load}
+      />
     );
 
   const verification = (

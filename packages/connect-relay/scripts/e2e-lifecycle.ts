@@ -2,6 +2,8 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import { createCloudflaredResolver } from '../../core/src/devices/cloudflared.js';
 import { createCloudflareApi } from '../src/cloudflare.js';
@@ -94,13 +96,16 @@ const origin = createServer((request, response) => {
 });
 await new Promise<void>((done) => origin.listen(0, '127.0.0.1', done));
 const originPort = (origin.address() as AddressInfo).port;
-const binary = (await createCloudflaredResolver()()).binary;
+const binary = (
+  await createCloudflaredResolver({ cacheDir: join(tmpdir(), 'dsb-e2e-cloudflared') })()
+).binary;
 const connectors = new Map<string, ChildProcess>();
 const connect = (id: string, tunnelToken: string) => {
   const child = spawn(binary, ['tunnel', '--no-autoupdate', 'run'], {
     env: { ...process.env, TUNNEL_TOKEN: tunnelToken },
     stdio: ['ignore', 'ignore', 'pipe'],
   });
+  child.on('error', (error) => record('cloudflared failed to start', false, error.message));
   connectors.set(id, child);
 };
 const disconnect = (id: string) => {

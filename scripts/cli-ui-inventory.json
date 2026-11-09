@@ -108,8 +108,6 @@
       "description": "Devices page hosted Connect account and tunnel state (ADR-0241).",
       "scope": "Profile",
       "surfaces": [
-        "setting:packages/client/src/client/paired-devices.tsx:{t('devices.connect.account')}",
-        "setting:packages/client/src/client/paired-devices.tsx:{t('devices.connect.tunnel')}",
         "setting:packages/client/src/client/connect-account-hosts.tsx:{host.name}",
         "setting:packages/client/src/client/connect-account-hosts.tsx:{t('devices.connect.computersStatus')}"
       ],

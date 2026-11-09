@@ -113,9 +113,12 @@ it('signs in, shows the code to confirm, then the connected address', async () =
     account: { state: 'signed-in', email: 'vain@example.com' },
   });
   await render();
+  expect(host.querySelector('[data-connect-email]')).toBeNull();
+  expect(host.textContent).not.toContain('hk7q2mstudio3.deepseekbot.dev');
+  await act(async () => host.querySelector<HTMLButtonElement>('[data-connect-manage]')?.click());
   expect(host.querySelector('[data-connect-email]')?.textContent).toBe('vain@example.com');
-  expect(host.querySelector('[data-connect-account]')?.textContent).toContain('不是你？');
-  expect(host.querySelector('[data-connect-tunnel]')?.textContent).toContain(
+  expect(host.textContent).toContain('不是你？');
+  expect(host.querySelector('[data-connect-address]')?.textContent).toContain(
     'hk7q2mstudio3.deepseekbot.dev',
   );
   expect(host.querySelector('[data-connect-tunnel]')?.getAttribute('data-connect-tunnel')).toBe(
@@ -203,6 +206,8 @@ it('tells a waiting computer its place in line, the pool and what frees a tunnel
     zhTranslate('devices.connect.pool', { capacity: 1000, inUse: 1000, free: 0, waiting: 3 }),
   );
   expect(host.querySelector('[data-connect-protected]')).toBeNull();
+  expect(host.querySelector('[data-connect-email]')).toBeNull();
+  await act(async () => host.querySelector<HTMLButtonElement>('[data-connect-manage]')?.click());
   expect(host.querySelector('[data-connect-email]')?.textContent).toBe('vain@example.com');
   expect(button(zhTranslate('devices.connect.signIn'))).toBeUndefined();
   expect(host.querySelector('[data-connect-issue]')).toBeNull();
