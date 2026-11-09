@@ -24,6 +24,8 @@ Android lets an app record and play in the background only from a foreground ser
 
 ## Consequences
 
+Returning to the foreground preserves a connected Host while it has call retention. The usual resume recovery replaces possibly suspended carriers, which would also terminate their calls through Host gateway cleanup. The resume path therefore skips that replacement only for an already-connected retained Host; idle Hosts and unreachable/reconnecting Hosts keep their existing recovery behavior. Releasing retention restores ordinary resume recovery. Explicit refusal, unpairing and actual transport failures remain authoritative (#3815).
+
 The service also owns a React Native Headless JS task, independent of the notification Keep connected service. React Native pauses ordinary JavaScript timers when the activity pauses without an active Headless task; a CPU wake lock alone does not keep the call's heartbeat running. Each call service lifetime carries a unique token. JavaScript holds that task only while the token is current; service failure or destruction clears it and finishes the native task. A late task cannot keep a stopped or replacement call alive. The Host heartbeat deadline is unchanged. This change requires a rebuilt Android client.
 
 - Android and iPhone now behave the same when the app leaves the foreground. Camera keyframes still pause in the background and resume on return (ADR-0299), and those records become observable on Android.

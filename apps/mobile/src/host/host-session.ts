@@ -437,7 +437,9 @@ AppState.addEventListener('change', (next) => {
   pushSession.reflectAgain();
   void pushSession.refreshPermission();
   for (const { host } of sessions.values()) {
-    host.client.retryNow('resume');
+    host.client.retryNow('resume', {
+      preserveConnected: connectionLifetime.retained(host.client),
+    });
     if (host.client.getSnapshot().connection.status === 'connected') void host.inbox.refresh();
   }
 });

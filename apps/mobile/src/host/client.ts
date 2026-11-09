@@ -158,7 +158,7 @@ export interface HostClient {
   subscribe(listener: () => void): () => void;
   start(): void;
   stop(): void;
-  retryNow(trigger?: 'resume' | 'manual_retry'): void;
+  retryNow(trigger?: 'resume' | 'manual_retry', options?: { preserveConnected?: boolean }): void;
   refresh(): Promise<void>;
   call<T>(method: string, args?: Record<string, unknown>): Promise<T>;
   upload(name: string, data: Blob): Promise<AttachmentRef>;
@@ -1388,8 +1388,16 @@ export function createHostClient(options: HostClientOptions): HostClient {
       publish({ status: 'stopped', route });
       options.telemetry?.dispose();
     },
-    retryNow(trigger = 'manual_retry') {
+    retryNow(trigger = 'manual_retry', retryOptions) {
       if (!running) return;
+      if (
+        trigger === 'resume' &&
+        retryOptions?.preserveConnected === true &&
+        snapshot.connection.status === 'connected'
+      ) {
+        resumeRequested = false;
+        return;
+      }
       if (trigger === 'manual_retry') {
         fetchedArrangement = undefined;
         fetchedSorting = undefined;
