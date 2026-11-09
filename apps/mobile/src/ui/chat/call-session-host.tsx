@@ -16,7 +16,7 @@ import {
 } from '../../host/call-camera';
 import { createCallMedia, microphoneAccess, microphoneGranted } from '../../host/call-media';
 import { askCallNotifications, callOverlayAllowed } from '../../host/call-notice';
-import { useHostSession, useHostSnapshot } from '../../host/host-session';
+import { retainHostConnection, useHostSession, useHostSnapshot } from '../../host/host-session';
 import { callActivityNative, onCallActivityAction } from '../../host/native-call-activity';
 import { callAudioPreference } from '../../host/native-call-audio-route';
 import { useDesignTheme } from '../design/theme';
@@ -98,6 +98,7 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
     if (client === undefined || media === undefined || dialed.current) return;
     dialed.current = true;
     let cancelled = false;
+    let releaseConnection: (() => void) | undefined;
     const timeline: Record<string, unknown>[] = [];
     const mark = (kind: string, detail: Record<string, unknown> = {}) =>
       timeline.push({ kind, at: Date.now(), ...detail });
@@ -153,6 +154,8 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
         current = next;
         if (next.status === 'live') connectedAt ??= Date.now();
         if (next.status === 'ended') {
+          releaseConnection?.();
+          releaseConnection = undefined;
           paused = false;
           if (cameraState.on) {
             stopCamera();
@@ -277,6 +280,7 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
       if (access !== 'granted') return;
       await callAudioPreference.ready;
       if (cancelled) return;
+      releaseConnection = retainHostConnection(client);
       await call.open(slug);
       const opened = await media.audio?.state();
       if (!cancelled && opened !== undefined && opened !== null)
@@ -320,6 +324,8 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
       removeActions();
       activity.end();
       call.dispose();
+      releaseConnection?.();
+      releaseConnection = undefined;
       cancelled = true;
       writeReport();
     };
