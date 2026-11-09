@@ -1,3 +1,4 @@
+import type { ChannelReplyPreview } from './reply-preview.js';
 import { isChannelMessageVoice, type ChannelMessageVoice } from './voice.js';
 import { parseToolApprovalActor } from '../workspaces/tool-approval-actor.js';
 import { createHash } from 'node:crypto';
@@ -245,10 +246,7 @@ export interface ChannelMessageExternal {
   thread?: string;
 }
 
-export interface ChannelReplyPreview {
-  author: ChannelMessageAuthor;
-  body: string;
-}
+export type { ChannelReplyPreview, ChannelReplyPreviewMedia } from './reply-preview.js';
 
 export interface SessionFailureCard {
   requestMessageId?: string;

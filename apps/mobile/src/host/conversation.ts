@@ -3,6 +3,7 @@ import { forgetMedia } from './media-cache';
 import { sessionFailure } from './session-failure';
 import { activityOf, type ChannelActivity } from './channel-activity';
 import { approvalCommand } from './requests';
+import { replyPreviewOf } from '../../../../packages/core/src/channels/reply-preview';
 import type {
   AttachmentRef,
   WireAllBotMention,
@@ -675,7 +676,7 @@ export function createConversation(options: ConversationOptions): Conversation {
 
   function replyPreview(id: string): WireReplyPreview | null {
     const target = window.find((entry) => entry.message.id === id)?.message;
-    if (target !== undefined) return { author: target.author, body: target.body };
+    if (target !== undefined) return replyPreviewOf(target);
     const pending = outgoing.get(id);
     return pending === undefined ? null : { author: { kind: 'human' }, body: pending.body };
   }

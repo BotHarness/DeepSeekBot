@@ -10,6 +10,7 @@ import {
   type RetainedAttachmentMessage,
 } from '../attachments/legacy-migration.js';
 import { projectAttachmentFiles } from '../attachments/message-files.js';
+import { replyPreviewOf } from './reply-preview.js';
 import {
   assertGrantRequestReply,
   grantRequester,
@@ -211,18 +212,17 @@ function parseMessage(
 function replyProjection(
   message: ChannelMessage,
   byId: ReadonlyMap<string, ChannelMessage>,
+  projectThumbnail?: (target: ChannelMessage, ref: ChannelAttachmentRef) => ChannelAttachmentRef,
 ): ChannelMessage {
   if (message.replyTo === undefined) return message;
   const target = byId.get(message.replyTo);
   if (target === undefined) return { ...message, replyToPreview: null };
-  const normalized = target.body.replace(/\s+/gu, ' ').trim();
-  const characters = Array.from(normalized);
   return {
     ...message,
-    replyToPreview: {
-      author: target.author,
-      body: characters.length > 140 ? characters.slice(0, 140).join('') + '...' : normalized,
-    },
+    replyToPreview: replyPreviewOf(
+      target,
+      projectThumbnail === undefined ? undefined : (ref) => projectThumbnail(target, ref),
+    ),
   };
 }
 
@@ -833,6 +833,16 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     };
   };
 
+  const projectReplyThumbnail = (
+    target: ChannelMessage,
+    ref: ChannelAttachmentRef,
+  ): ChannelAttachmentRef =>
+    projectAttachmentFiles(
+      { ...target, attachments: [ref] },
+      options.attachments,
+      options.mediaVersions,
+    ).attachments?.[0] ?? ref;
+
   const project = (
     messages: readonly ChannelMessage[],
     message: ChannelMessage,
@@ -847,6 +857,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
             : {}),
         },
         byId,
+        projectReplyThumbnail,
       ),
       options.attachments,
       options.mediaVersions,
@@ -3412,7 +3423,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       return {
         messages: selected.map((message) =>
           projectAttachmentFiles(
-            replyProjection(projectPostPreview(message), byId),
+            replyProjection(projectPostPreview(message), byId, projectReplyThumbnail),
             options.attachments,
             options.mediaVersions,
           ),
