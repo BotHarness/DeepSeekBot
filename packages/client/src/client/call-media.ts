@@ -1,4 +1,9 @@
-import type { CallClientMedia, CallMediaState } from '../../../core/src/voice/call-client.js';
+import {
+  CallMediaFailure,
+  type CallClientMedia,
+  type CallMediaCode,
+  type CallMediaState,
+} from '../../../core/src/voice/call-client.js';
 
 import { openMicrophone } from './mic-device.js';
 
@@ -7,9 +12,14 @@ export { CALL_AUDIO_CONSTRAINTS } from './mic-device.js';
 const GATHER_LIMIT_MS = 4_000;
 const GATHER_SETTLE_MS = 1_000;
 
-export class CallMicrophoneError extends Error {
-  constructor(readonly code: 'microphone-denied' | 'microphone-missing') {
-    super(code);
+const MICROPHONE_MESSAGE = {
+  'microphone-denied': 'Microphone access is blocked for this page.',
+  'microphone-missing': 'No microphone could be opened for the call.',
+} as const;
+
+export class CallMicrophoneError extends CallMediaFailure {
+  constructor(override readonly code: 'microphone-denied' | 'microphone-missing') {
+    super(code, MICROPHONE_MESSAGE[code]);
   }
 }
 
@@ -40,12 +50,12 @@ function gathered(peer: RTCPeerConnection): Promise<void> {
 export function createBrowserCallMedia(
   devices: () => MediaDevices | undefined = () => globalThis.navigator?.mediaDevices,
 ): CallClientMedia {
-  const listeners = new Set<(state: CallMediaState, code?: string) => void>();
+  const listeners = new Set<(state: CallMediaState, code?: CallMediaCode) => void>();
   let peer: RTCPeerConnection | undefined;
   let stream: MediaStream | undefined;
   let speaker: HTMLAudioElement | undefined;
   let muted = false;
-  const emit = (state: CallMediaState, code?: string) => {
+  const emit = (state: CallMediaState, code?: CallMediaCode) => {
     for (const listener of [...listeners]) listener(state, code);
   };
   const release = () => {

@@ -29,6 +29,7 @@ import {
   desktopCallView,
   type DesktopCallCaptureHandlers,
 } from '../src/client/desktop-call.js';
+import { CallMicrophoneError } from '../src/client/call-media.js';
 import { DmCallControl } from '../src/client/dm-call.js';
 import {
   CALL_NOTICE_TAG,
@@ -93,13 +94,14 @@ function host(options: { asr?: boolean; busy?: () => boolean; localOff?: boolean
   return { calls, fetcher, records };
 }
 
-function windowMedia() {
+function windowMedia(refuse?: Error) {
   const started: string[] = [];
   const muted: boolean[] = [];
   let stops = 0;
   const media: CallClientMedia = {
     async start({ offer }) {
       started.push(offer);
+      if (refuse !== undefined) throw refuse;
       return 'v=0\r\na=answer\r\n';
     },
     mute: (value) => muted.push(value),
@@ -168,8 +170,9 @@ function desktopWindow(
   fetcher: typeof fetch,
   client: string,
   camera: ReturnType<typeof fakeCamera> = fakeCamera(),
+  refuse?: Error,
 ) {
-  const media = windowMedia();
+  const media = windowMedia(refuse);
   const call = createDesktopCall({
     post: createCallPost(client, fetcher),
     media: () => media.media,
@@ -257,10 +260,30 @@ describe('desktop call', () => {
         slug: 'mira',
         checking: false,
         block: undefined,
-        state: { status: 'ended', reason: 'media-failed', error: 'microphone-denied', events: [] },
+        state: {
+          status: 'ended',
+          reason: 'media-failed',
+          mediaCode: 'microphone-denied',
+          events: [],
+        },
         visual: DESKTOP_CALL_VISUAL_OFF,
       }),
     ).toEqual(['call.microphoneDenied']);
+  });
+
+  it('explains a blocked microphone from its code, not its message', async () => {
+    const { fetcher } = host();
+    const denied = new CallMicrophoneError('microphone-denied');
+    expect(denied.message).not.toBe('microphone-denied');
+    const mac = desktopWindow(fetcher, 'window-mac-0001', fakeCamera(), denied);
+    await mac.call.start('mira');
+    expect(mac.call.snapshot().state).toMatchObject({
+      status: 'ended',
+      reason: 'media-failed',
+      mediaCode: 'microphone-denied',
+      error: denied.message,
+    });
+    expect(desktopCallNotice(mac.call.snapshot())).toEqual(['call.microphoneDenied']);
   });
 
   it('has desktop copy for every call notice', () => {

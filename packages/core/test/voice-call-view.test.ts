@@ -269,7 +269,7 @@ describe('call view: ended call', () => {
       callEndView({
         status: 'ended',
         reason: 'media-failed',
-        error: 'microphone-denied',
+        mediaCode: 'microphone-denied',
         events: [],
       })?.notice,
     ).toBe('microphone-denied');
@@ -277,7 +277,7 @@ describe('call view: ended call', () => {
       callEndView({
         status: 'ended',
         reason: 'media-failed',
-        error: 'microphone-missing',
+        mediaCode: 'microphone-missing',
         events: [],
       })?.notice,
     ).toBe('microphone-missing');
