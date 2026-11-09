@@ -238,7 +238,7 @@ describe('direct Bot tool runner', () => {
   });
 
   it('creates and continues an Orchestrator-owned Assignment without waking the Orchestrator', async () => {
-    const { runtime, host, owner } = setup();
+    const { runtime, host, owner, dm } = setup();
     const signal = new AbortController().signal;
     const database = attachOperationalModule(owner, 'direct-assignment-test');
     try {
@@ -310,6 +310,22 @@ describe('direct Bot tool runner', () => {
       expect(requested.result).toMatchObject({ sessionId });
       expect(notices().map((notice) => notice.cause)).toEqual(['direct-create', 'direct-request']);
       expect(notices()[1]!.body).toContain('"Also list flaky tests."');
+
+      const admission = runtime.admitDmMessage({
+        channelId: dm.id,
+        messageId: 'human-after-direct',
+        body: 'Status?',
+      });
+      if (!admission.admitted) throw new Error('Not admitted');
+      await admission.settled.catch(() => undefined);
+      const turn = [...host.received.entries()]
+        .filter(([id]) => id !== sessionId)
+        .flatMap(([, messages]) => messages)
+        .flatMap((message) => message.content)
+        .map((part) => ('text' in part ? part.text : ''))
+        .join('\n');
+      expect(turn).toContain('created this Assignment directly through the deepseekbot CLI');
+      expect(turn).toContain('sent this Assignment a request directly through the deepseekbot CLI');
     } finally {
       await runtime.close();
     }

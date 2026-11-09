@@ -1031,6 +1031,7 @@ interface InboxReportRow {
   continuity_key: string | null;
   activity: AssignmentActivity | null;
   paired_report_id?: string | null;
+  lifecycle_cause?: string | null;
 }
 
 interface DigestRow {
@@ -1112,7 +1113,7 @@ interface InboxUnit {
   repeats: number;
   lifecycleNotices?: Array<{
     sourceEventId: string;
-    reportSourceEventId: string;
+    reportSourceEventId?: string;
     summary: string;
   }>;
 }
@@ -1297,21 +1298,29 @@ export function queryAssignmentDirectory(
   };
 }
 
+function keptLifecycleNotice(
+  row: InboxReportRow,
+): NonNullable<InboxUnit['lifecycleNotices']>[number] | undefined {
+  if (row.source_kind !== 'assignment-lifecycle') return undefined;
+  if (row.paired_report_id != null)
+    return {
+      sourceEventId: row.source_event_id,
+      reportSourceEventId: row.paired_report_id,
+      summary: row.body,
+    };
+  if (row.lifecycle_cause?.startsWith('direct-') === true)
+    return { sourceEventId: row.source_event_id, summary: row.body };
+  return undefined;
+}
+
 function coalesceInbox(rows: InboxReportRow[]): InboxUnit[] {
   const units = new Map<string, InboxUnit>();
   for (const row of rows) {
     const key = row.assignment_session_id ?? row.source_event_id;
     const existing = units.get(key);
-    if (
-      row.source_kind === 'assignment-lifecycle' &&
-      row.paired_report_id != null &&
-      existing !== undefined
-    ) {
-      (existing.lifecycleNotices ??= []).push({
-        sourceEventId: row.source_event_id,
-        reportSourceEventId: row.paired_report_id,
-        summary: row.body,
-      });
+    const kept = keptLifecycleNotice(row);
+    if (kept !== undefined && existing !== undefined) {
+      (existing.lifecycleNotices ??= []).push(kept);
       existing.repeats += 1;
       continue;
     }
@@ -1337,17 +1346,7 @@ function coalesceInbox(rows: InboxReportRow[]): InboxUnit[] {
         continuityKey: row.continuity_key,
         activity: row.activity,
         repeats: 1,
-        ...(row.paired_report_id == null
-          ? {}
-          : {
-              lifecycleNotices: [
-                {
-                  sourceEventId: row.source_event_id,
-                  reportSourceEventId: row.paired_report_id,
-                  summary: row.body,
-                },
-              ],
-            }),
+        ...(kept === undefined ? {} : { lifecycleNotices: [kept] }),
       });
       continue;
     }
@@ -1405,9 +1404,10 @@ function renderInbox(units: InboxUnit[], text: PromptText = DEFAULT_PROMPT_TEXT)
     }
     const target = unit.assignmentSessionId ?? 'unknown Assignment';
     const lifecycle = (unit.lifecycleNotices ?? [])
-      .map(
-        (notice) =>
-          ` Host lifecycle notice [Source Event ${notice.sourceEventId}; same native Turn as Report ${notice.reportSourceEventId}]: ${notice.summary}`,
+      .map((notice) =>
+        notice.reportSourceEventId === undefined
+          ? ` Host lifecycle notice [Source Event ${notice.sourceEventId}]: ${notice.summary}`
+          : ` Host lifecycle notice [Source Event ${notice.sourceEventId}; same native Turn as Report ${notice.reportSourceEventId}]: ${notice.summary}`,
       )
       .join('');
     const facts = [
@@ -10197,6 +10197,7 @@ class BotRuntimeImplementation implements BotRuntime {
                     e.body, e.created_at, e.expects_reply, a.continuity_key,
                     CASE WHEN e.source_kind = 'schedule' THEN e.payload_json END AS schedule_json,
                     json_extract(e.payload_json, '$.assignmentLifecycle.reportSourceEventId') AS paired_report_id,
+                    json_extract(e.payload_json, '$.assignmentLifecycle.cause') AS lifecycle_cause,
                     CASE WHEN a.stop_state = 'running' THEN a.open_ask_source_event_id END AS open_ask_id,
                     (SELECT body FROM source_events WHERE source_event_id = a.open_ask_source_event_id) AS open_ask_summary,
                     CASE WHEN a.stop_state = 'stopped' THEN 'stopped'
