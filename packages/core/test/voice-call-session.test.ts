@@ -324,6 +324,34 @@ describe('call session visual sharing', () => {
     expect(world.captures.last().stopped).toBe(true);
   });
 
+  it('keeps a second hangup behind the pending share-off request', async () => {
+    let release: (() => void) | undefined;
+    const host = fakeHost();
+    const world = setup(host);
+    await world.session.client.open('mira');
+    await world.session.share('camera');
+    host.holdVisual(new Promise<void>((done) => (release = done)));
+    const first = world.session.hangup();
+    const second = world.session.hangup();
+    await flush();
+    expect(host.posts.map((body) => body['kind'])).not.toContain('hangup');
+    release!();
+    await Promise.all([first, second]);
+    const kinds = host.posts.map((body) => body['kind']);
+    expect(kinds.lastIndexOf('visual')).toBeLessThan(kinds.indexOf('hangup'));
+  });
+
+  it('hangs up at once when asked to, still telling the Host the share is off', async () => {
+    const host = fakeHost();
+    const world = setup(host);
+    await world.session.client.open('mira');
+    await world.session.share('camera');
+    host.holdVisual(new Promise<void>(() => undefined));
+    await world.session.hangup({ now: true });
+    expect(host.visuals()).toEqual([{ source: 'camera' }, { source: 'off' }]);
+    expect(host.posts.map((body) => body['kind'])).toContain('hangup');
+  });
+
   it('hangs up without a Host visual when nothing is shared', async () => {
     const world = setup();
     await world.session.client.open('mira');
