@@ -476,7 +476,7 @@ describe('Connect relay tunnels', () => {
     expect(tunnels.apiCalls).toBe(calls);
   });
 
-  it('reclaims tunnels left offline and recreates them on the same hostname', async () => {
+  it('reclaims tunnels left offline and recreates them on a fresh hostname', async () => {
     const { call, relay, tunnels, advance, at } = await setup();
     await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Studio' } });
     await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Laptop' } });
@@ -510,11 +510,10 @@ describe('Connect relay tunnels', () => {
       as: 'user_alice',
       body: { originPort: 41001 },
     });
-    expect(back.body).toEqual({
-      hostname: 'haaaaaaaaaaab.deepseekbot.dev',
-      token: 'token-for-tunnel-3',
-    });
-    expect(tunnels.recordFor('haaaaaaaaaaab.deepseekbot.dev')).toMatchObject({
+    expect(back.body.token).toBe('token-for-tunnel-3');
+    expect(back.body.hostname).toMatch(/^h[a-z2-7]{12}\.deepseekbot\.dev$/u);
+    expect(back.body.hostname).not.toBe('haaaaaaaaaaab.deepseekbot.dev');
+    expect(tunnels.recordFor(back.body.hostname)).toMatchObject({
       target: 'tunnel-3.cfargotunnel.com',
     });
     expect(tunnels.records.size).toBe(1);

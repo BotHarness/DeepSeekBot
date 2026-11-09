@@ -293,7 +293,7 @@ it('seeds the verified paired identity from the account computer appearance only
     'verified-host',
     ['verified-host'],
     undefined,
-    'connect-host:studio.connect.example',
+    'connect-host:registration',
   );
   expect(mocks.save.mock.invocationCallOrder.at(-1)).toBeLessThan(
     mocks.initialize.mock.invocationCallOrder.at(-1)!,

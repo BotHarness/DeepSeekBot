@@ -11,6 +11,7 @@ export interface HostEncryption {
 
 export interface SavedHost {
   accountOwner?: AccountOwner;
+  connectHost?: string;
   encryption?: HostEncryption;
   hostId: string;
   hostName: string;
@@ -66,6 +67,10 @@ export function parseSavedHost(input: unknown): SavedHost | undefined {
         ...(parseAccountOwner(value['accountOwner']) === undefined
           ? {}
           : { accountOwner: parseAccountOwner(value['accountOwner'])! }),
+        ...(typeof value['connectHost'] === 'string' &&
+        /^h[a-z2-7]{12}$/u.test(value['connectHost'])
+          ? { connectHost: value['connectHost'] }
+          : {}),
         ...(parseEncryption(value['encryption']) === undefined
           ? {}
           : { encryption: parseEncryption(value['encryption'])! }),

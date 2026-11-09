@@ -3,14 +3,16 @@ import type { SavedHost } from './hosts';
 import type { PairingFailure } from './pairing';
 
 export function accountHostAdded(host: ConnectHost, saved: readonly SavedHost[]): boolean {
-  return saved.some((entry) =>
-    entry.routes.some((route) => {
-      try {
-        return new URL(route).origin === `https://${host.hostname}`;
-      } catch {
-        return false;
-      }
-    }),
+  return saved.some(
+    (entry) =>
+      entry.connectHost === host.id ||
+      entry.routes.some((route) => {
+        try {
+          return new URL(route).origin === `https://${host.hostname}`;
+        } catch {
+          return false;
+        }
+      }),
   );
 }
 
