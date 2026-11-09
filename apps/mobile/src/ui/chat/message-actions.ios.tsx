@@ -38,6 +38,7 @@ import { useDesignTheme } from '../design/theme';
 import { rowSymbol } from '../primitives/row-icon';
 import { useStrings } from '../strings';
 import {
+  actionId,
   dismissQueue,
   menuGroups,
   menuLabel,
@@ -67,6 +68,7 @@ export function MessageActions({
   onReact,
   onCopy,
   onShareText,
+  onShareAttachment,
 }: MessageActionsProps) {
   const theme = useDesignTheme();
   const queue = useRef(dismissQueue(Platform.OS)).current;
@@ -110,6 +112,8 @@ export function MessageActions({
                 onSelect: () => queue.after(() => shown.actions?.select()),
                 onCopy,
                 onShareText: (text) => queue.after(() => onShareText(text)),
+                onShareAttachment: (attachment) =>
+                  queue.after(() => onShareAttachment?.(attachment)),
                 onOpen: () => queue.after(() => shown.activity?.onOpen?.()),
               });
               onClose();
@@ -197,7 +201,7 @@ function SheetContent({
       {menuGroups(messageMenuActions(message, target.activity, target.actions !== undefined)).map(
         (group) => (
           <VStack
-            key={group.map((action) => action.key).join()}
+            key={group.map(actionId).join()}
             spacing={0}
             modifiers={[
               background(
@@ -210,7 +214,7 @@ function SheetContent({
             ]}
           >
             {group.map((action, index) => (
-              <Fragment key={action.key}>
+              <Fragment key={actionId(action)}>
                 {index === 0 ? null : (
                   <Divider modifiers={[padding({ leading: space.x5 + icon + space.x4 })]} />
                 )}

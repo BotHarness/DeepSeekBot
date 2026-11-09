@@ -2126,6 +2126,7 @@ function ChatConversation({
         onReact={(message, emoji, active) => react(message.id, emoji, active)}
         onCopy={copyMessage}
         onShareText={shareText}
+        onShareAttachment={(attachment) => void share(attachment)}
       />
       {paging === undefined ? null : (
         <NativePageHeader

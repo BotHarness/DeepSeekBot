@@ -326,6 +326,35 @@ export const swipeReply = {
 
 export const replyQuote = { tint: 0.13 } as const;
 
+export const replyThumb = { size: 32 } as const;
+
+export const mediaBubble = {
+  maxWidth: 280,
+  widthRatio: 0.72,
+  gap: 2,
+  scrim: '#00000073',
+  more: '#0000008c',
+  ink: '#ffffff',
+} as const;
+
+export const fileTile = {
+  size: 40,
+  radius: 10,
+  ink: '#ffffff',
+  fill: {
+    pdf: '#d93d42',
+    sheet: '#24804a',
+    doc: '#3358d4',
+    slides: '#c4510d',
+    archive: '#7d45b8',
+    media: '#c2368f',
+    code: '#0b68b5',
+    other: '#62616b',
+  },
+} as const;
+
+export const voiceRow = { play: 36, wave: 24, bar: 3, unplayed: 0.3 } as const;
+
 export const topEntrance = {
   edge: 20,
   start: 12,

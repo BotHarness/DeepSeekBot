@@ -33,6 +33,7 @@ const ICONS = {
   copy: 'content_copy',
   testRoute: 'network_check',
   share: 'share',
+  download: 'download',
   account: 'account_circle',
   qr: 'qr_code_scanner',
   lan: 'wifi',

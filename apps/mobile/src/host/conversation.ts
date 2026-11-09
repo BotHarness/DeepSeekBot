@@ -140,7 +140,13 @@ export function shownInChat(message: ConversationMessage): boolean {
 export interface MessageVoice {
   state: 'pending' | 'ready' | 'failed';
   audio?: MessageAttachment;
+  durationMs?: number;
   error?: string;
+}
+
+export interface ReplyThumbnail {
+  source: RemoteSource;
+  thumbhash?: string;
 }
 
 export interface ConversationMessage {
@@ -156,6 +162,7 @@ export interface ConversationMessage {
   mentions?: WireMention[];
   replyTo?: string;
   replyPreview?: WireReplyPreview | null;
+  replyThumbnail?: ReplyThumbnail;
   attachments: MessageAttachment[];
   card?: MessageCard;
   resolves?: { requestId: string; resolution: CardResolution };
@@ -551,6 +558,34 @@ export function attachmentsOf(
   return [...stored, ...cleared, ...bridged];
 }
 
+export function replyThumbnailOf(
+  channelId: string,
+  replyTo: string,
+  preview: WireReplyPreview | null | undefined,
+  resolve: (path: string) => RemoteSource,
+): ReplyThumbnail | undefined {
+  const media = preview?.media;
+  if (media?.kind !== 'image' || media.thumbnail === undefined) return undefined;
+  const ref = media.thumbnail;
+  const owner = { channelId, messageId: replyTo };
+  const sources =
+    ref.fileId !== undefined && ref.version !== undefined
+      ? versionedSources(resolve, owner, ref.fileId, ref.version, true)
+      : {
+          source: resolve(
+            attachmentPath(
+              ref.fileId === undefined
+                ? { hash: ref.hash ?? '', name: ref.name, ...owner }
+                : { ...owner, fileId: ref.fileId },
+            ),
+          ),
+        };
+  return {
+    source: sources.thumbnail ?? sources.source,
+    ...(ref.thumbhash === undefined ? {} : { thumbhash: ref.thumbhash }),
+  };
+}
+
 export function voiceOf(
   message: ChannelWireMessage,
   attachments: MessageAttachment[],
@@ -566,9 +601,16 @@ export function voiceOf(
     voice: {
       state: voice.state,
       ...(audio === undefined ? {} : { audio: { ...audio, kind: 'audio' } }),
+      ...(voice.durationMs === undefined ? {} : { durationMs: voice.durationMs }),
       ...(voice.error === undefined ? {} : { error: voice.error }),
     },
   };
+}
+
+function withReplyThumbnail(thumbnail: ReplyThumbnail | undefined): {
+  replyThumbnail?: ReplyThumbnail;
+} {
+  return thumbnail === undefined ? {} : { replyThumbnail: thumbnail };
 }
 
 function present(
@@ -594,7 +636,13 @@ function present(
     ...(message.mentions === undefined ? {} : { mentions: message.mentions }),
     ...(message.replyTo === undefined
       ? {}
-      : { replyTo: message.replyTo, replyPreview: message.replyToPreview ?? null }),
+      : {
+          replyTo: message.replyTo,
+          replyPreview: message.replyToPreview ?? null,
+          ...withReplyThumbnail(
+            replyThumbnailOf(entry.channelId, message.replyTo, message.replyToPreview, resolve),
+          ),
+        }),
     attachments,
     ...(voice === undefined ? {} : { voice }),
     ...(card === undefined ? {} : { card }),
@@ -681,6 +729,19 @@ export function createConversation(options: ConversationOptions): Conversation {
     return pending === undefined ? null : { author: { kind: 'human' }, body: pending.body };
   }
 
+  function quote(
+    replyTo: string,
+  ): Pick<ConversationMessage, 'replyTo' | 'replyPreview' | 'replyThumbnail'> {
+    const preview = replyPreview(replyTo);
+    return {
+      replyTo,
+      replyPreview: preview,
+      ...(channelId === undefined
+        ? {}
+        : withReplyThumbnail(replyThumbnailOf(channelId, replyTo, preview, options.host.resource))),
+    };
+  }
+
   function buildMessages(): ConversationMessage[] {
     const committed = new Set(window.map((entry) => entry.message.id));
     const pending: ConversationMessage[] = [];
@@ -692,9 +753,7 @@ export function createConversation(options: ConversationOptions): Conversation {
         author: 'human',
         body: item.body,
         ...(item.tags.mentions === undefined ? {} : { mentions: item.tags.mentions }),
-        ...(item.tags.replyTo === undefined
-          ? {}
-          : { replyTo: item.tags.replyTo, replyPreview: replyPreview(item.tags.replyTo) }),
+        ...(item.tags.replyTo === undefined ? {} : quote(item.tags.replyTo)),
         attachments: item.files.map((file, index) => ({
           key: `${item.id}:${index}`,
           kind: file.kind ?? 'file',
