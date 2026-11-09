@@ -174,7 +174,7 @@ describe('client styles', () => {
 
   it('moves bubble copy/reply actions into the long-press menu on narrow screens', () => {
     expect(source).toMatch(
-      /@media \(max-width: 640px\) \{\s*\.bh-bubble-meta,\s*\.bh-bubble-toolbar \{\s*display: none/,
+      /@media \(max-width: 640px\) \{\s*\.bh-bubble-toolbar \{\s*display: none/,
     );
   });
 
