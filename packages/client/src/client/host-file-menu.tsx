@@ -432,6 +432,36 @@ export function useHostFileMenu(
   };
 }
 
+export function useHostFileDefaultOpen(
+  actions: HostFileCommands | undefined,
+  slug: string | undefined,
+  path: string | undefined,
+  menu: Pick<ReturnType<typeof useHostFileMenu>, 'notify' | 'openAt'>,
+  t: BotHarnessTranslate,
+): { open(anchor: HTMLElement): Promise<void>; busy: boolean } {
+  const [busy, setBusy] = useState(false);
+  const open = async (anchor: HTMLElement): Promise<void> => {
+    if (busy || actions === undefined || slug === undefined || path === undefined) return;
+    setBusy(true);
+    menu.notify(undefined);
+    try {
+      const target = await actions.target(slug, path);
+      const options = await actions.applications(slug, path);
+      await actions.preferences?.ready().catch(() => undefined);
+      const current = resolveFileOpenDefault(options, readPreference(actions.preferences, target));
+      if (options.available && 'application' in current) {
+        await actions.open(slug, path, { application: current.application.id });
+        menu.notify({ message: t('fileAction.dispatched'), tone: 'status' });
+      } else menu.openAt(path, anchor);
+    } catch (failure) {
+      menu.notify({ message: reason(failure), tone: 'alert' });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return { open, busy };
+}
+
 export function HostFileActionButton({
   actions,
   slug,

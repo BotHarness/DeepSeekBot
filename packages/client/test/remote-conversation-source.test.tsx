@@ -548,7 +548,7 @@ it.each(['activity', 'dock'] as const)(
 );
 
 it.each(['ready', 'pending'] as const)(
-  'shares audio download with an explicit play intent while %s',
+  'shares audio download from its menu with an explicit play intent while %s',
   async (phase) => {
     const resource = resourceSpies();
     const download = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
@@ -556,13 +556,22 @@ it.each(['ready', 'pending'] as const)(
     const view = await mount('activity', (host) => addDownloadable(host, 'audio/mpeg'));
     try {
       expect(resource.fetcher).not.toHaveBeenCalled();
-      const downloadButton = view.element.querySelector<HTMLButtonElement>(
-        `[aria-label="${zhTranslate('fileAction.download')}: asset"]`,
-      )!;
-      await act(async () => {
-        downloadButton.click();
-        downloadButton.click();
-      });
+      expect(
+        view.element.querySelector(`[aria-label="${zhTranslate('fileAction.download')}: asset"]`),
+      ).toBeNull();
+      const requestDownload = async () => {
+        await act(async () =>
+          view.element
+            .querySelector('.bh-message-attachment')!
+            .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })),
+        );
+        const item = [...document.querySelectorAll<HTMLButtonElement>('[role="menu"] button')].find(
+          (button) => button.textContent === zhTranslate('fileAction.download'),
+        )!;
+        await act(async () => item.click());
+      };
+      await requestDownload();
+      await requestDownload();
       expect(resource.fetcher).toHaveBeenCalledTimes(1);
       expect(play).not.toHaveBeenCalled();
       const clickPlay = () =>
