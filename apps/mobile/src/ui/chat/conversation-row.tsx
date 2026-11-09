@@ -1,11 +1,18 @@
 import type { ReactNode, Ref } from 'react';
 import type { Href } from 'expo-router';
-import { SourceName } from './source-name';
+import { SourceMark, SourceName } from './source-name';
 import { Platform, Pressable, View, type ViewInstance } from 'react-native';
 
 import { BotAvatar } from '../bot-avatar';
 import type { HostLook } from '../design/host-look';
-import { chatList, conversationType, edge, radius, space } from '../design/tokens';
+import {
+  chatList,
+  conversationType,
+  edge,
+  environmentBadge,
+  radius,
+  space,
+} from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { CountBadge } from '../primitives/count-badge';
 import { Text } from '../primitives/text';
@@ -183,7 +190,9 @@ export function ConversationRowFrame({
   onMenu,
   look,
   ref,
+  mixed = sourceLabel !== undefined,
 }: {
+  mixed?: boolean;
   sourceLabel?: string | undefined;
   ref?: Ref<ViewInstance>;
 
@@ -246,16 +255,47 @@ export function ConversationRowFrame({
           <View
             style={{
               position: 'absolute',
-              top: -space.x2,
-              right: -space.x3,
+              top: -space.x1,
+              right: -space.x2,
               padding: edge.focus,
-              borderRadius: radius.sm + edge.focus,
+              borderRadius: radius.round,
               backgroundColor: theme.layer.canvas.fill,
             }}
           >
-            <CountBadge count={badge.count} tone={badge.tone} />
+            <CountBadge count={badge.count} tone={badge.tone} compact />
           </View>
         )}
+        {mixed ? (
+          <View
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            style={{
+              position: 'absolute',
+              bottom: -space.x1,
+              right: -space.x2,
+              padding: edge.focus,
+              borderRadius: radius.sm,
+              backgroundColor: theme.layer.canvas.fill,
+            }}
+          >
+            <View
+              style={{
+                width: environmentBadge.size,
+                height: environmentBadge.size,
+                borderRadius: radius.sm - edge.focus,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: theme.layer.canvas.inset,
+              }}
+            >
+              <SourceMark
+                source={source}
+                look={look}
+                size={environmentBadge.size * environmentBadge.glyphRatio}
+              />
+            </View>
+          </View>
+        ) : null}
       </View>
       <View
         key={`${theme.scheme}:${theme.fontScale}:${title}`}
@@ -274,6 +314,7 @@ export function ConversationRowFrame({
             look={look}
             sourceLabel={sourceLabel}
             lines={large ? 2 : 1}
+            glyph={false}
           />
           {time === '' || large ? null : (
             <Text variant="meta" tone="subtle" style={{ flexShrink: 0 }}>
