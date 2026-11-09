@@ -102,7 +102,14 @@ export const hostDrawer = createHostDrawer({
   },
   pair: () => router.push('/pair'),
   notifications: () => router.push('/notifications'),
-  failed: () => showAppDialog(t.channelOpeningFailed, undefined, [{ text: t.done }]),
+  failed: (error) =>
+    showAppDialog(
+      error instanceof SavedHostsWriteError
+        ? t.savedComputersKeychainFailed
+        : t.channelOpeningFailed,
+      undefined,
+      [{ text: t.done }],
+    ),
 });
 
 const progress = makeMutable(0);

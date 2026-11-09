@@ -219,6 +219,22 @@ describe('Host drawer', () => {
     expect(showView.mock.calls).toEqual([['tower']]);
   });
 
+  it('passes the switch failure to the failure notice', async () => {
+    const error = new Error('keychain full');
+    const failed = vi.fn();
+    const drawer = createHostDrawer({
+      switchTo: vi.fn(async () => {
+        throw error;
+      }),
+      showView: vi.fn(),
+      pair: vi.fn(),
+      notifications: vi.fn(),
+      failed,
+    });
+    await expect(drawer.select('laptop')).resolves.toBe(false);
+    expect(failed).toHaveBeenCalledWith(error);
+  });
+
   it('lets a source change cancel workspace work without counting as the person choosing', () => {
     const drawer = createHostDrawer({
       showView: vi.fn(),

@@ -108,7 +108,7 @@ export interface HostDrawerPort {
   showView(hostId: string | undefined): void;
   pair(): void;
   notifications(): void;
-  failed?(): void;
+  failed?(error?: unknown): void;
 }
 
 export interface HostDrawer {
@@ -180,8 +180,8 @@ export function createHostDrawer(port: HostDrawerPort): HostDrawer {
         if (switched && current()) port.showView(hostId);
         if (!switched && current()) port.failed?.();
         return switched;
-      } catch {
-        if (current()) port.failed?.();
+      } catch (error) {
+        if (current()) port.failed?.(error);
         return false;
       } finally {
         if (switching === pending) switching = undefined;
