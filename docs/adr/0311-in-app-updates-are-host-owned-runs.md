@@ -1,4 +1,4 @@
-# ADR-0311: In-app updates are Host-owned runs that every surface shares
+# ADR-0312: In-app updates are Host-owned runs that every surface shares
 
 - Status: Accepted
 - Date: 2026-11-09

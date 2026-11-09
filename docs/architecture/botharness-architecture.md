@@ -912,7 +912,7 @@ Zip 使用既有已认证 RPC 上传 256 KiB 原始数据块，避免整包超�
 
 #2173 的应用定义升级发现仍由同一个 Release Service 负责。Bot 模式进入时通过认证 bridge 查询运行身份、真实 DSH 版本及 registry 版本清单；兼容性复用当前 Host 的原生检查器，覆盖产品与精确依赖组件。绝对最新版本不兼容时继续寻找最新兼容版本；元数据缺失、搜索超时或网络失败保持未知并短期重试，不宣称没有更新。客户端按本地 Profile、发布通道和精确目标保存提醒关闭记录，与已安装版本更新说明分开。确认安装前再次核验兼容性，再进入既有原生安装和权限边界；已暂存版本仍独立提示重启，不提前改变运行身份。CLI `release-check --force` 与 UI 共用该 Service 并绕过查询缓存。
 
-[ADR-0311](../adr/0311-in-app-updates-are-host-owned-runs.md)：应用内安装（Tobs 本身与 `@botharness/*` 插件）统一由 Host 的 Update Runs 模块记录。每次安装带一个 request id 交给原生 Plugin Manager，Host 订阅 `plugin-manager/install-log` 与 `install-state`，把命令、输出尾部、退出码与阶段折叠进同一条有界、仅存于内存的运行记录，并通过 `cancelInstall` 负责终止。Web 的更新提醒、关于页与插件页共用一个 Client 控制器与进度面板，经既有 bridge 轮询 `updateRun`、调用 `updateCancel`；CLI `update-status`／`update-cancel` 读写同一记录。
+[ADR-0312](../adr/0311-in-app-updates-are-host-owned-runs.md)：应用内安装（Tobs 本身与 `@botharness/*` 插件）统一由 Host 的 Update Runs 模块记录。每次安装带一个 request id 交给原生 Plugin Manager，Host 订阅 `plugin-manager/install-log` 与 `install-state`，把命令、输出尾部、退出码与阶段折叠进同一条有界、仅存于内存的运行记录，并通过 `cancelInstall` 负责终止。Web 的更新提醒、关于页与插件页共用一个 Client 控制器与进度面板，经既有 bridge 轮询 `updateRun`、调用 `updateCancel`；CLI `update-status`／`update-cancel` 读写同一记录。
 
 ## 8 · 实现顺序与可并发范围
 

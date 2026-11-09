@@ -66,7 +66,7 @@ Refusals include `invalid-bot-identity` / `invalid-bot-peer` (400), `bot-host-pr
 
 ## Reclamation, reconciliation and eviction
 
-[ADR-0311](../../docs/adr/0311-connect-tunnels-share-a-multi-zone-pool-with-eviction.md) defines the lifecycle. A tunnel's CNAME lives exactly as long as the tunnel: reclamation, eviction, unlink and a vanished tunnel all delete both, and the next `POST /v1/hosts/{id}/tunnel` recreates the same `<id>.<zone>` name. If creating the record fails, the request deletes the tunnel it just created, so no tunnel is left without a hostname. A full zone (Cloudflare error 81045) answers `503 relay-full`. A record of the same name that already exists is adopted.
+[ADR-0312](../../docs/adr/0312-connect-tunnels-share-a-multi-zone-pool-with-eviction.md) defines the lifecycle. A tunnel's CNAME lives exactly as long as the tunnel: reclamation, eviction, unlink and a vanished tunnel all delete both, and the next `POST /v1/hosts/{id}/tunnel` recreates the same `<id>.<zone>` name. If creating the record fails, the request deletes the tunnel it just created, so no tunnel is left without a hostname. A full zone (Cloudflare error 81045) answers `503 relay-full`. A record of the same name that already exists is adopted.
 
 A cron trigger reconciles the D1 rows with Cloudflare every minute. It lists the account's tunnels once (`per_page=1000`) and each Connect zone's tunnel CNAMEs once, then, within `RECLAIM_BUDGET` Cloudflare calls (default 30, under the Workers Free limit of 50 subrequests):
 
