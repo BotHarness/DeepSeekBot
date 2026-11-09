@@ -21,7 +21,7 @@ export function replyQuoteText(
     return media.durationMs === undefined
       ? t('message.voice.label')
       : t('message.replyMedia.voice', { duration: formatAudioTime(media.durationMs / 1000) });
-  return media.name;
+  return body.trim().length > 0 ? body : media.name;
 }
 
 export function ReplyQuoteThumb({

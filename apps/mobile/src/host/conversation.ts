@@ -485,6 +485,25 @@ export function mediaCacheKey(
   return variant === undefined ? `${file}${version}` : `${file}${version}:${variant}`;
 }
 
+function refSources(
+  resolve: (path: string) => RemoteSource,
+  owner: { channelId: string; messageId: string },
+  ref: AttachmentRef,
+  image: boolean,
+): { source: RemoteSource; thumbnail?: RemoteSource; preview?: RemoteSource } {
+  if (ref.fileId !== undefined && ref.version !== undefined)
+    return versionedSources(resolve, owner, ref.fileId, ref.version, image);
+  return {
+    source: resolve(
+      attachmentPath(
+        ref.fileId === undefined
+          ? { hash: ref.hash ?? '', name: ref.name, ...owner }
+          : { ...owner, fileId: ref.fileId },
+      ),
+    ),
+  };
+}
+
 export const THUMBNAIL_VARIANT = '320';
 export const PREVIEW_VARIANT = '800';
 
@@ -506,17 +525,7 @@ export function attachmentsOf(
       size: ref.size,
       ...(file?.uri !== undefined
         ? { source: { uri: file.uri, headers: {} } }
-        : ref.fileId !== undefined && ref.version !== undefined
-          ? versionedSources(resolve, owner, ref.fileId, ref.version, PREVIEWABLE.has(ref.mime))
-          : {
-              source: resolve(
-                attachmentPath(
-                  ref.fileId === undefined
-                    ? { hash: ref.hash ?? '', name: ref.name, ...owner }
-                    : { ...owner, fileId: ref.fileId },
-                ),
-              ),
-            }),
+        : refSources(resolve, owner, ref, PREVIEWABLE.has(ref.mime))),
       ...(ref.thumbhash === undefined ? {} : { thumbhash: ref.thumbhash }),
       ...(ref.width === undefined || ref.height === undefined
         ? {}
@@ -567,19 +576,7 @@ export function replyThumbnailOf(
   const media = preview?.media;
   if (media?.kind !== 'image' || media.thumbnail === undefined) return undefined;
   const ref = media.thumbnail;
-  const owner = { channelId, messageId: replyTo };
-  const sources =
-    ref.fileId !== undefined && ref.version !== undefined
-      ? versionedSources(resolve, owner, ref.fileId, ref.version, true)
-      : {
-          source: resolve(
-            attachmentPath(
-              ref.fileId === undefined
-                ? { hash: ref.hash ?? '', name: ref.name, ...owner }
-                : { ...owner, fileId: ref.fileId },
-            ),
-          ),
-        };
+  const sources = refSources(resolve, { channelId, messageId: replyTo }, ref, true);
   return {
     source: sources.thumbnail ?? sources.source,
     ...(ref.thumbhash === undefined ? {} : { thumbhash: ref.thumbhash }),

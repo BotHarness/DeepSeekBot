@@ -212,17 +212,14 @@ function parseMessage(
 function replyProjection(
   message: ChannelMessage,
   byId: ReadonlyMap<string, ChannelMessage>,
-  projectThumbnail?: (target: ChannelMessage, ref: ChannelAttachmentRef) => ChannelAttachmentRef,
+  projectThumbnail: (target: ChannelMessage, ref: ChannelAttachmentRef) => ChannelAttachmentRef,
 ): ChannelMessage {
   if (message.replyTo === undefined) return message;
   const target = byId.get(message.replyTo);
   if (target === undefined) return { ...message, replyToPreview: null };
   return {
     ...message,
-    replyToPreview: replyPreviewOf(
-      target,
-      projectThumbnail === undefined ? undefined : (ref) => projectThumbnail(target, ref),
-    ),
+    replyToPreview: replyPreviewOf(target, (ref) => projectThumbnail(target, ref)),
   };
 }
 

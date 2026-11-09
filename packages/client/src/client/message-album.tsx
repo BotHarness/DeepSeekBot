@@ -14,13 +14,13 @@ import {
 import { useMessageHost } from './message-host.js';
 import { useMessageResource } from './message-resource.js';
 import type { ChannelAttachmentRef, ChannelMessage } from './store.js';
+import { REPLY_THUMBNAIL_MIMES } from '../../../core/src/channels/reply-preview.js';
 
-const INLINE_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
 const SINGLE_ASPECT_MIN = 0.75;
 const SINGLE_ASPECT_MAX = 2;
 
 export function inlineImageAttachment(mime: string): boolean {
-  return INLINE_IMAGE_TYPES.includes(mime);
+  return REPLY_THUMBNAIL_MIMES.has(mime);
 }
 
 export type AttachmentActions =
@@ -123,12 +123,20 @@ function AlbumCell({
 }): ReactElement {
   const host = useMessageHost();
   const owner = channelId === undefined ? undefined : { channelId, messageId };
+  const variant = tileVariant(tile);
   const resource = useMessageResource(
-    owner === undefined ? undefined : channelAttachmentUrl(image, owner, tileVariant(tile)),
+    owner === undefined ? undefined : channelAttachmentUrl(image, owner, variant),
   );
+  const large = useMessageResource(
+    host === undefined || owner === undefined || variant === '800'
+      ? undefined
+      : channelAttachmentUrl(image, owner, '800'),
+    false,
+  );
+  const full = host !== undefined && variant !== '800' ? large : resource;
   const url = resource.url;
   const original =
-    host === undefined && owner !== undefined ? channelAttachmentUrl(image, owner) : url;
+    host === undefined && owner !== undefined ? channelAttachmentUrl(image, owner) : undefined;
   const id = image.fileId;
   const menu = useHostFileMenu(commands, channelId, t);
   const hostMenu = id !== undefined && commands !== undefined && channelId !== undefined;
@@ -139,7 +147,7 @@ function AlbumCell({
         ? original === undefined
           ? undefined
           : () => downloadFromUrl(original, image.name)
-        : () => void resource.download(image.name),
+        : () => void full.download(image.name),
     t,
   );
   const style: CSSProperties = {
@@ -175,9 +183,12 @@ function AlbumCell({
           }
           disabled={url === undefined && original === undefined}
           onClick={() => {
-            const src = original ?? url;
-            if (src === undefined) return;
-            onOpen({ key: galleryImageKey(messageId, image), src, alt: image.name });
+            const show = (src: string | undefined): void => {
+              if (src !== undefined)
+                onOpen({ key: galleryImageKey(messageId, image), src, alt: image.name });
+            };
+            if (original !== undefined || full === resource) show(original ?? url);
+            else void full.prepare().then((src) => show(src ?? resource.url));
           }}
         >
           {url === undefined ? null : (
