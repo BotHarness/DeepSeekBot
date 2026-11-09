@@ -43,6 +43,10 @@ import {
   TOB_BOT_PROFILE_CAPABILITIES,
 } from './tob/cli-bot-profile-operations.js';
 import {
+  createTobDiagnosticOperations,
+  TOB_DIAGNOSTIC_CAPABILITIES,
+} from './tob/cli-diagnostic-operations.js';
+import {
   createTobShareDraftOperations,
   TOB_SHARE_DRAFT_CAPABILITIES,
 } from './tob/cli-share-draft-operations.js';
@@ -1354,6 +1358,16 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     log: (message) => ctx.logger.info(message),
   });
   mountClientDiagnostics(ctx, dshHome);
+  const hostDiagnosticEnvironment = () => {
+    const dshVersion = installedDshVersion();
+    return {
+      version: runningRelease.version,
+      ...(dshVersion === undefined ? {} : { dshVersion }),
+      platform: process.platform,
+      arch: process.arch,
+      node: process.version,
+    };
+  };
   let clientIssues: ClientIssueReporter | undefined;
   const diagnosticEvents = mountDiagnosticLog(ctx, {
     onClientEntries: (session, entries) => clientIssues?.observe(session, entries),
@@ -1362,16 +1376,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       { path: dshHome, label: '$DSH_HOME' },
       { path: homedir(), label: '~' },
     ],
-    environment: () => {
-      const dshVersion = installedDshVersion();
-      return {
-        version: runningRelease.version,
-        ...(dshVersion === undefined ? {} : { dshVersion }),
-        platform: process.platform,
-        arch: process.arch,
-        node: process.version,
-      };
-    },
+    environment: hostDiagnosticEnvironment,
   });
   const release = installedRelease(import.meta.url);
   const telemetryChoice = telemetryDecision(config.telemetry);
@@ -1561,6 +1566,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                     (await tobBotCreationOperations(command, args)) ??
                     (await tobBotProfileOperations(command, args)) ??
                     (await tobShareDraftOperations(command, args)) ??
+                    (await tobDiagnosticOperations(command, args)) ??
                     (await tobChannelOperations(command, args)) ??
                     (await tobVoiceOperations(command, args));
                   if (!prepared || !['create', 'group-create'].includes(command)) return prepared;
@@ -1584,6 +1590,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                   ...TOB_BOT_CREATE_CAPABILITIES,
                   ...TOB_BOT_PROFILE_CAPABILITIES,
                   ...TOB_SHARE_DRAFT_CAPABILITIES,
+                  ...TOB_DIAGNOSTIC_CAPABILITIES,
                   ...TOB_CHANNEL_CAPABILITIES,
                   ...TOB_VOICE_CAPABILITIES,
                 ],
@@ -3241,6 +3248,15 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   });
   const tobShareDraftOperations = createTobShareDraftOperations({
     bridge: () => bridgeMethods,
+  });
+  const tobDiagnosticOperations = createTobDiagnosticOperations({
+    list: (query) => diagnosticEvents.list(query),
+    updateRun: () => {
+      const run = bridgeMethods.updateRun({});
+      if (!run.ok) throw new Error(run.error.code);
+      return run.value;
+    },
+    environment: hostDiagnosticEnvironment,
   });
   const tobChannelOperations = createTobChannelOperations({
     management: core.channelManagement,

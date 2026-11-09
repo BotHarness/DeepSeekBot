@@ -1705,12 +1705,15 @@ tobs profile-backup-restore --file environment.botharness-backup --new-home new-
 Tobs 会一直在本地记录诊断日志，保存在 `$DSH_HOME/botharness/logs.db`（30 天，最多 5 万条）：Client 的操作与导航轨迹、未捕获错误和控制台警告、UI 不变量被破坏、长帧和慢的 Host 调用，以及 Host 警告和 BotHarness 生命周期日志。不会记录输入的文字、消息正文或文件内容，也不会离开这台设备。Workspace Control Rail 上的 **诊断日志** 按钮可查看最近 24 小时，并导出与 CLI 相同的 ZIP。
 
 ```bash
-deepseekbot diagnostic-logs [--kind all|error|perf|action] [--since <ms>] [--limit 1-1000]
+deepseekbot doctor [--offline] [--home <DSH_HOME>]
+deepseekbot diagnostic-logs [--kind all|error|perf|action] [--since <ms>] [--limit 1-1000] [--offline] [--home <DSH_HOME>]
 deepseekbot diagnostic-logs-export --out logs.zip [--hours 1-168] [--offline] [--home <DSH_HOME>]
 printf '%s' '{"version":1,"session":"agent-qa-0001","entries":[{"ts":1780000000000,"category":"action","level":"info","code":"click","fields":{"label":"Send"}}]}' | deepseekbot diagnostic-log-record
 ```
 
-`diagnostic-logs` 按时间倒序返回条目（`source`、`category`、`level`、`code`、`session`、`fields`）。导出的 ZIP 包含 `manifest.json`（时间范围、版本、计数、脱敏次数）、`logs.jsonl` 和易读的 `timeline.txt`；用户目录路径、token、密钥和邮箱会被替换，文件只会新建不会覆盖。当 Host 无法连接、无法登录或插件没有加载时，`diagnostic-logs-export` 会直接读取 `$DSH_HOME/botharness/logs.db`，生成同样已脱敏的 ZIP；`--offline` 跳过 Host，`--home` 指定其他 DSH 目录，结果会带上 `source: "offline"` 和 `fallback` 原因。除 Client 条目外，日志还为每个 Bot 回合记录一条 `bot-turn`（模型、首字耗时和总耗时、步数、工具调用和错误、结果，不含消息内容），为每条 IM 入站事件记录一条 `messaging-inbound`（`handled`、带原因的 `skipped` 或 `refused`），并把 Host 的结构化 `{"event","phase"}` 日志（如 `messaging-outbox`）存成带字段的条目。`diagnostic-log-record` 以 Web Client 相同的方式写入条目，用于 agent QA；拒绝码为 `invalid-report`、`report-too-large`、`rate-limited`（每分钟 600 条）和 `persistence-unavailable`。
+出问题时先运行 `doctor`。它返回一份报告：`ok`、`versions`（Tobs、DSH、Node、操作系统），以及 `checks`，逐项给出 `ok`、`warn`、`fail` 或 `skip`：DSH 目录、Host、Tobs 插件（Host 有响应但没有插件路由时报告 `plugin-not-loaded`）、最近一次版本或插件更新（阶段、失败原因、诊断信息和 `logPath`，需要 Host）、日志本身，以及最近 24 小时按错误码分组计数的错误。它还返回 `next` 建议命令和给编码 agent 的 `guide`：先看失败的检查项；不要删除或修改 DSH 目录里的数据；重启或重装前先问 Human；修不好时导出日志并附到预填好的 bug 报告里。Host 未运行、未配置或插件没有加载时，`doctor` 直接读取 `$DSH_HOME/botharness/logs.db`，并报告 `source: "offline"` 和 `fallback` 原因，所以界面打不开时也能用：把 `npx -y @botharness/tobs doctor` 这一行交给 Codex、Claude Code 等编码 agent 即可。Human 报告问题时，托布会先运行它。
+
+`diagnostic-logs` 按时间倒序返回条目（`source`、`category`、`level`、`code`、`session`、`fields`），并带上 `source`（`host` 或 `offline`）；与导出一样，它也会退回直接读取 `logs.db`，`--offline` 和 `--home` 的用法相同。导出的 ZIP 包含 `manifest.json`（时间范围、版本、计数、脱敏次数）、`logs.jsonl` 和易读的 `timeline.txt`；用户目录路径、token、密钥和邮箱会被替换，文件只会新建不会覆盖。当 Host 无法连接、无法登录或插件没有加载时，`diagnostic-logs-export` 会直接读取 `$DSH_HOME/botharness/logs.db`，生成同样已脱敏的 ZIP；`--offline` 跳过 Host，`--home` 指定其他 DSH 目录，结果会带上 `source: "offline"` 和 `fallback` 原因。除 Client 条目外，日志还为每个 Bot 回合记录一条 `bot-turn`（模型、首字耗时和总耗时、步数、工具调用和错误、结果，不含消息内容），为每条 IM 入站事件记录一条 `messaging-inbound`（`handled`、带原因的 `skipped` 或 `refused`），并把 Host 的结构化 `{"event","phase"}` 日志（如 `messaging-outbox`）存成带字段的条目。`diagnostic-log-record` 以 Web Client 相同的方式写入条目，用于 agent QA；拒绝码为 `invalid-report`、`report-too-large`、`rate-limited`（每分钟 600 条）和 `persistence-unavailable`。
 
 ### 消息反馈（#2811）
 
