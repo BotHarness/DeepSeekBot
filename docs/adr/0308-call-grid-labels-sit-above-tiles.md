@@ -12,10 +12,10 @@ ADR-0286 labels each grid tile with its number and the seconds before the senten
 
 **A label strip per row.** `compose` reserves a black strip of `11 × scale` px (the label's own height; 33 px for 512 px tiles) above every tile row and draws each label inside it, aligned with its tile's left edge. Tiles are drawn below the strip, and no picture pixel is covered. Cell numbering, the balanced rows and the centred shorter row of ADR-0303 do not change.
 
-**Still at most 1536 px.** Landscape tiles keep their width (512 px from three keyframes, 768 px for two), so the grid only grows taller: a 3+3+3 grid of 16:9 screens goes from 864 to 963 px. When the strips would push a grid past the 1536 px long edge, as with three rows of portrait screens, the tiles shrink to fit (269×479 px instead of 288×512 px).
+**Still at most 1536 px.** Landscape tiles keep their width (512 px from three keyframes, 768 px for two), so the grid only grows taller: a 3+3+3 grid of 16:9 screens goes from 864 to 963 px. When the strips would push a grid past the 1536 px long edge, as with three rows of portrait screens, the tiles shrink to fit (275×490 px instead of 288×512 px, with a 22 px strip).
 
 A single keyframe is still sent alone and unlabelled, and `call_frame` still returns the original keyframe.
 
 ## Consequences
 
-The Bot sees the whole picture of every tile, and labels never sit on bright content. A landscape grid costs about 4–11% more pixels per row, and a portrait grid of three rows gets about 7% smaller tiles. Grids saved before this change keep their overlaid labels.
+The Bot sees the whole picture of every tile, and labels never sit on bright content. A landscape row grows about 11–13% taller, and a portrait grid of three rows gets about 5% narrower tiles. Grids saved before this change keep their overlaid labels.

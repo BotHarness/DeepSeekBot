@@ -199,6 +199,10 @@ describe('grid imaging', () => {
           expect(seen(left + tileWidth / 2, top + tileHeight / 2)).toEqual(expected);
           expect(seen(left + 4, top + 4)).toEqual(expected);
           expect(Math.max(...pixel(left + tileWidth - 4, top - 4))).toBeLessThan(40);
+          const labelled = Array.from({ length: strip * 80 }, (_, index) =>
+            Math.min(...pixel(left + (index % 80) * 2, row * cellHeight + Math.floor(index / 80))),
+          );
+          expect(Math.max(...labelled)).toBeGreaterThan(200);
           cell += 1;
         }
       });
