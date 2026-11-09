@@ -28,7 +28,22 @@ export type AccountIssue =
   | 'session-revoked'
   | 'account-not-allowed'
   | 'host-limit'
+  | 'relay-full'
   | 'credential-unavailable';
+
+export interface ConnectPool {
+  capacity: number;
+  inUse: number;
+  free: number;
+  waiting: number;
+}
+
+export interface ConnectWait {
+  reason: 'pool-full' | 'zone-full' | 'queued';
+  position: number;
+  retryAfter: number;
+  since: string;
+}
 
 export interface AccountStatus {
   state: 'signed-out' | 'signing-in' | 'signed-in' | 'error';
@@ -39,6 +54,8 @@ export interface AccountStatus {
   expiresAt?: string;
   issue?: AccountIssue;
   recovery?: 'automatic' | 'sign-in';
+  pool?: ConnectPool;
+  wait?: ConnectWait;
 }
 
 export type AccountFailureCode =
@@ -127,10 +144,23 @@ type StoredAccount = z.infer<typeof storedAccountSchema>;
 type ConnectClientId = z.infer<typeof clientIdSchema>;
 
 class AccountError extends Error {
-  constructor(readonly issue: AccountIssue) {
+  constructor(
+    readonly issue: AccountIssue,
+    readonly wait?: Omit<ConnectWait, 'since'>,
+    readonly pool?: ConnectPool,
+  ) {
     super(issue);
   }
 }
+
+const count = z.number().int().nonnegative();
+const poolSchema = z.object({ capacity: count, inUse: count, free: count, waiting: count });
+const waitSchema = z.object({
+  reason: z.enum(['pool-full', 'zone-full', 'queued']),
+  position: count,
+  retryAfter: count,
+  pool: poolSchema.optional(),
+});
 
 const transportCodes = new Set([
   'ENOTFOUND',
@@ -336,6 +366,20 @@ export function createConnectAccount(options: {
       throw new AccountError(code === 'session-revoked' ? 'session-revoked' : 'session-expired');
     if (code === 'account-not-allowed') throw new AccountError('account-not-allowed');
     if (code === 'host-limit') throw new AccountError('host-limit');
+    if (code === 'relay-full') {
+      const wait = waitSchema.safeParse(parsed['error']);
+      throw wait.success
+        ? new AccountError(
+            'relay-full',
+            {
+              reason: wait.data.reason,
+              position: wait.data.position,
+              retryAfter: wait.data.retryAfter,
+            },
+            wait.data.pool,
+          )
+        : new AccountError('relay-full');
+    }
     if (response.status >= 500 || response.status === 429)
       throw requestError('relay', operation, { reason: 'http', status: response.status });
     return { status: response.status, body: parsed };
@@ -427,15 +471,22 @@ export function createConnectAccount(options: {
 
   const fail = (error: unknown, current?: AccountRecord): void => {
     const issue = error instanceof AccountError ? error.issue : 'relay-unavailable';
+    const wait = error instanceof AccountError ? error.wait : undefined;
+    const pool = error instanceof AccountError ? error.pool : undefined;
+    const since = status.wait?.since ?? new Date().toISOString();
     status = {
       state: 'error',
       issue,
       recovery:
-        issue === 'relay-unavailable' && canResumeSession && current !== undefined
+        (issue === 'relay-unavailable' || issue === 'relay-full') &&
+        canResumeSession &&
+        current !== undefined
           ? 'automatic'
           : 'sign-in',
       ...(current?.email ? { email: current.email } : {}),
       ...(current?.hostId ? { hostId: current.hostId } : {}),
+      ...(issue === 'relay-full' && wait !== undefined ? { wait: { ...wait, since } } : {}),
+      ...(pool === undefined ? {} : { pool }),
     };
     record('account-error', `issue=${issue}`);
   };
@@ -506,6 +557,8 @@ export function createConnectAccount(options: {
                 throw error;
               });
         listed = reply.body['hosts'];
+        const pool = poolSchema.safeParse(reply.body['pool']);
+        if (pool.success && status.state === 'signed-in') status = { ...status, pool: pool.data };
       } catch (error) {
         if (
           error instanceof AccountError &&
@@ -677,7 +730,8 @@ export function createConnectAccount(options: {
       const tunnel = connect.status().state;
       if (
         (status.state === 'signed-in' && (tunnel === 'error' || tunnel === 'off')) ||
-        (status.state === 'error' && status.issue === 'relay-unavailable')
+        (status.state === 'error' &&
+          (status.issue === 'relay-unavailable' || status.issue === 'relay-full'))
       )
         void sync();
       else if (status.state === 'signed-in') void check();

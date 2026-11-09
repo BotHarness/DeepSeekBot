@@ -50,6 +50,8 @@ interface HostRow {
   zone: string | null;
   last_used_at: string | null;
   evicted_at: string | null;
+  waiting_since: string | null;
+  refused_at: string | null;
   cleanup_at: string | null;
   tunnel_status: string | null;
   tunnel_inactive_since: string | null;
@@ -158,7 +160,17 @@ async function readBody(
   }
 }
 
-class RelayFull extends Error {}
+class RelayFull extends Error {
+  constructor(
+    readonly reason: 'pool-full' | 'zone-full' | 'queued',
+    readonly position: number,
+  ) {
+    super(reason);
+  }
+}
+
+const WAIT_STALE_MS = 3 * 60 * 1000;
+const RETRY_AFTER_SECONDS = 60;
 
 const time = (value: string | null | undefined): number => {
   const parsed = Date.parse(value ?? '');
@@ -205,6 +217,60 @@ export function createRelay(options: RelayOptions) {
   const hostname = (row: Pick<HostRow, 'id' | 'zone'>) => `${row.id}.${zoneOf(row)}`;
   const log = (event: string, fields: Record<string, unknown>) =>
     console.warn(JSON.stringify({ event, ...fields }));
+  const waitingCutoff = () => new Date(now().getTime() - WAIT_STALE_MS).toISOString();
+
+  const poolStatus = async () => {
+    const counts = await db
+      .prepare(
+        `SELECT
+          (SELECT COUNT(*) FROM hosts WHERE tunnel_id IS NOT NULL) AS live,
+          (SELECT COUNT(*) FROM hosts WHERE tunnel_id IS NULL AND waiting_since IS NOT NULL AND refused_at >= ?) AS waiting`,
+      )
+      .bind(waitingCutoff())
+      .first<{ live: number; waiting: number }>();
+    const capacity = Math.min(options.maxTunnels, zones.length * zoneRecords);
+    const live = counts?.live ?? 0;
+    return {
+      capacity,
+      inUse: live,
+      free: Math.max(0, capacity - live),
+      waiting: counts?.waiting ?? 0,
+    };
+  };
+
+  const queuePosition = async (row: HostRow) => {
+    const ahead = await db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM hosts WHERE id != ? AND tunnel_id IS NULL
+          AND waiting_since IS NOT NULL AND refused_at >= ? AND waiting_since < ?`,
+      )
+      .bind(row.id, waitingCutoff(), row.waiting_since ?? now().toISOString())
+      .first<{ n: number }>();
+    return (ahead?.n ?? 0) + 1;
+  };
+
+  const markWaiting = async (row: HostRow) => {
+    const stamp = now().toISOString();
+    const fresh =
+      row.waiting_since !== null && row.refused_at !== null && row.refused_at >= waitingCutoff();
+    await db
+      .prepare('UPDATE hosts SET waiting_since = ?, refused_at = ? WHERE id = ?')
+      .bind(fresh ? row.waiting_since : stamp, stamp, row.id)
+      .run();
+    row.waiting_since = fresh ? row.waiting_since : stamp;
+    row.refused_at = stamp;
+  };
+
+  const hostState = (row: HostRow) => {
+    if (row.tunnel_id !== null)
+      return row.tunnel_status !== null && ONLINE.has(row.tunnel_status)
+        ? 'connected'
+        : 'connecting';
+    if (row.waiting_since !== null && (row.refused_at ?? '') >= waitingCutoff()) return 'waiting';
+    if (row.evicted_at !== null) return 'released';
+    return 'offline';
+  };
+
   const view = (row: HostRow) => ({
     id: row.id,
     name: row.name,
@@ -215,6 +281,11 @@ export function createRelay(options: RelayOptions) {
       ? { connected: ONLINE.has(row.tunnel_status) }
       : {}),
     ...(row.tunnel_id === null && row.evicted_at !== null ? { evicted: true } : {}),
+    state: hostState(row),
+    ...(row.evicted_at !== null && row.tunnel_id === null ? { releasedAt: row.evicted_at } : {}),
+    ...(hostState(row) === 'waiting' && row.waiting_since !== null
+      ? { waitingSince: row.waiting_since }
+      : {}),
     sessionKnown: row.session_id != null,
     ...(row.bot_host_id == null || row.bot_public_key == null
       ? {}
@@ -269,7 +340,18 @@ export function createRelay(options: RelayOptions) {
         .first<{ live: number; records: number }>();
       const tunnelsFull = (counts?.live ?? 0) >= options.maxTunnels;
       const zoneFull = (counts?.records ?? 0) >= zoneRecords;
-      if (!tunnelsFull && !zoneFull) return;
+      if (!tunnelsFull && !zoneFull) {
+        const free = Math.min(
+          options.maxTunnels - (counts?.live ?? 0),
+          zoneRecords - (counts?.records ?? 0),
+        );
+        const position = await queuePosition(current);
+        if (position > free) {
+          await markWaiting(current);
+          throw new RelayFull('queued', await queuePosition(current));
+        }
+        return;
+      }
       const { results } = await db
         .prepare(
           zoneFull
@@ -300,11 +382,13 @@ export function createRelay(options: RelayOptions) {
       );
       if (victim === undefined) {
         log('connect-full', { host: current.id, zone, tunnelsFull, zoneFull });
-        throw new RelayFull();
+        await markWaiting(current);
+        throw new RelayFull(zoneFull ? 'zone-full' : 'pool-full', await queuePosition(current));
       }
       await evict(byId.get(victim.id) as HostRow, victim.tier, current.id);
     }
-    throw new RelayFull();
+    await markWaiting(current);
+    throw new RelayFull('pool-full', await queuePosition(current));
   };
 
   const chooseZone = async (current: HostRow, accepted: ReadonlySet<string>) => {
@@ -337,6 +421,7 @@ export function createRelay(options: RelayOptions) {
           .prepare(
             `UPDATE hosts SET tunnel_id = ?, tunnel_created_at = ?, zone = COALESCE(zone, ?),
               last_used_at = COALESCE(last_used_at, ?), evicted_at = NULL,
+              waiting_since = NULL, refused_at = NULL,
               tunnel_status = 'inactive', tunnel_inactive_since = NULL
             WHERE id = ? AND tunnel_id IS ?`,
           )
@@ -371,7 +456,8 @@ export function createRelay(options: RelayOptions) {
       }
       if (error instanceof RecordQuotaError) {
         log('connect-zone-quota', { host: current.id, zone: zoneOf(current) });
-        throw new RelayFull();
+        await markWaiting(current);
+        throw new RelayFull('zone-full', await queuePosition(current));
       }
       throw error;
     }
@@ -697,7 +783,7 @@ export function createRelay(options: RelayOptions) {
           results.some((row) => row.id === reporter)
         )
           await touch(reporter, now().getTime() - idle * 1000);
-        return json(200, { hosts: results.map(view) });
+        return json(200, { hosts: results.map(view), pool: await poolStatus() });
       }
       if (request.method !== 'POST') return failure(405, 'method-not-allowed');
       const body = await readBody(request);
@@ -804,7 +890,16 @@ export function createRelay(options: RelayOptions) {
         const tunnel = await provision(row, port, accepted);
         return tunnel === undefined ? failure(404, 'host-not-found') : json(200, tunnel);
       } catch (error) {
-        if (error instanceof RelayFull) return failure(503, 'relay-full');
+        if (error instanceof RelayFull)
+          return json(503, {
+            error: {
+              code: 'relay-full',
+              reason: error.reason,
+              position: error.position,
+              retryAfter: RETRY_AFTER_SECONDS,
+              pool: await poolStatus(),
+            },
+          });
         return failure(502, 'upstream-unavailable');
       }
     }

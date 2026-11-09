@@ -85,6 +85,8 @@ function fakeServices(
     onList?: () => Promise<void>;
     refreshExpired?: boolean;
     sessionRevoked?: boolean;
+    relayFull?: Record<string, unknown>;
+    pool?: Record<string, unknown>;
   } = {},
 ) {
   let pending = options.pending ?? 1;
@@ -166,9 +168,12 @@ function fakeServices(
         .filter((id) => owners.get(id) === (options.userId ?? 'user_alice'))
         .map((id) => ({ id }));
       if (options.forgetAfterList) hosts.clear();
-      return Response.json(options.listBody ?? { hosts: listed }, {
-        status: options.listStatus ?? 200,
-      });
+      return Response.json(
+        options.listBody ?? { hosts: listed, ...(options.pool ? { pool: options.pool } : {}) },
+        {
+          status: options.listStatus ?? 200,
+        },
+      );
     }
     if (url.pathname === '/v1/hosts' && method === 'POST') {
       if (hosts.size >= (options.maxHosts ?? Infinity))
@@ -188,6 +193,11 @@ function fakeServices(
     if (tunnel !== undefined) {
       if (!hosts.has(tunnel) || owners.get(tunnel) !== (options.userId ?? 'user_alice'))
         return Response.json({ error: { code: 'host-not-found' } }, { status: 404 });
+      if (options.relayFull)
+        return Response.json(
+          { error: { code: 'relay-full', ...options.relayFull } },
+          { status: 503 },
+        );
       return Response.json({
         hostname: `${tunnel}.deepseekbot.dev`,
         token: TOKEN,
@@ -1356,6 +1366,36 @@ describe('Connect account deletion', () => {
     await until(() => tunnel.enabled.length > 1);
     expect(tunnel.enabled).toHaveLength(2);
     expect(account.status()).toMatchObject({ state: 'signed-in', hostId: 'hstudioaaaaa' });
+    await account.close();
+  });
+
+  it('waits in the relay queue with its position and the pool, then connects when a slot frees', async () => {
+    const pool = { capacity: 900, inUse: 900, free: 0, waiting: 3 };
+    const options: Parameters<typeof fakeServices>[0] = {
+      pending: 0,
+      relayFull: { reason: 'pool-full', position: 3, retryAfter: 60, pool },
+    };
+    const services = fakeServices(options);
+    const { account, tunnel } = setup(services, 41001, 10);
+    await account.signIn();
+    await settle(account);
+    await until(() => account.status().issue === 'relay-full');
+    const waiting = account.status();
+    expect(waiting).toMatchObject({
+      state: 'error',
+      issue: 'relay-full',
+      recovery: 'automatic',
+      wait: { reason: 'pool-full', position: 3, retryAfter: 60 },
+      pool,
+    });
+    expect(Number.isNaN(Date.parse(waiting.wait?.since ?? ''))).toBe(false);
+    expect(tunnel.enabled).toHaveLength(0);
+    delete options.relayFull;
+    options.pool = { capacity: 900, inUse: 899, free: 1, waiting: 2 };
+    await until(() => account.status().state === 'signed-in');
+    expect(tunnel.enabled).toHaveLength(1);
+    expect(account.status()).not.toHaveProperty('wait');
+    await until(() => account.status().pool?.inUse === 899);
     await account.close();
   });
 

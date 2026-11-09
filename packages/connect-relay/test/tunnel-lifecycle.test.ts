@@ -296,9 +296,9 @@ describe('tunnel and DNS lifecycle', () => {
     const env = await pool();
     env.tunnels.recordQuota.set(ZONE, 0);
     const id = await env.link('user_a');
-    expect(await env.provision('user_a', id)).toEqual({
+    expect(await env.provision('user_a', id)).toMatchObject({
       status: 503,
-      body: { error: { code: 'relay-full' } },
+      body: { error: { code: 'relay-full', reason: 'zone-full', position: 1 } },
     });
     expect(env.tunnels.tunnels.size).toBe(0);
     expect(await env.row(id)).toMatchObject({ tunnel_id: null });
@@ -335,7 +335,9 @@ describe('eviction when the pool is full', () => {
     await env.relay.reclaim();
     env.advance(20 * MINUTE);
     const b = await env.link('user_b');
-    expect((await env.provision('user_b', b)).body).toEqual({ error: { code: 'relay-full' } });
+    expect((await env.provision('user_b', b)).body).toMatchObject({
+      error: { code: 'relay-full' },
+    });
     env.advance(15 * MINUTE);
     expect((await env.provision('user_b', b)).status).toBe(200);
     expect((await env.row(a))?.['evicted_at']).not.toBeNull();
@@ -373,7 +375,9 @@ describe('eviction when the pool is full', () => {
     await env.online(fresh);
     await env.relay.reclaim();
     env.advance(60 * MINUTE);
-    expect((await env.provision('user_a', old)).body).toEqual({ error: { code: 'relay-full' } });
+    expect((await env.provision('user_a', old)).body).toMatchObject({
+      error: { code: 'relay-full' },
+    });
     expect((await env.row(fresh))?.['tunnel_id']).not.toBeNull();
   });
 
@@ -417,7 +421,7 @@ describe('eviction when the pool is full', () => {
     );
     expect(env.tunnels.recordFor(`${capable}.${EXTRA}`)).toMatchObject({ zone: EXTRA });
     const second = await env.link('user_c');
-    expect((await env.provision('user_c', second)).body).toEqual({
+    expect((await env.provision('user_c', second)).body).toMatchObject({
       error: { code: 'relay-full' },
     });
     await env.offline(legacy);
@@ -431,6 +435,56 @@ describe('eviction when the pool is full', () => {
     expect((await env.provision('user_b', capable, { zones: [ZONE, EXTRA] })).body.hostname).toBe(
       `${capable}.${EXTRA}`,
     );
+  });
+
+  it('reports pool use and hands a freed slot to the Host that waited longest', async () => {
+    const env = await pool(undefined, { maxTunnels: 1 });
+    const a = await env.link('user_a');
+    await env.provision('user_a', a);
+    await env.online(a);
+    await env.relay.reclaim();
+    const b = await env.link('user_b');
+    const c = await env.link('user_c');
+    expect((await env.provision('user_b', b)).body.error).toMatchObject({
+      code: 'relay-full',
+      reason: 'pool-full',
+      position: 1,
+      retryAfter: 60,
+      pool: { capacity: 1, inUse: 1, free: 0, waiting: 1 },
+    });
+    env.advance(MINUTE);
+    expect((await env.provision('user_c', c)).body.error).toMatchObject({ position: 2 });
+    const listed = await env.call('GET', '/v1/hosts', { as: 'user_b' });
+    expect(listed.body.pool).toEqual({ capacity: 1, inUse: 1, free: 0, waiting: 2 });
+    expect(listed.body.hosts[0]).toMatchObject({ state: 'waiting', tunnel: false });
+    expect((await env.call('GET', '/v1/hosts', { as: 'user_a' })).body.hosts[0].state).toBe(
+      'connected',
+    );
+    expect((await env.call('DELETE', `/v1/hosts/${a}`, { as: 'user_a' })).status).toBe(200);
+    expect((await env.provision('user_c', c)).body.error).toMatchObject({
+      reason: 'queued',
+      position: 2,
+      pool: { free: 1 },
+    });
+    expect((await env.provision('user_b', b)).status).toBe(200);
+    expect((await env.call('GET', '/v1/hosts', { as: 'user_b' })).body.hosts[0].state).toBe(
+      'connecting',
+    );
+    expect((await env.provision('user_c', c)).body.error).toMatchObject({ position: 1 });
+  });
+
+  it('forgets a waiting Host that stopped retrying', async () => {
+    const env = await pool(undefined, { maxTunnels: 1 });
+    const a = await env.link('user_a');
+    await env.provision('user_a', a);
+    await env.online(a);
+    await env.relay.reclaim();
+    const b = await env.link('user_b');
+    await env.provision('user_b', b);
+    env.advance(4 * MINUTE);
+    const listed = await env.call('GET', '/v1/hosts', { as: 'user_b' });
+    expect(listed.body.pool.waiting).toBe(0);
+    expect(listed.body.hosts[0].state).toBe('offline');
   });
 
   it('advertises every Connect zone in the public config', async () => {

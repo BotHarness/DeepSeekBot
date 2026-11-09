@@ -265,10 +265,10 @@ describe('Connect relay accounts', () => {
     });
     expect(await call('GET', '/v1/hosts', { as: 'user_alice' })).toEqual({
       status: 200,
-      body: { hosts: [] },
+      body: { hosts: [], pool: { capacity: 195, inUse: 0, free: 195, waiting: 0 } },
     });
     const open = await setup([]);
-    expect(await open.call('GET', '/v1/hosts', { as: 'user_mallory' })).toEqual({
+    expect(await open.call('GET', '/v1/hosts', { as: 'user_mallory' })).toMatchObject({
       status: 200,
       body: { hosts: [] },
     });
@@ -290,6 +290,7 @@ describe('Connect relay accounts', () => {
           createdAt: '2026-10-20T12:00:00.000Z',
           tunnel: false,
           sessionKnown: false,
+          state: 'offline',
         },
       },
     });
@@ -581,8 +582,12 @@ describe('Connect relay tunnels', () => {
         status: 502,
         body: { error: { code: 'upstream-unavailable' } },
       });
-      expect(await call('GET', '/v1/hosts', { as: 'user_alice' })).toEqual(aliceBefore);
-      expect(await call('GET', '/v1/hosts', { as: 'user_bob' })).toEqual(bobBefore);
+      expect((await call('GET', '/v1/hosts', { as: 'user_alice' })).body.hosts).toEqual(
+        aliceBefore.body.hosts,
+      );
+      expect((await call('GET', '/v1/hosts', { as: 'user_bob' })).body.hosts).toEqual(
+        bobBefore.body.hosts,
+      );
       expect(tunnels.tunnels.has('tunnel-1')).toBe(stage === 'tunnel');
       expect(tunnels.records.size).toBe(3);
 
@@ -594,7 +599,9 @@ describe('Connect relay tunnels', () => {
       expect((await call('GET', '/v1/hosts', { as: 'user_alice' })).body.hosts).toEqual([
         aliceBefore.body.hosts[1],
       ]);
-      expect(await call('GET', '/v1/hosts', { as: 'user_bob' })).toEqual(bobBefore);
+      expect((await call('GET', '/v1/hosts', { as: 'user_bob' })).body.hosts).toEqual(
+        bobBefore.body.hosts,
+      );
       expect([...tunnels.tunnels.keys()]).toEqual(['tunnel-2', 'tunnel-3']);
       expect([...tunnels.records.values()].map((record) => record.target)).toEqual([
         'tunnel-2.cfargotunnel.com',
@@ -702,7 +709,7 @@ describe('Connect relay tunnels', () => {
     const tunnel = (path: string, as: string) =>
       call('POST', `/v1/hosts/${path}/tunnel`, { as, body: { originPort: 41001 } });
     expect((await tunnel('haaaaaaaaaaab', 'user_alice')).status).toBe(200);
-    expect(await tunnel('haaaaaaaaaaac', 'user_bob')).toEqual({
+    expect(await tunnel('haaaaaaaaaaac', 'user_bob')).toMatchObject({
       status: 503,
       body: { error: { code: 'relay-full' } },
     });
