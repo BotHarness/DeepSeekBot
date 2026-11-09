@@ -17,7 +17,7 @@ const LEGACY_KEY = 'deepseekbot.host.v1';
 const ACCESS_KEY = 'deepseekbot.hosts.access';
 const ACCESS = 'after-first-unlock';
 const ACCESSIBLE = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY };
-const RETRY_DELAYS_MS = [120, 360];
+const RETRY_DELAYS_MS = [250, 750, 1500];
 
 let queue: Promise<unknown> = Promise.resolve();
 
