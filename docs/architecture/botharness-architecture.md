@@ -540,7 +540,7 @@ Soniox 每句识别只接受明确的完成标记。异常断流（1006）可在
 
 ### 本地语音服务（ADR-0283）
 
-[ADR-0283](../adr/0283-bot-deployed-local-speech-service.md)：运行时 skill `setting-up-local-voice` 指导 Bot 在 Host 所在的 macOS 或 Windows 电脑上部署一个 Python 脚本（sherpa-onnx：SenseVoice 识别、Kokoro 合成），它只监听 `127.0.0.1:8790` 并提供 OpenAI 兼容的 `/v1/audio/speech` 与 `/v1/audio/transcriptions`。`deepseekbot voice-local-kit` 离线写出脚本；Tob 的受限 CLI 可读取、测试、登记无密钥的 `local`／`custom` TTS 和 ASR Provider，并绑定 Bot 的语音与语音识别（`voice-set`、`voice-asr-set`），写操作走审批卡片，密钥从不经过 Bot。Host 不启动也不保活该服务；服务未运行时 `VoiceProviders` 返回带启动方法的 `provider-unavailable`。
+[ADR-0283](../adr/0283-bot-deployed-local-speech-service.md)：运行时 skill `setting-up-local-voice` 指导 Bot 在 Host 所在的 macOS 或 Windows 电脑上部署一个 Python 脚本（sherpa-onnx：SenseVoice 识别、Kokoro 合成），它只监听 `127.0.0.1:8790` 并提供 OpenAI 兼容的 `/v1/audio/speech` 与 `/v1/audio/transcriptions`。`deepseekbot voice-local-kit` 离线写出脚本；Tob 的受限 CLI 可读取、测试、登记无密钥的 `local`／`custom` TTS 和 ASR Provider，并绑定 Bot 的语音与语音识别（`voice-set`、`voice-asr-set`），写操作走审批卡片，密钥从不经过 Bot。Host 不启动也不保活该服务；服务未运行时 `VoiceProviders` 返回带启动方法的 `provider-unavailable`。Bot 用哪个语音服务、服务是否健康只在一处决定：`VoiceProviders.resolve` 依次应用 Bot 绑定、Host 默认、该类型的回退规则（语音输入仍可回退到任意 ASR，流式优先；通话不回退），最后检查这个本地服务是否在运行。通话 readiness 和语音输入的 `readiness`/`open` 都用它，所以本地服务停止时语音输入会报告未就绪（`local-voice-off`），而不是在第一次推送时才失败，手机也会改用系统识别（[#3786](https://github.com/BotHarness/DeepSeekBot/issues/3786)）。
 
 ### GenUI as ordinary message content — accepted target
 
