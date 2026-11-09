@@ -43,7 +43,21 @@ Setup creates private `.env` and `bootstrap.secret` files without printing the k
 4. Choose **Show phone pairing code**. On the native phone, scan it and verify the full Host fingerprint against the trusted desktop. On the desktop, compare and approve the exact phone key.
 5. Send a Bot message from the phone and check the actual reply. For external-access acceptance use mobile data, not only home Wi-Fi.
 
-The first successful claim wins. A repeated or competing claim is refused. Relay admission is not Host authorization: the pinned Host key and per-Host device approval remain mandatory. The QR includes sensitive relay admission material; treat it like a pairing invitation. Revoking a phone denies Host access and closes its active encrypted channels, even though this first slice does not rotate the shared relay admission token for all other phones.
+The first successful claim wins. A repeated or competing claim is refused. Relay admission is not Host authorization: the pinned Host key and per-Host device approval remain mandatory. The QR includes sensitive relay admission material; treat it like a pairing invitation. Revoking a phone denies Host access and closes its active encrypted channels, even though the relay admission token shared by the phones of that computer is not rotated.
+
+## More computers on one relay
+
+One deployment serves up to 16 computers. Each computer gets its own one-time claim key, its own owner credential and its own phone admission, so a phone paired with one computer cannot reach another through the relay, and releasing or revoking one computer never affects the others.
+
+On the server, create a key for each extra computer:
+
+```bash
+node /opt/botharness-private/setup.mjs add-host office-mac
+```
+
+This writes `host-office-mac.secret` (the key, private to the server) and appends only its hash to `hosts/keys`, which the relay reads on every claim, so no restart is needed. On that computer, claim with the same steps as above but paste the contents of `host-office-mac.secret` instead of `bootstrap.secret`. The first computer keeps using `bootstrap.secret`.
+
+Upgrading a single-computer deployment: pull the new `deploy/private-relay` files, then `docker compose up -d --build` with the same project directory. The existing claim, phones and volumes keep working unchanged; add more computers with `add-host` afterwards. The wire protocol is documented in [the relay standard](private-relay-standard.md), with a conformance script for third-party relays.
 
 ## Failures and recovery
 

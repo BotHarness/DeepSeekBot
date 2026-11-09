@@ -549,6 +549,20 @@ export const PAGES = [
     },
   },
   {
+    slug: 'docs/private-relay-standard',
+    order: 15,
+    en: {
+      source: 'docs/private-relay-standard.md',
+      title: 'Private relay standard',
+      description: 'Wire protocol and conformance test for relays that serve several computers.',
+    },
+    zh: {
+      source: 'docs/private-relay-standard.zh.md',
+      title: '私有中继标准',
+      description: '服务多台电脑的中继线上协议和一致性测试。',
+    },
+  },
+  {
     slug: 'docs/mobile-pairing',
     order: 16,
     en: {

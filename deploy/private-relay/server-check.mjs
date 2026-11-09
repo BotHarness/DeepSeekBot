@@ -98,3 +98,75 @@ test('restart retains first owner and rejects a new claimant', async () => {
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test(
+  'v2 serves several Hosts with isolated admission and passes conformance',
+  { timeout: 20_000 },
+  async () => {
+    const { createHash } = await import('node:crypto');
+    const { writeFileSync } = await import('node:fs');
+    const { runConformance } = await import('./conformance.mjs');
+    const { readHostKeys } = await import('./server.mjs');
+    const directory = mkdtempSync(join(tmpdir(), 'private-v2-'));
+    const keysFile = join(directory, 'keys');
+    const keyA = 'd'.repeat(64),
+      keyB = 'e'.repeat(64);
+    const hash = (value) => createHash('sha256').update(value).digest('hex');
+    writeFileSync(keysFile, `office-a ${hash(keyA)}\noffice-b ${hash(keyB)}\n`);
+    const options = {
+      directory,
+      bootstrap: 'a'.repeat(64),
+      hostKeys: () => readHostKeys(keysFile),
+    };
+    let relay = createPrivateRelay(options);
+    try {
+      relay.server.listen(0, '127.0.0.1');
+      await once(relay.server, 'listening');
+      const origin = `http://127.0.0.1:${relay.server.address().port}`;
+      const lines = [];
+      const result = await runConformance({ origin, keyA, keyB, log: (line) => lines.push(line) });
+      assert.ok(result.ok, lines.join('\n'));
+      const v1 = await fetch(origin + '/claim', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + 'a'.repeat(64) },
+        body: JSON.stringify({ ownerToken: 'f'.repeat(64), phoneToken: '1'.repeat(64) }),
+      });
+      assert.equal(v1.status, 200);
+      const stored = readFileSync(join(directory, 'hosts', 'office-b.json'), 'utf8');
+      assert.ok(!stored.includes(keyB));
+      const closed = once(relay.server, 'close');
+      relay.close();
+      await closed;
+      relay = createPrivateRelay(options);
+      relay.server.listen(0, '127.0.0.1');
+      await once(relay.server, 'listening');
+      const port = relay.server.address().port;
+      const replay = await fetch(`http://127.0.0.1:${port}/claim`, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + keyA },
+        body: JSON.stringify({ ownerToken: '2'.repeat(64), phoneToken: '3'.repeat(64) }),
+      });
+      assert.equal(replay.status, 409);
+      const status = await fetch(`http://127.0.0.1:${port}/status`, {
+        headers: { Authorization: 'Bearer ' + 'f'.repeat(64) },
+      });
+      assert.deepEqual(await status.json(), { connected: false, host: 'default' });
+    } finally {
+      relay.close();
+      rmSync(directory, { recursive: true, force: true });
+    }
+  },
+);
+
+test('host key file rejects malformed lines', async () => {
+  const { writeFileSync } = await import('node:fs');
+  const { readHostKeys } = await import('./server.mjs');
+  const directory = mkdtempSync(join(tmpdir(), 'private-keys-'));
+  try {
+    writeFileSync(join(directory, 'keys'), 'default ' + 'a'.repeat(64));
+    assert.throws(() => readHostKeys(join(directory, 'keys')), /host-keys-invalid/u);
+    assert.equal(readHostKeys(join(directory, 'missing')).size, 0);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});

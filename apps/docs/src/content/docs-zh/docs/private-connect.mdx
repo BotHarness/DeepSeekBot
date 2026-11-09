@@ -50,6 +50,20 @@ docker compose --project-name botharness-private --project-directory /opt/bothar
 
 首次成功认领者取得中继管理权；并发和重复认领会被拒绝。中继管理权不等于 Host 控制权，Host 身份和设备批准仍需独立核验。二维码含敏感中继准入信息，不要公开。撤销手机会拒绝 Host 访问并关闭已有加密连接；本切片不会因此替所有其他手机轮换共享中继准入密钥。
 
+## 一个中继服务多台电脑
+
+一个部署最多服务 16 台电脑。每台电脑有自己的一次性认领密钥、自己的所有者凭据和自己的手机准入，所以和一台电脑配对的手机无法经中继访问另一台，释放或撤销一台电脑也不会影响其他电脑。
+
+在服务器上为每台新增电脑生成密钥：
+
+```bash
+node /opt/botharness-private/setup.mjs add-host office-mac
+```
+
+它会写入 `host-office-mac.secret`（密钥，只留在服务器上），并只把它的哈希追加到 `hosts/keys`。中继每次认领时都会读取这个文件，不需要重启。在那台电脑上按上面的步骤认领，只是粘贴 `host-office-mac.secret` 的内容，而不是 `bootstrap.secret`。第一台电脑继续使用 `bootstrap.secret`。
+
+从单台电脑的部署升级：拉取新的 `deploy/private-relay` 文件，在同一个项目目录运行 `docker compose up -d --build`。原有认领、手机和数据卷都照常工作，之后再用 `add-host` 添加电脑。线上协议见[中继标准](private-relay-standard.zh.md)，附第三方中继可用的一致性测试脚本。
+
 ## 失败恢复
 
 - **无法连接：**检查公网 DNS、端口、HTTPS 证书和容器状态。不要关闭证书校验；私有连接失败不会偷偷使用官方中继。
