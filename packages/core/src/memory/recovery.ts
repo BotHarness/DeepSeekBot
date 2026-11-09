@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { asyncGitSteps, syncGitSteps, type GitSteps } from './git-steps.js';
 import { randomUUID } from 'node:crypto';
 import { cpSync, existsSync, mkdtempSync, renameSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -44,12 +44,12 @@ const MAX_GIT_OUTPUT = 4 * 1024 * 1024;
 
 type GitRunner = (root: string, args: string[], indexFile?: string) => string;
 
-function git(
+function* gitSteps(
   root: string,
   args: string[],
   indexFile?: string,
   warn?: (message: string) => void,
-): string {
+): GitSteps<string> {
   const env = { ...process.env };
   for (const key of Object.keys(env)) if (key.startsWith('GIT_')) delete env[key];
   env.GIT_CONFIG_GLOBAL = '/dev/null';
@@ -57,9 +57,8 @@ function git(
   if (indexFile !== undefined) env.GIT_INDEX_FILE = indexFile;
   const started = Date.now();
   try {
-    return execFileSync(
-      'git',
-      [
+    return (yield {
+      args: [
         `--git-dir=${join(root, '.git')}`,
         `--work-tree=${root}`,
         '-c',
@@ -78,14 +77,14 @@ function git(
         'user.email=memory@botharness.local',
         ...args,
       ],
-      {
+      options: {
         cwd: root,
         env,
         stdio: ['ignore', 'pipe', 'pipe'],
         maxBuffer: MAX_GIT_OUTPUT,
         windowsHide: true,
       },
-    )
+    })
       .toString('utf8')
       .trim();
   } finally {
@@ -112,17 +111,17 @@ function rowToCheckpoint(row: CheckpointRow): MemoryRecoveryCheckpoint {
   };
 }
 
-function captureTrees(
+function* captureTreesSteps(
   root: string,
-  run: GitRunner,
-): {
+  run: (root: string, args: string[], indexFile?: string) => GitSteps<string>,
+): GitSteps<{
   branch: string;
   head: string;
   indexTree: string;
   workingTree: string;
-} {
-  const branch = run(root, ['symbolic-ref', '--quiet', '--short', 'HEAD']);
-  const head = run(root, ['rev-parse', '--verify', 'HEAD']);
+}> {
+  const branch = yield* run(root, ['symbolic-ref', '--quiet', '--short', 'HEAD']);
+  const head = yield* run(root, ['rev-parse', '--verify', 'HEAD']);
   if (!SHA.test(head)) throw new Error('Invalid Memory HEAD');
   const temp = mkdtempSync(join(tmpdir(), 'botharness-memory-index-'));
   if (dirname(resolve(temp)) !== resolve(tmpdir()))
@@ -131,13 +130,13 @@ function captureTrees(
   try {
     const sourceIndex = join(root, '.git', 'index');
     if (existsSync(sourceIndex)) cpSync(sourceIndex, indexFile);
-    else run(root, ['read-tree', 'HEAD'], indexFile);
-    const indexTree = run(root, ['write-tree'], indexFile);
-    run(root, ['add', '-A'], indexFile);
-    const workingTree = run(root, ['write-tree'], indexFile);
+    else yield* run(root, ['read-tree', 'HEAD'], indexFile);
+    const indexTree = yield* run(root, ['write-tree'], indexFile);
+    yield* run(root, ['add', '-A'], indexFile);
+    const workingTree = yield* run(root, ['write-tree'], indexFile);
     if (
-      branch !== run(root, ['symbolic-ref', '--quiet', '--short', 'HEAD']) ||
-      head !== run(root, ['rev-parse', '--verify', 'HEAD'])
+      branch !== (yield* run(root, ['symbolic-ref', '--quiet', '--short', 'HEAD'])) ||
+      head !== (yield* run(root, ['rev-parse', '--verify', 'HEAD']))
     )
       throw new Error('Memory branch changed while capturing checkpoint');
     return { branch, head, indexTree, workingTree };
@@ -152,7 +151,10 @@ export function createMemoryRecovery(options: {
   warn?: (message: string) => void;
 }) {
   const { database, now } = options;
-  const run: GitRunner = (root, args, indexFile) => git(root, args, indexFile, options.warn);
+  const runSteps = (root: string, args: string[], indexFile?: string) =>
+    gitSteps(root, args, indexFile, options.warn);
+  const run: GitRunner = (root, args, indexFile) => syncGitSteps(runSteps(root, args, indexFile));
+  const captureTrees = (root: string) => syncGitSteps(captureTreesSteps(root, runSteps));
   const latest = (botSlug: string): MemoryRecoveryCheckpoint | undefined => {
     const row = database.read(
       (db) =>
@@ -174,13 +176,13 @@ export function createMemoryRecovery(options: {
           .all(botSlug, limit) as unknown as CheckpointRow[]
       ).map(rowToCheckpoint),
     );
-  const capture = (
+  const captureSteps = function* (
     botSlug: string,
     root: string,
     context: Pick<MemoryRecoveryCheckpoint, 'origin' | 'originId' | 'causeKind' | 'causeId'>,
     force = false,
-  ): MemoryRecoveryCheckpoint => {
-    const state = captureTrees(root, run);
+  ): GitSteps<MemoryRecoveryCheckpoint> {
+    const state = yield* captureTreesSteps(root, runSteps);
     const previous = latest(botSlug);
     if (
       !force &&
@@ -192,7 +194,7 @@ export function createMemoryRecovery(options: {
       return previous;
     const id = randomUUID();
     const ref = `refs/botharness/recovery/${id}`;
-    const indexCommit = run(root, [
+    const indexCommit = yield* runSteps(root, [
       'commit-tree',
       state.indexTree,
       '-p',
@@ -200,7 +202,7 @@ export function createMemoryRecovery(options: {
       '-m',
       `Memory checkpoint ${id} index`,
     ]);
-    const workingCommit = run(root, [
+    const workingCommit = yield* runSteps(root, [
       'commit-tree',
       state.workingTree,
       '-p',
@@ -208,7 +210,7 @@ export function createMemoryRecovery(options: {
       '-m',
       `Memory checkpoint ${id} working tree`,
     ]);
-    run(root, ['update-ref', ref, workingCommit]);
+    yield* runSteps(root, ['update-ref', ref, workingCommit]);
     const point: MemoryRecoveryCheckpoint = {
       id,
       botSlug,
@@ -241,6 +243,9 @@ export function createMemoryRecovery(options: {
     );
     return point;
   };
+  const capture = (...args: Parameters<typeof captureSteps>) => syncGitSteps(captureSteps(...args));
+  const captureAsync = (...args: Parameters<typeof captureSteps>) =>
+    asyncGitSteps(captureSteps(...args));
   const restore = (
     botSlug: string,
     root: string,
@@ -294,7 +299,7 @@ export function createMemoryRecovery(options: {
       run(stage, ['switch', '-C', target.branch, target.head]);
       run(stage, ['read-tree', '--reset', '-u', target.workingTree]);
       run(stage, ['read-tree', '--reset', target.indexTree]);
-      const state = captureTrees(stage, run);
+      const state = captureTrees(stage);
       if (
         state.branch !== target.branch ||
         state.head !== target.head ||
@@ -302,7 +307,7 @@ export function createMemoryRecovery(options: {
         state.workingTree !== target.workingTree
       )
         throw new Error('Restored Memory state did not match checkpoint');
-      const beforeSwap = captureTrees(root, run);
+      const beforeSwap = captureTrees(root);
       if (
         beforeSwap.branch !== current.branch ||
         beforeSwap.head !== current.head ||
@@ -340,5 +345,5 @@ export function createMemoryRecovery(options: {
       if (existsSync(stage)) rmSync(stage, { recursive: true, force: true });
     }
   };
-  return { capture, history, latest, restore };
+  return { capture, captureAsync, captureSteps, history, latest, restore };
 }

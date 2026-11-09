@@ -300,6 +300,8 @@ Memory 外部打开沿用 ADR-0100 的交互，#574 实现当前 Memory 首片�
 
 Memory 格式表示进一步支持 JPEG/JPG、GIF、WebP 和安全静态 SVG（#2214）。纯客户端可用的 `media/image-format` 统一检测原始字节 MIME、尺寸和处理预算，Host Memory 入口及手机临时文件适配器消费同一规则。SVG 通过有界 XML/CSS 解析，仅允许无外部资源和主动内容的静态图片子集；仍以图片资源呈现，不注入页面标记，也不在 Host 转码或读取 SVG 引用文件。版本 SHA-256、原始字节和独立原文件下载语义保持一致；GIF/WebP 在帧数／总画布像素预算内保留原动画。
 
+Host 回合的 Memory 准备、收尾、取消清理及 commit 记录通过异步 Git subprocess 等待，让通话心跳可继续调度。同步 Human 操作与异步回合共用同一 Git-step 实现；每 Bot 的短期操作 reservation 在首次等待前持有，冲突的 Memory Service 入口返回 memory-conflict，结束后释放。数据库事务始终由 Host owner 同步提交，不跨 Git 等待；仓库身份、branch/head 与 accepted-head CAS 仍需核对。外部文件编辑不受该 reservation 控制，观察到不稳定状态仍拒绝（ADR-0097、#3638）。
+
 Memory Service 在 Host 启动、Orchestrator 回合前，以及本地 DM 或群提及并入活动回合前比较各 Bot 当前分支、HEAD、未提交文件内容和 Git index，与数据库中的每 Bot 观察检查点求净变化。首次观察只建立基线；之后在单次事务中写入有界路径摘要的 `memory-change` Source Event、该 Bot 的 Inbox Admission，并推进检查点。事务失败不推进基线，重启后重试；相同状态重复扫描不重复投递。启动扫描只入 Inbox，不主动唤醒 Agent；下一次普通回合在同一 Inbox 上下文领取并处理。Event 不推断编辑者，也不复制文件内容；Agent 需要时用原生文件和 Git 工具查看。并入消息时发现的净变化随消息在下一个安全步骤进入同一回合的 Inbox 上下文，成功投递才标记已观察，并随回合成功或失败处理；拒绝并入时保留待处理，供后续普通回合领取。回合结束更新剩余状态的基线，不额外通知，也不推断回合中变更的编辑者。离线期间改动又复原的中间过程无法从最终文件状态推断。`SOUL.md` 或 `MEMORY.md` 变化可在 Event 中提示，但冻结的 Session 快照不变（ADR-0092、ADR-0134、#350、#352、#464）。
 
 ## 3 · Host 启动、迁移与 recovery
