@@ -18,7 +18,14 @@ import { createCallMedia, microphoneAccess, microphoneGranted } from '../../host
 import { askCallNotifications, callOverlayAllowed } from '../../host/call-notice';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { callActivityNative, onCallActivityAction } from '../../host/native-call-activity';
+import {
+  callActivityBadges,
+  callAvatarUri,
+  type CallActivityBadges,
+} from '../../host/native-call-activity-images';
 import { callAudioPreference } from '../../host/native-call-audio-route';
+import { humanBubbleColors } from '../../../../../packages/client/src/client/bot-name-color';
+import { botColor } from '../bot-color';
 import { useDesignTheme } from '../design/theme';
 import { useMounted } from '../mounted';
 import { locale } from '../strings';
@@ -35,7 +42,12 @@ import {
 const testBuild = () =>
   typeof __DEV__ !== 'undefined' && __DEV__ && Application.applicationId?.endsWith('.dev') === true;
 
-type ScriptStep = { at: number; url?: string; video?: string; camera?: 'off' | 'flip' };
+type ScriptStep = {
+  at: number;
+  url?: string;
+  video?: string;
+  camera?: 'off' | 'flip';
+};
 
 export function useCallSession(): CallSessionSnapshot | undefined {
   return useSyncExternalStore(callSessions.subscribe, callSessions.getSnapshot);
@@ -55,11 +67,16 @@ export function CallSessionHost() {
 function CallRunner({ session }: { session: CallSessionSnapshot }) {
   const { key, request } = session;
   const { slug, script } = request;
-  const { client } = useHostSession(request.hostId);
+  const { client, saved } = useHostSession(request.hostId);
+  const hostRef = useRef<string | undefined>(undefined);
+  hostRef.current = saved?.hostId;
   const snapshot = useHostSnapshot(client);
-  const name = snapshot.roster?.bots.find((entry) => entry.slug === slug)?.displayName ?? slug;
+  const bot = snapshot.roster?.bots.find((entry) => entry.slug === slug);
+  const name = bot?.displayName ?? slug;
   const nameRef = useRef(name);
   nameRef.current = name;
+  const colorRef = useRef<{ fill: string; ink: string } | undefined>(undefined);
+  colorRef.current = bot === undefined ? undefined : humanBubbleColors(botColor(bot), 'light');
   const router = useRouter();
   const routerRef = useRef(router);
   routerRef.current = router;
@@ -106,6 +123,7 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
     let paused = false;
     let connectedAt: number | undefined;
     let reported = false;
+    let badges: CallActivityBadges | undefined;
     const writeReport = () => {
       if (!testAudio || reported) return;
       reported = true;
@@ -136,9 +154,19 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
               muted: current.status === 'live' && current.muted,
               locale: locale === 'zh' ? 'zh' : 'en',
               palette: paletteRef.current,
+              avatar:
+                hostRef.current === undefined ? undefined : callAvatarUri(hostRef.current, slug),
+              avatarColor: colorRef.current?.fill,
+              avatarInk: colorRef.current?.ink,
+              ...badges,
             },
       );
     };
+    void callActivityBadges().then((value) => {
+      if (cancelled || value === undefined) return;
+      badges = value;
+      showActivity();
+    });
     let cameraState: CallCameraState = CALL_CAMERA_OFF;
     const setCamera = (patch: Partial<CallCameraState>) => {
       cameraState = { ...cameraState, ...patch };
@@ -177,7 +205,10 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
     const camera = createPhoneCallCamera({
       onKeyframe: async (frame) => {
         if (cancelled || !cameraState.on) return;
-        setCamera({ keyframes: cameraState.keyframes + 1, keyframeAt: Date.now() });
+        setCamera({
+          keyframes: cameraState.keyframes + 1,
+          keyframeAt: Date.now(),
+        });
         if (testAudio) mark('keyframe', { bytes: frame.bytes, prepareMs: frame.prepareMs });
         await call.frame(frame);
       },
@@ -239,7 +270,9 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
       hangup: () => void call.hangup(),
       choose: async (output, microphone) => (await media.audio?.choose(output, microphone)) ?? null,
       ...(media.audio?.mode
-        ? { mode: async (music: boolean) => (await media.audio?.mode?.(music)) ?? null }
+        ? {
+            mode: async (music: boolean) => (await media.audio?.mode?.(music)) ?? null,
+          }
         : {}),
       camera: (on) => void turnCamera(on, cameraState.position),
       flip: () => {
@@ -266,7 +299,10 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
         if (callSessions.getSnapshot()?.expanded !== true)
           routerRef.current.push({
             pathname: '/call/[slug]',
-            params: { slug, ...(request.hostId === undefined ? {} : { hostId: request.hostId }) },
+            params: {
+              slug,
+              ...(request.hostId === undefined ? {} : { hostId: request.hostId }),
+            },
           });
       } else if (current.status === 'live') void call.mute(!current.muted);
     });
@@ -292,13 +328,19 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
           const local =
             source === undefined
               ? undefined
-              : await File.downloadFileAsync(source, Paths.cache, { idempotent: true });
+              : await File.downloadFileAsync(source, Paths.cache, {
+                  idempotent: true,
+                });
           const wait = started + step.at - Date.now();
           if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
           if (cancelled) return;
           if (step.video !== undefined && local !== undefined) {
             await turnCamera(true, cameraState.position, local.uri);
-            mark('video', { url: step.video, on: cameraState.on, error: cameraState.error });
+            mark('video', {
+              url: step.video,
+              on: cameraState.on,
+              error: cameraState.error,
+            });
           } else if (step.camera === 'off') await turnCamera(false, cameraState.position);
           else if (step.camera === 'flip')
             await turnCamera(true, cameraState.position === 'front' ? 'back' : 'front');
