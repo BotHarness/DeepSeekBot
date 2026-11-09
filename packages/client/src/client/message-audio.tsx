@@ -1,16 +1,9 @@
 import { useId, useMemo, useRef, useState, type ReactElement } from 'react';
-import {
-  IconDownloadOutlineRegular,
-  IconPauseOutlineRegular,
-  IconPlayOutlineRegular,
-  fileSizeText,
-} from '@deepseek-ai/dsh-client-ui-primitives';
-import { Tooltip } from './ds/tooltip.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 
 const PLAY_EVENT = 'bh-message-audio-play';
-const SPECTRUM_BARS = 48;
+const SPECTRUM_BARS = 32;
 
 export function formatAudioTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
@@ -18,9 +11,8 @@ export function formatAudioTime(seconds: number): string {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
 }
 
-function spectrumBars(name: string, size: number): number[] {
+function spectrumBars(key: string): number[] {
   let seed = 2166136261;
-  const key = `${name}:${size}`;
   for (let index = 0; index < key.length; index += 1) {
     seed ^= key.charCodeAt(index);
     seed = Math.imul(seed, 16777619);
@@ -29,27 +21,25 @@ function spectrumBars(name: string, size: number): number[] {
   let state = seed >>> 0;
   for (let index = 0; index < SPECTRUM_BARS; index += 1) {
     state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
-    bars.push(0.2 + ((state % 100) / 100) * 0.8);
+    bars.push(0.25 + ((state % 100) / 100) * 0.75);
   }
   return bars;
 }
 
 export function MessageAudio({
   name,
-  size,
+  seed = name,
+  durationMs,
   url,
-  downloadUrl = url,
-  onDownload,
   onPrepare,
   onError,
   t,
 }: {
   name: string;
-  size?: number | undefined;
+  seed?: string | undefined;
+  durationMs?: number | undefined;
   url?: string | undefined;
-  downloadUrl?: string | undefined;
   onPrepare?: (() => Promise<string | undefined>) | undefined;
-  onDownload?: (() => void) | undefined;
   onError?: (() => void) | undefined;
   t: BotHarnessTranslate;
 }): ReactElement {
@@ -59,8 +49,14 @@ export function MessageAudio({
   const spectrumRef = useRef<HTMLDivElement>(null);
   const [playing, setPlaying] = useState(false);
   const [current, setCurrent] = useState(0);
-  const [duration, setDuration] = useState<number>();
-  const bars = useMemo(() => spectrumBars(name, size ?? 0), [name, size]);
+  const [measured, setDuration] = useState<number>();
+  const duration =
+    measured !== undefined && Number.isFinite(measured) && measured > 0
+      ? measured
+      : durationMs === undefined
+        ? undefined
+        : durationMs / 1000;
+  const bars = useMemo(() => spectrumBars(seed), [seed]);
 
   const pauseMount = useMountedResource<HTMLDivElement>(
     (node) => {
@@ -122,8 +118,9 @@ export function MessageAudio({
 
   const progress = ready ? current / (duration ?? 1) : 0;
 
+  const total = duration === undefined ? '--:--' : formatAudioTime(duration);
   return (
-    <div className="bh-message-audio" ref={pauseMount}>
+    <div className="bh-message-audio" ref={pauseMount} data-playing={playing ? '' : undefined}>
       <button
         type="button"
         className="bh-message-audio-play"
@@ -132,24 +129,18 @@ export function MessageAudio({
         disabled={url === undefined && onPrepare === undefined}
         onClick={() => void toggle()}
       >
-        {playing ? <IconPauseOutlineRegular size={16} /> : <IconPlayOutlineRegular size={16} />}
+        <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+          <path
+            fill="currentColor"
+            d={
+              playing
+                ? 'M4 2.5h3v11H4zM9 2.5h3v11H9z'
+                : 'M5 2.6v10.8a.6.6 0 0 0 .9.5l8.4-5.4a.6.6 0 0 0 0-1L5.9 2.1a.6.6 0 0 0-.9.5z'
+            }
+          />
+        </svg>
       </button>
-      <span className="bh-message-file-copy">
-        <span className="bh-message-file-name" title={name}>
-          {name}
-        </span>
-        <span className="bh-message-audio-meta">
-          <span>
-            {formatAudioTime(current)} /{' '}
-            {duration === undefined ? '--:--' : formatAudioTime(duration)}
-          </span>
-          {size === undefined ? null : (
-            <>
-              <span aria-hidden="true">·</span>
-              <span>{fileSizeText(size)}</span>
-            </>
-          )}
-        </span>
+      <span className="bh-message-audio-track">
         <div
           ref={spectrumRef}
           className="bh-message-audio-spectrum"
@@ -159,7 +150,7 @@ export function MessageAudio({
           aria-valuemin={0}
           aria-valuemax={Math.round(duration ?? 0)}
           aria-valuenow={Math.round(current)}
-          aria-valuetext={`${formatAudioTime(current)} / ${duration === undefined ? '--:--' : formatAudioTime(duration)}`}
+          aria-valuetext={`${formatAudioTime(current)} / ${total}`}
           aria-disabled={!ready}
           onPointerDown={(event) => {
             if (!ready) return;
@@ -189,39 +180,15 @@ export function MessageAudio({
             <span
               key={index}
               className="bh-message-audio-bar"
-              {...(index / bars.length <= progress ? { 'data-played': true } : {})}
+              {...(index / bars.length < progress ? { 'data-played': true } : {})}
               style={{ height: `${Math.round(height * 100)}%` }}
             />
           ))}
         </div>
+        <span className="bh-message-audio-meta">
+          {formatAudioTime(current)} / {total}
+        </span>
       </span>
-      {downloadUrl === undefined && onDownload === undefined ? null : (
-        <>
-          <span className="bh-message-file-divider" aria-hidden="true" />
-          <Tooltip label={t('fileAction.download')} side="bottom" delayMs={500}>
-            {onDownload === undefined ? (
-              <a
-                className="bh-message-file-download"
-                href={downloadUrl}
-                download={name}
-                aria-label={`${t('fileAction.download')}: ${name}`}
-                onClick={(event) => event.stopPropagation()}
-              >
-                <IconDownloadOutlineRegular size={16} />
-              </a>
-            ) : (
-              <button
-                type="button"
-                className="bh-message-file-download"
-                aria-label={`${t('fileAction.download')}: ${name}`}
-                onClick={onDownload}
-              >
-                <IconDownloadOutlineRegular size={16} />
-              </button>
-            )}
-          </Tooltip>
-        </>
-      )}
       {url === undefined && onPrepare === undefined ? null : (
         <audio
           ref={audioRef}

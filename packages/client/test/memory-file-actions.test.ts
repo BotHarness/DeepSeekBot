@@ -304,7 +304,7 @@ describe('Workspace path menus', () => {
 });
 
 describe('message attachment menus', () => {
-  it('uses the captured message owner for file click, context menu and keyboard without opening the bubble menu', async () => {
+  it('opens a file row with the default app and keeps its menu on right-click and keyboard', async () => {
     const a = {
       messageAttachmentTarget: vi.fn(async () => ({
         path: '/host/files/notes.txt',
@@ -340,7 +340,15 @@ describe('message attachment menus', () => {
         ),
       ),
     );
-    const file = container.querySelector('button.bh-message-file-main')!;
+    const file = container.querySelector<HTMLButtonElement>('button.bh-message-file-main')!;
+    expect(file.querySelector('[data-file-tile]')?.textContent).toBe('TXT');
+    expect(file.querySelector('[data-file-tile]')?.getAttribute('data-file-tone')).toBe('gray');
+    expect(file.querySelector('.bh-message-file-name')?.textContent).toBe('notes.txt');
+    expect(file.querySelector('.bh-message-file-size')?.textContent).toBe('1B · TXT');
+    expect(container.querySelector('.bh-message-file-download')).toBeNull();
+    expect(container.querySelector('.bh-message-file-divider')).toBeNull();
+    expect(container.querySelector('.bh-message-file-more')).toBeNull();
+    expect(container.querySelector('.bh-file-open')).toBeNull();
     await act(async () =>
       file.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })),
     );
@@ -373,17 +381,30 @@ describe('message attachment menus', () => {
       'message-owner',
       attachment.fileId,
     );
+    a.messageAttachmentOpen.mockClear();
     await click(file);
-    expect(document.querySelector('[data-pointer-menu] [role="menu"]')).not.toBeNull();
-    expect(file.getAttribute('aria-haspopup')).toBe('menu');
-    const download = container.querySelector('a.bh-message-file-download')!;
-    expect(download.getAttribute('aria-label')).toBe('下载到此设备: notes.txt');
-    expect(download.getAttribute('href')).toContain('channelId=group-owner');
-    expect(download.getAttribute('download')).toBe('notes.txt');
-    expect(container.querySelector('.bh-message-file-more')).toBeNull();
+    expect(a.messageAttachmentOpen).toHaveBeenCalledWith(
+      'group-owner',
+      'message-owner',
+      attachment.fileId,
+      { application: 'editor' },
+    );
+    expect(document.querySelector('[data-pointer-menu] [role="menu"]')).toBeNull();
   });
 
-  it('renders audio attachments with a custom player instead of native controls', async () => {
+  it('colours the file type tile by extension', async () => {
+    const { fileTypeTile } = await import('../src/client/message-attachment.js');
+    expect(fileTypeTile('IJ1023.pdf')).toEqual({ label: 'PDF', tone: 'red' });
+    expect(fileTypeTile('sheet.XLSX')).toEqual({ label: 'XLSX', tone: 'green' });
+    expect(fileTypeTile('notes.docx')).toEqual({ label: 'DOCX', tone: 'blue' });
+    expect(fileTypeTile('deck.key')).toEqual({ label: 'KEY', tone: 'orange' });
+    expect(fileTypeTile('archive.zip')).toEqual({ label: 'ZIP', tone: 'violet' });
+    expect(fileTypeTile('README')).toEqual({ label: '', tone: 'gray' });
+    expect(fileTypeTile('weird.extension')).toEqual({ label: 'EXTE', tone: 'gray' });
+  });
+
+  it('plays voice in one row and keeps download in its context menu', async () => {
+    const download = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
     await act(async () =>
       root.render(
         createElement(MessageAttachment, {
@@ -395,26 +416,42 @@ describe('message attachment menus', () => {
           },
           channelId: 'group-owner',
           messageId: 'message-owner',
+          displayName: '语音',
+          durationMs: 7000,
           t: zhTranslate,
         }),
       ),
     );
-    const player = container.querySelector('.bh-message-audio')!;
-    expect(player.querySelector('button.bh-message-audio-play')?.getAttribute('aria-label')).toBe(
-      '播放音频: voice.mp3',
-    );
-    const spectrum = player.querySelector('.bh-message-audio-spectrum')!;
-    expect(spectrum.getAttribute('role')).toBe('slider');
-    expect(spectrum.getAttribute('aria-label')).toBe('拖动以快进或后退: voice.mp3');
-    expect(player.querySelectorAll('.bh-message-audio-bar')).toHaveLength(48);
-    expect(player.textContent).toContain('1.5KB');
-    const download = player.querySelector('a.bh-message-file-download')!;
-    expect(download.getAttribute('download')).toBe('voice.mp3');
-    expect(container.querySelector('audio[controls]')).toBeNull();
-    expect(container.querySelector('audio')?.getAttribute('preload')).toBe('metadata');
+    try {
+      const player = container.querySelector('.bh-message-audio')!;
+      expect(player.querySelector('button.bh-message-audio-play')?.getAttribute('aria-label')).toBe(
+        '播放音频: 语音',
+      );
+      const spectrum = player.querySelector('.bh-message-audio-spectrum')!;
+      expect(spectrum.getAttribute('role')).toBe('slider');
+      expect(spectrum.getAttribute('aria-label')).toBe('拖动以快进或后退: 语音');
+      expect(player.querySelectorAll('.bh-message-audio-bar').length).toBeGreaterThan(0);
+      expect(player.querySelector('.bh-message-audio-meta')?.textContent).toBe('0:00 / 0:07');
+      expect(player.textContent).not.toContain('1.5KB');
+      expect(player.textContent).not.toContain('语音');
+      expect(player.querySelector('.bh-message-file-name')).toBeNull();
+      expect(container.querySelector('.bh-message-file-download')).toBeNull();
+      expect(container.querySelector('audio[controls]')).toBeNull();
+      expect(container.querySelector('audio')?.getAttribute('preload')).toBe('metadata');
+      await act(async () =>
+        player.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })),
+      );
+      await click(button('下载到此设备'));
+      expect(download).toHaveBeenCalledTimes(1);
+      const anchor = download.mock.contexts[0] as HTMLAnchorElement;
+      expect(anchor.getAttribute('download')).toBe('voice.mp3');
+      expect(anchor.getAttribute('href')).toContain('channelId=group-owner');
+    } finally {
+      download.mockRestore();
+    }
   });
 
-  it('keeps image preview independent of its accessible actions and uses message-owned URLs', async () => {
+  it('shows an image as a tile that opens the preview and keeps its actions in the context menu', async () => {
     const attachment = {
       fileId: 'file:00000000-0000-4000-8000-000000000000',
       name: 'photo.png',
@@ -436,8 +473,15 @@ describe('message attachment menus', () => {
     expect(image.querySelector('img')?.getAttribute('src')).toContain(
       'channelId=group-owner&messageId=message-owner&fileId=file%3A',
     );
-    expect(container.querySelector('button[aria-label="文件操作: photo.png"]')).not.toBeNull();
+    expect(container.querySelector('button[aria-label="文件操作: photo.png"]')).toBeNull();
     expect(container.querySelector('[role="menu"]')).toBeNull();
+    await act(async () =>
+      image.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })),
+    );
+    expect(button('下载到此设备')).toBeDefined();
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    });
     await act(async () => image.click());
     const dialog = document.body.querySelector('[role="dialog"][aria-modal="true"]')!;
     expect(dialog.getAttribute('aria-label')).toBe('图片预览：photo.png');

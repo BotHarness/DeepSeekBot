@@ -246,6 +246,8 @@ import {
 } from './message-image-gallery.js';
 import { inlineImageAttachment } from './message-attachment.js';
 import { channelAttachmentUrl } from './bridge.js';
+import { bubbleMedia } from './message-album.js';
+import { ReplyQuoteThumb, replyQuoteText } from './reply-quote-media.js';
 import { turnStopText } from './turn-stop.js';
 import { VoiceCallRecordBubble } from './voice-call-record.js';
 
@@ -371,11 +373,13 @@ interface MessageMenuRequest {
 function ReplyQuote({
   humanName,
   message,
+  channelId,
   bots,
   onJump,
   t,
 }: {
   message: ChannelMessage;
+  channelId: string | undefined;
   bots: readonly BotSummary[];
   humanName: string;
   onJump(messageId: string): void;
@@ -397,20 +401,27 @@ function ReplyQuote({
     message.author.kind === 'human' || quoted.kind !== 'bot'
       ? undefined
       : botNameSource(bots.find((bot) => bot.slug === quoted.slug));
+  const media = preview.media;
+  const thumbnail =
+    media?.kind === 'image' && channelId !== undefined ? media.thumbnail : undefined;
   return (
     <button
       type="button"
-      className="bh-bubble-reply"
+      className={`bh-bubble-reply${thumbnail === undefined ? '' : ' bh-bubble-reply-media'}`}
       data-bubble-quote={quoted.kind === 'bot' || quoted.kind === 'human' ? quoted.kind : 'other'}
+      data-bubble-quote-media={media?.kind}
       ref={(element) => paintBotName(element, colorSource)}
       onClick={() => onJump(targetId)}
       aria-label={t('message.replyJump', { author })}
     >
+      {thumbnail === undefined || channelId === undefined ? null : (
+        <ReplyQuoteThumb thumbnail={thumbnail} channelId={channelId} messageId={targetId} />
+      )}
       <span className="bh-bubble-reply-author" data-bubble-quote-author="">
         {author}
       </span>
       <span className="bh-bubble-reply-body">
-        {toolApprovalReplyPreview(message, preview.body, t)}
+        {replyQuoteText(media, toolApprovalReplyPreview(message, preview.body, t), t)}
       </span>
     </button>
   );
@@ -421,6 +432,28 @@ function bubbleStamp(message: ChannelMessage): string | undefined {
     return undefined;
   const clock = clockTime(message.at);
   return clock === '' ? undefined : clock;
+}
+
+function DeliveredCheck(): ReactElement {
+  return (
+    <svg
+      className="bh-bubble-stamp-check"
+      data-bubble-check=""
+      width="13"
+      height="13"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="m4 12 5 5L20 6"
+        stroke="currentColor"
+        strokeWidth="2.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
 }
 
 function ReplyIcon(): ReactElement {
@@ -768,7 +801,7 @@ const MessageGroupView = memo(function MessageGroupView({
         </span>
       )}
       <div className="bh-message-stack">
-        {dm ? null : (
+        {dm || human ? null : (
           <div className="bh-message-identity">
             {first.bridgeOrigin ? (
               <BridgeSourceAuthor origin={first.bridgeOrigin} t={t} />
@@ -850,10 +883,12 @@ const MessageGroupView = memo(function MessageGroupView({
                 <div
                   className={`bh-bubble${human ? ' bh-bubble-me' : ''}${message.pending === true || message.streaming === true ? ' bh-bubble-pending' : ''}${message.failed === undefined ? '' : ' bh-bubble-failed'}${stamp === undefined ? '' : ' bh-bubble-stamped'}`}
                   data-group-position={position}
+                  data-bubble-media={bubbleMedia(message)}
                 >
                   <ReplyQuote
                     humanName={humanName}
                     message={message}
+                    channelId={channelId}
                     bots={bots}
                     onJump={onJumpReply}
                     t={t}
@@ -887,6 +922,7 @@ const MessageGroupView = memo(function MessageGroupView({
                       title={fullTime(message.at, t)}
                     >
                       {stamp}
+                      {human ? <DeliveredCheck /> : null}
                     </time>
                   )}
                 </div>

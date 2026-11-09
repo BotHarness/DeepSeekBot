@@ -822,7 +822,7 @@ describe('Bot main Sessions pane', () => {
       store.setConversation(previous.conversation);
     }
   });
-  it('keeps the own name in a mirrored group row without a header time', () => {
+  it('shows no own name above the Human in a group row and no header time', () => {
     const previous = store.getSnapshot();
     const channel = {
       id: 'group-ada',
@@ -863,9 +863,8 @@ describe('Bot main Sessions pane', () => {
         }),
       );
       expect(markup).toContain('bh-message-group-me');
-      const identity = markup.indexOf('bh-message-identity');
-      expect(identity).toBeGreaterThan(-1);
-      expect(markup.indexOf('bh-bubble-author', identity)).toBeGreaterThan(-1);
+      expect(markup).not.toContain('bh-message-identity');
+      expect(markup).not.toContain('bh-bubble-author');
       expect(markup).not.toContain('bh-bubble-time');
     } finally {
       store.setRoster(previous.bots, previous.channels);
@@ -930,29 +929,27 @@ describe('Bot main Sessions pane', () => {
       contrastRatio(parseColor(name)!.rgb, parseColor(REFERENCE_SURFACES[theme].background)!.rgb);
     try {
       expect(authors(bot(), dm)).toHaveLength(0);
-      const [human, automatic] = authors(bot(), group);
-      expect(human!.hasAttribute('data-bot-name-color')).toBe(false);
-      expect(human!.getAttribute('style')).toBeNull();
+      const [automatic] = authors(bot(), group);
+      expect(authors(bot(), group)).toHaveLength(1);
       const hair = seededAvatarFor('Ada', undefined).hairColor;
       expect(automatic!.getAttribute('data-bot-name-color')).toBe(botNameColor(hair, '#ffffff'));
 
       const white = bot({ mode: 'custom', color: '#ffffff' });
-      const light = authors(white, group)[1]!.getAttribute('data-bot-name-color')!;
+      const light = authors(white, group)[0]!.getAttribute('data-bot-name-color')!;
       expect(light).not.toBe('#ffffff');
       expect(contrast(light, 'light')).toBeGreaterThanOrEqual(4.5);
       document.body.setAttribute('data-ds-dark-theme', '');
-      const dark = authors(white, group)[1]!;
+      const dark = authors(white, group)[0]!;
       expect(dark.getAttribute('data-bot-name-color')).toBe('#ffffff');
       expect(dark.style.color).not.toBe('');
       expect(contrast('#ffffff', 'dark')).toBeGreaterThanOrEqual(4.5);
 
-      const [groupHuman, groupBot] = authors(white, group);
-      expect(groupHuman!.hasAttribute('data-bot-name-color')).toBe(false);
+      const [groupBot] = authors(white, group);
       expect(groupBot!.getAttribute('data-bot-name-color')).toBe('#ffffff');
       document.body.removeAttribute('data-ds-dark-theme');
-      expect(authors(white, group)[1]!.getAttribute('data-bot-name-color')).toBe(light);
+      expect(authors(white, group)[0]!.getAttribute('data-bot-name-color')).toBe(light);
       const gone = bot({ mode: 'custom', color: '#ffffff', retained: '#1d1b22' }, true);
-      expect(authors(gone, group)[1]!.getAttribute('data-bot-name-color')).toBe('#1d1b22');
+      expect(authors(gone, group)[0]!.getAttribute('data-bot-name-color')).toBe('#1d1b22');
     } finally {
       document.body.removeAttribute('data-ds-dark-theme');
       store.setRoster(previous.bots, previous.channels);
@@ -2005,6 +2002,215 @@ describe('B2 chat bubbles', () => {
 
       await act(async () => quotedHuman.click());
       expect(openAround).toHaveBeenCalledWith(group.id, 'h1');
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+      restore(previous);
+    }
+  });
+
+  const photo = (name: string, extra: Partial<{ width: number; height: number }> = {}) => ({
+    fileId: `file:${name}`,
+    name,
+    mime: 'image/png',
+    size: 2048,
+    version: 'v1',
+    ...extra,
+  });
+  const photos = (count: number) =>
+    Array.from({ length: count }, (_, index) => photo(`p${index + 1}.png`));
+
+  it('fills an uncaptioned image to the bubble edge with its time on a pill and puts a caption below', () => {
+    const previous = store.getSnapshot();
+    try {
+      const host = show(dm, [
+        { id: 'h1', at, author: { kind: 'human' }, body: '', attachments: [photo('a.png')] },
+        {
+          id: 'h2',
+          at,
+          author: { kind: 'human' },
+          body: 'the gate',
+          attachments: [photo('b.png')],
+        },
+        { id: 'h3', at, author: { kind: 'human' }, body: 'plain text' },
+      ]);
+      const bare = bubble(host, 'h1')!;
+      expect(bare.dataset['bubbleMedia']).toBe('bare');
+      expect(bare.querySelector('[data-album-count="1"]')).not.toBeNull();
+      expect(bare.querySelector('[data-bubble-time]')).not.toBeNull();
+      const captioned = bubble(host, 'h2')!;
+      expect(captioned.dataset['bubbleMedia']).toBe('captioned');
+      const album = captioned.querySelector('.bh-message-album')!;
+      const caption = captioned.querySelector('.bh-bubble-body')!;
+      expect(
+        album.compareDocumentPosition(caption) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(bubble(host, 'h3')!.hasAttribute('data-bubble-media')).toBe(false);
+      expect(CSS).toMatch(
+        /\.bh-bubble\[data-bubble-media\] \{[^}]*padding: 0;[^}]*overflow: hidden;/,
+      );
+      expect(CSS).toMatch(
+        /\.bh-bubble\[data-bubble-media='bare'\] \.bh-bubble-stamp \{[^}]*background: color-mix\(in srgb, black 45%, transparent\);[^}]*color: white;/,
+      );
+    } finally {
+      restore(previous);
+    }
+  });
+
+  it('lays several images out as one album with +N on the last visible tile', () => {
+    const previous = store.getSnapshot();
+    try {
+      const host = show(dm, [
+        { id: 'a2', at, author: { kind: 'human' }, body: '', attachments: photos(2) },
+        { id: 'a3', at, author: { kind: 'human' }, body: '', attachments: photos(3) },
+        { id: 'a4', at, author: { kind: 'human' }, body: '', attachments: photos(4) },
+        { id: 'a8', at, author: { kind: 'bot', slug: 'ada' }, body: '', attachments: photos(8) },
+      ]);
+      const album = (id: string) =>
+        bubble(host, id)!.querySelector<HTMLElement>('.bh-message-album')!;
+      const tiles = (id: string) => album(id).querySelectorAll('[data-album-tile]');
+      expect(['a2', 'a3', 'a4', 'a8'].map((id) => tiles(id).length)).toEqual([2, 3, 4, 5]);
+      expect(album('a3').style.gridTemplateColumns).toBe('2fr 1fr');
+      expect(
+        album('a3').querySelector<HTMLElement>('.bh-message-album-cell')!.style.gridRow,
+      ).toContain('span 2');
+      expect(album('a8').getAttribute('role')).toBe('group');
+      expect(album('a8').getAttribute('aria-label')).toBe('8 张图片');
+      expect(album('a8').dataset['albumCount']).toBe('8');
+      expect(tiles('a8')[4]!.textContent).toBe('+3');
+      expect(tiles('a8')[3]!.textContent).toBe('');
+      expect(bubble(host, 'a8')!.querySelectorAll('.bh-message-file')).toHaveLength(0);
+      expect(CSS).toMatch(/\.bh-message-album \{[^}]*display: grid;[^}]*gap: 2px;/);
+    } finally {
+      restore(previous);
+    }
+  });
+
+  it('shows what a quoted media message was inside the quote block', () => {
+    const previous = store.getSnapshot();
+    const quote = (media: NonNullable<ChannelMessage['replyToPreview']>['media'], body = '') => ({
+      author: { kind: 'bot' as const, slug: 'ada' },
+      body,
+      ...(media === undefined ? {} : { media }),
+    });
+    try {
+      const host = show(dm, [
+        {
+          id: 'r1',
+          at,
+          author: { kind: 'human' },
+          body: 'this one',
+          replyTo: 'q1',
+          replyToPreview: quote({ kind: 'image', count: 1, thumbnail: photo('thumb.png') }),
+        },
+        {
+          id: 'r2',
+          at,
+          author: { kind: 'human' },
+          body: 'those',
+          replyTo: 'q2',
+          replyToPreview: quote({ kind: 'image', count: 3 }),
+        },
+        {
+          id: 'r3',
+          at,
+          author: { kind: 'human' },
+          body: 'heard it',
+          replyTo: 'q3',
+          replyToPreview: quote({ kind: 'voice', durationMs: 7000 }, 'transcript'),
+        },
+        {
+          id: 'r4',
+          at,
+          author: { kind: 'human' },
+          body: 'got it',
+          replyTo: 'q4',
+          replyToPreview: quote({ kind: 'file', name: 'report.pdf', count: 1 }),
+        },
+      ]);
+      const block = (id: string) =>
+        bubble(host, id)!.querySelector<HTMLElement>('[data-bubble-quote]')!;
+      const thumb = block('r1').querySelector('img[data-bubble-quote-thumb]')!;
+      expect(thumb.getAttribute('src')).toContain('messageId=q1');
+      expect(thumb.getAttribute('src')).toContain('variant=96c');
+      expect(block('r1').querySelector('.bh-bubble-reply-body')?.textContent).toBe('图片');
+      expect(block('r2').querySelector('img')).toBeNull();
+      expect(block('r2').querySelector('.bh-bubble-reply-body')?.textContent).toBe('3 张图片');
+      expect(block('r3').querySelector('.bh-bubble-reply-body')?.textContent).toBe('语音 · 0:07');
+      expect(block('r4').querySelector('.bh-bubble-reply-body')?.textContent).toBe('report.pdf');
+    } finally {
+      restore(previous);
+    }
+  });
+
+  it('puts the delivery check after the Human time and no label above the Human in a group', () => {
+    const previous = store.getSnapshot();
+    try {
+      const host = show(group, [
+        { id: 'h1', at, author: { kind: 'human' }, body: 'hello' },
+        { id: 'b1', at, author: { kind: 'bot', slug: 'ada' }, body: 'hi' },
+        { id: 'h2', at, author: { kind: 'human' }, body: 'later', pending: true },
+      ]);
+      const identities = host.querySelectorAll('.bh-message-identity');
+      expect([...identities].map((node) => node.textContent)).toEqual(['Ada']);
+      expect(host.querySelector('.bh-message-group-me .bh-bubble-author')).toBeNull();
+      const stamp = bubble(host, 'h1')!.querySelector('.bh-bubble-stamp')!;
+      expect(stamp.querySelector('[data-bubble-check]')?.getAttribute('aria-hidden')).toBe('true');
+      expect(bubble(host, 'b1')!.querySelector('[data-bubble-check]')).toBeNull();
+      expect(bubble(host, 'h2')!.querySelector('[data-bubble-check]')).toBeNull();
+    } finally {
+      restore(previous);
+    }
+  });
+
+  it('opens the gallery at the clicked album tile, including the tile that hides the rest', async () => {
+    const previous = store.getSnapshot();
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    try {
+      store.setRoster([ada, bob], [dm]);
+      store.select({ kind: 'bot', slug: 'ada' });
+      store.setConversation({
+        status: 'ready',
+        channel: dm,
+        sending: false,
+        messages: [{ id: 'a8', at, author: { kind: 'human' }, body: '', attachments: photos(8) }],
+      });
+      await act(async () =>
+        root.render(
+          createElement(BotMain, {
+            actions: {
+              profileActivity: vi.fn().mockRejectedValue(new Error('Unavailable')),
+              listWorkspaceGrants: async () => [],
+              modelPlanState: async () => undefined,
+              botSourcePolicies: async () => [],
+              ...inertSubmissionActions,
+            } as unknown as BridgeActions,
+            channelSidebar: sidebarRegistry(),
+          }),
+        ),
+      );
+      const tiles = container.querySelectorAll<HTMLButtonElement>('[data-album-tile]');
+      expect(tiles).toHaveLength(5);
+      const dialog = () => document.body.querySelector('[role="dialog"][aria-modal="true"]');
+      await act(async () => tiles[1]!.click());
+      expect(dialog()?.getAttribute('aria-label')).toBe('图片预览：p2.png');
+      expect(dialog()?.textContent).toContain('2 / 8');
+      await act(async () => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      });
+      await act(async () => tiles[4]!.click());
+      expect(dialog()?.getAttribute('aria-label')).toBe('图片预览：p5.png');
+      expect(dialog()?.textContent).toContain('5 / 8');
+      await act(async () => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
+      });
+      expect(dialog()?.getAttribute('aria-label')).toBe('图片预览：p6.png');
+      await act(async () => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      });
     } finally {
       await act(async () => root.unmount());
       container.remove();
