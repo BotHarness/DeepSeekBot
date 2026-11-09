@@ -41,6 +41,9 @@ describe('GenUI shared document page', () => {
     expect(() => page({ theme: 'sepia' as 'light' })).toThrow('theme');
     for (const textScale of [0, -1, Number.NaN, Number.POSITIVE_INFINITY])
       expect(() => page({ textScale })).toThrow('scale');
+    for (const viewportScale of [0, Number.NaN])
+      expect(() => page({ viewportScale })).toThrow('viewport');
+    expect(() => page({ bridge: 'preview', viewportScale: 1.4 })).toThrow('viewport');
     for (const encoded of ['', 'not base64!', 'QUJD"><script>'])
       expect(() => page({ runtimeBase64: encoded })).toThrow('renderer');
   });

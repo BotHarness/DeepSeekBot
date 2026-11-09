@@ -7,7 +7,7 @@ import {
   useSyncExternalStore,
   type ComponentRef,
 } from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 
 import { GENUI_EXECUTION_LIMITS } from '../../../../../packages/core/src/channels/genui-execution-limits';
@@ -17,6 +17,7 @@ import {
   genuiDocumentReply,
   genuiHeightKey,
   genuiRestoreMessage,
+  genuiTextScale,
   parseGenuiBridgeMessage,
   rememberedGenuiHeight,
   rememberGenuiHeight,
@@ -53,6 +54,8 @@ function GenuiFrame({
   const instanceId = useMemo(() => `genui-mobile-${++mounts}`, []);
   const [initial] = useState(() => view.getSnapshot().state);
   const [status, setStatus] = useState<Status>('loading');
+  const pageZoom = Platform.OS === 'ios';
+  const zoom = pageZoom ? genuiTextScale(theme.fontScale) : 1;
   const heightKey = genuiHeightKey(messageId, document, theme.fontScale);
   const [height, setHeight] = useState<number>(
     () => rememberedGenuiHeight(heightKey) ?? GENUI_EXECUTION_LIMITS.mirrorMinHeight,
@@ -87,10 +90,11 @@ function GenuiFrame({
       instanceId,
       theme: theme.scheme,
       fontScale: theme.fontScale,
+      pageZoom,
       runtimeBase64: GENUI_RUNTIME.base64,
       state: initial,
     });
-  }, [document, instanceId, theme.scheme, theme.fontScale, initial]);
+  }, [document, instanceId, theme.scheme, theme.fontScale, pageZoom, initial]);
   const attach = useCallback(
     (node: unknown): void | (() => void) => {
       if (node === null) return;
@@ -114,8 +118,9 @@ function GenuiFrame({
       onReady();
       sync();
     } else if (message.type === 'height') {
-      rememberGenuiHeight(heightKey, message.height);
-      setHeight(message.height);
+      const visible = Math.ceil(message.height * zoom);
+      rememberGenuiHeight(heightKey, visible);
+      setHeight(visible);
     } else if (message.type === 'state') {
       const identity = JSON.stringify(message.state);
       if (identity === synced.current) return;

@@ -23,6 +23,7 @@ export interface GenuiPageOptions {
   theme: 'light' | 'dark';
   state?: GenuiDocumentState;
   textScale?: number;
+  viewportScale?: number;
   runtimeBase64: string;
   bridge: GenuiPageBridge;
 }
@@ -85,6 +86,13 @@ export function buildGenuiPageHtml(value: GenuiDocument, options: GenuiPageOptio
     (!Number.isFinite(options.textScale) || options.textScale <= 0)
   )
     throw Error('Invalid GenUI text scale.');
+  if (
+    options.viewportScale !== undefined &&
+    (options.bridge !== 'native' ||
+      !Number.isFinite(options.viewportScale) ||
+      options.viewportScale <= 0)
+  )
+    throw Error('Invalid GenUI viewport scale.');
   const state = validateGenuiDocumentState(
     document,
     options.state ?? initialGenuiDocumentState(document),
@@ -115,8 +123,10 @@ export function buildGenuiPageHtml(value: GenuiDocument, options: GenuiPageOptio
     } catch { failed('unsupported'); }
   })();`;
   const viewport =
-    options.bridge === 'native'
-      ? '<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">'
-      : '';
+    options.bridge !== 'native'
+      ? ''
+      : options.viewportScale === undefined
+        ? '<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">'
+        : `<meta name="viewport" content="initial-scale=${options.viewportScale},minimum-scale=${options.viewportScale},maximum-scale=${options.viewportScale},user-scalable=no">`;
   return `<!doctype html><html style="color-scheme:${options.theme}"><head><meta charset="utf-8">${viewport}<meta http-equiv="Content-Security-Policy" content="${policy}"><meta name="referrer" content="no-referrer"><style>html,body{margin:0;background:Canvas}#genui-document{width:100%}</style><script nonce="${nonce}" src="data:application/javascript;base64,${options.runtimeBase64}"></script></head><body><div id="genui-document"></div><script nonce="${nonce}">${bootstrap}</script></body></html>`;
 }

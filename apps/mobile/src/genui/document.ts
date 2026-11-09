@@ -68,15 +68,17 @@ export function genuiDocumentPage(
     instanceId: string;
     theme: 'light' | 'dark';
     fontScale: number;
+    pageZoom?: boolean;
     runtimeBase64: string;
     state?: GenuiDocumentState;
   },
 ): string {
+  const scale = genuiTextScale(options.fontScale);
   return buildGenuiPageHtml(document, {
     instanceId: options.instanceId,
     theme: options.theme,
     ...(options.state === undefined ? {} : { state: options.state }),
-    textScale: genuiTextScale(options.fontScale),
+    ...(options.pageZoom === true ? { viewportScale: scale } : { textScale: scale }),
     runtimeBase64: options.runtimeBase64,
     bridge: 'native',
   });

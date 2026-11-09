@@ -284,6 +284,22 @@ describe('GenUI native WebView bridge', () => {
     expect(html).toContain('"theme":"dark"');
     expect(html).toContain('"textScale":1.4');
     expect(html).toContain(GENUI_RUNTIME.base64.slice(0, 64));
+    expect(html).toContain('content="width=device-width,');
+  });
+
+  it('scales the whole page instead of the mirror when page zoom is requested', () => {
+    const html = genuiDocumentPage(syntheticGenuiDocument, {
+      instanceId: 'genui-mobile-2',
+      theme: 'light',
+      fontScale: 1.4,
+      pageZoom: true,
+      runtimeBase64: GENUI_RUNTIME.base64,
+    });
+    expect(html).not.toContain('"textScale"');
+    expect(html).toContain(
+      '<meta name="viewport" content="initial-scale=1.4,minimum-scale=1.4,maximum-scale=1.4,user-scalable=no">',
+    );
+    expect(html).not.toContain('width=device-width');
   });
 });
 
