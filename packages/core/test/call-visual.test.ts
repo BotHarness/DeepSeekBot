@@ -576,6 +576,16 @@ describe('Host call owner with a shared camera or screen', () => {
     });
   });
 
+  it('turns a share off when the call ends with it still on', async () => {
+    const h = host();
+    const call = await h.ok({ kind: 'open', slug: 'mira', media: 'synthetic' });
+    await h.ok({ kind: 'visual', callId: call.callId, source: 'camera' });
+    const ended = await h.ok({ kind: 'hangup', callId: call.callId });
+    expect(ended).toMatchObject({ phase: 'ended', visual: 'off' });
+    const types = ended.events.map((event) => event.type);
+    expect(types.lastIndexOf('visual')).toBeLessThan(types.indexOf('ended'));
+  });
+
   it('keeps only the newest 64 grid cells', async () => {
     const h = host();
     const call = await h.ok({ kind: 'open', slug: 'mira', media: 'synthetic' });
