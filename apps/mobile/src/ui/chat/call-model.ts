@@ -75,7 +75,7 @@ function heardText(
 export function callScreenModel(
   t: Strings,
   state: CallClientState,
-  options: { interrupted?: boolean } = {},
+  options: { interrupted?: boolean; now?: number } = {},
 ): CallScreenModel {
   if (state.status === 'idle' || state.status === 'opening')
     return { status: t.call.connecting, live: false, muted: false, retry: false };
@@ -90,7 +90,9 @@ export function callScreenModel(
       retry: reason !== 'replaced',
     };
   }
-  const { call, muted, reconnecting, events } = state;
+  const { call, muted, reconnecting, events, syncedAt } = state;
+  const hostNow =
+    call.durationMs + (options.now === undefined ? 0 : Math.max(0, options.now - syncedAt));
   const status = reconnecting
     ? t.call.reconnecting
     : call.phase === 'connecting'
@@ -109,8 +111,8 @@ export function callScreenModel(
       ? t.call.interrupted
       : call.busy
         ? t.call.busy
-        : transient(t, events, call.durationMs);
-  const heard = heardText(events, call.durationMs);
+        : transient(t, events, hostNow);
+  const heard = heardText(events, hostNow);
   return {
     status,
     live: true,

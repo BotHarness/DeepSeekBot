@@ -18,6 +18,7 @@ export const VOICE_CALL_LIMITS = {
   heartbeatLossMs: 8_000,
   connectTimeoutMs: 20_000,
   heartbeatMs: 1_000,
+  backgroundHeartbeatMs: 3_000,
   events: 256,
   maxUtteranceMs: 30_000,
   playbackTailMs: 300,

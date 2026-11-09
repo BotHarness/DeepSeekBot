@@ -12,6 +12,7 @@ import { checkRoute } from '../src/host/route';
 import { SECRET_ROUTE_METHODS } from '../../../packages/core/src/bridge/secret-route';
 import { openLocalStore, type LocalStore } from '../src/host/local-store';
 import { FakeHost } from './fake-host';
+import { createConnectionLifetime } from '../src/host/connection-lifetime';
 import { nodeSqlConnection } from './node-sql-connection';
 import wire from './fixtures/host-wire.json';
 
@@ -58,6 +59,66 @@ async function until(
 }
 
 describe('Host client', () => {
+  it('preserves a live call carrier on resume, then restores ordinary recovery after release', async () => {
+    const host = new FakeHost();
+    let sockets = 0;
+    let closes = 0;
+    client = createHostClient({
+      routes: [ROUTE],
+      credential: host.credential,
+      carrier: {
+        ...host.carrier,
+        openSocket: (url, events, headers) => {
+          sockets += 1;
+          const socket = host.carrier.openSocket(url, events, headers);
+          return {
+            ...socket,
+            close: () => {
+              closes += 1;
+              socket.close();
+            },
+          };
+        },
+      },
+      backoff: () => 5,
+      timeoutMs: 200,
+    });
+    const target = client;
+    const lifetime = createConnectionLifetime(true);
+    lifetime.add(target);
+    const release = lifetime.retain(target);
+    await until(target, (state) => state.connection.status === 'connected');
+    for (let cycle = 0; cycle < 3; cycle += 1) {
+      target.retryNow('resume', { preserveConnected: lifetime.retained(target) });
+      await target.call('ping');
+      expect(target.getSnapshot().connection.status).toBe('connected');
+      expect(sockets).toBe(1);
+      expect(closes).toBe(0);
+    }
+    release();
+    target.retryNow('resume', { preserveConnected: lifetime.retained(target) });
+    await until(target, (state) => state.connection.status === 'connected' && sockets === 2);
+    expect(closes).toBe(1);
+  });
+
+  it('recovers a disconnected retained Host and still accepts credential refusal', async () => {
+    const host = new FakeHost();
+    const target = connect(host);
+    await until(target, (state) => state.connection.status === 'connected');
+    host.kill();
+    await until(target, (state) => state.connection.status === 'unreachable');
+    host.restart();
+    target.retryNow('resume', { preserveConnected: true });
+    await until(target, (state) => state.connection.status === 'connected');
+    host.revoked = true;
+    await expect(target.call('ping')).rejects.toThrow();
+    expect(target.getSnapshot().connection.status).toBe('refused');
+    const requests = host.requests.length;
+    target.retryNow('resume', { preserveConnected: true });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(host.requests.length).toBe(requests);
+  });
+
   it('connects when the Host requires an explicit JSON media type for RPC requests', async () => {
     const host = new FakeHost();
     const mediaTypes: Array<string | undefined> = [];

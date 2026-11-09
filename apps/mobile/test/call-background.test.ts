@@ -44,6 +44,7 @@ const live = (patch: Partial<VoiceCallView> = {}, extra: Record<string, unknown>
     events: [],
     muted: false,
     reconnecting: false,
+    syncedAt: 0,
     ...extra,
   }) as CallClientState;
 

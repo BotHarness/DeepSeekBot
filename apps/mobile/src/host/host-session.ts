@@ -64,6 +64,9 @@ export interface ConnectedHost {
 
 const sessions = new Map<string, { host: ConnectedHost; dispose(): void }>();
 const connectionLifetime = createConnectionLifetime(AppState.currentState === 'active');
+export function retainHostConnection(client: HostClient): () => void {
+  return connectionLifetime.retain(client);
+}
 const feedListeners = new Set<() => void>();
 const visibleConversations = new Map<Conversation, { hostId: string; channelId: string }>();
 let feeds: readonly ConnectedHost[] = [];
@@ -434,7 +437,9 @@ AppState.addEventListener('change', (next) => {
   pushSession.reflectAgain();
   void pushSession.refreshPermission();
   for (const { host } of sessions.values()) {
-    host.client.retryNow('resume');
+    host.client.retryNow('resume', {
+      preserveConnected: connectionLifetime.retained(host.client),
+    });
     if (host.client.getSnapshot().connection.status === 'connected') void host.inbox.refresh();
   }
 });

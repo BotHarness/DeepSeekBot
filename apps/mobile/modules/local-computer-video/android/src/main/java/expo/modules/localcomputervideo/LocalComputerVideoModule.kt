@@ -73,6 +73,7 @@ class LocalComputerVideoModule : Module() {
     CallService.actions = { action -> main.post { sendEvent("onCallAction", mapOf("action" to action)) } }
     CallService.changed = {
       main.post {
+        sendEvent("onCallBackground", mapOf("token" to CallService.backgroundToken))
         // The service could not start or was stopped by Android while the app is away:
         // the call can no longer record, so end it like a foreground-only call.
         if (!foreground && call != null && !CallService.keeping) endCall("background")
@@ -90,7 +91,7 @@ class LocalComputerVideoModule : Module() {
     Name("LocalComputerVideo")
     Constant("callAudioSupported") { android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S }
     Constant("callAudioModeSupported") { android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU }
-    Events("onCallState", "onCallTap", "onCallAudio", "onCallAction", "onDirect")
+    Events("onCallState", "onCallTap", "onCallAudio", "onCallAction", "onCallBackground", "onDirect")
 
     AsyncFunction("directOffer") { id: String, iceServers: List<String>, promise: Promise ->
       val context = context() ?: return@AsyncFunction promise.reject("native-unavailable", "Direct connection could not start.", null)
@@ -135,6 +136,8 @@ class LocalComputerVideoModule : Module() {
       context()?.let { CallService.end(it) }
       Unit
     }.runOnQueue(Queues.MAIN)
+
+    Function("callBackgroundToken") { CallService.backgroundToken }
 
     Function("callNotificationsAllowed") {
       context()?.getSystemService(NotificationManager::class.java)?.areNotificationsEnabled() ?: false
