@@ -1917,7 +1917,6 @@ function ChatConversation({
                           }
                           jump();
                         }}
-                        // Sticky speaker avatars follow the scroll offset, so group chats need it every frame.
                         scrollEventThrottle={
                           !dm || (Platform.OS === 'android' && !latest.ready) ? 16 : 32
                         }

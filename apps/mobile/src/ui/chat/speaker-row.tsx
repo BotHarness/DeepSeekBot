@@ -207,9 +207,6 @@ function StickyAvatar({
       !settled
     )
       return { opacity: 0, transform: [{ translateY: 0 }] };
-    // measure() reads the committed shadow tree, whose scroll offset trails the
-    // native scroll view. Only differences between rows inside the list are
-    // trusted; the list origin comes from the live scroll offset instead.
     const bubbleBottom =
       speakerContentTop({
         top: listFrame.pageY,
