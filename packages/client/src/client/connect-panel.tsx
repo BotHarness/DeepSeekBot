@@ -4,6 +4,7 @@ import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import { ConnectAccountHosts } from './connect-account-hosts.js';
+import { ConnectSignInBlock } from './connect-sign-in-block.js';
 import { StepProgress } from './ds/step-progress.js';
 import {
   CopyChip,
@@ -43,23 +44,6 @@ export interface ConnectTunnelStatus {
 }
 
 const styles = stylex.create({
-  code: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    gap: space.x3,
-    padding: space.x4,
-    borderRadius: radius.sm,
-    backgroundColor: color.base,
-  },
-  codeValue: {
-    fontFamily: 'var(--dsw-font-mono, ui-monospace, monospace)',
-    fontSize: text.titleSize,
-    lineHeight: text.titleLine,
-    fontWeight: text.strong,
-    letterSpacing: '0.08em',
-    color: color.fg,
-  },
   meta: {
     margin: 0,
     color: color.muted,
@@ -194,17 +178,25 @@ export function ConnectPanel({
   );
 
   let status: ReactElement;
-  if (account.state === 'signed-out') {
+  if (
+    account.state === 'signed-out' ||
+    (account.state === 'signing-in' &&
+      account.userCode !== undefined &&
+      account.verificationUri !== undefined)
+  ) {
     status = (
-      <Card
-        icon="globe"
-        tone="accent"
+      <ConnectSignInBlock
+        t={t}
+        code={
+          account.state === 'signing-in'
+            ? { userCode: account.userCode!, verificationUri: account.verificationUri! }
+            : undefined
+        }
         title={t('devices.connect.panel.offTitle')}
         body={t('devices.connect.panel.offBody')}
-        action={signInButton}
-      >
-        {steps(0)}
-      </Card>
+        busy={busy === 'sign-in'}
+        onSignIn={() => onAccount('sign-in')}
+      />
     );
   } else if (account.state === 'signing-in') {
     status = (
@@ -215,28 +207,6 @@ export function ConnectPanel({
         body={t('devices.connect.confirm')}
       >
         {steps(1)}
-        {account.verificationUri === undefined ? null : (
-          <div data-connect-code="" {...stylex.props(styles.code)}>
-            <span {...stylex.props(styles.codeValue)}>{account.userCode}</span>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => window.open(account.verificationUri, '_blank', 'noopener')}
-            >
-              {t('devices.connect.openPage')}
-            </Button>
-            <p data-connect-switch="" {...stylex.props(styles.meta)}>
-              {t('devices.connect.switchAccount')}
-            </p>
-            <CopyChip
-              value={account.verificationUri}
-              copyLabel={t('devices.connect.copyLink')}
-              copiedLabel={t('devices.connect.copied')}
-              marker="data-connect-copy"
-              well
-            />
-          </div>
-        )}
       </Card>
     );
   } else if (waiting) {

@@ -17,7 +17,7 @@ import type { ReleaseNote } from '../../../core/src/release/notes.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { IconButton } from './ds/icon-button.js';
 import { Tooltip } from './ds/tooltip.js';
-import { SettingsRow } from './ds/settings-row.js';
+import { CopyChip, StatusBlock, type StatusTone } from './ds/status-block.js';
 import { color, space, text } from './ds/tokens.stylex.js';
 import { Modal } from './modal.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -76,6 +76,13 @@ const styles = stylex.create({
     lineHeight: text.bodyLine,
   },
   identity: { margin: 0, color: color.muted },
+  panelDetails: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x2,
+    minWidth: 0,
+  },
+  panelActions: { display: 'flex', flexWrap: 'wrap', gap: space.x2 },
   failure: {
     display: 'flex',
     flexDirection: 'column',
@@ -483,6 +490,55 @@ function statusText(snapshot: ReleaseNotesSnapshot, t: BotHarnessTranslate): str
   }
 }
 
+function releaseView(snapshot: ReleaseNotesSnapshot): {
+  state: 'loading' | 'current' | 'available' | 'restart' | 'problem' | 'development' | 'checking';
+  icon: string;
+  tone: StatusTone;
+  title: BotHarnessKey;
+} {
+  const identity = snapshot.identity;
+  if (snapshot.version === undefined)
+    return { state: 'loading', icon: 'package', tone: 'neutral', title: 'release.panel.checking' };
+  if (identity?.kind === 'development' || snapshot.update.status === 'development')
+    return {
+      state: 'development',
+      icon: 'terminal',
+      tone: 'neutral',
+      title: 'release.panel.development',
+    };
+  if (identity === undefined || identity.kind === 'unknown')
+    return { state: 'problem', icon: 'info', tone: 'warning', title: 'release.panel.problem' };
+  switch (snapshot.update.status) {
+    case 'current':
+      return { state: 'current', icon: 'check', tone: 'success', title: 'release.panel.current' };
+    case 'available':
+      return {
+        state: 'available',
+        icon: 'package',
+        tone: 'accent',
+        title: 'release.panel.available',
+      };
+    case 'restart-required':
+      return {
+        state: 'restart',
+        icon: 'alarm-clock',
+        tone: 'warning',
+        title: 'release.panel.restart',
+      };
+    case 'unknown':
+    case 'unavailable':
+    case 'blocked':
+      return { state: 'problem', icon: 'info', tone: 'warning', title: 'release.panel.problem' };
+    default:
+      return {
+        state: 'checking',
+        icon: 'package',
+        tone: 'neutral',
+        title: 'release.panel.checking',
+      };
+  }
+}
+
 const INSTALL_FAILURE_REASONS: Partial<
   Record<Extract<ReleaseInstallState, { status: 'failed' }>['reason'], BotHarnessKey>
 > = {
@@ -515,7 +571,6 @@ function ManualUpdate({
   compact?: boolean;
   t: BotHarnessTranslate;
 }): ReactElement {
-  const [copied, setCopied] = useState(false);
   const desktop = runsInDesktop();
   const command = releaseUpdateCommand(
     latest,
@@ -532,20 +587,13 @@ function ManualUpdate({
             : 'release.update.cli',
         )}
       </div>
-      <div className="bh-release-command">
-        <code>{command}</code>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => {
-            void navigator.clipboard?.writeText(command).then(() => {
-              setCopied(true);
-            });
-          }}
-        >
-          {t(copied ? 'release.update.copied' : 'release.update.copy')}
-        </Button>
-      </div>
+      <CopyChip
+        value={command}
+        copyLabel={t('release.update.copy')}
+        copiedLabel={t('release.update.copied')}
+        marker="data-release-command"
+        well
+      />
       {compact ? null : <div className="bh-settings-row-desc">{t('release.update.desktop')}</div>}
     </>
   );
@@ -615,26 +663,33 @@ export function ReleaseSettings({ releaseNotes, t }: ReleaseSettingsProps): Reac
   const update = snapshot.update;
   const install = snapshot.install;
   const installing = install.status === 'installing';
+  const view = releaseView(snapshot);
   return (
     <div className="bh-release-settings" ref={mount} data-release-settings>
-      <SettingsRow
-        title={t('release.row.title')}
-        description={
+      <StatusBlock
+        icon={view.icon}
+        tone={view.tone}
+        title={t(view.title)}
+        body={
           <span role="status" aria-live="polite">
             {statusText(snapshot, t)}
           </span>
         }
-        control={
-          <>
+        data={{ 'data-release-state': view.state }}
+        action={
+          view.state === 'available' && update.status === 'available' && update.installable ? (
             <Button
               size="sm"
-              variant="outline"
+              variant="primary"
+              disabled={installing}
+              data-release-install
               onClick={() => {
-                openSite(t);
+                void releaseNotes.install(update.latest);
               }}
             >
-              {t('release.changelog')}
+              {t(installing ? 'release.install.running' : 'release.install.action')}
             </Button>
+          ) : (
             <Button
               size="sm"
               variant="outline"
@@ -653,70 +708,79 @@ export function ReleaseSettings({ releaseNotes, t }: ReleaseSettingsProps): Reac
             >
               {t('release.check')}
             </Button>
-          </>
+          )
         }
-      />
-      {update.status === 'available' && snapshot.identity?.kind !== 'unknown' ? (
-        <div className="bh-release-update" data-release-update={update.latest}>
-          {update.compatibility ? <p>{compatibilityText(update.compatibility, t)}</p> : null}
-          {update.blockedLatest ? (
-            <p>
-              {t('release.notice.blockedLatest', { version: update.blockedLatest.version })}{' '}
-              {compatibilityText(update.blockedLatest.compatibility, t)}
-            </p>
-          ) : null}
-          <div className="bh-release-update-head">
-            <span className="bh-release-update-title">
-              {t('release.update.title', { latest: update.latest })}
-            </span>
-            {update.releases.length > 0 ? (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  releaseNotes.view(update.releases);
-                }}
-              >
-                {t('release.update.notes')}
-              </Button>
-            ) : null}
-            {update.installable ? (
-              <Button
-                size="sm"
-                variant="primary"
-                disabled={installing}
-                data-release-install
-                onClick={() => {
-                  void releaseNotes.install(update.latest);
-                }}
-              >
-                {t(installing ? 'release.install.running' : 'release.install.action')}
-              </Button>
-            ) : null}
-          </div>
-          {update.installable && install.status !== 'failed' && !shown ? (
-            <div className="bh-settings-row-desc">
-              {t(installing ? 'release.install.progress' : 'release.install.hint')}
-            </div>
-          ) : null}
-          {install.status === 'failed' && !shown ? (
-            <div className="bh-release-install-error" role="alert" data-release-install-error>
-              <div>{t(INSTALL_FAILURE_KEYS[install.reason])}</div>
-              {install.diagnostic === undefined ? null : (
-                <pre className="bh-release-install-diagnostic">{install.diagnostic}</pre>
-              )}
-              {install.logPath === undefined ? null : (
-                <div className="bh-settings-row-desc">
-                  {t('release.install.log', { path: install.logPath })}
-                </div>
-              )}
-            </div>
-          ) : null}
-          {!update.installable || install.status === 'failed' ? (
-            <ManualUpdate latest={update.latest} t={t} />
+      >
+        <div {...stylex.props(styles.panelActions)}>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              openSite(t);
+            }}
+          >
+            {t('release.changelog')}
+          </Button>
+          {update.status === 'available' && update.releases.length > 0 ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                releaseNotes.view(update.releases);
+              }}
+            >
+              {t('release.update.notes')}
+            </Button>
           ) : null}
         </div>
-      ) : null}
+        {update.status === 'available' && snapshot.identity?.kind !== 'unknown' ? (
+          <div data-release-update={update.latest} {...stylex.props(styles.panelDetails)}>
+            {update.compatibility ? <p>{compatibilityText(update.compatibility, t)}</p> : null}
+            {update.blockedLatest ? (
+              <p>
+                {t('release.notice.blockedLatest', { version: update.blockedLatest.version })}{' '}
+                {compatibilityText(update.blockedLatest.compatibility, t)}
+              </p>
+            ) : null}
+            {update.installable && install.status !== 'failed' && !shown ? (
+              <div className="bh-settings-row-desc">
+                {t(installing ? 'release.install.progress' : 'release.install.hint')}
+              </div>
+            ) : null}
+            {install.status === 'failed' && !shown ? (
+              <div className="bh-release-install-error" role="alert" data-release-install-error>
+                <div>{t(INSTALL_FAILURE_KEYS[install.reason])}</div>
+                {install.diagnostic === undefined ? null : (
+                  <pre className="bh-release-install-diagnostic">{install.diagnostic}</pre>
+                )}
+                {install.logPath === undefined ? null : (
+                  <div className="bh-settings-row-desc">
+                    {t('release.install.log', { path: install.logPath })}
+                  </div>
+                )}
+              </div>
+            ) : null}
+            {!update.installable || install.status === 'failed' ? (
+              <ManualUpdate latest={update.latest} t={t} />
+            ) : null}
+          </div>
+        ) : null}
+        {update.status === 'restart-required' ? (
+          <div data-release-restart={update.installed} {...stylex.props(styles.panelDetails)}>
+            <span className="bh-settings-row-desc">
+              {t('release.restart.title', { installed: update.installed })}
+            </span>
+            <RestartGuide
+              restartable={update.restartable}
+              state={snapshot.restart}
+              onRestart={() => {
+                void releaseNotes.restart();
+              }}
+              t={t}
+            />
+          </div>
+        ) : null}
+      </StatusBlock>
       <UpdateRunPanel
         controller={releaseNotes.runs}
         kind="release"
@@ -724,23 +788,6 @@ export function ReleaseSettings({ releaseNotes, t }: ReleaseSettingsProps): Reac
         title={RELEASE_TITLE}
         t={t}
       />
-      {update.status === 'restart-required' ? (
-        <div className="bh-release-update" data-release-restart={update.installed}>
-          <div className="bh-release-update-head">
-            <span className="bh-release-update-title">
-              {t('release.restart.title', { installed: update.installed })}
-            </span>
-          </div>
-          <RestartGuide
-            restartable={update.restartable}
-            state={snapshot.restart}
-            onRestart={() => {
-              void releaseNotes.restart();
-            }}
-            t={t}
-          />
-        </div>
-      ) : null}
       <ReleaseNotesDialog
         releases={snapshot.viewing}
         title={t('release.update.dialog', {
