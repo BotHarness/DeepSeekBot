@@ -18,5 +18,7 @@ export function useSourceDraft(key: string) {
   );
   const setValue = useCallback((next: string) => sourceDrafts.set(key, next), [key]);
   const persistence = useSyncExternalStore(sourceDrafts.subscribe, sourceDrafts.getPersistence);
-  return [value, setValue, { ...persistence, retry: sourceDrafts.retrySave }] as const;
+  const read = useCallback(() => sourceDrafts.get(key), [key]);
+  const take = useCallback((sent?: string) => sourceDrafts.take(key, sent), [key]);
+  return [value, setValue, { ...persistence, retry: sourceDrafts.retrySave, read, take }] as const;
 }

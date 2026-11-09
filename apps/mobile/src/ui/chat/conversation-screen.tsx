@@ -911,14 +911,15 @@ function ChatConversation({
   const send = () => {
     if (host.connection.status !== 'connected') return;
     if (!draftPersistence.loaded || draftPersistence.failed) return;
-    const submitted = submittedMessage(draft, mentions);
+    const live = draftPersistence.read();
+    const submitted = submittedMessage(live, mentions);
     const body = submitted.body;
     const tags =
       replyTarget === undefined ? submitted.tags : { ...submitted.tags, replyTo: replyTarget.id };
     if ((body === '' && files.length === 0) || conversation === undefined) return;
     if (tags.allBotMention?.preview.recipients.length === 0) return;
     if (dictation.state.status !== 'idle') dictation.cancel();
-    setDraft('');
+    draftPersistence.take(live);
     setMentions([]);
     setFiles([]);
     setReplying(undefined);
