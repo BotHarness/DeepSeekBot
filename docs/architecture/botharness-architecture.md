@@ -574,7 +574,7 @@ Under [ADR-0302](../adr/0302-genui-diagrams-compile-before-publication.md), the 
 
 ## 5 · Orchestrator 与 Assignment control plane
 
-机器直调 Assignment 的提案见 [ADR-0297](../adr/0297-machine-assignment-dispatch-separates-creation-delivery-and-processing.md)（Proposed，#3351／#3578）。该提案记录创建、投递准入、处理终态与生命周期的边界及崩溃验收要求；机器身份入口、持久幂等映射和原子准入尚未实现，协议参数仍待冻结。现有 direct Bot tools 的 turn-only 限制保持不变；本段不声明运行时已提供机器调度能力。
+直调 Bot tool 可以像 Orchestrator 一样调用 `create_assignment` 与 `send_assignment_request`（[ADR-0306](../adr/0306-direct-cli-calls-reach-orchestrator-owned-assignments.md)，取代 ADR-0297）。Assignment 仍归该 Bot 的 Orchestrator 所有和管理。未传 `--source` 时，每次直调记录一条带 `directBotTool` 的 `system-message` Source Event，作为来源与审计锚点，它没有 Inbox Admission。创建、复用或送达后，Orchestrator 的 Inbox 会收到一条 `silent` 准入的 `assignment-lifecycle` 通知，下一轮 Turn 读取。并发上限、Workspace Grant、Continuity Key 复用、失败后继续与已归档重新激活的规则不变；`wait_for_assignment` 仍只在 Turn 内可用。
 
 Human 不负责创建或选择执行 Conversation。Human–PersonaBot DM 是 Human 与该 Bot 直接对话的入口：消息先成为 Source Event，经 Bot Inbox 交给 Orchestrator；Orchestrator 再决定直接回复，或在授权与 capacity 内创建、复用和管理多个 Assignment Session。普通 Orchestrator assistant final 只留在 DSH SessionPersistence；只有显式 Channel messaging command 才产生 Human-facing Channel message。该 command 从可信 Session ownership 推导 PersonaBot Actor，并验证目标 Channel membership，不接受模型自报 bot id 或 author。右侧「会话」只投影明确归属该 PersonaBot 的独立 DSH 根 Session，包括 Orchestrator 与 Assignment，不展示 Subagent；归属与角色来自 Session Ownership，标题、工作区及实时运行状态来自 DSH 原生 Session 目录，不以 cwd 推断归属（ADR-0072）。
 
