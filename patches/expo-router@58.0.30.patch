@@ -36,7 +36,7 @@ index 0000000000000000000000000000000000000000..53af356db854edf59599d5f0ef029db4
 +export declare function createNavigationRefBinding<T>(ref: { current: T | null }): (navigation: T | null) => void;
 diff --git a/build/global-state/navigationRefBinding.js b/build/global-state/navigationRefBinding.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..135719184e85295b4ce3907d11b5982de0bf430f
+index 0000000000000000000000000000000000000000..74a703340994ebd3a41614c5aa3d0cbbe38a9ff8
 --- /dev/null
 +++ b/build/global-state/navigationRefBinding.js
 @@ -0,0 +1,15 @@
@@ -55,3 +55,17 @@ index 0000000000000000000000000000000000000000..135719184e85295b4ce3907d11b5982d
 +    }
 +  };
 +}
+diff --git a/build/link/LinkWithPreview.js b/build/link/LinkWithPreview.js
+index 50b62d147187574f939666ffa58f6cd14ed63c15..82870aacf69b51ce5611483c31aa442ce88eed90 100644
+--- a/build/link/LinkWithPreview.js
++++ b/build/link/LinkWithPreview.js
+@@ -193,9 +193,6 @@ function LinkWithPreview({ children, ...rest }) {
+                 });
+             }
+         },
+-        style: {
+-            display: 'contents'
+-        },
+         disableForceFlatten: true,
+         children: /*#__PURE__*/ (0, _jsxruntime().jsx)(_NativeMenuContext.NativeMenuContext, {
+             value: true,

@@ -1,7 +1,9 @@
 import { Host, Label, Menu, Picker, RNHostView, Text } from '@expo/ui/swift-ui';
 import {
+  accessibilityAddTraits,
   accessibilityElement,
   accessibilityLabel,
+  accessibilityValue,
   buttonStyle,
   foregroundStyle,
   frame,
@@ -44,7 +46,14 @@ export function PreferenceRow<T extends string>({
         }
         selection={value}
         onSelectionChange={onChange}
-        modifiers={[pickerStyle('menu'), tint(theme.color.muted), accessibilityLabel(title)]}
+        modifiers={[
+          pickerStyle('menu'),
+          tint(theme.color.muted),
+          accessibilityElement('ignore'),
+          accessibilityLabel(title),
+          accessibilityValue(selected),
+          accessibilityAddTraits(['isButton']),
+        ]}
       >
         {options.map((option) => (
           <Text key={option.value} modifiers={[tag(option.value)]}>
