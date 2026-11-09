@@ -7,11 +7,12 @@ import {
   buttonStyle,
   contentShape,
   disabled as disabledModifier,
-  font,
+  aspectRatio,
   foregroundStyle,
   frame,
   menuOrder,
   opacity,
+  resizable,
   shapes,
 } from '@expo/ui/swift-ui/modifiers';
 
@@ -52,7 +53,9 @@ export function CallAudioMenu({
           <Image
             systemName={callAudioDeviceSymbol(output)}
             modifiers={[
-              font({ textStyle: 'title2' }),
+              resizable(),
+              aspectRatio({ contentMode: 'fit' }),
+              frame({ width: theme.type.title.line, height: theme.type.title.line }),
               foregroundStyle(ink),
               frame({ width: size, height: size }),
               background(fill, shapes.circle()),
