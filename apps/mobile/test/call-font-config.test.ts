@@ -49,9 +49,11 @@ it('keeps the call-owning activity on font changes without dropping existing con
     result.manifest.manifest.application[0].activity[0].$['android:configChanges'].split('|'),
   ).toEqual(['orientation', 'uiMode', 'locale', 'fontScale']);
   expect(result.contents).toContain('super.onConfigurationChanged(newConfig)');
+  expect(result.contents).toContain('getNativeModule("DeviceInfo")');
   expect(result.contents).toContain(
-    'getNativeModule(com.facebook.react.modules.deviceinfo.DeviceInfoModule::class.java)?.onHostResume()',
+    '(deviceInfo as? com.facebook.react.bridge.LifecycleEventListener)?.onHostResume()',
   );
+  expect(result.contents).not.toContain('modules.deviceinfo.DeviceInfoModule');
   expect(await generate(result.manifest, result.contents)).toEqual(result);
 });
 

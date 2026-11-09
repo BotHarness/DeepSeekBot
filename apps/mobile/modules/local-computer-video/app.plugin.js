@@ -30,8 +30,9 @@ const withCallFontConfiguration = (config) => {
   override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
     super.onConfigurationChanged(newConfig)
     // RN refreshes native text layout above; also refresh JS Dimensions while foregrounded.
-    (application as com.facebook.react.ReactApplication).reactHost?.currentReactContext
-      ?.getNativeModule(com.facebook.react.modules.deviceinfo.DeviceInfoModule::class.java)?.onHostResume()
+    val deviceInfo = (application as com.facebook.react.ReactApplication).reactHost?.currentReactContext
+      ?.getNativeModule("DeviceInfo")
+    (deviceInfo as? com.facebook.react.bridge.LifecycleEventListener)?.onHostResume()
   }
 `;
     mod.modResults.contents = mod.modResults.contents.replace(anchor, anchor + callback);
