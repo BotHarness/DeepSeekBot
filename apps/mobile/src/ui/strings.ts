@@ -1151,6 +1151,8 @@ const en = {
   } satisfies Partial<Record<PairingFailure, string>>,
   unpair: 'Unpair',
   unpairFailed: 'Could not unpair:',
+  savedComputersKeychainFailed:
+    'This phone could not save the change to its keychain. Keep the phone unlocked and try again. If it keeps failing, restart the phone.',
   exitWebMode: 'Exit web mode',
   exitWebModeHint: 'Hold for help. Drag to move.',
   inbox: 'Activity',
@@ -3488,6 +3490,8 @@ const zh: typeof en = {
   },
   unpair: '取消配对',
   unpairFailed: '取消配对失败：',
+  savedComputersKeychainFailed:
+    '这台手机暂时无法把更改保存到钥匙串。请保持手机解锁后重试；如果一直失败，请重启手机。',
   exitWebMode: '退出网页模式',
   exitWebModeHint: '按住查看说明，拖动可移开。',
   inbox: '活动',
