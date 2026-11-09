@@ -27,6 +27,7 @@ import { useDesignTheme } from '../design/theme';
 import { RowIcon } from '../primitives/row-icon';
 import { useStrings } from '../strings';
 import {
+  actionId,
   menuGroups,
   menuLabel,
   menuReactions,
@@ -53,6 +54,7 @@ export function MessageActions({
   onReact,
   onCopy,
   onShareText,
+  onShareAttachment,
 }: MessageActionsProps) {
   const t = useStrings();
   const theme = useDesignTheme();
@@ -127,9 +129,9 @@ export function MessageActions({
           >
             {groups.map((group) => (
               <MaterialMenuGroup
-                key={group.map((action) => action.key).join()}
+                key={group.map(actionId).join()}
                 items={group.map((action) => ({
-                  key: action.key,
+                  key: actionId(action),
                   label: action.label,
                   icon: (
                     <RowIcon
@@ -144,6 +146,7 @@ export function MessageActions({
                       onSelect: target.actions?.select,
                       onCopy,
                       onShareText,
+                      onShareAttachment,
                       onOpen: () => target.activity?.onOpen?.(),
                     });
                     onClose();

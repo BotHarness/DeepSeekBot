@@ -82,7 +82,6 @@ import { CSS } from '../src/client/styles.js';
 const NARROW_BLOCK = `/* Narrow screens: inline copy/reply actions crowd the bubble, so they move
    into the long-press message menu and the bubble keeps the full width. */
 @media (max-width: 640px) {
-  .bh-bubble-meta,
   .bh-bubble-toolbar {
     display: none;
   }
@@ -122,10 +121,6 @@ ${vars}
 html, body { margin: 0; padding: 0; background: #151517; color: #f9fafb; }
 .bh-shot-column { width: 390px; height: 844px; overflow: hidden; position: relative; }
 .bh-shot-column .bh-chat-body { height: 844px; padding: 12px 12px 10px; box-sizing: border-box; }
-/* Test-only touch stand-in: production styles.ts applies these same
-   declarations under @media (hover: none), which desktop Chrome never
-   matches. Both pages render under touch conditions. */
-.bh-bubble-meta, .bh-bubble-time { opacity: 1 !important; pointer-events: auto; }
 </style>
 <style>
 ${css}

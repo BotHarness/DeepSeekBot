@@ -12,7 +12,9 @@
     "CONNECT_ZONE": "deepseekbot.dev",
     "MAX_HOSTS": "3",
     // stay under Cloudflare's 1000 tunnels per account
-    "MAX_TUNNELS": "900",
+    "MAX_TUNNELS": "980",
+    // shared zones as name=zone-id:tunnel-records; each free zone holds 200 records including its other records
+    "CONNECT_ZONES": "botharness.dev=bcc7b7abd754fa14e039683e632860ce:195,kite-u.com=19428ce1cf312d024fced7c15af5286a:194,tobs.app=570c931bc71847d323543aaa9e49c7bb:194,deepseekbot.app=d4958f63380ee58644f8142072d4713b:189,botharness.ai=4bd1e8b9260f06c0e0826177dbbcb9a4:188",
     "RECLAIM_AFTER_MINUTES": "5",
   },
   // secrets: WORKOS_CLIENT_ID, CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_ZONE_ID, CONNECT_HOST_KEY, WORKOS_API_KEY; optional ALLOWED_USERS

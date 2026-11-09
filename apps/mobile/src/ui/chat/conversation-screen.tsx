@@ -161,6 +161,7 @@ import { LatestAnchor } from './latest-anchor';
 import { SpeakerAnchor } from './speaker-anchor';
 import { SPEAKER_VIEWPORT } from './speaker-span';
 import { createSpeakerRegistry, SpeakerStageContext } from './speaker-row';
+import { createSendFlights, SendFlightsContext, textFrame, type SendFlight } from './send-fly';
 import { QuestionCard } from './question-card';
 import { TimeSeparator } from './time-separator';
 import { AccentProvider, pressTint, useDesignTheme } from '../design/theme';
@@ -381,8 +382,8 @@ const RequestCard = memo(function RequestCard({
 
 function ChatConversation({
   place,
-  focus,
-  focusRequest,
+  focus: routeFocus,
+  focusRequest: routeFocusRequest,
   latestWindowOnly,
   focused,
   presentation,
@@ -398,6 +399,21 @@ function ChatConversation({
   const theme = useDesignTheme();
   const router = useRouter();
   const paging = useProfilePaging();
+  const routeFocusKey = `${routeFocus ?? ''}\n${routeFocusRequest ?? ''}`;
+  const [replyFocus, setReplyFocus] = useState<
+    { message: string; request: string; route: string } | undefined
+  >(undefined);
+  const replyFocused = replyFocus !== undefined && replyFocus.route === routeFocusKey;
+  const focus = replyFocused ? replyFocus.message : routeFocus;
+  const focusRequest = replyFocused ? replyFocus.request : routeFocusRequest;
+  const replySequence = useRef(0);
+  const openReply = useCallback(
+    (message: string) => {
+      replySequence.current += 1;
+      setReplyFocus({ message, request: `reply-${replySequence.current}`, route: routeFocusKey });
+    },
+    [routeFocusKey],
+  );
   const navigation = useNavigationContainerRef();
   const headerOverlap = useHeaderOverlap();
   const nativeHeaderPadding = useHeaderPadding();
@@ -517,6 +533,7 @@ function ChatConversation({
     preview: WireAllBotPreview;
   }>();
   const [files, setFiles] = useState<PickedFile[]>([]);
+  const sentFiles = useRef<readonly PickedFile[] | undefined>(undefined);
   const [attachError, setAttachError] = useState(false);
   const dictation = useDictation(
     (text, nextCaret) => {
@@ -698,6 +715,15 @@ function ChatConversation({
     [speakers, scroll, viewport, viewportLayout, frame, content, android, composerHeight],
   );
   const composerInput = useRef<ComposerInput>(null);
+  const flights = useMemo(() => createSendFlights(android), [android]);
+  const launchFly = useCallback((): SendFlight => {
+    const flight: SendFlight = { from: undefined };
+    composerInput.current?.measureInWindow((x, y, width, height) => {
+      if (width > 0 && height > 0)
+        flight.from = textFrame({ x, y, width, height }, space.x3, space.x2);
+    });
+    return flight;
+  }, []);
   const [typing, setTyping] = useState(false);
   const clipboard = useClipboardImage(typing && files.length < MAX_PICKED);
   const online = host.connection.status === 'connected';
@@ -924,25 +950,31 @@ function ChatConversation({
     const live = draftPersistence.read();
     const submitted = submittedMessage(live, mentions);
     const body = submitted.body;
+    const attached = files === sentFiles.current ? [] : files;
     const tags =
       replyTarget === undefined ? submitted.tags : { ...submitted.tags, replyTo: replyTarget.id };
-    if ((body === '' && files.length === 0) || conversation === undefined) return;
+    if ((body === '' && attached.length === 0) || conversation === undefined) return;
     if (tags.allBotMention?.preview.recipients.length === 0) return;
     if (dictation.state.status !== 'idle') dictation.cancel();
     draftPersistence.take(live);
+    sentFiles.current = files;
     setMentions([]);
     setFiles([]);
     setReplying(undefined);
-    latest.jumpToLatest();
+    const flight = latest.send() ? launchFly() : undefined;
+    const fly = (messageId: string) => {
+      if (flight !== undefined) flights.launch(messageId, flight);
+      return messageId;
+    };
     if (
       replyTarget !== undefined ||
       !dm ||
       asking?.card === undefined ||
       client === undefined ||
       slug === undefined ||
-      files.length > 0
+      attached.length > 0
     ) {
-      const messageId = conversation.send(body, files, tags);
+      const messageId = fly(conversation.send(body, attached, tags));
       if (dm && saved && slug)
         setInitiatedRequest({
           hostId: saved.hostId,
@@ -961,7 +993,7 @@ function ChatConversation({
       .catch(() => false)
       .then((done) => {
         if (!done) {
-          const messageId = conversation.send(body, files);
+          const messageId = conversation.send(body, attached);
           if (saved && slug)
             setInitiatedRequest({
               hostId: saved.hostId,
@@ -1231,6 +1263,7 @@ function ChatConversation({
           lifted={Platform.OS === 'web' && item.message.id === actionsFor?.message.id}
           {...(botDm || !online ? {} : { onReact: react })}
           {...(composable && selected === undefined ? { onReply: startReply } : {})}
+          {...(selected === undefined ? { onOpenReply: openReply } : {})}
           {...(receipts ? { onOpenDelivery: openDelivery } : {})}
           readers={reading.get(item.message.id)}
           bots={roster?.bots}
@@ -1274,6 +1307,7 @@ function ChatConversation({
       arrivals,
       composable,
       startReply,
+      openReply,
     ],
   );
 
@@ -1838,156 +1872,158 @@ function ChatConversation({
                     <Animated.View style={{ flex: 1 }} onLayout={latest.onViewportLayout}>
                       <MarkdownViewportContext.Provider value={markdownViewport}>
                         <SpeakerStageContext.Provider value={dm ? undefined : stage}>
-                          <Animated.FlatList
-                            inverted={android}
-                            {...(android
-                              ? { initialNumToRender: 6, maxToRenderPerBatch: 6, windowSize: 5 }
-                              : {})}
-                            ref={attachList}
-                            renderScrollComponent={latest.renderScrollComponent}
-                            removeClippedSubviews={false}
-                            CellRendererComponentStyle={cellLayer}
-                            style={{
-                              flex: 1,
-                              opacity: latest.ready || rows.length === 0 ? 1 : 0,
-                            }}
-                            pointerEvents={!latest.ready && rows.length > 0 ? 'none' : 'auto'}
-                            accessibilityElementsHidden={!latest.ready && rows.length > 0}
-                            importantForAccessibility={
-                              !latest.ready && rows.length > 0 ? 'no-hide-descendants' : 'auto'
-                            }
-                            contentInsetAdjustmentBehavior="automatic"
-                            contentInset={{ bottom: -listSafeArea }}
-                            automaticallyAdjustsScrollIndicatorInsets
-                            scrollToOverflowEnabled
-                            contentContainerStyle={{
-                              minHeight: Math.max(
-                                0,
-                                viewportHeight -
-                                  (notice === undefined ? headerOverlap : 0) +
-                                  (Platform.OS === 'android' ? edge.hairline : 0),
-                              ),
-                              justifyContent: android ? 'flex-start' : 'flex-end',
-                              paddingTop: android
-                                ? composerHeight + edgeFade.bottom
-                                : space.x3 + listTop,
-                              paddingBottom: android
-                                ? space.x3 + headerPadding
-                                : composerHeight + edgeFade.bottom,
-                            }}
-                            data={rows}
-                            keyExtractor={(row) => row.key}
-                            renderItem={renderItem}
-                            onViewableItemsChanged={onFocusViewabilityChange}
-                            onScrollToIndexFailed={(info) => {
-                              const attempt = focusAttempt.current;
-                              if (
-                                focusCancelled.current ||
-                                attempt === undefined ||
-                                attempt.index !== info.index ||
-                                attempt.message !== focusIntent.current.message ||
-                                attempt.request !== focusIntent.current.request
-                              )
-                                return;
-                              focusNeedsLayout.current = true;
-                              jumped.current = undefined;
-                              focusAttempt.current = undefined;
-                              const estimate = `${info.index}:${info.highestMeasuredFrameIndex}:${info.averageItemLength}`;
-                              if (focusEstimate.current === estimate) return;
-                              focusEstimate.current = estimate;
-                              list.current?.scrollToOffset({
-                                offset: info.averageItemLength * info.index,
-                                animated: false,
-                              });
-                            }}
-                            {...(latest.ready && latest.browsed && !snapshot.olderError
-                              ? {
-                                  [android ? 'onEndReached' : 'onStartReached']: () =>
-                                    void conversation?.loadOlder(),
-                                }
-                              : {})}
-                            onStartReachedThreshold={0.5}
-                            onEndReachedThreshold={0.5}
-                            {...latest.listProps}
-                            maintainVisibleContentPosition={
-                              positioningFocus
-                                ? undefined
-                                : latest.listProps.maintainVisibleContentPosition
-                            }
-                            onScrollBeginDrag={(event: ScrollEvent) => {
-                              focusCancelled.current = true;
-                              focusAttempt.current = undefined;
-                              if (android)
-                                setAnchoredFocus({ message: focus, request: focusRequest });
-                              pull.onScrollBeginDrag(event);
-                              latest.listProps.onScrollBeginDrag();
-                            }}
-                            onScroll={(event: ScrollEvent) => {
-                              latest.listProps.onScroll(event);
-                              pull.onScroll(event);
-                            }}
-                            onScrollEndDrag={(event: ScrollEvent) => {
-                              latest.listProps.onScrollEndDrag(event);
-                              pull.onScrollEndDrag(event);
-                            }}
-                            onContentSizeChange={(width: number, height: number) => {
-                              latest.listProps.onContentSizeChange(width, height);
-                              focusNeedsLayout.current = false;
-                              if (positioningFocus && !focusCancelled.current) {
-                                focusHasLiveLayout.current =
-                                  snapshot.status === 'live' && !snapshot.fromCache;
-                                jumped.current = undefined;
+                          <SendFlightsContext.Provider value={flights}>
+                            <Animated.FlatList
+                              inverted={android}
+                              {...(android
+                                ? { initialNumToRender: 6, maxToRenderPerBatch: 6, windowSize: 5 }
+                                : {})}
+                              ref={attachList}
+                              renderScrollComponent={latest.renderScrollComponent}
+                              removeClippedSubviews={false}
+                              CellRendererComponentStyle={cellLayer}
+                              style={{
+                                flex: 1,
+                                opacity: latest.ready || rows.length === 0 ? 1 : 0,
+                              }}
+                              pointerEvents={!latest.ready && rows.length > 0 ? 'none' : 'auto'}
+                              accessibilityElementsHidden={!latest.ready && rows.length > 0}
+                              importantForAccessibility={
+                                !latest.ready && rows.length > 0 ? 'no-hide-descendants' : 'auto'
                               }
-                              jump();
-                            }}
-                            scrollEventThrottle={
-                              (!dm && SpeakerAnchor === undefined) ||
-                              (Platform.OS === 'android' && !latest.ready)
-                                ? 16
-                                : 32
-                            }
-                            {...{
-                              [android ? 'ListHeaderComponent' : 'ListFooterComponent']:
-                                LatestAnchor === undefined ? undefined : (
-                                  <LatestAnchor
-                                    following={latest.ready && !latest.away}
-                                    animated={!latest.reducedMotion}
-                                    style={{ height: 0 }}
-                                  />
+                              contentInsetAdjustmentBehavior="automatic"
+                              contentInset={{ bottom: -listSafeArea }}
+                              automaticallyAdjustsScrollIndicatorInsets
+                              scrollToOverflowEnabled
+                              contentContainerStyle={{
+                                minHeight: Math.max(
+                                  0,
+                                  viewportHeight -
+                                    (notice === undefined ? headerOverlap : 0) +
+                                    (Platform.OS === 'android' ? edge.hairline : 0),
                                 ),
-                            }}
-                            keyboardDismissMode={ios ? 'interactive' : 'on-drag'}
-                            keyboardShouldPersistTaps="handled"
-                            {...{
-                              [android ? 'ListFooterComponent' : 'ListHeaderComponent']:
-                                snapshot.loadingOlder || snapshot.olderError ? (
-                                  <View style={{ padding: space.x4, gap: space.x2 }}>
+                                justifyContent: android ? 'flex-start' : 'flex-end',
+                                paddingTop: android
+                                  ? composerHeight + edgeFade.bottom
+                                  : space.x3 + listTop,
+                                paddingBottom: android
+                                  ? space.x3 + headerPadding
+                                  : composerHeight + edgeFade.bottom,
+                              }}
+                              data={rows}
+                              keyExtractor={(row) => row.key}
+                              renderItem={renderItem}
+                              onViewableItemsChanged={onFocusViewabilityChange}
+                              onScrollToIndexFailed={(info) => {
+                                const attempt = focusAttempt.current;
+                                if (
+                                  focusCancelled.current ||
+                                  attempt === undefined ||
+                                  attempt.index !== info.index ||
+                                  attempt.message !== focusIntent.current.message ||
+                                  attempt.request !== focusIntent.current.request
+                                )
+                                  return;
+                                focusNeedsLayout.current = true;
+                                jumped.current = undefined;
+                                focusAttempt.current = undefined;
+                                const estimate = `${info.index}:${info.highestMeasuredFrameIndex}:${info.averageItemLength}`;
+                                if (focusEstimate.current === estimate) return;
+                                focusEstimate.current = estimate;
+                                list.current?.scrollToOffset({
+                                  offset: info.averageItemLength * info.index,
+                                  animated: false,
+                                });
+                              }}
+                              {...(latest.ready && latest.browsed && !snapshot.olderError
+                                ? {
+                                    [android ? 'onEndReached' : 'onStartReached']: () =>
+                                      void conversation?.loadOlder(),
+                                  }
+                                : {})}
+                              onStartReachedThreshold={0.5}
+                              onEndReachedThreshold={0.5}
+                              {...latest.listProps}
+                              maintainVisibleContentPosition={
+                                positioningFocus
+                                  ? undefined
+                                  : latest.listProps.maintainVisibleContentPosition
+                              }
+                              onScrollBeginDrag={(event: ScrollEvent) => {
+                                focusCancelled.current = true;
+                                focusAttempt.current = undefined;
+                                if (android)
+                                  setAnchoredFocus({ message: focus, request: focusRequest });
+                                pull.onScrollBeginDrag(event);
+                                latest.listProps.onScrollBeginDrag();
+                              }}
+                              onScroll={(event: ScrollEvent) => {
+                                latest.listProps.onScroll(event);
+                                pull.onScroll(event);
+                              }}
+                              onScrollEndDrag={(event: ScrollEvent) => {
+                                latest.listProps.onScrollEndDrag(event);
+                                pull.onScrollEndDrag(event);
+                              }}
+                              onContentSizeChange={(width: number, height: number) => {
+                                latest.listProps.onContentSizeChange(width, height);
+                                focusNeedsLayout.current = false;
+                                if (positioningFocus && !focusCancelled.current) {
+                                  focusHasLiveLayout.current =
+                                    snapshot.status === 'live' && !snapshot.fromCache;
+                                  jumped.current = undefined;
+                                }
+                                jump();
+                              }}
+                              scrollEventThrottle={
+                                (!dm && SpeakerAnchor === undefined) ||
+                                (Platform.OS === 'android' && !latest.ready)
+                                  ? 16
+                                  : 32
+                              }
+                              {...{
+                                [android ? 'ListHeaderComponent' : 'ListFooterComponent']:
+                                  LatestAnchor === undefined ? undefined : (
+                                    <LatestAnchor
+                                      following={latest.ready && !latest.away}
+                                      animated={!latest.reducedMotion}
+                                      style={{ height: 0 }}
+                                    />
+                                  ),
+                              }}
+                              keyboardDismissMode={ios ? 'interactive' : 'on-drag'}
+                              keyboardShouldPersistTaps="handled"
+                              {...{
+                                [android ? 'ListFooterComponent' : 'ListHeaderComponent']:
+                                  snapshot.loadingOlder || snapshot.olderError ? (
+                                    <View style={{ padding: space.x4, gap: space.x2 }}>
+                                      <Text
+                                        variant="meta"
+                                        tone="muted"
+                                        accessibilityLiveRegion="polite"
+                                      >
+                                        {snapshot.loadingOlder ? t.olderLoading : t.olderLoadFailed}
+                                      </Text>
+                                      <Button
+                                        label={t.retry}
+                                        variant="text"
+                                        busy={snapshot.loadingOlder}
+                                        testID="history-retry"
+                                        onPress={() => void conversation?.loadOlder()}
+                                      />
+                                    </View>
+                                  ) : !snapshot.hasOlder && snapshot.status === 'live' ? (
                                     <Text
                                       variant="meta"
                                       tone="muted"
-                                      accessibilityLiveRegion="polite"
+                                      style={{ textAlign: 'center', padding: space.x5 }}
                                     >
-                                      {snapshot.loadingOlder ? t.olderLoading : t.olderLoadFailed}
+                                      {dm ? t.beginning : t.beginningChannel}
                                     </Text>
-                                    <Button
-                                      label={t.retry}
-                                      variant="text"
-                                      busy={snapshot.loadingOlder}
-                                      testID="history-retry"
-                                      onPress={() => void conversation?.loadOlder()}
-                                    />
-                                  </View>
-                                ) : !snapshot.hasOlder && snapshot.status === 'live' ? (
-                                  <Text
-                                    variant="meta"
-                                    tone="muted"
-                                    style={{ textAlign: 'center', padding: space.x5 }}
-                                  >
-                                    {dm ? t.beginning : t.beginningChannel}
-                                  </Text>
-                                ) : undefined,
-                            }}
-                          />
+                                  ) : undefined,
+                              }}
+                            />
+                          </SendFlightsContext.Provider>
                         </SpeakerStageContext.Provider>
                       </MarkdownViewportContext.Provider>
                       <Animated.View
@@ -2154,6 +2190,7 @@ function ChatConversation({
             onReact={(message, emoji, active) => react(message.id, emoji, active)}
             onCopy={copyMessage}
             onShareText={shareText}
+            onShareAttachment={(attachment) => void share(attachment)}
           />
           {paging === undefined ? null : (
             <NativePageHeader

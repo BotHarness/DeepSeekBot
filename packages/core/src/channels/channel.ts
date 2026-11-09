@@ -1,3 +1,5 @@
+import type { ChannelMessageAuthor } from './message-author.js';
+import type { ChannelReplyPreview } from './reply-preview.js';
 import { isChannelMessageVoice, type ChannelMessageVoice } from './voice.js';
 import { parseToolApprovalActor } from '../workspaces/tool-approval-actor.js';
 import { createHash } from 'node:crypto';
@@ -233,22 +235,14 @@ export interface GroupJoinRequest {
   decidedBy?: 'human' | string;
 }
 
-export type ChannelMessageAuthor =
-  | { kind: 'human' }
-  | { kind: 'bot'; slug: string }
-  | { kind: 'remote-bot'; hostId: string; slug: string }
-  | { kind: 'bridged'; source: string }
-  | { kind: 'system' };
+export type { ChannelMessageAuthor };
 
 export interface ChannelMessageExternal {
   id: string;
   thread?: string;
 }
 
-export interface ChannelReplyPreview {
-  author: ChannelMessageAuthor;
-  body: string;
-}
+export type { ChannelReplyPreview, ChannelReplyPreviewMedia } from './reply-preview.js';
 
 export interface SessionFailureCard {
   requestMessageId?: string;

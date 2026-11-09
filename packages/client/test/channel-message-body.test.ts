@@ -714,7 +714,7 @@ it('preserves remote plain text and attachment metadata without falling back to 
     ),
   );
   expect(html).toContain('Literal text from the remote Host');
-  expect(html).toContain('alt="remote.png"');
+  expect(html).toContain('aria-label="查看图片 remote.png"');
   expect(html).not.toContain('./api/');
   expect(html).not.toContain('test-secret');
 });
@@ -741,7 +741,7 @@ describe('Channel message body', () => {
     (mime) => {
       const attachments = [{ fileId: 'file:report', name: 'report', mime, size: 5 }];
       const html = render({ kind: 'human' }, 'attached', { attachments });
-      expect(html).toContain('bh-message-attachment');
+      expect(html).toContain(mime === 'image/png' ? 'bh-message-album' : 'bh-message-attachment');
       expect(html).not.toContain('bh-message-attachment-ordinal');
     },
   );
@@ -1229,7 +1229,9 @@ describe('Channel message body', () => {
     expect(markup).toContain('<img');
     expect(markup).toContain('alt="photo.png"');
     expect(markup).toContain('download="report.pdf"');
-    expect(markup).toContain('data-file-type-icon="report.pdf"');
+    expect(markup).toContain('data-file-tone="red"');
+    expect(markup).toContain('>PDF</span>');
+    expect(markup).toContain('456B · PDF');
     expect(markup).toContain('class="bh-message-file-name" title="report.pdf"');
     expect(markup).not.toContain('▤');
     expect(markup).toContain('/api/botharness/attachment?hash=');
