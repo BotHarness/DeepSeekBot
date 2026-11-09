@@ -8,6 +8,7 @@ import { credentialKey, type CredentialProvider } from '@deepseek-ai/dsh-credent
 import { z } from 'zod';
 
 import type { DeviceConnect } from './connect.js';
+import { CONNECT_ZONES } from './routes.js';
 
 type Credentials = Pick<CredentialProvider, 'readRecord' | 'modifyRecord' | 'deleteRecord'>;
 
@@ -387,6 +388,7 @@ export function createConnectAccount(options: {
       access,
       {
         originPort: port,
+        zones: CONNECT_ZONES,
       },
     );
     if (reply.status === 404) return undefined;
@@ -488,7 +490,12 @@ export function createConnectAccount(options: {
           return;
         }
         const stored = current;
-        const hosts = (token: string) => relayCall('list-hosts', 'GET', '/v1/hosts', token);
+        const idle = connect.idleSeconds?.();
+        const listPath =
+          stored.hostId !== undefined && idle !== undefined
+            ? `/v1/hosts?host=${encodeURIComponent(stored.hostId)}&idle=${String(idle)}`
+            : '/v1/hosts';
+        const hosts = (token: string) => relayCall('list-hosts', 'GET', listPath, token);
         const fresh = async () => hosts(await refresh(stored));
         const reply =
           cached === undefined

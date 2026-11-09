@@ -1,3 +1,7 @@
+import {
+  CONNECT_HOSTNAME,
+  isConnectZoneHost,
+} from '../../../../packages/core/src/devices/connect-zones';
 import { isLanAddress } from '../../../../packages/core/src/devices/lan-address';
 export type RouteCheck = { ok: true; origin: string } | { ok: false; reason: string };
 
@@ -21,7 +25,7 @@ export function checkRoute(input: string, privateOrigin?: string): RouteCheck {
   const name = url.hostname;
   const loopback = isLoopbackHostname(name);
   const tailnet = isTailscaleHostname(name);
-  const connect = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.deepseekbot\.dev$/u.test(name);
+  const connect = CONNECT_HOSTNAME.test(name);
   const allowed =
     (isLanAddress(name) && url.protocol === 'http:' && url.port !== '') ||
     (loopback && (url.protocol === 'http:' || url.protocol === 'https:')) ||
@@ -51,9 +55,7 @@ export function socketOrigin(origin: string): string {
 
 export function isConnectRoute(route: string): boolean {
   try {
-    return /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.deepseekbot\.dev$/u.test(
-      new URL(route).hostname,
-    );
+    return CONNECT_HOSTNAME.test(new URL(route).hostname);
   } catch {
     return false;
   }
@@ -91,8 +93,7 @@ export function isPrivateRoute(route: string): boolean {
       url.protocol === 'https:' &&
       !isLoopbackHostname(url.hostname) &&
       !isTailscaleHostname(url.hostname) &&
-      url.hostname !== 'deepseekbot.dev' &&
-      !url.hostname.endsWith('.deepseekbot.dev')
+      !isConnectZoneHost(url.hostname)
     );
   } catch {
     return false;

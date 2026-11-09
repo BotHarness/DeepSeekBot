@@ -103,6 +103,7 @@ function fakeServices(
     calls.push({
       method,
       path: `${url.origin}${url.pathname}`,
+      ...(url.search ? { search: url.search } : {}),
       ...(auth ? { auth } : {}),
       ...(body ? { body } : {}),
     });
@@ -815,6 +816,7 @@ describe('Connect account sign-in', () => {
     });
     expect(services.calls.find((call) => call.path.endsWith('/tunnel'))?.body).toEqual({
       originPort: 41001,
+      zones: ['deepseekbot.dev'],
     });
     await account.close();
   });
@@ -890,7 +892,10 @@ describe('Connect account sign-in', () => {
     await settle(account);
     expect(
       services.calls.filter((call) => call.path.endsWith('/tunnel')).map((call) => call.body),
-    ).toEqual([{ originPort: 41001 }, { originPort: 52000 }]);
+    ).toEqual([
+      { originPort: 41001, zones: ['deepseekbot.dev'] },
+      { originPort: 52000, zones: ['deepseekbot.dev'] },
+    ]);
     await account.close();
   });
 
@@ -1351,6 +1356,24 @@ describe('Connect account deletion', () => {
     await until(() => tunnel.enabled.length > 1);
     expect(tunnel.enabled).toHaveLength(2);
     expect(account.status()).toMatchObject({ state: 'signed-in', hostId: 'hstudioaaaaa' });
+    await account.close();
+  });
+
+  it('reports how long ago a paired device last used the tunnel on its account check', async () => {
+    const services = fakeServices({ pending: 0 });
+    const { account, tunnel } = setup(services, 41001, 10);
+    let idle: number | undefined;
+    tunnel.connect.idleSeconds = () => idle;
+    await account.signIn();
+    await settle(account);
+    const listed = () =>
+      services.calls.filter((call) => call.method === 'GET' && call.path === `${RELAY}/v1/hosts`);
+    await until(() => listed().length > 0);
+    expect(listed()[0]).not.toHaveProperty('search');
+    idle = 42;
+    const count = listed().length;
+    await until(() => listed().length > count);
+    expect(listed().at(-1)).toMatchObject({ search: '?host=hstudioaaaaa&idle=42' });
     await account.close();
   });
 });

@@ -1,6 +1,6 @@
 import { createActivityApns } from './activity-apns.js';
 import { createAccessTokenVerifier, workosKeys } from './auth.js';
-import { createCloudflareApi } from './cloudflare.js';
+import { createCloudflareApi, parseZones } from './cloudflare.js';
 import type { D1Database } from './d1.js';
 import { createEmailCode } from './email-code.js';
 import { createRelay, hmac } from './relay.js';
@@ -17,6 +17,11 @@ export interface ConnectRelayEnv {
   CLOUDFLARE_ACCOUNT_ID?: string;
   CLOUDFLARE_ZONE_ID?: string;
   CONNECT_ZONE?: string;
+  CONNECT_ZONES?: string;
+  ZONE_RECORDS?: string;
+  RECLAIM_BUDGET?: string;
+  TUNNEL_PREFIX?: string;
+  EVICT_PROTECT_MINUTES?: string;
   ALLOWED_USERS?: string;
   MAX_HOSTS?: string;
   MAX_TUNNELS?: string;
@@ -75,6 +80,11 @@ export function relayForEnv(env: ConnectRelayEnv): ReturnType<typeof createRelay
   const accountId = env.CLOUDFLARE_ACCOUNT_ID;
   const zoneId = env.CLOUDFLARE_ZONE_ID;
   if (!clientId || !token || !accountId || !zoneId) return undefined;
+  const zone = (env.CONNECT_ZONE ?? 'deepseekbot.dev').toLowerCase();
+  const zones = [
+    { name: zone, id: zoneId.toLowerCase() },
+    ...parseZones(env.CONNECT_ZONES).filter((extra) => extra.name !== zone),
+  ];
   const hostSecret = env.CONNECT_HOST_KEY;
   const limiter = env.CONNECT_LIMIT;
   const apiKey = env.WORKOS_API_KEY;
@@ -90,9 +100,16 @@ export function relayForEnv(env: ConnectRelayEnv): ReturnType<typeof createRelay
       ...(env.ACTIVITY_APNS_ENVIRONMENT ? { environment: env.ACTIVITY_APNS_ENVIRONMENT } : {}),
     }),
     verifier: createAccessTokenVerifier({ clientId, keys: workosKeys(clientId) }),
-    tunnels: createCloudflareApi({ token, accountId, zoneId }),
+    tunnels: createCloudflareApi({ token, accountId, zones }),
     clientId,
-    zone: env.CONNECT_ZONE ?? 'deepseekbot.dev',
+    zone,
+    zones: zones.map((entry) => entry.name),
+    zoneRecords: positive(env.ZONE_RECORDS, 195),
+    reclaimBudget: positive(env.RECLAIM_BUDGET, 30),
+    ...(env.TUNNEL_PREFIX && /^[a-z0-9-]{2,20}$/u.test(env.TUNNEL_PREFIX)
+      ? { tunnelPrefix: env.TUNNEL_PREFIX }
+      : {}),
+    evictProtectMs: positive(env.EVICT_PROTECT_MINUTES, 30) * 60 * 1000,
     allowedUsers: (env.ALLOWED_USERS ?? '')
       .split(',')
       .map((user) => user.trim())
