@@ -19,7 +19,7 @@ import { DEFAULT_SPEECH_DBFS } from './vad.js';
 import { speakableText } from './speakable.js';
 import {
   createVoiceDictations,
-  pcmFromBase64,
+  dictationPcm,
   VoiceDictationError,
   type VoiceDictationReadiness,
   type VoiceDictations,
@@ -427,7 +427,7 @@ export function createVoiceBridgeMethods(deps: {
         if (kind === 'push')
           return {
             ok: true,
-            value: { dictation: dictations.push(id, pcmFromBase64(input['pcm'])) },
+            value: { dictation: dictations.push(id, dictationPcm(input['pcm'])) },
           };
         if (kind === 'stop') return { ok: true, value: { dictation: await dictations.stop(id) } };
         if (kind === 'cancel') return { ok: true, value: { dictation: dictations.cancel(id) } };

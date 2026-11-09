@@ -2,13 +2,13 @@ import { BridgeCallError, type BridgeCall } from './bridge.js';
 import { openMicrophone } from './mic-device.js';
 import { levelDbfs, meterFraction } from './voice-level.js';
 import {
-  DICTATION_SAMPLE_RATE as SAMPLE_RATE,
   DictationMicError,
   type DictationMic,
   type VoiceDictationPort,
   type VoiceDictationReadiness,
   type VoiceDictationView,
 } from '../../../core/src/voice/dictation-client.js';
+import { pcm16kFromFloat } from '../../../core/src/voice/pcm.js';
 
 export * from '../../../core/src/voice/dictation-client.js';
 
@@ -51,21 +51,6 @@ export function createVoiceDictationPort(
     stop: async (id) => dictationView(await dictationCall(call, { kind: 'stop', id })),
     cancel: async (id) => dictationView(await dictationCall(call, { kind: 'cancel', id })),
   };
-}
-
-export function downsampleTo16k(input: Float32Array, rate: number): Int16Array {
-  const ratio = rate / SAMPLE_RATE;
-  const length = Math.floor(input.length / ratio);
-  const out = new Int16Array(length);
-  for (let index = 0; index < length; index += 1) {
-    const start = Math.floor(index * ratio);
-    const end = Math.max(start + 1, Math.floor((index + 1) * ratio));
-    let sum = 0;
-    for (let at = start; at < end && at < input.length; at += 1) sum += input[at]!;
-    const sample = Math.max(-1, Math.min(1, sum / (end - start)));
-    out[index] = Math.round(sample < 0 ? sample * 0x8000 : sample * 0x7fff);
-  }
-  return out;
 }
 
 export function createBrowserDictationMic(
@@ -126,7 +111,7 @@ export function createBrowserDictationMic(
         if (stream !== owned) return;
         const channel = event.inputBuffer.getChannelData(0);
         level = meterFraction(levelDbfs(channel));
-        onPcm(downsampleTo16k(channel, audio.sampleRate));
+        onPcm(pcm16kFromFloat(channel, audio.sampleRate));
       };
       source.connect(node);
       node.connect(audio.destination);

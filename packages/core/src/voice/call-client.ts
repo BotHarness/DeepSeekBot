@@ -81,6 +81,32 @@ export async function readCallReadiness(
 
 const EVENT_LIMIT = VOICE_CALL_LIMITS.events;
 
+export interface CallEventLog {
+  readonly events: readonly VoiceCallEvent[];
+  seq(): number;
+  absorb(view: VoiceCallView | undefined): void;
+  reset(): void;
+}
+
+export function createCallEventLog(limit?: number): CallEventLog {
+  const events: VoiceCallEvent[] = [];
+  let seq = 0;
+  return {
+    events,
+    seq: () => seq,
+    absorb(view) {
+      if (view === undefined) return;
+      for (const event of view.events) if (event.seq > seq) events.push(event);
+      if (limit !== undefined && events.length > limit) events.splice(0, events.length - limit);
+      seq = Math.max(seq, view.lastSeq);
+    },
+    reset() {
+      events.length = 0;
+      seq = 0;
+    },
+  };
+}
+
 export function createCallClient(options: CallClientOptions): CallClient {
   const now = options.now ?? Date.now;
   const every = options.setInterval ?? ((run, ms) => setInterval(run, ms));
@@ -88,8 +114,7 @@ export function createCallClient(options: CallClientOptions): CallClient {
     options.clearInterval ?? ((handle) => clearInterval(handle as ReturnType<typeof setInterval>));
   let state: CallClientState = { status: 'idle' };
   let call: VoiceCallView | undefined;
-  let events: VoiceCallEvent[] = [];
-  let seq = 0;
+  const log = createCallEventLog(EVENT_LIMIT);
   let muted = false;
   let lastAnswer = 0;
   let timer: unknown;
@@ -105,13 +130,11 @@ export function createCallClient(options: CallClientOptions): CallClient {
   const absorb = (view: VoiceCallView | undefined) => {
     if (view === undefined) return;
     call = view;
-    for (const event of view.events) if (event.seq > seq) events.push(event);
-    if (events.length > EVENT_LIMIT) events = events.slice(-EVENT_LIMIT);
-    seq = Math.max(seq, view.lastSeq);
+    log.absorb(view);
   };
   const live = (reconnecting = false) => {
     if (call === undefined) return;
-    set({ status: 'live', call, events: [...events], muted, reconnecting });
+    set({ status: 'live', call, events: [...log.events], muted, reconnecting });
   };
   const finish = (
     reason: VoiceCallEndReason | 'refused',
@@ -128,7 +151,7 @@ export function createCallClient(options: CallClientOptions): CallClient {
       reason,
       ...extra,
       ...(call === undefined ? {} : { call }),
-      events: [...events],
+      events: [...log.events],
     });
   };
   const endedReason = (view: VoiceCallView | undefined) =>
@@ -138,7 +161,11 @@ export function createCallClient(options: CallClientOptions): CallClient {
     if (beating || call === undefined || status() !== 'live') return;
     beating = true;
     try {
-      const result = await options.post({ kind: 'heartbeat', callId: call.callId, after: seq });
+      const result = await options.post({
+        kind: 'heartbeat',
+        callId: call.callId,
+        after: log.seq(),
+      });
       if (status() !== 'live') return;
       if (!result.ok) {
         finish(result.code === 'device-revoked' ? 'host-stopped' : 'connection-lost', {
@@ -167,8 +194,7 @@ export function createCallClient(options: CallClientOptions): CallClient {
     async open(slug) {
       if (status() === 'opening' || status() === 'live') return;
       call = undefined;
-      events = [];
-      seq = 0;
+      log.reset();
       muted = false;
       set({ status: 'opening' });
       let result: VoiceCallResult;
@@ -286,7 +312,7 @@ export function createCallClient(options: CallClientOptions): CallClient {
           jpeg: input.jpeg,
           score: input.score,
           skipped: input.skipped,
-          after: seq,
+          after: log.seq(),
         });
         if (result.ok) absorb(result.call);
         if (status() === 'live') live();

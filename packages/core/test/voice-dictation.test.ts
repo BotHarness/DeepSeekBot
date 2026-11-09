@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   createVoiceDictations,
-  pcmFromBase64,
+  dictationPcm,
   VoiceDictationError,
   type VoiceDictationProviders,
 } from '../src/voice/dictation.js';
@@ -170,8 +170,13 @@ describe('composer dictation', () => {
   it('decodes base64 PCM and refuses odd payloads', () => {
     const pcm = Int16Array.from([1, -2, 300]);
     const encoded = Buffer.from(pcm.buffer).toString('base64');
-    expect(Array.from(pcmFromBase64(encoded))).toEqual([1, -2, 300]);
-    expect(() => pcmFromBase64(Buffer.from([1, 2, 3]).toString('base64'))).toThrow(/16-bit PCM/u);
-    expect(() => pcmFromBase64('A'.repeat(100_000))).toThrow(/too large/u);
+    expect(Array.from(dictationPcm(encoded))).toEqual([1, -2, 300]);
+    expect(() => dictationPcm(Buffer.from([1, 2, 3]).toString('base64'))).toThrow(
+      expect.objectContaining({ code: 'invalid-input' }),
+    );
+    expect(() => dictationPcm('')).toThrow(expect.objectContaining({ code: 'invalid-input' }));
+    expect(() => dictationPcm('A'.repeat(100_000))).toThrow(
+      expect.objectContaining({ code: 'request-too-large' }),
+    );
   });
 });

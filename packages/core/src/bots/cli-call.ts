@@ -3,12 +3,14 @@ import { isAbsolute } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
 import { CliLiveError } from './cli-live-error.js';
-import type { VoiceCallEvent, VoiceCallView } from '../voice/call-contract.js';
+import { createCallEventLog, type CallPost } from '../voice/call-client.js';
+import type { VoiceCallEvent, VoiceCallResult, VoiceCallView } from '../voice/call-contract.js';
+import { pcmToBase64 } from '../voice/pcm.js';
 import { readWavAs16kMono } from '../voice/wav.js';
 import { MAX_GRID_FRAMES } from '../voice/keyframes.js';
 import { CallVideoError, videoKeyframes, type VideoKeyframes } from '../voice/call-video.js';
 
-export type CallPost = (body: Record<string, unknown>) => Promise<Record<string, unknown>>;
+export type { CallPost };
 
 export type CallText = (input: {
   channelId: string;
@@ -20,8 +22,6 @@ export interface CallHost {
   readonly post: CallPost;
   readonly text: CallText;
 }
-
-export const CALL_PATH = '/api/voice/call';
 
 export const CALL_OPTIONS = {
   script: { type: 'string' },
@@ -80,11 +80,11 @@ function usage(message: string): never {
   throw new CliLiveError('usage', message);
 }
 
-function result(value: Record<string, unknown>): Record<string, unknown> {
-  if (value['ok'] === false)
+function result(value: VoiceCallResult): Extract<VoiceCallResult, { ok: true }> {
+  if (!value.ok)
     throw new CliLiveError(
-      typeof value['code'] === 'string' ? value['code'] : 'host-protocol-error',
-      typeof value['error'] === 'string' ? value['error'] : 'The Host refused the call command.',
+      typeof value.code === 'string' ? value.code : 'host-protocol-error',
+      typeof value.error === 'string' ? value.error : 'The Host refused the call command.',
     );
   return value;
 }
@@ -147,13 +147,6 @@ function script(values: CallValues): ScriptEntry[] {
 const SIMULATION_BUDGET_MS = 540_000;
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-
-function pcmBase64(samples: Int16Array): string {
-  const bytes = Buffer.alloc(samples.length * 2);
-  for (let index = 0; index < samples.length; index += 1)
-    bytes.writeInt16LE(samples[index]!, index * 2);
-  return bytes.toString('base64');
-}
 
 function visualInput(
   values: CallValues,
@@ -238,20 +231,19 @@ async function simulate(
     usage('The audio timeline plus --reply-wait must fit in 9 minutes.');
   const visual = await loadVisual(values);
   const opened = result(await post({ kind: 'open', slug, media: 'synthetic' }));
-  const call = opened['call'] as VoiceCallView;
+  const call = opened.call as VoiceCallView;
   const callId = call.callId;
   const frames = [...(visual?.keyframes ?? [])];
   const sentFrames: { atMs: number; bytes: number; postMs: number }[] = [];
   const started = clock.now();
-  const events: VoiceCallEvent[] = [...call.events];
-  let seq = call.lastSeq;
-  const collect = (view: VoiceCallView | undefined) => {
-    if (view === undefined) return;
-    for (const event of view.events) if (event.seq > seq) events.push(event);
-    seq = Math.max(seq, view.lastSeq);
-  };
+  const log = createCallEventLog();
+  log.absorb(call);
+  const events = log.events;
+  const collect = (view: VoiceCallView | undefined) => log.absorb(view);
   const heartbeat = async () =>
-    collect(result(await post({ kind: 'heartbeat', callId, after: seq }))['call'] as VoiceCallView);
+    collect(
+      result(await post({ kind: 'heartbeat', callId, after: log.seq() })).call as VoiceCallView,
+    );
   const CHUNK = 3_200;
   const TICK = 1_600;
   const silence = new Int16Array(16_000);
@@ -292,7 +284,7 @@ async function simulate(
             source: 'off',
             paused: true,
           }),
-        )['call'] as VoiceCallView,
+        ).call as VoiceCallView,
       );
     }
     if (pausedAt !== undefined && resumedAt === undefined) {
@@ -309,7 +301,7 @@ async function simulate(
             source: visual.source,
             resumed: true,
           }),
-        )['call'] as VoiceCallView,
+        ).call as VoiceCallView,
       );
     }
     if (shareEndsAt !== undefined && elapsed >= shareEndsAt) {
@@ -323,7 +315,7 @@ async function simulate(
             source: 'off',
             stopped: true,
           }),
-        )['call'] as VoiceCallView,
+        ).call as VoiceCallView,
       );
       return;
     }
@@ -339,9 +331,9 @@ async function simulate(
             jpeg: Buffer.from(frame.jpeg).toString('base64'),
             score: frame.score,
             skipped: frame.skipped,
-            after: seq,
+            after: log.seq(),
           }),
-        )['call'] as VoiceCallView,
+        ).call as VoiceCallView,
       );
       sentFrames.push({
         atMs: frame.atMs,
@@ -359,7 +351,7 @@ async function simulate(
             callId,
             source: visual.source,
           }),
-        )['call'] as VoiceCallView,
+        ).call as VoiceCallView,
       );
     const inject = async (samples: Int16Array) => {
       for (let offset = 0; offset < samples.length; offset += CHUNK) {
@@ -369,7 +361,7 @@ async function simulate(
         await shareDue();
         const chunk = samples.subarray(offset, offset + CHUNK);
         collect(
-          result(await post({ kind: 'inject', callId, pcm: pcmBase64(chunk), after: seq }))[
+          result(await post({ kind: 'inject', callId, pcm: pcmToBase64(chunk), after: log.seq() }))[
             'call'
           ] as VoiceCallView,
         );
@@ -377,7 +369,7 @@ async function simulate(
         streamMs += (chunk.length / 16_000) * 1000;
       }
     };
-    let previous = seq;
+    let previous = log.seq();
     for (const [index, step] of steps.entries()) {
       let start = Math.round((step.at * 16_000) / 1000);
       if (step.after === 'playing') {
@@ -396,7 +388,7 @@ async function simulate(
         start = position + start;
       }
       while (position < start) await inject(silence.subarray(0, Math.min(CHUNK, start - position)));
-      previous = seq;
+      previous = log.seq();
       if (step.text !== undefined) await typeText(step.text);
       else await inject(step.audio);
     }
@@ -420,10 +412,10 @@ async function simulate(
           await post({
             kind: 'inject',
             callId,
-            pcm: pcmBase64(silence.subarray(0, 4_000)),
-            after: seq,
+            pcm: pcmToBase64(silence.subarray(0, 4_000)),
+            after: log.seq(),
           }),
-        )['call'] as VoiceCallView,
+        ).call as VoiceCallView,
       );
       await heartbeat();
       if (events.some((event) => event.type === 'ended')) break;
@@ -431,7 +423,7 @@ async function simulate(
     }
   } finally {
     const hungUp = await post({ kind: 'hangup', callId }).catch(() => undefined);
-    collect(hungUp?.['call'] as VoiceCallView | undefined);
+    collect(hungUp?.ok === true ? hungUp.call : undefined);
   }
   const heard = events.filter(
     (event): event is Extract<VoiceCallEvent, { type: 'sent' }> => event.type === 'sent',

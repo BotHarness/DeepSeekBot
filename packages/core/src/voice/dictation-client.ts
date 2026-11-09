@@ -1,8 +1,9 @@
 import type { VoiceDictationReadiness, VoiceDictationView } from './dictation.js';
+import { PCM_SAMPLE_RATE, pcmToBase64 } from './pcm.js';
 
 export type { VoiceDictationReadiness, VoiceDictationView };
 
-export const DICTATION_SAMPLE_RATE = 16_000;
+export const DICTATION_SAMPLE_RATE = PCM_SAMPLE_RATE;
 const PUSH_MIN_SAMPLES = DICTATION_SAMPLE_RATE / 5;
 const PUSH_MAX_SAMPLES = DICTATION_SAMPLE_RATE * 2;
 
@@ -12,17 +13,6 @@ export interface VoiceDictationPort {
   push(id: string, pcm: string): Promise<VoiceDictationView>;
   stop(id: string): Promise<VoiceDictationView>;
   cancel(id: string): Promise<VoiceDictationView>;
-}
-
-export function pcmBase64(samples: Int16Array): string {
-  const bytes = new Uint8Array(samples.length * 2);
-  const view = new DataView(bytes.buffer);
-  for (let index = 0; index < samples.length; index += 1)
-    view.setInt16(index * 2, samples[index]!, true);
-  let binary = '';
-  for (let offset = 0; offset < bytes.length; offset += 0x8000)
-    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
-  return btoa(binary);
 }
 
 const TIGHT = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}　-〿＀-￯]/u;
@@ -139,7 +129,7 @@ export function createComposerDictation(options: {
       for (let offset = 0; offset < chunk.length; offset += PUSH_MAX_SAMPLES) {
         const view = await options.port.push(
           session,
-          pcmBase64(chunk.subarray(offset, offset + PUSH_MAX_SAMPLES)),
+          pcmToBase64(chunk.subarray(offset, offset + PUSH_MAX_SAMPLES)),
         );
         if (mine !== run) return;
         heard(view.text);

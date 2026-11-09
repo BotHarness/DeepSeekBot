@@ -26,6 +26,7 @@ import type {
 } from '../channels/voice-call-record.js';
 import { createCallPerf, perfFields, type CallPerf } from './call-perf.js';
 import { createVad, VAD_SAMPLE_RATE, type VadOptions } from './vad.js';
+import { PcmError, pcmFromBase64 } from './pcm.js';
 import { VoiceError, wavFromPcm16 } from './providers.js';
 import type { AsrStream } from './soniox.js';
 import {
@@ -343,13 +344,14 @@ function slugOf(value: unknown): string {
   return value;
 }
 
-function pcmFromBase64(value: string): Int16Array {
-  const bytes = Buffer.from(value, 'base64');
-  if (bytes.byteLength % 2 !== 0)
-    throw new CallRefusal('invalid-input', 'pcm must be 16-bit little-endian samples.');
-  const out = new Int16Array(bytes.byteLength / 2);
-  for (let index = 0; index < out.length; index += 1) out[index] = bytes.readInt16LE(index * 2);
-  return out;
+function callPcm(value: string): Int16Array {
+  try {
+    return pcmFromBase64(value);
+  } catch (error) {
+    if (error instanceof PcmError)
+      throw new CallRefusal('invalid-input', 'pcm must be 16-bit little-endian samples.');
+    throw error;
+  }
 }
 
 const ended = (call: { phase: VoiceCallPhase }) => call.phase === 'ended';
@@ -2120,7 +2122,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
           throw new CallRefusal('invalid-input', 'after must be an event sequence number.');
         const before = call.seq;
         call.lastHeartbeat = now();
-        hear(call, pcmFromBase64(pcm));
+        hear(call, callPcm(pcm));
         return { ok: true, call: view(call, (after as number | undefined) ?? before) };
       }
       case 'visual': {
