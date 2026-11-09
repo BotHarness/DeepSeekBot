@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 
 import { joinTranscripts } from './calls.js';
+import { PcmError, pcmFromBase64 } from './pcm.js';
 import {
   resolveVoice,
   VoiceError,
@@ -415,16 +416,15 @@ export function createVoiceDictations(deps: VoiceDictationDeps): VoiceDictations
   };
 }
 
-export function pcmFromBase64(value: unknown): Int16Array {
+export function dictationPcm(value: unknown): Int16Array {
   if (typeof value !== 'string' || value.length === 0)
     throw new VoiceDictationError('invalid-input', 'pcm must be base64 16-bit PCM.');
-  if (value.length > (VOICE_DICTATION_LIMITS.pushBytes * 4) / 3 + 4)
-    throw new VoiceDictationError('request-too-large', 'The audio chunk is too large.');
-  const bytes = Buffer.from(value, 'base64');
-  if (bytes.byteLength % 2 !== 0)
-    throw new VoiceDictationError('invalid-input', 'pcm must be base64 16-bit PCM.');
-  const out = new Int16Array(bytes.byteLength / 2);
-  for (let index = 0; index < out.length; index += 1) out[index] = bytes.readInt16LE(index * 2);
-  bytes.fill(0);
-  return out;
+  try {
+    return pcmFromBase64(value, { maxBytes: VOICE_DICTATION_LIMITS.pushBytes });
+  } catch (error) {
+    if (!(error instanceof PcmError)) throw error;
+    throw error.code === 'too-large'
+      ? new VoiceDictationError('request-too-large', 'The audio chunk is too large.')
+      : new VoiceDictationError('invalid-input', 'pcm must be base64 16-bit PCM.');
+  }
 }
