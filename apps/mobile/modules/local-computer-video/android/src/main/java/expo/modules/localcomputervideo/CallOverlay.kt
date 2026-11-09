@@ -2,6 +2,7 @@ package expo.modules.localcomputervideo
 
 import android.animation.ValueAnimator
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.PixelFormat
@@ -25,7 +26,7 @@ import kotlin.math.sqrt
 
 /**
  * The call bubble over other apps (#3469): the same anatomy as the in-app bubble (V12):
- * Bot initial, state ring (breathing while the Bot speaks or hears you, #3805), call-time capsule and a muted badge, draggable and snapped to
+ * Bot avatar (or its initial, #3804), state ring (breathing while the Bot speaks or hears you, #3805), call-time capsule and a muted badge, draggable and snapped to
  * the nearer side. It exists only while the app is in the background; in the app the
  * React Native bubble takes over, so the two never show together. Main thread only.
  */
@@ -181,6 +182,9 @@ class SpringInterpolator(private val damping: Float, private val stiffness: Floa
 
 class CallOverlayView(context: Context) : View(context) {
   private var notice: CallNotice? = null
+  private var portrait: Bitmap? = null
+  private val portraitPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+  private val portraitRect = RectF()
   private val main = Handler(Looper.getMainLooper())
   private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
   private val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
@@ -228,6 +232,7 @@ class CallOverlayView(context: Context) : View(context) {
   fun bind(value: CallNotice) {
     val restart = notice?.startedAt != value.startedAt
     notice = value
+    portrait = CallAvatar.load(context, value.avatarPath)
     refreshLabel()
     if (restart) { shownLength = -1; requestLayout() }
     invalidate()
@@ -326,10 +331,16 @@ class CallOverlayView(context: Context) : View(context) {
     canvas.drawCircle(cx, cy, radius + gap + stroke / 2, ring)
     fill.color = shown.surfaceColor
     canvas.drawCircle(cx, cy, radius, fill)
-    letter.color = shown.fgColor
-    letter.textSize = avatar * 0.42f
-    val metrics = letter.fontMetrics
-    canvas.drawText(shown.initial, cx, cy - (metrics.ascent + metrics.descent) / 2, letter)
+    val picture = portrait
+    if (picture != null) {
+      portraitRect.set(cx - radius, cy - radius, cx + radius, cy + radius)
+      canvas.drawBitmap(picture, null, portraitRect, portraitPaint)
+    } else {
+      letter.color = shown.fgColor
+      letter.textSize = avatar * 0.42f
+      val metrics = letter.fontMetrics
+      canvas.drawText(shown.initial, cx, cy - (metrics.ascent + metrics.descent) / 2, letter)
+    }
     if (shown.muted && muted != null) {
       val badge = dp(20f)
       val bx = cx + radius * 0.72f

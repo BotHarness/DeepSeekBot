@@ -155,6 +155,41 @@ describe('Android call bubble over other apps (#3469)', () => {
   });
 });
 
+describe('Bot avatar on the call notice (#3804, #3475)', () => {
+  const avatar = 'file:///data/user/0/app/files/notification-avatars/host_1/bot-mira.png';
+
+  it('passes the cached avatar file URL only when there is one', () => {
+    expect(callNotice(props(), palette)).not.toHaveProperty('avatar');
+    expect(callNotice(props({ avatar }), palette).avatar).toBe(avatar);
+  });
+
+  it('updates the notice when the avatar finishes rendering mid-call', async () => {
+    const shown: CallActivityProps[] = [];
+    const handle: CallActivityHandle = {
+      update: async (next) => {
+        shown.push(next);
+      },
+      end: async () => undefined,
+    };
+    const activity = createCallActivity({ start: async () => handle });
+    activity.sync(props());
+    await Promise.resolve();
+    await Promise.resolve();
+    activity.sync(props({ avatar }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(shown.map((entry) => entry.avatar)).toEqual([avatar]);
+  });
+
+  it('reads avatars only from the cache the app writes them to', () => {
+    const native = kotlin('CallNotice');
+    expect(native).toContain('"avatar"');
+    expect(native).toContain('const val ROOT = "notification-avatars"');
+    expect(read('../../src/host/native-notification-avatars.ts')).toContain(
+      "new Directory(Paths.document, 'notification-avatars')",
+    );
+  });
+});
+
 describe('Android overlay bubble ring breath (#3805)', () => {
   it('breathes at the in-app bubble pulse period, only while speaking or hearing', () => {
     const native = kotlin('CallNotice');

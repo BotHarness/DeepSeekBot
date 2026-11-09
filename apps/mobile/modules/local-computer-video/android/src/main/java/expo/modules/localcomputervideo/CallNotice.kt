@@ -22,6 +22,11 @@ data class CallNotice(
   val surfaceColor: Int,
   val fgColor: Int,
   val baseColor: Int,
+  /**
+   * Absolute path of the Bot's notification-avatar PNG (from the `avatar` file URL, see
+   * src/host/native-notification-avatars.ts); [CallAvatarFiles] still checks it. Null draws the initial.
+   */
+  val avatarPath: String? = null,
 ) {
   val initial: String
     get() {
@@ -57,8 +62,39 @@ data class CallNotice(
         surfaceColor = hexColor(map["surfaceColor"]) ?: return null,
         fgColor = hexColor(map["fgColor"]) ?: return null,
         baseColor = hexColor(map["baseColor"]) ?: return null,
+        avatarPath = avatarPath(map["avatar"]),
       )
     }
+
+    /**
+     * A `file://` URL or absolute path to a `.png`, decoded to a normalized path; anything
+     * else (another scheme, a relative path, a `..` segment) is dropped and the initial shows.
+     */
+    fun avatarPath(value: Any?): String? {
+      val text = (value as? String)?.trim()?.takeIf { it.isNotEmpty() && it.length <= 1024 } ?: return null
+      val path = if (text.startsWith("/")) text else {
+        val uri = runCatching { java.net.URI(text) }.getOrNull() ?: return null
+        if (uri.scheme != "file" || !uri.authority.isNullOrEmpty()) return null
+        uri.path ?: return null
+      }
+      if (!path.startsWith("/") || !path.endsWith(".png")) return null
+      if (path.split('/').any { it == "." || it == ".." }) return null
+      return path
+    }
+  }
+}
+
+/** Where the app caches notification avatars (src/host/native-notification-avatars.ts). */
+object CallAvatarFiles {
+  const val ROOT = "notification-avatars"
+
+  /** The file, only when it is a PNG inside [root] (after resolving links) and exists. */
+  fun resolve(root: java.io.File, path: String?): java.io.File? {
+    val checked = CallNotice.avatarPath(path) ?: return null
+    val base = runCatching { root.canonicalFile }.getOrNull() ?: return null
+    val file = runCatching { java.io.File(checked).canonicalFile }.getOrNull() ?: return null
+    if (!file.path.startsWith(base.path + java.io.File.separator) || !file.name.endsWith(".png")) return null
+    return file.takeIf { it.isFile }
   }
 }
 
