@@ -10384,7 +10384,9 @@ class BotRuntimeImplementation implements BotRuntime {
           WHERE bot_slug = ? AND reason IN ('assignment-report', 'assignment-lifecycle')
             AND attempt_state IN ('pending', 'retryable')
             AND source_event_id IN (SELECT source_event_id FROM source_events
-              WHERE bot_slug = ? AND assignment_session_id = ?)
+              WHERE bot_slug = ? AND assignment_session_id = ?
+                AND COALESCE(json_extract(payload_json, '$.assignmentLifecycle.cause'), '')
+                  NOT LIKE 'direct-%')
           RETURNING source_event_id`,
           )
           .all(at, botSlug, botSlug, sessionId) as unknown as Array<{

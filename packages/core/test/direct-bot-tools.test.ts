@@ -310,6 +310,7 @@ describe('direct Bot tool runner', () => {
       expect(requested.result).toMatchObject({ sessionId });
       expect(notices().map((notice) => notice.cause)).toEqual(['direct-create', 'direct-request']);
       expect(notices()[1]!.body).toContain('"Also list flaky tests."');
+      expect(notices().map((notice) => notice.attempt_state)).toEqual(['pending', 'pending']);
 
       const admission = runtime.admitDmMessage({
         channelId: dm.id,
