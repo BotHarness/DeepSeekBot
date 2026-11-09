@@ -12,6 +12,7 @@ import {
   type ConversationSnapshot,
 } from '../src/host/conversation';
 import {
+  genuiDocumentReply,
   GENUI_BRIDGE_BYTES,
   GENUI_FRAME_MAX_HEIGHT,
   genuiDocumentOf,
@@ -142,6 +143,58 @@ describe('GenUI documents in the native conversation', () => {
     );
     expect(purged.messages.find((message) => message.id === 'doc')?.genuiDocument).toBeUndefined();
     expect(view.getSnapshot()).toMatchObject({ available: false, state: initial });
+  });
+
+  it('sends a continuation as an ordinary Human message carrying the typed document reply', async () => {
+    const host = new FakeHost();
+    const channel = host.channel(DM);
+    channel.append(
+      {
+        id: 'doc',
+        body: 'Readable summary',
+        author: { kind: 'bot', slug: SLUG },
+        genui: syntheticGenuiDocument,
+      },
+      false,
+    );
+    const live = open(host);
+    await until(live, (s) => s.status === 'live' && s.messages.length === 1);
+    const initial = genuiDocumentView(syntheticGenuiDocument, DM, 'doc').getSnapshot().state;
+    const reply = genuiDocumentReply(syntheticGenuiDocument, 'doc', 'continue', {
+      ...initial,
+      values: { ...initial.values, selected: 'beta' },
+    });
+    const body = 'Continue with document “Synthetic project explorer” using my current view.';
+    const id = live.send(body, [], { genuiReply: reply });
+    const snapshot = await until(
+      live,
+      (s) => s.messages.find((message) => message.id === id)?.delivery === 'committed',
+    );
+    expect(snapshot.messages.find((message) => message.id === id)).toMatchObject({
+      author: 'human',
+      body,
+    });
+    const stored = channel.messages.find((message) => message.id === id);
+    expect(stored?.genuiReply).toEqual(reply);
+    expect(stored?.body).toBe(body);
+  });
+
+  it('builds a sorted, snapshot-bound reply and refuses invalid state', () => {
+    const initial = genuiDocumentView(syntheticGenuiDocument, DM, 'doc').getSnapshot().state;
+    const reply = genuiDocumentReply(syntheticGenuiDocument, 'doc', 'refresh', initial);
+    expect(reply).toMatchObject({
+      version: 2,
+      messageId: 'doc',
+      snapshotId: syntheticGenuiDocument.snapshotId,
+      intent: 'refresh',
+    });
+    expect(Object.keys(reply.state.values)).toEqual(Object.keys(reply.state.values).sort());
+    expect(() =>
+      genuiDocumentReply(syntheticGenuiDocument, 'doc', 'continue', {
+        ...initial,
+        values: { ...initial.values, sort: 'sideways' },
+      }),
+    ).toThrow();
   });
 
   it('accepts only valid version-2 documents', () => {

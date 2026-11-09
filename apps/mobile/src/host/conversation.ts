@@ -1,5 +1,5 @@
 import type { HostClient, RemoteSource } from './client';
-import { genuiDocumentOf, type GenuiDocument } from '../genui/document';
+import { genuiDocumentOf, type GenuiDocument, type GenuiDocumentReply } from '../genui/document';
 import { forgetGenuiDocumentViews } from '../genui/view';
 import { forgetMedia } from './media-cache';
 import { sessionFailure } from './session-failure';
@@ -324,6 +324,7 @@ export interface MessageTags {
   mentions?: WireMention[];
   allBotMention?: WireAllBotMention;
   replyTo?: string;
+  genuiReply?: GenuiDocumentReply;
 }
 
 interface Outgoing {
@@ -1212,6 +1213,7 @@ export function createConversation(options: ConversationOptions): Conversation {
           ? {}
           : { allBotMention: item.tags.allBotMention }),
         ...(item.tags.replyTo === undefined ? {} : { replyTo: item.tags.replyTo }),
+        ...(item.tags.genuiReply === undefined ? {} : { genuiReply: item.tags.genuiReply }),
       });
       accepted(item);
       if (outgoing.get(item.id) !== item) return;
