@@ -148,12 +148,26 @@ vi.mock('../src/ui/shell/recent-chats', () => ({
   useRecentChat: () => () => {},
 }));
 vi.mock('../src/host/native-source-drafts', async () => {
-  const { useState } = await import('react');
+  const { useRef, useState } = await import('react');
   return {
-    useSourceDraft: () => [
-      ...useState(''),
-      { loaded: true, failed: false, retry: async () => true },
-    ],
+    useSourceDraft: () => {
+      const [value, setValue] = useState('');
+      const live = useRef(value);
+      const set = (next: string) => {
+        live.current = next;
+        setValue(next);
+      };
+      const take = () => {
+        const text = live.current;
+        set('');
+        return text;
+      };
+      return [
+        value,
+        set,
+        { loaded: true, failed: false, retry: async () => true, read: () => live.current, take },
+      ];
+    },
   };
 });
 vi.mock('expo-router', () => ({

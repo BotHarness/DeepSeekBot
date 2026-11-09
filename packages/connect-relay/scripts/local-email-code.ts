@@ -25,7 +25,7 @@ const relay = createRelay({
   clientId: credential.clientId,
   zone: 'deepseekbot.dev',
   allowedUsers: [],
-  maxHosts: 5,
+  maxHosts: 3,
   maxTunnels: 900,
   reclaimAfterMs: 60_000,
   emailCode: createEmailCode({ apiKey: credential.apiKey, clientId: credential.clientId }),

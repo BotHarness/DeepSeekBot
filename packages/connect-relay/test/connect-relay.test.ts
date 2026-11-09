@@ -1,189 +1,18 @@
-import { readdirSync, readFileSync } from 'node:fs';
-import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
-
 import { describe, expect, it, vi } from 'vitest';
 
-import { createAccessTokenVerifier, type Jwk } from '../src/auth.js';
-import { createCloudflareApi, GATEWAY_PATH, type TunnelApi } from '../src/cloudflare.js';
-import type { D1Database, D1PreparedStatement, D1Value } from '../src/d1.js';
-import { createRelay, hmac, type RelayOptions } from '../src/relay.js';
+import { createAccessTokenVerifier } from '../src/auth.js';
+import { createCloudflareApi, GATEWAY_PATH } from '../src/cloudflare.js';
+import { hmac } from '../src/relay.js';
 import {
   marketplaceAuthorDeleter,
   workosSessionRevoker,
   workosUserDeleter,
 } from '../src/worker.js';
-
-const CLIENT_ID = 'client_01TEST';
-const ISSUER = `https://api.workos.com/user_management/${CLIENT_ID}`;
-
-function localD1(): D1Database {
-  const sqlite = new DatabaseSync(':memory:');
-  const migrations = new URL('../migrations/', import.meta.url);
-  for (const file of readdirSync(migrations).sort())
-    sqlite.exec(readFileSync(new URL(file, migrations), 'utf8'));
-  const statement = (query: string, values: D1Value[]): D1PreparedStatement => ({
-    bind: (...next) => statement(query, next),
-    first: <T>() =>
-      Promise.resolve(
-        (sqlite.prepare(query).get(...(values as SQLInputValue[])) ?? null) as T | null,
-      ),
-    all: <T>() =>
-      Promise.resolve({
-        results: sqlite.prepare(query).all(...(values as SQLInputValue[])) as T[],
-      }),
-    run: () => Promise.resolve(sqlite.prepare(query).run(...(values as SQLInputValue[]))),
-  });
-  return { prepare: (query) => statement(query, []) };
-}
-
-const encode = (value: unknown) =>
-  Buffer.from(typeof value === 'string' ? value : JSON.stringify(value)).toString('base64url');
-
-async function signer() {
-  const pair = (await crypto.subtle.generateKey(
-    {
-      name: 'RSASSA-PKCS1-v1_5',
-      modulusLength: 2048,
-      publicExponent: new Uint8Array([1, 0, 1]),
-      hash: 'SHA-256',
-    },
-    true,
-    ['sign', 'verify'],
-  )) as CryptoKeyPair;
-  const jwk = (await crypto.subtle.exportKey('jwk', pair.publicKey)) as Jwk;
-  const sign = async (claims: Record<string, unknown>, kid = 'key-1') => {
-    const body = `${encode({ alg: 'RS256', kid })}.${encode(claims)}`;
-    const signature = await crypto.subtle.sign(
-      'RSASSA-PKCS1-v1_5',
-      pair.privateKey,
-      new TextEncoder().encode(body),
-    );
-    return `${body}.${Buffer.from(signature).toString('base64url')}`;
-  };
-  return { keys: [{ ...jwk, kid: 'key-1', alg: 'RS256' }], sign };
-}
-
-class FakeTunnels implements TunnelApi {
-  tunnels = new Map<
-    string,
-    { name: string; status: string; inactiveSince?: string; ingress?: unknown }
-  >();
-  records = new Map<string, { name: string; target: string }>();
-  failCreate = false;
-  failDns = false;
-  listComplete = true;
-  listCalls = 0;
-  deleteCalls = 0;
-  #next = 0;
-  async createTunnel(name: string) {
-    if (this.failCreate) throw new Error('cloudflare down');
-    const id = `tunnel-${(this.#next += 1)}`;
-    this.tunnels.set(id, { name, status: 'inactive' });
-    return id;
-  }
-  async tunnelToken(tunnelId: string) {
-    return `token-for-${tunnelId}`;
-  }
-  async tunnelState(tunnelId: string) {
-    const tunnel = this.tunnels.get(tunnelId);
-    return (
-      tunnel && {
-        status: tunnel.status,
-        ...(tunnel.inactiveSince ? { inactiveSince: tunnel.inactiveSince } : {}),
-      }
-    );
-  }
-  async listTunnels() {
-    this.listCalls += 1;
-    const states = new Map<string, { status: string; inactiveSince?: string }>();
-    for (const [id, tunnel] of this.tunnels)
-      states.set(id, {
-        status: tunnel.status,
-        ...(tunnel.inactiveSince ? { inactiveSince: tunnel.inactiveSince } : {}),
-      });
-    return { states, complete: this.listComplete };
-  }
-  async configureIngress(tunnelId: string, hostname: string, originPort: number) {
-    const tunnel = this.tunnels.get(tunnelId);
-    if (tunnel) tunnel.ingress = { hostname, originPort };
-  }
-  async deleteTunnel(tunnelId: string) {
-    this.deleteCalls += 1;
-    this.tunnels.delete(tunnelId);
-  }
-  async pointHostname(hostname: string, tunnelId: string, recordId?: string) {
-    if (this.failDns) throw new Error('DNS unavailable');
-    const id = recordId && this.records.has(recordId) ? recordId : `record-${hostname}`;
-    this.records.set(id, { name: hostname, target: `${tunnelId}.cfargotunnel.com` });
-    return id;
-  }
-  async deleteRecord(recordId: string) {
-    this.records.delete(recordId);
-  }
-}
-
-const BASE32 = 'abcdefghijklmnopqrstuvwxyz234567';
-
-async function setup(
-  allowedUsers: string[] = ['user_alice', 'user_bob'],
-  extra: Partial<RelayOptions> = {},
-) {
-  const { keys, sign } = await signer();
-  let clock = Date.parse('2026-10-20T12:00:00Z');
-  let ids = 0;
-  const tunnels = new FakeTunnels();
-  const relay = createRelay({
-    db: localD1(),
-    verifier: createAccessTokenVerifier({
-      clientId: CLIENT_ID,
-      keys: async () => keys,
-      now: () => clock,
-    }),
-    tunnels,
-    clientId: CLIENT_ID,
-    zone: 'deepseekbot.dev',
-    allowedUsers,
-    maxHosts: 5,
-    maxTunnels: 900,
-    reclaimAfterMs: 5 * 60 * 1000,
-    now: () => new Date(clock),
-    hostId: () => {
-      ids += 1;
-      return `haaaaaaaaaa${BASE32[Math.floor(ids / 32)]}${BASE32[ids % 32]}`;
-    },
-    ...extra,
-  });
-  const tokenFor = (sub: string, claims: Record<string, unknown> = {}) =>
-    sign({ sub, iss: ISSUER, exp: clock / 1000 + 300, ...claims });
-  const call = async (
-    method: string,
-    path: string,
-    options: { as?: string; token?: string; body?: unknown } = {},
-  ) => {
-    const token = options.token ?? (options.as ? await tokenFor(options.as) : undefined);
-    const response = await relay.fetch(
-      new Request(`https://connect.botharness.ai${path}`, {
-        method,
-        headers: token ? { authorization: `Bearer ${token}` } : {},
-        ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
-      }),
-    );
-    return { status: response.status, body: (await response.json()) as Record<string, any> };
-  };
-  return {
-    relay,
-    tunnels,
-    sign,
-    tokenFor,
-    call,
-    advance: (ms: number) => (clock += ms),
-    at: () => new Date(clock).toISOString(),
-  };
-}
+import { CLIENT_ID, encode, ISSUER, setup, signer } from './support.js';
 
 describe('partial tunnel provisioning recovery', () => {
   it.each([false, true])(
-    'repairs DNS before returning a connector token (repoint=%s)',
+    'never leaves a tunnel without DNS when the record fails (repoint=%s)',
     async (repoint) => {
       const { call, tunnels } = await setup();
       const registered = await call('POST', '/v1/hosts', {
@@ -203,16 +32,17 @@ describe('partial tunnel provisioning recovery', () => {
       tunnels.failDns = true;
       expect((await provision()).status).toBe(502);
       expect((await provision()).status).toBe(502);
+      expect(tunnels.tunnels.size).toBe(0);
+      expect((await call('GET', '/v1/hosts', { as: 'user_alice' })).body.hosts[0].tunnel).toBe(
+        false,
+      );
+      tunnels.failDns = false;
+      const done = await provision();
+      expect(done.status).toBe(200);
       expect(tunnels.tunnels.size).toBe(1);
       const tunnelId = [...tunnels.tunnels.keys()][0]!;
-      tunnels.failDns = false;
-      expect((await provision()).status).toBe(200);
-      expect([...tunnels.tunnels.keys()]).toEqual([tunnelId]);
-      expect([...tunnels.records.values()]).toEqual([
-        {
-          name: `${id}.deepseekbot.dev`,
-          target: `${tunnelId}.cfargotunnel.com`,
-        },
+      expect([...tunnels.records.values()].map(({ name, target }) => ({ name, target }))).toEqual([
+        { name: `${id}.deepseekbot.dev`, target: `${tunnelId}.cfargotunnel.com` },
       ]);
       expect(tunnels.tunnels.get(tunnelId)?.ingress).toEqual({
         hostname: `${id}.deepseekbot.dev`,
@@ -400,6 +230,7 @@ describe('Connect relay accounts', () => {
         deviceAuthorizationEndpoint: 'https://api.workos.com/user_management/authorize/device',
         tokenEndpoint: 'https://api.workos.com/user_management/authenticate',
         zone: 'deepseekbot.dev',
+        zones: ['deepseekbot.dev'],
       },
     });
   });
@@ -434,17 +265,20 @@ describe('Connect relay accounts', () => {
     });
     expect(await call('GET', '/v1/hosts', { as: 'user_alice' })).toEqual({
       status: 200,
-      body: { hosts: [] },
+      body: {
+        hosts: [],
+        pool: { capacity: 195, inUse: 0, free: 195, waiting: 0, guaranteedMinutes: 30 },
+      },
     });
     const open = await setup([]);
-    expect(await open.call('GET', '/v1/hosts', { as: 'user_mallory' })).toEqual({
+    expect(await open.call('GET', '/v1/hosts', { as: 'user_mallory' })).toMatchObject({
       status: 200,
       body: { hosts: [] },
     });
   });
 
-  it('links at most five Hosts per account and keeps accounts apart', async () => {
-    const { call } = await setup();
+  it('links at most three Hosts per account and keeps accounts apart', async () => {
+    const { call } = await setup(undefined, { maxHosts: 3 });
     expect((await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: '' } })).status).toBe(
       400,
     );
@@ -459,16 +293,19 @@ describe('Connect relay accounts', () => {
           createdAt: '2026-10-20T12:00:00.000Z',
           tunnel: false,
           sessionKnown: false,
+          state: 'offline',
         },
       },
     });
-    for (let index = 0; index < 4; index += 1)
+    for (let index = 0; index < 2; index += 1)
       await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: `Host ${index}` } });
-    expect(await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Sixth' } })).toEqual({
-      status: 409,
-      body: { error: { code: 'host-limit' } },
-    });
-    expect((await call('GET', '/v1/hosts', { as: 'user_alice' })).body['hosts']).toHaveLength(5);
+    expect(await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Fourth' } })).toEqual(
+      {
+        status: 409,
+        body: { error: { code: 'host-limit' } },
+      },
+    );
+    expect((await call('GET', '/v1/hosts', { as: 'user_alice' })).body['hosts']).toHaveLength(3);
     expect(await call('GET', '/v1/hosts', { as: 'user_bob' })).toMatchObject({
       body: { hosts: [] },
     });
@@ -603,7 +440,7 @@ describe('Connect relay tunnels', () => {
       name: 'dsb-haaaaaaaaaaab',
       ingress: { hostname: 'haaaaaaaaaaab.deepseekbot.dev', originPort: 41001 },
     });
-    expect([...tunnels.records.values()]).toEqual([
+    expect([...tunnels.records.values()]).toMatchObject([
       { name: 'haaaaaaaaaaab.deepseekbot.dev', target: 'tunnel-1.cfargotunnel.com' },
     ]);
     const again = await call('POST', '/v1/hosts/haaaaaaaaaaab/tunnel', {
@@ -618,8 +455,8 @@ describe('Connect relay tunnels', () => {
     });
   });
 
-  it('lists a Host as connected only while its tunnel has live connections', async () => {
-    const { call, tunnels } = await setup();
+  it('lists a Host as connected from the cached tunnel status without calling Cloudflare', async () => {
+    const { call, relay, tunnels } = await setup();
     await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Studio' } });
     await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Laptop' } });
     const listed = async () => (await call('GET', '/v1/hosts', { as: 'user_alice' })).body['hosts'];
@@ -630,14 +467,13 @@ describe('Connect relay tunnels', () => {
     });
     expect((await listed())[0]).toMatchObject({ tunnel: true, connected: false });
     tunnels.tunnels.get('tunnel-1')!.status = 'healthy';
-    expect((await listed())[0]).toMatchObject({ tunnel: true, connected: true });
-    tunnels.tunnelState = async () => {
-      throw new Error('cloudflare down');
-    };
-    const fallback = await listed();
-    expect(fallback[0]).toMatchObject({ tunnel: true });
-    expect(fallback[0]).not.toHaveProperty('connected');
-    expect(fallback[1]).toMatchObject({ tunnel: false });
+    await relay.reclaim();
+    const calls = tunnels.apiCalls;
+    const after = await listed();
+    expect(after[0]).toMatchObject({ tunnel: true, connected: true });
+    expect(after[1]).toMatchObject({ tunnel: false });
+    expect(after[1]).not.toHaveProperty('connected');
+    expect(tunnels.apiCalls).toBe(calls);
   });
 
   it('reclaims tunnels left offline and recreates them on the same hostname', async () => {
@@ -654,10 +490,10 @@ describe('Connect relay tunnels', () => {
     });
     const online = tunnels.tunnels.get('tunnel-1');
     if (online) online.status = 'healthy';
-    expect(await relay.reclaim()).toEqual({ reclaimed: [] });
+    expect((await relay.reclaim()).reclaimed).toEqual([]);
 
     advance(6 * 60 * 1000);
-    expect(await relay.reclaim()).toEqual({ reclaimed: ['haaaaaaaaaaac'] });
+    expect((await relay.reclaim()).reclaimed).toEqual(['haaaaaaaaaaac']);
     expect([...tunnels.tunnels.keys()]).toEqual(['tunnel-1']);
 
     if (online) {
@@ -665,9 +501,9 @@ describe('Connect relay tunnels', () => {
       online.inactiveSince = at();
     }
     advance(60 * 1000);
-    expect(await relay.reclaim()).toEqual({ reclaimed: [] });
+    expect((await relay.reclaim()).reclaimed).toEqual([]);
     advance(5 * 60 * 1000);
-    expect(await relay.reclaim()).toEqual({ reclaimed: ['haaaaaaaaaaab'] });
+    expect((await relay.reclaim()).reclaimed).toEqual(['haaaaaaaaaaab']);
     expect(tunnels.tunnels.size).toBe(0);
 
     const back = await call('POST', '/v1/hosts/haaaaaaaaaaab/tunnel', {
@@ -678,11 +514,10 @@ describe('Connect relay tunnels', () => {
       hostname: 'haaaaaaaaaaab.deepseekbot.dev',
       token: 'token-for-tunnel-3',
     });
-    expect(tunnels.records.get('record-haaaaaaaaaaab.deepseekbot.dev')).toEqual({
-      name: 'haaaaaaaaaaab.deepseekbot.dev',
+    expect(tunnels.recordFor('haaaaaaaaaaab.deepseekbot.dev')).toMatchObject({
       target: 'tunnel-3.cfargotunnel.com',
     });
-    expect(tunnels.records.size).toBe(2);
+    expect(tunnels.records.size).toBe(1);
   });
 
   it('forgets a tunnel deleted outside the relay and unlinks Hosts with their DNS', async () => {
@@ -693,12 +528,14 @@ describe('Connect relay tunnels', () => {
       body: { originPort: 41001 },
     });
     tunnels.tunnels.delete('tunnel-1');
-    expect(await relay.reclaim()).toEqual({ reclaimed: [] });
+    expect((await relay.reclaim()).reclaimed).toEqual([]);
     advance(6 * 60 * 1000);
     tunnels.listComplete = false;
-    expect(await relay.reclaim()).toEqual({ reclaimed: [] });
+    expect((await relay.reclaim()).vanished).toEqual([]);
     tunnels.listComplete = true;
-    expect(await relay.reclaim()).toEqual({ reclaimed: ['haaaaaaaaaaab'] });
+    const forgotten = await relay.reclaim();
+    expect(forgotten.vanished).toEqual(['haaaaaaaaaaab']);
+    expect(tunnels.records.size).toBe(0);
     await call('POST', '/v1/hosts/haaaaaaaaaaab/tunnel', {
       as: 'user_alice',
       body: { originPort: 41001 },
@@ -741,17 +578,21 @@ describe('Connect relay tunnels', () => {
         if (unavailable && stage === 'tunnel') throw new Error('synthetic tunnel failure');
         await deleteTunnel(tunnelId);
       };
-      tunnels.deleteRecord = async (recordId) => {
+      tunnels.deleteRecord = async (zone, recordId) => {
         if (unavailable && stage === 'dns') throw new Error('synthetic DNS failure');
-        await deleteRecord(recordId);
+        await deleteRecord(zone, recordId);
       };
 
       expect(await call('DELETE', target, { as: 'user_alice' })).toEqual({
         status: 502,
         body: { error: { code: 'upstream-unavailable' } },
       });
-      expect(await call('GET', '/v1/hosts', { as: 'user_alice' })).toEqual(aliceBefore);
-      expect(await call('GET', '/v1/hosts', { as: 'user_bob' })).toEqual(bobBefore);
+      expect((await call('GET', '/v1/hosts', { as: 'user_alice' })).body.hosts).toEqual(
+        aliceBefore.body.hosts,
+      );
+      expect((await call('GET', '/v1/hosts', { as: 'user_bob' })).body.hosts).toEqual(
+        bobBefore.body.hosts,
+      );
       expect(tunnels.tunnels.has('tunnel-1')).toBe(stage === 'tunnel');
       expect(tunnels.records.size).toBe(3);
 
@@ -763,7 +604,9 @@ describe('Connect relay tunnels', () => {
       expect((await call('GET', '/v1/hosts', { as: 'user_alice' })).body.hosts).toEqual([
         aliceBefore.body.hosts[1],
       ]);
-      expect(await call('GET', '/v1/hosts', { as: 'user_bob' })).toEqual(bobBefore);
+      expect((await call('GET', '/v1/hosts', { as: 'user_bob' })).body.hosts).toEqual(
+        bobBefore.body.hosts,
+      );
       expect([...tunnels.tunnels.keys()]).toEqual(['tunnel-2', 'tunnel-3']);
       expect([...tunnels.records.values()].map((record) => record.target)).toEqual([
         'tunnel-2.cfargotunnel.com',
@@ -817,7 +660,7 @@ describe('Connect relay tunnels', () => {
     expect(attempts).toBeLessThanOrEqual(15);
   });
 
-  it('lists tunnels once per run and reclaims at most fifteen', async () => {
+  it('lists tunnels once per run and stays within the call budget', async () => {
     const accounts = ['user_a', 'user_b', 'user_c', 'user_d'];
     const { call, relay, tunnels, advance } = await setup(accounts);
     for (const account of accounts)
@@ -831,13 +674,18 @@ describe('Connect relay tunnels', () => {
     expect(tunnels.tunnels.size).toBe(20);
     tunnels.listCalls = 0;
     advance(6 * 60 * 1000);
-    expect((await relay.reclaim()).reclaimed).toHaveLength(15);
-    expect([tunnels.listCalls, tunnels.deleteCalls, tunnels.tunnels.size]).toEqual([1, 15, 5]);
-    expect((await relay.reclaim()).reclaimed).toHaveLength(5);
+    const before = tunnels.apiCalls;
+    const first = await relay.reclaim();
+    expect(first.reclaimed).toHaveLength(10);
+    expect(first.budgetExhausted).toBe(true);
+    expect([tunnels.listCalls, tunnels.deleteCalls, tunnels.tunnels.size]).toEqual([1, 10, 10]);
+    expect(tunnels.apiCalls - before).toBeLessThanOrEqual(2 + 30);
+    expect((await relay.reclaim()).reclaimed).toHaveLength(10);
     expect(tunnels.tunnels.size).toBe(0);
+    expect(tunnels.records.size).toBe(0);
     tunnels.listCalls = 0;
-    expect(await relay.reclaim()).toEqual({ reclaimed: [] });
-    expect(tunnels.listCalls).toBe(0);
+    expect((await relay.reclaim()).reclaimed).toEqual([]);
+    expect(tunnels.listCalls).toBe(1);
   });
 
   it('reports Cloudflare failures without leaving a half-linked tunnel', async () => {
@@ -866,7 +714,7 @@ describe('Connect relay tunnels', () => {
     const tunnel = (path: string, as: string) =>
       call('POST', `/v1/hosts/${path}/tunnel`, { as, body: { originPort: 41001 } });
     expect((await tunnel('haaaaaaaaaaab', 'user_alice')).status).toBe(200);
-    expect(await tunnel('haaaaaaaaaaac', 'user_bob')).toEqual({
+    expect(await tunnel('haaaaaaaaaaac', 'user_bob')).toMatchObject({
       status: 503,
       body: { error: { code: 'relay-full' } },
     });
@@ -988,7 +836,7 @@ describe('Cloudflare API client', () => {
       const api = createCloudflareApi({
         token: 'private-token',
         accountId: 'private-account',
-        zoneId: 'private-zone',
+        zones: [{ name: 'deepseekbot.dev', id: 'private-zone' }],
         fetcher: async () =>
           Response.json(
             {
@@ -997,14 +845,16 @@ describe('Cloudflare API client', () => {
                 null,
                 'private-text',
                 { code: 'private-code' },
-                { code: 81057, message: 'private-hostname' },
+                { code: 1004, message: 'private-hostname' },
                 ...Array.from({ length: 20 }, () => ({ code: 10000 })),
               ],
             },
             { status: 403 },
           ),
       });
-      await expect(api.pointHostname('private-hostname', 'private-tunnel')).rejects.toMatchObject({
+      await expect(
+        api.pointHostname('deepseekbot.dev', 'private-hostname', 'private-tunnel'),
+      ).rejects.toMatchObject({
         status: 403,
       });
       expect(warn.mock.calls).toEqual([
@@ -1014,7 +864,7 @@ describe('Cloudflare API client', () => {
             method: 'POST',
             resource: 'dns',
             status: 403,
-            codes: [81057, 10000, 10000, 10000, 10000, 10000, 10000, 10000],
+            codes: [1004, 10000, 10000, 10000, 10000, 10000, 10000, 10000],
           }),
         ],
       ]);
@@ -1035,7 +885,7 @@ describe('Cloudflare API client', () => {
       const api = createCloudflareApi({
         token: 'cf-token',
         accountId: 'acct',
-        zoneId: 'zone',
+        zones: [{ name: 'deepseekbot.dev', id: 'zone' }],
         fetcher: async (input, init) => {
           const requestPath = new URL(String(input)).pathname.replace('/client/v4', '');
           requests.push(`${init?.method} ${requestPath}`);
@@ -1044,7 +894,9 @@ describe('Cloudflare API client', () => {
         },
       });
       const remove = () =>
-        stage === 'dns' ? api.deleteRecord('target') : api.deleteTunnel('target');
+        stage === 'dns'
+          ? api.deleteRecord('deepseekbot.dev', 'target')
+          : api.deleteTunnel('target');
       await expect(remove()).rejects.toMatchObject({ status: 503 });
       const expectedRequestsUntilFailure =
         stage === 'dns'
@@ -1082,7 +934,7 @@ describe('Cloudflare API client', () => {
     const api = createCloudflareApi({
       token: 'cf-token',
       accountId: 'acct',
-      zoneId: 'zone',
+      zones: [{ name: 'deepseekbot.dev', id: 'zone' }],
       fetcher: async (input) => {
         const url = new URL(String(input));
         urls.push(`${url.pathname}${url.search}`);
@@ -1108,12 +960,12 @@ describe('Cloudflare API client', () => {
       complete: true,
     });
     expect(urls[0]).toBe(
-      '/client/v4/accounts/acct/cfd_tunnel?is_deleted=false&per_page=100&page=1',
+      '/client/v4/accounts/acct/cfd_tunnel?is_deleted=false&per_page=1000&page=1',
     );
     urls.length = 0;
     pages.total = 30;
     expect((await api.listTunnels()).complete).toBe(false);
-    expect(urls).toHaveLength(10);
+    expect(urls).toHaveLength(3);
   });
 
   it('limits the remote ingress to the device gateway and authenticates with the token', async () => {
@@ -1121,7 +973,7 @@ describe('Cloudflare API client', () => {
     const api = createCloudflareApi({
       token: 'cf-token',
       accountId: 'acct',
-      zoneId: 'zone',
+      zones: [{ name: 'deepseekbot.dev', id: 'zone' }],
       fetcher: async (input, init) => {
         requests.push({
           method: init?.method ?? 'GET',
@@ -1154,7 +1006,9 @@ describe('Cloudflare API client', () => {
     });
     expect(new RegExp(GATEWAY_PATH).test('/botharness-device/pair')).toBe(true);
     expect(new RegExp(GATEWAY_PATH).test('/api/botharness/devices')).toBe(false);
-    expect(await api.pointHostname('hx.deepseekbot.dev', 'tid', 'gone')).toBe('new-record');
+    expect(await api.pointHostname('deepseekbot.dev', 'hx.deepseekbot.dev', 'tid', 'gone')).toBe(
+      'new-record',
+    );
     expect(requests.slice(1).map((request) => `${request.method} ${request.url}`)).toEqual([
       'PUT https://api.cloudflare.com/client/v4/zones/zone/dns_records/gone',
       'POST https://api.cloudflare.com/client/v4/zones/zone/dns_records',

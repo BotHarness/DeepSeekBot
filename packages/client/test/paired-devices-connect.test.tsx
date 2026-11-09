@@ -97,8 +97,17 @@ it('signs in, shows the code to confirm, then the connected address', async () =
   expect(button('登录')).toBeUndefined();
   expect(host.querySelector('[data-connect-code]')?.textContent).toContain('KQXP-7HMD');
   expect(host.querySelector('[data-connect-switch]')?.textContent).toBe(
-    `${zhTranslate('devices.connect.switchAccount')} https://auth.example/device?code=KQXP-7HMD`,
+    zhTranslate('devices.connect.switchAccount'),
   );
+  const writeText = vi.fn(async () => undefined);
+  Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+  const chip = host.querySelector<HTMLButtonElement>('[data-connect-copy]');
+  expect(chip?.getAttribute('aria-label')).toBe(zhTranslate('devices.connect.copyLink'));
+  expect(chip?.textContent).toContain('https://auth.example/device?code=KQXP-7HMD');
+  await act(async () => chip?.click());
+  expect(writeText).toHaveBeenCalledWith('https://auth.example/device?code=KQXP-7HMD');
+  expect(chip?.getAttribute('data-connect-copy')).toBe('copied');
+  expect(chip?.textContent).toContain(zhTranslate('devices.connect.copied'));
   const open = vi.spyOn(window, 'open').mockReturnValue(null);
   await act(async () => button('打开登录页')?.click());
   expect(open).toHaveBeenCalledWith(
@@ -113,9 +122,12 @@ it('signs in, shows the code to confirm, then the connected address', async () =
     account: { state: 'signed-in', email: 'vain@example.com' },
   });
   await render();
+  expect(host.querySelector('[data-connect-email]')).toBeNull();
+  expect(host.textContent).not.toContain('hk7q2mstudio3.deepseekbot.dev');
+  await act(async () => host.querySelector<HTMLButtonElement>('[data-connect-manage]')?.click());
   expect(host.querySelector('[data-connect-email]')?.textContent).toBe('vain@example.com');
-  expect(host.querySelector('[data-connect-account]')?.textContent).toContain('不是你？');
-  expect(host.querySelector('[data-connect-tunnel]')?.textContent).toContain(
+  expect(host.textContent).toContain('不是你？');
+  expect(host.querySelector('[data-connect-address]')?.textContent).toContain(
     'hk7q2mstudio3.deepseekbot.dev',
   );
   expect(host.querySelector('[data-connect-tunnel]')?.getAttribute('data-connect-tunnel')).toBe(
@@ -133,6 +145,19 @@ it('explains a refused account', async () => {
     zhTranslate('devices.connect.notAllowed'),
   );
   expect(button('登录')).toBeDefined();
+});
+
+it('opens the linked computers when the account already has three', async () => {
+  snapshot = devices({
+    state: 'off',
+    account: { state: 'error', issue: 'host-limit', email: 'qa@example.com' },
+  });
+  await render();
+  expect(host.querySelector('[data-connect-issue]')?.textContent).toBe(
+    '这个账号已关联 3 台电脑，请在下方退出另一台电脑的登录。',
+  );
+  expect(host.querySelector('[data-connect-manage]')?.getAttribute('aria-expanded')).toBe('true');
+  expect(host.querySelector('[data-connect-email]')?.textContent).toBe('qa@example.com');
 });
 
 it.each(['sign-in', undefined] as const)(
@@ -172,6 +197,76 @@ it('explains automatic recovery only when the Host can resume the saved session'
   expect(host.querySelector('[data-connect-issue]')?.textContent).toBe(
     zhTranslate('devices.connect.relayDown'),
   );
+});
+
+it('tells a waiting computer its place in line, the pool and what frees a tunnel', async () => {
+  snapshot = devices({
+    state: 'off',
+    account: {
+      state: 'error',
+      issue: 'relay-full',
+      recovery: 'automatic',
+      email: 'vain@example.com',
+      wait: { reason: 'pool-full', position: 2, since: '2026-11-09T08:00:00.000Z' },
+      pool: {
+        capacity: 1000,
+        inUse: 1000,
+        free: 0,
+        waiting: 3,
+        nextFreeAt: '2026-11-09T08:30:00.000Z',
+        guaranteedMinutes: 30,
+      },
+    },
+  });
+  await render();
+  expect(host.querySelector('[data-connect-eta]')?.textContent).toContain('最早');
+  expect(host.textContent).toContain(zhTranslate('devices.connect.poolRule', { minutes: 30 }));
+  const wait = host.querySelector('[data-connect-wait="pool-full"]');
+  expect(wait?.textContent).toContain(zhTranslate('devices.connect.full.queued', { position: 2 }));
+  expect(wait?.textContent).toContain('开始等待');
+  expect(host.querySelector('[data-connect-pool]')?.textContent).toBe(
+    zhTranslate('devices.connect.pool', { capacity: 1000, inUse: 1000, free: 0, waiting: 3 }),
+  );
+  expect(host.querySelector('[data-connect-protected]')).toBeNull();
+  expect(host.querySelector('[data-connect-email]')).toBeNull();
+  await act(async () => host.querySelector<HTMLButtonElement>('[data-connect-manage]')?.click());
+  expect(host.querySelector('[data-connect-email]')?.textContent).toBe('vain@example.com');
+  expect(button(zhTranslate('devices.connect.signIn'))).toBeUndefined();
+  expect(host.querySelector('[data-connect-issue]')).toBeNull();
+});
+
+it('shows shared tunnel usage once connected', async () => {
+  snapshot = devices({
+    state: 'connected',
+    hostname: 'habcdefghijkl.deepseekbot.dev',
+    account: {
+      state: 'signed-in',
+      email: 'vain@example.com',
+      pool: { capacity: 1000, inUse: 412, free: 588, waiting: 0 },
+    },
+  });
+  await render();
+  expect(host.querySelector('[data-connect-pool]')?.textContent).toBe(
+    zhTranslate('devices.connect.pool', { capacity: 1000, inUse: 412, free: 588, waiting: 0 }),
+  );
+  expect(host.textContent).not.toContain(zhTranslate('devices.connect.poolRule', { minutes: 30 }));
+  expect(host.querySelector('[data-connect-protected]')).toBeNull();
+});
+
+it('warns a connected computer how long its tunnel is kept while others wait', async () => {
+  snapshot = devices({
+    state: 'connected',
+    hostname: 'habcdefghijkl.deepseekbot.dev',
+    account: {
+      state: 'signed-in',
+      email: 'vain@example.com',
+      protectedUntil: '2026-11-09T09:00:00.000Z',
+      pool: { capacity: 1000, inUse: 1000, free: 0, waiting: 2, guaranteedMinutes: 30 },
+    },
+  });
+  await render();
+  expect(host.querySelector('[data-connect-protected]')?.textContent).toContain('至少保留到');
+  expect(host.textContent).toContain(zhTranslate('devices.connect.poolRule', { minutes: 30 }));
 });
 
 it('marks a device paired in the last day so a stranger stands out', async () => {
