@@ -19,6 +19,11 @@ export type CallActivityProps = {
   muted: boolean;
   locale: 'en' | 'zh';
   palette?: CallActivityPalette | undefined;
+  avatar?: string | undefined;
+  avatarColor?: string | undefined;
+  avatarInk?: string | undefined;
+  badge?: string | undefined;
+  badgeDark?: string | undefined;
 };
 
 export function callToneColor(color: CallActivityPalette, tone: CallBubbleTone): string {
@@ -97,6 +102,11 @@ const same = (a: CallActivityProps, b: CallActivityProps) =>
   a.startedAt === b.startedAt &&
   a.muted === b.muted &&
   a.locale === b.locale &&
+  a.avatar === b.avatar &&
+  a.avatarColor === b.avatarColor &&
+  a.avatarInk === b.avatarInk &&
+  a.badge === b.badge &&
+  a.badgeDark === b.badgeDark &&
   samePalette(a.palette, b.palette);
 
 const samePalette = (a: CallActivityPalette | undefined, b: CallActivityPalette | undefined) =>

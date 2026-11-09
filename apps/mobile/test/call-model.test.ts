@@ -38,6 +38,7 @@ const live = (patch: Partial<VoiceCallView> = {}, extra: Partial<CallClientState
     events: [],
     muted: false,
     reconnecting: false,
+    syncedAt: 50_000,
     ...extra,
   }) as CallClientState;
 
@@ -69,6 +70,14 @@ describe('call screen model', () => {
     expect(
       callScreenModel(en, live({ durationMs: 20_000 }, { events } as never)).hint,
     ).toBeUndefined();
+  });
+
+  it('expires a hint on the phone clock between Host updates', () => {
+    const events = [{ seq: 3, at: 9_000, type: 'nothing-heard' as const }];
+    const state = live({}, { events } as never);
+    expect(callScreenModel(en, state, { now: 52_000 }).hint).toBe('Didn’t catch that. Try again.');
+    expect(callScreenModel(en, state, { now: 54_500 }).hint).toBeUndefined();
+    expect(callScreenModel(en, state, { now: 40_000 }).hint).toBe('Didn’t catch that. Try again.');
   });
 
   it('shows live text while speaking, then the sent text for a few seconds', () => {

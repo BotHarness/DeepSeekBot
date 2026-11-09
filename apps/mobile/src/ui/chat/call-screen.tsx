@@ -11,6 +11,7 @@ import {
 import { openCallOverlaySettings } from '../../host/call-notice';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { callAudioPreference } from '../../host/native-call-audio-route';
+import { useAppActive } from '../app-active';
 import { BotAvatar } from '../bot-avatar';
 import { radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
@@ -78,7 +79,8 @@ export function CallScreen({
   );
 
   const state = session?.state ?? { status: 'idle' as const };
-  const ticking = state.status === 'live';
+  const appActive = useAppActive();
+  const ticking = state.status === 'live' && appActive;
   useFocusEffect(
     useCallback(() => {
       if (!ticking) return;
@@ -99,6 +101,7 @@ export function CallScreen({
   const microphone = session?.microphone;
   const model = callScreenModel(t, state, {
     interrupted: session?.interrupted === true,
+    now,
   });
   const recovery = microphoneRecovery(t, microphone);
   const camera = session?.camera;

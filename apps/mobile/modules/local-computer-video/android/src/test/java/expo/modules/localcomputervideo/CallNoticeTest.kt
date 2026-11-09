@@ -39,6 +39,21 @@ class CallNoticeTest {
     assertNull(CallNotice.from(valid + ("status" to "x".repeat(301))))
   }
 
+  @Test fun breathesOnlyWhileTheBotSpeaksOrHearsYou() {
+    for (tone in CallNotice.tones) {
+      assertEquals(tone, tone == "speaking" || tone == "hearing", CallRingBreath.breathes(tone, animationsOn = true))
+      assertFalse("system animations off keeps $tone still", CallRingBreath.breathes(tone, animationsOn = false))
+    }
+  }
+
+  @Test fun breathesBetweenFullAndFaintRing() {
+    assertEquals(255, CallRingBreath.alpha(0f))
+    assertEquals((255 * CallRingBreath.MIN_ALPHA).toInt(), CallRingBreath.alpha(1f))
+    assertEquals(255, CallRingBreath.alpha(-1f))
+    assertTrue(CallRingBreath.alpha(0.5f) in CallRingBreath.alpha(1f)..CallRingBreath.alpha(0f))
+    assertEquals(1400L, CallRingBreath.PERIOD_MS)
+  }
+
   @Test fun treatsAMissingStartAsNotLive() {
     assertNull(CallNotice.from(valid - "startedAt")!!.startedAt)
     assertNull(CallNotice.from(valid + ("startedAt" to 0))!!.startedAt)

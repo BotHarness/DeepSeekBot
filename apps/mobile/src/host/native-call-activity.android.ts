@@ -1,4 +1,7 @@
 import { requireOptionalNativeModule } from 'expo';
+import { AppRegistry } from 'react-native';
+
+import { holdCallBackgroundTask } from './call-background-task';
 
 import {
   callNotice,
@@ -10,8 +13,10 @@ import {
 type Subscription = { remove(): void };
 
 interface CallNoticeModule {
+  callBackgroundToken?(): string | null;
   callNoticeShow(notice: ReturnType<typeof callNotice>): Promise<boolean>;
   callNoticeEnd(): Promise<void>;
+  addListener(event: 'onCallBackground', listener: () => void): Subscription;
   addListener(
     event: 'onCallAction',
     listener: (event: { action: CallActivityAction }) => void,
@@ -23,6 +28,21 @@ const module =
   native !== null && typeof (native as Partial<CallNoticeModule>).callNoticeShow === 'function'
     ? native
     : undefined;
+
+if (module?.callBackgroundToken !== undefined) {
+  const callModule = module;
+  AppRegistry.registerHeadlessTask(
+    'BotharnessCall',
+    () => (data: { token?: unknown }) =>
+      holdCallBackgroundTask(data.token, {
+        token: () => callModule.callBackgroundToken?.() ?? null,
+        subscribe: (changed) => {
+          const subscription = callModule.addListener('onCallBackground', changed);
+          return () => subscription.remove();
+        },
+      }),
+  );
+}
 
 const show = async (props: CallActivityProps) =>
   module !== undefined &&

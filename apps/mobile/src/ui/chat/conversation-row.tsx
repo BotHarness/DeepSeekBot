@@ -68,7 +68,8 @@ export function ConversationRow({
     call === undefined ? previewText(latest, copy) : callRecordPreview(call, copy.call);
   const badge = countBadge(row);
   const time = shortTime(row.at ?? row.createdAt, now);
-  const description = rowLabel(row, title, status, preview);
+  const summary = rowLabel(row, title, status, preview);
+  const description = time === '' ? summary : `${summary}, ${time}`;
   const label = sourceLabel ? `${description}, ${sourceLabel}` : description;
   const act = onAction ?? (() => undefined);
   const availableActions = onAction ? actions : [];
