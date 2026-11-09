@@ -185,6 +185,9 @@ export async function runDevicesCommand(
       ...(pendingKeys === undefined ? {} : { pendingKeys }),
       routes: snapshot['routes'],
       ...(snapshot['privateRelay'] === undefined ? {} : { privateRelay: snapshot['privateRelay'] }),
+      ...(snapshot['privateTunnel'] === undefined
+        ? {}
+        : { privateTunnel: snapshot['privateTunnel'] }),
       ...(snapshot['lan'] === undefined ? {} : { lan: snapshot['lan'] }),
       ...(snapshot['lanBots'] === undefined ? {} : { lanBots: snapshot['lanBots'] }),
     };

@@ -31,6 +31,52 @@ describe('connect CLI', () => {
     });
     expect(JSON.stringify(result)).not.toContain('a'.repeat(64));
   });
+  it('enables a Quick or Named private tunnel only with --confirm and reads the token from stdin', async () => {
+    const http = vi.fn(async () => reply({ ok: true, status: { state: 'starting' } }));
+    const connect = vi.fn(async () => ({ http }));
+    for (const values of [
+      { quick: true },
+      { quick: true, hostname: 'bot.example.com', confirm: true },
+      { hostname: 'bot.example.com', confirm: true },
+      { confirm: true },
+    ])
+      await expect(
+        runConnectCommand('private-tunnel-enable', [], values, {}, connect),
+      ).rejects.toMatchObject({ code: 'usage' });
+    expect(connect).not.toHaveBeenCalled();
+    await runConnectCommand(
+      'private-tunnel-enable',
+      [],
+      { quick: true, confirm: true },
+      {},
+      connect,
+    );
+    expect(http).toHaveBeenLastCalledWith('/api/botharness/devices/private-tunnel', {
+      action: 'enable',
+      mode: 'quick',
+      confirm: true,
+    });
+    const result = await runConnectCommand(
+      'private-tunnel-enable',
+      [],
+      { hostname: 'bot.example.com', 'token-stdin': true, confirm: true },
+      { readStdin: async () => ' connector-token \n' },
+      connect,
+    );
+    expect(http).toHaveBeenLastCalledWith('/api/botharness/devices/private-tunnel', {
+      action: 'enable',
+      mode: 'named',
+      hostname: 'bot.example.com',
+      token: 'connector-token',
+      confirm: true,
+    });
+    expect(JSON.stringify(result)).not.toContain('connector-token');
+    await runConnectCommand('private-tunnel-disable', [], { confirm: true }, {}, connect);
+    expect(http).toHaveBeenLastCalledWith('/api/botharness/devices/private-tunnel', {
+      action: 'disable',
+      confirm: true,
+    });
+  });
   it('lists linked computers through the on-demand route', async () => {
     const http = vi.fn(async () => reply({ hosts: [] }));
     expect(

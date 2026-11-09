@@ -3,6 +3,7 @@ import type {
   PrivateRelayAdmission,
   PrivateRelayStatus,
 } from './private-relay.js';
+import type { PrivateTunnel, PrivateTunnelStatus } from './private-tunnel.js';
 import type { EncryptionIdentity } from './noise-identity.js';
 import type { LanBotControl, LanBotSnapshot } from './bot-lan-control.js';
 import { hostId } from './bot-network-wire.js';
@@ -42,6 +43,7 @@ export interface PairingPayload {
 
 export interface DevicesSnapshot {
   privateRelay?: PrivateRelayStatus;
+  privateTunnel?: PrivateTunnelStatus;
   lanBots?: LanBotSnapshot;
   lan?: LanStatus;
   host: HostIdentity;
@@ -116,6 +118,7 @@ async function body(request: Request): Promise<Record<string, unknown>> {
 
 export function createDevicesHttp(options: {
   privateConnection?: PrivateConnection;
+  privateTunnel?: PrivateTunnel;
   pairing: DevicePairing;
   encryption?: () => Promise<
     EncryptionIdentity & { state: 'negotiating' | 'encrypted' | 'disconnected' }
@@ -143,6 +146,24 @@ export function createDevicesHttp(options: {
       const result = await options.privateConnection.claim(input['origin'], input['bootstrap']);
       return json(result, result.ok ? 200 : 409);
     }
+    if (path === DEVICES_PATH + '/private-tunnel' && request.method === 'POST') {
+      const input = await body(request);
+      if (input['confirm'] !== true) return json({ code: 'confirm-required' }, 400);
+      if (!options.privateTunnel) return json({ code: 'not-ready' }, 409);
+      if (input['action'] === 'disable') {
+        const result = await options.privateTunnel.disable();
+        return json(result, result.ok ? 200 : 409);
+      }
+      if (input['action'] !== 'enable' || (input['mode'] !== 'quick' && input['mode'] !== 'named'))
+        return json({ code: 'private-tunnel-input-invalid' }, 400);
+      const result = await options.privateTunnel.enable({
+        mode: input['mode'],
+        ...(typeof input['hostname'] === 'string' ? { hostname: input['hostname'] } : {}),
+        ...(typeof input['token'] === 'string' ? { token: input['token'] } : {}),
+        inUse: (options.privateConnection?.status().state ?? 'off') !== 'off',
+      });
+      return json(result, result.ok ? 200 : 409);
+    }
     if (path === `${DEVICES_PATH}/account-hosts` && request.method === 'GET') {
       if (account === undefined) return json({ code: 'signed-out' }, 409);
       const result = await account.connectedHosts();
@@ -165,6 +186,7 @@ export function createDevicesHttp(options: {
     if (request.method === 'GET' && path === DEVICES_PATH) {
       const snapshot: DevicesSnapshot = {
         ...(options.privateConnection ? { privateRelay: options.privateConnection.status() } : {}),
+        ...(options.privateTunnel ? { privateTunnel: options.privateTunnel.status() } : {}),
         ...(options.lan ? { lan: options.lan.status() } : {}),
         ...(options.lanBots ? { lanBots: await options.lanBots.snapshot() } : {}),
         host: pairing.host(),
@@ -186,7 +208,11 @@ export function createDevicesHttp(options: {
       const privateStatus = options.privateConnection?.status();
       if (privateStatus && privateStatus.state !== 'off' && privateStatus.state !== 'connected')
         return json({ code: 'private-relay-unreachable' }, 409);
-      const privateRelay = options.privateConnection?.admission();
+      const tunnelStatus = options.privateTunnel?.status();
+      if (tunnelStatus && tunnelStatus.state !== 'off' && tunnelStatus.state !== 'connected')
+        return json({ code: 'private-tunnel-unreachable', issue: tunnelStatus.issue }, 409);
+      const privateRelay =
+        options.privateTunnel?.admission() ?? options.privateConnection?.admission();
       const offer = pairing.createOffer();
       const link = pairingLink({
         v: 1,

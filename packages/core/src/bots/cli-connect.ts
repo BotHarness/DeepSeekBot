@@ -5,6 +5,16 @@ export const CONNECT_COMMANDS = [
     description: 'claim a Docker relay: --hostname <https-origin> --token-stdin --confirm',
   },
   {
+    command: 'private-tunnel-enable',
+    description:
+      'publish only the encrypted device channel through cloudflared: --quick, or --hostname <name> --token-stdin; --confirm',
+  },
+  {
+    command: 'private-tunnel-disable',
+    description:
+      'stop the private tunnel and forget its connector token and phone admission (--confirm)',
+  },
+  {
     command: 'connect-status',
     description: 'read Tobs Connect state and the phone routes',
   },
@@ -38,6 +48,7 @@ export const CONNECT_OPTIONS = {
   hostname: { type: 'string' },
   'token-stdin': { type: 'boolean' },
   wait: { type: 'boolean' },
+  quick: { type: 'boolean' },
 } as const;
 const DEVICES = '/api/botharness/devices';
 export function isConnectCommand(command: string): boolean {
@@ -46,13 +57,52 @@ export function isConnectCommand(command: string): boolean {
 export async function runConnectCommand(
   command: string,
   rest: string[],
-  values: { hostname?: string; 'token-stdin'?: boolean; wait?: boolean; confirm?: boolean },
+  values: {
+    hostname?: string;
+    'token-stdin'?: boolean;
+    wait?: boolean;
+    confirm?: boolean;
+    quick?: boolean;
+  },
   io: { readStdin?: () => Promise<string>; stderr?: (text: string) => void },
   connect: () => Promise<{
     http(path: string, body?: Record<string, unknown>): Promise<{ bytes: Uint8Array }>;
   }>,
   sleep: (ms: number) => Promise<void> = (ms) => new Promise((done) => setTimeout(done, ms)),
 ): Promise<unknown> {
+  if (command === 'private-tunnel-enable' || command === 'private-tunnel-disable') {
+    const enable = command === 'private-tunnel-enable';
+    const quick = values.quick === true;
+    const named = values.hostname !== undefined || values['token-stdin'] === true;
+    if (
+      rest.length ||
+      !values.confirm ||
+      values.wait ||
+      (enable
+        ? quick === named || (named && (!values.hostname || !values['token-stdin']))
+        : quick || named)
+    )
+      throw new CliLiveError(
+        'usage',
+        enable
+          ? 'private-tunnel-enable requires --quick, or --hostname <name> --token-stdin, and --confirm.'
+          : 'private-tunnel-disable requires --confirm.',
+      );
+    let token: string | undefined;
+    if (named) {
+      token = (await (io.readStdin?.() ?? Promise.resolve(''))).trim();
+      if (!token)
+        throw new CliLiveError('usage', 'Read the Named Tunnel connector token from stdin.');
+    }
+    const host = await connect();
+    const response = await host.http(DEVICES + '/private-tunnel', {
+      action: enable ? 'enable' : 'disable',
+      ...(enable ? { mode: quick ? 'quick' : 'named' } : {}),
+      ...(named ? { hostname: values.hostname, token } : {}),
+      confirm: true,
+    });
+    return JSON.parse(new TextDecoder().decode(response.bytes)) as unknown;
+  }
   if (command === 'private-connect') {
     if (rest.length || !values.hostname || !values['token-stdin'] || !values.confirm || values.wait)
       throw new CliLiveError(

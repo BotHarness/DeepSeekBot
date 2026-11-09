@@ -1,4 +1,5 @@
 import { createPrivateConnection } from './private-relay.js';
+import { createPrivateTunnel } from './private-tunnel.js';
 import { createConnectBotBridge } from './bot-connect-bridge.js';
 import { BOT_CONNECT_PATH } from './bot-connect-channel.js';
 import { createLanBotBridge } from './bot-lan-bridge.js';
@@ -735,10 +736,27 @@ export function mountDevicePairing(
         );
       return () => privateConnection.close();
     }, 'botharness: private relay');
+    // Host-run cloudflared publishing only the encrypted device channel: the no-Docker private route.
+    const privateTunnel = createPrivateTunnel({
+      credentials: options.credentials ?? (() => undefined),
+      port: () => webServer.port,
+      cloudflaredCache: cloudflaredCacheRoot(options.dshHome),
+      ...(options.packageAnchors === undefined ? {} : { packageAnchors: options.packageAnchors }),
+      record: (phase, info) =>
+        write('private-tunnel', phase, `private-tunnel phase=${phase}${info ? ` ${info}` : ''}`),
+    });
+    webCtx.effect(() => {
+      void privateTunnel
+        .restore()
+        .catch(() =>
+          write('private-tunnel', 'restore-failed', 'private-tunnel phase=restore-failed'),
+        );
+      return () => void privateTunnel.close();
+    }, 'botharness: private tunnel');
     const routes = async () => {
       await publishingReady;
       const status = await publishing.status();
-      const privateRoute = privateConnection.admission();
+      const privateRoute = privateTunnel.admission() ?? privateConnection.admission();
       if (privateRoute)
         return {
           ...status,
@@ -753,6 +771,7 @@ export function mountDevicePairing(
     };
     const http = createDevicesHttp({
       privateConnection,
+      privateTunnel,
       pairing,
       encryption,
       routes,
@@ -778,6 +797,7 @@ export function mountDevicePairing(
       [`${DEVICES_PATH}/revoke`, ['POST']],
       [`${DEVICES_PATH}/connect`, ['POST']],
       [`${DEVICES_PATH}/private`, ['POST']],
+      [`${DEVICES_PATH}/private-tunnel`, ['POST']],
       [`${DEVICES_PATH}/account-hosts`, ['GET']],
       [`${DEVICES_PATH}/account-hosts/revoke`, ['POST']],
       [`${DEVICES_PATH}/lan`, ['POST']],

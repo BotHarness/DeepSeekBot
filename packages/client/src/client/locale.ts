@@ -4,7 +4,33 @@ import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots';
 export const LOCALE_NS = 'botharness';
 
 export const zh = {
-  'privateRelay.title': 'Docker 私有连接（推荐）',
+  'privateTunnel.title': '私有连接（推荐）',
+  'privateTunnel.description': '不需要 Docker 和官方账号，这台电脑只公开加密的手机通道。',
+  'privateTunnel.intro':
+    '这台电脑会运行内置的 cloudflared，只公开加密的手机通道；电脑管理页、文件和接口不会公开。手机仍需你在这台电脑上核对指纹并批准。',
+  'privateTunnel.quickTitle': '临时地址（Quick Tunnel）',
+  'privateTunnel.quickDescription':
+    '免费，不需要 Cloudflare 账号，适合先试用。隧道重启后地址会变，手机需要扫描新的配对码。',
+  'privateTunnel.namedTitle': '固定地址（自己的 Cloudflare Tunnel）',
+  'privateTunnel.namedDescription': '使用你 Cloudflare 账号里的 Tunnel 和域名，重启后地址不变。',
+  'privateTunnel.namedHelp':
+    '在 Cloudflare 创建 Tunnel，复制连接器令牌，并为它添加一个公共主机名。保存后，把该主机名的服务指向下方显示的本机地址。',
+  'privateTunnel.hostname': '公共主机名（例如 bot.example.com）',
+  'privateTunnel.token': 'Tunnel 连接器令牌',
+  'privateTunnel.namedEnable': '保存并连接',
+  'privateTunnel.namedService': '在 Cloudflare 把这个主机名的服务设为 http://127.0.0.1:{port}',
+  'privateTunnel.advancedTitle': '自己的中继服务器（Docker，高级）',
+  'privateTunnel.advancedDescription': '在你已有的公网服务器上部署 Docker 中继。',
+  'privateTunnel.starting': '正在启动 cloudflared…',
+  'privateTunnel.verifying': '正在通过公网地址确认可以连到这台电脑…',
+  'privateTunnel.connected': '公网地址已确认可以连到这台电脑，可以配对手机。',
+  'privateTunnel.error': '暂时连不上（{issue}）。会自动重试，不会改用官方中继。',
+  'privateTunnel.probe': '最近一次检查：{probe}',
+  'privateTunnel.addressChanged': '临时地址已变化。已配对的手机需要扫描新的配对码才能连接。',
+  'privateTunnel.disable': '关闭私有连接',
+  'privateTunnel.back': '返回',
+  'privateTunnel.refused': '未能完成（{code}）。',
+  'privateRelay.title': 'Docker 私有中继（高级）',
   'privateRelay.description': '使用自己的服务器，不需要官方账号。',
   'privateRelay.requirement':
     '需要手机和电脑都能访问的公网入口。仅在家中内网运行 Docker，不能保证远程连接。',
@@ -4845,7 +4871,39 @@ export function zhTranslate(key: BotHarnessKey | string, params?: Record<string,
 }
 
 export const en = {
-  'privateRelay.title': 'Docker private connection (recommended)',
+  'privateTunnel.title': 'Private connection (recommended)',
+  'privateTunnel.description':
+    'No Docker or official account. This computer publishes only its encrypted phone channel.',
+  'privateTunnel.intro':
+    'This computer runs its bundled cloudflared and publishes only the encrypted phone channel; settings, files and APIs stay private. Phones still need you to compare the fingerprint and approve them here.',
+  'privateTunnel.quickTitle': 'Temporary address (Quick Tunnel)',
+  'privateTunnel.quickDescription':
+    'Free, no Cloudflare account, good for trying it out. The address changes when the tunnel restarts, and phones then need a new pairing code.',
+  'privateTunnel.namedTitle': 'Fixed address (your Cloudflare Tunnel)',
+  'privateTunnel.namedDescription':
+    'Use a Tunnel and domain in your Cloudflare account. The address survives restarts.',
+  'privateTunnel.namedHelp':
+    'Create a Tunnel in Cloudflare, copy its connector token and add a public hostname. After saving, point that hostname at the local address shown next.',
+  'privateTunnel.hostname': 'Public hostname (for example bot.example.com)',
+  'privateTunnel.token': 'Tunnel connector token',
+  'privateTunnel.namedEnable': 'Save and connect',
+  'privateTunnel.namedService':
+    'In Cloudflare, set this hostname’s service to http://127.0.0.1:{port}',
+  'privateTunnel.advancedTitle': 'Your own relay server (Docker, advanced)',
+  'privateTunnel.advancedDescription':
+    'Deploy the Docker relay on a public server you already have.',
+  'privateTunnel.starting': 'Starting cloudflared…',
+  'privateTunnel.verifying': 'Checking that the public address reaches this computer…',
+  'privateTunnel.connected': 'The public address reaches this computer. You can pair your phone.',
+  'privateTunnel.error':
+    'Not reachable right now ({issue}). Retrying automatically; the official relay is never used instead.',
+  'privateTunnel.probe': 'Last check: {probe}',
+  'privateTunnel.addressChanged':
+    'The temporary address changed. Paired phones need to scan a new pairing code to connect.',
+  'privateTunnel.disable': 'Turn off private connection',
+  'privateTunnel.back': 'Back',
+  'privateTunnel.refused': 'Could not finish ({code}).',
+  'privateRelay.title': 'Docker private relay (advanced)',
   'privateRelay.description': 'Use your own server without an official account.',
   'privateRelay.requirement':
     'Your phone and computer must both reach a public endpoint. Running Docker only inside your home network does not guarantee remote access.',
