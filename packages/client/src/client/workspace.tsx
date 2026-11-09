@@ -450,13 +450,13 @@ function WorkspaceRail({
       {launcher ? (
         <RailSearchButton launcher={launcher} bindings={options.shortcutBindings} t={t} />
       ) : null}
-      <Tooltip label={t('panel.settings')} side="right">
+      <Tooltip label={t('panel.settings')} side="right" portal>
         <button aria-label={t('panel.settings')} onClick={() => options.openBotSettings()}>
           <ChannelSidebarIcon name="settings" />
         </button>
       </Tooltip>
       <DeviceRequestsNotice t={t} />
-      <Tooltip label={t('panel.backToHarness')} side="right">
+      <Tooltip label={t('panel.backToHarness')} side="right" portal>
         <button type="button" aria-label={t('panel.backToHarness')} onClick={options.exitBotMode}>
           <ExitIcon size={20} />
         </button>

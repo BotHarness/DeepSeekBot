@@ -27,6 +27,7 @@ export function RailSearchButton({
       label={label}
       shortcutKeys={binding === undefined ? undefined : bindingKeys(binding)}
       side="right"
+      portal
     >
       <button type="button" aria-label={label} onClick={() => launcher.open('rail')}>
         <ChannelSidebarIcon name="search" />

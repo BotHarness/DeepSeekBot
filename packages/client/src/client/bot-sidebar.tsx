@@ -1481,9 +1481,11 @@ export function BotSidebar({
       actions.telemetryEvent('search:switcher_open', { source: 'shortcut' });
     };
     const stopLauncher = launcher?.subscribe((source) => {
+      if (webQuickSwitcherBlocked(null, document)) return false;
       setShowShortcutHints(false);
       setQuickSwitcherOpen(true);
       actions.telemetryEvent('search:switcher_open', { source });
+      return true;
     });
     document.addEventListener('keydown', onChannelShortcut);
     document.addEventListener('keydown', onConversationStep);

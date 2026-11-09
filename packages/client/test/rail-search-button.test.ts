@@ -64,3 +64,20 @@ it('still opens search when no shortcut bindings are available', () => {
   act(() => host.querySelector('button')!.click());
   expect(opened).toHaveBeenCalledWith('rail');
 });
+
+it('hands one open request to the newest Channel list that accepts it', () => {
+  const launcher = createQuickSwitcherLauncher();
+  const older = vi.fn(() => true);
+  const newer = vi.fn(() => false);
+  launcher.subscribe(older);
+  const stop = launcher.subscribe(newer);
+  launcher.open('rail');
+  expect(newer).toHaveBeenCalledWith('rail');
+  expect(older).toHaveBeenCalledOnce();
+  newer.mockReturnValue(true);
+  launcher.open('rail');
+  expect(older).toHaveBeenCalledOnce();
+  stop();
+  launcher.open('rail');
+  expect(older).toHaveBeenCalledTimes(2);
+});
