@@ -25,6 +25,7 @@ import {
   lineLimit,
   listRowBackground,
   foregroundStyle,
+  frame,
   labelsHidden,
   monospacedDigit,
   tint,
@@ -215,16 +216,23 @@ export function FormRow({
       )}
     </VStack>
   );
+  const symbolStyle =
+    symbol === undefined
+      ? undefined
+      : foregroundStyle(
+          symbol.color === undefined ? PRIMARY : { type: 'color', color: symbol.color },
+        );
   const label =
-    symbol !== undefined ? (
-      <Label
-        systemImage={rowSymbol(symbol.name).ios}
-        modifiers={[
-          foregroundStyle(
-            symbol.color === undefined ? PRIMARY : { type: 'color', color: symbol.color },
-          ),
-        ]}
-      >
+    symbol !== undefined && symbolStyle !== undefined && theme.largeText ? (
+      <HStack alignment="firstTextBaseline" spacing={space.x5}>
+        <Image
+          systemName={rowSymbol(symbol.name).ios}
+          modifiers={[font({ textStyle: 'subheadline' }), frame({ width: 50 }), symbolStyle]}
+        />
+        {text}
+      </HStack>
+    ) : symbol !== undefined && symbolStyle !== undefined ? (
+      <Label systemImage={rowSymbol(symbol.name).ios} modifiers={[symbolStyle]}>
         {text}
       </Label>
     ) : leading !== undefined && isValidElement(leading) ? (
