@@ -1,4 +1,4 @@
-import { useContext } from 'react';
+import { useContext, type ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { botNameColor } from '../../../../../packages/client/src/client/bot-name-color';
@@ -8,7 +8,8 @@ import { botColor } from '../bot-color';
 import { pressTint, quoteFill, useDesignTheme, type DesignTheme } from '../design/theme';
 import { radius, space, swipeReply } from '../design/tokens';
 import { Text } from '../primitives/text';
-import { useStrings } from '../strings';
+import { useStrings, type t as strings } from '../strings';
+import { voiceTime } from './voice-bar';
 import { MessageIdentities } from './message-identities';
 
 export function replyAuthor(
@@ -25,6 +26,26 @@ export function replyAuthor(
       return preview.author.source;
     default:
       return '';
+  }
+}
+
+export function replyText(preview: WireReplyPreview | null | undefined, t: typeof strings): string {
+  if (!preview) return t.reply.unavailable;
+  const body = preview.body.trim();
+  const media = preview.media;
+  switch (media?.kind) {
+    case 'image':
+      return body !== '' ? body : media.count > 1 ? t.reply.photos(media.count) : t.reply.photo;
+    case 'voice':
+      return media.durationMs !== undefined
+        ? t.reply.voice(voiceTime(media.durationMs / 1000))
+        : body !== ''
+          ? t.reply.voice(body)
+          : t.voiceLabel;
+    case 'file':
+      return body !== '' ? body : t.reply.file(media.name);
+    default:
+      return preview.body;
   }
 }
 
@@ -53,8 +74,10 @@ export function ReplyQuote({
   preview,
   botName,
   onAccent = false,
+  thumbnail,
   onOpen,
 }: {
+  thumbnail?: ReactNode;
   preview: WireReplyPreview | null | undefined;
   botName: (id: string) => string;
   onAccent?: boolean;
@@ -64,7 +87,7 @@ export function ReplyQuote({
   const theme = useDesignTheme();
   const { bots } = useContext(MessageIdentities);
   const author = replyAuthor(preview, t.reply.you, botName);
-  const text = preview ? preview.body : t.reply.unavailable;
+  const text = replyText(preview, t);
   const background = onAccent ? theme.color.accent : theme.color.surface;
   const ink = onAccent ? theme.color.onAccent : authorInk(preview, bots, theme, background);
   const lines = theme.largeText ? 3 : 1;
@@ -77,6 +100,8 @@ export function ReplyQuote({
     paddingRight: space.x3,
     paddingTop: space.x1,
     paddingBottom: space.x2,
+    alignItems: 'center',
+    gap: space.x3,
   } as const;
   const content = (
     <>
@@ -90,6 +115,7 @@ export function ReplyQuote({
           backgroundColor: ink,
         }}
       />
+      {thumbnail}
       <View style={{ flexShrink: 1 }}>
         {author === '' ? null : (
           <Text

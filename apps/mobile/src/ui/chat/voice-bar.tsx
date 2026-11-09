@@ -3,7 +3,8 @@ import { useRef, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import type { MessageVoice } from '../../host/conversation';
-import { radius, space } from '../design/tokens';
+import { tint } from '../design/layers';
+import { radius, space, voiceRow } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import { Text } from '../primitives/text';
@@ -34,7 +35,7 @@ export function voiceBars(key: string): number[] {
 
 let silentModeReady: Promise<void> | undefined;
 
-export function VoiceBar({ voice }: { voice: MessageVoice }) {
+export function VoiceBar({ voice, human = false }: { voice: MessageVoice; human?: boolean }) {
   const t = useStrings();
   const theme = useDesignTheme();
   const player = useAudioPlayer(null, { updateInterval: 250 });
@@ -74,85 +75,99 @@ export function VoiceBar({ voice }: { voice: MessageVoice }) {
       await player.seekTo(0);
     player.play();
   };
-  const duration = status.duration > 0 ? status.duration : undefined;
+  const duration =
+    status.duration > 0
+      ? status.duration
+      : voice.durationMs === undefined
+        ? undefined
+        : voice.durationMs / 1000;
   const progress = duration === undefined ? 0 : Math.min(1, status.currentTime / duration);
   const bars = voiceBars(audio.key);
   const label = status.playing ? t.pauseVoice : t.playVoice;
+  const ink = human ? theme.color.onAccent : theme.color.accent;
+  const glyph = human ? theme.color.accent : theme.color.onAccent;
+  const background = human ? theme.color.accent : theme.color.surface;
+  const played = human ? theme.color.onAccent : theme.color.accent;
+  const unplayed = tint(
+    background,
+    human ? theme.color.onAccent : theme.color.fg,
+    voiceRow.unplayed,
+  );
+  const elapsed = voiceTime(status.currentTime);
   return (
     <Pressable
+      testID="voice-bar"
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ busy: loading, disabled: audio.source === undefined }}
       accessibilityValue={
-        duration === undefined
-          ? undefined
-          : { text: `${voiceTime(status.currentTime)} / ${voiceTime(duration)}` }
+        duration === undefined ? undefined : { text: `${elapsed} / ${voiceTime(duration)}` }
       }
       disabled={loading || audio.source === undefined}
       onPress={() => void toggle()}
       style={{
         minHeight: theme.touch,
+        minWidth: theme.touch * 4,
         flexDirection: 'row',
         alignItems: 'center',
-        gap: space.x3,
-        paddingHorizontal: space.x3,
-        paddingVertical: space.x2,
-        borderRadius: radius.md,
-        backgroundColor: theme.layer.raised.inset,
+        gap: space.x4,
       }}
     >
       <View
         style={{
-          width: theme.type.title.line + space.x2,
-          height: theme.type.title.line + space.x2,
+          width: voiceRow.play,
+          height: voiceRow.play,
           borderRadius: radius.round,
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: theme.color.accent,
+          backgroundColor: ink,
         }}
       >
         {loading ? (
-          <LoadingIndicator size="control" color={theme.color.onAccent} />
+          <LoadingIndicator size="control" color={glyph} />
         ) : status.playing ? (
-          <PauseIcon color={theme.color.onAccent} size={theme.type.meta.line} />
+          <PauseIcon color={glyph} size={theme.type.meta.line} />
         ) : (
-          <PlayIcon color={theme.color.onAccent} size={theme.type.meta.line} />
+          <PlayIcon color={glyph} size={theme.type.meta.line} />
         )}
       </View>
-      <View
-        style={{
-          flex: 1,
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: space.x1,
-          height: space.x5,
-        }}
-      >
-        {bars.map((height, index) => (
-          <View
-            key={index}
-            style={{
-              flex: 1,
-              maxWidth: space.x2,
-              height: `${Math.round(height * 100)}%`,
-              borderRadius: radius.round,
-              backgroundColor:
-                index / bars.length < progress ? theme.color.accent : theme.color.border,
-            }}
-          />
-        ))}
+      <View style={{ flex: 1, gap: space.x1 }}>
+        <View
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: space.x1,
+            height: voiceRow.wave,
+          }}
+        >
+          {bars.map((height, index) => (
+            <View
+              key={index}
+              style={{
+                width: voiceRow.bar,
+                height: `${Math.round(height * 100)}%`,
+                borderRadius: radius.round,
+                backgroundColor: index / bars.length < progress ? played : unplayed,
+              }}
+            />
+          ))}
+        </View>
+        <Text
+          testID="voice-time"
+          variant="meta"
+          tone={failed ? 'danger' : human ? 'onAccent' : 'muted'}
+          numberOfLines={1}
+          style={{ fontVariant: ['tabular-nums'] }}
+        >
+          {failed
+            ? t.voiceUnavailable
+            : duration === undefined
+              ? elapsed
+              : `${elapsed} / ${voiceTime(duration)}`}
+        </Text>
       </View>
-      <Text
-        variant="meta"
-        tone={failed ? 'danger' : 'muted'}
-        style={{ fontVariant: ['tabular-nums'] }}
-      >
-        {failed
-          ? t.voiceUnavailable
-          : duration === undefined
-            ? t.voiceLabel
-            : voiceTime(status.playing || status.currentTime > 0 ? status.currentTime : duration)}
-      </Text>
     </Pressable>
   );
 }
