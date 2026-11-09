@@ -22,9 +22,10 @@ const entry = (code: string, ts: number) => ({
   code,
 });
 
-async function scoped(options: { database?: boolean; updateRun?: unknown } = {}) {
-  const list = vi.fn((query: { filter: string; since: number; limit: number }) =>
-    options.database === false
+async function scoped(options: { database?: boolean; broken?: boolean; updateRun?: unknown } = {}) {
+  const list = vi.fn((query: { filter: string; since: number; limit: number }) => {
+    if (options.broken) throw new Error('SQLITE_IOERR');
+    return options.database === false
       ? undefined
       : {
           version: 1,
@@ -34,8 +35,8 @@ async function scoped(options: { database?: boolean; updateRun?: unknown } = {})
             entry('plugin-load-failed detail', NOW - 60_000),
             entry('plugin-load-failed', NOW),
           ],
-        },
-  );
+        };
+  });
   const approve = vi.fn(async () => {});
   const broker = await startTobCliBroker({
     signal: new AbortController().signal,
@@ -144,6 +145,20 @@ describe('Tob scoped diagnostics', () => {
     );
     expect((await f.invoke(['diagnostic-logs'])).json.error.code).toBe(
       'diagnostic-log-unavailable',
+    );
+  });
+
+  it('reports a failing log database as unavailable, not as bad input', async () => {
+    const f = await scoped({ broken: true });
+    expect((await f.invoke(['diagnostic-logs'])).json.error.code).toBe(
+      'diagnostic-log-unavailable',
+    );
+    const doctor = (await f.invoke(['doctor'])).json;
+    expect(doctor.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'log', status: 'fail', code: 'diagnostic-log-unavailable' }),
+        expect.objectContaining({ id: 'errors-24h', status: 'skip' }),
+      ]),
     );
   });
 });

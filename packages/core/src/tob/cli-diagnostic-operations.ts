@@ -4,7 +4,11 @@ import {
   DOCTOR_ERROR_LIMIT,
   updateCheck,
 } from '../bots/cli-doctor.js';
-import type { DiagnosticLogEnvironment, DiagnosticLogList } from '../diagnostics/diagnostic-log.js';
+import {
+  DiagnosticLogError,
+  type DiagnosticLogEnvironment,
+  type DiagnosticLogList,
+} from '../diagnostics/diagnostic-log.js';
 import type { PrepareTobOperation, TobCliCapability } from './cli-operations.js';
 import { TobError } from './service.js';
 
@@ -47,8 +51,12 @@ export function createTobDiagnosticOperations(deps: {
   const list = (query: ListQuery) => {
     try {
       return deps.list(query);
-    } catch {
-      throw new TobError('invalid-input');
+    } catch (error) {
+      throw new TobError(
+        error instanceof DiagnosticLogError && error.code === 'invalid-input'
+          ? 'invalid-input'
+          : 'diagnostic-log-unavailable',
+      );
     }
   };
   return (command, args) => {
@@ -69,11 +77,16 @@ export function createTobDiagnosticOperations(deps: {
         return {
           run: () => {
             const at = now();
-            const errors = list({
-              filter: 'error',
-              since: at - DOCTOR_DAY_MS,
-              limit: DOCTOR_ERROR_LIMIT,
-            });
+            let errors: DiagnosticLogList | undefined;
+            try {
+              errors = list({
+                filter: 'error',
+                since: at - DOCTOR_DAY_MS,
+                limit: DOCTOR_ERROR_LIMIT,
+              });
+            } catch {
+              errors = undefined;
+            }
             let update;
             try {
               update = updateCheck(deps.updateRun());

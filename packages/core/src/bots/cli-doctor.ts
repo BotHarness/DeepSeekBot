@@ -145,7 +145,19 @@ export async function runDoctor(
     try {
       host = await connect();
       const { bytes } = await host.http(`/api/botharness/diagnostic-logs?${errorQuery}`);
-      errors = JSON.parse(Buffer.from(bytes).toString('utf8')) as DiagnosticLogList;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(Buffer.from(bytes).toString('utf8'));
+      } catch {
+        parsed = undefined;
+      }
+      if (
+        typeof parsed !== 'object' ||
+        parsed === null ||
+        !Array.isArray((parsed as { entries?: unknown }).entries)
+      )
+        throw new CliLiveError('host-protocol-error', 'The Host returned an unreadable log list.');
+      errors = parsed as DiagnosticLogList;
       source = 'host';
       checks.push({ id: 'host', status: 'ok' }, { id: 'plugin', status: 'ok' });
     } catch (error) {

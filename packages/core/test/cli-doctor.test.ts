@@ -123,6 +123,21 @@ describe('doctor CLI', () => {
     expect(check(result, 'errors-24h')).toMatchObject({ count: 1 });
   });
 
+  it('falls back to logs.db when the Host answers with something that is not a log list', async () => {
+    const home = homeWithErrors(['boot-failed']);
+    for (const body of ['<html>proxy error</html>', '{"ok":true}']) {
+      const http = vi.fn(async () => ({ bytes: new TextEncoder().encode(body) }));
+      const result = await runDoctor(
+        { home, host: 'http://127.0.0.1:1' },
+        io() as never,
+        (async () => ({ http, rpc: vi.fn() })) as unknown as Connect,
+        () => NOW,
+      );
+      expect(result).toMatchObject({ source: 'offline', fallback: 'host-protocol-error' });
+      expect(check(result, 'errors-24h')).toMatchObject({ count: 1 });
+    }
+  });
+
   it('works offline without connecting and flags a missing DSH home', async () => {
     const connect = vi.fn() as unknown as Connect;
     const home = join(tmpdir(), 'doctor-missing-home-does-not-exist');
