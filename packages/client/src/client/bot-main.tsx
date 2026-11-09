@@ -9,6 +9,7 @@ import {
   flySentBubble,
   launchSendFlight,
   sendFollowsLatest,
+  sendFlightExpired,
   sentMessageId,
   type SendFlight,
 } from './send-fly.js';
@@ -2330,6 +2331,8 @@ function ConversationView({
         lastRevision.current = conversation.revision;
         const flight = sendFlight.current;
         const sentId = flight === undefined ? undefined : sentMessageId(flight, messages);
+        if (flight !== undefined && sentId === undefined && sendFlightExpired(flight))
+          sendFlight.current = undefined;
         if (flight !== undefined && sentId !== undefined) {
           sendFlight.current = undefined;
           const bubble = element.querySelector<HTMLElement>(

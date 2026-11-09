@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   flySentBubble,
   launchSendFlight,
+  SEND_FLIGHT_TTL_MS,
+  sendFlightExpired,
   sentMessageId,
   shouldFly,
 } from '../src/client/send-fly.js';
@@ -72,6 +74,14 @@ describe('send fly decision', () => {
     expect(flight?.from).toMatchObject({ left: 40, top: 700 });
     expect(viewport.scrollTop).toBe(1500);
     expect(sentMessageId(flight!, [human('old', true), human('sent', true)])).toBe('sent');
+  });
+
+  it('drops a flight whose send never produced a pending message', () => {
+    const viewport = pane({ top: 1500, height: 2000, client: 500 });
+    const flight = launchSendFlight(viewport, false, [])!;
+    const late = flight.startedAt + SEND_FLIGHT_TTL_MS + 1;
+    expect(sendFlightExpired(flight, late)).toBe(true);
+    expect(sentMessageId(flight, [human('retry', true)], late)).toBeUndefined();
   });
 
   it('requests no fly and leaves the scroll offset unchanged while reading history', () => {

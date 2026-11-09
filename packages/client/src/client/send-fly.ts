@@ -2,10 +2,12 @@ import type { ChannelMessage } from './store.js';
 
 const SEND_FLY_MS = 360;
 const LATEST_SLOP = 80;
+export const SEND_FLIGHT_TTL_MS = 1_000;
 
 export interface SendFlight {
   from: DOMRectReadOnly;
   known: ReadonlySet<string>;
+  startedAt: number;
 }
 
 export function shouldFly({
@@ -76,13 +78,20 @@ export function launchSendFlight(
       height: text.bottom - box.top,
     }),
     known: pendingHumanIds(messages),
+    startedAt: Date.now(),
   };
+}
+
+export function sendFlightExpired(flight: SendFlight, now = Date.now()): boolean {
+  return now - flight.startedAt > SEND_FLIGHT_TTL_MS;
 }
 
 export function sentMessageId(
   flight: SendFlight,
   messages: readonly ChannelMessage[],
+  now = Date.now(),
 ): string | undefined {
+  if (sendFlightExpired(flight, now)) return undefined;
   return messages.findLast(
     (message) =>
       message.author.kind === 'human' && message.pending === true && !flight.known.has(message.id),
