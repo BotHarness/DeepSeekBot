@@ -1,7 +1,7 @@
 ---
 Status: Proposed
 Date: 2026-11-09
-Issues: Tobs Connect capacity (2026-11-09 thread)
+Issues: [#3848](https://github.com/BotHarness/DeepSeekBot/pull/3848)
 ---
 
 # Connect tunnels share a multi-zone pool with eviction
