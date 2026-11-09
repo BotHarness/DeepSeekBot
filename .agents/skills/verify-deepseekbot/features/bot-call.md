@@ -55,6 +55,10 @@ On the assigned Android phone, turn notification “Keep connected” off and st
 
 With a call retained in the background, tap the native overlay, then repeat using the ongoing call notification and normal app entry. Require the same call ID, no `ended`/`hangup` event, and continued heartbeat/reply playback after each return. Repeat Keep connected off and on. After ending the call, normal foreground recovery must still repair a suspended idle connection. A genuinely disconnected retained Host must also retry; revocation or unpairing must still stop it. Keep this independent of scripted URL replay: return through the real native surfaces rather than launching the original call link again.
 
+## Android text-size changes during a call (#3820)
+
+Use a rebuilt Android client. During one live call, change system text scale from default to intermediate and back, both with the activity visible and by opening system Settings and returning. Require the same Host call ID with no hangup, real size changes in RN labels and Compose controls, and continued synthetic reply playback. Capture both directions in light/dark; changing appearance alone is a separate control. End the call and dial again without restarting the app. Preserve failure reports and restore original system preferences. Source/config generation tests alone do not prove Android callback delivery or text rendering.
+
 ## Android output menu (#3632)
 
 On the assigned physical Android 12+ phone, connect a foreground Bot call and open `call-audio`. Choose `call-audio-output-receiver`, then `call-audio-output-speaker`, both unmuted and muted. Require the same live call ID and confirm the native communication device, not only the selected row. Hang up and verify restoration of the pre-call audio mode. Repeat with an available communication headset and device removal; verify unavailable choices disappear. Record any unavailable hardware explicitly. Exercise native Back dismissal and default/intermediate/maximum text in light/dark. Microphone choices and the saved headset input preference use the journey below. iOS `audio-route` above remains a separate journey.
