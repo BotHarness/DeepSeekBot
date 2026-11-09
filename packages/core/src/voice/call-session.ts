@@ -159,7 +159,7 @@ export function createCallSession<Capture extends CallCapture, Code extends stri
       if (lost && live()) await client.visual('off');
       return false;
     }
-    if (!live()) {
+    if (!live() || (restart && active === undefined)) {
       capture.stop();
       if (!disposed) setVisual({ starting: false });
       return false;

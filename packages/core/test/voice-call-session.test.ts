@@ -74,7 +74,12 @@ const media: CallClientMedia = {
   onState: () => () => undefined,
 };
 
-function fakeCaptures(options: { fail?: (index: number) => CallCaptureFailure | undefined } = {}) {
+function fakeCaptures(
+  options: {
+    fail?: (index: number) => CallCaptureFailure | undefined;
+    hold?: (index: number) => Promise<void> | undefined;
+  } = {},
+) {
   const made: {
     source: CallVisualSource;
     events: CallCaptureEvents;
@@ -84,9 +89,11 @@ function fakeCaptures(options: { fail?: (index: number) => CallCaptureFailure | 
   const factory = (source: CallVisualSource, events: CallCaptureEvents): CallCapture => {
     const entry = { source, events, running: false, stopped: false };
     const failure = options.fail?.(made.length);
+    const hold = options.hold?.(made.length);
     made.push(entry);
     return {
       async acquire() {
+        if (hold !== undefined) await hold;
         if (failure !== undefined) throw failure;
       },
       run: () => void (entry.running = true),
@@ -221,6 +228,25 @@ describe('call session visual sharing', () => {
     expect(await world.session.share('camera', { restart: true })).toBe(false);
     expect(world.captures.made.every((entry) => entry.stopped)).toBe(true);
     expect(world.session.state().visual).toMatchObject({ source: 'off', error: 'camera-missing' });
+    expect(world.host.visuals()).toEqual([{ source: 'camera' }, { source: 'off' }]);
+  });
+
+  it('keeps a share off when it is turned off while a restart acquires', async () => {
+    let release: (() => void) | undefined;
+    const held = new Promise<void>((done) => (release = done));
+    const world = setup(
+      fakeHost(),
+      fakeCaptures({ hold: (index) => (index === 1 ? held : undefined) }),
+    );
+    await world.session.client.open('mira');
+    await world.session.share('camera');
+    const restarting = world.session.share('camera', { restart: true });
+    await flush();
+    await world.session.unshare('camera');
+    release!();
+    expect(await restarting).toBe(false);
+    expect(world.captures.made.every((entry) => entry.stopped && !entry.running)).toBe(true);
+    expect(world.session.state().visual).toMatchObject({ source: 'off', starting: false });
     expect(world.host.visuals()).toEqual([{ source: 'camera' }, { source: 'off' }]);
   });
 
