@@ -14,7 +14,6 @@ export function SourceName({
   lines = 1,
   glyph = true,
 }: {
-  /** False when the row shows its environment elsewhere (All view avatar badge) or not at all. */
   glyph?: boolean;
   sourceLabel?: string | undefined;
   lines?: number;

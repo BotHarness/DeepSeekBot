@@ -300,7 +300,6 @@ export const recentChats = { limit: 3 } as const;
 
 export const workspaceStack = { max: 3, tile: 28, overlap: 10, ring: 2 } as const;
 export const cornerBadge = { maxTextScale: 1.2, materialLabel: 11 } as const;
-/** Environment mark on a conversation avatar's bottom-right corner in the All view. */
 export const environmentBadge = { size: 20, glyphRatio: 0.62 } as const;
 
 export const swipeOpen = {

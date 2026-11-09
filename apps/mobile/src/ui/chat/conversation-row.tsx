@@ -192,7 +192,6 @@ export function ConversationRowFrame({
   ref,
   mixed = sourceLabel !== undefined,
 }: {
-  /** All view: rows from several environments, so each row carries its environment mark. */
   mixed?: boolean;
   sourceLabel?: string | undefined;
   ref?: Ref<ViewInstance>;

@@ -274,7 +274,6 @@ const Row = memo(function Row({
 }: {
   item: HumanAttentionItem;
   settled: boolean;
-  /** All view: items from several environments, so each row names its environment. */
   mixed: boolean;
   bot: RosterBot | undefined;
   now: number;
