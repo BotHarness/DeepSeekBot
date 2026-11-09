@@ -26,7 +26,7 @@ class LatestAnchorView(context: Context, appContext: AppContext) :
   private var stamp = 0L
   private var expected = -1
   private val change = View.OnLayoutChangeListener { _, _, top, _, bottom, _, oldTop, _, oldBottom ->
-    if (bottom - top != oldBottom - oldTop) grew()
+    if (bottom - top > oldBottom - oldTop) grew()
   }
 
   val gliding: Boolean

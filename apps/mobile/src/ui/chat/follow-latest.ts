@@ -356,7 +356,8 @@ export function useFollowLatest<Row>(
       onMomentumScrollEnd,
       onContentSizeChange,
       onLayout,
-      maintainVisibleContentPosition: { minIndexForVisible },
+      maintainVisibleContentPosition:
+        nativeFollow && !inverted && ready && following ? undefined : { minIndexForVisible },
     },
   };
 }

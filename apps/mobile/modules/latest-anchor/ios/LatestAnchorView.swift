@@ -64,10 +64,12 @@ final class LatestAnchorView: ExpoView {
     guard let scroll = node as? UIScrollView else { return }
     scroller = scroll
     observation = scroll.observe(\.contentSize, options: [.old, .new]) { [weak self] scroll, change in
-      guard let old = change.oldValue, let new = change.newValue, old.height != new.height else {
-        return
+      guard let old = change.oldValue, let new = change.newValue else { return }
+      if new.height > old.height {
+        self?.grew(scroll, from: old.height)
+      } else if new.height < old.height {
+        self?.stop()
       }
-      self?.grew(scroll, from: old.height)
     }
   }
 
