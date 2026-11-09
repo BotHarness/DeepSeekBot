@@ -21,8 +21,14 @@ import { useMounted } from '../mounted';
 import { Text } from '../primitives/text';
 import { AVATAR_CORNER } from './bubble-shape';
 import { usePopIn } from './pop-in';
-import { SPEAKER_VIEWPORT, SpeakerAnchor } from './speaker-anchor';
-import { groupSpan, speakerContentTop, speakerLift, type SpeakerRowLayout } from './speaker-span';
+import { SpeakerAnchor } from './speaker-anchor';
+import {
+  groupSpan,
+  SPEAKER_VIEWPORT,
+  speakerContentTop,
+  speakerLift,
+  type SpeakerRowLayout,
+} from './speaker-span';
 
 export type Speaker = {
   name: string;

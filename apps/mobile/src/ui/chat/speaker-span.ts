@@ -42,3 +42,5 @@ export function speakerContentTop({
   'worklet';
   return inverted ? top + height - content + offset : top - offset;
 }
+
+export const SPEAKER_VIEWPORT = 'chat-speaker-viewport';
