@@ -22,6 +22,7 @@ import {
   type CallCaptureErrorCode,
 } from './call-camera.js';
 import { createBrowserCallMedia } from './call-media.js';
+import { watchCallPresence } from './call-presence.js';
 
 const CLIENT_KEY = 'botharness/call-client.v1';
 const TRANSIENT_MS = 4_000;
@@ -51,8 +52,15 @@ export interface DesktopCallCaptureHandlers {
   readonly onEnded: () => void;
 }
 
+export interface DesktopCallPlace {
+  readonly title: string;
+  readonly body: string;
+  readonly open: () => void;
+}
+
 export interface DesktopCallSnapshot {
   readonly slug: string | undefined;
+  readonly place?: DesktopCallPlace | undefined;
   readonly checking: boolean;
   readonly block: DesktopCallBlock | undefined;
   readonly state: CallClientState;
@@ -72,7 +80,7 @@ export const DESKTOP_CALL_VISUAL_OFF: DesktopCallVisual = {
 export interface DesktopCall {
   subscribe(listener: () => void): () => void;
   snapshot(): DesktopCallSnapshot;
-  start(slug: string): Promise<void>;
+  start(slug: string, place?: DesktopCallPlace): Promise<void>;
   mute(muted: boolean): Promise<void>;
   camera(on: boolean): Promise<void>;
   screen(on: boolean): Promise<void>;
@@ -104,6 +112,7 @@ export function createCallPost(
     const response = await fetcher(`.${VOICE_CALL_PATH}`, {
       method: 'POST',
       credentials: 'same-origin',
+      ...(body.kind === 'hangup' ? { keepalive: true } : {}),
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ ...body, client }),
     });
@@ -216,13 +225,14 @@ export function createDesktopCall(
       return () => listeners.delete(listener);
     },
     snapshot: () => current,
-    async start(slug) {
+    async start(slug, place) {
       if (current.checking || active()) return;
       client?.dispose();
       client = undefined;
       stopCamera();
       set({
         slug,
+        place,
         checking: true,
         block: undefined,
         state: { status: 'idle' },
@@ -292,6 +302,7 @@ export function desktopCall(): DesktopCall {
     const call = createDesktopCall();
     shared = call;
     globalThis.addEventListener?.('pagehide', () => void call.hangup());
+    if (globalThis.document !== undefined) watchCallPresence({ call });
   }
   return shared;
 }
