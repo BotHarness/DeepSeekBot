@@ -237,8 +237,10 @@ export function callEndView(state: CallClientState): CallEndView | undefined {
   if (state.status !== 'ended') return undefined;
   const refused = state.reason === 'refused';
   const retry = state.reason !== 'replaced';
-  if (state.error === 'microphone-denied') return { refused, retry, notice: 'microphone-denied' };
-  if (state.error === 'microphone-missing') return { refused, retry, notice: 'microphone-missing' };
+  if (state.mediaCode === 'microphone-denied')
+    return { refused, retry, notice: 'microphone-denied' };
+  if (state.mediaCode === 'microphone-missing')
+    return { refused, retry, notice: 'microphone-missing' };
   if (state.reason === 'refused') return { refused, retry, notice: callRefusalNotice(state.code) };
   if (state.reason === 'hangup') return { refused, retry, notice: undefined };
   return { refused, retry, notice: `ended.${state.reason}` };

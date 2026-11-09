@@ -1,14 +1,17 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
+  CallMediaFailure,
   createCallClient,
   readCallReadiness,
   type CallClientMedia,
   type CallClientState,
+  type CallMediaCode,
   type CallMediaState,
   type CallPost,
 } from '../src/voice/call-client.js';
 import type { VoiceCallResult, VoiceCallView } from '../src/voice/call-contract.js';
+import { callEndView } from '../src/voice/call-view.js';
 import { createVoiceCalls, type VoiceCallMedia } from '../src/voice/calls.js';
 import { speech, silence, concat } from './voice-audio-fixtures.js';
 
@@ -78,16 +81,18 @@ function setup(options: { readyAsr?: boolean; emit?: 'visible-changes' } = {}) {
     return calls.handle({ deviceId: 'phone-1' }, body);
   };
   const phone = {
-    listeners: new Set<(state: CallMediaState, code?: string) => void>(),
+    listeners: new Set<(state: CallMediaState, code?: CallMediaCode) => void>(),
     offers: [] as string[],
     muted: [] as boolean[],
     stopped: 0,
   };
   let gate: Promise<void> | undefined;
+  let refusal: unknown;
   const media: CallClientMedia = {
     async start({ offer }) {
       phone.offers.push(offer);
       if (gate !== undefined) await gate;
+      if (refusal !== undefined) throw refusal;
       return 'v=0\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\na=sendrecv\r\n';
     },
     mute: (muted) => phone.muted.push(muted),
@@ -142,6 +147,9 @@ function setup(options: { readyAsr?: boolean; emit?: 'visible-changes' } = {}) {
     },
     slowStart: (wait: Promise<void>) => {
       gate = wait;
+    },
+    refuseStart: (error: unknown) => {
+      refusal = error;
     },
     get ticking() {
       return tick !== undefined;
@@ -286,12 +294,63 @@ describe('phone call client', () => {
   it('ends when the phone peer fails and tells the Host', async () => {
     const world = setup();
     await world.client.open('mira');
-    for (const listener of world.phone.listeners) listener('failed', 'connection-lost');
+    for (const listener of world.phone.listeners) listener('failed', 'ice-failed');
     await flush();
-    expect(world.client.state()).toMatchObject({ status: 'ended', reason: 'media-failed' });
+    expect(world.client.state()).toMatchObject({
+      status: 'ended',
+      reason: 'media-failed',
+      mediaCode: 'ice-failed',
+    });
     expect(await world.post({ kind: 'status' })).toMatchObject({
       calls: [{ phase: 'ended', endReason: 'hangup' }],
     });
+  });
+
+  it('hangs up quietly when the phone closes the call in the background', async () => {
+    const world = setup();
+    await world.client.open('mira');
+    for (const listener of world.phone.listeners) listener('closed', 'background');
+    await flush();
+    expect(world.client.state()).toMatchObject({
+      status: 'ended',
+      reason: 'hangup',
+      mediaCode: 'background',
+    });
+    expect(callEndView(world.client.state())?.notice).toBeUndefined();
+    expect(await world.post({ kind: 'status' })).toMatchObject({
+      calls: [{ phase: 'ended', endReason: 'hangup' }],
+    });
+  });
+
+  it.each(['microphone-denied', 'microphone-missing'] as const)(
+    'ends with %s from the media code, whatever the message says',
+    async (code) => {
+      const world = setup();
+      world.refuseStart(new CallMediaFailure(code, 'Reworded for people.'));
+      await world.client.open('mira');
+      expect(world.client.state()).toMatchObject({
+        status: 'ended',
+        reason: 'media-failed',
+        mediaCode: code,
+        error: 'Reworded for people.',
+      });
+      expect(callEndView(world.client.state())?.notice).toBe(code);
+      expect(await world.post({ kind: 'status' })).toMatchObject({
+        calls: [{ phase: 'ended', endReason: 'hangup' }],
+      });
+    },
+  );
+
+  it('reads a coded native rejection and calls anything else unknown', async () => {
+    const coded = setup();
+    coded.refuseStart(Object.assign(new Error('native text'), { code: 'microphone-denied' }));
+    await coded.client.open('mira');
+    expect(coded.client.state()).toMatchObject({ mediaCode: 'microphone-denied' });
+    const plain = setup();
+    plain.refuseStart(new Error('microphone-denied'));
+    await plain.client.open('mira');
+    expect(plain.client.state()).toMatchObject({ mediaCode: 'unknown' });
+    expect(callEndView(plain.client.state())?.notice).toBe('ended.media-failed');
   });
 
   it('hangs up the Host call when the screen closes while the microphone starts', async () => {

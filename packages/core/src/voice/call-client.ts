@@ -13,11 +13,37 @@ export type CallPost = (body: Record<string, unknown>) => Promise<VoiceCallResul
 
 export type CallMediaState = 'connected' | 'failed' | 'closed';
 
+export const CALL_MEDIA_CODES = [
+  'microphone-denied',
+  'microphone-missing',
+  'background',
+  'ice-failed',
+  'unknown',
+] as const;
+
+export type CallMediaCode = (typeof CALL_MEDIA_CODES)[number];
+
+export class CallMediaFailure extends Error {
+  constructor(
+    readonly code: CallMediaCode,
+    message: string = code,
+  ) {
+    super(message);
+  }
+}
+
+export function callMediaCode(error: unknown): CallMediaCode {
+  const code = (error as { code?: unknown } | undefined)?.code;
+  return (CALL_MEDIA_CODES as readonly unknown[]).includes(code)
+    ? (code as CallMediaCode)
+    : 'unknown';
+}
+
 export interface CallClientMedia {
   start(input: { callId: string; offer: string }): Promise<string>;
   mute(muted: boolean): void;
   stop(): void;
-  onState(listener: (state: CallMediaState, code?: string) => void): () => void;
+  onState(listener: (state: CallMediaState, code?: CallMediaCode) => void): () => void;
 }
 
 export type CallClientState =
@@ -35,6 +61,7 @@ export type CallClientState =
       readonly status: 'ended';
       readonly reason: VoiceCallEndReason | 'refused';
       readonly code?: VoiceCallRefusal | 'unreachable';
+      readonly mediaCode?: CallMediaCode;
       readonly error?: string;
       readonly call?: VoiceCallView;
       readonly events: readonly VoiceCallEvent[];
@@ -142,7 +169,11 @@ export function createCallClient(options: CallClientOptions): CallClient {
   };
   const finish = (
     reason: VoiceCallEndReason | 'refused',
-    extra: { code?: VoiceCallRefusal | 'unreachable'; error?: string } = {},
+    extra: {
+      code?: VoiceCallRefusal | 'unreachable';
+      mediaCode?: CallMediaCode;
+      error?: string;
+    } = {},
   ) => {
     if (state.status === 'ended') return;
     if (timer !== undefined) stopEvery(timer);
@@ -232,7 +263,7 @@ export function createCallClient(options: CallClientOptions): CallClient {
         const callId = call.callId;
         void options.post({ kind: 'hangup', callId }).catch(() => undefined);
         finish(media === 'closed' && code === 'background' ? 'hangup' : 'media-failed', {
-          ...(code === undefined ? {} : { error: code }),
+          mediaCode: code ?? 'unknown',
         });
       });
       let answer: string;
@@ -241,6 +272,7 @@ export function createCallClient(options: CallClientOptions): CallClient {
       } catch (error) {
         await options.post({ kind: 'hangup', callId: opened.callId }).catch(() => undefined);
         finish('media-failed', {
+          mediaCode: callMediaCode(error),
           error: error instanceof Error ? error.message : 'The microphone could not start.',
         });
         return;

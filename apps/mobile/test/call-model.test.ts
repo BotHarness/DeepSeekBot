@@ -149,7 +149,7 @@ describe('call screen model', () => {
       callScreenModel(zh, {
         status: 'ended',
         reason: 'media-failed',
-        error: 'microphone-missing',
+        mediaCode: 'microphone-missing',
         events: [],
       }).ended,
     ).toBe(zh.call.microphoneMissing);
