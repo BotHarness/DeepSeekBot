@@ -10,6 +10,7 @@ import { ConfirmDialog, FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
 import { Select } from './ds/select.js';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
+import { CopyChip, StatusBlock, StatusStack, type StatusTone } from './ds/status-block.js';
 import { space } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
@@ -28,6 +29,8 @@ import {
 
 const styles = stylex.create({
   page: { display: 'flex', flexDirection: 'column', minWidth: 0, paddingBottom: space.x6 },
+  line: { display: 'block' },
+  add: { display: 'flex' },
 });
 
 type VoiceActions = Pick<
@@ -372,6 +375,95 @@ export function VoiceProviderSettings({
       </SettingsRow>
     );
   };
+  const openDraft = (current: VoiceProvidersView, kind: Kind): void => {
+    setError(undefined);
+    setDraft(emptyDraft(kind, presetsOf(current, kind)[0]));
+  };
+  const providerBlock = (
+    current: VoiceProvidersView,
+    kind: Kind,
+    provider: ProviderRow,
+  ): ReactElement => {
+    const state = health[provider.id];
+    const presetRow = presetsOf(current, kind).find((entry) => entry.id === provider.preset);
+    const presetName = presetRow?.name ?? provider.preset;
+    const missingKey = presetRow?.keyRequired === true && !provider.keySet;
+    const failed = state !== undefined && state !== 'testing' && !state.ok;
+    const ready = state !== undefined && state !== 'testing' && state.ok;
+    const tone: StatusTone = ready
+      ? 'success'
+      : failed || missingKey
+        ? 'warning'
+        : state === 'testing'
+          ? 'accent'
+          : 'neutral';
+    const status =
+      state === 'testing'
+        ? t('voice.provider.testing')
+        : state !== undefined
+          ? healthText(t, state)
+          : missingKey
+            ? t('voice.provider.missingKey')
+            : undefined;
+    return (
+      <StatusBlock
+        key={provider.id}
+        icon={
+          ready ? 'check' : tone === 'warning' ? 'info' : kind === 'tts' ? 'audio-lines' : 'mic'
+        }
+        tone={tone}
+        title={provider.name}
+        data={{ 'data-voice-provider': provider.id }}
+        body={
+          <>
+            {status === undefined ? null : (
+              <span data-voice-provider-status="" {...stylex.props(styles.line)}>
+                {status}
+              </span>
+            )}
+            <span {...stylex.props(styles.line)}>
+              {[
+                ...(presetName === provider.name ? [] : [presetName]),
+                provider.keySet ? t('voice.provider.keySet') : t('voice.provider.noKey'),
+              ].join(' · ')}
+            </span>
+          </>
+        }
+        action={
+          <>
+            <Button
+              variant={failed ? 'primary' : 'outline'}
+              size="sm"
+              disabled={state === 'testing'}
+              onClick={() => test(provider)}
+            >
+              {t('voice.provider.test')}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={busy}
+              onClick={() => {
+                setError(undefined);
+                setRemoving(provider);
+              }}
+            >
+              {t('voice.provider.remove')}
+            </Button>
+          </>
+        }
+      >
+        {provider.baseUrl === '' ? null : (
+          <CopyChip
+            value={provider.baseUrl}
+            copyLabel={t('voice.provider.copyUrl')}
+            copiedLabel={t('voice.provider.copied')}
+            marker="data-voice-provider-url"
+          />
+        )}
+      </StatusBlock>
+    );
+  };
   const section = (kind: Kind): ReactElement => {
     const title = kind === 'tts' ? t('voice.providers.title') : t('voice.asr.title');
     const providers = view === undefined ? [] : providersOf(view, kind);
@@ -381,85 +473,34 @@ export function VoiceProviderSettings({
         description={kind === 'tts' ? t('voice.providers.description') : t('voice.asr.description')}
       >
         {view === undefined ? null : defaultRow(view, kind)}
-        <SettingsRow
-          title={kind === 'tts' ? t('voice.providers.new') : t('voice.asr.new')}
-          description={
-            view !== undefined && providers.length === 0
-              ? kind === 'tts'
-                ? t('voice.providers.empty')
-                : t('voice.asr.empty')
-              : undefined
-          }
-          data={{ 'data-voice-provider-new': kind }}
-          control={
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={view === undefined}
-              onClick={() => {
-                if (view === undefined) return;
-                setError(undefined);
-                setDraft(emptyDraft(kind, presetsOf(view, kind)[0]));
-              }}
-            >
-              {t('voice.providers.add')}
-            </Button>
-          }
-        />
         {view === undefined ? (
           loadError === undefined ? (
             <LoadingSkeleton kind="sidebar" label={title} />
           ) : (
             <Note tone="danger">{loadError}</Note>
           )
+        ) : providers.length === 0 ? (
+          <StatusBlock
+            icon={kind === 'tts' ? 'audio-lines' : 'mic'}
+            tone="accent"
+            title={kind === 'tts' ? t('voice.providers.new') : t('voice.asr.new')}
+            body={kind === 'tts' ? t('voice.providers.empty') : t('voice.asr.empty')}
+            data={{ 'data-voice-provider-new': kind }}
+            action={
+              <Button variant="primary" size="sm" onClick={() => openDraft(view, kind)}>
+                {t('voice.providers.add')}
+              </Button>
+            }
+          />
         ) : (
-          providers.map((provider) => {
-            const state = health[provider.id];
-            const presetName =
-              presetsOf(view, kind).find((entry) => entry.id === provider.preset)?.name ??
-              provider.preset;
-            return (
-              <SettingsRow
-                key={provider.id}
-                title={provider.name}
-                data={{ 'data-voice-provider': provider.id }}
-                description={[
-                  ...(presetName === provider.name ? [] : [presetName]),
-                  provider.baseUrl,
-                  provider.keySet ? t('voice.provider.keySet') : t('voice.provider.noKey'),
-                ].join(' · ')}
-                control={
-                  <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={state === 'testing'}
-                      onClick={() => test(provider)}
-                    >
-                      {t('voice.provider.test')}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={busy}
-                      onClick={() => {
-                        setError(undefined);
-                        setRemoving(provider);
-                      }}
-                    >
-                      {t('voice.provider.remove')}
-                    </Button>
-                  </>
-                }
-              >
-                {state === undefined ? null : state === 'testing' ? (
-                  <Note tone="muted">{t('voice.provider.testing')}</Note>
-                ) : (
-                  <Note tone={state.ok ? 'success' : 'danger'}>{healthText(t, state)}</Note>
-                )}
-              </SettingsRow>
-            );
-          })
+          <StatusStack>
+            {providers.map((provider) => providerBlock(view, kind, provider))}
+            <div data-voice-provider-new={kind} {...stylex.props(styles.add)}>
+              <Button variant="outline" size="sm" onClick={() => openDraft(view, kind)}>
+                {kind === 'tts' ? t('voice.providers.new') : t('voice.asr.new')}
+              </Button>
+            </div>
+          </StatusStack>
         )}
       </SettingsSection>
     );
