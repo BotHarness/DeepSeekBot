@@ -92,6 +92,7 @@ import {
 } from './bot-settings-sections.js';
 import { PluginsSection } from './plugin-updates-view.js';
 import { ReleaseNotesController } from './release-notes.js';
+import { UpdateRunsController } from './update-runs.js';
 import { TelemetryNoticeController } from './telemetry-notice.js';
 import './bot-settings-slot.js';
 import { BotMain } from './bot-main.js';
@@ -412,7 +413,8 @@ export function apply(ctx: ClientContext): void {
       BotSettingsView,
     ),
   );
-  const releaseNotes = new ReleaseNotesController(call, storage);
+  const updateRuns = new UpdateRunsController(call);
+  const releaseNotes = new ReleaseNotesController(call, storage, undefined, updateRuns);
   const telemetryNotice = new TelemetryNoticeController(call, storage, () => {
     botSettings.open(BOT_SETTINGS_SECTIONS.dataPrivacy);
   });
@@ -1079,7 +1081,7 @@ export function apply(ctx: ClientContext): void {
           order: 65,
           label: () => t('botSettings.section.plugins'),
           locale: LOCALE_NS,
-          inject: () => ({ call }),
+          inject: () => ({ call, updateRuns }),
         },
         PluginsSection,
       ),

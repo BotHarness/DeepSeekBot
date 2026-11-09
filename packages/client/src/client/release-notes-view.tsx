@@ -27,6 +27,7 @@ import type {
   ReleaseNotesController,
   ReleaseNotesSnapshot,
 } from './release-notes.js';
+import { UpdateRunPanel, useUpdateRuns } from './update-run-view.js';
 
 const SECTIONS: Record<string, { key: BotHarnessKey; tone: TagTone }> = {
   'Breaking Changes': { key: 'releaseNotes.section.breaking', tone: 'danger' },
@@ -42,6 +43,7 @@ const SECTIONS: Record<string, { key: BotHarnessKey; tone: TagTone }> = {
 export const RELEASE_UPDATE_PROFILE = 'web';
 export const DESKTOP_UPDATE_PROFILE = 'desktop';
 const FAILURE_LINE_CHARS = 160;
+const RELEASE_TITLE = 'Tobs';
 
 const styles = stylex.create({
   head: {
@@ -227,6 +229,7 @@ export function ReleaseNotesAnnouncement({
   const mount = useMountedResource<HTMLSpanElement>(() => {
     const check = () => {
       void controller.enter();
+      void controller.runs.follow();
     };
     check();
     const timer = setInterval(check, 30_000);
@@ -303,6 +306,32 @@ function UpgradeNotice({
       </Modal>
     );
   if (update.status !== 'available' && update.status !== 'blocked') return null;
+  return (
+    <UpdateNotice
+      controller={controller}
+      snapshot={snapshot}
+      update={update}
+      deferred={deferred}
+      t={t}
+    />
+  );
+}
+
+function UpdateNotice({
+  controller,
+  snapshot,
+  update,
+  deferred,
+  t,
+}: {
+  controller: ReleaseNotesController;
+  snapshot: ReleaseNotesSnapshot;
+  update: Extract<ReleaseNotesSnapshot['update'], { status: 'available' | 'blocked' }>;
+  deferred: boolean;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  const { run } = useUpdateRuns(controller.runs);
+  const shown = run?.kind === 'release';
   const install = snapshot.install;
   const installing = install.status === 'installing';
   const installable = update.status === 'available' && update.installable;
@@ -361,9 +390,16 @@ function UpgradeNotice({
             {compatibilityText(update.blockedLatest.compatibility, t)}
           </p>
         ) : null}
+        <UpdateRunPanel
+          controller={controller.runs}
+          kind="release"
+          name="deepseekbot"
+          title={RELEASE_TITLE}
+          t={t}
+        />
         {install.status === 'failed' || (update.status === 'available' && !update.installable) ? (
           <div {...stylex.props(styles.failure)} data-release-notice-failure>
-            {install.status === 'failed' ? (
+            {install.status === 'failed' && !shown ? (
               <p role="alert" {...stylex.props(styles.failureText)}>
                 {t('release.install.failedWith', { reason: failureReason(install, t) })}
               </p>
@@ -397,11 +433,14 @@ function UpgradeNotice({
   );
 }
 
-function failureReason(
-  install: Extract<ReleaseInstallState, { status: 'failed' }>,
+export function failureReason(
+  install: { reason: string; diagnostic?: string | undefined },
   t: BotHarnessTranslate,
 ): string {
-  const known = INSTALL_FAILURE_REASONS[install.reason];
+  const known =
+    INSTALL_FAILURE_REASONS[
+      install.reason as Extract<ReleaseInstallState, { status: 'failed' }>['reason']
+    ];
   if (known !== undefined) return t(known);
   const line = install.diagnostic
     ?.split('\n')
@@ -463,6 +502,7 @@ export const INSTALL_FAILURE_KEYS: Record<
   network: 'release.install.failed.network',
   incompatible: 'release.install.failed.incompatible',
   'build-blocked': 'release.install.failed.buildBlocked',
+  cancelled: 'release.install.failed.cancelled',
   failed: 'release.install.failed.generic',
 };
 
@@ -566,8 +606,11 @@ export type ReleaseSettingsProps = PropsLocale<'botharness'> &
 
 export function ReleaseSettings({ releaseNotes, t }: ReleaseSettingsProps): ReactElement {
   const snapshot = useReleaseNotes(releaseNotes);
+  const { run } = useUpdateRuns(releaseNotes.runs);
+  const shown = run?.kind === 'release';
   const mount = useMountedResource<HTMLDivElement>(() => {
     void releaseNotes.start().then(() => releaseNotes.checkUpdate());
+    void releaseNotes.runs.follow();
   }, [releaseNotes]);
   const update = snapshot.update;
   const install = snapshot.install;
@@ -651,12 +694,12 @@ export function ReleaseSettings({ releaseNotes, t }: ReleaseSettingsProps): Reac
               </Button>
             ) : null}
           </div>
-          {update.installable && install.status !== 'failed' ? (
+          {update.installable && install.status !== 'failed' && !shown ? (
             <div className="bh-settings-row-desc">
               {t(installing ? 'release.install.progress' : 'release.install.hint')}
             </div>
           ) : null}
-          {install.status === 'failed' ? (
+          {install.status === 'failed' && !shown ? (
             <div className="bh-release-install-error" role="alert" data-release-install-error>
               <div>{t(INSTALL_FAILURE_KEYS[install.reason])}</div>
               {install.diagnostic === undefined ? null : (
@@ -674,6 +717,13 @@ export function ReleaseSettings({ releaseNotes, t }: ReleaseSettingsProps): Reac
           ) : null}
         </div>
       ) : null}
+      <UpdateRunPanel
+        controller={releaseNotes.runs}
+        kind="release"
+        name="deepseekbot"
+        title={RELEASE_TITLE}
+        t={t}
+      />
       {update.status === 'restart-required' ? (
         <div className="bh-release-update" data-release-restart={update.installed}>
           <div className="bh-release-update-head">

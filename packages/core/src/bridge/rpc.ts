@@ -103,6 +103,7 @@ import type {
   ReleaseUpdate,
 } from '../release/service.js';
 import type { PluginInstall, PluginRestart, PluginUpdates } from '../release/plugins.js';
+import type { UpdateCancel, UpdateRun } from '../release/update-runs.js';
 import type { TelemetryStatus } from '../telemetry/service.js';
 import type { OverviewMemory } from '../memory/overview.js';
 import type {
@@ -2704,6 +2705,14 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrapAsync(this.methods.pluginRestart({}));
   }
 
+  updateRun(id?: string): UpdateRun | null {
+    return unwrap(this.methods.updateRun(id === undefined ? {} : { id }));
+  }
+
+  async updateCancel(id: string): Promise<UpdateCancel> {
+    return unwrapAsync(this.methods.updateCancel({ id }));
+  }
+
   telemetryStatus(): TelemetryStatus {
     return unwrap(this.methods.telemetryStatus());
   }
@@ -3084,6 +3093,8 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'pluginUpdates',
   'pluginInstall',
   'pluginRestart',
+  'updateRun',
+  'updateCancel',
   'telemetryStatus',
   'telemetrySet',
   'gitStatus',

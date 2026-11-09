@@ -927,6 +927,8 @@ describe('bridge typert service', () => {
       'pluginUpdates',
       'pluginInstall',
       'pluginRestart',
+      'updateRun',
+      'updateCancel',
       'telemetryStatus',
       'telemetrySet',
       'gitStatus',

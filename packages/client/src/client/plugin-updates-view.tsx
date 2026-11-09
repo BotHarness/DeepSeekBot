@@ -9,6 +9,8 @@ import { SettingsRow, SettingsRows } from './ds/settings-row.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 import { PluginUpdatesController, type PluginRowState } from './plugin-updates.js';
+import { UpdateRunPanel, useUpdateRuns } from './update-run-view.js';
+import { updateRunActive, type UpdateRunsController } from './update-runs.js';
 import {
   compatibilityText,
   DESKTOP_UPDATE_PROFILE,
@@ -98,6 +100,8 @@ function PluginRow({
   controller: PluginUpdatesController;
   t: BotHarnessTranslate;
 }): ReactElement {
+  const { run } = useUpdateRuns(controller.runs);
+  const shown = run?.kind === 'plugin' && run.name === plugin.name;
   const installing = row.status === 'installing';
   const reloading = row.status === 'reloading';
   const available = plugin.status === 'available';
@@ -130,7 +134,14 @@ function PluginRow({
         ) : null
       }
     >
-      {row.status === 'failed' ? (
+      <UpdateRunPanel
+        controller={controller.runs}
+        kind="plugin"
+        name={plugin.name}
+        title={pluginTitle(plugin.name, t)}
+        t={t}
+      />
+      {row.status === 'failed' && !shown ? (
         <div className="bh-release-install-error" role="alert" data-plugin-install-error>
           <div>
             {t(
@@ -156,17 +167,24 @@ function PluginRow({
   );
 }
 
-export type PluginsSectionProps = PropsLocale<'botharness'> & InjectFace<{ call: BridgeCall }>;
+export type PluginsSectionProps = PropsLocale<'botharness'> &
+  InjectFace<{ call: BridgeCall; updateRuns?: UpdateRunsController }>;
 
-export function PluginsSection({ call, t }: PluginsSectionProps): ReactElement {
-  const controller = useMemo(() => new PluginUpdatesController(call), [call]);
+export function PluginsSection({ call, updateRuns, t }: PluginsSectionProps): ReactElement {
+  const controller = useMemo(
+    () => new PluginUpdatesController(call, undefined, updateRuns),
+    [call, updateRuns],
+  );
   const snapshot = useSyncExternalStore(controller.source.subscribe, controller.source.getSnapshot);
+  const runs = useUpdateRuns(controller.runs);
   const mount = useMountedResource<HTMLDivElement>(() => {
     void controller.load();
+    void controller.runs.follow();
   }, [controller]);
-  const busy = Object.values(snapshot.rows).some(
-    (row) => row.status === 'installing' || row.status === 'reloading',
-  );
+  const busy =
+    Object.values(snapshot.rows).some(
+      (row) => row.status === 'installing' || row.status === 'reloading',
+    ) || updateRunActive(runs.run);
   const staged = snapshot.plugins.some((plugin) => plugin.status === 'restart-required');
   const restarting = snapshot.restart === 'restarting';
   return (

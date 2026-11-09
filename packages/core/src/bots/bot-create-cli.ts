@@ -204,6 +204,8 @@ Usage:
   tobs plugin-check [--force]
   tobs plugin-install <package> <version> --confirm
   tobs plugin-restart --confirm
+  tobs update-status
+  tobs update-cancel
   tobs marketplace-list [--query <words>] [--topic <topic>] [--sort updated|created|stars] [--cursor <c>] [--include-uploads]
   tobs marketplace-topics
   tobs marketplace-sections [--lang zh|en]
