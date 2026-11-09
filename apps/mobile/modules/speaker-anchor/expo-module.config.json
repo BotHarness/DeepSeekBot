@@ -1,0 +1,9 @@
+{
+  "platforms": ["android", "apple"],
+  "android": {
+    "modules": ["expo.modules.speakeranchor.SpeakerAnchorModule"]
+  },
+  "apple": {
+    "modules": ["SpeakerAnchorModule"]
+  }
+}

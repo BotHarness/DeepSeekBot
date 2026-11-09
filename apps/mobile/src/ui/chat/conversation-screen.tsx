@@ -154,6 +154,7 @@ import { MessageIdentities } from './message-identities';
 import { copyMessage, shareText } from './message-menu';
 import type { Rect } from './menu-placement';
 import { chatRows, messageGroups, type ChatRow } from './message-groups';
+import { SPEAKER_VIEWPORT, SpeakerAnchor } from './speaker-anchor';
 import { createSpeakerRegistry, SpeakerStageContext } from './speaker-row';
 import { QuestionCard } from './question-card';
 import { TimeSeparator } from './time-separator';
@@ -1918,7 +1919,10 @@ function ChatConversation({
                           jump();
                         }}
                         scrollEventThrottle={
-                          !dm || (Platform.OS === 'android' && !latest.ready) ? 16 : 32
+                          (!dm && SpeakerAnchor === undefined) ||
+                          (Platform.OS === 'android' && !latest.ready)
+                            ? 16
+                            : 32
                         }
                         keyboardDismissMode={ios ? 'interactive' : 'on-drag'}
                         keyboardShouldPersistTaps="handled"
@@ -1952,6 +1956,7 @@ function ChatConversation({
                   </MarkdownViewportContext.Provider>
                   <Animated.View
                     ref={viewport}
+                    nativeID={SPEAKER_VIEWPORT}
                     collapsable={false}
                     pointerEvents="box-none"
                     style={[
