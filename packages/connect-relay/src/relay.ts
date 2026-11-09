@@ -211,7 +211,7 @@ export function createRelay(options: RelayOptions) {
   const policy = {
     offlineGraceMs: options.evictOfflineGraceMs ?? 2 * 60 * 1000,
     protectMs: options.evictProtectMs ?? 30 * 60 * 1000,
-    freshMs: options.evictFreshMs ?? 10 * 60 * 1000,
+    freshMs: options.evictFreshMs ?? 30 * 60 * 1000,
   };
   const zoneOf = (row: Pick<HostRow, 'zone'>) => row.zone ?? defaultZone;
   const hostname = (row: Pick<HostRow, 'id' | 'zone'>) => `${row.id}.${zoneOf(row)}`;
@@ -230,12 +230,51 @@ export function createRelay(options: RelayOptions) {
       .first<{ live: number; waiting: number }>();
     const capacity = Math.min(options.maxTunnels, zones.length * zoneRecords);
     const live = counts?.live ?? 0;
+    const free = Math.max(0, capacity - live);
     return {
       capacity,
       inUse: live,
-      free: Math.max(0, capacity - live),
+      free,
       waiting: counts?.waiting ?? 0,
+      ...(free === 0 ? { nextFreeAt: await nextFreeAt() } : {}),
+      guaranteedMinutes: Math.round(policy.freshMs / 60_000),
     };
+  };
+
+  const timeOf = (value: string | null | undefined) => {
+    const parsed = Date.parse(value ?? '');
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const evictableAt = (
+    row: Pick<
+      HostRow,
+      'tunnel_created_at' | 'last_used_at' | 'tunnel_status' | 'tunnel_inactive_since'
+    >,
+  ) =>
+    row.tunnel_status !== null && ONLINE.has(row.tunnel_status)
+      ? Math.max(
+          timeOf(row.tunnel_created_at) + policy.freshMs,
+          timeOf(row.last_used_at ?? row.tunnel_created_at) + policy.protectMs,
+        )
+      : timeOf(row.tunnel_inactive_since ?? row.tunnel_created_at) + policy.offlineGraceMs;
+
+  const nextFreeAt = async () => {
+    const { results } = await db
+      .prepare(
+        'SELECT tunnel_created_at, last_used_at, tunnel_status, tunnel_inactive_since FROM hosts WHERE tunnel_id IS NOT NULL',
+      )
+      .all<
+        Pick<
+          HostRow,
+          'tunnel_created_at' | 'last_used_at' | 'tunnel_status' | 'tunnel_inactive_since'
+        >
+      >();
+    const earliest = Math.min(...results.map(evictableAt));
+    const current = now().getTime();
+    return new Date(
+      Number.isFinite(earliest) ? Math.max(current, earliest) : current,
+    ).toISOString();
   };
 
   const queuePosition = async (row: HostRow) => {
@@ -282,6 +321,9 @@ export function createRelay(options: RelayOptions) {
       : {}),
     ...(row.tunnel_id === null && row.evicted_at !== null ? { evicted: true } : {}),
     state: hostState(row),
+    ...(row.tunnel_id !== null && row.tunnel_status !== null && ONLINE.has(row.tunnel_status)
+      ? { protectedUntil: new Date(evictableAt(row)).toISOString() }
+      : {}),
     ...(row.evicted_at !== null && row.tunnel_id === null ? { releasedAt: row.evicted_at } : {}),
     ...(hostState(row) === 'waiting' && row.waiting_since !== null
       ? { waitingSince: row.waiting_since }

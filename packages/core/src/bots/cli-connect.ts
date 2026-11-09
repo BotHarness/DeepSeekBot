@@ -25,7 +25,7 @@ export const CONNECT_COMMANDS = [
   },
   {
     command: 'connect-status',
-    description: 'read Tobs Connect state and the phone routes',
+    description: 'read Tobs Connect state, shared tunnel pool, queue position and the phone routes',
   },
   {
     command: 'connect-enable',

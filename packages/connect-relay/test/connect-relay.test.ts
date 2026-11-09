@@ -265,7 +265,10 @@ describe('Connect relay accounts', () => {
     });
     expect(await call('GET', '/v1/hosts', { as: 'user_alice' })).toEqual({
       status: 200,
-      body: { hosts: [], pool: { capacity: 195, inUse: 0, free: 195, waiting: 0 } },
+      body: {
+        hosts: [],
+        pool: { capacity: 195, inUse: 0, free: 195, waiting: 0, guaranteedMinutes: 30 },
+      },
     });
     const open = await setup([]);
     expect(await open.call('GET', '/v1/hosts', { as: 'user_mallory' })).toMatchObject({

@@ -69,9 +69,11 @@ When provisioning finds no free tunnel under `MAX_TUNNELS`, or no free record in
 
 1. **Gone.** The cache says the tunnel no longer exists.
 2. **Offline.** Down or never connected for more than `EVICT_OFFLINE_GRACE` (2 minutes), longest offline first. They would be reclaimed soon anyway, so taking them early costs nothing.
-3. **Idle online.** Online, but not used within `EVICT_PROTECT_MINUTES` (30), tunnel at least 10 minutes old, and used less recently than the requester. Least recently used first. On ties, a Host whose account has more live tunnels goes first, so one account's spare computers make room for another account's only one.
+3. **Idle online.** Online, past its guaranteed time (below), not used within `EVICT_PROTECT_MINUTES` (30), and used less recently than the requester. Least recently used first. On ties, a Host whose account has more live tunnels goes first, so one account's spare computers make room for another account's only one.
 
-Online Hosts used within the protection window are never evicted. If no candidate qualifies, the request answers `503 relay-full` as before.
+**Guaranteed time.** A tunnel that came online is never evicted for its first `EVICT_FRESH_MINUTES` (30) after it was created, whatever its use. Without this, a Host could connect, sit idle for a minute and lose its tunnel to the next arrival, and Hosts would push each other out in turn. 30 minutes matches the protection window, so the rule a person needs to remember is one number: a computer keeps its tunnel for at least 30 minutes after connecting, and for 30 minutes after its last use. A shorter 10-minute guarantee was considered; it frees slots faster under pressure but lets an idle Host lose its tunnel before the person has finished pairing a phone. Offline tunnels are not covered, because nobody is using them.
+
+Online Hosts inside the guaranteed time or used within the protection window are never evicted. If no candidate qualifies, the request answers `503 relay-full` and the Host joins the waiting queue (section 5).
 
 **Last use.** `hosts.last_used_at` records the last time the Host was used, from three sources:
 
@@ -85,6 +87,23 @@ A brand-new Host's last use is the moment it links. An evicted Host keeps its ol
 
 An eviction deletes the tunnel and record, clears the row, sets `evicted_at` and logs `connect-evicted` with the reason and tier. The Host sees its tunnel fail, retries on its next minute and gets `503 relay-full` until it may return.
 
+### 5. Waiting queue and what the person sees
+
+When every slot is taken and every tunnel is protected, Hosts wait in one first-come queue. A refused Host gets `waiting_since` (kept across retries) and `refused_at` (each retry). A Host that has not retried for 3 minutes has left the queue. When a slot frees, only the Host that has waited longest may take it; the others get `relay-full` with reason `queued` and their position. A Host that needs a slot can still evict an idle tunnel without queueing, because it is the more recently used one.
+
+The relay answers `503 {error: {code: 'relay-full', reason, position, retryAfter: 60, pool}}`, where reason is `pool-full`, `zone-full` or `queued`, and `GET /v1/hosts` returns `pool` with `capacity`, `inUse`, `free`, `waiting`, `guaranteedMinutes` and, when nothing is free, `nextFreeAt`: the earliest moment any live tunnel leaves its guaranteed time and protection window. Each online Host in the list carries `protectedUntil`, the earliest moment its own tunnel could be given away. Both are estimates: a Host used in the meantime pushes its time back.
+
+The Host keeps these in its Connect status (`relay-full` with `recovery: automatic`, `wait` with `since`, `pool`, `protectedUntil`), retries every minute on its own and never asks the person to sign in again. `deepseekbot connect-status` shows the same fields. The Tobs Connect screen answers the four questions a person has:
+
+| Question                     | Shown                                                                                          |
+| ---------------------------- | ---------------------------------------------------------------------------------------------- |
+| Why can't I connect?         | "All shared tunnels are busy", with the pool counts                                            |
+| When will I get in?          | Place in line, waiting since, and the earliest time a tunnel can free up                       |
+| Will I be dropped?           | While the pool is full, "keeps its tunnel until at least …", and that phone use extends it     |
+| What happens when I connect? | The rule: 30 minutes guaranteed, then offline and least recently used computers give way first |
+
+**Comparison with cloud-gaming queues.** Cloud-gaming services face the same problem: a fixed pool of servers and more players than seats. GeForce NOW's free tier queues players, shows the place in line, gives each session a fixed length (one hour on the free tier) and then sends the player back to the queue; paid tiers skip the queue. Players commonly see an estimated wait while queued, and many services warn an idle player before disconnecting them. We take the place in line, an earliest-free estimate, a guaranteed minimum and a visible "kept until" time, which plays the role of the idle warning. We do not take a hard session cap: a Connect tunnel is a phone's route home, and cutting an active one on a timer breaks the person's work for no gain, because an actively used Host is exactly the one that should stay. We do not add paid priority tiers now; the queue and eviction order leave room for a priority field later.
+
 ## Consequences
 
 - Capacity is bounded by live tunnels. With five dedicated zones it reaches about 975 records, so `MAX_TUNNELS` (900) becomes the limit again, as ADR-0241 intended. Pricing is still decided near 800 concurrent Hosts.
@@ -96,4 +115,5 @@ An eviction deletes the tunnel and record, clears the row, sets `evicted_at` and
 
 - **Keep one zone and buy Pro.** Pro allows 3,500 records per zone but costs about $20–25 a month per zone, and does not fix records left behind by deleted tunnels.
 - **Move a Host to another zone when its own zone is full.** This changes the hostname a phone has saved and needs the Host to reach the phone first. Rejected in favour of sticky zones and eviction within the zone.
+- **Fixed session length, as in cloud gaming.** Fair under heavy load, but drops Hosts in active use. Rejected; idle Hosts give way instead.
 - **Count usage from Cloudflare analytics.** Per-hostname request counts need GraphQL analytics calls per run and are delayed. The Host already sees every gateway request, so it reports the age of its last one instead.

@@ -1568,6 +1568,14 @@ the tunnel stops, so a tunnel the relay reclaimed after the Host was offline com
 minute; once the relay or WorkOS refuses the session (for example after `DELETE /v1/account`), it
 stops the tunnel, retires the stored session and reports `error` with `session-revoked` for a relay
 `401 session-revoked`, or `session-expired` for other session refusals.
+`connect.account.pool` gives the shared tunnel pool: `capacity`, `inUse`, `free`, `waiting`,
+`guaranteedMinutes` (how long a new tunnel is kept no matter what, 30 by default) and, when no
+tunnel is free, `nextFreeAt` (the earliest time a tunnel can be released). While signed in,
+`protectedUntil` is when this Host's own tunnel could first be given to someone waiting; any use
+from a paired phone pushes it back. When the pool is full the account reports `error` with
+`relay-full`, `recovery: automatic` and `wait` (`reason` `pool-full`, `zone-full` or `queued`,
+`position` in the first-come queue, `retryAfter` seconds and `since`); the Host retries on its own
+([ADR-0313](adr/0313-connect-tunnels-share-a-multi-zone-pool-with-eviction.md)).
 `connect-sign-out` unlinks the Host at the relay, stops the tunnel and
 deletes the session. Any signed-in account can link Hosts.
 

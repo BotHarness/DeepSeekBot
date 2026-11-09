@@ -1523,7 +1523,13 @@ Host 离线后被回收的隧道会在同一个 `<host-id>.deepseekbot.dev` 上�
 `account-not-allowed`、`host-limit`、`credential-unavailable`）。登录期间 Host 每分钟向 relay
 复查一次账号；relay 或 WorkOS 拒绝会话后（例如 `DELETE /v1/account` 之后），Host 停掉隧道、退役
 保存的会话，并报告 `error`；relay 返回 `401 session-revoked` 时，`issue` 为 `session-revoked`，
-其他会话拒绝为 `session-expired`。`connect-sign-out` 在 relay 上解除
+其他会话拒绝为 `session-expired`。`connect.account.pool` 给出共享隧道池：`capacity`、`inUse`、
+`free`、`waiting`、`guaranteedMinutes`（新隧道无论如何都保留的分钟数，默认 30），以及没有空位时的
+`nextFreeAt`（最早可能有隧道让出的时间）。登录期间 `protectedUntil` 是这台 Host 自己的隧道最早可能
+让给排队者的时间，手机每次使用都会往后推。隧道池满时账号报告 `error`，`issue` 为 `relay-full`，
+`recovery` 为 `automatic`，并带 `wait`（`reason` 为 `pool-full`、`zone-full` 或 `queued`，先来先到
+队列里的 `position`、`retryAfter` 秒数和 `since`），Host 会自己重试
+（[ADR-0313](adr/0313-connect-tunnels-share-a-multi-zone-pool-with-eviction.md)）。`connect-sign-out` 在 relay 上解除
 关联、停掉隧道并删除会话。任何已登录的账号都能关联 Host。
 
 账号出错时，`connect.account.recovery` 区分 `automatic`（已保存的会话能自动重试注册或隧道设置）和 `sign-in`（需要再次主动登录）。所有权校验失败后不会恢复旧账号，界面提供相同的恢复指引。设备授权轮询在网络失败、没有 OAuth 错误的 HTTP 408/429/5xx 后延长间隔，仍在原授权到期时间停止；明确的 OAuth 拒绝仍会终止登录。`authorization_pending` 保留间隔，`slow_down` 增加五秒，遵循 [RFC 8628](https://www.rfc-editor.org/rfc/rfc8628.html#section-3.5)。

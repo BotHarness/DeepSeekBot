@@ -56,6 +56,16 @@ interface ConnectAccountStatus {
   verificationUri?: string;
   issue?: string;
   recovery?: 'automatic' | 'sign-in';
+  pool?: {
+    capacity: number;
+    inUse: number;
+    free: number;
+    waiting: number;
+    nextFreeAt?: string;
+    guaranteedMinutes?: number;
+  };
+  protectedUntil?: string;
+  wait?: { reason: 'pool-full' | 'zone-full' | 'queued'; position: number; since: string };
 }
 
 interface ConnectStatus {
@@ -486,6 +496,19 @@ export function PairedDevicesSettings({
   const devices = snapshot?.devices ?? [];
   const connect = snapshot?.connect;
   const signIn = connect?.account;
+  const waitingForTunnel = signIn?.state === 'error' && signIn.issue === 'relay-full';
+  const linked = signIn?.state === 'signed-in' || waitingForTunnel;
+  const poolLine =
+    signIn?.pool === undefined ? null : (
+      <div data-connect-pool="">
+        <Note>{t('devices.connect.pool', signIn.pool)}</Note>
+      </div>
+    );
+  const clock = (iso: string) =>
+    new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  const poolRule = (
+    <Note>{t('devices.connect.poolRule', { minutes: signIn?.pool?.guaranteedMinutes ?? 30 })}</Note>
+  );
 
   const connectControls =
     signIn === undefined ? null : (
@@ -494,13 +517,13 @@ export function PairedDevicesSettings({
           <SettingsRow
             title={t('devices.connect.account')}
             description={
-              signIn.state === 'signed-in' ? (
+              linked ? (
                 <>
                   <span {...stylex.props(styles.email)} data-connect-email="">
                     {signIn.email}
                   </span>
                   <br />
-                  {t('devices.connect.signedIn')}
+                  {t(waitingForTunnel ? 'devices.connect.full.short' : 'devices.connect.signedIn')}
                 </>
               ) : (
                 t('devices.connect.description')
@@ -508,7 +531,7 @@ export function PairedDevicesSettings({
             }
             data={{ 'data-connect-account': signIn.state }}
             control={
-              signIn.state === 'signed-in' ? (
+              linked ? (
                 <>
                   <span {...stylex.props(styles.notYou)}>{t('devices.connect.notYou')}</span>
                   <Button
@@ -549,6 +572,30 @@ export function PairedDevicesSettings({
                     {t('devices.connect.openPage')}
                   </Button>
                 </div>
+              </Callout>
+            ) : waitingForTunnel ? (
+              <Callout
+                tone="warning"
+                title={t('devices.connect.full.title')}
+                data={{ 'data-connect-wait': signIn.wait?.reason ?? 'pool-full' }}
+              >
+                {signIn.wait?.reason === 'zone-full'
+                  ? t('devices.connect.full.zone')
+                  : signIn.wait === undefined
+                    ? t('devices.connect.relayDown')
+                    : t('devices.connect.full.queued', { position: signIn.wait.position })}
+                {signIn.wait === undefined ? null : (
+                  <div {...stylex.props(styles.switchAccount)}>
+                    {t('devices.connect.full.since', { time: clock(signIn.wait.since) })}
+                  </div>
+                )}
+                {signIn.pool?.nextFreeAt === undefined ? null : (
+                  <div data-connect-eta="">
+                    {t('devices.connect.full.eta', { time: clock(signIn.pool.nextFreeAt) })}
+                  </div>
+                )}
+                {poolLine}
+                {poolRule}
               </Callout>
             ) : signIn.state === 'error' ? (
               <Callout tone="warning" data={{ 'data-connect-issue': signIn.issue ?? '' }}>
@@ -603,6 +650,19 @@ export function PairedDevicesSettings({
             >
               {freshSnapshot && connect.state === 'error' ? (
                 <Note tone="warning">{t('devices.connect.recovery')}</Note>
+              ) : null}
+              {poolLine}
+              {signIn.pool !== undefined && signIn.pool.free === 0 ? (
+                <>
+                  {signIn.protectedUntil === undefined ? null : (
+                    <div data-connect-protected="">
+                      <Note tone="warning">
+                        {t('devices.connect.protected', { time: clock(signIn.protectedUntil) })}
+                      </Note>
+                    </div>
+                  )}
+                  {poolRule}
+                </>
               ) : null}
             </SettingsRow>
           ) : null}

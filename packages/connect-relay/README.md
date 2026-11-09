@@ -66,7 +66,7 @@ Refusals include `invalid-bot-identity` / `invalid-bot-peer` (400), `bot-host-pr
 
 ## Reclamation, reconciliation and eviction
 
-[ADR-0312](../../docs/adr/0312-connect-tunnels-share-a-multi-zone-pool-with-eviction.md) defines the lifecycle. A tunnel's CNAME lives exactly as long as the tunnel: reclamation, eviction, unlink and a vanished tunnel all delete both, and the next `POST /v1/hosts/{id}/tunnel` recreates the same `<id>.<zone>` name. If creating the record fails, the request deletes the tunnel it just created, so no tunnel is left without a hostname. A full zone (Cloudflare error 81045) answers `503 relay-full`. A record of the same name that already exists is adopted.
+[ADR-0313](../../docs/adr/0313-connect-tunnels-share-a-multi-zone-pool-with-eviction.md) defines the lifecycle. A tunnel's CNAME lives exactly as long as the tunnel: reclamation, eviction, unlink and a vanished tunnel all delete both, and the next `POST /v1/hosts/{id}/tunnel` recreates the same `<id>.<zone>` name. If creating the record fails, the request deletes the tunnel it just created, so no tunnel is left without a hostname. A full zone (Cloudflare error 81045) answers `503 relay-full`. A record of the same name that already exists is adopted.
 
 A cron trigger reconciles the D1 rows with Cloudflare every minute. It lists the account's tunnels once (`per_page=1000`) and each Connect zone's tunnel CNAMEs once, then, within `RECLAIM_BUDGET` Cloudflare calls (default 30, under the Workers Free limit of 50 subrequests):
 
@@ -79,7 +79,7 @@ A cron trigger reconciles the D1 rows with Cloudflare every minute. It lists the
 
 A failed step stamps `cleanup_at` and the next run starts with the rows least recently attempted, so one failing row never blocks the rest. Each run that changes anything logs one `connect-reconcile` line with its counts.
 
-When provisioning finds `MAX_TUNNELS` live tunnels, or `ZONE_RECORDS` records in the Host's zone, it evicts the cheapest tunnel: gone, then offline longest (beyond 2 minutes), then the least recently used online Host outside `EVICT_PROTECT_MINUTES` (default 30) that is older in use than the requester. It logs `connect-evicted`; with no candidate it answers `503 relay-full` and logs `connect-full`. Last use comes from pairing offers, Live Activity registrations and the Host's own report on its once-a-minute `GET /v1/hosts?host=<id>&idle=<seconds>`.
+When provisioning finds `MAX_TUNNELS` live tunnels, or `ZONE_RECORDS` records in the Host's zone, it evicts the cheapest tunnel: gone, then offline longest (beyond 2 minutes), then the least recently used online Host outside its guaranteed `EVICT_FRESH_MINUTES` and `EVICT_PROTECT_MINUTES` (both default 30) that is older in use than the requester. It logs `connect-evicted`; with no candidate it answers `503 relay-full` and logs `connect-full`. Last use comes from pairing offers, Live Activity registrations and the Host's own report on its once-a-minute `GET /v1/hosts?host=<id>&idle=<seconds>`.
 
 ### Live end-to-end check
 
@@ -106,6 +106,7 @@ pnpm --filter @botharness/connect-relay exec unrun scripts/e2e-lifecycle.ts ~/.c
 | `ZONE_RECORDS`          | var    | Tunnel records per zone, `195` (free zones hold 200 records)                                                                                                     |
 | `RECLAIM_BUDGET`        | var    | Cloudflare calls per reconciliation run, `30`                                                                                                                    |
 | `EVICT_PROTECT_MINUTES` | var    | Minutes after its last use an online Host cannot be evicted, `30`                                                                                                |
+| `EVICT_FRESH_MINUTES`   | var    | Minutes after its tunnel was created an online Host cannot be evicted, `30`                                                                                      |
 | `TUNNEL_PREFIX`         | var    | Tunnel name prefix the reconciler owns, `dsb-`. A test relay on the same account must use another prefix and its own zone                                        |
 | `MAX_HOSTS`             | var    | Hosts per account, `5`                                                                                                                                           |
 | `MAX_TUNNELS`           | var    | Live tunnels across all accounts, `900` (Cloudflare allows 1,000)                                                                                                |

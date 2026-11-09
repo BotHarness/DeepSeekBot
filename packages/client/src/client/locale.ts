@@ -4713,6 +4713,17 @@ export const zh = {
   'devices.connect.connected': '已连接',
   'devices.connect.starting': '正在连接…',
   'devices.connect.reconnecting': '正在重连…',
+  'devices.connect.full.title': '共享隧道已满',
+  'devices.connect.full.short': '已登录，正在排队等共享隧道。',
+  'devices.connect.full.queued':
+    '你在排队第 {position} 位。有电脑离线或闲置时会让出位置，这台电脑每分钟自动重试，不用重新登录。',
+  'devices.connect.full.zone': '这台电脑能用的连接域名都满了，有空位时会自动连上，不用重新登录。',
+  'devices.connect.full.since': '从 {time} 开始等待',
+  'devices.connect.pool': '共享隧道：已用 {inUse} / {capacity}，空余 {free}，排队 {waiting}',
+  'devices.connect.poolRule':
+    '每台电脑连上后至少保留 {minutes} 分钟。之后如果隧道全满，离线超过 2 分钟或 30 分钟没用过的电脑先让出隧道，最久没用的先让。在手机上使用 Tobs 会让这台电脑保留隧道。',
+  'devices.connect.full.eta': '最早 {time} 会有隧道空出来。',
+  'devices.connect.protected': '这台电脑的隧道至少保留到 {time}，手机每次使用都会延长。',
 
   'devices.list.title': '已配对设备',
   'devices.list.loading': '正在读取…',
@@ -9921,6 +9932,20 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'devices.connect.connected': 'Connected',
   'devices.connect.starting': 'Connecting…',
   'devices.connect.reconnecting': 'Reconnecting…',
+  'devices.connect.full.title': 'All shared tunnels are busy',
+  'devices.connect.full.short': 'Signed in, waiting for a shared tunnel.',
+  'devices.connect.full.queued':
+    'You are number {position} in line. A tunnel frees up when another computer goes offline or sits idle. This computer retries every minute, so there is nothing to do.',
+  'devices.connect.full.zone':
+    'The Connect domains this computer can use are full. It connects on its own when a tunnel frees up.',
+  'devices.connect.full.since': 'Waiting since {time}',
+  'devices.connect.pool':
+    'Shared tunnels: {inUse} of {capacity} in use, {free} free, {waiting} waiting',
+  'devices.connect.poolRule':
+    "Every computer keeps a new tunnel for at least {minutes} minutes. After that, when every tunnel is busy, computers offline for 2 minutes or unused for 30 minutes give theirs up first, least recently used first. Using Tobs on your phone keeps this computer's tunnel.",
+  'devices.connect.full.eta': 'A tunnel can free up at {time} at the earliest.',
+  'devices.connect.protected':
+    'This computer keeps its tunnel until at least {time}. Each use from your phone extends it.',
 
   'devices.list.title': 'Paired devices',
   'devices.list.loading': 'Loading…',

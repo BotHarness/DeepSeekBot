@@ -174,6 +174,74 @@ it('explains automatic recovery only when the Host can resume the saved session'
   );
 });
 
+it('tells a waiting computer its place in line, the pool and what frees a tunnel', async () => {
+  snapshot = devices({
+    state: 'off',
+    account: {
+      state: 'error',
+      issue: 'relay-full',
+      recovery: 'automatic',
+      email: 'vain@example.com',
+      wait: { reason: 'pool-full', position: 2, since: '2026-11-09T08:00:00.000Z' },
+      pool: {
+        capacity: 1000,
+        inUse: 1000,
+        free: 0,
+        waiting: 3,
+        nextFreeAt: '2026-11-09T08:30:00.000Z',
+        guaranteedMinutes: 30,
+      },
+    },
+  });
+  await render();
+  expect(host.querySelector('[data-connect-eta]')?.textContent).toContain('最早');
+  expect(host.textContent).toContain(zhTranslate('devices.connect.poolRule', { minutes: 30 }));
+  const wait = host.querySelector('[data-connect-wait="pool-full"]');
+  expect(wait?.textContent).toContain(zhTranslate('devices.connect.full.queued', { position: 2 }));
+  expect(wait?.textContent).toContain('开始等待');
+  expect(host.querySelector('[data-connect-pool]')?.textContent).toBe(
+    zhTranslate('devices.connect.pool', { capacity: 1000, inUse: 1000, free: 0, waiting: 3 }),
+  );
+  expect(host.querySelector('[data-connect-protected]')).toBeNull();
+  expect(host.querySelector('[data-connect-email]')?.textContent).toBe('vain@example.com');
+  expect(button(zhTranslate('devices.connect.signIn'))).toBeUndefined();
+  expect(host.querySelector('[data-connect-issue]')).toBeNull();
+});
+
+it('shows shared tunnel usage once connected', async () => {
+  snapshot = devices({
+    state: 'connected',
+    hostname: 'habcdefghijkl.deepseekbot.dev',
+    account: {
+      state: 'signed-in',
+      email: 'vain@example.com',
+      pool: { capacity: 1000, inUse: 412, free: 588, waiting: 0 },
+    },
+  });
+  await render();
+  expect(host.querySelector('[data-connect-pool]')?.textContent).toBe(
+    zhTranslate('devices.connect.pool', { capacity: 1000, inUse: 412, free: 588, waiting: 0 }),
+  );
+  expect(host.textContent).not.toContain(zhTranslate('devices.connect.poolRule', { minutes: 30 }));
+  expect(host.querySelector('[data-connect-protected]')).toBeNull();
+});
+
+it('warns a connected computer how long its tunnel is kept while others wait', async () => {
+  snapshot = devices({
+    state: 'connected',
+    hostname: 'habcdefghijkl.deepseekbot.dev',
+    account: {
+      state: 'signed-in',
+      email: 'vain@example.com',
+      protectedUntil: '2026-11-09T09:00:00.000Z',
+      pool: { capacity: 1000, inUse: 1000, free: 0, waiting: 2, guaranteedMinutes: 30 },
+    },
+  });
+  await render();
+  expect(host.querySelector('[data-connect-protected]')?.textContent).toContain('至少保留到');
+  expect(host.textContent).toContain(zhTranslate('devices.connect.poolRule', { minutes: 30 }));
+});
+
 it('marks a device paired in the last day so a stranger stands out', async () => {
   const recent = new Date(Date.now() - 60_000).toISOString();
   const old = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();

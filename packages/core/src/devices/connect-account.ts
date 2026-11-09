@@ -36,6 +36,8 @@ export interface ConnectPool {
   inUse: number;
   free: number;
   waiting: number;
+  nextFreeAt?: string | undefined;
+  guaranteedMinutes?: number | undefined;
 }
 
 export interface ConnectWait {
@@ -56,6 +58,7 @@ export interface AccountStatus {
   recovery?: 'automatic' | 'sign-in';
   pool?: ConnectPool;
   wait?: ConnectWait;
+  protectedUntil?: string;
 }
 
 export type AccountFailureCode =
@@ -154,7 +157,14 @@ class AccountError extends Error {
 }
 
 const count = z.number().int().nonnegative();
-const poolSchema = z.object({ capacity: count, inUse: count, free: count, waiting: count });
+const poolSchema = z.object({
+  capacity: count,
+  inUse: count,
+  free: count,
+  waiting: count,
+  nextFreeAt: z.iso.datetime().optional(),
+  guaranteedMinutes: count.optional(),
+});
 const waitSchema = z.object({
   reason: z.enum(['pool-full', 'zone-full', 'queued']),
   position: count,
@@ -558,7 +568,22 @@ export function createConnectAccount(options: {
               });
         listed = reply.body['hosts'];
         const pool = poolSchema.safeParse(reply.body['pool']);
-        if (pool.success && status.state === 'signed-in') status = { ...status, pool: pool.data };
+        if (status.state === 'signed-in') {
+          const own = Array.isArray(listed)
+            ? (listed as unknown[]).find(
+                (host) => (host as { id?: unknown } | null)?.id === stored.hostId,
+              )
+            : undefined;
+          const until = z.iso
+            .datetime()
+            .safeParse((own as { protectedUntil?: unknown } | undefined)?.protectedUntil);
+          const { protectedUntil: _previous, ...rest } = status;
+          status = {
+            ...rest,
+            ...(pool.success ? { pool: pool.data } : {}),
+            ...(until.success ? { protectedUntil: until.data } : {}),
+          };
+        }
       } catch (error) {
         if (
           error instanceof AccountError &&

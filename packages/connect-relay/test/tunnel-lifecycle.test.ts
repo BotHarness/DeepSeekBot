@@ -455,11 +455,20 @@ describe('eviction when the pool is full', () => {
     env.advance(MINUTE);
     expect((await env.provision('user_c', c)).body.error).toMatchObject({ position: 2 });
     const listed = await env.call('GET', '/v1/hosts', { as: 'user_b' });
-    expect(listed.body.pool).toEqual({ capacity: 1, inUse: 1, free: 0, waiting: 2 });
+    expect(listed.body.pool).toEqual({
+      capacity: 1,
+      inUse: 1,
+      free: 0,
+      waiting: 2,
+      nextFreeAt: '2026-10-20T12:30:00.000Z',
+      guaranteedMinutes: 30,
+    });
     expect(listed.body.hosts[0]).toMatchObject({ state: 'waiting', tunnel: false });
-    expect((await env.call('GET', '/v1/hosts', { as: 'user_a' })).body.hosts[0].state).toBe(
-      'connected',
-    );
+    expect(listed.body.hosts[0].protectedUntil).toBeUndefined();
+    expect((await env.call('GET', '/v1/hosts', { as: 'user_a' })).body.hosts[0]).toMatchObject({
+      state: 'connected',
+      protectedUntil: '2026-10-20T12:30:00.000Z',
+    });
     expect((await env.call('DELETE', `/v1/hosts/${a}`, { as: 'user_a' })).status).toBe(200);
     expect((await env.provision('user_c', c)).body.error).toMatchObject({
       reason: 'queued',

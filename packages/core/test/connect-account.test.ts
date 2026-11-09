@@ -87,6 +87,7 @@ function fakeServices(
     sessionRevoked?: boolean;
     relayFull?: Record<string, unknown>;
     pool?: Record<string, unknown>;
+    protectedUntil?: string;
   } = {},
 ) {
   let pending = options.pending ?? 1;
@@ -166,7 +167,10 @@ function fakeServices(
       await options.onList?.();
       const listed = [...hosts]
         .filter((id) => owners.get(id) === (options.userId ?? 'user_alice'))
-        .map((id) => ({ id }));
+        .map((id) => ({
+          id,
+          ...(options.protectedUntil ? { protectedUntil: options.protectedUntil } : {}),
+        }));
       if (options.forgetAfterList) hosts.clear();
       return Response.json(
         options.listBody ?? { hosts: listed, ...(options.pool ? { pool: options.pool } : {}) },
@@ -1396,6 +1400,20 @@ describe('Connect account deletion', () => {
     expect(tunnel.enabled).toHaveLength(1);
     expect(account.status()).not.toHaveProperty('wait');
     await until(() => account.status().pool?.inUse === 899);
+    options.pool = {
+      capacity: 900,
+      inUse: 900,
+      free: 0,
+      waiting: 1,
+      nextFreeAt: '2026-11-09T20:10:00.000Z',
+      guaranteedMinutes: 30,
+    };
+    options.protectedUntil = '2026-11-09T20:25:00.000Z';
+    await until(() => account.status().protectedUntil === '2026-11-09T20:25:00.000Z');
+    expect(account.status().pool).toMatchObject({
+      nextFreeAt: '2026-11-09T20:10:00.000Z',
+      guaranteedMinutes: 30,
+    });
     await account.close();
   });
 

@@ -22,6 +22,7 @@ export interface ConnectRelayEnv {
   RECLAIM_BUDGET?: string;
   TUNNEL_PREFIX?: string;
   EVICT_PROTECT_MINUTES?: string;
+  EVICT_FRESH_MINUTES?: string;
   ALLOWED_USERS?: string;
   MAX_HOSTS?: string;
   MAX_TUNNELS?: string;
@@ -110,6 +111,7 @@ export function relayForEnv(env: ConnectRelayEnv): ReturnType<typeof createRelay
       ? { tunnelPrefix: env.TUNNEL_PREFIX }
       : {}),
     evictProtectMs: positive(env.EVICT_PROTECT_MINUTES, 30) * 60 * 1000,
+    evictFreshMs: positive(env.EVICT_FRESH_MINUTES, 30) * 60 * 1000,
     allowedUsers: (env.ALLOWED_USERS ?? '')
       .split(',')
       .map((user) => user.trim())
