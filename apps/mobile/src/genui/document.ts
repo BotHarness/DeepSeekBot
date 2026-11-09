@@ -78,7 +78,7 @@ export function genuiDocumentPage(
     instanceId: options.instanceId,
     theme: options.theme,
     ...(options.state === undefined ? {} : { state: options.state }),
-    ...(options.pageZoom === true ? { viewportScale: scale } : { textScale: scale }),
+    ...(options.pageZoom === true && scale !== 1 ? { viewportScale: scale } : { textScale: scale }),
     runtimeBase64: options.runtimeBase64,
     bridge: 'native',
   });

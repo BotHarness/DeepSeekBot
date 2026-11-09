@@ -274,6 +274,7 @@ function Replies({
   send: GenuiReplySend;
   ready: boolean;
 }) {
+  const theme = useDesignTheme();
   const t = useStrings();
   const snapshot = useSyncExternalStore(view.subscribe, view.getSnapshot, view.getSnapshot);
   const [sent, setSent] = useState<Partial<Record<GenuiDocumentReply['intent'], string>>>({});
@@ -298,7 +299,13 @@ function Replies({
   const justSent = Object.values(sent).length > 0;
   return (
     <View style={{ gap: space.x2, alignItems: 'flex-start' }}>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.x2 }}>
+      <View
+        style={{
+          flexDirection: theme.fontScale > 1.3 ? 'column' : 'row',
+          flexWrap: 'wrap',
+          gap: space.x2,
+        }}
+      >
         <Button
           label={t.genuiContinue}
           tone="primary"

@@ -300,6 +300,14 @@ describe('GenUI native WebView bridge', () => {
       '<meta name="viewport" content="initial-scale=1.4,minimum-scale=1.4,maximum-scale=1.4,user-scalable=no">',
     );
     expect(html).not.toContain('width=device-width');
+    const unscaled = genuiDocumentPage(syntheticGenuiDocument, {
+      instanceId: 'genui-mobile-3',
+      theme: 'light',
+      fontScale: 1,
+      pageZoom: true,
+      runtimeBase64: GENUI_RUNTIME.base64,
+    });
+    expect(unscaled).toContain('content="width=device-width,');
   });
 });
 
