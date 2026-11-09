@@ -609,7 +609,12 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     call.replies = [];
     call.interrupted = [];
     call.barge = undefined;
-    if (call.visual !== 'off') commit(call, call.visualSession, call.visual, call.harvest.flush());
+    if (call.visual !== 'off') {
+      commit(call, call.visualSession, call.visual, call.harvest.flush());
+      call.visual = 'off';
+      push(call, { type: 'visual', source: 'off' });
+      log('call-visual', { call: call.id, source: 'off' });
+    }
     call.harvest.clear();
     release(call.id);
     call.vad.reset();

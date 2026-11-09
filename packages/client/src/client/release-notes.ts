@@ -16,6 +16,7 @@ import type {
 import { compareVersions, isReleaseVersion } from '../../../core/src/release/version.js';
 import type { BridgeCall } from './bridge.js';
 import type { ConfigStorage } from './roster-config.js';
+import { UpdateRunsController } from './update-runs.js';
 
 export const RELEASE_NOTES_SEEN_KEY = 'botharness.releaseNotes.seenVersion';
 
@@ -69,6 +70,7 @@ export const INSTALL_FAILURES: readonly ReleaseInstallFailure[] = [
   'network',
   'incompatible',
   'build-blocked',
+  'cancelled',
   'failed',
 ];
 
@@ -269,6 +271,7 @@ export class ReleaseNotesController {
   private readonly call: BridgeCall;
   private readonly storage: ConfigStorage | undefined;
   private readonly watch: ReleaseRestartWatch;
+  readonly runs: UpdateRunsController;
   private started: Promise<void> | undefined;
   private profileId: string | undefined;
   private checkedAt = 0;
@@ -278,10 +281,12 @@ export class ReleaseNotesController {
     call: BridgeCall,
     storage: ConfigStorage | undefined,
     watch: ReleaseRestartWatch = DEFAULT_RESTART_WATCH,
+    runs: UpdateRunsController = new UpdateRunsController(call, watch),
   ) {
     this.call = call;
     this.storage = storage;
     this.watch = watch;
+    this.runs = runs;
     this.source = createSnapshotStore<ReleaseNotesSnapshot>({
       version: undefined,
       announcement: undefined,
@@ -404,17 +409,21 @@ export class ReleaseNotesController {
   }
 
   async install(version: string): Promise<void> {
-    if (this.source.getSnapshot().install.status === 'installing') return;
+    if (this.source.getSnapshot().install.status === 'installing' || this.runs.busy()) return;
     this.source.update((draft) => {
       draft.install = { status: 'installing', version };
     });
-    let outcome: ReleaseInstall | undefined;
-    try {
-      const result = await this.call('releaseInstall', { version });
-      outcome = result.ok ? parseReleaseInstall(result.value) : undefined;
-    } catch {
-      outcome = undefined;
-    }
+    const outcome = await this.runs.run(
+      { kind: 'release', name: 'deepseekbot', version },
+      async (requestId): Promise<ReleaseInstall | undefined> => {
+        try {
+          const result = await this.call('releaseInstall', { version, requestId });
+          return result.ok ? parseReleaseInstall(result.value) : undefined;
+        } catch {
+          return undefined;
+        }
+      },
+    );
     if (
       outcome?.status === 'installed' &&
       outcome.applied &&
@@ -433,7 +442,10 @@ export class ReleaseNotesController {
         };
         return;
       }
-      draft.install = outcome ?? { status: 'failed', reason: 'failed' };
+      draft.install =
+        outcome?.status === 'failed' && outcome.reason === 'cancelled'
+          ? { status: 'idle' }
+          : (outcome ?? { status: 'failed', reason: 'failed' });
     });
   }
 

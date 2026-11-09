@@ -106,7 +106,11 @@ describe('PluginUpdatesController', () => {
     const controller = new PluginUpdatesController(call, restart);
     await controller.load();
     await controller.install(NAME, '0.2.0');
-    expect(call).toHaveBeenCalledWith('pluginInstall', { name: NAME, version: '0.2.0' });
+    expect(call).toHaveBeenCalledWith('pluginInstall', {
+      name: NAME,
+      version: '0.2.0',
+      requestId: expect.any(String),
+    });
     expect(controller.source.getSnapshot().rows[NAME]).toEqual({
       status: 'reloading',
       version: '0.2.0',
