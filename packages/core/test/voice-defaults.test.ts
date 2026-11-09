@@ -1,3 +1,5 @@
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
 
 import { Context } from '@deepseek-ai/cordis';
@@ -8,7 +10,7 @@ import type { PersonaBotRegistry } from '../src/bots/registry.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createVoiceBridgeMethods } from '../src/voice/bridge.js';
-import { withVoiceDefaults } from '../src/voice/defaults.js';
+import { createVoiceDictations } from '../src/voice/dictation.js';
 import { ASR_PRESETS, TTS_PRESETS, uniqueProviderName } from '../src/voice/presets.js';
 import { VoiceProviders } from '../src/voice/providers.js';
 import { clampSpeechDbfs, createVad, DEFAULT_SPEECH_DBFS } from '../src/voice/vad.js';
@@ -118,31 +120,38 @@ describe('Host-wide voice defaults', () => {
     expect(providers.defaults()).toEqual({ tts: null, asr: null });
   });
 
-  it('fills only the bindings a Bot does not set itself', () => {
-    const defaults = () => ({
-      tts: { providerId: 'tts-aaaaaaaaaaaa' },
-      asr: { providerId: 'asr-aaaaaaaaaaaa' },
+  it('fills only the bindings a Bot does not set itself', async () => {
+    const providers = await fixture();
+    const tts = await providers.add({ preset: 'local' });
+    const asr = await providers.add({ kind: 'asr', preset: 'local' });
+    const own = await providers.add({ preset: 'local' });
+    const bot = (slug: string, voice?: { providerId: string }) => ({
+      slug,
+      ...(voice === undefined ? {} : { voice }),
     });
-    const bot = (slug: string, voice?: { providerId: string }) =>
-      ({ slug, ...(voice === undefined ? {} : { voice }) }) as {
-        slug: string;
-        voice?: { providerId: string };
-      };
-    expect(withVoiceDefaults(bot('a'), defaults)).toEqual({
+    expect(providers.effective(bot('a'))).toEqual({
       slug: 'a',
-      voice: { providerId: 'tts-aaaaaaaaaaaa' },
-      asr: { providerId: 'asr-aaaaaaaaaaaa' },
+      voice: { providerId: tts.id },
+      asr: { providerId: asr.id },
     });
-    expect(
-      withVoiceDefaults(bot('b', { providerId: 'tts-bbbbbbbbbbbb' }), defaults)?.voice,
-    ).toEqual({ providerId: 'tts-bbbbbbbbbbbb' });
-    expect(withVoiceDefaults(undefined, defaults)).toBeUndefined();
+    expect(providers.effective(bot('b', { providerId: own.id }))?.voice).toEqual({
+      providerId: own.id,
+    });
+    expect(providers.effective(undefined)).toBeUndefined();
   });
 
   it('lets Bot dictation and the bridge view follow the default unless overridden', async () => {
     const providers = await fixture();
-    const own = await providers.add({ kind: 'asr', preset: 'local' });
-    const chosen = await providers.add({ kind: 'asr', preset: 'local' });
+    const own = await providers.add({
+      kind: 'asr',
+      preset: 'custom',
+      baseUrl: 'http://127.0.0.1:9/v1',
+    });
+    const chosen = await providers.add({
+      kind: 'asr',
+      preset: 'custom',
+      baseUrl: 'http://127.0.0.1:9/v1',
+    });
     const bridge = createVoiceBridgeMethods({
       providers,
       registry: registry({ plain: {}, custom: { asr: { providerId: own.id } } }),
@@ -185,6 +194,87 @@ function tone(dbfs: number, ms: number): Int16Array {
     Math.round(amplitude * Math.sin((2 * Math.PI * 180 * index) / 16_000)),
   );
 }
+
+async function closedPort(): Promise<number> {
+  const server = createServer();
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address() as AddressInfo;
+  await new Promise<void>((resolve) => server.close(() => resolve()));
+  return port;
+}
+
+describe('effective speech binding (#3786)', () => {
+  it('resolves a bound Bot, the Host default, nothing, and a stopped local service', async () => {
+    const providers = await fixture();
+    const custom = await providers.add({
+      kind: 'asr',
+      preset: 'custom',
+      baseUrl: 'http://127.0.0.1:9/v1',
+      language: 'en',
+    });
+    expect(await providers.resolve({ bot: {}, kind: 'asr' })).toMatchObject({
+      providerId: custom.id,
+      source: 'default',
+      state: 'ready',
+    });
+    providers.setDefault('asr', null);
+    expect(await providers.resolve({ bot: {}, kind: 'asr' })).toMatchObject({
+      providerId: null,
+      source: 'none',
+      state: 'missing',
+    });
+    expect(await providers.resolve({ bot: {}, kind: 'asr', fallback: 'any' })).toMatchObject({
+      providerId: custom.id,
+      source: 'fallback',
+      state: 'ready',
+    });
+    expect(
+      await providers.resolve({
+        bot: { asr: { providerId: custom.id, language: 'zh' } },
+        kind: 'asr',
+      }),
+    ).toMatchObject({ providerId: custom.id, language: 'zh', source: 'bot', state: 'ready' });
+    expect(await providers.resolve({ bot: {}, kind: 'tts' })).toMatchObject({ state: 'missing' });
+    const port = await closedPort();
+    const local = await providers.add({
+      kind: 'asr',
+      preset: 'local',
+      baseUrl: `http://127.0.0.1:${port}/v1`,
+    });
+    expect(
+      await providers.resolve({ bot: { asr: { providerId: local.id } }, kind: 'asr' }),
+    ).toMatchObject({ providerId: local.id, source: 'bot', state: 'off' });
+    expect(await providers.resolve({ kind: 'asr', providerId: 'asr-000000000000' })).toMatchObject({
+      source: 'explicit',
+      state: 'missing',
+    });
+  });
+
+  it('makes dictation report not ready while the Bot local speech service is stopped', async () => {
+    const providers = await fixture();
+    const port = await closedPort();
+    const local = await providers.add({
+      kind: 'asr',
+      preset: 'local',
+      baseUrl: `http://127.0.0.1:${port}/v1`,
+    });
+    await providers.add({ kind: 'asr', preset: 'custom', baseUrl: 'http://127.0.0.1:9/v1' });
+    const dictations = createVoiceDictations({
+      providers: () => providers,
+      bot: () => ({ asr: { providerId: local.id } }),
+    });
+    expect(await dictations.readiness({ slug: 'mira' })).toEqual({
+      ready: false,
+      reason: 'local-voice-off',
+      providerId: null,
+      mode: null,
+      sampleRate: 16_000,
+    });
+    await expect(dictations.open({ slug: 'mira' })).rejects.toMatchObject({
+      code: 'local-voice-off',
+    });
+  });
+});
 
 describe('Host-wide speech threshold', () => {
   it('stores, clamps and resets the threshold', async () => {

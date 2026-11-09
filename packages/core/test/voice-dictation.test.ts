@@ -63,13 +63,13 @@ afterEach(() => {
 describe('composer dictation', () => {
   it('streams live text from a streaming provider and returns the final transcript', async () => {
     const { providers, pushed } = streamingProviders();
-    const dictations = createVoiceDictations({ providers: () => providers, botAsr: () => null });
-    expect(dictations.readiness({})).toMatchObject({
+    const dictations = createVoiceDictations({ providers: () => providers });
+    expect(await dictations.readiness({})).toMatchObject({
       ready: true,
       providerId: 'soniox',
       mode: 'stream',
     });
-    const opened = dictations.open({});
+    const opened = await dictations.open({});
     expect(opened).toMatchObject({ providerId: 'soniox', mode: 'stream', state: 'listening' });
     expect(dictations.push(opened.id, new Int16Array(3200)).text).toBe('w1');
     expect(dictations.push(opened.id, new Int16Array(3200)).text).toBe('w1 w2');
@@ -79,23 +79,24 @@ describe('composer dictation', () => {
     expect(dictations.active()).toBe(0);
   });
 
-  it('uses the Bot binding before the Host default', () => {
+  it('uses the Bot binding before the Host default', async () => {
     const { providers } = streamingProviders();
     const dictations = createVoiceDictations({
       providers: () => providers,
-      botAsr: (slug) => (slug === 'mia' ? { providerId: 'local', language: 'zh' } : null),
+      bot: (slug) =>
+        slug === 'mia' ? { asr: { providerId: 'local', language: 'zh' } } : undefined,
     });
-    expect(dictations.readiness({ slug: 'mia' })).toMatchObject({
+    expect(await dictations.readiness({ slug: 'mia' })).toMatchObject({
       providerId: 'local',
       mode: 'segments',
     });
-    expect(dictations.readiness({ slug: 'other' }).providerId).toBe('soniox');
+    expect((await dictations.readiness({ slug: 'other' })).providerId).toBe('soniox');
   });
 
   it('cuts at pauses and appends each transcribed piece for a batch provider', async () => {
     const { providers, lengths } = segmentedProviders();
-    const dictations = createVoiceDictations({ providers: () => providers, botAsr: () => null });
-    const opened = dictations.open({});
+    const dictations = createVoiceDictations({ providers: () => providers });
+    const opened = await dictations.open({});
     expect(opened.mode).toBe('segments');
     const audio = concat(silence(400), speech(900), silence(450), speech(900, { seed: 4 }));
     for (const chunk of chunks(audio, 3200)) dictations.push(opened.id, chunk);
@@ -108,8 +109,8 @@ describe('composer dictation', () => {
 
   it('reports a provider failure and drops the session', async () => {
     const { providers } = segmentedProviders(true);
-    const dictations = createVoiceDictations({ providers: () => providers, botAsr: () => null });
-    const opened = dictations.open({});
+    const dictations = createVoiceDictations({ providers: () => providers });
+    const opened = await dictations.open({});
     for (const chunk of chunks(concat(speech(900), silence(800)), 3200))
       dictations.push(opened.id, chunk);
     await flush();
@@ -117,25 +118,25 @@ describe('composer dictation', () => {
     expect(done).toMatchObject({ state: 'failed', error: { code: 'asr-failed' } });
   });
 
-  it('cancels, refuses unknown ids and bounds concurrent sessions', () => {
+  it('cancels, refuses unknown ids and bounds concurrent sessions', async () => {
     const { providers, cancelled } = streamingProviders();
-    const dictations = createVoiceDictations({ providers: () => providers, botAsr: () => null });
-    const first = dictations.open({});
+    const dictations = createVoiceDictations({ providers: () => providers });
+    const first = await dictations.open({});
     expect(dictations.cancel(first.id)).toMatchObject({ state: 'cancelled' });
     expect(cancelled()).toBe(1);
     expect(dictations.push(first.id, new Int16Array(320)).state).toBe('cancelled');
     expect(() => dictations.push('dict-0000000000000000', new Int16Array(1))).toThrow(
       VoiceDictationError,
     );
-    for (let index = 0; index < 4; index += 1) dictations.open({});
-    expect(() => dictations.open({})).toThrow(/Too many dictations/u);
+    for (let index = 0; index < 4; index += 1) await dictations.open({});
+    await expect(dictations.open({})).rejects.toThrow(/Too many dictations/u);
   });
 
-  it('flags audio past the length limit and stops refreshing the idle timer', () => {
+  it('flags audio past the length limit and stops refreshing the idle timer', async () => {
     vi.useFakeTimers();
     const { providers, pushed } = streamingProviders();
-    const dictations = createVoiceDictations({ providers: () => providers, botAsr: () => null });
-    const opened = dictations.open({});
+    const dictations = createVoiceDictations({ providers: () => providers });
+    const opened = await dictations.open({});
     const second = 16_000;
     for (let index = 0; index < 119; index += 1) dictations.push(opened.id, new Int16Array(second));
     expect(dictations.push(opened.id, new Int16Array(second)).truncated).toBeUndefined();
@@ -149,22 +150,21 @@ describe('composer dictation', () => {
     expect(pushed).toHaveLength(120);
   });
 
-  it('ends an idle session', () => {
+  it('ends an idle session', async () => {
     vi.useFakeTimers();
     const { providers } = streamingProviders();
-    const dictations = createVoiceDictations({ providers: () => providers, botAsr: () => null });
-    const opened = dictations.open({});
+    const dictations = createVoiceDictations({ providers: () => providers });
+    const opened = await dictations.open({});
     vi.advanceTimersByTime(15_001);
     expect(dictations.push(opened.id, new Int16Array(320)).state).toBe('cancelled');
   });
 
-  it('says when no ASR Provider exists', () => {
+  it('says when no ASR Provider exists', async () => {
     const dictations = createVoiceDictations({
       providers: () => ({ ...segmentedProviders().providers, listAsr: () => [] }),
-      botAsr: () => null,
     });
-    expect(dictations.readiness({})).toMatchObject({ ready: false, providerId: null });
-    expect(() => dictations.open({})).toThrow(/Add a speech recognition/u);
+    expect(await dictations.readiness({})).toMatchObject({ ready: false, providerId: null });
+    await expect(dictations.open({})).rejects.toThrow(/Add a speech recognition/u);
   });
 
   it('decodes base64 PCM and refuses odd payloads', () => {
