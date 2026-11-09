@@ -114,5 +114,9 @@ export function buildGenuiPageHtml(value: GenuiDocument, options: GenuiPageOptio
       addEventListener('pagehide', () => surface.dispose(), { once: true });
     } catch { failed('unsupported'); }
   })();`;
-  return `<!doctype html><html style="color-scheme:${options.theme}"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${policy}"><meta name="referrer" content="no-referrer"><style>html,body{margin:0;background:Canvas}#genui-document{width:100%}</style><script nonce="${nonce}" src="data:application/javascript;base64,${options.runtimeBase64}"></script></head><body><div id="genui-document"></div><script nonce="${nonce}">${bootstrap}</script></body></html>`;
+  const viewport =
+    options.bridge === 'native'
+      ? '<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">'
+      : '';
+  return `<!doctype html><html style="color-scheme:${options.theme}"><head><meta charset="utf-8">${viewport}<meta http-equiv="Content-Security-Policy" content="${policy}"><meta name="referrer" content="no-referrer"><style>html,body{margin:0;background:Canvas}#genui-document{width:100%}</style><script nonce="${nonce}" src="data:application/javascript;base64,${options.runtimeBase64}"></script></head><body><div id="genui-document"></div><script nonce="${nonce}">${bootstrap}</script></body></html>`;
 }

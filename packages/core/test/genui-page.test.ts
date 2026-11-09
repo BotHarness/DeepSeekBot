@@ -25,6 +25,7 @@ describe('GenUI shared document page', () => {
     expect(html).toContain("connect-src 'none'");
     expect(html).toContain("script-src 'nonce-page-test' 'wasm-unsafe-eval'");
     expect(html.match(/<script /gu)).toHaveLength(2);
+    expect(html).toContain('<meta name="viewport" content="width=device-width,');
     expect(html).not.toContain(syntheticGenuiDocument.html.slice(0, 40));
   });
 
@@ -32,6 +33,7 @@ describe('GenUI shared document page', () => {
     const html = page({ bridge: 'preview' });
     expect(html).toContain('window.__genuiPreview = status');
     expect(html).not.toContain('ReactNativeWebView');
+    expect(html).not.toContain('name="viewport"');
   });
 
   it('refuses invalid identities, themes, scales and renderer encodings', () => {
