@@ -1198,11 +1198,13 @@ Counterparts by job. The Android column uses Material 3 names, the iOS column HI
 | Label or hint for an element                        | Tooltip                                                              | `TooltipBox`, `PlainTooltip`                                                    | — on iPhone (help tags are macOS and iPadOS pointer)                                   | —                                                                                                                  |
 | Scroll through a set of items horizontally          | Carousel                                                             | `HorizontalMultiBrowseCarousel`                                                 | Collection; page control for ordered pages                                             | `ScrollView(.horizontal)`, `TabView` + `.tabViewStyle(.page)` · `UICollectionView`, `UIPageControl`                |
 | Go back                                             | System Back and predictive back; top app bar navigation icon         | `BackHandler`, `PredictiveBackHandler`                                          | Back button and the interactive pop (edge or content swipe)                            | `NavigationStack` · `UINavigationController`                                                                       |
+| An ongoing call outside the app                     | Ongoing call notification (of a foreground service)                  | `Notification.CallStyle.forOngoingCall`                                         | Live Activity (Lock Screen and Dynamic Island)                                         | ActivityKit `Activity` · `expo-widgets`                                                                            |
 
 How this app pairs them today (`apps/mobile/DESIGN.md`, #3002):
 
 - Buttons: primary → filled ↔ bordered prominent (glass prominent on iOS 26); secondary and tonal → filled tonal ↔ bordered (glass); text → text button ↔ borderless; danger → filled with the Material error colours ↔ the destructive role.
 - Sheets: Android `ModalBottomSheet` ↔ iOS form sheet with detents (`presentation: 'formSheet'` through Expo Router, or SwiftUI `BottomSheet` in `@expo/ui`).
+- A Bot call outside the app: Android ongoing call notification (`Notification.CallStyle`) plus the custom call bubble over other apps ↔ iOS Live Activity (ADR-0305).
 - The Chats "-1 screen": Android `DismissibleNavigationDrawer` ↔ iOS retained navigation pages, Workspaces beside the complete Chats tab shell (`UIPageViewController` through `PagerView`).
 - Top-level navigation: Android navigation bar with a creation FAB ↔ the iOS tab island with its **+** (a custom surface, ADR-0235).
 - Activity and workspace tabs: Android primary tabs (`PrimaryTabRow`).

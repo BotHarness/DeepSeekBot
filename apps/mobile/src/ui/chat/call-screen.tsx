@@ -8,6 +8,7 @@ import {
   type CallAudioOutputId,
   type CallMicrophoneId,
 } from '../../host/call-audio-route';
+import { openCallOverlaySettings } from '../../host/call-notice';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { callAudioPreference } from '../../host/native-call-audio-route';
 import { BotAvatar } from '../bot-avatar';
@@ -352,6 +353,46 @@ export function CallScreen({
               </Text>
             </View>
           )}
+          {session?.notifications === false && state.status === 'live' ? (
+            <View testID="call-notifications-off" style={{ marginTop: space.x4, gap: space.x3 }}>
+              <Text variant="meta" tone="subtle" style={{ textAlign: 'center' }}>
+                {t.call.notificationsOff}
+              </Text>
+              <Button
+                testID="call-notifications-settings"
+                label={t.call.openSettings}
+                onPress={() => void Linking.openSettings()}
+              />
+            </View>
+          ) : null}
+          {session?.overlay === false &&
+          session.overlayDismissed !== true &&
+          state.status === 'live' ? (
+            <View testID="call-overlay-off" style={{ marginTop: space.x4, gap: space.x3 }}>
+              <Text variant="meta" tone="subtle" style={{ textAlign: 'center' }}>
+                {t.call.overlayOff}
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.x3 }}>
+                <View style={{ flexGrow: 1 }}>
+                  <Button
+                    testID="call-overlay-not-now"
+                    label={t.call.overlayNotNow}
+                    onPress={() => {
+                      if (key !== undefined) callSessions.publish(key, { overlayDismissed: true });
+                    }}
+                  />
+                </View>
+                <View style={{ flexGrow: 1 }}>
+                  <Button
+                    testID="call-overlay-turn-on"
+                    label={t.call.overlayTurnOn}
+                    tone="primary"
+                    onPress={() => void openCallOverlaySettings()}
+                  />
+                </View>
+              </View>
+            </View>
+          ) : null}
           {report === undefined ? null : (
             <Text testID="call-test-report" variant="meta" tone="subtle" selectable>
               {report}

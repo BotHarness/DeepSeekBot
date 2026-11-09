@@ -71,6 +71,7 @@ import {
   botSettingsSectionSource,
 } from './bot-settings.js';
 import type { QuickSwitcherSettings } from './quick-switcher.js';
+import { createQuickSwitcherLauncher } from './quick-switcher-launcher.js';
 import { searchSettings } from './settings-search.js';
 import { startConnectSignIn } from './connect-sign-in.js';
 import { DshBotSettingsItem } from './dsh-bot-settings-item.js';
@@ -397,6 +398,7 @@ export function apply(ctx: ClientContext): void {
   const quickSwitcherSettings: QuickSwitcherSettings = {
     search: (query) => searchSettings(botSettingsSections.getSnapshot(), query, t),
     open: (result) => botSettings.open(result.section, result.target),
+    launcher: createQuickSwitcherLauncher(),
   };
   ctx.slots.inject('shell.overlay', () =>
     ctx.slots.register(

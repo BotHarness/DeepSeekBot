@@ -1,5 +1,6 @@
 import * as Application from 'expo-application';
 import { File, Paths } from 'expo-file-system';
+import { useRouter } from 'expo-router';
 import { useMemo, useRef, useSyncExternalStore } from 'react';
 import { AppState, View } from 'react-native';
 
@@ -14,12 +15,14 @@ import {
   type CallCameraPosition,
 } from '../../host/call-camera';
 import { createCallMedia, microphoneAccess, microphoneGranted } from '../../host/call-media';
+import { askCallNotifications, callOverlayAllowed } from '../../host/call-notice';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { callActivityNative, onCallActivityAction } from '../../host/native-call-activity';
 import { callAudioPreference } from '../../host/native-call-audio-route';
+import { useDesignTheme } from '../design/theme';
 import { useMounted } from '../mounted';
 import { locale } from '../strings';
-import { createCallActivity } from './call-activity';
+import { createCallActivity, type CallActivityPalette } from './call-activity';
 import { CallBubble } from './call-bubble';
 import { callActivityPhase } from './call-model';
 import {
@@ -57,6 +60,22 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
   const name = snapshot.roster?.bots.find((entry) => entry.slug === slug)?.displayName ?? slug;
   const nameRef = useRef(name);
   nameRef.current = name;
+  const router = useRouter();
+  const routerRef = useRef(router);
+  routerRef.current = router;
+  const { color } = useDesignTheme();
+  const palette: CallActivityPalette = {
+    success: color.success,
+    accent: color.accent,
+    warning: color.warning,
+    danger: color.danger,
+    muted: color.muted,
+    surface: color.surface,
+    fg: color.fg,
+    base: color.base,
+  };
+  const paletteRef = useRef(palette);
+  paletteRef.current = palette;
   const testAudio = testBuild() && script !== undefined;
   const media = useMemo(
     () =>
@@ -116,6 +135,7 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
               startedAt: connectedAt ?? Date.now(),
               muted: current.status === 'live' && current.muted,
               locale: locale === 'zh' ? 'zh' : 'en',
+              palette: paletteRef.current,
             },
       );
     };
@@ -242,7 +262,13 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
       if (cancelled) return;
       if (testAudio) mark('activity-action', { action });
       if (action === 'hang-up') void call.hangup();
-      else if (current.status === 'live') void call.mute(!current.muted);
+      else if (action === 'open') {
+        if (callSessions.getSnapshot()?.expanded !== true)
+          routerRef.current.push({
+            pathname: '/call/[slug]',
+            params: { slug, ...(request.hostId === undefined ? {} : { hostId: request.hostId }) },
+          });
+      } else if (current.status === 'live') void call.mute(!current.muted);
     });
     void (async () => {
       const access = await microphoneAccess();
@@ -255,6 +281,8 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
       const opened = await media.audio?.state();
       if (!cancelled && opened !== undefined && opened !== null)
         callSessions.publish(key, { audioRoute: opened });
+      const notifications = await askCallNotifications();
+      if (!cancelled && notifications !== undefined) callSessions.publish(key, { notifications });
       if (cancelled || !testAudio || media.test === undefined || script === undefined) return;
       try {
         const steps = (await (await fetch(script)).json()) as ScriptStep[];
@@ -295,7 +323,19 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
       cancelled = true;
       writeReport();
     };
-  }, [client, media, key, slug, script, testAudio]);
+  }, [client, media, key, slug, script, testAudio, request.hostId]);
+
+  const overlay = useMounted(() => {
+    const check = () => {
+      const allowed = callOverlayAllowed();
+      if (allowed !== undefined) callSessions.publish(key, { overlay: allowed });
+    };
+    check();
+    const subscription = AppState.addEventListener('change', (next) => {
+      if (next === 'active') check();
+    });
+    return () => subscription.remove();
+  }, [key]);
 
   const waitingForMicrophone = session.microphone === 'denied' || session.microphone === 'blocked';
   const recover = useMounted(() => {
@@ -314,6 +354,7 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
       <View ref={capabilities} pointerEvents="none" style={{ display: 'none' }} />
       <View ref={dial} pointerEvents="none" style={{ display: 'none' }} />
       <View ref={recover} pointerEvents="none" style={{ display: 'none' }} />
+      <View ref={overlay} pointerEvents="none" style={{ display: 'none' }} />
     </>
   );
 }

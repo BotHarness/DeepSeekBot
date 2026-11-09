@@ -1823,6 +1823,12 @@ const en = {
     duration: (text: string) => `Call time ${text}`,
     minimize: 'Minimize',
     paused: 'Paused',
+    noticeChannel: 'Bot calls',
+    notificationsOff:
+      'Notifications are off. The call keeps going, but won’t show outside the app.',
+    overlayOff: 'Turn on Display over other apps to keep the call bubble when you leave the app.',
+    overlayTurnOn: 'Turn on',
+    overlayNotNow: 'Not now',
     bubble: (name: string, status: string, time: string | undefined) =>
       `Back to call with ${name}. ${status}${time === undefined ? '' : `. ${time}`}`,
     heard: (text: string) => `Heard: ${text}`,
@@ -4133,6 +4139,11 @@ const zh: typeof en = {
     duration: (text: string) => `通话时长 ${text}`,
     minimize: '最小化',
     paused: '已暂停',
+    noticeChannel: 'Bot 通话',
+    notificationsOff: '通知已关闭。通话会继续，但离开 App 后看不到它。',
+    overlayOff: '开启“显示在其他应用的上层”，离开 App 后通话悬浮球仍会显示。',
+    overlayTurnOn: '去开启',
+    overlayNotNow: '暂不',
     bubble: (name: string, status: string, time: string | undefined) =>
       `回到与 ${name} 的通话，${status}${time === undefined ? '' : `，${time}`}`,
     heard: (text: string) => `听到：${text}`,

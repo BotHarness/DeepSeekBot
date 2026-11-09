@@ -49,6 +49,9 @@ export type CallSessionSnapshot = {
   audioRoute?: CallAudioRouteState | undefined;
   cameraSupported: boolean;
   camera: CallCameraState;
+  notifications?: boolean | undefined;
+  overlay?: boolean | undefined;
+  overlayDismissed?: boolean | undefined;
 };
 
 export interface CallControls {
@@ -76,6 +79,9 @@ export type CallSessionPatch = Partial<
     | 'audioRoute'
     | 'cameraSupported'
     | 'camera'
+    | 'notifications'
+    | 'overlay'
+    | 'overlayDismissed'
   >
 >;
 
