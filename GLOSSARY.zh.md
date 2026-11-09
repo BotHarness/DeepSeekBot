@@ -1195,11 +1195,13 @@ _避免使用_：Material You（动态取色以外）、毛玻璃、玻璃拟态
 | 元素的标签或提示                  | Tooltip                                                       | `TooltipBox`, `PlainTooltip`                                                    | iPhone 上没有（help tag 属于 macOS 与 iPadOS 指针）                                    | —                                                                                                                  |
 | 横向滚动浏览一组项目              | Carousel                                                      | `HorizontalMultiBrowseCarousel`                                                 | Collection；有序页面用 page control                                                    | `ScrollView(.horizontal)`, `TabView` + `.tabViewStyle(.page)` · `UICollectionView`, `UIPageControl`                |
 | 返回                              | 系统 Back 与 predictive back；top app bar 的 navigation icon  | `BackHandler`, `PredictiveBackHandler`                                          | Back button 与 interactive pop（边缘或内容区滑动）                                     | `NavigationStack` · `UINavigationController`                                                                       |
+| 应用外仍在进行的通话              | Ongoing call notification (of a foreground service)           | `Notification.CallStyle.forOngoingCall`                                         | Live Activity (Lock Screen and Dynamic Island)                                         | ActivityKit `Activity` · `expo-widgets`                                                                            |
 
 本应用当前的配对（`apps/mobile/DESIGN.md`、#3002）：
 
 - 按钮：主要 → filled ↔ bordered prominent（iOS 26 为 glass prominent）；次要与 tonal → filled tonal ↔ bordered（glass）；文本 → text button ↔ borderless；危险 → 使用 Material error 颜色的 filled ↔ destructive role。
 - Sheet：Android `ModalBottomSheet` ↔ iOS 带 detents 的 form sheet（经 Expo Router 的 `presentation: 'formSheet'`，或 `@expo/ui` 的 SwiftUI `BottomSheet`）。
+- 应用外的 Bot 通话：Android ongoing call notification（`Notification.CallStyle`）加上显示在其他应用上层的自定义通话悬浮球 ↔ iOS Live Activity（ADR-0305）。
 - Chats 的「-1 屏」：Android `DismissibleNavigationDrawer` ↔ iOS 相邻的常驻导航页面：工作区、完整聊天列表及底部导航、上次聊天与资料页，通过 `PagerView` 的显式 UIKit `UIPageViewController` 后端连接。
 - 顶级导航：Android navigation bar 加创建 FAB ↔ iOS tab island 及其 **+**（自定义界面，ADR-0235）。
 - 活动与工作区标签页：Android primary tabs（`PrimaryTabRow`）。

@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 
 import {
   CALL_ACTIVITY_TARGETS,
+  type CallActivityAction,
   type CallActivityNative,
   type CallActivityProps,
 } from '../ui/chat/call-activity';
@@ -10,6 +11,7 @@ import {
 const supported = () =>
   Platform.OS === 'ios' && requireOptionalNativeModule('ExpoWidgets') !== null;
 const factory = async () => (await import('../ui/widgets/call-activity')).callActivity;
+const payload = ({ palette: _palette, ...props }: CallActivityProps): CallActivityProps => props;
 
 export const callActivityNative: CallActivityNative = {
   async start(props: CallActivityProps) {
@@ -17,15 +19,15 @@ export const callActivityNative: CallActivityNative = {
     const activities = await factory();
     for (const stale of activities.getInstances())
       await stale.end('immediate').catch(() => undefined);
-    const activity = activities.start(props);
+    const activity = activities.start(payload(props));
     return {
-      update: (next) => activity.update(next),
+      update: (next) => activity.update(payload(next)),
       end: () => activity.end('immediate'),
     };
   },
 };
 
-export function onCallActivityAction(onAction: (action: 'hang-up' | 'mute') => void): () => void {
+export function onCallActivityAction(onAction: (action: CallActivityAction) => void): () => void {
   if (!supported()) return () => undefined;
   let removed = false;
   let remove: (() => void) | undefined;

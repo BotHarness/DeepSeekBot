@@ -25,6 +25,7 @@ import { Text } from '../primitives/text';
 import { useSystemReducedMotion } from '../primitives/use-system-reduced-motion';
 import { useMounted } from '../mounted';
 import { useStrings } from '../strings';
+import { callToneColor } from './call-activity';
 import { callBubbleModel, type CallBubbleTone } from './call-model';
 import type { CallSessionSnapshot } from './call-session';
 
@@ -40,20 +41,7 @@ const placement = {
 };
 
 export function bubbleRingColor(theme: DesignTheme, tone: CallBubbleTone): string {
-  switch (tone) {
-    case 'listening':
-    case 'hearing':
-      return theme.color.success;
-    case 'thinking':
-    case 'speaking':
-      return theme.color.accent;
-    case 'paused':
-      return theme.color.warning;
-    case 'ended':
-      return theme.color.danger;
-    default:
-      return theme.color.muted;
-  }
+  return callToneColor(theme.color, tone);
 }
 
 export function CallBubble({ session }: { session: CallSessionSnapshot }) {

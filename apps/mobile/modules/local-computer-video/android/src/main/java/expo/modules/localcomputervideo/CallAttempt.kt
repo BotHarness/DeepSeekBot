@@ -54,6 +54,7 @@ class CallAttempt(
   private val onState: (String, String?) -> Unit,
   onTap: (String, Map<String, Any?>) -> Unit,
   onAudio: (Map<String, Any?>) -> Unit,
+  private val onInterrupt: (Boolean) -> Unit = {},
 ) {
   class CallError(val code: String) : Exception(code)
 
@@ -64,9 +65,19 @@ class CallAttempt(
   }
   private val closed = AtomicBoolean(false)
   val tap: CallAudioTap? = if (testAudio) CallAudioTap(SystemClock.elapsedRealtime(), context, onTap) else null
-  private val route = CallAudioRoute(context, onAudio) { input ->
+  private val route = CallAudioRoute(context, onAudio, { input ->
     adm?.let { BotCallPlayout.setInput(it, input) }
+  }) { interrupted ->
+    // Another call or app took the audio: keep the call, stop sending the microphone
+    // and stop playing the Bot over it; both come back when the audio returns.
+    applyMute()
+    if (!closed.get()) runCatching { peer?.setAudioPlayout(!interrupted) }
+    onInterrupt(interrupted)
   }
+  private var userMuted = false
+
+  /** True while another app holds audio focus or a phone call owns the audio. */
+  val interrupted: Boolean get() = route.interruption.interrupted
   private var adm: JavaAudioDeviceModule? = null
   private var factory: PeerConnectionFactory? = null
   private var peer: PeerConnection? = null
@@ -368,11 +379,20 @@ class CallAttempt(
   }
 
   fun mute(muted: Boolean) {
+    userMuted = muted
+    applyMute()
+  }
+
+  private fun applyMute() {
+    val silent = userMuted || interrupted
     enqueue {
-      track?.setEnabled(!muted)
-      tap?.capture?.setMuted(muted)
+      track?.setEnabled(!silent)
+      tap?.capture?.setMuted(silent)
     }
   }
+
+  /** The app is visible again: take back audio focus another app kept. Main thread. */
+  fun regainAudio() = route.regain()
 
   fun inject(samples: FloatArray, rate: Double): Boolean {
     val tap = tap ?: return false
@@ -415,6 +435,7 @@ class CallAudioRoute(
   context: Context,
   private val onChange: (Map<String, Any?>) -> Unit,
   private val onInput: (AudioDeviceInfo?) -> Unit,
+  onInterrupt: (Boolean) -> Unit = {},
 ) {
   companion object {
     val attributes: AudioAttributes = AudioAttributes.Builder()
@@ -446,7 +467,16 @@ class CallAudioRoute(
   private var previousMode = AudioManager.MODE_NORMAL
   private var previousSpeaker = false
   private var focus: AudioFocusRequest? = null
-  private val legacyFocus = AudioManager.OnAudioFocusChangeListener { }
+  val interruption = CallInterruption(onInterrupt)
+  private val focusListener = AudioManager.OnAudioFocusChangeListener { change ->
+    when (change) {
+      AudioManager.AUDIOFOCUS_LOSS, AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> if (active) interruption.focus(true)
+      AudioManager.AUDIOFOCUS_GAIN -> if (active) interruption.focus(false)
+      else -> Unit // Ducking keeps the call as it is.
+    }
+  }
+  private val legacyFocus = focusListener
+  private var modeListener: AudioManager.OnModeChangedListener? = null
   private var active = false
   var music = false
     private set
@@ -494,9 +524,11 @@ class CallAudioRoute(
       manager.mode = AudioManager.MODE_NORMAL
       focus?.let { manager.abandonAudioFocusRequest(it) }
       focus = null
+      // Media mode holds no focus, so a lost focus no longer interrupts the call.
+      interruption.focus(false)
     } else {
       val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
-        .setAudioAttributes(attributes).setOnAudioFocusChangeListener { }.build()
+        .setAudioAttributes(attributes).setOnAudioFocusChangeListener(focusListener, handler).build()
       if (manager.requestAudioFocus(request) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) return false
       focus = request
       music = false
@@ -525,7 +557,7 @@ class CallAudioRoute(
     val granted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
       val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
         .setAudioAttributes(attributes)
-        .setOnAudioFocusChangeListener { }
+        .setOnAudioFocusChangeListener(focusListener, handler)
         .build()
       focus = request
       manager.requestAudioFocus(request)
@@ -542,6 +574,10 @@ class CallAudioRoute(
       manager.addOnCommunicationDeviceChangedListener(contextExecutor, listener)
       manager.registerAudioDeviceCallback(deviceListener, handler)
       manager.registerAudioRecordingCallback(recordingListener, handler)
+      // A phone call or its ringtone takes the audio mode; the Bot call waits for it.
+      val modes = AudioManager.OnModeChangedListener { mode -> handler.post { onMode(mode) } }
+      modeListener = modes
+      manager.addOnModeChangedListener(contextExecutor, modes)
       val devices = manager.availableCommunicationDevices
       val preferred = devices.firstOrNull { it.type in headsets }
         ?: devices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
@@ -562,6 +598,30 @@ class CallAudioRoute(
   }
 
   private val contextExecutor = java.util.concurrent.Executor { handler.post(it) }
+
+  private fun onMode(mode: Int) {
+    if (!active) return
+    val phone = mode == AudioManager.MODE_IN_CALL || mode == AudioManager.MODE_RINGTONE ||
+      mode == 4 /* MODE_CALL_SCREENING */ || mode == 5 /* MODE_CALL_REDIRECT */ || mode == 6 /* MODE_COMMUNICATION_REDIRECT */
+    val was = interruption.otherCall
+    interruption.phoneCall(phone)
+    if (was && !phone) regain()
+  }
+
+  /** Takes back the call's audio mode and focus after an interruption, if it can. */
+  fun regain() {
+    if (!active || interruption.otherCall) return
+    if (!music && manager.mode != AudioManager.MODE_IN_COMMUNICATION) manager.mode = AudioManager.MODE_IN_COMMUNICATION
+    if (!interruption.focusLost || music) return
+    val granted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      focus?.let { manager.requestAudioFocus(it) } ?: AudioManager.AUDIOFOCUS_REQUEST_FAILED
+    } else {
+      @Suppress("DEPRECATION")
+      manager.requestAudioFocus(legacyFocus, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+    }
+    if (granted == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) interruption.focus(false)
+    publish()
+  }
 
   private fun outputId(device: AudioDeviceInfo): String? = when (device.type) {
     AudioDeviceInfo.TYPE_BUILTIN_EARPIECE -> "receiver"
@@ -629,6 +689,7 @@ class CallAudioRoute(
   fun end() {
     if (!active) return
     active = false
+    interruption.reset()
     handler.removeCallbacks(checkInput)
     requested = null
     music = false
@@ -636,6 +697,8 @@ class CallAudioRoute(
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
       routeListener?.let { manager.removeOnCommunicationDeviceChangedListener(it) }
       routeListener = null
+      modeListener?.let { manager.removeOnModeChangedListener(it) }
+      modeListener = null
       manager.unregisterAudioDeviceCallback(deviceListener)
       manager.unregisterAudioRecordingCallback(recordingListener)
       manager.clearCommunicationDevice()
