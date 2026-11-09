@@ -324,6 +324,8 @@ export const swipeReply = {
   bar: 3,
 } as const;
 
+export const replyQuote = { tint: 0.13 } as const;
+
 export const topEntrance = {
   edge: 20,
   start: 12,

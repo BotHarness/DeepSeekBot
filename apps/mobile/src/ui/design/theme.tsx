@@ -2,7 +2,12 @@ import { createContext, useContext, useMemo, useSyncExternalStore, type ReactNod
 import { Dimensions, Platform, useColorScheme } from 'react-native';
 
 import { resolveTheme, type Appearance, type ColorScheme, type DesignTheme } from './resolve-theme';
-import { glass, PRESS_TINT, type PlatformOS } from './tokens';
+import {
+  parseColor,
+  toHex,
+  type Rgb,
+} from '../../../../../packages/client/src/client/bot-name-color';
+import { glass, PRESS_TINT, replyQuote, type PlatformOS } from './tokens';
 import { interfacePreferences } from '../interface-preferences';
 
 export {
@@ -106,6 +111,15 @@ export function pressTint(ink: string): string {
   return `${ink}${Math.round(PRESS_TINT * 255)
     .toString(16)
     .padStart(2, '0')}`;
+}
+
+export function quoteFill(ink: string, background: string): string {
+  const top = parseColor(ink);
+  const bottom = parseColor(background);
+  if (top === undefined || bottom === undefined) return background;
+  const share = replyQuote.tint * top.alpha;
+  const mix = (i: 0 | 1 | 2) => top.rgb[i] * share + bottom.rgb[i] * (1 - share);
+  return toHex([mix(0), mix(1), mix(2)] satisfies Rgb);
 }
 
 export function glassTint(base: string): string {
