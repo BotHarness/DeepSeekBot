@@ -38,6 +38,7 @@ import type { ConnectHost } from '../../host/connect-account';
 import { accountHostLookId } from '../../host/account-host-look';
 import { connectAccount } from '../../host/native-connect-account';
 import { liveGlance, type HostGlance, type HostStatus } from '../../host/host-glance';
+import { SavedHostsWriteError } from '../../host/hosts';
 import {
   hostSession,
   useHostSession,
@@ -288,7 +289,9 @@ function confirmUnpair(row: HostDrawerRow, name: string): void {
           },
           (error: unknown) =>
             showAppDialog(
-              `${t.unpairFailed} ${error instanceof Error ? error.message : String(error)}`,
+              error instanceof SavedHostsWriteError
+                ? `${t.unpairFailed} ${t.savedComputersKeychainFailed}`
+                : `${t.unpairFailed} ${error instanceof Error ? error.message : String(error)}`,
               undefined,
               [{ text: t.done }],
             ),
