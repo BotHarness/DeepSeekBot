@@ -29,6 +29,7 @@ export type LocalNetworkStatus = 'denied' | 'reachable' | 'unreachable' | 'timeo
 export interface HostCarrier {
   randomBytes?(): Uint8Array;
   localNetworkStatus?(origin: string): Promise<LocalNetworkStatus>;
+  transportFailure?(origin: string): Promise<string | undefined>;
   close?(): void;
   request(url: string, init: HostRequest): Promise<HostResponse>;
   openSocket(url: string, events: HostSocketEvents, headers?: Record<string, string>): HostSocket;

@@ -1,8 +1,10 @@
 import { spawn as spawnProcess } from 'node:child_process';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { createServer, type IncomingMessage, type Server } from 'node:http';
+import { createServer, request as httpRequest, type IncomingMessage, type Server } from 'node:http';
+import { request as httpsRequest } from 'node:https';
 import { connect as tcpConnect, type AddressInfo } from 'node:net';
 import type { Duplex } from 'node:stream';
+import { getCACertificates } from 'node:tls';
 
 import { credentialKey, type CredentialProvider } from '@deepseek-ai/dsh-credentials';
 
@@ -93,6 +95,8 @@ export function privateTunnelHostname(input: string): string | undefined {
 
 const TLS_FAILURES = new Set([
   'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+  'CERT_UNTRUSTED',
+  'CERT_NOT_YET_VALID',
   'UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
   'SELF_SIGNED_CERT_IN_CHAIN',
   'DEPTH_ZERO_SELF_SIGNED_CERT',
@@ -225,7 +229,49 @@ export function createTunnelOrigin(options: {
 const spawnTunnel: SpawnTunnel = (binary, args, env) =>
   spawnProcess(binary, [...args], { env, stdio: ['ignore', 'ignore', 'pipe'] });
 
-function probeFailure(error: unknown): string {
+export function systemTrustedCertificates(): string[] {
+  try {
+    return [...new Set([...getCACertificates('default'), ...getCACertificates('system')])];
+  } catch {
+    return [...getCACertificates('default')];
+  }
+}
+
+export const createTrustFetch = (certificates: () => string[]) =>
+  ((input: string | URL, init?: RequestInit): Promise<Response> =>
+    new Promise((resolve, reject) => {
+      const url = new URL(String(input));
+      const signal = init?.signal ?? undefined;
+      const fail = (cause: unknown) => {
+        const timeout =
+          signal?.aborted && (signal.reason as Error | undefined)?.name === 'TimeoutError';
+        const error = new Error(timeout ? 'timeout' : 'fetch failed', { cause });
+        if (timeout) error.name = 'TimeoutError';
+        reject(error);
+      };
+      const options = { method: 'GET', ...(signal ? { signal } : {}) };
+      const done = (response: IncomingMessage) => {
+        let body = '';
+        response.setEncoding('utf8');
+        response.on('data', (chunk: string) => {
+          body += chunk;
+          if (body.length > 4096) response.destroy(new Error('body-too-large'));
+        });
+        response.on('error', fail);
+        response.on('end', () => resolve(new Response(body, { status: response.statusCode ?? 0 })));
+      };
+      const request =
+        url.protocol === 'https:'
+          ? httpsRequest(url, { ...options, ca: certificates() }, done)
+          : httpRequest(url, options, done);
+      request.on('error', fail);
+      request.end();
+    })) as typeof fetch;
+
+export const systemTrustFetch = createTrustFetch(systemTrustedCertificates);
+
+export function probeFailure(error: unknown): string {
+  if (error instanceof Error && error.name === 'TimeoutError') return 'timeout';
   const cause = (error as { cause?: { code?: unknown } }).cause;
   if (typeof cause?.code === 'string') {
     if (cause.code === 'ENOTFOUND') return 'dns';
@@ -249,7 +295,7 @@ export function createPrivateTunnel(options: {
 }) {
   const key = credentialKey('botharness-core', 'private-tunnel');
   const spawn = options.spawn ?? spawnTunnel;
-  const fetchImpl = options.fetch ?? fetch;
+  const fetchImpl = options.fetch ?? systemTrustFetch;
   const record = options.record ?? (() => {});
   const probeInterval = options.probeIntervalMs ?? PROBE_INTERVAL_MS;
   const probeWindow = options.probeWindowMs ?? PROBE_WINDOW_MS;

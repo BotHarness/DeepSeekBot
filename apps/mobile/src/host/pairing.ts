@@ -54,6 +54,7 @@ export type PairingRefusal =
   | 'offer-invalid'
   | 'offer-expired'
   | 'unreachable'
+  | 'certificate-untrusted'
   | ConnectRefusal;
 
 export type ParsedLink =
@@ -628,6 +629,21 @@ function redeemEncryptedRoute(
       });
     let probing = false;
     const fail = (reason: string) => {
+      if (probing) return;
+      const transport = options.carrier.transportFailure;
+      if (
+        !authenticated &&
+        !isLanRoute(route) &&
+        transport !== undefined &&
+        reason !== 'channel-authentication-failed'
+      ) {
+        probing = true;
+        void transport(route).then(
+          (failure) => finish(channelFailure(route, failure ?? reason, authenticated)),
+          () => finish(channelFailure(route, reason, authenticated)),
+        );
+        return;
+      }
       const probe = options.carrier.localNetworkStatus;
       if (
         authenticated ||
@@ -639,7 +655,6 @@ function redeemEncryptedRoute(
         finish(channelFailure(route, reason, authenticated));
         return;
       }
-      if (probing) return;
       probing = true;
       void probe(route).then(
         (status) => finish(channelFailure(route, probedReason(reason, status), authenticated)),
@@ -737,5 +752,7 @@ export function channelFailure(
       code: reason.endsWith(':local-network-denied') ? 'lan-permission-denied' : 'lan-unreachable',
       detail,
     };
+  if (/:(?:socket-tls|nsurl-120[1-4])$/u.test(detail))
+    return { ok: false, code: 'certificate-untrusted', detail };
   return { ok: false, code: 'unreachable', detail };
 }

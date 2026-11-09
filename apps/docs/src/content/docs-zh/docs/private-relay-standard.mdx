@@ -19,12 +19,12 @@ sidebar:
 
 生产环境一律用 HTTPS。响应为 JSON，带 `cache-control: no-store`。
 
-| 请求 | 认证 | 结果 |
-|---|---|---|
-| `GET /health` | 无 | `200 {"protocol":"botharness-private-v1","protocols":["botharness-private-v1","botharness-private-v2"]}` |
-| `POST /claim`，正文 `{"ownerToken","phoneToken"}`（≤1 KiB） | `Authorization: Bearer <认领密钥>` | `200 {"claimed":true,"host":<名称>}`；`403` 未知密钥；`409` 密钥已用过（释放后也一样）；`400` 格式错误或令牌重复 |
-| `DELETE /claim` | `Authorization: Bearer <所有者令牌>` | `200 {"released":true}`：关闭这台电脑的所有连接并忘掉它的令牌；认领密钥仍视为已用 |
-| `GET /status` | `Authorization: Bearer <所有者令牌>` | `200 {"connected":bool,"host":<名称>}`；否则 `404` |
+| 请求                                                        | 认证                                 | 结果                                                                                                             |
+| ----------------------------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| `GET /health`                                               | 无                                   | `200 {"protocol":"botharness-private-v1","protocols":["botharness-private-v1","botharness-private-v2"]}`         |
+| `POST /claim`，正文 `{"ownerToken","phoneToken"}`（≤1 KiB） | `Authorization: Bearer <认领密钥>`   | `200 {"claimed":true,"host":<名称>}`；`403` 未知密钥；`409` 密钥已用过（释放后也一样）；`400` 格式错误或令牌重复 |
+| `DELETE /claim`                                             | `Authorization: Bearer <所有者令牌>` | `200 {"released":true}`：关闭这台电脑的所有连接并忘掉它的令牌；认领密钥仍视为已用                                |
+| `GET /status`                                               | `Authorization: Bearer <所有者令牌>` | `200 {"connected":bool,"host":<名称>}`；否则 `404`                                                               |
 
 认领按电脑互斥：同一把密钥的两个并发认领恰好一个得到 `200`，之后用这把密钥的认领一律 `409`，中继重启后也一样。
 

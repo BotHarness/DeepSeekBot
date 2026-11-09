@@ -1139,6 +1139,8 @@ const en = {
     cancelled: 'Pairing was cancelled.',
     unknown: 'Could not pair. Show a new code and try again.',
     unreachable: `Cannot reach your computer. Check that it is awake with ${productName.en} open, and that this phone is on the same Wi-Fi or tailnet, then retry.`,
+    'certificate-untrusted':
+      'This phone does not trust the certificate of your computer’s address. Ask your IT admin to install the company certificate through device management, or connect on the same Wi-Fi instead, then retry.',
     'sign-in-cancelled': 'Sign-in was cancelled.',
     'sign-in-failed': 'Could not sign in. Try again.',
     'sign-in-required': 'Your sign-in has expired. Sign in again.',
@@ -3491,6 +3493,8 @@ const zh: typeof en = {
     cancelled: '已取消配对。',
     unknown: '无法配对，换一个二维码后重试。',
     unreachable: `连不上你的电脑。请确认电脑未休眠且已打开 ${productName.zh}，手机与电脑在同一 Wi-Fi 或 tailnet 中，然后重试。`,
+    'certificate-untrusted':
+      '这台手机不信任电脑地址的证书。请让 IT 管理员通过设备管理安装公司证书，或改用同一 Wi-Fi 连接，然后重试。',
     'sign-in-cancelled': '已取消登录。',
     'sign-in-failed': '登录失败，再试一次。',
     'sign-in-required': '登录已过期，重新登录。',

@@ -64,6 +64,17 @@ bot.example.com {
 
 **Your own Cloudflare Named Tunnel**: prefer the built-in **Fixed address** option, which runs cloudflared for you. To manage cloudflared yourself, point the public hostname's service at `http://127.0.0.1:PORT`.
 
+## Company network without internet
+
+Use your own proxy with an internal name such as `https://bot.corp.internal`. Nothing in this mode needs the internet or official services: the phone, the proxy and this computer only talk on your network (the Bot's model provider is separate).
+
+- **Internal DNS.** The name must resolve to the proxy for both the phone and this computer, for example through your company DNS or mDNS (`computer-name.local`).
+- **Certificate trust.** Issue the proxy certificate from your company CA and install that CA as trusted on the phones and on this computer through device management (MDM). Tobs only accepts certificates the operating system already trusts. It never imports a CA itself and never skips certificate checks.
+- **What you see if trust is missing.** This computer's check reports `tls` when the computer does not trust the certificate. The phone refuses pairing with "This phone does not trust the certificate…" and code `socket-tls`.
+- **When to use same-Wi-Fi instead.** If the phones join the same Wi-Fi as this computer, the encrypted local network mode (Settings → Connections → Manage → local access) needs no certificate, DNS or proxy and is the simplest choice.
+
+Verified 2026-11-09 on an iOS 27 Simulator with a test company CA: refusal without the CA, then pairing, a real reply and revocation over an mDNS `.local` name with the CA installed. Android is not yet verified.
+
 ## When something fails
 
 The settings page and `deepseekbot devices` show a coded reason: `dns` (the name does not resolve), `tls` (the certificate is not trusted), `http-404` or `http-502` (the proxy did not forward the check path), `timeout`. Tobs keeps rechecking and never falls back to the official relay.

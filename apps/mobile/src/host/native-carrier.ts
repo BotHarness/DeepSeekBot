@@ -9,10 +9,29 @@ type NativeWebSocket = new (
   options: { headers: Record<string, string> },
 ) => WebSocket;
 
+function transportFailure(origin: string): Promise<string | undefined> {
+  return new Promise((resolve) => {
+    const request = new XMLHttpRequest();
+    const done = (value: string | undefined) => {
+      clearTimeout(timer);
+      resolve(value);
+    };
+    const timer = setTimeout(() => {
+      request.abort();
+      done(undefined);
+    }, 8000);
+    request.onload = () => done(undefined);
+    request.onerror = () => done(request.responseText || undefined);
+    request.open('GET', `${origin}/.well-known/botharness-tunnel/transport-check`);
+    request.send();
+  });
+}
+
 export function nativeCarrier(): HostCarrier {
   return {
     randomBytes: () => getRandomBytes(32),
     localNetworkStatus,
+    transportFailure,
     async request(url, init) {
       if (isLanRoute(new URL(url).origin)) throw new Error('encrypted-channel-required');
       const response = await fetch(url, {

@@ -1,4 +1,8 @@
+import { spawnSync } from 'node:child_process';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
+import { createServer as createHttpsServer } from 'node:https';
+import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { EventEmitter, once } from 'node:events';
 import type { AddressInfo } from 'node:net';
@@ -8,8 +12,11 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { WebSocket } from 'ws';
 import {
   createPrivateTunnel,
+  createTrustFetch,
   privateTunnelHostname,
+  probeFailure,
   PROBE_PREFIX,
+  systemTrustedCertificates,
 } from '../src/devices/private-tunnel.js';
 import type { SpawnTunnel, TunnelProcess } from '../src/devices/connect.js';
 import { createEncryptedGateway } from '../src/devices/encrypted-gateway.js';
@@ -435,3 +442,90 @@ it('accepts a bring-your-own HTTPS origin only after its public check, with admi
   expect(headers[0]!['authorization']).toBeUndefined();
   gateway.close();
 });
+
+const openssl = spawnSync('openssl', ['version']).status === 0;
+it.skipIf(!openssl)(
+  'checks HTTPS origins against the given trust store and reports untrusted certificates as tls',
+  async () => {
+    const dir = createTempRoot('private-ingress-ca-');
+    const run = (...args: string[]) => {
+      const result = spawnSync('openssl', args, { cwd: dir, encoding: 'utf8' });
+      if (result.status !== 0) throw new Error(result.stderr);
+    };
+    writeFileSync(join(dir, 'leaf.ext'), 'subjectAltName=DNS:localhost,IP:127.0.0.1\n');
+    run(
+      'req',
+      '-x509',
+      '-newkey',
+      'rsa:2048',
+      '-nodes',
+      '-days',
+      '1',
+      '-subj',
+      '/CN=Test Corp CA',
+      '-keyout',
+      'ca.key',
+      '-out',
+      'ca.pem',
+    );
+    run(
+      'req',
+      '-newkey',
+      'rsa:2048',
+      '-nodes',
+      '-subj',
+      '/CN=localhost',
+      '-keyout',
+      'leaf.key',
+      '-out',
+      'leaf.csr',
+    );
+    run(
+      'x509',
+      '-req',
+      '-in',
+      'leaf.csr',
+      '-CA',
+      'ca.pem',
+      '-CAkey',
+      'ca.key',
+      '-CAcreateserial',
+      '-days',
+      '1',
+      '-extfile',
+      'leaf.ext',
+      '-out',
+      'leaf.pem',
+    );
+    const server = createHttpsServer(
+      { key: readFileSync(join(dir, 'leaf.key')), cert: readFileSync(join(dir, 'leaf.pem')) },
+      (request, response) => {
+        if (request.url === '/hang') return;
+        response.end(request.url?.split('/').at(-1));
+      },
+    );
+    server.listen(0, '127.0.0.1');
+    await once(server, 'listening');
+    const origin = `https://localhost:${String((server.address() as AddressInfo).port)}`;
+    try {
+      const untrusted = await createTrustFetch(() => [])(`${origin}/nonce-a`).catch(
+        (error: unknown) => error,
+      );
+      expect(probeFailure(untrusted)).toBe('tls');
+      const trusted = await createTrustFetch(() => [readFileSync(join(dir, 'ca.pem'), 'utf8')])(
+        `${origin}/nonce-b`,
+      );
+      expect(trusted.status).toBe(200);
+      expect(await trusted.text()).toBe('nonce-b');
+      const hung = await createTrustFetch(() => [readFileSync(join(dir, 'ca.pem'), 'utf8')])(
+        `${origin}/hang`,
+        { signal: AbortSignal.timeout(200) },
+      ).catch((error: unknown) => error);
+      expect(probeFailure(hung)).toBe('timeout');
+      expect(systemTrustedCertificates().length).toBeGreaterThan(0);
+    } finally {
+      server.closeAllConnections();
+      server.close();
+    }
+  },
+);
