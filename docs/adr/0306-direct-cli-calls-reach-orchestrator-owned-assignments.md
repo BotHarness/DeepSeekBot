@@ -1,4 +1,4 @@
-# ADR-0305: Direct CLI calls create and continue Orchestrator-owned Assignments
+# ADR-0306: Direct CLI calls create and continue Orchestrator-owned Assignments
 
 - Status: Accepted
 - Date: 2026-11-09
