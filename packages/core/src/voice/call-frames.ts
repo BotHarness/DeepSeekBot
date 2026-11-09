@@ -163,8 +163,9 @@ export function createCallImaging(): CallImaging {
       const reference = frames.at(-1)!;
       const aspect = reference.tileWidth / reference.tileHeight;
       const sizing = Math.min(frames.length, MAX_GRID_COLUMNS);
-      const fitted = Math.floor(
-        aspect >= 1 ? GRID_LONG_EDGE / sizing : (GRID_LONG_EDGE / sizing) * aspect,
+      const fitted = Math.max(
+        1,
+        Math.floor(aspect >= 1 ? GRID_LONG_EDGE / sizing : (GRID_LONG_EDGE / sizing) * aspect),
       );
       const scale = Math.max(2, Math.round(fitted / 160));
       const strip = labelHeight(scale);

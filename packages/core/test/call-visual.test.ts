@@ -230,9 +230,11 @@ describe('grid imaging', () => {
     expect(grid).toMatchObject({ layout: '1', width: 1536, height: 1024 });
   });
 
-  it('keeps a very narrow frame at least one pixel wide', async () => {
+  it.each([512, 600])('keeps a 1×%i frame at least one pixel wide', async (height) => {
     const imaging = createCallImaging();
-    const frame = await imaging.prepare(new Uint8Array(await jpeg({ r: 9, g: 9, b: 9 }, 1, 512)));
+    const frame = await imaging.prepare(
+      new Uint8Array(await jpeg({ r: 9, g: 9, b: 9 }, 1, height)),
+    );
     const frames = Array.from({ length: 9 }, () => frame);
     const grid = await imaging.compose(frames, []);
     expect(grid.width).toBeGreaterThanOrEqual(3);
