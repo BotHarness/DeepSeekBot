@@ -25,7 +25,7 @@ import kotlin.math.sqrt
 
 /**
  * The call bubble over other apps (#3469): the same anatomy as the in-app bubble (V12):
- * Bot initial, state ring, call-time capsule and a muted badge, draggable and snapped to
+ * Bot initial, state ring (breathing while the Bot speaks or hears you, #3805), call-time capsule and a muted badge, draggable and snapped to
  * the nearer side. It exists only while the app is in the background; in the app the
  * React Native bubble takes over, so the two never show together. Main thread only.
  */
@@ -200,6 +200,8 @@ class CallOverlayView(context: Context) : View(context) {
   private val box = avatar + (stroke + gap) * 2
   private val capsuleHeight = sp(18f) + dp(4f)
   private var shownLength = -1
+  private var breath: ValueAnimator? = null
+  private var breathAlpha = 255
   private val tick = object : Runnable {
     override fun run() {
       if (notice?.startedAt == null || !isAttachedToWindow) return
@@ -230,6 +232,48 @@ class CallOverlayView(context: Context) : View(context) {
     if (restart) { shownLength = -1; requestLayout() }
     invalidate()
     if (restart || value.startedAt != null) { main.removeCallbacks(tick); main.post(tick) }
+    syncBreath()
+  }
+
+  private fun animationsOn(): Boolean =
+    Build.VERSION.SDK_INT < Build.VERSION_CODES.O || ValueAnimator.areAnimatorsEnabled()
+
+  /** Runs the ring's breath only while it is wanted and the bubble is on screen. */
+  private fun syncBreath() {
+    val wanted = isAttachedToWindow && notice?.let { CallRingBreath.breathes(it.tone, animationsOn()) } == true
+    if (!wanted) {
+      breath?.cancel()
+      breath = null
+      if (breathAlpha != 255) { breathAlpha = 255; invalidate() }
+      return
+    }
+    if (breath?.isRunning == true) return
+    breath = ValueAnimator.ofFloat(0f, 1f).apply {
+      duration = CallRingBreath.PERIOD_MS / 2
+      repeatCount = ValueAnimator.INFINITE
+      repeatMode = ValueAnimator.REVERSE
+      interpolator = android.view.animation.PathInterpolator(0.37f, 0f, 0.63f, 1f)
+      addUpdateListener {
+        breathAlpha = CallRingBreath.alpha(it.animatedValue as Float)
+        invalidate()
+      }
+      // Turning system animations off ends a running animator wherever it is; drop it and
+      // show the full ring, so the next bind can start a fresh breath once they are back.
+      addListener(object : android.animation.AnimatorListenerAdapter() {
+        override fun onAnimationEnd(animation: android.animation.Animator) {
+          if (breath !== animation) return
+          breath = null
+          breathAlpha = 255
+          invalidate()
+        }
+      })
+      start()
+    }
+  }
+
+  override fun onAttachedToWindow() {
+    super.onAttachedToWindow()
+    syncBreath()
   }
 
   fun appear() {
@@ -238,7 +282,12 @@ class CallOverlayView(context: Context) : View(context) {
       .setInterpolator(SpringInterpolator(0.8f, 1400f)).start()
   }
 
-  fun stopTicking() = main.removeCallbacks(tick)
+  fun stopTicking() {
+    main.removeCallbacks(tick)
+    breath?.cancel()
+    breath = null
+    breathAlpha = 255
+  }
 
   private fun duration(): String? = notice?.startedAt?.let { callDuration(System.currentTimeMillis() - it) }
 
@@ -273,7 +322,7 @@ class CallOverlayView(context: Context) : View(context) {
     // Ring: the state colour, a thin track while connecting.
     ring.strokeWidth = stroke
     ring.color = shown.ringColor
-    ring.alpha = if (shown.tone == "connecting") 110 else 255
+    ring.alpha = if (shown.tone == "connecting") 110 else breathAlpha
     canvas.drawCircle(cx, cy, radius + gap + stroke / 2, ring)
     fill.color = shown.surfaceColor
     canvas.drawCircle(cx, cy, radius, fill)

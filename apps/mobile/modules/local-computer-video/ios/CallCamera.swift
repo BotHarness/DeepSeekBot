@@ -33,6 +33,7 @@ final class CallCamera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
   private(set) var paused = false
   private(set) var position: AVCaptureDevice.Position = .front
   private var views = NSHashTable<CallCameraView>.weakObjects()
+  private var previews = NSHashTable<AVCaptureVideoPreviewLayer>.weakObjects()
 
   var onThumb: (([String: Any]) -> Void)?
   var onState: ((String) -> Void)?
@@ -48,14 +49,48 @@ final class CallCamera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     }
   }
 
+  /// Binds a self-preview to the session on the camera queue, the same ordered path as
+  /// `startRunning`, `stopRunning` and `configure`. Binding or unbinding a preview layer
+  /// reconfigures the session, and doing that on the main thread while the queue starts or
+  /// stops the session makes AVFoundation throw (#3825).
   func attach(_ view: CallCameraView) {
     views.add(view)
-    view.show(session: testing || !running ? nil : session, mirrored: position == .front)
+    view.show(live: running && !testing)
+    let preview = view.preview
+    let mirrored = position == .front
+    queue.async {
+      self.previews.add(preview)
+      CATransaction.begin()
+      CATransaction.setDisableActions(true)
+      preview.session = self.session
+      CATransaction.commit()
+      self.mirror(preview, mirrored)
+    }
+  }
+
+  /// Unbinds on the camera queue. The block keeps the layer alive until it has left the
+  /// session, so a preview never leaves the session from its own deinit on the main thread.
+  func detach(_ view: CallCameraView) {
+    views.remove(view)
+    let preview = view.preview
+    queue.async {
+      self.previews.remove(preview)
+      CATransaction.begin()
+      CATransaction.setDisableActions(true)
+      preview.session = nil
+      CATransaction.commit()
+    }
+  }
+
+  private func mirror(_ preview: AVCaptureVideoPreviewLayer, _ mirrored: Bool) {
+    guard let connection = preview.connection, connection.isVideoMirroringSupported else { return }
+    connection.automaticallyAdjustsVideoMirroring = false
+    connection.isVideoMirrored = mirrored
   }
 
   private func refreshViews() {
     let live = running && !testing
-    for view in views.allObjects { view.show(session: live ? session : nil, mirrored: position == .front) }
+    for view in views.allObjects { view.show(live: live) }
   }
 
   func start(
@@ -132,6 +167,7 @@ final class CallCamera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     output.setSampleBufferDelegate(self, queue: queue)
     guard session.canAddOutput(output) else { return false }
     session.addOutput(output)
+    for preview in previews.allObjects { mirror(preview, position == .front) }
     if let connection = output.connection(with: .video) {
       if #available(iOS 17.0, *) {
         if connection.isVideoRotationAngleSupported(90) { connection.videoRotationAngle = 90 }
@@ -306,7 +342,7 @@ final class CallCamera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
 
 /// The self-preview: the live camera layer, or the test video's frames.
 final class CallCameraView: ExpoView {
-  private let preview = AVCaptureVideoPreviewLayer()
+  let preview = AVCaptureVideoPreviewLayer()
   private let still = CALayer()
 
   required init(appContext: AppContext? = nil) {
@@ -316,7 +352,12 @@ final class CallCameraView: ExpoView {
     still.contentsGravity = .resizeAspectFill
     layer.addSublayer(still)
     layer.addSublayer(preview)
-    CallCamera.shared.attach(self)
+    preview.isHidden = true
+  }
+
+  override func didMoveToWindow() {
+    super.didMoveToWindow()
+    if window == nil { CallCamera.shared.detach(self) } else { CallCamera.shared.attach(self) }
   }
 
   override func layoutSubviews() {
@@ -328,14 +369,12 @@ final class CallCameraView: ExpoView {
     CATransaction.commit()
   }
 
-  func show(session: AVCaptureSession?, mirrored: Bool) {
-    preview.session = session
-    preview.isHidden = session == nil
-    if let connection = preview.connection, connection.isVideoMirroringSupported {
-      connection.automaticallyAdjustsVideoMirroring = false
-      connection.isVideoMirrored = mirrored
-    }
-    if session != nil { still.contents = nil }
+  func show(live: Bool) {
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    preview.isHidden = !live
+    if live { still.contents = nil }
+    CATransaction.commit()
   }
 
   func show(image: CGImage) {

@@ -1,12 +1,15 @@
-import { Button, HStack, Image, Spacer, Text, VStack } from '@expo/ui/swift-ui';
+import { Button, Circle, HStack, Image, Spacer, Text, VStack, ZStack } from '@expo/ui/swift-ui';
 import {
+  clipShape,
   font,
   foregroundStyle,
   frame,
   lineLimit,
   monospacedDigit,
   multilineTextAlignment,
+  offset,
   padding,
+  resizable,
 } from '@expo/ui/swift-ui/modifiers';
 import { createLiveActivity, type LiveActivityEnvironment } from 'expo-widgets';
 import type { CallActivityProps } from '../chat/call-activity';
@@ -62,6 +65,47 @@ function CallActivity(props: CallActivityProps, environment: LiveActivityEnviron
       ]}
     />
   );
+  const initial = Array.from(props.name.trim())[0]?.toLocaleUpperCase() ?? '?';
+  const badge = environment.colorScheme === 'dark' ? props.badgeDark : props.badge;
+  const portrait = (size: number) => (
+    <ZStack modifiers={[frame({ width: size, height: size }), clipShape('circle')]}>
+      <Circle modifiers={[foregroundStyle(props.avatarColor ?? 'gray')]} />
+      <Text
+        modifiers={[
+          font({ size: Math.round(size * 0.45), weight: 'semibold' }),
+          foregroundStyle(props.avatarInk ?? 'white'),
+          lineLimit(1),
+        ]}
+      >
+        {initial}
+      </Text>
+      {props.avatar === undefined ? null : (
+        <Image
+          uiImage={props.avatar}
+          modifiers={[resizable(), frame({ width: size, height: size })]}
+        />
+      )}
+    </ZStack>
+  );
+  const avatar = (size: number) => {
+    const mark = Math.round(size * 0.42);
+    return (
+      <ZStack alignment="bottomTrailing" modifiers={[frame({ width: size, height: size })]}>
+        {portrait(size)}
+        {badge === undefined ? null : (
+          <Image
+            uiImage={badge}
+            modifiers={[
+              resizable(),
+              frame({ width: mark, height: mark }),
+              clipShape('roundedRectangle', Math.round(mark * 0.225)),
+              offset({ x: 2, y: 2 }),
+            ]}
+          />
+        )}
+      </ZStack>
+    );
+  };
   const name = (
     <Text modifiers={[font({ textStyle: 'headline' }), lineLimit(1)]}>{props.name}</Text>
   );
@@ -82,8 +126,8 @@ function CallActivity(props: CallActivityProps, environment: LiveActivityEnviron
   );
   const banner = (
     <VStack alignment="leading" spacing={8} modifiers={[padding({ all: 16 })]}>
-      <HStack>
-        <Image systemName="phone.fill" color="green" />
+      <HStack spacing={10}>
+        {avatar(40)}
         {name}
         <Spacer />
         {timer}
@@ -98,7 +142,7 @@ function CallActivity(props: CallActivityProps, environment: LiveActivityEnviron
   return {
     banner,
     bannerSmall: banner,
-    compactLeading: <Image systemName="phone.fill" color="green" />,
+    compactLeading: portrait(22),
     compactTrailing: (
       <Text
         date={new Date(props.startedAt)}
@@ -110,10 +154,10 @@ function CallActivity(props: CallActivityProps, environment: LiveActivityEnviron
         ]}
       />
     ),
-    minimal: <Image systemName="phone.fill" color="green" />,
+    minimal: portrait(22),
     expandedLeading: (
-      <HStack spacing={6} modifiers={[padding({ leading: 8 })]}>
-        <Image systemName="phone.fill" color="green" />
+      <HStack spacing={8} modifiers={[padding({ leading: 8 })]}>
+        {avatar(36)}
         {name}
       </HStack>
     ),
