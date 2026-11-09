@@ -8,6 +8,7 @@ import {
   createCallClient,
   type CallClientState,
 } from '../../../../../packages/core/src/voice/call-client';
+import { callLiveView } from '../../../../../packages/core/src/voice/call-view';
 import { createCallPost } from '../../host/call-post';
 import {
   PhoneCallCameraFailure,
@@ -151,7 +152,8 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
       onChange: (next) => {
         if (cancelled) return;
         current = next;
-        if (next.status === 'live') connectedAt ??= Date.now();
+        const view = callLiveView(next);
+        if (view?.connected === true) connectedAt ??= Date.now() - view.durationMs;
         if (next.status === 'ended') {
           paused = false;
           if (cameraState.on) {

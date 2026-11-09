@@ -110,7 +110,8 @@ import {
   type ChannelRecord,
   type SessionFailureProgress,
 } from '../channels/channel.js';
-import { voiceCallDuration, type ChannelVoiceCallRecord } from '../channels/voice-call-record.js';
+import type { ChannelVoiceCallRecord } from '../channels/voice-call-record.js';
+import { formatCallDuration } from '../voice/call-view.js';
 import {
   ChannelCallReadError,
   hasChannelCallWindow,
@@ -3998,7 +3999,7 @@ class BotRuntimeImplementation implements BotRuntime {
       return undefined;
     }
     if (typed.at(-1)?.id !== messageId) return undefined;
-    return `[Last voice call with the Human in this DM: ${record.callId}, from ${record.startedAt} to ${record.endedAt} (${voiceCallDuration(record.durationMs)}, ${record.heard} spoken message${record.heard === 1 ? '' : 's'} heard). The Human is typing again now. Read what was said and shown on it with channel_read call=${record.callId}; add from_ms/to_ms (milliseconds from the call's start) for part of it. channel_read text "voice call" with author_kind system lists earlier calls, each read the same way by its callId.]`;
+    return `[Last voice call with the Human in this DM: ${record.callId}, from ${record.startedAt} to ${record.endedAt} (${formatCallDuration(record.durationMs)}, ${record.heard} spoken message${record.heard === 1 ? '' : 's'} heard). The Human is typing again now. Read what was said and shown on it with channel_read call=${record.callId}; add from_ms/to_ms (milliseconds from the call's start) for part of it. channel_read text "voice call" with author_kind system lists earlier calls, each read the same way by its callId.]`;
   }
 
   #groupMentionPrompt(botSlug: string, channelId: string, messageId: string, body: string): string {
@@ -10518,12 +10519,12 @@ export function callTimelineNote(voiceCall: ChannelMessage['voiceCall']): string
   const parts: string[] = [];
   if (voiceCall.speechFromMs !== undefined && voiceCall.speechToMs !== undefined)
     parts.push(
-      `this message ${voiceCallDuration(voiceCall.speechFromMs)}–${voiceCallDuration(voiceCall.speechToMs)}`,
+      `this message ${formatCallDuration(voiceCall.speechFromMs)}–${formatCallDuration(voiceCall.speechToMs)}`,
     );
-  if (voiceCall.atMs !== undefined) parts.push(`typed at ${voiceCallDuration(voiceCall.atMs)}`);
+  if (voiceCall.atMs !== undefined) parts.push(`typed at ${formatCallDuration(voiceCall.atMs)}`);
   const visual = voiceCall.visual;
   if (visual !== undefined && 'fromMs' in visual)
-    parts.push(`picture ${voiceCallDuration(visual.fromMs)}–${voiceCallDuration(visual.toMs)}`);
+    parts.push(`picture ${formatCallDuration(visual.fromMs)}–${formatCallDuration(visual.toMs)}`);
   return parts.length === 0 ? undefined : parts.join(', ');
 }
 
@@ -10538,14 +10539,14 @@ export function callVisualNote(
     return `[Call ${visual.source} view] Nothing changed in the Human's ${visual.source} since message ${visual.sameAs}; that message's image is still what they see. To look at it again, open it with channel_read_image, channel_id ${channelId} and message_id ${visual.sameAs}.`;
   const what =
     visual.frames === 1 ? 'one keyframe' : `a ${visual.layout} grid of ${visual.frames} keyframes`;
-  const span = `${voiceCallDuration(visual.fromMs)}–${voiceCallDuration(visual.toMs)}`;
+  const span = `${formatCallDuration(visual.fromMs)}–${formatCallDuration(visual.toMs)}`;
   if (visual.unseen === true)
     return `[Call ${visual.source} view] The Human is sharing their ${visual.source}, and this message keeps ${what} (picture ${span}) for the DM history, but your current model cannot read images, so do not open it. If they ask about what they are showing, tell them you cannot see it with this model and ask them to describe it.`;
   const image = message.attachments?.findLast((ref) => ref.mime === 'image/jpeg');
   if (image === undefined) return undefined;
   const earlier =
     visual.fromMs > 0
-      ? ` Anything shown before ${voiceCallDuration(visual.fromMs)} on this call is saved as frame records: channel_read with call ${message.voiceCall!.callId} and to_ms ${visual.fromMs}, then channel_read_image on a record.`
+      ? ` Anything shown before ${formatCallDuration(visual.fromMs)} on this call is saved as frame records: channel_read with call ${message.voiceCall!.callId} and to_ms ${visual.fromMs}, then channel_read_image on a record.`
       : '';
   return `[Call ${visual.source} view] This message carries ${what} from the Human's ${visual.source}, picture ${span} of the call: channel_read_image with channel_id ${channelId}, message_id ${message.id} and attachment_id ${attachmentIdentity(image)}.${earlier} ${hint}`;
 }

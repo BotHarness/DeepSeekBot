@@ -17,7 +17,6 @@ import type {
 import { VOICE_CALL_HOST_OWNER } from '../src/voice/call-contract.js';
 import {
   isChannelVoiceCallRecord,
-  voiceCallDuration,
   voiceCallRecordBody,
   type ChannelVoiceCallRecord,
 } from '../src/channels/voice-call-record.js';
@@ -956,10 +955,7 @@ describe('call records in the DM (#3483)', () => {
     expect((await view(h, call.callId)).phase).not.toBe('ended');
   });
 
-  it('formats the length and a body the Bot can search', () => {
-    expect(voiceCallDuration(0)).toBe('0:00');
-    expect(voiceCallDuration(65_400)).toBe('1:05');
-    expect(voiceCallDuration(3_725_000)).toBe('1:02:05');
+  it('formats a body the Bot can search', () => {
     const body = voiceCallRecordBody({
       callId: 'call-0123456789abcdef',
       botSlug: 'mira',

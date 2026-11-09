@@ -6,13 +6,18 @@ import {
   type CallClientState,
   type CallPost,
 } from '../../../core/src/voice/call-client.js';
+import { VOICE_CALL_PATH, type VoiceCallResult } from '../../../core/src/voice/call-contract.js';
 import {
-  VOICE_CALL_PATH,
-  type VoiceCallEvent,
-  type VoiceCallMissing,
-  type VoiceCallReadiness,
-  type VoiceCallResult,
-} from '../../../core/src/voice/call-contract.js';
+  callEndView,
+  callLiveView,
+  callReadinessVerdict,
+  formatCallDuration,
+  type CallActivity,
+  type CallHint,
+  type CallNotice,
+  type CallReadinessVerdict,
+  type CallTone,
+} from '../../../core/src/voice/call-view.js';
 import type { CallVisualSource } from '../../../core/src/voice/keyframes.js';
 import {
   CallCameraError,
@@ -24,12 +29,11 @@ import {
 import { createBrowserCallMedia } from './call-media.js';
 
 const CLIENT_KEY = 'botharness/call-client.v1';
-const TRANSIENT_MS = 4_000;
 
-export type DesktopCallBlock =
-  | { readonly kind: 'missing'; readonly missing: readonly VoiceCallMissing[] }
-  | { readonly kind: 'elsewhere' }
-  | { readonly kind: 'error'; readonly code: string };
+export interface DesktopCallBlock {
+  readonly kind: NonNullable<CallReadinessVerdict['blocked']>;
+  readonly notices: readonly CallNotice[];
+}
 
 export type DesktopCallVisualError =
   | Exclude<CallCaptureErrorCode, 'screen-cancelled'>
@@ -228,24 +232,17 @@ export function createDesktopCall(
         state: { status: 'idle' },
         visual: DESKTOP_CALL_VISUAL_OFF,
       });
-      let readiness: Awaited<ReturnType<typeof readCallReadiness>>;
+      let verdict: CallReadinessVerdict;
       try {
-        readiness = await readCallReadiness(post, slug);
+        verdict = callReadinessVerdict(await readCallReadiness(post, slug));
       } catch {
-        set({ checking: false, block: { kind: 'error', code: 'unreachable' } });
-        return;
+        verdict = callReadinessVerdict({ code: 'unreachable', error: '' });
       }
-      if ('code' in readiness) {
-        set({ checking: false, block: { kind: 'error', code: readiness.code } });
-        return;
-      }
-      const ready: VoiceCallReadiness = readiness;
-      if (!ready.ready) {
-        set({ checking: false, block: { kind: 'missing', missing: ready.missing } });
-        return;
-      }
-      if (ready.callElsewhere) {
-        set({ checking: false, block: { kind: 'elsewhere' } });
+      if (!verdict.dial) {
+        set({
+          checking: false,
+          block: { kind: verdict.blocked ?? 'refused', notices: verdict.notices },
+        });
         return;
       }
       const owned = createCallClient({
@@ -296,7 +293,7 @@ export function desktopCall(): DesktopCall {
   return shared;
 }
 
-export type DesktopCallTone = 'live' | 'muted' | 'busy' | 'warning';
+export type DesktopCallTone = CallTone;
 
 export type DesktopCallStatusKey =
   | 'call.connecting'
@@ -319,50 +316,30 @@ export interface DesktopCallView {
   readonly muted: boolean;
 }
 
-function transient(
-  events: readonly VoiceCallEvent[],
-  hostNow: number,
-): DesktopCallStatusKey | undefined {
-  const last = [...events]
-    .reverse()
-    .find((event) =>
-      ['nothing-heard', 'asr-failed', 'send-failed', 'playback-failed', 'sent', 'played'].includes(
-        event.type,
-      ),
-    );
-  if (last === undefined || hostNow - last.at > TRANSIENT_MS) return undefined;
-  switch (last.type) {
-    case 'nothing-heard':
-      return 'call.notHeard';
-    case 'asr-failed':
-      return 'call.asrFailed';
-    case 'send-failed':
-      return 'call.sendFailed';
-    case 'playback-failed':
-      return 'call.playFailed';
-    default:
-      return undefined;
-  }
-}
+const STATUS: Record<CallActivity | CallHint, DesktopCallStatusKey> = {
+  connecting: 'call.connecting',
+  reconnecting: 'call.reconnecting',
+  listening: 'call.listening',
+  hearing: 'call.hearing',
+  thinking: 'call.thinking',
+  speaking: 'call.speaking',
+  muted: 'call.muted',
+  busy: 'call.busy',
+  'not-heard': 'call.notHeard',
+  'asr-failed': 'call.asrFailed',
+  'send-failed': 'call.sendFailed',
+  'play-failed': 'call.playFailed',
+};
 
 export function desktopCallView(state: CallClientState): DesktopCallView | undefined {
-  if (state.status === 'opening')
-    return { status: 'call.connecting', tone: 'live', durationMs: 0, muted: false };
-  if (state.status !== 'live') return undefined;
-  const { call, muted, reconnecting, events } = state;
-  const base = { durationMs: call.phase === 'connecting' ? 0 : call.durationMs, muted };
-  if (reconnecting) return { ...base, status: 'call.reconnecting', tone: 'warning' };
-  if (call.phase === 'connecting') return { ...base, status: 'call.connecting', tone: 'live' };
-  if (call.busy && call.phase !== 'bot-speaking')
-    return { ...base, status: 'call.busy', tone: 'busy' };
-  const problem = transient(events, call.durationMs);
-  if (problem !== undefined && call.phase === 'listening')
-    return { ...base, status: problem, tone: 'warning' };
-  if (call.phase === 'user-speaking') return { ...base, status: 'call.hearing', tone: 'live' };
-  if (call.phase === 'transcribing') return { ...base, status: 'call.thinking', tone: 'live' };
-  if (call.phase === 'bot-speaking') return { ...base, status: 'call.speaking', tone: 'live' };
-  if (muted) return { ...base, status: 'call.muted', tone: 'muted' };
-  return { ...base, status: 'call.listening', tone: 'live' };
+  const view = callLiveView(state);
+  if (view === undefined) return undefined;
+  return {
+    status: STATUS[view.hint ?? view.activity],
+    tone: view.tone,
+    durationMs: view.durationMs,
+    muted: view.muted,
+  };
 }
 
 export type DesktopCallNoticeKey =
@@ -375,6 +352,7 @@ export type DesktopCallNoticeKey =
   | 'call.missing.localVoiceOff'
   | 'call.elsewhere'
   | 'call.unreachable'
+  | 'call.connectOnly'
   | 'call.microphoneDenied'
   | 'call.microphoneMissing'
   | 'call.ended.connectionLost'
@@ -385,79 +363,34 @@ export type DesktopCallNoticeKey =
   | 'call.ended.hostStopped'
   | 'call.ended.refused';
 
-const MISSING: Record<VoiceCallMissing, DesktopCallNoticeKey> = {
-  asr: 'call.missing.asr',
-  tts: 'call.missing.tts',
-  bot: 'call.missing.bot',
-  'media-unsupported': 'call.missing.mediaUnsupported',
-  'media-helper-missing': 'call.missing.mediaHelper',
-  'media-unavailable': 'call.missing.mediaUnavailable',
-  'local-voice-off': 'call.missing.localVoiceOff',
+const NOTICE: Record<CallNotice, DesktopCallNoticeKey> = {
+  'missing.asr': 'call.missing.asr',
+  'missing.tts': 'call.missing.tts',
+  'missing.bot': 'call.missing.bot',
+  'missing.media-unsupported': 'call.missing.mediaUnsupported',
+  'missing.media-helper-missing': 'call.missing.mediaHelper',
+  'missing.media-unavailable': 'call.missing.mediaUnavailable',
+  'missing.local-voice-off': 'call.missing.localVoiceOff',
+  elsewhere: 'call.elsewhere',
+  unreachable: 'call.unreachable',
+  'connect-only': 'call.connectOnly',
+  'microphone-denied': 'call.microphoneDenied',
+  'microphone-missing': 'call.microphoneMissing',
+  'ended.connection-lost': 'call.ended.connectionLost',
+  'ended.connect-timeout': 'call.ended.connectTimeout',
+  'ended.media-failed': 'call.ended.mediaFailed',
+  'ended.replaced': 'call.ended.replaced',
+  'ended.bot-unavailable': 'call.ended.botUnavailable',
+  'ended.host-stopped': 'call.ended.hostStopped',
+  refused: 'call.ended.refused',
 };
-
-function refusal(code: string | undefined): DesktopCallNoticeKey {
-  switch (code) {
-    case 'asr-not-configured':
-      return 'call.missing.asr';
-    case 'tts-not-configured':
-      return 'call.missing.tts';
-    case 'unknown-bot':
-      return 'call.missing.bot';
-    case 'bot-paused':
-      return 'call.ended.botUnavailable';
-    case 'media-unsupported':
-      return 'call.missing.mediaUnsupported';
-    case 'media-helper-missing':
-      return 'call.missing.mediaHelper';
-    case 'media-failed':
-    case 'not-ready':
-    case 'queue-full':
-    case 'operation-timeout':
-      return 'call.missing.mediaUnavailable';
-    case 'call-active':
-      return 'call.elsewhere';
-    case 'unreachable':
-      return 'call.unreachable';
-    default:
-      return 'call.ended.refused';
-  }
-}
 
 export function desktopCallNotice(
   snapshot: DesktopCallSnapshot,
 ): readonly DesktopCallNoticeKey[] | undefined {
-  const { block, state } = snapshot;
-  if (block?.kind === 'missing') return block.missing.map((missing) => MISSING[missing]);
-  if (block?.kind === 'elsewhere') return ['call.elsewhere'];
-  if (block?.kind === 'error') return [refusal(block.code)];
-  if (state.status !== 'ended') return undefined;
-  if (state.error === 'microphone-denied') return ['call.microphoneDenied'];
-  if (state.error === 'microphone-missing') return ['call.microphoneMissing'];
-  switch (state.reason) {
-    case 'hangup':
-      return undefined;
-    case 'refused':
-      return [refusal(state.code)];
-    case 'connection-lost':
-      return ['call.ended.connectionLost'];
-    case 'connect-timeout':
-      return ['call.ended.connectTimeout'];
-    case 'media-failed':
-      return ['call.ended.mediaFailed'];
-    case 'replaced':
-      return ['call.ended.replaced'];
-    case 'bot-unavailable':
-      return ['call.ended.botUnavailable'];
-    case 'host-stopped':
-      return ['call.ended.hostStopped'];
-  }
+  if (snapshot.block !== undefined) return snapshot.block.notices.map((notice) => NOTICE[notice]);
+  const notice = callEndView(snapshot.state)?.notice;
+  return notice === undefined ? undefined : [NOTICE[notice]];
 }
 
-export function formatCallDuration(ms: number): string {
-  const total = Math.max(0, Math.floor(ms / 1000));
-  const hours = Math.floor(total / 3600);
-  const minutes = Math.floor((total % 3600) / 60);
-  const seconds = total % 60;
-  const two = (value: number) => String(value).padStart(2, '0');
-  return hours > 0 ? `${hours}:${two(minutes)}:${two(seconds)}` : `${two(minutes)}:${two(seconds)}`;
-}
+export { formatCallDuration };

@@ -7,7 +7,6 @@ import type {
 import {
   callConfigured,
   callScreenModel,
-  formatCallDuration,
   microphoneRecovery,
   readinessMessage,
 } from '../src/ui/chat/call-model';
@@ -59,52 +58,6 @@ describe('call screen model', () => {
   it('shows the busy hint on screen only', () => {
     expect(callScreenModel(zh, live({ busy: true })).hint).toBe('它在忙，下一轮会听到');
     expect(callScreenModel(en, live()).hint).toBeUndefined();
-  });
-
-  it('shows a recent miss and forgets it after a few seconds', () => {
-    const events = [{ seq: 3, at: 9_000, type: 'nothing-heard' as const }];
-    expect(callScreenModel(en, live({}, { events } as never)).hint).toBe(
-      'Didn’t catch that. Try again.',
-    );
-    expect(
-      callScreenModel(en, live({ durationMs: 20_000 }, { events } as never)).hint,
-    ).toBeUndefined();
-  });
-
-  it('shows live text while speaking, then the sent text for a few seconds', () => {
-    const at = (seq: number, ms: number) => ({ seq, at: ms });
-    const speaking = [
-      { ...at(1, 8_000), type: 'speech-start' as const },
-      { ...at(2, 8_500), type: 'hearing' as const, text: '明天上海' },
-    ];
-    expect(callScreenModel(zh, live({}, { events: speaking } as never)).heard).toEqual({
-      text: '明天上海',
-      final: false,
-    });
-    const sent = [
-      ...speaking,
-      { ...at(3, 9_000), type: 'transcribing' as const, audioMs: 1_000 },
-      {
-        ...at(4, 9_300),
-        type: 'sent' as const,
-        messageId: 'human-1',
-        text: '明天上海会下雨吗？',
-        asrMs: 200,
-        streamed: true,
-      },
-    ];
-    expect(callScreenModel(zh, live({}, { events: sent } as never)).heard).toEqual({
-      text: '明天上海会下雨吗？',
-      final: true,
-    });
-    expect(
-      callScreenModel(zh, live({ durationMs: 20_000 }, { events: sent } as never)).heard,
-    ).toBeUndefined();
-    const missed = [
-      ...speaking,
-      { ...at(3, 9_000), type: 'asr-failed' as const, code: 'x', message: 'x' },
-    ];
-    expect(callScreenModel(zh, live({}, { events: missed } as never)).heard).toBeUndefined();
   });
 
   it('ends clearly and keeps Connect separate', () => {
@@ -167,9 +120,42 @@ describe('call screen model', () => {
     expect(microphoneRecovery(zh, 'blocked')?.message).toContain('麦克风');
   });
 
-  it('formats call time', () => {
-    expect(formatCallDuration(65_400)).toBe('01:05');
-    expect(formatCallDuration(3_725_000)).toBe('1:02:05');
+  it('refuses to dial while a call runs on another device (#3783)', () => {
+    const readiness = {
+      slug: 'mira',
+      ready: true,
+      missing: [],
+      asrProviderId: 'asr',
+      ttsProviderId: 'tts',
+      media: 'ready' as const,
+      activeCallId: 'call-0000000000000009',
+      callElsewhere: true,
+    };
+    expect(readinessMessage(en, readiness)).toBe(en.call.busyElsewhere);
+    expect(callConfigured(readiness)).toBe(true);
+  });
+
+  it('shows a microphone end in the app language', () => {
+    expect(
+      callScreenModel(zh, {
+        status: 'ended',
+        reason: 'media-failed',
+        error: 'microphone-missing',
+        events: [],
+      }).ended,
+    ).toBe(zh.call.microphoneMissing);
+  });
+
+  it('shows the hint and the heard line from the shared call view', () => {
+    expect(
+      callScreenModel(
+        en,
+        live({}, { events: [{ seq: 3, at: 9_000, type: 'nothing-heard' }] } as never),
+      ).hint,
+    ).toBe(en.call.notHeard);
+    expect(callScreenModel(en, live({ busy: true }), { interrupted: true }).hint).toBe(
+      en.call.interrupted,
+    );
   });
 });
 

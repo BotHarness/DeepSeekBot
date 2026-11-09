@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 
-import { voiceCallDuration } from '../../../core/src/channels/voice-call-record.js';
+import { formatCallDuration } from '../../../core/src/voice/call-view.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { ChannelMessage } from './store.js';
@@ -19,13 +19,13 @@ function recordLines(record: CallRecord, t: BotHarnessTranslate): [string, strin
     return [
       t(record.source === 'camera' ? 'call.recordCamera' : 'call.recordScreen'),
       t('call.recordFrames', {
-        from: voiceCallDuration(record.fromMs),
-        to: voiceCallDuration(record.toMs),
+        from: formatCallDuration(record.fromMs),
+        to: formatCallDuration(record.toMs),
         frames: String(record.frames),
       }),
     ];
   if ('atMs' in record) {
-    const time = voiceCallDuration(record.atMs);
+    const time = formatCallDuration(record.atMs);
     const camera = record.source === 'camera';
     if (record.state === 'share-resumed')
       return [
@@ -49,7 +49,7 @@ function recordLines(record: CallRecord, t: BotHarnessTranslate): [string, strin
     ? [t('call.recordStarted'), t('call.recordStartedAt', { time: clock(record.startedAt, t) })]
     : [
         t('call.recordEnded'),
-        t('call.recordLength', { time: voiceCallDuration(record.durationMs) }),
+        t('call.recordLength', { time: formatCallDuration(record.durationMs) }),
       ];
 }
 
@@ -57,7 +57,7 @@ export function voiceCallRecordText(record: CallRecord, t: BotHarnessTranslate):
   if (record.state === 'frames' || 'atMs' in record) return recordLines(record, t).join(' · ');
   return record.state === 'started'
     ? `${t('call.recordStarted')} · ${t('call.recordStartedAt', { time: clock(record.startedAt, t) })}`
-    : `${t('call.recordEnded')} · ${t('call.recordLength', { time: voiceCallDuration(record.durationMs) })}`;
+    : `${t('call.recordEnded')} · ${t('call.recordLength', { time: formatCallDuration(record.durationMs) })}`;
 }
 
 export function VoiceCallRecordBubble({
