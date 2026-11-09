@@ -64,6 +64,9 @@ export interface ConnectedHost {
 
 const sessions = new Map<string, { host: ConnectedHost; dispose(): void }>();
 const connectionLifetime = createConnectionLifetime(AppState.currentState === 'active');
+export function retainHostConnection(client: HostClient): () => void {
+  return connectionLifetime.retain(client);
+}
 const feedListeners = new Set<() => void>();
 const visibleConversations = new Map<Conversation, { hostId: string; channelId: string }>();
 let feeds: readonly ConnectedHost[] = [];

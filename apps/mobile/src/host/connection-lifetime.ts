@@ -6,14 +6,14 @@ interface Connection {
 export function createConnectionLifetime(initialForeground: boolean) {
   const connections = new Map<
     Connection,
-    { running: boolean; allowed: boolean; refused: boolean }
+    { running: boolean; allowed: boolean; refused: boolean; retained: Set<symbol> }
   >();
   let foreground = initialForeground;
   let background = false;
   function reconcile() {
     for (const [connection, demand] of connections) {
       if (demand.refused) continue;
-      const needed = foreground || (background && demand.allowed);
+      const needed = foreground || demand.retained.size > 0 || (background && demand.allowed);
       if (needed === demand.running) continue;
       demand.running = needed;
       if (needed) connection.start();
@@ -23,8 +23,24 @@ export function createConnectionLifetime(initialForeground: boolean) {
   return {
     add(connection: Connection) {
       if (!connections.has(connection))
-        connections.set(connection, { running: false, allowed: false, refused: false });
+        connections.set(connection, {
+          running: false,
+          allowed: false,
+          refused: false,
+          retained: new Set(),
+        });
       reconcile();
+    },
+    retain(connection: Connection): () => void {
+      const demand = connections.get(connection);
+      if (demand === undefined || demand.refused) return () => undefined;
+      const token = Symbol();
+      demand.retained.add(token);
+      reconcile();
+      return () => {
+        if (connections.get(connection) !== demand || !demand.retained.delete(token)) return;
+        reconcile();
+      };
     },
     remove(connection: Connection) {
       const running = connections.get(connection)?.running;
