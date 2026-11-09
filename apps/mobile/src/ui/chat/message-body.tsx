@@ -1,4 +1,4 @@
-import { useContext, useMemo } from 'react';
+import { useContext, useMemo, type ReactNode } from 'react';
 import { View } from 'react-native';
 
 import { botNameColor } from '../../../../../packages/client/src/client/bot-name-color';
@@ -55,9 +55,11 @@ function Mention({ mention, background }: { mention: WireMention; background: st
 export function MessageBody({
   message,
   streaming,
+  trail,
 }: {
   message: ConversationMessage;
   streaming: boolean;
+  trail?: ReactNode;
 }) {
   const theme = useDesignTheme();
   const human = message.author === 'human';
@@ -71,7 +73,7 @@ export function MessageBody({
   }, [human, leading === undefined, text, streaming]);
   if (human)
     return (
-      <Text tone={ink}>
+      <Text testID="message-text" tone={ink}>
         {messageMentionRuns(message.body, message.mentions).map((run, index) =>
           run.mention === undefined ? (
             run.text
@@ -79,6 +81,7 @@ export function MessageBody({
             <Mention key={index} mention={run.mention} background={background} />
           ),
         )}
+        {trail}
       </Text>
     );
   if (leading === undefined)
