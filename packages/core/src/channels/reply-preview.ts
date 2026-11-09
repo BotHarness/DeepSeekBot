@@ -42,7 +42,8 @@ export function replyPreviewMedia<Ref extends { name: string; mime: string }>(
   target: ReplyPreviewSource<Ref>,
   projectThumbnail: (ref: Ref) => Ref = (ref) => ref,
 ): ChannelReplyPreviewMedia<Ref> | undefined {
-  if (target.voice?.state === 'ready') return withDuration(target.voice.durationMs);
+  if (target.voice !== undefined)
+    return withDuration(target.voice.state === 'ready' ? target.voice.durationMs : undefined);
   const attachments = target.attachments ?? [];
   const images = attachments.filter((ref) => REPLY_THUMBNAIL_MIMES.has(ref.mime));
   const first = images[0];

@@ -1,4 +1,15 @@
 export const ALBUM_VISIBLE_LIMIT = 5;
+const SINGLE_ASPECT_MIN = 0.75;
+const SINGLE_ASPECT_MAX = 2;
+
+export function singleImageAspect(
+  size: { width?: number | undefined; height?: number | undefined },
+  fallback: number,
+): number {
+  const { width, height } = size;
+  if (width === undefined || height === undefined || width <= 0 || height <= 0) return fallback;
+  return Math.min(SINGLE_ASPECT_MAX, Math.max(SINGLE_ASPECT_MIN, width / height));
+}
 
 export interface AlbumRect {
   x: number;

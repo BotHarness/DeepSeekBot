@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { albumLayout, ALBUM_VISIBLE_LIMIT } from '../src/client/album-layout.js';
+import { albumLayout, ALBUM_VISIBLE_LIMIT, singleImageAspect } from '../src/client/album-layout.js';
 
 type Cell = [column: number, row: number, columnSpan: number, rowSpan: number];
 
@@ -115,5 +115,15 @@ describe('albumLayout', () => {
     for (const count of [0, -1, Number.NaN, 2.5]) {
       expect(albumLayout(count).tiles).toEqual([]);
     }
+  });
+});
+
+describe('single image shape', () => {
+  it('keeps the image shape between 3:4 and 2:1 and falls back when the size is unknown', () => {
+    expect(singleImageAspect({ width: 1600, height: 900 }, 4 / 3)).toBeCloseTo(16 / 9);
+    expect(singleImageAspect({ width: 400, height: 1200 }, 4 / 3)).toBe(0.75);
+    expect(singleImageAspect({ width: 3000, height: 1000 }, 4 / 3)).toBe(2);
+    expect(singleImageAspect({}, 4 / 3)).toBe(4 / 3);
+    expect(singleImageAspect({ width: 0, height: 100 }, 4 / 3)).toBe(4 / 3);
   });
 });

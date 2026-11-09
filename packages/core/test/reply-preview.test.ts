@@ -82,11 +82,17 @@ describe('reply preview media hint', () => {
     });
   });
 
-  it('ignores a voice that is still pending or failed', () => {
-    expect(replyPreviewMedia(message({ voice: { state: 'pending' } }))).toBeUndefined();
+  it('describes a pending or failed voice message as voice without a duration', () => {
+    const voiceFile = { ...audio, name: 'voice-123.ogg', mime: 'audio/ogg' };
+    expect(replyPreviewMedia(message({ voice: { state: 'pending' } }))).toEqual({ kind: 'voice' });
     expect(
-      replyPreviewMedia(message({ voice: { state: 'failed', code: 'nothing-to-say' } })),
-    ).toBeUndefined();
+      replyPreviewMedia(
+        message({
+          attachments: [voiceFile],
+          voice: { state: 'failed', code: 'nothing-to-say' },
+        }),
+      ),
+    ).toEqual({ kind: 'voice' });
   });
 
   it('describes files with the first file name and the file count', () => {

@@ -4,6 +4,7 @@ import { Pressable, View } from 'react-native';
 
 import {
   albumLayout,
+  singleImageAspect,
   type AlbumRect,
 } from '../../../../../packages/client/src/client/album-layout';
 import type { MessageAttachment, ReplyThumbnail } from '../../host/conversation';
@@ -199,7 +200,9 @@ export function MessageAlbum({
 }) {
   const t = useStrings();
   const layout = albumLayout(images.length);
-  const height = Math.round(width / layout.aspectRatio);
+  const aspect =
+    images.length === 1 ? singleImageAspect(images[0]!, layout.aspectRatio) : layout.aspectRatio;
+  const height = Math.round(width / aspect);
   return (
     <View
       testID="message-album"

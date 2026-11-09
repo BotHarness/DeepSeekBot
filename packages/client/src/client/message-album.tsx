@@ -1,5 +1,5 @@
 import { useMemo, useState, type CSSProperties, type ReactElement } from 'react';
-import { albumLayout, type AlbumTile } from './album-layout.js';
+import { albumLayout, singleImageAspect, type AlbumTile } from './album-layout.js';
 import { downloadFromUrl, useAttachmentDownloadMenu } from './attachment-download-menu.js';
 import type { BridgeActions } from './actions.js';
 import { channelAttachmentUrl, type AttachmentVariant } from './bridge.js';
@@ -15,9 +15,6 @@ import { useMessageHost } from './message-host.js';
 import { useMessageResource } from './message-resource.js';
 import type { ChannelAttachmentRef, ChannelMessage } from './store.js';
 import { REPLY_THUMBNAIL_MIMES } from '../../../core/src/channels/reply-preview.js';
-
-const SINGLE_ASPECT_MIN = 0.75;
-const SINGLE_ASPECT_MAX = 2;
 
 export function inlineImageAttachment(mime: string): boolean {
   return REPLY_THUMBNAIL_MIMES.has(mime);
@@ -90,12 +87,6 @@ export function bubbleMedia(message: ChannelMessage): 'bare' | 'captioned' | und
     message.genuiUnavailable !== true &&
     (message.clearedAttachments?.length ?? 0) === 0;
   return bare ? 'bare' : 'captioned';
-}
-
-function singleAspect(ref: ChannelAttachmentRef, fallback: number): number {
-  if (ref.width === undefined || ref.height === undefined || ref.width <= 0 || ref.height <= 0)
-    return fallback;
-  return Math.min(SINGLE_ASPECT_MAX, Math.max(SINGLE_ASPECT_MIN, ref.width / ref.height));
 }
 
 function tileVariant(tile: AlbumTile): AttachmentVariant {
@@ -238,7 +229,9 @@ export function MessageAlbum({
   const style: CSSProperties = {
     gridTemplateColumns: layout.columns.map((weight) => `${weight}fr`).join(' '),
     gridTemplateRows: layout.rows.map((weight) => `${weight}fr`).join(' '),
-    aspectRatio: String(many ? layout.aspectRatio : singleAspect(images[0]!, layout.aspectRatio)),
+    aspectRatio: String(
+      many ? layout.aspectRatio : singleImageAspect(images[0]!, layout.aspectRatio),
+    ),
   };
   const open = (item: GalleryImage): void => {
     if (gallery === undefined) setAlone(item);
