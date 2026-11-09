@@ -14,6 +14,7 @@ export interface RelayOptions {
   zone: string;
   zones?: readonly string[];
   zoneRecords?: number;
+  zoneLimits?: Readonly<Record<string, number>>;
   allowedUsers: readonly string[];
   maxHosts: number;
   maxTunnels: number;
@@ -219,6 +220,8 @@ export function createRelay(options: RelayOptions) {
   const defaultZone = options.zone;
   const zones = [defaultZone, ...(options.zones ?? []).filter((zone) => zone !== defaultZone)];
   const zoneRecords = options.zoneRecords ?? 195;
+  const limitOf = (zone: string) => options.zoneLimits?.[zone] ?? zoneRecords;
+  const quotaUntil = new Map<string, number>();
   const budgetPerRun = options.reclaimBudget ?? 30;
   const TUNNEL_PREFIX = options.tunnelPrefix ?? 'dsb-';
   const policy = {
@@ -250,7 +253,10 @@ export function createRelay(options: RelayOptions) {
       )
       .bind(waitingCutoff())
       .first<{ live: number; waiting: number }>();
-    const capacity = Math.min(options.maxTunnels, zones.length * zoneRecords);
+    const capacity = Math.min(
+      options.maxTunnels,
+      zones.reduce((sum, zone) => sum + limitOf(zone), 0),
+    );
     const live = counts?.live ?? 0;
     const free = Math.max(0, capacity - live);
     const value: PoolStatus = {
@@ -408,11 +414,11 @@ export function createRelay(options: RelayOptions) {
         .bind(current.id, defaultZone, zone)
         .first<{ live: number; records: number }>();
       const tunnelsFull = (counts?.live ?? 0) >= options.maxTunnels;
-      const zoneFull = (counts?.records ?? 0) >= zoneRecords;
+      const zoneFull = (counts?.records ?? 0) >= limitOf(zone);
       if (!tunnelsFull && !zoneFull) {
         const free = Math.min(
           options.maxTunnels - (counts?.live ?? 0),
-          zoneRecords - (counts?.records ?? 0),
+          limitOf(zone) - (counts?.records ?? 0),
         );
         const position = await queuePosition(current);
         if (position > free) {
@@ -477,8 +483,13 @@ export function createRelay(options: RelayOptions) {
 
   const chooseZone = async (current: HostRow, accepted: ReadonlySet<string>) => {
     if (current.zone !== null) return current.zone;
-    const usable = zones.filter((zone) => zone === defaultZone || accepted.has(zone));
-    if (usable.length === 1) return defaultZone;
+    const clock = now().getTime();
+    const usable = zones.filter(
+      (zone) =>
+        (zone === defaultZone || accepted.has(zone)) && (quotaUntil.get(zone) ?? 0) <= clock,
+    );
+    if (usable.length === 0) return defaultZone;
+    if (usable.length === 1) return usable[0] as string;
     const { results } = await db
       .prepare(
         'SELECT COALESCE(zone, ?) AS zone, COUNT(*) AS n FROM hosts WHERE tunnel_id IS NOT NULL OR dns_record_id IS NOT NULL GROUP BY COALESCE(zone, ?)',
@@ -486,7 +497,7 @@ export function createRelay(options: RelayOptions) {
       .bind(defaultZone, defaultZone)
       .all<{ zone: string; n: number }>();
     const used = new Map(results.map((entry) => [entry.zone, entry.n]));
-    return pickZone(usable, used, zoneRecords) ?? defaultZone;
+    return pickZone(usable, used, limitOf) ?? defaultZone;
   };
 
   const provision = async (row: HostRow, originPort: number, accepted: ReadonlySet<string>) => {
@@ -541,6 +552,12 @@ export function createRelay(options: RelayOptions) {
       }
       if (error instanceof RecordQuotaError) {
         log('connect-zone-quota', { host: current.id, zone: zoneOf(current) });
+        quotaUntil.set(zoneOf(current), now().getTime() + 10 * 60 * 1000);
+        if (current.dns_record_id === null)
+          await db
+            .prepare('UPDATE hosts SET zone = NULL WHERE id = ? AND dns_record_id IS NULL')
+            .bind(current.id)
+            .run();
         await markWaiting(current);
         throw new RelayFull('zone-full', await queuePosition(current));
       }

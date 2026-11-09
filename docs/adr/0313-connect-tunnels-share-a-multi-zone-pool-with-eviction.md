@@ -57,11 +57,11 @@ The same run caches each tunnel's status in the row (`tunnel_status`, `tunnel_in
 
 ### 3. Zones form one pool
 
-`CONNECT_ZONES` lists every Connect zone as `name=zone-id`, comma-separated, default zone first. Each zone holds at most `ZONE_RECORDS` tunnel records (default 195, leaving room for the apex and verification records). `MAX_TUNNELS` (default 900) caps the whole account. `MAX_HOSTS` (default 3, was 5) caps the computers one account can register, so each computer holds one tunnel and one account holds at most three; a fourth answers `409 host-limit` until one is removed. Phones never hold a tunnel: they reach a paired computer through that computer's tunnel. Accounts already above three keep their Hosts; the cap applies to new registrations.
+`CONNECT_ZONES` lists the extra Connect zones as `name=zone-id[:records]`, comma-separated; the default zone comes from `CONNECT_ZONE`. Each zone holds at most `records` tunnel records, or `ZONE_RECORDS` (default 195) when none is given. A free zone holds 200 records in all, so a zone that already serves other names gets 200 minus those names minus a margin of 2. `MAX_TUNNELS` (default 980) caps the whole account under Cloudflare's 1,000. `MAX_HOSTS` (default 3, was 5) caps the computers one account can register, so each computer holds one tunnel and one account holds at most three; a fourth answers `409 host-limit` until one is removed. Phones never hold a tunnel: they reach a paired computer through that computer's tunnel. Accounts already above three keep their Hosts; the cap applies to new registrations.
 
 A Host's zone is fixed the first time it gets a record and is kept in `hosts.zone`. Legacy rows read as the default zone, so no existing hostname changes. A new Host gets the zone with the most free records.
 
-A Host lists the zones it accepts (`{ "zones": [...] }` on `POST /v1/hosts/{id}/tunnel`), and the relay places it only in one of those or the default zone. Older Hosts, and phones older than the release that recognises the extra zones, accept only `*.deepseekbot.dev`. So the extra zones are switched on in configuration after that phone and desktop release ships. Every Connect zone is dedicated to Connect, like `deepseekbot.dev` (ADR-0241 decision 6), because clients treat every name under it as a Connect route.
+A Host lists the zones it accepts (`{ "zones": [...] }` on `POST /v1/hosts/{id}/tunnel`), and the relay places it only in one of those or the default zone. Older Hosts, and phones older than the release that recognises the extra zones, accept only `*.deepseekbot.dev`. Those clients keep working: the relay places them in `deepseekbot.dev` until they update. `deepseekbot.dev` stays dedicated to Connect (ADR-0241 decision 6), and clients treat every name under it as a Connect route. The extra zones are shared with other services, so clients treat only `h<12 base32>` names there as Connect routes, the relay only ever creates, repairs or deletes records of that shape, and every other name in those zones stays usable, including for private routes.
 
 ### 4. Eviction when the pool is full
 
@@ -116,7 +116,7 @@ Every Host reads `GET /v1/hosts` once a minute, so the pool numbers are read far
 
 ## Consequences
 
-- Capacity is bounded by live tunnels. With five dedicated zones it reaches about 975 records, so `MAX_TUNNELS` (900) becomes the limit again, as ADR-0241 intended. Pricing is still decided near 800 concurrent Hosts.
+- Capacity is bounded by live tunnels. Six zones (`deepseekbot.dev` 195, `botharness.dev` 195, `kite-u.com` 194, `tobs.app` 194, `deepseekbot.app` 189, `botharness.ai` 188) give 1,155 records, so `MAX_TUNNELS` (980) becomes the limit again, as ADR-0241 intended. Pricing is still decided near 800 concurrent Hosts.
 - An evicted Host has no remote route until it returns. LAN and Tailscale routes are unaffected.
 - Hosts and phones from before this change report no use, so they look idle and are evicted first when the pool is full. This favours updated clients and is accepted.
 - Extra zones cost a domain each and must hold nothing else.

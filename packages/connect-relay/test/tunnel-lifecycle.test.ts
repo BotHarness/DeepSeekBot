@@ -3,7 +3,7 @@ import { DatabaseSync } from 'node:sqlite';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { createCloudflareApi } from '../src/cloudflare.js';
+import { createCloudflareApi, parseZones } from '../src/cloudflare.js';
 import { pickVictim, pickZone, type PoolTunnel } from '../src/pool.js';
 import type { RelayOptions } from '../src/relay.js';
 import { setup } from './support.js';
@@ -667,6 +667,68 @@ describe('eviction scoring', () => {
     expect(pickZone([ZONE, EXTRA], new Map([[ZONE, 3]]), 5)).toBe(EXTRA);
     expect(pickZone([ZONE, EXTRA], new Map(), 5)).toBe(ZONE);
     expect(pickZone([ZONE], new Map([[ZONE, 5]]), 5)).toBeUndefined();
+  });
+
+  it('gives each zone its own record limit', () => {
+    const limits = (zone: string) => (zone === EXTRA ? 2 : 5);
+    expect(pickZone([ZONE, EXTRA], new Map([[ZONE, 4]]), limits)).toBe(EXTRA);
+    expect(
+      pickZone(
+        [ZONE, EXTRA],
+        new Map([
+          [ZONE, 4],
+          [EXTRA, 2],
+        ]),
+        limits,
+      ),
+    ).toBe(ZONE);
+    expect(
+      parseZones(`${EXTRA}=${'a'.repeat(32)}:188, bad=zone, x.dev=${'b'.repeat(32)}:0`),
+    ).toEqual([{ name: EXTRA, id: 'a'.repeat(32), records: 188 }]);
+    expect(parseZones(`${EXTRA}=${'A'.repeat(32)}`)).toEqual([{ name: EXTRA, id: 'a'.repeat(32) }]);
+  });
+
+  it('moves a Host that never got a record to another zone after a quota error', async () => {
+    const env = await pool(['user_a'], {
+      zones: [ZONE, EXTRA],
+      zoneRecords: 2,
+      zoneLimits: { [EXTRA]: 5 },
+    });
+    env.tunnels.recordQuota.set(EXTRA, 0);
+    const a = await env.link('user_a');
+    expect(await env.provision('user_a', a, { zones: [ZONE, EXTRA] })).toMatchObject({
+      status: 503,
+      body: { error: { code: 'relay-full', reason: 'zone-full' } },
+    });
+    expect(await env.row(a)).toMatchObject({ zone: null, tunnel_id: null });
+    expect((await env.provision('user_a', a, { zones: [ZONE, EXTRA] })).body.hostname).toBe(
+      `${a}.${ZONE}`,
+    );
+  });
+
+  it('counts a zone at its own limit in the pool and when it fills', async () => {
+    const env = await pool(['user_a', 'user_b', 'user_c'], {
+      zones: [ZONE, EXTRA],
+      zoneRecords: 2,
+      zoneLimits: { [EXTRA]: 1 },
+    });
+    const a = await env.link('user_a');
+    expect((await env.provision('user_a', a, { zones: [ZONE, EXTRA] })).body.hostname).toBe(
+      `${a}.${ZONE}`,
+    );
+    const b = await env.link('user_b');
+    expect((await env.provision('user_b', b, { zones: [ZONE, EXTRA] })).body.hostname).toBe(
+      `${b}.${ZONE}`,
+    );
+    const c = await env.link('user_c');
+    expect((await env.provision('user_c', c, { zones: [ZONE, EXTRA] })).body.hostname).toBe(
+      `${c}.${EXTRA}`,
+    );
+    expect((await env.call('GET', '/v1/hosts', { as: 'user_a' })).body.pool).toMatchObject({
+      capacity: 3,
+      inUse: 3,
+      free: 0,
+    });
   });
 });
 

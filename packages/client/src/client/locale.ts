@@ -2172,7 +2172,7 @@ export const zh = {
   'voice.provider.keyHint': '保存后不会再显示。',
   'voice.provider.keySet': '已保存密钥',
   'voice.provider.noKey': '无密钥',
-  'voice.provider.missingKey': '缺少 API 密钥，请移除后重新添加并填写密钥。',
+  'voice.provider.missingKey': '缺少 API 密钥。移除后重新添加，并填写密钥。',
   'voice.provider.details': '详情',
   'voice.provider.retest': '再测一次',
   'voice.provider.copyUrl': '复制端点地址',
