@@ -2855,7 +2855,12 @@ function ConversationView({
               channel?.type === 'dm' &&
               profileBot !== undefined &&
               profileBot.deleted !== true && (
-                <DmCallControl slug={profileBot.slug} name={profileBot.displayName} t={t} />
+                <DmCallControl
+                  slug={profileBot.slug}
+                  name={profileBot.displayName}
+                  onReturn={() => void actions.openChannel(channel.id).catch(() => undefined)}
+                  t={t}
+                />
               )}
             {!workspaceEnabled && onMobileBack === undefined && inboxAvailable && (
               <span className="bh-channel-island-wrap">
@@ -3646,6 +3651,9 @@ function ConversationView({
                             <DmCallControl
                               slug={profileBot.slug}
                               name={profileBot.displayName}
+                              onReturn={() =>
+                                void actions.openChannel(channel.id).catch(() => undefined)
+                              }
                               variant="header"
                               t={t}
                             />

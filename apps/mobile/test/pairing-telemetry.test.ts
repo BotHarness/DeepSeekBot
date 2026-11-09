@@ -1,4 +1,5 @@
 import { expect, it, vi } from 'vitest';
+import { SavedHostsWriteError } from '../src/host/hosts';
 import { pairHost } from '../src/host/pairing';
 import { FakeHost } from './fake-host';
 
@@ -37,11 +38,44 @@ it('counts a submitted invalid link once and requires saved-Host persistence for
   expect(await pairHost({ ...base, text })).toEqual({
     ok: false,
     code: 'storage-failure',
-    detail: 'app:storage-error',
+    detail: 'app:storage-error: SENTINEL disk error',
   });
   expect(finish).toHaveBeenLastCalledWith('failed', 'storage-failure', 'app:storage-error');
   host.offer = 'offer-1';
   save.mockResolvedValueOnce(undefined);
   expect(await pairHost({ ...base, method: 'qr', text })).toEqual({ ok: true });
   expect(finish).toHaveBeenLastCalledWith('success');
+});
+
+it('names a keychain save failure so a full phone is told apart from other storage errors', async () => {
+  const finish = vi.fn();
+  const host = new FakeHost();
+  const text =
+    'deepseekbot://pair?p=' +
+    Buffer.from(
+      JSON.stringify({
+        v: 1,
+        host: { id: host.hostId, name: 'SENTINEL name' },
+        offer: host.offer,
+        routes: ['https://studio.tailnet-example.ts.net'],
+        expiresAt: '2099-01-01T00:00:00Z',
+      }),
+    ).toString('base64url');
+  expect(
+    await pairHost({
+      deviceName: 'SENTINEL phone',
+      carrier: host.carrier,
+      save: async () => {
+        throw new SavedHostsWriteError(new Error('No keychain is available.'));
+      },
+      telemetry: { pairing: () => ({ finish }) },
+      method: 'paste',
+      text,
+    }),
+  ).toEqual({
+    ok: false,
+    code: 'storage-failure',
+    detail: 'app:storage-keychain: No keychain is available.',
+  });
+  expect(finish).toHaveBeenLastCalledWith('failed', 'storage-failure', 'app:storage-keychain');
 });

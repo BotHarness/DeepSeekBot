@@ -7,6 +7,7 @@ public final class LocalComputerVideoModule: Module {
   private var call: CallAttempt?
   /// Reports interruptions and output changes for `call`.
   private var audio: CallAudioObserver?
+  private var directs: [String: DirectChannel] = [:]
 
   private func release(_ call: CallAttempt, _ done: @escaping (String?) -> Void) {
     if self.call === call { self.call = nil }
@@ -18,7 +19,39 @@ public final class LocalComputerVideoModule: Module {
 
   public func definition() -> ModuleDefinition {
     Name("LocalComputerVideo")
-    Events("onCallState", "onCallTap", "onCallAudio")
+    Events("onCallState", "onCallTap", "onCallAudio", "onDirect")
+
+    AsyncFunction("directOffer") { (id: String, iceServers: [String], promise: Promise) in
+      self.directs[id]?.close()
+      let channel = DirectChannel(id: id) { [weak self] kind, body in
+        DispatchQueue.main.async {
+          guard let self else { return }
+          if kind == "closed" { self.directs[id] = nil }
+          self.sendEvent("onDirect", body.merging(["id": id, "kind": kind]) { current, _ in current })
+        }
+      }
+      self.directs[id] = channel
+      channel.offer(iceServers: iceServers) { sdp, code in
+        if let sdp { promise.resolve(sdp) } else { promise.reject(code ?? "offer-failed", "Direct connection could not start.") }
+      }
+    }.runOnQueue(.main)
+
+    AsyncFunction("directAnswer") { (id: String, answer: String, promise: Promise) in
+      guard let channel = self.directs[id], answer.hasPrefix("v=0"), answer.utf8.count <= 16384 else {
+        promise.reject("answer-invalid", "Direct answer was refused."); return
+      }
+      channel.answer(answer) { code in
+        if let code { promise.reject(code, "Direct answer was refused.") } else { promise.resolve(nil) }
+      }
+    }.runOnQueue(.main)
+
+    Function("directSend") { (id: String, text: String) -> Bool in
+      self.directs[id]?.send(text) ?? false
+    }
+
+    Function("directClose") { (id: String) in
+      self.directs[id]?.close()
+    }
 
     // Answers the Host's audio offer with the microphone. `testAudio` (test builds only)
     // replaces the microphone with injected files and records the downlink.
@@ -73,6 +106,12 @@ public final class LocalComputerVideoModule: Module {
     Function("callMute") { (attemptId: String, muted: Bool) in
       guard let call = self.call, call.id == attemptId else { return }
       call.mute(muted)
+    }
+
+    // Sets the Bot's voice gain for this call, 0 to 2 where 1 is unity.
+    Function("callVoiceVolume") { (attemptId: String, volume: Double) in
+      guard let call = self.call, call.id == attemptId else { return }
+      call.setVoiceVolume(volume)
     }
 
     // Chooses the live call's output (`receiver`, `speaker` or `external`) and microphone

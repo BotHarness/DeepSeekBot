@@ -29,6 +29,7 @@ import type { ShortcutBindings } from './shortcut-bindings.js';
 import { useMountedResource } from './mounted-resource.js';
 import { rankQuickSwitcher, type QuickSwitcherEntry } from './quick-switcher-rank.js';
 import type { SettingsSearchResult } from './settings-search.js';
+import type { QuickSwitcherLauncher } from './quick-switcher-launcher.js';
 import type { BotSummary, ChannelMessage } from './store.js';
 
 const styles = stylex.create({
@@ -177,6 +178,7 @@ export const QUICK_SWITCHER_SETTINGS_LIMIT = 12;
 export interface QuickSwitcherSettings {
   search(query: string): readonly SettingsSearchResult[];
   open(result: SettingsSearchResult): void;
+  launcher?: QuickSwitcherLauncher | undefined;
 }
 
 export interface QuickSwitcherMessages {

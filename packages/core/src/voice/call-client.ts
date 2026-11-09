@@ -13,11 +13,37 @@ export type CallPost = (body: Record<string, unknown>) => Promise<VoiceCallResul
 
 export type CallMediaState = 'connected' | 'failed' | 'closed';
 
+export const CALL_MEDIA_CODES = [
+  'microphone-denied',
+  'microphone-missing',
+  'background',
+  'ice-failed',
+  'unknown',
+] as const;
+
+export type CallMediaCode = (typeof CALL_MEDIA_CODES)[number];
+
+export class CallMediaFailure extends Error {
+  constructor(
+    readonly code: CallMediaCode,
+    message: string = code,
+  ) {
+    super(message);
+  }
+}
+
+export function callMediaCode(error: unknown): CallMediaCode {
+  const code = (error as { code?: unknown } | undefined)?.code;
+  return (CALL_MEDIA_CODES as readonly unknown[]).includes(code)
+    ? (code as CallMediaCode)
+    : 'unknown';
+}
+
 export interface CallClientMedia {
   start(input: { callId: string; offer: string }): Promise<string>;
   mute(muted: boolean): void;
   stop(): void;
-  onState(listener: (state: CallMediaState, code?: string) => void): () => void;
+  onState(listener: (state: CallMediaState, code?: CallMediaCode) => void): () => void;
 }
 
 export type CallClientState =
@@ -29,11 +55,13 @@ export type CallClientState =
       readonly events: readonly VoiceCallEvent[];
       readonly muted: boolean;
       readonly reconnecting: boolean;
+      readonly syncedAt: number;
     }
   | {
       readonly status: 'ended';
       readonly reason: VoiceCallEndReason | 'refused';
       readonly code?: VoiceCallRefusal | 'unreachable';
+      readonly mediaCode?: CallMediaCode;
       readonly error?: string;
       readonly call?: VoiceCallView;
       readonly events: readonly VoiceCallEvent[];
@@ -49,6 +77,7 @@ export interface CallClient {
   ): Promise<VoiceCallResult | undefined>;
   frame(input: CallClientFrame): Promise<VoiceCallResult | undefined>;
   hangup(): Promise<void>;
+  background(hidden: boolean): void;
   dispose(): void;
 }
 
@@ -63,6 +92,7 @@ export interface CallClientOptions {
   readonly post: CallPost;
   readonly media: CallClientMedia;
   readonly onChange: (state: CallClientState) => void;
+  readonly emit?: 'every-heartbeat' | 'visible-changes';
   readonly now?: () => number;
   readonly setInterval?: (run: () => void, ms: number) => unknown;
   readonly clearInterval?: (handle: unknown) => void;
@@ -92,6 +122,9 @@ export function createCallClient(options: CallClientOptions): CallClient {
   let seq = 0;
   let muted = false;
   let lastAnswer = 0;
+  let syncedAt = 0;
+  let shown: string | undefined;
+  let hidden = false;
   let timer: unknown;
   let beating = false;
   let unsubscribe: (() => void) | undefined;
@@ -105,17 +138,42 @@ export function createCallClient(options: CallClientOptions): CallClient {
   const absorb = (view: VoiceCallView | undefined) => {
     if (view === undefined) return;
     call = view;
+    syncedAt = now();
     for (const event of view.events) if (event.seq > seq) events.push(event);
     if (events.length > EVENT_LIMIT) events = events.slice(-EVENT_LIMIT);
     seq = Math.max(seq, view.lastSeq);
   };
+  const visible = (view: VoiceCallView, reconnecting: boolean) =>
+    [
+      view.phase,
+      view.busy,
+      view.muted,
+      view.visual ?? '',
+      view.endReason ?? '',
+      seq,
+      muted,
+      reconnecting,
+    ].join('|');
   const live = (reconnecting = false) => {
     if (call === undefined) return;
-    set({ status: 'live', call, events: [...events], muted, reconnecting });
+    const key = visible(call, reconnecting);
+    if (options.emit === 'visible-changes' && state.status === 'live' && key === shown) return;
+    shown = key;
+    set({ status: 'live', call, events: [...events], muted, reconnecting, syncedAt });
+  };
+  const period = () =>
+    hidden ? VOICE_CALL_LIMITS.backgroundHeartbeatMs : VOICE_CALL_LIMITS.heartbeatMs;
+  const schedule = () => {
+    if (timer !== undefined) stopEvery(timer);
+    timer = every(() => void heartbeat(), period());
   };
   const finish = (
     reason: VoiceCallEndReason | 'refused',
-    extra: { code?: VoiceCallRefusal | 'unreachable'; error?: string } = {},
+    extra: {
+      code?: VoiceCallRefusal | 'unreachable';
+      mediaCode?: CallMediaCode;
+      error?: string;
+    } = {},
   ) => {
     if (state.status === 'ended') return;
     if (timer !== undefined) stopEvery(timer);
@@ -170,6 +228,7 @@ export function createCallClient(options: CallClientOptions): CallClient {
       events = [];
       seq = 0;
       muted = false;
+      shown = undefined;
       set({ status: 'opening' });
       let result: VoiceCallResult;
       try {
@@ -204,7 +263,7 @@ export function createCallClient(options: CallClientOptions): CallClient {
         const callId = call.callId;
         void options.post({ kind: 'hangup', callId }).catch(() => undefined);
         finish(media === 'closed' && code === 'background' ? 'hangup' : 'media-failed', {
-          ...(code === undefined ? {} : { error: code }),
+          mediaCode: code ?? 'unknown',
         });
       });
       let answer: string;
@@ -213,6 +272,7 @@ export function createCallClient(options: CallClientOptions): CallClient {
       } catch (error) {
         await options.post({ kind: 'hangup', callId: opened.callId }).catch(() => undefined);
         finish('media-failed', {
+          mediaCode: callMediaCode(error),
           error: error instanceof Error ? error.message : 'The microphone could not start.',
         });
         return;
@@ -246,7 +306,7 @@ export function createCallClient(options: CallClientOptions): CallClient {
       }
       absorb(signalled.call);
       lastAnswer = now();
-      timer = every(() => void heartbeat(), VOICE_CALL_LIMITS.heartbeatMs);
+      schedule();
       live();
     },
     async mute(next) {
@@ -308,6 +368,13 @@ export function createCallClient(options: CallClientOptions): CallClient {
         if (result.ok) absorb(result.call);
       } catch {}
       finish('hangup');
+    },
+    background(next) {
+      if (next === hidden) return;
+      hidden = next;
+      if (timer === undefined || status() !== 'live') return;
+      schedule();
+      if (!next) void heartbeat();
     },
     dispose() {
       if (status() !== 'ended' && call !== undefined)

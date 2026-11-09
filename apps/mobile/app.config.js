@@ -60,6 +60,7 @@ module.exports = ({ config }) => {
       './modules/local-computer-video/app.plugin.js',
       './modules/hardware-send/app.plugin.js',
       './modules/stream-reveal/app.plugin.js',
+      './modules/speaker-anchor/app.plugin.js',
       [
         'expo-widgets',
         { enablePushNotifications: true, groupIdentifier: `group.${bundleIdentifier}` },

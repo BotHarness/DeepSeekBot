@@ -4,4 +4,17 @@
   <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
   <!-- Bot call camera (#3498): CameraX capture for keyframes and the self-preview. -->
   <uses-permission android:name="android.permission.CAMERA" />
+  <!-- Background Bot calls (#3423, ADR-0305): a microphone + media foreground service with
+       an ongoing call notification, and CPU/Wi-Fi locks for the call's lifetime. -->
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+  <uses-permission android:name="android.permission.WAKE_LOCK" />
+  <!-- The call bubble over other apps (#3469), granted by the Human in Settings. -->
+  <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+  <application>
+    <service android:name=".CallService" android:exported="false"
+      android:foregroundServiceType="microphone|mediaPlayback" android:stopWithTask="true" />
+  </application>
 </manifest>

@@ -219,6 +219,40 @@ describe('Host drawer', () => {
     expect(showView.mock.calls).toEqual([['tower']]);
   });
 
+  it('passes the switch failure to the failure notice', async () => {
+    const error = new Error('keychain full');
+    const failed = vi.fn();
+    const drawer = createHostDrawer({
+      switchTo: vi.fn(async () => {
+        throw error;
+      }),
+      showView: vi.fn(),
+      pair: vi.fn(),
+      notifications: vi.fn(),
+      failed,
+    });
+    await expect(drawer.select('laptop')).resolves.toBe(false);
+    expect(failed).toHaveBeenCalledWith(error);
+  });
+
+  it('lets a source change cancel workspace work without counting as the person choosing', () => {
+    const drawer = createHostDrawer({
+      showView: vi.fn(),
+      switchTo: vi.fn(async () => true),
+      pair: vi.fn(),
+      notifications: vi.fn(),
+    });
+    const selecting = drawer.beginWorkspaceSelection();
+    const scoped = drawer.captureWorkspaceSelection();
+    const chosen = drawer.captureChosenWorkspace();
+    drawer.invalidateWorkspaceSources();
+    expect(selecting()).toBe(false);
+    expect(scoped()).toBe(false);
+    expect(chosen()).toBe(true);
+    drawer.selectAll();
+    expect(chosen()).toBe(false);
+  });
+
   it('opens the pairing flow from "Pair a new computer" and closes', () => {
     const pair = vi.fn();
     const drawer = createHostDrawer({

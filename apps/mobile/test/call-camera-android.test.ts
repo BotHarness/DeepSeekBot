@@ -47,10 +47,10 @@ describe('Android call camera (#3498)', () => {
     expect(view).toContain('CallCamera.detach(this)');
   });
 
-  it('keeps the call alive while the camera permission dialog pauses the activity', () => {
+  it('keeps a call without the background service alive during the camera permission dialog', () => {
     const host = read(
       'android/src/main/java/expo/modules/localcomputervideo/LocalComputerVideoModule.kt',
     );
-    expect(host).toContain('if (!CallCamera.askingPermission)');
+    expect(host).toContain('!CallService.keeping && !CallCamera.askingPermission');
   });
 });

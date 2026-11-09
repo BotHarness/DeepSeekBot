@@ -23,6 +23,7 @@ export type PairingReason =
   | 'offer-invalid'
   | 'offer-expired'
   | 'unreachable'
+  | 'certificate-untrusted'
   | 'storage-failure'
   | 'sign-in-cancelled'
   | 'sign-in-failed'
@@ -265,6 +266,7 @@ export const MOBILE_EVENT_FIELDS: Record<
       'offer-invalid',
       'offer-expired',
       'unreachable',
+      'certificate-untrusted',
       'storage-failure',
       'sign-in-cancelled',
       'sign-in-failed',

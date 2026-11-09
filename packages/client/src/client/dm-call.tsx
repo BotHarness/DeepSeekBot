@@ -10,6 +10,7 @@ import {
   type DesktopCall,
   type DesktopCallVisual,
 } from './desktop-call.js';
+import { askCallNotifications } from './call-presence.js';
 import { IconButton } from './ds/icon-button.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { Tooltip } from './ds/tooltip.js';
@@ -17,12 +18,14 @@ import { Tooltip } from './ds/tooltip.js';
 export function DmCallControl({
   slug,
   name,
+  onReturn,
   t,
   variant = 'island',
   call = desktopCall(),
 }: {
   slug: string;
   name: string;
+  onReturn?: (() => void) | undefined;
   t: BotHarnessTranslate;
   variant?: 'island' | 'header';
   call?: DesktopCall;
@@ -34,7 +37,17 @@ export function DmCallControl({
     const rect = anchor.current?.getBoundingClientRect();
     if (rect !== undefined)
       setPlace({ top: rect.bottom + 8, right: Math.max(8, window.innerWidth - rect.right) });
-    void call.start(slug);
+    askCallNotifications();
+    void call.start(
+      slug,
+      onReturn === undefined
+        ? undefined
+        : {
+            title: t('call.backgroundTitle', { name }),
+            body: t('call.backgroundBody'),
+            open: onReturn,
+          },
+    );
   };
   const snapshot = useSyncExternalStore(call.subscribe, call.snapshot, call.snapshot);
   const mine = snapshot.slug === slug;
