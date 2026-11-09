@@ -17,7 +17,7 @@ export interface PrivateTunnelView {
   addressChanged?: boolean;
 }
 
-type Step = 'choose' | 'named' | 'ingress';
+export type PrivateTunnelStep = 'choose' | 'named' | 'ingress';
 
 export function PrivateTunnelSettings({
   t,
@@ -25,13 +25,16 @@ export function PrivateTunnelSettings({
   refresh,
   pair,
   advanced,
+  step,
+  setStep,
 }: PropsLocale<'botharness'> & {
   status?: PrivateTunnelView;
   refresh(): Promise<unknown>;
   pair(): void;
   advanced(): void;
+  step: PrivateTunnelStep;
+  setStep(step: PrivateTunnelStep): void;
 }): ReactElement {
-  const [step, setStep] = useState<Step>('choose');
   const [hostname, setHostname] = useState('');
   const [token, setToken] = useState('');
   const [origin, setOrigin] = useState('');
@@ -151,9 +154,6 @@ export function PrivateTunnelSettings({
         >
           {t(busy ? 'privateRelay.connecting' : 'privateTunnel.ingressEnable')}
         </Button>
-        <Button variant="outline" disabled={busy} onClick={() => setStep('choose')}>
-          {t('privateTunnel.back')}
-        </Button>
       </>
     );
 
@@ -183,9 +183,6 @@ export function PrivateTunnelSettings({
           onClick={() => void send({ action: 'enable', mode: 'named', hostname, token })}
         >
           {t(busy ? 'privateRelay.connecting' : 'privateTunnel.namedEnable')}
-        </Button>
-        <Button variant="outline" disabled={busy} onClick={() => setStep('choose')}>
-          {t('privateTunnel.back')}
         </Button>
       </>
     );

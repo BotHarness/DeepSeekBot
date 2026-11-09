@@ -39,7 +39,6 @@ export const zh = {
   'privateTunnel.probe': '最近一次检查：{probe}',
   'privateTunnel.addressChanged': '临时地址已变化。已配对的手机需要扫描新的配对码才能连接。',
   'privateTunnel.disable': '关闭私有连接',
-  'privateTunnel.back': '返回',
   'privateTunnel.refused': '未能完成（{code}）。',
   'privateRelay.title': 'Docker 私有中继（高级）',
   'privateRelay.description': '使用自己的服务器，不需要官方账号。',
@@ -4925,7 +4924,6 @@ export const en = {
   'privateTunnel.addressChanged':
     'The temporary address changed. Paired phones need to scan a new pairing code to connect.',
   'privateTunnel.disable': 'Turn off private connection',
-  'privateTunnel.back': 'Back',
   'privateTunnel.refused': 'Could not finish ({code}).',
   'privateRelay.title': 'Docker private relay (advanced)',
   'privateRelay.description': 'Use your own server without an official account.',

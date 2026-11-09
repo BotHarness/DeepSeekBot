@@ -1,5 +1,9 @@
 import { PrivateRelaySettings } from './private-relay-settings.js';
-import { PrivateTunnelSettings, type PrivateTunnelView } from './private-tunnel-settings.js';
+import {
+  PrivateTunnelSettings,
+  type PrivateTunnelStep,
+  type PrivateTunnelView,
+} from './private-tunnel-settings.js';
 import { noiseFingerprint } from '../../../core/src/devices/noise/xk.js';
 import { keyBytes } from '../../../../apps/mobile/src/host/encrypted-carrier.js';
 import { checkRoute, isConnectRoute, isLanRoute } from '../../../../apps/mobile/src/host/route.js';
@@ -216,6 +220,7 @@ export function PairedDevicesSettings({
     | 'connect'
     | 'remote';
   const [setup, setSetupState] = useState<Setup>('closed');
+  const [tunnelStep, setTunnelStep] = useState<PrivateTunnelStep>('choose');
   const setupVersion = useRef(0);
   const setSetup = (next: Setup) => {
     setupVersion.current += 1;
@@ -761,7 +766,10 @@ export function PairedDevicesSettings({
                   description={t('privateTunnel.description')}
                   detail={t('privateTunnel.intro')}
                   disabled={!freshSnapshot}
-                  onClick={() => setSetup('private')}
+                  onClick={() => {
+                    setTunnelStep('choose');
+                    setSetup('private');
+                  }}
                 />
                 <ConnectionMethod
                   title={t('connections.lan')}
@@ -810,6 +818,8 @@ export function PairedDevicesSettings({
                   open();
                 }}
                 advanced={() => setSetup('privateRelay')}
+                step={tunnelStep}
+                setStep={setTunnelStep}
               />
             ) : setup === 'private' || setup === 'privateRelay' ? (
               <PrivateRelaySettings
@@ -879,7 +889,11 @@ export function PairedDevicesSettings({
             {setup !== 'direction' ? (
               <Button
                 variant="outline"
-                onClick={() => setSetup(setup === 'method' ? 'direction' : 'method')}
+                onClick={() =>
+                  setup === 'private' && tunnelStep !== 'choose'
+                    ? setTunnelStep('choose')
+                    : setSetup(setup === 'method' ? 'direction' : 'method')
+                }
               >
                 {t('connections.back')}
               </Button>
