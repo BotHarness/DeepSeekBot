@@ -12,10 +12,11 @@ import { Select } from './ds/select.js';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
 import {
   CopyChip,
-  StatusBlock,
-  StatusDisclosure,
   StatusFact,
-  StatusStack,
+  StatusGroup,
+  StatusList,
+  StatusListAction,
+  StatusListRow,
   type StatusTone,
 } from './ds/status-block.js';
 import { space } from './ds/tokens.stylex.js';
@@ -36,7 +37,7 @@ import {
 
 const styles = stylex.create({
   page: { display: 'flex', flexDirection: 'column', minWidth: 0, paddingBottom: space.x6 },
-  add: { display: 'flex' },
+  sections: { display: 'flex', flexDirection: 'column', gap: space.x6, minWidth: 0 },
 });
 
 type VoiceActions = Pick<
@@ -216,7 +217,7 @@ export function VoiceProviderSettings({
   const [error, setError] = useState<string>();
   const [defaultError, setDefaultError] = useState<Partial<Record<Kind, string>>>({});
   const [voiceEdit, setVoiceEdit] = useState<Choice>();
-  const [manage, setManage] = useState<Record<Kind, boolean>>({ tts: false, asr: false });
+  const [expanded, setExpanded] = useState<string>();
   const [health, setHealth] = useState<Record<string, VoiceProviderHealthView | 'testing'>>({});
   const load = (): void => {
     void actions
@@ -305,7 +306,7 @@ export function VoiceProviderSettings({
       )
       .finally(() => setBusy(false));
   };
-  const defaultRows = (current: VoiceProvidersView, kind: Kind): ReactElement => {
+  const defaultList = (current: VoiceProvidersView, kind: Kind): ReactElement => {
     const providers = providersOf(current, kind);
     const binding = kind === 'tts' ? current.defaults.tts : current.defaults.asr;
     const provider = providers.find((entry) => entry.id === binding?.providerId);
@@ -316,98 +317,100 @@ export function VoiceProviderSettings({
     const voiceState = voiceEdit ?? defaultVoiceChoice(current.defaults.tts?.voiceId, voices);
     const failure = defaultError[kind];
     return (
-      <>
-        <SettingsRow
-          title={t('voice.default.title')}
-          description={kind === 'tts' ? t('voice.default.ttsHint') : t('voice.default.asrHint')}
-          data={{ 'data-voice-default': kind }}
-          control={
-            <Select
-              label={t('voice.default.title')}
-              value={binding?.providerId ?? NONE}
-              disabled={busy || actions.setVoiceDefault === undefined}
-              options={[
-                { value: NONE, label: t('voice.default.none') },
-                ...providers.map((entry) => ({ value: entry.id, label: entry.name })),
-              ]}
-              onChange={(next) => setDefault(kind, next === NONE ? null : next)}
-            />
-          }
-        >
-          {failure === undefined ? null : <Note tone="danger">{failure}</Note>}
-        </SettingsRow>
-        {provider === undefined || kind === 'asr' ? null : (
-          <SettingsRow
-            title={t('voice.default.voice')}
-            data={{ 'data-voice-default-voice': '' }}
-            control={
+      <StatusList data={{ 'data-voice-defaults': kind }}>
+        {[
+          <StatusListRow
+            key="service"
+            title={t('voice.default.title')}
+            info={kind === 'tts' ? t('voice.default.ttsHint') : t('voice.default.asrHint')}
+            meta={failure}
+            tone={failure === undefined ? 'neutral' : 'warning'}
+            data={{ 'data-voice-default': kind }}
+            action={
               <Select
-                label={t('voice.default.voice')}
-                value={voiceState.choice}
+                label={t('voice.default.title')}
+                value={binding?.providerId ?? NONE}
                 disabled={busy || actions.setVoiceDefault === undefined}
                 options={[
-                  {
-                    value: PROVIDER_VOICE,
-                    label: provider.defaultVoice
-                      ? `${t('voice.default.providerVoice')} · ${provider.defaultVoice}`
-                      : t('voice.default.providerVoice'),
-                  },
-                  ...voices.map((voice) => ({ value: voice.id, label: voice.name })),
-                  { value: CUSTOM_CHOICE, label: t('voice.choice.custom') },
+                  { value: NONE, label: t('voice.default.none') },
+                  ...providers.map((entry) => ({ value: entry.id, label: entry.name })),
                 ]}
-                onChange={(choice) => {
-                  if (choice === CUSTOM_CHOICE) {
-                    setVoiceEdit({ choice, custom: voiceState.custom });
-                    return;
-                  }
-                  setDefault('tts', provider.id, choice === PROVIDER_VOICE ? undefined : choice);
-                }}
+                onChange={(next) => setDefault(kind, next === NONE ? null : next)}
               />
             }
-          >
-            {voiceState.choice === CUSTOM_CHOICE ? (
-              <>
-                <TextField
-                  label={t('voice.provider.voiceCustom')}
-                  value={voiceState.custom}
-                  monospace
-                  spellCheck={false}
-                  autoComplete="off"
-                  placeholder={provider.defaultVoice}
-                  onChange={(custom) => setVoiceEdit({ choice: CUSTOM_CHOICE, custom })}
-                />
-                <span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={
-                      busy ||
-                      voiceState.custom.trim() === '' ||
-                      voiceState.custom.trim() === (current.defaults.tts?.voiceId ?? '')
+          />,
+          provider === undefined || kind === 'asr' ? null : (
+            <StatusListRow
+              key="voice"
+              title={t('voice.default.voice')}
+              data={{ 'data-voice-default-voice': '' }}
+              open={voiceState.choice === CUSTOM_CHOICE}
+              action={
+                <Select
+                  label={t('voice.default.voice')}
+                  value={voiceState.choice}
+                  disabled={busy || actions.setVoiceDefault === undefined}
+                  options={[
+                    {
+                      value: PROVIDER_VOICE,
+                      label: provider.defaultVoice
+                        ? `${t('voice.default.providerVoice')} · ${provider.defaultVoice}`
+                        : t('voice.default.providerVoice'),
+                    },
+                    ...voices.map((voice) => ({ value: voice.id, label: voice.name })),
+                    { value: CUSTOM_CHOICE, label: t('voice.choice.custom') },
+                  ]}
+                  onChange={(choice) => {
+                    if (choice === CUSTOM_CHOICE) {
+                      setVoiceEdit({ choice, custom: voiceState.custom });
+                      return;
                     }
-                    onClick={() => setDefault('tts', provider.id, voiceState.custom.trim())}
-                  >
-                    {t('voice.bot.save')}
-                  </Button>
-                </span>
-              </>
-            ) : null}
-          </SettingsRow>
-        )}
-      </>
+                    setDefault('tts', provider.id, choice === PROVIDER_VOICE ? undefined : choice);
+                  }}
+                />
+              }
+            >
+              <TextField
+                label={t('voice.provider.voiceCustom')}
+                value={voiceState.custom}
+                monospace
+                spellCheck={false}
+                autoComplete="off"
+                placeholder={provider.defaultVoice}
+                onChange={(custom) => setVoiceEdit({ choice: CUSTOM_CHOICE, custom })}
+              />
+              <span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={
+                    busy ||
+                    voiceState.custom.trim() === '' ||
+                    voiceState.custom.trim() === (current.defaults.tts?.voiceId ?? '')
+                  }
+                  onClick={() => setDefault('tts', provider.id, voiceState.custom.trim())}
+                >
+                  {t('voice.bot.save')}
+                </Button>
+              </span>
+            </StatusListRow>
+          ),
+        ]}
+      </StatusList>
     );
   };
   const openDraft = (current: VoiceProvidersView, kind: Kind): void => {
     setError(undefined);
     setDraft(emptyDraft(kind, presetsOf(current, kind)[0]));
   };
-  const providerBlock = (
+  const providerRow = (
     current: VoiceProvidersView,
     kind: Kind,
     provider: ProviderRow,
   ): ReactElement => {
     const state = health[provider.id];
     const presetRow = presetsOf(current, kind).find((entry) => entry.id === provider.preset);
+    const presetName = presetRow?.name ?? provider.preset;
     const missingKey = presetRow?.keyRequired === true && !provider.keySet;
     const failed = state !== undefined && state !== 'testing' && !state.ok;
     const ready = state !== undefined && state !== 'testing' && state.ok;
@@ -419,7 +422,7 @@ export function VoiceProviderSettings({
           ? 'accent'
           : 'neutral';
     return (
-      <StatusBlock
+      <StatusListRow
         key={provider.id}
         icon={
           ready ? 'check' : tone === 'warning' ? 'info' : kind === 'tts' ? 'audio-lines' : 'mic'
@@ -427,7 +430,7 @@ export function VoiceProviderSettings({
         tone={tone}
         title={provider.name}
         data={{ 'data-voice-provider': provider.id }}
-        body={
+        meta={
           <span data-voice-provider-status="">
             {state === 'testing'
               ? t('voice.provider.testing')
@@ -435,7 +438,7 @@ export function VoiceProviderSettings({
                 ? healthText(t, state)
                 : missingKey
                   ? t('voice.provider.missingKey')
-                  : t('voice.provider.untested')}
+                  : presetName}
           </span>
         }
         action={
@@ -448,55 +451,48 @@ export function VoiceProviderSettings({
             {t(failed ? 'voice.provider.retest' : 'voice.provider.test')}
           </Button>
         }
-      />
-    );
-  };
-  const manageFact = (current: VoiceProvidersView, kind: Kind, provider: ProviderRow) => {
-    const presetName =
-      presetsOf(current, kind).find((entry) => entry.id === provider.preset)?.name ??
-      provider.preset;
-    return (
-      <StatusFact
-        key={provider.id}
-        label={[
-          provider.name,
-          ...(presetName === provider.name ? [] : [presetName]),
-          provider.keySet ? t('voice.provider.keySet') : t('voice.provider.noKey'),
-        ].join(' · ')}
-        data={{ 'data-voice-provider-manage': provider.id }}
-        control={
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={busy}
-            onClick={() => {
-              setError(undefined);
-              setRemoving(provider);
-            }}
-          >
-            {t('voice.provider.remove')}
-          </Button>
-        }
+        open={expanded === provider.id}
+        onToggle={() => setExpanded(expanded === provider.id ? undefined : provider.id)}
+        toggleLabel={t('voice.provider.details')}
       >
-        {provider.baseUrl === '' ? null : (
-          <CopyChip
-            value={provider.baseUrl}
-            copyLabel={t('voice.provider.copyUrl')}
-            copiedLabel={t('voice.provider.copied')}
-            marker="data-voice-provider-url"
-            well
-          />
-        )}
-      </StatusFact>
+        <StatusFact
+          label={provider.keySet ? t('voice.provider.keySet') : t('voice.provider.noKey')}
+          data={{ 'data-voice-provider-manage': provider.id }}
+          control={
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={busy}
+              onClick={() => {
+                setError(undefined);
+                setRemoving(provider);
+              }}
+            >
+              {t('voice.provider.remove')}
+            </Button>
+          }
+        >
+          {provider.baseUrl === '' ? null : (
+            <CopyChip
+              value={provider.baseUrl}
+              copyLabel={t('voice.provider.copyUrl')}
+              copiedLabel={t('voice.provider.copied')}
+              marker="data-voice-provider-url"
+              well
+            />
+          )}
+        </StatusFact>
+      </StatusListRow>
     );
   };
   const section = (kind: Kind): ReactElement => {
     const title = kind === 'tts' ? t('voice.providers.title') : t('voice.asr.title');
     const providers = view === undefined ? [] : providersOf(view, kind);
     return (
-      <SettingsSection
+      <StatusGroup
         title={title}
-        description={kind === 'tts' ? t('voice.providers.description') : t('voice.asr.description')}
+        info={kind === 'tts' ? t('voice.providers.description') : t('voice.asr.description')}
+        data={{ 'data-voice-section': kind }}
       >
         {view === undefined ? (
           loadError === undefined ? (
@@ -504,43 +500,23 @@ export function VoiceProviderSettings({
           ) : (
             <Note tone="danger">{loadError}</Note>
           )
-        ) : providers.length === 0 ? (
-          <StatusBlock
-            icon={kind === 'tts' ? 'audio-lines' : 'mic'}
-            tone="accent"
-            title={kind === 'tts' ? t('voice.providers.new') : t('voice.asr.new')}
-            body={kind === 'tts' ? t('voice.providers.empty') : t('voice.asr.empty')}
-            data={{ 'data-voice-provider-new': kind }}
-            action={
-              <Button variant="primary" size="sm" onClick={() => openDraft(view, kind)}>
-                {t('voice.providers.add')}
-              </Button>
-            }
-          />
         ) : (
           <>
-            <StatusStack>
-              {providers.map((provider) => providerBlock(view, kind, provider))}
-            </StatusStack>
-            {defaultRows(view, kind)}
-            <StatusDisclosure
-              icon="sliders-horizontal"
-              title={kind === 'tts' ? t('voice.providers.manage') : t('voice.asr.manage')}
-              hint={t('voice.providers.manageHint')}
-              open={manage[kind]}
-              onToggle={() => setManage({ ...manage, [kind]: !manage[kind] })}
-              data={{ 'data-voice-manage': kind }}
-            >
-              {providers.map((provider) => manageFact(view, kind, provider))}
-              <div data-voice-provider-new={kind} {...stylex.props(styles.add)}>
-                <Button variant="outline" size="sm" onClick={() => openDraft(view, kind)}>
-                  {kind === 'tts' ? t('voice.providers.new') : t('voice.asr.new')}
-                </Button>
-              </div>
-            </StatusDisclosure>
+            <StatusList data={{ 'data-voice-providers-list': kind }}>
+              {[
+                ...providers.map((provider) => providerRow(view, kind, provider)),
+                <StatusListAction
+                  key="add"
+                  label={kind === 'tts' ? t('voice.providers.new') : t('voice.asr.new')}
+                  onClick={() => openDraft(view, kind)}
+                  data={{ 'data-voice-provider-new': kind }}
+                />,
+              ]}
+            </StatusList>
+            {providers.length === 0 ? null : defaultList(view, kind)}
           </>
         )}
-      </SettingsSection>
+      </StatusGroup>
     );
   };
   const needsUrl = draft !== undefined && preset?.baseUrl === undefined;
@@ -554,24 +530,26 @@ export function VoiceProviderSettings({
         ]);
   return (
     <div ref={mount} data-voice-providers="" {...stylex.props(styles.page)}>
-      {section('tts')}
-      {section('asr')}
-      {view === undefined ? null : (
-        <VoiceMicTest
-          threshold={view.speechThreshold}
-          save={
-            actions.setSpeechThreshold === undefined
-              ? undefined
-              : async (dbfs) => {
-                  const speechThreshold = await actions.setSpeechThreshold!(dbfs);
-                  setView((current) =>
-                    current === undefined ? current : { ...current, speechThreshold },
-                  );
-                }
-          }
-          t={t}
-        />
-      )}
+      <div {...stylex.props(styles.sections)}>
+        {section('tts')}
+        {section('asr')}
+        {view === undefined ? null : (
+          <VoiceMicTest
+            threshold={view.speechThreshold}
+            save={
+              actions.setSpeechThreshold === undefined
+                ? undefined
+                : async (dbfs) => {
+                    const speechThreshold = await actions.setSpeechThreshold!(dbfs);
+                    setView((current) =>
+                      current === undefined ? current : { ...current, speechThreshold },
+                    );
+                  }
+            }
+            t={t}
+          />
+        )}
+      </div>
       {error === undefined || draft !== undefined || removing !== undefined ? null : (
         <Note tone="danger">{error}</Note>
       )}
