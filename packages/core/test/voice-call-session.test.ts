@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { CallClientMedia, CallPost } from '../src/voice/call-client.js';
 import type {
@@ -304,6 +304,24 @@ describe('call session visual sharing', () => {
     expect(world.host.visuals()).toEqual([{ source: 'camera' }, { source: 'off' }]);
     const kinds = world.host.posts.map((body) => body['kind']);
     expect(kinds.lastIndexOf('visual')).toBeLessThan(kinds.indexOf('hangup'));
+  });
+
+  it('still hangs up when the Host never answers the share-off request', async () => {
+    const host = fakeHost();
+    const world = setup(host);
+    await world.session.client.open('mira');
+    await world.session.share('camera');
+    host.holdVisual(new Promise<void>(() => undefined));
+    vi.useFakeTimers();
+    try {
+      const hangup = world.session.hangup();
+      await vi.advanceTimersByTimeAsync(1_500);
+      await hangup;
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(host.posts.map((body) => body['kind'])).toContain('hangup');
+    expect(world.captures.last().stopped).toBe(true);
   });
 
   it('hangs up without a Host visual when nothing is shared', async () => {

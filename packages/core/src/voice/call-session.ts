@@ -7,6 +7,26 @@ import {
 } from './call-client.js';
 import type { CallVisualSource } from './call-contract.js';
 
+// Telling the Host the share stopped is best effort: a slow or stuck request
+// must not keep the call live after the user hung up.
+const VISUAL_OFF_BEFORE_HANGUP_MS = 1_500;
+
+function settleWithin(work: Promise<unknown>, ms: number): Promise<void> {
+  return new Promise((done) => {
+    const timer = setTimeout(done, ms);
+    void work.then(
+      () => {
+        clearTimeout(timer);
+        done();
+      },
+      () => {
+        clearTimeout(timer);
+        done();
+      },
+    );
+  });
+}
+
 export class CallCaptureFailure<Code extends string = string> extends Error {
   constructor(
     readonly code: Code,
@@ -232,7 +252,7 @@ export function createCallSession<Capture extends CallCapture, Code extends stri
       const shared = visual.source !== 'off';
       if (shared || visual.starting)
         visual = { ...visual, source: 'off', starting: false, paused: false };
-      if (shared && live()) await client.visual('off');
+      if (shared && live()) await settleWithin(client.visual('off'), VISUAL_OFF_BEFORE_HANGUP_MS);
       await client.hangup();
     },
     dispose() {
