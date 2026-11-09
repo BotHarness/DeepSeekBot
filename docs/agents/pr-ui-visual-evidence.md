@@ -90,6 +90,10 @@ credentials, pairing links, serials, private paths, account details, HARs or unr
      grep -q '"status":"active"'
    ```
 
+   Run this check before reporting that R2 access is missing. When `CLOUDFLARE_API_TOKEN` is
+   set and active, publish from the cloud session yourself with `pnpm evidence:publish`; do not
+   describe the upload as blocked or hand it to the Human or another machine.
+
 3. The uploader sets the media type and immutable cache metadata, then downloads the public
    URL and checks its media type, byte count and SHA-256. Only after success does it write
    `<file>.r2.json` and honor `--remove-local`. An upload/readback failure retains the local
