@@ -1,6 +1,7 @@
 import type { ReactNode, Ref } from 'react';
 import type { Href } from 'expo-router';
-import { SourceName } from './source-name';
+import { SourceMark, SourceName } from './source-name';
+import { AvatarRail } from './avatar-rail';
 import { Platform, Pressable, View, type ViewInstance } from 'react-native';
 
 import { BotAvatar } from '../bot-avatar';
@@ -183,7 +184,10 @@ export function ConversationRowFrame({
   onMenu,
   look,
   ref,
+  mixed = sourceLabel !== undefined,
 }: {
+  /** All view: rows from several environments, so each row carries its environment mark. */
+  mixed?: boolean;
   sourceLabel?: string | undefined;
   ref?: Ref<ViewInstance>;
 
@@ -240,23 +244,31 @@ export function ConversationRowFrame({
         backgroundColor: pressed ? theme.layer.canvas.pressed : theme.layer.canvas.fill,
       })}
     >
-      <View>
-        {avatar}
-        {badge === undefined || large ? null : (
-          <View
-            style={{
-              position: 'absolute',
-              top: -space.x2,
-              right: -space.x3,
-              padding: edge.focus,
-              borderRadius: radius.sm + edge.focus,
-              backgroundColor: theme.layer.canvas.fill,
-            }}
-          >
-            <CountBadge count={badge.count} tone={badge.tone} />
-          </View>
-        )}
-      </View>
+      {mixed ? (
+        <AvatarRail
+          avatar={avatar}
+          badge={large ? undefined : badge}
+          mark={(ink) => <SourceMark source={source} look={look} ink={ink} />}
+        />
+      ) : (
+        <View>
+          {avatar}
+          {badge === undefined || large ? null : (
+            <View
+              style={{
+                position: 'absolute',
+                top: -space.x2,
+                right: -space.x3,
+                padding: edge.focus,
+                borderRadius: radius.sm + edge.focus,
+                backgroundColor: theme.layer.canvas.fill,
+              }}
+            >
+              <CountBadge count={badge.count} tone={badge.tone} />
+            </View>
+          )}
+        </View>
+      )}
       <View
         key={`${theme.scheme}:${theme.fontScale}:${title}`}
         style={{ flex: 1, minWidth: 0, gap: space.x1 }}
@@ -274,6 +286,7 @@ export function ConversationRowFrame({
             look={look}
             sourceLabel={sourceLabel}
             lines={large ? 2 : 1}
+            glyph={false}
           />
           {time === '' || large ? null : (
             <Text variant="meta" tone="subtle" style={{ flexShrink: 0 }}>
@@ -283,7 +296,12 @@ export function ConversationRowFrame({
         </View>
         {large && (time !== '' || badge !== undefined) ? (
           <View
-            style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.x3 }}
+            style={{
+              flexDirection: 'row',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              gap: space.x3,
+            }}
           >
             {badge === undefined ? null : <CountBadge count={badge.count} tone={badge.tone} />}
             {time === '' ? null : (

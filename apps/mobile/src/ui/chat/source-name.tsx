@@ -12,7 +12,10 @@ export function SourceName({
   look,
   sourceLabel,
   lines = 1,
+  glyph = true,
 }: {
+  /** False when the row shows its environment elsewhere (All view rail) or not at all. */
+  glyph?: boolean;
   sourceLabel?: string | undefined;
   lines?: number;
   name: string;
@@ -43,21 +46,46 @@ export function SourceName({
       >
         {name}
       </Text>
-      <View
-        accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants"
-        style={{ flexShrink: 0 }}
-      >
-        {source === 'computer' && look !== undefined ? (
-          <HostGlyph
-            icon={look.icon}
-            size={size}
-            color={hostColorInk(theme.scheme, theme.color, look.color)}
-          />
-        ) : (
-          <Icon color={theme.color.subtle} size={size} />
-        )}
-      </View>
+      {glyph ? (
+        <View
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          style={{ flexShrink: 0 }}
+        >
+          {source === 'computer' && look !== undefined ? (
+            <HostGlyph
+              icon={look.icon}
+              size={size}
+              color={hostColorInk(theme.scheme, theme.color, look.color)}
+            />
+          ) : (
+            <Icon color={theme.color.subtle} size={size} />
+          )}
+        </View>
+      ) : null}
     </View>
+  );
+}
+
+export function SourceMark({
+  source,
+  look,
+  ink,
+}: {
+  source: 'computer' | 'cloud';
+  look?: HostLook | undefined;
+  ink?: string | undefined;
+}) {
+  const theme = useDesignTheme();
+  const Icon = source === 'cloud' ? CloudIcon : ComputerIcon;
+  const size = theme.type.meta.size * Math.min(theme.fontScale, 1.2);
+  return source === 'computer' && look !== undefined ? (
+    <HostGlyph
+      icon={look.icon}
+      size={size}
+      color={ink ?? hostColorInk(theme.scheme, theme.color, look.color)}
+    />
+  ) : (
+    <Icon color={ink ?? theme.color.subtle} size={size} />
   );
 }

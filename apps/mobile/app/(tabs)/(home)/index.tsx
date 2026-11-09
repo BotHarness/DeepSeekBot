@@ -783,6 +783,7 @@ const HomeContent = memo(function HomeContent({
                       <CloudConversationRow
                         row={item.conversation}
                         pending={opening === item.conversation.key}
+                        mixed={effectiveFilter === 'all'}
                         onPress={() => void openCloud(item.conversation)}
                       />
                     )
