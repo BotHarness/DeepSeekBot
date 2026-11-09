@@ -18,8 +18,12 @@ import {
   genuiDocumentOf,
   genuiDocumentPage,
   genuiNavigationAllowed,
+  genuiHeightKey,
   genuiTextScale,
+  GENUI_REMEMBERED_HEIGHTS,
   parseGenuiBridgeMessage,
+  rememberedGenuiHeight,
+  rememberGenuiHeight,
 } from '../src/genui/document';
 import { GENUI_RUNTIME } from '../src/genui/runtime.generated';
 import { genuiDocumentView } from '../src/genui/view';
@@ -297,4 +301,26 @@ describe('GenUI packaged mobile runtime', () => {
       await genuiMobileRuntimeModule(),
     );
   }, 60_000);
+});
+
+describe('remembered GenUI frame height', () => {
+  it('keeps the last measured height per message and text scale, bounded', () => {
+    const key = genuiHeightKey('m-height', syntheticGenuiDocument, 1);
+    expect(rememberedGenuiHeight(key)).toBeUndefined();
+    rememberGenuiHeight(key, 320);
+    rememberGenuiHeight(key, 410);
+    expect(rememberedGenuiHeight(key)).toBe(410);
+    expect(genuiHeightKey('m-height', syntheticGenuiDocument, 1.4)).not.toBe(key);
+    rememberGenuiHeight(key, Number.NaN);
+    rememberGenuiHeight(key, GENUI_EXECUTION_LIMITS.mirrorMinHeight - 1);
+    expect(rememberedGenuiHeight(key)).toBe(410);
+    for (let index = 0; index < GENUI_REMEMBERED_HEIGHTS; index++)
+      rememberGenuiHeight(genuiHeightKey(`m-${index}`, syntheticGenuiDocument, 1), 100);
+    expect(rememberedGenuiHeight(key)).toBeUndefined();
+    expect(
+      rememberedGenuiHeight(
+        genuiHeightKey(`m-${GENUI_REMEMBERED_HEIGHTS - 1}`, syntheticGenuiDocument, 1),
+      ),
+    ).toBe(100);
+  });
 });

@@ -43,6 +43,25 @@ export function genuiTextScale(fontScale: number): number {
   );
 }
 
+export const GENUI_REMEMBERED_HEIGHTS = 200;
+const rememberedHeights = new Map<string, number>();
+
+export function genuiHeightKey(messageId: string, document: GenuiDocument, fontScale: number) {
+  return `${messageId}\u0000${document.snapshotId}\u0000${genuiTextScale(fontScale)}`;
+}
+
+export function rememberedGenuiHeight(key: string): number | undefined {
+  return rememberedHeights.get(key);
+}
+
+export function rememberGenuiHeight(key: string, height: number): void {
+  if (!Number.isFinite(height) || height < GENUI_EXECUTION_LIMITS.mirrorMinHeight) return;
+  rememberedHeights.delete(key);
+  rememberedHeights.set(key, height);
+  if (rememberedHeights.size > GENUI_REMEMBERED_HEIGHTS)
+    rememberedHeights.delete(rememberedHeights.keys().next().value as string);
+}
+
 export function genuiDocumentPage(
   document: GenuiDocument,
   options: {

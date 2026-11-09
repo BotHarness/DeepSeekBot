@@ -15,8 +15,11 @@ import {
   genuiDocumentPage,
   genuiNavigationAllowed,
   genuiDocumentReply,
+  genuiHeightKey,
   genuiRestoreMessage,
   parseGenuiBridgeMessage,
+  rememberedGenuiHeight,
+  rememberGenuiHeight,
   type GenuiDocument,
   type GenuiDocumentReply,
 } from '../../genui/document';
@@ -34,11 +37,13 @@ let mounts = 0;
 
 function GenuiFrame({
   document,
+  messageId,
   view,
   onReady,
   onFailure,
 }: {
   document: GenuiDocument;
+  messageId: string;
   view: GenuiDocumentViewModel;
   onReady(): void;
   onFailure(): void;
@@ -48,7 +53,10 @@ function GenuiFrame({
   const instanceId = useMemo(() => `genui-mobile-${++mounts}`, []);
   const [initial] = useState(() => view.getSnapshot().state);
   const [status, setStatus] = useState<Status>('loading');
-  const [height, setHeight] = useState<number>(GENUI_EXECUTION_LIMITS.mirrorMinHeight);
+  const heightKey = genuiHeightKey(messageId, document, theme.fontScale);
+  const [height, setHeight] = useState<number>(
+    () => rememberedGenuiHeight(heightKey) ?? GENUI_EXECUTION_LIMITS.mirrorMinHeight,
+  );
   const web = useRef<ComponentRef<typeof WebView>>(null);
   const failed = useRef(false);
   const settled = useRef(false);
@@ -105,8 +113,10 @@ function GenuiFrame({
       setStatus('ready');
       onReady();
       sync();
-    } else if (message.type === 'height') setHeight(message.height);
-    else if (message.type === 'state') {
+    } else if (message.type === 'height') {
+      rememberGenuiHeight(heightKey, message.height);
+      setHeight(message.height);
+    } else if (message.type === 'state') {
       const identity = JSON.stringify(message.state);
       if (identity === synced.current) return;
       synced.current = identity;
@@ -357,6 +367,7 @@ export function GenuiDocumentCard({
         <GenuiFrame
           key={attempt}
           document={document}
+          messageId={messageId}
           view={view}
           onReady={() => setReady(true)}
           onFailure={() => {
