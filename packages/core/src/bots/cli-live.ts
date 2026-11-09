@@ -27,6 +27,7 @@ import {
 import { FEEDBACK_COMMANDS, runFeedbackCommand } from './cli-feedback.js';
 import { DIAGNOSTIC_LOG_COMMANDS, runDiagnosticLogCommand } from './cli-diagnostic-logs.js';
 import { DOCTOR_COMMANDS, runDoctor } from './cli-doctor.js';
+import { BUG_REPORT_COMMANDS, runBugReport } from './cli-bug-report.js';
 import { APPEARANCE_COMMANDS, APPEARANCE_OPTIONS, runAppearanceCommand } from './cli-appearance.js';
 import { prepareCloud, prepareCloudWork } from './cli-cloud.js';
 import { randomUUID } from 'node:crypto';
@@ -235,6 +236,7 @@ export const LIVE_OPTIONS = {
   refresh: { type: 'boolean' },
   'previous-value': { type: 'string' },
   member: { type: 'string', multiple: true },
+  attach: { type: 'string', multiple: true },
   app: { type: 'string' },
   bot: { type: 'string' },
   conversation: { type: 'string' },
@@ -312,6 +314,7 @@ export const LIVE_COMMANDS = [
   ...FEEDBACK_COMMANDS,
   ...DIAGNOSTIC_LOG_COMMANDS,
   ...DOCTOR_COMMANDS,
+  ...BUG_REPORT_COMMANDS,
   ...WINDOW_ZOOM_COMMANDS,
   ...PHONE_ROUTE_COMMANDS,
   ...DEVICES_COMMANDS,
@@ -627,6 +630,8 @@ interface LiveValues
   recovery?: string;
   body?: string;
   'body-stdin'?: boolean;
+  attach?: string[];
+  title?: string;
   'answer-stdin'?: boolean;
   'values-stdin'?: boolean;
   outcome?: string;
@@ -985,6 +990,10 @@ export async function runLiveCli(
   if (command === 'phone-notifications') return runPhoneNotifications(rest, values, io);
   if (BROWSER_NOTIFICATION_COMMANDS.some((entry) => entry.command === command))
     return runBrowserNotifications(command, rest, values, io, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
+  if (command === 'bug-report')
+    return runBugReport(values, io, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
   if (command === 'doctor')

@@ -1,12 +1,13 @@
 import { useState, type ReactElement } from 'react';
 
+import { BugReportDialog } from './bug-report-dialog.js';
 import { DiagnosticLogsDialog } from './diagnostic-logs-dialog.js';
 import { Tooltip } from './ds/tooltip.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { LogsIcon } from './logs-icon.js';
 
 export function DiagnosticLogsEntry({ t }: { t: BotHarnessTranslate }): ReactElement {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState<'logs' | 'report'>();
   return (
     <span>
       <Tooltip label={t('panel.diagnosticLogs')} side="right">
@@ -14,14 +15,22 @@ export function DiagnosticLogsEntry({ t }: { t: BotHarnessTranslate }): ReactEle
           type="button"
           aria-label={t('panel.diagnosticLogs')}
           aria-haspopup="dialog"
-          aria-expanded={open}
+          aria-expanded={open !== undefined}
           data-diagnostic-logs-entry=""
-          onClick={() => setOpen(true)}
+          onClick={() => setOpen('logs')}
         >
           <LogsIcon size={16} />
         </button>
       </Tooltip>
-      {open ? <DiagnosticLogsDialog onClose={() => setOpen(false)} t={t} /> : null}
+      {open === 'logs' ? (
+        <DiagnosticLogsDialog
+          onClose={() => setOpen(undefined)}
+          onReport={() => setOpen('report')}
+          t={t}
+        />
+      ) : open === 'report' ? (
+        <BugReportDialog onClose={() => setOpen(undefined)} t={t} />
+      ) : null}
     </span>
   );
 }
