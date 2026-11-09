@@ -8,6 +8,7 @@ import {
   type CallMediaState,
   type CallPost,
 } from '../src/voice/call-client.js';
+import type { VoiceCallResult, VoiceCallView } from '../src/voice/call-contract.js';
 import { createVoiceCalls, type VoiceCallMedia } from '../src/voice/calls.js';
 import { speech, silence, concat } from './voice-audio-fixtures.js';
 
@@ -323,5 +324,152 @@ describe('phone call client', () => {
       code: 'asr-not-configured',
     });
     expect(world.phone.offers).toEqual([]);
+  });
+});
+
+function scriptedHost() {
+  const posts: Record<string, unknown>[] = [];
+  let phase: VoiceCallView['phase'] = 'listening';
+  let endReason: VoiceCallView['endReason'];
+  let heartbeat: VoiceCallResult | undefined;
+  let signalGate: Promise<void> | undefined;
+  const view = (): VoiceCallView => ({
+    callId: 'call-0000000000000001',
+    slug: 'mira',
+    channelId: 'dm-mira',
+    phase,
+    muted: false,
+    busy: false,
+    media: 'webrtc',
+    startedAt: 0,
+    durationMs: 1_000,
+    events: [],
+    lastSeq: 0,
+    offer: { type: 'offer', sdp: 'v=0' },
+    ...(endReason === undefined ? {} : { endReason }),
+  });
+  const post: CallPost = async (body) => {
+    posts.push(body);
+    if (body['kind'] === 'signal' && signalGate !== undefined) await signalGate;
+    if (body['kind'] === 'heartbeat' && heartbeat !== undefined) return heartbeat;
+    if (body['kind'] === 'hangup') phase = 'ended';
+    return { ok: true, call: view() } as VoiceCallResult;
+  };
+  let tick: (() => void) | undefined;
+  let stopped = 0;
+  const states: CallClientState[] = [];
+  const client = createCallClient({
+    post,
+    media: {
+      start: async () => 'v=0',
+      mute: () => undefined,
+      stop: () => void (stopped += 1),
+      onState: () => () => undefined,
+    },
+    onChange: (state) => states.push(state),
+    setInterval: (run) => {
+      tick = run;
+      return 1;
+    },
+    clearInterval: () => {
+      tick = undefined;
+    },
+  });
+  return {
+    client,
+    posts,
+    states,
+    kinds: () => posts.map((body) => body['kind']),
+    stopped: () => stopped,
+    beat: async () => {
+      tick?.();
+      await flush();
+    },
+    end(reason: VoiceCallView['endReason']) {
+      phase = 'ended';
+      endReason = reason;
+    },
+    answerHeartbeat(result: VoiceCallResult) {
+      heartbeat = result;
+    },
+    holdSignal(wait: Promise<void>) {
+      signalGate = wait;
+    },
+  };
+}
+
+describe('call client edges', () => {
+  it('ends with the Host reason when a heartbeat reports the call ended', async () => {
+    const host = scriptedHost();
+    await host.client.open('mira');
+    host.end('bot-unavailable');
+    await host.beat();
+    expect(host.client.state()).toMatchObject({ status: 'ended', reason: 'bot-unavailable' });
+    expect(host.stopped()).toBeGreaterThan(0);
+  });
+
+  it('treats a revoked device as the Host stopping the call', async () => {
+    const host = scriptedHost();
+    await host.client.open('mira');
+    host.answerHeartbeat({
+      ok: false,
+      code: 'device-revoked',
+      error: 'revoked',
+    } as unknown as VoiceCallResult);
+    await host.beat();
+    expect(host.client.state()).toMatchObject({
+      status: 'ended',
+      reason: 'host-stopped',
+      code: 'device-revoked',
+    });
+  });
+
+  it('hangs up the Host call when the screen closes or the Human hangs up mid-signal', async () => {
+    for (const leave of ['dispose', 'hangup'] as const) {
+      const host = scriptedHost();
+      let release: (() => void) | undefined;
+      host.holdSignal(new Promise<void>((done) => (release = done)));
+      const opening = host.client.open('mira');
+      await flush();
+      if (leave === 'dispose') host.client.dispose();
+      else await host.client.hangup();
+      release!();
+      await opening;
+      await flush();
+      expect(host.client.state()).toMatchObject({ status: 'ended', reason: 'hangup' });
+      expect(host.kinds().filter((kind) => kind === 'hangup').length).toBeGreaterThan(0);
+      expect(host.kinds().at(-1)).toBe('hangup');
+    }
+  });
+
+  it('sends mute, visual and frame for the live call only', async () => {
+    const host = scriptedHost();
+    expect(await host.client.visual('camera')).toBeUndefined();
+    expect(await host.client.frame({ source: 'camera', jpeg: 'AA==', score: 1, skipped: 0 })).toBe(
+      undefined,
+    );
+    await host.client.open('mira');
+    await host.client.mute(true);
+    await host.client.mute(true);
+    expect(await host.client.visual('off', 'paused')).toMatchObject({ ok: true });
+    expect(
+      await host.client.frame({ source: 'screen', jpeg: 'AA==', score: 0.4, skipped: 3 }),
+    ).toMatchObject({ ok: true });
+    const sent = host.posts.filter((body) =>
+      ['mute', 'visual', 'frame'].includes(`${body['kind']}`),
+    );
+    expect(sent).toEqual([
+      expect.objectContaining({ kind: 'mute', muted: true }),
+      expect.objectContaining({ kind: 'visual', source: 'off', paused: true }),
+      expect.objectContaining({
+        kind: 'frame',
+        source: 'screen',
+        score: 0.4,
+        skipped: 3,
+        after: 0,
+      }),
+    ]);
+    await host.client.hangup();
+    expect(await host.client.visual('camera')).toBeUndefined();
   });
 });
