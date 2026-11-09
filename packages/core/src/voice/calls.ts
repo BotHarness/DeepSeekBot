@@ -27,7 +27,7 @@ import type {
 import { createCallPerf, perfFields, type CallPerf } from './call-perf.js';
 import { createVad, VAD_SAMPLE_RATE, type VadOptions } from './vad.js';
 import { PcmError, pcmFromBase64 } from './pcm.js';
-import { VoiceError, wavFromPcm16 } from './providers.js';
+import { resolveVoice, VoiceError, wavFromPcm16 } from './providers.js';
 import type { AsrStream } from './soniox.js';
 import {
   clipDurationMs,
@@ -1840,19 +1840,18 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     const bot = deps.bot(slug);
     const missing: VoiceCallMissing[] = [];
     if (bot === undefined || bot.paused === true) missing.push('bot');
-    const asr = bot?.asr?.providerId;
-    const tts = bot?.voice?.providerId;
-    if (asr === undefined || !deps.providers.has(asr, 'asr')) missing.push('asr');
-    if (tts === undefined || !deps.providers.has(tts, 'tts')) missing.push('tts');
-    const off = deps.providers.localServiceOff?.bind(deps.providers);
-    if (off !== undefined) {
-      const checks = [
-        ...(asr !== undefined && !missing.includes('asr') ? [off(asr, 'asr')] : []),
-        ...(tts !== undefined && !missing.includes('tts') ? [off(tts, 'tts')] : []),
-      ];
-      const results = await Promise.all(checks.map((check) => check.catch(() => false)));
-      if (results.includes(true)) missing.push('local-voice-off');
-    }
+    const [asrVoice, ttsVoice] =
+      bot === undefined
+        ? [undefined, undefined]
+        : await Promise.all([
+            resolveVoice(deps.providers, { bot, kind: 'asr' }),
+            resolveVoice(deps.providers, { bot, kind: 'tts' }),
+          ]);
+    const asr = asrVoice?.providerId ?? undefined;
+    const tts = ttsVoice?.providerId ?? undefined;
+    if (asrVoice === undefined || asrVoice.state === 'missing') missing.push('asr');
+    if (ttsVoice === undefined || ttsVoice.state === 'missing') missing.push('tts');
+    if (asrVoice?.state === 'off' || ttsVoice?.state === 'off') missing.push('local-voice-off');
     const media = deps.media();
     const availability =
       media === undefined

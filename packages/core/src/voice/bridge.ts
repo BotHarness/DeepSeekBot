@@ -14,7 +14,6 @@ import {
   type VoiceProviderView,
   type VoiceProviders,
 } from './providers.js';
-import { withVoiceDefaults } from './defaults.js';
 import { DEFAULT_SPEECH_DBFS } from './vad.js';
 import { speakableText } from './speakable.js';
 import {
@@ -101,17 +100,15 @@ export function createVoiceBridgeMethods(deps: {
   dictations?: VoiceDictations | undefined;
   log?: ((phase: string, fields: Record<string, string | number>) => void) | undefined;
 }): VoiceBridgeMethods {
-  const effective = (slug: string) =>
-    withVoiceDefaults(
-      deps.registry.get(slug),
-      deps.providers === undefined ? undefined : () => deps.providers!.defaults(),
-    );
+  const effective = (slug: string) => {
+    const bot = deps.registry.get(slug);
+    return deps.providers === undefined ? bot : deps.providers.effective(bot);
+  };
   const dictations =
     deps.dictations ??
     createVoiceDictations({
       providers: () => deps.providers,
-      botAsr: (slug) => effective(slug)?.asr ?? null,
-      defaultAsr: () => deps.providers?.defaults().asr ?? null,
+      bot: (slug) => deps.registry.get(slug),
       speechDbfs: () => deps.providers?.speechThreshold().dbfs ?? DEFAULT_SPEECH_DBFS,
       log: deps.log,
     });
@@ -419,8 +416,8 @@ export function createVoiceBridgeMethods(deps: {
             language: optionalText(input['language']),
           };
           return kind === 'readiness'
-            ? { ok: true, value: { readiness: dictations.readiness(target) } }
-            : { ok: true, value: { dictation: dictations.open(target) } };
+            ? { ok: true, value: { readiness: await dictations.readiness(target) } }
+            : { ok: true, value: { dictation: await dictations.open(target) } };
         }
         const id = optionalText(input['id']);
         if (id === undefined) return invalid('id is required');
