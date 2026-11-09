@@ -1926,15 +1926,16 @@ function ChatConversation({
                             ? 16
                             : 32
                         }
-                        ListFooterComponent={
-                          LatestAnchor === undefined || android ? undefined : (
-                            <LatestAnchor
-                              following={latest.ready && !latest.away}
-                              animated={!latest.reducedMotion}
-                              style={{ height: 0 }}
-                            />
-                          )
-                        }
+                        {...{
+                          [android ? 'ListHeaderComponent' : 'ListFooterComponent']:
+                            LatestAnchor === undefined ? undefined : (
+                              <LatestAnchor
+                                following={latest.ready && !latest.away}
+                                animated={!latest.reducedMotion}
+                                style={{ height: 0 }}
+                              />
+                            ),
+                        }}
                         keyboardDismissMode={ios ? 'interactive' : 'on-drag'}
                         keyboardShouldPersistTaps="handled"
                         {...{
