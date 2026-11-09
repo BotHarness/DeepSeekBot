@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildGenuiPageHtml } from '../src/channels/genui-page.js';
 import { syntheticGenuiDocument } from './fixtures/genui-document.js';
+import { initialGenuiDocumentState } from '../src/channels/genui-document.js';
 
 const enabled = process.env['BH_GENUI_BROWSER_QA'] === '1';
 
@@ -11,7 +12,11 @@ interface NativePage {
   setContent(html: string): Promise<void>;
   waitForFunction(expression: string, options: { timeout: number }): Promise<unknown>;
   evaluate<T>(expression: string): Promise<T>;
-  frames(): { parentFrame(): unknown }[];
+  frames(): {
+    parentFrame(): unknown;
+    type(selector: string, text: string): Promise<void>;
+    $$eval<T>(selector: string, run: (nodes: Element[]) => T): Promise<T>;
+  }[];
   mainFrame(): unknown;
 }
 
@@ -89,5 +94,49 @@ describe.skipIf(!enabled)('real Chromium native-bridge GenUI page', () => {
     expect(['execution', 'startup']).toContain(
       messages.find((message) => message.type === 'failure')?.reason,
     );
+  });
+
+  it('reports local state changes and applies only instance-bound native restores', async () => {
+    await open(syntheticGenuiDocument.html);
+    await page.waitForFunction(
+      'window.__nativeMessages.some((message) => message.type === "ready")',
+      {
+        timeout: 10_000,
+      },
+    );
+    const mirror = page.frames().find((frame) => frame.parentFrame() === page.mainFrame());
+    if (!mirror) throw new Error('Script-disabled mirror frame unavailable');
+    await mirror.type('#filter', 'Beta');
+    await page.waitForFunction(
+      'window.__nativeMessages.some((message) => message.type === "state" && message.state.values.filter === "Beta")',
+      { timeout: 10_000 },
+    );
+    const initial = initialGenuiDocumentState(syntheticGenuiDocument);
+    const restore = (instanceId: string, filter: string) =>
+      page.evaluate(
+        `window.postMessage(${JSON.stringify(
+          JSON.stringify({
+            instanceId,
+            type: 'restore',
+            state: { ...initial, values: { ...initial.values, filter } },
+          }),
+        )}, '*')`,
+      );
+    await restore('native-test', 'Alpha');
+    await page.waitForFunction(
+      'window.__nativeMessages.some((message) => message.type === "state" && message.state.values.filter === "Alpha")',
+      { timeout: 10_000 },
+    );
+    await restore('another-mount', 'Gamma');
+    await page.evaluate('new Promise((resolve) => setTimeout(resolve, 300))');
+    const messages =
+      await page.evaluate<{ type: string; state?: { values: { filter?: string } } }[]>(
+        'window.__nativeMessages',
+      );
+    expect(messages.some((message) => message.state?.values.filter === 'Gamma')).toBe(false);
+    expect(messages.some((message) => message.type === 'failure')).toBe(false);
+    expect(
+      await mirror.$$eval('#rows tr', (rows) => rows.map((row) => row.textContent ?? '').join(' ')),
+    ).toContain('Alpha');
   });
 });

@@ -1,5 +1,6 @@
 import type { HostClient, RemoteSource } from './client';
 import { genuiDocumentOf, type GenuiDocument } from '../genui/document';
+import { forgetGenuiDocumentViews } from '../genui/view';
 import { forgetMedia } from './media-cache';
 import { sessionFailure } from './session-failure';
 import { activityOf, type ChannelActivity } from './channel-activity';
@@ -582,7 +583,8 @@ function present(
   const card = cardOf(entry.channelId, message);
   const resolves = resolvesOf(message);
   const activity = activityOf(message);
-  const genuiDocument = genuiDocumentOf(message.genui);
+  const genuiDocument =
+    message.contentPurge === undefined ? genuiDocumentOf(message.genui) : undefined;
   const failure = kind === 'bot' ? sessionFailure(message.sessionFailure) : undefined;
   const { attachments, voice } = voiceOf(message, attachmentsOf(entry, resolve, picked));
   return {
@@ -673,6 +675,8 @@ export function createConversation(options: ConversationOptions): Conversation {
     if (message === undefined) {
       message = present(entry, options.host.resource, sentFiles.get(entry.message.id) ?? []);
       presented.set(entry, message);
+      if (entry.message.contentPurge !== undefined)
+        forgetGenuiDocumentViews(options.host, entry.channelId, entry.message.id);
     }
     return message;
   }

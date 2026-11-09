@@ -21,6 +21,7 @@ import {
   parseGenuiBridgeMessage,
 } from '../src/genui/document';
 import { GENUI_RUNTIME } from '../src/genui/runtime.generated';
+import { genuiDocumentView } from '../src/genui/view';
 import { FakeHost } from './fake-host';
 
 const ROUTE = 'https://studio.tailnet-example.ts.net';
@@ -112,6 +113,35 @@ describe('GenUI documents in the native conversation', () => {
     const legacy = snapshot.messages.find((message) => message.id === 'legacy');
     expect(legacy?.body).toBe('Legacy summary');
     expect(legacy?.genuiDocument).toBeUndefined();
+  });
+
+  it('drops a purged document and revokes its retained private draft', async () => {
+    const host = new FakeHost();
+    const channel = host.channel(DM);
+    channel.append(
+      {
+        id: 'doc',
+        body: 'Readable summary',
+        author: { kind: 'bot', slug: SLUG },
+        genui: syntheticGenuiDocument,
+      },
+      false,
+    );
+    const live = open(host);
+    await until(live, (s) => s.messages.some((message) => message.genuiDocument !== undefined));
+    if (!client) throw new Error('Host client unavailable');
+    const view = genuiDocumentView(syntheticGenuiDocument, DM, 'doc', client);
+    const initial = view.getSnapshot().state;
+    view.edit({ ...initial, values: { ...initial.values, filter: 'Private draft' } });
+    live.stop();
+    channel.purge('doc');
+    const reopened = open(host);
+    const purged = await until(
+      reopened,
+      (s) => s.messages.find((message) => message.id === 'doc')?.body === '',
+    );
+    expect(purged.messages.find((message) => message.id === 'doc')?.genuiDocument).toBeUndefined();
+    expect(view.getSnapshot()).toMatchObject({ available: false, state: initial });
   });
 
   it('accepts only valid version-2 documents', () => {

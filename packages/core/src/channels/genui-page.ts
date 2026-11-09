@@ -5,6 +5,7 @@ import {
   type GenuiDocument,
   type GenuiDocumentState,
 } from './genui-document.js';
+import { GENUI_DOCUMENT_LIMITS } from './genui-document-limits.js';
 
 export const GENUI_PAGE_FAILURES = [
   'startup',
@@ -26,6 +27,8 @@ export interface GenuiPageOptions {
   bridge: GenuiPageBridge;
 }
 
+export const GENUI_NATIVE_INBOUND_BYTES = GENUI_DOCUMENT_LIMITS.stateBytes + 512;
+
 function scriptJson(value: unknown): string {
   return JSON.stringify(value).replaceAll('<', '\\u003c');
 }
@@ -40,7 +43,9 @@ const previewReport = `const status = { ready: false, measured: false, failed: f
     };
     const measured = (height) => { status.height = height; status.measured = true; };
     const ready = () => { if (!status.failed) status.ready = true; };
-    const startupFailed = () => { if (!status.failed) failed('startup'); };`;
+    const startupFailed = () => { if (!status.failed) failed('startup'); };
+    const changed = () => {};
+    const attach = () => {};`;
 
 function nativeReport(instanceId: string): string {
   return `const channel = window.ReactNativeWebView;
@@ -53,7 +58,19 @@ function nativeReport(instanceId: string): string {
     };
     const measured = (height) => { if (!stopped) post({ type: 'height', height }); };
     const ready = () => { if (!stopped) post({ type: 'ready' }); };
-    const startupFailed = () => failed('startup');`;
+    const startupFailed = () => failed('startup');
+    const changed = (state) => { if (!stopped) post({ type: 'state', state }); };
+    const attach = (surface) => {
+      const receive = (event) => {
+        if (stopped || typeof event.data !== 'string' || event.data.length > ${GENUI_NATIVE_INBOUND_BYTES}) return;
+        let message;
+        try { message = JSON.parse(event.data); } catch { return; }
+        if (!message || message.instanceId !== ${scriptJson(instanceId)} || message.type !== 'restore' || Object.keys(message).length !== 3) return;
+        try { surface.restore(message.state); } catch { failed('invalid-content'); }
+      };
+      addEventListener('message', receive);
+      document.addEventListener('message', receive);
+    };`;
 }
 
 export function buildGenuiPageHtml(value: GenuiDocument, options: GenuiPageOptions): string {
@@ -88,10 +105,11 @@ export function buildGenuiPageHtml(value: GenuiDocument, options: GenuiPageOptio
     try {
       const surface = __BotHarnessGenuiRuntime.mountGenuiDocument(document.querySelector('#genui-document'), {
         ...${scriptJson(config)},
-        onState: () => {},
+        onState: changed,
         onHeight: measured,
         onFailure: failed,
       });
+      attach(surface);
       surface.ready.then(ready, startupFailed);
       addEventListener('pagehide', () => surface.dispose(), { once: true });
     } catch { failed('unsupported'); }
