@@ -1251,6 +1251,7 @@ export const zh = {
   'accountProfile.title': '个人资料',
   'accountProfile.description':
     '你的名字和头像会显示在你分享到市场的 Bot 上。邮箱不会公开。聊天里的名字在「消息」里单独设置。',
+  'accountProfile.signInTitle': '登录 Tobs 账号',
   'accountProfile.signInHint': '登录后可以设置名字和头像，它们会显示在你分享的 Bot 上。',
   'accountProfile.signIn': '登录',
   'accountProfile.photo': '头像',
@@ -6301,6 +6302,7 @@ export const en = {
   'accountProfile.title': 'Profile',
   'accountProfile.description':
     'Your name and photo appear on Bots you share in the Marketplace. Your email stays private. Your name in chats is set under Messaging.',
+  'accountProfile.signInTitle': 'Sign in to your Tobs account',
   'accountProfile.signInHint': 'Sign in to set the name and photo shown on Bots you share.',
   'accountProfile.signIn': 'Sign in',
   'accountProfile.photo': 'Photo',
