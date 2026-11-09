@@ -15,7 +15,13 @@ import {
   type VoiceCallEvent,
   type VoiceCallView,
 } from '../src/voice/call-contract.js';
-import { createCallImaging, drawLabel, frameLabel, gridCells } from '../src/voice/call-frames.js';
+import {
+  createCallImaging,
+  drawLabel,
+  frameLabel,
+  gridCells,
+  labelHeight,
+} from '../src/voice/call-frames.js';
 import { createVoiceCalls, type VoiceCallsDeps } from '../src/voice/calls.js';
 import {
   KEYFRAME_DEFAULTS,
@@ -168,9 +174,11 @@ describe('grid imaging', () => {
       expect(grid.layout).toBe(layout);
       const tileWidth = count === 2 ? 768 : 512;
       const tileHeight = Math.floor(tileWidth / (1920 / 1080));
+      const strip = labelHeight(Math.round(tileWidth / 160));
+      const cellHeight = tileHeight + strip;
       expect(grid).toMatchObject({
         width: tileWidth * Math.max(...rows),
-        height: tileHeight * rows.length,
+        height: cellHeight * rows.length,
       });
       expect(Math.max(grid.width, grid.height)).toBeLessThanOrEqual(1536);
       const { data, info } = await sharp(grid.jpeg).raw().toBuffer({ resolveWithObject: true });
@@ -184,12 +192,13 @@ describe('grid imaging', () => {
         const offset = ((widest - size) * tileWidth) / 2;
         for (let col = 0; col < size; col += 1) {
           const color = PALETTE[cell]!;
-          const [r, g, b] = pixel(offset + (col + 0.5) * tileWidth, (row + 0.6) * tileHeight);
-          expect([r! > 128, g! > 128, b! > 128]).toEqual([
-            color.r > 128,
-            color.g > 128,
-            color.b > 128,
-          ]);
+          const expected = [color.r > 128, color.g > 128, color.b > 128];
+          const seen = (x: number, y: number) => pixel(x, y).map((value) => value > 128);
+          const left = offset + col * tileWidth;
+          const top = row * cellHeight + strip;
+          expect(seen(left + tileWidth / 2, top + tileHeight / 2)).toEqual(expected);
+          expect(seen(left + 4, top + 4)).toEqual(expected);
+          expect(Math.max(...pixel(left + tileWidth - 4, top - 4))).toBeLessThan(40);
           cell += 1;
         }
       });
@@ -215,6 +224,20 @@ describe('grid imaging', () => {
     );
     const grid = await imaging.compose([frame], ['1 · -0s']);
     expect(grid).toMatchObject({ layout: '1', width: 1536, height: 1024 });
+  });
+
+  it('keeps a portrait grid with label strips inside the long edge', async () => {
+    const imaging = createCallImaging();
+    const frame = await imaging.prepare(
+      new Uint8Array(await jpeg({ r: 200, g: 200, b: 200 }, 1080, 1920)),
+    );
+    const frames = Array.from({ length: 9 }, () => frame);
+    const grid = await imaging.compose(
+      frames,
+      frames.map((_, index) => frameLabel(index, index)),
+    );
+    expect(grid.layout).toBe('3+3+3');
+    expect(Math.max(grid.width, grid.height)).toBeLessThanOrEqual(1536);
   });
 
   it('refuses something that is not a JPEG', async () => {
@@ -412,7 +435,7 @@ describe('Host call owner with a shared camera or screen', () => {
     expect(first.visual).toMatchObject({ source: 'camera', frames: 3 });
     const image = (first.visual as { image: { layout: string; jpeg: Uint8Array } }).image;
     expect(image.layout).toBe('3');
-    expect(await sharp(image.jpeg).metadata()).toMatchObject({ width: 1536, height: 288 });
+    expect(await sharp(image.jpeg).metadata()).toMatchObject({ width: 1536, height: 321 });
 
     await h.say(call.callId);
     expect(h.sent[1]!.visual).toEqual({ source: 'camera', sameAs: first.messageId });

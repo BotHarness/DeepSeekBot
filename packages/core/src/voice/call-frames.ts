@@ -73,6 +73,10 @@ const GLYPHS: Record<string, readonly string[]> = {
   ' ': ['00000', '00000', '00000', '00000', '00000', '00000', '00000'],
 };
 
+export function labelHeight(scale: number): number {
+  return 11 * scale;
+}
+
 export function drawLabel(
   canvas: Buffer,
   canvasWidth: number,
@@ -84,7 +88,7 @@ export function drawLabel(
   const chars = [...text].filter((char) => GLYPHS[char] !== undefined);
   const pad = 2 * scale;
   const boxWidth = chars.length * 6 * scale - scale + pad * 2;
-  const boxHeight = 7 * scale + pad * 2;
+  const boxHeight = labelHeight(scale);
   const canvasHeight = canvas.length / 3 / canvasWidth;
   const put = (x: number, y: number, value: number) => {
     if (x < 0 || y < 0 || x >= canvasWidth || y >= canvasHeight) return;
@@ -159,15 +163,20 @@ export function createCallImaging(): CallImaging {
       const reference = frames.at(-1)!;
       const aspect = reference.tileWidth / reference.tileHeight;
       const sizing = Math.min(frames.length, MAX_GRID_COLUMNS);
-      const tileWidth = Math.floor(
+      const fitted = Math.floor(
         aspect >= 1 ? GRID_LONG_EDGE / sizing : (GRID_LONG_EDGE / sizing) * aspect,
       );
-      const tileHeight = Math.floor(tileWidth / aspect);
+      const scale = Math.max(2, Math.round(fitted / 160));
+      const strip = labelHeight(scale);
+      const tileHeight = Math.min(
+        Math.floor(fitted / aspect),
+        Math.floor(GRID_LONG_EDGE / rows.length) - strip,
+      );
+      const tileWidth = Math.min(fitted, Math.floor(tileHeight * aspect));
       const width = tileWidth * cols;
-      const height = tileHeight * rows.length;
-      const cells = gridCells(rows, tileWidth, tileHeight);
+      const height = (tileHeight + strip) * rows.length;
+      const cells = gridCells(rows, tileWidth, tileHeight + strip);
       const canvas = Buffer.alloc(width * height * 3);
-      const scale = Math.max(2, Math.round(tileWidth / 160));
       await Promise.all(
         frames.map(async (frame, index) => {
           const { data, info } = await sharp(frame.tile, {
@@ -179,7 +188,12 @@ export function createCallImaging(): CallImaging {
           const { left, top } = cells[index]!;
           for (let row = 0; row < info.height; row += 1) {
             const from = row * info.width * 3;
-            data.copy(canvas, ((top + row) * width + left) * 3, from, from + info.width * 3);
+            data.copy(
+              canvas,
+              ((top + strip + row) * width + left) * 3,
+              from,
+              from + info.width * 3,
+            );
           }
           const label = labels[index];
           if (label !== undefined) drawLabel(canvas, width, left, top, label, scale);

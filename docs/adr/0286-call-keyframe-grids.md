@@ -5,6 +5,8 @@
 - Issue: #3492 (spec #3490, hub #3491; builds on ADR-0281)
 
 > Amended by [ADR-0303](0303-call-grids-tile-balanced-rows.md): grids tile one to nine keyframes in balanced rows of at most three (`layout` such as `3+2`), not square 2x2, 3x3 or 4x4 grids.
+>
+> Amended by [ADR-0308](0308-call-grid-labels-sit-above-tiles.md): tile labels sit in a strip above each tile row, not over the tile's top-left corner.
 
 ## Context
 
