@@ -211,6 +211,8 @@ export function createPrivateTunnel(options: {
   let server: TunnelOrigin | undefined;
   let tunnel: TunnelProcess | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let probeTimer: ReturnType<typeof setTimeout> | undefined;
+  let probing = 0;
   let nonce: string | undefined;
   let backoff = RESTART_MIN_MS;
   let generation = 0;
@@ -225,6 +227,11 @@ export function createPrivateTunnel(options: {
     clearTimeout(timer);
     timer = setTimeout(work, ms);
     timer.unref?.();
+  };
+  const probeLater = (work: () => void, ms: number): void => {
+    clearTimeout(probeTimer);
+    probeTimer = setTimeout(work, ms);
+    probeTimer.unref?.();
   };
 
   const read = async (): Promise<TunnelRecord | undefined | 'unavailable' | 'invalid'> => {
@@ -249,8 +256,8 @@ export function createPrivateTunnel(options: {
     }
   };
 
-  const verify = (run: number, hostname: string, deadline: number): void => {
-    if (run !== generation) return;
+  const verify = (run: number, session: number, hostname: string, deadline: number): void => {
+    if (run !== generation || session !== probing) return;
     nonce = randomBytes(16).toString('hex');
     const expected = nonce;
     void fetchImpl(`https://${hostname}${PROBE_PREFIX}${expected}`, {
@@ -264,28 +271,28 @@ export function createPrivateTunnel(options: {
       })
       .then(
         () => {
-          if (run !== generation) return;
+          if (run !== generation || session !== probing) return;
           status = { ...status, state: 'connected' };
           delete status.issue;
           delete status.probe;
           backoff = RESTART_MIN_MS;
           record('verified', `mode=${status.mode ?? ''}`);
-          later(() => verify(run, hostname, Date.now() + probeWindow), reprobe * 4);
+          probeLater(() => verify(run, session, hostname, Date.now() + probeWindow), reprobe * 4);
         },
         (error: unknown) => {
-          if (run !== generation) return;
+          if (run !== generation || session !== probing) return;
           const probe =
             error instanceof Error && error.message.startsWith('http-')
               ? error.message
               : probeFailure(error);
           status = { ...status, probe };
           if (Date.now() < deadline) {
-            later(() => verify(run, hostname, deadline), probeInterval);
+            probeLater(() => verify(run, session, hostname, deadline), probeInterval);
             return;
           }
           status = { ...status, state: 'error', issue: 'tunnel-unreachable' };
           record('unreachable', `probe=${probe}`);
-          later(() => verify(run, hostname, Date.now() + probeWindow), reprobe);
+          probeLater(() => verify(run, session, hostname, Date.now() + probeWindow), reprobe);
         },
       );
   };
@@ -350,12 +357,15 @@ export function createPrivateTunnel(options: {
       if (!registered && REGISTERED.test(chunk)) registered = true;
       if (registered && hostname !== undefined && status.state === 'starting') {
         status = { ...status, state: 'verifying' };
-        verify(run, hostname, Date.now() + probeWindow);
+        verify(run, ++probing, hostname, Date.now() + probeWindow);
       }
     });
     const exited = (issue: PrivateTunnelIssue, detail: string): void => {
       if (tunnel === child) tunnel = undefined;
       if (run !== generation) return;
+      probing += 1;
+      clearTimeout(probeTimer);
+      nonce = undefined;
       status = { ...status, state: 'error', issue };
       record('cloudflared-exited', `${detail} retryMs=${String(backoff)}`);
       retry(next, run);
@@ -376,6 +386,8 @@ export function createPrivateTunnel(options: {
   const stop = async (): Promise<void> => {
     generation += 1;
     clearTimeout(timer);
+    clearTimeout(probeTimer);
+    probing += 1;
     nonce = undefined;
     tunnel?.kill();
     tunnel = undefined;

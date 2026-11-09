@@ -313,3 +313,29 @@ it('pairs a phone through the tunnel origin, carries encrypted RPC, refuses stra
     http.close();
   }
 });
+
+it('restarts cloudflared after it exits even while a public probe is pending, and reports the new Quick address', async () => {
+  const credentials = memoryCredentials();
+  const cloudflared = fakeCloudflared();
+  const tunnel = createPrivateTunnel({
+    credentials: () => credentials,
+    port: () => 1,
+    resolveBinary,
+    spawn: cloudflared.spawn,
+    fetch: edgeFetch(cloudflared.runs),
+    probeIntervalMs: 10,
+    reprobeMs: 5,
+  });
+  tunnels.push(tunnel);
+  await tunnel.enable({ mode: 'quick' });
+  await vi.waitFor(() => expect(tunnel.status().state).toBe('connected'));
+  cloudflared.runs[0]!.child.emit('exit', 1);
+  expect(tunnel.status()).toMatchObject({ state: 'error', issue: 'cloudflared-exited' });
+  expect(tunnel.admission()).toBeUndefined();
+  await vi.waitFor(() => expect(cloudflared.runs).toHaveLength(2), { timeout: 15_000 });
+  await vi.waitFor(() => expect(tunnel.status().state).toBe('connected'));
+  expect(tunnel.status()).toMatchObject({
+    origin: 'https://quick-2.trycloudflare.com',
+    addressChanged: true,
+  });
+}, 30_000);

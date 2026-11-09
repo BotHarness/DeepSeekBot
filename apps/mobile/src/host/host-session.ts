@@ -472,13 +472,25 @@ export const hostSession = {
       void revokePairing({ host: previous, carrier: nativeCarrier() });
     });
   },
-  async updateRoutes(hostId: string, credential: string, routes: string[]): Promise<void> {
+  async updateRoutes(
+    hostId: string,
+    credential: string,
+    routes: string[],
+    privateRelay?: { origin: string; token: string },
+  ): Promise<void> {
     return serialize(async () => {
       const existing = stored.hosts.find((host) => host.hostId === hostId);
       if (!existing || existing.credential !== credential) throw new Error('pairing-changed');
+      if (privateRelay && !existing.encryption) throw new Error('pairing-changed');
       await commit({
         ...stored,
-        hosts: stored.hosts.map((host) => (host.hostId === hostId ? { ...host, routes } : host)),
+        hosts: stored.hosts.map((host) =>
+          host.hostId !== hostId
+            ? host
+            : privateRelay && host.encryption
+              ? { ...host, routes, encryption: { ...host.encryption, privateRelay } }
+              : { ...host, routes },
+        ),
       });
       void pushSession.sync(stored.hosts);
     });

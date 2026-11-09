@@ -451,17 +451,27 @@ export async function updatePairedRoutes(
     return { ok: false, code: 'channel-authentication-failed' };
   if (payload.encryption.publicKey !== host.encryption.hostKey)
     return { ok: false, code: 'host-key-changed', detail: 'link:host-key-changed' };
+  const privateRelay = payload.encryption.privateRelay ?? host.encryption.privateRelay;
+  if (
+    payload.encryption.privateRelay &&
+    (payload.routes.length !== 1 || payload.routes[0] !== payload.encryption.privateRelay.origin)
+  )
+    return { ok: false, code: 'no-route' };
+  const encryption: HostEncryption = {
+    ...host.encryption,
+    ...(privateRelay ? { privateRelay } : {}),
+  };
   const carrier = encryptedCarrier({
     raw,
     hostId: host.hostId,
     credential: host.credential,
-    encryption: host.encryption,
+    encryption,
     requireEncryption: true,
   });
   try {
     for (const route of payload.routes.slice(0, 12)) {
       if (signal?.aborted) return { ok: false, code: 'unreachable' };
-      if (!checkRoute(route, host.encryption?.privateRelay?.origin).ok) continue;
+      if (!checkRoute(route, privateRelay?.origin).ok) continue;
       try {
         const deadline = AbortSignal.timeout(8000);
         const response = await carrier.request(`${route}${DEVICE_PREFIX}/api/botharness/devices`, {
@@ -475,6 +485,8 @@ export async function updatePairedRoutes(
           record(record(snapshot['connect'])['encryption'])['publicKey'] !== host.encryption.hostKey
         )
           continue;
+        if (payload.encryption.privateRelay)
+          return { ok: true, host: { ...host, encryption, routes: [route] } };
         const routes = learnedRoutes({ ...host, routes: [route, ...host.routes] }, snapshot);
         return { ok: true, host: { ...host, routes } };
       } catch (error) {
