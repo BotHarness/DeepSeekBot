@@ -1,4 +1,4 @@
-# ADR-0311: Notifications follow where the Human is attending
+# ADR-0312: Notifications follow where the Human is attending
 
 - Status: Proposed (slice 1 in #3846; slices 2–4 need Human acceptance)
 - Date: 2026-11-09
