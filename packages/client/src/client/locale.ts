@@ -4961,6 +4961,12 @@ export const zh = {
   'call.ended.botUnavailable': '通话已结束：Bot 已暂停或被移除。',
   'call.ended.hostStopped': '通话已结束：电脑已停止。',
   'call.ended.refused': '没能开始通话。',
+  'release.panel.checking': '正在检查更新',
+  'release.panel.development': '开发版本',
+  'release.panel.problem': '检查不到更新',
+  'release.panel.current': '已是最新版本',
+  'release.panel.available': '有新版本',
+  'release.panel.restart': '需要重启',
 } as const satisfies Record<string, string>;
 
 export type BotHarnessKey = keyof typeof zh;
@@ -10251,6 +10257,12 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'call.ended.botUnavailable': 'Call ended: the Bot was paused or removed.',
   'call.ended.hostStopped': 'Call ended: the computer stopped.',
   'call.ended.refused': 'Couldn’t start the call.',
+  'release.panel.checking': 'Checking for updates',
+  'release.panel.development': 'Development build',
+  'release.panel.problem': 'Could not check for updates',
+  'release.panel.current': 'Up to date',
+  'release.panel.available': 'Update available',
+  'release.panel.restart': 'Restart needed',
 } satisfies Record<BotHarnessKey, string>;
 
 export type BotHarnessTranslate = TranslateNS<typeof LOCALE_NS>;
