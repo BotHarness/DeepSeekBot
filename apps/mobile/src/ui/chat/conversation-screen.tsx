@@ -378,8 +378,8 @@ const RequestCard = memo(function RequestCard({
 
 function ChatConversation({
   place,
-  focus,
-  focusRequest,
+  focus: routeFocus,
+  focusRequest: routeFocusRequest,
   latestWindowOnly,
   focused,
   presentation,
@@ -395,6 +395,21 @@ function ChatConversation({
   const theme = useDesignTheme();
   const router = useRouter();
   const paging = useProfilePaging();
+  const routeFocusKey = `${routeFocus ?? ''}\n${routeFocusRequest ?? ''}`;
+  const [replyFocus, setReplyFocus] = useState<
+    { message: string; request: string; route: string } | undefined
+  >(undefined);
+  const replyFocused = replyFocus !== undefined && replyFocus.route === routeFocusKey;
+  const focus = replyFocused ? replyFocus.message : routeFocus;
+  const focusRequest = replyFocused ? replyFocus.request : routeFocusRequest;
+  const replySequence = useRef(0);
+  const openReply = useCallback(
+    (message: string) => {
+      replySequence.current += 1;
+      setReplyFocus({ message, request: `reply-${replySequence.current}`, route: routeFocusKey });
+    },
+    [routeFocusKey],
+  );
   const navigation = useNavigationContainerRef();
   const headerOverlap = useHeaderOverlap();
   const nativeHeaderPadding = useHeaderPadding();
@@ -1220,6 +1235,7 @@ function ChatConversation({
           lifted={Platform.OS === 'web' && item.message.id === actionsFor?.message.id}
           {...(botDm || !online ? {} : { onReact: react })}
           {...(composable && selected === undefined ? { onReply: startReply } : {})}
+          {...(selected === undefined ? { onOpenReply: openReply } : {})}
           {...(receipts ? { onOpenDelivery: openDelivery } : {})}
           readers={reading.get(item.message.id)}
           bots={roster?.bots}
@@ -1263,6 +1279,7 @@ function ChatConversation({
       arrivals,
       composable,
       startReply,
+      openReply,
     ],
   );
 

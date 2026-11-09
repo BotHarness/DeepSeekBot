@@ -20,6 +20,8 @@ const native = vi.hoisted(() => ({
   shared: [] as string[],
   pick: 0,
   presses: new Map<string, () => void>(),
+  actions: new Map<string, (event: { nativeEvent: { actionName: string } }) => void>(),
+  layouts: new Map<string, (event: { nativeEvent: { layout: { height: number } } }) => void>(),
   dismiss: () => {},
 }));
 
@@ -34,6 +36,10 @@ vi.mock('react-native', async () => {
       const pressKey = props['accessibilityLabel'] ?? props['accessibilityHint'];
       if (typeof props['onPress'] === 'function' && typeof pressKey === 'string')
         native.presses.set(pressKey, props['onPress'] as () => void);
+      if (typeof props['onAccessibilityAction'] === 'function' && typeof pressKey === 'string')
+        native.actions.set(pressKey, props['onAccessibilityAction'] as never);
+      if (typeof props['onLayout'] === 'function' && typeof props['testID'] === 'string')
+        native.layouts.set(props['testID'], props['onLayout'] as never);
       const attributes: Record<string, string> = {};
       for (const key of [
         'accessible',
@@ -47,6 +53,10 @@ vi.mock('react-native', async () => {
         'recyclingKey',
         'cachePolicy',
         'nativeID',
+        'testID',
+        'accessibilityElementsHidden',
+        'accessibilityActions',
+        'importantForAccessibility',
       ])
         if (props[key] !== undefined)
           attributes[`data-${key.toLowerCase()}`] =
@@ -180,6 +190,8 @@ beforeEach(() => {
   native.shared.length = 0;
   native.pick = 0;
   native.presses.clear();
+  native.layouts.clear();
+  native.actions.clear();
 });
 
 const human = (overrides: Partial<ConversationMessage>): ConversationMessage => ({
@@ -866,7 +878,10 @@ describe('outgoing delivery presentation through Conversation', () => {
     };
     const surface = () =>
       Array.from(container.querySelectorAll<HTMLElement>('[data-native="View"]')).findLast(
-        (node) => node.textContent === 'A quiet message',
+        (node) =>
+          node
+            .querySelector(':scope > [data-testid="message-text"]')
+            ?.textContent?.startsWith('A quiet message') === true,
       )!;
     return {
       container,
@@ -1007,9 +1022,95 @@ describe('outgoing delivery presentation through Conversation', () => {
   });
 });
 
+describe('message time', () => {
+  const time = (html: string) => {
+    const container = document.createElement('div');
+    container.innerHTML = html;
+    return container.querySelector('[data-testid="message-time"]')?.textContent;
+  };
+  const bot = (overrides: Partial<ConversationMessage>) =>
+    human({
+      id: 'bot-1',
+      author: 'bot',
+      bot: 'ada',
+      body: 'On it',
+      ...overrides,
+    });
+
+  it("shows the time inside a committed bubble, with a check after the Human's", () => {
+    expect(time(renderToStaticMarkup(<MessageBubble message={human({})} />))).toMatch(
+      /^\d{1,2}:\d{2}.*✓$/,
+    );
+    expect(time(renderToStaticMarkup(<MessageBubble message={bot({})} />))).toMatch(
+      /^\d{1,2}:\d{2}(?:\s?[AP]M)?$/,
+    );
+  });
+
+  it("puts a one-line Bot reply's time beside its text, and a longer reply's on its own line", () => {
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    const timeRow = () =>
+      container.querySelector('[data-testid="message-time"]')?.parentElement?.dataset['testid'];
+    try {
+      act(() => root.render(<MessageBubble message={bot({ body: 'On it' })} />));
+      expect(timeRow()).toBe('message-body-row');
+      act(() =>
+        native.layouts.get('message-body')!({
+          nativeEvent: { layout: { height: 22 } },
+        }),
+      );
+      expect(timeRow()).toBe('message-body-row');
+      act(() =>
+        native.layouts.get('message-body')!({
+          nativeEvent: { layout: { height: 66 } },
+        }),
+      );
+      expect(timeRow()).not.toBe('message-body-row');
+      expect(
+        container
+          .querySelector('[data-testid="message-time"]')
+          ?.previousElementSibling?.getAttribute('data-native'),
+      ).toBe('EnrichedMarkdownText');
+      act(() =>
+        root.render(<MessageBubble message={bot({ body: 'First paragraph\n\nSecond one' })} />),
+      );
+      expect(timeRow()).not.toBe('message-body-row');
+    } finally {
+      act(() => root.unmount());
+    }
+  });
+
+  it("lets the Human's text flow around its time, which a screen reader hears once", () => {
+    const container = document.createElement('div');
+    container.innerHTML = renderToStaticMarkup(<MessageBubble message={human({})} />);
+    const shown = container.querySelector('[data-testid="message-time"]')!;
+    const text = container.querySelector('[data-testid="message-text"]')!;
+    expect(text.contains(shown)).toBe(false);
+    const spacer = text.querySelector('[data-importantforaccessibility="no-hide-descendants"]');
+    expect(spacer?.getAttribute('data-accessibilityelementshidden')).toBe('true');
+    expect(spacer?.textContent).toBe(shown.textContent);
+  });
+
+  it('shows no time while a message is sending, after it failed, or while a reply streams', () => {
+    for (const message of [human({ delivery: 'pending' }), human({ delivery: 'failed' })])
+      expect(time(renderToStaticMarkup(<MessageBubble message={message} />))).toBeUndefined();
+    expect(
+      time(renderToStaticMarkup(<MessageBubble message={bot({})} streaming />)),
+    ).toBeUndefined();
+    expect(
+      time(
+        renderToStaticMarkup(
+          <DraftBubble draft={{ draftId: 'd', botSlug: 'ada', body: 'Thinking' } as never} />,
+        ),
+      ),
+    ).toBeUndefined();
+  });
+});
+
 describe('replies', () => {
-  it('quotes the replied message above the body, or says it is gone', () => {
-    const quoted = renderToStaticMarkup(
+  it('quotes the replied message in a block named for its author, or says it is gone', () => {
+    const container = document.createElement('div');
+    container.innerHTML = renderToStaticMarkup(
       <MessageBubble
         message={human({
           body: 'this one',
@@ -1019,15 +1120,74 @@ describe('replies', () => {
         botName={(id) => (id === 'ada' ? 'Ada' : id)}
       />,
     );
-    expect(quoted.indexOf('Ada')).toBeGreaterThan(-1);
-    expect(quoted.indexOf('Pick a file')).toBeLessThan(quoted.indexOf('this one'));
-    const gone = renderToStaticMarkup(
+    const quote = container.querySelector('[data-testid="reply-quote"]')!;
+    expect(container.querySelector('[data-testid="reply-quote-author"]')?.textContent).toBe('Ada');
+    expect(container.querySelector('[data-testid="reply-quote-text"]')?.textContent).toBe(
+      'Pick a file',
+    );
+    expect(
+      quote.compareDocumentPosition(container.querySelector('[data-testid="message-text"]')!) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    const gone = document.createElement('div');
+    gone.innerHTML = renderToStaticMarkup(
       <MessageBubble message={human({ replyTo: 'bot-1', replyPreview: null })} />,
     );
-    expect(gone).toContain(t.reply.unavailable);
-    expect(renderToStaticMarkup(<MessageBubble message={human({})} />)).not.toContain(
+    expect(gone.querySelector('[data-testid="reply-quote-author"]')).toBeNull();
+    expect(gone.querySelector('[data-testid="reply-quote-text"]')?.textContent).toBe(
       t.reply.unavailable,
     );
+    expect(renderToStaticMarkup(<MessageBubble message={human({})} />)).not.toContain(
+      'reply-quote',
+    );
+  });
+
+  it('jumps to the original when its quote is tapped', () => {
+    const open = vi.fn();
+    const container = document.createElement('div');
+    container.innerHTML = renderToStaticMarkup(
+      <MessageBubble
+        message={{
+          ...human({ id: 'bot-2', body: 'Done', replyTo: 'human-0' }),
+          author: 'bot',
+          bot: 'ada',
+          replyPreview: { author: { kind: 'human' }, body: 'Fix the build' },
+        }}
+        onOpenReply={open}
+      />,
+    );
+    const label = t.reply.quote(t.reply.you, 'Fix the build');
+    const button = container.querySelector(`[data-accessibilitylabel="${label}"]`);
+    expect(button?.getAttribute('data-accessibilityrole')).toBe('button');
+    expect(button?.getAttribute('data-testid')).toBe('reply-quote');
+    native.presses.get(label)!();
+    expect(open).toHaveBeenCalledWith('human-0');
+  });
+
+  it("lets a screen reader jump from a reply to its original through the bubble's actions", () => {
+    const open = vi.fn();
+    const container = document.createElement('div');
+    container.innerHTML = renderToStaticMarkup(
+      <MessageBubble
+        message={human({
+          replyTo: 'bot-1',
+          replyPreview: {
+            author: { kind: 'bot', slug: 'ada' },
+            body: 'Pick a file',
+          },
+        })}
+        onOpenReply={open}
+      />,
+    );
+    const bubble = container.querySelector(`[data-accessibilityhint="${t.messageActionsHint}"]`)!;
+    expect(JSON.parse(bubble.getAttribute('data-accessibilityactions')!)).toContainEqual({
+      name: 'reply-original',
+      label: t.reply.jumpHint,
+    });
+    native.actions.get(t.messageActionsHint)!({
+      nativeEvent: { actionName: 'reply-original' },
+    });
+    expect(open).toHaveBeenCalledWith('bot-1');
   });
 
   it('offers a swipe reply only on committed Human and Bot messages', () => {
