@@ -4,9 +4,8 @@ import { levelDbfs, meterFraction } from './voice-level.js';
 import {
   DictationMicError,
   type DictationMic,
+  createVoiceDictationPort as createSharedDictationPort,
   type VoiceDictationPort,
-  type VoiceDictationReadiness,
-  type VoiceDictationView,
 } from '../../../core/src/voice/dictation-client.js';
 import { pcm16kFromFloat } from '../../../core/src/voice/pcm.js';
 
@@ -15,42 +14,16 @@ export * from '../../../core/src/voice/dictation-client.js';
 export const DICTATION_HOLD_MS = 300;
 export const DICTATION_HOLD_SLOP_PX = 6;
 
-async function dictationCall(
-  call: BridgeCall,
-  payload: Record<string, unknown>,
-): Promise<Record<string, unknown>> {
-  const result = await call('voiceDictation', payload);
-  if (!result.ok)
-    throw new BridgeCallError(result.error.code, result.error.message, result.error.details);
-  const value = result.value;
-  if (typeof value !== 'object' || value === null) throw new Error('invalid voiceDictation');
-  return value as Record<string, unknown>;
-}
-
-function dictationView(value: Record<string, unknown>): VoiceDictationView {
-  const view = value['dictation'] as Record<string, unknown> | undefined;
-  if (typeof view?.['id'] !== 'string' || typeof view['text'] !== 'string')
-    throw new Error('invalid voiceDictation response');
-  return view as unknown as VoiceDictationView;
-}
-
 export function createVoiceDictationPort(
   call: BridgeCall,
   target: { slug?: string | undefined },
 ): VoiceDictationPort {
-  const scope = target.slug === undefined ? {} : { slug: target.slug };
-  return {
-    async readiness() {
-      const value = await dictationCall(call, { kind: 'readiness', ...scope });
-      const readiness = value['readiness'] as VoiceDictationReadiness | undefined;
-      if (typeof readiness?.ready !== 'boolean') throw new Error('invalid voiceDictation response');
-      return readiness;
-    },
-    open: async () => dictationView(await dictationCall(call, { kind: 'open', ...scope })),
-    push: async (id, pcm) => dictationView(await dictationCall(call, { kind: 'push', id, pcm })),
-    stop: async (id) => dictationView(await dictationCall(call, { kind: 'stop', id })),
-    cancel: async (id) => dictationView(await dictationCall(call, { kind: 'cancel', id })),
-  };
+  return createSharedDictationPort(async (method, args) => {
+    const result = await call(method, args);
+    if (!result.ok)
+      throw new BridgeCallError(result.error.code, result.error.message, result.error.details);
+    return result.value;
+  }, target);
 }
 
 export function createBrowserDictationMic(
