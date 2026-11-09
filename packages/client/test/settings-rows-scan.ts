@@ -5,13 +5,27 @@ import { dirname, resolve } from 'node:path';
 type Node = { type: string; [key: string]: unknown };
 
 export interface ScannedRow {
-  readonly key?: string;
-  readonly description?: string;
+  readonly kind: 'row' | 'heading';
+  readonly keys: readonly string[];
+  readonly descriptions: readonly string[];
   readonly at: string;
 }
 
-const CLIENT = resolve(import.meta.dirname, '../src/client');
+export interface RegisteredSection {
+  readonly id: string;
+  readonly component: string;
+  readonly entry: string;
+}
+
+const PACKAGES = resolve(import.meta.dirname, '../..');
+const ROW_TAGS = new Set(['SettingsRow', 'SettingsSection']);
 const files = new Map<string, Node>();
+
+export const SECTION_ENTRIES = [
+  resolve(PACKAGES, 'client/src/client/index.ts'),
+  resolve(PACKAGES, 'browser/src/client/settings.tsx'),
+  resolve(PACKAGES, 'computer/src/client/index.tsx'),
+];
 
 function ast(file: string): Node {
   let program = files.get(file);
@@ -84,16 +98,51 @@ function locate(file: string, name: string): { file: string; node: Node } | unde
   return undefined;
 }
 
-function translationKey(value: Node | undefined): string | undefined {
-  if (!value || value.type !== 'JSXExpressionContainer') return undefined;
-  const expression = value.expression as Node;
-  if (expression.type !== 'CallExpression') return undefined;
+function translated(expression: Node): string[] {
+  if (expression.type === 'ConditionalExpression')
+    return [
+      ...translated(expression.consequent as Node),
+      ...translated(expression.alternate as Node),
+    ];
+  if (expression.type === 'LogicalExpression') return translated(expression.right as Node);
+  if (expression.type === 'StringLiteral') return [expression.value as string];
+  if (expression.type !== 'CallExpression') return [];
   const callee = expression.callee as Node;
   const named =
     (callee.type === 'Identifier' && callee.name === 't') ||
     (callee.type === 'MemberExpression' && (callee.property as Node).name === 't');
   const first = (expression.arguments as Node[])[0];
-  return named && first?.type === 'StringLiteral' ? (first.value as string) : undefined;
+  if (!named || !first) return [];
+  if (first.type === 'StringLiteral') return [first.value as string];
+  if (first.type === 'ConditionalExpression') return translated(first);
+  return [];
+}
+
+function attribute(element: Node, name: string): Node | undefined {
+  const value = (element.attributes as Node[]).find(
+    (candidate) => candidate.type === 'JSXAttribute' && (candidate.name as Node).name === name,
+  )?.value as Node | undefined;
+  return value?.type === 'JSXExpressionContainer' ? (value.expression as Node) : value;
+}
+
+function keysOf(element: Node, name: string): string[] {
+  const value = attribute(element, name);
+  if (!value) return [];
+  return value.type === 'StringLiteral' ? [] : translated(value);
+}
+
+function forwardsTitle(node: Node): boolean {
+  let forwards = false;
+  walk(node, (inner) => {
+    if (forwards || inner.type !== 'JSXOpeningElement') return;
+    const tag = inner.name as Node;
+    if (tag.type !== 'JSXIdentifier' || !ROW_TAGS.has(tag.name as string)) return;
+    const title = attribute(inner, 'title');
+    forwards =
+      (title?.type === 'Identifier' && title.name === 'title') ||
+      (title?.type === 'MemberExpression' && (title.property as Node).name === 'title');
+  });
+  return forwards;
 }
 
 export function scanSettingsRows(file: string, component: string): ScannedRow[] {
@@ -107,24 +156,29 @@ export function scanSettingsRows(file: string, component: string): ScannedRow[] 
       const tag = node.name as Node;
       if (tag.type !== 'JSXIdentifier' || !/^[A-Z]/u.test(tag.name as string)) return;
       const name = tag.name as string;
-      if (name === 'SettingsRow') {
-        const attribute = (attr: string) =>
-          (node.attributes as Node[]).find(
-            (candidate) =>
-              candidate.type === 'JSXAttribute' && (candidate.name as Node).name === attr,
-          )?.value as Node | undefined;
-        const key = translationKey(attribute('title'));
-        const description = translationKey(attribute('description'));
-        const line = (node.loc as { start: { line: number } }).start.line;
+      const where = `${at.file.slice(PACKAGES.length + 1)}:${(node.loc as { start: { line: number } }).start.line}`;
+      if (ROW_TAGS.has(name)) {
+        const keys = keysOf(node, 'title');
+        if (name === 'SettingsSection' && keys.length === 0) return;
         rows.push({
-          ...(key ? { key } : {}),
-          ...(description ? { description } : {}),
-          at: `${at.file.slice(CLIENT.length + 1)}:${line}`,
+          kind: name === 'SettingsRow' ? 'row' : 'heading',
+          keys,
+          descriptions: keysOf(node, 'description'),
+          at: where,
         });
         return;
       }
       const next = locate(at.file, name);
-      if (next && next.file.startsWith(CLIENT)) visit(next, `${next.file}#${name}`);
+      if (!next || !next.file.startsWith(PACKAGES)) return;
+      const forwarded = keysOf(node, 'title');
+      if (forwarded.length && forwardsTitle(next.node))
+        rows.push({
+          kind: 'row',
+          keys: forwarded,
+          descriptions: keysOf(node, 'description'),
+          at: where,
+        });
+      visit(next, `${next.file}#${name}`);
     });
   };
   const root = locate(file, component);
@@ -132,37 +186,37 @@ export function scanSettingsRows(file: string, component: string): ScannedRow[] 
   return rows;
 }
 
-export function registeredSections(): { id: string; component: string }[] {
-  const entry = resolve(CLIENT, 'index.ts');
+export function registeredSections(): RegisteredSection[] {
   const sectionIds = Object.fromEntries(
     [
-      ...readFileSync(resolve(CLIENT, 'bot-settings.tsx'), 'utf8').matchAll(
-        /^  (\w+): '([\w-]+)',$/gmu,
+      ...readFileSync(resolve(PACKAGES, 'client/src/client/bot-settings.tsx'), 'utf8').matchAll(
+        /^ {2}(\w+): '([\w-]+)',$/gmu,
       ),
     ].map((match) => [match[1], match[2]]),
   );
-  const out: { id: string; component: string }[] = [];
-  walk(ast(entry), (node) => {
-    if (node.type !== 'CallExpression') return;
-    const callee = node.callee as Node;
-    if (callee.type !== 'MemberExpression' || (callee.property as Node).name !== 'register') return;
-    const [options, component] = node.arguments as Node[];
-    if (options?.type !== 'ObjectExpression' || component?.type !== 'Identifier') return;
-    const prop = (key: string) =>
-      (options.properties as Node[]).find(
-        (candidate) => candidate.type === 'ObjectProperty' && (candidate.key as Node).name === key,
-      )?.value as Node | undefined;
-    if ((prop('name') as Node | undefined)?.value !== 'botharness.settings.section') return;
-    const id = prop('id');
-    const value =
-      id?.type === 'StringLiteral'
-        ? (id.value as string)
-        : id?.type === 'MemberExpression'
-          ? sectionIds[(id.property as Node).name as string]
-          : undefined;
-    if (value) out.push({ id: value, component: component.name as string });
-  });
+  const out: RegisteredSection[] = [];
+  for (const entry of SECTION_ENTRIES)
+    walk(ast(entry), (node) => {
+      if (node.type !== 'CallExpression') return;
+      const callee = node.callee as Node;
+      if (callee.type !== 'MemberExpression' || (callee.property as Node).name !== 'register')
+        return;
+      const [options, component] = node.arguments as Node[];
+      if (options?.type !== 'ObjectExpression' || component?.type !== 'Identifier') return;
+      const prop = (key: string) =>
+        (options.properties as Node[]).find(
+          (candidate) =>
+            candidate.type === 'ObjectProperty' && (candidate.key as Node).name === key,
+        )?.value as Node | undefined;
+      if ((prop('name') as Node | undefined)?.value !== 'botharness.settings.section') return;
+      const id = prop('id');
+      const value =
+        id?.type === 'StringLiteral'
+          ? (id.value as string)
+          : id?.type === 'MemberExpression'
+            ? sectionIds[(id.property as Node).name as string]
+            : undefined;
+      if (value) out.push({ id: value, component: component.name as string, entry });
+    });
   return out;
 }
-
-export const CLIENT_ENTRY = resolve(CLIENT, 'index.ts');

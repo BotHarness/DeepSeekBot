@@ -18,13 +18,20 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'accountProfile.id',
     'accountProfile.email',
   ],
-  general: ['zoom.current', 'zoom.default', 'onboarding.settings.title'],
+  general: [
+    'zoom.current',
+    'zoom.default',
+    'zoom.setup.enable',
+    'zoom.setup.disable',
+    'onboarding.settings.title',
+  ],
   appearance: [
     'recovery.title',
     'settings.theme',
     'settings.theme.system',
     'settings.theme.light',
     'settings.theme.dark',
+    'appearance.palette',
     'appearance.lightPreset',
     'appearance.lightPrimary',
     'appearance.darkPreset',
@@ -38,6 +45,7 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'appearance.materialOpacity',
     'appearance.materialBlur',
     'appearance.body',
+    'appearance.panels',
     'motion.row.title',
     'icon.row.title',
     'settings.language',
@@ -72,9 +80,17 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'identity.newConversations',
   ],
   notifications: ['desktopNotify.row.title'],
-  shortcuts: ['workspace.shortcutSearch', ...SHORTCUT_INDEX],
+  shortcuts: ['shortcuts.title', 'workspace.shortcutSearch', ...SHORTCUT_INDEX],
   prompts: ['prompts.global', 'prompts.new'],
-  voice: ['voice.default.title', 'voice.mic.device', 'voice.mic.title', 'voice.mic.threshold'],
+  voice: [
+    'voice.default.title',
+    'voice.providers.new',
+    'voice.asr.new',
+    'voice.mic.section',
+    'voice.mic.device',
+    'voice.mic.title',
+    'voice.mic.threshold',
+  ],
   'im-apps': ['imApps.allApps'],
   advanced: ['developer.row.title', 'git.settings.title'],
   'auto-approval': [
@@ -88,6 +104,11 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
   devices: [
     'devices.pair.title',
     'devices.list.title',
+    'devices.connect.title',
+    'devices.connect.computers',
+    'devices.connection.title',
+    'devices.connection.pairStep',
+    'devices.botLan.title',
     'devices.connect.account',
     'devices.connect.tunnel',
     'devices.connect.computersStatus',
@@ -110,6 +131,16 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
 export const SETTINGS_DESCRIPTIONS: Partial<Record<BotHarnessKey, BotHarnessKey>> = {
   'zoom.current': 'zoom.current.description',
   'zoom.default': 'zoom.default.description',
+  'zoom.setup.enable': 'zoom.setup.enable.description',
+  'zoom.setup.disable': 'zoom.setup.disable.description',
+  'wallpaper.title': 'wallpaper.local',
+  'recovery.title': 'recovery.scope',
+  'autoApproval.library.title': 'autoApproval.library.description',
+  'defaults.title': 'defaults.lead',
+  'devices.connect.account': 'devices.connect.description',
+  'appearance.panels': 'appearance.materialMode',
+  'voice.mic.section': 'voice.mic.sectionHint',
+  'devices.botLan.title': 'devices.botLan.scope',
   'onboarding.settings.title': 'onboarding.settings.description',
   'icon.row.title': 'icon.row.description',
   'onboarding.defaultTitle': 'onboarding.defaultDescription',
@@ -180,15 +211,57 @@ const SECTION_ALIASES: Readonly<Record<string, string>> = {
   'data-privacy': '备份 隐私 存储 空间 清理 backup privacy storage cleanup',
 };
 
-export const PLUGIN_INDEX: Readonly<Record<string, readonly { zh: string; en: string }[]>> = {
+export interface PluginSettingsEntry {
+  readonly zh: string;
+  readonly en: string;
+  readonly description?: { readonly zh: string; readonly en: string };
+}
+
+export const PLUGIN_INDEX: Readonly<Record<string, readonly PluginSettingsEntry[]>> = {
   browser: [
     { zh: '操作目标', en: 'Browser Target' },
     { zh: '本机驱动', en: 'Local driver' },
     { zh: '容器驱动', en: 'Container driver' },
   ],
   computer: [
-    { zh: '操作目标', en: 'Computer Target' },
-    { zh: '自动允许 Computer 操作', en: 'Auto-allow Computer actions' },
+    {
+      zh: '操作目标',
+      en: 'Computer Target',
+      description: {
+        zh: '本 Profile 的所有 Bot 共用一个目标；切换后需要重新授权操作。',
+        en: 'All Bots in this Profile share one target. Switching requires new action authorization.',
+      },
+    },
+    {
+      zh: '自动允许 Computer 操作',
+      en: 'Auto-allow Computer actions',
+      description: {
+        zh: '打开后，PersonaBot 在 Computer 上的操作不再逐会话询问；默认关闭。',
+        en: 'When on, PersonaBot actions on the Computer run without a per-session approval; off by default.',
+      },
+    },
+    { zh: 'Computer 导出目录', en: 'Computer export directory' },
+    {
+      zh: '空闲停止',
+      en: 'Idle stop',
+      description: {
+        zh: '无观看者时 Computer 自动停止的等待时间',
+        en: 'How long the Computer waits without viewers before stopping',
+      },
+    },
+    {
+      zh: '导出',
+      en: 'Export',
+      description: {
+        zh: '把 Computer 的持久存储打包成一个归档',
+        en: "Pack the Computer's persistent store into one archive",
+      },
+    },
+    {
+      zh: '导入',
+      en: 'Import',
+      description: { zh: '从归档恢复 Computer', en: 'Restore the Computer from an archive' },
+    },
   ],
 };
 
@@ -197,6 +270,16 @@ const SEARCH_ALIASES: Partial<Record<BotHarnessKey, string>> = {
     '引导 新手引导 新手 教程 重新开始 重看 继续 开始 导览 onboarding tutorial tour walkthrough guide restart replay',
   'zoom.current': '缩放 放大 缩小 字体 字号 zoom scale font size',
   'zoom.default': '缩放 放大 缩小 字体 字号 zoom scale font size',
+  'zoom.setup.enable': '缩放 放大 缩小 zoom scale',
+  'zoom.setup.disable': '缩放 卸载 zoom uninstall',
+  'appearance.palette': '颜色 主题色 color palette',
+  'appearance.panels': '面板 透明 毛玻璃 panel transparency glass',
+  'voice.providers.new': '朗读 语音合成 TTS text-to-speech',
+  'voice.asr.new': '语音识别 转写 听写 ASR STT speech-to-text dictation',
+  'devices.connect.title': '账号 云 远程 登录 account remote cloud',
+  'devices.connect.computers': '电脑 主机 computers hosts',
+  'devices.connection.pairStep': '手机 配对 扫码 phone pair QR',
+  'devices.botLan.title': '局域网 协作 私信 LAN collaborate peer',
   'accountProfile.name': '名字 昵称 name nickname',
   'accountProfile.photo': '头像 avatar picture',
   'appearance.primary': '颜色 强调色 color accent',
@@ -255,8 +338,6 @@ export function searchSettings(
   if (!terms.length) return [];
   const matches = (texts: readonly string[]) =>
     terms.every((term) => texts.some((text) => searchTextMatches(text, term)));
-  const touches = (texts: readonly string[]) =>
-    terms.some((term) => texts.some((text) => searchTextMatches(text, term)));
   const rank = (texts: readonly string[]) =>
     Math.min(9, ...texts.map((text) => searchTextScore(text, query) ?? 9));
   const scored = rows.flatMap((row) => {
@@ -317,10 +398,22 @@ export function searchSettings(
     }
     for (const item of PLUGIN_INDEX[row.id] ?? []) {
       const own = [item.zh, item.en];
-      if (!touches(own) || !matches([...page, ...own])) continue;
+      const notes = item.description ? [item.description.zh, item.description.en] : [];
+      const hit = (term: string) =>
+        own.some((text) => searchTextMatches(text, term)) ||
+        notes.some((text) => describes(text, term));
+      if (!terms.some(hit)) continue;
+      if (!terms.every((term) => hit(term) || page.some((text) => searchTextMatches(text, term))))
+        continue;
       const title = t('settings.nav') === zh['settings.nav'] ? item.zh : item.en;
       if (results.some((result) => result.title === title)) continue;
-      results.push({ section: row.id, title, target: title, page: row.label, score: rank(own) });
+      results.push({
+        section: row.id,
+        title,
+        target: title,
+        page: row.label,
+        score: Math.min(rank(own), notes.some((text) => describes(text, query.trim())) ? 6 : 9),
+      });
     }
     return results;
   });
