@@ -10,6 +10,7 @@ import {
   type CallActivityPalette,
   type CallActivityProps,
 } from '../src/ui/chat/call-activity';
+import { callBubble } from '../src/ui/design/tokens';
 
 const moduleRoot = new URL('../modules/local-computer-video/', import.meta.url);
 const read = (path: string) => readFileSync(new URL(path, moduleRoot), 'utf8');
@@ -151,5 +152,15 @@ describe('Android call bubble over other apps (#3469)', () => {
     expect(module).toContain('onActivityStarted');
     expect(module).toContain('CallService.setOverlay(false)');
     expect(kotlin('CallService')).toContain('Settings.canDrawOverlays(this)');
+  });
+});
+
+describe('Android overlay bubble ring breath (#3805)', () => {
+  it('breathes at the in-app bubble pulse period, only while speaking or hearing', () => {
+    const native = kotlin('CallNotice');
+    expect(native).toContain(`const val PERIOD_MS = ${String(callBubble.pulsePeriod)}L`);
+    expect(native).toContain('tone == "speaking" || tone == "hearing"');
+    const overlay = kotlin('CallOverlay');
+    expect(overlay).toContain('ValueAnimator.areAnimatorsEnabled()');
   });
 });
