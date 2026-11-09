@@ -23,7 +23,7 @@ CLI：`deepseekbot private-ingress-enable --origin https://bot.example.com --con
 
 ## 参考配置
 
-把 `PORT` 换成 Tobs 显示的端口，把 `bot.example.com` 换成你的地址。配置内容见[英文版](private-ingress.md#reference-configs)：nginx 和 Caddy 待实测；frp、ngrok 为参考配置，尚未实测；自己的 Cloudflare Named Tunnel 建议直接用内置的 **固定地址** 选项。
+把 `PORT` 换成 Tobs 显示的端口，把 `bot.example.com` 换成你的地址。配置内容见[英文版](private-ingress.md#reference-configs)：nginx 和 Caddy 已于 2026-11-09 实测（配对、真实回复、撤销均通过；测试时由 Cloudflare Quick Tunnel 终止 HTTPS，证书需你自己配置）；frp、ngrok 为参考配置，尚未实测；自己的 Cloudflare Named Tunnel 建议直接用内置的 **固定地址** 选项。
 
 ## 出错时
 

@@ -28,9 +28,9 @@ The port stays the same across restarts. If you move to a different address, ena
 
 ## Reference configs
 
-Replace `PORT` with the port Tobs shows and `bot.example.com` with your address.
+Replace `PORT` with the port Tobs shows and `bot.example.com` with your address. The nginx and Caddy checks ran the routing rules below behind a Cloudflare Quick Tunnel that terminated HTTPS; certificate setup on your own server is up to you.
 
-**nginx** (verification pending)
+**nginx** (verified 2026-11-09: pairing, a real reply and revocation through this config)
 
 ```nginx
 map $http_upgrade $connection_upgrade { default upgrade; '' close; }
@@ -49,7 +49,7 @@ server {
 }
 ```
 
-**Caddy** (verification pending)
+**Caddy** (verified 2026-11-09: pairing, a real reply and revocation through this config)
 
 ```caddyfile
 bot.example.com {
