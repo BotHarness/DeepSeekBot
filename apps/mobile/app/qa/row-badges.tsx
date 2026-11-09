@@ -1,4 +1,4 @@
-import { Stack } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { ScrollView, View } from 'react-native';
 
 import type { HostLook } from '../../src/ui/design/host-look';
@@ -12,7 +12,6 @@ import type { CountBadgeTone } from '../../src/ui/primitives/count-badge';
 import { Text } from '../../src/ui/primitives/text';
 
 // Prototype gallery for the env-icon / unread-badge row layout. Not linked from the app.
-const PROTOTYPE_ACTIVITY_BADGES = true;
 
 const HOME: HostLook = { name: 'Home Mac', icon: { kind: 'symbol', id: 'home' }, color: 'blue' };
 const WORK: HostLook = { name: 'Work', icon: { kind: 'symbol', id: 'work' }, color: 'orange' };
@@ -127,9 +126,11 @@ const ACTIVITY: Sample[] = [
   },
 ];
 
-function Row({ sample, all }: { sample: Sample; all: boolean }) {
+type Variant = 'rail' | 'corner';
+
+function Row({ sample, all, variant }: { sample: Sample; all: boolean; variant: Variant }) {
   const look = all ? sample.look : HOME;
-  const badge = sample.activity && !PROTOTYPE_ACTIVITY_BADGES ? undefined : sample.badge;
+  const badge = sample.activity ? undefined : sample.badge;
   return (
     <ConversationRowFrame
       title={sample.title}
@@ -137,6 +138,8 @@ function Row({ sample, all }: { sample: Sample; all: boolean }) {
       look={look}
       sourceLabel={all ? (sample.cloud ? 'Cloud' : look?.name) : undefined}
       mixed={all}
+      allStyle={variant}
+      inlineGlyph={sample.activity === true && all}
       label={sample.title}
       preview={sample.preview}
       time={sample.time}
@@ -160,7 +163,17 @@ function Row({ sample, all }: { sample: Sample; all: boolean }) {
   );
 }
 
-function Section({ title, samples, all }: { title: string; samples: Sample[]; all: boolean }) {
+function Section({
+  title,
+  samples,
+  all,
+  variant = 'rail',
+}: {
+  title: string;
+  samples: Sample[];
+  all: boolean;
+  variant?: Variant;
+}) {
   const theme = useDesignTheme();
   return (
     <View style={{ marginBottom: space.x5 }}>
@@ -176,7 +189,7 @@ function Section({ title, samples, all }: { title: string; samples: Sample[]; al
         {samples
           .filter((sample) => all || !sample.cloud)
           .map((sample) => (
-            <Row key={sample.title} sample={sample} all={all} />
+            <Row key={sample.title} sample={sample} all={all} variant={variant} />
           ))}
       </View>
     </View>
@@ -185,6 +198,7 @@ function Section({ title, samples, all }: { title: string; samples: Sample[]; al
 
 export default function RowBadgesPrototype() {
   const theme = useDesignTheme();
+  const { view } = useLocalSearchParams<{ view?: string }>();
   return (
     <ScrollView
       testID="row-badges-prototype"
@@ -192,10 +206,27 @@ export default function RowBadgesPrototype() {
       contentContainerStyle={{ paddingVertical: space.x5 }}
     >
       <Stack.Screen options={{ title: 'Row badges' }} />
-      <Section title="CHATS · ONE ENVIRONMENT (Home Mac)" samples={CHATS} all={false} />
-      <Section title="CHATS · ALL" samples={CHATS} all />
-      <Section title="ACTIVITY · ONE ENVIRONMENT (Home Mac)" samples={ACTIVITY} all={false} />
-      <Section title="ACTIVITY · ALL" samples={ACTIVITY} all />
+      {view === 'activity' ? (
+        <>
+          <Section title="ACTIVITY · ONE ENVIRONMENT (Home Mac)" samples={ACTIVITY} all={false} />
+          <Section title="ACTIVITY · ALL" samples={ACTIVITY} all />
+        </>
+      ) : (
+        <>
+          <Section
+            title={`CHATS · ONE ENVIRONMENT (Home Mac)`}
+            samples={CHATS}
+            all={false}
+            variant={view === 'b' ? 'corner' : 'rail'}
+          />
+          <Section
+            title="CHATS · ALL"
+            samples={CHATS}
+            all
+            variant={view === 'b' ? 'corner' : 'rail'}
+          />
+        </>
+      )}
     </ScrollView>
   );
 }

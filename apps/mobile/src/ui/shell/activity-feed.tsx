@@ -63,14 +63,12 @@ import { BotAvatar } from '../bot-avatar';
 import { GroupMark } from '../chat/group-mark';
 import { AvatarSlot, CONVERSATION_AVATAR, CONVERSATION_RING } from '../chat/avatar-slot';
 import { shortTime } from '../chat/conversations';
-import { SourceMark, SourceName } from '../chat/source-name';
-import { AvatarRail } from '../chat/avatar-rail';
-import { CountBadge, type CountBadgeTone } from '../primitives/count-badge';
+import { SourceName } from '../chat/source-name';
 import { ApprovalCard } from '../chat/approval-card';
 import { QuestionCard } from '../chat/question-card';
 import { useDesignTheme } from '../design/theme';
 import { spring, springy } from '../design/motion';
-import { chatList, conversationType, edge, radius, space, undoBar } from '../design/tokens';
+import { chatList, conversationType, radius, space, undoBar } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { Notice } from '../request-parts';
 import { useChatHeaderHeight } from '../chat/header-chrome';
@@ -268,7 +266,6 @@ function ActivityAvatar({
 const Row = memo(function Row({
   item,
   settled,
-  needsYou,
   bot,
   now,
   onOpen,
@@ -276,7 +273,6 @@ const Row = memo(function Row({
 }: {
   item: HumanAttentionItem;
   settled: boolean;
-  needsYou: boolean;
   bot: RosterBot | undefined;
   now: number;
   onOpen(item: HumanAttentionItem): void;
@@ -293,17 +289,6 @@ const Row = memo(function Row({
   const summary = summaryPreview(itemSummary(item));
   const preview = summary.length > 0 ? `${kind} · ${summary}` : kind;
   const time = shortTime(item.createdAt, new Date(now));
-  const unread = item.unreadCount ?? 0;
-  const badge: { count: number; tone: CountBadgeTone } | undefined = needsYou
-    ? { count: Math.max(1, unread), tone: 'needs-you' }
-    : unread > 0 && !settled
-      ? { count: unread, tone: 'unread' }
-      : undefined;
-  const avatar = (
-    <AvatarSlot>
-      <ActivityAvatar item={item} bot={bot} size={CONVERSATION_AVATAR} />
-    </AvatarSlot>
-  );
   return (
     <SwipeRow actions={actions} testID={`inbox-swipe-${activityKey(item)}`}>
       <Pressable
@@ -329,37 +314,9 @@ const Row = memo(function Row({
           backgroundColor: pressed ? theme.layer.canvas.pressed : theme.layer.canvas.fill,
         })}
       >
-        {item.activitySource ? (
-          <AvatarRail
-            avatar={avatar}
-            badge={badge}
-            mark={(ink) => (
-              <SourceMark
-                source="computer"
-                look={item.activitySource?.look ?? DEFAULT_HOST_LOOK}
-                ink={ink}
-              />
-            )}
-          />
-        ) : (
-          <View>
-            {avatar}
-            {badge === undefined ? null : (
-              <View
-                style={{
-                  position: 'absolute',
-                  top: -space.x2,
-                  right: -space.x3,
-                  padding: edge.focus,
-                  borderRadius: radius.sm + edge.focus,
-                  backgroundColor: theme.layer.canvas.fill,
-                }}
-              >
-                <CountBadge count={badge.count} tone={badge.tone} />
-              </View>
-            )}
-          </View>
-        )}
+        <AvatarSlot>
+          <ActivityAvatar item={item} bot={bot} size={CONVERSATION_AVATAR} />
+        </AvatarSlot>
         <View
           key={`${theme.scheme}:${theme.fontScale}:${name}`}
           style={{ flex: 1, minWidth: 0, gap: space.x1 }}
@@ -372,7 +329,7 @@ const Row = memo(function Row({
                 item.activitySource ? (item.activitySource.look ?? DEFAULT_HOST_LOOK) : undefined
               }
               sourceLabel={item.activitySource?.label}
-              glyph={false}
+              glyph={item.activitySource !== undefined}
             />
             {time === '' ? null : (
               <Text variant="meta" tone="subtle" style={{ flexShrink: 0 }}>
@@ -1181,7 +1138,6 @@ const ActivityPage = memo(function ActivityPage({
                   <Row
                     item={row.item}
                     settled={row.settled}
-                    needsYou={row.section === 'action' && !row.settled}
                     bot={
                       row.item.activitySource?.roster?.bots.find(
                         (entry) => entry.slug === row.item.botSlug,

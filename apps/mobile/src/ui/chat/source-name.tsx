@@ -71,14 +71,16 @@ export function SourceMark({
   source,
   look,
   ink,
+  size: fixed,
 }: {
   source: 'computer' | 'cloud';
   look?: HostLook | undefined;
   ink?: string | undefined;
+  size?: number;
 }) {
   const theme = useDesignTheme();
   const Icon = source === 'cloud' ? CloudIcon : ComputerIcon;
-  const size = theme.type.meta.size * Math.min(theme.fontScale, 1.2);
+  const size = fixed ?? theme.type.meta.size * Math.min(theme.fontScale, 1.2);
   return source === 'computer' && look !== undefined ? (
     <HostGlyph
       icon={look.icon}

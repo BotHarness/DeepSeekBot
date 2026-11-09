@@ -34,6 +34,7 @@ import { ConversationPeek, type ConversationPeekAction } from '../shell/conversa
 import { showActionMenu } from '../primitives/app-dialog';
 
 export const AVATAR_EDGE = chatList.gutter;
+const ENV_BADGE = 20;
 
 export function ConversationRow({
   row,
@@ -185,7 +186,13 @@ export function ConversationRowFrame({
   look,
   ref,
   mixed = sourceLabel !== undefined,
+  allStyle = 'rail',
+  inlineGlyph = false,
 }: {
+  /** Show the environment mark after the name, as Activity rows do in All. */
+  inlineGlyph?: boolean;
+  /** Prototype switch: All view mark as a tab beside the avatar, or a corner badge on it. */
+  allStyle?: 'rail' | 'corner';
   /** All view: rows from several environments, so each row carries its environment mark. */
   mixed?: boolean;
   sourceLabel?: string | undefined;
@@ -244,12 +251,57 @@ export function ConversationRowFrame({
         backgroundColor: pressed ? theme.layer.canvas.pressed : theme.layer.canvas.fill,
       })}
     >
-      {mixed ? (
+      {mixed && allStyle === 'rail' && !inlineGlyph ? (
         <AvatarRail
           avatar={avatar}
           badge={large ? undefined : badge}
           mark={(ink) => <SourceMark source={source} look={look} ink={ink} />}
         />
+      ) : allStyle === 'corner' ? (
+        <View>
+          {avatar}
+          {badge === undefined || large ? null : (
+            <View
+              style={{
+                position: 'absolute',
+                top: -space.x1,
+                right: -space.x2,
+                padding: edge.focus,
+                borderRadius: radius.round,
+                backgroundColor: theme.layer.canvas.fill,
+              }}
+            >
+              <CountBadge count={badge.count} tone={badge.tone} compact />
+            </View>
+          )}
+          {mixed ? (
+            <View
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+              style={{
+                position: 'absolute',
+                bottom: -space.x1,
+                right: -space.x2,
+                padding: edge.focus,
+                borderRadius: radius.sm,
+                backgroundColor: theme.layer.canvas.fill,
+              }}
+            >
+              <View
+                style={{
+                  width: ENV_BADGE,
+                  height: ENV_BADGE,
+                  borderRadius: radius.sm - edge.focus,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: theme.layer.canvas.inset,
+                }}
+              >
+                <SourceMark source={source} look={look} size={ENV_BADGE * 0.62} />
+              </View>
+            </View>
+          ) : null}
+        </View>
       ) : (
         <View>
           {avatar}
@@ -286,7 +338,7 @@ export function ConversationRowFrame({
             look={look}
             sourceLabel={sourceLabel}
             lines={large ? 2 : 1}
-            glyph={false}
+            glyph={inlineGlyph}
           />
           {time === '' || large ? null : (
             <Text variant="meta" tone="subtle" style={{ flexShrink: 0 }}>
