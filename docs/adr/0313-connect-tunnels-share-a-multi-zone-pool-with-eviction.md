@@ -104,6 +104,16 @@ The Host keeps these in its Connect status (`relay-full` with `recovery: automat
 
 **Comparison with cloud-gaming queues.** Cloud-gaming services face the same problem: a fixed pool of servers and more players than seats. GeForce NOW's free tier queues players, shows the place in line, gives each session a fixed length (one hour on the free tier) and then sends the player back to the queue; paid tiers skip the queue. Players commonly see an estimated wait while queued, and many services warn an idle player before disconnecting them. We take the place in line, an earliest-free estimate, a guaranteed minimum and a visible "kept until" time, which plays the role of the idle warning. We do not take a hard session cap: a Connect tunnel is a phone's route home, and cutting an active one on a timer breaks the person's work for no gain, because an actively used Host is exactly the one that should stay. We do not add paid priority tiers now; the queue and eviction order leave room for a priority field later.
 
+### 6. Request cost
+
+Every Host reads `GET /v1/hosts` once a minute, so the pool numbers are read far more often than they change. The relay keeps their cost flat:
+
+- **Pool status is cached for 30 seconds** in each Worker isolate and dropped whenever that isolate creates, clears or deletes a tunnel. The two counts and, when the pool is full, the scan for `nextFreeAt` run at most twice a minute per isolate instead of once per request.
+- **A full pool is not rescanned on every refusal.** When no tunnel qualifies for eviction, the relay remembers the earliest time one can (the same `nextFreeAt`, capped at one minute) and refuses later requests before then from the queue count alone. That time does not depend on the requester, so no Host is refused that the scan would have served.
+- **Queue and reconcile reads use partial indexes** (`hosts_waiting`, `hosts_reconcile`, migration `0007`). Place in line and the waiting count read only waiting rows. The minute reconciler reads only rows that hold a tunnel or a record, not every linked computer.
+- **Reads are rate-limited.** `GET` has its own `CONNECT_READ_LIMIT` of 60 per minute per account, beside the 20 per minute on `POST`. Requests without a valid token are refused before any D1 read.
+- `last_used_at` is written at most once a minute per Host, and only when the reported use moved.
+
 ## Consequences
 
 - Capacity is bounded by live tunnels. With five dedicated zones it reaches about 975 records, so `MAX_TUNNELS` (900) becomes the limit again, as ADR-0241 intended. Pricing is still decided near 800 concurrent Hosts.

@@ -1,3 +1,6 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import { createCloudflareApi } from '../src/cloudflare.js';
@@ -499,6 +502,90 @@ describe('eviction when the pool is full', () => {
   it('advertises every Connect zone in the public config', async () => {
     const env = await pool(undefined, { zones: [ZONE, EXTRA] });
     expect((await env.call('GET', '/v1/config')).body.zones).toEqual([ZONE, EXTRA]);
+  });
+});
+
+describe('request cost', () => {
+  const queries = (env: { db: { prepare(query: string): unknown } }) => {
+    const seen: string[] = [];
+    const prepare = env.db.prepare.bind(env.db);
+    vi.spyOn(env.db, 'prepare').mockImplementation((query: string) => {
+      seen.push(query);
+      return prepare(query) as never;
+    });
+    return (part: string) => seen.filter((query) => query.includes(part)).length;
+  };
+
+  it('skips the eviction scan until a tunnel can free up', async () => {
+    const env = await pool(undefined, { maxTunnels: 1 });
+    const a = await env.link('user_a');
+    await env.provision('user_a', a);
+    await env.online(a);
+    await env.relay.reclaim();
+    env.advance(20 * MINUTE);
+    const b = await env.link('user_b');
+    const scans = queries(env);
+    expect((await env.provision('user_b', b)).body.error.code).toBe('relay-full');
+    env.advance(MINUTE / 2);
+    expect((await env.provision('user_b', b)).body.error).toMatchObject({
+      reason: 'pool-full',
+      position: 1,
+    });
+    expect(scans('SELECT * FROM hosts WHERE tunnel_id IS NOT NULL')).toBe(1);
+    env.advance(15 * MINUTE);
+    expect((await env.provision('user_b', b)).status).toBe(200);
+    expect(scans('SELECT * FROM hosts WHERE tunnel_id IS NOT NULL')).toBe(2);
+  });
+
+  it('serves pool status from a short cache and refreshes it when a tunnel changes', async () => {
+    const env = await pool();
+    const a = await env.link('user_a');
+    const counts = queries(env);
+    await env.call('GET', '/v1/hosts', { as: 'user_a' });
+    await env.call('GET', '/v1/hosts', { as: 'user_a' });
+    expect(counts('AS waiting')).toBe(1);
+    await env.provision('user_a', a);
+    expect((await env.call('GET', '/v1/hosts', { as: 'user_a' })).body.pool.inUse).toBe(1);
+    env.advance(31 * 1000);
+    await env.call('GET', '/v1/hosts', { as: 'user_a' });
+    expect(counts('AS waiting')).toBe(3);
+  });
+
+  it('rate-limits status reads per account', async () => {
+    const env = await pool(undefined, { limitRead: async (account) => account !== 'user_b' });
+    expect((await env.call('GET', '/v1/hosts', { as: 'user_a' })).status).toBe(200);
+    expect(await env.call('GET', '/v1/hosts', { as: 'user_b' })).toEqual({
+      status: 429,
+      body: { error: { code: 'rate-limited' } },
+    });
+  });
+
+  it('answers queue and reconcile reads from their indexes', () => {
+    const sqlite = new DatabaseSync(':memory:');
+    const migrations = new URL('../migrations/', import.meta.url);
+    for (const file of readdirSync(migrations).sort())
+      sqlite.exec(readFileSync(new URL(file, migrations), 'utf8'));
+    const plan = (query: string) =>
+      sqlite
+        .prepare(`EXPLAIN QUERY PLAN ${query}`)
+        .all(...Array.from(query.matchAll(/\?/gu), () => 'x'))
+        .map((step) => String(step['detail']))
+        .join('\n');
+    expect(
+      plan(
+        'SELECT COUNT(*) FROM hosts WHERE tunnel_id IS NULL AND waiting_since IS NOT NULL AND refused_at >= ?',
+      ),
+    ).toContain('hosts_waiting');
+    expect(
+      plan(
+        'SELECT COUNT(*) AS n FROM hosts WHERE id != ? AND tunnel_id IS NULL AND waiting_since IS NOT NULL AND refused_at >= ? AND waiting_since < ?',
+      ),
+    ).toContain('hosts_waiting');
+    expect(
+      plan(
+        'SELECT hosts.* FROM hosts WHERE tunnel_id IS NOT NULL OR dns_record_id IS NOT NULL ORDER BY cleanup_at IS NOT NULL, cleanup_at, tunnel_created_at, id',
+      ),
+    ).toContain('hosts_reconcile');
   });
 });
 

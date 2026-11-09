@@ -25,6 +25,7 @@ export interface RelayOptions {
   evictFreshMs?: number;
   limit?: (account: string) => Promise<boolean>;
   limitBot?: (account: string, hostId: string) => Promise<boolean>;
+  limitRead?: (account: string) => Promise<boolean>;
   deleteUser?: (account: string) => Promise<void>;
   revokeSession?: (sessionId: string) => Promise<void>;
   emailCode?: EmailCode;
@@ -33,6 +34,15 @@ export interface RelayOptions {
   fetchHost?: typeof fetch;
   now?: () => Date;
   hostId?: () => string;
+}
+
+interface PoolStatus {
+  capacity: number;
+  inUse: number;
+  free: number;
+  waiting: number;
+  nextFreeAt?: string;
+  guaranteedMinutes: number;
 }
 
 interface HostRow {
@@ -170,6 +180,8 @@ class RelayFull extends Error {
 }
 
 const WAIT_STALE_MS = 3 * 60 * 1000;
+const POOL_CACHE_MS = 30_000;
+const NO_VICTIM_RECHECK_MS = 60_000;
 const RETRY_AFTER_SECONDS = 60;
 
 const time = (value: string | null | undefined): number => {
@@ -219,7 +231,16 @@ export function createRelay(options: RelayOptions) {
     console.warn(JSON.stringify({ event, ...fields }));
   const waitingCutoff = () => new Date(now().getTime() - WAIT_STALE_MS).toISOString();
 
-  const poolStatus = async () => {
+  let poolCache: { at: number; value: PoolStatus } | undefined;
+  const noVictimUntil = new Map<string, number>();
+  const poolChanged = () => {
+    poolCache = undefined;
+    noVictimUntil.clear();
+  };
+
+  const poolStatus = async (): Promise<PoolStatus> => {
+    const started = now().getTime();
+    if (poolCache !== undefined && started - poolCache.at < POOL_CACHE_MS) return poolCache.value;
     const counts = await db
       .prepare(
         `SELECT
@@ -231,7 +252,7 @@ export function createRelay(options: RelayOptions) {
     const capacity = Math.min(options.maxTunnels, zones.length * zoneRecords);
     const live = counts?.live ?? 0;
     const free = Math.max(0, capacity - live);
-    return {
+    const value: PoolStatus = {
       capacity,
       inUse: live,
       free,
@@ -239,6 +260,8 @@ export function createRelay(options: RelayOptions) {
       ...(free === 0 ? { nextFreeAt: await nextFreeAt() } : {}),
       guaranteedMinutes: Math.round(policy.freshMs / 60_000),
     };
+    poolCache = { at: started, value };
+    return value;
   };
 
   const timeOf = (value: string | null | undefined) => {
@@ -296,6 +319,7 @@ export function createRelay(options: RelayOptions) {
       .prepare('UPDATE hosts SET waiting_since = ?, refused_at = ? WHERE id = ?')
       .bind(fresh ? row.waiting_since : stamp, stamp, row.id)
       .run();
+    if (!fresh) poolCache = undefined;
     row.waiting_since = fresh ? row.waiting_since : stamp;
     row.refused_at = stamp;
   };
@@ -353,13 +377,15 @@ export function createRelay(options: RelayOptions) {
       .run();
   };
 
-  const clearTunnel = (id: string, tunnelId: string | null, extra = '', bound: string[] = []) =>
-    db
+  const clearTunnel = (id: string, tunnelId: string | null, extra = '', bound: string[] = []) => {
+    poolChanged();
+    return db
       .prepare(
         `UPDATE hosts SET tunnel_id = NULL, tunnel_created_at = NULL, dns_record_id = NULL, tunnel_status = NULL, tunnel_inactive_since = NULL${extra} WHERE id = ? AND tunnel_id IS ?`,
       )
       .bind(...bound, id, tunnelId)
       .run();
+  };
 
   const evict = async (victim: HostRow, tier: EvictionTier, forId: string) => {
     if (victim.tunnel_id !== null) await tunnels.deleteTunnel(victim.tunnel_id);
@@ -390,9 +416,14 @@ export function createRelay(options: RelayOptions) {
         const position = await queuePosition(current);
         if (position > free) {
           await markWaiting(current);
-          throw new RelayFull('queued', await queuePosition(current));
+          throw new RelayFull('queued', position);
         }
         return;
+      }
+      const scope = zoneFull ? zone : '';
+      if (now().getTime() < (noVictimUntil.get(scope) ?? 0)) {
+        await markWaiting(current);
+        throw new RelayFull(zoneFull ? 'zone-full' : 'pool-full', await queuePosition(current));
       }
       const { results } = await db
         .prepare(
@@ -423,6 +454,16 @@ export function createRelay(options: RelayOptions) {
         policy,
       );
       if (victim === undefined) {
+        const earliest = Math.min(
+          ...results.filter((row) => row.tunnel_id !== null).map(evictableAt),
+        );
+        noVictimUntil.set(
+          scope,
+          Math.min(
+            now().getTime() + NO_VICTIM_RECHECK_MS,
+            Number.isFinite(earliest) ? earliest : 0,
+          ),
+        );
         log('connect-full', { host: current.id, zone, tunnelsFull, zoneFull });
         await markWaiting(current);
         throw new RelayFull(zoneFull ? 'zone-full' : 'pool-full', await queuePosition(current));
@@ -470,6 +511,7 @@ export function createRelay(options: RelayOptions) {
           .bind(fresh, stamp, zone, stamp, current.id, current.tunnel_id)
           .run(),
       );
+      poolChanged();
       if (claimed === 0) await tunnels.deleteTunnel(fresh);
       const reread = await owned(current.id, current.account);
       if (reread === null) {
@@ -632,6 +674,7 @@ export function createRelay(options: RelayOptions) {
     if (row.dns_record_id !== null) await tunnels.deleteRecord(zoneOf(row), row.dns_record_id);
     await db.prepare('DELETE FROM live_activities WHERE host_id = ?').bind(row.id).run();
     await db.prepare('DELETE FROM hosts WHERE id = ?').bind(row.id).run();
+    poolChanged();
   };
 
   const deleteAccount = async (account: string, accessToken: string) => {
@@ -729,6 +772,12 @@ export function createRelay(options: RelayOptions) {
     const identity = token === undefined ? undefined : await options.verifier.verify(token);
     if (identity === undefined) return failure(401, 'unauthorized');
     const { account, sessionId } = identity;
+    if (
+      request.method === 'GET' &&
+      options.limitRead !== undefined &&
+      !(await options.limitRead(account))
+    )
+      return failure(429, 'rate-limited');
     if (
       sessionId !== undefined &&
       (await db
@@ -979,7 +1028,8 @@ export function createRelay(options: RelayOptions) {
     const { results: rows } = await db
       .prepare(
         `SELECT hosts.*, EXISTS (SELECT 1 FROM deleted_accounts WHERE deleted_accounts.account = hosts.account) AS account_deleted
-          FROM hosts ORDER BY cleanup_at IS NOT NULL, cleanup_at, tunnel_created_at, id`,
+          FROM hosts WHERE tunnel_id IS NOT NULL OR dns_record_id IS NOT NULL
+          ORDER BY cleanup_at IS NOT NULL, cleanup_at, tunnel_created_at, id`,
       )
       .all<HostRow & { account_deleted: number }>();
     const listed = await tunnels.listTunnels();
@@ -1211,6 +1261,7 @@ export function createRelay(options: RelayOptions) {
         tunnels: listed.states.size,
         listComplete: listed.complete,
       });
+    poolChanged();
     return report;
   };
 

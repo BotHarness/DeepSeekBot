@@ -20,6 +20,11 @@
   // Bot identity/grant requests use a separate account + owned Host key in the same limiter.
   "ratelimits": [
     { "name": "CONNECT_LIMIT", "namespace_id": "2387", "simple": { "limit": 20, "period": 60 } },
+    {
+      "name": "CONNECT_READ_LIMIT",
+      "namespace_id": "2388",
+      "simple": { "limit": 60, "period": 60 },
+    },
   ],
   // Deleting a Connect account also deletes its Uploaded Bots in the Bot Marketplace (ADR-0267)
   "services": [{ "binding": "MARKET", "service": "botharness-market" }],

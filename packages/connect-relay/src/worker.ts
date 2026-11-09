@@ -27,6 +27,7 @@ export interface ConnectRelayEnv {
   MAX_HOSTS?: string;
   MAX_TUNNELS?: string;
   CONNECT_LIMIT?: { limit(options: { key: string }): Promise<{ success: boolean }> };
+  CONNECT_READ_LIMIT?: { limit(options: { key: string }): Promise<{ success: boolean }> };
   RECLAIM_AFTER_MINUTES?: string;
   CONNECT_HOST_KEY?: string;
   WORKOS_API_KEY?: string;
@@ -88,6 +89,7 @@ export function relayForEnv(env: ConnectRelayEnv): ReturnType<typeof createRelay
   ];
   const hostSecret = env.CONNECT_HOST_KEY;
   const limiter = env.CONNECT_LIMIT;
+  const readLimiter = env.CONNECT_READ_LIMIT;
   const apiKey = env.WORKOS_API_KEY;
   const relay = createRelay({
     db: env.CONNECT_DB,
@@ -126,6 +128,11 @@ export function relayForEnv(env: ConnectRelayEnv): ReturnType<typeof createRelay
           limitBot: async (account: string, hostId: string) =>
             (await limiter.limit({ key: JSON.stringify(['bot-network', account, hostId]) }))
               .success,
+        }),
+    ...(readLimiter === undefined
+      ? {}
+      : {
+          limitRead: async (account: string) => (await readLimiter.limit({ key: account })).success,
         }),
     ...(apiKey
       ? { deleteUser: workosUserDeleter(apiKey), revokeSession: workosSessionRevoker(apiKey) }
