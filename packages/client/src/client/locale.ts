@@ -4967,6 +4967,11 @@ export const zh = {
   'release.panel.current': '已是最新版本',
   'release.panel.available': '有新版本',
   'release.panel.restart': '需要重启',
+  'backup.panel.steps': '备份步骤',
+  'backup.panel.stepPrepare': '准备',
+  'backup.panel.stepDownload': '下载',
+  'backup.panel.stepDone': '完成',
+  'backup.panel.failedTitle': '没能完成',
 } as const satisfies Record<string, string>;
 
 export type BotHarnessKey = keyof typeof zh;
@@ -10263,6 +10268,11 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'release.panel.current': 'Up to date',
   'release.panel.available': 'Update available',
   'release.panel.restart': 'Restart needed',
+  'backup.panel.steps': 'Backup steps',
+  'backup.panel.stepPrepare': 'Prepare',
+  'backup.panel.stepDownload': 'Download',
+  'backup.panel.stepDone': 'Done',
+  'backup.panel.failedTitle': 'Could not finish',
 } satisfies Record<BotHarnessKey, string>;
 
 export type BotHarnessTranslate = TranslateNS<typeof LOCALE_NS>;
