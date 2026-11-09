@@ -51,6 +51,19 @@ The thresholds sit in the middle of the passing ranges (camera 0.1–0.16, scree
 
 **One command.** `node scripts/call-keyframe-eval.mjs` generates the cases and judges the picker with the shipped defaults; `--compare` adds the sweep above; `--bot <id>` runs each case through `deepseekbot call-simulate --screen/--video` on an isolated Host and reports keyframes, uplink bytes, grid layouts and compose time, the time from the grid to the first reply audio, `call_frame` zooms, dropped keyframes and the judged answer, and saves every grid. `--stub-voice` binds a local stand-in ASR and TTS endpoint so the run needs only the model credential. Scene evaluation uses the newest DeepSeek model, `opencode-go/deepseek-v4.1-flash`, which accepts images.
 
+**Live result.** On 2026-11-09 all six cases passed live on an isolated Host with `opencode-go/deepseek-v4.1-flash` and the stand-in voice endpoint, with the new defaults:
+
+| Case    | Keyframes | Uplink | Grid (layout) | Compose | Grid to first audio | `call_frame` zooms | Answer judged                                                      |
+| ------- | --------- | ------ | ------------- | ------- | ------------------- | ------------------ | ------------------------------------------------------------------ |
+| reading | 3         | 303 KB | 3             | 21 ms   | 11.8 s              | 1                  | title, the three headings of page 2 and the typed line             |
+| scroll  | 6         | 686 KB | 3+3           | 32 ms   | 12.6 s              | 1                  | `portalSecret = "VIOLET-42"` on line 137, read by zooming          |
+| windows | 5         | 148 KB | 3+2           | 33 ms   | 6.1 s               | 0                  | the five windows in order                                          |
+| movie   | 5         | 182 KB | 3+2           | 33 ms   | 7.5 s               | 0                  | the five shots of the plot in order                                |
+| camera  | 5         | 301 KB | 3+2           | 19 ms   | 6.8 s               | 0                  | apple, MOBY DICK, V sign, open palm in order                       |
+| silence | 7         | 337 KB | 3+2+2         | 34 ms   | 14.0 s              | 0                  | both cards in order, and that the Human left the frame for a while |
+
+A second run the same day also passed all six with the same keyframes and grids, 5.3–6.2 s from grid to first audio and no zoom (the model read line 137 from the 3+3 grid directly). Wording slips the keyword judge does not catch remain: both runs named `main.rs` as `main.js` and placed the Human's absence at about 3:30 instead of 1:30. Grid to first audio is the model's time to look and answer (with the stand-in TTS adding nothing); a zoom adds one model step, which is why the reading and scroll answers take longest. No keyframe was dropped and no grid failed.
+
 ## Consequences
 
 Screens send fewer frames while video plays and catch small edits they used to miss; the camera ignores the noise and exposure drift that the old threshold sat close to, and catches objects held up and the Human leaving the frame. Hashing adds a 32×32 shrink and a partial DCT per sample: on Node a screen sample takes 0.09 ms instead of 0.05 ms and a camera sample 0.05 ms instead of 0.01 ms, at 2 samples per second. Reported `score` values are now Hamming fractions (or the block difference for a detail keyframe), not mean pixel differences. The generated cases are clean drawings; real camera footage, dark rooms and very small fonts still need device QA, and the eval accepts a recorded video folder in place of a generated one only through `call-simulate` directly. Selecting frames by what the Human says (ASR relevance) stays out of scope, as decided on 2026-11-04.

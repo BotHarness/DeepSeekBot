@@ -29,7 +29,8 @@ Options:
                        DEEPSEEKBOT_HOST_TOKEN in the environment take precedence.
   --stub-voice         Live: start a local stand-in ASR/TTS endpoint and bind it to the Bot, for
                        an isolated Host without real voice Providers. Questions are typed, so
-                       recognition is never needed, and replies play as silence of speech length.
+                       recognition is never needed, and replies play as silence of speech length;
+                       the stand-in Providers are removed when the run ends.
   --reply-wait <s>     Seconds to wait for each answer (default 150).
   --out <dir>          Report folder (default .humanlayer/call-keyframe-eval/<time>/): fixtures,
                        report.json, report.md and every grid image the Host composed.
@@ -853,7 +854,10 @@ async function liveCase(spec, samples, folder, out, run, host, bot, replyWait) {
     }
   const answer = judgeAnswer(spec.answer, answerText);
   const reasons = [...answer.reasons];
-  if (!report.answered) reasons.push('no spoken answer');
+  if (!report.answered) {
+    const failed = events.find((event) => event.type === 'playback-failed');
+    reasons.push(failed === undefined ? 'no spoken answer' : `no spoken answer (${failed.code})`);
+  }
   if ((visual.harvest?.dropped ?? 0) > 0)
     reasons.push(`${visual.harvest.dropped} keyframes dropped`);
   if ((visual.failed ?? []).length > 0) reasons.push(`grid failed: ${visual.failed.join('; ')}`);
@@ -1032,9 +1036,10 @@ async function main() {
     const run = cli(env);
     const host = { origin: env.DEEPSEEKBOT_HOST, token: env.DEEPSEEKBOT_HOST_TOKEN, cookie: '' };
     let stub;
+    let stubProviders = [];
     if (values['stub-voice']) {
       stub = await stubVoice();
-      await bindStub(run, values.bot, stub.baseUrl);
+      stubProviders = await bindStub(run, values.bot, stub.baseUrl);
     }
     try {
       for (const entry of report.cases) {
@@ -1056,6 +1061,8 @@ async function main() {
         );
       }
     } finally {
+      for (const provider of stubProviders)
+        await run(['voice-provider-remove', provider]).catch(() => undefined);
       stub?.server.close();
     }
   }

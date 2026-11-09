@@ -173,7 +173,7 @@ node scripts/dev-model.mjs setup --from-env --model deepseek-v4.1-flash   # once
 node scripts/call-keyframe-eval.mjs --bot <bot-id> --stub-voice      # all six live, about 15 minutes
 ```
 
-`--stub-voice` binds a local stand-in ASR and TTS endpoint to the Bot, so an isolated Host needs only the model credential; questions are typed into the call and replies play as silence of speech length. Leave it out on a Host whose Bot already has real voice Providers. The live run uses the Host's model, which must be the newest DeepSeek model (`opencode-go/deepseek-v4.1-flash`).
+`--stub-voice` binds a local stand-in ASR and TTS endpoint to the Bot, so an isolated Host needs only the model credential; questions are typed into the call and replies play as silence of speech length. The stand-in Providers are removed again when the run ends, which unbinds them from the Bot. Leave it out on a Host whose Bot already has real voice Providers. The live run uses the Host's model, which must be the newest DeepSeek model (`opencode-go/deepseek-v4.1-flash`).
 
 ## Generated assets and pages
 
