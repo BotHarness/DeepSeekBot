@@ -1323,7 +1323,9 @@ const en = {
   composerInputHint: 'Tap to type, hold to dictate',
   dictateHint: 'Tap to dictate, or hold to talk.',
   dictationDenied: `${productName.en} cannot use the microphone or speech recognition. Allow both in the phone settings to dictate.`,
-  dictationUnavailable: 'Speech recognition is not available on this phone right now.',
+  dictationProblem: 'Can’t dictate',
+  dictationUnavailable:
+    'This phone has no speech recognition right now, and the Host has no speech-to-text Provider. Add one on the computer (Settings › Voice) to dictate.',
   dictationFailed: 'Dictation stopped before it finished. Tap the mic to try again.',
   attachFailed: 'That could not be opened. Check the app’s access in Settings.',
   sent: 'Sent',
@@ -3678,7 +3680,9 @@ const zh: typeof en = {
   composerInputHint: '点击输入消息，长按语音输入',
   dictateHint: `${tapVerb.zh}语音输入，或按住说话。`,
   dictationDenied: `${productName.zh} 无法使用麦克风或语音识别。请在手机设置里允许这两项后再语音输入。`,
-  dictationUnavailable: '这台手机现在无法使用语音识别。',
+  dictationProblem: '无法语音输入',
+  dictationUnavailable:
+    '这台手机现在无法使用语音识别，Host 也还没有语音转文字 Provider。请在电脑上添加一个（设置 › 语音）后再语音输入。',
   dictationFailed: '语音输入中途停止了。点麦克风重试。',
   attachFailed: '打不开，请在系统设置里检查 App 的权限。',
   sent: '已送达',

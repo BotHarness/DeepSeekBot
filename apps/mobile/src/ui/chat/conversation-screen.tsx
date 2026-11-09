@@ -84,6 +84,7 @@ import {
   type RequestRef,
 } from '../../host/requests';
 import { useDictation } from '../../host/speech';
+import { showDictationProblem } from './dictation-problem';
 import { botColor } from '../bot-color';
 import { ApprovalCard } from './approval-card';
 import { GrantRequestCard } from './grant-request-card';
@@ -514,13 +515,16 @@ function ChatConversation({
   }>();
   const [files, setFiles] = useState<PickedFile[]>([]);
   const [attachError, setAttachError] = useState(false);
-  const dictation = useDictation((text, nextCaret) => {
-    setDraft(text);
-    if (nextCaret !== undefined) {
-      setCaret(nextCaret);
-      setSelection({ start: nextCaret, end: nextCaret });
-    }
-  });
+  const dictation = useDictation(
+    (text, nextCaret) => {
+      setDraft(text);
+      if (nextCaret !== undefined) {
+        setCaret(nextCaret);
+        setSelection({ start: nextCaret, end: nextCaret });
+      }
+    },
+    { client, slug, onProblem: showDictationProblem },
+  );
   const [shareError, setShareError] = useState(false);
   const [viewing, setViewing] = useState<MessageAttachment>();
   const [actionsFor, setActionsFor] = useState<MessageMenuTarget>();
@@ -1499,22 +1503,14 @@ function ChatConversation({
                   ? t.shareFailed
                   : reactError
                     ? t.reactFailed
-                    : dictation.state.status === 'denied'
-                      ? t.dictationDenied
-                      : dictation.state.status === 'unavailable'
-                        ? t.dictationUnavailable
-                        : dictation.state.status === 'failed'
-                          ? t.dictationFailed
-                          : focus !== undefined &&
-                              !latestWindowOnly &&
-                              snapshot.status === 'live' &&
-                              !snapshot.hasOlder &&
-                              !snapshot.loadingOlder &&
-                              !rows.some(
-                                (row) => row.kind === 'message' && row.message.id === focus,
-                              )
-                            ? t.messageFocusUnavailable
-                            : undefined;
+                    : focus !== undefined &&
+                        !latestWindowOnly &&
+                        snapshot.status === 'live' &&
+                        !snapshot.hasOlder &&
+                        !snapshot.loadingOlder &&
+                        !rows.some((row) => row.kind === 'message' && row.message.id === focus)
+                      ? t.messageFocusUnavailable
+                      : undefined;
 
   const noticeView =
     notice === undefined ? null : (
