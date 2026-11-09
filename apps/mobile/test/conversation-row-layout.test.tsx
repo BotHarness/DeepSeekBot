@@ -90,7 +90,15 @@ const preview = '42 — the complete preview remains available when the visible 
 const label = `${title}, ${preview}`;
 const onPress = vi.fn();
 
-function Fixture({ time = '12:39', menu = false }: { time?: string; menu?: boolean }) {
+function Fixture({
+  time = '12:39',
+  menu = false,
+  sourceLabel,
+}: {
+  time?: string;
+  menu?: boolean;
+  sourceLabel?: string | undefined;
+}) {
   const theme = useDesignTheme();
   return (
     <View style={{ width: 320, flexDirection: 'row' }}>
@@ -98,7 +106,7 @@ function Fixture({ time = '12:39', menu = false }: { time?: string; menu?: boole
         <ConversationRowFrame
           title={title}
           source="computer"
-          sourceLabel="Research"
+          sourceLabel={sourceLabel}
           label={label}
           preview={preview}
           time={time}
@@ -114,13 +122,15 @@ function Fixture({ time = '12:39', menu = false }: { time?: string; menu?: boole
   );
 }
 
-function render(time = '12:39', menu = false) {
+function render(time = '12:39', menu = false, all = true) {
   if (!root) {
     host = document.createElement('div');
     document.body.append(host);
     root = createRoot(host);
   }
-  act(() => root!.render(<Fixture time={time} menu={menu} />));
+  act(() =>
+    root!.render(<Fixture time={time} menu={menu} sourceLabel={all ? 'Research' : undefined} />),
+  );
   const text = (value: string) =>
     [...host!.querySelectorAll('span')].find((el) => el.textContent === value)!;
   return { view: host!, name: text(title), preview: text(preview), time: text(time) };
@@ -143,7 +153,7 @@ describe.each(['android', 'ios'])('Chats row layout contract on %s', (os) => {
       expect(style(content)).toMatchObject({ flex: 1, minWidth: 0 });
       expect(style(source)).toMatchObject({ flex: 1, minWidth: 0 });
       expect(style(row.name)).toMatchObject({ flex: 1, minWidth: 0 });
-      expect(style(source.children[1]!)).toMatchObject({ flexShrink: 0 });
+      expect(source.children).toHaveLength(1);
       expect(source.getAttribute('aria-label')).toContain(title);
       expect(row.name.dataset.ellipsis).toBe('tail');
       expect(row.time.parentElement).toBe(header);
@@ -213,12 +223,24 @@ describe.each(['android', 'ios'])('Chats row layout contract on %s', (os) => {
   );
 });
 
-it('reserves visible heading space for the name and icon while retaining accessible source context', () => {
+it('moves the environment mark from the name to the avatar corner in the All view', () => {
   const row = render();
   const source = row.name.parentElement!;
   expect(source.getAttribute('aria-label')).toContain('Research');
-  expect(source.querySelector('i')).not.toBeNull();
+  expect(source.querySelector('i')).toBeNull();
   expect(row.view.textContent).not.toContain('Research');
+  const avatar = row.view.querySelector('button')!.children[0]!;
+  const mark = avatar.querySelector('i:not([data-status])');
+  expect(mark).not.toBeNull();
+  expect(style(mark!.parentElement!.parentElement!)).toMatchObject({
+    position: 'absolute',
+    bottom: -2,
+  });
+});
+
+it('shows no environment mark when one environment is selected', () => {
+  const row = render('12:39', false, false);
+  expect(row.view.querySelector('i:not([data-status])')).toBeNull();
 });
 
 describe.each(['android', 'ios'])('Empty conversation time on %s', (os) => {

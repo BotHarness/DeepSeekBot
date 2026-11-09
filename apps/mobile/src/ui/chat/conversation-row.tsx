@@ -1,12 +1,18 @@
 import type { ReactNode, Ref } from 'react';
 import type { Href } from 'expo-router';
 import { SourceMark, SourceName } from './source-name';
-import { AvatarRail } from './avatar-rail';
 import { Platform, Pressable, View, type ViewInstance } from 'react-native';
 
 import { BotAvatar } from '../bot-avatar';
 import type { HostLook } from '../design/host-look';
-import { chatList, conversationType, edge, radius, space } from '../design/tokens';
+import {
+  chatList,
+  conversationType,
+  edge,
+  environmentBadge,
+  radius,
+  space,
+} from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { CountBadge } from '../primitives/count-badge';
 import { Text } from '../primitives/text';
@@ -34,7 +40,6 @@ import { ConversationPeek, type ConversationPeekAction } from '../shell/conversa
 import { showActionMenu } from '../primitives/app-dialog';
 
 export const AVATAR_EDGE = chatList.gutter;
-const ENV_BADGE = 20;
 
 export function ConversationRow({
   row,
@@ -186,13 +191,7 @@ export function ConversationRowFrame({
   look,
   ref,
   mixed = sourceLabel !== undefined,
-  allStyle = 'rail',
-  inlineGlyph = false,
 }: {
-  /** Show the environment mark after the name, as Activity rows do in All. */
-  inlineGlyph?: boolean;
-  /** Prototype switch: All view mark as a tab beside the avatar, or a corner badge on it. */
-  allStyle?: 'rail' | 'corner';
   /** All view: rows from several environments, so each row carries its environment mark. */
   mixed?: boolean;
   sourceLabel?: string | undefined;
@@ -251,76 +250,54 @@ export function ConversationRowFrame({
         backgroundColor: pressed ? theme.layer.canvas.pressed : theme.layer.canvas.fill,
       })}
     >
-      {mixed && allStyle === 'rail' && !inlineGlyph ? (
-        <AvatarRail
-          avatar={avatar}
-          badge={large ? undefined : badge}
-          mark={(ink) => <SourceMark source={source} look={look} ink={ink} />}
-        />
-      ) : allStyle === 'corner' ? (
-        <View>
-          {avatar}
-          {badge === undefined || large ? null : (
+      <View>
+        {avatar}
+        {badge === undefined || large ? null : (
+          <View
+            style={{
+              position: 'absolute',
+              top: -space.x1,
+              right: -space.x2,
+              padding: edge.focus,
+              borderRadius: radius.round,
+              backgroundColor: theme.layer.canvas.fill,
+            }}
+          >
+            <CountBadge count={badge.count} tone={badge.tone} compact />
+          </View>
+        )}
+        {mixed ? (
+          <View
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            style={{
+              position: 'absolute',
+              bottom: -space.x1,
+              right: -space.x2,
+              padding: edge.focus,
+              borderRadius: radius.sm,
+              backgroundColor: theme.layer.canvas.fill,
+            }}
+          >
             <View
               style={{
-                position: 'absolute',
-                top: -space.x1,
-                right: -space.x2,
-                padding: edge.focus,
-                borderRadius: radius.round,
-                backgroundColor: theme.layer.canvas.fill,
+                width: environmentBadge.size,
+                height: environmentBadge.size,
+                borderRadius: radius.sm - edge.focus,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: theme.layer.canvas.inset,
               }}
             >
-              <CountBadge count={badge.count} tone={badge.tone} compact />
+              <SourceMark
+                source={source}
+                look={look}
+                size={environmentBadge.size * environmentBadge.glyphRatio}
+              />
             </View>
-          )}
-          {mixed ? (
-            <View
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
-              style={{
-                position: 'absolute',
-                bottom: -space.x1,
-                right: -space.x2,
-                padding: edge.focus,
-                borderRadius: radius.sm,
-                backgroundColor: theme.layer.canvas.fill,
-              }}
-            >
-              <View
-                style={{
-                  width: ENV_BADGE,
-                  height: ENV_BADGE,
-                  borderRadius: radius.sm - edge.focus,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: theme.layer.canvas.inset,
-                }}
-              >
-                <SourceMark source={source} look={look} size={ENV_BADGE * 0.62} />
-              </View>
-            </View>
-          ) : null}
-        </View>
-      ) : (
-        <View>
-          {avatar}
-          {badge === undefined || large ? null : (
-            <View
-              style={{
-                position: 'absolute',
-                top: -space.x2,
-                right: -space.x3,
-                padding: edge.focus,
-                borderRadius: radius.sm + edge.focus,
-                backgroundColor: theme.layer.canvas.fill,
-              }}
-            >
-              <CountBadge count={badge.count} tone={badge.tone} />
-            </View>
-          )}
-        </View>
-      )}
+          </View>
+        ) : null}
+      </View>
       <View
         key={`${theme.scheme}:${theme.fontScale}:${title}`}
         style={{ flex: 1, minWidth: 0, gap: space.x1 }}
@@ -338,7 +315,7 @@ export function ConversationRowFrame({
             look={look}
             sourceLabel={sourceLabel}
             lines={large ? 2 : 1}
-            glyph={inlineGlyph}
+            glyph={false}
           />
           {time === '' || large ? null : (
             <Text variant="meta" tone="subtle" style={{ flexShrink: 0 }}>
@@ -348,12 +325,7 @@ export function ConversationRowFrame({
         </View>
         {large && (time !== '' || badge !== undefined) ? (
           <View
-            style={{
-              flexDirection: 'row',
-              flexWrap: 'wrap',
-              alignItems: 'center',
-              gap: space.x3,
-            }}
+            style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.x3 }}
           >
             {badge === undefined ? null : <CountBadge count={badge.count} tone={badge.tone} />}
             {time === '' ? null : (
