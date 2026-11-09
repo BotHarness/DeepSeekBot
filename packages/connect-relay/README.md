@@ -138,7 +138,8 @@ sign-in. Obtain that environment's client ID.
 
 Prepare the machine-local file `~/.config/deepseekbot-connect/cloudflare.env` with
 `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_ZONE_ID`. The token needs
-Cloudflare Tunnel Edit on the target account and DNS Edit on `deepseekbot.dev`.
+Cloudflare Tunnel Edit on the target account and DNS Edit on `deepseekbot.dev` and on every
+zone listed in `CONNECT_ZONES`.
 Keep this file private and outside the repository. Supply `WORKOS_CLIENT_ID` through the
 environment, then run:
 

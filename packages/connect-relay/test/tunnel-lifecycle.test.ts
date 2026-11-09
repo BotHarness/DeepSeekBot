@@ -688,6 +688,24 @@ describe('eviction scoring', () => {
     expect(parseZones(`${EXTRA}=${'A'.repeat(32)}`)).toEqual([{ name: EXTRA, id: 'a'.repeat(32) }]);
   });
 
+  it('moves a Host that never got a record to another zone after a quota error', async () => {
+    const env = await pool(['user_a'], {
+      zones: [ZONE, EXTRA],
+      zoneRecords: 2,
+      zoneLimits: { [EXTRA]: 5 },
+    });
+    env.tunnels.recordQuota.set(EXTRA, 0);
+    const a = await env.link('user_a');
+    expect(await env.provision('user_a', a, { zones: [ZONE, EXTRA] })).toMatchObject({
+      status: 503,
+      body: { error: { code: 'relay-full', reason: 'zone-full' } },
+    });
+    expect(await env.row(a)).toMatchObject({ zone: null, tunnel_id: null });
+    expect((await env.provision('user_a', a, { zones: [ZONE, EXTRA] })).body.hostname).toBe(
+      `${a}.${ZONE}`,
+    );
+  });
+
   it('counts a zone at its own limit in the pool and when it fills', async () => {
     const env = await pool(['user_a', 'user_b', 'user_c'], {
       zones: [ZONE, EXTRA],

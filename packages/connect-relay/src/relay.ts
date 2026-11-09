@@ -221,6 +221,7 @@ export function createRelay(options: RelayOptions) {
   const zones = [defaultZone, ...(options.zones ?? []).filter((zone) => zone !== defaultZone)];
   const zoneRecords = options.zoneRecords ?? 195;
   const limitOf = (zone: string) => options.zoneLimits?.[zone] ?? zoneRecords;
+  const quotaUntil = new Map<string, number>();
   const budgetPerRun = options.reclaimBudget ?? 30;
   const TUNNEL_PREFIX = options.tunnelPrefix ?? 'dsb-';
   const policy = {
@@ -482,8 +483,13 @@ export function createRelay(options: RelayOptions) {
 
   const chooseZone = async (current: HostRow, accepted: ReadonlySet<string>) => {
     if (current.zone !== null) return current.zone;
-    const usable = zones.filter((zone) => zone === defaultZone || accepted.has(zone));
-    if (usable.length === 1) return defaultZone;
+    const clock = now().getTime();
+    const usable = zones.filter(
+      (zone) =>
+        (zone === defaultZone || accepted.has(zone)) && (quotaUntil.get(zone) ?? 0) <= clock,
+    );
+    if (usable.length === 0) return defaultZone;
+    if (usable.length === 1) return usable[0] as string;
     const { results } = await db
       .prepare(
         'SELECT COALESCE(zone, ?) AS zone, COUNT(*) AS n FROM hosts WHERE tunnel_id IS NOT NULL OR dns_record_id IS NOT NULL GROUP BY COALESCE(zone, ?)',
@@ -546,6 +552,12 @@ export function createRelay(options: RelayOptions) {
       }
       if (error instanceof RecordQuotaError) {
         log('connect-zone-quota', { host: current.id, zone: zoneOf(current) });
+        quotaUntil.set(zoneOf(current), now().getTime() + 10 * 60 * 1000);
+        if (current.dns_record_id === null)
+          await db
+            .prepare('UPDATE hosts SET zone = NULL WHERE id = ? AND dns_record_id IS NULL')
+            .bind(current.id)
+            .run();
         await markWaiting(current);
         throw new RelayFull('zone-full', await queuePosition(current));
       }
