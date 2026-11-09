@@ -27,6 +27,7 @@ const related = (glob, why, docsSite = false) => ({ glob, tests: 'related', docs
 const none = (glob, why, docsSite = false) => ({ glob, tests: 'none', docsSite, why });
 
 export const RULES = [
+  full('deploy/private-relay/**', 'Private Docker relay runtime, deployment and admission tests'),
   full('package.json', 'Workspace manifest'),
   full('*/*/package.json', 'Package manifests'),
   full('pnpm-lock.yaml', 'Lockfile'),

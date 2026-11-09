@@ -47,6 +47,15 @@ export default function PairChoiceScreen() {
     >
       <SettingsSection on={SHEET_GROUP} footer={t.pairChoice.needs}>
         <SettingsRow
+          testID="pair-choice-private"
+          on={SHEET_GROUP}
+          title={t.pairChoice.private}
+          detail={t.pairChoice.privateDetail}
+          icon="lan"
+          disclosure
+          onPress={() => router.push({ pathname: '/pair/tailscale', params: { mode: 'private' } })}
+        />
+        <SettingsRow
           testID="pair-choice-lan"
           on={SHEET_GROUP}
           title={t.pairChoice.lan}

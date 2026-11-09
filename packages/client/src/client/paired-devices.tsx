@@ -1,3 +1,9 @@
+import { PrivateRelaySettings } from './private-relay-settings.js';
+import {
+  PrivateTunnelSettings,
+  type PrivateTunnelStep,
+  type PrivateTunnelView,
+} from './private-tunnel-settings.js';
 import { noiseFingerprint } from '../../../core/src/devices/noise/xk.js';
 import { keyBytes } from '../../../../apps/mobile/src/host/encrypted-carrier.js';
 import { checkRoute, isConnectRoute, isLanRoute } from '../../../../apps/mobile/src/host/route.js';
@@ -61,6 +67,8 @@ interface ConnectStatus {
 }
 
 interface DevicesSnapshot {
+  privateRelay?: { state: string; origin?: string; issue?: string };
+  privateTunnel?: PrivateTunnelView;
   lanBots?: LanBotSnapshot;
   lan?: { state: 'off' | 'listening' | 'error'; issue?: string };
   host: { id: string; name: string };
@@ -201,8 +209,18 @@ export function PairedDevicesSettings({
   const [copied, setCopied] = useState(false);
   const [showTailscale, setShowTailscale] = useState(false);
   const [manage, setManage] = useState(false);
-  type Setup = 'closed' | 'direction' | 'method' | 'lan' | 'tailscale' | 'connect' | 'remote';
+  type Setup =
+    | 'private'
+    | 'privateRelay'
+    | 'closed'
+    | 'direction'
+    | 'method'
+    | 'lan'
+    | 'tailscale'
+    | 'connect'
+    | 'remote';
   const [setup, setSetupState] = useState<Setup>('closed');
+  const [tunnelStep, setTunnelStep] = useState<PrivateTunnelStep>('choose');
   const setupVersion = useRef(0);
   const setSetup = (next: Setup) => {
     setupVersion.current += 1;
@@ -744,6 +762,16 @@ export function PairedDevicesSettings({
             ) : setup === 'method' ? (
               <>
                 <ConnectionMethod
+                  title={t('privateTunnel.title')}
+                  description={t('privateTunnel.description')}
+                  detail={t('privateTunnel.intro')}
+                  disabled={!freshSnapshot}
+                  onClick={() => {
+                    setTunnelStep('choose');
+                    setSetup('private');
+                  }}
+                />
+                <ConnectionMethod
                   title={t('connections.lan')}
                   description={t('connections.lanDescription')}
                   detail={t('connections.lanDetail')}
@@ -780,6 +808,29 @@ export function PairedDevicesSettings({
                   }}
                 />
               </>
+            ) : setup === 'private' && (snapshot?.privateRelay?.state ?? 'off') === 'off' ? (
+              <PrivateTunnelSettings
+                t={t}
+                {...(snapshot?.privateTunnel ? { status: snapshot.privateTunnel } : {})}
+                refresh={load}
+                pair={() => {
+                  setSetup('closed');
+                  open();
+                }}
+                advanced={() => setSetup('privateRelay')}
+                step={tunnelStep}
+                setStep={setTunnelStep}
+              />
+            ) : setup === 'private' || setup === 'privateRelay' ? (
+              <PrivateRelaySettings
+                t={t}
+                {...(snapshot?.privateRelay ? { status: snapshot.privateRelay } : {})}
+                refresh={load}
+                pair={() => {
+                  setSetup('closed');
+                  open();
+                }}
+              />
             ) : setup === 'lan' ? (
               <>
                 <Note>{t('devices.lan.notice')}</Note>
@@ -838,7 +889,11 @@ export function PairedDevicesSettings({
             {setup !== 'direction' ? (
               <Button
                 variant="outline"
-                onClick={() => setSetup(setup === 'method' ? 'direction' : 'method')}
+                onClick={() =>
+                  setup === 'private' && tunnelStep !== 'choose'
+                    ? setTunnelStep('choose')
+                    : setSetup(setup === 'method' ? 'direction' : 'method')
+                }
               >
                 {t('connections.back')}
               </Button>

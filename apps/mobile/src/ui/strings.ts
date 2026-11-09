@@ -1076,6 +1076,17 @@ const en = {
     step: (index: number, total: number) => `step ${index} of ${total}`,
   },
   pairChoice: {
+    private: 'Private connection',
+    privateDetail: 'Recommended. No account or Docker needed.',
+    privateHint:
+      'Turn on Private connection on your computer first. It publishes only the encrypted phone channel, and you approve this phone there.',
+    privatePath: [
+      'Settings',
+      'Connections',
+      'Add connection',
+      'Connect a device to this Host',
+      'Private connection (recommended)',
+    ],
     needs: `Your computer needs DeepSeek Harness (DSH) and the ${productName.en} plugin.`,
     account: `Sign in with a ${productName.en} account`,
     accountDetail: 'Pick a computer on your account.',
@@ -1128,6 +1139,8 @@ const en = {
     cancelled: 'Pairing was cancelled.',
     unknown: 'Could not pair. Show a new code and try again.',
     unreachable: `Cannot reach your computer. Check that it is awake with ${productName.en} open, and that this phone is on the same Wi-Fi or tailnet, then retry.`,
+    'certificate-untrusted':
+      'This phone does not trust the certificate of your computer’s address. Ask your IT admin to install the company certificate through device management, or connect on the same Wi-Fi instead, then retry.',
     'sign-in-cancelled': 'Sign-in was cancelled.',
     'sign-in-failed': 'Could not sign in. Try again.',
     'sign-in-required': 'Your sign-in has expired. Sign in again.',
@@ -3442,6 +3455,10 @@ const zh: typeof en = {
     step: (index: number, total: number) => `第 ${index} 步，共 ${total} 步`,
   },
   pairChoice: {
+    private: '私有连接',
+    privateDetail: '推荐。不需要账号或 Docker。',
+    privateHint: '先在电脑上开启私有连接。它只公开加密的手机通道，并需要你在电脑上批准这台手机。',
+    privatePath: ['设置', '连接', '添加连接', '让设备连接本机', '私有连接（推荐）'],
     needs: `电脑上需要安装 DSH（DeepSeek Harness）和 ${productName.zh} 插件。`,
     account: `登录 ${productName.zh} 账号`,
     accountDetail: '选择账号下的电脑。',
@@ -3480,6 +3497,8 @@ const zh: typeof en = {
     cancelled: '已取消配对。',
     unknown: '无法配对，换一个二维码后重试。',
     unreachable: `连不上你的电脑。请确认电脑未休眠且已打开 ${productName.zh}，手机与电脑在同一 Wi-Fi 或 tailnet 中，然后重试。`,
+    'certificate-untrusted':
+      '这台手机不信任电脑地址的证书。请让 IT 管理员通过设备管理安装公司证书，或改用同一 Wi-Fi 连接，然后重试。',
     'sign-in-cancelled': '已取消登录。',
     'sign-in-failed': '登录失败，再试一次。',
     'sign-in-required': '登录已过期，重新登录。',

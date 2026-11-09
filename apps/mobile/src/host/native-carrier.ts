@@ -1,7 +1,9 @@
+import { requireOptionalNativeModule } from 'expo';
 import { getRandomBytes } from 'expo-crypto';
 import type { HostCarrier } from './carrier';
 import { isLanRoute } from './route';
 import { localNetworkStatus, openLanSocket } from './native-lan-socket';
+import { openDirectChannel, type DirectNative } from './direct-channel';
 
 type NativeWebSocket = new (
   url: string,
@@ -9,10 +11,44 @@ type NativeWebSocket = new (
   options: { headers: Record<string, string> },
 ) => WebSocket;
 
+function transportFailure(origin: string): Promise<string | undefined> {
+  return new Promise((resolve) => {
+    const request = new XMLHttpRequest();
+    const done = (value: string | undefined) => {
+      clearTimeout(timer);
+      resolve(value);
+    };
+    const timer = setTimeout(() => {
+      request.abort();
+      done(undefined);
+    }, 8000);
+    request.onload = () => done(undefined);
+    request.onerror = () => done(request.responseText || undefined);
+    request.open('GET', `${origin}/.well-known/botharness-tunnel/transport-check`);
+    request.send();
+  });
+}
+
+const directNative = requireOptionalNativeModule<DirectNative>('LocalComputerVideo');
+const directSupported = typeof directNative?.directOffer === 'function';
+
 export function nativeCarrier(): HostCarrier {
   return {
     randomBytes: () => getRandomBytes(32),
     localNetworkStatus,
+    transportFailure,
+    ...(directSupported && directNative
+      ? {
+          openDirect: (signal) =>
+            openDirectChannel({
+              native: directNative,
+              id: Array.from(getRandomBytes(8), (byte) => byte.toString(16).padStart(2, '0')).join(
+                '',
+              ),
+              signal,
+            }),
+        }
+      : {}),
     async request(url, init) {
       if (isLanRoute(new URL(url).origin)) throw new Error('encrypted-channel-required');
       const response = await fetch(url, {

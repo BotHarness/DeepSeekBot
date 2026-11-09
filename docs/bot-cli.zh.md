@@ -1732,3 +1732,11 @@ printf '%s' '{"token":"<preview-token>","feedback":{"rating":"bad","tags":["no-r
 Bot 已有存活的 Orchestrator Agent 后，`bot-tools` 也会列出其注册的 `ask_secret`、`protected_cli`、`secret_http`、`secret_cli` 和 `secret_mcp_connect`。用 `bot-tool <bot-id> <tool> --args-stdin` 调用，参数 JSON 从 stdin 传入；不要把原值或引用放进命令行参数。执行复用已有 Agent 的原生工具与审批链，不调用模型、不创建新的来源；没有存活的工具注册时拒绝。命令可等待执行审批，由通常的审批命令或 Web 卡片处理。直接调用与原生诊断轨迹都省略私密工具参数和结果。
 
 同轮存在多条 IM 请求时，先用原账号和字段声明调用 `ask_secret`，并传入正在处理的那条已接受请求的精确 `source_event_id`，再消费引用。已配置账号会复用原值，不新建卡片，也不要求 Web 通知地址。Web 与 Schedule 复用不传来源选择器。`private-source-required` 给出这条恢复路径；`private-source-invalid`、`private-source-unavailable`、`private-source-ambiguous`、`private-source-revoked`、`private-account-unavailable` 分别区分其他拒绝原因。不要重复原样调用、选择历史来源，或把 Host 拒绝当成远端故障。同账号来源冲突需要新一轮；撤销检查始终保留。
+
+## 私有连接（无需 Docker）
+
+`private-tunnel-enable --quick --confirm` 启动 Quick Tunnel；`private-tunnel-enable --hostname <主机名> --token-stdin --confirm` 用 stdin 传入的连接器令牌运行你自己的 Named Tunnel。两者都通过 Host 内置的 cloudflared 只公开加密设备通道，并持久化开启状态，Host 重启后自动恢复。`devices` 返回 `privateTunnel`（`state`、`mode`、`origin`、`originPort`、编码的 `issue`/`probe`、`addressChanged`）。公网地址确认连到本机之前，配对邀请会以 `private-tunnel-unreachable` 拒绝。`private-tunnel-disable --confirm` 停止隧道并删除令牌和手机准入。见[私有连接](private-connect.zh.md)。
+
+## Docker 私有连接
+
+`private-connect --hostname <https-origin> --token-stdin --confirm` 经本机已认证 Host 认领尚未认领的私有中继。首次设置密钥只从标准输入读取，不放在命令参数中。`devices` 返回 `privateRelay` 状态；连接成功后，`device-offer --out <absolute-new-file>` 将敏感配对邀请写入新建的绝对路径文件。使用 `device-requests`、`device-approve-key`、`device-revoke` 批准准确设备并撤销。参见[私有部署](private-connect.zh.md)。未知认领结果不会自动重试，也不会暗中切换到官方中继。
