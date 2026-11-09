@@ -9,6 +9,7 @@ vi.mock('../src/client/ds/tooltip.js', () => ({
 
 import type { CallClientMedia } from '../../core/src/voice/call-client.js';
 import { createVoiceCallHttp } from '../../core/src/voice/call-http.js';
+import { CALL_NOTICES } from '../../core/src/voice/call-view.js';
 import {
   createVoiceCalls,
   type VoiceCallMedia,
@@ -26,7 +27,6 @@ import {
   createDesktopCall,
   desktopCallNotice,
   desktopCallView,
-  formatCallDuration,
   type DesktopCallCaptureHandlers,
 } from '../src/client/desktop-call.js';
 import { DmCallControl } from '../src/client/dm-call.js';
@@ -214,7 +214,7 @@ describe('desktop call', () => {
     const other = desktopWindow(fetcher, 'window-win-0002');
     await mac.call.start('mira');
     await other.call.start('mira');
-    expect(other.call.snapshot().block).toEqual({ kind: 'elsewhere' });
+    expect(other.call.snapshot().block).toEqual({ kind: 'elsewhere', notices: ['elsewhere'] });
     expect(desktopCallNotice(other.call.snapshot())).toEqual(['call.elsewhere']);
     expect(other.media.started).toEqual([]);
     expect(mac.call.snapshot().state.status).toBe('live');
@@ -261,8 +261,18 @@ describe('desktop call', () => {
         visual: DESKTOP_CALL_VISUAL_OFF,
       }),
     ).toEqual(['call.microphoneDenied']);
-    expect(formatCallDuration(65_400)).toBe('01:05');
-    expect(formatCallDuration(3_725_000)).toBe('1:02:05');
+  });
+
+  it('has desktop copy for every call notice', () => {
+    const keys = desktopCallNotice({
+      slug: 'mira',
+      checking: false,
+      block: { kind: 'refused', notices: CALL_NOTICES },
+      state: { status: 'idle' },
+      visual: DESKTOP_CALL_VISUAL_OFF,
+    })!;
+    expect(keys).toHaveLength(CALL_NOTICES.length);
+    for (const key of keys) expect((en as Record<string, string>)[key]).toEqual(expect.any(String));
   });
 
   it('renders the call button and the call bar in the chat header', async () => {
@@ -291,7 +301,7 @@ describe('desktop call', () => {
     const bar = element.querySelector('[role="group"][aria-label="Call with Mira"]')!;
     expect(bar).not.toBeNull();
     expect(bar.querySelector('[role="status"]')?.textContent).toBe('Listening');
-    expect(bar.querySelector('.bh-call-duration')?.textContent).toMatch(/^00:0\d$/u);
+    expect(bar.querySelector('.bh-call-duration')?.textContent).toMatch(/^0:0\d$/u);
     const mute = bar.querySelector<HTMLButtonElement>('button[aria-label="Mute"]')!;
     await act(async () => mute.click());
     expect(element.querySelector('button[aria-label="Unmute"]')?.getAttribute('aria-pressed')).toBe(

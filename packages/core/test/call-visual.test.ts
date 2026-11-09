@@ -1218,7 +1218,7 @@ describe('call visuals in Channel messages', () => {
         speechToMs: 4_500,
         visual: { source: 'camera', sameAs: 'human-1' },
       }),
-    ).toBe('this message 0:03–0:05');
+    ).toBe('this message 0:03–0:04');
     expect(
       callTimelineNote({
         callId: 'call-0123456789abcdef',
