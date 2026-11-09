@@ -175,6 +175,7 @@ import { loadedReleaseComponents, stampReleaseComponent } from './release/compon
 import { createGitService } from './memory/managed-git.js';
 import { createProcessRestarter, type ReleaseRestarter } from './release/restart.js';
 import { createPluginUpdateService } from './release/plugins.js';
+import { createUpdateRuns } from './release/update-runs.js';
 import {
   createTelemetryService,
   installedDshVersion,
@@ -2787,6 +2788,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       };
     }, 'botharness: release installer');
   });
+  const updateRuns = createUpdateRuns({ canceller: () => releaseInstaller.current });
+  {
+    const events = ctx as unknown as {
+      on(event: string, listener: (value: unknown) => void): () => void;
+    };
+    events.on('plugin-manager/install-log', (chunk) => updateRuns.log(chunk));
+    events.on('plugin-manager/install-state', (progress) => updateRuns.state(progress));
+  }
   const releaseRestarter: { current: ReleaseRestarter | undefined } = {
     current: undefined,
   };
@@ -2836,11 +2845,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     ledgers: () => runningRelease.ledgers,
     installer: () => releaseInstaller.current,
     restarter: () => releaseRestarter.current,
+    runs: updateRuns,
     warn: (message) => ctx.logger.warn(message),
   });
   const pluginUpdates = createPluginUpdateService({
     installer: () => releaseInstaller.current,
     restarter: () => releaseRestarter.current,
+    runs: updateRuns,
   });
   const tobModelOperations = createTobModelOperations({
     registry: core.registry,
@@ -3137,6 +3148,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     }),
     release: releaseService,
     plugins: pluginUpdates,
+    updates: updateRuns,
     telemetry,
     activeDay,
     git,

@@ -18,6 +18,7 @@ import type { LoadedReleaseComponent } from './component.js';
 
 import { pairReleaseLedgers, selectReleaseNotes, type ReleaseNote } from './notes.js';
 import type { ReleaseRestarter } from './restart.js';
+import { createUpdateRuns, type UpdateRunHandle, type UpdateRuns } from './update-runs.js';
 import { compareVersions, isReleaseVersion } from './version.js';
 
 export const RELEASE_PACKAGE = 'deepseekbot';
@@ -78,6 +79,7 @@ export type ReleaseInstallFailure =
   | 'network'
   | 'incompatible'
   | 'build-blocked'
+  | 'cancelled'
   | 'failed';
 
 export type ReleaseInstall =
@@ -109,13 +111,14 @@ export interface ReleaseInstallerResult {
 
 export interface ReleaseInstaller {
   listBundles(): Promise<readonly { name: string; installed: boolean; version?: string }[]>;
-  installBundle(spec: string): Promise<ReleaseInstallerResult>;
+  installBundle(spec: string, options?: { requestId?: string }): Promise<ReleaseInstallerResult>;
+  cancelInstall?(requestId: string): Promise<{ status: string }>;
 }
 
 export interface ReleaseService {
   info(since?: string): ReleaseInfo;
   update(force?: boolean): Promise<ReleaseUpdate>;
-  install(version: string, beforeEffect?: () => void): Promise<ReleaseInstall>;
+  install(version: string, beforeEffect?: () => void, requestId?: string): Promise<ReleaseInstall>;
   restart(beforeEffect?: (pendingVersion: string) => void): Promise<ReleaseRestart>;
 }
 
@@ -133,6 +136,7 @@ export interface ReleaseServiceOptions {
   timeoutMs?: number;
   installer?: () => ReleaseInstaller | undefined;
   restarter?: () => ReleaseRestarter | undefined;
+  runs?: UpdateRuns;
 }
 
 function readFirst(candidates: readonly URL[]): string | undefined {
@@ -206,6 +210,7 @@ export function releaseTarball(registry: string, version: string): string {
 
 export function releaseInstallFailure(result: ReleaseInstallerResult): ReleaseInstall {
   const kind = result.packageResult?.kind;
+  if (result.application === 'cancelled') return { status: 'failed', reason: 'cancelled' };
   const reason: ReleaseInstallFailure =
     result.error?.code === 'incompatible-version'
       ? 'incompatible'
@@ -229,7 +234,11 @@ export function releaseInstallFailure(result: ReleaseInstallerResult): ReleaseIn
   };
 }
 
-export function createLoadingReleaseService(options: ReleaseServiceOptions): ReleaseService {
+export function createLoadingReleaseService(source: ReleaseServiceOptions): ReleaseService {
+  const options: ReleaseServiceOptions = {
+    ...source,
+    runs: source.runs ?? createUpdateRuns({ canceller: () => source.installer?.() }),
+  };
   let ready: ReleaseService | undefined;
   const version = options.version();
   const current = (): ReleaseService => {
@@ -251,7 +260,8 @@ export function createLoadingReleaseService(options: ReleaseServiceOptions): Rel
   return {
     info: (since) => current().info(since),
     update: (force) => current().update(force),
-    install: (version, beforeEffect) => current().install(version, beforeEffect),
+    install: (version, beforeEffect, requestId) =>
+      current().install(version, beforeEffect, requestId),
     restart: (beforeEffect) => current().restart(beforeEffect),
   };
 }
@@ -268,8 +278,7 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
   let cached: { at: number; result: CheckResult } | undefined;
   let pending: Promise<CheckResult> | undefined;
   let installed: string | undefined;
-  let installing: Promise<ReleaseInstall> | undefined;
-  let installingVersion: string | undefined;
+  const runs = options.runs ?? createUpdateRuns({ canceller: () => options.installer?.() });
 
   const profileBundle = async (): Promise<
     { installer: ReleaseInstaller; version: string | undefined } | undefined
@@ -298,6 +307,7 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
 
   const runInstall = async (
     version: string,
+    run: UpdateRunHandle,
     beforeEffect?: () => void,
   ): Promise<ReleaseInstall> => {
     const current = runningVersion;
@@ -313,13 +323,17 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
         status: 'failed',
         reason: eligibility.status === 'incompatible' ? 'incompatible' : 'unavailable',
       };
+    if (run.cancelled) return { status: 'failed', reason: 'cancelled' };
     beforeEffect?.();
+    run.installing();
+    const request = { requestId: run.id };
     let result: ReleaseInstallerResult;
     try {
-      result = await installer.installBundle(`${RELEASE_PACKAGE}@${version}`);
+      result = await installer.installBundle(`${RELEASE_PACKAGE}@${version}`, request);
       if (result.error?.code === 'already-installed') {
         for (const registry of registries) {
-          result = await installer.installBundle(releaseTarball(registry, version));
+          if (run.cancelled) return { status: 'failed', reason: 'cancelled' };
+          result = await installer.installBundle(releaseTarball(registry, version), request);
           if (!RELEASE_NETWORK_FAILURES.has(result.packageResult?.kind ?? '')) break;
         }
       }
@@ -561,17 +575,14 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
       if (result.status !== 'available') return result;
       return { ...result, installable: bundle !== undefined };
     },
-    install(version, beforeEffect) {
-      if (installing && (beforeEffect !== undefined || installingVersion !== version))
-        return Promise.resolve({ status: 'failed', reason: 'unavailable' });
-      if (!installing) {
-        installingVersion = version;
-        installing = runInstall(version, beforeEffect).finally(() => {
-          installing = undefined;
-          installingVersion = undefined;
-        });
-      }
-      return installing;
+    install(version, beforeEffect, requestId) {
+      return (
+        runs.run(
+          { kind: 'release', name: RELEASE_PACKAGE, version },
+          { requestId, joinable: beforeEffect === undefined },
+          (run) => runInstall(version, run, beforeEffect),
+        ) ?? Promise.resolve({ status: 'failed', reason: 'unavailable' })
+      );
     },
     async restart(beforeEffect) {
       if (identity?.kind === 'unknown') return { status: 'failed', reason: 'identity-invalid' };

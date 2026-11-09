@@ -303,7 +303,10 @@ describe('ReleaseNotesController install', () => {
     await controller.checkUpdate();
     expect(controller.source.getSnapshot().update).toMatchObject({ installable: true });
     await controller.install('1.1.0');
-    expect(call).toHaveBeenCalledWith('releaseInstall', { version: '1.1.0' });
+    expect(call).toHaveBeenCalledWith('releaseInstall', {
+      version: '1.1.0',
+      requestId: expect.any(String),
+    });
     expect(controller.source.getSnapshot().install).toEqual({ status: 'idle' });
     expect(controller.source.getSnapshot().updateNotice).toBe(true);
     expect(controller.source.getSnapshot().update).toEqual({
@@ -576,8 +579,8 @@ describe('release notes views', () => {
       await act(async () => {
         await Promise.resolve();
       });
-      expect(view.host.querySelector('[role="alert"]')?.textContent).toContain(
-        '新版本与当前 DSH 版本不兼容',
+      expect(view.host.querySelector('[role="alert"]')?.textContent).toBe(
+        '更新失败：新版本与当前 DSH 不兼容，请先升级 DSH',
       );
       expect(view.host.querySelector('code')?.textContent).toBe(releaseUpdateCommand('1.1.0'));
       expect(buttonNamed(view.host, '立即更新')?.disabled).toBe(false);
