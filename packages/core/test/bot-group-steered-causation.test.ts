@@ -15,6 +15,10 @@ async function secondReport(delivery: 'steered' | 'read') {
     release = resolve;
   });
   const steered: string[] = [];
+  let deliveredFirstSteer!: () => void;
+  const firstSteered = new Promise<void>((resolve) => {
+    deliveredFirstSteer = resolve;
+  });
   const runs: string[] = [];
   let groupId = '';
   const core = createCore({
@@ -34,6 +38,7 @@ async function secondReport(delivery: 'steered' | 'read') {
       steerOrchestrator(slug, text) {
         if (slug !== 'aura' || delivery !== 'steered') return false;
         steered.push(text);
+        deliveredFirstSteer();
         return true;
       },
       async runAssignment() {},
@@ -64,6 +69,8 @@ async function secondReport(delivery: 'steered' | 'read') {
           .some((message) => message.author.kind === 'bot' && message.author.slug === 'nexus'),
       ).toBe(true),
     );
+
+    if (delivery === 'steered') await firstSteered;
 
     await core.channels.appendMessage(group.id, {
       id: 'task-2',
