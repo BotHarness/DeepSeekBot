@@ -5,12 +5,14 @@ import android.view.View
 import android.widget.FrameLayout
 import android.widget.ScrollView
 import com.facebook.react.bridge.BridgeReactContext
+import com.facebook.react.bridge.CatalystInstance
 import com.facebook.react.bridge.ReactApplicationContext
 import expo.modules.core.ModuleRegistry
 import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.ModulesProvider
 import expo.modules.kotlin.modules.Module
 import java.lang.ref.WeakReference
+import java.lang.reflect.Proxy
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -26,7 +28,15 @@ class MarkdownBlockWindowViewTest {
 
   private fun exercise(inverted: Boolean) {
     val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
-    val react: ReactApplicationContext = BridgeReactContext(activity)
+    val react: ReactApplicationContext = object : BridgeReactContext(activity) {
+      override fun getCatalystInstance(): CatalystInstance = Proxy.newProxyInstance(
+        CatalystInstance::class.java.classLoader,
+        arrayOf(CatalystInstance::class.java),
+      ) { _, method, _ ->
+        check(method.name == "getNativeModule") { "Unexpected bridge call: ${method.name}" }
+        null
+      } as CatalystInstance
+    }
     val modules = object : ModulesProvider {
       override fun getModulesMap(): Map<Class<out Module>, String?> = emptyMap()
     }
