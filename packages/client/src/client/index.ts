@@ -4,6 +4,7 @@ import { disposeClientLog, installClientLog } from './diagnostic-log.js';
 import { watchClientLogState } from './diagnostic-log-state.js';
 import { telemetrySurface } from './telemetry-surface.js';
 import { mountWindowZoomControl } from './window-zoom-control.js';
+import { mountPresenceReporter, presenceSender } from './presence-reporter.js';
 import { mountWindowZoom, type ZoomCompatibility } from './window-zoom-mount.js';
 import { Wallpaper } from './wallpaper.js';
 import { createWallpaperStore } from './wallpaper-store.js';
@@ -717,6 +718,13 @@ export function apply(ctx: ClientContext): void {
       },
     });
   }, 'botharness: desktop notifications');
+  ctx.effect(() => {
+    if (typeof document === 'undefined' || typeof window === 'undefined') return () => {};
+    const clientId = Array.from(crypto.getRandomValues(new Uint8Array(12)), (byte) =>
+      byte.toString(16).padStart(2, '0'),
+    ).join('');
+    return mountPresenceReporter({ document, window, send: presenceSender(clientId) });
+  }, 'botharness: desktop presence');
   ctx.effect(
     () => (typeof EventSource === 'undefined' ? () => {} : mountChannelLive(store, actions)),
     'botharness: Channel live subscription',

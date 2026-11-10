@@ -915,6 +915,18 @@ deepseekbot device-revoke <device-id> --confirm
 
 `devices` 返回 `{host, devices, routes}`：本 Host 的配对身份，每台已配对设备的 `id`、`name`、`pairedAt`、`lastSeenAt` 以及撤销后的 `revokedAt`，和 `phone-route` 相同的手机路由。设备凭据不会出现在列表里。`device-offer` 打开一个 10 分钟有效的一次性配对邀请，只把它的 `deepseekbot://pair?…` 链接写入 `--out`：一个以 0600 权限新建的文件（文件已存在时在打开邀请前以 `output-exists` 拒绝）；标准输出只有 `{receipt, expiresAt, routes, reachable, link: {path}}`。在手机上打开这个链接，或改用设备页里的二维码配对；没有 `--out` 时 `device-offer` 以 `out-required` 拒绝。回执能指代邀请，但不能用来兑换。`device-offer-status` 返回 `state`：`pending`（带 `expiresAt`）、`redeemed`（带新设备的 `deviceId`）、`expired`、`refused`（用错误的验证值兑换而作废）、`superseded`（同时打开了超过 16 个邀请）或 `unknown`；邀请只保存在 Host 内存中，Host 重启后所有回执都是 `unknown`。`device-revoke` 返回 `{revoked, closedStreams, device: {id, name}}`；该设备的下一个请求会以 `device-revoked` 被拒绝，已打开的连接立即关闭。拒绝码：`confirm-required`、`device-unknown`、`device-already-revoked`、`receipt-required` 和 `usage`。
 
+### 桌面在线状态
+
+桌面端或网页端正在使用时，Host 会暂缓发给手机的 Bot 回复推送，让手机保持安静。审批、提问和私密输入请求仍然立即推送。窗口可见且最近 10 分钟内有输入时，Client 算作活跃，每 30 秒续一次 90 秒的租约。窗口隐藏（或锁屏）1 分钟后，或 10 分钟没有输入后，Client 报告空闲。没有活跃的 Client 时，仍未读的回复会推送到手机；期间已在桌面读过的回复不会再推送。
+
+```bash
+deepseekbot presence-status
+deepseekbot presence-report --client-id <id> --active
+deepseekbot presence-report --client-id <id> --idle
+```
+
+两者都返回 `/api/botharness/presence` 的 `{active, clients, leaseMs}`。`presence-report --active` 像 Client 一样占用一个 90 秒租约来暂缓回复；`--idle` 立即移除该 Client。`--client-id` 为 1–128 个字母、数字、`_` 或 `-`。拒绝码：`presence-invalid-input`、`presence-client-limit`（最多 64 个活跃 Client）和 `usage`。
+
 ### 接入指定浏览器客户端
 
 保持目标浏览器打开。`connection-clients` 列出当前 Host 上已登记的 Client，必须明确选择目标 `id`。在远端 Host 用 `device-offer --out <私有文件>` 生成邀请，再安全传输文件到 CLI 所在电脑；链接不能进入命令参数、聊天或标准输出。

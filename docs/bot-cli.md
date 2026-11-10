@@ -944,6 +944,18 @@ deepseekbot device-revoke <device-id> --confirm
 
 `devices` returns `{host, devices, routes}`: this Host's pairing identity, every paired device with `id`, `name`, `pairedAt`, `lastSeenAt` and `revokedAt` once revoked, and the phone routes as `phone-route` reports them. Device credentials are never listed. `device-offer` opens a one-time offer for 10 minutes and writes its `deepseekbot://pair?…` link only to `--out`, a new file created with mode 0600 (an existing file is refused with `output-exists` before any offer opens); stdout carries `{receipt, expiresAt, routes, reachable, link: {path}}`. Open the link on the phone, or pair from the QR code in Devices instead; `device-offer` refuses without `--out` (`out-required`). The receipt names the offer without being able to redeem it. `device-offer-status` returns `state`: `pending` with `expiresAt`, `redeemed` with the new `deviceId`, `expired`, `refused` (a redemption with the wrong verifier used it up), `superseded` (more than 16 offers were open) or `unknown`; offers live in Host memory, so every receipt is `unknown` after a Host restart. `device-revoke` returns `{revoked, closedStreams, device: {id, name}}`; the device's next request is refused with `device-revoked` and its open streams close at once. Refusals: `confirm-required`, `device-unknown`, `device-already-revoked`, `receipt-required` and `usage`.
 
+### Desktop presence
+
+While a desktop or web Client is in use, the Host holds Bot reply pushes to phones so the phone stays quiet. Approvals, questions and private-input requests still push at once. A Client counts as active while its window is visible and it saw input in the last 10 minutes; it renews a 90-second lease every 30 seconds. One minute after the window is hidden (or the screen locks), or after 10 minutes without input, the Client reports idle. When no Client is active, replies that are still unread push to phones. A reply read on the desktop in the meantime never pushes.
+
+```bash
+deepseekbot presence-status
+deepseekbot presence-report --client-id <id> --active
+deepseekbot presence-report --client-id <id> --idle
+```
+
+Both return `{active, clients, leaseMs}` from `/api/botharness/presence`. `presence-report --active` holds replies for one 90-second lease, as a Client would; `--idle` drops that Client at once. A `--client-id` is 1–128 letters, digits, `_` or `-`. Refusals: `presence-invalid-input`, `presence-client-limit` (64 active Clients) and `usage`.
+
 ### Connect a selected browser Client
 
 Keep the target browser open. `connection-clients` lists registered Clients on the serving Host; select the intended `id` explicitly. Prepare an invitation on the Remote Host with `device-offer --out <private-file>`, then securely place that file on the CLI machine. Links never belong in arguments, chat or stdout.

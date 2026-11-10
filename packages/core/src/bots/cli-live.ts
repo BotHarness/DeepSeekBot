@@ -12,6 +12,7 @@ import {
   WINDOW_ZOOM_OPTIONS,
   runWindowZoomCommand,
 } from './cli-window-zoom.js';
+import { PRESENCE_COMMANDS, PRESENCE_OPTIONS, runPresenceCommand } from './cli-presence.js';
 import { PHONE_ROUTE_COMMANDS, runPhoneRouteCommand } from './cli-phone-route.js';
 import { DEVICES_COMMANDS, isDevicesCommand, runDevicesCommand } from './cli-devices.js';
 import { DEVICE_CLIENT_COMMANDS, runDeviceClientCommand } from './cli-device-client.js';
@@ -189,6 +190,7 @@ export const LIVE_OPTIONS = {
   ...DEVICE_NOTIFICATION_OPTIONS,
   'activity-stdin': { type: 'boolean' },
   ...WINDOW_ZOOM_OPTIONS,
+  ...PRESENCE_OPTIONS,
   ...CONNECT_OPTIONS,
   ...APPEARANCE_OPTIONS,
   ...IM_OPTIONS,
@@ -313,6 +315,7 @@ export const LIVE_COMMANDS = [
   ...DIAGNOSTIC_LOG_COMMANDS,
   ...DOCTOR_COMMANDS,
   ...WINDOW_ZOOM_COMMANDS,
+  ...PRESENCE_COMMANDS,
   ...PHONE_ROUTE_COMMANDS,
   ...DEVICES_COMMANDS,
   ...DEVICE_CLIENT_COMMANDS,
@@ -1033,6 +1036,10 @@ export async function runLiveCli(
     );
   if (WINDOW_ZOOM_COMMANDS.some((entry) => entry.command === command))
     return runWindowZoomCommand(command, rest, values, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
+  if (PRESENCE_COMMANDS.some((entry) => entry.command === command))
+    return runPresenceCommand(command, rest, values, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
   if (PHONE_ROUTE_COMMANDS.some((entry) => entry.command === command))
