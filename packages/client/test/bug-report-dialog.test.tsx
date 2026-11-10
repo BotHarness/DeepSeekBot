@@ -26,6 +26,8 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
       ),
     IconCheckCircleOutlineRegular: icon,
     IconCloseOutlineRegular: icon,
+    IconEditOutlineRegular: icon,
+    IconFullscreenOutlineRegular: icon,
     IconLinkOutlineRegular: icon,
     IconPaperclipOutlineRegular: icon,
     IconShieldOutlineRegular: icon,
@@ -151,4 +153,79 @@ it('says what to do when the Host cannot read the diagnostic log', async () => {
   const notice = dialog().querySelector('[role="status"]')?.textContent ?? '';
   expect(notice).toContain('取消勾选');
   expect(notice).not.toContain('persistence-unavailable');
+});
+
+it('marks up an image attachment and replaces it with the annotated PNG', async () => {
+  const drawn: string[] = [];
+  const context = new Proxy(
+    {},
+    {
+      get: (_target, key) =>
+        typeof key === 'string' && !['strokeStyle', 'fillStyle', 'lineWidth'].includes(key)
+          ? (..._args: unknown[]) => drawn.push(key)
+          : undefined,
+      set: () => true,
+    },
+  );
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
+    context as unknown as CanvasRenderingContext2D,
+  );
+  vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation((done) =>
+    done(new Blob(['png'], { type: 'image/png' })),
+  );
+  vi.stubGlobal(
+    'Image',
+    class {
+      naturalWidth = 800;
+      naturalHeight = 600;
+      onload: (() => void) | null = null;
+      set src(_value: string) {
+        queueMicrotask(() => this.onload?.());
+      }
+    },
+  );
+  await act(async () => root.render(createElement(BugReportDialog, { onClose: () => {}, t })));
+  await pick([
+    new File(['png'], 'shot.png', { type: 'image/png' }),
+    new File(['log'], 'console.txt', { type: 'text/plain' }),
+  ]);
+  expect(dialog().querySelector('[data-bug-report-annotate="console.txt"]')).toBeNull();
+  await act(async () => buttonNamed('标注 shot.png').click());
+  expect(document.querySelector('[data-bug-report="annotate"]')).not.toBeNull();
+  await act(async () => {});
+  const canvas = dialog().querySelector<HTMLCanvasElement>('[data-annotate-canvas]')!;
+  expect(canvas.width).toBe(800);
+  canvas.getBoundingClientRect = () =>
+    ({ left: 0, top: 0, width: 400, height: 300, right: 400, bottom: 300 }) as DOMRect;
+  await act(async () => buttonNamed('遮挡').click());
+  expect(buttonNamed('遮挡').getAttribute('aria-pressed')).toBe('true');
+  const pointer = (type: string, x: number, y: number) =>
+    canvas.dispatchEvent(
+      Object.assign(new MouseEvent(type, { bubbles: true, clientX: x, clientY: y }), {
+        pointerId: 1,
+      }),
+    );
+  await act(async () => {
+    pointer('pointerdown', 10, 10);
+    pointer('pointermove', 60, 40);
+    pointer('pointerup', 60, 40);
+  });
+  expect(drawn).toContain('fillRect');
+  expect(buttonNamed('撤销').disabled).toBe(false);
+  await act(async () => buttonNamed('完成').click());
+  expect(document.querySelector('[data-bug-report="form"]')).not.toBeNull();
+  const names = [...dialog().querySelectorAll('[data-bug-report-file]')].map((item) =>
+    item.getAttribute('data-bug-report-file'),
+  );
+  expect(names).toEqual(['shot-annotated.png', 'console.txt']);
+});
+
+it('keeps the original attachment when markup is cancelled, and hides capture without screen sharing', async () => {
+  await act(async () => root.render(createElement(BugReportDialog, { onClose: () => {}, t })));
+  expect(dialog().querySelector('[data-bug-report-screenshot]')).toBeNull();
+  await pick([new File(['png'], 'shot.png', { type: 'image/png' })]);
+  await act(async () => buttonNamed('标注 shot.png').click());
+  expect(buttonNamed('完成').disabled).toBe(true);
+  await act(async () => buttonNamed('取消').click());
+  expect(dialog().querySelector('[data-bug-report-file="shot.png"]')).not.toBeNull();
 });
