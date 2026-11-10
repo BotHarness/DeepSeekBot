@@ -15,10 +15,6 @@ async function secondReport(delivery: 'steered' | 'read') {
     release = resolve;
   });
   const steered: string[] = [];
-  let deliveredFirstSteer!: () => void;
-  const firstSteered = new Promise<void>((resolve) => {
-    deliveredFirstSteer = resolve;
-  });
   const runs: string[] = [];
   let groupId = '';
   const core = createCore({
@@ -38,7 +34,6 @@ async function secondReport(delivery: 'steered' | 'read') {
       steerOrchestrator(slug, text) {
         if (slug !== 'aura' || delivery !== 'steered') return false;
         steered.push(text);
-        deliveredFirstSteer();
         return true;
       },
       async runAssignment() {},
@@ -70,8 +65,6 @@ async function secondReport(delivery: 'steered' | 'read') {
       ).toBe(true),
     );
 
-    if (delivery === 'steered') await firstSteered;
-
     await core.channels.appendMessage(group.id, {
       id: 'task-2',
       at: '2026-10-14T00:01:00.000Z',
@@ -79,9 +72,12 @@ async function secondReport(delivery: 'steered' | 'read') {
       body: '@美工 Aura 再给一个赛博朋克配色，完成后 @总控 Nexus',
       mentions: [{ botSlug: 'aura', label: '美工 Aura', start: 0, end: 8 }],
     });
+    const priorSteers = steered.length;
     core.runtime.admitGroupMessage(group.id, 'task-2');
-    if (delivery === 'steered') expect(steered).toHaveLength(2);
-    else run.channels.read({ channelId: group.id });
+    if (delivery === 'steered') {
+      expect(steered).toHaveLength(priorSteers + 1);
+      expect(steered.at(-1)).toContain('赛博朋克配色');
+    } else run.channels.read({ channelId: group.id });
     const second = await run.channels.send({
       channelId: group.id,
       body: '@总控 Nexus 第二份配色已完成',
