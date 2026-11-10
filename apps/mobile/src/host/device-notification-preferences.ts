@@ -158,9 +158,13 @@ export function createDeviceNotificationPreferences(options: {
     refresh();
     return promise;
   };
-  const sync = () =>
+  const sync = (force: (host: SavedHost) => boolean = () => true) =>
     enqueue(seed).then(async () => {
-      await Promise.all(hosts.map((host) => copy(host).catch(() => undefined)));
+      await Promise.all(
+        hosts
+          .filter((host) => failed.get(host.hostId) !== host.credential || force(host))
+          .map((host) => copy(host).catch(() => undefined)),
+      );
     });
   const adopt = (next: readonly SavedHost[]) => {
     hosts = next;
@@ -209,10 +213,14 @@ export function createDeviceNotificationPreferences(options: {
     },
     sync(next: readonly SavedHost[]) {
       adopt(next);
-      return sync();
+      return sync(() => false);
     },
-    retry() {
-      return sync();
+    retry(host?: SavedHost) {
+      return sync(
+        host === undefined
+          ? undefined
+          : (entry) => entry.hostId === host.hostId && entry.credential === host.credential,
+      );
     },
     setForeground(active: boolean) {
       foreground = active;
@@ -225,7 +233,7 @@ export function createDeviceNotificationPreferences(options: {
     set(patch: Partial<PushPreferences>) {
       return enqueue(() => {
         save({ ...(snapshot.preferences ?? DEFAULT_NOTIFICATION_PREFERENCES), ...patch });
-      }).then(sync);
+      }).then(() => sync());
     },
   };
 }
