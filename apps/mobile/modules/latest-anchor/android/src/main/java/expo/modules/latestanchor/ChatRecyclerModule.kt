@@ -4,6 +4,7 @@ import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import expo.modules.kotlin.functions.Queues
 import com.facebook.react.uimanager.UIManagerHelper
+import com.facebook.react.bridge.ReactContext
 import android.graphics.RectF
 import android.graphics.Matrix
 
@@ -12,7 +13,7 @@ class ChatRecyclerModule : Module() {
     Name("ChatRecycler")
     Constants("supported" to (android.os.Build.VERSION.SDK_INT >= 29))
     AsyncFunction("measureInWindow") { tag: Int ->
-      val context = appContext.reactContext ?: return@AsyncFunction null
+      val context = appContext.reactContext as? ReactContext ?: return@AsyncFunction null
       val view = UIManagerHelper.getUIManagerForReactTag(context, tag)?.resolveView(tag) ?: return@AsyncFunction null
       if (!view.isAttachedToWindow) return@AsyncFunction null
       val matrix = Matrix()
