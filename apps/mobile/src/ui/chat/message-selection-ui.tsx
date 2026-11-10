@@ -1,3 +1,4 @@
+import { measureMessageView } from '../primitives/measure-message-view';
 import type { Rect } from './menu-placement';
 import type { BubbleGroup } from './bubble-shape';
 import { useRef, useState, type ReactNode } from 'react';
@@ -206,7 +207,7 @@ export function MessageSelectionRow({
         onOpen === undefined || selecting
           ? undefined
           : () => {
-              ref.current?.measureInWindow((x, y, width, height) =>
+              measureMessageView(ref.current, (x, y, width, height) =>
                 onOpen(message, { x, y, width, height }, { first: true, last: true }),
               );
             }

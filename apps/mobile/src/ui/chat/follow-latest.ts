@@ -61,7 +61,7 @@ export function unseenSince(
 type ScrollEvent = NativeSyntheticEvent<NativeScrollEvent>;
 
 export function useFollowLatest<Row>(
-  list: RefObject<FlatList<Row> | null>,
+  list: RefObject<Pick<FlatList<Row>, 'scrollToOffset'> | null>,
   messages: readonly ConversationMessage[],
   onFollowingChange?: (following: boolean) => void,
   start = 0,

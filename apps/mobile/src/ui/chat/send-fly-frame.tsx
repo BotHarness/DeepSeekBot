@@ -1,3 +1,4 @@
+import { measureMessageView } from '../primitives/measure-message-view';
 import { createContext, useCallback, useRef, useState, type ReactNode } from 'react';
 import type { StyleProp, ViewInstance, ViewStyle } from 'react-native';
 import Animated, {
@@ -64,7 +65,7 @@ export function SendFlyFrame({
       skip();
       return;
     }
-    view.measureInWindow((x, y, width, height) => {
+    measureMessageView(view, (x, y, width, height) => {
       if (width <= 0 || height <= 0) {
         skip();
         return;

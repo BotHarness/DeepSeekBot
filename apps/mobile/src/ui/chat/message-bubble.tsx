@@ -1,3 +1,4 @@
+import { measureMessageView } from '../primitives/measure-message-view';
 import {
   memo,
   useCallback,
@@ -438,7 +439,7 @@ function PressableBubble({
   const held = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   const shrinks = Platform.OS === 'ios' && !reduced && onLongPress !== undefined;
   const measure = (then?: (rect: Rect) => void) =>
-    ref.current?.measureInWindow((x, y, width, height) => {
+    measureMessageView(ref.current, (x, y, width, height) => {
       anchor.current = { x, y, width, height };
       then?.(anchor.current);
     });

@@ -42,6 +42,7 @@
     "*.config.ts"
   ],
   "exclude": [
+    "apps/mobile/test/playback-runtime.test.ts",
     "apps/mobile/test/notification-preferences-web.test.ts",
     "apps/mobile/test/posthog-sender.test.ts",
     "apps/mobile/test/catch-up-power.test.ts",

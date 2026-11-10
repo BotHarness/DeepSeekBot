@@ -9,7 +9,7 @@ import type { ComposerPill } from './composer-pill';
 import { LatestAnchor } from './latest-anchor';
 
 export function useChannelViewport<Row>(
-  list: RefObject<FlatList<Row> | null>,
+  list: RefObject<Pick<FlatList<Row>, 'scrollToOffset'> | null>,
   messages: readonly ConversationMessage[],
   onFollowingChange: ((following: boolean) => void) | undefined,
   start: number,

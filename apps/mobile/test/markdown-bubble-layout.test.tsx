@@ -5,6 +5,8 @@ import type { StyleProp, TextStyle, ViewStyle } from 'react-native';
 import { beforeEach, expect, it, vi } from 'vitest';
 import Yoga, { type Node as YogaNode } from 'yoga-layout';
 
+vi.mock('expo', () => ({ requireOptionalNativeModule: () => null }));
+
 const native = vi.hoisted(() => ({
   width: 390,
   fontScale: 1,
