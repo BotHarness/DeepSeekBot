@@ -1580,6 +1580,11 @@ const en = {
     title: 'Haptic feedback',
     storageError: 'Could not save this choice. Toggle again to retry.',
   },
+  sendJump: {
+    title: 'Jump to latest when sending',
+    detail: 'Off keeps your place while you read earlier messages.',
+    storageError: 'Could not save this choice. Toggle again to retry.',
+  },
   messageDisplay: {
     title: 'Message display',
     streaming: 'Streaming',
@@ -3959,6 +3964,11 @@ const zh: typeof en = {
   interface: '界面',
   hapticFeedback: {
     title: '触感反馈',
+    storageError: '未能保存此选择，再切换一次。',
+  },
+  sendJump: {
+    title: '发送后跳到最新',
+    detail: '关闭时，翻看之前的消息时发送不会离开当前位置。',
     storageError: '未能保存此选择，再切换一次。',
   },
   messageDisplay: {

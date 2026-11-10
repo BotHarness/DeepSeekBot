@@ -160,6 +160,7 @@ import { copyMessage, shareText } from './message-menu';
 import type { Rect } from './menu-placement';
 import { chatRows, messageGroups, type ChatRow } from './message-groups';
 import { LatestAnchor } from './latest-anchor';
+import { sendJumpPreferences } from '../../host/native-send-jump';
 import { SpeakerAnchor } from './speaker-anchor';
 import { SPEAKER_VIEWPORT } from './speaker-span';
 import { createSpeakerRegistry, SpeakerStageContext } from './speaker-row';
@@ -964,7 +965,7 @@ function ChatConversation({
     setMentions([]);
     setFiles([]);
     setReplying(undefined);
-    const flight = latest.send() ? launchFly() : undefined;
+    const flight = latest.send(sendJumpPreferences.getSnapshot().enabled) ? launchFly() : undefined;
     const fly = (messageId: string) => {
       if (flight !== undefined) flights.launch(messageId, flight);
       return messageId;

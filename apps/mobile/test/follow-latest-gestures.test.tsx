@@ -910,6 +910,24 @@ describe('sending a message', () => {
     }
   });
 
+  it('jumps to the newest message on send from history when the person asked for it', () => {
+    const view = settled(true);
+    try {
+      act(() => view.current.listProps.onScrollBeginDrag());
+      act(() => view.current.listProps.onScrollEndDrag(event(300)));
+      view.scrollToOffset.mockClear();
+      let fly = true;
+      act(() => {
+        fly = view.current.send(true);
+      });
+      expect(fly).toBe(false);
+      expect(view.current.away).toBe(false);
+      expect(view.scrollToOffset).toHaveBeenCalled();
+    } finally {
+      view.unmount();
+    }
+  });
+
   it('requests no fly and leaves the scroll offset unchanged while reading history', () => {
     const view = settled(true);
     try {

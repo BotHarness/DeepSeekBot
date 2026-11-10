@@ -216,6 +216,11 @@ vi.mock('../src/host/native-dm-activity', () => ({ useHiddenDmActivity: () => []
 vi.mock('../src/host/native-message-display', () => ({
   useMessageDisplay: () => state.display,
 }));
+vi.mock('../src/host/native-send-jump', () => ({
+  sendJumpPreferences: {
+    getSnapshot: () => ({ enabled: false, loaded: true, storageError: false }),
+  },
+}));
 vi.mock('../src/host/native-delivery-receipts', () => ({
   useDeliveryReceiptPreferences: () => ({
     enabled: state.receipts,
