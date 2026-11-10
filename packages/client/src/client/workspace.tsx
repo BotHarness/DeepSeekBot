@@ -2,6 +2,7 @@ import { Menu } from './appearance-primitives.js';
 import { DeviceRequestsNotice } from './device-requests-notice.js';
 import { DiagnosticLogsEntry } from './diagnostic-logs-entry.js';
 import { MobileAppsEntry } from './mobile-apps.js';
+import { CallRailButton } from './call-rail-button.js';
 import { activityIndicator } from './activity-indicator.js';
 import { useActivityIndicatorMenu } from './activity-indicator-menu.js';
 import { onboardingFor } from './onboarding.js';
@@ -446,6 +447,7 @@ function WorkspaceRail({
           settingsTarget,
         )}
 
+      <CallRailButton t={t} />
       <MobileAppsEntry t={t} />
       <DiagnosticLogsEntry t={t} />
       {launcher ? (

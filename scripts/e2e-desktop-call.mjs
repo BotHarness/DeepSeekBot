@@ -517,13 +517,15 @@ async function runScenario(name, scenario) {
     await other.goto(`${base}/desktop.html`);
     await other.evaluate(() => window.__desktopCall.start('mira'));
     const refused = await other.evaluate(() => window.__desktopCall.snapshot());
-    assert.deepEqual(refused.block, { kind: 'elsewhere' }, 'a second window is refused');
+    assert.equal(refused.block?.kind, 'elsewhere', 'a second window is refused');
     result.secondWindow = 'refused: call-active';
 
     const expectedReplies = scenario.replies('x').length;
     const deadline = Date.now() + 20_000;
     let snapshot;
+    let micLevel = 0;
     while (Date.now() < deadline) {
+      micLevel = Math.max(micLevel, await window1.evaluate(() => window.__desktopCall.level()));
       snapshot = await window1.evaluate(() => window.__desktopCall.snapshot());
       const events = snapshot.state.events ?? [];
       if (events.filter((event) => event.type === 'reply-done').length >= expectedReplies) break;
@@ -560,6 +562,11 @@ async function runScenario(name, scenario) {
     result.firstAudioMs = playing[0]?.responseMs;
     result.noiseDiscarded = types.filter((type) => type === 'noise-discarded').length;
     result.downlinkRms = Number(loud.toFixed(3));
+    assert.ok(
+      micLevel > 0.1,
+      `the call bar ripple saw the caller speak (level ${micLevel.toFixed(3)})`,
+    );
+    result.micLevelMax = Number(micLevel.toFixed(3));
     result.asrClipMs = asrAudio.map((bytes) => Math.round(((bytes - 44) / 2 / RATE) * 1000));
     if (scenario.camera) {
       const received = events.filter((event) => event.type === 'frame-received');
@@ -656,6 +663,11 @@ async function runScenario(name, scenario) {
     };
     await window1.evaluate(() => window.__desktopCall.mute(true));
     assert.equal((await window1.evaluate(() => window.__desktopCall.snapshot())).state.muted, true);
+    assert.equal(
+      await window1.evaluate(() => window.__desktopCall.level()),
+      0,
+      'muted mic reads 0',
+    );
     await window1.evaluate(() => window.__desktopCall.hangup());
     const status = await calls.handle({ deviceId: 'host-owner' }, { kind: 'status' });
     assert.equal(status.calls.at(-1).endReason, 'hangup');

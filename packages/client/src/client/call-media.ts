@@ -6,6 +6,7 @@ import {
 } from '../../../core/src/voice/call-client.js';
 
 import { openMicrophone } from './mic-device.js';
+import { levelDbfs, meterFraction } from './voice-level.js';
 
 export { CALL_AUDIO_CONSTRAINTS } from './mic-device.js';
 
@@ -47,13 +48,44 @@ function gathered(peer: RTCPeerConnection): Promise<void> {
   });
 }
 
+export interface BrowserCallMedia extends CallClientMedia {
+  level(): number;
+}
+
+interface MicMeter {
+  read(): number;
+  close(): void;
+}
+
+function meterMicrophone(stream: MediaStream): MicMeter | undefined {
+  if (typeof AudioContext !== 'function') return undefined;
+  try {
+    const context = new AudioContext();
+    const analyser = context.createAnalyser();
+    analyser.fftSize = 1024;
+    context.createMediaStreamSource(stream).connect(analyser);
+    void context.resume().catch(() => undefined);
+    const samples = new Float32Array(analyser.fftSize);
+    return {
+      read() {
+        analyser.getFloatTimeDomainData(samples);
+        return meterFraction(levelDbfs(samples));
+      },
+      close: () => void context.close().catch(() => undefined),
+    };
+  } catch {
+    return undefined;
+  }
+}
+
 export function createBrowserCallMedia(
   devices: () => MediaDevices | undefined = () => globalThis.navigator?.mediaDevices,
-): CallClientMedia {
+): BrowserCallMedia {
   const listeners = new Set<(state: CallMediaState, code?: CallMediaCode) => void>();
   let peer: RTCPeerConnection | undefined;
   let stream: MediaStream | undefined;
   let speaker: HTMLAudioElement | undefined;
+  let meter: MicMeter | undefined;
   let muted = false;
   const emit = (state: CallMediaState, code?: CallMediaCode) => {
     for (const listener of [...listeners]) listener(state, code);
@@ -66,6 +98,8 @@ export function createBrowserCallMedia(
       current.ontrack = null;
       current.close();
     }
+    meter?.close();
+    meter = undefined;
     for (const track of stream?.getTracks() ?? []) track.stop();
     stream = undefined;
     if (speaker !== undefined) {
@@ -92,6 +126,7 @@ export function createBrowserCallMedia(
       const track = stream.getAudioTracks()[0];
       if (track === undefined) throw new CallMicrophoneError('microphone-missing');
       track.enabled = !muted;
+      meter = meterMicrophone(stream);
       const current = new RTCPeerConnection({ iceServers: [] });
       peer = current;
       current.ontrack = (event) => {
@@ -128,6 +163,7 @@ export function createBrowserCallMedia(
       release();
       muted = false;
     },
+    level: () => (muted || meter === undefined ? 0 : meter.read()),
     onState(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);

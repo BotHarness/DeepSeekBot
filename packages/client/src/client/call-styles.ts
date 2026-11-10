@@ -10,10 +10,16 @@ export const CALL_CSS = `
 .bh-call-status { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bh-call-island[data-tone='busy'] .bh-call-status, .bh-call-island[data-tone='warning'] .bh-call-status { color: ${color.muted}; }
 .bh-call-duration { flex: none; color: ${color.muted}; font-size: ${text.metaSize}; font-variant-numeric: tabular-nums; }
+.bh-call-mic { flex: none; display: inline-flex; border-radius: 999px; --bh-voice-reach: 0.4; --bh-voice-pulse-near: 4px; --bh-voice-pulse-far: 6px; }
+.bh-call-mic > button { border-radius: 999px; }
+.bh-call-mic[data-ripple='on'] > button { color: var(--dsw-alias-state-business-primary); }
 .bh-call-island [data-muted='true'] { color: ${color.fg}; background: ${color.selected}; }
 .bh-call-hangup { flex: none; display: inline-flex; align-items: center; justify-content: center; width: ${size.icon}; height: ${size.icon}; padding: 0; border: 0; border-radius: 999px; background: ${color.danger}; color: ${color.onDanger}; cursor: pointer; }
 .bh-call-hangup:hover { background: color-mix(in srgb, ${color.danger} 88%, black); }
 .bh-call-hangup:focus-visible { outline: ${border.focus} solid ${color.danger}; outline-offset: 2px; }
+.bh-call-rail-button { position: relative; }
+.bh-call-rail-badge { position: absolute; right: 0; bottom: 0; display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; border-radius: ${radius.round}; background: var(--dsw-alias-state-success-primary); color: ${color.onDanger}; box-shadow: 0 0 0 2px var(--dsw-alias-bg-module-platform); pointer-events: none; }
+.bh-call-rail-button[data-status='opening'] .bh-call-rail-badge { background: ${color.warning}; }
 .bh-call-notice { position: fixed; top: 56px; right: ${space.x5}; z-index: 1000; display: grid; gap: ${space.x2}; width: max-content; max-width: min(320px, calc(100vw - 32px)); padding: ${space.x4}; border: ${border.hairline} solid ${color.border}; border-radius: ${radius.md}; background: var(--dsw-alias-bg-base); box-shadow: 0 8px 24px color-mix(in srgb, var(--dsw-alias-label-primary) 12%, transparent); color: ${color.fg}; font-size: ${text.bodySize}; line-height: ${text.bodyLine}; }
 .bh-call-notice strong { font-weight: ${text.strong}; }
 .bh-call-notice p { margin: 0; color: ${color.muted}; }
