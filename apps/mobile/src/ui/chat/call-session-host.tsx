@@ -8,6 +8,7 @@ import type { CallClientState } from '../../../../../packages/core/src/voice/cal
 import { createCallSession } from '../../../../../packages/core/src/voice/call-session';
 import { callLiveView } from '../../../../../packages/core/src/voice/call-view';
 import { createCallPost } from '../../host/call-post';
+import { callTestStateFields, createCallTestDiagnostics } from '../../host/call-test-diagnostics';
 import { createPhoneCallCamera, type CallCameraPosition } from '../../host/call-camera';
 import { createCallMedia, microphoneAccess, microphoneGranted } from '../../host/call-media';
 import { askCallNotifications, callOverlayAllowed } from '../../host/call-notice';
@@ -118,6 +119,15 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
     let cancelled = false;
     let releaseConnection: (() => void) | undefined;
     const timeline: Record<string, unknown>[] = [];
+    const post = createCallPost(client);
+    const diagnostics = testAudio
+      ? createCallTestDiagnostics({
+          post,
+          media,
+          route: () => client.getSnapshot().connection.route,
+          encryptedLoopback: saved?.encryption?.loopback === 'encrypted',
+        })
+      : undefined;
     const mark = (kind: string, detail: Record<string, unknown> = {}) =>
       timeline.push({ kind, at: Date.now(), ...detail });
     const activity = createCallActivity(callActivityNative);
@@ -132,9 +142,12 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
       const file = new File(Paths.cache, `call-report-${Date.now()}.json`);
       setTimeout(() => {
         try {
+          const control = diagnostics?.snapshot();
           file.writeSync(
             JSON.stringify({
               timeline,
+              control: control?.events,
+              controlDropped: control?.dropped,
               recording: media.test?.recording() ?? null,
             }),
           );
@@ -173,8 +186,8 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
     let position: CallCameraPosition = 'front';
     const share = createPhoneCameraShare(() => camera);
     const call = createCallSession({
-      post: createCallPost(client),
-      media,
+      post: diagnostics?.post ?? post,
+      media: diagnostics?.media ?? media,
       emit: 'visible-changes',
       capture: share.capture,
       onChange: ({ call: next, visual }) => {
@@ -201,11 +214,10 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
           ...(next.status === 'ended' ? { interrupted: false } : {}),
         });
         showActivity();
-        if (testAudio)
-          mark('state', {
-            status: next.status,
-            phase: next.status === 'live' ? next.call.phase : undefined,
-          });
+        if (testAudio) {
+          mark('state', callTestStateFields(next));
+          diagnostics?.state(next);
+        }
         if (next.status === 'ended') writeReport();
       },
     });
