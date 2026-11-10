@@ -613,6 +613,8 @@ describe('plugin entry', () => {
       'messagingSend',
       'tobHome',
       'onboarding',
+      'acknowledgements',
+      'acknowledge',
       'onboardingModel',
       'telemetryEvent',
       'modelPlanInherit',
