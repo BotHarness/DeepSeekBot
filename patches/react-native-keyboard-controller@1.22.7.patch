@@ -1,0 +1,219 @@
+diff --git a/src/components/KeyboardChatScrollView/index.tsx b/src/components/KeyboardChatScrollView/index.tsx
+index 935bc71da..81e0bef59 100644
+--- a/src/components/KeyboardChatScrollView/index.tsx
++++ b/src/components/KeyboardChatScrollView/index.tsx
+@@ -34,6 +34,7 @@ const KeyboardChatScrollView: React.ForwardRefExoticComponent<
+       freeze = false,
+       offset = 0,
+       extraContentPadding = ZERO_CONTENT_PADDING,
++      extraContentPaddingFollow,
+       blankSpace = ZERO_BLANK_SPACE,
+       applyWorkaroundForContentInsetHitTestBug = false,
+       onLayout: onLayoutProp,
+@@ -70,6 +71,7 @@ const KeyboardChatScrollView: React.ForwardRefExoticComponent<
+     useExtraContentPadding({
+       scrollViewRef,
+       extraContentPadding,
++      extraContentPaddingFollow,
+       keyboardPadding: padding,
+       blankSpace,
+       scroll,
+diff --git a/src/components/KeyboardChatScrollView/types.ts b/src/components/KeyboardChatScrollView/types.ts
+index b7c98c8ed..f9639e2ad 100644
+--- a/src/components/KeyboardChatScrollView/types.ts
++++ b/src/components/KeyboardChatScrollView/types.ts
+@@ -64,6 +64,7 @@ export type KeyboardChatScrollViewProps = {
+    * Default is `undefined` (no extra padding).
+    */
+   extraContentPadding?: SharedValue<number>;
++  extraContentPaddingFollow?: SharedValue<boolean>;
+   /**
+    * When `true`, applies a runtime workaround for a React Native 0.81+ bug
+    * where the ScrollView's `contentInset` area does not respond to touch/scroll
+diff --git a/src/components/KeyboardChatScrollView/useExtraContentPadding/index.ts b/src/components/KeyboardChatScrollView/useExtraContentPadding/index.ts
+index e7584ed67..128374b46 100644
+--- a/src/components/KeyboardChatScrollView/useExtraContentPadding/index.ts
++++ b/src/components/KeyboardChatScrollView/useExtraContentPadding/index.ts
+@@ -13,6 +13,7 @@ import type Reanimated from "react-native-reanimated";
+ type UseExtraContentPaddingOptions = {
+   scrollViewRef: AnimatedRef<Reanimated.ScrollView>;
+   extraContentPadding: SharedValue<number>;
++  extraContentPaddingFollow?: SharedValue<boolean>;
+   /** Keyboard-only padding from useChatKeyboard — used to compute total padding for clamping. */
+   keyboardPadding: SharedValue<number>;
+   /** Minimum inset floor — used to absorb keyboard and extraContentPadding changes. */
+@@ -50,6 +51,7 @@ function useExtraContentPadding(options: UseExtraContentPaddingOptions): void {
+   const {
+     scrollViewRef,
+     extraContentPadding,
++    extraContentPaddingFollow,
+     keyboardPadding,
+     blankSpace,
+     scroll,
+@@ -110,6 +112,16 @@ function useExtraContentPadding(options: UseExtraContentPaddingOptions): void {
+         return;
+       }
+ 
++      if (OS === "android" && inverted && extraContentPaddingFollow !== undefined) {
++        if (extraContentPaddingFollow.value) {
++          requestAnimationFrame(() => {
++            if (extraContentPaddingFollow.value && !freeze.value) {
++              safeScrollTo(scrollViewRef, 0, 0, false);
++            }
++          });
++        }
++        return;
++      }
+       const atEnd = isScrollAtEnd(
+         scroll.value,
+         layout.value.height,
+@@ -150,7 +162,7 @@ function useExtraContentPadding(options: UseExtraContentPaddingOptions): void {
+         scrollToTarget(target);
+       }
+     },
+-    [inverted, keyboardLiftBehavior],
++    [inverted, keyboardLiftBehavior, extraContentPaddingFollow],
+   );
+ }
+ 
+diff --git a/lib/module/components/KeyboardChatScrollView/index.js b/lib/module/components/KeyboardChatScrollView/index.js
+index e0c83918d..71c4dd726 100644
+--- a/lib/module/components/KeyboardChatScrollView/index.js
++++ b/lib/module/components/KeyboardChatScrollView/index.js
+@@ -20,6 +20,7 @@ const KeyboardChatScrollView = /*#__PURE__*/forwardRef(({
+   freeze = false,
+   offset = 0,
+   extraContentPadding = ZERO_CONTENT_PADDING,
++  extraContentPaddingFollow,
+   blankSpace = ZERO_BLANK_SPACE,
+   applyWorkaroundForContentInsetHitTestBug = false,
+   onLayout: onLayoutProp,
+@@ -52,6 +53,7 @@ const KeyboardChatScrollView = /*#__PURE__*/forwardRef(({
+   useExtraContentPadding({
+     scrollViewRef,
+     extraContentPadding,
++    extraContentPaddingFollow,
+     keyboardPadding: padding,
+     blankSpace,
+     scroll,
+diff --git a/lib/module/components/KeyboardChatScrollView/useExtraContentPadding/index.js b/lib/module/components/KeyboardChatScrollView/useExtraContentPadding/index.js
+index 3c90439c5..5788f02e6 100644
+--- a/lib/module/components/KeyboardChatScrollView/useExtraContentPadding/index.js
++++ b/lib/module/components/KeyboardChatScrollView/useExtraContentPadding/index.js
+@@ -24,6 +24,7 @@ function useExtraContentPadding(options) {
+   const {
+     scrollViewRef,
+     extraContentPadding,
++    extraContentPaddingFollow,
+     keyboardPadding,
+     blankSpace,
+     scroll,
+@@ -67,6 +68,16 @@ function useExtraContentPadding(options) {
+       // blankSpace absorbed the change
+       return;
+     }
++    if (OS === "android" && inverted && extraContentPaddingFollow !== undefined) {
++      if (extraContentPaddingFollow.value) {
++        requestAnimationFrame(() => {
++          if (extraContentPaddingFollow.value && !freeze.value) {
++            safeScrollTo(scrollViewRef, 0, 0, false);
++          }
++        });
++      }
++      return;
++    }
+     const atEnd = isScrollAtEnd(scroll.value, layout.value.height, size.value.height, inverted);
+ 
+     // "persistent": scroll on grow, hold position on shrink (unless at end)
+@@ -87,7 +98,7 @@ function useExtraContentPadding(options) {
+       const target = Math.max(Math.min(scroll.value + effectiveDelta, maxScroll), 0);
+       scrollToTarget(target);
+     }
+-  }, [inverted, keyboardLiftBehavior]);
++  }, [inverted, keyboardLiftBehavior, extraContentPaddingFollow]);
+ }
+ export { useExtraContentPadding };
+ //# sourceMappingURL=index.js.map
+\ No newline at end of file
+diff --git a/lib/commonjs/components/KeyboardChatScrollView/index.js b/lib/commonjs/components/KeyboardChatScrollView/index.js
+index 0b78ff38d..d5f108016 100644
+--- a/lib/commonjs/components/KeyboardChatScrollView/index.js
++++ b/lib/commonjs/components/KeyboardChatScrollView/index.js
+@@ -27,6 +27,7 @@ const KeyboardChatScrollView = /*#__PURE__*/(0, _react.forwardRef)(({
+   freeze = false,
+   offset = 0,
+   extraContentPadding = ZERO_CONTENT_PADDING,
++  extraContentPaddingFollow,
+   blankSpace = ZERO_BLANK_SPACE,
+   applyWorkaroundForContentInsetHitTestBug = false,
+   onLayout: onLayoutProp,
+@@ -59,6 +60,7 @@ const KeyboardChatScrollView = /*#__PURE__*/(0, _react.forwardRef)(({
+   (0, _useExtraContentPadding.useExtraContentPadding)({
+     scrollViewRef,
+     extraContentPadding,
++    extraContentPaddingFollow,
+     keyboardPadding: padding,
+     blankSpace,
+     scroll,
+diff --git a/lib/commonjs/components/KeyboardChatScrollView/useExtraContentPadding/index.js b/lib/commonjs/components/KeyboardChatScrollView/useExtraContentPadding/index.js
+index 827436c43..9f71a0a23 100644
+--- a/lib/commonjs/components/KeyboardChatScrollView/useExtraContentPadding/index.js
++++ b/lib/commonjs/components/KeyboardChatScrollView/useExtraContentPadding/index.js
+@@ -30,6 +30,7 @@ function useExtraContentPadding(options) {
+   const {
+     scrollViewRef,
+     extraContentPadding,
++    extraContentPaddingFollow,
+     keyboardPadding,
+     blankSpace,
+     scroll,
+@@ -73,6 +74,16 @@ function useExtraContentPadding(options) {
+       // blankSpace absorbed the change
+       return;
+     }
++    if (OS === "android" && inverted && extraContentPaddingFollow !== undefined) {
++      if (extraContentPaddingFollow.value) {
++        requestAnimationFrame(() => {
++          if (extraContentPaddingFollow.value && !freeze.value) {
++            (0, _safeScrollTo.safeScrollTo)(scrollViewRef, 0, 0, false);
++          }
++        });
++      }
++      return;
++    }
+     const atEnd = (0, _helpers.isScrollAtEnd)(scroll.value, layout.value.height, size.value.height, inverted);
+ 
+     // "persistent": scroll on grow, hold position on shrink (unless at end)
+@@ -93,6 +104,6 @@ function useExtraContentPadding(options) {
+       const target = Math.max(Math.min(scroll.value + effectiveDelta, maxScroll), 0);
+       scrollToTarget(target);
+     }
+-  }, [inverted, keyboardLiftBehavior]);
++  }, [inverted, keyboardLiftBehavior, extraContentPaddingFollow]);
+ }
+ //# sourceMappingURL=index.js.map
+\ No newline at end of file
+diff --git a/lib/typescript/components/KeyboardChatScrollView/types.d.ts b/lib/typescript/components/KeyboardChatScrollView/types.d.ts
+index eba1514c2..d354c5396 100644
+--- a/lib/typescript/components/KeyboardChatScrollView/types.d.ts
++++ b/lib/typescript/components/KeyboardChatScrollView/types.d.ts
+@@ -59,6 +59,7 @@ export type KeyboardChatScrollViewProps = {
+      * Default is `undefined` (no extra padding).
+      */
+     extraContentPadding?: SharedValue<number>;
++    extraContentPaddingFollow?: SharedValue<boolean>;
+     /**
+      * When `true`, applies a runtime workaround for a React Native 0.81+ bug
+      * where the ScrollView's `contentInset` area does not respond to touch/scroll
+diff --git a/lib/typescript/components/KeyboardChatScrollView/useExtraContentPadding/index.d.ts b/lib/typescript/components/KeyboardChatScrollView/useExtraContentPadding/index.d.ts
+index ec73f7054..f564a1799 100644
+--- a/lib/typescript/components/KeyboardChatScrollView/useExtraContentPadding/index.d.ts
++++ b/lib/typescript/components/KeyboardChatScrollView/useExtraContentPadding/index.d.ts
+@@ -4,6 +4,7 @@ import type Reanimated from "react-native-reanimated";
+ type UseExtraContentPaddingOptions = {
+     scrollViewRef: AnimatedRef<Reanimated.ScrollView>;
+     extraContentPadding: SharedValue<number>;
++    extraContentPaddingFollow?: SharedValue<boolean>;
+     /** Keyboard-only padding from useChatKeyboard — used to compute total padding for clamping. */
+     keyboardPadding: SharedValue<number>;
+     /** Minimum inset floor — used to absorb keyboard and extraContentPadding changes. */
