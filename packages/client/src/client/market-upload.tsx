@@ -235,7 +235,8 @@ export function MarketUploadDialog({
       }
       return loaded;
     } catch (failure) {
-      if (mounted.current) setAccount({ status: 'error', cause: failure });
+      if (mounted.current && epoch === signInEpoch.current)
+        setAccount({ status: 'error', cause: failure });
       return undefined;
     }
   };
@@ -497,6 +498,7 @@ export function MarketUploadDialog({
             busy={busy}
             onSignIn={() =>
               void run(async () => {
+                signInEpoch.current += 1;
                 const started = await startConnectSignIn();
                 signInEpoch.current += 1;
                 if (mounted.current) setSignIn(started);

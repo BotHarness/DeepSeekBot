@@ -24,7 +24,7 @@ export function useConnectionPresence(
   const [seen, setSeen] = useState<number>();
   if (!active && seen !== undefined) setSeen(undefined);
   if (active && seen === undefined) setSeen(Date.now());
-  const start = active ? Math.min(disruptedSince ?? Infinity, seen ?? Date.now()) : undefined;
+  const start = active ? (disruptedSince ?? seen ?? Date.now()) : undefined;
   const subscribe = useCallback(
     (notify: () => void) => {
       if (start === undefined) return () => {};

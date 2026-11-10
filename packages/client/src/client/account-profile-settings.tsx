@@ -88,7 +88,8 @@ export function AccountProfileSettings({
       setState({ status: 'ready', account });
       if (!account.signedIn && account.issue !== undefined) setSignIn(undefined);
     } catch (error) {
-      if (mounted.current) setState({ status: 'error', message: marketplaceError(error, t) });
+      if (mounted.current && epoch === signInEpoch.current)
+        setState({ status: 'error', message: marketplaceError(error, t) });
     }
   };
 
@@ -108,6 +109,7 @@ export function AccountProfileSettings({
   const beginSignIn = async (): Promise<void> => {
     setBusy(true);
     setSignInFailed(false);
+    signInEpoch.current += 1;
     try {
       const code = await startSignIn();
       signInEpoch.current += 1;
