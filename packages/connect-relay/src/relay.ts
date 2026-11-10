@@ -496,25 +496,32 @@ export function createRelay(options: RelayOptions) {
     throw new RelayFull('pool-full', await queuePosition(current));
   };
 
-  const chooseZone = async (current: HostRow, accepted: ReadonlySet<string>, avoid?: string) => {
-    if (current.zone !== null && avoid === undefined) return current.zone;
-    const clock = now().getTime();
-    const usable = zones.filter(
-      (zone) =>
-        zone !== avoid &&
-        (zone === defaultZone || accepted.has(zone)) &&
-        (quotaUntil.get(zone) ?? 0) <= clock,
-    );
-    if (usable.length === 0) return defaultZone;
-    if (usable.length === 1) return usable[0] as string;
+  const zoneUse = async () => {
     const { results } = await db
       .prepare(
         'SELECT COALESCE(zone, ?) AS zone, COUNT(*) AS n FROM hosts WHERE tunnel_id IS NOT NULL OR dns_record_id IS NOT NULL GROUP BY COALESCE(zone, ?)',
       )
       .bind(defaultZone, defaultZone)
       .all<{ zone: string; n: number }>();
-    const used = new Map(results.map((entry) => [entry.zone, entry.n]));
-    return pickZone(usable, used, limitOf) ?? defaultZone;
+    return new Map(results.map((entry) => [entry.zone, entry.n]));
+  };
+
+  const usableZones = (accepted: ReadonlySet<string>, avoid?: string) => {
+    const clock = now().getTime();
+    return zones.filter(
+      (zone) =>
+        zone !== avoid &&
+        (zone === defaultZone || accepted.has(zone)) &&
+        (quotaUntil.get(zone) ?? 0) <= clock,
+    );
+  };
+
+  const chooseZone = async (current: HostRow, accepted: ReadonlySet<string>) => {
+    if (current.zone !== null) return current.zone;
+    const usable = usableZones(accepted);
+    if (usable.length === 0) return defaultZone;
+    if (usable.length === 1) return usable[0] as string;
+    return pickZone(usable, await zoneUse(), limitOf) ?? defaultZone;
   };
 
   const provision = async (row: HostRow, originPort: number, accepted: ReadonlySet<string>) => {
@@ -585,7 +592,11 @@ export function createRelay(options: RelayOptions) {
           .prepare(
             'UPDATE hosts SET zone = ? WHERE id = ? AND dns_record_id IS NULL AND tunnel_id IS NULL AND zone = ?',
           )
-          .bind(await chooseZone(current, accepted, zoneOf(current)), current.id, zoneOf(current))
+          .bind(
+            pickZone(usableZones(accepted, zoneOf(current)), await zoneUse(), limitOf) ?? null,
+            current.id,
+            zoneOf(current),
+          )
           .run();
       }
       throw error;
