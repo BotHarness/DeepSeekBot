@@ -193,12 +193,13 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
               child.stdin.end(JSON.stringify({ id: nextId++, op: 'close' }) + '\n');
               if (!(await boundedExit(exit, 2400))) {
                 cleanupReason = 'exit-timeout';
-                child.kill();
+                if (!exited) child.kill();
                 await boundedExit(exit, 200);
-                throw new CallMediaError(
-                  'helper-failed',
-                  'The call process tree did not confirm cleanup within its limit.',
-                );
+                if (!(exited && treeStopped))
+                  throw new CallMediaError(
+                    'helper-failed',
+                    'The call process tree did not confirm cleanup within its limit.',
+                  );
               }
             }
             if (child && !spawnFailed && !treeStopped)

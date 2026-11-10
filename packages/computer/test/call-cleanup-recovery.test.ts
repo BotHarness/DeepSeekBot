@@ -170,3 +170,29 @@ it('retains the busy refusal after launcher exit without trusted cleanup proof',
     ),
   ).toBe(true);
 });
+
+it('accepts dual cleanup proof received within the existing post-kill wait', async () => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+  const h = setup('delayed');
+  const { peer } = await h.outcome;
+  const closing = peer!.close().then(
+    () => 'closed',
+    () => 'refused',
+  );
+  await vi.advanceTimersByTimeAsync(2400);
+  await vi.advanceTimersByTimeAsync(100);
+  harness.proof();
+  harness.exit();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(await closing).toBe('closed');
+  expect(h.events.some((entry) => entry.includes('phase=call-media-cleanup-refused'))).toBe(false);
+  expect(h.events.some((entry) => entry.includes('phase=call-media-stopped'))).toBe(true);
+  harness.mode = 'success';
+  const next = await h.media.open({
+    callId: 'next',
+    signal: new AbortController().signal,
+    onPcm: () => undefined,
+    onStatus: () => undefined,
+  });
+  await next.close();
+});
