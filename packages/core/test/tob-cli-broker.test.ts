@@ -120,7 +120,7 @@ describe('Tob scoped CLI broker', () => {
     });
     expect(prepareOperation).not.toHaveBeenCalled();
     expect(await f.invoke(command, args)).toMatchObject({ ok: true, value: { accepted: true } });
-    expect(prepareOperation).toHaveBeenCalledWith(command, args);
+    expect(prepareOperation).toHaveBeenCalledWith(command, args, expect.any(AbortSignal));
     expect(f.approve).toHaveBeenCalledOnce();
     expect(run).toHaveBeenCalledOnce();
     expect(await f.invoke(command, { ...args, avatar: 'x'.repeat(256 * 1024) })).toMatchObject({

@@ -92,7 +92,8 @@ const DELIVERED = '\u00a0✓';
 const BESIDE_MAX = 60;
 
 function messageTime(message: ConversationMessage, streaming: boolean): string | undefined {
-  if (streaming || message.delivery !== 'committed') return undefined;
+  if (streaming) return undefined;
+  if (message.author !== 'human' && message.delivery !== 'committed') return undefined;
   const clock = bubbleTime(message.at);
   if (clock === '') return undefined;
   return message.author === 'human' ? `${clock}${DELIVERED}` : clock;
@@ -103,15 +104,20 @@ function MessageTime({
   human,
   floating = false,
   onMedia = false,
+  unsent = false,
 }: {
   time: string;
   human: boolean;
   floating?: boolean;
   onMedia?: boolean;
+  unsent?: boolean;
 }) {
+  const check = unsent && time.endsWith(DELIVERED);
+  const clock = check ? time.slice(0, -DELIVERED.length) : time;
   return (
     <Text
       testID="message-time"
+      accessibilityLabel={check ? clock : undefined}
       variant="meta"
       tone={human ? 'onAccent' : 'muted'}
       numberOfLines={1}
@@ -127,12 +133,17 @@ function MessageTime({
           : null,
       ]}
     >
-      {time}
+      {clock}
+      {check ? (
+        <Text testID="message-time-unsent" style={{ color: 'transparent' }}>
+          {DELIVERED}
+        </Text>
+      ) : null}
     </Text>
   );
 }
 
-function ImageTime({ time, human }: { time: string; human: boolean }) {
+function ImageTime({ time, human, unsent }: { time: string; human: boolean; unsent: boolean }) {
   return (
     <View
       testID="message-image-time"
@@ -147,7 +158,7 @@ function ImageTime({ time, human }: { time: string; human: boolean }) {
         backgroundColor: mediaBubble.scrim,
       }}
     >
-      <MessageTime time={time} human={human} onMedia />
+      <MessageTime time={time} human={human} onMedia unsent={unsent} />
     </View>
   );
 }
@@ -232,6 +243,7 @@ export function BubbleBody({
   const human = message.author === 'human';
   const ink = human ? 'onAccent' : 'fg';
   const time = messageTime(message, streaming);
+  const unsent = human && message.delivery !== 'committed';
   const { fontScale, width: screen } = useWindowDimensions();
   const [wrapped, setWrapped] = useState<string | undefined>(undefined);
   const images = message.attachments.filter((attachment) => attachment.kind === 'image');
@@ -297,7 +309,7 @@ export function BubbleBody({
         </Text>
       ) : null}
       {time === undefined || beside || pillTime !== undefined ? null : (
-        <MessageTime time={time} human={human} floating={lastInBubble && human} />
+        <MessageTime time={time} human={human} floating={lastInBubble && human} unsent={unsent} />
       )}
     </>
   );
@@ -361,7 +373,9 @@ export function BubbleBody({
           onOpenImage={onOpenImage}
           onImageReady={onImageReady}
         >
-          {pillTime === undefined ? null : <ImageTime time={pillTime} human={human} />}
+          {pillTime === undefined ? null : (
+            <ImageTime time={pillTime} human={human} unsent={unsent} />
+          )}
         </MessageAlbum>
       ) : null}
       {album ? (

@@ -12,6 +12,7 @@ import {
   type LogEntryInput,
 } from '../logs/log-db.js';
 import { scrubHomePaths } from '../telemetry/exceptions.js';
+import { BUG_REPORT_PATH, createBugReportHttp } from './bug-report.js';
 import { createDiagnosticRedactor } from './redaction.js';
 
 export const CLIENT_LOG_PATH = '/api/botharness/client-log';
@@ -560,12 +561,8 @@ export function buildDiagnosticExport(
   },
 ): { archive: Buffer; manifest: Record<string, unknown>; until: number } {
   const until = options.now();
-  const since = until - options.hours * 3_600_000;
-  const rows = database
-    .range(since, DIAGNOSTIC_LOG_LIMITS.exportMaxRows + 1)
-    .filter((row) => row.ts <= until);
-  const truncated = rows.length > DIAGNOSTIC_LOG_LIMITS.exportMaxRows;
-  const built = diagnosticLogArchive(truncated ? rows.slice(1) : rows, {
+  const { rows, since, truncated } = diagnosticLogRows(database, options.hours, until);
+  const built = diagnosticLogArchive(rows, {
     since,
     until,
     environment: options.environment,
@@ -649,17 +646,27 @@ export function exportDiagnosticLogOffline(options: {
   }
 }
 
+export interface DiagnosticLogArchiveOptions {
+  since: number;
+  until: number;
+  environment: DiagnosticLogEnvironment;
+  homes: ReadonlyArray<{ path: string; label: string }>;
+  truncated: boolean;
+  exportedBy?: 'host' | 'cli-offline';
+}
+
 export function diagnosticLogArchive(
   rows: readonly LogEntry[],
-  options: {
-    since: number;
-    until: number;
-    environment: DiagnosticLogEnvironment;
-    homes: ReadonlyArray<{ path: string; label: string }>;
-    truncated: boolean;
-    exportedBy?: 'host' | 'cli-offline';
-  },
+  options: DiagnosticLogArchiveOptions,
 ): { archive: Buffer; manifest: Record<string, unknown> } {
+  const { files, manifest } = diagnosticLogFiles(rows, options);
+  return { archive: writeZip(files), manifest };
+}
+
+export function diagnosticLogFiles(
+  rows: readonly LogEntry[],
+  options: DiagnosticLogArchiveOptions,
+): { files: Array<{ path: string; data: Uint8Array }>; manifest: Record<string, unknown> } {
   const redactor = createDiagnosticRedactor({ homes: options.homes });
   const views = rows.map((row) => redactor.value(diagnosticLogView(row)));
   const counts: Record<string, number> = {};
@@ -686,7 +693,7 @@ export function diagnosticLogArchive(
     redaction: { level: redactor.level, hits: redactor.report() },
   };
   const encoder = new TextEncoder();
-  const archive = writeZip([
+  const files = [
     { path: 'manifest.json', data: encoder.encode(JSON.stringify(manifest, null, 2) + '\n') },
     {
       path: 'logs.jsonl',
@@ -696,8 +703,21 @@ export function diagnosticLogArchive(
       path: 'timeline.txt',
       data: encoder.encode(views.map(timelineLine).join('\n') + '\n'),
     },
-  ]);
-  return { archive, manifest };
+  ];
+  return { files, manifest };
+}
+
+export function diagnosticLogRows(
+  database: Pick<LogDatabase, 'range'>,
+  hours: number,
+  until: number,
+): { rows: LogEntry[]; since: number; truncated: boolean } {
+  const since = until - hours * 3_600_000;
+  const rows = database
+    .range(since, DIAGNOSTIC_LOG_LIMITS.exportMaxRows + 1)
+    .filter((row) => row.ts <= until);
+  const truncated = rows.length > DIAGNOSTIC_LOG_LIMITS.exportMaxRows;
+  return { rows: truncated ? rows.slice(1) : rows, since, truncated };
 }
 
 export function createDiagnosticLogHttp(options: DiagnosticLogHttpOptions) {
@@ -860,6 +880,23 @@ export function mountDiagnosticLog(
         () => connection.fetch.register({ path, methods, requestBody: 'buffered', fetch: http }),
         'botharness: diagnostic log ' + path,
       );
+    const bugReport = createBugReportHttp({
+      database: () => database,
+      flush: () => writer?.flush(),
+      environment: options.environment(),
+      homes: options.homes,
+      log: (message) => child.logger.info(message),
+    });
+    child.effect(
+      () =>
+        connection.fetch.register({
+          path: BUG_REPORT_PATH,
+          methods: ['POST'],
+          requestBody: 'buffered',
+          fetch: bugReport,
+        }),
+      'botharness: bug report ' + BUG_REPORT_PATH,
+    );
   });
   return {
     ...events,
