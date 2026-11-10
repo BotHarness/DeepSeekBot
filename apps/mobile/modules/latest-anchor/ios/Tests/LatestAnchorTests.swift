@@ -165,6 +165,29 @@ final class LatestAnchorTests: XCTestCase {
     XCTAssertTrue(anchor.gliding)
     anchor.stop()
   }
+
+  func testKeepsObservingWhenAnAncestorSwapsTheClassOnAWindowChange() {
+    let first = UIWindow(frame: CGRect(x: 0, y: 0, width: 300, height: 600))
+    let second = UIWindow(frame: first.bounds)
+    let decorator = SwappingDecorator(frame: first.bounds)
+    let scroll = UIScrollView(frame: first.bounds)
+    scroll.contentInsetAdjustmentBehavior = .never
+    scroll.contentSize = CGSize(width: 300, height: 1000)
+    scroll.contentOffset.y = 400
+    decorator.addSubview(scroll)
+    let anchor = LatestAnchorView()
+    scroll.addSubview(anchor)
+    first.addSubview(decorator)
+    settle()
+    XCTAssertTrue(NSStringFromClass(object_getClass(scroll)!).hasPrefix("NSKVONotifying_"))
+    second.addSubview(decorator)
+    settle()
+    scroll.contentSize = CGSize(width: 300, height: 1100)
+    XCTAssertTrue(anchor.gliding)
+    anchor.stop()
+    decorator.removeFromSuperview()
+    settle()
+  }
 }
 
 private func settle() {
