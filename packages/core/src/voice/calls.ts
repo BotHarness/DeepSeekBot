@@ -5,6 +5,7 @@ import {
   VOICE_CALL_BARGE_IN,
   VOICE_CALL_HOST_OWNER,
   VOICE_CALL_LIMITS,
+  isVoiceCallMediaError,
   type VoiceCallBargeIn,
   type VoiceCallCommand,
   type VoiceCallDescription,
@@ -49,7 +50,7 @@ import { createHarvest, type Harvest } from './harvest.js';
 import { MAX_GRID_FRAMES, type CallVisualSource } from './keyframes.js';
 
 export interface VoiceCallMedia {
-  availability(): Promise<'ready' | 'unsupported-platform' | 'helper-missing'>;
+  availability(signal?: AbortSignal): Promise<'ready' | 'unsupported-platform' | 'helper-missing'>;
   open(options: {
     readonly callId: string;
     readonly signal: AbortSignal;
@@ -1910,9 +1911,9 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         'Bind a TTS Provider to this Bot before calling it.',
       );
     const media = kind === 'webrtc' ? deps.media() : undefined;
-    if (kind === 'webrtc') {
+    if (kind === 'webrtc' && (media === undefined || live() !== undefined)) {
       const availability =
-        media === undefined ? 'unsupported-platform' : await media.availability();
+        media === undefined ? 'unsupported-platform' : await media.availability(signal);
       signal.throwIfAborted();
       if (availability === 'unsupported-platform')
         throw new CallRefusal(
@@ -2029,6 +2030,12 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         await end(call, 'media-failed');
         calls.delete(call.id);
         if (error instanceof CallRefusal) throw error;
+        if (isVoiceCallMediaError(error)) {
+          if (error.code === 'unsupported-platform')
+            throw new CallRefusal('media-unsupported', error.message);
+          if (error.code === 'helper-missing')
+            throw new CallRefusal('media-helper-missing', error.message);
+        }
         throw new CallRefusal(
           'media-failed',
           'The call media could not start on this Host. Check the media helper and retry.',

@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { VoiceCallMedia, VoiceCallMediaPeer } from '../../../core/src/voice/calls.js';
+import { VoiceCallMediaError as CallMediaError } from '../../../core/src/voice/call-contract.js';
 import type { VoiceCallDescription } from '../../../core/src/voice/call-contract.js';
 import { parseStats } from '../../../core/src/voice/call-perf.js';
 import {
@@ -30,15 +31,6 @@ const AUDIO_CHUNK = 48 * 1024;
 const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
 const PCM_LINE_LIMIT = 16 * 1024;
 
-class CallMediaError extends Error {
-  constructor(
-    readonly code: 'unsupported-platform' | 'helper-missing' | 'helper-failed' | 'busy',
-    message: string,
-  ) {
-    super(message);
-  }
-}
-
 export interface CallMediaOptions {
   readonly helperDirectory?: string | undefined;
   readonly assetsDirectory?: string | undefined;
@@ -61,18 +53,43 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
     const assets = options.assetsDirectory ?? localVideoAssetsDirectory();
     return { platform, arch, mac, supported, directory, assets };
   };
-  const verified = async () => {
+  const verified = async (operation: 'availability' | 'open', signal?: AbortSignal) => {
     const { mac, arch, directory, assets, platform } = target();
-    await verifyLocalVideoAssets(assets, platform);
-    return mac ? verifyMacVideoHelper(directory, arch) : verifyLocalVideoHelper(directory, assets);
+    const started = Date.now();
+    const report = (result: 'start' | 'ready' | 'invalid' | 'cancelled') => {
+      if (process.env['BOTHARNESS_CALL_DIAGNOSTICS'] === '1')
+        options.onEvent?.(
+          `phase=call-media-verification operation=${operation} result=${result} durationMs=${Date.now() - started}`,
+        );
+    };
+    report('start');
+    try {
+      signal?.throwIfAborted();
+      await verifyLocalVideoAssets(assets, platform);
+      signal?.throwIfAborted();
+      const valid = await (mac
+        ? verifyMacVideoHelper(directory, arch)
+        : verifyLocalVideoHelper(directory, assets, signal));
+      signal?.throwIfAborted();
+      report(valid ? 'ready' : 'invalid');
+      return valid;
+    } catch {
+      report(signal?.aborted ? 'cancelled' : 'invalid');
+      signal?.throwIfAborted();
+      throw new CallMediaError(
+        'helper-missing',
+        'The call media helper is missing or invalid. Start Local Computer to install it.',
+      );
+    }
   };
   return {
-    async availability() {
+    async availability(signal) {
       const { supported } = target();
       if (!supported) return 'unsupported-platform';
       try {
-        return (await verified()) ? 'ready' : 'helper-missing';
+        return (await verified('availability', signal)) ? 'ready' : 'helper-missing';
       } catch {
+        signal?.throwIfAborted();
         return 'helper-missing';
       }
     },
@@ -289,7 +306,7 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
       };
       try {
         signal.throwIfAborted();
-        if (!(await verified()))
+        if (!(await verified('open', signal)))
           throw new CallMediaError(
             'helper-missing',
             'Start Local Computer once to install the media helper, then call again.',

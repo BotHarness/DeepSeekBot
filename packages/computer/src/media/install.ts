@@ -70,18 +70,24 @@ function supported(platform: string, arch: string): void {
   }
 }
 
-async function hashFile(path: string): Promise<string> {
+async function hashFile(path: string, signal?: AbortSignal): Promise<string> {
+  signal?.throwIfAborted();
   const hash = createHash('sha256');
-  for await (const bytes of createReadStream(path)) hash.update(bytes);
+  for await (const bytes of createReadStream(path, { signal })) {
+    signal?.throwIfAborted();
+    hash.update(bytes);
+  }
   return hash.digest('hex');
 }
 
-async function filesIn(directory: string, prefix = ''): Promise<string[]> {
+async function filesIn(directory: string, prefix = '', signal?: AbortSignal): Promise<string[]> {
+  signal?.throwIfAborted();
   const result: string[] = [];
   for (const entry of await readdir(join(directory, prefix), { withFileTypes: true })) {
+    signal?.throwIfAborted();
     const name = prefix ? `${prefix}/${entry.name}` : entry.name;
     if (entry.isSymbolicLink()) throw new Error('Runtime links are not supported');
-    if (entry.isDirectory()) result.push(...(await filesIn(directory, name)));
+    if (entry.isDirectory()) result.push(...(await filesIn(directory, name, signal)));
     else if (entry.isFile() && name !== MANIFEST) result.push(name);
     else if (!entry.isFile()) throw new Error('Unexpected runtime entry');
     if (result.length > 2048) throw new Error('Runtime file limit');
@@ -101,10 +107,12 @@ function childPath(directory: string, name: string): string {
 export async function verifyLocalVideoHelper(
   directory = localVideoHelperDirectory(),
   assets = localVideoAssetsDirectory(),
+  signal?: AbortSignal,
 ): Promise<boolean> {
   try {
+    signal?.throwIfAborted();
     if ((await lstat(directory)).isSymbolicLink()) return false;
-    const manifestText = await readFile(join(directory, MANIFEST), 'utf8');
+    const manifestText = await readFile(join(directory, MANIFEST), { encoding: 'utf8', signal });
     if (Buffer.byteLength(manifestText) > 256 * 1024) return false;
     const manifest: unknown = JSON.parse(manifestText);
     if (
@@ -119,7 +127,7 @@ export async function verifyLocalVideoHelper(
       return false;
     if (
       !('launcherSourceSha256' in manifest) ||
-      manifest.launcherSourceSha256 !== (await hashFile(join(assets, 'launcher.cs')))
+      manifest.launcherSourceSha256 !== (await hashFile(join(assets, 'launcher.cs'), signal))
     )
       return false;
     const entries = Object.entries(manifest.files);
@@ -132,16 +140,18 @@ export async function verifyLocalVideoHelper(
       !entries.some(([name]) => name === 'LICENSES.chromium.html')
     )
       return false;
-    const actual = await filesIn(directory);
+    const actual = await filesIn(directory, '', signal);
     if (actual.length !== entries.length) return false;
     for (const [name, digest] of entries) {
+      signal?.throwIfAborted();
       if (typeof digest !== 'string' || !/^[a-f0-9]{64}$/u.test(digest) || !actual.includes(name))
         return false;
       const path = childPath(directory, name);
-      if (!(await lstat(path)).isFile() || (await hashFile(path)) !== digest) return false;
+      if (!(await lstat(path)).isFile() || (await hashFile(path, signal)) !== digest) return false;
     }
     return true;
   } catch {
+    signal?.throwIfAborted();
     return false;
   }
 }
