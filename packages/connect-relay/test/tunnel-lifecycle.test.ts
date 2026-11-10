@@ -729,6 +729,21 @@ describe('eviction scoring', () => {
     );
   });
 
+  it('moves a Host off a failing shared zone to the zone with the most room', async () => {
+    const third = 'third.example';
+    const env = await pool(['user_a'], {
+      zones: [ZONE, EXTRA, third],
+      zoneRecords: 2,
+      zoneLimits: { [EXTRA]: 5, [third]: 4 },
+    });
+    env.tunnels.deniedZones.add(EXTRA);
+    const a = await env.link('user_a');
+    const offered = { zones: [ZONE, EXTRA, third] };
+    expect((await env.provision('user_a', a, offered)).status).toBe(502);
+    expect(await env.row(a)).toMatchObject({ zone: third, tunnel_id: null });
+    expect((await env.provision('user_a', a, offered)).body.hostname).toBe(`${a}.${third}`);
+  });
+
   it('counts a zone at its own limit in the pool and when it fills', async () => {
     const env = await pool(['user_a', 'user_b', 'user_c'], {
       zones: [ZONE, EXTRA],

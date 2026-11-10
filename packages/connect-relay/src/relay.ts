@@ -496,12 +496,14 @@ export function createRelay(options: RelayOptions) {
     throw new RelayFull('pool-full', await queuePosition(current));
   };
 
-  const chooseZone = async (current: HostRow, accepted: ReadonlySet<string>) => {
-    if (current.zone !== null) return current.zone;
+  const chooseZone = async (current: HostRow, accepted: ReadonlySet<string>, avoid?: string) => {
+    if (current.zone !== null && avoid === undefined) return current.zone;
     const clock = now().getTime();
     const usable = zones.filter(
       (zone) =>
-        (zone === defaultZone || accepted.has(zone)) && (quotaUntil.get(zone) ?? 0) <= clock,
+        zone !== avoid &&
+        (zone === defaultZone || accepted.has(zone)) &&
+        (quotaUntil.get(zone) ?? 0) <= clock,
     );
     if (usable.length === 0) return defaultZone;
     if (usable.length === 1) return usable[0] as string;
@@ -580,8 +582,10 @@ export function createRelay(options: RelayOptions) {
         log('connect-zone-failed', { host: current.id, zone: zoneOf(current) });
         quotaUntil.set(zoneOf(current), now().getTime() + 10 * 60 * 1000);
         await db
-          .prepare('UPDATE hosts SET zone = ? WHERE id = ? AND dns_record_id IS NULL')
-          .bind(defaultZone, current.id)
+          .prepare(
+            'UPDATE hosts SET zone = ? WHERE id = ? AND dns_record_id IS NULL AND tunnel_id IS NULL AND zone = ?',
+          )
+          .bind(await chooseZone(current, accepted, zoneOf(current)), current.id, zoneOf(current))
           .run();
       }
       throw error;
