@@ -576,6 +576,42 @@ describe('push registration with a real Host gateway', () => {
     h.owner.close();
   });
 
+  it('retries only the Host that reconnected and keeps other failures for their own retry', async () => {
+    const online = new Set<string>();
+    const register = vi.fn(async (host: SavedHost) => {
+      if (!online.has(host.hostId)) throw new Error('unreachable');
+      return {
+        registered: true,
+        enabled: true,
+        delivery: 'push' as const,
+        quietChannelIds: [],
+        preferences: { approval: true, question: true, 'private-input': true, reply: true },
+      };
+    });
+    const session = createPushSession({
+      notifications: fakeNotifications('granted').port,
+      hostPush: { ...createHostPush(nodeCarrier()), register },
+      platform: 'ios',
+      locale: 'en',
+    });
+    const saved = (hostId: string): SavedHost => ({
+      hostId,
+      hostName: hostId,
+      deviceId: 'device',
+      credential: hostId,
+      routes: [`https://${hostId}.ts.net`],
+    });
+    await session.sync([saved('stale'), saved('live')]);
+    expect(session.getSnapshot()).toEqual({ status: 'on', failed: ['stale', 'live'] });
+    register.mockClear();
+    online.add('live');
+    await session.retryFailed(saved('live'));
+    expect(register.mock.calls.map(([host]) => host.hostId)).toEqual(['live']);
+    expect(session.getSnapshot()).toEqual({ status: 'on', failed: ['stale'] });
+    await session.retryFailed(saved('live'));
+    expect(register).toHaveBeenCalledTimes(1);
+  });
+
   it('mirrors the badge and clears banners for items resolved elsewhere', async () => {
     const phone = fakeNotifications('granted');
     phone.state.presented = [

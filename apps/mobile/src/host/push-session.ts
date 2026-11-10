@@ -29,7 +29,7 @@ export interface PushSession {
   sync(hosts: readonly SavedHost[]): Promise<void>;
   enable(hosts: readonly SavedHost[]): Promise<void>;
   forget(host: SavedHost): Promise<void>;
-  retryFailed(): Promise<void>;
+  retryFailed(host?: SavedHost): Promise<void>;
   refreshPermission(): Promise<void>;
   reflect(
     hostId: string,
@@ -76,9 +76,10 @@ export function createPushSession(options: {
   const registerAll = async (
     hosts: readonly SavedHost[],
     resolveToken: () => Promise<string> = () => notifications.token(),
+    partial = false,
   ): Promise<void> => {
     if (stopped) return;
-    const attempt = ++generation;
+    const attempt = partial ? generation : ++generation;
     const current = () => !stopped && attempt === generation;
     if (snapshot.status === 'denied' || snapshot.status === 'off') publish({ status: 'checking' });
     try {
@@ -140,8 +141,15 @@ export function createPushSession(options: {
           });
       }),
     );
-    if (current())
-      publish({ status: 'on', failed: results.flatMap((id) => (id === undefined ? [] : [id])) });
+    if (!current()) return;
+    const kept =
+      partial && snapshot.status === 'on'
+        ? snapshot.failed.filter((id) => !hosts.some((host) => host.hostId === id))
+        : [];
+    publish({
+      status: 'on',
+      failed: [...kept, ...results.flatMap((id) => (id === undefined ? [] : [id]))],
+    });
   };
 
   const offToken = notifications.onTokenChanged((resolveToken, nativeToken) => {
@@ -211,7 +219,15 @@ export function createPushSession(options: {
         return registerAll(latest);
       return this.retryFailed();
     },
-    retryFailed() {
+    retryFailed(host) {
+      if (host !== undefined) {
+        if (snapshot.status !== 'on' || !snapshot.failed.includes(host.hostId))
+          return Promise.resolve();
+        const entry = latest.find(
+          (saved) => saved.hostId === host.hostId && saved.credential === host.credential,
+        );
+        return entry === undefined ? Promise.resolve() : registerAll([entry], undefined, true);
+      }
       if (retrying !== undefined) return retrying;
       if (snapshot.status !== 'on') return Promise.resolve();
       const failed = new Set(snapshot.failed);
