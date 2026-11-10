@@ -87,6 +87,25 @@ describe('Recycler message measurement', () => {
   });
 });
 
+describe('FlatList message measurement', () => {
+  it('measures a flight target by its actual Android bounds and keeps menus on React Native', async () => {
+    vi.stubEnv('EXPO_PUBLIC_CHAT_LIST', 'flatlist');
+    state.answer = () => Promise.resolve({ x: 1, y: 2, width: 3, height: 4 });
+    const { measureMessageView } =
+      await import('../src/ui/primitives/measure-message-view.android');
+    const reactNative = vi.fn();
+    const view = { measureInWindow: reactNative } as never;
+    const flight = vi.fn();
+    measureMessageView(view, flight, vi.fn(), true);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(flight).toHaveBeenCalledWith(1, 2, 3, 4);
+    expect(reactNative).not.toHaveBeenCalled();
+    measureMessageView(view, vi.fn(), vi.fn());
+    expect(reactNative).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('send flight frame', () => {
   it('shows and lands the sent bubble when it cannot be measured', async () => {
     vi.stubEnv('EXPO_PUBLIC_CHAT_LIST', 'recycler');
