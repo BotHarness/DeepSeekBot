@@ -88,14 +88,19 @@ private fun whenDrawable(view: View, done: (View?) -> Unit) {
     if (view.isAttachedToWindow && !view.isLayoutRequested) finish(view)
     true
   }
+  fun observe(v: View) {
+    observer?.takeIf { it.isAlive }?.removeOnPreDrawListener(predraw)
+    observer = v.viewTreeObserver.also { it.addOnPreDrawListener(predraw) }
+  }
   attach = object : View.OnAttachStateChangeListener {
-    override fun onViewAttachedToWindow(v: View) {
-      observer = v.viewTreeObserver.also { it.addOnPreDrawListener(predraw) }
+    override fun onViewAttachedToWindow(v: View) = observe(v)
+    override fun onViewDetachedFromWindow(v: View) {
+      observer?.takeIf { it.isAlive }?.removeOnPreDrawListener(predraw)
+      observer = null
     }
-    override fun onViewDetachedFromWindow(v: View) = Unit
   }
   view.addOnAttachStateChangeListener(attach)
-  if (view.isAttachedToWindow) observer = view.viewTreeObserver.also { it.addOnPreDrawListener(predraw) }
+  if (view.isAttachedToWindow) observe(view)
   // A cell is bound into its row on the RecyclerView's next pass. Give up after two frames while it
   // is still detached; once attached, its pre-draw follows, with six frames as the last resort.
   val choreographer = Choreographer.getInstance()
