@@ -251,7 +251,8 @@ export function CallScreen({
           </Pressable>
         )}
         <ScrollView
-          style={{ flexShrink: 1 }}
+          testID="call-details"
+          style={{ flexShrink: 1, marginBottom: space.x4 }}
           contentContainerStyle={{ alignItems: 'center', gap: space.x4 }}
         >
           {cameraOn && ended === undefined ? (
@@ -441,7 +442,7 @@ export function CallScreen({
         ) : (
           <ScrollView
             testID="call-controls"
-            style={{ flexGrow: 0, flexShrink: 1 }}
+            style={{ flexGrow: 0, flexShrink: 0 }}
             contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.x3 }}
           >
             {roundButton({
