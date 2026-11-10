@@ -3,7 +3,11 @@ import type { SavedHost } from './hosts';
 import { actionCount, type InboxSnapshot } from './inbox';
 import type { HumanAttentionPage } from './wire';
 
-export type HostStatus = 'online' | 'offline' | 'checking';
+export type HostStatus = 'online' | 'offline' | 'checking' | 'refused';
+
+export function hostUnavailable(status: HostStatus): boolean {
+  return status === 'offline' || status === 'refused';
+}
 
 export interface HostGlance {
   status: HostStatus;
@@ -22,6 +26,8 @@ export function liveGlance(connection: ConnectionState, inbox: InboxSnapshot): H
     case 'connecting':
     case 'reconnecting':
       return { status: 'checking' };
+    case 'refused':
+      return { status: 'refused' };
     default:
       return { status: 'offline' };
   }

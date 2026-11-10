@@ -369,7 +369,7 @@ describe('Host rows', () => {
       status: 'checking',
     });
     expect(liveGlance(connection('unreachable'), ready(4))).toEqual({ status: 'offline' });
-    expect(liveGlance(connection('refused'), ready(4))).toEqual({ status: 'offline' });
+    expect(liveGlance(connection('refused'), ready(4))).toEqual({ status: 'refused' });
     expect(liveGlance(connection('connected'), { status: 'loading' })).toEqual({
       status: 'online',
     });
