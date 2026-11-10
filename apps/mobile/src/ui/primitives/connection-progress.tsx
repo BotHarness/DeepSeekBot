@@ -1,4 +1,4 @@
-import { useCallback, useRef, useSyncExternalStore, type ReactNode } from 'react';
+import { useCallback, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { LoadingIndicator } from './loading-indicator';
 import { Text } from './text';
@@ -21,12 +21,10 @@ export function useConnectionPresence(
 ): ConnectionPresence & { label?: string } {
   const t = useStrings();
   const active = connectionDisrupted(status, interrupted);
-  const seen = useRef<number | undefined>(undefined);
-  if (!active) seen.current = undefined;
-  else seen.current ??= Date.now();
-  const start = active
-    ? Math.min(disruptedSince ?? Infinity, seen.current ?? Date.now())
-    : undefined;
+  const [seen, setSeen] = useState<number>();
+  if (!active && seen !== undefined) setSeen(undefined);
+  if (active && seen === undefined) setSeen(Date.now());
+  const start = active ? Math.min(disruptedSince ?? Infinity, seen ?? Date.now()) : undefined;
   const subscribe = useCallback(
     (notify: () => void) => {
       if (start === undefined) return () => {};
