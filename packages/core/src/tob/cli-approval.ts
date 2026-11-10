@@ -18,13 +18,14 @@ export async function approveTobCliOperation(options: {
   const { execution, operation, signal, channelApproval, approval, authorize } = options;
   const actor = execution.agent;
   const command = 'command' in operation ? operation.command : 'settings-set';
-  const requireExplicitApproval = [
-    'release-install',
-    'release-restart',
-    'bot-delete-confirm',
-    'bot-delete-retry',
-  ].includes(command);
+  const generic = 'via' in operation && operation.via === 'cli';
+  const requireExplicitApproval =
+    generic ||
+    ['release-install', 'release-restart', 'bot-delete-confirm', 'bot-delete-retry'].includes(
+      command,
+    );
   const scope =
+    !generic &&
     'target' in operation &&
     (command.startsWith('model-plan-') ||
       command === 'model-preset-apply' ||
@@ -64,8 +65,9 @@ export async function approveTobCliOperation(options: {
       agent: actor,
       toolName: call.name,
       callId: call.callId,
-      reason:
-        'Review the actual CLI target, previousValue, patch and expectedRevision. Restart interrupts running work and deletion may erase Memory; approve only the requested operation.',
+      reason: generic
+        ? 'Tob wants to run this exact deepseekbot command on this Host as you. Review patch.argv (and the stdin size and hash, if any); approve only if it is what you asked for.'
+        : 'Review the actual CLI target, previousValue, patch and expectedRevision. Restart interrupts running work and deletion may erase Memory; approve only the requested operation.',
       signal,
     });
     if (outcome !== 'allowed-once')
