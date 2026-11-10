@@ -100,7 +100,12 @@ export interface VoiceDictations {
   active(): number;
 }
 
-const SEGMENT_VAD: VadOptions = { segmentSilenceMs: 300, endSilenceMs: 700 };
+const SEGMENT_VAD: VadOptions = {
+  segmentSilenceMs: 300,
+  endSilenceMs: 700,
+  startVoicedMs: 120,
+  minVoicedMs: 120,
+};
 const FLUSH_SAMPLES = VAD_SAMPLE_RATE;
 const DICTATION_ID = /^dict-[a-f0-9]{16}$/u;
 
