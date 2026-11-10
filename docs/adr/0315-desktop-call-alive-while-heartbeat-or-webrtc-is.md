@@ -29,6 +29,12 @@ The page cannot restore its own window: `focus()` does not un-minimize or un-hid
 
 ## Consequences
 
+### Encrypted carrier handoff (#3913)
+
+The application-defined VoiceCalls owner, rather than an individual encrypted socket, owns an established call's lifetime. A phone can resume its authenticated control requests over another admitted channel or loopback HTTP. Closing the old socket, or receiving a late cancelled heartbeat result, must not turn that recovery into an explicit hangup. Canonical device revocation still invokes the owner's device-wide revoke operation, and the existing control/media liveness checks still retire truly lost calls.
+
+The gateway compensates only an `open` result that arrives after its request was cancelled or channel closed, or whose response cannot be queued. Successful queueing is not proof that the phone received the answer; subsequent loss is handled by the owner's existing startup and liveness deadlines. No retry, timeout extension or new transport authority is introduced. Opt-in diagnostics record only bounded channel identifiers, call identifiers and enumerated close/cleanup triggers.
+
 - One new Host route with its CLI command and docs; the call contract and the 8-second limit are unchanged. `deepseekbot call-status` still shows the call.
 - While the page is stalled the call keeps talking; the call bar and DM catch up when the window returns.
 - Web Audio graphs without a speaker output are driven by an ordinary timer and stall when minimized, so WAV injection through Web Audio cannot test turns while hidden on the official shell; real-microphone runs can.
