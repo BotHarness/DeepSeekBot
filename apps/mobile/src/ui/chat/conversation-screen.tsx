@@ -102,6 +102,7 @@ import { runningSessionCount } from '../../host/session-stop';
 import { ConversationTopBar } from './conversation-top-bar';
 import { ChatBackdrop } from './chat-backdrop';
 import { Composer, type ComposerInput } from './composer';
+import { ComposerPillContext, ComposerSpacer } from './composer-pill';
 import { GroupUnavailable } from './group-unavailable';
 import { DraftSaveNotice } from './draft-save-notice';
 import { ClipboardImageOffer, useClipboardImage } from './clipboard-image';
@@ -422,6 +423,7 @@ function ChatConversation({
   const blurTarget = useRef<ViewInstance>(null);
   const insets = useSafeAreaInsets();
   const android = Platform.OS === 'android';
+  const nativeSpacer = !android && LatestAnchor !== undefined;
   const headerPadding = android ? measuredHeaderHeight || inlineHeaderHeight : nativeHeaderPadding;
   const [profileOpen, setProfileOpen] = useState(false);
   const nestedChange = presentation?.onNestedChange;
@@ -1763,7 +1765,7 @@ function ChatConversation({
                 }
                 onComposerLayout={latest.onComposerLayout}
                 composer={
-                  <>
+                  <ComposerPillContext.Provider value={nativeSpacer ? latest.pill : undefined}>
                     {android ? noticeView : null}
                     {missingGroup ? null : selected !== undefined ? (
                       <SelectionBar
@@ -1848,7 +1850,7 @@ function ChatConversation({
                         onFocusChange={setTyping}
                       />
                     )}
-                  </>
+                  </ComposerPillContext.Provider>
                 }
               >
                 {android ? null : noticeView}
@@ -1908,7 +1910,9 @@ function ChatConversation({
                                   : space.x3 + listTop,
                                 paddingBottom: android
                                   ? space.x3 + headerPadding
-                                  : composerHeight + edgeFade.bottom,
+                                  : nativeSpacer
+                                    ? 0
+                                    : composerHeight + edgeFade.bottom,
                               }}
                               data={rows}
                               keyExtractor={(row) => row.key}
@@ -1983,7 +1987,15 @@ function ChatConversation({
                               }
                               {...{
                                 [android ? 'ListHeaderComponent' : 'ListFooterComponent']:
-                                  LatestAnchor === undefined ? undefined : (
+                                  LatestAnchor === undefined ? undefined : nativeSpacer ? (
+                                    <ComposerSpacer pill={latest.pill} extra={edgeFade.bottom}>
+                                      <LatestAnchor
+                                        following={latest.ready && !latest.away}
+                                        animated={!latest.reducedMotion}
+                                        style={{ height: 0 }}
+                                      />
+                                    </ComposerSpacer>
+                                  ) : (
                                     <LatestAnchor
                                       following={latest.ready && !latest.away}
                                       animated={!latest.reducedMotion}
