@@ -38,6 +38,7 @@ import {
   type CallNoticeFactory,
   type CallNoticeHandle,
 } from '../src/client/call-presence.js';
+import { revealDesktopWindow } from '../src/client/desktop-window.js';
 import { en } from '../src/client/locale.js';
 
 const cleanup: (() => unknown)[] = [];
@@ -531,8 +532,27 @@ describe('desktop call', () => {
       { kind: 'hangup', keepalive: true },
     ]);
   });
-});
 
+  it('retries a reset heartbeat once and never aborts one the Host may still read', async () => {
+    const calls: { kind: string; signal: boolean }[] = [];
+    let attempt = 0;
+    const post = createCallPost('window-retry-0001', ((_input, init) => {
+      const kind = (JSON.parse(String(init?.body)) as { kind: string }).kind;
+      calls.push({ kind, signal: init?.signal !== undefined });
+      attempt += 1;
+      if (kind !== 'heartbeat' || attempt === 1)
+        return Promise.reject(new TypeError('fetch failed'));
+      return Promise.resolve(new Response(JSON.stringify({ ok: true })));
+    }) as typeof fetch);
+    await expect(post({ kind: 'heartbeat', callId: 'c' })).resolves.toEqual({ ok: true });
+    await expect(post({ kind: 'mute', callId: 'c', muted: true })).rejects.toThrow('fetch failed');
+    expect(calls).toEqual([
+      { kind: 'heartbeat', signal: false },
+      { kind: 'heartbeat', signal: false },
+      { kind: 'mute', signal: false },
+    ]);
+  });
+});
 function presenceDoc() {
   let state: DocumentVisibilityState = 'visible';
   const listeners = new Set<() => void>();
@@ -589,6 +609,7 @@ describe('desktop call in the background', () => {
     const opened: string[] = [];
     let focused = 0;
     const stop = watchCallPresence({
+      settleMs: 0,
       call: mac.call,
       doc: page.doc,
       notice: () => notices.factory,
@@ -635,6 +656,7 @@ describe('desktop call in the background', () => {
     const page = presenceDoc();
     const notices = presenceNotices();
     const stop = watchCallPresence({
+      settleMs: 0,
       call: mac.call,
       doc: page.doc,
       notice: () => notices.factory,
@@ -654,14 +676,11 @@ describe('desktop call in the background', () => {
     const page = presenceDoc();
     const notices = presenceNotices();
     cleanup.push(
-      watchCallPresence({
-        call: mac.call,
-        doc: page.doc,
-        notice: () => undefined,
-      }),
+      watchCallPresence({ settleMs: 0, call: mac.call, doc: page.doc, notice: () => undefined }),
     );
     cleanup.push(
       watchCallPresence({
+        settleMs: 0,
         call: mac.call,
         doc: page.doc,
         notice: () => notices.factory,
@@ -673,12 +692,114 @@ describe('desktop call in the background', () => {
     page.set('visible');
     await mac.call.hangup();
     const silent = desktopWindow(fetcher, 'window-bg-0004');
-    cleanup.push(watchCallPresence({ call: silent.call, doc: page.doc, notice: () => undefined }));
+    cleanup.push(
+      watchCallPresence({ settleMs: 0, call: silent.call, doc: page.doc, notice: () => undefined }),
+    );
     await silent.call.start('mira', { title: 'x', body: 'y', open: () => undefined });
     page.set('hidden');
     expect(notices.shown).toHaveLength(0);
   });
 
+  it('does not post a clicked or dismissed notice again while the window stays hidden', async () => {
+    const { fetcher } = host();
+    const mac = desktopWindow(fetcher, 'window-bg-0005');
+    const page = presenceDoc();
+    const notices = presenceNotices();
+    cleanup.push(
+      watchCallPresence({
+        settleMs: 0,
+        call: mac.call,
+        doc: page.doc,
+        notice: () => notices.factory,
+        focus: () => undefined,
+      }),
+    );
+    await mac.call.start('mira', { title: 'On a call with Mira', body: '', open: () => undefined });
+    page.set('hidden');
+    expect(notices.shown).toHaveLength(1);
+    notices.shown[0]?.handle.onclick?.(new Event('click'));
+    await mac.call.mute(true);
+    await mac.call.mute(false);
+    expect(notices.shown).toHaveLength(1);
+    page.set('visible');
+    page.set('hidden');
+    expect(notices.shown).toHaveLength(2);
+    notices.shown[1]?.handle.onclose?.(new Event('close'));
+    await mac.call.mute(true);
+    expect(notices.shown).toHaveLength(2);
+    page.set('visible');
+    page.set('hidden');
+    expect(notices.shown).toHaveLength(3);
+  });
+
+  it('asks the Host to bring the Desktop window back, and focuses the page either way', async () => {
+    const requests: { url: string; body: unknown }[] = [];
+    let focused = 0;
+    const fetcher = (async (url, init) => {
+      requests.push({ url: String(url), body: JSON.parse(String(init?.body)) });
+      return new Response('{}');
+    }) as typeof fetch;
+    revealDesktopWindow(fetcher, () => (focused += 1));
+    expect(requests).toEqual([]);
+    vi.stubGlobal('dshDesktop', { protocolVersion: 1 });
+    revealDesktopWindow(fetcher, () => (focused += 1));
+    vi.unstubAllGlobals();
+    expect(focused).toBe(2);
+    expect(requests).toEqual([
+      { url: './api/botharness/desktop-window', body: { action: 'reveal' } },
+    ]);
+  });
+  it('ignores brief visibility flips, so a covered or flickering window gets one notice', async () => {
+    vi.useFakeTimers();
+    cleanup.push(() => vi.useRealTimers());
+    const { fetcher } = host();
+    const mac = desktopWindow(fetcher, 'window-bg-0008');
+    const page = presenceDoc();
+    const notices = presenceNotices();
+    let clock = 0;
+    cleanup.push(
+      watchCallPresence({
+        call: mac.call,
+        doc: page.doc,
+        notice: () => notices.factory,
+        focus: () => undefined,
+        settleMs: 1_500,
+        now: () => clock,
+      }),
+    );
+    await mac.call.start('mira', { title: 'On a call with Mira', body: '', open: () => undefined });
+    const step = async (ms: number) => {
+      clock += ms;
+      await vi.advanceTimersByTimeAsync(ms);
+    };
+    page.set('hidden');
+    await step(500);
+    page.set('visible');
+    await step(500);
+    expect(notices.shown).toHaveLength(0);
+    page.set('hidden');
+    await step(1_600);
+    expect(notices.shown).toHaveLength(1);
+    page.set('visible');
+    await step(400);
+    page.set('hidden');
+    await step(2_000);
+    expect(notices.shown).toHaveLength(1);
+    expect(notices.shown[0]?.closed).toBe(false);
+    notices.shown[0]?.handle.onclose?.(new Event('close'));
+    page.set('visible');
+    await step(300);
+    page.set('hidden');
+    await step(2_000);
+    expect(notices.shown).toHaveLength(1);
+    page.set('visible');
+    await step(1_600);
+    page.set('hidden');
+    await step(1_600);
+    expect(notices.shown).toHaveLength(2);
+    await mac.call.hangup();
+    expect(notices.shown[1]?.closed).toBe(true);
+  });
   it('asks for notification permission only while it is undecided', async () => {
     const requests: string[] = [];
     const api = (permission: NotificationPermission) => ({

@@ -956,6 +956,13 @@
       "commands": ["window-zoom-clients", "window-zoom-get", "window-zoom-set", "window-zoom-reset"]
     },
     {
+      "id": "desktop-window-reveal",
+      "description": "Host relaunches the Windows Desktop executable so the shell restores and focuses its running window, as a notification click does.",
+      "scope": "Host / Windows Desktop window",
+      "surfaces": ["route:packages/core/src/plugin.ts:DESKTOP_WINDOW_PATH"],
+      "commands": ["desktop-window-reveal"]
+    },
+    {
       "id": "desktop-presence",
       "description": "Desktop Clients lease an active state on the Host; while any is active, reply pushes to phones wait until it lapses.",
       "scope": "Host / push delivery",

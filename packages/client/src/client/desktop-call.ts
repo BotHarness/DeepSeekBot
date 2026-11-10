@@ -116,7 +116,7 @@ export function createCallPost(
   client: string,
   fetcher: typeof fetch = (...args) => fetch(...args),
 ): CallPost {
-  return async (body) => {
+  const send = async (body: Parameters<CallPost>[0]) => {
     const response = await fetcher(`.${VOICE_CALL_PATH}`, {
       method: 'POST',
       credentials: 'same-origin',
@@ -128,6 +128,14 @@ export function createCallPost(
     if (result === undefined || typeof result.ok !== 'boolean')
       throw new Error(`The Host answered ${response.status}.`);
     return result;
+  };
+  return async (body) => {
+    if (body.kind !== 'heartbeat') return await send(body);
+    try {
+      return await send(body);
+    } catch {
+      return await send(body);
+    }
   };
 }
 

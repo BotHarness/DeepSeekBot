@@ -1,3 +1,4 @@
+import { revealDesktopWindow } from './desktop-window.js';
 import type { ConfigStorage } from './roster-config.js';
 import type { ChannelSummary, HumanAttentionItem } from './store.js';
 
@@ -229,7 +230,7 @@ export function mountDesktopNotifications(deps: DesktopNotifierDeps): () => void
     shown.set(handle, item.id);
     handle.onclick = (event) => {
       event.preventDefault();
-      if (typeof window !== 'undefined') window.focus();
+      revealDesktopWindow();
       handle.close();
       shown.delete(handle);
       deps.open(item);

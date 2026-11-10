@@ -12,6 +12,7 @@ import {
   WINDOW_ZOOM_OPTIONS,
   runWindowZoomCommand,
 } from './cli-window-zoom.js';
+import { DESKTOP_WINDOW_COMMANDS, runDesktopWindowCommand } from './cli-desktop-window.js';
 import { PRESENCE_COMMANDS, PRESENCE_OPTIONS, runPresenceCommand } from './cli-presence.js';
 import { PHONE_ROUTE_COMMANDS, runPhoneRouteCommand } from './cli-phone-route.js';
 import { DEVICES_COMMANDS, isDevicesCommand, runDevicesCommand } from './cli-devices.js';
@@ -318,6 +319,7 @@ export const LIVE_COMMANDS = [
   ...DOCTOR_COMMANDS,
   ...BUG_REPORT_COMMANDS,
   ...WINDOW_ZOOM_COMMANDS,
+  ...DESKTOP_WINDOW_COMMANDS,
   ...PRESENCE_COMMANDS,
   ...PHONE_ROUTE_COMMANDS,
   ...DEVICES_COMMANDS,
@@ -1041,6 +1043,10 @@ export async function runLiveCli(
     });
   if (isConnectCommand(command))
     return runConnectCommand(command, rest, values, io, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
+  if (DESKTOP_WINDOW_COMMANDS.some((entry) => entry.command === command))
+    return runDesktopWindowCommand(rest, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
   if (WINDOW_ZOOM_COMMANDS.some((entry) => entry.command === command))

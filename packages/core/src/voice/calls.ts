@@ -278,6 +278,9 @@ interface Call {
   interrupted: Reply[];
   settledDraft?: string | undefined;
   lastHeartbeat: number;
+  tickedAt: number;
+  mediaSeenAt: number;
+  mediaCheck?: Promise<void> | undefined;
   connected: boolean;
   connectedAt?: number;
   recorded?: Promise<string | undefined>;
@@ -579,7 +582,14 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       const stats = await peer.stats();
       if (stats === undefined || call.phase === 'ended') return;
       const sample = call.perf.sample(stats, now() - call.startedAt, cpuMs());
-      if (sample !== undefined) log('call-media-stats', { call: call.id, ...perfFields(sample) });
+      if (sample !== undefined)
+        log('call-media-stats', {
+          call: call.id,
+          ...perfFields(sample),
+          ...(stats.receivedAgeMs === undefined
+            ? {}
+            : { receivedAgeMs: Math.round(stats.receivedAgeMs) }),
+        });
     } catch {
       log('call-media-stats-failed', { call: call.id });
     } finally {
@@ -1804,9 +1814,40 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     settle(call);
   };
 
+  const silent = (call: Call, at: number) =>
+    at - call.lastHeartbeat > VOICE_CALL_LIMITS.heartbeatLossMs &&
+    at - call.mediaSeenAt > VOICE_CALL_LIMITS.heartbeatLossMs;
+
+  const checkMedia = async (call: Call) => {
+    let age: number | undefined;
+    try {
+      const stats = call.peer?.stats?.();
+      const late = new Promise<undefined>((resolve) => {
+        setTimeout(resolve, VOICE_CALL_LIMITS.operationTimeoutMs / 2);
+      });
+      age = (await Promise.race([stats, late]))?.receivedAgeMs;
+    } catch {
+      age = undefined;
+    }
+    if (call.phase === 'ended') return;
+    const at = now();
+    if (age !== undefined && age <= VOICE_CALL_LIMITS.heartbeatLossMs)
+      call.mediaSeenAt = Math.max(call.mediaSeenAt, at - age);
+    const lost = silent(call, at);
+    log('call-media-liveness', {
+      call: call.id,
+      heartbeatAgeMs: at - call.lastHeartbeat,
+      receivedAgeMs: age === undefined ? -1 : Math.round(age),
+      lost: lost ? 1 : 0,
+    });
+    if (lost) await end(call, 'connection-lost');
+  };
+
   const tick = (call: Call) => {
     if (call.phase === 'ended') return;
     const at = now();
+    const stalled = at - call.tickedAt > VOICE_CALL_LIMITS.heartbeatMs * 2;
+    call.tickedAt = at;
     if (
       call.media === 'webrtc' &&
       !call.connected &&
@@ -1815,8 +1856,14 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       void end(call, 'connect-timeout');
       return;
     }
-    if (call.connected && at - call.lastHeartbeat > VOICE_CALL_LIMITS.heartbeatLossMs) {
-      void end(call, 'connection-lost');
+    if (call.connected && !stalled && silent(call, at)) {
+      if (call.peer?.stats === undefined) {
+        void end(call, 'connection-lost');
+        return;
+      }
+      call.mediaCheck ??= checkMedia(call).finally(() => {
+        call.mediaCheck = undefined;
+      });
       return;
     }
     const bot = deps.bot(call.slug);
@@ -1968,6 +2015,8 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       gain: 1,
       interrupted: [],
       lastHeartbeat: startedAt,
+      tickedAt: startedAt,
+      mediaSeenAt: startedAt,
       connected: false,
       heard: 0,
       events: [],
@@ -2044,6 +2093,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         signal?.removeEventListener('abort', abort);
       }
     }
+    call.tickedAt = now();
     call.timer = setInterval(() => tick(call), VOICE_CALL_LIMITS.heartbeatMs);
     call.timer.unref?.();
     return call;

@@ -20,6 +20,7 @@ import { createVoiceMessages, type VoiceMessages } from './voice/messages.js';
 import { createVoiceCalls, type VoiceCallMedia, type VoiceCalls } from './voice/calls.js';
 import { callVisualMessage, createCallTextHarvest } from './voice/call-text.js';
 import { voiceCallFramesAt, voiceCallRecordBody } from './channels/voice-call-record.js';
+import { DESKTOP_WINDOW_PATH, createDesktopWindowReveal } from './desktop-window/reveal.js';
 import { VOICE_CALL_PATH } from './voice/call-contract.js';
 import { createVoiceCallHttp } from './voice/call-http.js';
 import { CloudConnections } from './cloud/connections.js';
@@ -3552,6 +3553,18 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         await off();
       };
     }, 'botharness: explicit Client-local appearance control');
+    connectionCtx.effect(() => {
+      const desktopWindow = createDesktopWindowReveal({
+        log: (phase, detail) => ctx.logger.info('desktop-window %j', { phase, ...detail }),
+      });
+      desktopWindow.prime();
+      return connection.fetch.register({
+        path: DESKTOP_WINDOW_PATH,
+        methods: ['POST'],
+        requestBody: 'buffered',
+        fetch: desktopWindow.fetch,
+      });
+    }, 'botharness: bring the Desktop window back from a notification');
     connectionCtx.effect(
       () =>
         connection.fetch.register({
