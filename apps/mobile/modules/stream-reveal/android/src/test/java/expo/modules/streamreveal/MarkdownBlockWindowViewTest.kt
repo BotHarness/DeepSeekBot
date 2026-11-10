@@ -38,8 +38,9 @@ class WindowEventBridge {
 class MarkdownBlockWindowViewTest {
   @Test fun offscreenBlocksRestoreWithoutMovingFabricChildren() = exercise(false)
   @Test fun invertedCoordinatesRestoreTheSameBlocks() = exercise(true)
+  @Test fun recyclingScrollContainersUseActualBlockBounds() = exercise(true, true)
 
-  private fun exercise(inverted: Boolean) {
+  private fun exercise(inverted: Boolean, generic: Boolean = false) {
     val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
     WindowEventBridge.events.clear()
     val react = BridgeReactContext(activity)
@@ -54,7 +55,8 @@ class MarkdownBlockWindowViewTest {
     }
     block.addView(child)
     val content = FrameLayout(activity).apply { addView(block) }
-    val scroll = ScrollView(activity).apply { addView(content) }
+    val scroll = if (generic) FrameLayout(activity).apply { isScrollContainer = true; addView(content) }
+      else ScrollView(activity).apply { addView(content) }
     activity.setContentView(scroll)
     if (inverted) { scroll.scaleY = -1f; block.scaleY = -1f }
     scroll.layout(0, 0, 300, 100)

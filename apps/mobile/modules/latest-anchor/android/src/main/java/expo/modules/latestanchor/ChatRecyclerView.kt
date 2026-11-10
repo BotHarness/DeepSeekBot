@@ -115,6 +115,7 @@ class ChatRecyclerView(context: Context, app: AppContext) : ExpoView(context, ap
     recycler.adapter = adapter
     recycler.itemAnimator = null
     recycler.scaleY = -1f
+    recycler.isScrollContainer = true
     recycler.clipToPadding = false
     addView(recycler)
     recycler.addOnScrollListener(object : RecyclerView.OnScrollListener() {
@@ -239,7 +240,8 @@ class ChatRecyclerView(context: Context, app: AppContext) : ExpoView(context, ap
     val (key, fraction) = jump ?: return
     val index = positions[key] ?: run { jump = null; return }
     val available = maxOf(0, height - recycler.paddingTop - recycler.paddingBottom)
-    val spacing = maxOf(0.0, (available - heightAt(index)) * fraction).roundToInt()
+    val difference = available - heightAt(index)
+    val spacing = if (difference < 0) difference else (difference * fraction).roundToInt()
     val wanted = (geometry.prefix(index) - spacing).coerceIn(0, maxOf(0, total() - height))
     if (kotlin.math.abs(offset() - wanted) <= 1) {
       if (heights.containsKey(key)) jump = null

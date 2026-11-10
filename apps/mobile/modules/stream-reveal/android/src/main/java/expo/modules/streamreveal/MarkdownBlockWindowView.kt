@@ -52,8 +52,8 @@ class MarkdownBlockWindowView(context: Context, appContext: AppContext) : ExpoVi
       return
     }
     var ancestor = parent
-    while (ancestor != null && ancestor !is ScrollView) ancestor = ancestor.parent
-    val scroll = ancestor as? ScrollView
+    while (ancestor != null && ancestor !is ScrollView && !(ancestor is View && ancestor.isScrollContainer)) ancestor = ancestor.parent
+    val scroll = ancestor as? View
     if (scroll == null || measuredWidth <= 0 || measuredHeight <= 0 || scroll.height <= 0) {
       report(false)
       return

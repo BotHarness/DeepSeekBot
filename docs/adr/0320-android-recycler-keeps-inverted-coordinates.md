@@ -12,7 +12,7 @@ On history and height changes, native restores the current row identity and scre
 
 ## Coordinate boundary
 
-Fabric does not know the native holder's reparented position. Message menus, selection and send-flight measurements therefore use actual Android view bounds in this candidate. The default path retains the existing measurement. Native sticky avatars already use actual Android bounds. The legacy JS per-block Markdown window is not used inside recycled rows because it depends on a single Fabric content surface; each mounted row keeps its full Markdown. Row virtualization remains bounded. This trade-off must be included in memory/frame comparisons; it is not evidence of a win. The native Markdown experiment needs a RecyclerView-compatible viewport before the two switches can be combined.
+Fabric does not know the native holder's reparented position. Message menus, selection and send-flight measurements therefore use actual Android view bounds in this candidate. The default path retains the existing measurement. Native sticky avatars already use actual Android bounds. The legacy JS per-block Markdown window is not used inside recycled rows because it depends on a single Fabric content surface; each mounted row keeps its full Markdown. Row virtualization remains bounded. This trade-off must be included in memory/frame comparisons; it is not evidence of a win. The native Markdown experiment recognizes the RecyclerView scroll container and can be combined with this switch; its native geometry avoids the legacy Fabric content dependency.
 
 ## Verification and rollout
 
