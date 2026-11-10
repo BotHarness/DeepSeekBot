@@ -451,6 +451,10 @@ const en = {
       BOT_UNAVAILABLE: ['This Bot is deleted or unavailable'],
       SESSION_OWNER_MISSING: ['The session has no owner record', 'Start a new session.'],
       SESSION_REFUSED: ['The Host refused this turn'],
+      HOST_INCOMPATIBLE: [
+        "This Tobs version doesn't support this DSH version",
+        'Update Tobs, then retry.',
+      ],
     } as Record<string, readonly [string, string?]>,
   },
   createHere: 'Create or join',
@@ -2911,6 +2915,7 @@ const zh: typeof en = {
       BOT_UNAVAILABLE: ['这个 Bot 已删除或不可用'],
       SESSION_OWNER_MISSING: ['会话缺少归属记录', '开启新会话即可。'],
       SESSION_REFUSED: ['Host 拒绝了这一轮'],
+      HOST_INCOMPATIBLE: ['这个 Tobs 版本还不支持当前的 DSH', '更新 Tobs 后重试。'],
     },
   },
   createHere: '创建或加入',

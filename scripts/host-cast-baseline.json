@@ -1,0 +1,12 @@
+{
+  "packages/browser/src/client/index.tsx": 2,
+  "packages/browser/src/client/settings.tsx": 1,
+  "packages/browser/src/index.ts": 6,
+  "packages/client/src/client/bridge.ts": 1,
+  "packages/client/src/client/mode.ts": 1,
+  "packages/computer/src/client/index.tsx": 3,
+  "packages/computer/src/index.ts": 4,
+  "packages/core/src/devices/mount.ts": 2,
+  "packages/core/src/diagnostics/diagnostic-log.ts": 1,
+  "packages/core/src/plugin.ts": 10
+}

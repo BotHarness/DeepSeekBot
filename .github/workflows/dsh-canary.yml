@@ -1,0 +1,88 @@
+name: dsh-canary
+
+on:
+  schedule:
+    - cron: '23 0 * * *'
+  workflow_dispatch:
+    inputs:
+      dsh_version:
+        description: DSH version to test (default is the npm "next" dist-tag)
+        type: string
+        required: false
+        default: ''
+
+concurrency:
+  group: dsh-canary
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  canary:
+    name: Tobs on the newest DSH release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+      - name: Resolve the DSH release to test
+        id: target
+        env:
+          REQUESTED: ${{ inputs.dsh_version }}
+        run: |
+          version="${REQUESTED:-$(npm view @deepseek-ai/dsh@next version)}"
+          echo "dsh=$version" >> "$GITHUB_OUTPUT"
+          echo "DSH under test: \`$version\`" >> "$GITHUB_STEP_SUMMARY"
+      - name: Skip a DSH release that already passed
+        id: seen
+        if: github.event_name == 'schedule'
+        uses: actions/cache/restore@v4
+        with:
+          path: .tmp/dsh-canary-pass
+          key: dsh-canary-pass-${{ steps.target.outputs.dsh }}
+          lookup-only: true
+      - name: Report an already qualified release
+        if: steps.seen.outputs.cache-hit == 'true'
+        run: echo "Already passed on this DSH release; nothing to run." >> "$GITHUB_STEP_SUMMARY"
+      - uses: pnpm/action-setup@v6
+        if: steps.seen.outputs.cache-hit != 'true'
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        if: steps.seen.outputs.cache-hit != 'true'
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - if: steps.seen.outputs.cache-hit != 'true'
+        run: pnpm install --frozen-lockfile
+      - name: Start a Bot turn on the target DSH
+        if: steps.seen.outputs.cache-hit != 'true'
+        env:
+          DSH_VERSION: ${{ steps.target.outputs.dsh }}
+        run: |
+          mkdir -p .tmp
+          status=0
+          node scripts/dsh-canary.mjs run --dsh-version "$DSH_VERSION" > .tmp/dsh-canary.json || status=$?
+          { echo '```json'; cat .tmp/dsh-canary.json; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+      - name: Keep the failing report
+        if: failure() && steps.seen.outputs.cache-hit != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsh-canary-${{ steps.target.outputs.dsh }}
+          path: .tmp/dsh-canary.json
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Remember the passing release
+        if: success() && steps.seen.outputs.cache-hit != 'true'
+        run: echo "${{ steps.target.outputs.dsh }}" > .tmp/dsh-canary-pass
+      - if: success() && steps.seen.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .tmp/dsh-canary-pass
+          key: dsh-canary-pass-${{ steps.target.outputs.dsh }}
