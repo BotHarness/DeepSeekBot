@@ -65,6 +65,9 @@ class CallAttempt(
   }
   private val closed = AtomicBoolean(false)
   val tap: CallAudioTap? = if (testAudio) CallAudioTap(SystemClock.elapsedRealtime(), context, onTap) else null
+  private val answerDiagnostics = tap?.let { report ->
+    CallAnswerDiagnostics { detail -> report.note("answer-gathering", detail) }
+  }
   private val route = CallAudioRoute(context, onAudio, { input ->
     adm?.let { BotCallPlayout.setInput(it, input) }
   }) { interrupted ->
@@ -269,10 +272,14 @@ class CallAttempt(
       }
     }
     override fun onIceGatheringChange(state: PeerConnection.IceGatheringState) {
-      enqueue { answerIfReady(force = false) }
+      enqueue {
+        noteAnswer("gathering", callback = state.name)
+        answerIfReady(force = false)
+      }
     }
     override fun onIceCandidate(candidate: IceCandidate) {
       enqueue {
+        noteAnswer("candidate")
         if (settleScheduled) return@enqueue
         settleScheduled = true
         enqueue(1_500) { answerIfReady(force = true) }
@@ -372,6 +379,7 @@ class CallAttempt(
   private fun answerIfReady(force: Boolean, timeout: Boolean = false) {
     val connection = peer
     val description = connection?.localDescription
+    noteAnswer("check", force, timeout)
     if (answered == null) return
     if (connection == null || description == null) {
       if (timeout) finish(Result.failure(CallError("ice-timeout")))
@@ -385,7 +393,19 @@ class CallAttempt(
     if (description.description.toByteArray().size > 98_304) {
       finish(Result.failure(CallError("signal-too-large"))); return
     }
+    runCatching {
+      answerDiagnostics?.note("answer", connection.iceGatheringState().name,
+        description.description, answered != null, force, timeout)
+    }
     finish(Result.success(description.description))
+  }
+
+  private fun noteAnswer(stage: String, force: Boolean = false, timeout: Boolean = false, callback: String? = null) {
+    val diagnostics = answerDiagnostics ?: return
+    runCatching {
+      diagnostics.note(stage, peer?.iceGatheringState()?.name, peer?.localDescription?.description,
+        answered != null, force, timeout, callback)
+    }
   }
 
   /**
