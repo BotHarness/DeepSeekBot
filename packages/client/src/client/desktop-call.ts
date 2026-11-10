@@ -2,7 +2,6 @@ import {
   readCallReadiness,
   type CallClientMedia,
   type CallClientState,
-  type CallHeartbeatPump,
   type CallPost,
 } from '../../../core/src/voice/call-client.js';
 import { VOICE_CALL_PATH, type VoiceCallResult } from '../../../core/src/voice/call-contract.js';
@@ -30,7 +29,6 @@ import {
   type CallCameraKeyframe,
   type CallCaptureErrorCode,
 } from './call-camera.js';
-import { createWorkerHeartbeats } from './call-heartbeat-worker.js';
 import { createBrowserCallMedia } from './call-media.js';
 import { watchCallPresence } from './call-presence.js';
 
@@ -161,20 +159,9 @@ export function createDesktopCall(
     media?: () => CallClientMedia;
     capture?: (source: CallVisualSource, handlers: DesktopCallCaptureHandlers) => CallCamera;
     now?: () => number;
-    heartbeats?: CallHeartbeatPump;
   } = {},
 ): DesktopCall {
-  const client = windowClientId();
-  const post = options.post ?? createCallPost(client);
-  const heartbeats =
-    options.heartbeats ??
-    (options.post !== undefined || typeof location === 'undefined'
-      ? undefined
-      : createWorkerHeartbeats({
-          url: new URL(`.${VOICE_CALL_PATH}`, location.href).href,
-          client,
-          maxInFlight: 4,
-        }));
+  const post = options.post ?? createCallPost(windowClientId());
   const media = options.media ?? (() => createBrowserCallMedia());
   const makeCapture =
     options.capture ?? ((source, handlers) => createBrowserCallCamera({ source, ...handlers }));
@@ -243,7 +230,6 @@ export function createDesktopCall(
         CallCaptureErrorCode
       >({
         post,
-        ...(heartbeats === undefined ? {} : { heartbeats }),
         media: media(),
         ...(options.now === undefined ? {} : { now: options.now }),
         capture: (source, events) =>

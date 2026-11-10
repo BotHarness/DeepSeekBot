@@ -267,6 +267,14 @@ window.callStats = async () => {
   const stats = await peer.getStats();
   for (const report of stats.values()) {
     if (
+      (report.type === 'candidate-pair' || report.type === 'inbound-rtp') &&
+      Number.isFinite(report.timestamp) &&
+      Number.isFinite(report.lastPacketReceivedTimestamp)
+    ) {
+      const age = Math.max(0, report.timestamp - report.lastPacketReceivedTimestamp);
+      result.receivedAgeMs = Math.min(result.receivedAgeMs ?? age, age);
+    }
+    if (
       report.type === 'candidate-pair' &&
       report.nominated === true &&
       report.state === 'succeeded'

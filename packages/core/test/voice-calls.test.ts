@@ -513,6 +513,38 @@ describe('Host call owner', () => {
     expect(h.sent).toHaveLength(1);
   });
 
+  it('keeps a call whose page stalls while its WebRTC connection still delivers packets', async () => {
+    const { media, state } = fakeMedia();
+    const h = harness({ media });
+    await connected(h);
+    const alive = {
+      uplinkPackets: 0,
+      uplinkBytes: 0,
+      uplinkLost: 0,
+      concealedSamples: 0,
+      receivedSamples: 0,
+      downlinkPackets: 0,
+      downlinkBytes: 0,
+    };
+    state.stats = { ...alive, receivedAgeMs: 400 };
+    h.advance(9_000);
+    await new Promise((resolve) => setTimeout(resolve, 2_200));
+    const status = async () =>
+      (
+        (await h.calls.handle(h.phone, { kind: 'status' })) as Extract<
+          VoiceCallResult,
+          { ok: true }
+        >
+      ).calls?.[0];
+    expect((await status())?.phase).not.toBe('ended');
+    expect(state.closed).toBe(0);
+    state.stats = { ...alive, receivedAgeMs: 9_500 };
+    h.advance(9_000);
+    await new Promise((resolve) => setTimeout(resolve, 2_200));
+    expect(await status()).toMatchObject({ phase: 'ended', endReason: 'connection-lost' });
+    expect(state.closed).toBe(1);
+  });
+
   it('reads heartbeats that queued while the Host itself was stalled before judging the call', async () => {
     const { media } = fakeMedia();
     const h = harness({ media });

@@ -88,17 +88,8 @@ export interface CallClientFrame {
   readonly skipped: number;
 }
 
-export interface CallHeartbeatPump {
-  start(input: {
-    readonly callId: string;
-    readonly periodMs: number;
-    readonly onResult: (result: VoiceCallResult | undefined) => void;
-  }): { after(seq: number): void; stop(): void };
-}
-
 export interface CallClientOptions {
   readonly post: CallPost;
-  readonly heartbeats?: CallHeartbeatPump;
   readonly media: CallClientMedia;
   readonly onChange: (state: CallClientState) => void;
   readonly emit?: 'every-heartbeat' | 'visible-changes';
@@ -135,7 +126,6 @@ export function createCallClient(options: CallClientOptions): CallClient {
   let shown: string | undefined;
   let hidden = false;
   let timer: unknown;
-  let pump: ReturnType<CallHeartbeatPump['start']> | undefined;
   let beating = false;
   let unsubscribe: (() => void) | undefined;
   let disposed = false;
@@ -175,18 +165,6 @@ export function createCallClient(options: CallClientOptions): CallClient {
     hidden ? VOICE_CALL_LIMITS.backgroundHeartbeatMs : VOICE_CALL_LIMITS.heartbeatMs;
   const schedule = () => {
     if (timer !== undefined) stopEvery(timer);
-    timer = undefined;
-    pump?.stop();
-    pump = undefined;
-    if (options.heartbeats !== undefined && call !== undefined) {
-      pump = options.heartbeats.start({
-        callId: call.callId,
-        periodMs: period(),
-        onResult: (result) => answered(result),
-      });
-      pump.after(seq);
-      return;
-    }
     timer = every(() => void heartbeat(), period());
   };
   const finish = (
@@ -200,8 +178,6 @@ export function createCallClient(options: CallClientOptions): CallClient {
     if (state.status === 'ended') return;
     if (timer !== undefined) stopEvery(timer);
     timer = undefined;
-    pump?.stop();
-    pump = undefined;
     unsubscribe?.();
     unsubscribe = undefined;
     options.media.stop();
@@ -216,40 +192,32 @@ export function createCallClient(options: CallClientOptions): CallClient {
   const endedReason = (view: VoiceCallView | undefined) =>
     view?.phase === 'ended' ? (view.endReason ?? 'hangup') : undefined;
 
-  const answered = (result: VoiceCallResult | undefined) => {
-    if (status() !== 'live') return;
-    if (result === undefined) {
-      if (now() - lastAnswer >= VOICE_CALL_LIMITS.heartbeatLossMs)
-        finish('connection-lost', { code: 'unreachable' });
-      else live(true);
-      return;
-    }
-    if (!result.ok) {
-      finish(result.code === 'device-revoked' ? 'host-stopped' : 'connection-lost', {
-        code: result.code,
-        error: result.error,
-      });
-      return;
-    }
-    lastAnswer = now();
-    absorb(result.call);
-    pump?.after(seq);
-    const reason = endedReason(result.call);
-    if (reason !== undefined) finish(reason);
-    else live();
-  };
   const heartbeat = async () => {
     if (beating || call === undefined || status() !== 'live') return;
     beating = true;
-    let result: VoiceCallResult | undefined;
     try {
-      result = await options.post({ kind: 'heartbeat', callId: call.callId, after: seq });
+      const result = await options.post({ kind: 'heartbeat', callId: call.callId, after: seq });
+      if (status() !== 'live') return;
+      if (!result.ok) {
+        finish(result.code === 'device-revoked' ? 'host-stopped' : 'connection-lost', {
+          code: result.code,
+          error: result.error,
+        });
+        return;
+      }
+      lastAnswer = now();
+      absorb(result.call);
+      const reason = endedReason(result.call);
+      if (reason !== undefined) finish(reason);
+      else live();
     } catch {
-      result = undefined;
+      if (status() !== 'live') return;
+      if (now() - lastAnswer >= VOICE_CALL_LIMITS.heartbeatLossMs)
+        finish('connection-lost', { code: 'unreachable' });
+      else live(true);
     } finally {
       beating = false;
     }
-    answered(result);
   };
 
   return {
@@ -404,7 +372,7 @@ export function createCallClient(options: CallClientOptions): CallClient {
     background(next) {
       if (next === hidden) return;
       hidden = next;
-      if ((timer === undefined && pump === undefined) || status() !== 'live') return;
+      if (timer === undefined || status() !== 'live') return;
       schedule();
       if (!next) void heartbeat();
     },

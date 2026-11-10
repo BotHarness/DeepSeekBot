@@ -58,6 +58,7 @@ export interface VoiceCallMediaStats {
   readonly rttMs?: number;
   readonly helperCpuPct?: number;
   readonly disconnects?: number;
+  readonly receivedAgeMs?: number;
 }
 
 export interface VoiceCallPerfSample {
