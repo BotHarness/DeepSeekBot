@@ -25,6 +25,8 @@ describe('Profile notice acknowledgements', () => {
         value: { key: 'bot-mode-entered', value: '1' },
       });
       expect(bridge.acknowledge({ key: 'onboarding-intro', value: '1' }).ok).toBe(true);
+      expect(bridge.acknowledge({ key: 'mobile-apps' }).ok).toBe(true);
+      expect(bridge.acknowledge({ key: 'onboarding-sessions' }).ok).toBe(true);
       expect(bridge.acknowledge({ key: 'release-notes-seen', value: '1.6.0' }).ok).toBe(true);
       expect(bridge.acknowledge({ key: 'release-notes-seen', value: '1.6.1' }).ok).toBe(true);
       expect(bridge.acknowledge({ key: 'release-update-dismissed/stable/1.6.2' }).ok).toBe(true);
@@ -53,7 +55,9 @@ describe('Profile notice acknowledgements', () => {
         value: {
           items: {
             'bot-mode-entered': '1',
+            'mobile-apps': '1',
             'onboarding-intro': '1',
+            'onboarding-sessions': '1',
             'release-notes-seen': '1.6.1',
             'release-update-dismissed/preview/restart-1.7.0-rc.1': '1',
             'release-update-dismissed/stable/1.6.2': '1',

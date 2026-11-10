@@ -5,6 +5,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Button: () => null,
+  IconCloseOutlineRegular: () => null,
+}));
+
+vi.mock('../src/client/ds/tooltip.js', () => ({
+  Tooltip: ({ children }: { children: unknown }) => children,
 }));
 
 import type { BridgeCall } from '../src/client/bridge.js';
@@ -17,6 +22,8 @@ import {
   OnboardingEnterHint,
   markBotModeEntered,
 } from '../src/client/onboarding-checklist-view.js';
+import { MobileAppsEntry } from '../src/client/mobile-apps.js';
+import { markSessionsTourSeen, sessionsTourSeen } from '../src/client/onboarding-sessions-tour.js';
 import { RELEASE_NOTES_SEEN_KEY, ReleaseNotesController } from '../src/client/release-notes.js';
 import {
   TELEMETRY_NOTICE_SEEN_KEY,
@@ -204,6 +211,56 @@ describe('one-time notices after browser storage is lost', () => {
     expect(first.source.getSnapshot().open).toBe(true);
     first.dismiss();
     expect(fresh.stored['telemetry-notice']).toBe('1');
+  });
+
+  it('keeps the mobile app hint hidden when the Profile already dismissed it', async () => {
+    const host = profile({ 'mobile-apps': '1' });
+    const acks = new HostAcknowledgements(host.call, localStorage);
+    uninstall = installHostAcknowledgements(acks);
+    const view = await render(createElement(MobileAppsEntry, { t }));
+    expect(document.querySelector('.bh-mobile-apps-hint')).toBeNull();
+    await act(async () => {
+      await acks.load();
+    });
+    expect(document.querySelector('.bh-mobile-apps-hint')).toBeNull();
+    expect(localStorage.getItem('botharness/mobile-apps/seen')).toBe('1');
+    view.unmount();
+  });
+
+  it('shows the mobile app hint once per Profile and records the dismissal on the Host', async () => {
+    const host = profile();
+    const acks = new HostAcknowledgements(host.call, localStorage);
+    uninstall = installHostAcknowledgements(acks);
+    const view = await render(createElement(MobileAppsEntry, { t }));
+    await act(async () => {
+      await acks.load();
+    });
+    const hint = document.querySelector('.bh-mobile-apps-hint');
+    expect(hint).not.toBeNull();
+    await act(async () => {
+      hint!.querySelector<HTMLButtonElement>('button[aria-label]')!.click();
+    });
+    expect(document.querySelector('.bh-mobile-apps-hint')).toBeNull();
+    expect(host.stored['mobile-apps']).toBe('1');
+    view.unmount();
+  });
+
+  it('keeps the sessions tour checked on the Profile after browser storage is lost', async () => {
+    const host = profile({ 'onboarding-sessions': '1' });
+    const acks = new HostAcknowledgements(host.call, localStorage);
+    uninstall = installHostAcknowledgements(acks);
+    await acks.load();
+    expect(sessionsTourSeen()).toBe(true);
+
+    uninstall();
+    const fresh = profile();
+    const freshAcks = new HostAcknowledgements(fresh.call, memoryStorage());
+    uninstall = installHostAcknowledgements(freshAcks);
+    await freshAcks.load();
+    expect(sessionsTourSeen()).toBe(false);
+    markSessionsTourSeen();
+    expect(sessionsTourSeen()).toBe(true);
+    expect(fresh.stored['onboarding-sessions']).toBe('1');
   });
 
   it('falls back to browser storage when the Host cannot answer', async () => {

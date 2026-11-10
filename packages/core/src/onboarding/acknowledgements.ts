@@ -4,6 +4,8 @@ export type AcknowledgementKey =
   | 'bot-mode-entered'
   | 'onboarding-intro'
   | 'telemetry-notice'
+  | 'mobile-apps'
+  | 'onboarding-sessions'
   | 'release-notes-seen'
   | `release-update-dismissed/${string}`;
 
@@ -12,7 +14,13 @@ export interface ClientAcknowledgements {
   record(key: string, value: string): { key: string; value: string } | undefined;
 }
 
-const FIXED_KEYS = new Set(['bot-mode-entered', 'onboarding-intro', 'telemetry-notice']);
+const FIXED_KEYS = new Set([
+  'bot-mode-entered',
+  'onboarding-intro',
+  'telemetry-notice',
+  'mobile-apps',
+  'onboarding-sessions',
+]);
 const RELEASE_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 const UPDATE_KEY =
   /^release-update-dismissed\/(?:preview|stable)\/(?:restart-)?[0-9A-Za-z.+-]{1,80}$/;
