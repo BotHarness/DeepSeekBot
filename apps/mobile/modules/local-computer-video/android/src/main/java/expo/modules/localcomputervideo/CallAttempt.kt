@@ -65,6 +65,9 @@ class CallAttempt(
   }
   private val closed = AtomicBoolean(false)
   val tap: CallAudioTap? = if (testAudio) CallAudioTap(SystemClock.elapsedRealtime(), context, onTap) else null
+  private val answerDiagnostics = tap?.let { report ->
+    CallAnswerDiagnostics { detail -> report.note("answer-gathering", detail) }
+  }
   private val route = CallAudioRoute(context, onAudio, { input ->
     adm?.let { BotCallPlayout.setInput(it, input) }
   }) { interrupted ->
@@ -269,10 +272,14 @@ class CallAttempt(
       }
     }
     override fun onIceGatheringChange(state: PeerConnection.IceGatheringState) {
-      enqueue { answerIfReady(force = false) }
+      enqueue {
+        answerDiagnostics?.note("gathering", state.name, null, answered != null, callback = state.name)
+        answerIfReady(force = false)
+      }
     }
     override fun onIceCandidate(candidate: IceCandidate) {
       enqueue {
+        answerDiagnostics?.note("candidate", null, null, answered != null)
         if (settleScheduled) return@enqueue
         settleScheduled = true
         enqueue(1_500) { answerIfReady(force = true) }
@@ -371,21 +378,33 @@ class CallAttempt(
 
   private fun answerIfReady(force: Boolean, timeout: Boolean = false) {
     val connection = peer
-    val description = connection?.localDescription
-    if (answered == null) return
-    if (connection == null || description == null) {
+    if (answered == null) {
+      answerDiagnostics?.note("check", null, connection?.localDescription?.description, false, force, timeout)
+      return
+    }
+    if (connection == null) {
+      answerDiagnostics?.note("check", null, null, true, force, timeout)
       if (timeout) finish(Result.failure(CallError("ice-timeout")))
       return
     }
-    val hasCandidate = description.description.contains("a=candidate:")
-    if (connection.iceGatheringState() != PeerConnection.IceGatheringState.COMPLETE && !(force && hasCandidate)) {
+    val snapshot = readCallAnswerSnapshot(
+      { connection.iceGatheringState() },
+      { connection.localDescription?.description },
+    )
+    val description = snapshot.description
+    answerDiagnostics?.note("check", snapshot.gathering.name, description, true, force, timeout)
+    if (description == null || !snapshot.ready(PeerConnection.IceGatheringState.COMPLETE, force)) {
       if (timeout) finish(Result.failure(CallError("ice-timeout")))
       return
     }
-    if (description.description.toByteArray().size > 98_304) {
+    if (description.toByteArray().size > 98_304) {
       finish(Result.failure(CallError("signal-too-large"))); return
     }
-    finish(Result.success(description.description))
+    runCatching {
+      answerDiagnostics?.note("answer", snapshot.gathering.name,
+        description, answered != null, force, timeout)
+    }
+    finish(Result.success(description))
   }
 
   /**
