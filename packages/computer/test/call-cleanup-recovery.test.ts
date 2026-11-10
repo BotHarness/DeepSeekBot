@@ -7,12 +7,14 @@ const harness = vi.hoisted(() => ({
   started: () => undefined as void,
   proof: () => undefined as void,
   exit: () => undefined as void,
+  verify: async (_signal?: AbortSignal) => true,
 }));
 
 vi.mock('../src/media/install.js', async (original) => ({
   ...(await original<typeof import('../src/media/install.js')>()),
   verifyLocalVideoAssets: async () => undefined,
-  verifyLocalVideoHelper: async () => true,
+  verifyLocalVideoHelper: async (_directory: string, _assets: string, signal?: AbortSignal) =>
+    harness.verify(signal),
 }));
 
 vi.mock('node:child_process', async (original) => {
@@ -78,6 +80,7 @@ afterEach(() => {
   vi.unstubAllEnvs();
   harness.mode = 'success';
   harness.started = () => undefined;
+  harness.verify = async () => true;
 });
 
 function setup(mode: string, enabled = true) {
@@ -107,6 +110,32 @@ function setup(mode: string, enabled = true) {
   );
   return { events, started, abort, outcome, media };
 }
+
+it('releases unspawned admission after verification cancellation settles', async () => {
+  let entered!: () => void;
+  const verifying = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  harness.verify = (signal) =>
+    new Promise<boolean>((_resolve, reject) => {
+      signal?.addEventListener('abort', () => reject(signal.reason), { once: true });
+      entered();
+    });
+  const h = setup('success');
+  await verifying;
+  h.abort.abort();
+  expect((await h.outcome).peer).toBeUndefined();
+  harness.verify = async () => true;
+  const next = await h.media.open({
+    callId: 'next',
+    signal: new AbortController().signal,
+    onPcm: () => undefined,
+    onStatus: () => undefined,
+  });
+  expect(next.offer?.type).toBe('offer');
+  await next.close();
+  expect(h.events.some((entry) => entry.includes('operation=open result=cancelled'))).toBe(true);
+});
 
 it.each(['proof-first', 'exit-first'])(
   'admits another call only after late dual cleanup proof: %s',
