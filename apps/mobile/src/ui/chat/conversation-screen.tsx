@@ -109,6 +109,7 @@ import { ChatBackdrop } from './chat-backdrop';
 import { Composer, type ComposerInput } from './composer';
 import { ComposerFollower, ComposerPillContext, ComposerSpacer } from './composer-pill';
 import { ComposerLayoutContext, ComposerLayoutNotice, useComposerLayout } from './composer-layout';
+import { ComposerAnimatedFade } from './composer-animated-fade';
 import { GroupUnavailable } from './group-unavailable';
 import { DraftSaveNotice } from './draft-save-notice';
 import { ClipboardImageOffer, useClipboardImage } from './clipboard-image';
@@ -2127,7 +2128,15 @@ function ChatConversation({
                             color={fadeColor}
                           />
                         ) : null}
-                        {nativeSpacer ? (
+                        {animatedComposer ? (
+                          <ComposerAnimatedFade
+                            inset={composerInset}
+                            measuredCover={composerCover}
+                            color={fadeColor}
+                          >
+                            {bottomFade}
+                          </ComposerAnimatedFade>
+                        ) : nativeSpacer ? (
                           <ComposerFollower pill={latest.pill} measured={composerHeight}>
                             {bottomFade}
                           </ComposerFollower>

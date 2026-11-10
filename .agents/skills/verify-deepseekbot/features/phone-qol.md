@@ -70,7 +70,9 @@ For normal-motion startup, the existing pill spring also drives the keyboard scr
 adapter extra inset; do not count the same height in React content padding. Verify
 resize without append, Send with append, browsing away during resize/append, and
 short/long lists with the keyboard open/closed. Record settled offset as well as gap:
-external inset movement can stop the native latest-anchor spring. This path is not
+external inset movement can stop the native latest-anchor spring. Check the bottom
+fade during both shrink and expansion: its white solid cover must not hide a newly
+inserted bubble or leave an uncovered strip below the translated gradient. This path is not
 proved by a reduced-motion pass. Run both trace-off Debug and Release with the
 same fixture; diagnostic UI-value timestamps are not a substitute for visible geometry.
 
