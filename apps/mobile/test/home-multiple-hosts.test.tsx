@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { channelNavigationHarness } from './channel-navigation-harness';
 const channelHistory = channelNavigationHarness();
-import { expect, it, vi } from 'vitest';
+import { expect, it, onTestFinished, vi } from 'vitest';
+import { CONNECTION_OFFLINE_MS } from '../src/ui/connection-presence';
 
 import { secure, remotes } from './host-session-fixture';
 import { FakeHost } from './fake-host';
@@ -111,6 +112,10 @@ vi.mock('../src/cloud/native-conversations', () => ({
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 it('All renders both real Host feeds and opens the tapped row on its own Host', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  onTestFinished(() => {
+    vi.useRealTimers();
+  });
   vi.stubGlobal('requestIdleCallback', () => 1);
   vi.stubGlobal('cancelIdleCallback', () => undefined);
   const a = new FakeHost('a');
@@ -268,7 +273,9 @@ it('All renders both real Host feeds and opens the tapped row on its own Host', 
     });
     expect(hostSession.getState().saved?.hostId).toBe('a');
     expect(view.querySelector('[data-connection="unreachable"]')).not.toBeNull();
-    expect(view.textContent).toContain(t.hostListUnavailable);
+    expect(view.querySelector('[data-testid="home-status-chip"]')).toBeNull();
+    await act(async () => vi.advanceTimersByTime(CONNECTION_OFFLINE_MS));
+    expect(view.textContent).toContain(t.hostListOffline);
     expect(view.textContent).toContain('Bot b');
     expect(view.textContent).not.toContain('Bot a');
     const refreshA = vi.spyOn(hostSession.getHost('a')!.client, 'refresh');
@@ -279,7 +286,7 @@ it('All renders both real Host feeds and opens the tapped row on its own Host', 
     });
     expect(refreshA).not.toHaveBeenCalled();
     refreshA.mockRestore();
-    expect(view.textContent).not.toContain(t.hostListUnavailable);
+    expect(view.textContent).not.toContain(t.hostListOffline);
     await act(async () => {
       conversationFilter.set('all');
       b.kill();

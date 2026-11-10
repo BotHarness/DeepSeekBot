@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, memo, useLayoutEffect, useSyncExternalStore, type ReactNode } from 'react';
 import { createHostClient, type HostClient } from '../src/host/client';
-import { CONNECTION_QUIET_MS } from '../src/ui/connection-presence';
+import { CONNECTION_OFFLINE_MS, CONNECTION_QUIET_MS } from '../src/ui/connection-presence';
 import { FakeHost } from './fake-host';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -693,7 +693,8 @@ describe('Search in the Chats header', () => {
       expect(view.textContent).not.toContain(t.hostListLoadFailed);
     },
   );
-  it('uses refresh copy only when the failed Computer still has a loaded list', async () => {
+  it('keeps a dropped Computer list quiet, then shows it offline once the drop lasts', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     const transport = new FakeHost();
     const client = createHostClient({
       routes: ['https://studio.tailnet-example.ts.net'],
@@ -713,7 +714,12 @@ describe('Search in the Chats header', () => {
       await vi.waitFor(() => expect(client.getSnapshot().connection.status).toBe('unreachable'));
     });
     expect(client.getSnapshot().roster).toEqual(loadedRoster);
-    expect(view.textContent).toContain(t.hostListUnavailable);
+    expect(view.querySelector('[data-testid="home-status-chip"]')).toBeNull();
+    expect(view.textContent).toContain(loadedRoster!.bots[0]!.displayName);
+    await act(async () => vi.advanceTimersByTime(CONNECTION_OFFLINE_MS));
+    expect(view.querySelector('[data-testid="home-status-chip"]')?.textContent).toContain(
+      t.hostListOffline,
+    );
     expect(view.textContent).not.toContain(t.hostListLoadFailed);
     expect(view.textContent).toContain(loadedRoster!.bots[0]!.displayName);
   });
