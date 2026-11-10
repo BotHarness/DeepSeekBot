@@ -1407,6 +1407,8 @@ Host 重启后先检查草稿、重新读取群聊，再通过同一个
 
 `deepseekbot onboarding` 读取 Profile 引导及实际 Bot／群聊结果引用。`--action start|pause|skip|continue|restart|finish` 控制生命周期；finish 不再要求已实际创建 Bot 与群聊：引导的身份模板和采访会在用户需要时由托布创建。重新开始保留资源、审批、布局和历史。布局教学完成记录属于当前 Client；CLI 不操作界面，也不把模型配置视为执行成功。
 
+`deepseekbot acknowledgements` 读取当前 Profile 已看过的一次性提示，返回 `{ "items": { "<key>": "<value>" } }`。`deepseekbot acknowledge <key>` 记录一项：`bot-mode-entered`（Bot 模式旁的「试试看」）、`onboarding-intro`（新手引导弹窗）、`telemetry-notice`、`release-update-dismissed/<stable|preview>/<版本|restart-版本>`，或 `release-notes-seen --version <x.y.z>`（已看过该版本及以前的更新说明）。这些记录原先只存在浏览器存储里，换了 Desktop／浏览器来源、端口或清除了站点数据后，重启就会再次出现；现在 Client 先读 Profile 记录，并把旧的本地记录上传一次。未知 key 或格式错误的版本返回 `invalid-input`。
+
 ### 绑定版本的 Memory PNG 图片
 
 `memory-file`、`memory-working-diff` 和 `memory-commit-diff` 为 PNG、JPEG/JPG、GIF、WebP 和安全静态 SVG 文件返回可选图片元数据。`source` 标识当前工作树、暂存区或确切提交，`revision` 绑定实际字节；JSON 不包含图片正文。

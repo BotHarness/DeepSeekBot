@@ -107,6 +107,7 @@ import {
   subscribeBotModeSidebarViewport,
 } from './bot-mode-sidebar-viewport.js';
 import { OnboardingEnterHint, OnboardingLauncher } from './onboarding-checklist-view.js';
+import { HostAcknowledgements, installHostAcknowledgements } from './host-acknowledgements.js';
 import {
   createChannelSidebarBuiltinTabs,
   createChannelSidebarBuiltins,
@@ -415,10 +416,24 @@ export function apply(ctx: ClientContext): void {
     ),
   );
   const updateRuns = new UpdateRunsController(call);
-  const releaseNotes = new ReleaseNotesController(call, storage, undefined, updateRuns);
-  const telemetryNotice = new TelemetryNoticeController(call, storage, () => {
-    botSettings.open(BOT_SETTINGS_SECTIONS.dataPrivacy);
-  });
+  const acknowledgements = new HostAcknowledgements(call, storage);
+  ctx.effect(() => installHostAcknowledgements(acknowledgements), 'botharness: Profile notices');
+  void acknowledgements.load();
+  const releaseNotes = new ReleaseNotesController(
+    call,
+    storage,
+    undefined,
+    updateRuns,
+    acknowledgements,
+  );
+  const telemetryNotice = new TelemetryNoticeController(
+    call,
+    storage,
+    () => {
+      botSettings.open(BOT_SETTINGS_SECTIONS.dataPrivacy);
+    },
+    acknowledgements,
+  );
   const lastView =
     typeof window === 'undefined'
       ? undefined

@@ -56,8 +56,13 @@ afterEach(async () => {
   container.remove();
   document.querySelector('nav')?.remove();
 });
-function harness(tutorial: OnboardingSnapshot['tutorial'], completed = false) {
+function harness(
+  tutorial: OnboardingSnapshot['tutorial'],
+  completed = false,
+  journey?: OnboardingSnapshot['journey'],
+) {
   const shared: OnboardingSnapshot = {
+    ...(journey === undefined ? {} : { journey }),
     profileId: 'overlay',
     completed,
     preparation: 'ready',
@@ -358,3 +363,18 @@ it('jumps straight to the current Bot session in DSH when the sidebar has no roo
   expect(tour).not.toHaveBeenCalled();
   vi.unstubAllGlobals();
 });
+
+it.each([
+  ['active', 1],
+  ['paused', 0],
+] as const)(
+  'reopens an unfinished layout tour on Bot-mode entry only while it is %s',
+  async (tutorial, tours) => {
+    localStorage.setItem('botharness/onboarding/intro-v1/overlay', '1');
+    const { actions, render } = harness(tutorial, false, { version: 2, done: false });
+    await render();
+    await flush();
+    expect(actions.onboarding).not.toHaveBeenCalledWith(undefined, 'continue');
+    expect(tour).toHaveBeenCalledTimes(tours);
+  },
+);

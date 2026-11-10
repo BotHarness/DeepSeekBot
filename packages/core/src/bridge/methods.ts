@@ -79,6 +79,7 @@ import {
 import { TobError, type TobService, type TobHome } from '../tob/service.js';
 import { directToolTrace, summarizeToolTrace, type TurnTrace } from '../bots/tool-trace.js';
 import type { BotOnboarding, OnboardingSnapshot, TutorialAction } from '../onboarding/service.js';
+import type { ClientAcknowledgements } from '../onboarding/acknowledgements.js';
 import type { HttpsFallback } from '../memory/clone.js';
 import {
   ContentPurgeError,
@@ -661,6 +662,8 @@ export interface BridgeMethods {
     payload: unknown,
   ): Promise<BridgeResult<TobHome & { attention?: { unreadCount: number; hasAction: boolean } }>>;
   onboarding(payload: unknown): Promise<BridgeResult<OnboardingSnapshot>>;
+  acknowledgements(payload: unknown): BridgeResult<{ items: Record<string, string> }>;
+  acknowledge(payload: unknown): BridgeResult<{ key: string; value: string }>;
   modelPlanInherit(payload: unknown): BridgeResult<{ revision: number }>;
   onboardingModel(payload: unknown): Promise<BridgeResult<{ revision: number }>>;
   telemetryEvent(payload: unknown): BridgeResult<null>;
@@ -1247,6 +1250,7 @@ export interface BridgeMethodsDeps {
   modelCatalog?: ModelCatalog;
   modelReadiness?: ModelRouteReadiness;
   onboarding?: BotOnboarding;
+  acknowledgements?: ClientAcknowledgements;
   tob?: TobService;
   partLibrary?: PartLibrary;
   onboardingNews?: (slug?: string) => Promise<boolean>;
@@ -3046,6 +3050,20 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           },
         };
       }
+    },
+    acknowledgements() {
+      if (deps.acknowledgements === undefined) return unavailable();
+      return { ok: true, value: { items: deps.acknowledgements.list() } };
+    },
+    acknowledge(payload) {
+      if (deps.acknowledgements === undefined) return unavailable();
+      const source = asObject(payload);
+      const recorded = deps.acknowledgements.record(
+        String(source['key'] ?? ''),
+        source['value'] as string,
+      );
+      if (recorded === undefined) return invalidInput('Invalid acknowledgement');
+      return { ok: true, value: recorded };
     },
     modelPlanInherit(payload) {
       const slug = asSlug(payload);
