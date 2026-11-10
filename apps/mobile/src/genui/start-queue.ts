@@ -1,29 +1,27 @@
 export type GenuiStartQueue = {
-  take(start: () => void, priority?: number): () => void;
+  take(start: () => void): () => void;
 };
 
 export function genuiStartQueue(limit: number): GenuiStartQueue {
   let running = 0;
-  const waiting: Array<{ begin: () => void; priority: number }> = [];
+  const waiting: Array<() => void> = [];
   const next = () => {
     while (running < limit && waiting.length > 0) {
       running += 1;
-      waiting.shift()?.begin();
+      waiting.shift()?.();
     }
   };
   return {
-    take(start, priority = 0) {
+    take(start) {
       let state: 'waiting' | 'running' | 'done' = 'waiting';
       const begin = () => {
         state = 'running';
         start();
       };
-      const entry = { begin, priority };
-      const at = waiting.findIndex((other) => other.priority < priority);
-      waiting.splice(at === -1 ? waiting.length : at, 0, entry);
-      queueMicrotask(next);
+      waiting.push(begin);
+      next();
       return () => {
-        if (state === 'waiting') waiting.splice(waiting.indexOf(entry), 1);
+        if (state === 'waiting') waiting.splice(waiting.indexOf(begin), 1);
         if (state === 'running') {
           running -= 1;
           next();
