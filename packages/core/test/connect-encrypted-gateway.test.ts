@@ -8,7 +8,11 @@ import type {
   LocalVideoBinding,
   LocalVideoState,
 } from '../../computer/src/local-video-contract.js';
-import { createEncryptedGateway } from '../src/devices/encrypted-gateway.js';
+import {
+  createEncryptedGateway,
+  type CallChannelDiagnostic,
+} from '../src/devices/encrypted-gateway.js';
+import { createDeviceGateway } from '../src/devices/gateway.js';
 import { ConnectChannel } from '../src/devices/noise/channel.js';
 import { noisePublicKey } from '../src/devices/noise/xk.js';
 import { createDevicePairing } from '../src/devices/pairing.js';
@@ -196,7 +200,10 @@ it.each(['connect', 'lan'] as const)(
 );
 
 async function endpointFixture(
-  options: Pick<Parameters<typeof createEncryptedGateway>[0], 'route' | 'localVideo'> = {},
+  options: Pick<
+    Parameters<typeof createEncryptedGateway>[0],
+    'route' | 'localVideo' | 'voiceCall' | 'changed' | 'callDiagnostic'
+  > = {},
 ) {
   const owner = trackTestOwner(
     mountOperationalDatabase({
@@ -218,6 +225,8 @@ async function endpointFixture(
   if (!paired.ok) throw new Error('pairing failed');
   const effects: string[] = [];
   const server = createServer(async (request, response) => {
+    if (request.url === '/botharness-device/api/voice/call')
+      return direct.handle(request, response);
     let body = '';
     for await (const chunk of request) body += String(chunk);
     effects.push(body);
@@ -225,6 +234,12 @@ async function endpointFixture(
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const port = (server.address() as AddressInfo).port;
+  const direct = createDeviceGateway({
+    pairing,
+    port: () => port,
+    authenticatedUrl: (url) => url,
+    ...(options.voiceCall ? { voiceCall: options.voiceCall } : {}),
+  });
   const gateway = createEncryptedGateway({
     ...options,
     pairing,
@@ -285,6 +300,17 @@ async function endpointFixture(
     connect,
     pairing,
     deviceId: paired.device.id,
+    async httpCall(kind: string) {
+      const response = await fetch(`http://127.0.0.1:${port}/botharness-device/api/voice/call`, {
+        method: 'POST',
+        headers: {
+          authorization: `Device ${paired.credential}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ kind, callId: 'call-a123', slug: 'mira' }),
+      });
+      return response.json();
+    },
     async close() {
       for (const { socket, channel } of peers) {
         socket.terminate();
@@ -332,6 +358,239 @@ const videoState = (binding = videoBinding): LocalVideoState => ({
 });
 const responseBody = (response: Record<string, unknown>) =>
   JSON.parse(Buffer.from(String(response.body), 'base64').toString());
+
+const callRequest = (id: string, kind: string) => ({
+  type: 'request',
+  id,
+  method: 'POST',
+  path: '/botharness-device/api/voice/call',
+  body: JSON.stringify({ kind, callId: 'call-a123', slug: 'mira' }),
+});
+const liveCall = {
+  callId: 'call-a123',
+  slug: 'mira',
+  channelId: 'channel-test',
+  phase: 'listening',
+  muted: false,
+  busy: false,
+  media: 'webrtc',
+  startedAt: 1,
+  durationMs: 1,
+  events: [],
+  lastSeq: 0,
+} as const;
+
+it('compensates an open whose response cannot be queued to the encrypted socket', async () => {
+  let release!: () => void, entered!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const started = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  const events: CallChannelDiagnostic[] = [];
+  const voiceCall = vi
+    .fn<NonNullable<Parameters<typeof createEncryptedGateway>[0]['voiceCall']>>()
+    .mockImplementation(async ({ command }) => {
+      if ((command as { kind: string }).kind === 'open') {
+        entered();
+        await gate;
+      }
+      return { ok: true, call: liveCall };
+    });
+  const f = await endpointFixture({
+    route: 'lan',
+    voiceCall,
+    callDiagnostic: (event) => events.push(event),
+  });
+  let send: ReturnType<typeof vi.spyOn> | undefined;
+  try {
+    const a = await f.connect();
+    expect(await a.next()).toMatchObject({ type: 'admitted' });
+    a.send(callRequest('open', 'open'));
+    await started;
+    send = vi.spyOn(WebSocket.prototype, 'send').mockImplementationOnce(() => {
+      throw new Error('private socket error');
+    });
+    release();
+    await a.closed;
+    await vi.waitFor(() =>
+      expect(voiceCall.mock.calls.map(([input]) => input.command)).toContainEqual({
+        kind: 'hangup',
+        callId: liveCall.callId,
+      }),
+    );
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        phase: 'abandoned-open-cleanup',
+        trigger: 'send-failed',
+        callId: liveCall.callId,
+      }),
+    );
+    expect(JSON.stringify(events)).not.toContain('private socket error');
+  } finally {
+    send?.mockRestore();
+    release();
+    await f.close();
+  }
+});
+
+it.each([
+  { kind: 'open', closed: false },
+  { kind: 'heartbeat', closed: false },
+  { kind: 'open', closed: true },
+  { kind: 'heartbeat', closed: true },
+])('only compensates undelivered $kind with closed=$closed', async ({ kind, closed }) => {
+  let release!: () => void, entered!: () => void;
+  const started = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const voiceCall = vi
+    .fn<NonNullable<Parameters<typeof createEncryptedGateway>[0]['voiceCall']>>()
+    .mockImplementation(async ({ command }) => {
+      if ((command as { kind: string }).kind === kind) {
+        entered();
+        await gate;
+      }
+      return { ok: true, call: liveCall };
+    });
+  const f = await endpointFixture({ route: 'lan', voiceCall });
+  try {
+    const a = await f.connect();
+    expect(await a.next()).toMatchObject({ type: 'admitted' });
+    if (kind === 'heartbeat') {
+      a.send(callRequest('open', 'open'));
+      await a.next();
+    }
+    a.send(callRequest('pending', kind));
+    await started;
+    if (closed) {
+      a.socket.close();
+      await a.closed;
+    } else {
+      a.send({ type: 'cancel', id: 'pending' });
+      a.send({ type: 'ping' });
+      expect(await a.next()).toMatchObject({ type: 'pong' });
+    }
+    await vi.waitFor(() =>
+      expect(
+        voiceCall.mock.calls.find(
+          ([input]) => (input.command as { kind: string }).kind === kind,
+        )?.[0].signal.aborted,
+      ).toBe(true),
+    );
+    release();
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    if (!closed) {
+      a.send({ type: 'ping' });
+      expect(await a.next()).toMatchObject({ type: 'pong' });
+    }
+    const hangups = voiceCall.mock.calls.filter(
+      ([input]) => (input.command as { kind: string }).kind === 'hangup',
+    );
+    expect(hangups).toHaveLength(kind === 'open' ? 1 : 0);
+  } finally {
+    release();
+    await f.close();
+  }
+});
+
+it.each(['channel B', 'HTTP'])(
+  'does not hang up a call recovered on %s when channel A closes',
+  async (route) => {
+    let encrypted = 0;
+    const voiceCall = vi
+      .fn<NonNullable<Parameters<typeof createEncryptedGateway>[0]['voiceCall']>>()
+      .mockResolvedValue({ ok: true, call: liveCall });
+    const f = await endpointFixture({
+      route: 'lan',
+      voiceCall,
+      changed: (state) => {
+        encrypted = state.encrypted;
+      },
+    });
+    try {
+      const a = await f.connect(),
+        b = await f.connect();
+      expect(await a.next()).toMatchObject({ type: 'admitted' });
+      expect(await b.next()).toMatchObject({ type: 'admitted' });
+      a.send(callRequest('open', 'open'));
+      expect(responseBody(await a.next())).toMatchObject({
+        ok: true,
+        call: { callId: liveCall.callId },
+      });
+      if (route === 'HTTP')
+        expect(await f.httpCall('heartbeat')).toMatchObject({
+          ok: true,
+          call: { callId: liveCall.callId },
+        });
+      else {
+        b.send(callRequest('heartbeat', 'heartbeat'));
+        expect(responseBody(await b.next())).toMatchObject({
+          ok: true,
+          call: { callId: liveCall.callId },
+        });
+      }
+      a.socket.close();
+      await a.closed;
+      await vi.waitFor(() => expect(encrypted).toBe(1));
+      expect(voiceCall.mock.calls.map(([input]) => input.command)).toEqual([
+        { kind: 'open', callId: 'call-a123', slug: 'mira' },
+        { kind: 'heartbeat', callId: 'call-a123', slug: 'mira' },
+      ]);
+    } finally {
+      await f.close();
+    }
+  },
+);
+
+it.each(['disconnect', 'revoke'] as const)(
+  'leaves delivered-call lifetime to its owner on same-channel %s',
+  async (reason) => {
+    let encrypted = 0;
+    const events: CallChannelDiagnostic[] = [];
+    const voiceCall = vi
+      .fn<NonNullable<Parameters<typeof createEncryptedGateway>[0]['voiceCall']>>()
+      .mockResolvedValue({ ok: true, call: liveCall });
+    const f = await endpointFixture({
+      route: 'lan',
+      voiceCall,
+      changed: (state) => {
+        encrypted = state.encrypted;
+      },
+      callDiagnostic: (event) => {
+        events.push(event);
+        throw new Error('observer failure');
+      },
+    });
+    try {
+      const a = await f.connect();
+      expect(await a.next()).toMatchObject({ type: 'admitted' });
+      a.send(callRequest('open', 'open'));
+      await a.next();
+      if (reason === 'revoke') f.pairing.revoke(f.deviceId);
+      else a.socket.close();
+      await a.closed;
+      await vi.waitFor(() => expect(encrypted).toBe(0));
+      expect(voiceCall).toHaveBeenCalledTimes(1);
+      expect(events).toEqual([
+        {
+          channelId: expect.stringMatching(/^channel-\d+$/),
+          route: 'lan',
+          phase: 'channel-close',
+          trigger: reason === 'revoke' ? 'revoked' : 'socket-close',
+          callId: liveCall.callId,
+        },
+      ]);
+      expect(JSON.stringify(events)).not.toMatch(/credential|token|http|PRIVATE/);
+    } finally {
+      await f.close();
+    }
+  },
+);
 
 it.each(['lan', 'connect'] as const)(
   '%s video uses only server-owned route and Noise-admitted identity',
