@@ -584,7 +584,10 @@ describe('desktop call', () => {
     const element = document.createElement('div');
     const root = createRoot(element);
     cleanup.push(() => act(() => root.unmount()));
-    await act(async () => root.render(<CallRailButton t={translate()} call={mac.call} />));
+    const reveal = vi.fn();
+    await act(async () =>
+      root.render(<CallRailButton t={translate()} onReturn={reveal} call={mac.call} />),
+    );
     expect(element.querySelector('.bh-call-rail-button')).toBeNull();
     const open = vi.fn();
     await act(async () => mac.call.start('mira', { title: 'On a call', body: '', open }));
@@ -595,6 +598,7 @@ describe('desktop call', () => {
     expect(button.querySelector('.bh-call-rail-badge')).not.toBeNull();
     await act(async () => button.click());
     expect(open).toHaveBeenCalledTimes(1);
+    expect(reveal).toHaveBeenCalledTimes(1);
     await act(async () => mac.call.hangup());
     expect(element.querySelector('.bh-call-rail-button')).toBeNull();
   });

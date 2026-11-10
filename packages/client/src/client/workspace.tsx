@@ -447,7 +447,7 @@ function WorkspaceRail({
           settingsTarget,
         )}
 
-      <CallRailButton t={t} />
+      <CallRailButton t={t} onReturn={() => options.dockPanels?.open(CHANNEL_BODY_PANEL)} />
       <MobileAppsEntry t={t} />
       <DiagnosticLogsEntry t={t} />
       {launcher ? (

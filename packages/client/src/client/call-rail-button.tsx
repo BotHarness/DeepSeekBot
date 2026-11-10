@@ -33,9 +33,11 @@ const sameCallBot = (a: CallBot | undefined, b: CallBot | undefined): boolean =>
 
 export function CallRailButton({
   t,
+  onReturn,
   call = desktopCall(),
 }: {
   t: BotHarnessTranslate;
+  onReturn?: (() => void) | undefined;
   call?: DesktopCall;
 }): ReactElement | null {
   const snapshot = useSyncExternalStore(call.subscribe, call.snapshot, call.snapshot);
@@ -53,7 +55,10 @@ export function CallRailButton({
           className="bh-call-rail-button"
           aria-label={label}
           data-status={status}
-          onClick={() => snapshot.place?.open()}
+          onClick={() => {
+            snapshot.place?.open();
+            onReturn?.();
+          }}
         >
           <PersonaBotAvatar
             t={t}
