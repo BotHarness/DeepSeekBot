@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useContext, useMemo, useState } from 'react';
 import { Linking, View, useWindowDimensions } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { EnrichedMarkdownText, type LinkPressEvent } from 'react-native-enriched-markdown';
@@ -10,8 +10,12 @@ import { MarkdownText } from './markdown-text';
 import { markdownStyle } from './markdown-style';
 import { pressLink } from './link-press';
 import { space } from './design/tokens';
-import { useMarkdownViewport } from './markdown-viewport';
+import { MarkdownViewportContext, useMarkdownViewport } from './markdown-viewport';
 import { createMarkdownWindow } from './markdown-window';
+import {
+  MarkdownBlockWindow,
+  nativeMarkdownWindow,
+} from './primitives/markdown-block-window.android';
 
 const flags = { latexMath: false } as const;
 const openLink = (url: string) => void Linking.openURL(url).catch(() => undefined);
@@ -77,7 +81,48 @@ type MarkdownProps = {
 
 export const MarkdownView = memo(function MarkdownView(props: MarkdownProps) {
   const { width, fontScale } = useWindowDimensions();
+  if (nativeMarkdownWindow)
+    return <NativeMarkdownDocument key={`${width}:${fontScale}`} {...props} />;
   return <MarkdownDocument key={`${width}:${fontScale}`} {...props} />;
+});
+
+const NativeMarkdownDocument = memo(function NativeMarkdownDocument({
+  source,
+  color,
+  selectable = true,
+  streaming = false,
+  onOpenLink = openLink,
+}: MarkdownProps) {
+  const theme = useDesignTheme();
+  const stage = useContext(MarkdownViewportContext);
+  const parse = useMemo(() => createMarkdownBlocks(), []);
+  const blocks = useMemo(() => parse(source), [parse, source]);
+  const supported = useMemo(
+    () =>
+      blocks
+        .slice(0, -1)
+        .every((block) => textMarkdownSupported(markdownBlockContent(block, false).tokens)),
+    [blocks],
+  );
+  return (
+    <View>
+      {blocks.map((block, index) => (
+        <MarkdownBlockWindow
+          key={`${block.key}:${index < blocks.length - 1 ? block.source : 'tail'}`}
+          eligible={stage?.active === true && supported && index < blocks.length - 1}
+        >
+          <MarkdownBlockView
+            block={block}
+            color={color ?? theme.color.fg}
+            selectable={selectable}
+            trailing={index < blocks.length - 1}
+            streaming={streaming && index === blocks.length - 1}
+            onOpenLink={onOpenLink}
+          />
+        </MarkdownBlockWindow>
+      ))}
+    </View>
+  );
 });
 
 const MarkdownDocument = memo(function MarkdownDocument({

@@ -3,6 +3,8 @@ import { act, Children, isValidElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 
+vi.mock('expo', () => ({ requireOptionalNativeModule: () => null }));
+
 const { copied, textBodies } = vi.hoisted(() => ({ copied: vi.fn(), textBodies: [] as string[] }));
 vi.mock('react-native', async () => {
   const shim = await import('./react-native-shim');
