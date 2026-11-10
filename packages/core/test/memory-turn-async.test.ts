@@ -215,7 +215,10 @@ describe('Memory turn Host responsiveness', () => {
   });
 
   it('routes real runtime turns through asynchronous preparation and settlement', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(FIXED_NOW());
     const ran = vi.fn();
+    const observedSources: string[] = [];
     const steer = vi.fn(() => false);
     const prepareEntered = deferred();
     const prepareGate = deferred();
@@ -225,8 +228,9 @@ describe('Memory turn Host responsiveness', () => {
       dshHome: createTempRoot('memory-runtime-async-'),
       agents: {
         steerOrchestrator: steer,
-        async runOrchestrator() {
+        async runOrchestrator(run) {
           ran();
+          observedSources.push(...(run.triage?.current() ?? []));
         },
         async runAssignment() {},
         requestAssignment() {
@@ -261,13 +265,15 @@ describe('Memory turn Host responsiveness', () => {
         throw new Error('Synchronous reconcile reached');
       });
       const group = core.channels.createGroup({ name: 'Async', members: ['atlas'] });
-      const send = async (id: string) => {
+      const send = async (id: string, mentioned = true) => {
         await core.channels.appendMessage(group.id, {
           id,
           at: FIXED_NOW().toISOString(),
           author: { kind: 'human' },
-          body: '@Atlas remember',
-          mentions: [{ botSlug: 'atlas', label: 'Atlas', start: 0, end: 6 }],
+          body: mentioned ? '@Atlas remember' : 'Remember this ordinary message',
+          ...(mentioned
+            ? { mentions: [{ botSlug: 'atlas', label: 'Atlas', start: 0, end: 6 }] }
+            : {}),
         });
         core.runtime.admitGroupMessage(group.id, id);
       };
@@ -277,6 +283,9 @@ describe('Memory turn Host responsiveness', () => {
       await new Promise<void>((resolve) => setImmediate(resolve));
       expect(ran).not.toHaveBeenCalled();
       await send('during-prepare');
+      await send('ordinary-during-prepare', false);
+      vi.setSystemTime(new Date(FIXED_NOW().getTime() + 31_000));
+      core.runtime.resumePendingDigests('atlas');
       prepareGate.resolve();
       await reconcileEntered.promise;
       let settled = false;
@@ -298,17 +307,21 @@ describe('Memory turn Host responsiveness', () => {
         (db) =>
           db
             .prepare(
-              "SELECT a.attempt_state FROM inbox_admissions a JOIN source_events e ON e.source_event_id = a.source_event_id WHERE e.message_id IN ('ask', 'during-prepare', 'during-settle') AND a.bot_slug = 'atlas'",
+              "SELECT a.source_event_id, a.reason, a.attempt_state, e.message_id FROM inbox_admissions a JOIN source_events e ON e.source_event_id = a.source_event_id WHERE e.message_id IN ('ask', 'during-prepare', 'ordinary-during-prepare', 'during-settle') AND a.bot_slug = 'atlas'",
             )
             .all(),
       );
-      expect(states).toHaveLength(3);
+      expect(states).toHaveLength(4);
       expect(states.every((row) => row.attempt_state === 'handled')).toBe(true);
+      const ordinary = states.find((row) => row.message_id === 'ordinary-during-prepare');
+      expect(ordinary?.reason).toBe('group-ordinary');
+      expect(observedSources.filter((id) => id === ordinary?.source_event_id)).toHaveLength(1);
     } finally {
       prepareGate.resolve();
       reconcileGate.resolve();
       await core.runtime.close();
       core.operationalDatabase.close();
+      vi.useRealTimers();
     }
   }, 60_000);
 });

@@ -326,12 +326,16 @@ it('uses normal Bot tools and Inbox to exchange a DM between two Host owners', a
     expect(failures).toEqual([]);
     expect(turns).toEqual(['left', 'right', 'left']);
     const outgoing = left.channels.list().find((item) => item.remoteBot !== undefined)!;
+    const sent = left.channels
+      .readMessages(outgoing.id)
+      .find((message) => message.body === 'Investigate iOS bug');
+    expect(sent?.author).toEqual({ kind: 'bot', slug: 'caller' });
     expect(left.channels.readMessages('dm-caller')).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           botChannelPost: {
             channelId: outgoing.id,
-            messageId: left.channels.readMessages(outgoing.id)[0]!.id,
+            messageId: sent!.id,
           },
         }),
       ]),
