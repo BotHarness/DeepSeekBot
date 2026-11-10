@@ -1,6 +1,7 @@
 import type { BotHarnessTranslate } from './locale.js';
 import { NARROW_CHANNEL_SIDEBAR_QUERY } from './channel-sidebar-layout.js';
 import { channelSidebarPrefs, channelSidebarScopeKey } from './channel-sidebar-prefs.js';
+import { hostAcknowledgements } from './host-acknowledgements.js';
 import { startInternalTour, type InternalTourSpec } from './internal-tour.js';
 
 const SEEN_KEY = 'botharness/onboarding/sessions-seen';
@@ -17,7 +18,11 @@ export const SESSIONS_ROW_SELECTOR =
   '[data-bh-tour="channel-sidebar"] [data-sessions] button.bh-session-row:not(:disabled)';
 export const SESSION_RETURN_SELECTOR = '.bh-session-return-action';
 
+const SEEN_ACK = 'onboarding-sessions';
+
 export function sessionsTourSeen(): boolean {
+  const acks = hostAcknowledgements();
+  if (acks !== undefined) return acks.value(SEEN_ACK, SEEN_KEY) !== undefined;
   try {
     return localStorage.getItem(SEEN_KEY) !== null;
   } catch {
@@ -26,6 +31,11 @@ export function sessionsTourSeen(): boolean {
 }
 
 export function markSessionsTourSeen(): void {
+  const acks = hostAcknowledgements();
+  if (acks !== undefined) {
+    acks.record(SEEN_ACK, '1', SEEN_KEY);
+    return;
+  }
   try {
     localStorage.setItem(SEEN_KEY, '1');
   } catch {}

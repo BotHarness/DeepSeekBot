@@ -1,5 +1,6 @@
 import type { OnboardingSnapshot } from '../../../core/src/onboarding/types.js';
 import type { BridgeActions } from './actions.js';
+import { hostAcknowledgements } from './host-acknowledgements.js';
 import { sessionsTourSeen } from './onboarding-sessions-tour.js';
 
 export const CHECKLIST_ITEMS = [
@@ -61,6 +62,7 @@ export async function loadChecklistEvidence(
     }),
     read(async ({ slug }) => (await actions.botSchedules(slug)).length > 0),
   ]);
+  await hostAcknowledgements()?.load();
   return {
     model,
     conversation: receipt.completed,
