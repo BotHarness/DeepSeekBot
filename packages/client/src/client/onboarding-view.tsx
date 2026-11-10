@@ -29,6 +29,7 @@ import { startInternalTour, type InternalTourSpec } from './internal-tour.js';
 import { CHANNEL_BODY_PANEL } from './channel-dock-layout.js';
 import { readLayoutMode, type LayoutMode } from './layout-mode.js';
 import { OnboardingChecklist, markBotModeEntered } from './onboarding-checklist-view.js';
+import { hostAcknowledgements } from './host-acknowledgements.js';
 import { checklistSettled } from './onboarding-checklist.js';
 import { startBotSessionsTour, takeSessionsTourReturn } from './onboarding-sessions-tour.js';
 
@@ -506,7 +507,7 @@ export function OnboardingOverlay({
   controller.attachCompanion(companion);
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   const enter = (live: () => boolean = () => true): Promise<void> =>
-    controller.enter(companion).then(() => {
+    Promise.all([controller.enter(companion), hostAcknowledgements()?.load()]).then(() => {
       if (!live()) return;
       void controller.refreshEvidence();
       const receipt = controller.getSnapshot().receipt;
@@ -522,7 +523,7 @@ export function OnboardingOverlay({
       else if (
         receipt?.journey &&
         !receipt.journey.done &&
-        (receipt.tutorial === 'active' || receipt.tutorial === 'paused') &&
+        receipt.tutorial === 'active' &&
         !controller.getSnapshot().guideOpen
       )
         void controller.startTour();

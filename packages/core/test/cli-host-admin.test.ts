@@ -956,3 +956,21 @@ it('queries and changes onboarding through the owning Host with coded invalid-ac
   expect((await invoke(['onboarding', '--action', 'invalid'], live.url)).code).not.toBe(0);
   expect(live.calls).toHaveLength(2);
 });
+
+it('reads and records Profile notice acknowledgements through the owning Host', async () => {
+  const live = await host((method, args) => ok({ method, ...args }));
+  expect((await invoke(['acknowledgements'], live.url)).json.method).toBe('acknowledgements');
+  expect((await invoke(['acknowledge', 'bot-mode-entered'], live.url)).json).toEqual({
+    method: 'acknowledge',
+    key: 'bot-mode-entered',
+  });
+  expect(
+    (await invoke(['acknowledge', 'release-notes-seen', '--version', '1.6.1'], live.url)).json,
+  ).toEqual({ method: 'acknowledge', key: 'release-notes-seen', value: '1.6.1' });
+  expect((await invoke(['acknowledge', 'release-notes-seen'], live.url)).code).not.toBe(0);
+  expect(
+    (await invoke(['acknowledge', 'onboarding-intro', '--version', '1.6.1'], live.url)).code,
+  ).not.toBe(0);
+  expect((await invoke(['onboarding', '--version', '1.6.1'], live.url)).code).not.toBe(0);
+  expect(live.calls).toHaveLength(3);
+});

@@ -683,6 +683,8 @@ describe('bridge typert service', () => {
       'messagingSend',
       'tobHome',
       'onboarding',
+      'acknowledgements',
+      'acknowledge',
       'onboardingModel',
       'telemetryEvent',
       'modelPlanInherit',

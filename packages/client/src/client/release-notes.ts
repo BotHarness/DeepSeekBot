@@ -15,10 +15,12 @@ import type {
 } from '../../../core/src/release/service.js';
 import { compareVersions, isReleaseVersion } from '../../../core/src/release/version.js';
 import type { BridgeCall } from './bridge.js';
+import type { HostAcknowledgements } from './host-acknowledgements.js';
 import type { ConfigStorage } from './roster-config.js';
 import { UpdateRunsController } from './update-runs.js';
 
 export const RELEASE_NOTES_SEEN_KEY = 'botharness.releaseNotes.seenVersion';
+const RELEASE_NOTES_ACK = 'release-notes-seen';
 
 const RESTART_POLL_MS = 2_000;
 const RESTART_POLL_LIMIT = 90;
@@ -282,6 +284,7 @@ export class ReleaseNotesController {
     storage: ConfigStorage | undefined,
     watch: ReleaseRestartWatch = DEFAULT_RESTART_WATCH,
     runs: UpdateRunsController = new UpdateRunsController(call, watch),
+    private readonly acks?: HostAcknowledgements,
   ) {
     this.call = call;
     this.storage = storage;
@@ -317,9 +320,13 @@ export class ReleaseNotesController {
       (update.status === 'blocked' && update.compatibility.status === 'incompatible');
     const key = this.noticeKey();
     let dismissed = key === undefined || this.dismissed.has(key);
-    try {
-      dismissed ||= key !== undefined && this.storage?.getItem(key) === 'dismissed';
-    } catch {}
+    if (key !== undefined && this.acks !== undefined) {
+      await this.acks.load();
+      dismissed ||= this.acks.value(this.updateAck(), key) !== undefined;
+    } else
+      try {
+        dismissed ||= key !== undefined && this.storage?.getItem(key) === 'dismissed';
+      } catch {}
     this.source.update((draft) => {
       draft.updateNotice = eligible && !dismissed;
     });
@@ -337,6 +344,17 @@ export class ReleaseNotesController {
     return `botharness.releaseUpdate.dismissed/${encodeURIComponent(this.profileId)}/${update.current.includes('-') ? 'preview' : 'stable'}/${update.status === 'restart-required' ? `restart-${update.installed}` : update.latest}`;
   }
 
+  private updateAck(): string {
+    const update = this.source.getSnapshot().update;
+    if (
+      update.status !== 'available' &&
+      update.status !== 'blocked' &&
+      update.status !== 'restart-required'
+    )
+      return '';
+    return `release-update-dismissed/${update.current.includes('-') ? 'preview' : 'stable'}/${update.status === 'restart-required' ? `restart-${update.installed}` : update.latest}`;
+  }
+
   dismissUpdate(): void {
     const key = this.noticeKey();
     if (key !== undefined) {
@@ -344,6 +362,7 @@ export class ReleaseNotesController {
       try {
         this.storage?.setItem(key, 'dismissed');
       } catch {}
+      this.acks?.record(this.updateAck(), '1');
     }
     this.source.update((draft) => {
       draft.updateNotice = false;
@@ -358,6 +377,9 @@ export class ReleaseNotesController {
       } catch {
         console.warn('botharness: failed to remember the seen release');
       }
+      const remote = this.acks?.remote(RELEASE_NOTES_ACK);
+      if (remote === undefined || !isReleaseVersion(remote) || compareVersions(version, remote) > 0)
+        this.acks?.record(RELEASE_NOTES_ACK, version);
     }
     this.source.update((draft) => {
       draft.announcement = undefined;
@@ -502,7 +524,17 @@ export class ReleaseNotesController {
   }
 
   private async announce(): Promise<void> {
-    const seen = readSeen(this.storage);
+    await this.acks?.load();
+    const local = readSeen(this.storage);
+    const remote = this.acks?.remote(RELEASE_NOTES_ACK);
+    const profile = remote !== undefined && isReleaseVersion(remote) ? remote : undefined;
+    const seen =
+      local === undefined
+        ? profile
+        : profile === undefined || compareVersions(local, profile) > 0
+          ? local
+          : profile;
+    if (seen !== undefined && seen !== profile) this.acks?.record(RELEASE_NOTES_ACK, seen);
     const result = await this.call('releaseInfo', seen === undefined ? {} : { since: seen });
     if (!result.ok) throw new Error(result.error.message);
     const info = parseReleaseInfo(result.value);
