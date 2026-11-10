@@ -4,6 +4,9 @@
     "modules": ["LatestAnchorModule"]
   },
   "android": {
-    "modules": ["expo.modules.latestanchor.LatestAnchorModule"]
+    "modules": [
+      "expo.modules.latestanchor.LatestAnchorModule",
+      "expo.modules.latestanchor.MessageTargetModule"
+    ]
   }
 }
