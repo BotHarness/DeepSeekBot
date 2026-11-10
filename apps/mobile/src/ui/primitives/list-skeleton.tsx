@@ -12,7 +12,11 @@ export function ListSkeleton({ layout = 'list' }: { layout?: 'list' | 'messages'
       accessibilityRole="progressbar"
       accessibilityLabel={t.contextLoading}
       testID={layout === 'messages' ? 'message-skeleton' : 'list-skeleton'}
-      style={{ gap: space.x6, padding: space.x5 }}
+      style={{
+        gap: space.x6,
+        padding: space.x5,
+        ...(layout === 'messages' ? { paddingBottom: space.x2 } : null),
+      }}
     >
       {layout === 'messages'
         ? [0, 1, 2].map((key) => (
