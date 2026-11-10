@@ -1,5 +1,6 @@
 import XCTest
 import UIKit
+import ObjectiveC
 @testable import LatestAnchor
 
 @MainActor
@@ -43,6 +44,7 @@ final class LatestAnchorTests: XCTestCase {
     window.addSubview(scroll)
     let anchor = LatestAnchorView()
     scroll.addSubview(anchor)
+    settle()
     scroll.contentSize = CGSize(width: 300, height: 1100)
     XCTAssertTrue(anchor.gliding)
     anchor.stop()
@@ -57,6 +59,7 @@ final class LatestAnchorTests: XCTestCase {
     window.addSubview(scroll)
     let anchor = LatestAnchorView()
     scroll.addSubview(anchor)
+    settle()
     scroll.contentSize = CGSize(width: 300, height: 1100)
     XCTAssertTrue(anchor.gliding)
     scroll.contentOffset.y = 450
@@ -74,6 +77,7 @@ final class LatestAnchorTests: XCTestCase {
     window.addSubview(scroll)
     let anchor = LatestAnchorView()
     scroll.addSubview(anchor)
+    settle()
     scroll.contentSize = CGSize(width: 300, height: 952)
     XCTAssertEqual(scroll.contentOffset.y, 352)
     XCTAssertFalse(anchor.gliding)
@@ -89,6 +93,7 @@ final class LatestAnchorTests: XCTestCase {
     let anchor = LatestAnchorView()
     anchor.following = false
     scroll.addSubview(anchor)
+    settle()
     scroll.contentSize = CGSize(width: 300, height: 950)
     XCTAssertEqual(scroll.contentOffset.y, 200)
   }
@@ -104,6 +109,7 @@ final class LatestAnchorTests: XCTestCase {
     anchor.following = false
     anchor.animated = false
     scroll.addSubview(anchor)
+    settle()
     scroll.contentSize = CGSize(width: 300, height: 1100)
     XCTAssertEqual(scroll.contentOffset.y, 400)
     anchor.following = true
@@ -120,6 +126,7 @@ final class LatestAnchorTests: XCTestCase {
     let anchor = LatestAnchorView()
     anchor.animated = false
     scroll.addSubview(anchor)
+    settle()
     scroll.contentSize = CGSize(width: 300, height: 1100)
     XCTAssertFalse(anchor.gliding)
     XCTAssertEqual(scroll.contentOffset.y, 500)
@@ -135,8 +142,47 @@ final class LatestAnchorTests: XCTestCase {
     let anchor = LatestAnchorView()
     anchor.following = false
     scroll.addSubview(anchor)
+    settle()
     scroll.contentSize = CGSize(width: 300, height: 1100)
     XCTAssertFalse(anchor.gliding)
     XCTAssertEqual(scroll.contentOffset.y, 400)
+  }
+
+  func testObservesAScrollViewWhoseClassAnAncestorSwapsWhenAttached() {
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 300, height: 600))
+    let decorator = SwappingDecorator(frame: window.bounds)
+    let scroll = UIScrollView(frame: window.bounds)
+    scroll.contentInsetAdjustmentBehavior = .never
+    scroll.contentSize = CGSize(width: 300, height: 1000)
+    scroll.contentOffset.y = 400
+    decorator.addSubview(scroll)
+    let anchor = LatestAnchorView()
+    scroll.addSubview(anchor)
+    window.addSubview(decorator)
+    settle()
+    XCTAssertTrue(NSStringFromClass(object_getClass(scroll)!).contains("Swapped_"))
+    scroll.contentSize = CGSize(width: 300, height: 1100)
+    XCTAssertTrue(anchor.gliding)
+    anchor.stop()
+  }
+}
+
+private func settle() {
+  RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+}
+
+private final class SwappingDecorator: UIView {
+  override func didMoveToWindow() {
+    super.didMoveToWindow()
+    guard window != nil, let scroll = subviews.first as? UIScrollView else { return }
+    let original: AnyClass = object_getClass(scroll)!
+    let name = "Swapped_" + NSStringFromClass(original)
+    if NSStringFromClass(original).hasPrefix("Swapped_") { return }
+    let swapped: AnyClass = NSClassFromString(name) ?? {
+      let made: AnyClass = objc_allocateClassPair(original, name, 0)!
+      objc_registerClassPair(made)
+      return made
+    }()
+    object_setClass(scroll, swapped)
   }
 }
