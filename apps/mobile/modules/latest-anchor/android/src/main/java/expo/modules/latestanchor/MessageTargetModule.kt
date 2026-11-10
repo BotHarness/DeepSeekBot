@@ -13,11 +13,11 @@ class MessageTargetModule : Module() {
       Prop("active") { view: MessageTargetView, value: Boolean -> view.active = value }
       Prop("top") { view: MessageTargetView, value: Double -> view.top = value }
       Prop("bottom") { view: MessageTargetView, value: Double -> view.bottom = value }
-      GroupView {
-        AddChildView { parent, child, index -> parent.addView(child, index) }
+      GroupView<MessageTargetView> {
+        AddChildView { parent: MessageTargetView, child: android.view.View, index: Int -> parent.addView(child, index) }
         GetChildCount { parent -> parent.childCount }
         GetChildViewAt { parent, index -> parent.getChildAt(index) }
-        RemoveChildView { parent, child -> parent.removeView(child) }
+        RemoveChildView { parent: MessageTargetView, child: android.view.View -> parent.removeView(child) }
         RemoveChildViewAt { parent, index -> parent.removeViewAt(index) }
       }
     }

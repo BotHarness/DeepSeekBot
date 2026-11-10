@@ -16,7 +16,6 @@ import { takeSharedFiles } from '../share/incoming-share';
 import { Stack, useIsFocused, useRouter, useNavigationContainerRef } from 'expo-router';
 import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
-  FlatList,
   Keyboard,
   Platform,
   type NativeScrollEvent,
@@ -126,6 +125,7 @@ import {
 } from './native-header';
 import { useChannelViewport } from './channel-viewport';
 import { MessageTarget, nativeMessageJump } from '../primitives/message-target';
+import { ChatList, nativeChatRecycler, type ChatListHandle } from '../primitives/chat-list';
 import { usePullToCompose } from './pull-to-compose';
 import { chatHref, useRecentChat } from '../shell/recent-chats';
 import { SwipeOpen } from '../shell/swipe-open';
@@ -580,7 +580,8 @@ function ChatConversation({
   );
 
   const [reactError, setReactError] = useState(false);
-  const list = useAnimatedRef<FlatList<Row>>();
+  const list = useRef<ChatListHandle<Row> | null>(null);
+  const scrollRef = useAnimatedRef<ViewInstance>();
   const jumped = useRef<string | undefined>(undefined);
   const focusPage = useRef<string | undefined>(undefined);
   const focusCancelled = useRef(false);
@@ -604,7 +605,7 @@ function ChatConversation({
       const attempt = focusAttempt.current;
       if (
         android &&
-        !nativeMessageJump &&
+        (!nativeMessageJump || nativeChatRecycler) &&
         focusHasLiveLayout.current &&
         attempt !== undefined &&
         !focusCancelled.current &&
@@ -671,14 +672,15 @@ function ChatConversation({
       }),
     ]);
   }, [speakers, groups, shownDrafts]);
-  const scroll = useScrollOffset(list);
+  const scroll = useScrollOffset(scrollRef);
   const viewport = useAnimatedRef<ViewInstance>();
   const content = useAnimatedRef<ViewInstance>();
   const frame = useAnimatedRef<ViewInstance>();
   const attachList = useCallback(
-    (node: FlatList<Row> | null) => {
-      list(node);
+    (node: ChatListHandle<Row> | null) => {
+      list.current = node;
       const scroll = node?.getNativeScrollRef?.();
+      scrollRef(scroll === null || scroll === undefined ? null : (scroll as ViewInstance));
       frame(scroll === null || scroll === undefined ? null : (scroll as ViewInstance));
       content(
         scroll !== null && scroll !== undefined && 'getInnerViewRef' in scroll
@@ -686,7 +688,7 @@ function ChatConversation({
           : null,
       );
     },
-    [list, content, frame],
+    [list, content, frame, scrollRef],
   );
   const latest = useChannelViewport(
     list,
@@ -1886,7 +1888,7 @@ function ChatConversation({
                       <MarkdownViewportContext.Provider value={markdownViewport}>
                         <SpeakerStageContext.Provider value={dm ? undefined : stage}>
                           <SendFlightsContext.Provider value={flights}>
-                            <Animated.FlatList
+                            <ChatList
                               inverted={android}
                               {...(android
                                 ? { initialNumToRender: 6, maxToRenderPerBatch: 6, windowSize: 5 }
@@ -1928,7 +1930,7 @@ function ChatConversation({
                               data={rows}
                               keyExtractor={(row) => row.key}
                               renderItem={
-                                nativeMessageJump
+                                nativeMessageJump && !nativeChatRecycler
                                   ? ({ item }: { item: Row }) => (
                                       <MessageTarget
                                         request={JSON.stringify([focus, focusRequest])}
