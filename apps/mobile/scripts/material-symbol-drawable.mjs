@@ -25,6 +25,7 @@ const ICONS = {
   background: 'wallpaper',
   haptics: 'mobile_vibrate',
   delivery: 'mark_chat_read',
+  sendJump: 'vertical_align_bottom',
   messageDisplay: 'chat',
   streaming: 'stream',
   complete: 'chat_bubble',
