@@ -53,10 +53,18 @@ afterEach(async () => {
 
 let root = '';
 
-async function media(events: string[]) {
+const SLOW_CLEANUP_LAUNCHER = FAKE_LAUNCHER.replace(
+  "process.stdin.on('end', () => {",
+  "process.on('SIGTERM', () => {});\nprocess.stdin.on('end', () => setTimeout(() => {",
+).replace(
+  'process.stdout.end(() => process.exit(0));\n});',
+  'process.stdout.end(() => process.exit(0));\n}, 3000));',
+);
+
+async function media(events: string[], launcher = FAKE_LAUNCHER) {
   root = await mkdtemp(join(tmpdir(), 'call-media-test-'));
   roots.push(root);
-  await writeFile(join(root, 'launcher-macos.cjs'), FAKE_LAUNCHER);
+  await writeFile(join(root, 'launcher-macos.cjs'), launcher);
   return createCallMedia({
     platform: 'darwin',
     arch: 'arm64',
@@ -87,6 +95,23 @@ describe('call media supervisor', () => {
     expect(second.offer?.type).toBe('offer');
     await second.close();
   });
+
+  it('lets the next call start once a slow cleanup finally confirms the tree closed', async () => {
+    const events: string[] = [];
+    const calls = await media(events, SLOW_CLEANUP_LAUNCHER);
+    expect(SLOW_CLEANUP_LAUNCHER).not.toBe(FAKE_LAUNCHER);
+    const first = await open(calls, 'call-5');
+    await expect(first.close()).rejects.toThrow('did not confirm cleanup');
+    await expect(open(calls, 'call-6')).rejects.toThrow('already has call media running');
+    await vi.waitFor(
+      () =>
+        expect(events.some((detail) => detail.includes('phase=call-media-released'))).toBe(true),
+      { timeout: 5000, interval: 50 },
+    );
+    const second = await open(calls, 'call-7');
+    expect(second.offer?.type).toBe('offer');
+    await second.close().catch(() => undefined);
+  }, 15_000);
 
   it('stops a reply interrupted while its audio uploads and never starts it', async () => {
     const calls = await media([]);

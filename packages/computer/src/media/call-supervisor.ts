@@ -93,6 +93,7 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
       let treeOwned = false;
       let treeStopped = false;
       let spawnFailed = false;
+      let released = false;
       let bootstrapLineSeen = false;
       let statusSent = false;
       const pending = new Map<
@@ -162,6 +163,17 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
           });
         });
       };
+      const release = () => {
+        if (released || (child && !spawnFailed && !(exited && treeStopped))) return;
+        released = true;
+        active = false;
+        if (profile) void rm(profile, { recursive: true, force: true }).catch(() => undefined);
+      };
+      const releaseLate = () => {
+        if (!closing || released) return;
+        release();
+        if (released) event(`phase=call-media-released durationMs=${Date.now() - started}`);
+      };
       const close = (): Promise<void> => {
         closing ??= (async () => {
           closed = true;
@@ -186,9 +198,7 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
               );
             event(`phase=call-media-stopped durationMs=${Date.now() - started}`);
           } finally {
-            if (!child || spawnFailed || (exited && treeStopped)) active = false;
-            if (profile && (!child || spawnFailed || (exited && treeStopped)))
-              void rm(profile, { recursive: true, force: true }).catch(() => undefined);
+            release();
             status('closed');
           }
         })();
@@ -299,6 +309,7 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
         child.once('close', () => {
           exited = true;
           exitResolve?.();
+          releaseLate();
         });
         child.once('error', () => {
           spawnFailed = child?.pid === undefined;
@@ -356,6 +367,7 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
                 treeStopped = true;
                 event('phase=call-media-tree-closed activeProcesses=0');
                 if (!closed) failed();
+                releaseLate();
                 continue;
               }
               if (closed) continue;
