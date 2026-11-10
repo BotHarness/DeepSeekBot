@@ -215,8 +215,10 @@ class ChatRecyclerView(context: Context, app: AppContext) : ExpoView(context, ap
     adapter.notifyItemChanged(position)
   }
   fun measureCell(key: String, dp: Double) {
-    if (!dp.isFinite() || dp < 0 || key !in keys) return
+    if (!dp.isFinite() || dp < 0) return
     val height = maxOf(1, (dp * density).roundToInt())
+    // React can report a new row's height before the rows prop that adds it; keep it for setRows.
+    if (key !in keys) { heights[key] = height; return }
     if (heights[key] == height) return
     val anchor = anchor()
     heights[key] = height
