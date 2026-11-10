@@ -1,6 +1,12 @@
 import { afterEach, expect, it, vi } from 'vitest';
 
-import { secure, remotes, refreshNotificationPermission } from './host-session-fixture';
+import {
+  secure,
+  remotes,
+  refreshNotificationPermission,
+  preferenceSync,
+  preferenceRetry,
+} from './host-session-fixture';
 import { FakeHost } from './fake-host';
 vi.mock('expo-router', () => ({ useFocusEffect: () => undefined }));
 vi.mock('react-native', () => ({
@@ -58,4 +64,32 @@ it('loads both paired Hosts without replacing the other connection when browsing
   expect(session.getHost('a')).toBeUndefined();
   expect(session.getHost('b')?.client).toBe(second);
   expect(second.getSnapshot().connection.status).toBe('connected');
+});
+
+it('retries preferences for the Host that connected and stops syncing a refused Host', async () => {
+  const a = new FakeHost('a');
+  const b = new FakeHost('b');
+  b.revoked = true;
+  remotes.set('a.tailnet.ts.net', a);
+  remotes.set('b.tailnet.ts.net', b);
+  const hosts = ['a', 'b'].map((hostId) => ({
+    hostId,
+    hostName: hostId,
+    routes: [`https://${hostId}.tailnet.ts.net`],
+    deviceId: 'device-1',
+    credential: a.credential,
+  }));
+  secure.set('deepseekbot.hosts.v3', JSON.stringify({ hosts, current: 'a' }));
+  vi.resetModules();
+  preferenceSync.mockClear();
+  preferenceRetry.mockClear();
+  session = (await import('../src/host/host-session')).hostSession;
+  await vi.waitFor(() =>
+    expect(session.getHost('b')?.client.getSnapshot().connection.status).toBe('refused'),
+  );
+  await vi.waitFor(() =>
+    expect(preferenceSync.mock.calls.at(-1)?.[0].map((host) => host.hostId)).toEqual(['a']),
+  );
+  await vi.waitFor(() => expect(preferenceRetry).toHaveBeenCalled());
+  expect(preferenceRetry.mock.calls.map(([host]) => host?.hostId)).toEqual(['a']);
 });

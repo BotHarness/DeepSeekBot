@@ -13,6 +13,11 @@ import type {
 import type { HostEncryption } from './hosts';
 import { checkRoute, isEncryptedRoute, isLanRoute, socketOrigin } from './route';
 
+export const HOST_KEY_REJECTIONS: ReadonlySet<string> = new Set([
+  'channel-authentication-failed',
+  'channel-handshake-rejected',
+]);
+
 export class ConnectRefused extends Error {
   constructor(readonly code: string) {
     super(code);
@@ -114,6 +119,8 @@ export function openNoiseSocket(options: {
     route: isLanRoute(options.origin) ? 'lan' : 'connect',
   });
   let done = false;
+  let sent = false,
+    heard = false;
   let nextCredit = 0,
     outstandingBytes = 0;
   const credits = new Map<number, number>();
@@ -149,11 +156,13 @@ export function openNoiseSocket(options: {
           }
           try {
             socket.send(first);
+            sent = true;
           } catch (error) {
             fail(`channel-handshake-failed:${sendFailure(error)}`);
           }
         },
         message: (wire) => {
+          heard = true;
           let result: ReturnType<ConnectChannel['receive']>;
           try {
             result = channel.receive(wire);
@@ -189,7 +198,12 @@ export function openNoiseSocket(options: {
             fail('channel-authentication-failed');
           }
         },
-        closed: (reason) => fail(reason || 'channel-disconnected'),
+        closed: (reason) =>
+          fail(
+            sent && !heard && isLanRoute(options.origin)
+              ? 'channel-handshake-rejected'
+              : reason || 'channel-disconnected',
+          ),
       },
       options.encryption.privateRelay?.origin === options.origin
         ? {
@@ -311,15 +325,14 @@ export function encryptedCarrier(options: {
       closed: (reason) => {
         if (registry.get(origin) === current) registry.delete(origin);
         if (registry === directs) {
-          if (reason === 'channel-authentication-failed') blockDirect(origin);
+          if (HOST_KEY_REJECTIONS.has(reason)) blockDirect(origin);
           else retryDirect(origin);
         }
         clearTimeout(deadline);
         clearInterval(heartbeat);
-        const error =
-          reason === 'channel-authentication-failed'
-            ? new ConnectRefused(reason)
-            : new Error(reason);
+        const error = HOST_KEY_REJECTIONS.has(reason)
+          ? new ConnectRefused(reason)
+          : new Error(reason);
         reject(error);
         for (const item of requests.values()) item.reject(error);
         for (const stream of streams.values()) stream.closed(reason);

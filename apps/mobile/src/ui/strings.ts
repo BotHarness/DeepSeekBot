@@ -902,6 +902,8 @@ const en = {
     'device-revoked': 'This phone was removed from the paired devices on your computer.',
     'device-unknown': 'Your computer no longer knows this phone.',
     'device-credential-missing': 'This phone has no pairing for your computer.',
+    'host-key-changed':
+      'This computer no longer accepts this pairing. Remove it from this phone, then pair again.',
   } satisfies Record<DeviceRefusal, string>,
   pairAgain: 'Pair again',
   retry: 'Retry',
@@ -3331,6 +3333,7 @@ const zh: typeof en = {
     'device-revoked': '电脑已将这台手机从配对设备中移除。',
     'device-unknown': '电脑已不再识别这台手机。',
     'device-credential-missing': '这台手机尚未与你的电脑配对。',
+    'host-key-changed': '这台电脑已不再接受这次配对。请在手机上移除它，然后重新配对。',
   } satisfies Record<DeviceRefusal, string>,
   pairAgain: '重新配对',
   retry: '重试',

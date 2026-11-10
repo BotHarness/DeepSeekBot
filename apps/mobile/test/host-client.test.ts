@@ -610,6 +610,49 @@ describe('Host client', () => {
       else expect(host.requests).toEqual([]);
     },
   );
+  it.each([
+    ['a LAN Host that drops the handshake', 'http://192.168.1.20:4567', true, 'host-key-changed'],
+    ['a LAN Host that never opens', 'http://192.168.1.20:4567', false, undefined],
+    ['a tailnet Host that drops the handshake', ROUTE, true, undefined],
+  ])(
+    'marks a pairing for re-pairing only after repeated rejection by %s',
+    async (_, route, opens, code) => {
+      const host = new FakeHost();
+      let attempts = 0;
+      client = createHostClient({
+        routes: [route],
+        hostId: 'test-host',
+        encryption: {
+          protocol: 'connect-noise-xk-v1',
+          hostKey: '11'.repeat(32),
+          deviceKey: '22'.repeat(32),
+        },
+        credential: host.credential,
+        carrier: {
+          ...host.carrier,
+          openSocket: (_url, events) => {
+            attempts += 1;
+            queueMicrotask(() => {
+              if (opens) events.open();
+              events.closed('');
+            });
+            return { send: () => {}, close: () => {} };
+          },
+        },
+        backoff: () => 5,
+      });
+      client.start();
+      if (code === undefined) {
+        await until(client, () => attempts >= 6);
+        expect(client.getSnapshot().connection.status).toBe('unreachable');
+        return;
+      }
+      const state = await until(client, (snapshot) => snapshot.connection.status === 'refused');
+      expect(state.connection).toMatchObject({ code });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(attempts).toBe(3);
+    },
+  );
   it('reads Host global and scope sorting with the roster and keeps confirmed state after a failed refresh', async () => {
     const host = new FakeHost();
     let sorting = { sortMode: 'manual', sortModes: { pinned: 'updated', work: 'manual' } };

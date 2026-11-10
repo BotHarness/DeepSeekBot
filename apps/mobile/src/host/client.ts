@@ -1,5 +1,10 @@
 import { readComputerAvailability } from './computer-availability';
-import { encryptedCarrier, encodeBase64, ConnectRefused } from './encrypted-carrier';
+import {
+  encryptedCarrier,
+  encodeBase64,
+  ConnectRefused,
+  HOST_KEY_REJECTIONS,
+} from './encrypted-carrier';
 import type { HostEncryption } from './hosts';
 import { learnedRoutes, preferredRoutes } from './learned-routes';
 import type { ConnectionTelemetry } from '../telemetry/connection';
@@ -196,12 +201,17 @@ export interface HostClientOptions {
   localStore?: () => Promise<LocalStore | undefined>;
 }
 
-export type DeviceRefusal = 'device-revoked' | 'device-unknown' | 'device-credential-missing';
+export type DeviceRefusal =
+  | 'device-revoked'
+  | 'device-unknown'
+  | 'device-credential-missing'
+  | 'host-key-changed';
 
 const REFUSALS: Record<DeviceRefusal, string> = {
   'device-revoked': 'This phone was removed from the paired devices on your computer.',
   'device-unknown': 'Your computer no longer knows this phone.',
   'device-credential-missing': 'This phone has no pairing for your computer.',
+  'host-key-changed': 'This computer no longer accepts this pairing. Remove it, then pair again.',
 };
 
 class CredentialRefused extends Error {
@@ -245,6 +255,10 @@ export class MethodRefused extends Error {
   }
 }
 
+function hostKeyRejected(error: unknown): error is MethodRefused {
+  return error instanceof MethodRefused && HOST_KEY_REJECTIONS.has(error.code);
+}
+
 interface Follower {
   endpoint: string;
   args: Record<string, unknown>;
@@ -254,6 +268,7 @@ interface Follower {
 }
 
 export const MAX_RECONNECT_DELAY_MS = 30_000;
+export const HOST_KEY_REJECTION_LIMIT = 3;
 export const STABLE_CONNECTION_MS = 60_000;
 export const REUSE_ON_RECONNECT_MS = 600_000;
 export const defaultBackoff = (attempt: number): number =>
@@ -367,6 +382,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
   let running = false;
   let everConnected = false;
   let attempt = 0;
+  let rejections = 0;
   let generation = 0;
   let connectionSequence = 0;
   let socket: HostSocket | undefined;
@@ -1207,6 +1223,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
       attempt = 0;
     }, STABLE_CONNECTION_MS);
     everConnected = true;
+    rejections = 0;
     disconnectCurrent = disconnect;
     publish({ status: 'connected', route });
     const health = setInterval(() => {
@@ -1306,6 +1323,11 @@ export function createHostClient(options: HostClientOptions): HostClient {
         socket?.close();
         if (error instanceof CredentialRefused) {
           refusedBy(error);
+          return;
+        }
+        rejections = hostKeyRejected(error) ? rejections + 1 : 0;
+        if (rejections >= HOST_KEY_REJECTION_LIMIT) {
+          refusedBy(new CredentialRefused('host-key-changed'));
           return;
         }
         attempt += 1;
