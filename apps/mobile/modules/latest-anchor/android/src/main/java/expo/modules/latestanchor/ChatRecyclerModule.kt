@@ -16,8 +16,8 @@ class ChatRecyclerModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("ChatRecycler")
     Constants("supported" to (android.os.Build.VERSION.SDK_INT >= 29))
-    // A cell mounts before the RecyclerView binds it into a row, so the first measurement can
-    // arrive while the view is detached. Wait for that bind (bounded to two frames) instead of
+    // React reports a new cell's layout before the RecyclerView binds it into a row, so the first
+    // measurement arrives while the view is detached. Wait for that bind instead of
     // answering null at once; JavaScript shows the message in place when the answer is null.
     AsyncFunction("measureInWindow") { tag: Int, promise: Promise ->
       val context = appContext.reactContext as? ReactContext
@@ -70,7 +70,7 @@ private fun windowBounds(view: View): Map<String, Float> {
   return mapOf("x" to bounds.left / density, "y" to bounds.top / density, "width" to bounds.width() / density, "height" to bounds.height() / density)
 }
 
-/** Calls [done] once: with [view] when it is attached and laid out, or null after two frames. */
+/** Calls [done] once: with [view] when it is attached and laid out, or null when it is not. */
 private fun whenDrawable(view: View, done: (View?) -> Unit) {
   if (view.isAttachedToWindow && !view.isLayoutRequested) return done(view)
   var finished = false
@@ -96,6 +96,17 @@ private fun whenDrawable(view: View, done: (View?) -> Unit) {
   }
   view.addOnAttachStateChangeListener(attach)
   if (view.isAttachedToWindow) observer = view.viewTreeObserver.also { it.addOnPreDrawListener(predraw) }
+  // A cell is bound into its row on the RecyclerView's next pass. Give up after two frames while it
+  // is still detached; once attached, its pre-draw follows, with six frames as the last resort.
   val choreographer = Choreographer.getInstance()
-  choreographer.postFrameCallback { choreographer.postFrameCallback { finish(null) } }
+  var frames = 0
+  val tick = object : Choreographer.FrameCallback {
+    override fun doFrame(frameTimeNanos: Long) {
+      if (finished) return
+      frames += 1
+      if ((frames >= 2 && !view.isAttachedToWindow) || frames >= 6) finish(null)
+      else choreographer.postFrameCallback(this)
+    }
+  }
+  choreographer.postFrameCallback(tick)
 }
