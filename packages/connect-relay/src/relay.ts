@@ -576,6 +576,14 @@ export function createRelay(options: RelayOptions) {
         await markWaiting(current);
         throw new RelayFull('zone-full', await queuePosition(current));
       }
+      if (current.dns_record_id === null && zoneOf(current) !== defaultZone) {
+        log('connect-zone-failed', { host: current.id, zone: zoneOf(current) });
+        quotaUntil.set(zoneOf(current), now().getTime() + 10 * 60 * 1000);
+        await db
+          .prepare('UPDATE hosts SET zone = NULL WHERE id = ? AND dns_record_id IS NULL')
+          .bind(current.id)
+          .run();
+      }
       throw error;
     }
     await db
