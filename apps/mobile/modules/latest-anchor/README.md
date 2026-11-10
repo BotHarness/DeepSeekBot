@@ -33,6 +33,13 @@ Android acceptance is tracked in [#3868](https://github.com/BotHarness/DeepSeekB
 The restored spring tests do not qualify device behavior. The next Windows QA batch
 must compare native and JS following on emulator and phone before acceptance.
 
+The Android composer-follow spacer remains disabled. Measure multiline sends with
+the keyboard open and closed before enabling it or adding shrink compensation:
+the inverted list may already retain offset zero when content shrinks. If a spacer
+is needed, its visual-bottom position is the list header. Shared send-fly, composer
+collapse, flick-settling and pending-time-row fixes come from main; they need Android
+verification, not a separate port.
+
 ## A/B against the JavaScript path
 
 Development builds without this module fall back to the JavaScript path automatically.
