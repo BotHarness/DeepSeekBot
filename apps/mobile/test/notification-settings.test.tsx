@@ -187,7 +187,11 @@ describe('Notification settings', () => {
   });
 
   it('hides the kinds while delivery is off, and brings them back as in-app only', async () => {
-    const settings = port();
+    let host: PushSettings = registered;
+    const settings = port({
+      setEnabled: vi.fn(async (enabled: boolean) => (host = { ...host, enabled })),
+      setDelivery: vi.fn(async (delivery: 'push' | 'in-app') => (host = { ...host, delivery })),
+    });
     const view = await render(
       <NotificationSettings
         status={{ status: 'on', failed: [] }}
@@ -215,8 +219,11 @@ describe('Notification settings', () => {
     expect(view.textContent).toContain(t.allowNotificationsOff);
 
     await choose('in-app');
-    expect(settings.setEnabled).toHaveBeenLastCalledWith(true);
     expect(settings.setDelivery).toHaveBeenCalledWith('in-app');
+    expect(settings.setEnabled).toHaveBeenLastCalledWith(true);
+    expect(settings.setDelivery.mock.invocationCallOrder[0]!).toBeLessThan(
+      settings.setEnabled.mock.invocationCallOrder.at(-1)!,
+    );
     expect(view.textContent).toContain(t.deliveryInAppHint);
     expect(view.querySelector(`[aria-label="${t.pushKind.reply}"]`)).not.toBeNull();
   });

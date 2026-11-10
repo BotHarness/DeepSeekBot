@@ -48,7 +48,8 @@ export default function NotificationsScreen() {
             },
             setDelivery: async (delivery) => {
               const settings = await hostPush.setDelivery(saved, delivery);
-              setHostDelivery(saved.hostId, settings.delivery);
+              if (hostSession.getState().saved?.credential === saved.credential)
+                setHostDelivery(saved.hostId, settings.delivery);
               return settings;
             },
             test: () => hostPush.test(saved),

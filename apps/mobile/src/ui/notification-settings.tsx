@@ -60,10 +60,13 @@ export function NotificationSettings({
     setError(message);
     AccessibilityInfo.announceForAccessibility(message);
   }, []);
-  const load = useCallback(() => {
-    setError(undefined);
-    port.load().then(setSettings, reportFailure);
-  }, [port, reportFailure]);
+  const load = useCallback(
+    (keepError = false) => {
+      if (!keepError) setError(undefined);
+      port.load().then(setSettings, reportFailure);
+    },
+    [port, reportFailure],
+  );
   const mount = useMounted<ViewInstance>(() => {
     load();
   }, [on, load]);
@@ -93,14 +96,20 @@ export function NotificationSettings({
     setSettings({ ...settings, enabled, delivery });
     const save = async () => {
       let next = settings;
-      if (next.enabled !== enabled) next = await port.setEnabled(enabled);
       if (enabled && next.delivery !== delivery) next = await port.setDelivery(delivery);
+      if (next.enabled !== enabled) next = await port.setEnabled(enabled);
       return next;
     };
-    save().then(setSettings, (reason: unknown) => {
-      reportFailure(reason);
-      load();
-    });
+    save().then(
+      (next) => {
+        setError(undefined);
+        setSettings(next);
+      },
+      (reason: unknown) => {
+        reportFailure(reason);
+        load(true);
+      },
+    );
   };
 
   const sendTest = () => {

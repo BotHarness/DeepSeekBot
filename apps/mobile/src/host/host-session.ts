@@ -173,11 +173,17 @@ export function onHostRemoval(listener: (host: SavedHost) => Promise<void>): () 
   };
 }
 const clearPresentations = async (host: SavedHost) => {
+  deliveryModes.delete(host.hostId);
+  deliveryRevisions.set(host.hostId, (deliveryRevisions.get(host.hostId) ?? 0) + 1);
   await deviceAlerts.forget(host.hostId);
   await Promise.allSettled([...removalListeners].map((listener) => listener(host)));
 };
 const deliveryModes = new Map<string, PushDelivery>();
-export function setHostDelivery(hostId: string, delivery: PushDelivery): void {
+const deliveryRevisions = new Map<string, number>();
+const deliveryRevision = (hostId: string) => deliveryRevisions.get(hostId) ?? 0;
+export function setHostDelivery(hostId: string, delivery: PushDelivery, revision?: number): void {
+  if (revision !== undefined && revision !== deliveryRevision(hostId)) return;
+  if (revision === undefined) deliveryRevisions.set(hostId, deliveryRevision(hostId) + 1);
   if (deliveryModes.get(hostId) === delivery) return;
   deliveryModes.set(hostId, delivery);
   scheduleAlerts();
@@ -335,6 +341,7 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
     }
     const now = snapshot.connection.status === 'connected';
     if (now && !connected) {
+      const revision = deliveryRevision(saved.hostId);
       void hostPush
         .settings(saved)
         .then((settings) => {
@@ -342,7 +349,7 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
             sessions.get(saved.hostId)?.host.client === client &&
             client.getSnapshot().connection.status !== 'refused'
           ) {
-            setHostDelivery(saved.hostId, settings.delivery);
+            setHostDelivery(saved.hostId, settings.delivery, revision);
             if (!connectionMode.supported) return;
             quietChannels.set(saved.hostId, settings.quietChannelIds);
             setHostNotificationsEnabled(saved.hostId, settings.enabled);
