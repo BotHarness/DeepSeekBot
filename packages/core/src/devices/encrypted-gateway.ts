@@ -740,6 +740,7 @@ export function createEncryptedGateway(options: {
       } else throw new Error('channel-message-invalid');
     };
     let operations = Promise.resolve();
+    let secured = false;
     let queued = 0,
       queuedBytes = 0;
     socket.on('message', (data, binary) => {
@@ -748,7 +749,10 @@ export function createEncryptedGateway(options: {
         lastMessage = Date.now();
         const result = channel.receive(data.toString());
         if (result.reply) socket.send(result.reply);
-        if (result.ready) clearTimeout(deadline);
+        if (result.ready) {
+          secured = true;
+          clearTimeout(deadline);
+        }
         if (result.message !== undefined) {
           const size = result.message.length;
           queuedBytes += size;
@@ -775,7 +779,9 @@ export function createEncryptedGateway(options: {
         }
       } catch {
         options.log?.('refused');
-        close('invalid-frame');
+        if (secured) return close('invalid-frame');
+        socket.close(1008, 'channel-handshake-rejected');
+        setTimeout(() => close('refused'), 100).unref();
       }
     });
     socket.on('close', () => close('socket-close'));

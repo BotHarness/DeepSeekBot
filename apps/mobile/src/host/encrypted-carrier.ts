@@ -119,8 +119,6 @@ export function openNoiseSocket(options: {
     route: isLanRoute(options.origin) ? 'lan' : 'connect',
   });
   let done = false;
-  let sent = false,
-    heard = false;
   let nextCredit = 0,
     outstandingBytes = 0;
   const credits = new Map<number, number>();
@@ -156,13 +154,11 @@ export function openNoiseSocket(options: {
           }
           try {
             socket.send(first);
-            sent = true;
           } catch (error) {
             fail(`channel-handshake-failed:${sendFailure(error)}`);
           }
         },
         message: (wire) => {
-          heard = true;
           let result: ReturnType<ConnectChannel['receive']>;
           try {
             result = channel.receive(wire);
@@ -198,12 +194,7 @@ export function openNoiseSocket(options: {
             fail('channel-authentication-failed');
           }
         },
-        closed: (reason) =>
-          fail(
-            sent && !heard && isLanRoute(options.origin)
-              ? 'channel-handshake-rejected'
-              : reason || 'channel-disconnected',
-          ),
+        closed: (reason) => fail(reason || 'channel-disconnected'),
       },
       options.encryption.privateRelay?.origin === options.origin
         ? {

@@ -611,16 +611,17 @@ describe('Host client', () => {
     },
   );
   it.each([
-    ['a LAN Host that drops the handshake', 'http://192.168.1.20:4567', true, 'host-key-changed'],
-    ['a LAN Host that never opens', 'http://192.168.1.20:4567', false, undefined],
-    ['a tailnet Host that drops the handshake', ROUTE, true, undefined],
+    ['a Host that rejects the handshake', 'channel-handshake-rejected', 'host-key-changed'],
+    ['a Host whose key does not verify', 'channel-authentication-failed', 'host-key-changed'],
+    ['a LAN Host that closes before answering', '', undefined],
+    ['a LAN Host that drops the socket', 'socket error', undefined],
   ])(
     'marks a pairing for re-pairing only after repeated rejection by %s',
-    async (_, route, opens, code) => {
+    async (_, reason, code) => {
       const host = new FakeHost();
       let attempts = 0;
       client = createHostClient({
-        routes: [route],
+        routes: ['http://192.168.1.20:4567'],
         hostId: 'test-host',
         encryption: {
           protocol: 'connect-noise-xk-v1',
@@ -633,8 +634,8 @@ describe('Host client', () => {
           openSocket: (_url, events) => {
             attempts += 1;
             queueMicrotask(() => {
-              if (opens) events.open();
-              events.closed('');
+              events.open();
+              events.closed(reason);
             });
             return { send: () => {}, close: () => {} };
           },
