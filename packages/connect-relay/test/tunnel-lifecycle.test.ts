@@ -754,6 +754,11 @@ describe('eviction scoring', () => {
     const a = await env.link('user_a');
     expect((await env.provision('user_a', a, { zones: [ZONE, EXTRA] })).status).toBe(502);
     expect(await env.row(a)).toMatchObject({ zone: null, tunnel_id: null });
+    env.tunnels.deniedZones.delete(EXTRA);
+    env.advance(11 * MINUTE);
+    expect((await env.provision('user_a', a, { zones: [ZONE, EXTRA] })).body.hostname).toBe(
+      `${a}.${EXTRA}`,
+    );
   });
 
   it('counts a zone at its own limit in the pool and when it fills', async () => {
