@@ -156,6 +156,7 @@ async function run(
       args: [...args],
       options: {
         ...options,
+        env: options.env ?? { ...process.env },
         ...(options.stdio ? { stdio: [...options.stdio] } : {}),
         encoding: encoding === 'buffer' ? 'buffer' : 'utf8',
       },
