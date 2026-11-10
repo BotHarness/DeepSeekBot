@@ -72,6 +72,7 @@ export class FakeTunnels implements TunnelApi {
   failDns = false;
   failListRecords = false;
   recordQuota = new Map<string, number>();
+  deniedZones = new Set<string>();
   listComplete = true;
   listCalls = 0;
   deleteCalls = 0;
@@ -133,7 +134,7 @@ export class FakeTunnels implements TunnelApi {
   }
   async pointHostname(zone: string, hostname: string, tunnelId: string, recordId?: string) {
     this.apiCalls += 1;
-    if (this.failDns) throw new Error('DNS unavailable');
+    if (this.failDns || this.deniedZones.has(zone)) throw new Error('DNS unavailable');
     if (recordId && this.records.has(recordId)) {
       this.records.set(recordId, {
         ...this.records.get(recordId)!,
