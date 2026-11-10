@@ -86,11 +86,13 @@ export function createBrowserCallMedia(
   let stream: MediaStream | undefined;
   let speaker: HTMLAudioElement | undefined;
   let meter: MicMeter | undefined;
+  let generation = 0;
   let muted = false;
   const emit = (state: CallMediaState, code?: CallMediaCode) => {
     for (const listener of [...listeners]) listener(state, code);
   };
   const release = () => {
+    generation += 1;
     const current = peer;
     peer = undefined;
     if (current !== undefined) {
@@ -113,8 +115,10 @@ export function createBrowserCallMedia(
       release();
       const media = devices();
       if (media?.getUserMedia === undefined) throw new CallMicrophoneError('microphone-missing');
+      const owned = generation;
+      let acquired: MediaStream;
       try {
-        stream = (await openMicrophone(media)).stream;
+        acquired = (await openMicrophone(media)).stream;
       } catch (error) {
         const name = (error as { name?: unknown } | undefined)?.name;
         throw new CallMicrophoneError(
@@ -123,6 +127,11 @@ export function createBrowserCallMedia(
             : 'microphone-missing',
         );
       }
+      if (owned !== generation) {
+        for (const late of acquired.getTracks()) late.stop();
+        throw new Error('call-stopped');
+      }
+      stream = acquired;
       const track = stream.getAudioTracks()[0];
       if (track === undefined) throw new CallMicrophoneError('microphone-missing');
       track.enabled = !muted;

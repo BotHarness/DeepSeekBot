@@ -29,7 +29,7 @@ import {
   desktopCallView,
   type DesktopCallCaptureHandlers,
 } from '../src/client/desktop-call.js';
-import { CallMicrophoneError } from '../src/client/call-media.js';
+import { CallMicrophoneError, createBrowserCallMedia } from '../src/client/call-media.js';
 import { DmCallControl } from '../src/client/dm-call.js';
 import { CallRailButton } from '../src/client/call-rail-button.js';
 import {
@@ -596,6 +596,38 @@ describe('desktop call', () => {
     expect(open).toHaveBeenCalledTimes(1);
     await act(async () => mac.call.hangup());
     expect(element.querySelector('.bh-call-rail-button')).toBeNull();
+  });
+
+  it('stops a microphone that opens after the call was stopped and never meters it', async () => {
+    const contexts: string[] = [];
+    vi.stubGlobal(
+      'AudioContext',
+      class {
+        constructor() {
+          contexts.push('opened');
+        }
+      },
+    );
+    let stopped = 0;
+    let grant: ((stream: MediaStream) => void) | undefined;
+    const stream = {
+      getTracks: () => [{ stop: () => (stopped += 1) }],
+      getAudioTracks: () => [{ enabled: true, stop: () => (stopped += 1) }],
+    } as unknown as MediaStream;
+    const media = createBrowserCallMedia(
+      () =>
+        ({
+          getUserMedia: () => new Promise<MediaStream>((resolve) => (grant = resolve)),
+        }) as unknown as MediaDevices,
+    );
+    const started = media.start({ callId: 'call-1', offer: 'v=0' });
+    await vi.waitFor(() => expect(grant).toBeDefined());
+    media.stop();
+    grant!(stream);
+    await expect(started).rejects.toThrow('call-stopped');
+    expect(stopped).toBe(1);
+    expect(contexts).toEqual([]);
+    expect(media.level()).toBe(0);
   });
 });
 
