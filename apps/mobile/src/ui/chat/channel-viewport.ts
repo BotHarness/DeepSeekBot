@@ -1,10 +1,11 @@
-import { useCallback, useState, type RefObject } from 'react';
+import { useCallback, useMemo, useRef, useState, type RefObject } from 'react';
 import type { FlatList, LayoutChangeEvent } from 'react-native';
 import { useSharedValue, useReducedMotion } from 'react-native-reanimated';
 
 import type { ConversationMessage } from '../../host/conversation';
 import { useChatScrollAdapter, useChatOverlayStyle } from '../primitives/chat-scroll';
 import { useFollowLatest } from './follow-latest';
+import type { ComposerPill } from './composer-pill';
 import { LatestAnchor } from './latest-anchor';
 
 export function useChannelViewport<Row>(
@@ -33,9 +34,29 @@ export function useChannelViewport<Row>(
   const [composerHeight, setComposerHeight] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   const viewportLayout = useSharedValue(0);
-  const onComposerLayout = useCallback((event: LayoutChangeEvent) => {
-    setComposerHeight(event.nativeEvent.layout.height);
-  }, []);
+  const pillHeight = useSharedValue(0);
+  const chrome = useSharedValue(0);
+  const composerSizes = useRef({ frame: 0, pill: 0 });
+  const onComposerLayout = useCallback(
+    (event: LayoutChangeEvent) => {
+      const height = event.nativeEvent.layout.height;
+      setComposerHeight(height);
+      composerSizes.current.frame = height;
+      chrome.set(height - composerSizes.current.pill);
+    },
+    [chrome],
+  );
+  const pill = useMemo<ComposerPill>(
+    () => ({
+      height: pillHeight,
+      chrome,
+      layout(height) {
+        composerSizes.current.pill = height;
+        chrome.set(composerSizes.current.frame - height);
+      },
+    }),
+    [pillHeight, chrome],
+  );
   const onViewportLayout = useCallback(
     (event: LayoutChangeEvent) => {
       viewportLayout.value += 1;
@@ -53,6 +74,7 @@ export function useChannelViewport<Row>(
     unseen: latest.unseen,
     hold: latest.hold,
     jumpToLatest: latest.jumpToLatest,
+    send: latest.send,
     listProps: latest.listProps,
     renderScrollComponent,
     overlayStyle,
@@ -61,5 +83,6 @@ export function useChannelViewport<Row>(
     viewportLayout,
     onComposerLayout,
     onViewportLayout,
+    pill,
   };
 }

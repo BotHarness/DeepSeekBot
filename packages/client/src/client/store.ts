@@ -115,6 +115,7 @@ export type ChannelAuthor =
 export interface ChannelReplyPreview {
   author: ChannelAuthor;
   body: string;
+  media?: import('../../../core/src/channels/reply-preview.js').ChannelReplyPreviewMedia<ChannelAttachmentRef>;
 }
 
 export type ChannelAttachmentRef = {

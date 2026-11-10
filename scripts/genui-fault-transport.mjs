@@ -1,13 +1,25 @@
 export function installGenuiFaultTransport() {
   const original = window.fetch.bind(window);
-  const observation = { fault: undefined, calls: [], messages: [] };
+  const observation = { fault: undefined, calls: [], messages: [], workers: [] };
   window.__genuiFaultQa = observation;
-  window.addEventListener('message', (event) => {
-    if (event.data?.protocol === 'botharness-genui-v1') {
-      observation.messages.push(structuredClone(event.data));
-      if (observation.messages.length > 100) observation.messages.shift();
+  const NativeWorker = window.Worker;
+  window.Worker = class extends NativeWorker {
+    constructor(...args) {
+      super(...args);
+      const workerIndex = observation.workers.length;
+      observation.workers.push(this);
+      this.addEventListener('message', (event) => {
+        const envelope = event.data;
+        if (
+          envelope?.reply?.protocol !== 'botharness-genui-execution-v1' ||
+          envelope.reply.type !== 'snapshot'
+        )
+          return;
+        observation.messages.push({ workerIndex, envelope: structuredClone(envelope) });
+        if (observation.messages.length > 100) observation.messages.shift();
+      });
     }
-  });
+  };
   window.fetch = async (...args) => {
     let request;
     try {

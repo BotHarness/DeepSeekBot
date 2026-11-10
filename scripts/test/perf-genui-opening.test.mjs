@@ -10,6 +10,7 @@ import {
   genuiOpeningReady,
   observeGenuiOpening,
   summarizeGenuiOpening,
+  traceGenuiOpening,
 } from '../perf-genui-opening-observer.mjs';
 
 const budget = JSON.parse(
@@ -73,6 +74,12 @@ describe('dirty opening-run provenance', () => {
 });
 
 describe('GenUI opening and added-work budget', () => {
+  it('does not qualify a trace-instrumented diagnostic even when its metric budgets pass', () => {
+    const summary = summarizeGenuiOpening({ ...healthy(), diagnosticTrace: true });
+    expect(checkBudget(summary, budget, { strictTiming: true }).pass).toBe(true);
+    expect(summary.qualificationEligible).toBe(false);
+    expect(summarizeGenuiOpening(healthy()).qualificationEligible).toBe(true);
+  });
   it('checks all three plain/rich pairs and retains signed added opening costs', () => {
     const summary = summarizeGenuiOpening(healthy());
     expect(checkBudget(summary, budget, { strictTiming: true }).pass).toBe(true);
@@ -204,6 +211,58 @@ describe('opening observer cleanup', () => {
       }),
     ).rejects.toBe(failure);
     expect(failure.cleanupFailure).toContain('cleanup failed');
+  });
+});
+
+describe('opening diagnostic trace lifecycle', () => {
+  it('does not start tracing in a canonical run', async () => {
+    const observe = vi.fn().mockResolvedValue({ readyMs: 100 });
+    const page = { tracing: { start: vi.fn(), stop: vi.fn() } };
+    await expect(traceGenuiOpening(page, undefined, observe)).resolves.toEqual({ readyMs: 100 });
+    expect(page.tracing.start).not.toHaveBeenCalled();
+    expect(page.tracing.stop).not.toHaveBeenCalled();
+  });
+
+  it('starts before observation and stops after the unchanged readiness endpoint', async () => {
+    const phases = [];
+    const page = {
+      tracing: {
+        start: vi.fn(async () => phases.push('trace-start')),
+        stop: vi.fn(async () => phases.push('trace-stop')),
+      },
+    };
+    await expect(
+      traceGenuiOpening(page, '/private/opening.trace.json', async () => {
+        phases.push('canonical-observation');
+        return { readyMs: 100 };
+      }),
+    ).resolves.toEqual({ readyMs: 100 });
+    expect(phases).toEqual(['trace-start', 'canonical-observation', 'trace-stop']);
+    expect(page.tracing.start).toHaveBeenCalledWith(
+      expect.objectContaining({ path: '/private/opening.trace.json' }),
+    );
+  });
+
+  it('retains the original opening and trace-cleanup failures independently', async () => {
+    const failure = new Error('Opening failed');
+    const page = {
+      tracing: { start: vi.fn(), stop: vi.fn().mockRejectedValue(new Error('Trace stop failed')) },
+    };
+    await expect(
+      traceGenuiOpening(page, '/private/opening.trace.json', async () => {
+        throw failure;
+      }),
+    ).rejects.toBe(failure);
+    expect(failure.traceCleanupFailure).toContain('Trace stop failed');
+    expect(page.tracing.stop).toHaveBeenCalledOnce();
+  });
+
+  it('fails a diagnostic if only trace cleanup fails', async () => {
+    const failure = new Error('Trace stop failed');
+    const page = { tracing: { start: vi.fn(), stop: vi.fn().mockRejectedValue(failure) } };
+    await expect(
+      traceGenuiOpening(page, '/private/opening.trace.json', async () => ({ readyMs: 100 })),
+    ).rejects.toBe(failure);
   });
 });
 

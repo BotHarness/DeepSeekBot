@@ -15,6 +15,31 @@ const DISCONNECT_GRACE_MS = 15_000;
 let framesSent = 0;
 const parts = new Map();
 const playing = new Map();
+const diagnosticStart = performance.now();
+let diagnosticSeq = 0;
+function connectionDiagnostic(stage) {
+  if (!window.callBridge.diagnosticsEnabled || !peer || diagnosticSeq >= 32) return;
+  const terminal =
+    peer.connectionState === 'failed' ||
+    peer.connectionState === 'closed' ||
+    peer.iceConnectionState === 'failed' ||
+    peer.iceConnectionState === 'closed';
+  if (diagnosticSeq >= 30 && !terminal) return;
+  const candidates = (description) =>
+    Math.min(1024, (description?.sdp?.match(/^a=candidate:/gmu) ?? []).length);
+  try {
+    window.callBridge.connection({
+      seq: ++diagnosticSeq,
+      elapsedMs: Math.min(86_400_000, Math.max(0, Math.floor(performance.now() - diagnosticStart))),
+      stage,
+      peer: peer.connectionState,
+      ice: peer.iceConnectionState,
+      gathering: peer.iceGatheringState,
+      localCandidates: candidates(peer.localDescription),
+      remoteCandidates: candidates(peer.remoteDescription),
+    });
+  } catch {}
+}
 
 const WORKLET = `
 class PcmTap extends AudioWorkletProcessor {
@@ -132,6 +157,7 @@ window.callStart = async () => {
       bundlePolicy: 'max-bundle',
     });
     peer.addEventListener('connectionstatechange', () => {
+      connectionDiagnostic('peer');
       const state = peer.connectionState;
       if (state === 'connected') {
         clearTimeout(disconnectTimer);
@@ -145,6 +171,9 @@ window.callStart = async () => {
         disconnectTimer = setTimeout(fail, DISCONNECT_GRACE_MS);
       } else if (state === 'failed' || state === 'closed') fail();
     });
+    peer.addEventListener('iceconnectionstatechange', () => connectionDiagnostic('ice'));
+    peer.addEventListener('icegatheringstatechange', () => connectionDiagnostic('gathering'));
+    connectionDiagnostic('created');
     peer.addEventListener('datachannel', (event) => {
       event.channel.close();
       fail();
@@ -187,6 +216,7 @@ window.callStart = async () => {
       peer.addEventListener('icecandidate', candidate);
       complete();
     });
+    connectionDiagnostic('offer-ready');
     return { offer: { type: 'offer', sdp: withDtx(peer.localDescription.sdp) } };
   } catch (error) {
     stop();
@@ -197,7 +227,9 @@ window.callStart = async () => {
 window.callAnswer = async (sdp) => {
   if (!peer || answered) throw new Error('Stale answer');
   answered = true;
+  connectionDiagnostic('answer-start');
   await peer.setRemoteDescription({ type: 'answer', sdp: withDtx(sdp) });
+  connectionDiagnostic('answer-applied');
   return null;
 };
 

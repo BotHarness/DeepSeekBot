@@ -1,5 +1,12 @@
 import { expect, it, vi } from 'vitest';
 import { createStore, type ChannelMessage, type ChannelSummary } from '../src/client/store.js';
+import { createActions } from '../src/client/actions.js';
+import { getGenuiDocumentView } from '../src/client/genui-document-view.js';
+import { getGenuiPrivateView } from '../src/client/genui-view.js';
+import { initialGenuiView, GenuiError } from '../../core/src/channels/genui.js';
+import { initialGenuiDocumentState } from '../../core/src/channels/genui-document.js';
+import { syntheticGenuiDocument } from '../../core/test/fixtures/genui-document.js';
+import { comparisonReport } from '../../core/test/fixtures/genui-report.js';
 import { mountRosterLive } from '../src/client/channel-live.js';
 import type { BridgeActions } from '../src/client/actions.js';
 import { subscribeMessagingDefaults } from '../src/client/messaging-defaults-live.js';
@@ -31,6 +38,110 @@ const placements = ['one', 'two'].map((channelId) => ({
   messageId: 'message',
 }));
 const event = () => new MessageEvent('content/purged', { data: JSON.stringify({ placements }) });
+
+it.each([
+  ['success', 'direct'],
+  ['unavailable', 'direct'],
+  ['success', 'shared'],
+  ['unavailable', 'shared'],
+])(
+  'wipes retained GenUI drafts before a delayed save %s through the %s purge stream',
+  async (outcome, transport) => {
+    vi.useFakeTimers();
+    const store = createStore();
+    store.setMode('bot');
+    const actions = createActions(async () => {
+      throw new Error('Unexpected Host request');
+    }, store);
+    vi.spyOn(actions, 'refreshRoster').mockResolvedValue();
+    const initial = initialGenuiDocumentState(syntheticGenuiDocument);
+    const edited = { version: 1 as const, values: { ...initial.values, filter: 'private draft' } };
+    vi.spyOn(actions, 'genuiDocumentView').mockResolvedValue({ version: 0, state: initial });
+    vi.spyOn(actions, 'genuiView').mockResolvedValue({ version: 0, state: initialGenuiView() });
+    let finishSave: (result: { version: number; state: typeof edited } | Error) => void = () => {
+      throw new Error('Save promise was not initialized');
+    };
+    const deferred = new Promise<{ version: number; state: typeof edited }>((resolve, reject) => {
+      finishSave = (result) => (result instanceof Error ? reject(result) : resolve(result));
+    });
+    vi.spyOn(actions, 'saveGenuiDocumentView').mockReturnValue(deferred);
+    const documentView = getGenuiDocumentView(syntheticGenuiDocument, 'one', 'message', actions);
+    const otherPlacement = getGenuiDocumentView(
+      syntheticGenuiDocument,
+      'other',
+      'message',
+      actions,
+    );
+    const reportView = getGenuiPrivateView(comparisonReport, 'one', 'message', actions);
+    const otherActions = createActions(async () => {
+      throw new Error('Unexpected other-owner request');
+    }, createStore());
+    const otherOwner = getGenuiDocumentView(syntheticGenuiDocument, 'one', 'message', otherActions);
+    otherPlacement.edit(edited);
+    otherOwner.edit(edited);
+    reportView.edit({ ...initialGenuiView(), filter: 'private report draft' });
+    reportView.attempts.continue = {
+      id: 'human-private',
+      payload: 'private submission',
+      sent: false,
+    };
+    const unsubscribe = documentView.subscribe(() => {});
+    await vi.advanceTimersByTimeAsync(0);
+    documentView.edit(edited);
+    const saving = documentView.save();
+    expect(documentView.getSnapshot().status).toBe('saving');
+    unsubscribe();
+    const source = new EventTarget();
+    const sharedSources: EventTarget[] = [];
+    if (transport === 'shared') {
+      vi.stubGlobal(
+        'EventSource',
+        class extends EventTarget {
+          close = vi.fn();
+          constructor() {
+            super();
+            sharedSources.push(this);
+          }
+        },
+      );
+    }
+    const dispose = mountRosterLive(
+      store,
+      actions,
+      transport === 'shared'
+        ? undefined
+        : () => Object.assign(source, { close: vi.fn() }) as unknown as EventSource,
+    );
+    try {
+      const purgeSource = transport === 'shared' ? sharedSources[0] : source;
+      if (!purgeSource) throw new Error('Missing actual purge stream');
+      purgeSource.dispatchEvent(event());
+      expect(documentView.getSnapshot()).toMatchObject({ available: false, state: initial });
+      expect(reportView.getSnapshot()).toMatchObject({
+        available: false,
+        state: initialGenuiView(),
+      });
+      expect(reportView.attempts.continue).toBeUndefined();
+      expect(otherPlacement.getSnapshot().state).toEqual(edited);
+      expect(otherOwner.getSnapshot().state).toEqual(edited);
+    } finally {
+      finishSave(
+        outcome === 'success'
+          ? { version: 1, state: edited }
+          : new GenuiError('genui-unavailable', 'Unavailable'),
+      );
+      await saving;
+      dispose();
+      if (transport === 'shared') vi.unstubAllGlobals();
+      vi.useRealTimers();
+    }
+    expect(documentView.getSnapshot()).toMatchObject({ available: false, state: initial });
+    expect(getGenuiDocumentView(syntheticGenuiDocument, 'one', 'message', actions)).not.toBe(
+      documentView,
+    );
+    expect(getGenuiPrivateView(comparisonReport, 'one', 'message', actions)).not.toBe(reportView);
+  },
+);
 
 it('preserves settled message identity across draft-only updates without skipping purges', () => {
   const store = createStore();

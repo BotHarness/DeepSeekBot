@@ -5,6 +5,7 @@ export type PushKind = (typeof PUSH_KINDS)[number];
 export type PushPreferences = Record<PushKind, boolean>;
 export type PushPlatform = 'ios' | 'android';
 export type PushLocale = 'en' | 'zh';
+export type PushDeliveryMode = 'push' | 'in-app';
 
 export const DEFAULT_PUSH_PREFERENCES: PushPreferences = {
   approval: true,
@@ -122,6 +123,7 @@ export type TestResult = 'sent' | 'not-registered' | 'failed';
 export interface PushSettings {
   registered: boolean;
   enabled: boolean;
+  delivery: PushDeliveryMode;
   preferences: PushPreferences;
   quietChannelIds: string[];
 }
@@ -135,7 +137,12 @@ export interface PushDelivery {
   ): RegisterResult;
   unregister(deviceId: string): boolean;
   settings(deviceId: string): PushSettings;
-  setPreferences(deviceId: string, input: unknown, enabled?: unknown): PushSettings;
+  setPreferences(
+    deviceId: string,
+    input: unknown,
+    enabled?: unknown,
+    delivery?: unknown,
+  ): PushSettings;
   setQuiet(deviceId: string, input: { channelId: unknown; quiet: unknown }): QuietResult;
   test(deviceId: string): Promise<TestResult>;
   announcePaired(device: { id: string; name: string }): Promise<void>;
@@ -149,6 +156,7 @@ export interface PushDeliveryOptions {
   sender: ExpoSender;
   host(): { id: string; name: string };
   deviceActive(deviceId: string): boolean;
+  held?: () => boolean;
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
   record?: (event: PushEvent) => void;
@@ -178,6 +186,10 @@ function enabledOf(json: string | undefined): boolean {
   return stored(json)['enabled'] !== false;
 }
 
+function deliveryOf(json: string | undefined): PushDeliveryMode {
+  return stored(json)['delivery'] === 'in-app' ? 'in-app' : 'push';
+}
+
 function quietOf(json: string | undefined): string[] {
   const value = stored(json)['quiet'];
   return Array.isArray(value)
@@ -189,6 +201,7 @@ function settingsOf(current: DeviceRow | undefined): PushSettings {
   return {
     registered: current !== undefined,
     enabled: enabledOf(current?.preferences_json),
+    delivery: deliveryOf(current?.preferences_json),
     preferences: preferencesOf(current?.preferences_json),
     quietChannelIds: quietOf(current?.preferences_json),
   };
@@ -436,6 +449,7 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
     const { items, badge } = source.pending();
     const present = new Set(items.map((item) => item.id));
     const hostId = options.host().id;
+    const held = options.held?.() === true;
     for (const device of devices) {
       if (!options.deviceActive(device.device_id)) {
         dropToken(device.device_id, 'device-revoked');
@@ -457,7 +471,10 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
         ),
       );
       const fresh = items.filter(
-        (item) => !seen.has(item.id) && Date.parse(item.createdAt) >= registeredAt,
+        (item) =>
+          !seen.has(item.id) &&
+          Date.parse(item.createdAt) >= registeredAt &&
+          !(held && item.kind === 'reply'),
       );
       const gone = [...seen].filter((id) => !present.has(id));
       database.transaction(
@@ -472,8 +489,10 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
         ['push'],
       );
       if (!enabled) continue;
+      const inApp = deliveryOf(device.preferences_json) === 'in-app';
       const notify = fresh.filter(
         (item) =>
+          !inApp &&
           preferences[item.kind] &&
           !(item.kind === 'reply' && item.channelId !== undefined && quiet.has(item.channelId)),
       );
@@ -599,7 +618,7 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
       return settings(deviceId);
     },
 
-    setPreferences(deviceId, input, enabled) {
+    setPreferences(deviceId, input, enabled, delivery) {
       const current = row(deviceId);
       const next = settings(deviceId).preferences;
       const patch = typeof input === 'object' && input !== null ? input : {};
@@ -616,7 +635,10 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
             .run(deviceId, JSON.stringify(next)),
         ['push'],
       );
-      if (current !== undefined && typeof enabled === 'boolean') save(current, { enabled });
+      const changes: Record<string, unknown> = {};
+      if (typeof enabled === 'boolean') changes['enabled'] = enabled;
+      if (delivery === 'push' || delivery === 'in-app') changes['delivery'] = delivery;
+      if (current !== undefined && Object.keys(changes).length > 0) save(current, changes);
       else record({ phase: 'preferences', deviceId });
       return settings(deviceId);
     },

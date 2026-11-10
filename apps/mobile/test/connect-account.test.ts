@@ -72,9 +72,11 @@ function fakeRelay(
     const state = new URL(url).searchParams.get('state');
     return `${REDIRECT}?code=auth-code&state=${state}`;
   });
+  const listedHosts = vi.fn(async (_hosts: readonly unknown[]) => undefined);
   const account = createConnectAccount({
     relay: RELAY,
     redirectUri: REDIRECT,
+    listedHosts,
     runtime: {
       read: async () => stored,
       write: async (value) => {
@@ -87,7 +89,7 @@ function fakeRelay(
       now: () => Date.parse('2026-10-21T12:00:00Z'),
     },
   });
-  return { account, calls, authorize, stored: () => stored };
+  return { account, calls, authorize, listedHosts, stored: () => stored };
 }
 
 describe('phone Connect account', () => {
@@ -125,6 +127,8 @@ describe('phone Connect account', () => {
         },
       ],
     });
+    expect(relay.listedHosts).toHaveBeenCalledTimes(1);
+    expect(relay.listedHosts.mock.calls[0]![0]).toHaveLength(3);
     expect(relay.calls.at(-1)).toMatchObject({ auth: 'Bearer access-1' });
     expect(JSON.parse(relay.stored()!).refreshToken).toBe('refresh-1');
   });

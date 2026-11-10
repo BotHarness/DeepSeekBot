@@ -1,3 +1,5 @@
+import { launcherControl } from './launcher-control.js';
+import { callConnectionDiagnostics } from './call-connection-diagnostics.js';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -5,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { VoiceCallMedia, VoiceCallMediaPeer } from '../../../core/src/voice/calls.js';
+import { VoiceCallMediaError as CallMediaError } from '../../../core/src/voice/call-contract.js';
 import type { VoiceCallDescription } from '../../../core/src/voice/call-contract.js';
 import { parseStats } from '../../../core/src/voice/call-perf.js';
 import {
@@ -29,15 +32,6 @@ const AUDIO_CHUNK = 48 * 1024;
 const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
 const PCM_LINE_LIMIT = 16 * 1024;
 
-class CallMediaError extends Error {
-  constructor(
-    readonly code: 'unsupported-platform' | 'helper-missing' | 'helper-failed' | 'busy',
-    message: string,
-  ) {
-    super(message);
-  }
-}
-
 export interface CallMediaOptions {
   readonly helperDirectory?: string | undefined;
   readonly assetsDirectory?: string | undefined;
@@ -48,6 +42,7 @@ export interface CallMediaOptions {
 
 export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia {
   let active = false;
+  let activeState: (() => string) | undefined;
   const target = () => {
     const platform = options.platform ?? process.platform;
     const arch = options.arch ?? process.arch;
@@ -59,18 +54,43 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
     const assets = options.assetsDirectory ?? localVideoAssetsDirectory();
     return { platform, arch, mac, supported, directory, assets };
   };
-  const verified = async () => {
+  const verified = async (operation: 'availability' | 'open', signal?: AbortSignal) => {
     const { mac, arch, directory, assets, platform } = target();
-    await verifyLocalVideoAssets(assets, platform);
-    return mac ? verifyMacVideoHelper(directory, arch) : verifyLocalVideoHelper(directory, assets);
+    const started = Date.now();
+    const report = (result: 'start' | 'ready' | 'invalid' | 'cancelled') => {
+      if (process.env['BOTHARNESS_CALL_DIAGNOSTICS'] === '1')
+        options.onEvent?.(
+          `phase=call-media-verification operation=${operation} result=${result} durationMs=${Date.now() - started}`,
+        );
+    };
+    report('start');
+    try {
+      signal?.throwIfAborted();
+      await verifyLocalVideoAssets(assets, platform);
+      signal?.throwIfAborted();
+      const valid = await (mac
+        ? verifyMacVideoHelper(directory, arch)
+        : verifyLocalVideoHelper(directory, assets, signal));
+      signal?.throwIfAborted();
+      report(valid ? 'ready' : 'invalid');
+      return valid;
+    } catch {
+      report(signal?.aborted ? 'cancelled' : 'invalid');
+      signal?.throwIfAborted();
+      throw new CallMediaError(
+        'helper-missing',
+        'The call media helper is missing or invalid. Start Local Computer to install it.',
+      );
+    }
   };
   return {
-    async availability() {
+    async availability(signal) {
       const { supported } = target();
       if (!supported) return 'unsupported-platform';
       try {
-        return (await verified()) ? 'ready' : 'helper-missing';
+        return (await verified('availability', signal)) ? 'ready' : 'helper-missing';
       } catch {
+        signal?.throwIfAborted();
         return 'helper-missing';
       }
     },
@@ -78,11 +98,17 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
       const { mac, supported, directory, assets } = target();
       if (!supported)
         throw new CallMediaError('unsupported-platform', 'Calls need a Mac or Windows x64 Host.');
-      if (active) throw new CallMediaError('busy', 'This Host already has call media running.');
+      if (active) {
+        options.onEvent?.(
+          `call=${callId} phase=call-media-open-refused reason=busy ${activeState?.() ?? ''}`,
+        );
+        throw new CallMediaError('busy', 'This Host already has call media running.');
+      }
       active = true;
       const launchId = randomUUID();
       const started = Date.now();
       const event = (detail: string) => options.onEvent?.(`call=${callId} ${detail}`);
+      const connectionDiagnostics = callConnectionDiagnostics(event);
       let child: ChildProcessWithoutNullStreams | undefined;
       let profile: string | undefined;
       let output = '';
@@ -162,6 +188,20 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
           });
         });
       };
+      let released = false;
+      let cleanupRefused = false;
+      let cleanupReason = 'missing-tree-proof';
+      activeState = () =>
+        `closed=${closed} exited=${exited} treeOwned=${treeOwned} treeStopped=${treeStopped}`;
+      const release = () => {
+        if (released || !closed || (child && !spawnFailed && !(exited && treeStopped))) return;
+        released = true;
+        active = false;
+        activeState = undefined;
+        if (profile) void rm(profile, { recursive: true, force: true }).catch(() => undefined);
+        if (cleanupRefused)
+          event(`phase=call-media-cleanup-recovered exited=${exited} treeStopped=${treeStopped}`);
+      };
       const close = (): Promise<void> => {
         closing ??= (async () => {
           closed = true;
@@ -171,12 +211,14 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
             if (child && !exited) {
               child.stdin.end(JSON.stringify({ id: nextId++, op: 'close' }) + '\n');
               if (!(await boundedExit(exit, 2400))) {
-                child.kill();
+                cleanupReason = 'exit-timeout';
+                if (!exited) child.kill();
                 await boundedExit(exit, 200);
-                throw new CallMediaError(
-                  'helper-failed',
-                  'The call process tree did not confirm cleanup within its limit.',
-                );
+                if (!(exited && treeStopped))
+                  throw new CallMediaError(
+                    'helper-failed',
+                    'The call process tree did not confirm cleanup within its limit.',
+                  );
               }
             }
             if (child && !spawnFailed && !treeStopped)
@@ -185,10 +227,14 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
                 'The call process tree exited without confirming cleanup. Restart the Host before another call.',
               );
             event(`phase=call-media-stopped durationMs=${Date.now() - started}`);
+          } catch (error) {
+            cleanupRefused = true;
+            event(
+              `phase=call-media-cleanup-refused reason=${cleanupReason} exited=${exited} treeOwned=${treeOwned} treeStopped=${treeStopped}`,
+            );
+            throw error;
           } finally {
-            if (!child || spawnFailed || (exited && treeStopped)) active = false;
-            if (profile && (!child || spawnFailed || (exited && treeStopped)))
-              void rm(profile, { recursive: true, force: true }).catch(() => undefined);
+            release();
             status('closed');
           }
         })();
@@ -198,12 +244,17 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
         if (closed) return;
         event(`phase=call-media-failed durationMs=${Date.now() - started}`);
         status('failed');
-        void close().catch(() => event('phase=call-media-cleanup-refused'));
+        void close().catch(() => undefined);
       };
       const aborted = () => {
-        void close().catch(() => event('phase=call-media-cleanup-refused'));
+        void close().catch(() => undefined);
       };
       const helperMessage = (message: Record<string, unknown>): boolean => {
+        if (message['event'] === 'connection') {
+          if (!closed && process.env['BOTHARNESS_CALL_DIAGNOSTICS'] === '1')
+            connectionDiagnostics(message);
+          return true;
+        }
         if ('id' in message && typeof message['id'] === 'number' && 'ok' in message) {
           const waiter = pending.get(message['id']);
           if (!waiter) return false;
@@ -262,7 +313,7 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
       };
       try {
         signal.throwIfAborted();
-        if (!(await verified()))
+        if (!(await verified('open', signal)))
           throw new CallMediaError(
             'helper-missing',
             'Start Local Computer once to install the media helper, then call again.',
@@ -284,6 +335,9 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
               ...localDriverEnv(),
               ...(mac ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
               BOTHARNESS_MEDIA_USER_DATA: profile,
+              ...(process.env['BOTHARNESS_CALL_DIAGNOSTICS'] === '1'
+                ? { BOTHARNESS_CALL_DIAGNOSTICS: '1' }
+                : {}),
             },
             windowsHide: true,
             stdio: ['pipe', 'pipe', 'pipe'],
@@ -299,15 +353,17 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
         child.once('close', () => {
           exited = true;
           exitResolve?.();
+          release();
         });
         child.once('error', () => {
           spawnFailed = child?.pid === undefined;
           exited = true;
           exitResolve?.();
+          release();
           failed();
         });
         child.stdin.on('error', failed);
-        child.stderr.on('data', () => {});
+
         const readiness = new Promise<void>((resolve, reject) => {
           ready = {
             resolve,
@@ -319,8 +375,17 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
           };
         });
         child.stdout.setEncoding('utf8');
-        child.stdout.on('data', (chunk: string) => {
+        let beforeOwned = '';
+        const receiveOutput = (chunk: string) => {
           if (treeStopped) return;
+          if (!mac && !treeOwned) {
+            beforeOwned += chunk;
+            if (Buffer.byteLength(beforeOwned) > 128 * 1024) {
+              beforeOwned = '';
+              failed();
+            }
+            return;
+          }
           if (Buffer.byteLength(output) + Buffer.byteLength(chunk) > 2 * LINE_LIMIT) {
             output = '';
             return failed();
@@ -333,6 +398,11 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
             try {
               const envelope = JSON.parse(line) as Record<string, unknown>;
               if (envelope['launchId'] !== launchId) return failed();
+              if (
+                !mac &&
+                (envelope['event'] === 'tree-owned' || envelope['event'] === 'tree-closed')
+              )
+                return failed();
               if (
                 envelope['event'] === 'tree-owned' &&
                 envelope['version'] === 1 &&
@@ -354,6 +424,7 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
                 !treeStopped
               ) {
                 treeStopped = true;
+                release();
                 event('phase=call-media-tree-closed activeProcesses=0');
                 if (!closed) failed();
                 continue;
@@ -378,7 +449,35 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
               return failed();
             }
           }
-        });
+        };
+        child.stdout.on('data', receiveOutput);
+        if (mac) child.stderr.on('data', () => {});
+        else {
+          child.stderr.setEncoding('utf8');
+          child.stderr.on(
+            'data',
+            launcherControl({
+              launchId,
+              owned(rootPid) {
+                treeOwned = true;
+                event(
+                  `phase=call-media-tree-owned launcherPid=${child?.pid ?? 0} rootPid=${rootPid}`,
+                );
+                const pendingOutput = beforeOwned;
+                beforeOwned = '';
+                if (pendingOutput) receiveOutput(pendingOutput);
+              },
+              closed() {
+                treeStopped = true;
+                beforeOwned = '';
+                release();
+                event('phase=call-media-tree-closed activeProcesses=0');
+                if (!closed) failed();
+              },
+              rejected: failed,
+            }),
+          );
+        }
         await readiness;
         signal.throwIfAborted();
         const offer = parseOffer(await request('offer'));

@@ -108,6 +108,11 @@ export function relayForEnv(env: ConnectRelayEnv): ReturnType<typeof createRelay
     zone,
     zones: zones.map((entry) => entry.name),
     zoneRecords: positive(env.ZONE_RECORDS, 195),
+    zoneLimits: Object.fromEntries(
+      zones.flatMap((entry) =>
+        'records' in entry && entry.records !== undefined ? [[entry.name, entry.records]] : [],
+      ),
+    ),
     reclaimBudget: positive(env.RECLAIM_BUDGET, 30),
     ...(env.TUNNEL_PREFIX && /^[a-z0-9-]{2,20}$/u.test(env.TUNNEL_PREFIX)
       ? { tunnelPrefix: env.TUNNEL_PREFIX }
@@ -119,7 +124,7 @@ export function relayForEnv(env: ConnectRelayEnv): ReturnType<typeof createRelay
       .map((user) => user.trim())
       .filter(Boolean),
     maxHosts: positive(env.MAX_HOSTS, 3),
-    maxTunnels: positive(env.MAX_TUNNELS, 900),
+    maxTunnels: positive(env.MAX_TUNNELS, 980),
     reclaimAfterMs: positive(env.RECLAIM_AFTER_MINUTES, 5) * 60 * 1000,
     ...(limiter === undefined
       ? {}

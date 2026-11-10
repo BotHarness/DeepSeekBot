@@ -1364,6 +1364,7 @@ const en = {
   mentionSuggestions: 'Mention a Bot',
   openImage: (name: string) => `Open ${name}`,
   shareFile: (name: string) => `Download and share ${name}`,
+  imageCount: (count: number) => (count === 1 ? '1 image' : `${count} images`),
   copy: 'Copy',
   shareText: 'Share',
   today: 'Today',
@@ -1381,6 +1382,12 @@ const en = {
     cancel: 'Cancel reply',
     you: 'You',
     unavailable: 'Original message unavailable',
+    quote: (name: string, body: string) => `Reply to ${name}: ${body}`,
+    jumpHint: 'Shows the original message',
+    photo: 'Photo',
+    photos: (count: number) => `${count} photos`,
+    voice: (detail: string) => `Voice · ${detail}`,
+    file: (name: string) => `File · ${name}`,
   },
   react: (emoji: string) => `React with ${emoji}`,
   unreact: (emoji: string) => `Remove your ${emoji}`,
@@ -1406,6 +1413,25 @@ const en = {
   downloading: 'Downloading…',
   shareFailed: 'That file could not be downloaded from your computer.',
   card: 'Open the full client to respond to this.',
+  genuiLoading: 'Loading document…',
+  genuiFailed: 'This document could not run here. The summary above still applies.',
+  genuiRetry: 'Try again',
+  genuiContinue: 'Continue',
+  genuiRefresh: 'Refresh document',
+  genuiSent: 'Sent',
+  genuiContinueBody: (title: string) => `Continue with document “${title}” using my current view.`,
+  genuiRefreshBody: (title: string) => `Refresh document “${title}” and publish a new snapshot.`,
+  genuiSaved: 'Saved',
+  genuiSaving: 'Saving…',
+  genuiSaveError: 'Couldn’t save your changes.',
+  genuiLoadError: 'Couldn’t load your saved view.',
+  genuiConflict: 'This view changed on another device.',
+  genuiUnavailable: 'This document is no longer available.',
+  genuiSave: 'Save',
+  genuiReset: 'Reset',
+  genuiReload: 'Reload',
+  genuiUseSaved: 'Use saved',
+  genuiKeepMine: 'Keep mine',
   alwaysAllow: 'Always allow',
   alwaysToolScope: (tool: string) =>
     `Always allow lets this Bot use ${tool} in the current authorization scope without asking again, even with different inputs. Shell commands may access files outside the current folder.`,
@@ -1552,7 +1578,7 @@ const en = {
   messageDisplay: {
     title: 'Message display',
     streaming: 'Streaming',
-    complete: 'Complete bubbles',
+    complete: 'Complete',
     storageError: 'This choice could not be saved. Tap an option to retry.',
   },
   draftSaveFailed: 'Draft not saved. Retry before leaving the app.',
@@ -1715,9 +1741,16 @@ const en = {
   openSettings: 'Open phone settings',
   notifyAbout: 'Notify me about',
   notificationPreferencePending: 'Saved on this phone. Some Hosts will sync when reachable.',
-  allowNotifications: 'Allow notifications',
   allowNotificationsOff:
     'This phone gets no notifications from this computer. Your choices below come back when you turn them on again.',
+  deliveryTitle: 'Delivery',
+  deliveryPush: 'Push',
+  deliveryInApp: 'In app only',
+  deliveryOff: 'Off',
+  deliveryPushHint:
+    'Notifications reach this phone even when the app is closed. While the app is open they show as in-app banners.',
+  deliveryInAppHint:
+    'No push to this phone. You see banners only while the app is open, and the badge still updates.',
   channelNotifications: {
     quietHere: 'Do Not Disturb on this phone',
     quietHereFootnote:
@@ -3722,6 +3755,7 @@ const zh: typeof en = {
   mentionSuggestions: '提及 Bot',
   openImage: (name: string) => `查看 ${name}`,
   shareFile: (name: string) => `下载并分享 ${name}`,
+  imageCount: (count: number) => `${count} 张图片`,
   copy: '复制',
   shareText: '分享',
   today: '今天',
@@ -3739,6 +3773,12 @@ const zh: typeof en = {
     cancel: '取消回复',
     you: '你',
     unavailable: '原消息不可用',
+    quote: (name: string, body: string) => `回复 ${name}：${body}`,
+    jumpHint: '跳到原消息',
+    photo: '图片',
+    photos: (count: number) => `${count} 张图片`,
+    voice: (detail: string) => `语音 · ${detail}`,
+    file: (name: string) => `文件 · ${name}`,
   },
   react: (emoji: string) => `回应 ${emoji}`,
   unreact: (emoji: string) => `取消你的 ${emoji}`,
@@ -3764,6 +3804,25 @@ const zh: typeof en = {
   downloading: '正在下载…',
   shareFailed: '从你的电脑下载这个文件失败。',
   card: '请在本机客户端中处理这条消息。',
+  genuiLoading: '正在加载文档…',
+  genuiFailed: '这份文档无法在这里运行，上方摘要仍然有效。',
+  genuiRetry: '重试',
+  genuiContinue: '继续处理',
+  genuiRefresh: '刷新文档',
+  genuiSent: '已发送',
+  genuiContinueBody: (title: string) => `继续处理文档“${title}”，使用我当前的视图。`,
+  genuiRefreshBody: (title: string) => `刷新文档“${title}”，发布新的快照。`,
+  genuiSaved: '已保存',
+  genuiSaving: '正在保存…',
+  genuiSaveError: '更改没有保存成功。',
+  genuiLoadError: '已保存的视图加载失败，再试一次。',
+  genuiConflict: '这个视图已在其他设备上更改。',
+  genuiUnavailable: '这份文档已不可用。',
+  genuiSave: '保存',
+  genuiReset: '重置',
+  genuiReload: '重新加载',
+  genuiUseSaved: '使用已保存的',
+  genuiKeepMine: '保留我的',
   alwaysAllow: '始终允许',
   alwaysToolScope: (tool: string) =>
     `选择“始终允许”后，此 Bot 在当前授权范围使用 ${tool} 不再询问，换参数也一样。终端命令可能访问当前目录之外。`,
@@ -4053,8 +4112,13 @@ const zh: typeof en = {
   openSettings: '打开手机设置',
   notifyAbout: '通知我',
   notificationPreferencePending: '已保存在此手机。部分远程恢复连接后会同步。',
-  allowNotifications: '允许通知',
   allowNotificationsOff: '这台手机不会收到这台电脑的任何通知。重新打开后，下面的选择会恢复。',
+  deliveryTitle: '送达方式',
+  deliveryPush: '推送',
+  deliveryInApp: '仅 App 内',
+  deliveryOff: '关闭',
+  deliveryPushHint: 'App 关着也会推送到这台手机。App 打开时改用 App 内横幅。',
+  deliveryInAppHint: '不推送到这台手机，只在打开 App 时显示横幅，角标照常更新。',
   channelNotifications: {
     quietHere: '这台手机免打扰',
     quietHereFootnote:
@@ -4793,6 +4857,12 @@ interfacePreferences.subscribe(() => {
   locale = interfacePreferences.getSnapshot().locale;
   t = locale === 'zh' ? zh : en;
 });
+
+export function dateLocale(): string {
+  const device = new Intl.DateTimeFormat().resolvedOptions().locale;
+  if (device.toLowerCase().startsWith(locale)) return device;
+  return locale === 'zh' ? 'zh-CN' : 'en';
+}
 
 export function useStrings(): typeof en {
   const state = useSyncExternalStore(

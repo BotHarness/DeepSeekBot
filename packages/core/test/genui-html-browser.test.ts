@@ -2,14 +2,28 @@ import { createRequire } from 'node:module';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { createServer } from 'node:http';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { buildGenuiHtmlDocument } from '../src/channels/genui-html.js';
-import { genuiPreviewPage, previewGenuiDocument } from '../src/runtime/genui-preview.js';
+import { previewGenuiDocument } from '../src/runtime/genui-preview.js';
+import { loadGenuiRuntimeSource } from '../src/runtime/genui-runtime-source.js';
 import { syntheticGenuiDocument } from './fixtures/genui-document.js';
+import { initialGenuiDocumentState } from '../src/channels/genui-document.js';
 import { syntheticGenuiDiagrams } from './fixtures/genui-diagrams.js';
 import { compileGenuiDiagram } from '../src/runtime/genui-diagram.js';
 
 const enabled = process.env['BH_GENUI_BROWSER_QA'] === '1';
+
+vi.mock('../src/runtime/genui-runtime-source.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/runtime/genui-runtime-source.js')>();
+  return {
+    ...actual,
+    loadGenuiRuntimeSource: () =>
+      actual.loadGenuiRuntimeSource(
+        new URL('../dist/genui-runtime.js', import.meta.url),
+        new URL('../dist/genui-runtime.json', import.meta.url),
+      ),
+  };
+});
 
 describe.skipIf(!enabled)('real Chromium isolated HTML documents', () => {
   let browser: {
@@ -50,26 +64,22 @@ describe.skipIf(!enabled)('real Chromium isolated HTML documents', () => {
     );
   });
 
-  async function load(html = syntheticGenuiDocument.html) {
+  async function load(html = syntheticGenuiDocument.html, allowRefusal = false) {
     requests = [];
     const compiled = buildGenuiHtmlDocument(
       { ...syntheticGenuiDocument, html },
-      { instanceId: 'browser-test', theme: 'dark' },
+      { instanceId: 'browser-test', theme: 'dark', runtime: await loadGenuiRuntimeSource() },
     );
-    await page.setContent(genuiPreviewPage(compiled.html, 'browser-test', 'dark'));
-    await page.waitForFunction('window.__genuiPreview?.ready === true', { timeout: 5000 });
-    const frame = page
-      .frames()
-      .find(
-        (candidate) => candidate.parentFrame()?.parentFrame()?.parentFrame() === page.mainFrame(),
-      );
-    const inner =
-      frame ??
-      page
-        .frames()
-        .find((candidate) => candidate.parentFrame()?.parentFrame() === page.mainFrame());
-    if (!inner) throw new Error('Generated document frame unavailable');
-    return inner;
+    await page.setContent(compiled.html);
+    await page.waitForFunction(
+      allowRefusal
+        ? 'window.__genuiPreview?.ready === true || window.__genuiPreview?.failed === true'
+        : 'window.__genuiPreview?.ready === true',
+      { timeout: 10_000 },
+    );
+    const frame = page.frames().find((candidate) => candidate.parentFrame() === page.mainFrame());
+    if (!frame && !allowRefusal) throw new Error('Script-disabled mirror frame unavailable');
+    return frame!;
   }
 
   it('renders inline scripts, all content forms and locally changes the visible result', async () => {
@@ -81,11 +91,47 @@ describe.skipIf(!enabled)('real Chromium isolated HTML documents', () => {
       ),
     ).toHaveLength(9);
     await frame.type('#filter', 'Alpha');
+    await page.waitForFunction(
+      () =>
+        document.querySelector('iframe')?.contentDocument?.querySelectorAll('#rows tr').length ===
+        1,
+      { timeout: 5000 },
+    );
     expect(
       await frame.$$eval('#rows tr', (elements) => elements.map((element) => element.textContent)),
     ).toHaveLength(1);
     expect(await frame.$eval('#rows tr', (element) => element.textContent)).toContain('Alpha');
     expect(requests).toEqual([]);
+  });
+
+  it('keeps native typed filters connected after repeated scene snapshots', async () => {
+    const frame = await load();
+    for (const scene of [
+      'metrics',
+      'comparison',
+      'table',
+      'bar',
+      'line',
+      'donut',
+      'flow',
+      'relations',
+      'timeline',
+      'table',
+    ]) {
+      await frame.select('#scene', scene);
+      await page.waitForFunction(
+        `document.querySelector('iframe').contentDocument.querySelector('[data-scene="${scene}"]').hidden === false`,
+        { timeout: 5000 },
+      );
+    }
+    await frame.type('#filter', 'Beta', { delay: 60 });
+    await page.waitForFunction(
+      'document.querySelector("iframe").contentDocument.querySelectorAll("#rows tr").length === 1',
+      {
+        timeout: 5000,
+      },
+    );
+    expect(await frame.$eval('#rows tr', (element) => element.textContent)).toContain('Beta');
   });
 
   it.each(syntheticGenuiDiagrams)(
@@ -129,24 +175,17 @@ describe.skipIf(!enabled)('real Chromium isolated HTML documents', () => {
     },
   );
 
-  it('denies parent DOM and origin-scoped cookie/storage access', async () => {
-    const frame = await load('<p>Synthetic opaque-origin fixture</p>');
-    const denied = await frame.$eval('body', () => {
-      let count = 0;
-      for (const read of [
-        () => parent.document.body.textContent,
-        () => document.cookie,
-        () => localStorage.getItem('synthetic'),
-      ]) {
-        try {
-          read();
-        } catch {
-          count += 1;
-        }
-      }
-      return count;
-    });
-    expect(denied).toBe(3);
+  it('keeps browser globals and credentials absent inside generated guest execution', async () => {
+    const frame = await load(`<p id="result"></p><script>
+      const results = [typeof parent, typeof localStorage, typeof indexedDB, typeof fetch, typeof WebSocket, typeof document.cookie];
+      document.querySelector('#result').textContent = JSON.stringify(results);
+    </script>`);
+    expect(await frame.$eval('#result', (element) => element.textContent)).toBe(
+      JSON.stringify(Array(6).fill('undefined')),
+    );
+    expect(await page.$eval('iframe', (element) => element.getAttribute('sandbox'))).toBe(
+      'allow-same-origin allow-scripts',
+    );
   });
 
   it.each(['fetch', 'image', 'style', 'frame', 'form', 'navigation', 'refresh', 'popup'])(
@@ -163,7 +202,7 @@ describe.skipIf(!enabled)('real Chromium isolated HTML documents', () => {
         refresh: `<meta http-equiv="refresh" content="0;url=${destination}">`,
         popup: `<script>window.open(${JSON.stringify(destination)})</script>`,
       };
-      await load(`<p>Synthetic ${kind} restriction</p>${snippets[kind]}`);
+      await load(`<p>Synthetic ${kind} restriction</p>${snippets[kind]}`, true);
       await new Promise((resolve) => setTimeout(resolve, 200));
       expect(requests).toEqual([]);
       expect((await browser.pages()).length).toBe(2);
@@ -171,14 +210,11 @@ describe.skipIf(!enabled)('real Chromium isolated HTML documents', () => {
   );
 
   it('detects asynchronous overflow without a root border-box resize', async () => {
-    const inner = await load(
-      '<div style="height:100px;position:relative"><div id="overflow" style="position:absolute;height:100px">Overflow probe</div></div>',
-    );
-    await inner.$eval('#overflow', (element) =>
-      element.setAttribute('style', 'position:absolute;height:25001px'),
+    await load(
+      '<div style="height:100px;position:relative"><div id="overflow" style="position:absolute;height:100px">Overflow probe</div></div><script>setTimeout(()=>document.querySelector("#overflow").setAttribute("style","position:absolute;height:25001px"),300)</script>',
     );
     await page.waitForFunction(
-      'window.__genuiPreview.diagnostics.includes("The document exceeds the height limit.")',
+      'window.__genuiPreview.failed === true && window.__genuiPreview.diagnostics.some(message => message.includes("resource"))',
       { timeout: 5000 },
     );
   });
@@ -188,26 +224,123 @@ describe.skipIf(!enabled)('real Chromium isolated HTML documents', () => {
     const compiled = buildGenuiHtmlDocument(syntheticGenuiDocument, {
       instanceId: 'test',
       theme: 'dark',
+      runtime: await loadGenuiRuntimeSource(),
     });
     expect(result.documentId).toBe(compiled.documentId);
     expect(result.policyVersion).toBe(compiled.policyVersion);
+    expect(result.runtimeSha256).toBe(compiled.runtimeSha256);
     expect(result.height).toBeGreaterThan(200);
     expect(Buffer.from(result.screenshot.data, 'base64').subarray(1, 4).toString()).toBe('PNG');
     expect(result.diagnostics).toEqual([]);
   }, 25_000);
+
+  it('measures the minimum-height mirror without waiting for a later resize', async () => {
+    const result = await previewGenuiDocument({
+      ...syntheticGenuiDocument,
+      html: '<span>Small</span>',
+    });
+    expect(result.height).toBe(48);
+    expect(result.diagnostics).toEqual([]);
+  }, 25_000);
+
+  it('refuses runaway guest execution while leaving the trusted page usable', async () => {
+    await load('<p>Runaway</p><script>while(true){}</script>', true);
+    await page.waitForFunction('window.__genuiPreview.failed === true', { timeout: 5000 });
+    expect(await page.$eval('#genui-document', (element) => element.childElementCount)).toBe(0);
+    expect(requests).toEqual([]);
+    const frame = await load('<p id="recovered">Recovered</p>');
+    expect(await frame.$eval('#recovered', (element) => element.textContent)).toBe('Recovered');
+  });
+
+  it('shares bounded execution across visible reports and fails siblings explicitly on a hard stop', async () => {
+    const compiled = buildGenuiHtmlDocument(syntheticGenuiDocument, {
+      instanceId: 'browser-test',
+      theme: 'dark',
+      runtime: await loadGenuiRuntimeSource(),
+    });
+    const config = JSON.stringify({
+      document: syntheticGenuiDocument,
+      state: initialGenuiDocumentState(syntheticGenuiDocument),
+      theme: 'dark',
+      generation: 1,
+    }).replaceAll('<', '\\u003c');
+    const script = `
+      const qa = { handles: [], failures: [], ready: [] };
+      window.__genuiMulti = qa;
+      const mount = (name, html) => {
+        const container = document.createElement('div');
+        container.id = name;
+        document.body.append(container);
+        const options = ${config};
+        if (html !== undefined) options.document.html = html;
+        const surface = __BotHarnessGenuiRuntime.mountGenuiDocument(container, {
+          ...options, instanceId: name,
+          onState: () => {}, onHeight: () => {},
+          onFailure: (reason) => qa.failures.push({ name, reason }),
+        });
+        qa.handles.push(surface);
+        surface.ready.then(() => qa.ready.push(name), () => {});
+        return surface;
+      };
+      mount('report-second');
+      mount('report-third');
+      mount('report-fourth');
+      window.__genuiMultiNext = () => mount('report-overflow');
+      window.__genuiMultiFail = () => {
+        qa.handles[0].dispose();
+        mount('report-runaway', '<p>Runaway</p><script>for(;;){}</' + 'script>');
+      };
+    `;
+    await page.setContent(
+      compiled.html.replace('</body>', `<script nonce="browser-test">${script}</script></body>`),
+    );
+    await page.waitForFunction(
+      'window.__genuiPreview.ready && window.__genuiMulti.ready.length === 3',
+      { timeout: 10_000 },
+    );
+    expect(await page.$eval('body', (element) => element.querySelectorAll('iframe').length)).toBe(
+      4,
+    );
+    await page.$eval('body', () => Reflect.get(window, '__genuiMultiNext')());
+    await page.waitForFunction(
+      'window.__genuiMulti.failures.some(entry => entry.name === "report-overflow" && entry.reason === "resource")',
+      { timeout: 5000 },
+    );
+    expect(await page.$eval('body', (element) => element.querySelectorAll('iframe').length)).toBe(
+      4,
+    );
+    await page.$eval('body', () => Reflect.get(window, '__genuiMultiFail')());
+    await page.waitForFunction(
+      'window.__genuiPreview.failed && ["report-third", "report-fourth", "report-runaway"].every(name => window.__genuiMulti.failures.some(entry => entry.name === name))',
+      { timeout: 5000 },
+    );
+    expect(await page.$eval('body', (element) => element.querySelectorAll('iframe').length)).toBe(
+      0,
+    );
+    const recovered = await load('<p id="recovered">Recovered after shared failure</p>');
+    expect(await recovered.$eval('#recovered', (element) => element.textContent)).toBe(
+      'Recovered after shared failure',
+    );
+  });
 });
 
 interface VerificationFrame {
   parentFrame(): VerificationFrame | null;
   waitForSelector(selector: string): Promise<unknown>;
-  type(selector: string, value: string): Promise<void>;
+  type(selector: string, value: string, options?: { delay: number }): Promise<void>;
+  select(selector: string, value: string): Promise<unknown>;
+  waitForFunction(expression: string, options: { timeout: number }): Promise<unknown>;
   $$eval<Result>(selector: string, callback: (elements: Element[]) => Result): Promise<Result>;
   $eval<Result>(selector: string, callback: (element: Element) => Result): Promise<Result>;
 }
 
 interface VerificationPage {
   setContent(html: string): Promise<void>;
-  waitForFunction(expression: string, options: { timeout: number }): Promise<unknown>;
+  waitForFunction(
+    expression: string | (() => boolean),
+    options: { timeout: number },
+  ): Promise<unknown>;
+  $eval<Result>(selector: string, callback: (element: Element) => Result): Promise<Result>;
   frames(): VerificationFrame[];
   mainFrame(): VerificationFrame;
   on(event: 'console', callback: (message: { text(): string }) => void): void;

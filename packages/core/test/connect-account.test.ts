@@ -4,6 +4,7 @@ import { credentialKey } from '@deepseek-ai/dsh-credentials';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createConnectAccount } from '../src/devices/connect-account.js';
+import { CONNECT_ZONES } from '../src/devices/connect-zones.js';
 import type { ConnectStatus, DeviceConnect } from '../src/devices/connect.js';
 import { runConnectCommand } from '../src/bots/cli-connect.js';
 
@@ -830,7 +831,7 @@ describe('Connect account sign-in', () => {
     });
     expect(services.calls.find((call) => call.path.endsWith('/tunnel'))?.body).toEqual({
       originPort: 41001,
-      zones: ['deepseekbot.dev'],
+      zones: CONNECT_ZONES,
     });
     await account.close();
   });
@@ -907,8 +908,8 @@ describe('Connect account sign-in', () => {
     expect(
       services.calls.filter((call) => call.path.endsWith('/tunnel')).map((call) => call.body),
     ).toEqual([
-      { originPort: 41001, zones: ['deepseekbot.dev'] },
-      { originPort: 52000, zones: ['deepseekbot.dev'] },
+      { originPort: 41001, zones: CONNECT_ZONES },
+      { originPort: 52000, zones: CONNECT_ZONES },
     ]);
     await account.close();
   });

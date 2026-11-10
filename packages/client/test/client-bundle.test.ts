@@ -98,6 +98,7 @@ beforeAll(async () => {
   await build({ ...clientBundleOptions, config: false, outDir: tempDir });
   bundleCode = readFileSync(join(tempDir, 'client.js'), 'utf8');
   const sandbox = {
+    crypto: browserDom.window.crypto,
     document: browserDom.window.document,
     MutationObserver: browserDom.window.MutationObserver,
     ResizeObserver: class {

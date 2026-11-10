@@ -13,6 +13,8 @@ export const space = {
 
 export const groupUnavailable = { icon: 48 } as const;
 
+export const genuiFrame = { maxHeight: 560 } as const;
+
 export const materialSearch = { height: 56, lineHeight: 24 } as const;
 
 export const splitButton = { initial: { width: 160, height: 40 } } as const;
@@ -292,6 +294,8 @@ export const decelerate: Record<PlatformOS, readonly [number, number, number, nu
 
 export const popScale = { bubble: 0.92, badge: 0.9 } as const;
 
+export const sendFly = { duration: 360 } as const;
+
 export const pullToCompose = { threshold: 40, flick: 0.3 } as const;
 
 export const doubleTap = { window: 300, emoji: '👍' } as const;
@@ -324,6 +328,37 @@ export const swipeReply = {
   icon: 28,
   bar: 3,
 } as const;
+
+export const replyQuote = { tint: 0.13 } as const;
+
+export const replyThumb = { size: 32 } as const;
+
+export const mediaBubble = {
+  maxWidth: 280,
+  widthRatio: 0.72,
+  gap: 0,
+  scrim: '#00000073',
+  more: '#0000008c',
+  ink: '#ffffff',
+} as const;
+
+export const fileTile = {
+  size: 40,
+  radius: 10,
+  ink: '#ffffff',
+  fill: {
+    pdf: '#d93d42',
+    sheet: '#24804a',
+    doc: '#3358d4',
+    slides: '#c4510d',
+    archive: '#7d45b8',
+    media: '#c2368f',
+    code: '#0b68b5',
+    other: '#62616b',
+  },
+} as const;
+
+export const voiceRow = { play: 36, wave: 24, bar: 3, unplayed: 0.3 } as const;
 
 export const topEntrance = {
   edge: 20,

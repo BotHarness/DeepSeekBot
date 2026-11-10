@@ -73,11 +73,11 @@ export function pickVictim(
 export function pickZone(
   zones: readonly string[],
   used: ReadonlyMap<string, number>,
-  capacity: number,
+  capacity: number | ((zone: string) => number),
 ): string | undefined {
   let best: { zone: string; free: number } | undefined;
   for (const zone of zones) {
-    const free = capacity - (used.get(zone) ?? 0);
+    const free = (typeof capacity === 'number' ? capacity : capacity(zone)) - (used.get(zone) ?? 0);
     if (free > 0 && (best === undefined || free > best.free)) best = { zone, free };
   }
   return best?.zone;

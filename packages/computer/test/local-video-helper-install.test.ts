@@ -2,15 +2,32 @@ import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { ReadStream } from 'node:fs';
 import {
   LOCAL_VIDEO_ARCHIVE_SHA256,
   LOCAL_VIDEO_LAUNCHER,
   verifyLocalVideoHelper,
 } from '../src/media/install.js';
 
+const streams = vi.hoisted(() => ({
+  opened: (_path: string, _stream: ReadStream) => undefined as void,
+}));
+vi.mock('node:fs', async (original) => {
+  const fs = await original<typeof import('node:fs')>();
+  return {
+    ...fs,
+    createReadStream: (...args: Parameters<typeof fs.createReadStream>) => {
+      const stream = fs.createReadStream(...args);
+      streams.opened(String(args[0]), stream);
+      return stream;
+    },
+  };
+});
+
 const directories: string[] = [];
 afterEach(async () => {
+  streams.opened = () => undefined;
   for (const directory of directories.splice(0))
     await rm(directory, { recursive: true, force: true });
 });
@@ -34,6 +51,24 @@ async function installed() {
 }
 
 describe('Local Computer video runtime verification', () => {
+  it('closes the active hash stream on cancellation and can verify again immediately', async () => {
+    const directory = await installed();
+    const abort = new AbortController();
+    let active: ReadStream | undefined;
+    let closed = Promise.resolve();
+    streams.opened = (path, stream) => {
+      if (!path.endsWith('electron.exe')) return;
+      active = stream;
+      closed = new Promise<void>((resolve) => stream.once('close', resolve));
+      stream.once('data', () => abort.abort());
+    };
+    await expect(verifyLocalVideoHelper(directory, undefined, abort.signal)).rejects.toThrow();
+    await closed;
+    expect(active?.destroyed).toBe(true);
+    streams.opened = () => undefined;
+    expect(await verifyLocalVideoHelper(directory)).toBe(true);
+  });
+
   it('accepts a complete verified installation and detects executable corruption', async () => {
     const directory = await installed();
     expect(await verifyLocalVideoHelper(directory)).toBe(true);

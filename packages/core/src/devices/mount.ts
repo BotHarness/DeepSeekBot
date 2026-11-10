@@ -66,6 +66,7 @@ const PUSH_SWEEP_MS = 60_000;
 export interface DevicePushOptions {
   source: PushSource;
   watch(changed: () => void): () => void;
+  held?: () => boolean;
   sender?: ExpoSender;
 }
 
@@ -316,6 +317,7 @@ export function mountDevicePairing(
       host: () => pairing.host(),
       deviceActive: (deviceId) =>
         pairing.list().some((device) => device.id === deviceId && device.revokedAt === undefined),
+      ...(watched.held === undefined ? {} : { held: watched.held }),
       record: (event) => write('push', event.phase, `push ${pushDetail(event)}`),
     });
     push = delivery;

@@ -34,6 +34,7 @@ const ROW_ICONS = {
   copy: { ios: 'doc.on.doc', android: 'content_copy' },
   testRoute: { ios: 'antenna.radiowaves.left.and.right', android: 'network_check' },
   share: { ios: 'square.and.arrow.up', android: 'share' },
+  download: { ios: 'square.and.arrow.down', android: 'download' },
   account: { ios: 'person.crop.circle', android: 'account_circle' },
   qr: { ios: 'qrcode.viewfinder', android: 'qr_code_scanner' },
   lan: { ios: 'wifi', android: 'wifi' },

@@ -42,6 +42,7 @@ final class LatestAnchorView: ExpoView {
   private var link: CADisplayLink?
   private var velocity: CGFloat = 0
   private var stamp: CFTimeInterval = 0
+  private var prior: CGFloat = 0
 
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
@@ -69,12 +70,17 @@ final class LatestAnchorView: ExpoView {
     while let current = node, !(current is UIScrollView) { node = current.superview }
     guard let scroll = node as? UIScrollView else { return }
     scroller = scroll
-    observation = scroll.observe(\.contentSize, options: [.old, .new]) { [weak self] scroll, change in
+    observation = scroll.observe(\.contentSize, options: [.prior, .old, .new]) {
+      [weak self] scroll, change in
+      if change.isPrior {
+        self?.prior = scroll.contentOffset.y
+        return
+      }
       guard let old = change.oldValue, let new = change.newValue else { return }
       if new.height > old.height {
         self?.grew(scroll, from: old.height)
       } else if new.height < old.height {
-        self?.stop()
+        self?.shrank(scroll, by: old.height - new.height)
       }
     }
   }
@@ -82,6 +88,17 @@ final class LatestAnchorView: ExpoView {
   func grew(_ scroll: UIScrollView, from height: CGFloat) {
     guard height > 0 else { return }
     catchUp(scroll)
+  }
+
+  func shrank(_ scroll: UIScrollView, by delta: CGFloat) {
+    guard following, !scroll.isTracking, !scroll.isDecelerating else {
+      stop()
+      return
+    }
+    let target = latestOffset(
+      content: scroll.contentSize.height, viewport: scroll.bounds.height,
+      inset: scroll.adjustedContentInset)
+    scroll.contentOffset.y = max(-scroll.adjustedContentInset.top, min(prior - delta, target))
   }
 
   func catchUp(_ scroll: UIScrollView) {

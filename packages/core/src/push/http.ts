@@ -49,9 +49,20 @@ export function createDevicePushHttp(
           return { status: 400, body: { code: 'invalid-input' } };
         if (body['enabled'] !== undefined && typeof body['enabled'] !== 'boolean')
           return { status: 400, body: { code: 'invalid-input' } };
+        if (
+          body['delivery'] !== undefined &&
+          body['delivery'] !== 'push' &&
+          body['delivery'] !== 'in-app'
+        )
+          return { status: 400, body: { code: 'invalid-input' } };
         if (preferences === undefined && !delivery.settings(deviceId).registered)
           return { status: 409, body: { code: 'push-not-registered' } };
-        const settings = delivery.setPreferences(deviceId, body['preferences'], body['enabled']);
+        const settings = delivery.setPreferences(
+          deviceId,
+          body['preferences'],
+          body['enabled'],
+          body['delivery'],
+        );
         return { status: 200, body: settings };
       }
       case `${DEVICE_PUSH_PATH}/quiet`: {

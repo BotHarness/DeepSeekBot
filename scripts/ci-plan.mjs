@@ -39,6 +39,11 @@ export const RULES = [
   full('*/*/tsconfig.json', 'Package TypeScript configs'),
   full('tsdown*.config.ts', 'Bundle configs'),
   full('scripts/stylex-plugin.mjs', 'StyleX transform used by every test'),
+  full('scripts/genui-runtime-assets.mjs', 'Pinned GenUI browser runtime build'),
+  full(
+    'packages/core/src/channels/genui-*.ts',
+    'GenUI runtime sources are bundled into the preview runtime and the generated mobile runtime module',
+  ),
   full(WORKFLOW, 'The verify workflow itself'),
   full('.github/workflows/npm-release.yml', 'Release verification and package gates'),
   full('scripts/published-product-provider.json', 'Published Provider reuse qualification'),

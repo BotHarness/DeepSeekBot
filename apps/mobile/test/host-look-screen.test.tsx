@@ -67,7 +67,7 @@ it('loads only the selected account computer and saves into its local look recor
   expect(node.textContent).toBe('Studio');
   const next = { name: 'My studio', icon: { kind: 'emoji' as const, emoji: '🏠' } };
   await act(async () => state.actions!.onSave(next));
-  expect(state.update).toHaveBeenCalledWith(accountHostLookId(host.hostname), expect.any(Function));
+  expect(state.update).toHaveBeenCalledWith(accountHostLookId(host.id), expect.any(Function));
   expect(state.update.mock.calls[0]![1]()).toEqual(next);
   expect(state.hosts).toHaveBeenCalledTimes(2);
 });

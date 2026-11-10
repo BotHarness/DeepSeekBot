@@ -13,7 +13,7 @@ vi.mock('../src/ui/primitives/resource-image', () => ({
 
 import type { MessageAttachment } from '../src/host/conversation';
 import { ChatOffline } from '../src/ui/chat/chat-offline';
-import { MessageAttachments } from '../src/ui/chat/message-attachments';
+import { MessageAlbum } from '../src/ui/chat/message-attachments';
 import { t } from '../src/ui/strings';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -44,12 +44,7 @@ const image = {
 async function brokenImage(offline: boolean) {
   const view = await render(
     <ChatOffline value={offline}>
-      <MessageAttachments
-        attachments={[image]}
-        human={false}
-        onOpenImage={() => undefined}
-        onShare={async () => undefined}
-      />
+      <MessageAlbum images={[image]} human={false} width={200} onOpenImage={() => undefined} />
     </ChatOffline>,
   );
   await act(async () =>
@@ -73,17 +68,17 @@ describe('image attachments while offline', () => {
   it('labels an image with no source the way it reads, even offline', async () => {
     const view = await render(
       <ChatOffline value>
-        <MessageAttachments
-          attachments={[{ ...image, source: undefined } as unknown as MessageAttachment]}
+        <MessageAlbum
+          images={[{ ...image, source: undefined } as unknown as MessageAttachment]}
           human={false}
+          width={200}
           onOpenImage={() => undefined}
-          onShare={async () => undefined}
         />
       </ChatOffline>,
     );
     expect(view.textContent).toContain(t.attachmentElsewhere);
-    expect(view.querySelector('[aria-label]')?.getAttribute('aria-label')).toBe(
-      `photo.png, ${t.attachmentElsewhere}`,
-    );
+    expect(
+      [...view.querySelectorAll('[aria-label]')].map((node) => node.getAttribute('aria-label')),
+    ).toContain(`photo.png, ${t.attachmentElsewhere}`);
   });
 });

@@ -24,6 +24,7 @@ import { fileSize } from './market-files.js';
 import { watchShareDraft } from './share-flow.js';
 import { MarketplaceSubmitField, marketplaceError, useMarketplaceSubmit } from './marketplace.js';
 import { startConnectSignIn } from './connect-sign-in.js';
+import { ConnectSignInBlock } from './connect-sign-in-block.js';
 import { useMountedResource } from './mounted-resource.js';
 import { store, type BotSummary } from './store.js';
 
@@ -59,20 +60,6 @@ type AccountState =
 const styles = stylex.create({
   body: { display: 'flex', flexDirection: 'column', gap: space.x5, minWidth: 0 },
   choices: { display: 'flex', flexDirection: 'column', gap: space.x3, minWidth: 0 },
-  code: {
-    alignSelf: 'center',
-    paddingBlock: space.x3,
-    paddingInline: space.x5,
-    borderRadius: radius.sm,
-    backgroundColor: color.surface,
-    color: color.fg,
-    fontFamily: 'var(--dsw-font-mono, ui-monospace, monospace)',
-    fontSize: text.titleSize,
-    lineHeight: text.titleLine,
-    fontWeight: text.strong,
-    letterSpacing: '0.12em',
-    userSelect: 'all',
-  },
   summary: {
     display: 'flex',
     alignItems: 'center',
@@ -496,40 +483,25 @@ export function MarketUploadDialog({
           </Button>
         );
       } else if (!account.account.signedIn) {
-        content =
-          signIn === undefined ? (
-            <Note>{t('market.direct.signInHint')}</Note>
-          ) : (
-            <>
-              <Note>{t('devices.connect.confirm')}</Note>
-              <code {...stylex.props(styles.code)} data-market-sign-in="">
-                {signIn.userCode}
-              </code>
-              <span ref={poll} hidden />
-            </>
-          );
-        primary =
-          signIn === undefined ? (
-            <Button
-              variant="primary"
-              disabled={busy}
-              onClick={() =>
-                void run(async () => {
-                  const started = await startConnectSignIn();
-                  if (mounted.current) setSignIn(started);
-                })
-              }
-            >
-              {t('market.direct.signIn')}
-            </Button>
-          ) : (
-            <Button
-              variant="primary"
-              onClick={() => window.open(signIn.verificationUri, '_blank', 'noopener')}
-            >
-              {t('devices.connect.openPage')}
-            </Button>
-          );
+        content = (
+          <ConnectSignInBlock
+            t={t}
+            code={signIn}
+            title={t('accountProfile.signInTitle')}
+            body={t('market.direct.signInHint')}
+            signInLabel={t('market.direct.signIn')}
+            busy={busy}
+            onSignIn={() =>
+              void run(async () => {
+                const started = await startConnectSignIn();
+                if (mounted.current) setSignIn(started);
+              })
+            }
+            codeMarker="data-market-sign-in"
+          >
+            {signIn === undefined ? null : <span ref={poll} hidden />}
+          </ConnectSignInBlock>
+        );
       } else {
         content = (
           <FieldStack>

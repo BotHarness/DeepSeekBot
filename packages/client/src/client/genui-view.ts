@@ -5,6 +5,7 @@ import {
   type GenuiReply,
   type GenuiViewState,
 } from '../../../core/src/channels/genui.js';
+import type { PurgedPlacement } from '../../../core/src/purge/contracts.js';
 
 type ViewStatus =
   | 'loading'
@@ -32,6 +33,21 @@ interface SubmissionAttempt {
   sent: boolean;
 }
 const retainedViews = new WeakMap<ViewActions, Map<string, GenuiPrivateView>>();
+
+export function purgeGenuiPrivateViews(
+  actions: ViewActions,
+  placements: readonly PurgedPlacement[],
+): void {
+  const cache = retainedViews.get(actions);
+  if (!cache) return;
+  for (const [key, view] of cache)
+    if (
+      placements.some((placement) => view.matchesMessage(placement.channelId, placement.messageId))
+    ) {
+      cache.delete(key);
+      view.revoke();
+    }
+}
 
 export function getGenuiPrivateView(
   report: GenuiReport,
@@ -92,6 +108,8 @@ export class PrivateViewController<State> {
   }
 
   getSnapshot = () => this.snapshot;
+  matchesMessage = (channelId: string, messageId: string) =>
+    this.channelId === channelId && this.messageId === messageId;
   isActive = () => this.listeners.size > 0;
   disposable = () =>
     !this.isActive() &&
@@ -224,13 +242,17 @@ export class PrivateViewController<State> {
   accessLost = (error: unknown) => {
     if (!(error instanceof Error) || !('code' in error) || error.code !== 'genui-unavailable')
       return false;
+    this.revoke();
+    return true;
+  };
+
+  revoke = () => {
     this.generation++;
     this.pending = false;
     this.changed = this.saved = 0;
     this.attempts.continue = this.attempts.refresh = undefined;
     this.snapshot = { ...this.snapshot, sendStatus: 'idle', available: false };
     this.update('load-error', this.initial());
-    return true;
   };
 }
 

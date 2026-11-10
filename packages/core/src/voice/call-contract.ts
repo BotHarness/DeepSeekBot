@@ -412,3 +412,27 @@ export type VoiceCallZoomView =
       readonly bytes: number;
       readonly jpeg: string;
     };
+const MEDIA_ERROR = Symbol.for('botharness.voice-call-media-error');
+
+export class VoiceCallMediaError extends Error {
+  readonly [MEDIA_ERROR] = true;
+  constructor(
+    readonly code: 'unsupported-platform' | 'helper-missing' | 'helper-failed' | 'busy',
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+export function isVoiceCallMediaError(error: unknown): error is VoiceCallMediaError {
+  return (
+    error instanceof Error &&
+    MEDIA_ERROR in error &&
+    error[MEDIA_ERROR] === true &&
+    'code' in error &&
+    (error.code === 'unsupported-platform' ||
+      error.code === 'helper-missing' ||
+      error.code === 'helper-failed' ||
+      error.code === 'busy')
+  );
+}

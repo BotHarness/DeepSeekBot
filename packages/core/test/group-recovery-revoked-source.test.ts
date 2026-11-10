@@ -9,6 +9,10 @@ async function interruptedGroup(input: { revoked: boolean; sideEffect: boolean; 
   const runs: string[] = [];
   const steered: string[] = [];
   const sendErrors: unknown[] = [];
+  let started!: () => void;
+  const runStarted = new Promise<void>((resolve) => {
+    started = resolve;
+  });
   let release!: () => void;
   const gate = new Promise<void>((resolve) => {
     release = resolve;
@@ -16,6 +20,7 @@ async function interruptedGroup(input: { revoked: boolean; sideEffect: boolean; 
   const agents: BotAgentAdapter = {
     async runOrchestrator(run) {
       runs.push(run.message);
+      started();
       await gate;
       try {
         await run.channels.send({ channelId: 'dm-aura', body: 'The original task has stopped.' });
@@ -63,7 +68,8 @@ async function interruptedGroup(input: { revoked: boolean; sideEffect: boolean; 
     await core.runtime.close();
     core.operationalDatabase.close();
     core = createCore({ dshHome: home, agents, triageContinuation: true });
-    await new Promise((resolve) => setImmediate(resolve));
+    if (input.revoked) await new Promise((resolve) => setImmediate(resolve));
+    else await runStarted;
     const restoredBeforeDm = runs.length;
     await core.channels.appendMessage('dm-aura', {
       id: 'new-dm-status',

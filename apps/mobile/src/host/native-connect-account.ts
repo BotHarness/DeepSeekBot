@@ -6,6 +6,8 @@ import * as WebBrowser from 'expo-web-browser';
 import { fetch } from 'expo/fetch';
 import { router } from 'expo-router';
 
+import { AppState } from 'react-native';
+import { isConnectRoute } from './route';
 import { MOBILE_REDIRECT_URI } from '../cloud/instance-contract';
 import { hostSession } from './host-session';
 import { authorizeWithLateRedirect, createConnectAccount } from './connect-account';
@@ -20,6 +22,7 @@ const devRelay = __DEV__ ? process.env.EXPO_PUBLIC_CONNECT_RELAY : undefined;
 export const connectAccount = createConnectAccount({
   ...(devRelay ? { relay: devRelay } : {}),
   removeConnections: (owner) => hostSession.removeAccount(owner),
+  listedHosts: (hosts) => hostSession.followConnectHosts(hosts),
   redirectUri: Application.applicationId
     ? `${Application.applicationId}:/oauth2redirect`
     : MOBILE_REDIRECT_URI,
@@ -63,4 +66,15 @@ export const connectAccount = createConnectAccount({
     },
     collectEmailCode: (flow) => startEmailCodeSignIn(flow, () => router.push('/sign-in')),
   },
+});
+
+AppState.addEventListener('change', (next) => {
+  if (next !== 'active') return;
+  if (
+    !hostSession
+      .getState()
+      .hosts.some((host) => host.accountOwner && host.routes.some(isConnectRoute))
+  )
+    return;
+  void connectAccount.hosts();
 });

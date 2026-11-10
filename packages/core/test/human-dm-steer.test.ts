@@ -1,13 +1,109 @@
 import { describe, expect, it } from 'vitest';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 
 import { attachOperationalModule } from '../src/database/owner.js';
 import { createCore } from '../src/plugin.js';
 import type { BotAgentAdapter } from '../src/runtime/bot-runtime.js';
 import { createTempRoot } from './helpers.js';
+import { createBridgeMethods } from '../src/bridge/methods.js';
+import { initialGenuiDocumentState } from '../src/channels/genui-document.js';
+import { syntheticGenuiDocument } from './fixtures/genui-document.js';
 
 describe('Human DM steering', () => {
+  it.each([200, 2000])(
+    'projects durable GenUI reply context into pending DM steering within %i characters',
+    async (bodyLimit) => {
+      let markStarted = (): void => undefined;
+      let releaseTurn = (): void => undefined;
+      const started = new Promise<void>((resolve) => {
+        markStarted = resolve;
+      });
+      const released = new Promise<void>((resolve) => {
+        releaseTurn = resolve;
+      });
+      let allowSteer = false;
+      const steered: string[] = [];
+      const agents: BotAgentAdapter = {
+        async runOrchestrator() {
+          markStarted();
+          await released;
+        },
+        steerOrchestrator(_botSlug, text) {
+          if (!allowSteer) return false;
+          steered.push(text);
+          return true;
+        },
+        async runAssignment() {},
+        requestAssignment() {
+          throw new Error('No Assignment expected');
+        },
+        async close() {},
+      };
+      const core = createCore({ dshHome: createTempRoot('botharness-genui-dm-context-'), agents });
+      try {
+        core.registry.create({ slug: 'ada', displayName: 'Ada' });
+        core.registry.setPromptSettings('ada', { limits: { 'context-message-chars': bodyLimit } });
+        const dm = core.channels.getOrCreateDm('ada', 'Ada');
+        if (!dm) throw new Error('Missing DM');
+        await core.channels.appendMessage(dm.id, {
+          id: 'genui-report',
+          at: new Date().toISOString(),
+          author: { kind: 'bot', slug: 'ada' },
+          body: 'Synthetic report',
+          genui: syntheticGenuiDocument,
+        });
+        const methods = createBridgeMethods({ ...core });
+        expect(
+          await methods.channelSend({
+            channelId: dm.id,
+            messageId: `human-${randomUUID()}`,
+            body: 'Start the report',
+          }),
+        ).toMatchObject({ ok: true });
+        await started;
+        const queued = await methods.channelSend({
+          channelId: dm.id,
+          messageId: `human-${randomUUID()}`,
+          body: 'QUEUED-GENUI',
+          genuiReply: {
+            version: 2,
+            messageId: 'genui-report',
+            snapshotId: syntheticGenuiDocument.snapshotId,
+            intent: 'continue',
+            state: initialGenuiDocumentState(syntheticGenuiDocument),
+          },
+        });
+        if (!queued.ok) throw new Error(queued.error.message);
+        expect(queued.value.message.body).toBe('QUEUED-GENUI');
+        expect(queued.value.message.genuiReplyContext).toContain(
+          'Untrusted GenUI document context',
+        );
+        allowSteer = true;
+        expect(
+          await methods.channelSend({
+            channelId: dm.id,
+            messageId: `human-${randomUUID()}`,
+            body: 'STEER-NOW',
+          }),
+        ).toMatchObject({ ok: true });
+        expect(steered).toHaveLength(1);
+        const projected = `QUEUED-GENUI\n\n${queued.value.message.genuiReplyContext}`;
+        expect(steered[0]).toContain(projected.slice(0, bodyLimit));
+        if (projected.length > bodyLimit)
+          expect(steered[0]).toContain(
+            `[excerpt; ${projected.length - bodyLimit} more characters available with channel_read]`,
+          );
+        else expect(steered[0]).toContain('End untrusted GenUI document context.');
+        expect(core.channels.message(dm.id, queued.value.message.id)?.body).toBe('QUEUED-GENUI');
+      } finally {
+        releaseTurn();
+        await core.runtime.close();
+        core.operationalDatabase.close();
+      }
+    },
+  );
   it.each(['accepted', 'refused', 'throws'])(
     'grants private interaction to a scheduled turn only when Human steering is %s',
     async (outcome) => {

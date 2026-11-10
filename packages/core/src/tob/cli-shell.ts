@@ -29,7 +29,7 @@ interface Invocation {
 function shellQuote(value: string): string {
   return `'${value.replaceAll("'", "'\\''")}'`;
 }
-function cliModulePath(): string {
+export function cliModulePath(): string {
   const built = fileURLToPath(new URL('../cli/index.mjs', import.meta.url));
   if (existsSync(built)) return built;
   const source = fileURLToPath(new URL('../../cli/index.mjs', import.meta.url));

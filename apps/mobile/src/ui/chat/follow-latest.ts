@@ -13,11 +13,22 @@ export const SETTLE_FRAMES = 45;
 export const STABLE_FRAMES = 6;
 export const CHECK_BUDGET = SETTLE_FRAMES * 4;
 const KEYBOARD_SETTLE_MS = 1000;
+export const MOMENTUM_WAIT_MS = 120;
 
 export type ListMetrics = { content: number; layout: number; offset: number; inset?: number };
 
 export function atLatest(distance: number): boolean {
   return distance <= LATEST_SLOP;
+}
+
+export function shouldFly({
+  atLatest,
+  reducedMotion,
+}: {
+  atLatest: boolean;
+  reducedMotion: boolean;
+}): boolean {
+  return atLatest && !reducedMotion;
 }
 
 export function distanceFromLatest(metrics: ListMetrics, inverted = false): number {
@@ -88,6 +99,7 @@ export function useFollowLatest<Row>(
   const attempts = useRef(0);
   const checks = useRef(0);
   const keyboardTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const momentumTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useLayoutEffect(() => {
     if (!followingNow.current) onFollowingChange?.(false);
   }, [onFollowingChange]);
@@ -98,6 +110,7 @@ export function useFollowLatest<Row>(
       if (confirmation.current !== undefined) cancelAnimationFrame(confirmation.current);
       confirmation.current = undefined;
       clearTimeout(keyboardTimer.current);
+      clearTimeout(momentumTimer.current);
     },
     [],
   );
@@ -131,6 +144,8 @@ export function useFollowLatest<Row>(
 
   const hold = useCallback(() => {
     momentumFromDrag.current = false;
+    clearTimeout(momentumTimer.current);
+    momentumTimer.current = undefined;
     if (!followingNow.current) return;
     followingNow.current = false;
     settled.current = true;
@@ -271,10 +286,26 @@ export function useFollowLatest<Row>(
       dragging.current = false;
       const distance = measureEvent(event);
       momentumFromDrag.current = (event.nativeEvent.velocity?.y ?? 0) !== 0;
-      if (!momentumFromDrag.current) settle(distance);
+      clearTimeout(momentumTimer.current);
+      momentumTimer.current = undefined;
+      if (!momentumFromDrag.current) {
+        settle(distance);
+        return;
+      }
+      momentumTimer.current = setTimeout(() => {
+        momentumTimer.current = undefined;
+        if (dragging.current || !momentumFromDrag.current) return;
+        momentumFromDrag.current = false;
+        settle(distanceFromLatest(metrics.current, inverted));
+      }, MOMENTUM_WAIT_MS);
     },
-    [measureEvent, settle],
+    [measureEvent, settle, inverted],
   );
+
+  const onMomentumScrollBegin = useCallback(() => {
+    clearTimeout(momentumTimer.current);
+    momentumTimer.current = undefined;
+  }, []);
 
   const onMomentumScrollEnd = useCallback(
     (event: ScrollEvent) => {
@@ -327,6 +358,15 @@ export function useFollowLatest<Row>(
     scrollToLatest(true);
   }, [scrollToLatest, follow]);
 
+  const send = useCallback((): boolean => {
+    if (!followingNow.current) return false;
+    if (!settled.current) {
+      jumpToLatest();
+      return false;
+    }
+    return shouldFly({ atLatest: true, reducedMotion: !animateScroll });
+  }, [jumpToLatest, animateScroll]);
+
   const retry = useCallback(() => {
     attempts.current = 0;
     checks.current = 0;
@@ -348,11 +388,13 @@ export function useFollowLatest<Row>(
     unseen: following ? 0 : unseenSince(messages, anchor),
     hold,
     jumpToLatest,
+    send,
     listProps: {
       onScroll,
       onScrollToTop: hold,
       onScrollBeginDrag,
       onScrollEndDrag,
+      onMomentumScrollBegin,
       onMomentumScrollEnd,
       onContentSizeChange,
       onLayout,

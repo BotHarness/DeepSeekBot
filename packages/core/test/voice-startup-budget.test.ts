@@ -84,6 +84,7 @@ it('counts availability and offer time together and closes a peer returned after
       return { ...peer(onStatus), close };
     },
   });
+  await calls.handle({ deviceId: 'qa-phone' }, { kind: 'open', slug: 'qa', media: 'synthetic' });
   const pending = calls.handle({ deviceId: 'qa-phone' }, { kind: 'open', slug: 'qa' });
   await vi.advanceTimersByTimeAsync(19_999);
   expect(mediaSignal?.aborted).toBe(false);
@@ -93,7 +94,7 @@ it('counts availability and offer time together and closes a peer returned after
   expect((await pending).ok).toBe(false);
   expect(close).toHaveBeenCalledTimes(1);
   const status = await calls.handle({ deviceId: 'qa-phone' }, { kind: 'status' });
-  expect(status.ok && status.calls).toEqual([]);
+  expect(status.ok && status.calls?.filter((call) => call.media === 'webrtc')).toEqual([]);
 });
 
 it('does not allocate media when availability exhausts the connection budget', async () => {
@@ -106,6 +107,7 @@ it('does not allocate media when availability exhausts the connection budget', a
     },
     open,
   });
+  await calls.handle({ deviceId: 'qa-phone' }, { kind: 'open', slug: 'qa', media: 'synthetic' });
   const pending = calls.handle({ deviceId: 'qa-phone' }, { kind: 'open', slug: 'qa' });
   await vi.advanceTimersByTimeAsync(21_000);
   expect((await pending).ok).toBe(false);
@@ -125,15 +127,18 @@ it('keeps the original connection deadline while waiting for the answer', async 
       return { ...peer(onStatus), close };
     },
   });
+  await calls.handle({ deviceId: 'qa-phone' }, { kind: 'open', slug: 'qa', media: 'synthetic' });
   const pending = calls.handle({ deviceId: 'qa-phone' }, { kind: 'open', slug: 'qa' });
   await vi.advanceTimersByTimeAsync(6_000);
   expect((await pending).ok).toBe(true);
   await vi.advanceTimersByTimeAsync(13_999);
   const before = await calls.handle({ deviceId: 'qa-phone' }, { kind: 'status' });
-  expect(before.ok && before.calls?.[0]?.phase).toBe('connecting');
+  expect(before.ok && before.calls?.find((call) => call.media === 'webrtc')?.phase).toBe(
+    'connecting',
+  );
   await vi.advanceTimersByTimeAsync(1);
   const after = await calls.handle({ deviceId: 'qa-phone' }, { kind: 'status' });
-  expect(after.ok && after.calls?.[0]).toMatchObject({
+  expect(after.ok && after.calls?.find((call) => call.media === 'webrtc')).toMatchObject({
     phase: 'ended',
     endReason: 'connect-timeout',
   });
@@ -176,6 +181,7 @@ it('does not create media after cancellation while availability is pending', asy
     },
     open,
   });
+  await calls.handle({ deviceId: 'qa-phone' }, { kind: 'open', slug: 'qa', media: 'synthetic' });
   const pending = calls.handle(
     { deviceId: 'qa-phone' },
     { kind: 'open', slug: 'qa' },
@@ -221,6 +227,7 @@ it('settles the opening operation at 20 seconds even if availability is still pe
     },
     open: async ({ onStatus }) => peer(onStatus),
   });
+  await calls.handle({ deviceId: 'qa-phone' }, { kind: 'open', slug: 'qa', media: 'synthetic' });
   let settled = false;
   const pending = calls.handle({ deviceId: 'qa-phone' }, { kind: 'open', slug: 'qa' }).then(() => {
     settled = true;

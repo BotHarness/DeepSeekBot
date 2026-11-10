@@ -2,6 +2,7 @@ import { useMessageHost } from './message-host.js';
 import { useMemo, useSyncExternalStore, type ReactElement } from 'react';
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import { MessageAudio } from './message-audio.js';
+import { downloadFromUrl, useAttachmentDownloadMenu } from './attachment-download-menu.js';
 import { createBridgeAudioResource } from './bridge-audio-resource.js';
 import { createBridgeFileResource } from './bridge-file-resource.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -51,23 +52,28 @@ export function BridgeAudio({
     interrupted: 'im.voiceAudioInterrupted',
     failed: 'im.voiceAudioUnavailable',
   } as const;
+  const menu = useAttachmentDownloadMenu(
+    host === undefined
+      ? () =>
+          downloadFromUrl(
+            './api/botharness/attachment?' +
+              new URLSearchParams({ channelId, sourceEventId, attachmentId }),
+            name,
+          )
+      : () => void download.download(name),
+    t,
+  );
   return (
-    <div className="bh-external-source-audio">
+    <div className="bh-external-source-audio" onContextMenu={menu.open} onKeyDown={menu.onKey}>
       <MessageAudio
         key={state.url ?? 'unprepared'}
         name={name}
-        size={sizeBytes}
+        seed={`${name}:${sizeBytes ?? 0}`}
         url={state.url}
-        downloadUrl={
-          host === undefined
-            ? './api/botharness/attachment?' +
-              new URLSearchParams({ channelId, sourceEventId, attachmentId })
-            : state.url
-        }
         onError={resource.fail}
-        onDownload={host === undefined ? undefined : () => void download.download(name)}
         t={t}
       />
+      {menu.menu}
       {state.url ? null : (
         <Button
           variant="primary"

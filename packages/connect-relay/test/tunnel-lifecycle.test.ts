@@ -3,7 +3,7 @@ import { DatabaseSync } from 'node:sqlite';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { createCloudflareApi } from '../src/cloudflare.js';
+import { createCloudflareApi, parseZones } from '../src/cloudflare.js';
 import { pickVictim, pickZone, type PoolTunnel } from '../src/pool.js';
 import type { RelayOptions } from '../src/relay.js';
 import { setup } from './support.js';
@@ -39,7 +39,7 @@ async function pool(accounts = ['user_a', 'user_b', 'user_c'], extra: Partial<Re
 }
 
 describe('tunnel and DNS lifecycle', () => {
-  it('deletes the record with the tunnel when an offline Host is reclaimed and restores both on return', async () => {
+  it('deletes the record with the tunnel when an offline Host is reclaimed and returns on a fresh hostname', async () => {
     const env = await pool();
     const id = await env.link('user_a');
     expect((await env.provision('user_a', id)).status).toBe(200);
@@ -54,9 +54,15 @@ describe('tunnel and DNS lifecycle', () => {
     expect(env.tunnels.tunnels.size).toBe(0);
     expect(env.tunnels.records.size).toBe(0);
     expect(await env.row(id)).toMatchObject({ tunnel_id: null, dns_record_id: null });
+    const fresh = `${(await env.row(id))?.['label']}.${ZONE}`;
+    expect(fresh).toMatch(/^h[a-z2-7]{12}\./u);
+    expect(fresh).not.toBe(`${id}.${ZONE}`);
+    const listed = await env.call('GET', '/v1/hosts', { as: 'user_a' });
+    expect(listed.body.hosts[0].hostname).toBe(fresh);
     const back = await env.provision('user_a', id);
-    expect(back.body.hostname).toBe(`${id}.${ZONE}`);
-    expect(env.tunnels.recordFor(`${id}.${ZONE}`)?.target).toBe(
+    expect(back.body.hostname).toBe(fresh);
+    expect(env.tunnels.recordFor(`${id}.${ZONE}`)).toBeUndefined();
+    expect(env.tunnels.recordFor(fresh)?.target).toBe(
       `${(await env.row(id))?.['tunnel_id']}.cfargotunnel.com`,
     );
   });
@@ -435,9 +441,10 @@ describe('eviction when the pool is full', () => {
     expect((await env.row(capable))?.['tunnel_id']).not.toBeNull();
     env.advance(10 * MINUTE);
     await env.relay.reclaim();
-    expect((await env.provision('user_b', capable, { zones: [ZONE, EXTRA] })).body.hostname).toBe(
-      `${capable}.${EXTRA}`,
-    );
+    const returned = (await env.provision('user_b', capable, { zones: [ZONE, EXTRA] })).body
+      .hostname as string;
+    expect(returned.endsWith(`.${EXTRA}`)).toBe(true);
+    expect(returned).not.toBe(`${capable}.${EXTRA}`);
   });
 
   it('reports pool use and hands a freed slot to the Host that waited longest', async () => {
@@ -667,6 +674,68 @@ describe('eviction scoring', () => {
     expect(pickZone([ZONE, EXTRA], new Map([[ZONE, 3]]), 5)).toBe(EXTRA);
     expect(pickZone([ZONE, EXTRA], new Map(), 5)).toBe(ZONE);
     expect(pickZone([ZONE], new Map([[ZONE, 5]]), 5)).toBeUndefined();
+  });
+
+  it('gives each zone its own record limit', () => {
+    const limits = (zone: string) => (zone === EXTRA ? 2 : 5);
+    expect(pickZone([ZONE, EXTRA], new Map([[ZONE, 4]]), limits)).toBe(EXTRA);
+    expect(
+      pickZone(
+        [ZONE, EXTRA],
+        new Map([
+          [ZONE, 4],
+          [EXTRA, 2],
+        ]),
+        limits,
+      ),
+    ).toBe(ZONE);
+    expect(
+      parseZones(`${EXTRA}=${'a'.repeat(32)}:188, bad=zone, x.dev=${'b'.repeat(32)}:0`),
+    ).toEqual([{ name: EXTRA, id: 'a'.repeat(32), records: 188 }]);
+    expect(parseZones(`${EXTRA}=${'A'.repeat(32)}`)).toEqual([{ name: EXTRA, id: 'a'.repeat(32) }]);
+  });
+
+  it('moves a Host that never got a record to another zone after a quota error', async () => {
+    const env = await pool(['user_a'], {
+      zones: [ZONE, EXTRA],
+      zoneRecords: 2,
+      zoneLimits: { [EXTRA]: 5 },
+    });
+    env.tunnels.recordQuota.set(EXTRA, 0);
+    const a = await env.link('user_a');
+    expect(await env.provision('user_a', a, { zones: [ZONE, EXTRA] })).toMatchObject({
+      status: 503,
+      body: { error: { code: 'relay-full', reason: 'zone-full' } },
+    });
+    expect(await env.row(a)).toMatchObject({ zone: null, tunnel_id: null });
+    expect((await env.provision('user_a', a, { zones: [ZONE, EXTRA] })).body.hostname).toBe(
+      `${a}.${ZONE}`,
+    );
+  });
+
+  it('counts a zone at its own limit in the pool and when it fills', async () => {
+    const env = await pool(['user_a', 'user_b', 'user_c'], {
+      zones: [ZONE, EXTRA],
+      zoneRecords: 2,
+      zoneLimits: { [EXTRA]: 1 },
+    });
+    const a = await env.link('user_a');
+    expect((await env.provision('user_a', a, { zones: [ZONE, EXTRA] })).body.hostname).toBe(
+      `${a}.${ZONE}`,
+    );
+    const b = await env.link('user_b');
+    expect((await env.provision('user_b', b, { zones: [ZONE, EXTRA] })).body.hostname).toBe(
+      `${b}.${ZONE}`,
+    );
+    const c = await env.link('user_c');
+    expect((await env.provision('user_c', c, { zones: [ZONE, EXTRA] })).body.hostname).toBe(
+      `${c}.${EXTRA}`,
+    );
+    expect((await env.call('GET', '/v1/hosts', { as: 'user_a' })).body.pool).toMatchObject({
+      capacity: 3,
+      inUse: 3,
+      free: 0,
+    });
   });
 });
 
