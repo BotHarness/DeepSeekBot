@@ -273,13 +273,13 @@ class CallAttempt(
     }
     override fun onIceGatheringChange(state: PeerConnection.IceGatheringState) {
       enqueue {
-        noteAnswer("gathering", callback = state.name)
+        answerDiagnostics?.note("gathering", state.name, null, answered != null, callback = state.name)
         answerIfReady(force = false)
       }
     }
     override fun onIceCandidate(candidate: IceCandidate) {
       enqueue {
-        noteAnswer("candidate")
+        answerDiagnostics?.note("candidate", null, null, answered != null)
         if (settleScheduled) return@enqueue
         settleScheduled = true
         enqueue(1_500) { answerIfReady(force = true) }
@@ -379,14 +379,20 @@ class CallAttempt(
   private fun answerIfReady(force: Boolean, timeout: Boolean = false) {
     val connection = peer
     val description = connection?.localDescription
-    noteAnswer("check", force, timeout)
-    if (answered == null) return
+    if (answered == null) {
+      answerDiagnostics?.note("check", null, description?.description, false, force, timeout)
+      return
+    }
     if (connection == null || description == null) {
+      answerDiagnostics?.note("check", null, description?.description, true, force, timeout)
       if (timeout) finish(Result.failure(CallError("ice-timeout")))
       return
     }
     val hasCandidate = description.description.contains("a=candidate:")
-    if (connection.iceGatheringState() != PeerConnection.IceGatheringState.COMPLETE && !(force && hasCandidate)) {
+    val gathering = connection.iceGatheringState()
+    val ready = gathering == PeerConnection.IceGatheringState.COMPLETE || (force && hasCandidate)
+    answerDiagnostics?.note("check", gathering.name, description.description, true, force, timeout)
+    if (!ready) {
       if (timeout) finish(Result.failure(CallError("ice-timeout")))
       return
     }
@@ -394,18 +400,10 @@ class CallAttempt(
       finish(Result.failure(CallError("signal-too-large"))); return
     }
     runCatching {
-      answerDiagnostics?.note("answer", connection.iceGatheringState().name,
+      answerDiagnostics?.note("answer", gathering.name,
         description.description, answered != null, force, timeout)
     }
     finish(Result.success(description.description))
-  }
-
-  private fun noteAnswer(stage: String, force: Boolean = false, timeout: Boolean = false, callback: String? = null) {
-    val diagnostics = answerDiagnostics ?: return
-    runCatching {
-      diagnostics.note(stage, peer?.iceGatheringState()?.name, peer?.localDescription?.description,
-        answered != null, force, timeout, callback)
-    }
   }
 
   /**

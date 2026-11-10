@@ -43,4 +43,16 @@ class CallAnswerDiagnosticsTest {
     assertNull(rows.single()["gathering"])
     assertNull(rows.single()["callback"])
   }
+
+  @Test fun callbackCountsDoNotPretendToBeDescriptionSnapshots() {
+    val rows = mutableListOf<Map<String, Any?>>()
+    val diagnostics = CallAnswerDiagnostics { rows.add(it) }
+    diagnostics.note("candidate", null, null, true)
+    diagnostics.note("gathering", "COMPLETE", null, true, callback = "COMPLETE")
+    diagnostics.note("answer", "COMPLETE", "a=candidate:REDACTED\r\n", true)
+    assertNull(rows[0]["localCandidates"])
+    assertNull(rows[1]["localCandidates"])
+    assertEquals(1, rows[2]["localCandidates"])
+    assertEquals(listOf(1, 1, 1), rows.map { it["candidateEvents"] })
+  }
 }
