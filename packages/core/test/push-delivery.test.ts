@@ -886,8 +886,48 @@ describe('Human Inbox push source', () => {
       },
       () => undefined,
     ).pending();
-    expect(queries[1]).toEqual({ category: 'replies', unreadOnly: true, limit: 200 });
+    expect(queries[1]).toEqual({ category: 'replies', unreadOnly: true, limit: 100 });
     expect(dmLimits).toEqual([200]);
+  });
+
+  it('pages through a backlog of more than 100 unread replies without exceeding the query limit', () => {
+    const backlog = Array.from(
+      { length: 250 },
+      (_, index) =>
+        ({
+          id: `reply:${String(index)}`,
+          category: 'replies',
+          kind: 'channel-reply',
+          channelId: 'dm-ada',
+          channelName: 'Ada',
+          botSlug: 'ada',
+          summary: `reply ${String(index)}`,
+          messageId: `m${String(index)}`,
+          createdAt: '2026-11-10T00:00:00.000Z',
+          isUnread: true,
+        }) as HumanAttentionItem,
+    );
+    const limits: number[] = [];
+    const pending = activityListPushSource(
+      {
+        list: ({ category, limit = 30, cursor }) => {
+          if (limit < 1 || limit > 100) throw new Error('Human attention limit must be 1-100');
+          if (category !== 'replies') return { items: [] };
+          limits.push(limit);
+          const start = cursor === undefined ? 0 : Number(cursor);
+          const end = start + limit;
+          return {
+            items: backlog.slice(start, end),
+            ...(end < backlog.length ? { nextCursor: String(end) } : {}),
+          };
+        },
+        actionCount: () => 0,
+        dmReplies: () => [],
+      },
+      () => 'Ada',
+    ).pending();
+    expect(limits).toEqual([100, 100]);
+    expect(pending.items).toHaveLength(200);
   });
 
   it('offers Always allow from the notification only when the Host offers it', () => {
