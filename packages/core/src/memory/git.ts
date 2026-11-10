@@ -1,4 +1,5 @@
-import { execFile, execFileSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
+import { execFileText } from '../process/exec-off-thread.js';
 import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -19,7 +20,7 @@ export interface MemoryGit {
   commitPaths(paths: readonly string[], message: string): string;
   log(limit?: number): MemoryCommit[];
 
-  activitySince(sinceIso: string): Array<{ at: string }>;
+  activitySince(sinceIso: string): Promise<Array<{ at: string }>>;
   activitySnapshot(sinceIso: string): Promise<{ commits: Array<{ at: string }>; dirty: boolean }>;
 }
 
@@ -57,15 +58,12 @@ function activityAt(output: string, sinceIso: string): Array<{ at: string }> {
     .map((at) => ({ at }));
 }
 
-function readActivity(root: string, args: string[]): Promise<string> {
-  return new Promise((resolve, reject) => {
-    execFile(
-      'git',
-      ['--no-optional-locks', '-c', 'core.fsmonitor=false', ...args],
-      { cwd: root, encoding: 'utf8', windowsHide: true, timeout: 2000 },
-      (error, stdout) => (error === null ? resolve(stdout) : reject(error)),
-    );
-  });
+function readActivity(root: string, args: string[], timeout = 2000): Promise<string> {
+  return execFileText('git', ['--no-optional-locks', '-c', 'core.fsmonitor=false', ...args], {
+    cwd: root,
+    windowsHide: true,
+    timeout,
+  }).then(({ stdout }) => stdout);
 }
 
 function revParse(root: string): string {
@@ -170,17 +168,9 @@ export function createMemoryGit(root: string): MemoryGit {
         ).trim().length > 0;
       return { commits, dirty };
     },
-    activitySince(sinceIso) {
+    async activitySince(sinceIso) {
       try {
-        return activityAt(
-          run(root, [
-            '--no-optional-locks',
-            '-c',
-            'core.fsmonitor=false',
-            ...activityArgs(sinceIso),
-          ]),
-          sinceIso,
-        );
+        return activityAt(await readActivity(root, activityArgs(sinceIso), 30_000), sinceIso);
       } catch {
         return [];
       }

@@ -1000,7 +1000,7 @@ export interface BridgeMethods {
   memoryVersions(payload: unknown): BridgeResult<{ versions: MemoryVersion[] }>;
   memoryRemoveVersionName(payload: unknown): BridgeResult<{ removed: true }>;
   memoryRepair(payload: unknown): BridgeResult<{ repair: MemoryRepairEvent }>;
-  profileActivity(payload: unknown): BridgeResult<ProfileActivity>;
+  profileActivity(payload: unknown): Promise<BridgeResult<ProfileActivity>>;
   profileSessionUsage(payload: unknown): Promise<BridgeResult<ProfileSessionUsage>>;
   overviewMemory(payload: unknown): Promise<BridgeResult<OverviewMemory>>;
   overviewUsage(payload: unknown): BridgeResult<OverviewUsage>;
@@ -9299,7 +9299,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         throw error;
       }
     },
-    profileActivity(payload) {
+    async profileActivity(payload) {
       const scope = dmMemory(payload, true);
       if (!('botSlug' in scope)) return scope;
       const slug = scope.botSlug;
@@ -9329,7 +9329,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const events = beforeEnd(deps.channels.admissionActivity?.(slug, since) ?? []);
       let memoryActivity: Array<{ at: string }> = [];
       try {
-        memoryActivity = deps.memory?.activity?.(slug, since) ?? [];
+        memoryActivity = (await deps.memory?.activity?.(slug, since)) ?? [];
       } catch (error) {
         if (deps.registry.get(slug) !== undefined) throw error;
       }

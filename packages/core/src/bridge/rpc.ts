@@ -2456,8 +2456,12 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.profileUsage({ channelId, filter }));
   }
 
-  profileActivity(channelId: string, before?: string, weeks?: number): ProfileActivity {
-    return unwrap(this.methods.profileActivity({ channelId, before, weeks }));
+  async profileActivity(
+    channelId: string,
+    before?: string,
+    weeks?: number,
+  ): Promise<ProfileActivity> {
+    return unwrap(await this.methods.profileActivity({ channelId, before, weeks }));
   }
 
   async profileSessionUsage(channelId: string): Promise<ProfileSessionUsage> {

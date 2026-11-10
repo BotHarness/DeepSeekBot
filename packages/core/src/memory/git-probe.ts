@@ -46,9 +46,12 @@ function atLeast(version: string, [wantMajor, wantMinor]: readonly [number, numb
 }
 
 let sinceAsFilter: boolean | undefined;
+let probed: { at: number; value: GitAvailability } | undefined;
+const PROBE_REUSE_MS = 60_000;
 
 export function resetGitCapabilities(): void {
   sinceAsFilter = undefined;
+  probed = undefined;
 }
 
 export function gitSupportsSinceAsFilter(probe: () => GitAvailability = probeGit): boolean {
@@ -86,6 +89,15 @@ function isMacCommandLineToolsStub(host: GitProbeHost): boolean {
 }
 
 export function probeGit(host: GitProbeHost = defaultHost): GitAvailability {
+  if (host !== defaultHost) return probeGitOnce(host);
+  const now = Date.now();
+  if (probed !== undefined && now - probed.at < PROBE_REUSE_MS) return probed.value;
+  const value = probeGitOnce(host);
+  probed = { at: now, value };
+  return value;
+}
+
+function probeGitOnce(host: GitProbeHost): GitAvailability {
   if (isMacCommandLineToolsStub(host)) return { available: false, reason: 'unrunnable' };
   let output: string;
   try {
