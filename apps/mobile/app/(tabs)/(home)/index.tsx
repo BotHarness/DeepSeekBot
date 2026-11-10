@@ -686,7 +686,6 @@ const HomeContent = memo(function HomeContent({
                           selectedHost.snapshot.connection.status === 'connected')) ? (
                         <StatusChip
                           testID="home-status-chip"
-                          tone={hostDown ? 'muted' : 'warning'}
                           label={
                             selectedHost.snapshot.roster === undefined
                               ? t.hostListLoadFailed
