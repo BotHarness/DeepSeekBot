@@ -79,7 +79,6 @@ vi.mock('../src/ui/primitives/item-menu', () => ({
     </div>
   ),
 }));
-vi.mock('../src/ui/connection-banner', () => ({ ConnectionBanner: () => null }));
 vi.mock('../src/ui/bot-avatar', () => ({ BotAvatar: () => null }));
 
 import { act, useLayoutEffect, type ReactNode } from 'react';

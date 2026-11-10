@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, memo, useLayoutEffect, useSyncExternalStore, type ReactNode } from 'react';
 import { createHostClient, type HostClient } from '../src/host/client';
+import { CONNECTION_QUIET_MS } from '../src/ui/connection-presence';
 import { FakeHost } from './fake-host';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -345,6 +346,7 @@ beforeEach(() => {
   vi.stubGlobal('cancelIdleCallback', vi.fn());
 });
 afterEach(() => {
+  vi.useRealTimers();
   act(() => root?.unmount());
   host?.remove();
   root = undefined;
@@ -546,6 +548,7 @@ async function openingFixture() {
 
 describe('Search in the Chats header', () => {
   it('keeps actual Host connection progress at the selected identity through recovery', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     const transport = new FakeHost();
     let release!: () => void;
     const held = new Promise<void>((resolve) => {
@@ -572,6 +575,8 @@ describe('Search in the Chats header', () => {
     const view = await home();
     expect(client.getSnapshot().connection.status).toBe('connecting');
     const identity = () => view.querySelector('[data-testid="chats-view-button"]')!;
+    expect(identity().querySelector('[data-testid="connection-progress"]')).toBeNull();
+    await act(async () => vi.advanceTimersByTime(CONNECTION_QUIET_MS));
     expect(identity().getAttribute('aria-label')).toContain(t.connecting);
     expect(view.querySelector('[data-testid="list-skeleton"]')).not.toBeNull();
     expect(identity().querySelector('[data-testid="connection-progress"]')).not.toBeNull();
@@ -584,6 +589,8 @@ describe('Search in the Chats header', () => {
     await act(async () => {
       transport.kill();
     });
+    expect(identity().querySelector('[data-testid="connection-progress"]')).toBeNull();
+    await act(async () => vi.advanceTimersByTime(CONNECTION_QUIET_MS));
     expect(identity().getAttribute('aria-label')).toContain(t.reconnecting);
     expect(view.querySelector('[data-testid="list-skeleton"]')).toBeNull();
     expect(identity().querySelector('[data-testid="connection-progress"]')).not.toBeNull();
@@ -641,7 +648,7 @@ describe('Search in the Chats header', () => {
     await act(async () => conversationFilter.set(computerEnvironmentKey('h1')));
     expect(view.textContent).not.toContain(t.hostListLoadFailed);
     expect(view.textContent).not.toContain(t.cloudChannels.empty);
-    expect(view.querySelector('[data-testid="connection-progress"]')).not.toBeNull();
+    expect(view.querySelector('[data-testid="connection-progress"]')).toBeNull();
     await act(async () => {
       await vi.waitFor(
         () =>

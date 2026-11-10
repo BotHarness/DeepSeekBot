@@ -41,7 +41,7 @@ import {
 } from '../../../src/ui/chat/conversations';
 import { CloudConversationRow } from '../../../src/ui/chat/cloud-conversation-row';
 import { useConversationFilter } from '../../../src/host/native-conversation-filter';
-import { ConnectionBanner } from '../../../src/ui/connection-banner';
+import { StatusChip } from '../../../src/ui/primitives/status-chip';
 import { searchAppBar, space } from '../../../src/ui/design/tokens';
 import {
   conversationEnvironments,
@@ -419,7 +419,12 @@ const HomeContent = memo(function HomeContent({
             attempt: 1,
           }
         : selectedHost.snapshot.connection;
-  const connecting = useConnectionProgress(selectedConnection?.status) !== undefined;
+  const connecting =
+    useConnectionProgress(
+      selectedConnection?.status,
+      false,
+      selectedHost?.snapshot.disruptedSince,
+    ) !== undefined;
   const pickSearch = (key: string) => {
     const message = messageItems.find((entry) => entry.key === key);
     if (message !== undefined) {
@@ -566,6 +571,7 @@ const HomeContent = memo(function HomeContent({
         <HomeHeader
           environment={environment}
           connection={selectedConnection}
+          disruptedSince={selectedHost?.snapshot.disruptedSince}
           onWorkspaces={showWorkspaces}
           bar={
             Platform.OS === 'android' ? (
@@ -659,14 +665,14 @@ const HomeContent = memo(function HomeContent({
                           {t.rowActions.failed}
                         </Text>
                       ) : null}
-                      {selectedHost &&
-                        selectedHost.snapshot.connection.status !== 'unreachable' && (
-                          <ConnectionBanner
-                            connection={selectedHost.snapshot.connection}
-                            onRetry={() => selectedHost.client.retryNow()}
-                            onPairAgain={() => router.push('/pair')}
-                          />
-                        )}
+                      {selectedHost?.snapshot.connection.status === 'refused' ? (
+                        <StatusChip
+                          testID="home-status-chip"
+                          tone="danger"
+                          label={t.deviceRefusal[selectedHost.snapshot.connection.code]}
+                          action={{ label: t.pairAgain, onPress: () => router.push('/pair') }}
+                        />
+                      ) : null}
                       {selectedHost &&
                       ((refreshFailedHosts.includes(selectedHost.saved.hostId) && !hostFailed) ||
                         (selectedHost.snapshot.connection.status === 'unreachable' &&

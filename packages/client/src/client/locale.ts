@@ -1266,6 +1266,7 @@ export const zh = {
   'accountProfile.saveFailed': '未能保存。',
   'accountProfile.retry': '重试',
   'accountProfile.signInFailed': '现在无法登录，请稍后再试。',
+  'accountProfile.signInRelay': '已登录，但连接服务暂时出错。电脑会自动重试，稍后再回来看看。',
   'accountProfile.loading': '正在读取个人资料…',
   'botSettings.section.general': '通用',
   'botSettings.section.models': '模型与运行',
@@ -6392,6 +6393,8 @@ export const en = {
   'accountProfile.saveFailed': 'Could not save.',
   'accountProfile.retry': 'Try again',
   'accountProfile.signInFailed': 'Sign-in is not available right now. Try again later.',
+  'accountProfile.signInRelay':
+    'Signed in, but the connection service failed. This computer keeps retrying; check back shortly.',
   'accountProfile.loading': 'Loading your profile…',
   'botSettings.section.general': 'General',
   'botSettings.section.models': 'Models & execution',

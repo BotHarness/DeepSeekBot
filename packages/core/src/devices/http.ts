@@ -369,6 +369,8 @@ export function createDevicesHttp(options: {
         if (signed.ok) return json(signed.status);
         return json({ code: signed.code }, 503);
       }
+      if (input['action'] === 'disable' && account?.status().state === 'signed-in')
+        return json({ code: 'connect-signed-in' }, 409);
       const result =
         input['action'] === 'enable'
           ? await connect.enable({

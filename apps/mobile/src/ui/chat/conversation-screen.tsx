@@ -5,7 +5,8 @@ import { HeaderTitleButton } from './header-title-button';
 import { useProfilePaging } from './profile-paging';
 import { NativePageHeader } from '../primitives/native-page-navigation';
 import type { InitiatedActivityRequest } from '../../host/live-activity-routing';
-import { ConnectionProgress, useConnectionProgress } from '../primitives/connection-progress';
+import { ConnectionProgress, useConnectionPresence } from '../primitives/connection-progress';
+import { StatusChip } from '../primitives/status-chip';
 import { SelectionBar, SelectionScreenshot, MessageSelectionRow } from './message-selection-ui';
 import { selectionText, toggleMessageSelection } from './message-selection';
 import { HostScope } from '../../host/host-scope';
@@ -1314,10 +1315,12 @@ function ChatConversation({
   );
 
   const hostRefused = host.connection.status === 'refused';
-  const connectionLabel = useConnectionProgress(
+  const presence = useConnectionPresence(
     host.connection.status,
     snapshot.status === 'interrupted',
+    host.disruptedSince,
   );
+  const connectionLabel = presence.label;
   const missing =
     host.roster !== undefined && (dm ? bot === undefined : channel === undefined && !botDm);
   const missingGroup = missing && !dm && !hostRefused && snapshot.status !== 'refused';
@@ -1539,10 +1542,9 @@ function ChatConversation({
           ? dm
             ? t.noBot
             : t.noChannel
-          : host.connection.status === 'unreachable' ||
-              (snapshot.fromCache && host.connection.status === 'stopped')
+          : presence.offline || (snapshot.fromCache && host.connection.status === 'stopped')
             ? t.offline
-            : snapshot.status === 'interrupted' && connectionLabel === undefined
+            : snapshot.status === 'interrupted' && host.connection.status === 'stopped'
               ? t.liveInterrupted
               : attachError
                 ? t.attachFailed
@@ -1562,54 +1564,46 @@ function ChatConversation({
   const noticeView =
     notice === undefined ? null : (
       <View
-        style={{
-          marginTop: android ? 0 : headerOverlap + headerPadding,
-          backgroundColor: theme.color.warningSoft,
-          paddingHorizontal: space.x5,
-          paddingVertical: space.x3,
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: space.x4,
-        }}
+        pointerEvents="box-none"
+        style={
+          android
+            ? { paddingHorizontal: space.x5, paddingBottom: space.x3 }
+            : {
+                position: 'absolute',
+                zIndex: 1,
+                top: headerOverlap + headerPadding + space.x3,
+                left: space.x5,
+                right: space.x5,
+              }
+        }
       >
-        <Text accessibilityLiveRegion="polite" variant="meta" tone="warning" style={{ flex: 1 }}>
-          {notice}
-        </Text>
-        {hostRefused ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.push('/pair')}
-            hitSlop={space.x3}
-          >
-            <Text variant="meta" tone="accent" strong>
-              {t.pairAgain}
-            </Text>
-          </Pressable>
-        ) : host.connection.status === 'unreachable' ? (
-          <Pressable
-            testID="chat-connection-retry"
-            accessibilityRole="button"
-            accessibilityLabel={t.retry}
-            onPress={() => client?.retryNow()}
-            hitSlop={space.x3}
-          >
-            <Text variant="meta" tone="accent" strong>
-              {t.retry}
-            </Text>
-          </Pressable>
-        ) : notice === t.noBot || notice === t.noChannel ? (
-          <Pressable accessibilityRole="button" onPress={backToChats} hitSlop={space.x3}>
-            <Text variant="meta" tone="accent" strong>
-              {t.backToChats}
-            </Text>
-          </Pressable>
-        ) : null}
+        <StatusChip
+          testID="chat-status-chip"
+          label={notice}
+          tone={
+            hostRefused || notice === t.dmRefused || notice === t.channelRefused
+              ? 'danger'
+              : 'warning'
+          }
+          action={
+            hostRefused
+              ? { label: t.pairAgain, onPress: () => router.push('/pair') }
+              : notice === t.offline && host.connection.status === 'unreachable'
+                ? {
+                    label: t.retry,
+                    testID: 'chat-connection-retry',
+                    onPress: () => client?.retryNow(),
+                  }
+                : notice === t.noBot || notice === t.noChannel
+                  ? { label: t.backToChats, onPress: backToChats }
+                  : undefined
+          }
+        />
       </View>
     );
 
-  const listTop = !android && notice === undefined ? headerPadding : 0;
-  const topFade =
-    android || notice !== undefined ? 0 : floatingHeader ? headerPadding : headerOverlap;
+  const listTop = android ? 0 : headerPadding;
+  const topFade = android ? 0 : floatingHeader ? headerPadding : headerOverlap;
   const composerCover = Math.max(0, composerHeight - space.x3 - space.x2);
   const fadeColor = background.kind === 'color' ? background.color : theme.color.base;
   const bottomFade = (
@@ -1910,7 +1904,7 @@ function ChatConversation({
                                 minHeight: Math.max(
                                   0,
                                   viewportHeight -
-                                    (notice === undefined ? headerOverlap : 0) +
+                                    headerOverlap +
                                     (Platform.OS === 'android' ? edge.hairline : 0),
                                 ),
                                 justifyContent: android ? 'flex-start' : 'flex-end',

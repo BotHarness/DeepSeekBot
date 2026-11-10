@@ -82,7 +82,9 @@ export function AccountProfileSettings({
   const load = async (): Promise<void> => {
     try {
       const account = await actions.marketplaceAccount();
-      if (mounted.current) setState({ status: 'ready', account });
+      if (!mounted.current) return;
+      setState({ status: 'ready', account });
+      if (!account.signedIn && account.issue !== undefined) setSignIn(undefined);
     } catch (error) {
       if (mounted.current) setState({ status: 'error', message: marketplaceError(error, t) });
     }
@@ -198,12 +200,22 @@ export function AccountProfileSettings({
         body={t('accountProfile.signInHint')}
         signInLabel={t('accountProfile.signIn')}
         busy={busy}
-        {...(signInFailed ? { failed: t('accountProfile.signInFailed') } : {})}
+        {...(signInFailed || state.account.issue !== undefined
+          ? {
+              failed: t(
+                state.account.issue === 'relay-unavailable' || state.account.issue === 'relay-full'
+                  ? 'accountProfile.signInRelay'
+                  : 'accountProfile.signInFailed',
+              ),
+            }
+          : {})}
         onSignIn={() => void beginSignIn()}
         data={{ 'data-account-profile': signIn === undefined ? 'signed-out' : 'signing-in' }}
         codeMarker="data-account-sign-in-code"
       >
-        {signIn === undefined ? null : <span ref={poll} hidden />}
+        {signIn === undefined && state.account.issue === undefined ? null : (
+          <span ref={poll} hidden />
+        )}
       </ConnectSignInBlock>,
     );
 

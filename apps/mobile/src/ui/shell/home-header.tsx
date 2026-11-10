@@ -21,6 +21,7 @@ import { FixedToolbar } from './fixed-toolbar';
 export function HomeHeader({
   environment,
   connection,
+  disruptedSince,
   actions,
   search,
   bar,
@@ -30,6 +31,7 @@ export function HomeHeader({
 }: {
   environment: ConversationEnvironment;
   connection?: ConnectionState | undefined;
+  disruptedSince?: number | undefined;
   actions?: ReactNode;
   search?: ReactNode;
   bar?: ReactNode;
@@ -38,7 +40,7 @@ export function HomeHeader({
   children: ReactNode;
 }) {
   const t = useStrings();
-  const connectionLabel = useConnectionProgress(connection?.status);
+  const connectionLabel = useConnectionProgress(connection?.status, false, disruptedSince);
   const theme = useDesignTheme();
   const focused = useIsFocused();
   const drawerOpen = useHostDrawerOpen();

@@ -273,7 +273,8 @@ export function MarketUploadDialog({
   const poll = useMountedResource<HTMLSpanElement>(() => {
     const timer = setInterval(() => {
       void loadAccount().then((loaded) => {
-        if (loaded?.signedIn === true && mounted.current) setSignIn(undefined);
+        if ((loaded?.signedIn === true || loaded?.issue !== undefined) && mounted.current)
+          setSignIn(undefined);
       });
     }, ACCOUNT_POLL_MS);
     return () => clearInterval(timer);
@@ -498,8 +499,20 @@ export function MarketUploadDialog({
               })
             }
             codeMarker="data-market-sign-in"
+            {...(account.account.issue === undefined
+              ? {}
+              : {
+                  failed: t(
+                    account.account.issue === 'relay-unavailable' ||
+                      account.account.issue === 'relay-full'
+                      ? 'accountProfile.signInRelay'
+                      : 'accountProfile.signInFailed',
+                  ),
+                })}
           >
-            {signIn === undefined ? null : <span ref={poll} hidden />}
+            {signIn === undefined && account.account.issue === undefined ? null : (
+              <span ref={poll} hidden />
+            )}
           </ConnectSignInBlock>
         );
       } else {

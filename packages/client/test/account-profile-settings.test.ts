@@ -118,6 +118,37 @@ it('signs a signed-out Human in from the profile and shows it once approved', as
   }
 });
 
+it('leaves the browser step with an explanation when the relay fails after approval', async () => {
+  vi.useFakeTimers();
+  try {
+    const actions = actionsFor({ signedIn: false, author: null });
+    await render(actions);
+    await act(async () => buttonNamed(t('accountProfile.signIn'), host).click());
+    expect(host.querySelector('[data-account-sign-in-code]')).not.toBeNull();
+    actions.marketplaceAccount.mockResolvedValue({
+      signedIn: false,
+      issue: 'relay-unavailable',
+      author: null,
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+    expect(host.querySelector('[data-account-sign-in-code]')).toBeNull();
+    expect(host.textContent).toContain(t('accountProfile.signInRelay'));
+    actions.marketplaceAccount.mockResolvedValue({
+      signedIn: true,
+      email: 'vain@example.com',
+      author: AUTHOR,
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+    expect(host.querySelector('[data-account-profile="ready"]')).not.toBeNull();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 it('explains when sign-in cannot start', async () => {
   await render(
     actionsFor({ signedIn: false, author: null }),

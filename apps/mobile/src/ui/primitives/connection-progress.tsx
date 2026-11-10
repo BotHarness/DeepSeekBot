@@ -1,22 +1,80 @@
-import type { ReactNode } from 'react';
+import { useCallback, useRef, useSyncExternalStore, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { LoadingIndicator } from './loading-indicator';
 import { Text } from './text';
 import { space } from '../design/tokens';
 import type { ConnectionState } from '../../host/client';
+import {
+  connectionPresence,
+  connectionDisrupted,
+  CONNECTION_OFFLINE_MS,
+  CONNECTION_QUIET_MS,
+  type ConnectionPresence,
+} from '../connection-presence';
 import { useDesignTheme } from '../design/theme';
 import { useStrings } from '../strings';
+
+export function useConnectionPresence(
+  status?: ConnectionState['status'],
+  interrupted = false,
+  disruptedSince?: number,
+): ConnectionPresence & { label?: string } {
+  const t = useStrings();
+  const active = connectionDisrupted(status, interrupted);
+  const seen = useRef<number | undefined>(undefined);
+  if (!active) seen.current = undefined;
+  else seen.current ??= Date.now();
+  const start = active
+    ? Math.min(disruptedSince ?? Infinity, seen.current ?? Date.now())
+    : undefined;
+  const subscribe = useCallback(
+    (notify: () => void) => {
+      if (start === undefined) return () => {};
+      const timers = [CONNECTION_QUIET_MS, CONNECTION_OFFLINE_MS]
+        .map((at) => start + at - Date.now())
+        .filter((wait) => wait > 0)
+        .map((wait) => setTimeout(notify, wait));
+      return () => timers.forEach(clearTimeout);
+    },
+    [start],
+  );
+  const elapsed = () =>
+    start === undefined
+      ? 'none'
+      : Date.now() - start >= CONNECTION_OFFLINE_MS
+        ? 'long'
+        : Date.now() - start >= CONNECTION_QUIET_MS
+          ? 'brief'
+          : 'quiet';
+  const phase = useSyncExternalStore(subscribe, elapsed, elapsed);
+  const presence = connectionPresence(
+    status,
+    interrupted,
+    phase === 'none'
+      ? undefined
+      : phase === 'long'
+        ? CONNECTION_OFFLINE_MS
+        : phase === 'brief'
+          ? CONNECTION_QUIET_MS
+          : 0,
+  );
+  return {
+    ...presence,
+    ...(presence.progress === 'connecting'
+      ? { label: t.connecting }
+      : presence.progress === 'reconnecting'
+        ? { label: t.reconnecting }
+        : {}),
+  };
+}
 
 export function useConnectionProgress(
   status?: ConnectionState['status'],
   interrupted = false,
+  disruptedSince?: number,
 ): string | undefined {
-  const t = useStrings();
-  if (status === 'connecting') return t.connecting;
-  if (status === 'reconnecting' || (status === 'connected' && interrupted)) return t.reconnecting;
-  return undefined;
+  return useConnectionPresence(status, interrupted, disruptedSince).label;
 }
-
 export function ConnectionProgress({
   active,
   label,

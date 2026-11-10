@@ -265,6 +265,25 @@ describe('Host client', () => {
     expect(target.getSnapshot().roster?.bots[0]?.preview).toBe('mobile tracer probe');
   });
 
+  it('tries a newly learned address at once instead of waiting out the backoff', async () => {
+    const host = new FakeHost();
+    const moved = 'https://laptop.tailnet-example.ts.net';
+    host.unreachable.add(ROUTE);
+    client = createHostClient({
+      routes: [ROUTE],
+      credential: host.credential,
+      carrier: host.carrier,
+      backoff: () => 60_000,
+      timeoutMs: 200,
+    });
+    client.start();
+    const target = client;
+    await until(target, (s) => s.connection.status === 'unreachable');
+    target.updateRoutes?.([moved]);
+    await until(target, (s) => s.connection.status === 'connected');
+    expect(target.getSnapshot().connection.route).toBe(moved);
+  });
+
   it('does not reopen a stopped client when its resume route probe completes late', async () => {
     const host = new FakeHost();
     let hold = false;
