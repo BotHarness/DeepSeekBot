@@ -378,32 +378,33 @@ class CallAttempt(
 
   private fun answerIfReady(force: Boolean, timeout: Boolean = false) {
     val connection = peer
-    val description = connection?.localDescription
     if (answered == null) {
-      answerDiagnostics?.note("check", null, description?.description, false, force, timeout)
+      answerDiagnostics?.note("check", null, connection?.localDescription?.description, false, force, timeout)
       return
     }
-    if (connection == null || description == null) {
-      answerDiagnostics?.note("check", null, description?.description, true, force, timeout)
+    if (connection == null) {
+      answerDiagnostics?.note("check", null, null, true, force, timeout)
       if (timeout) finish(Result.failure(CallError("ice-timeout")))
       return
     }
-    val hasCandidate = description.description.contains("a=candidate:")
-    val gathering = connection.iceGatheringState()
-    val ready = gathering == PeerConnection.IceGatheringState.COMPLETE || (force && hasCandidate)
-    answerDiagnostics?.note("check", gathering.name, description.description, true, force, timeout)
-    if (!ready) {
+    val snapshot = readCallAnswerSnapshot(
+      { connection.iceGatheringState() },
+      { connection.localDescription?.description },
+    )
+    val description = snapshot.description
+    answerDiagnostics?.note("check", snapshot.gathering.name, description, true, force, timeout)
+    if (description == null || !snapshot.ready(PeerConnection.IceGatheringState.COMPLETE, force)) {
       if (timeout) finish(Result.failure(CallError("ice-timeout")))
       return
     }
-    if (description.description.toByteArray().size > 98_304) {
+    if (description.toByteArray().size > 98_304) {
       finish(Result.failure(CallError("signal-too-large"))); return
     }
     runCatching {
-      answerDiagnostics?.note("answer", gathering.name,
-        description.description, answered != null, force, timeout)
+      answerDiagnostics?.note("answer", snapshot.gathering.name,
+        description, answered != null, force, timeout)
     }
-    finish(Result.success(description.description))
+    finish(Result.success(description))
   }
 
   /**
