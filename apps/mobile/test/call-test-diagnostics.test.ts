@@ -64,11 +64,11 @@ describe('synthetic call control report', () => {
     const unsubscribe = vi.fn();
     const original: CallClientMedia = {
       ...media,
-      start: vi.fn(async function () {
+      start: vi.fn(async function (this: CallClientMedia) {
         expect(this).toBe(original);
         return 'SDP';
       }),
-      onState: vi.fn(function (listener) {
+      onState: vi.fn(function (this: CallClientMedia, listener) {
         expect(this).toBe(original);
         callback = listener;
         return unsubscribe;
