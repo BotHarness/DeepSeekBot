@@ -1,4 +1,4 @@
-# Latest message anchor (iOS)
+# Latest message anchor
 
 This local Expo module keeps the iOS chat list on the newest message while it grows.
 It replaces the JavaScript round trip in `src/ui/chat/follow-latest.ts`
@@ -17,6 +17,28 @@ moves while the reader holds or browses history.
 JavaScript sends only two props: `following` (false while the reader browses history)
 and `animated` (false when Reduce Motion is on; the anchor then snaps). A drag or a
 momentum scroll stops the glide at once.
+
+## Android
+
+Android uses the inverted list's header, at the visual bottom. The newest offset is
+zero. Streaming text grows upward; new rows use `maintainVisibleContentPosition`
+to retain the previous row, then the anchor follows content growth on the next
+`Choreographer` frame and glides back to zero. Keep mVCP enabled on Android.
+
+An offset change not made by the anchor cancels its glide. Disabling animation,
+including setting the system animator duration scale to zero, snaps to the end.
+The JavaScript hook still owns initial placement, keyboard pins and explicit jumps.
+
+Android acceptance is tracked in [#3868](https://github.com/BotHarness/DeepSeekBot/issues/3868).
+The restored spring tests do not qualify device behavior. The next Windows QA batch
+must compare native and JS following on emulator and phone before acceptance.
+
+The Android composer-follow spacer remains disabled. Measure multiline sends with
+the keyboard open and closed before enabling it or adding shrink compensation:
+the inverted list may already retain offset zero when content shrinks. If a spacer
+is needed, its visual-bottom position is the list header. Shared send-fly, composer
+collapse, flick-settling and pending-time-row fixes come from main; they need Android
+verification, not a separate port.
 
 ## A/B against the JavaScript path
 
