@@ -1,6 +1,7 @@
 import { BotNetworkDeliveryError } from './runtime/bot-network.js';
 import type { AssignmentReportContent } from './runtime/assignment-report.js';
 import { createWindowZoomControl, WINDOW_ZOOM_CONTROL_PATH } from './window-zoom/control.js';
+import { createPresence, PRESENCE_PATH } from './push/presence.js';
 import {
   compactUnknownContext,
   contextCapacity,
@@ -42,6 +43,10 @@ import {
   createTobBotProfileOperations,
   TOB_BOT_PROFILE_CAPABILITIES,
 } from './tob/cli-bot-profile-operations.js';
+import {
+  createTobDiagnosticOperations,
+  TOB_DIAGNOSTIC_CAPABILITIES,
+} from './tob/cli-diagnostic-operations.js';
 import {
   createTobShareDraftOperations,
   TOB_SHARE_DRAFT_CAPABILITIES,
@@ -1354,6 +1359,16 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     log: (message) => ctx.logger.info(message),
   });
   mountClientDiagnostics(ctx, dshHome);
+  const hostDiagnosticEnvironment = () => {
+    const dshVersion = installedDshVersion();
+    return {
+      version: runningRelease.version,
+      ...(dshVersion === undefined ? {} : { dshVersion }),
+      platform: process.platform,
+      arch: process.arch,
+      node: process.version,
+    };
+  };
   let clientIssues: ClientIssueReporter | undefined;
   const diagnosticEvents = mountDiagnosticLog(ctx, {
     onClientEntries: (session, entries) => clientIssues?.observe(session, entries),
@@ -1362,16 +1377,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       { path: dshHome, label: '$DSH_HOME' },
       { path: homedir(), label: '~' },
     ],
-    environment: () => {
-      const dshVersion = installedDshVersion();
-      return {
-        version: runningRelease.version,
-        ...(dshVersion === undefined ? {} : { dshVersion }),
-        platform: process.platform,
-        arch: process.arch,
-        node: process.version,
-      };
-    },
+    environment: hostDiagnosticEnvironment,
   });
   const release = installedRelease(import.meta.url);
   const telemetryChoice = telemetryDecision(config.telemetry);
@@ -1561,6 +1567,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                     (await tobBotCreationOperations(command, args)) ??
                     (await tobBotProfileOperations(command, args)) ??
                     (await tobShareDraftOperations(command, args)) ??
+                    (await tobDiagnosticOperations(command, args)) ??
                     (await tobChannelOperations(command, args)) ??
                     (await tobVoiceOperations(command, args));
                   if (!prepared || !['create', 'group-create'].includes(command)) return prepared;
@@ -1584,6 +1591,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                   ...TOB_BOT_CREATE_CAPABILITIES,
                   ...TOB_BOT_PROFILE_CAPABILITIES,
                   ...TOB_SHARE_DRAFT_CAPABILITIES,
+                  ...TOB_DIAGNOSTIC_CAPABILITIES,
                   ...TOB_CHANNEL_CAPABILITIES,
                   ...TOB_VOICE_CAPABILITIES,
                 ],
@@ -1782,6 +1790,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   );
   let connectAccount: ConnectAccount | undefined;
   let voiceCalls: VoiceCalls | undefined;
+  const presence = createPresence();
+  ctx.effect(() => () => presence.dispose(), 'botharness: desktop presence');
   mountDevicePairing(ctx, {
     calls: () => voiceCalls,
     botNetwork: {
@@ -1816,11 +1826,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         const offActivity = core.states.onActivity((event) => {
           if (event.cause === 'attention-changed') changed();
         });
+        const offPresence = presence.subscribe(changed);
         return () => {
           offDatabase();
           offActivity();
+          offPresence();
         };
       },
+      held: () => presence.active(),
     },
   });
   if (core.operationalDatabase.mode === 'ready' && telemetryState.lockedBy === undefined) {
@@ -3242,6 +3255,15 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const tobShareDraftOperations = createTobShareDraftOperations({
     bridge: () => bridgeMethods,
   });
+  const tobDiagnosticOperations = createTobDiagnosticOperations({
+    list: (query) => diagnosticEvents.list(query),
+    updateRun: () => {
+      const run = bridgeMethods.updateRun({});
+      if (!run.ok) throw new Error(run.error.code);
+      return run.value;
+    },
+    environment: hostDiagnosticEnvironment,
+  });
   const tobChannelOperations = createTobChannelOperations({
     management: core.channelManagement,
     channels: core.channels,
@@ -3450,6 +3472,16 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         };
       }
     ).connection;
+    connectionCtx.effect(
+      () =>
+        connection.fetch.register({
+          path: PRESENCE_PATH,
+          methods: ['GET', 'POST'],
+          requestBody: 'buffered',
+          fetch: presence.fetch,
+        }),
+      'botharness: desktop presence route',
+    );
     connectionCtx.effect(() => {
       const control = createWindowZoomControl(Date.now, (phase, detail) =>
         ctx.logger.info('window-zoom-control %j', { phase, ...detail }),

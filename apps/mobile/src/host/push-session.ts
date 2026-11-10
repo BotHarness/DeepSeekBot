@@ -31,13 +31,19 @@ export interface PushSession {
   forget(host: SavedHost): Promise<void>;
   retryFailed(): Promise<void>;
   refreshPermission(): Promise<void>;
-  reflect(hostId: string, unresolved: ReadonlySet<string> | undefined, count: number): void;
+  reflect(
+    hostId: string,
+    unresolved: ReadonlySet<string> | undefined,
+    count: number,
+    pending?: ReadonlySet<string>,
+  ): void;
   reflectAgain(): void;
   stop(): void;
 }
 
 const TOKEN_TIMEOUT_MS = 20_000;
 const RESOLVABLE = new Set(['tool-approval', 'user-question', 'private-input']);
+const REPLIES = new Set(['channel-reply', 'channel-mention']);
 
 export function createPushSession(options: {
   notifications: NotificationsPort;
@@ -216,8 +222,13 @@ export function createPushSession(options: {
       });
       return retrying;
     },
-    reflect(hostId, unresolved, count) {
-      const key = `${hostId}:${String(count)}:${[...(unresolved ?? [])].sort().join(',')}`;
+    reflect(hostId, unresolved, count, pending) {
+      const key = JSON.stringify([
+        hostId,
+        count,
+        [...(unresolved ?? [])].sort(),
+        pending === undefined ? null : [...pending].sort(),
+      ]);
       if (key === reflected) return;
       reflected = key;
       void notifications.setBadge(count).catch(() => undefined);
@@ -228,13 +239,16 @@ export function createPushSession(options: {
           Promise.all(
             shown.flatMap(({ id, data }) => {
               const target = parsePushData(data);
-              return target?.hostId === hostId &&
-                target.itemId !== undefined &&
-                target.kind !== undefined &&
-                RESOLVABLE.has(target.kind) &&
-                !unresolved.has(target.itemId)
-                ? [notifications.dismiss(id)]
-                : [];
+              if (
+                target?.hostId !== hostId ||
+                target.itemId === undefined ||
+                target.kind === undefined
+              )
+                return [];
+              const resolved =
+                (RESOLVABLE.has(target.kind) && !unresolved.has(target.itemId)) ||
+                (pending !== undefined && REPLIES.has(target.kind) && !pending.has(target.itemId));
+              return resolved ? [notifications.dismiss(id)] : [];
             }),
           ),
         )

@@ -977,9 +977,9 @@
       "path": "scripts/e2e-genui-documents.mjs",
       "category": "mapped",
       "behaviors": ["web.genui.reports"],
-      "reason": "Synthetic HTML document journey through preview/publication, isolated frames, nine content scenes, Host-owned private state and ordinary Human continuation; opt-in real-model canonical identity, frontmost viewport assertions and owned Bot-activity cleanup reject hidden captures and retained model work. Hard execution containment, foreground performance and installed-native qualification remain open.",
-      "task": 3703,
-      "sha256": "2fd253b679fb65662d8200f21d2f6fe118f73c31bd9a75b5fc8d4ef61ee14651"
+      "reason": "Synthetic HTML journey through the shared packaged Worker/VM runtime and CSP script-disabled mirror (sandbox keeps allow-scripts for WebKit listeners), nine scenes, visible native keyboard controls, canonical private-state/CAS recovery and attributable Human continuation. Readable Human body and Host-derived context metadata are checked separately. Refreshed/stateless content must actually render. Fault mode observes actual routed Worker snapshots, requires explicit refusal on replay, checks stale-lease fencing after remount, and separately injects save/commit response faults before scoped purge. Window-message probes have no presentation authority. Optional bounded execution traces diagnose rather than qualify performance. Full containment, foreground performance and installed-native qualification remain open.",
+      "task": 3711,
+      "sha256": "73fdf70ac9e6bdc53a25a45e079107b9d5f4729168900f5606acb4e25506a28f"
     },
     {
       "path": "scripts/e2e-genui-reports.mjs",

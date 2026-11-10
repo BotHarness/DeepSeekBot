@@ -229,6 +229,20 @@ describe('desktop notifier', () => {
     env.dispose();
   });
 
+  it('closes a shown notification once its item is read or handled elsewhere', async () => {
+    const env = setup();
+    env.setItems([]);
+    await env.fire();
+    env.setItems([item({ id: 'approval:a' }), item({ id: 'approval:b' })]);
+    await env.fire();
+    expect(env.fake.shown).toHaveLength(2);
+    env.setItems([item({ id: 'approval:b', isUnread: false })]);
+    await env.fire();
+    expect(env.fake.shown[0]?.handle.close).toHaveBeenCalled();
+    expect(env.fake.shown[1]?.handle.close).toHaveBeenCalled();
+    env.dispose();
+  });
+
   it('opens the source item when the notification is clicked', async () => {
     const env = setup();
     await env.fire();

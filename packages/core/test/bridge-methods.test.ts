@@ -44,7 +44,10 @@ it('reports unavailable Group review without blaming roster storage', () => {
   ]);
   expect(methods.channelGroupSendReview({ channelId: channel.id })).toEqual({
     ok: false,
-    error: { code: 'unavailable', message: 'Group send review is unavailable on this Host' },
+    error: {
+      code: 'unavailable',
+      message: 'Group send review is unavailable on this Host',
+    },
   });
 });
 
@@ -52,7 +55,10 @@ describe('composer recovery reference validation', () => {
   it('uses current Human-visible reply and attachment facts without accepting draft text', async () => {
     const { channels, attachments, methods } = setup();
     const channel = channels.getOrCreateDm('ada', 'Ada')!;
-    const sent = await methods.channelSend({ channelId: channel.id, body: 'reply target' });
+    const sent = await methods.channelSend({
+      channelId: channel.id,
+      body: 'reply target',
+    });
     expect(sent.ok).toBe(true);
     if (!sent.ok) throw new Error('send failed');
     const ref = await attachments.upload({
@@ -76,7 +82,12 @@ describe('composer recovery reference validation', () => {
         channelId: channel.id,
         replyTo: 'deleted',
         attachments: [
-          { hash: 'sha256:' + '0'.repeat(64), name: 'gone.txt', mime: 'text/plain', size: 0 },
+          {
+            hash: 'sha256:' + '0'.repeat(64),
+            name: 'gone.txt',
+            mime: 'text/plain',
+            size: 0,
+          },
         ],
       }),
     ).toEqual({ ok: true, value: { attachments: [null] } });
@@ -119,9 +130,14 @@ function setup(
   });
   modelOwners.push(modelOwner);
   const registry = createTestRegistry({ rootDir: root, database: modelOwner });
-  const modelPresets = createModelPresetStore({ rootDir: root, database: modelOwner });
+  const modelPresets = createModelPresetStore({
+    rootDir: root,
+    database: modelOwner,
+  });
   const states = createBotStateTracker();
-  const attachments = createAttachmentStore({ rootDir: join(root, 'attachments') });
+  const attachments = createAttachmentStore({
+    rootDir: join(root, 'attachments'),
+  });
   const channels = createChannelStore({
     rootDir: join(root, 'channels'),
     attachments,
@@ -144,7 +160,9 @@ function setup(
       ...(modelCatalog === undefined ? {} : { modelCatalog }),
       ...(modelCatalog === undefined
         ? {}
-        : { modelReadiness: createModelRouteReadiness(registry, modelCatalog) }),
+        : {
+            modelReadiness: createModelRouteReadiness(registry, modelCatalog),
+          }),
       states,
       channels,
       attachments,
@@ -204,9 +222,14 @@ describe('bridge methods', () => {
       workspaceId: 'project',
       scope: { channelId: group.id, path: '/project' },
     };
-    expect(await methods.grantCreate({ ...input, slug: 'bea' })).toMatchObject({ ok: false });
+    expect(await methods.grantCreate({ ...input, slug: 'bea' })).toMatchObject({
+      ok: false,
+    });
     expect(
-      await methods.grantCreate({ ...input, scope: { ...input.scope, path: '/other' } }),
+      await methods.grantCreate({
+        ...input,
+        scope: { ...input.scope, path: '/other' },
+      }),
     ).toMatchObject({ ok: false });
     expect(create).not.toHaveBeenCalled();
     expect(await methods.grantCreate(input)).toMatchObject({
@@ -253,7 +276,10 @@ describe('bridge methods', () => {
     );
     registry.create({ slug: 'ada', displayName: 'Ada' });
     const dm = channels.getOrCreateDm('ada', 'Ada')!;
-    const result = await methods.profileSessionUsage({ channelId: dm.id, slug: 'outsider' });
+    const result = await methods.profileSessionUsage({
+      channelId: dm.id,
+      slug: 'outsider',
+    });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error('Expected scoped usage');
     expect(result.value.slug).toBe('ada');
@@ -316,13 +342,26 @@ describe('bridge methods', () => {
       read,
     );
     registry.create({ slug: 'ada', displayName: 'Ada' });
-    const result = await methods.botToolTrace({ slug: 'ada', sessionId: 'session-ada', turns: 5 });
+    const result = await methods.botToolTrace({
+      slug: 'ada',
+      sessionId: 'session-ada',
+      turns: 5,
+    });
     expect(result).toMatchObject({
       ok: true,
       value: {
         sessionId: 'session-ada',
         turns: [
-          { turn: 1, calls: [{ name: 'browser_open', outcome: 'error', result: 'Error: failed' }] },
+          {
+            turn: 1,
+            calls: [
+              {
+                name: 'browser_open',
+                outcome: 'error',
+                result: 'Error: failed',
+              },
+            ],
+          },
         ],
       },
     });
@@ -331,7 +370,13 @@ describe('bridge methods', () => {
       false,
     );
     expect(
-      (await methods.botToolTrace({ slug: 'ada', sessionId: 'session-ada', turns: 0 })).ok,
+      (
+        await methods.botToolTrace({
+          slug: 'ada',
+          sessionId: 'session-ada',
+          turns: 0,
+        })
+      ).ok,
     ).toBe(false);
     expect((await methods.botToolTrace({ slug: 'nobody' })).ok).toBe(false);
     expect(read).toHaveBeenCalledTimes(1);
@@ -399,7 +444,10 @@ describe('bridge methods', () => {
       read,
     );
     registry.create({ slug: 'ada', displayName: 'Ada' });
-    const result = await methods.assignmentTimeline({ slug: 'ada', sessionId: 'asg-1' });
+    const result = await methods.assignmentTimeline({
+      slug: 'ada',
+      sessionId: 'asg-1',
+    });
     expect(result).toEqual({
       ok: true,
       value: {
@@ -417,7 +465,12 @@ describe('bridge methods', () => {
             updatedAt: '1970-01-01T00:00:00.001Z',
             omitted: 0,
             entries: [
-              { status: 'running', kind: 'other', tool: 'bash', at: '1970-01-01T00:00:00.001Z' },
+              {
+                status: 'running',
+                kind: 'other',
+                tool: 'bash',
+                at: '1970-01-01T00:00:00.001Z',
+              },
             ],
           },
           {
@@ -429,7 +482,12 @@ describe('bridge methods', () => {
             updatedAt: '1970-01-01T00:00:00.001Z',
             omitted: 0,
             entries: [
-              { status: 'running', kind: 'other', tool: 'bash', at: '1970-01-01T00:00:00.001Z' },
+              {
+                status: 'running',
+                kind: 'other',
+                tool: 'bash',
+                at: '1970-01-01T00:00:00.001Z',
+              },
             ],
           },
         ],
@@ -437,7 +495,10 @@ describe('bridge methods', () => {
     });
     expect(JSON.stringify(result)).not.toContain('id_rsa');
     expect(read.mock.calls.map(([id]) => id)).toEqual(['asg-1', 'sub-1']);
-    const subagents = await methods.sessionSubagents({ slug: 'ada', sessionId: 'asg-1' });
+    const subagents = await methods.sessionSubagents({
+      slug: 'ada',
+      sessionId: 'asg-1',
+    });
     expect(subagents).toMatchObject({
       ok: true,
       value: {
@@ -469,7 +530,10 @@ describe('bridge methods', () => {
           type: 'user/message',
           seq: 2,
           time: 2,
-          data: { source: { kind: 'user' }, content: [{ type: 'text', text: 'Hi' }] },
+          data: {
+            source: { kind: 'user' },
+            content: [{ type: 'text', text: 'Hi' }],
+          },
         },
       ],
       inheritedEventCount: 0,
@@ -499,7 +563,13 @@ describe('bridge methods', () => {
       false,
     );
     expect(
-      (await methods.botTurnInput({ slug: 'ada', sessionId: 'session-ada', turns: 21 })).ok,
+      (
+        await methods.botTurnInput({
+          slug: 'ada',
+          sessionId: 'session-ada',
+          turns: 21,
+        })
+      ).ok,
     ).toBe(false);
     expect((await methods.botTurnInput({ slug: 'nobody' })).ok).toBe(false);
     expect(read).toHaveBeenCalledTimes(1);
@@ -507,12 +577,16 @@ describe('bridge methods', () => {
   });
   it('lists and runs direct Bot tools through the runtime and traces them as session direct', async () => {
     const run = vi.fn(async (_slug: string, tool: string) => {
+      if (tool === 'genui_preview')
+        throw new GenuiPreviewError('genui-preview-timeout', 'The isolated preview timed out.');
+      if (tool === 'untrusted_error')
+        throw Object.assign(new Error('Untrusted error'), {
+          code: 'genui-preview-timeout',
+        });
       if (tool === 'network_send') throw new BotNetworkDeliveryError('delivery-unknown');
       if (tool === 'create_assignment')
         throw new DirectBotToolError('tool-not-direct', 'create_assignment cannot run');
       if (tool === 'bot_send_message') throw new Error('bot_send_message: no Channel');
-      if (tool === 'genui_preview')
-        throw new GenuiPreviewError('genui-preview-cleanup-failed', 'Profile still in use');
       if (tool === 'genui_diagram') throw new GenuiDiagramError('genui-diagram-invalid', 'Bad');
       return { tool, sessionId: 'direct' as const, result: { channels: [] } };
     });
@@ -541,10 +615,19 @@ describe('bridge methods', () => {
       },
     });
     expect(
-      await methods.botToolRun({ slug: 'ada', tool: 'channel_list', args: { limit: 1 } }),
+      await methods.botToolRun({
+        slug: 'ada',
+        tool: 'channel_list',
+        args: { limit: 1 },
+      }),
     ).toEqual({
       ok: true,
-      value: { slug: 'ada', tool: 'channel_list', sessionId: 'direct', result: { channels: [] } },
+      value: {
+        slug: 'ada',
+        tool: 'channel_list',
+        sessionId: 'direct',
+        result: { channels: [] },
+      },
     });
     expect(run).toHaveBeenCalledWith(
       'ada',
@@ -569,19 +652,22 @@ describe('bridge methods', () => {
       undefined,
     );
     expect(
-      await methods.botToolRun({ slug: 'ada', tool: 'bot_subagent', sessionId: 7 }),
+      await methods.botToolRun({
+        slug: 'ada',
+        tool: 'bot_subagent',
+        sessionId: 7,
+      }),
     ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
     expect(await methods.botToolRun({ slug: 'ada', tool: 'create_assignment' })).toEqual({
       ok: false,
-      error: { code: 'tool-not-direct', message: 'create_assignment cannot run' },
+      error: {
+        code: 'tool-not-direct',
+        message: 'create_assignment cannot run',
+      },
     });
     expect(await methods.botToolRun({ slug: 'ada', tool: 'bot_send_message' })).toEqual({
       ok: false,
       error: { code: 'tool-failed', message: 'bot_send_message: no Channel' },
-    });
-    expect(await methods.botToolRun({ slug: 'ada', tool: 'genui_preview' })).toEqual({
-      ok: false,
-      error: { code: 'genui-preview-cleanup-failed', message: 'Profile still in use' },
     });
     expect(await methods.botToolRun({ slug: 'ada', tool: 'genui_diagram' })).toMatchObject({
       ok: false,
@@ -591,13 +677,26 @@ describe('bridge methods', () => {
       ok: false,
       error: { code: 'delivery-unknown' },
     });
+    expect(await methods.botToolRun({ slug: 'ada', tool: 'genui_preview' })).toMatchObject({
+      ok: false,
+      error: { code: 'genui-preview-timeout' },
+    });
+    expect(await methods.botToolRun({ slug: 'ada', tool: 'untrusted_error' })).toMatchObject({
+      ok: false,
+      error: { code: 'tool-failed' },
+    });
     expect((await methods.botToolRun({ slug: 'ada', tool: 'x', args: [] })).ok).toBe(false);
     expect((await methods.botToolRun({ slug: 'nobody', tool: 'channel_list' })).ok).toBe(false);
     expect(await methods.botToolTrace({ slug: 'ada', sessionId: 'direct' })).toMatchObject({
       ok: true,
       value: {
         sessionId: 'direct',
-        turns: [{ endReason: 'direct', calls: [{ name: 'channel_list', outcome: 'ok' }] }],
+        turns: [
+          {
+            endReason: 'direct',
+            calls: [{ name: 'channel_list', outcome: 'ok' }],
+          },
+        ],
       },
     });
   });
@@ -655,7 +754,12 @@ describe('bridge methods', () => {
     const group = channels.createGroup({ name: 'Bounded', members: ['ada'] });
     const preview = methods.channelAllBotPreview({ channelId: group.id });
     if (!preview.ok) throw new Error('Expected preview');
-    const selection = { start: 0, end: 9, label: 'All Bots', preview: preview.value };
+    const selection = {
+      start: 0,
+      end: 9,
+      label: 'All Bots',
+      preview: preview.value,
+    };
     const dm = channels.getOrCreateDm('ada', 'Ada')!;
     expect(
       await methods.channelSend({
@@ -670,7 +774,10 @@ describe('bridge methods', () => {
         body: '@All Bots check',
         allBotMention: {
           ...selection,
-          preview: { ...preview.value, recipients: [{ botSlug: 'outsider', label: 'Outsider' }] },
+          preview: {
+            ...preview.value,
+            recipients: [{ botSlug: 'outsider', label: 'Outsider' }],
+          },
         },
       }),
     ).toMatchObject({ ok: false });
@@ -686,31 +793,51 @@ describe('bridge methods', () => {
       }),
     ).toMatchObject({ ok: false });
     expect(
-      await methods.channelSend({ channelId: group.id, body: '@All Bots plain text' }),
-    ).toMatchObject({ ok: true, value: { message: { body: '@All Bots plain text' } } });
+      await methods.channelSend({
+        channelId: group.id,
+        body: '@All Bots plain text',
+      }),
+    ).toMatchObject({
+      ok: true,
+      value: { message: { body: '@All Bots plain text' } },
+    });
     expect(channels.readMessages(group.id)).toHaveLength(1);
     expect(channels.readMessages(group.id)[0]?.mentions).toBeUndefined();
   });
   it('rejects All Bots when eligibility changes while the Channel commit is queued', async () => {
     const { registry, channels, methods } = setup();
     registry.create({ slug: 'ada', displayName: 'Ada' });
-    const group = channels.createGroup({ name: 'Queued preview', members: ['ada'] });
+    const group = channels.createGroup({
+      name: 'Queued preview',
+      members: ['ada'],
+    });
     const preview = methods.channelAllBotPreview({ channelId: group.id });
     if (!preview.ok) throw new Error('Expected preview');
     const sending = methods.channelSend({
       channelId: group.id,
       body: '@All Bots check',
-      allBotMention: { start: 0, end: 9, label: 'All Bots', preview: preview.value },
+      allBotMention: {
+        start: 0,
+        end: 9,
+        label: 'All Bots',
+        preview: preview.value,
+      },
     });
     registry.setPaused('ada', true);
-    expect(await sending).toMatchObject({ ok: false, error: { code: 'all-bot-preview-changed' } });
+    expect(await sending).toMatchObject({
+      ok: false,
+      error: { code: 'all-bot-preview-changed' },
+    });
     expect(channels.readMessages(group.id)).toEqual([]);
   });
   it('rejects a stale All Bots preview even when the new recipient count is unchanged', async () => {
     const { registry, channels, methods } = setup();
     registry.create({ slug: 'ada', displayName: 'Ada' });
     registry.create({ slug: 'bea', displayName: 'Bea' });
-    const group = channels.createGroup({ name: 'Stale', members: ['ada', 'bea'] });
+    const group = channels.createGroup({
+      name: 'Stale',
+      members: ['ada', 'bea'],
+    });
     registry.setPaused('bea', true);
     const preview = methods.channelAllBotPreview({ channelId: group.id });
     if (!preview.ok) throw new Error('Expected preview');
@@ -719,13 +846,20 @@ describe('bridge methods', () => {
     const result = await methods.channelSend({
       channelId: group.id,
       body: '@All Bots check',
-      allBotMention: { start: 0, end: 9, label: 'All Bots', preview: preview.value },
+      allBotMention: {
+        start: 0,
+        end: 9,
+        label: 'All Bots',
+        preview: preview.value,
+      },
     });
     expect(result).toMatchObject({
       ok: false,
       error: {
         code: 'all-bot-preview-changed',
-        details: { preview: { recipients: [{ botSlug: 'bea', label: 'Bea' }] } },
+        details: {
+          preview: { recipients: [{ botSlug: 'bea', label: 'Bea' }] },
+        },
       },
     });
     expect(channels.readMessages(group.id)).toEqual([]);
@@ -741,7 +875,10 @@ describe('bridge methods', () => {
     registry.create({ slug: 'archived', displayName: 'Archived' });
     registry.setPaused('archived', true);
     registry.create({ slug: 'outsider', displayName: 'Outsider' });
-    const group = channels.createGroup({ name: 'All Bots', members: ['bea', 'archived', 'ada'] });
+    const group = channels.createGroup({
+      name: 'All Bots',
+      members: ['bea', 'archived', 'ada'],
+    });
     const preview = methods.channelAllBotPreview({ channelId: group.id });
     expect(preview).toMatchObject({
       ok: true,
@@ -756,7 +893,12 @@ describe('bridge methods', () => {
     const result = await methods.channelSend({
       channelId: group.id,
       body: '@所有 Bot 请核对',
-      allBotMention: { start: 0, end: 7, label: '所有 Bot', preview: preview.value },
+      allBotMention: {
+        start: 0,
+        end: 7,
+        label: '所有 Bot',
+        preview: preview.value,
+      },
       messageId: 'human-3c44062a-4083-4a74-aeaf-4ec98a4d29e1',
     });
     expect(result).toMatchObject({
@@ -810,7 +952,10 @@ describe('bridge methods', () => {
       });
       expect(methods.browserProfileSet({ slug: 'ada', profile })).toMatchObject({
         ok: false,
-        error: { code: 'invalid-input', message: expect.stringMatching(/reserved/) },
+        error: {
+          code: 'invalid-input',
+          message: expect.stringMatching(/reserved/),
+        },
       });
       expect(write).not.toHaveBeenCalled();
       expect(changed).not.toHaveBeenCalled();
@@ -913,7 +1058,12 @@ describe('bridge methods', () => {
       undefined,
       catalog,
     );
-    registry.create({ slug: 'ada', displayName: 'Ada', model: 'legacy', preset: 'standard' });
+    registry.create({
+      slug: 'ada',
+      displayName: 'Ada',
+      model: 'legacy',
+      preset: 'standard',
+    });
     expect(await methods.modelPlan({ slug: 'ada' })).toMatchObject({
       ok: true,
       value: {
@@ -962,7 +1112,12 @@ describe('bridge methods', () => {
       undefined,
       catalog,
     );
-    registry.create({ slug: 'ada', displayName: 'Ada', model: 'legacy', preset: 'standard' });
+    registry.create({
+      slug: 'ada',
+      displayName: 'Ada',
+      model: 'legacy',
+      preset: 'standard',
+    });
     expect(await methods.modelPlan({ slug: 'ada' })).toMatchObject({
       ok: true,
       value: { repair: { code, legacyModel: 'legacy' } },
@@ -1004,7 +1159,10 @@ describe('bridge methods', () => {
     );
     expect(await methods.modelPlan({ slug: 'ada' })).toMatchObject({
       ok: true,
-      value: { plan: { orchestrator: missing }, repair: { code: 'route-unavailable' } },
+      value: {
+        plan: { orchestrator: missing },
+        repair: { code: 'route-unavailable' },
+      },
     });
     await expect(
       createModelRouteReadiness(registry, catalog).prepare('ada', 'orchestrator'),
@@ -1030,7 +1188,11 @@ describe('bridge methods', () => {
   });
 
   it('saves a Bot-specific Assignment model set and rejects stale or unsupported choices', async () => {
-    const flash = { provider: 'deepseek', model: 'flash', reasoningEffort: 'high' };
+    const flash = {
+      provider: 'deepseek',
+      model: 'flash',
+      reasoningEffort: 'high',
+    };
     const pro = { provider: 'deepseek', model: 'pro', reasoningEffort: 'off' };
     const catalog: ModelCatalog = {
       list: async () => [],
@@ -1069,7 +1231,12 @@ describe('bridge methods', () => {
         allowedEfforts: ['high', 'low'],
         defaultEffort: 'low',
       },
-      { provider: 'deepseek', model: 'pro', allowedEfforts: ['off'], defaultEffort: 'off' },
+      {
+        provider: 'deepseek',
+        model: 'pro',
+        allowedEfforts: ['off'],
+        defaultEffort: 'off',
+      },
     ];
     expect(
       await methods.modelPlanAssignmentsSet({
@@ -1081,7 +1248,12 @@ describe('bridge methods', () => {
     ).toMatchObject({
       ok: true,
       value: {
-        plan: { revision: 2, sourcePresetId: '', assignmentDefault: pro, assignmentModels },
+        plan: {
+          revision: 2,
+          sourcePresetId: '',
+          assignmentDefault: pro,
+          assignmentModels,
+        },
       },
     });
     expect(
@@ -1114,7 +1286,11 @@ describe('bridge methods', () => {
   });
 
   it('sets a Bot Model Plan directly without a preset and rejects stale revisions', async () => {
-    const flash = { provider: 'deepseek', model: 'flash', reasoningEffort: 'high' };
+    const flash = {
+      provider: 'deepseek',
+      model: 'flash',
+      reasoningEffort: 'high',
+    };
     const pro = { provider: 'deepseek', model: 'pro' };
     const catalog: ModelCatalog = {
       list: async () => [],
@@ -1136,7 +1312,12 @@ describe('bridge methods', () => {
     );
     registry.create({ slug: 'ada', displayName: 'Ada' });
     const assignmentModels = [
-      { provider: 'deepseek', model: 'pro', allowedEfforts: [''], defaultEffort: '' },
+      {
+        provider: 'deepseek',
+        model: 'pro',
+        allowedEfforts: [''],
+        defaultEffort: '',
+      },
     ];
     expect(
       await methods.modelPlanSet({
@@ -1184,11 +1365,25 @@ describe('bridge methods', () => {
   });
 
   it('preserves a template model set when an older editor omits the choices', async () => {
-    const flash = { provider: 'deepseek', model: 'flash', reasoningEffort: 'low' };
+    const flash = {
+      provider: 'deepseek',
+      model: 'flash',
+      reasoningEffort: 'low',
+    };
     const pro = { provider: 'deepseek', model: 'pro', reasoningEffort: 'off' };
     const choices = [
-      { provider: 'deepseek', model: 'flash', allowedEfforts: ['low'], defaultEffort: 'low' },
-      { provider: 'deepseek', model: 'pro', allowedEfforts: ['off'], defaultEffort: 'off' },
+      {
+        provider: 'deepseek',
+        model: 'flash',
+        allowedEfforts: ['low'],
+        defaultEffort: 'low',
+      },
+      {
+        provider: 'deepseek',
+        model: 'pro',
+        allowedEfforts: ['off'],
+        defaultEffort: 'off',
+      },
     ];
     const catalog: ModelCatalog = {
       list: async () => [],
@@ -1232,7 +1427,13 @@ describe('bridge methods', () => {
       }),
     ).toMatchObject({
       ok: true,
-      value: { preset: { revision: 2, assignmentDefault: flash, assignmentModels: choices } },
+      value: {
+        preset: {
+          revision: 2,
+          assignmentDefault: flash,
+          assignmentModels: choices,
+        },
+      },
     });
     expect(
       await methods.modelPresetUpdate({
@@ -1246,7 +1447,11 @@ describe('bridge methods', () => {
   });
 
   it('validates routes and applies independent named Model Preset snapshots to two Bots', async () => {
-    const valid = { provider: 'deepseek', model: 'deepseek-chat', reasoningEffort: 'high' };
+    const valid = {
+      provider: 'deepseek',
+      model: 'deepseek-chat',
+      reasoningEffort: 'high',
+    };
     const catalog: ModelCatalog = {
       list: async () => [
         {
@@ -1312,7 +1517,10 @@ describe('bridge methods', () => {
     });
     expect(registry.get('ada')?.modelPlan).not.toBe(registry.get('bea')?.modelPlan);
     expect(
-      await methods.modelPresetApply({ slug: 'ada', presetId: created.value.preset.id }),
+      await methods.modelPresetApply({
+        slug: 'ada',
+        presetId: created.value.preset.id,
+      }),
     ).toMatchObject({ ok: true, value: { plan: { revision: 2 } } });
     expect(registry.get('bea')?.modelPlan?.revision).toBe(1);
     expect(await methods.modelPlan({ slug: 'ada' })).toMatchObject({
@@ -1321,8 +1529,16 @@ describe('bridge methods', () => {
     });
   });
   it('edits a template for future applications and keeps custom Bot snapshots independent across restart', async () => {
-    const high = { provider: 'deepseek', model: 'deepseek-chat', reasoningEffort: 'high' };
-    const low = { provider: 'deepseek', model: 'deepseek-chat', reasoningEffort: 'low' };
+    const high = {
+      provider: 'deepseek',
+      model: 'deepseek-chat',
+      reasoningEffort: 'high',
+    };
+    const low = {
+      provider: 'deepseek',
+      model: 'deepseek-chat',
+      reasoningEffort: 'low',
+    };
     const catalog: ModelCatalog = {
       list: async () => [],
       validate: async (route) => {
@@ -1368,7 +1584,10 @@ describe('bridge methods', () => {
         orchestrator: low,
         assignmentDefault: low,
       }),
-    ).toMatchObject({ ok: true, value: { preset: { id, revision: 2, name: 'Economy' } } });
+    ).toMatchObject({
+      ok: true,
+      value: { preset: { id, revision: 2, name: 'Economy' } },
+    });
     expect(
       await methods.modelPresetUpdate({
         id,
@@ -1379,9 +1598,16 @@ describe('bridge methods', () => {
       }),
     ).toMatchObject({
       ok: false,
-      error: { code: 'invalid-input', message: expect.stringContaining('changed') },
+      error: {
+        code: 'invalid-input',
+        message: expect.stringContaining('changed'),
+      },
     });
-    expect(modelPresets.get(id)).toMatchObject({ revision: 2, name: 'Economy', orchestrator: low });
+    expect(modelPresets.get(id)).toMatchObject({
+      revision: 2,
+      name: 'Economy',
+      orchestrator: low,
+    });
     expect(registry.get('ada')?.modelPlan).toMatchObject({
       revision: 1,
       sourcePresetName: 'High intelligence',
@@ -1389,7 +1615,9 @@ describe('bridge methods', () => {
     });
     expect(await methods.modelPresetApply({ slug: 'bea', presetId: id })).toMatchObject({
       ok: true,
-      value: { plan: { revision: 1, sourcePresetName: 'Economy', orchestrator: low } },
+      value: {
+        plan: { revision: 1, sourcePresetName: 'Economy', orchestrator: low },
+      },
     });
     expect(await methods.modelPlanCustomize({ slug: 'bea', orchestrator: high })).toMatchObject({
       ok: true,
@@ -1403,7 +1631,10 @@ describe('bridge methods', () => {
         },
       },
     });
-    expect(modelPresets.get(id)).toMatchObject({ revision: 2, orchestrator: low });
+    expect(modelPresets.get(id)).toMatchObject({
+      revision: 2,
+      orchestrator: low,
+    });
     expect(registry.get('ada')?.modelPlan?.revision).toBe(1);
     expect(
       await methods.modelPlanCustomize({
@@ -1414,7 +1645,10 @@ describe('bridge methods', () => {
     expect(registry.get('ada')?.modelPlan?.revision).toBe(1);
 
     const reopened = createTestRegistry({ rootDir: root });
-    expect(reopened.get('ada')?.modelPlan).toMatchObject({ revision: 1, orchestrator: high });
+    expect(reopened.get('ada')?.modelPlan).toMatchObject({
+      revision: 1,
+      orchestrator: high,
+    });
     expect(reopened.get('bea')?.modelPlan).toMatchObject({
       revision: 2,
       sourcePresetId: '',
@@ -1453,7 +1687,11 @@ describe('bridge methods', () => {
     expect(registry.get('ada')?.modelPlan).not.toHaveProperty('assignmentDefault');
     expect(registry.get('ada')?.modelPlan).not.toHaveProperty('assignmentModels');
     expect(
-      await methods.modelPlanCustomize({ slug: 'ada', orchestrator: route, expectedRevision: 0 }),
+      await methods.modelPlanCustomize({
+        slug: 'ada',
+        orchestrator: route,
+        expectedRevision: 0,
+      }),
     ).toMatchObject({ ok: false });
     const readiness = createModelRouteReadiness(registry, catalog);
     validate.mockClear();
@@ -1483,7 +1721,11 @@ describe('bridge methods', () => {
     );
     registry.create({ slug: 'ada', displayName: 'Ada' });
     const result = await methods.modelPlanCustomize(
-      { slug: 'ada', orchestrator: { provider: 'deepseek', model: 'flash' }, expectedRevision: 0 },
+      {
+        slug: 'ada',
+        orchestrator: { provider: 'deepseek', model: 'flash' },
+        expectedRevision: 0,
+      },
       () => {
         if (!authorized) throw new Error('Pairing revoked');
       },
@@ -1492,8 +1734,16 @@ describe('bridge methods', () => {
     expect(registry.get('ada')?.modelPlan).toBeUndefined();
   });
   it('rejects stale customization when a preset is applied during model validation', async () => {
-    const high = { provider: 'deepseek', model: 'flash', reasoningEffort: 'high' };
-    const low = { provider: 'deepseek', model: 'flash', reasoningEffort: 'low' };
+    const high = {
+      provider: 'deepseek',
+      model: 'flash',
+      reasoningEffort: 'high',
+    };
+    const low = {
+      provider: 'deepseek',
+      model: 'flash',
+      reasoningEffort: 'low',
+    };
     let pauseValidation = false;
     let signalValidation: () => void = () => undefined;
     let releaseValidation: () => void = () => undefined;
@@ -1535,18 +1785,33 @@ describe('bridge methods', () => {
       assignmentDefault: low,
     });
     if (!original.ok || !replacement.ok) throw new Error('Could not prepare model presets');
-    await methods.modelPresetApply({ slug: 'ada', presetId: original.value.preset.id });
+    await methods.modelPresetApply({
+      slug: 'ada',
+      presetId: original.value.preset.id,
+    });
 
     pauseValidation = true;
-    const customization = methods.modelPlanCustomize({ slug: 'ada', orchestrator: high });
+    const customization = methods.modelPlanCustomize({
+      slug: 'ada',
+      orchestrator: high,
+    });
     await validationStarted;
     expect(
-      await methods.modelPresetApply({ slug: 'ada', presetId: replacement.value.preset.id }),
-    ).toMatchObject({ ok: true, value: { plan: { revision: 2, orchestrator: low } } });
+      await methods.modelPresetApply({
+        slug: 'ada',
+        presetId: replacement.value.preset.id,
+      }),
+    ).toMatchObject({
+      ok: true,
+      value: { plan: { revision: 2, orchestrator: low } },
+    });
     releaseValidation();
     expect(await customization).toMatchObject({
       ok: false,
-      error: { code: 'invalid-input', message: expect.stringContaining('changed') },
+      error: {
+        code: 'invalid-input',
+        message: expect.stringContaining('changed'),
+      },
     });
     expect(registry.get('ada')?.modelPlan).toMatchObject({
       revision: 2,
@@ -1570,7 +1835,10 @@ describe('bridge methods', () => {
       create: async () => grant,
       revoke: () => grant,
       requireActive: () => grant,
-      setOrchestratorWrite: (_slug, _id, enabled) => ({ ...grant, orchestratorWrite: enabled }),
+      setOrchestratorWrite: (_slug, _id, enabled) => ({
+        ...grant,
+        orchestratorWrite: enabled,
+      }),
       availableWorkspaces: () => [],
     };
     const { registry, channels, methods } = setup(
@@ -1594,18 +1862,27 @@ describe('bridge methods', () => {
       messageId: 'human-25f4609a-2aee-446a-a5d9-ea53607aba13',
       body: 'Workspace authorized.',
       replyTo: 'grant-request-1',
-      grantRequestResolution: { requestMessageId: 'grant-request-1', grantId: 'grant-1' },
+      grantRequestResolution: {
+        requestMessageId: 'grant-request-1',
+        grantId: 'grant-1',
+      },
     };
     expect(
       await methods.channelSend({
         ...payload,
-        grantRequestResolution: { ...payload.grantRequestResolution, grantId: 'unknown' },
+        grantRequestResolution: {
+          ...payload.grantRequestResolution,
+          grantId: 'unknown',
+        },
       }),
     ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
     expect(
       await methods.channelSend({
         ...payload,
-        grantRequestResolution: { ...payload.grantRequestResolution, requestMessageId: 'missing' },
+        grantRequestResolution: {
+          ...payload.grantRequestResolution,
+          requestMessageId: 'missing',
+        },
       }),
     ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
     expect(
@@ -1641,9 +1918,14 @@ describe('bridge methods', () => {
     registry.create({ slug: 'ada', displayName: 'Ada' });
     registry.create({ slug: 'bea', displayName: 'Bea' });
     const dm = channels.getOrCreateBotDm('ada', 'bea', 'Ada · Bea')!;
-    expect(methods.channelMessages({ channelId: dm.id })).toMatchObject({ ok: true });
+    expect(methods.channelMessages({ channelId: dm.id })).toMatchObject({
+      ok: true,
+    });
     expect(
-      await methods.channelSend({ channelId: dm.id, body: 'Human interjection' }),
+      await methods.channelSend({
+        channelId: dm.id,
+        body: 'Human interjection',
+      }),
     ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
     expect(methods.channelRename({ channelId: dm.id, name: 'Changed' })).toMatchObject({
       ok: false,
@@ -1661,7 +1943,10 @@ describe('bridge methods', () => {
       admitBotDmMessage() {},
       async withdrawNetworkMembership() {},
       admitGroupInvitation() {},
-      admitDmMessage: () => ({ admitted: true as const, settled: Promise.resolve() }),
+      admitDmMessage: () => ({
+        admitted: true as const,
+        settled: Promise.resolve(),
+      }),
       listAssignments: () => [],
       getAssignment: () => undefined,
       whenIdle: async () => undefined,
@@ -1669,7 +1954,10 @@ describe('bridge methods', () => {
     }));
     expect(registry.create({ slug: 'ada', displayName: 'Alex' }).ok).toBe(true);
     expect(registry.create({ slug: 'bea', displayName: 'Alex' }).ok).toBe(true);
-    const group = channels.createGroup({ name: 'Team', members: ['ada', 'bea'] });
+    const group = channels.createGroup({
+      name: 'Team',
+      members: ['ada', 'bea'],
+    });
     const body = '@Alex @Alex hello';
     const payload = {
       channelId: group.id,
@@ -1744,8 +2032,15 @@ describe('bridge methods', () => {
       body: '   ',
       attachments: [ref],
     });
-    expect(sent).toMatchObject({ ok: true, value: { message: { attachments: [ref] } } });
-    const empty = await methods.channelSend({ channelId: 'dm-ada', body: '', attachments: [ref] });
+    expect(sent).toMatchObject({
+      ok: true,
+      value: { message: { attachments: [ref] } },
+    });
+    const empty = await methods.channelSend({
+      channelId: 'dm-ada',
+      body: '',
+      attachments: [ref],
+    });
     expect(empty.ok).toBe(true);
     expect(admitted).toEqual(['[Attachments: note.txt]', '[Attachments: note.txt]']);
     const bad = await methods.channelSend({
@@ -1769,7 +2064,9 @@ describe('bridge methods', () => {
     const first = await methods.channelSend(payload);
     expect(first).toMatchObject({
       ok: true,
-      value: { message: { author: { kind: 'human' }, memorySwitchTarget: 'history' } },
+      value: {
+        message: { author: { kind: 'human' }, memorySwitchTarget: 'history' },
+      },
     });
     expect(channels.readMessages('dm-ada')[0]?.memorySwitchTarget).toBe('history');
     expect(await methods.channelSend(payload)).toEqual(first);
@@ -1841,7 +2138,9 @@ describe('bridge methods', () => {
             aggregateState: 'working',
             workspaces: ['/tmp/ada'],
             createdAt: expect.any(String),
-            banner: { recipe: expect.objectContaining({ seed: expect.any(Number) }) },
+            banner: {
+              recipe: expect.objectContaining({ seed: expect.any(Number) }),
+            },
             avatarSeed: 2,
             standingLimits: { soul: 5000, coreMemory: 3000 },
           },
@@ -1867,7 +2166,9 @@ describe('bridge methods', () => {
             aggregateState: 'idle',
             workspaces: [],
             createdAt: expect.any(String),
-            banner: { recipe: expect.objectContaining({ seed: expect.any(Number) }) },
+            banner: {
+              recipe: expect.objectContaining({ seed: expect.any(Number) }),
+            },
             avatarSeed: 2,
             standingLimits: { soul: 5000, coreMemory: 3000 },
           },
@@ -1896,7 +2197,11 @@ describe('bridge methods', () => {
 
   it('filters by display name or role badge, never by internal ID', () => {
     const { registry, methods } = setup();
-    registry.create({ slug: 'hidden-ada', displayName: 'Ada Lovelace', roles: ['研究员'] });
+    registry.create({
+      slug: 'hidden-ada',
+      displayName: 'Ada Lovelace',
+      roles: ['研究员'],
+    });
     registry.create({ slug: 'hidden-bob', displayName: 'Bob' });
 
     const byName = methods.list({ query: 'love' });
@@ -1945,7 +2250,9 @@ describe('bridge methods', () => {
           aggregateState: 'idle',
           workspaces: ['/srv/ada'],
           createdAt: expect.any(String),
-          banner: { recipe: expect.objectContaining({ seed: expect.any(Number) }) },
+          banner: {
+            recipe: expect.objectContaining({ seed: expect.any(Number) }),
+          },
           avatarSeed: 2,
           standingLimits: { soul: 5000, coreMemory: 3000 },
           model: 'deepseek-chat',
@@ -1967,7 +2274,11 @@ describe('bridge methods', () => {
 
   it('reports a missing Git prerequisite without exposing a spawn error', () => {
     const { registry, methods } = setup();
-    registry.create = () => ({ ok: false, reason: 'git-not-found', detail: 'spawn git ENOENT' });
+    registry.create = () => ({
+      ok: false,
+      reason: 'git-not-found',
+      detail: 'spawn git ENOENT',
+    });
 
     expect(methods.create({ displayName: 'No Git' })).toEqual({
       ok: false,
@@ -2004,7 +2315,10 @@ describe('bridge methods', () => {
     const location = join(root, 'chosen');
     mkdirSync(location, { recursive: true });
 
-    const created = methods.create({ displayName: 'Located', memoryLocation: location });
+    const created = methods.create({
+      displayName: 'Located',
+      memoryLocation: location,
+    });
     expect(created.ok && created.value.bot.memoryDir).toBe(join(location, 'bot-located'));
     expect(existsSync(join(location, 'bot-located'))).toBe(true);
     expect(methods.create({ displayName: 'Relative', memoryLocation: 'chosen' })).toMatchObject({
@@ -2012,7 +2326,10 @@ describe('bridge methods', () => {
       error: { code: 'invalid-memory-dir' },
     });
     expect(
-      methods.create({ displayName: 'Missing', memoryLocation: join(root, 'missing') }),
+      methods.create({
+        displayName: 'Missing',
+        memoryLocation: join(root, 'missing'),
+      }),
     ).toMatchObject({ ok: false, error: { code: 'invalid-memory-dir' } });
     expect(methods.create({ displayName: 'Bad', memoryLocation: 7 })).toEqual({
       ok: false,
@@ -2036,14 +2353,20 @@ describe('bridge methods', () => {
       error: { code: 'invalid-input', message: 'invalid create payload' },
     });
 
-    const created = methods.create({ slug: 'caller-choice', displayName: 'Ada' });
+    const created = methods.create({
+      slug: 'caller-choice',
+      displayName: 'Ada',
+    });
     expect(created.ok && created.value.bot.slug).toBe('bot-generated');
     expect(createTestRegistry({ rootDir: root }).get('bot-generated')).toBeDefined();
     expect(existsSync(join(root, 'bot-generated', 'bot.json'))).toBe(false);
     expect(existsSync(join(root, 'caller-choice', 'bot.json'))).toBe(false);
     expect(methods.create({ displayName: '同名 Ada' })).toEqual({
       ok: false,
-      error: { code: 'duplicate', message: 'PersonaBot already exists: bot-generated' },
+      error: {
+        code: 'duplicate',
+        message: 'PersonaBot already exists: bot-generated',
+      },
     });
   });
 
@@ -2059,7 +2382,12 @@ describe('bridge methods', () => {
 
   it('guards explicit CLI profile updates with the observed fingerprint while keeping the existing UI update path', () => {
     const { registry, methods } = setup();
-    registry.create({ slug: 'ada', displayName: 'Ada', description: 'Before', roles: ['old'] });
+    registry.create({
+      slug: 'ada',
+      displayName: 'Ada',
+      description: 'Before',
+      roles: ['old'],
+    });
     const before = methods.get({ slug: 'ada' });
     if (!before.ok) throw new Error('missing Bot');
     expect(before.value.profileFingerprint).toMatch(/^[a-f0-9]{64}$/u);
@@ -2128,7 +2456,9 @@ describe('bridge methods', () => {
           aggregateState: 'idle',
           workspaces: ['/srv/ada'],
           createdAt: expect.any(String),
-          banner: { recipe: expect.objectContaining({ seed: expect.any(Number) }) },
+          banner: {
+            recipe: expect.objectContaining({ seed: expect.any(Number) }),
+          },
           avatarSeed: 2,
           standingLimits: { soul: 5000, coreMemory: 3000 },
           model: 'deepseek-chat',
@@ -2146,7 +2476,11 @@ describe('bridge methods', () => {
     const { root, methods } = setup();
     methods.create({ slug: 'ada', displayName: 'Ada' });
 
-    const updated = methods.standingLimitsSet({ slug: 'ada', soul: 8000, coreMemory: 1200 });
+    const updated = methods.standingLimitsSet({
+      slug: 'ada',
+      soul: 8000,
+      coreMemory: 1200,
+    });
 
     expect(updated.ok && updated.value.bot.standingLimits).toEqual({
       soul: 8000,
@@ -2177,7 +2511,11 @@ describe('bridge methods', () => {
       });
     }
     expect(
-      methods.standingLimitsSet({ slug: 'missing', soul: 5000, coreMemory: 3000 }),
+      methods.standingLimitsSet({
+        slug: 'missing',
+        soul: 5000,
+        coreMemory: 3000,
+      }),
     ).toMatchObject({ ok: false, error: { code: 'not-found' } });
   });
 
@@ -2205,7 +2543,10 @@ describe('bridge methods', () => {
       ok: true,
       value: { bot: { slug: 'ada', displayName: 'Ada' } },
     });
-    const limits = { code: 'invalid-input', message: 'tags or bio exceed the profile limits' };
+    const limits = {
+      code: 'invalid-input',
+      message: 'tags or bio exceed the profile limits',
+    };
     expect(methods.update({ slug: 'ada', patch: { description: 'b'.repeat(161) } })).toEqual({
       ok: false,
       error: limits,
@@ -2287,7 +2628,10 @@ describe('bridge methods', () => {
     const dmList = await methods.channels({});
     expect(dmList.ok && dmList.value.channels[0]?.latestMessage?.body).toBe('最新进展');
 
-    const group = methods.channelCreate({ name: 'Design Team', members: ['ada', 'bob'] });
+    const group = methods.channelCreate({
+      name: 'Design Team',
+      members: ['ada', 'bob'],
+    });
     expect(group.ok && group.value.channel).toMatchObject({
       id: 'group-design-team',
       type: 'group',
@@ -2301,7 +2645,10 @@ describe('bridge methods', () => {
     expect(renamedGroup.ok && renamedGroup.value.channel.name).toBe('Product Team');
     expect(renamedGroup.ok && renamedGroup.value.bot).toBeUndefined();
 
-    const renamedDm = methods.channelRename({ channelId: 'dm-ada', name: 'Ada Lovelace' });
+    const renamedDm = methods.channelRename({
+      channelId: 'dm-ada',
+      name: 'Ada Lovelace',
+    });
     expect(renamedDm.ok && renamedDm.value.channel).toMatchObject({
       id: 'dm-ada',
       name: 'Ada Lovelace',
@@ -2334,7 +2681,10 @@ describe('bridge methods', () => {
       requests.push(request);
       return next;
     };
-    const result = await methods.channelListChanges({ sinceSeq: 3, epoch: 'e1' });
+    const result = await methods.channelListChanges({
+      sinceSeq: 3,
+      epoch: 'e1',
+    });
     expect(requests).toEqual([{ sinceSeq: 3, epoch: 'e1' }]);
     expect(result.ok && result.value).toEqual({
       channels: [expect.objectContaining({ id: 'dm-ada', name: 'Ada' })],
@@ -2379,7 +2729,10 @@ describe('bridge methods', () => {
     });
     expect(methods.channelCreate({ name: 'Team', members: 'ada' })).toEqual({
       ok: false,
-      error: { code: 'invalid-input', message: 'members must be an array of PersonaBot IDs' },
+      error: {
+        code: 'invalid-input',
+        message: 'members must be an array of PersonaBot IDs',
+      },
     });
     expect(methods.channelMessages({})).toEqual({
       ok: false,
@@ -2403,7 +2756,10 @@ describe('bridge methods', () => {
     });
     expect(methods.channelMessages({ channelId: 'dm-ada', limit: 0 })).toEqual({
       ok: false,
-      error: { code: 'invalid-input', message: 'limit must be a positive integer' },
+      error: {
+        code: 'invalid-input',
+        message: 'limit must be a positive integer',
+      },
     });
     expect(await methods.channelSend({ channelId: 'dm-ada', body: '   ' })).toEqual({
       ok: false,
@@ -2421,22 +2777,40 @@ describe('bridge methods', () => {
     const group = methods.channelCreate({ name: 'Team', members: [] });
     expect(group.ok).toBe(true);
     const groupId = group.ok ? group.value.channel.id : '';
-    const source = await methods.channelSend({ channelId: groupId, body: 'source' });
+    const source = await methods.channelSend({
+      channelId: groupId,
+      body: 'source',
+    });
     expect(source.ok).toBe(true);
     const sourceId = source.ok ? source.value.message.id : '';
 
     const invalidTarget = {
       ok: false,
-      error: { code: 'invalid-input', message: 'Reply target must exist in this Channel' },
+      error: {
+        code: 'invalid-input',
+        message: 'Reply target must exist in this Channel',
+      },
     };
     expect(
-      await methods.channelSend({ channelId: 'dm-ada', body: 'cross', replyTo: sourceId }),
+      await methods.channelSend({
+        channelId: 'dm-ada',
+        body: 'cross',
+        replyTo: sourceId,
+      }),
     ).toEqual(invalidTarget);
     expect(
-      await methods.channelSend({ channelId: 'dm-ada', body: 'missing', replyTo: 'unknown' }),
+      await methods.channelSend({
+        channelId: 'dm-ada',
+        body: 'missing',
+        replyTo: 'unknown',
+      }),
     ).toEqual(invalidTarget);
     expect(
-      await methods.channelSend({ channelId: 'dm-ada', body: 'invalid', replyTo: '' }),
+      await methods.channelSend({
+        channelId: 'dm-ada',
+        body: 'invalid',
+        replyTo: '',
+      }),
     ).toEqual({
       ok: false,
       error: { code: 'invalid-input', message: 'replyTo must be a message id' },
@@ -2458,7 +2832,10 @@ describe('bridge methods', () => {
     const { methods } = setup();
     methods.channelDm({ slug: 'ada', displayName: 'Ada' });
 
-    const first = await methods.channelSend({ channelId: 'dm-ada', body: 'hello' });
+    const first = await methods.channelSend({
+      channelId: 'dm-ada',
+      body: 'hello',
+    });
     expect(first).toEqual({
       ok: true,
       value: {
@@ -2470,9 +2847,15 @@ describe('bridge methods', () => {
         },
       },
     });
-    const second = await methods.channelSend({ channelId: 'dm-ada', body: 'again' });
+    const second = await methods.channelSend({
+      channelId: 'dm-ada',
+      body: 'again',
+    });
     expect(second.ok).toBe(true);
-    const third = await methods.channelSend({ channelId: 'dm-ada', body: 'third' });
+    const third = await methods.channelSend({
+      channelId: 'dm-ada',
+      body: 'third',
+    });
     expect(third.ok).toBe(true);
 
     const page = methods.channelMessages({ channelId: 'dm-ada' });
@@ -2482,10 +2865,17 @@ describe('bridge methods', () => {
       'hello',
     ]);
 
-    const oldest = await methods.channelSend({ channelId: 'dm-ada', body: 'oldest' });
+    const oldest = await methods.channelSend({
+      channelId: 'dm-ada',
+      body: 'oldest',
+    });
     expect(oldest.ok).toBe(true);
     const cursor = third.ok ? third.value.message.id : '';
-    const older = methods.channelMessages({ channelId: 'dm-ada', before: cursor, limit: 2 });
+    const older = methods.channelMessages({
+      channelId: 'dm-ada',
+      before: cursor,
+      limit: 2,
+    });
     expect(older.ok && older.value.messages.map((message) => message.body)).toEqual([
       'again',
       'hello',
@@ -2493,7 +2883,11 @@ describe('bridge methods', () => {
   });
 
   it('sends a DM through the Bot runtime and exposes only Assignment read models', async () => {
-    const handled: Array<{ channelId: string; messageId: string; body: string }> = [];
+    const handled: Array<{
+      channelId: string;
+      messageId: string;
+      body: string;
+    }> = [];
     let settled: Promise<void> = Promise.resolve();
     const { methods } = setup([], ['ada'], (channels) => ({
       admitGroupMessage() {},
@@ -2552,7 +2946,10 @@ describe('bridge methods', () => {
     methods.create({ displayName: 'Ada' });
     methods.channelDm({ slug: 'ada', displayName: 'Ada' });
 
-    const sent = await methods.channelSend({ channelId: 'dm-ada', body: '请核对发布状态' });
+    const sent = await methods.channelSend({
+      channelId: 'dm-ada',
+      body: '请核对发布状态',
+    });
 
     expect(sent.ok).toBe(true);
     expect(handled).toEqual([
@@ -2630,8 +3027,14 @@ describe('bridge methods', () => {
     methods.create({ displayName: 'Ada' });
     methods.channelDm({ slug: 'ada', displayName: 'Ada' });
 
-    const first = await methods.channelSend({ channelId: 'dm-ada', body: 'first' });
-    const second = await methods.channelSend({ channelId: 'dm-ada', body: 'second' });
+    const first = await methods.channelSend({
+      channelId: 'dm-ada',
+      body: 'first',
+    });
+    const second = await methods.channelSend({
+      channelId: 'dm-ada',
+      body: 'second',
+    });
 
     expect(first.ok).toBe(true);
     expect(second.ok).toBe(true);
@@ -2659,7 +3062,10 @@ describe('bridge methods', () => {
       admitBotDmMessage() {},
       async withdrawNetworkMembership() {},
       admitGroupInvitation() {},
-      admitDmMessage: () => ({ admitted: false as const, reason: 'archived-bot' as const }),
+      admitDmMessage: () => ({
+        admitted: false as const,
+        reason: 'archived-bot' as const,
+      }),
       listAssignments: () => [],
       getAssignment: () => undefined,
       whenIdle: async () => undefined,
@@ -2669,7 +3075,10 @@ describe('bridge methods', () => {
     methods.channelDm({ slug: 'ada', displayName: 'Ada' });
     registry.setPaused('ada', true);
 
-    const sent = await methods.channelSend({ channelId: 'dm-ada', body: 'hello' });
+    const sent = await methods.channelSend({
+      channelId: 'dm-ada',
+      body: 'hello',
+    });
 
     expect(sent).toEqual({
       ok: false,
@@ -2684,7 +3093,10 @@ describe('bridge methods', () => {
       admitBotDmMessage() {},
       async withdrawNetworkMembership() {},
       admitGroupInvitation() {},
-      admitDmMessage: () => ({ admitted: false as const, reason: 'runtime-closed' as const }),
+      admitDmMessage: () => ({
+        admitted: false as const,
+        reason: 'runtime-closed' as const,
+      }),
       listAssignments: () => [],
       getAssignment: () => undefined,
       whenIdle: async () => undefined,
@@ -2693,9 +3105,15 @@ describe('bridge methods', () => {
     methods.create({ displayName: 'Ada' });
     methods.channelDm({ slug: 'ada', displayName: 'Ada' });
 
-    const sent = await methods.channelSend({ channelId: 'dm-ada', body: 'hello' });
+    const sent = await methods.channelSend({
+      channelId: 'dm-ada',
+      body: 'hello',
+    });
 
-    expect(sent).toMatchObject({ ok: true, value: { message: { body: 'hello' } } });
+    expect(sent).toMatchObject({
+      ok: true,
+      value: { message: { body: 'hello' } },
+    });
     expect(channels.readMessages('dm-ada').map((message) => message.body)).toEqual(['hello']);
   });
 
@@ -2706,7 +3124,11 @@ describe('bridge methods', () => {
       'session-3': { botSlug: 'bob', rootRole: 'assignment' },
     });
     const { methods } = setup([], ['ada'], undefined, ownership);
-    methods.create({ slug: 'ada', displayName: 'Ada', workspaces: ['/srv/ada/'] });
+    methods.create({
+      slug: 'ada',
+      displayName: 'Ada',
+      workspaces: ['/srv/ada/'],
+    });
 
     const result = methods.sessions({ slug: 'ada' });
     expect(result.ok).toBe(true);
@@ -2800,7 +3222,10 @@ describe('bridge methods', () => {
         admitBotDmMessage() {},
         async withdrawNetworkMembership() {},
         admitGroupInvitation() {},
-        admitDmMessage: () => ({ admitted: true as const, settled: Promise.resolve() }),
+        admitDmMessage: () => ({
+          admitted: true as const,
+          settled: Promise.resolve(),
+        }),
         listAssignments: () =>
           (['session-safe', 'session-danger'] as const).map((sessionId) => ({
             sessionId,
@@ -2835,7 +3260,10 @@ describe('bridge methods', () => {
     expect(result.value.sessions).toHaveLength(3);
     expect(result.value.sessions).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ sessionId: 'session-orchestrator', role: 'orchestrator' }),
+        expect.objectContaining({
+          sessionId: 'session-orchestrator',
+          role: 'orchestrator',
+        }),
         expect.objectContaining({
           sessionId: 'session-safe',
           assignmentAccessMode: 'workspace-write',
@@ -3122,7 +3550,11 @@ describe('bridge methods', () => {
 
     expect(result.value.createdDay).toBe(localDayOf(registry.get('ada')!.createdAt));
 
-    const older = methods.profileActivity({ channelId: dm.id, before: today, weeks: 4 });
+    const older = methods.profileActivity({
+      channelId: dm.id,
+      before: today,
+      weeks: 4,
+    });
     expect(older.ok).toBe(true);
     if (!older.ok) return;
     expect(older.value).toMatchObject({ before: today, weeks: 4 });
@@ -3181,7 +3613,10 @@ describe('bridge methods', () => {
     expect(result).toMatchObject({
       ok: true,
       value: {
-        bot: { appearance: { recipe }, avatar: expect.stringContaining('/bot-avatar?slug=ada') },
+        bot: {
+          appearance: { recipe },
+          avatar: expect.stringContaining('/bot-avatar?slug=ada'),
+        },
       },
     });
     const saved = registry.get('ada')!;
@@ -3194,7 +3629,9 @@ describe('bridge methods', () => {
     expect(createTestRegistry({ rootDir: root }).get('ada')).toEqual(saved);
     expect(methods.list({})).toMatchObject({
       ok: true,
-      value: { bots: [{ appearance: { recipe, revision: saved.appearance?.revision } }] },
+      value: {
+        bots: [{ appearance: { recipe, revision: saved.appearance?.revision } }],
+      },
     });
     states.setApprovalCount('ada', 2);
     for (const invalid of [
@@ -3275,25 +3712,40 @@ describe('bridge methods', () => {
       expect(subject().primaryColor).toEqual(saved);
     }
     expect(
-      methods.botPrimaryColorSet({ channelId: group.id, primaryColor: { mode: 'automatic' } }),
+      methods.botPrimaryColorSet({
+        channelId: group.id,
+        primaryColor: { mode: 'automatic' },
+      }),
     ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
     expect(
-      methods.botPrimaryColorSet({ channelId: 'missing', primaryColor: { mode: 'automatic' } }),
+      methods.botPrimaryColorSet({
+        channelId: 'missing',
+        primaryColor: { mode: 'automatic' },
+      }),
     ).toMatchObject({ ok: false, error: { code: 'not-found' } });
     expect(subject().primaryColor).toEqual(saved);
 
     expect(registry.update('ada', { displayName: 'Ada Lovelace' }).ok).toBe(true);
-    const recipe = { ...seededAvatarFor('Ada', undefined), hairColor: '#3fc1b8' };
+    const recipe = {
+      ...seededAvatarFor('Ada', undefined),
+      hairColor: '#3fc1b8',
+    };
     expect(methods.botAppearanceSet({ channelId: dm.id, recipe }).ok).toBe(true);
     expect(methods.botAvatarSet({ channelId: dm.id, avatar: image }).ok).toBe(true);
     expect(subject().primaryColor).toEqual(saved);
-    expect(resolveBotPrimaryColor(subject())).toMatchObject({ source: 'custom', color: '#1d1b22' });
+    expect(resolveBotPrimaryColor(subject())).toMatchObject({
+      source: 'custom',
+      color: '#1d1b22',
+    });
 
     const reopened = createTestRegistry({ rootDir: root });
     expect(reopened.get('ada')?.primaryColor).toEqual(saved);
 
     expect(
-      methods.botPrimaryColorSet({ channelId: dm.id, primaryColor: { mode: 'automatic' } }),
+      methods.botPrimaryColorSet({
+        channelId: dm.id,
+        primaryColor: { mode: 'automatic' },
+      }),
     ).toMatchObject({ ok: true });
     expect(subject().primaryColor).toBeUndefined();
     expect(createTestRegistry({ rootDir: root }).get('ada')?.primaryColor).toBeUndefined();
@@ -3307,7 +3759,10 @@ describe('bridge methods', () => {
     expect(resolveBotPrimaryColor(subject())).toEqual(fallback);
 
     expect(methods.botAppearanceSet({ channelId: dm.id, recipe }).ok).toBe(true);
-    expect(resolveBotPrimaryColor(subject())).toMatchObject({ source: 'hair', color: '#3fc1b8' });
+    expect(resolveBotPrimaryColor(subject())).toMatchObject({
+      source: 'hair',
+      color: '#3fc1b8',
+    });
   });
 
   it('sets a banner scene inside the DM and resets it to the name-seeded one', () => {
@@ -3323,7 +3778,10 @@ describe('bridge methods', () => {
     });
     expect(registry.get('ada')?.banner).toEqual({ recipe });
     expect(
-      methods.botBannerSet({ channelId: dm.id, banner: { recipe: { scene: 'mars', seed: 1 } } }),
+      methods.botBannerSet({
+        channelId: dm.id,
+        banner: { recipe: { scene: 'mars', seed: 1 } },
+      }),
     ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
     expect(methods.botBannerSet({ channelId: group.id, banner: null })).toMatchObject({
       ok: false,
@@ -3331,7 +3789,9 @@ describe('bridge methods', () => {
 
     expect(registry.update('ada', { displayName: 'Ada Lovelace' }).ok).toBe(true);
     expect(methods.botBannerSet({ channelId: dm.id, banner: null }).ok).toBe(true);
-    expect(registry.get('ada')?.banner).toEqual({ recipe: seededBannerRecipe('Ada Lovelace') });
+    expect(registry.get('ada')?.banner).toEqual({
+      recipe: seededBannerRecipe('Ada Lovelace'),
+    });
   });
 
   it('sets, maps, and clears one PersonaBot custom avatar inside its DM', () => {
@@ -3344,15 +3804,27 @@ describe('bridge methods', () => {
     const avatarUrl = expect.stringMatching(/^\/api\/botharness\/bot-avatar\?slug=ada&v=/u);
 
     const set = methods.botAvatarSet({ channelId: dm.id, avatar });
-    expect(set).toMatchObject({ ok: true, value: { bot: { avatar: avatarUrl } } });
+    expect(set).toMatchObject({
+      ok: true,
+      value: { bot: { avatar: avatarUrl } },
+    });
     expect(registry.get('ada')?.avatar).toBe(avatar);
-    expect(methods.list({})).toMatchObject({ ok: true, value: { bots: [{ avatar: avatarUrl }] } });
+    expect(methods.list({})).toMatchObject({
+      ok: true,
+      value: { bots: [{ avatar: avatarUrl }] },
+    });
 
     expect(
-      methods.botAvatarSet({ channelId: dm.id, avatar: 'https://example.com/ada.png' }),
+      methods.botAvatarSet({
+        channelId: dm.id,
+        avatar: 'https://example.com/ada.png',
+      }),
     ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
     expect(
-      methods.botAvatarSet({ channelId: dm.id, avatar: 'data:image/svg+xml;base64,AAAA' }),
+      methods.botAvatarSet({
+        channelId: dm.id,
+        avatar: 'data:image/svg+xml;base64,AAAA',
+      }),
     ).toMatchObject({ ok: false });
     expect(methods.botAvatarSet({ channelId: group.id, avatar: null })).toMatchObject({
       ok: false,
@@ -3434,7 +3906,10 @@ it('logs why storage cleanup failed instead of hiding it behind storage-unavaila
   });
   expect(methods.storageCleanupPreview({ before: '2026-01-01T00:00:00.000Z' })).toEqual({
     ok: false,
-    error: { code: 'storage-unavailable', message: 'Storage cleanup preview is unavailable' },
+    error: {
+      code: 'storage-unavailable',
+      message: 'Storage cleanup preview is unavailable',
+    },
   });
   expect(warn).toHaveBeenCalledWith(
     'Storage cleanup preview is unavailable: Managed files contain a link',
@@ -3450,13 +3925,21 @@ it('projects current network contact facts without persisting them in the Channe
     device: { model: null, platform: 'darwin' },
     capabilities: [],
   };
-  const botContacts = vi.fn(() => ({ outputLimit: 12000, contacts: [contact] }));
+  const botContacts = vi.fn(() => ({
+    outputLimit: 12000,
+    contacts: [contact],
+  }));
   const refreshBotContacts = vi.fn(async () => {});
   const networkBotAvailability = vi.fn(() => 'available');
   const { channels, methods } = setup(
     [],
     [],
-    () => ({ botContacts, refreshBotContacts, networkBotAvailability }) as unknown as BotRuntime,
+    () =>
+      ({
+        botContacts,
+        refreshBotContacts,
+        networkBotAvailability,
+      }) as unknown as BotRuntime,
   );
   vi.spyOn(channels, 'list').mockReturnValue([
     {
@@ -3471,9 +3954,13 @@ it('projects current network contact facts without persisting them in the Channe
   ]);
   expect(await methods.channels({})).toMatchObject({
     ok: true,
-    value: { channels: [{ remoteContact: contact, remoteAvailability: 'available' }] },
+    value: {
+      channels: [{ remoteContact: contact, remoteAvailability: 'available' }],
+    },
   });
-  expect(botContacts).toHaveBeenCalledWith('caller', { botId: 'remote:mac:ios' });
+  expect(botContacts).toHaveBeenCalledWith('caller', {
+    botId: 'remote:mac:ios',
+  });
   expect(refreshBotContacts).toHaveBeenCalledOnce();
   expect(networkBotAvailability).toHaveBeenCalledWith('mac', 'ios');
   botContacts.mockReturnValue({ outputLimit: 12000, contacts: [] });

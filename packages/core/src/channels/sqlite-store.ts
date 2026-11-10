@@ -252,6 +252,7 @@ function sameIntent(left: ChannelMessage, right: ChannelMessage): boolean {
       assignmentReply: left.assignmentReply,
       genui: left.genui,
       genuiReply: left.genuiReply,
+      genuiReplyContext: left.genuiReplyContext,
     }) ===
     JSON.stringify({
       author: right.author,
@@ -268,6 +269,7 @@ function sameIntent(left: ChannelMessage, right: ChannelMessage): boolean {
       assignmentReply: right.assignmentReply,
       genui: right.genui,
       genuiReply: right.genuiReply,
+      genuiReplyContext: right.genuiReplyContext,
     })
   );
 }

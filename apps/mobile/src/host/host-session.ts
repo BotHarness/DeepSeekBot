@@ -1,6 +1,8 @@
 import { hostStore, hostStoreAvailable } from './host-store';
 import type { AccountOwner } from './account-owner';
 import { removeAccountConnections } from './account-connections';
+import type { ConnectHost } from './connect-account';
+import { followConnectHosts } from './connect-follow';
 import { sourceDrafts } from './native-source-drafts';
 import { use, useCallback, useMemo, useSyncExternalStore } from 'react';
 import { HostScope } from './host-scope';
@@ -211,7 +213,18 @@ function reflectInbox(hostId: string, inbox: Inbox): void {
       .filter((item) => item.category === 'action')
       .map((item) => item.id),
   );
-  pushSession.reflect(hostId, unresolved, unresolved.size);
+  const pending =
+    snapshot.notificationItems === undefined
+      ? undefined
+      : new Set(snapshot.notificationItems.map((item) => item.id));
+  pushSession.reflect(hostId, unresolved, unresolved.size, pending);
+  if (pending !== undefined)
+    alertBanners.discard(
+      (alert) =>
+        alert.data.hostId === hostId &&
+        (alert.data.kind === 'channel-reply' || alert.data.kind === 'channel-mention') &&
+        !pending.has(alert.data.itemId),
+    );
 }
 
 connectionMode.onApproval(({ hostId, itemId }) => {
@@ -482,6 +495,7 @@ export const hostSession = {
       const replacement = {
         ...host,
         ...(previous.accountOwner ? { accountOwner: previous.accountOwner } : {}),
+        ...(previous.connectHost ? { connectHost: previous.connectHost } : {}),
       };
       await commit({
         ...stored,
@@ -489,6 +503,24 @@ export const hostSession = {
       });
       void pushSession.sync(stored.hosts);
       void revokePairing({ host: previous, carrier: nativeCarrier() });
+    });
+  },
+  async followConnectHosts(listed: readonly ConnectHost[]): Promise<void> {
+    return serialize(async () => {
+      const follows = followConnectHosts(stored.hosts, listed);
+      if (follows.length === 0) return;
+      await commit({
+        ...stored,
+        hosts: stored.hosts.map((host) => {
+          const follow = follows.find(
+            (entry) => entry.hostId === host.hostId && entry.credential === host.credential,
+          );
+          return follow
+            ? { ...host, connectHost: follow.connectHost, routes: follow.routes }
+            : host;
+        }),
+      });
+      void pushSession.sync(stored.hosts);
     });
   },
   async updateRoutes(

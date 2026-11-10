@@ -10,7 +10,12 @@ import type {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ConversationMessage } from '../src/host/conversation';
-import { CHECK_BUDGET, STABLE_FRAMES, useFollowLatest } from '../src/ui/chat/follow-latest';
+import {
+  CHECK_BUDGET,
+  MOMENTUM_WAIT_MS,
+  STABLE_FRAMES,
+  useFollowLatest,
+} from '../src/ui/chat/follow-latest';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -157,6 +162,37 @@ describe('history-reading gesture ownership', () => {
     expect(view.following.mock.calls).toEqual([[false], [true], [false], [true]]);
     expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END, animated: false });
     view.unmount();
+  });
+
+  it('settles a flick release when no momentum follows', () => {
+    vi.useFakeTimers();
+    const view = mount();
+    act(() => view.current.listProps.onScrollBeginDrag());
+    act(() => {
+      view.current.listProps.onScroll(event(30));
+      view.current.listProps.onScrollEndDrag(event(30, 1));
+    });
+    expect(view.current.away).toBe(true);
+    act(() => vi.advanceTimersByTime(MOMENTUM_WAIT_MS));
+    expect(view.current.away).toBe(false);
+    view.unmount();
+    vi.useRealTimers();
+  });
+
+  it('waits for momentum to end once it begins', () => {
+    vi.useFakeTimers();
+    const view = mount();
+    act(() => view.current.listProps.onScrollBeginDrag());
+    act(() => {
+      view.current.listProps.onScrollEndDrag(event(300, 1));
+      view.current.listProps.onMomentumScrollBegin();
+    });
+    act(() => vi.advanceTimersByTime(MOMENTUM_WAIT_MS * 4));
+    expect(view.current.away).toBe(true);
+    act(() => view.current.listProps.onMomentumScrollEnd(event(10)));
+    expect(view.current.away).toBe(false);
+    view.unmount();
+    vi.useRealTimers();
   });
 
   it('settles a release just short of the end onto the latest message', () => {

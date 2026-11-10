@@ -39,7 +39,7 @@ async function pool(accounts = ['user_a', 'user_b', 'user_c'], extra: Partial<Re
 }
 
 describe('tunnel and DNS lifecycle', () => {
-  it('deletes the record with the tunnel when an offline Host is reclaimed and restores both on return', async () => {
+  it('deletes the record with the tunnel when an offline Host is reclaimed and returns on a fresh hostname', async () => {
     const env = await pool();
     const id = await env.link('user_a');
     expect((await env.provision('user_a', id)).status).toBe(200);
@@ -54,9 +54,15 @@ describe('tunnel and DNS lifecycle', () => {
     expect(env.tunnels.tunnels.size).toBe(0);
     expect(env.tunnels.records.size).toBe(0);
     expect(await env.row(id)).toMatchObject({ tunnel_id: null, dns_record_id: null });
+    const fresh = `${(await env.row(id))?.['label']}.${ZONE}`;
+    expect(fresh).toMatch(/^h[a-z2-7]{12}\./u);
+    expect(fresh).not.toBe(`${id}.${ZONE}`);
+    const listed = await env.call('GET', '/v1/hosts', { as: 'user_a' });
+    expect(listed.body.hosts[0].hostname).toBe(fresh);
     const back = await env.provision('user_a', id);
-    expect(back.body.hostname).toBe(`${id}.${ZONE}`);
-    expect(env.tunnels.recordFor(`${id}.${ZONE}`)?.target).toBe(
+    expect(back.body.hostname).toBe(fresh);
+    expect(env.tunnels.recordFor(`${id}.${ZONE}`)).toBeUndefined();
+    expect(env.tunnels.recordFor(fresh)?.target).toBe(
       `${(await env.row(id))?.['tunnel_id']}.cfargotunnel.com`,
     );
   });
@@ -435,9 +441,10 @@ describe('eviction when the pool is full', () => {
     expect((await env.row(capable))?.['tunnel_id']).not.toBeNull();
     env.advance(10 * MINUTE);
     await env.relay.reclaim();
-    expect((await env.provision('user_b', capable, { zones: [ZONE, EXTRA] })).body.hostname).toBe(
-      `${capable}.${EXTRA}`,
-    );
+    const returned = (await env.provision('user_b', capable, { zones: [ZONE, EXTRA] })).body
+      .hostname as string;
+    expect(returned.endsWith(`.${EXTRA}`)).toBe(true);
+    expect(returned).not.toBe(`${capable}.${EXTRA}`);
   });
 
   it('reports pool use and hands a freed slot to the Host that waited longest', async () => {

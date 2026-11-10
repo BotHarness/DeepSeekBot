@@ -70,7 +70,7 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
     setErrorDetail(undefined);
     lastDetail.current = undefined;
     let accountPair:
-      | { accountOwner: AccountOwner; sessionKey: string; routes: string[] }
+      | { accountOwner: AccountOwner; sessionKey: string; routes: string[]; connectHost: string }
       | undefined;
     const startingHosts = hostSession.getState().hosts;
     const result = await pairHost({
@@ -81,7 +81,7 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
           : async () => {
               const offer = await connectAccount.offer(hostId, deviceName());
               if (!offer.ok) return offer;
-              accountPair = offer.value;
+              accountPair = { ...offer.value, connectHost: hostId };
               return { ok: true, payload: offer.value };
             },
       method,
@@ -133,9 +133,9 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
         )
           throw new Error('already-paired');
         if (accountPair) {
-          const { accountOwner, sessionKey } = accountPair;
+          const { accountOwner, sessionKey, connectHost } = accountPair;
           await connectAccount.savePairing(sessionKey, () =>
-            hostSession.pair({ ...host, accountOwner }),
+            hostSession.pair({ ...host, accountOwner, connectHost }),
           );
         } else await hostSession.pair(host);
         const name = hostLookName(connectionName);
@@ -143,9 +143,7 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
           host.hostId,
           hostSession.getState().hosts.map((saved) => saved.hostId),
           name,
-          accountPair === undefined
-            ? undefined
-            : accountHostLookId(new URL(accountPair.routes[0]!).hostname),
+          accountPair === undefined ? undefined : accountHostLookId(accountPair.connectHost),
         );
         if (!original) setupHost.current = host.hostId;
       },

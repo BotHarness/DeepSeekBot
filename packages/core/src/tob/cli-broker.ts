@@ -2,6 +2,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage } from 'node:http';
 import { TOB_AGENT_COMMAND_USAGE } from '../bots/cli-agent-management.js';
 import { TobError, type TobSetting } from './service.js';
+import { DIAGNOSTIC_ERROR_CODES } from './cli-diagnostic-operations.js';
 import { SHARE_DRAFT_ERROR_CODES } from './cli-share-draft-operations.js';
 import { TOB_VOICE_ERROR_CODES } from './cli-voice-operations.js';
 import type {
@@ -24,6 +25,7 @@ const IMAGE_COMMANDS = new Set([
 ]);
 const LARGE_TEXT_COMMANDS = new Set(['share-draft-decide']);
 const CODES = new Set([
+  ...DIAGNOSTIC_ERROR_CODES,
   ...SHARE_DRAFT_ERROR_CODES,
   ...TOB_VOICE_ERROR_CODES,
   'tob-authority-required',

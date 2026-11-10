@@ -1,3 +1,4 @@
+import { launcherControl } from './launcher-control.js';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -48,6 +49,7 @@ export interface CallMediaOptions {
 
 export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia {
   let active = false;
+  let activeState: (() => string) | undefined;
   const target = () => {
     const platform = options.platform ?? process.platform;
     const arch = options.arch ?? process.arch;
@@ -78,7 +80,12 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
       const { mac, supported, directory, assets } = target();
       if (!supported)
         throw new CallMediaError('unsupported-platform', 'Calls need a Mac or Windows x64 Host.');
-      if (active) throw new CallMediaError('busy', 'This Host already has call media running.');
+      if (active) {
+        options.onEvent?.(
+          `call=${callId} phase=call-media-open-refused reason=busy ${activeState?.() ?? ''}`,
+        );
+        throw new CallMediaError('busy', 'This Host already has call media running.');
+      }
       active = true;
       const launchId = randomUUID();
       const started = Date.now();
@@ -162,6 +169,20 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
           });
         });
       };
+      let released = false;
+      let cleanupRefused = false;
+      let cleanupReason = 'missing-tree-proof';
+      activeState = () =>
+        `closed=${closed} exited=${exited} treeOwned=${treeOwned} treeStopped=${treeStopped}`;
+      const release = () => {
+        if (released || !closed || (child && !spawnFailed && !(exited && treeStopped))) return;
+        released = true;
+        active = false;
+        activeState = undefined;
+        if (profile) void rm(profile, { recursive: true, force: true }).catch(() => undefined);
+        if (cleanupRefused)
+          event(`phase=call-media-cleanup-recovered exited=${exited} treeStopped=${treeStopped}`);
+      };
       const close = (): Promise<void> => {
         closing ??= (async () => {
           closed = true;
@@ -171,12 +192,14 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
             if (child && !exited) {
               child.stdin.end(JSON.stringify({ id: nextId++, op: 'close' }) + '\n');
               if (!(await boundedExit(exit, 2400))) {
-                child.kill();
+                cleanupReason = 'exit-timeout';
+                if (!exited) child.kill();
                 await boundedExit(exit, 200);
-                throw new CallMediaError(
-                  'helper-failed',
-                  'The call process tree did not confirm cleanup within its limit.',
-                );
+                if (!(exited && treeStopped))
+                  throw new CallMediaError(
+                    'helper-failed',
+                    'The call process tree did not confirm cleanup within its limit.',
+                  );
               }
             }
             if (child && !spawnFailed && !treeStopped)
@@ -185,10 +208,14 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
                 'The call process tree exited without confirming cleanup. Restart the Host before another call.',
               );
             event(`phase=call-media-stopped durationMs=${Date.now() - started}`);
+          } catch (error) {
+            cleanupRefused = true;
+            event(
+              `phase=call-media-cleanup-refused reason=${cleanupReason} exited=${exited} treeOwned=${treeOwned} treeStopped=${treeStopped}`,
+            );
+            throw error;
           } finally {
-            if (!child || spawnFailed || (exited && treeStopped)) active = false;
-            if (profile && (!child || spawnFailed || (exited && treeStopped)))
-              void rm(profile, { recursive: true, force: true }).catch(() => undefined);
+            release();
             status('closed');
           }
         })();
@@ -198,10 +225,10 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
         if (closed) return;
         event(`phase=call-media-failed durationMs=${Date.now() - started}`);
         status('failed');
-        void close().catch(() => event('phase=call-media-cleanup-refused'));
+        void close().catch(() => undefined);
       };
       const aborted = () => {
-        void close().catch(() => event('phase=call-media-cleanup-refused'));
+        void close().catch(() => undefined);
       };
       const helperMessage = (message: Record<string, unknown>): boolean => {
         if ('id' in message && typeof message['id'] === 'number' && 'ok' in message) {
@@ -299,15 +326,17 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
         child.once('close', () => {
           exited = true;
           exitResolve?.();
+          release();
         });
         child.once('error', () => {
           spawnFailed = child?.pid === undefined;
           exited = true;
           exitResolve?.();
+          release();
           failed();
         });
         child.stdin.on('error', failed);
-        child.stderr.on('data', () => {});
+
         const readiness = new Promise<void>((resolve, reject) => {
           ready = {
             resolve,
@@ -319,8 +348,17 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
           };
         });
         child.stdout.setEncoding('utf8');
-        child.stdout.on('data', (chunk: string) => {
+        let beforeOwned = '';
+        const receiveOutput = (chunk: string) => {
           if (treeStopped) return;
+          if (!mac && !treeOwned) {
+            beforeOwned += chunk;
+            if (Buffer.byteLength(beforeOwned) > 128 * 1024) {
+              beforeOwned = '';
+              failed();
+            }
+            return;
+          }
           if (Buffer.byteLength(output) + Buffer.byteLength(chunk) > 2 * LINE_LIMIT) {
             output = '';
             return failed();
@@ -333,6 +371,11 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
             try {
               const envelope = JSON.parse(line) as Record<string, unknown>;
               if (envelope['launchId'] !== launchId) return failed();
+              if (
+                !mac &&
+                (envelope['event'] === 'tree-owned' || envelope['event'] === 'tree-closed')
+              )
+                return failed();
               if (
                 envelope['event'] === 'tree-owned' &&
                 envelope['version'] === 1 &&
@@ -354,6 +397,7 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
                 !treeStopped
               ) {
                 treeStopped = true;
+                release();
                 event('phase=call-media-tree-closed activeProcesses=0');
                 if (!closed) failed();
                 continue;
@@ -378,7 +422,35 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
               return failed();
             }
           }
-        });
+        };
+        child.stdout.on('data', receiveOutput);
+        if (mac) child.stderr.on('data', () => {});
+        else {
+          child.stderr.setEncoding('utf8');
+          child.stderr.on(
+            'data',
+            launcherControl({
+              launchId,
+              owned(rootPid) {
+                treeOwned = true;
+                event(
+                  `phase=call-media-tree-owned launcherPid=${child?.pid ?? 0} rootPid=${rootPid}`,
+                );
+                const pendingOutput = beforeOwned;
+                beforeOwned = '';
+                if (pendingOutput) receiveOutput(pendingOutput);
+              },
+              closed() {
+                treeStopped = true;
+                beforeOwned = '';
+                release();
+                event('phase=call-media-tree-closed activeProcesses=0');
+                if (!closed) failed();
+              },
+              rejected: failed,
+            }),
+          );
+        }
         await readiness;
         signal.throwIfAborted();
         const offer = parseOffer(await request('offer'));

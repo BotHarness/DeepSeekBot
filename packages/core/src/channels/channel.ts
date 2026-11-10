@@ -491,6 +491,7 @@ export function isChannelVoiceCallMessage(value: unknown): value is ChannelVoice
 export interface ChannelMessage {
   genui?: GenuiContent;
   genuiReply?: GenuiMessageReply;
+  genuiReplyContext?: string;
   id: string;
   at: string;
   author: ChannelMessageAuthor;

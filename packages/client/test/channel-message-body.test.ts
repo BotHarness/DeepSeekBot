@@ -31,6 +31,28 @@ import {
 } from '../../core/src/channels/genui-document.js';
 import { RemoteMessageBody } from '../src/client/remote-message-body.js';
 import type { ConversationMessage } from '../../../apps/mobile/src/host/conversation.js';
+import type {
+  GenuiDocumentMountOptions,
+  GenuiDocumentRuntime,
+} from '../../core/src/channels/genui-document-runtime.js';
+
+const runtime = vi.hoisted(() => ({ load: vi.fn<() => Promise<GenuiDocumentRuntime>>() }));
+vi.mock('../src/client/genui-document-runtime.js', () => ({
+  loadGenuiDocumentRuntime: runtime.load,
+}));
+const mountDocument = vi.fn((container: HTMLElement, options: GenuiDocumentMountOptions) => {
+  const frame = document.createElement('iframe');
+  frame.title = options.document.title;
+  frame.setAttribute('sandbox', 'allow-same-origin allow-scripts');
+  container.append(frame);
+  return {
+    ready: Promise.resolve(),
+    restore: vi.fn(),
+    theme: vi.fn(),
+    textScale: vi.fn(),
+    dispose: vi.fn(() => frame.remove()),
+  };
+});
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   FileTypeIcon: ({ path }: { path: string }) =>
@@ -121,7 +143,7 @@ describe('GenUI ordinary message integration', () => {
 });
 
 it.each(['dm', 'group'] as const)(
-  'renders v2 guardian content beside the readable summary in %s',
+  'mounts the shared v2 runtime beside the readable summary in %s',
   async (type) => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
     const previous = store.getSnapshot().conversation;
@@ -169,8 +191,13 @@ it.each(['dm', 'group'] as const)(
         ),
       );
       expect(container.textContent).toContain(message.body);
-      expect(container.querySelector('iframe')?.getAttribute('sandbox')).toBe('allow-scripts');
-      expect(container.querySelector('iframe')?.srcdoc).toContain('genui-guardian');
+      expect(runtime.load).toHaveBeenCalledTimes(1);
+      expect(mountDocument).toHaveBeenCalledTimes(1);
+      expect(mountDocument).toHaveBeenCalledWith(
+        expect.any(HTMLElement),
+        expect.objectContaining({ document: genui, state: initialGenuiDocumentState(genui) }),
+      );
+      expect(container.querySelector('iframe')?.title).toBe(genui.title);
       if (type === 'dm')
         expect(call).toHaveBeenCalledWith(
           'channelGenuiView',
@@ -183,6 +210,7 @@ it.each(['dm', 'group'] as const)(
       }
     } finally {
       await act(async () => root.unmount());
+      expect(mountDocument.mock.results[0]?.value.dispose).toHaveBeenCalledTimes(1);
       container.remove();
       store.setConversation(previous);
     }
@@ -286,7 +314,12 @@ function render(
   );
 }
 
-beforeEach(() => vi.mocked(MarkdownText).mockClear());
+beforeEach(() => {
+  vi.mocked(MarkdownText).mockClear();
+  runtime.load.mockReset();
+  runtime.load.mockResolvedValue({ mountGenuiDocument: mountDocument });
+  mountDocument.mockClear();
+});
 
 it.each([
   { phase: 'initial', failure: 'http' },

@@ -50,6 +50,7 @@
     "@mermaid-js/mermaid-cli": "^11.17.0",
     "@stylexjs/babel-plugin": "0.19.1",
     "@types/node": "^22.20.2",
+    "esbuild": "0.28.2",
     "husky": "^9.1.7",
     "lint-staged": "^17.6.0",
     "oxfmt": "^0.68.0",

@@ -443,6 +443,8 @@ Home:
   clicks); without it, DSH_HOME from the environment is used.
 `;
 
+const LOCAL_LOG_COMMANDS = new Set(['doctor', 'diagnostic-logs', 'diagnostic-logs-export']);
+
 const STATIC_CATALOG_PROVIDER_IDS: ReadonlySet<string> = new Set([
   'amazon-bedrock',
   'ant-ling',
@@ -2735,7 +2737,7 @@ export async function runBotCreateCli(
         (values.host !== undefined || io.env['DEEPSEEKBOT_HOST'] !== undefined)) ||
       (online && INBOX_HOST_COMMANDS.some((entry) => entry === command))
     ) {
-      if (values.home !== undefined)
+      if (values.home !== undefined && !LOCAL_LOG_COMMANDS.has(command))
         throw usageError('Do not combine --home and an online Host target.');
       out.stdout(JSON.stringify(await runLiveCli(command, rest, values, io), null, 2));
       return 0;

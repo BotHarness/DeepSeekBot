@@ -11,8 +11,13 @@ import { rpc } from './verify-app.mjs';
 import { stopGenuiQaBot } from './genui-qa-cleanup.mjs';
 import { genuiDirtySourceHashes } from './perf-genui-provenance.mjs';
 import { checkBudget, readBudget } from './perf-budget.mjs';
-import { observeGenuiOpening, summarizeGenuiOpening } from './perf-genui-opening-observer.mjs';
+import {
+  observeGenuiOpening,
+  summarizeGenuiOpening,
+  traceGenuiOpening,
+} from './perf-genui-opening-observer.mjs';
 import { openTimelineConversation } from './perf-timeline-navigation.mjs';
+import { dismissGenuiOpeningOverlays as dismiss } from './perf-genui-opening-overlays.mjs';
 import {
   assertNativeViewportUnchanged,
   calibrateNativeViewport,
@@ -23,13 +28,17 @@ const { values } = parseArgs({
   options: {
     out: { type: 'string', default: '.humanlayer/perf/genui-opening' },
     headless: { type: 'boolean', default: false },
-    budget: { type: 'string', default: 'scripts/perf-budgets/genui-opening.json' },
+    trace: { type: 'boolean', default: false },
+    budget: {
+      type: 'string',
+      default: 'scripts/perf-budgets/genui-opening.json',
+    },
     help: { type: 'boolean', default: false },
   },
 });
 if (values.help) {
   console.log(
-    'BH_E2E_INSTANCE=<instance.json> node scripts/perf-genui-opening.mjs [--out <new-directory>] [--headless] [--budget <file>]\nThree model-free plain/rich DM pairs; fresh browser per opening. Headless is CI diagnostic evidence, not foreground acceptance. The caller owns Host cleanup.',
+    'BH_E2E_INSTANCE=<instance.json> node scripts/perf-genui-opening.mjs [--out <new-directory>] [--headless] [--trace] [--budget <file>]\nThree model-free plain/rich DM pairs; fresh browser per opening. Headless is CI diagnostic evidence, not foreground acceptance. --trace records a separate instrumented diagnostic, never a qualification run. The caller owns Host cleanup.',
   );
   process.exit(0);
 }
@@ -61,6 +70,7 @@ const manifest = {
   scope:
     'Fresh-browser unvisited synthetic DM openings; no model, physical paint, desktop shell, native or Human acceptance',
   headed: !values.headless,
+  diagnosticTrace: values.trace,
   sourceSha: git('rev-parse', 'HEAD').toString().trim(),
   diffSha256: hash(git('diff', 'HEAD')),
   sourceFiles: genuiDirtySourceHashes(root),
@@ -90,60 +100,13 @@ async function createBot(name) {
     persona: 'Synthetic GenUI opening QA only. No business data. Do not initiate work.',
     operationKey: randomUUID(),
   });
-  const bot = { slug: created.bot.slug, channelId: created.channelId ?? `dm-${created.bot.slug}` };
+  const bot = {
+    slug: created.bot.slug,
+    channelId: created.channelId ?? `dm-${created.bot.slug}`,
+  };
   manifest.bots.push(bot);
   save();
   return bot;
-}
-
-async function clickAttached(handle) {
-  try {
-    await handle.click();
-  } catch (error) {
-    const message = String(error?.message);
-    if (
-      !message.includes('Node is detached from document') &&
-      !message.includes('Node is either not clickable or not an Element')
-    )
-      throw error;
-  }
-}
-
-async function dismiss(page) {
-  for (let round = 0; round < 8; round++) {
-    const tutorial = await page.$('.driver-popover-close-btn');
-    if (tutorial && (await tutorial.isVisible())) {
-      await clickAttached(tutorial);
-      continue;
-    }
-    let clicked = false;
-    for (const button of await page.$$('button')) {
-      const label = await button.evaluate((node) =>
-        node.closest('.bh-chat-body')
-          ? ''
-          : (node.getAttribute('aria-label') ?? node.textContent).trim(),
-      );
-      if (
-        [
-          'Continue',
-          '继续',
-          'Skip tutorial',
-          '跳过教程',
-          'Configure later',
-          '稍后配置',
-          'Skip',
-          '跳过',
-          'Don’t show again',
-        ].includes(label) &&
-        (await button.isVisible())
-      ) {
-        await clickAttached(button);
-        clicked = true;
-        break;
-      }
-    }
-    if (!clicked) break;
-  }
 }
 
 async function measure(target, parking) {
@@ -173,7 +136,10 @@ async function measure(target, parking) {
     });
     if (!values.headless) browserRecord.startupNativeViewport = await calibrateNativeViewport(page);
     await page.evaluateOnNewDocument((messageId) => {
-      Object.defineProperty(navigator, 'language', { configurable: true, get: () => 'en-US' });
+      Object.defineProperty(navigator, 'language', {
+        configurable: true,
+        get: () => 'en-US',
+      });
       Object.defineProperty(navigator, 'languages', {
         configurable: true,
         get: () => ['en-US', 'en'],
@@ -218,7 +184,11 @@ async function measure(target, parking) {
     const nativeViewport = values.headless ? undefined : await readNativeViewport(page);
     const viewport =
       nativeViewport ??
-      (await page.evaluate(() => ({ innerWidth, innerHeight, devicePixelRatio })));
+      (await page.evaluate(() => ({
+        innerWidth,
+        innerHeight,
+        devicePixelRatio,
+      })));
     if (referenceViewport)
       assert.deepEqual(viewport, referenceViewport, 'All six opening viewports must match.');
     referenceViewport ??= viewport;
@@ -230,21 +200,52 @@ async function measure(target, parking) {
     );
     browserRecord.phase = 'measured-opening';
     save();
-    const observation = await observeGenuiOpening(
+    const observation = await traceGenuiOpening(
       page,
-      { ...target, rich: target.arm === 'rich', continueLabel: 'Continue', previsited },
-      () => openTimelineConversation(page, target.channelId, () => dismiss(page)),
+      values.trace ? join(out, `${target.pair}-${target.arm}.opening.trace.json`) : undefined,
+      () =>
+        observeGenuiOpening(
+          page,
+          {
+            ...target,
+            rich: target.arm === 'rich',
+            continueLabel: 'Continue',
+            previsited,
+            diagnosticTrace: values.trace,
+          },
+          () => openTimelineConversation(page, target.channelId, () => dismiss(page)),
+        ),
     );
     const row = { ...target, ...observation, nativeViewport };
+    if (values.trace)
+      row.resourceTimings = await page.evaluate(() =>
+        performance
+          .getEntriesByType('resource')
+          .filter((entry) =>
+            /\/(?:client(?:\.genui)?|genui-runtime)\.js$/u.test(new URL(entry.name).pathname),
+          )
+          .map((entry) => ({
+            asset: new URL(entry.name).pathname.split('/').at(-1),
+            startTime: entry.startTime,
+            duration: entry.duration,
+            responseStart: entry.responseStart,
+            responseEnd: entry.responseEnd,
+            transferSize: entry.transferSize,
+            encodedBodySize: entry.encodedBodySize,
+          })),
+      );
     manifest.openings.push(row);
     save();
     if (target.arm === 'rich') {
       const frameElement = await page.$(
         `[data-message-id=${JSON.stringify(target.messageId)}] section[aria-label] iframe`,
       );
-      const guardian = await frameElement.contentFrame();
-      const inner = guardian.childFrames()[0];
-      assert.ok(inner, 'Nested document frame must exist.');
+      assert.equal(
+        await frameElement.evaluate((node) => node.getAttribute('sandbox')),
+        'allow-same-origin allow-scripts',
+      );
+      const inner = await frameElement.contentFrame();
+      assert.ok(inner, 'Script-disabled document mirror must exist.');
       await inner.waitForSelector('#scene');
       assert.ok(await inner.$eval('body', (node) => node.innerText.includes('Project')));
       row.innerDocumentVerified = true;
@@ -353,7 +354,10 @@ try {
       save();
       assert.equal(sent.result.status, 'committed');
       target.messageId = sent.result.messageId;
-      const timeline = await call('channelMessages', { channelId: bot.channelId, limit: 10 });
+      const timeline = await call('channelMessages', {
+        channelId: bot.channelId,
+        limit: 10,
+      });
       const canonical = timeline.messages.find((message) => message.id === target.messageId);
       assert.ok(canonical, 'Read back the explicitly committed canonical message.');
       assert.deepEqual(canonical.genui, arm === 'rich' ? document : undefined);
@@ -368,11 +372,15 @@ try {
   manifest.status = 'failed';
   manifest.failure = redact(error);
   if (error.cleanupFailure) manifest.cleanupFailures.push(redact(error.cleanupFailure));
+  if (error.traceCleanupFailure) manifest.cleanupFailures.push(redact(error.traceCleanupFailure));
   process.exitCode = 1;
 } finally {
   for (const bot of manifest.bots) {
     try {
-      manifest.cleanup.push({ slug: bot.slug, ...(await stopGenuiQaBot(call, bot)) });
+      manifest.cleanup.push({
+        slug: bot.slug,
+        ...(await stopGenuiQaBot(call, bot)),
+      });
     } catch (error) {
       manifest.cleanupFailures.push(redact(error));
     }
@@ -380,9 +388,11 @@ try {
   }
   manifest.finishedAt = new Date().toISOString();
   manifest.summary = summarizeGenuiOpening(manifest);
-  manifest.budgetResult = checkBudget(manifest.summary, budget, { strictTiming: true });
+  manifest.budgetResult = checkBudget(manifest.summary, budget, {
+    strictTiming: true,
+  });
   if (!manifest.budgetResult.pass || manifest.status === 'failed') process.exitCode = 1;
-  manifest.status = process.exitCode ? 'failed' : 'passed';
+  manifest.status = process.exitCode ? 'failed' : values.trace ? 'diagnostic' : 'passed';
   save();
   writeFileSync(
     join(out, 'summary.json'),
@@ -390,5 +400,9 @@ try {
   );
 }
 console.log(
-  JSON.stringify({ status: manifest.status, ...manifest.summary, budget: manifest.budgetResult }),
+  JSON.stringify({
+    status: manifest.status,
+    ...manifest.summary,
+    budget: manifest.budgetResult,
+  }),
 );

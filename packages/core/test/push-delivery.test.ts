@@ -67,6 +67,7 @@ function fixture() {
   const events: PushEvent[] = [];
   let items: PushCandidate[] = [];
   let badge = 0;
+  let held = false;
   const push: PushDelivery = createPushDelivery({
     database: attachOperationalModule(owner, 'push'),
     source: {
@@ -77,6 +78,7 @@ function fixture() {
     host: () => pairing.host(),
     deviceActive: (deviceId) =>
       pairing.list().some((device) => device.id === deviceId && device.revokedAt === undefined),
+    held: () => held,
     now: () => clock,
     sleep: async () => {},
     record: (event) => events.push(event),
@@ -97,6 +99,9 @@ function fixture() {
     at,
     advance: (ms: number) => {
       clock += ms;
+    },
+    hold(next: boolean) {
+      held = next;
     },
     setInbox(next: PushCandidate[], count = next.length) {
       items = next;
@@ -536,6 +541,36 @@ describe('Push delivery', () => {
     expect(f.push.settings(phone.device.id)).toMatchObject({ enabled: true, quietChannelIds: [] });
   });
 
+  it('holds replies while a desktop is active and sends the still-unread ones once it lapses', async () => {
+    const f = fixture();
+    const phone = f.device('Phone');
+    f.push.register(phone.device.id, { token: TOKEN_A, platform: 'ios' });
+    f.advance(1000);
+    const reply = (id: string): PushCandidate => ({
+      id,
+      kind: 'reply',
+      attentionKind: 'channel-reply',
+      botSlug: 'ada',
+      createdAt: f.at(0),
+      channelId: 'dm-ada',
+    });
+    const sent = () =>
+      f.expo
+        .flat()
+        .map((message) => message.data.itemId)
+        .filter((id) => id !== undefined);
+    f.hold(true);
+    f.setInbox([reply('reply:1'), reply('reply:2'), approval('approval:1', f.at(0))]);
+    await f.push.reconcile();
+    expect(sent()).toEqual(['approval:1']);
+    f.setInbox([reply('reply:2'), approval('approval:1', f.at(0))]);
+    await f.push.reconcile();
+    expect(sent()).toEqual(['approval:1']);
+    f.hold(false);
+    await f.push.reconcile();
+    expect(sent()).toEqual(['approval:1', 'reply:2']);
+  });
+
   it('stops and removes the token when the device is revoked', async () => {
     const f = fixture();
     const phone = f.device('Phone');
@@ -810,6 +845,27 @@ describe('Human Inbox push source', () => {
       ['dm-reply:1', 'reply', undefined, 'Done', undefined],
     ]);
     expect(JSON.stringify(pending)).not.toContain(SECRET_TEXT);
+  });
+
+  it('reads only unread replies, deep enough that a long unread backlog is not resolved by mistake', () => {
+    const queries: unknown[] = [];
+    const dmLimits: number[] = [];
+    activityListPushSource(
+      {
+        list: (query) => {
+          queries.push(query);
+          return { items: [] };
+        },
+        actionCount: () => 0,
+        dmReplies: (limit) => {
+          dmLimits.push(limit);
+          return [];
+        },
+      },
+      () => undefined,
+    ).pending();
+    expect(queries[1]).toEqual({ category: 'replies', unreadOnly: true, limit: 200 });
+    expect(dmLimits).toEqual([200]);
   });
 
   it('offers Always allow from the notification only when the Host offers it', () => {

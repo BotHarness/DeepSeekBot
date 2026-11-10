@@ -328,9 +328,7 @@ describe('new paired environment appearance', () => {
     await looks.ready;
     const reads = read.mock.calls.length;
     for (let index = 0; index < 1000; index += 1)
-      expect(looks.look(accountHostLookId(`host-${index}.connect.example`))).toBe(
-        DEFAULT_HOST_LOOK,
-      );
+      expect(looks.look(accountHostLookId(`host-${index}`))).toBe(DEFAULT_HOST_LOOK);
     expect(read).toHaveBeenCalledTimes(reads);
     expect(write).not.toHaveBeenCalled();
   });
@@ -351,10 +349,10 @@ describe('new paired environment appearance', () => {
     };
     const target = accountHostLookTarget(account);
     expect(target).toEqual({
-      hostId: accountHostLookId('STUDIO.CONNECT.EXAMPLE'),
+      hostId: accountHostLookId('ACCOUNT-COMPUTER'),
       hostName: 'Remote name',
     });
-    expect(accountHostLookId('other.connect.example')).not.toBe(target.hostId);
+    expect(accountHostLookId('other-computer')).not.toBe(target.hostId);
     const custom: HostLook = {
       name: 'My studio',
       icon: { kind: 'emoji', emoji: '🏠' },

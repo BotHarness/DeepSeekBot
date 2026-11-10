@@ -59,6 +59,7 @@ interface HostRow {
   bot_public_key: string | null;
   session_id: string | null;
   zone: string | null;
+  label?: string | null;
   last_used_at: string | null;
   evicted_at: string | null;
   waiting_since: string | null;
@@ -230,7 +231,8 @@ export function createRelay(options: RelayOptions) {
     freshMs: options.evictFreshMs ?? 30 * 60 * 1000,
   };
   const zoneOf = (row: Pick<HostRow, 'zone'>) => row.zone ?? defaultZone;
-  const hostname = (row: Pick<HostRow, 'id' | 'zone'>) => `${row.id}.${zoneOf(row)}`;
+  const hostname = (row: Pick<HostRow, 'id' | 'zone' | 'label'>) =>
+    `${row.label ?? row.id}.${zoneOf(row)}`;
   const log = (event: string, fields: Record<string, unknown>) =>
     console.warn(JSON.stringify({ event, ...fields }));
   const waitingCutoff = () => new Date(now().getTime() - WAIT_STALE_MS).toISOString();
@@ -384,13 +386,19 @@ export function createRelay(options: RelayOptions) {
       .run();
   };
 
-  const clearTunnel = (id: string, tunnelId: string | null, extra = '', bound: string[] = []) => {
+  const clearTunnel = (
+    id: string,
+    tunnelId: string | null,
+    extra = '',
+    bound: string[] = [],
+    released = true,
+  ) => {
     poolChanged();
     return db
       .prepare(
-        `UPDATE hosts SET tunnel_id = NULL, tunnel_created_at = NULL, dns_record_id = NULL, tunnel_status = NULL, tunnel_inactive_since = NULL${extra} WHERE id = ? AND tunnel_id IS ?`,
+        `UPDATE hosts SET label = CASE WHEN dns_record_id IS NULL THEN label ELSE COALESCE(?, label) END, tunnel_id = NULL, tunnel_created_at = NULL, dns_record_id = NULL, tunnel_status = NULL, tunnel_inactive_since = NULL${extra} WHERE id = ? AND tunnel_id IS ?`,
       )
-      .bind(...bound, id, tunnelId)
+      .bind(released ? nextHostId() : null, ...bound, id, tunnelId)
       .run();
   };
 
@@ -548,7 +556,7 @@ export function createRelay(options: RelayOptions) {
     } catch (error) {
       if (created !== undefined) {
         await tunnels.deleteTunnel(created).catch(() => undefined);
-        await clearTunnel(current.id, created).catch(() => undefined);
+        await clearTunnel(current.id, created, '', [], false).catch(() => undefined);
       }
       if (error instanceof RecordQuotaError) {
         log('connect-zone-quota', { host: current.id, zone: zoneOf(current) });
@@ -1066,7 +1074,7 @@ export function createRelay(options: RelayOptions) {
       const parsed = time(stamp);
       return !Number.isFinite(parsed) || at - parsed >= window;
     };
-    const rowById = new Map(rows.map((row) => [row.id, row]));
+    const rowByLabel = new Map(rows.map((row) => [row.label ?? row.id, row]));
     const recordsFor = (row: HostRow) =>
       (recordsByZone.get(zoneOf(row)) ?? []).filter(
         (record) => record.name.toLowerCase() === hostname(row),
@@ -1179,7 +1187,7 @@ export function createRelay(options: RelayOptions) {
           await db.prepare('DELETE FROM live_activities WHERE host_id = ?').bind(row.id).run();
           await db.prepare('DELETE FROM hosts WHERE id = ?').bind(row.id).run();
           report.deletedAccountHosts.push(row.id);
-          rowById.delete(row.id);
+          rowByLabel.delete(row.label ?? row.id);
         } else {
           await clearTunnel(row.id, row.tunnel_id);
           report.reclaimed.push(row.id);
@@ -1197,7 +1205,7 @@ export function createRelay(options: RelayOptions) {
       for (const record of records) {
         const match = HOST_LABEL.exec(record.name.toLowerCase());
         if (match === null || match[2] !== zone) continue;
-        const row = rowById.get(match[1] as string);
+        const row = rowByLabel.get(match[1] as string);
         const live =
           row !== undefined &&
           zoneOf(row) === zone &&
