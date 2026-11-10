@@ -209,7 +209,7 @@ describe('one-time notices after browser storage is lost', () => {
   it('falls back to browser storage when the Host cannot answer', async () => {
     const call = vi.fn<BridgeCall>(async () => ({
       ok: false,
-      error: { code: 'unavailable', message: 'old Host' },
+      error: { code: 'unavailable', message: 'old Host', details: {} },
     }));
     const acks = new HostAcknowledgements(call, localStorage);
     uninstall = installHostAcknowledgements(acks);
