@@ -22,7 +22,7 @@ import {
 } from './composer-dictation.js';
 import { Tooltip } from './ds/tooltip.js';
 import { useMountedResource } from './mounted-resource.js';
-import { smoothLevel } from './voice-level.js';
+import { useVoiceRipple } from './voice-ripple.js';
 import type { BotHarnessTranslate } from './locale.js';
 
 const IDLE: ComposerDictationSnapshot = { status: 'idle', text: '', mode: undefined };
@@ -236,24 +236,7 @@ export function ComposerMicButton({
   const press = useRef<{ at: number; startedHere: boolean } | undefined>(undefined);
   const recording = voice.active;
   const live = voice.snapshot.status === 'listening' || voice.snapshot.status === 'finishing';
-  const readLevel = useRef(voice.level);
-  readLevel.current = voice.level;
-  const levelMount = useMountedResource<HTMLButtonElement>(
-    (node) => {
-      if (!live || typeof requestAnimationFrame !== 'function') return;
-      let shown = 0;
-      let frame = requestAnimationFrame(function tick() {
-        shown = smoothLevel(shown, readLevel.current());
-        node.style.setProperty('--bh-dictation-level', shown.toFixed(3));
-        frame = requestAnimationFrame(tick);
-      });
-      return () => {
-        cancelAnimationFrame(frame);
-        node.style.removeProperty('--bh-dictation-level');
-      };
-    },
-    [live],
-  );
+  const levelMount = useVoiceRipple<HTMLButtonElement>(live, voice.level);
   const label = recording ? t('composer.stopDictation') : t('composer.dictate');
   return (
     <Tooltip
@@ -271,7 +254,8 @@ export function ComposerMicButton({
       <button
         type="button"
         ref={levelMount}
-        className="bh-composer-mic"
+        className="bh-composer-mic bh-voice-ripple"
+        data-ripple={live ? 'on' : undefined}
         data-state={live ? (voice.snapshot.mode ?? 'toggle') : recording ? 'starting' : 'idle'}
         aria-label={label}
         aria-pressed={live}

@@ -30,7 +30,7 @@ import {
   type CallCameraKeyframe,
   type CallCaptureErrorCode,
 } from './call-camera.js';
-import { createBrowserCallMedia } from './call-media.js';
+import { createBrowserCallMedia, type BrowserCallMedia } from './call-media.js';
 import { watchCallPresence } from './call-presence.js';
 
 const CLIENT_KEY = 'botharness/call-client.v1';
@@ -95,6 +95,7 @@ export interface DesktopCall {
   dismissVisual(): void;
   hangup(options?: CallHangupOptions): Promise<void>;
   dismiss(): void;
+  level(): number;
 }
 
 function windowClientId(): string {
@@ -157,7 +158,7 @@ function desktopCapture(camera: CallCamera): DesktopCapture {
 export function createDesktopCall(
   options: {
     post?: CallPost;
-    media?: () => CallClientMedia;
+    media?: () => CallClientMedia & Partial<Pick<BrowserCallMedia, 'level'>>;
     capture?: (source: CallVisualSource, handlers: DesktopCallCaptureHandlers) => CallCamera;
     now?: () => number;
   } = {},
@@ -168,6 +169,7 @@ export function createDesktopCall(
     options.capture ?? ((source, handlers) => createBrowserCallCamera({ source, ...handlers }));
   const listeners = new Set<() => void>();
   let session: CallSession<DesktopCapture, CallCaptureErrorCode> | undefined;
+  let sessionMedia: (CallClientMedia & Partial<Pick<BrowserCallMedia, 'level'>>) | undefined;
   let current: DesktopCallSnapshot = {
     slug: undefined,
     checking: false,
@@ -205,6 +207,7 @@ export function createDesktopCall(
       if (current.checking || active()) return;
       session?.dispose();
       session = undefined;
+      sessionMedia = undefined;
       set({
         slug,
         place,
@@ -226,12 +229,13 @@ export function createDesktopCall(
         });
         return;
       }
+      const ownedMedia = media();
       const owned: CallSession<DesktopCapture, CallCaptureErrorCode> = createCallSession<
         DesktopCapture,
         CallCaptureErrorCode
       >({
         post,
-        media: media(),
+        media: ownedMedia,
         ...(options.now === undefined ? {} : { now: options.now }),
         capture: (source, events) =>
           desktopCapture(
@@ -246,6 +250,7 @@ export function createDesktopCall(
         },
       });
       session = owned;
+      sessionMedia = ownedMedia;
       set({ checking: false });
       await owned.client.open(slug);
     },
@@ -271,6 +276,8 @@ export function createDesktopCall(
       if (active()) return;
       set({ block: undefined, state: { status: 'idle' } });
     },
+    level: () =>
+      current.state.status === 'live' && !current.state.muted ? (sessionMedia?.level?.() ?? 0) : 0,
   };
 }
 

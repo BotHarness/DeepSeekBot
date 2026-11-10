@@ -7,6 +7,7 @@ import { COMBOBOX_CSS } from './combobox.js';
 import { CHANNEL_DOCK_CSS } from './channel-dock-styles.js';
 import { GENERATED_FILES_CSS } from './generated-files-styles.js';
 import { CALL_CSS } from './call-styles.js';
+import { VOICE_RIPPLE_CSS } from './voice-ripple-styles.js';
 import { DEEPSEEKBOT_TRANSPARENT_DATA_URI } from './bot-icon-assets.js';
 import { ACTIVITY_INBOX_CSS } from './activity-inbox-styles.js';
 import { MOBILE_APPS_CSS } from './mobile-apps-styles.js';
@@ -39,6 +40,7 @@ export const CSS =
   CHANNEL_DOCK_CSS +
   GENERATED_FILES_CSS +
   CALL_CSS +
+  VOICE_RIPPLE_CSS +
   ACTIVITY_INBOX_CSS +
   MOBILE_APPS_CSS +
   `
@@ -4758,34 +4760,6 @@ ${STAMP_ME_SPACERS} {
   border-color: transparent;
   background: var(--dsw-alias-state-business-primary);
   color: var(--dsw-alias-label-primary-foreground);
-  position: relative;
-  isolation: isolate;
-  animation: bh-dictation-pulse 1.6s var(--ds-ease-in-out) infinite;
-}
-.bh-composer-mic[data-state='toggle']::before,
-.bh-composer-mic[data-state='hold']::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: ${radius.round};
-  pointer-events: none;
-  background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 40%, transparent);
-  opacity: calc(0.2 + var(--bh-dictation-level, 0) * 0.6);
-  transform: scale(calc(1 + var(--bh-dictation-level, 0) * 0.85));
-  transition: transform 60ms linear, opacity 60ms linear;
-}
-@keyframes bh-dictation-pulse {
-  0% {
-    box-shadow:
-      0 0 0 0 color-mix(in srgb, var(--dsw-alias-state-business-primary) 45%, transparent),
-      0 0 0 0 color-mix(in srgb, var(--dsw-alias-state-business-primary) 30%, transparent);
-  }
-  100% {
-    box-shadow:
-      0 0 0 8px transparent,
-      0 0 0 14px transparent;
-  }
 }
 .bh-composer[data-dictation='starting'],
 .bh-composer[data-dictation='listening'],
@@ -4800,8 +4774,6 @@ ${STAMP_ME_SPACERS} {
 .bh-composer[data-dictation='denied'] .bh-composer-input::placeholder,
 .bh-composer[data-dictation='missing'] .bh-composer-input::placeholder,
 .bh-composer[data-dictation='failed'] .bh-composer-input::placeholder { color: var(--dsw-alias-state-error-primary); }
-html[data-botharness-motion='reduce'] .bh-composer-mic { animation: none; }
-html[data-botharness-motion='reduce'] .bh-composer-mic::before { transform: none; transition: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--dsw-alias-state-business-primary) calc(20% + var(--bh-dictation-level, 0) * 60%), transparent); }
 .bh-composer[data-dictation='starting'] .bh-composer-rich-input[contenteditable='false'],
 .bh-composer[data-dictation='listening'] .bh-composer-rich-input[contenteditable='false'],
 .bh-composer[data-dictation='finishing'] .bh-composer-rich-input[contenteditable='false'] { color: var(--dsw-alias-label-primary); }

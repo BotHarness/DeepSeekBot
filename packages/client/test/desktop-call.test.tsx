@@ -29,8 +29,9 @@ import {
   desktopCallView,
   type DesktopCallCaptureHandlers,
 } from '../src/client/desktop-call.js';
-import { CallMicrophoneError } from '../src/client/call-media.js';
+import { CallMicrophoneError, createBrowserCallMedia } from '../src/client/call-media.js';
 import { DmCallControl } from '../src/client/dm-call.js';
+import { CallRailButton } from '../src/client/call-rail-button.js';
 import {
   CALL_NOTICE_TAG,
   askCallNotifications,
@@ -99,7 +100,9 @@ function windowMedia(refuse?: Error) {
   const started: string[] = [];
   const muted: boolean[] = [];
   let stops = 0;
-  const media: CallClientMedia = {
+  let level = 0;
+  const media: CallClientMedia & { level(): number } = {
+    level: () => level,
     async start({ offer }) {
       started.push(offer);
       if (refuse !== undefined) throw refuse;
@@ -111,7 +114,15 @@ function windowMedia(refuse?: Error) {
     },
     onState: () => () => undefined,
   };
-  return { media, started, muted, stops: () => stops };
+  return {
+    media,
+    started,
+    muted,
+    stops: () => stops,
+    speak: (value: number) => {
+      level = value;
+    },
+  };
 }
 
 const RED_JPEG =
@@ -531,6 +542,97 @@ describe('desktop call', () => {
       { kind: 'heartbeat', keepalive: undefined },
       { kind: 'hangup', keepalive: true },
     ]);
+  });
+
+  it('reads the caller microphone level only while live and unmuted', async () => {
+    const { fetcher } = host();
+    const mac = desktopWindow(fetcher, 'window-mac-0001');
+    mac.media.speak(0.7);
+    expect(mac.call.level()).toBe(0);
+    await mac.call.start('mira');
+    expect(mac.call.snapshot().state.status).toBe('live');
+    expect(mac.call.level()).toBe(0.7);
+    await mac.call.mute(true);
+    expect(mac.call.level()).toBe(0);
+    await mac.call.mute(false);
+    expect(mac.call.level()).toBe(0.7);
+    await mac.call.hangup();
+    expect(mac.call.level()).toBe(0);
+  });
+
+  it('ripples the call bar microphone while the caller can be heard', async () => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    const { fetcher } = host();
+    const mac = desktopWindow(fetcher, 'window-mac-0001');
+    await mac.call.start('mira');
+    const element = document.createElement('div');
+    const root = createRoot(element);
+    cleanup.push(() => act(() => root.unmount()));
+    await act(async () =>
+      root.render(<DmCallControl slug="mira" name="Mira" t={translate()} call={mac.call} />),
+    );
+    const ripple = () => element.querySelector('.bh-call-mic.bh-voice-ripple');
+    expect(ripple()?.getAttribute('data-ripple')).toBe('on');
+    await act(async () => mac.call.mute(true));
+    expect(ripple()?.hasAttribute('data-ripple')).toBe(false);
+  });
+
+  it('shows the calling Bot in the rail and returns to its chat', async () => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    const { fetcher } = host();
+    const mac = desktopWindow(fetcher, 'window-mac-0001');
+    const element = document.createElement('div');
+    const root = createRoot(element);
+    cleanup.push(() => act(() => root.unmount()));
+    const reveal = vi.fn();
+    await act(async () =>
+      root.render(<CallRailButton t={translate()} onReturn={reveal} call={mac.call} />),
+    );
+    expect(element.querySelector('.bh-call-rail-button')).toBeNull();
+    const open = vi.fn();
+    await act(async () => mac.call.start('mira', { title: 'On a call', body: '', open }));
+    const button = element.querySelector<HTMLButtonElement>(
+      'button[aria-label="Back to the call with mira"]',
+    )!;
+    expect(button).not.toBeNull();
+    expect(button.querySelector('.bh-call-rail-badge')).not.toBeNull();
+    await act(async () => button.click());
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(reveal).toHaveBeenCalledTimes(1);
+    await act(async () => mac.call.hangup());
+    expect(element.querySelector('.bh-call-rail-button')).toBeNull();
+  });
+
+  it('stops a microphone that opens after the call was stopped and never meters it', async () => {
+    const contexts: string[] = [];
+    vi.stubGlobal(
+      'AudioContext',
+      class {
+        constructor() {
+          contexts.push('opened');
+        }
+      },
+    );
+    let stopped = 0;
+    let grant: ((stream: MediaStream) => void) | undefined;
+    const stream = {
+      getTracks: () => [{ stop: () => (stopped += 1) }],
+      getAudioTracks: () => [{ enabled: true, stop: () => (stopped += 1) }],
+    } as unknown as MediaStream;
+    const media = createBrowserCallMedia(
+      () =>
+        ({
+          getUserMedia: () => new Promise<MediaStream>((resolve) => (grant = resolve)),
+        }) as unknown as MediaDevices,
+    );
+    const started = media.start({ callId: 'call-1', offer: 'v=0' });
+    await vi.waitFor(() => expect(grant).toBeDefined());
+    media.stop();
+    grant!(stream);
+    await expect(started).rejects.toThrow('call-stopped');
+    expect(stopped).toBe(1);
+    expect(contexts).toEqual([]);
+    expect(media.level()).toBe(0);
   });
 
   it('retries a reset heartbeat once and never aborts one the Host may still read', async () => {

@@ -14,6 +14,7 @@ import { askCallNotifications } from './call-presence.js';
 import { IconButton } from './ds/icon-button.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { Tooltip } from './ds/tooltip.js';
+import { useVoiceRipple } from './voice-ripple.js';
 
 export function DmCallControl({
   slug,
@@ -54,6 +55,8 @@ export function DmCallControl({
   const view = mine ? desktopCallView(snapshot.state) : undefined;
   const elsewhere =
     !mine && (snapshot.state.status === 'opening' || snapshot.state.status === 'live');
+  const speaking = view !== undefined && snapshot.state.status === 'live' && !view.muted;
+  const rippleMount = useVoiceRipple<HTMLSpanElement>(speaking, call.level);
 
   if (view !== undefined) {
     const time = formatCallDuration(view.durationMs);
@@ -91,15 +94,21 @@ export function DmCallControl({
           >
             <ChannelSidebarIcon name="monitor" />
           </IconButton>
-          <IconButton
-            aria-label={view.muted ? t('call.unmute') : t('call.mute')}
-            aria-pressed={view.muted}
-            data-muted={view.muted}
-            disabled={snapshot.state.status !== 'live'}
-            onClick={() => void call.mute(!view.muted)}
+          <span
+            ref={rippleMount}
+            className="bh-call-mic bh-voice-ripple"
+            data-ripple={speaking ? 'on' : undefined}
           >
-            <ChannelSidebarIcon name={view.muted ? 'mic-off' : 'mic'} />
-          </IconButton>
+            <IconButton
+              aria-label={view.muted ? t('call.unmute') : t('call.mute')}
+              aria-pressed={view.muted}
+              data-muted={view.muted}
+              disabled={snapshot.state.status !== 'live'}
+              onClick={() => void call.mute(!view.muted)}
+            >
+              <ChannelSidebarIcon name={view.muted ? 'mic-off' : 'mic'} />
+            </IconButton>
+          </span>
           <button
             type="button"
             className="bh-call-hangup"
