@@ -48,7 +48,7 @@ final class LatestAnchorTests: XCTestCase {
     anchor.stop()
   }
 
-  func testShrinkingContentLeavesTheClampToUIKit() {
+  func testShrinkingContentKeepsTheBottomEdgeInPlace() {
     let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 300, height: 600))
     let scroll = UIScrollView(frame: window.bounds)
     scroll.contentInsetAdjustmentBehavior = .never
@@ -59,8 +59,38 @@ final class LatestAnchorTests: XCTestCase {
     scroll.addSubview(anchor)
     scroll.contentSize = CGSize(width: 300, height: 1100)
     XCTAssertTrue(anchor.gliding)
-    scroll.contentSize = CGSize(width: 300, height: 900)
+    scroll.contentOffset.y = 450
+    scroll.contentSize = CGSize(width: 300, height: 1050)
+    XCTAssertEqual(scroll.contentOffset.y, 400)
+    XCTAssertTrue(anchor.gliding)
+  }
+
+  func testShrinkingAtRestStaysOnTheLatestRow() {
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 300, height: 600))
+    let scroll = UIScrollView(frame: window.bounds)
+    scroll.contentInsetAdjustmentBehavior = .never
+    scroll.contentSize = CGSize(width: 300, height: 1000)
+    scroll.contentOffset.y = 400
+    window.addSubview(scroll)
+    let anchor = LatestAnchorView()
+    scroll.addSubview(anchor)
+    scroll.contentSize = CGSize(width: 300, height: 952)
+    XCTAssertEqual(scroll.contentOffset.y, 352)
     XCTAssertFalse(anchor.gliding)
+  }
+
+  func testShrinkingWhileHeldLeavesTheOffsetToUIKit() {
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 300, height: 600))
+    let scroll = UIScrollView(frame: window.bounds)
+    scroll.contentInsetAdjustmentBehavior = .never
+    scroll.contentSize = CGSize(width: 300, height: 1000)
+    scroll.contentOffset.y = 200
+    window.addSubview(scroll)
+    let anchor = LatestAnchorView()
+    anchor.following = false
+    scroll.addSubview(anchor)
+    scroll.contentSize = CGSize(width: 300, height: 950)
+    XCTAssertEqual(scroll.contentOffset.y, 200)
   }
 
   func testGrowthWhileHeldIsCaughtUpWhenFollowingResumes() {

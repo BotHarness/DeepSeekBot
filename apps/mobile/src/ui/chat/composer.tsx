@@ -234,7 +234,7 @@ export function Composer({
     haptic('send');
     onSend();
   };
-  const expanded = theme.largeText || wraps;
+  const expanded = theme.largeText || (wraps && value !== '');
   const stacked = composerStacked(actions, files.length, expanded);
   const icon = theme.type.title.line;
   const leading = held ? (
