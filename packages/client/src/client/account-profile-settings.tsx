@@ -78,13 +78,19 @@ export function AccountProfileSettings({
   const composing = useRef(false);
   const pending = useRef(false);
   const mounted = useRef(false);
+  const signInEpoch = useRef(0);
+  const signingIn = useRef(false);
 
   const load = async (): Promise<void> => {
+    const epoch = signInEpoch.current;
     try {
       const account = await actions.marketplaceAccount();
-      if (mounted.current) setState({ status: 'ready', account });
+      if (!mounted.current || signingIn.current || epoch !== signInEpoch.current) return;
+      setState({ status: 'ready', account });
+      if (!account.signedIn && account.issue !== undefined) setSignIn(undefined);
     } catch (error) {
-      if (mounted.current) setState({ status: 'error', message: marketplaceError(error, t) });
+      if (mounted.current && !signingIn.current && epoch === signInEpoch.current)
+        setState({ status: 'error', message: marketplaceError(error, t) });
     }
   };
 
@@ -104,12 +110,15 @@ export function AccountProfileSettings({
   const beginSignIn = async (): Promise<void> => {
     setBusy(true);
     setSignInFailed(false);
+    signingIn.current = true;
     try {
       const code = await startSignIn();
+      signInEpoch.current += 1;
       if (mounted.current) setSignIn(code);
     } catch {
       if (mounted.current) setSignInFailed(true);
     } finally {
+      signingIn.current = false;
       if (mounted.current) setBusy(false);
     }
   };
@@ -198,12 +207,22 @@ export function AccountProfileSettings({
         body={t('accountProfile.signInHint')}
         signInLabel={t('accountProfile.signIn')}
         busy={busy}
-        {...(signInFailed ? { failed: t('accountProfile.signInFailed') } : {})}
+        {...(signInFailed || state.account.issue !== undefined
+          ? {
+              failed: t(
+                state.account.issue === 'relay-unavailable' || state.account.issue === 'relay-full'
+                  ? 'accountProfile.signInRelay'
+                  : 'accountProfile.signInFailed',
+              ),
+            }
+          : {})}
         onSignIn={() => void beginSignIn()}
         data={{ 'data-account-profile': signIn === undefined ? 'signed-out' : 'signing-in' }}
         codeMarker="data-account-sign-in-code"
       >
-        {signIn === undefined ? null : <span ref={poll} hidden />}
+        {signIn === undefined && state.account.issue === undefined ? null : (
+          <span ref={poll} hidden />
+        )}
       </ConnectSignInBlock>,
     );
 

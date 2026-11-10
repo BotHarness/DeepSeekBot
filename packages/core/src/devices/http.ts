@@ -369,6 +369,21 @@ export function createDevicesHttp(options: {
         if (signed.ok) return json(signed.status);
         return json({ code: signed.code }, 503);
       }
+      const owner = account?.status();
+      if (
+        input['action'] === 'disable' &&
+        owner !== undefined &&
+        owner.state !== 'signed-out' &&
+        !(owner.state === 'error' && owner.recovery !== 'automatic')
+      )
+        return json(
+          {
+            code: 'connect-signed-in',
+            error:
+              'This Host is signed in to Connect, so its account keeps the tunnel running. Run deepseekbot connect-sign-out to stop it.',
+          },
+          409,
+        );
       const result =
         input['action'] === 'enable'
           ? await connect.enable({

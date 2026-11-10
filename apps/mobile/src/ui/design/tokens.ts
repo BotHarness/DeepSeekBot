@@ -11,6 +11,8 @@ export const space = {
   x6: 24,
 } as const;
 
+export const statusChip = { height: 36, dot: 8 } as const;
+
 export const groupUnavailable = { icon: 48 } as const;
 
 export const genuiFrame = { maxHeight: 560 } as const;

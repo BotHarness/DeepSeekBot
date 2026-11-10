@@ -221,10 +221,14 @@ export function MarketUploadDialog({
   const [busy, setBusy] = useState(false);
   const [cause, setCause] = useState<unknown>();
   const mounted = useRef(true);
+  const signInEpoch = useRef(0);
+  const signingIn = useRef(false);
 
   const loadAccount = async (): Promise<MarketplaceAccount | undefined> => {
+    const epoch = signInEpoch.current;
     try {
       const loaded = await actions.marketplaceAccount();
+      if (signingIn.current || epoch !== signInEpoch.current) return undefined;
       if (mounted.current) {
         setAccount({ status: 'ready', account: loaded });
         const profileName = loaded.author?.name;
@@ -232,7 +236,8 @@ export function MarketUploadDialog({
       }
       return loaded;
     } catch (failure) {
-      if (mounted.current) setAccount({ status: 'error', cause: failure });
+      if (mounted.current && !signingIn.current && epoch === signInEpoch.current)
+        setAccount({ status: 'error', cause: failure });
       return undefined;
     }
   };
@@ -273,7 +278,8 @@ export function MarketUploadDialog({
   const poll = useMountedResource<HTMLSpanElement>(() => {
     const timer = setInterval(() => {
       void loadAccount().then((loaded) => {
-        if (loaded?.signedIn === true && mounted.current) setSignIn(undefined);
+        if ((loaded?.signedIn === true || loaded?.issue !== undefined) && mounted.current)
+          setSignIn(undefined);
       });
     }, ACCOUNT_POLL_MS);
     return () => clearInterval(timer);
@@ -493,13 +499,31 @@ export function MarketUploadDialog({
             busy={busy}
             onSignIn={() =>
               void run(async () => {
-                const started = await startConnectSignIn();
-                if (mounted.current) setSignIn(started);
+                signingIn.current = true;
+                try {
+                  const started = await startConnectSignIn();
+                  signInEpoch.current += 1;
+                  if (mounted.current) setSignIn(started);
+                } finally {
+                  signingIn.current = false;
+                }
               })
             }
             codeMarker="data-market-sign-in"
+            {...(account.account.issue === undefined
+              ? {}
+              : {
+                  failed: t(
+                    account.account.issue === 'relay-unavailable' ||
+                      account.account.issue === 'relay-full'
+                      ? 'accountProfile.signInRelay'
+                      : 'accountProfile.signInFailed',
+                  ),
+                })}
           >
-            {signIn === undefined ? null : <span ref={poll} hidden />}
+            {signIn === undefined && account.account.issue === undefined ? null : (
+              <span ref={poll} hidden />
+            )}
           </ConnectSignInBlock>
         );
       } else {

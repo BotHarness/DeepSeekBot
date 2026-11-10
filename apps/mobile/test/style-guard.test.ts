@@ -8,7 +8,6 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 const LEGACY = new Set([
   'app/inbox/[id].tsx',
   'src/ui/approval-view.tsx',
-  'src/ui/connection-banner.tsx',
   'src/ui/floating-exit.tsx',
   'src/ui/question-view.tsx',
   'src/ui/request-parts.tsx',

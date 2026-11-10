@@ -63,7 +63,11 @@ function fixture() {
     fresh: 0,
   };
   const account = {
-    status: () => ({ state: session.state, email: 'alice@example.com' }),
+    status: () => ({
+      state: session.state,
+      email: 'alice@example.com',
+      ...(session.state === 'error' ? { issue: 'relay-unavailable' } : {}),
+    }),
     accessToken: (options?: { fresh?: boolean }) => {
       if (options?.fresh === true) session.fresh += 1;
       return Promise.resolve(
@@ -203,6 +207,11 @@ it('needs a Connect sign-in and an author before uploading', async () => {
   expect(await f.bridge.marketplaceUpload({ slug, displayName: 'Helper' })).toMatchObject({
     ok: false,
     error: { code: 'sign-in-required' },
+  });
+  f.session.state = 'error';
+  expect(await f.bridge.marketplaceAccount()).toEqual({
+    ok: true,
+    value: { signedIn: false, issue: 'relay-unavailable', author: null },
   });
   f.session.state = 'signed-in';
   expect(await f.bridge.marketplaceAccount()).toEqual({

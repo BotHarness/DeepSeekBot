@@ -33,7 +33,8 @@ export const CONNECT_COMMANDS = [
   },
   {
     command: 'connect-disable',
-    description: 'stop the Connect tunnel and forget its token',
+    description:
+      'stop a Connect tunnel set up with connect-enable and forget its token; refused while the Host is signed in, where connect-sign-out stops the account tunnel',
   },
   {
     command: 'connect-sign-in',

@@ -41,7 +41,7 @@ import {
 } from '../../../src/ui/chat/conversations';
 import { CloudConversationRow } from '../../../src/ui/chat/cloud-conversation-row';
 import { useConversationFilter } from '../../../src/host/native-conversation-filter';
-import { ConnectionBanner } from '../../../src/ui/connection-banner';
+import { StatusChip } from '../../../src/ui/primitives/status-chip';
 import { searchAppBar, space } from '../../../src/ui/design/tokens';
 import {
   conversationEnvironments,
@@ -67,7 +67,7 @@ import {
 } from '../../../src/ui/chat/chats-search-results';
 import { avatarImageUri } from '../../../src/host/native-notification-avatars';
 import { openConversation } from '../../../src/ui/shell/open-conversation';
-import { useConnectionProgress } from '../../../src/ui/primitives/connection-progress';
+import { useConnectionPresence } from '../../../src/ui/primitives/connection-progress';
 import { useFloatingTabInset } from '../../../src/ui/shell/floating-tab-inset';
 import { useStrings } from '../../../src/ui/strings';
 import { ListSkeleton } from '../../../src/ui/primitives/list-skeleton';
@@ -419,7 +419,19 @@ const HomeContent = memo(function HomeContent({
             attempt: 1,
           }
         : selectedHost.snapshot.connection;
-  const connecting = useConnectionProgress(selectedConnection?.status) !== undefined;
+  const presence = useConnectionPresence(
+    selectedConnection?.status,
+    false,
+    selectedHost?.snapshot.disruptedSince,
+  );
+  const connecting = presence.label !== undefined;
+  const hostDown =
+    selectedHost !== undefined &&
+    (selectedHost.snapshot.connection.status === 'stopped' ||
+      presence.offline ||
+      (selectedHost.snapshot.roster === undefined &&
+        selectedHost.snapshot.connection.status === 'unreachable' &&
+        !firstAttemptFailed(selectedHost)));
   const pickSearch = (key: string) => {
     const message = messageItems.find((entry) => entry.key === key);
     if (message !== undefined) {
@@ -433,10 +445,7 @@ const HomeContent = memo(function HomeContent({
       setActionError(true);
   };
   const includesCloud = environment.kind !== 'computer';
-  const hostFailed =
-    selectedHost !== undefined &&
-    !firstAttemptFailed(selectedHost) &&
-    ['unreachable', 'refused', 'stopped'].includes(selectedHost.snapshot.connection.status);
+  const hostFailed = hostDown || selectedHost?.snapshot.connection.status === 'refused';
   const cloudFailed = includesCloud && Boolean(directory.errors.length || cloud.error);
   const loadingHosts = selectedHost ? [selectedHost] : effectiveFilter === 'all' ? hosts : [];
   const coldLoading =
@@ -444,7 +453,10 @@ const HomeContent = memo(function HomeContent({
       (host) =>
         !host.snapshot.roster &&
         (['connecting', 'reconnecting'].includes(host.snapshot.connection.status) ||
-          firstAttemptFailed(host)),
+          firstAttemptFailed(host) ||
+          (host === selectedHost &&
+            host.snapshot.connection.status === 'unreachable' &&
+            !hostFailed)),
     ) ||
     (includesCloud && cloud.rows.some((row) => row.hasSession) && !directory.ready && !cloudFailed);
   const screen = <Stack.Screen options={{ title: environment.title, headerShown: false }} />;
@@ -566,6 +578,7 @@ const HomeContent = memo(function HomeContent({
         <HomeHeader
           environment={environment}
           connection={selectedConnection}
+          disruptedSince={selectedHost?.snapshot.disruptedSince}
           onWorkspaces={showWorkspaces}
           bar={
             Platform.OS === 'android' ? (
@@ -659,48 +672,55 @@ const HomeContent = memo(function HomeContent({
                           {t.rowActions.failed}
                         </Text>
                       ) : null}
+                      {selectedHost?.snapshot.connection.status === 'refused' ? (
+                        <StatusChip
+                          testID="home-status-chip"
+                          tone="danger"
+                          label={t.deviceRefusal[selectedHost.snapshot.connection.code]}
+                          action={{ label: t.pairAgain, onPress: () => router.push('/pair') }}
+                        />
+                      ) : null}
                       {selectedHost &&
-                        selectedHost.snapshot.connection.status !== 'unreachable' && (
-                          <ConnectionBanner
-                            connection={selectedHost.snapshot.connection}
-                            onRetry={() => selectedHost.client.retryNow()}
-                            onPairAgain={() => router.push('/pair')}
-                          />
-                        )}
-                      {selectedHost &&
-                      ((refreshFailedHosts.includes(selectedHost.saved.hostId) && !hostFailed) ||
-                        (selectedHost.snapshot.connection.status === 'unreachable' &&
-                          !firstAttemptFailed(selectedHost)) ||
-                        selectedHost.snapshot.connection.status === 'stopped') ? (
-                        <View style={{ paddingHorizontal: space.x5, gap: space.x2 }}>
-                          <Text tone="muted">
-                            {selectedHost.snapshot.roster === undefined
+                      (hostDown ||
+                        (refreshFailedHosts.includes(selectedHost.saved.hostId) &&
+                          selectedHost.snapshot.connection.status === 'connected')) ? (
+                        <StatusChip
+                          testID="home-status-chip"
+                          label={
+                            selectedHost.snapshot.roster === undefined
                               ? t.hostListLoadFailed
-                              : t.hostListUnavailable}
-                          </Text>
-                          <Button
-                            testID="chat-list-retry"
-                            label={t.retry}
-                            on="canvas"
-                            onPress={() => void refresh(selectedHost)}
-                            disabled={refreshing}
-                          />
-                        </View>
+                              : hostDown
+                                ? t.hostListOffline
+                                : t.hostListUnavailable
+                          }
+                          action={
+                            refreshing
+                              ? undefined
+                              : {
+                                  label: t.retry,
+                                  testID: 'chat-list-retry',
+                                  onPress: () => void refresh(selectedHost),
+                                }
+                          }
+                          busy={refreshing}
+                        />
                       ) : null}
                       {(cloudFailed || error) && (
-                        <View style={{ paddingHorizontal: space.x5, gap: space.x2 }}>
-                          <Text tone="muted" accessibilityRole="alert">
-                            {t.cloudListUnavailable}
-                            {error ? ` (${error})` : ''}
-                          </Text>
-                          <Button
-                            testID="cloud-list-retry"
-                            label={t.retry}
-                            on="canvas"
-                            onPress={() => (failedOpen ? openCloud(failedOpen) : void refresh())}
-                            disabled={refreshing}
-                          />
-                        </View>
+                        <StatusChip
+                          testID="cloud-status-chip"
+                          label={`${t.cloudListUnavailable}${error ? ` (${error})` : ''}`}
+                          busy={refreshing}
+                          action={
+                            refreshing
+                              ? undefined
+                              : {
+                                  label: t.retry,
+                                  testID: 'cloud-list-retry',
+                                  onPress: () =>
+                                    failedOpen ? void openCloud(failedOpen) : void refresh(),
+                                }
+                          }
+                        />
                       )}
                     </>
                   }

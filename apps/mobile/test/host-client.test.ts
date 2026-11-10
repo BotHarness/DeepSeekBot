@@ -265,6 +265,25 @@ describe('Host client', () => {
     expect(target.getSnapshot().roster?.bots[0]?.preview).toBe('mobile tracer probe');
   });
 
+  it('tries a newly learned address at once instead of waiting out the backoff', async () => {
+    const host = new FakeHost();
+    const moved = 'https://laptop.tailnet-example.ts.net';
+    host.unreachable.add(ROUTE);
+    client = createHostClient({
+      routes: [ROUTE],
+      credential: host.credential,
+      carrier: host.carrier,
+      backoff: () => 60_000,
+      timeoutMs: 200,
+    });
+    client.start();
+    const target = client;
+    await until(target, (s) => s.connection.status === 'unreachable');
+    target.updateRoutes?.([moved]);
+    await until(target, (s) => s.connection.status === 'connected');
+    expect(target.getSnapshot().connection.route).toBe(moved);
+  });
+
   it('does not reopen a stopped client when its resume route probe completes late', async () => {
     const host = new FakeHost();
     let hold = false;
@@ -411,12 +430,12 @@ describe('Host client', () => {
       expect(host.calls.filter((entry) => entry.method === 'pending-write')).toHaveLength(1);
     },
   );
-  it('backs a failing Host off to minutes instead of retrying every few seconds', () => {
+  it('backs a failing Host off to half a minute so a returning Host is found quickly', () => {
     expect(defaultBackoff(1)).toBe(500);
     expect(defaultBackoff(6)).toBe(16_000);
-    expect(defaultBackoff(12)).toBe(MAX_RECONNECT_DELAY_MS);
+    expect(defaultBackoff(7)).toBe(MAX_RECONNECT_DELAY_MS);
     expect(defaultBackoff(40)).toBe(MAX_RECONNECT_DELAY_MS);
-    expect(MAX_RECONNECT_DELAY_MS).toBe(300_000);
+    expect(MAX_RECONNECT_DELAY_MS).toBe(30_000);
   });
 
   it('stops calling a Host once it no longer accepts this phone', async () => {
