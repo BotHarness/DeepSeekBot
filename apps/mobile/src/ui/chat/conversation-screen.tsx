@@ -102,7 +102,7 @@ import { runningSessionCount } from '../../host/session-stop';
 import { ConversationTopBar } from './conversation-top-bar';
 import { ChatBackdrop } from './chat-backdrop';
 import { Composer, type ComposerInput } from './composer';
-import { ComposerPillContext, ComposerSpacer } from './composer-pill';
+import { ComposerFollower, ComposerPillContext, ComposerSpacer } from './composer-pill';
 import { GroupUnavailable } from './group-unavailable';
 import { DraftSaveNotice } from './draft-save-notice';
 import { ClipboardImageOffer, useClipboardImage } from './clipboard-image';
@@ -1612,6 +1612,15 @@ function ChatConversation({
     android || notice !== undefined ? 0 : floatingHeader ? headerPadding : headerOverlap;
   const composerCover = Math.max(0, composerHeight - space.x3 - space.x2);
   const fadeColor = background.kind === 'color' ? background.color : theme.color.base;
+  const bottomFade = (
+    <EdgeFade
+      edge="bottom"
+      height={composerCover + edgeFade.bottom}
+      cover={composerCover}
+      solid={composerCover}
+      color={fadeColor}
+    />
+  );
 
   return (
     <ChatOffline value={!online}>
@@ -2084,13 +2093,13 @@ function ChatConversation({
                             color={fadeColor}
                           />
                         ) : null}
-                        <EdgeFade
-                          edge="bottom"
-                          height={composerCover + edgeFade.bottom}
-                          cover={composerCover}
-                          solid={composerCover}
-                          color={fadeColor}
-                        />
+                        {nativeSpacer ? (
+                          <ComposerFollower pill={latest.pill} measured={composerHeight}>
+                            {bottomFade}
+                          </ComposerFollower>
+                        ) : (
+                          bottomFade
+                        )}
                         {(composable || stackRoot) && Platform.OS === 'ios' ? (
                           <PullToComposeHint
                             progress={pull.progress}
