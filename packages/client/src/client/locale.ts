@@ -2299,7 +2299,8 @@ export const zh = {
     '日志不含消息正文、输入内容和文件内容，路径、令牌和邮箱已替换。截图可能包含私人聊天，提交前请检查。',
   'bugReport.download': '下载报告包',
   'bugReport.github': '去 GitHub 提交',
-  'bugReport.failed': '打包失败：{code}',
+  'bugReport.failed': '没能生成报告包。稍后再试；一直失败的话，在终端运行 deepseekbot bug-report。',
+  'bugReport.logsUnavailable': '暂时读不到诊断日志。取消勾选“诊断日志”后再试。',
   'bugReport.saved': '报告包已保存',
   'bugReport.step.open': '打开下面的 GitHub 链接，版本、系统和问题描述已经填好。',
   'bugReport.step.attach': '把 {name} 拖进 Issue 的“脱敏证据”栏。',
@@ -7459,7 +7460,10 @@ My relationship with you, established lore and topics to avoid: [fill in].
     'The log has no message text, typed input or file contents; paths, tokens and emails are replaced. Screenshots can show private chats, so check them first.',
   'bugReport.download': 'Download report',
   'bugReport.github': 'Report on GitHub',
-  'bugReport.failed': 'Could not build the report: {code}',
+  'bugReport.failed':
+    'Could not build the report. Try again; if it keeps failing, run deepseekbot bug-report in a terminal.',
+  'bugReport.logsUnavailable':
+    'The diagnostic log cannot be read right now. Untick Diagnostic log and try again.',
   'bugReport.saved': 'Report saved',
   'bugReport.step.open':
     'Open the GitHub link below. Versions, system and your description are filled in.',

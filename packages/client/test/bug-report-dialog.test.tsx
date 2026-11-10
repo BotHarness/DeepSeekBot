@@ -137,3 +137,18 @@ it('shows the Host refusal and keeps the form', async () => {
   expect(dialog().getAttribute('aria-label')).toBe('报告问题');
   expect(fieldNamed('标题').value).toBe('x');
 });
+
+it('says what to do when the Host cannot read the diagnostic log', async () => {
+  await act(async () => root.render(createElement(BugReportDialog, { onClose: () => {}, t })));
+  await typeInto(fieldNamed('标题'), 'x');
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () =>
+      Response.json({ error: { code: 'persistence-unavailable' } }, { status: 503 }),
+    ),
+  );
+  await act(async () => buttonNamed('下载报告包').click());
+  const notice = dialog().querySelector('[role="status"]')?.textContent ?? '';
+  expect(notice).toContain('取消勾选');
+  expect(notice).not.toContain('persistence-unavailable');
+});

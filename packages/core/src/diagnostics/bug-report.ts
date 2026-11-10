@@ -19,12 +19,17 @@ export const BUG_REPORT_LIMITS = {
   titleChars: 200,
   descriptionChars: 8000,
   issueDescriptionChars: 2000,
+  issueUrlChars: 6000,
   nameChars: 120,
   defaultHours: 24,
   maxHours: 168,
 } as const;
 
-export type BugReportErrorCode = 'invalid-report' | 'report-too-large' | 'persistence-unavailable';
+export type BugReportErrorCode =
+  | 'invalid-report'
+  | 'report-too-large'
+  | 'persistence-unavailable'
+  | 'internal-error';
 
 export class BugReportError extends Error {
   constructor(
@@ -130,17 +135,22 @@ export function bugReportIssueUrl(options: {
   environment: string;
   fileName: string;
 }): string {
-  const description =
-    options.description.length > BUG_REPORT_LIMITS.issueDescriptionChars
-      ? `${options.description.slice(0, BUG_REPORT_LIMITS.issueDescriptionChars)}…`
-      : options.description;
-  const query = new URLSearchParams({
-    title: options.title,
-    environment: `${options.environment}\nReport bundle: ${options.fileName}`,
-    behavior: description,
-    evidence: `Drag ${options.fileName} here before submitting.`,
-  });
-  return `${BUG_REPORT_ISSUE_BASE}&${query}`;
+  const build = (behavior: string) =>
+    `${BUG_REPORT_ISSUE_BASE}&${new URLSearchParams({
+      title: options.title,
+      environment: `${options.environment}\nReport bundle: ${options.fileName}`,
+      behavior,
+      evidence: `Drag ${options.fileName} here before submitting.`,
+    })}`;
+  let kept = [...options.description].slice(0, BUG_REPORT_LIMITS.issueDescriptionChars);
+  let url = build(
+    kept.length < [...options.description].length ? `${kept.join('')}…` : options.description,
+  );
+  while (url.length > BUG_REPORT_LIMITS.issueUrlChars && kept.length > 0) {
+    kept = kept.slice(0, Math.floor(kept.length * 0.8));
+    url = build(`${kept.join('')}…`);
+  }
+  return url;
 }
 
 export function buildBugReport(
@@ -326,18 +336,29 @@ export function createBugReportHttp(options: {
         },
       });
     } catch (error) {
-      const code = error instanceof BugReportError ? error.code : 'invalid-report';
-      options.log?.(`bug-report phase=refused reason=${code}`);
+      const known = error instanceof BugReportError;
+      const code = known ? error.code : 'internal-error';
+      options.log?.(
+        known
+          ? `bug-report phase=refused reason=${code}`
+          : `bug-report phase=failed reason=${code} cause=${error instanceof Error ? error.name : typeof error}`,
+      );
       return Response.json(
         {
           error: {
             code,
-            message: error instanceof BugReportError ? error.message : 'Invalid report.',
+            message: known ? error.message : 'Could not build the report.',
           },
         },
         {
           status:
-            code === 'report-too-large' ? 413 : code === 'persistence-unavailable' ? 503 : 400,
+            code === 'report-too-large'
+              ? 413
+              : code === 'persistence-unavailable'
+                ? 503
+                : code === 'internal-error'
+                  ? 500
+                  : 400,
           headers: HEADERS,
         },
       );

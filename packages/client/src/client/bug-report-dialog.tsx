@@ -225,7 +225,6 @@ export function BugReportDialog({
   const [notice, setNotice] = useState<string>();
   const [receipt, setReceipt] = useState<BugReportReceipt>();
   const filesRef = useRef(files);
-  filesRef.current = files;
 
   const add = (incoming: readonly File[], pasted = false) => {
     if (incoming.length === 0) return;
@@ -276,6 +275,17 @@ export function BugReportDialog({
   const tooLarge = bytes > BUG_REPORT_MAX_BYTES;
   const empty = title.trim() === '' && description.trim() === '';
 
+  const backToForm = () => {
+    const next = filesRef.current.map((entry): BugReportFile => {
+      if (entry.preview === undefined) return entry;
+      const preview = previewOf(entry.file);
+      return preview === undefined ? { id: entry.id, file: entry.file } : { ...entry, preview };
+    });
+    filesRef.current = next;
+    setFiles(next);
+    setReceipt(undefined);
+  };
+
   const submit = async (github: boolean) => {
     setBusy(true);
     setNotice(undefined);
@@ -295,7 +305,11 @@ export function BugReportDialog({
     } catch (failure) {
       const code = failure instanceof Error ? failure.message : 'operation-failed';
       setNotice(
-        code === 'report-too-large' ? t('bugReport.tooLarge') : t('bugReport.failed', { code }),
+        code === 'report-too-large'
+          ? t('bugReport.tooLarge')
+          : code === 'persistence-unavailable'
+            ? t('bugReport.logsUnavailable')
+            : t('bugReport.failed'),
       );
     } finally {
       setBusy(false);
@@ -311,7 +325,7 @@ export function BugReportDialog({
         onClose={onClose}
         data={{ 'data-bug-report': 'done' }}
         secondary={
-          <Button variant="ghost" onClick={() => setReceipt(undefined)}>
+          <Button variant="ghost" onClick={backToForm}>
             {t('bugReport.back')}
           </Button>
         }

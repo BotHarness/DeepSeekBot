@@ -9,6 +9,7 @@ import { readZip } from '../src/bots/zip-archive.js';
 import {
   BUG_REPORT_LIMITS,
   buildBugReport,
+  bugReportIssueUrl,
   createBugReportHttp,
 } from '../src/diagnostics/bug-report.js';
 import { openLogDatabase } from '../src/logs/log-db.js';
@@ -151,6 +152,46 @@ describe('bug report bundle', () => {
     );
     expect(empty.status).toBe(400);
     expect(await empty.json()).toMatchObject({ error: { code: 'invalid-report' } });
+  });
+
+  it('answers a Host fault with internal-error and 500, not an input error', async () => {
+    const lines: string[] = [];
+    const http = createBugReportHttp({
+      database: () => {
+        throw new Error('disk gone');
+      },
+      environment: ENV,
+      homes: [],
+      now: () => NOW,
+      log: (line: string) => lines.push(line),
+    });
+    const form = new FormData();
+    form.set('title', 'Stuck');
+    form.set('hours', '1');
+    const response = await http(
+      new Request('http://h/api/botharness/bug-report', { method: 'POST', body: form }),
+    );
+    expect(response.status).toBe(500);
+    expect(await response.json()).toMatchObject({ error: { code: 'internal-error' } });
+    expect(lines.join('\n')).toContain('reason=internal-error');
+  });
+
+  it('keeps the prefilled issue link short for a long Chinese description', () => {
+    const url = bugReportIssueUrl({
+      title: '群聊一直加载',
+      description: '升级之后群聊一直在加载。'.repeat(200),
+      environment: 'Tobs 1.6.2',
+      fileName: 'tobs-report.zip',
+    });
+    expect(url.length).toBeLessThanOrEqual(BUG_REPORT_LIMITS.issueUrlChars);
+    expect(new URL(url).searchParams.get('behavior')).toMatch(/^升级之后.*…$/su);
+    const short = bugReportIssueUrl({
+      title: 't',
+      description: '短描述',
+      environment: 'e',
+      fileName: 'f.zip',
+    });
+    expect(new URL(short).searchParams.get('behavior')).toBe('短描述');
   });
 });
 
