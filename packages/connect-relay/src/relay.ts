@@ -350,6 +350,27 @@ export function createRelay(options: RelayOptions) {
     return 'offline';
   };
 
+  const refreshTunnelStatus = async (row: HostRow) => {
+    if (row.tunnel_id === null || (row.tunnel_status !== null && ONLINE.has(row.tunnel_status)))
+      return;
+    const tunnelId = row.tunnel_id;
+    const state = await tunnels.tunnelState(tunnelId).catch(() => undefined);
+    if (
+      state === undefined ||
+      (state.status === row.tunnel_status &&
+        (state.inactiveSince ?? null) === row.tunnel_inactive_since)
+    )
+      return;
+    await db
+      .prepare(
+        'UPDATE hosts SET tunnel_status = ?, tunnel_inactive_since = ? WHERE id = ? AND tunnel_id = ?',
+      )
+      .bind(state.status, state.inactiveSince ?? null, row.id, tunnelId)
+      .run();
+    row.tunnel_status = state.status;
+    row.tunnel_inactive_since = state.inactiveSince ?? null;
+  };
+
   const view = (row: HostRow) => ({
     id: row.id,
     name: row.name,
@@ -931,6 +952,7 @@ export function createRelay(options: RelayOptions) {
           results.some((row) => row.id === reporter)
         )
           await touch(reporter, now().getTime() - idle * 1000);
+        if (reporter === null) await Promise.allSettled(results.map(refreshTunnelStatus));
         return json(200, { hosts: results.map(view), pool: await poolStatus() });
       }
       if (request.method !== 'POST') return failure(405, 'method-not-allowed');

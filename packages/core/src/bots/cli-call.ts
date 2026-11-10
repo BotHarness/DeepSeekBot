@@ -467,9 +467,6 @@ async function simulate(
   const spoken = [...replies.values()].filter((entry) => entry.firstAudioAt !== undefined);
   const first = <K extends 'textMs' | 'responseMs'>(key: K) =>
     [...replies.values()].find((entry) => entry[key] !== undefined)?.[key] ?? null;
-  const ack = events.find(
-    (event): event is Extract<VoiceCallEvent, { type: 'ack' }> => event.type === 'ack',
-  );
   const of = <T extends VoiceCallEvent['type']>(type: T) =>
     events.filter((event): event is Extract<VoiceCallEvent, { type: T }> => event.type === type);
   const textIds = new Set(of('text').map((event) => event.messageId));
@@ -576,7 +573,6 @@ async function simulate(
         ? {}
         : { audioBeforeCommit: entry.firstAudioAt! < entry.committedAt }),
     })),
-    ackMs: ack?.ms ?? null,
     bargeIns: events
       .filter(
         (event): event is Extract<VoiceCallEvent, { type: 'barge-in' }> =>

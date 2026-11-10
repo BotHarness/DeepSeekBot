@@ -1,12 +1,19 @@
 import { createTestRegistry } from './registry-fixture.js';
 import { execFileSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { channel } from 'node:diagnostics_channel';
+import {
+  SCHEDULING_DIAGNOSTIC_CHANNEL,
+  type SchedulingDiagnostic,
+} from '../src/process/scheduling-diagnostics.js';
 
 import { describe, expect, it, vi } from 'vitest';
 
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
+import { createBridgeMethods } from '../src/bridge/methods.js';
 import { createCore } from '../src/plugin.js';
 import { createMemoryService } from '../src/memory/service.js';
 import { ensureMemoryRepository } from '../src/memory/repository.js';
@@ -327,4 +334,132 @@ describe('Memory turn Host responsiveness', () => {
       vi.useRealTimers();
     }
   }, 60_000);
+
+  it.each([false, true])(
+    'steers before scanning and reports follow-up failure=%s',
+    async (failFollowup) => {
+      vi.stubEnv('BOTHARNESS_SCHEDULING_DIAGNOSTICS', '1');
+      const diagnostics: SchedulingDiagnostic[] = [];
+      const observer = (event: unknown) => {
+        diagnostics.push(event as SchedulingDiagnostic);
+      };
+      channel(SCHEDULING_DIAGNOSTIC_CHANNEL).subscribe(observer);
+      const started = deferred();
+      const released = deferred();
+      const scanEntered = deferred();
+      const scanGate = deferred();
+      const steered: string[] = [];
+      let allowSteer = false;
+      const core = createCore({
+        dshHome: createTempRoot('memory-steer-scan-'),
+        agents: {
+          async runOrchestrator() {
+            started.resolve();
+            await released.promise;
+          },
+          steerOrchestrator(_botSlug, text) {
+            if (!allowSteer) return false;
+            if (failFollowup && text.includes('steer-note.md'))
+              throw new Error('Synthetic follow-up failure');
+            steered.push(text);
+            return true;
+          },
+          async runAssignment() {},
+          requestAssignment() {
+            throw new Error('Unexpected assignment');
+          },
+          async close() {},
+        },
+      });
+      try {
+        core.registry.create({ slug: 'atlas', displayName: 'Atlas' });
+        const root = core.registry.memoryDirFor('atlas');
+        if (root === undefined) throw new Error('Memory root missing');
+        vi.spyOn(core.memory, 'scanChanges').mockImplementation(() => {
+          throw new Error('The steer path must not scan memory on the Host thread');
+        });
+        const scan = core.memory.scanChangesAsync;
+        vi.spyOn(core.memory, 'scanChangesAsync').mockImplementation(async (slug) => {
+          scanEntered.resolve();
+          await scanGate.promise;
+          return scan(slug);
+        });
+        const dm = core.channels.getOrCreateDm('atlas', 'Atlas');
+        if (!dm) throw new Error('Missing DM');
+        const methods = createBridgeMethods({ ...core });
+        const first = await methods.channelSend({
+          channelId: dm.id,
+          messageId: `human-${randomUUID()}`,
+          body: 'Start',
+        });
+        expect(first, JSON.stringify(first)).toMatchObject({ ok: true });
+        await started.promise;
+        writeFileSync(join(root, 'steer-note.md'), 'edited while the Bot works\n');
+        allowSteer = true;
+        expect(
+          await methods.channelSend({
+            channelId: dm.id,
+            messageId: `human-${randomUUID()}`,
+            body: 'STEER-NOW',
+          }),
+        ).toMatchObject({ ok: true });
+        expect(steered).toHaveLength(1);
+        expect(steered[0]).toContain('STEER-NOW');
+        expect(steered[0]).not.toContain('steer-note.md');
+        await scanEntered.promise;
+        const start = diagnostics.find((event) => event.kind === 'scan-start');
+        expect(start).toBeDefined();
+        expect(diagnostics.some((event) => event.kind === 'steer' && event.delivered)).toBe(true);
+        expect(diagnostics.some((event) => event.kind === 'scan-end')).toBe(false);
+        expect(
+          await methods.channelSend({
+            channelId: dm.id,
+            messageId: `human-${randomUUID()}`,
+            body: 'STEER-AGAIN',
+          }),
+        ).toMatchObject({ ok: true });
+        expect(steered).toHaveLength(2);
+        expect(steered[1]).toContain('STEER-AGAIN');
+        expect(diagnostics.filter((event) => event.kind === 'scan-start')).toHaveLength(1);
+        expect(diagnostics.filter((event) => event.kind === 'scan-coalesced')).toHaveLength(1);
+        scanGate.resolve();
+        await vi.waitFor(
+          () => expect(diagnostics.some((event) => event.kind === 'scan-end')).toBe(true),
+          { timeout: 30_000 },
+        );
+        if (failFollowup) {
+          expect(steered).toHaveLength(2);
+          expect(diagnostics.find((event) => event.kind === 'scan-end')).toMatchObject({
+            outcome: 'error',
+          });
+        } else {
+          expect(steered).toHaveLength(3);
+          expect(steered[2]).toContain('steer-note.md');
+        }
+        released.resolve();
+        await core.runtime.whenIdle();
+        expect(diagnostics.filter((event) => event.kind === 'scan-start')).toHaveLength(
+          failFollowup ? 1 : 2,
+        );
+        expect(diagnostics.filter((event) => event.kind === 'scan-end')).toHaveLength(
+          failFollowup ? 1 : 2,
+        );
+        expect(
+          diagnostics.some(
+            (event) =>
+              event.kind === 'exec-dispatch' && event.scan !== 0 && event.mode === 'worker',
+          ),
+        ).toBe(true);
+        expect(JSON.stringify(diagnostics)).not.toMatch(/STEER|steer-note|atlas|edited while/);
+      } finally {
+        scanGate.resolve();
+        released.resolve();
+        await core.runtime.close();
+        core.operationalDatabase.close();
+        channel(SCHEDULING_DIAGNOSTIC_CHANNEL).unsubscribe(observer);
+        vi.unstubAllEnvs();
+      }
+    },
+    60_000,
+  );
 });

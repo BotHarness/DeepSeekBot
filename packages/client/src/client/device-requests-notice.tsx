@@ -62,7 +62,7 @@ export function DeviceRequestsNotice({
         trigger ? (
           trigger(() => setReviewing(true))
         ) : (
-          <Tooltip label={t('connections.pending')} side="right">
+          <Tooltip label={t('connections.pending')} side="right" portal>
             <button
               type="button"
               aria-label={t('connections.pending')}

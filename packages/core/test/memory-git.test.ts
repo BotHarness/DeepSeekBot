@@ -21,7 +21,7 @@ function commitCount(root: string): number {
 }
 
 describe('memory git repository', () => {
-  it('initializes one main branch, local identity and committed LF attributes', () => {
+  it('initializes one main branch, local identity and committed LF attributes', async () => {
     const root = createRoot();
     createMemoryStore({ memoryDir: root, now: FIXED_NOW });
 
@@ -108,11 +108,11 @@ describe('memory git repository', () => {
     await store.write({ path: 'b.md', body: 'y', summary: 'Second' });
     const gitClient = createMemoryGit(root);
 
-    const sinceEpoch = gitClient.activitySince('2000-01-01T00:00:00.000Z');
+    const sinceEpoch = await gitClient.activitySince('2000-01-01T00:00:00.000Z');
     expect(sinceEpoch).toHaveLength(commitCount(root));
     for (const entry of sinceEpoch) {
       expect(Number.isNaN(new Date(entry.at).getTime())).toBe(false);
     }
-    expect(gitClient.activitySince('2099-01-01T00:00:00.000Z')).toEqual([]);
+    expect(await gitClient.activitySince('2099-01-01T00:00:00.000Z')).toEqual([]);
   });
 });

@@ -61,7 +61,7 @@ export function MobileAppsEntry({ t }: { t: BotHarnessTranslate }): ReactElement
   };
   return (
     <span>
-      <Tooltip label={t('mobileApps.open')} side="right">
+      <Tooltip label={t('mobileApps.open')} side="right" portal>
         <button
           ref={trigger}
           type="button"

@@ -24,6 +24,7 @@ export function SettingsView({
   actions,
   statistics,
   messageDisplay,
+  sendJump,
   activityCount,
   chatBackground,
   hapticFeedback,
@@ -35,6 +36,7 @@ export function SettingsView({
   actions: SettingsActions;
   statistics?: ReactNode;
   messageDisplay?: ReactNode;
+  sendJump?: ReactNode;
   activityCount?: ReactNode;
   chatBackground?: ReactNode;
   hapticFeedback?: ReactNode;
@@ -79,6 +81,7 @@ export function SettingsView({
         <LanguageSetting on={SHEET_GROUP} />
         <AppearanceSetting on={SHEET_GROUP} />
         {messageDisplay}
+        {sendJump}
         <SettingsRow
           on={SHEET_GROUP}
           title={t.appIcon}

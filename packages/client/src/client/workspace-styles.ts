@@ -1,5 +1,6 @@
 import { border, color, radius, size, space } from './ds/tokens.stylex.js';
 
+const exitEase = 'cubic-bezier(0.23, 1, 0.32, 1)';
 const panelBackground = `color-mix(in srgb, ${color.base} 85%, ${color.surface})`;
 
 export const WORKSPACE_CSS = `
@@ -44,15 +45,19 @@ html[data-platform="darwin"]:not([data-fullscreen]):has(style[data-bh-appearance
 .bh-workspace-controls > [data-window-drag-recall] { width:fit-content; margin:0 auto; }
 .bh-workspace-controls .bh-pinned-panels { margin:0; padding:0; }
 /* The Bot avatar fills a Panel-toggle box (36px, radius.md) and keeps their
-   space.x3 gap (rail gap + margin); on hover it
-   turns into that toggle's button with the destructive exit glyph. */
-.bh-workspace-rail > button.bh-workspace-exit { width:36px; height:36px; overflow:hidden; background:${color.hover}; margin-bottom:${space.x2}; }
-.bh-workspace-brand { display:flex; align-items:center; justify-content:center; width:100%; height:100%; }
+   space.x3 gap (rail gap + margin); on hover it morphs into that toggle's
+   button with the destructive exit glyph. Both layers fill the box absolutely,
+   so the glyph centres on it whatever else the button holds, and the swap
+   cross-fades with a slight scale. */
+.bh-workspace-rail > button.bh-workspace-exit { position:relative; width:36px; height:36px; overflow:hidden; background:${color.hover}; margin-bottom:${space.x2}; transition:background-color 160ms ${exitEase}; }
+.bh-workspace-brand, .bh-workspace-exit-icon { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; transition:opacity 160ms ${exitEase}, transform 220ms ${exitEase}, filter 160ms ${exitEase}; }
 .bh-workspace-rail > button.bh-workspace-exit[data-glyph] { color:${color.muted}; }
-.bh-workspace-exit-icon { display:none; color:${color.danger}; }
+.bh-workspace-exit-icon { color:${color.danger}; opacity:0; transform:scale(0.5); filter:blur(2px); }
 .bh-workspace-rail > button.bh-workspace-exit:hover, .bh-workspace-rail > button.bh-workspace-exit:focus-visible { background:${color.selected}; }
-.bh-workspace-exit:hover .bh-workspace-brand, .bh-workspace-exit:focus-visible .bh-workspace-brand { display:none; }
-.bh-workspace-exit:hover .bh-workspace-exit-icon, .bh-workspace-exit:focus-visible .bh-workspace-exit-icon { display:flex; }
+.bh-workspace-exit:hover .bh-workspace-brand, .bh-workspace-exit:focus-visible .bh-workspace-brand { opacity:0; transform:scale(0.75); filter:blur(2px); }
+.bh-workspace-exit:hover .bh-workspace-exit-icon, .bh-workspace-exit:focus-visible .bh-workspace-exit-icon { opacity:1; transform:none; filter:none; }
+.bh-workspace-exit:active .bh-workspace-exit-icon { transform:scale(0.92); }
+html[data-botharness-motion='reduce'] :is(.bh-workspace-brand, .bh-workspace-exit-icon) { transition:opacity 120ms linear; transform:none !important; filter:none !important; }
 /* Footer controls: same 32px ghost button and 16px glyph; an idle notice slot takes no gap. */
 .bh-workspace-rail > span:empty { display:none; }
 .bh-workspace-rail > button.bh-workspace-leave { color:${color.danger}; }

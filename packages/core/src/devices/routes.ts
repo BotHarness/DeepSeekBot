@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { execFileText } from '../process/exec-off-thread.js';
 import { CONNECT_HOSTNAME } from './connect-zones.js';
 import { isLanAddress } from './lan-address.js';
 import { stalePhoneRoutes, type StalePhoneRoute } from './route-targets.js';
@@ -46,16 +46,14 @@ const TAILSCALE_BINARIES = ['tailscale', '/Applications/Tailscale.app/Contents/M
 
 const SERVE_TIMEOUT_MS = 15_000;
 
-const runFile: RunCommand = (file, args, options) =>
-  new Promise((resolve, reject) => {
-    execFile(
-      file,
-      [...args],
-      { timeout: options?.timeoutMs ?? 3000, maxBuffer: 1024 * 1024, windowsHide: true },
-      (error, stdout, stderr) =>
-        error ? reject(Object.assign(error, { stdout, stderr })) : resolve(stdout),
-    );
-  });
+const runFile: RunCommand = async (file, args, options) =>
+  (
+    await execFileText(file, args, {
+      timeout: options?.timeoutMs ?? 3000,
+      maxBuffer: 1024 * 1024,
+      windowsHide: true,
+    })
+  ).stdout;
 
 function record(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};

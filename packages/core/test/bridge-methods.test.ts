@@ -3422,7 +3422,7 @@ describe('bridge methods', () => {
     });
   });
 
-  it('keeps the same reported lower bound in Profile and Overview usage', () => {
+  it('keeps the same reported lower bound in Profile and Overview usage', async () => {
     const usage = {
       activity: () => [
         {
@@ -3457,14 +3457,14 @@ describe('bridge methods', () => {
     );
     registry.create({ slug: 'ada', displayName: 'Ada' });
     const dm = channels.getOrCreateDm('ada', 'Ada')!;
-    const result = methods.profileActivity({ channelId: dm.id });
+    const result = await methods.profileActivity({ channelId: dm.id });
     expect(result.ok && result.value.modelUsageRows[0]).toMatchObject({
       totalTokens: 674655,
       partial: true,
     });
   });
 
-  it('buckets Profile activity by Host-local day with reasons and Memory commits', () => {
+  it('buckets Profile activity by Host-local day with reasons and Memory commits', async () => {
     const localDayOf = (at: string): string => {
       const date = new Date(at);
       const month = `${date.getMonth() + 1}`.padStart(2, '0');
@@ -3517,7 +3517,7 @@ describe('bridge methods', () => {
       slug === 'ada' ? observed.filter((entry) => entry.at >= sinceIso) : [];
     const group = channels.createGroup({ name: 'Team', members: [] });
 
-    const result = methods.profileActivity({ channelId: dm.id });
+    const result = await methods.profileActivity({ channelId: dm.id });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.slug).toBe('ada');
@@ -3550,7 +3550,7 @@ describe('bridge methods', () => {
 
     expect(result.value.createdDay).toBe(localDayOf(registry.get('ada')!.createdAt));
 
-    const older = methods.profileActivity({
+    const older = await methods.profileActivity({
       channelId: dm.id,
       before: today,
       weeks: 4,
@@ -3568,16 +3568,16 @@ describe('bridge methods', () => {
       { weeks: 105 },
       { weeks: 1.5 },
     ])
-      expect(methods.profileActivity({ channelId: dm.id, ...window }).ok).toBe(false);
+      expect((await methods.profileActivity({ channelId: dm.id, ...window })).ok).toBe(false);
 
-    expect(methods.profileActivity({ channelId: group.id })).toEqual({
+    expect(await methods.profileActivity({ channelId: group.id })).toEqual({
       ok: false,
       error: {
         code: 'invalid-input',
         message: 'Memory is available only in a PersonaBot DM',
       },
     });
-    expect(methods.profileActivity({ channelId: 'missing' })).toEqual({
+    expect(await methods.profileActivity({ channelId: 'missing' })).toEqual({
       ok: false,
       error: { code: 'not-found', message: 'unknown Channel: missing' },
     });

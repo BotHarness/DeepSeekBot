@@ -100,6 +100,57 @@ describe('Device Pairing', () => {
     host.owner.close();
   });
 
+  it.each([
+    { state: 'signed-in' as const },
+    {
+      state: 'error' as const,
+      issue: 'relay-unavailable' as const,
+      recovery: 'automatic' as const,
+    },
+    { state: 'signing-in' as const },
+  ])(
+    'keeps a %o Host on its account tunnel instead of a disable the account would undo',
+    async (state) => {
+      const host = fixture().open();
+      let disabled = 0;
+      const http = createDevicesHttp({
+        pairing: host.pairing,
+        routes: () => detectPhoneRoutes({ port: 4100, run: async () => '' }),
+        connect: {
+          status: () => ({ state: 'connected' }),
+          route: () => undefined,
+          start: async () => {},
+          enable: async () => ({ ok: true, status: { state: 'connected' } }),
+          disable: async () => {
+            disabled += 1;
+            return { ok: true, status: { state: 'off' } };
+          },
+          close: async () => {},
+        },
+        account: {
+          status: () => state,
+          signIn: async () => ({ ok: true, status: state }),
+          signOut: async () => ({ ok: true, status: state }),
+          connectedHosts: async (): Promise<ConnectedHostsResult> => ({ ok: true, hosts: [] }),
+          revokeConnectedHost: async (): Promise<AccountResult> => ({ ok: true, status: state }),
+        },
+      });
+      const response = await http(
+        new Request('http://h/api/botharness/devices/connect', {
+          method: 'POST',
+          body: JSON.stringify({ action: 'disable' }),
+        }),
+      );
+      expect(response.status).toBe(409);
+      expect(await response.json()).toMatchObject({
+        code: 'connect-signed-in',
+        error: expect.stringContaining('connect-sign-out'),
+      });
+      expect(disabled).toBe(0);
+      host.owner.close();
+    },
+  );
+
   it('returns a coded signed-out refusal for account management without an owner', async () => {
     const host = fixture().open();
     const http = createDevicesHttp({

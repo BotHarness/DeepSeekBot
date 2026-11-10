@@ -362,7 +362,7 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
         })
         .catch(() => undefined);
       void pushSession.retryFailed();
-      void notificationPreferences.retry().catch(() => undefined);
+      void notificationPreferences.retry(saved).catch(() => undefined);
       catchUpHostConversations(
         saved.hostId,
         (method, args) =>

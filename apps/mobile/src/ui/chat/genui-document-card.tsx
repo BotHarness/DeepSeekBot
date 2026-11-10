@@ -25,6 +25,7 @@ import {
   type GenuiDocument,
   type GenuiDocumentReply,
 } from '../../genui/document';
+import { genuiStartQueue } from '../../genui/start-queue';
 import { genuiDocumentView, type GenuiDocumentViewModel } from '../../genui/view';
 import { genuiFrame, radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
@@ -36,6 +37,7 @@ import { GenuiReplies, GenuiViewHost, type GenuiReplySend } from './genui-view-c
 type Status = 'loading' | 'ready' | 'failed';
 
 let mounts = 0;
+const starts = genuiStartQueue(2);
 
 function GenuiFrame({
   document,
@@ -65,11 +67,14 @@ function GenuiFrame({
   const failed = useRef(false);
   const settled = useRef(false);
   const synced = useRef(JSON.stringify(initial));
+  const [turn, setTurn] = useState(false);
+  const release = useRef<() => void>(() => {});
   const failRef = useRef<() => void>(() => {});
   const fail = () => {
     if (failed.current) return;
     failed.current = true;
     settled.current = true;
+    release.current();
     setStatus('failed');
     onFailure();
   };
@@ -96,25 +101,42 @@ function GenuiFrame({
       state: initial,
     });
   }, [document, instanceId, theme.scheme, theme.fontScale, pageZoom, initial]);
+  const startup = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const loaded = () => {
+    if (startup.current !== undefined || settled.current) return;
+    startup.current = setTimeout(() => {
+      if (!settled.current) failRef.current();
+    }, GENUI_EXECUTION_LIMITS.startupMs * 2);
+  };
   const attach = useCallback(
     (node: unknown): void | (() => void) => {
       if (node === null) return;
-      const timer = setTimeout(() => {
-        if (!settled.current) failRef.current();
-      }, GENUI_EXECUTION_LIMITS.startupMs * 2);
       const unsubscribe = view.subscribe(sync);
       return () => {
-        clearTimeout(timer);
+        clearTimeout(startup.current);
         unsubscribe();
       };
     },
     [view, sync],
   );
+  const queue = useCallback((node: unknown): void | (() => void) => {
+    if (node === null) return;
+    let lapse: ReturnType<typeof setTimeout> | undefined;
+    release.current = starts.take(() => {
+      setTurn(true);
+      lapse = setTimeout(() => release.current(), GENUI_EXECUTION_LIMITS.startupMs * 2);
+    });
+    return () => {
+      clearTimeout(lapse);
+      release.current();
+    };
+  }, []);
   const receive = (event: WebViewMessageEvent) => {
     const message = parseGenuiBridgeMessage(event.nativeEvent.data, instanceId, document);
     if (message === undefined || failed.current) return;
     if (message.type === 'ready') {
       settled.current = true;
+      release.current();
       setStatus('ready');
       onReady();
       sync();
@@ -131,7 +153,7 @@ function GenuiFrame({
   };
   const visible = Math.min(height, genuiFrame.maxHeight);
   return (
-    <View style={{ gap: space.x2 }}>
+    <View style={{ gap: space.x2 }} ref={queue}>
       <View
         style={{
           height: visible,
@@ -143,34 +165,37 @@ function GenuiFrame({
         testID="genui-document-frame"
         ref={attach}
       >
-        <WebView
-          ref={web}
-          source={{ html }}
-          originWhitelist={['about:blank', 'about:srcdoc']}
-          onShouldStartLoadWithRequest={(request) => genuiNavigationAllowed(request.url)}
-          onMessage={receive}
-          onError={fail}
-          onHttpError={fail}
-          onRenderProcessGone={fail}
-          onContentProcessDidTerminate={fail}
-          javaScriptEnabled
-          javaScriptCanOpenWindowsAutomatically={false}
-          setSupportMultipleWindows={false}
-          domStorageEnabled={false}
-          cacheEnabled={false}
-          incognito
-          allowFileAccess={false}
-          allowFileAccessFromFileURLs={false}
-          allowUniversalAccessFromFileURLs={false}
-          allowsLinkPreview={false}
-          allowsInlineMediaPlayback={false}
-          mediaPlaybackRequiresUserAction
-          dataDetectorTypes="none"
-          textZoom={100}
-          scrollEnabled={height > genuiFrame.maxHeight}
-          nestedScrollEnabled={height > genuiFrame.maxHeight}
-          style={{ backgroundColor: theme.color.surface }}
-        />
+        {turn ? (
+          <WebView
+            ref={web}
+            source={{ html }}
+            originWhitelist={['about:blank', 'about:srcdoc']}
+            onShouldStartLoadWithRequest={(request) => genuiNavigationAllowed(request.url)}
+            onMessage={receive}
+            onLoadEnd={loaded}
+            onError={fail}
+            onHttpError={fail}
+            onRenderProcessGone={fail}
+            onContentProcessDidTerminate={fail}
+            javaScriptEnabled
+            javaScriptCanOpenWindowsAutomatically={false}
+            setSupportMultipleWindows={false}
+            domStorageEnabled={false}
+            cacheEnabled={false}
+            incognito
+            allowFileAccess={false}
+            allowFileAccessFromFileURLs={false}
+            allowUniversalAccessFromFileURLs={false}
+            allowsLinkPreview={false}
+            allowsInlineMediaPlayback={false}
+            mediaPlaybackRequiresUserAction
+            dataDetectorTypes="none"
+            textZoom={100}
+            scrollEnabled={height > genuiFrame.maxHeight}
+            nestedScrollEnabled={height > genuiFrame.maxHeight}
+            style={{ backgroundColor: theme.color.surface }}
+          />
+        ) : null}
       </View>
       {status === 'loading' ? (
         <Text variant="meta" tone="muted" accessibilityRole="progressbar">

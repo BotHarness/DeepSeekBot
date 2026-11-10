@@ -133,6 +133,7 @@ export interface HostSnapshot {
   }[];
   computerAvailable?: boolean;
   connection: ConnectionState;
+  disruptedSince?: number;
   activity?: readonly WireBotActivity[];
   roster?: RosterView;
 }
@@ -252,7 +253,7 @@ interface Follower {
   reopen?: ReturnType<typeof setTimeout> | undefined;
 }
 
-export const MAX_RECONNECT_DELAY_MS = 300_000;
+export const MAX_RECONNECT_DELAY_MS = 30_000;
 export const STABLE_CONNECTION_MS = 60_000;
 export const REUSE_ON_RECONNECT_MS = 600_000;
 export const defaultBackoff = (attempt: number): number =>
@@ -422,6 +423,11 @@ export function createHostClient(options: HostClientOptions): HostClient {
       status: routeChecks.get(url) ?? 'unchecked',
     }));
     const roster = bots === undefined ? undefined : shareRoster(view(bots), snapshot.roster);
+    const status = (connection ?? snapshot.connection).status;
+    const disruptedSince =
+      status === 'connecting' || status === 'reconnecting' || status === 'unreachable'
+        ? (snapshot.disruptedSince ?? Date.now())
+        : undefined;
     const next: HostSnapshot = {
       routes:
         snapshot.routes !== undefined &&
@@ -429,6 +435,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
           ? snapshot.routes
           : nextRoutes,
       connection: connection ?? snapshot.connection,
+      ...(disruptedSince === undefined ? {} : { disruptedSince }),
       activity: share('activity', [...rawStates.values()]),
       ...(computerAvailable === undefined ? {} : { computerAvailable }),
       ...(roster === undefined ? {} : { roster }),
@@ -1339,8 +1346,17 @@ export function createHostClient(options: HostClientOptions): HostClient {
 
   return {
     updateRoutes(next) {
+      const previous = routes;
       routes = preferredRoutes(next);
       publish();
+      if (
+        running &&
+        snapshot.connection.status !== 'connected' &&
+        routes.some((candidate) => !previous.includes(candidate))
+      ) {
+        clearTimeout(retryTimer);
+        wake?.();
+      }
     },
     async testRoute(url) {
       if (!routes.includes(url)) return false;

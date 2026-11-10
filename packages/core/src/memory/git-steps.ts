@@ -1,8 +1,5 @@
-import {
-  execFile,
-  execFileSync,
-  type ExecFileSyncOptionsWithBufferEncoding,
-} from 'node:child_process';
+import { execFileBuffer } from '../process/exec-off-thread.js';
+import { execFileSync, type ExecFileSyncOptionsWithBufferEncoding } from 'node:child_process';
 
 export interface GitCommand {
   args: string[];
@@ -32,17 +29,19 @@ export async function asyncGitSteps<T>(steps: GitSteps<T>): Promise<T> {
     const command = step.value;
     let result: Buffer;
     try {
-      result = await new Promise<Buffer>((resolve, reject) => {
-        execFile(
-          'git',
-          command.args,
-          { ...command.options, encoding: 'buffer' },
-          (error, stdout) => {
-            if (error) reject(error);
-            else resolve(stdout);
-          },
-        );
-      });
+      const options = command.options;
+      result = (
+        await execFileBuffer('git', command.args, {
+          cwd: typeof options.cwd === 'string' ? options.cwd : undefined,
+          env: options.env,
+          timeout: options.timeout,
+          maxBuffer: options.maxBuffer,
+          windowsHide: options.windowsHide,
+          stdio: Array.isArray(options.stdio)
+            ? (options.stdio as ('ignore' | 'pipe')[])
+            : undefined,
+        })
+      ).stdout;
     } catch (error) {
       step = steps.throw(error);
       continue;

@@ -472,6 +472,7 @@ const en = {
   cloudListUnavailable: 'Some cloud conversations could not be refreshed. Pull to retry.',
   hostListLoadFailed: 'Could not load chats. Try again.',
   hostListUnavailable: 'Could not refresh chats. Showing the last list.',
+  hostListOffline: 'Offline. Showing the last list.',
   sourceChanged: 'This conversation belongs to another Computer. Select that Computer to continue.',
   cloudSourceChanged:
     'This conversation belongs to a different cloud sign-in. Open it again from your conversation list.',
@@ -1577,6 +1578,11 @@ const en = {
   interface: 'Interface',
   hapticFeedback: {
     title: 'Haptic feedback',
+    storageError: 'Could not save this choice. Toggle again to retry.',
+  },
+  sendJump: {
+    title: 'Jump to latest when sending',
+    detail: 'Off keeps your place while you read earlier messages.',
     storageError: 'Could not save this choice. Toggle again to retry.',
   },
   messageDisplay: {
@@ -2933,6 +2939,7 @@ const zh: typeof en = {
   cloudListUnavailable: '部分云会话未能刷新，下拉可重试。',
   hostListLoadFailed: '聊天未能加载，再试一次。',
   hostListUnavailable: '聊天未能刷新，当前显示上次的列表。',
+  hostListOffline: '离线中，显示的是上次的列表。',
   sourceChanged: '此会话属于另一台电脑，选择对应电脑后继续。',
   cloudSourceChanged: '此会话属于另一个云端登录身份，从会话列表重新打开。',
   conversationDetails: '会话详情',
@@ -3957,6 +3964,11 @@ const zh: typeof en = {
   interface: '界面',
   hapticFeedback: {
     title: '触感反馈',
+    storageError: '未能保存此选择，再切换一次。',
+  },
+  sendJump: {
+    title: '发送后跳到最新',
+    detail: '关闭时，翻看之前的消息时发送不会离开当前位置。',
     storageError: '未能保存此选择，再切换一次。',
   },
   messageDisplay: {

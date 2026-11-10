@@ -37,7 +37,7 @@ export interface MemoryService extends MemoryAcceptance, ReturnType<typeof creat
 
   overviewActivity?(after?: string): Promise<OverviewMemory>;
 
-  activity?(botSlug: string, sinceIso: string): Array<{ at: string }>;
+  activity?(botSlug: string, sinceIso: string): Promise<Array<{ at: string }>>;
 }
 
 export function createMemoryService(options: MemoryServiceOptions): MemoryService {
@@ -138,6 +138,7 @@ export function createMemoryService(options: MemoryServiceOptions): MemoryServic
     abortTurnAsync: (botSlug, sessionId, preserveObservation) =>
       requireAcceptance().abortTurnAsync(botSlug, sessionId, preserveObservation),
     pendingCommitsAsync: (botSlug) => requireAcceptance().pendingCommitsAsync(botSlug),
+    scanChangesAsync: (botSlug) => requireAcceptance().scanChangesAsync(botSlug),
     sourceReferences: (ids) => requireAcceptance().sourceReferences(ids),
     ...createMemoryFiles(registry),
     continueFromCommit: (input) => requireAcceptance().continueFromCommit(input),
@@ -179,7 +180,9 @@ export function createMemoryService(options: MemoryServiceOptions): MemoryServic
       queryOverviewMemory(registry, options.now?.() ?? new Date(), after),
     activity: (botSlug, sinceIso) => {
       const memoryDir = registry.memoryDirFor(botSlug);
-      return memoryDir === undefined ? [] : createMemoryGit(memoryDir).activitySince(sinceIso);
+      return memoryDir === undefined
+        ? Promise.resolve([])
+        : createMemoryGit(memoryDir).activitySince(sinceIso);
     },
     personaForSession,
     refreshPersonaAfterCompaction,

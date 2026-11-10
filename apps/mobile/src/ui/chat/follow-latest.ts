@@ -358,14 +358,20 @@ export function useFollowLatest<Row>(
     scrollToLatest(true);
   }, [scrollToLatest, follow]);
 
-  const send = useCallback((): boolean => {
-    if (!followingNow.current) return false;
-    if (!settled.current) {
-      jumpToLatest();
-      return false;
-    }
-    return shouldFly({ atLatest: true, reducedMotion: !animateScroll });
-  }, [jumpToLatest, animateScroll]);
+  const send = useCallback(
+    (jump = false): boolean => {
+      if (!followingNow.current) {
+        if (jump) jumpToLatest();
+        return false;
+      }
+      if (!settled.current) {
+        jumpToLatest();
+        return false;
+      }
+      return shouldFly({ atLatest: true, reducedMotion: !animateScroll });
+    },
+    [jumpToLatest, animateScroll],
+  );
 
   const retry = useCallback(() => {
     attempts.current = 0;

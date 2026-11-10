@@ -326,7 +326,6 @@ describe('deepseekbot call commands', () => {
       answered: true,
       heard: [{ text: 'what is on my calendar' }],
       replies: [{ bytes: 6, sentences: 1, messageId: expect.stringMatching(/^reply-to-/u) }],
-      ackMs: expect.any(Number),
       firstAudioMs: expect.any(Number),
     });
     expect(posts[0]).toEqual({ kind: 'open', slug: 'ada', media: 'synthetic' });
@@ -336,7 +335,6 @@ describe('deepseekbot call commands', () => {
       expect.arrayContaining([
         'connected',
         'speech-start',
-        'ack',
         'sent',
         'committed',
         'playing',

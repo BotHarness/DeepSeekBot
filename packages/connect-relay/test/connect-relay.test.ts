@@ -476,6 +476,23 @@ describe('Connect relay tunnels', () => {
     expect(tunnels.apiCalls).toBe(calls);
   });
 
+  it('checks a not-yet-online tunnel when the account lists its Hosts', async () => {
+    const { call, tunnels } = await setup();
+    await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Studio' } });
+    await call('POST', '/v1/hosts/haaaaaaaaaaab/tunnel', {
+      as: 'user_alice',
+      body: { originPort: 41001 },
+    });
+    tunnels.tunnels.get('tunnel-1')!.status = 'healthy';
+    const listed = async (query = '') =>
+      (await call('GET', `/v1/hosts${query}`, { as: 'user_alice' })).body['hosts'];
+    expect((await listed('?host=haaaaaaaaaaab&idle=0'))[0]).toMatchObject({ connected: false });
+    expect((await listed())[0]).toMatchObject({ connected: true, state: 'connected' });
+    const calls = tunnels.apiCalls;
+    expect((await listed())[0]).toMatchObject({ connected: true });
+    expect(tunnels.apiCalls).toBe(calls);
+  });
+
   it('reclaims tunnels left offline and recreates them on a fresh hostname', async () => {
     const { call, relay, tunnels, advance, at } = await setup();
     await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Studio' } });
