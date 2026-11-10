@@ -96,15 +96,19 @@ function GenuiFrame({
       state: initial,
     });
   }, [document, instanceId, theme.scheme, theme.fontScale, pageZoom, initial]);
+  const startup = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const loaded = () => {
+    if (startup.current !== undefined || settled.current) return;
+    startup.current = setTimeout(() => {
+      if (!settled.current) failRef.current();
+    }, GENUI_EXECUTION_LIMITS.startupMs * 2);
+  };
   const attach = useCallback(
     (node: unknown): void | (() => void) => {
       if (node === null) return;
-      const timer = setTimeout(() => {
-        if (!settled.current) failRef.current();
-      }, GENUI_EXECUTION_LIMITS.startupMs * 2);
       const unsubscribe = view.subscribe(sync);
       return () => {
-        clearTimeout(timer);
+        clearTimeout(startup.current);
         unsubscribe();
       };
     },
@@ -149,6 +153,7 @@ function GenuiFrame({
           originWhitelist={['about:blank', 'about:srcdoc']}
           onShouldStartLoadWithRequest={(request) => genuiNavigationAllowed(request.url)}
           onMessage={receive}
+          onLoadEnd={loaded}
           onError={fail}
           onHttpError={fail}
           onRenderProcessGone={fail}
