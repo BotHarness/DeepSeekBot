@@ -33,6 +33,7 @@ class Helper extends EventEmitter {
   hangOffer = false;
   hangClose = false;
   launchId = '';
+  mac = false;
   readonly stdin = new Writable({
     write: (chunk: Buffer, _encoding, callback) => {
       const command = JSON.parse(chunk.toString()) as Record<string, unknown>;
@@ -57,7 +58,9 @@ class Helper extends EventEmitter {
     },
   });
   event(value: Record<string, unknown>) {
-    this.stdout.write(JSON.stringify({ launchId: this.launchId, ...value }) + '\n');
+    (this.mac || value['event'] === 'helper-message' ? this.stdout : this.stderr).write(
+      JSON.stringify({ launchId: this.launchId, ...value }) + '\n',
+    );
   }
   message(value: unknown) {
     this.event({ event: 'helper-message', json: JSON.stringify(value) });
@@ -100,6 +103,7 @@ beforeEach(() => {
   helper = new Helper();
   mocks.spawn.mockImplementation((_command, args) => {
     helper.launchId = args.at(-1);
+    helper.mac = args.some((arg: string) => arg.endsWith('launcher-macos.cjs'));
     setImmediate(() => helper.ready());
     return helper;
   });
@@ -242,10 +246,12 @@ describe('supervised Local Computer media', () => {
       onEvent: (detail) => events.push(detail),
     });
     const peer = await open(provider, new AbortController(), statuses);
+    helper.hangClose = true;
     const payload = 'PRIVATE_NATIVE_OUTPUT'.repeat(7000);
     helper.stdout.write(payload);
     helper.stdout.write(payload);
     expect(statuses.some((status) => status.status === 'failed')).toBe(true);
+    helper.exit(1);
     await expect(peer.close()).rejects.toMatchObject({ code: 'helper-failed' });
     await expect(open(provider)).rejects.toMatchObject({ code: 'viewer-limit' });
     expect(mocks.spawn).toHaveBeenCalledOnce();
@@ -335,6 +341,7 @@ describe('Mac video supervisor', () => {
   it('reports Mac Screen Recording permission separately from helper failure', async () => {
     mocks.spawn.mockImplementation((_command, args) => {
       helper.launchId = args.at(-1);
+      helper.mac = true;
       setImmediate(() => {
         helper.event({ event: 'tree-owned', version: 1, rootPid: 54322 });
         helper.message({ event: 'failed', code: 'screen-recording-required' });

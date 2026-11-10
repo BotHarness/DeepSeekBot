@@ -47,6 +47,7 @@ it('keeps the four Android switches enabled while an offline computer retries in
   const settings: PushSettings = {
     registered: true,
     enabled: true,
+    delivery: 'push' as const,
     preferences: { approval: true, question: true, 'private-input': true, reply: true },
     quietChannelIds: [],
   };
@@ -72,6 +73,7 @@ it('keeps the four Android switches enabled while an offline computer retries in
     load: async () => settings,
     set: preferences.set,
     setEnabled: async () => settings,
+    setDelivery: async () => settings,
     test: async () => undefined,
   };
   function Screen() {
@@ -92,7 +94,7 @@ it('keeps the four Android switches enabled while an offline computer retries in
   try {
     await act(async () => root.render(<Screen />));
     const controls = [...container.querySelectorAll('input')];
-    expect(controls).toHaveLength(5);
+    expect(controls).toHaveLength(4);
     nativeSwitch.mockClear();
     preferences.setForeground(true);
     await act(async () => {

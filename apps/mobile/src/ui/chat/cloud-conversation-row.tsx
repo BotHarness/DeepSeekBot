@@ -6,8 +6,10 @@ import { ConversationGroupAvatar, ConversationRowFrame } from './conversation-ro
 export function CloudConversationRow({
   row,
   pending = false,
+  mixed = false,
   onPress,
 }: {
+  mixed?: boolean;
   row: CloudConversation;
   pending?: boolean;
   onPress(): void;
@@ -18,6 +20,7 @@ export function CloudConversationRow({
       testID={`conversation-row-cloud:${row.channel.channelId}`}
       title={row.channel.name}
       source="cloud"
+      mixed={mixed}
       label={[row.channel.name, t.cloudChannels.cloudChannel, pending ? t.loading : undefined]
         .filter(Boolean)
         .join(', ')}

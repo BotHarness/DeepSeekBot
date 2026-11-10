@@ -14,7 +14,7 @@ Pod::Spec.new do |s|
   s.source_files = '*.swift'
   s.test_spec 'Tests' do |tests|
     tests.source_files = 'Tests/**/*.swift'
-    tests.requires_app_host = true
+    tests.requires_app_host = false
     tests.libraries = 'c++'
   end
   s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES', 'SWIFT_COMPILATION_MODE' => 'wholemodule' }

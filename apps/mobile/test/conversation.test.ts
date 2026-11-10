@@ -619,6 +619,78 @@ describe('DM conversation', () => {
     });
   });
 
+  it('keeps the media hint of a quoted voice, image or file message', async () => {
+    const host = new FakeHost();
+    const channel = host.channel(DM);
+    const photo = {
+      fileId: 'file:00000000-0000-4000-8000-000000000001',
+      name: 'photo.jpg',
+      mime: 'image/jpeg',
+      size: 10,
+      thumbhash: 'abc',
+    };
+    channel.append(
+      {
+        id: 'bot-voice',
+        author: { kind: 'bot', slug: SLUG },
+        body: 'Spoken',
+        voice: { state: 'ready', attachment: 'voice', durationMs: 7000 },
+      },
+      false,
+    );
+    channel.append({ id: 'human-photo', attachments: [photo, photo] }, false);
+    channel.append(
+      {
+        id: 'human-file',
+        body: 'report',
+        attachments: [{ ...photo, name: 'Q3.pdf', mime: 'application/pdf' }],
+      },
+      false,
+    );
+    channel.append(
+      {
+        id: 'human-reply',
+        body: 'that one',
+        replyTo: 'bot-voice',
+        replyToPreview: {
+          author: { kind: 'bot', slug: SLUG },
+          body: 'Spoken',
+          media: { kind: 'voice', durationMs: 7000 },
+        },
+      },
+      false,
+    );
+    const target = open(host);
+    const live = await until(target, (s) => s.status === 'live');
+    expect(live.messages.at(-1)?.replyPreview?.media).toEqual({ kind: 'voice', durationMs: 7000 });
+    expect(live.messages[0]?.voice).toEqual({ state: 'ready', durationMs: 7000 });
+    expect(live.messages.at(-1)).not.toHaveProperty('replyThumbnail');
+    const quoted = (replyTo: string) => {
+      target.send('re', [], { replyTo });
+      return target.getSnapshot().messages.at(-1);
+    };
+    const thumbnail = quoted('human-photo')?.replyThumbnail;
+    expect(thumbnail?.thumbhash).toBe('abc');
+    expect(thumbnail?.source.uri).toContain('messageId=human-photo');
+    expect(thumbnail?.source.uri).toContain(encodeURIComponent(photo.fileId));
+    expect(quoted('human-file')).not.toHaveProperty('replyThumbnail');
+    const pending = (replyTo: string) => {
+      target.send('re', [], { replyTo });
+      return target.getSnapshot().messages.at(-1)?.replyPreview;
+    };
+    expect(pending('bot-voice')).toEqual({
+      author: { kind: 'bot', slug: SLUG },
+      body: 'Spoken',
+      media: { kind: 'voice', durationMs: 7000 },
+    });
+    expect(pending('human-photo')).toEqual({
+      author: { kind: 'human' },
+      body: '',
+      media: { kind: 'image', count: 2, thumbnail: photo },
+    });
+    expect(pending('human-file')?.media).toEqual({ kind: 'file', name: 'Q3.pdf', count: 1 });
+  });
+
   it('shows reactions from the journal and follows reaction changes live', async () => {
     const host = new FakeHost();
     const channel = host.channel(DM);

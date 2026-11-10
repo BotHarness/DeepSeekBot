@@ -45,6 +45,7 @@ export interface AlertSnapshot {
   pending: string[];
   alerts: LocalApprovalAlert[];
   foreground?: boolean;
+  inApp?: boolean;
   silent?: string[];
   preferences?: PushPreferences;
   quietChannelIds?: readonly string[];
@@ -75,7 +76,8 @@ export interface DeviceAlertInput {
   approvalText: string;
   preferences?: PushPreferences;
   quietChannelIds?: readonly string[];
-  visibleChannelId?: string | undefined;
+  focusedChannelIds?: readonly string[] | undefined;
+  inAppOnly?: boolean;
   text?: Record<PushKind, string>;
 }
 
@@ -200,6 +202,7 @@ export function createDeviceAlerts(port: DeviceAlertPort, source?: DeviceAlertSo
         ...(extended
           ? {
               foreground: input.foreground,
+              ...(input.inAppOnly ? { inApp: true } : {}),
               preferences: input.preferences,
               quietChannelIds: input.quietChannelIds ?? [],
               silent,
@@ -208,13 +211,14 @@ export function createDeviceAlerts(port: DeviceAlertPort, source?: DeviceAlertSo
         alerts: pending.flatMap((item): LocalApprovalAlert[] => {
           const kind = kinds[item.kind]!;
           if (!input.approvalsEnabled || (!extended && input.foreground)) return [];
+          if (input.inAppOnly && !input.foreground) return [];
           if (input.preferences?.[kind] === false) return [];
           if (kind === 'reply' && item.channelId && input.quietChannelIds?.includes(item.channelId))
             return [];
           if (
             kind === 'reply' &&
             ((port.recoverySession === undefined && !baselined.has(input.hostId)) ||
-              (input.foreground && input.visibleChannelId === item.channelId))
+              (item.channelId !== undefined && input.focusedChannelIds?.includes(item.channelId)))
           ) {
             silent.push(item.id);
             return [];

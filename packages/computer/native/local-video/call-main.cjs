@@ -11,6 +11,51 @@ let input = '';
 let rendererReady = false;
 let queue = Promise.resolve();
 let queued = 0;
+const diagnosticsEnabled = process.env.BOTHARNESS_CALL_DIAGNOSTICS === '1';
+let diagnosticCount = 0;
+let diagnosticSeq = 0;
+let diagnosticElapsed = 0;
+
+function connectionSnapshot(value) {
+  if (!value || typeof value !== 'object') return;
+  const integer = (n, max) => Number.isSafeInteger(n) && n >= 0 && n <= max;
+  if (
+    !integer(value.seq, 32) ||
+    value.seq <= diagnosticSeq ||
+    !integer(value.elapsedMs, 86_400_000) ||
+    value.elapsedMs < diagnosticElapsed ||
+    ![
+      'created',
+      'gathering',
+      'ice',
+      'peer',
+      'offer-ready',
+      'answer-start',
+      'answer-applied',
+    ].includes(value.stage) ||
+    !['new', 'connecting', 'connected', 'disconnected', 'failed', 'closed'].includes(value.peer) ||
+    !['new', 'checking', 'connected', 'completed', 'disconnected', 'failed', 'closed'].includes(
+      value.ice,
+    ) ||
+    !['new', 'gathering', 'complete'].includes(value.gathering) ||
+    !integer(value.localCandidates, 1024) ||
+    !integer(value.remoteCandidates, 1024)
+  )
+    return;
+  diagnosticSeq = value.seq;
+  diagnosticElapsed = value.elapsedMs;
+  return {
+    event: 'connection',
+    seq: value.seq,
+    elapsedMs: value.elapsedMs,
+    stage: value.stage,
+    peer: value.peer,
+    ice: value.ice,
+    gathering: value.gathering,
+    localCandidates: value.localCandidates,
+    remoteCandidates: value.remoteCandidates,
+  };
+}
 
 function write(value) {
   if (stopping) return;
@@ -63,6 +108,7 @@ app.whenReady().then(async () => {
       nodeIntegration: false,
       backgroundThrottling: false,
       webSecurity: true,
+      additionalArguments: diagnosticsEnabled ? ['--botharness-call-diagnostics=1'] : [],
     },
   });
   const ownsFrame = (frame) => frame && frame === window?.webContents.mainFrame;
@@ -87,6 +133,21 @@ app.whenReady().then(async () => {
     if (!ownsFrame(event.senderFrame)) return;
     if (!['connected', 'failed', 'closed'].includes(state)) return stop();
     write({ event: 'state', state });
+  });
+  ipcMain.on('call-connection', (event, value) => {
+    if (!diagnosticsEnabled || stopping || !ownsFrame(event.senderFrame) || ++diagnosticCount > 32)
+      return;
+    const snapshot = connectionSnapshot(value);
+    if (!snapshot) return;
+    const line = JSON.stringify(snapshot) + '\n';
+    if (
+      Buffer.byteLength(line) > 512 ||
+      process.stdout.writableLength + Buffer.byteLength(line) > LIMIT
+    )
+      return;
+    try {
+      process.stdout.write(line);
+    } catch {}
   });
   ipcMain.on('call-played', (event, playback, ok) => {
     if (!ownsFrame(event.senderFrame)) return;

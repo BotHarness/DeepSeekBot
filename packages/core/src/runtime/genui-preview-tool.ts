@@ -1,6 +1,10 @@
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment';
-import { previewGenuiDocument, type GenuiPreviewDiagnostic } from './genui-preview.js';
+import {
+  GenuiPreviewError,
+  previewGenuiDocument,
+  type GenuiPreviewDiagnostic,
+} from './genui-preview.js';
 import { GENUI_STYLE_GUIDANCE } from '../channels/genui-appearance.js';
 
 export function createGenuiPreviewTool(options: {
@@ -49,7 +53,12 @@ export function createGenuiPreviewTool(options: {
       });
       execution.signal.throwIfAborted();
       const { screenshot, ...diagnostics } = result;
-      const image = await options.saveImage(Buffer.from(screenshot.data, 'base64'));
+      const image = await options.saveImage(Buffer.from(screenshot.data, 'base64')).catch(() => {
+        throw new GenuiPreviewError(
+          'genui-preview-image-unavailable',
+          'The preview rendered, but its image could not be saved.',
+        );
+      });
       return JSON.stringify({ ...diagnostics, image });
     },
   });

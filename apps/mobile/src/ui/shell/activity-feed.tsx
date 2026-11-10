@@ -266,6 +266,7 @@ function ActivityAvatar({
 const Row = memo(function Row({
   item,
   settled,
+  mixed,
   bot,
   now,
   onOpen,
@@ -273,6 +274,7 @@ const Row = memo(function Row({
 }: {
   item: HumanAttentionItem;
   settled: boolean;
+  mixed: boolean;
   bot: RosterBot | undefined;
   now: number;
   onOpen(item: HumanAttentionItem): void;
@@ -329,6 +331,7 @@ const Row = memo(function Row({
                 item.activitySource ? (item.activitySource.look ?? DEFAULT_HOST_LOOK) : undefined
               }
               sourceLabel={item.activitySource?.label}
+              glyph={mixed && item.activitySource !== undefined}
             />
             {time === '' ? null : (
               <Text variant="meta" tone="subtle" style={{ flexShrink: 0 }}>
@@ -1137,6 +1140,7 @@ const ActivityPage = memo(function ActivityPage({
                   <Row
                     item={row.item}
                     settled={row.settled}
+                    mixed={hostId === 'all'}
                     bot={
                       row.item.activitySource?.roster?.bots.find(
                         (entry) => entry.slug === row.item.botSlug,

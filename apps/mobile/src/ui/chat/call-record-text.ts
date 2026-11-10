@@ -1,6 +1,6 @@
 import type { ChannelVoiceCallRecord } from '../../../../../packages/core/src/channels/voice-call-record';
 import { formatCallDuration } from '../../../../../packages/core/src/voice/call-view';
-import { locale, t as defaultStrings } from '../strings';
+import { dateLocale, t as defaultStrings } from '../strings';
 
 export type CallCopy = Pick<
   typeof defaultStrings.call,
@@ -21,17 +21,11 @@ export type CallCopy = Pick<
   | 'recordShareResumedAt'
 >;
 
-function timeLocale(): string {
-  const device = new Intl.DateTimeFormat().resolvedOptions().locale;
-  if (device.toLowerCase().startsWith(locale)) return device;
-  return locale === 'zh' ? 'zh-CN' : 'en';
-}
-
 function clock(at: string): string {
   const date = new Date(at);
   return Number.isNaN(date.getTime())
     ? ''
-    : new Intl.DateTimeFormat(timeLocale(), {
+    : new Intl.DateTimeFormat(dateLocale(), {
         hour: 'numeric',
         minute: '2-digit',
       }).format(date);

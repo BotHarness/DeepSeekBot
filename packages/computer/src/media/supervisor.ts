@@ -1,3 +1,4 @@
+import { launcherControl } from './launcher-control.js';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -238,7 +239,7 @@ export function createLocalVideoMedia(
           failed();
         });
         child.stdin.on('error', failed);
-        child.stderr.on('data', () => {});
+
         const readiness = new Promise<unknown>((resolve, reject) => {
           ready = {
             resolve,
@@ -255,7 +256,17 @@ export function createLocalVideoMedia(
           };
         });
         child.stdout.setEncoding('utf8');
-        child.stdout.on('data', (chunk: string) => {
+        let beforeOwned = '';
+        const receiveOutput = (chunk: string) => {
+          if (treeStopped) return;
+          if (!mac && !treeOwned) {
+            beforeOwned += chunk;
+            if (Buffer.byteLength(beforeOwned) > 128 * 1024) {
+              beforeOwned = '';
+              failed();
+            }
+            return;
+          }
           if (outputRejected) return;
           if (
             Buffer.byteLength(output) + Buffer.byteLength(chunk) >
@@ -279,6 +290,8 @@ export function createLocalVideoMedia(
                 !('launchId' in envelope) ||
                 envelope.launchId !== launchId
               )
+                return failed();
+              if (!mac && (envelope.event === 'tree-owned' || envelope.event === 'tree-closed'))
                 return failed();
               if (
                 envelope.event === 'tree-owned' &&
@@ -366,7 +379,34 @@ export function createLocalVideoMedia(
               return failed();
             }
           }
-        });
+        };
+        child.stdout.on('data', receiveOutput);
+        if (mac) child.stderr.on('data', () => {});
+        else {
+          child.stderr.setEncoding('utf8');
+          child.stderr.on(
+            'data',
+            launcherControl({
+              launchId,
+              owned(rootPid) {
+                treeOwned = true;
+                options.onEvent?.(
+                  `phase=media-tree-owned launcherPid=${child?.pid ?? 0} rootPid=${rootPid}`,
+                );
+                const pendingOutput = beforeOwned;
+                beforeOwned = '';
+                if (pendingOutput) receiveOutput(pendingOutput);
+              },
+              closed() {
+                treeStopped = true;
+                beforeOwned = '';
+                options.onEvent?.('phase=media-tree-closed activeProcesses=0');
+                if (!closed) failed();
+              },
+              rejected: failed,
+            }),
+          );
+        }
         await readiness;
         signal.throwIfAborted();
         const offer = parseOffer(await request('offer'));

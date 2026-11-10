@@ -66,10 +66,7 @@ function host(
   const connect = async () => ({
     post: async (body: Record<string, unknown>) => {
       posts.push(body);
-      return (await calls.handle({ deviceId: 'host-owner' }, body)) as unknown as Record<
-        string,
-        unknown
-      >;
+      return calls.handle({ deviceId: 'host-owner' }, body);
     },
     text: async (input: { channelId: string; messageId: string; body: string }) => {
       const harvested = await calls.text({ ...input, picture: true });

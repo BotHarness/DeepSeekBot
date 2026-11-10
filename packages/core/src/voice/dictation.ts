@@ -1,7 +1,14 @@
 import { randomBytes } from 'node:crypto';
 
 import { joinTranscripts } from './calls.js';
-import { VoiceError, wavFromPcm16 } from './providers.js';
+import { PcmError, pcmFromBase64 } from './pcm.js';
+import {
+  resolveVoice,
+  VoiceError,
+  wavFromPcm16,
+  type VoiceBound,
+  type VoiceResolveSource,
+} from './providers.js';
 import type { AsrStream } from './soniox.js';
 import { createVad, VAD_SAMPLE_RATE, type Vad, type VadOptions } from './vad.js';
 
@@ -29,6 +36,7 @@ export interface VoiceDictationView {
 
 export interface VoiceDictationReadiness {
   readonly ready: boolean;
+  readonly reason?: 'asr-not-configured' | 'local-voice-off';
   readonly providerId: string | null;
   readonly mode: VoiceDictationMode | null;
   readonly sampleRate: number;
@@ -37,6 +45,7 @@ export interface VoiceDictationReadiness {
 export type VoiceDictationRefusal =
   | 'invalid-input'
   | 'asr-not-configured'
+  | 'local-voice-off'
   | 'unknown-provider'
   | 'dictation-not-found'
   | 'too-many-dictations'
@@ -51,9 +60,7 @@ export class VoiceDictationError extends Error {
   }
 }
 
-export interface VoiceDictationProviders {
-  has(id: string, kind: 'asr'): boolean;
-  listAsr(): readonly { id: string; streaming: boolean }[];
+export interface VoiceDictationProviders extends VoiceResolveSource {
   streams(id: string): boolean;
   openStream(input: {
     providerId: string;
@@ -71,8 +78,7 @@ export interface VoiceDictationProviders {
 
 export interface VoiceDictationDeps {
   providers(): VoiceDictationProviders | undefined;
-  botAsr(slug: string): { providerId: string; language?: string } | null | undefined;
-  defaultAsr?: (() => { providerId: string; language?: string } | null) | undefined;
+  bot?: ((slug: string) => VoiceBound | undefined) | undefined;
   speechDbfs?: (() => number) | undefined;
   now?: () => number;
   vad?: VadOptions | undefined;
@@ -86,8 +92,8 @@ export interface VoiceDictationTarget {
 }
 
 export interface VoiceDictations {
-  readiness(target: VoiceDictationTarget): VoiceDictationReadiness;
-  open(target: VoiceDictationTarget): VoiceDictationView;
+  readiness(target: VoiceDictationTarget): Promise<VoiceDictationReadiness>;
+  open(target: VoiceDictationTarget): Promise<VoiceDictationView>;
   push(id: string, pcm: Int16Array): VoiceDictationView;
   stop(id: string): Promise<VoiceDictationView>;
   cancel(id: string): VoiceDictationView;
@@ -123,30 +129,30 @@ export function createVoiceDictations(deps: VoiceDictationDeps): VoiceDictations
   const log = deps.log ?? (() => undefined);
   const sessions = new Map<string, Session>();
 
-  const resolve = (target: VoiceDictationTarget) => {
+  const resolve = async (target: VoiceDictationTarget) => {
     const providers = deps.providers();
     if (providers === undefined)
       throw new VoiceDictationError('asr-not-configured', 'Voice Providers are unavailable.');
-    if (target.providerId !== undefined) {
-      if (!providers.has(target.providerId, 'asr'))
-        throw new VoiceDictationError('unknown-provider', 'No ASR Provider has that id.');
-      return { providers, providerId: target.providerId, language: target.language };
-    }
-    const bound = target.slug === undefined ? deps.defaultAsr?.() : deps.botAsr(target.slug);
-    if (bound !== undefined && bound !== null && providers.has(bound.providerId, 'asr'))
-      return {
-        providers,
-        providerId: bound.providerId,
-        language: target.language ?? bound.language,
-      };
-    const all = providers.listAsr();
-    const pick = all.find((entry) => entry.streaming) ?? all[0];
-    if (pick === undefined)
+    const voice = await resolveVoice(providers, {
+      bot: target.slug === undefined ? undefined : deps.bot?.(target.slug),
+      kind: 'asr',
+      providerId: target.providerId,
+      language: target.language,
+      fallback: 'any',
+    });
+    if (voice.state === 'missing' && voice.source === 'explicit')
+      throw new VoiceDictationError('unknown-provider', 'No ASR Provider has that id.');
+    if (voice.state === 'missing' || voice.providerId === null)
       throw new VoiceDictationError(
         'asr-not-configured',
         'Add a speech recognition (ASR) Provider to dictate.',
       );
-    return { providers, providerId: pick.id, language: target.language };
+    if (voice.state === 'off')
+      throw new VoiceDictationError(
+        'local-voice-off',
+        'The local speech service on this computer is off. Start it, then dictate again.',
+      );
+    return { providers, providerId: voice.providerId, language: voice.language };
   };
 
   const text = (session: Session): string => {
@@ -262,9 +268,9 @@ export function createVoiceDictations(deps: VoiceDictationDeps): VoiceDictations
   }
 
   return {
-    readiness(target) {
+    async readiness(target) {
       try {
-        const resolved = resolve(target);
+        const resolved = await resolve(target);
         return {
           ready: true,
           providerId: resolved.providerId,
@@ -272,13 +278,22 @@ export function createVoiceDictations(deps: VoiceDictationDeps): VoiceDictations
           sampleRate: VAD_SAMPLE_RATE,
         };
       } catch (error) {
-        if (error instanceof VoiceDictationError && error.code === 'asr-not-configured')
-          return { ready: false, providerId: null, mode: null, sampleRate: VAD_SAMPLE_RATE };
+        if (
+          error instanceof VoiceDictationError &&
+          (error.code === 'asr-not-configured' || error.code === 'local-voice-off')
+        )
+          return {
+            ready: false,
+            reason: error.code,
+            providerId: null,
+            mode: null,
+            sampleRate: VAD_SAMPLE_RATE,
+          };
         throw error;
       }
     },
-    open(target) {
-      const resolved = resolve(target);
+    async open(target) {
+      const resolved = await resolve(target);
       const live = [...sessions.values()].filter((entry) => entry.state === 'listening');
       if (live.length >= VOICE_DICTATION_LIMITS.sessions)
         throw new VoiceDictationError(
@@ -401,16 +416,15 @@ export function createVoiceDictations(deps: VoiceDictationDeps): VoiceDictations
   };
 }
 
-export function pcmFromBase64(value: unknown): Int16Array {
+export function dictationPcm(value: unknown): Int16Array {
   if (typeof value !== 'string' || value.length === 0)
     throw new VoiceDictationError('invalid-input', 'pcm must be base64 16-bit PCM.');
-  if (value.length > (VOICE_DICTATION_LIMITS.pushBytes * 4) / 3 + 4)
-    throw new VoiceDictationError('request-too-large', 'The audio chunk is too large.');
-  const bytes = Buffer.from(value, 'base64');
-  if (bytes.byteLength % 2 !== 0)
-    throw new VoiceDictationError('invalid-input', 'pcm must be base64 16-bit PCM.');
-  const out = new Int16Array(bytes.byteLength / 2);
-  for (let index = 0; index < out.length; index += 1) out[index] = bytes.readInt16LE(index * 2);
-  bytes.fill(0);
-  return out;
+  try {
+    return pcmFromBase64(value, { maxBytes: VOICE_DICTATION_LIMITS.pushBytes });
+  } catch (error) {
+    if (!(error instanceof PcmError)) throw error;
+    throw error.code === 'too-large'
+      ? new VoiceDictationError('request-too-large', 'The audio chunk is too large.')
+      : new VoiceDictationError('invalid-input', 'pcm must be base64 16-bit PCM.');
+  }
 }

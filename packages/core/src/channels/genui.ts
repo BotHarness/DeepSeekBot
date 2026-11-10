@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod/mini';
 import {
   initialGenuiDocumentState,
   parseGenuiDocument,
@@ -18,40 +18,37 @@ export const GENUI_LIMITS = Object.freeze({
 });
 const identity = z
   .string()
-  .min(1)
-  .max(100)
-  .regex(/^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/);
-const label = z.string().trim().min(1).max(200);
+  .check(z.minLength(1), z.maxLength(100), z.regex(/^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/));
+const label = z.string().check(z.trim(), z.minLength(1), z.maxLength(200));
 const reportSchema = z.strictObject({
   version: z.literal(1),
   snapshotId: identity,
   observedAt: z.iso.datetime({ offset: true }),
   title: label,
-  predecessorMessageId: z.string().min(1).max(200).optional(),
+  predecessorMessageId: z.optional(z.string().check(z.minLength(1), z.maxLength(200))),
   columns: z
     .array(z.strictObject({ id: identity, label, kind: z.enum(['text', 'number']) }))
-    .min(1)
-    .max(GENUI_LIMITS.columns),
+    .check(z.minLength(1), z.maxLength(GENUI_LIMITS.columns)),
   rows: z
     .array(
       z.strictObject({
         id: identity,
-        values: z.record(z.string(), z.union([z.string().max(500), z.number().finite()])),
-        details: z.string().max(2000).optional(),
+        values: z.record(z.string(), z.union([z.string().check(z.maxLength(500)), z.number()])),
+        details: z.optional(z.string().check(z.maxLength(2000))),
       }),
     )
-    .max(GENUI_LIMITS.rows),
+    .check(z.maxLength(GENUI_LIMITS.rows)),
   elements: z
     .array(
       z.discriminatedUnion('kind', [
         z.strictObject({
           kind: z.literal('metric'),
           label,
-          value: z.union([z.string().max(200), z.number().finite()]),
+          value: z.union([z.string().check(z.maxLength(200)), z.number()]),
         }),
         z.strictObject({
           kind: z.literal('table'),
-          columnIds: z.array(identity).min(1).max(GENUI_LIMITS.columns),
+          columnIds: z.array(identity).check(z.minLength(1), z.maxLength(GENUI_LIMITS.columns)),
         }),
         z.strictObject({
           kind: z.literal('bar-chart'),
@@ -60,25 +57,24 @@ const reportSchema = z.strictObject({
         }),
       ]),
     )
-    .min(1)
-    .max(GENUI_LIMITS.elements),
+    .check(z.minLength(1), z.maxLength(GENUI_LIMITS.elements)),
 });
 
 export type GenuiReport = z.infer<typeof reportSchema>;
 export const genuiReplySchema = z.strictObject({
-  messageId: z.string().min(1).max(200),
+  messageId: z.string().check(z.minLength(1), z.maxLength(200)),
   snapshotId: identity,
-  selectedIds: z.array(identity).max(GENUI_LIMITS.selections),
+  selectedIds: z.array(identity).check(z.maxLength(GENUI_LIMITS.selections)),
   intent: z.enum(['continue', 'refresh']),
 });
 export type GenuiReply = z.infer<typeof genuiReplySchema>;
 export const genuiViewSchema = z.strictObject({
-  filter: z.string().max(120),
-  sortColumnId: identity.nullable(),
+  filter: z.string().check(z.maxLength(120)),
+  sortColumnId: z.nullable(identity),
   sortDirection: z.enum(['asc', 'desc']),
   view: z.enum(['table', 'chart']),
-  selectedIds: z.array(identity).max(GENUI_LIMITS.selections),
-  expandedId: identity.nullable(),
+  selectedIds: z.array(identity).check(z.maxLength(GENUI_LIMITS.selections)),
+  expandedId: z.nullable(identity),
 });
 export type GenuiViewState = z.infer<typeof genuiViewSchema>;
 export interface GenuiView {

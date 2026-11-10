@@ -43,6 +43,8 @@ On a Mac or Windows Host, add an ASR and a TTS Provider in Settings › Voice or
 
 ## Gotchas
 
+- Continuous Android voice regression (#3638): use a known synthetic WAV through the development call injector with real microphone access blocked. Keep a foreground call connected for at least 180 seconds after connection, through multiple Bot replies, and repeat twice. Correlate the unchanged Host call ID, heartbeat receipt, committed replies and native downlink playback; then end through the real UI, verify service cleanup, and make a fresh short call without restarting. Compare Host timer delays and CPU samples around Memory `prepareTurn`, `reconcileTurn`, abort cleanup and commit reporting on the same candidate and fixture. A successful instrumented run alone is not proof of an intermittent fix; keep provider failures separate from control loss, and complete any diagnostic flush before recovery testing.
+
 - Calls never use Connect; a phone on cellular without Tailscale gets the "same Wi-Fi or Tailscale" explanation.
 - Calls are full duplex (V4): speech during the Bot's reply is judged as a barge-in. For 500 ms after each clip starts and 300 ms after it ends the VAD needs 14 dB more level, so the start of a quiet reply over the Bot may be missed.
 - One call per Host; a second device gets `call-active`.

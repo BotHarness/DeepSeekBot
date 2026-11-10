@@ -12,7 +12,7 @@ export const DEVICE_NOTIFICATION_COMMANDS = [
   {
     command: 'device-notifications',
     description:
-      'read or copy a paired device notification preference (--device-file, --preferences-stdin)',
+      'read or copy a paired device notification preference (--device-file, --preferences-stdin, --delivery push|in-app)',
   },
 ] as const;
 export const DEVICE_NOTIFICATION_OPTIONS = {
@@ -21,15 +21,21 @@ export const DEVICE_NOTIFICATION_OPTIONS = {
   'device-name': { type: 'string' },
   'device-file': { type: 'string' },
   'preferences-stdin': { type: 'boolean' },
+  delivery: { type: 'string' },
 } as const;
 
 export async function runDeviceNotifications(
   rest: string[],
-  values: { 'device-file'?: string; 'preferences-stdin'?: boolean },
+  values: { 'device-file'?: string; 'preferences-stdin'?: boolean; delivery?: string },
   io: { readStdin?: () => Promise<string> },
 ): Promise<unknown> {
   if (rest.length || !values['device-file'])
     throw new CliLiveError('usage', 'Provide --device-file with the saved pairing JSON.');
+  const delivery = values.delivery;
+  if (delivery !== undefined && delivery !== 'push' && delivery !== 'in-app')
+    throw new CliLiveError('usage', '--delivery must be push or in-app.');
+  if (delivery !== undefined && values['preferences-stdin'])
+    throw new CliLiveError('usage', 'Change --delivery and --preferences-stdin separately.');
   let saved: unknown;
   try {
     saved = JSON.parse(readFileSync(values['device-file'], 'utf8'));
@@ -59,6 +65,7 @@ export async function runDeviceNotifications(
     },
   });
   try {
+    if (delivery !== undefined) return await push.setDelivery(host, delivery);
     return preferences === undefined
       ? await push.settings(host)
       : await push.setPreferences(host, preferences);

@@ -43,9 +43,19 @@ html[data-platform="darwin"]:not([data-fullscreen]):has(style[data-bh-appearance
 .bh-workspace-controls { min-height:0; flex:1; overflow:auto; width:100%; }
 .bh-workspace-controls > [data-window-drag-recall] { width:fit-content; margin:0 auto; }
 .bh-workspace-controls .bh-pinned-panels { margin:0; padding:0; }
+/* The Bot avatar fills a Panel-toggle box (36px, radius.md) and keeps their
+   space.x3 gap (rail gap + margin); on hover it
+   turns into that toggle's button with the destructive exit glyph. */
+.bh-workspace-rail > button.bh-workspace-exit { width:36px; height:36px; overflow:hidden; background:${color.hover}; margin-bottom:${space.x2}; }
+.bh-workspace-brand { display:flex; align-items:center; justify-content:center; width:100%; height:100%; }
+.bh-workspace-rail > button.bh-workspace-exit[data-glyph] { color:${color.muted}; }
 .bh-workspace-exit-icon { display:none; color:${color.danger}; }
+.bh-workspace-rail > button.bh-workspace-exit:hover, .bh-workspace-rail > button.bh-workspace-exit:focus-visible { background:${color.selected}; }
 .bh-workspace-exit:hover .bh-workspace-brand, .bh-workspace-exit:focus-visible .bh-workspace-brand { display:none; }
 .bh-workspace-exit:hover .bh-workspace-exit-icon, .bh-workspace-exit:focus-visible .bh-workspace-exit-icon { display:flex; }
+/* Footer controls: same 32px ghost button and 16px glyph; an idle notice slot takes no gap. */
+.bh-workspace-rail > span:empty { display:none; }
+.bh-workspace-rail > button.bh-workspace-leave { color:${color.danger}; }
 .bh-workspace-channel-actions { display:flex; align-items:center; min-width:0; }
 .bh-workspace-channel-actions .bh-header { margin:0; padding:0; height:auto; }
 .bh-dock-header:has(.bh-search-open) [data-panel-head] { display:none !important; }

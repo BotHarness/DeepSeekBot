@@ -50,6 +50,7 @@ export const Pressable = (props: Props) =>
       type: 'button',
       disabled: props['disabled'] === true,
       onClick: () => (props['onPress'] as (() => void) | undefined)?.(),
+      onContextMenu: () => (props['onLongPress'] as (() => void) | undefined)?.(),
     },
     typeof props.children === 'function'
       ? (props.children as (state: { pressed: boolean }) => ReactNode)({ pressed: false })

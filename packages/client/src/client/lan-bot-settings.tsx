@@ -5,19 +5,20 @@ import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 import type { LanBotSnapshot } from '../../../core/src/devices/bot-lan-control.js';
 import { Note } from './ds/note.js';
 import { PanelDialog } from './ds/panel-dialog.js';
-import { SettingsRow, SettingsSection } from './ds/settings-row.js';
-import { space, text } from './ds/tokens.stylex.js';
+import { SettingsSection } from './ds/settings-row.js';
+import {
+  CopyChip,
+  StatusBlock,
+  StatusDisclosure,
+  StatusFact,
+  StatusStack,
+  type StatusTone,
+} from './ds/status-block.js';
+import { space } from './ds/tokens.stylex.js';
 import { useMountedResource } from './mounted-resource.js';
 
 const styles = stylex.create({
-  identity: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: space.x2,
-    overflowWrap: 'anywhere',
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
-  },
+  identity: { display: 'flex', flexDirection: 'column', gap: space.x2, minWidth: 0 },
 });
 type Peer = LanBotSnapshot['peers'][number];
 
@@ -34,6 +35,7 @@ export function LanBotSettings({
   const [review, setReview] = useState<{ peer: Peer; action: 'admit' | 'revoke' }>();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [identity, setIdentity] = useState(false);
   const pending = useRef<AbortController>();
   const mounted = useRef(false);
   const rootRef = useMountedResource<HTMLDivElement>(() => {
@@ -90,65 +92,113 @@ export function LanBotSettings({
     setFailed(false);
     setReview({ peer, action });
   };
+  const chips = (peer: { hostId: string; fingerprint: string }, well: boolean) => (
+    <div {...stylex.props(styles.identity)}>
+      <CopyChip
+        value={peer.hostId}
+        copyLabel={t('devices.botLan.copy')}
+        copiedLabel={t('devices.botLan.copied')}
+        marker="data-lan-bot-host-id"
+        well={well}
+      />
+      <CopyChip
+        value={peer.fingerprint}
+        copyLabel={t('devices.botLan.copy')}
+        copiedLabel={t('devices.botLan.copied')}
+        marker="data-lan-bot-fingerprint"
+        well={well}
+      />
+    </div>
+  );
+  const peerTone = (peer: Peer): StatusTone =>
+    peer.identityChanged
+      ? 'warning'
+      : !peer.discovered
+        ? 'neutral'
+        : peer.admitted
+          ? 'success'
+          : 'accent';
+  const listening = snapshot.state === 'listening';
   return (
     <div ref={rootRef}>
       <SettingsSection title={t('devices.botLan.title')} description={t('devices.botLan.scope')}>
-        <SettingsRow title={snapshot.host.name} description={t('devices.botLan.thisHost')}>
-          <details>
-            <summary>{t('devices.botLan.identity')}</summary>
-            <div {...stylex.props(styles.identity)}>
-              <code>{snapshot.host.hostId}</code>
-              <code>{snapshot.host.fingerprint}</code>
-            </div>
-          </details>
-        </SettingsRow>
-        {snapshot.state !== 'listening' ? (
-          <Note>
-            {t(
-              snapshot.state === 'error'
-                ? 'devices.botLan.discoveryFailed'
-                : 'devices.botLan.enableFirst',
-            )}
-          </Note>
-        ) : null}
-        {snapshot.peers.length === 0 ? (
-          <Note>{t('devices.botLan.empty')}</Note>
-        ) : (
-          snapshot.peers.map((peer) => (
-            <SettingsRow
-              key={peer.hostId}
-              title={peer.name}
-              description={t(
-                peer.identityChanged
-                  ? 'devices.botLan.identityChanged'
-                  : !peer.discovered
-                    ? 'devices.botLan.offline'
-                    : peer.admitted
-                      ? 'devices.botLan.approved'
-                      : 'devices.botLan.discovered',
-              )}
-              control={
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={
-                    !fresh ||
-                    busy ||
-                    (!peer.approval && (!peer.discovered || snapshot.state !== 'listening'))
-                  }
-                  onClick={() =>
-                    inspect(
-                      peer.approval ? { ...peer, ...peer.approval } : peer,
-                      peer.approval ? 'revoke' : 'admit',
-                    )
-                  }
-                >
-                  {t(peer.approval ? 'devices.botLan.revoke' : 'devices.botLan.review')}
-                </Button>
-              }
+        <StatusStack data={{ 'data-lan-bot': snapshot.state }}>
+          <StatusBlock
+            icon={listening ? 'laptop' : 'info'}
+            tone={listening ? 'neutral' : 'warning'}
+            title={snapshot.host.name}
+            body={
+              listening
+                ? t('devices.botLan.thisHost')
+                : t(
+                    snapshot.state === 'error'
+                      ? 'devices.botLan.discoveryFailed'
+                      : 'devices.botLan.enableFirst',
+                  )
+            }
+            data={{ 'data-lan-bot-host': '' }}
+          />
+          {snapshot.peers.length === 0 ? (
+            <StatusBlock
+              icon="search"
+              tone="neutral"
+              title={t('devices.botLan.emptyTitle')}
+              body={t('devices.botLan.empty')}
+              data={{ 'data-lan-bot-empty': '' }}
             />
-          ))
-        )}
+          ) : (
+            snapshot.peers.map((peer) => {
+              const tone = peerTone(peer);
+              return (
+                <StatusBlock
+                  key={peer.hostId}
+                  icon={tone === 'success' ? 'check' : tone === 'warning' ? 'info' : 'laptop'}
+                  tone={tone}
+                  title={peer.name}
+                  body={t(
+                    peer.identityChanged
+                      ? 'devices.botLan.identityChanged'
+                      : !peer.discovered
+                        ? 'devices.botLan.offline'
+                        : peer.admitted
+                          ? 'devices.botLan.approved'
+                          : 'devices.botLan.discovered',
+                  )}
+                  data={{ 'data-lan-bot-peer': peer.hostId }}
+                  action={
+                    <Button
+                      variant={peer.approval ? 'outline' : 'primary'}
+                      size="sm"
+                      disabled={
+                        !fresh || busy || (!peer.approval && (!peer.discovered || !listening))
+                      }
+                      onClick={() =>
+                        inspect(
+                          peer.approval ? { ...peer, ...peer.approval } : peer,
+                          peer.approval ? 'revoke' : 'admit',
+                        )
+                      }
+                    >
+                      {t(peer.approval ? 'devices.botLan.revoke' : 'devices.botLan.review')}
+                    </Button>
+                  }
+                />
+              );
+            })
+          )}
+          <StatusDisclosure
+            icon="lock"
+            title={t('devices.botLan.identity')}
+            hint={t('devices.botLan.identityHint')}
+            open={identity}
+            onToggle={() => setIdentity(!identity)}
+            data={{ 'data-lan-bot-identity': '' }}
+          >
+            <StatusFact label={t('devices.botLan.thisHost')}>
+              {chips(snapshot.host, false)}
+            </StatusFact>
+          </StatusDisclosure>
+        </StatusStack>
       </SettingsSection>
       {review ? (
         <PanelDialog
@@ -172,19 +222,21 @@ export function LanBotSettings({
             </Button>
           }
         >
-          <SettingsRow
-            title={review.peer.name}
-            description={t(
-              review.action === 'admit' ? 'devices.botLan.compare' : 'devices.botLan.revokeScope',
-            )}
-          >
-            <div {...stylex.props(styles.identity)}>
-              <code>{review.peer.hostId}</code>
-              <code>{review.peer.fingerprint}</code>
-            </div>
-          </SettingsRow>
-          {!permitted ? <Note tone="danger">{t('devices.botLan.changed')}</Note> : null}
-          {failed ? <Note tone="danger">{t('devices.botLan.failed')}</Note> : null}
+          <StatusStack>
+            <StatusBlock
+              icon={review.action === 'admit' ? 'shield-check' : 'ban'}
+              tone={!permitted || failed ? 'warning' : 'accent'}
+              title={review.peer.name}
+              body={t(
+                review.action === 'admit' ? 'devices.botLan.compare' : 'devices.botLan.revokeScope',
+              )}
+              data={{ 'data-lan-bot-review': review.action }}
+            >
+              {chips(review.peer, false)}
+            </StatusBlock>
+            {!permitted ? <Note tone="danger">{t('devices.botLan.changed')}</Note> : null}
+            {failed ? <Note tone="danger">{t('devices.botLan.failed')}</Note> : null}
+          </StatusStack>
         </PanelDialog>
       ) : null}
     </div>

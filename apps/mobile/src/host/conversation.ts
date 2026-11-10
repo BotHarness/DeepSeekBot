@@ -1,8 +1,11 @@
 import type { HostClient, RemoteSource } from './client';
+import { genuiDocumentOf, type GenuiDocument, type GenuiDocumentReply } from '../genui/document';
+import { forgetGenuiDocumentViews } from '../genui/view';
 import { forgetMedia } from './media-cache';
 import { sessionFailure } from './session-failure';
 import { activityOf, type ChannelActivity } from './channel-activity';
 import { approvalCommand } from './requests';
+import { replyPreviewOf } from '../../../../packages/core/src/channels/reply-preview';
 import type {
   AttachmentRef,
   WireAllBotMention,
@@ -139,7 +142,13 @@ export function shownInChat(message: ConversationMessage): boolean {
 export interface MessageVoice {
   state: 'pending' | 'ready' | 'failed';
   audio?: MessageAttachment;
+  durationMs?: number;
   error?: string;
+}
+
+export interface ReplyThumbnail {
+  source: RemoteSource;
+  thumbhash?: string;
 }
 
 export interface ConversationMessage {
@@ -155,7 +164,9 @@ export interface ConversationMessage {
   mentions?: WireMention[];
   replyTo?: string;
   replyPreview?: WireReplyPreview | null;
+  replyThumbnail?: ReplyThumbnail;
   attachments: MessageAttachment[];
+  genuiDocument?: GenuiDocument;
   card?: MessageCard;
   resolves?: { requestId: string; resolution: CardResolution };
   reactions?: ConversationReaction[];
@@ -321,6 +332,7 @@ export interface MessageTags {
   mentions?: WireMention[];
   allBotMention?: WireAllBotMention;
   replyTo?: string;
+  genuiReply?: GenuiDocumentReply;
 }
 
 interface Outgoing {
@@ -477,6 +489,25 @@ export function mediaCacheKey(
   return variant === undefined ? `${file}${version}` : `${file}${version}:${variant}`;
 }
 
+function refSources(
+  resolve: (path: string) => RemoteSource,
+  owner: { channelId: string; messageId: string },
+  ref: AttachmentRef,
+  image: boolean,
+): { source: RemoteSource; thumbnail?: RemoteSource; preview?: RemoteSource } {
+  if (ref.fileId !== undefined && ref.version !== undefined)
+    return versionedSources(resolve, owner, ref.fileId, ref.version, image);
+  return {
+    source: resolve(
+      attachmentPath(
+        ref.fileId === undefined
+          ? { hash: ref.hash ?? '', name: ref.name, ...owner }
+          : { ...owner, fileId: ref.fileId },
+      ),
+    ),
+  };
+}
+
 export const THUMBNAIL_VARIANT = '320';
 export const PREVIEW_VARIANT = '800';
 
@@ -498,17 +529,7 @@ export function attachmentsOf(
       size: ref.size,
       ...(file?.uri !== undefined
         ? { source: { uri: file.uri, headers: {} } }
-        : ref.fileId !== undefined && ref.version !== undefined
-          ? versionedSources(resolve, owner, ref.fileId, ref.version, PREVIEWABLE.has(ref.mime))
-          : {
-              source: resolve(
-                attachmentPath(
-                  ref.fileId === undefined
-                    ? { hash: ref.hash ?? '', name: ref.name, ...owner }
-                    : { ...owner, fileId: ref.fileId },
-                ),
-              ),
-            }),
+        : refSources(resolve, owner, ref, PREVIEWABLE.has(ref.mime))),
       ...(ref.thumbhash === undefined ? {} : { thumbhash: ref.thumbhash }),
       ...(ref.width === undefined || ref.height === undefined
         ? {}
@@ -550,6 +571,22 @@ export function attachmentsOf(
   return [...stored, ...cleared, ...bridged];
 }
 
+export function replyThumbnailOf(
+  channelId: string,
+  replyTo: string,
+  preview: WireReplyPreview | null | undefined,
+  resolve: (path: string) => RemoteSource,
+): ReplyThumbnail | undefined {
+  const media = preview?.media;
+  if (media?.kind !== 'image' || media.thumbnail === undefined) return undefined;
+  const ref = media.thumbnail;
+  const sources = refSources(resolve, { channelId, messageId: replyTo }, ref, true);
+  return {
+    source: sources.thumbnail ?? sources.source,
+    ...(ref.thumbhash === undefined ? {} : { thumbhash: ref.thumbhash }),
+  };
+}
+
 export function voiceOf(
   message: ChannelWireMessage,
   attachments: MessageAttachment[],
@@ -565,9 +602,16 @@ export function voiceOf(
     voice: {
       state: voice.state,
       ...(audio === undefined ? {} : { audio: { ...audio, kind: 'audio' } }),
+      ...(voice.durationMs === undefined ? {} : { durationMs: voice.durationMs }),
       ...(voice.error === undefined ? {} : { error: voice.error }),
     },
   };
+}
+
+function withReplyThumbnail(thumbnail: ReplyThumbnail | undefined): {
+  replyThumbnail?: ReplyThumbnail;
+} {
+  return thumbnail === undefined ? {} : { replyThumbnail: thumbnail };
 }
 
 function present(
@@ -580,6 +624,8 @@ function present(
   const card = cardOf(entry.channelId, message);
   const resolves = resolvesOf(message);
   const activity = activityOf(message);
+  const genuiDocument =
+    message.contentPurge === undefined ? genuiDocumentOf(message.genui) : undefined;
   const failure = kind === 'bot' ? sessionFailure(message.sessionFailure) : undefined;
   const { attachments, voice } = voiceOf(message, attachmentsOf(entry, resolve, picked));
   return {
@@ -593,9 +639,16 @@ function present(
     ...(message.mentions === undefined ? {} : { mentions: message.mentions }),
     ...(message.replyTo === undefined
       ? {}
-      : { replyTo: message.replyTo, replyPreview: message.replyToPreview ?? null }),
+      : {
+          replyTo: message.replyTo,
+          replyPreview: message.replyToPreview ?? null,
+          ...withReplyThumbnail(
+            replyThumbnailOf(entry.channelId, message.replyTo, message.replyToPreview, resolve),
+          ),
+        }),
     attachments,
     ...(voice === undefined ? {} : { voice }),
+    ...(genuiDocument === undefined ? {} : { genuiDocument }),
     ...(card === undefined ? {} : { card }),
     ...(resolves === undefined ? {} : { resolves }),
     ...(activity === undefined ? {} : { activity }),
@@ -669,15 +722,30 @@ export function createConversation(options: ConversationOptions): Conversation {
     if (message === undefined) {
       message = present(entry, options.host.resource, sentFiles.get(entry.message.id) ?? []);
       presented.set(entry, message);
+      if (entry.message.contentPurge !== undefined)
+        forgetGenuiDocumentViews(options.host, entry.channelId, entry.message.id);
     }
     return message;
   }
 
   function replyPreview(id: string): WireReplyPreview | null {
     const target = window.find((entry) => entry.message.id === id)?.message;
-    if (target !== undefined) return { author: target.author, body: target.body };
+    if (target !== undefined) return replyPreviewOf(target);
     const pending = outgoing.get(id);
     return pending === undefined ? null : { author: { kind: 'human' }, body: pending.body };
+  }
+
+  function quote(
+    replyTo: string,
+  ): Pick<ConversationMessage, 'replyTo' | 'replyPreview' | 'replyThumbnail'> {
+    const preview = replyPreview(replyTo);
+    return {
+      replyTo,
+      replyPreview: preview,
+      ...(channelId === undefined
+        ? {}
+        : withReplyThumbnail(replyThumbnailOf(channelId, replyTo, preview, options.host.resource))),
+    };
   }
 
   function buildMessages(): ConversationMessage[] {
@@ -691,9 +759,7 @@ export function createConversation(options: ConversationOptions): Conversation {
         author: 'human',
         body: item.body,
         ...(item.tags.mentions === undefined ? {} : { mentions: item.tags.mentions }),
-        ...(item.tags.replyTo === undefined
-          ? {}
-          : { replyTo: item.tags.replyTo, replyPreview: replyPreview(item.tags.replyTo) }),
+        ...(item.tags.replyTo === undefined ? {} : quote(item.tags.replyTo)),
         attachments: item.files.map((file, index) => ({
           key: `${item.id}:${index}`,
           kind: file.kind ?? 'file',
@@ -1204,6 +1270,7 @@ export function createConversation(options: ConversationOptions): Conversation {
           ? {}
           : { allBotMention: item.tags.allBotMention }),
         ...(item.tags.replyTo === undefined ? {} : { replyTo: item.tags.replyTo }),
+        ...(item.tags.genuiReply === undefined ? {} : { genuiReply: item.tags.genuiReply }),
       });
       accepted(item);
       if (outgoing.get(item.id) !== item) return;

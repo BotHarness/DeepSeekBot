@@ -4,6 +4,7 @@ import { disposeClientLog, installClientLog } from './diagnostic-log.js';
 import { watchClientLogState } from './diagnostic-log-state.js';
 import { telemetrySurface } from './telemetry-surface.js';
 import { mountWindowZoomControl } from './window-zoom-control.js';
+import { mountPresenceReporter, presenceSender } from './presence-reporter.js';
 import { mountWindowZoom, type ZoomCompatibility } from './window-zoom-mount.js';
 import { Wallpaper } from './wallpaper.js';
 import { createWallpaperStore } from './wallpaper-store.js';
@@ -92,6 +93,7 @@ import {
 } from './bot-settings-sections.js';
 import { PluginsSection } from './plugin-updates-view.js';
 import { ReleaseNotesController } from './release-notes.js';
+import { UpdateRunsController } from './update-runs.js';
 import { TelemetryNoticeController } from './telemetry-notice.js';
 import './bot-settings-slot.js';
 import { BotMain } from './bot-main.js';
@@ -412,7 +414,8 @@ export function apply(ctx: ClientContext): void {
       BotSettingsView,
     ),
   );
-  const releaseNotes = new ReleaseNotesController(call, storage);
+  const updateRuns = new UpdateRunsController(call);
+  const releaseNotes = new ReleaseNotesController(call, storage, undefined, updateRuns);
   const telemetryNotice = new TelemetryNoticeController(call, storage, () => {
     botSettings.open(BOT_SETTINGS_SECTIONS.dataPrivacy);
   });
@@ -715,6 +718,13 @@ export function apply(ctx: ClientContext): void {
       },
     });
   }, 'botharness: desktop notifications');
+  ctx.effect(() => {
+    if (typeof document === 'undefined' || typeof window === 'undefined') return () => {};
+    const clientId = Array.from(crypto.getRandomValues(new Uint8Array(12)), (byte) =>
+      byte.toString(16).padStart(2, '0'),
+    ).join('');
+    return mountPresenceReporter({ document, window, send: presenceSender(clientId) });
+  }, 'botharness: desktop presence');
   ctx.effect(
     () => (typeof EventSource === 'undefined' ? () => {} : mountChannelLive(store, actions)),
     'botharness: Channel live subscription',
@@ -1079,7 +1089,7 @@ export function apply(ctx: ClientContext): void {
           order: 65,
           label: () => t('botSettings.section.plugins'),
           locale: LOCALE_NS,
-          inject: () => ({ call }),
+          inject: () => ({ call, updateRuns }),
         },
         PluginsSection,
       ),

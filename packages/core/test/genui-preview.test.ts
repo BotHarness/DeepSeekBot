@@ -1,7 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { existsSync, rmSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import { syntheticGenuiDocument } from './fixtures/genui-document.js';
-import { startupTimeoutFailure } from '../../browser/src/runtime/provision.js';
+import { BrowserProvisionError } from '../../browser/src/runtime/provision.js';
+
+const packagedRuntime = vi.hoisted(() => ({ load: vi.fn() }));
+vi.mock('../src/runtime/genui-runtime-source.js', () => ({
+  loadGenuiRuntimeSource: packagedRuntime.load,
+}));
 
 const runtime = vi.hoisted(() => ({
   binary: '/synthetic/chrome' as string | undefined,
@@ -17,7 +23,6 @@ vi.mock('node:fs/promises', async (original) => {
   return {
     ...actual,
     rm: async (...args: Parameters<typeof actual.rm>) => {
-      expect(args[1]).toMatchObject({ maxRetries: 10 });
       if (runtime.rmFailure) throw runtime.rmFailure;
       return actual.rm(...args);
     },
@@ -44,8 +49,14 @@ vi.mock('../../browser/src/runtime/browser.js', () => ({
 
 import { previewGenuiDocument } from '../src/runtime/genui-preview.js';
 
-beforeEach(() => {
+beforeEach(async () => {
   runtime.rmFailure = undefined;
+  const { createHash } = await import('node:crypto');
+  const source = 'globalThis.__BotHarnessGenuiRuntime = {};';
+  packagedRuntime.load.mockResolvedValue({
+    source,
+    sha256: createHash('sha256').update(source).digest('hex'),
+  });
   runtime.binary = '/synthetic/chrome';
   runtime.ensure.mockResolvedValue();
   runtime.stop.mockResolvedValue();
@@ -55,7 +66,11 @@ beforeEach(() => {
     if (method === 'Target.attachToTarget') return { sessionId: 'session' };
     if (method === 'Page.getFrameTree') return { frameTree: { frame: { id: 'frame' } } };
     if (method === 'Runtime.evaluate')
-      return { result: { value: { ready: true, measured: true, height: 48, diagnostics: [] } } };
+      return {
+        result: {
+          value: { ready: true, measured: true, height: 48, diagnostics: [] },
+        },
+      };
     if (method === 'Page.captureScreenshot') return { data: 'c3ludGhldGlj' };
     return {};
   });
@@ -64,13 +79,71 @@ beforeEach(() => {
 afterEach(() => vi.clearAllMocks());
 
 describe('isolated GenUI preview lifecycle', () => {
+  it('refuses missing or changed runtime assets before starting a browser and releases the owner', async () => {
+    packagedRuntime.load.mockRejectedValueOnce(new Error('Missing asset'));
+    await expect(previewGenuiDocument(syntheticGenuiDocument)).rejects.toMatchObject({
+      code: 'genui-preview-assets-failed',
+    });
+    expect(runtime.ensure).not.toHaveBeenCalled();
+    packagedRuntime.load.mockResolvedValueOnce({
+      source: 'changed',
+      sha256: '0'.repeat(64),
+    });
+    await expect(previewGenuiDocument(syntheticGenuiDocument)).rejects.toMatchObject({
+      code: 'genui-preview-document-failed',
+    });
+    await expect(previewGenuiDocument(syntheticGenuiDocument)).resolves.toMatchObject({
+      height: 48,
+    });
+  });
+
+  it.each([
+    'memory',
+    'execution',
+    'startup',
+    'resource',
+    'invalid-content',
+    'unsupported',
+    'private-detail',
+  ])('stops promptly with a bounded renderer refusal: %s', async (failure) => {
+    const previous = runtime.send.getMockImplementation()!;
+    runtime.send.mockImplementation(async (method: string, ...args: unknown[]) =>
+      method === 'Runtime.evaluate'
+        ? {
+            result: {
+              value: {
+                ready: false,
+                measured: false,
+                failed: true,
+                failure,
+                height: 48,
+                diagnostics: ['Refused'],
+              },
+            },
+          }
+        : previous(method, ...args),
+    );
+    await expect(previewGenuiDocument(syntheticGenuiDocument)).rejects.toMatchObject({
+      code: `genui-preview-renderer-${failure === 'private-detail' ? 'unsupported' : failure}`,
+    });
+    expect(
+      runtime.send.mock.calls.filter(([method]) => method === 'Runtime.evaluate'),
+    ).toHaveLength(1);
+    expect(runtime.stop).toHaveBeenCalledOnce();
+  });
   it('returns a tiny document preview and removes its disposable profile after stopping', async () => {
     runtime.stop.mockImplementationOnce(async () => {
       expect(existsSync(runtime.directory)).toBe(true);
       expect(runtime.send).toHaveBeenCalledWith('Browser.close');
     });
-    const result = await previewGenuiDocument(syntheticGenuiDocument, { width: 390 });
-    expect(result).toMatchObject({ width: 390, height: 48, screenshot: { mimeType: 'image/png' } });
+    const result = await previewGenuiDocument(syntheticGenuiDocument, {
+      width: 390,
+    });
+    expect(result).toMatchObject({
+      width: 390,
+      height: 48,
+      screenshot: { mimeType: 'image/png' },
+    });
     const methods = runtime.send.mock.calls.map(([method]) => method as string);
     expect(methods).not.toContain('Target.createTarget');
     expect(runtime.send).toHaveBeenCalledWith('Target.attachToTarget', {
@@ -102,8 +175,7 @@ describe('isolated GenUI preview lifecycle', () => {
   it('cleans up failed browser startup before accepting another preview', async () => {
     runtime.ensure.mockRejectedValueOnce(new Error('Synthetic launch failure'));
     await expect(previewGenuiDocument(syntheticGenuiDocument)).rejects.toMatchObject({
-      code: 'genui-preview-failed',
-      message: 'The isolated document preview failed: Synthetic launch failure',
+      code: 'genui-preview-browser-failed',
     });
     expect(runtime.stop).toHaveBeenCalledOnce();
     expect(existsSync(runtime.directory)).toBe(false);
@@ -112,31 +184,26 @@ describe('isolated GenUI preview lifecycle', () => {
     });
   });
 
-  it('names browser startup and profile cleanup failures', async () => {
-    runtime.ensure.mockRejectedValueOnce(startupTimeoutFailure(8000));
-    await expect(previewGenuiDocument(syntheticGenuiDocument)).rejects.toMatchObject({
+  it('retains a safe Browser owner failure kind without process stderr or private paths', async () => {
+    runtime.ensure.mockRejectedValueOnce(
+      new BrowserProvisionError('startup-timeout', 'private browser detail', '/private/profile'),
+    );
+    const onDiagnostic = vi.fn();
+    await expect(
+      previewGenuiDocument(syntheticGenuiDocument, { onDiagnostic }),
+    ).rejects.toMatchObject({
       code: 'genui-preview-browser-startup-timeout',
-      message: expect.stringContaining('longer than 8s'),
+      message: 'The isolated preview browser could not start.',
     });
-    runtime.rmFailure = Object.assign(new Error('ENOTEMPTY: directory not empty'), {
-      code: 'ENOTEMPTY',
-    });
-    await expect(previewGenuiDocument(syntheticGenuiDocument)).rejects.toMatchObject({
-      code: 'genui-preview-cleanup-failed',
-      message: expect.stringContaining('ENOTEMPTY'),
-    });
-    runtime.rmFailure = undefined;
-    rmSync(runtime.directory, { recursive: true, force: true });
-    runtime.rmFailure = new Error('ENOTEMPTY: directory not empty');
-    runtime.ensure.mockRejectedValueOnce(startupTimeoutFailure(8000));
-    await expect(previewGenuiDocument(syntheticGenuiDocument)).rejects.toMatchObject({
-      code: 'genui-preview-browser-startup-timeout',
-    });
-    runtime.rmFailure = undefined;
-    rmSync(runtime.directory, { recursive: true, force: true });
-    await expect(previewGenuiDocument(syntheticGenuiDocument)).resolves.toMatchObject({
-      height: 48,
-    });
+    expect(onDiagnostic).toHaveBeenCalledWith(
+      expect.objectContaining({
+        phase: 'refused',
+        reason: 'genui-preview-browser-startup-timeout',
+      }),
+    );
+    expect(JSON.stringify(onDiagnostic.mock.calls)).not.toContain('private');
+    expect(runtime.stop).toHaveBeenCalledOnce();
+    expect(existsSync(runtime.directory)).toBe(false);
   });
 
   it('refuses concurrent work, cancels an active preview, and releases the owner', async () => {
@@ -146,8 +213,12 @@ describe('isolated GenUI preview lifecycle', () => {
       release = resolve;
     });
     runtime.ensure.mockReturnValueOnce(pending);
-    const first = previewGenuiDocument(syntheticGenuiDocument, { signal: controller.signal });
-    const rejected = expect(first).rejects.toMatchObject({ code: 'genui-preview-timeout' });
+    const first = previewGenuiDocument(syntheticGenuiDocument, {
+      signal: controller.signal,
+    });
+    const rejected = expect(first).rejects.toMatchObject({
+      code: 'genui-preview-timeout',
+    });
     await vi.waitFor(() => expect(runtime.ensure).toHaveBeenCalledOnce());
     await expect(previewGenuiDocument(syntheticGenuiDocument)).rejects.toMatchObject({
       code: 'genui-preview-busy',
@@ -172,4 +243,33 @@ describe('isolated GenUI preview lifecycle', () => {
     expect(runtime.stop).toHaveBeenCalledOnce();
     expect(existsSync(runtime.directory)).toBe(false);
   });
+
+  it.each([false, true])(
+    'classifies failed cleanup without erasing a prior refusal: %s',
+    async (refused) => {
+      if (refused) runtime.ensure.mockRejectedValueOnce(new Error('private launch detail'));
+      runtime.stop.mockRejectedValueOnce(new Error('private cleanup detail'));
+      const onDiagnostic = vi.fn();
+      try {
+        await expect(
+          previewGenuiDocument(syntheticGenuiDocument, { onDiagnostic }),
+        ).rejects.toMatchObject({
+          code: 'genui-preview-cleanup-browser-failed',
+          message: refused
+            ? 'Preview browser cleanup failed after genui-preview-browser-failed.'
+            : 'Preview browser cleanup failed.',
+        });
+        const reasons = onDiagnostic.mock.calls.map(([event]) => event.reason).filter(Boolean);
+        expect(reasons).toEqual([
+          ...(refused ? ['genui-preview-browser-failed'] : []),
+          'genui-preview-cleanup-browser-failed',
+        ]);
+        expect(onDiagnostic.mock.calls.some(([event]) => event.phase === 'stopped')).toBe(false);
+        expect(JSON.stringify(onDiagnostic.mock.calls)).not.toContain('private');
+        expect(existsSync(runtime.directory)).toBe(true);
+      } finally {
+        await rm(runtime.directory, { recursive: true, force: true });
+      }
+    },
+  );
 });

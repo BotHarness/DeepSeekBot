@@ -3,6 +3,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { runDeviceNotifications } from '../src/bots/cli-device-notifications.js';
 import { createTempRoot } from './helpers.js';
 
 it('reads and writes the admitted device copy with secrets only in a file, and reports coded refusals', async () => {
@@ -70,4 +71,21 @@ it('reads and writes the admitted device copy with secrets only in a file, and r
     server.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
+});
+
+it('refuses an unknown --delivery or one combined with preferences before reading the pairing', async () => {
+  const io = { readStdin: async () => '' };
+  await expect(
+    runDeviceNotifications([], { 'device-file': '/missing.json', delivery: 'sms' }, io),
+  ).rejects.toMatchObject({ code: 'usage' });
+  await expect(
+    runDeviceNotifications(
+      [],
+      { 'device-file': '/missing.json', delivery: 'in-app', 'preferences-stdin': true },
+      io,
+    ),
+  ).rejects.toMatchObject({ code: 'usage' });
+  await expect(
+    runDeviceNotifications([], { 'device-file': '/missing.json', delivery: 'in-app' }, io),
+  ).rejects.toMatchObject({ code: 'invalid-input' });
 });

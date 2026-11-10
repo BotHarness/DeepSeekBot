@@ -5,6 +5,7 @@ import {
   VOICE_CALL_BARGE_IN,
   VOICE_CALL_HOST_OWNER,
   VOICE_CALL_LIMITS,
+  isVoiceCallMediaError,
   type VoiceCallBargeIn,
   type VoiceCallCommand,
   type VoiceCallDescription,
@@ -26,7 +27,8 @@ import type {
 } from '../channels/voice-call-record.js';
 import { createCallPerf, perfFields, type CallPerf } from './call-perf.js';
 import { createVad, VAD_SAMPLE_RATE, type VadOptions } from './vad.js';
-import { VoiceError, wavFromPcm16 } from './providers.js';
+import { PcmError, pcmFromBase64 } from './pcm.js';
+import { resolveVoice, VoiceError, wavFromPcm16 } from './providers.js';
 import type { AsrStream } from './soniox.js';
 import {
   clipDurationMs,
@@ -48,7 +50,7 @@ import { createHarvest, type Harvest } from './harvest.js';
 import { MAX_GRID_FRAMES, type CallVisualSource } from './keyframes.js';
 
 export interface VoiceCallMedia {
-  availability(): Promise<'ready' | 'unsupported-platform' | 'helper-missing'>;
+  availability(signal?: AbortSignal): Promise<'ready' | 'unsupported-platform' | 'helper-missing'>;
   open(options: {
     readonly callId: string;
     readonly signal: AbortSignal;
@@ -346,13 +348,14 @@ function slugOf(value: unknown): string {
   return value;
 }
 
-function pcmFromBase64(value: string): Int16Array {
-  const bytes = Buffer.from(value, 'base64');
-  if (bytes.byteLength % 2 !== 0)
-    throw new CallRefusal('invalid-input', 'pcm must be 16-bit little-endian samples.');
-  const out = new Int16Array(bytes.byteLength / 2);
-  for (let index = 0; index < out.length; index += 1) out[index] = bytes.readInt16LE(index * 2);
-  return out;
+function callPcm(value: string): Int16Array {
+  try {
+    return pcmFromBase64(value);
+  } catch (error) {
+    if (error instanceof PcmError)
+      throw new CallRefusal('invalid-input', 'pcm must be 16-bit little-endian samples.');
+    throw error;
+  }
 }
 
 const ended = (call: { phase: VoiceCallPhase }) => call.phase === 'ended';
@@ -619,7 +622,12 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     call.replies = [];
     call.interrupted = [];
     call.barge = undefined;
-    if (call.visual !== 'off') commit(call, call.visualSession, call.visual, call.harvest.flush());
+    if (call.visual !== 'off') {
+      commit(call, call.visualSession, call.visual, call.harvest.flush());
+      call.visual = 'off';
+      push(call, { type: 'visual', source: 'off' });
+      log('call-visual', { call: call.id, source: 'off' });
+    }
     call.harvest.clear();
     release(call.id);
     call.vad.reset();
@@ -1880,19 +1888,18 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     const bot = deps.bot(slug);
     const missing: VoiceCallMissing[] = [];
     if (bot === undefined || bot.paused === true) missing.push('bot');
-    const asr = bot?.asr?.providerId;
-    const tts = bot?.voice?.providerId;
-    if (asr === undefined || !deps.providers.has(asr, 'asr')) missing.push('asr');
-    if (tts === undefined || !deps.providers.has(tts, 'tts')) missing.push('tts');
-    const off = deps.providers.localServiceOff?.bind(deps.providers);
-    if (off !== undefined) {
-      const checks = [
-        ...(asr !== undefined && !missing.includes('asr') ? [off(asr, 'asr')] : []),
-        ...(tts !== undefined && !missing.includes('tts') ? [off(tts, 'tts')] : []),
-      ];
-      const results = await Promise.all(checks.map((check) => check.catch(() => false)));
-      if (results.includes(true)) missing.push('local-voice-off');
-    }
+    const [asrVoice, ttsVoice] =
+      bot === undefined
+        ? [undefined, undefined]
+        : await Promise.all([
+            resolveVoice(deps.providers, { bot, kind: 'asr' }),
+            resolveVoice(deps.providers, { bot, kind: 'tts' }),
+          ]);
+    const asr = asrVoice?.providerId ?? undefined;
+    const tts = ttsVoice?.providerId ?? undefined;
+    if (asrVoice === undefined || asrVoice.state === 'missing') missing.push('asr');
+    if (ttsVoice === undefined || ttsVoice.state === 'missing') missing.push('tts');
+    if (asrVoice?.state === 'off' || ttsVoice?.state === 'off') missing.push('local-voice-off');
     const media = deps.media();
     const availability =
       media === undefined
@@ -1951,9 +1958,9 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         'Bind a TTS Provider to this Bot before calling it.',
       );
     const media = kind === 'webrtc' ? deps.media() : undefined;
-    if (kind === 'webrtc') {
+    if (kind === 'webrtc' && (media === undefined || live() !== undefined)) {
       const availability =
-        media === undefined ? 'unsupported-platform' : await media.availability();
+        media === undefined ? 'unsupported-platform' : await media.availability(signal);
       signal.throwIfAborted();
       if (availability === 'unsupported-platform')
         throw new CallRefusal(
@@ -2072,6 +2079,12 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         await end(call, 'media-failed');
         calls.delete(call.id);
         if (error instanceof CallRefusal) throw error;
+        if (isVoiceCallMediaError(error)) {
+          if (error.code === 'unsupported-platform')
+            throw new CallRefusal('media-unsupported', error.message);
+          if (error.code === 'helper-missing')
+            throw new CallRefusal('media-helper-missing', error.message);
+        }
         throw new CallRefusal(
           'media-failed',
           'The call media could not start on this Host. Check the media helper and retry.',
@@ -2212,7 +2225,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
           throw new CallRefusal('invalid-input', 'after must be an event sequence number.');
         const before = call.seq;
         call.lastHeartbeat = now();
-        hear(call, pcmFromBase64(pcm));
+        hear(call, callPcm(pcm));
         return { ok: true, call: view(call, (after as number | undefined) ?? before) };
       }
       case 'visual': {

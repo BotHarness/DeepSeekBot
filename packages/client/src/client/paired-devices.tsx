@@ -13,7 +13,8 @@ import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import { Callout } from './ds/callout.js';
-import { ConnectAccountHosts } from './connect-account-hosts.js';
+import { ConnectPanel, type ConnectAccountStatus } from './connect-panel.js';
+import { CopyChip, StatusBlock, StatusStack } from './ds/status-block.js';
 import { LanBotSettings } from './lan-bot-settings.js';
 import type { LanBotSnapshot } from '../../../core/src/devices/bot-lan-control.js';
 import { ChoiceButton } from './ds/choice-button.js';
@@ -47,16 +48,6 @@ interface PairedDevice {
 }
 
 type RouteStatus = PhoneRouteStatus;
-
-interface ConnectAccountStatus {
-  state: 'signed-out' | 'signing-in' | 'signed-in' | 'error';
-  email?: string;
-  hostId?: string;
-  userCode?: string;
-  verificationUri?: string;
-  issue?: string;
-  recovery?: 'automatic' | 'sign-in';
-}
 
 interface ConnectStatus {
   encryption?: { fingerprint: string; state: string };
@@ -124,21 +115,15 @@ const styles = stylex.create({
     borderRadius: radius.md,
     backgroundColor: 'white',
   },
-  code: {
-    fontFamily: 'var(--dsw-font-mono, ui-monospace, monospace)',
+  actions: { display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: space.x3 },
+  meta: {
+    margin: 0,
+    color: color.muted,
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
     overflowWrap: 'anywhere',
   },
-  actions: { display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: space.x3 },
-  email: {
-    color: color.fg,
-    fontSize: text.titleSize,
-    lineHeight: text.titleLine,
-    fontWeight: text.strong,
-  },
-  notYou: { color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
-  switchAccount: { marginBlock: space.x3 },
+  stale: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: space.x2 },
 });
 
 function ConnectionMethod({
@@ -486,129 +471,17 @@ export function PairedDevicesSettings({
   const devices = snapshot?.devices ?? [];
   const connect = snapshot?.connect;
   const signIn = connect?.account;
-
   const connectControls =
     signIn === undefined ? null : (
-      <div data-connect="">
-        <SettingsSection title={t('devices.connect.title')}>
-          <SettingsRow
-            title={t('devices.connect.account')}
-            description={
-              signIn.state === 'signed-in' ? (
-                <>
-                  <span {...stylex.props(styles.email)} data-connect-email="">
-                    {signIn.email}
-                  </span>
-                  <br />
-                  {t('devices.connect.signedIn')}
-                </>
-              ) : (
-                t('devices.connect.description')
-              )
-            }
-            data={{ 'data-connect-account': signIn.state }}
-            control={
-              signIn.state === 'signed-in' ? (
-                <>
-                  <span {...stylex.props(styles.notYou)}>{t('devices.connect.notYou')}</span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={busy === 'sign-out'}
-                    onClick={() => void account('sign-out')}
-                  >
-                    {t('devices.connect.signOut')}
-                  </Button>
-                </>
-              ) : signIn.state === 'signing-in' ? undefined : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={busy === 'sign-in'}
-                  onClick={() => void account('sign-in')}
-                >
-                  {t('devices.connect.signIn')}
-                </Button>
-              )
-            }
-          >
-            {signIn.state === 'signing-in' && signIn.verificationUri !== undefined ? (
-              <Callout data={{ 'data-connect-code': '' }}>
-                {t('devices.connect.confirm')}{' '}
-                <code {...stylex.props(styles.code)}>{signIn.userCode}</code>
-                <div {...stylex.props(styles.switchAccount)} data-connect-switch="">
-                  {t('devices.connect.switchAccount')}{' '}
-                  <code {...stylex.props(styles.code)}>{signIn.verificationUri}</code>
-                </div>
-                <div>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => window.open(signIn.verificationUri, '_blank', 'noopener')}
-                  >
-                    {t('devices.connect.openPage')}
-                  </Button>
-                </div>
-              </Callout>
-            ) : signIn.state === 'error' ? (
-              <Callout tone="warning" data={{ 'data-connect-issue': signIn.issue ?? '' }}>
-                {t(
-                  signIn.issue === 'account-not-allowed'
-                    ? 'devices.connect.notAllowed'
-                    : signIn.issue === 'host-limit'
-                      ? 'devices.connect.hostLimit'
-                      : signIn.issue === 'session-revoked'
-                        ? 'devices.connect.sessionRevoked'
-                        : signIn.issue === 'session-expired' ||
-                            signIn.issue === 'sign-in-expired' ||
-                            signIn.issue === 'sign-in-denied'
-                          ? 'devices.connect.signInAgain'
-                          : signIn.issue === 'credential-unavailable'
-                            ? 'devices.connect.credentialUnavailable'
-                            : signIn.recovery === 'automatic'
-                              ? 'devices.connect.relayDown'
-                              : 'devices.connect.relaySignIn',
-                )}
-              </Callout>
-            ) : null}
-          </SettingsRow>
-          {signIn.state === 'signed-in' && connect?.hostname !== undefined ? (
-            <SettingsRow
-              title={t('devices.connect.tunnel')}
-              description={connect.hostname}
-              data={{ 'data-connect-tunnel': freshSnapshot ? connect.state : 'unknown' }}
-              control={
-                <Note
-                  tone={
-                    !freshSnapshot
-                      ? 'muted'
-                      : connect.state === 'connected'
-                        ? 'success'
-                        : connect.state === 'error'
-                          ? 'warning'
-                          : 'muted'
-                  }
-                >
-                  {t(
-                    !freshSnapshot
-                      ? 'devices.connection.unchecked'
-                      : connect.state === 'connected'
-                        ? 'devices.connect.connected'
-                        : connect.state === 'error'
-                          ? 'devices.connect.reconnecting'
-                          : 'devices.connect.starting',
-                  )}
-                </Note>
-              }
-            >
-              {freshSnapshot && connect.state === 'error' ? (
-                <Note tone="warning">{t('devices.connect.recovery')}</Note>
-              ) : null}
-            </SettingsRow>
-          ) : null}
-        </SettingsSection>
-        <ConnectAccountHosts t={t} account={signIn} reloadSnapshot={load} />
-      </div>
+      <ConnectPanel
+        t={t}
+        account={signIn}
+        tunnel={connect}
+        fresh={freshSnapshot}
+        busy={busy}
+        onAccount={(action) => void account(action)}
+        reloadSnapshot={load}
+      />
     );
 
   const verification = (
@@ -832,23 +705,83 @@ export function PairedDevicesSettings({
                 }}
               />
             ) : setup === 'lan' ? (
-              <>
-                <Note>{t('devices.lan.notice')}</Note>
-                {error ? <Note tone="danger">{t('devices.error')}</Note> : null}
-                {snapshot?.lan?.state === 'listening' && !lanReady ? (
-                  <Note>{t('devices.lan.noAddress')}</Note>
-                ) : null}
-                <Button
-                  variant="primary"
-                  disabled={!freshSnapshot || busy !== undefined}
-                  onClick={() => void setLan('enable', true)}
+              <StatusStack title={t('devices.lan.title')}>
+                <StatusBlock
+                  icon="house"
+                  tone="accent"
+                  title={t('devices.lan.panel.offTitle')}
+                  body={t('devices.lan.notice')}
+                  action={
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      disabled={!freshSnapshot || busy !== undefined}
+                      onClick={() => void setLan('enable', true)}
+                    >
+                      {t('connections.enableContinue')}
+                    </Button>
+                  }
+                  data={{ 'data-lan-setup': snapshot?.lan?.state ?? 'off' }}
                 >
-                  {t('connections.enableContinue')}
-                </Button>
-              </>
+                  <p {...stylex.props(styles.meta)}>{t('devices.lan.network')}</p>
+                </StatusBlock>
+                {error ? (
+                  <StatusBlock
+                    icon="info"
+                    tone="warning"
+                    title={t('devices.lan.panel.failedTitle')}
+                    body={t('devices.error')}
+                  />
+                ) : snapshot?.lan?.state === 'listening' && !lanReady ? (
+                  <StatusBlock
+                    icon="info"
+                    tone="warning"
+                    title={t('devices.lan.panel.noAddressTitle')}
+                    body={t('devices.lan.noAddress')}
+                  />
+                ) : null}
+              </StatusStack>
             ) : setup === 'tailscale' ? (
-              <>
-                {routes ? (
+              <StatusStack title={t('devices.tailscale.title')}>
+                {tailscaleReady ? (
+                  <StatusBlock
+                    icon="check"
+                    tone="success"
+                    title={t('devices.tailscale.panel.readyTitle')}
+                    body={t('devices.tailscale.ready')}
+                    action={
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        disabled={busy !== undefined}
+                        onClick={() => {
+                          setSetup('closed');
+                          open();
+                        }}
+                      >
+                        {t('connections.continue')}
+                      </Button>
+                    }
+                    data={{ 'data-tailscale-setup': 'ready' }}
+                  />
+                ) : (
+                  <StatusBlock
+                    icon="shield-check"
+                    tone={routes?.tailscale === 'stopped' ? 'warning' : 'accent'}
+                    title={t(
+                      routes?.tailscale === 'stopped'
+                        ? 'devices.tailscale.panel.stoppedTitle'
+                        : 'devices.tailscale.panel.offTitle',
+                    )}
+                    body={t(
+                      routes?.tailscale === 'stopped'
+                        ? 'devices.tailscale.stopped'
+                        : 'devices.tailscale.notice',
+                    )}
+                    data={{ 'data-tailscale-setup': routes?.tailscale ?? 'unknown' }}
+                  />
+                )}
+                {routes && !tailscaleReady ? (
                   <PhoneRouteSteps
                     t={t}
                     status={routes}
@@ -857,17 +790,7 @@ export function PairedDevicesSettings({
                     onPublish={() => publish()}
                   />
                 ) : null}
-                <Button
-                  variant="primary"
-                  disabled={!tailscaleReady || busy !== undefined}
-                  onClick={() => {
-                    setSetup('closed');
-                    open();
-                  }}
-                >
-                  {t('connections.continue')}
-                </Button>
-              </>
+              </StatusStack>
             ) : (
               <>
                 {connectControls}
@@ -915,11 +838,22 @@ export function PairedDevicesSettings({
         </Callout>
       ) : null}
       {section === 'devices' && manage ? (
-        <SettingsSection title={t('devices.connection.title')}>
+        <StatusStack title={t('devices.connection.title')}>
           {snapshot?.lan ? (
-            <SettingsRow
+            <StatusBlock
+              icon="house"
+              tone={
+                !freshSnapshot
+                  ? 'neutral'
+                  : snapshot.lan.state === 'error' ||
+                      (snapshot.lan.state === 'listening' && !lanReady)
+                    ? 'warning'
+                    : snapshot.lan.state === 'listening'
+                      ? 'success'
+                      : 'neutral'
+              }
               title={t('devices.lan.title')}
-              description={t(
+              body={t(
                 !freshSnapshot
                   ? 'devices.connection.unchecked'
                   : snapshot.lan.state === 'error'
@@ -931,7 +865,7 @@ export function PairedDevicesSettings({
                       : 'devices.lan.notice',
               )}
               data={{ 'data-device-lan': snapshot.lan.state }}
-              control={
+              action={
                 <Button
                   variant="outline"
                   size="sm"
@@ -948,12 +882,23 @@ export function PairedDevicesSettings({
                 </Button>
               }
             >
-              <Note>{t('devices.lan.network')}</Note>
-            </SettingsRow>
+              <p {...stylex.props(styles.meta)}>{t('devices.lan.network')}</p>
+            </StatusBlock>
           ) : null}
-          <SettingsRow
+          <StatusBlock
+            icon="shield-check"
+            tone={
+              !freshSnapshot
+                ? 'neutral'
+                : routes?.staleRoutes?.length ||
+                    (!tailscaleReady && routes?.tailscale === 'stopped')
+                  ? 'warning'
+                  : tailscaleReady
+                    ? 'success'
+                    : 'neutral'
+            }
             title={t('devices.tailscale.title')}
-            description={t(
+            body={t(
               !freshSnapshot
                 ? 'devices.connection.unchecked'
                 : tailscaleReady
@@ -969,7 +914,7 @@ export function PairedDevicesSettings({
                   ? 'ready'
                   : 'unprepared',
             }}
-            control={
+            action={
               <Button
                 variant="outline"
                 size="sm"
@@ -982,52 +927,59 @@ export function PairedDevicesSettings({
             }
           >
             {freshSnapshot && routes?.staleRoutes?.length ? (
-              <Callout tone="warning" data={{ 'data-tailscale-stale': '' }}>
-                {t('devices.tailscale.stale')}
+              <div data-tailscale-stale="" {...stylex.props(styles.stale)}>
+                <p {...stylex.props(styles.meta)}>{t('devices.tailscale.stale')}</p>
                 {routes.staleRoutes.map((route) => (
-                  <Note key={route.url}>
-                    {route.url} — {t('devices.tailscale.localPort', { port: route.targetPort })}
-                  </Note>
+                  <div key={route.url} {...stylex.props(styles.stale)}>
+                    <CopyChip
+                      value={route.url}
+                      copyLabel={t('devices.route.copy')}
+                      copiedLabel={t('devices.pair.copied')}
+                    />
+                    <p {...stylex.props(styles.meta)}>
+                      {t('devices.tailscale.localPort', { port: route.targetPort })}
+                    </p>
+                  </div>
                 ))}
-              </Callout>
-            ) : null}
-            {showTailscale && routes && freshSnapshot ? (
-              <div>
-                {routes.managed?.enabled || routes.managed?.owned ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={busy !== undefined}
-                    onClick={() => {
-                      void publish('disable').then((failure) => setError(failure !== undefined));
-                    }}
-                  >
-                    {t('devices.tailscale.disable')}
-                  </Button>
-                ) : tailscaleReady ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={busy !== undefined}
-                    onClick={() => {
-                      void publish().then((failure) => setError(failure !== undefined));
-                    }}
-                  >
-                    {t('devices.tailscale.manage')}
-                  </Button>
-                ) : null}
-                {error ? <Note tone="danger">{t('devices.error')}</Note> : null}
-                <PhoneRouteSteps
-                  t={t}
-                  status={routes}
-                  reachable={tailscaleReady}
-                  port={portOf(routes)}
-                  onPublish={() => publish()}
-                />
               </div>
             ) : null}
-          </SettingsRow>
-        </SettingsSection>
+          </StatusBlock>
+          {showTailscale && routes && freshSnapshot ? (
+            <div {...stylex.props(styles.stale)}>
+              {routes.managed?.enabled || routes.managed?.owned ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={busy !== undefined}
+                  onClick={() => {
+                    void publish('disable').then((failure) => setError(failure !== undefined));
+                  }}
+                >
+                  {t('devices.tailscale.disable')}
+                </Button>
+              ) : tailscaleReady ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={busy !== undefined}
+                  onClick={() => {
+                    void publish().then((failure) => setError(failure !== undefined));
+                  }}
+                >
+                  {t('devices.tailscale.manage')}
+                </Button>
+              ) : null}
+              {error ? <Note tone="danger">{t('devices.error')}</Note> : null}
+              <PhoneRouteSteps
+                t={t}
+                status={routes}
+                reachable={tailscaleReady}
+                port={portOf(routes)}
+                onPublish={() => publish()}
+              />
+            </div>
+          ) : null}
+        </StatusStack>
       ) : null}
       {section === 'devices' && manage ? (
         <SettingsSection title={t('devices.connection.pairStep')}>

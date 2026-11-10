@@ -454,6 +454,7 @@ describe('push registration with a real Host gateway', () => {
     expect(await hostPush.settings(h.saved)).toEqual({
       registered: true,
       enabled: true,
+      delivery: 'push',
       preferences: { approval: true, question: true, 'private-input': true, reply: true },
       quietChannelIds: [],
     });
@@ -463,6 +464,8 @@ describe('push registration with a real Host gateway', () => {
       enabled: true,
       quietChannelIds: ['g1'],
     });
+    expect((await hostPush.setDelivery(h.saved, 'in-app')).delivery).toBe('in-app');
+    expect((await hostPush.setDelivery(h.saved, 'push')).delivery).toBe('push');
 
     h.raise('approval:1');
     await h.push.reconcile();
@@ -591,6 +594,25 @@ describe('push registration with a real Host gateway', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(phone.state.badge).toBe(1);
     expect(phone.state.dismissed).toEqual(['n1']);
+  });
+
+  it('clears reply notifications read on another device once the full notification set is known', async () => {
+    const phone = fakeNotifications('granted');
+    phone.state.presented = [
+      { id: 'n1', data: { v: 1, hostId: 'h', itemId: 'reply:1', kind: 'channel-reply' } },
+      { id: 'n2', data: { v: 1, hostId: 'h', itemId: 'reply:2', kind: 'channel-mention' } },
+      { id: 'n3', data: { v: 1, hostId: 'h', itemId: 'dm-reply:3', kind: 'channel-reply' } },
+      { id: 'n4', data: { v: 1, hostId: 'other', itemId: 'reply:1', kind: 'channel-reply' } },
+    ];
+    const session = createPushSession({
+      notifications: phone.port,
+      hostPush: createHostPush(nodeCarrier()),
+      platform: 'ios',
+      locale: 'en',
+    });
+    session.reflect('h', new Set(), 0, new Set(['reply:2']));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(phone.state.dismissed).toEqual(['n1', 'n3']);
   });
 
   it('reflects an unchanged Inbox again after the app returns to the foreground', async () => {

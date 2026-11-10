@@ -24,7 +24,9 @@ vi.mock('../src/host/native-source-drafts', async () => {
       const value = useSyncExternalStore(sourceDrafts.subscribe, () => sourceDrafts.get(key));
       const set = useCallback((value: string) => sourceDrafts.set(key, value), [key]);
       const persistence = useSyncExternalStore(sourceDrafts.subscribe, sourceDrafts.getPersistence);
-      return [value, set, { ...persistence, retry: sourceDrafts.retrySave }] as const;
+      const read = useCallback(() => sourceDrafts.get(key), [key]);
+      const take = useCallback((sent?: string) => sourceDrafts.take(key, sent), [key]);
+      return [value, set, { ...persistence, retry: sourceDrafts.retrySave, read, take }] as const;
     },
   };
 });

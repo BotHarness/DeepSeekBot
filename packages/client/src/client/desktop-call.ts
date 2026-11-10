@@ -20,6 +20,7 @@ import type { CallVisualSource } from '../../../core/src/voice/keyframes.js';
 import {
   createCallSession,
   type CallCapture,
+  type CallHangupOptions,
   type CallSession,
   type CallVisualState,
 } from '../../../core/src/voice/call-session.js';
@@ -92,7 +93,7 @@ export interface DesktopCall {
   camera(on: boolean): Promise<void>;
   screen(on: boolean): Promise<void>;
   dismissVisual(): void;
-  hangup(): Promise<void>;
+  hangup(options?: CallHangupOptions): Promise<void>;
   dismiss(): void;
 }
 
@@ -262,8 +263,8 @@ export function createDesktopCall(
     dismissVisual() {
       session?.dismissVisual();
     },
-    async hangup() {
-      await session?.hangup();
+    async hangup(options) {
+      await session?.hangup(options);
       set({ block: undefined, state: { status: 'idle' }, visual: DESKTOP_CALL_VISUAL_OFF });
     },
     dismiss() {
@@ -279,7 +280,7 @@ export function desktopCall(): DesktopCall {
   if (shared === undefined) {
     const call = createDesktopCall();
     shared = call;
-    globalThis.addEventListener?.('pagehide', () => void call.hangup());
+    globalThis.addEventListener?.('pagehide', () => void call.hangup({ now: true }));
     if (globalThis.document !== undefined) watchCallPresence({ call });
   }
   return shared;

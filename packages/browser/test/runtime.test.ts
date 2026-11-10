@@ -210,6 +210,7 @@ function fakeChild(): FakeChild {
   proc.kill = vi.fn(() => {
     proc.exitCode = 0;
     proc.emit('exit', 0);
+    proc.emit('close', 0);
   });
   return {
     proc,
@@ -1804,6 +1805,119 @@ describe('Container upload execution paths', () => {
       await runtime.stop();
       rmSync(directory, { recursive: true, force: true });
     }
+  });
+});
+
+describe('local process shutdown ownership', () => {
+  async function runningChild() {
+    const child = fakeChild();
+    spawnMock.mockReturnValue(child.proc as never);
+    const events: string[] = [];
+    const runtime = createBotBrowserRuntime({
+      userDataDir: '/tmp/browser-shutdown-test',
+      browserPath: '/test/chrome',
+      fileExists: () => true,
+      connect: async () => fakeClient(),
+      onEvent: (event) => events.push(event),
+    });
+    const ready = runtime.ensure();
+    child.ready();
+    await ready;
+    return { child, runtime, events };
+  }
+
+  it('does not release the profile when exit precedes inherited stdio closure', async () => {
+    const { child, runtime, events } = await runningChild();
+    child.proc.kill.mockImplementation(() => {
+      child.proc.exitCode = 0;
+      child.proc.emit('exit', 0);
+      return true;
+    });
+    let settled = false;
+    const stopped = runtime.stop().then(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    expect(events).not.toContain('stopped');
+    child.proc.emit('close', 0);
+    await stopped;
+    expect(events).toContain('stopped');
+  });
+
+  it('does not equate sending SIGKILL with confirmed process closure', async () => {
+    vi.useFakeTimers();
+    try {
+      const { child, runtime, events } = await runningChild();
+      child.proc.kill.mockImplementation(() => true);
+      let settled = false;
+      const stopped = runtime.stop().then(() => {
+        settled = true;
+      });
+      await vi.advanceTimersByTimeAsync(4000);
+      expect(child.proc.kill).toHaveBeenCalledWith('SIGKILL');
+      expect(settled).toBe(false);
+      expect(events).not.toContain('stopped');
+      child.proc.emit('close', null, 'SIGKILL');
+      await stopped;
+      expect(events).toContain('stopped');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('retains an unconfirmed child after the bounded shutdown deadline', async () => {
+    vi.useFakeTimers();
+    try {
+      const { child, runtime, events } = await runningChild();
+      child.proc.kill.mockImplementation(() => true);
+      const stopped = runtime.stop().then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+      await vi.advanceTimersByTimeAsync(6000);
+      expect(await stopped).toMatchObject({
+        message: 'Browser process did not close after shutdown',
+      });
+      expect(events).not.toContain('stopped');
+      expect(events).toContain('phase=stop outcome=error reason=process-close-unconfirmed');
+      child.proc.emit('close', null, 'SIGKILL');
+      await runtime.stop();
+      expect(events).toContain('stopped');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('waits for a failed connection child to close before launching its replacement', async () => {
+    const first = fakeChild();
+    const retry = fakeChild();
+    first.proc.kill.mockImplementation(() => true);
+    spawnMock.mockReturnValueOnce(first.proc as never).mockImplementationOnce(() => {
+      queueMicrotask(() => retry.ready());
+      return retry.proc as never;
+    });
+    const runtime = createBotBrowserRuntime({
+      userDataDir: '/tmp/browser-shutdown-test',
+      browserPath: '/test/chrome',
+      fileExists: () => true,
+      connect: vi
+        .fn()
+        .mockRejectedValueOnce(new Error('Connection unavailable'))
+        .mockResolvedValueOnce(fakeClient()),
+    });
+    const failed = expect(runtime.ensure()).rejects.toThrow('Connection unavailable');
+    first.ready();
+    await failed;
+    const pending = runtime.ensure();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(spawnMock).toHaveBeenCalledTimes(1);
+    first.proc.emit('close', 0);
+    await pending;
+    expect(spawnMock).toHaveBeenCalledTimes(2);
+    await runtime.stop();
   });
 });
 

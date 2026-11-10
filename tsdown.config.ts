@@ -7,6 +7,7 @@ import { defineConfig, type UserConfig } from 'tsdown';
 import { preparePackagedDesktopZoomTheme } from './scripts/desktop-zoom-compat.mjs';
 import { dockviewCssPlugin } from './scripts/dockview-css-plugin.mjs';
 import { stylexPlugin } from './scripts/stylex-plugin.mjs';
+import { genuiRuntimeAssetsPlugin } from './scripts/genui-runtime-assets.mjs';
 
 const ROOT_DIR = fileURLToPath(new URL('.', import.meta.url));
 
@@ -52,6 +53,7 @@ function clientBundle(id: string, entry: string[], outDir: string): UserConfig {
       },
       stylexPlugin({ rootDir: ROOT_DIR }),
       dockviewCssPlugin({ rootDir: ROOT_DIR }),
+      ...(id === CLIENT_ID ? [genuiRuntimeAssetsPlugin('client')] : []),
     ],
     outputOptions: {
       entryFileNames: 'client.js',
@@ -214,6 +216,7 @@ export default defineConfig([
     },
     outDir: 'packages/core/dist',
     define: { __BOTHARNESS_SOURCE__: JSON.stringify(sourceBuildStamp()) },
+    plugins: [genuiRuntimeAssetsPlugin('core')],
     format: ['esm'],
     platform: 'node',
     dts: true,

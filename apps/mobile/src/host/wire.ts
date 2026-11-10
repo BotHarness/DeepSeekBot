@@ -1,4 +1,5 @@
 import type { BotPrimaryColor } from '../../../../packages/core/src/bots/primary-color';
+import type { ChannelReplyPreviewMedia } from '../../../../packages/core/src/channels/reply-preview';
 
 export type AggregatedState = 'idle' | 'thinking' | 'working' | 'waiting' | 'blocked';
 
@@ -19,7 +20,10 @@ export type WireAuthor =
 export interface WireReplyPreview {
   author: WireAuthor;
   body: string;
+  media?: WireReplyPreviewMedia;
 }
+
+export type WireReplyPreviewMedia = ChannelReplyPreviewMedia<AttachmentRef>;
 
 export interface WireReaction {
   emoji: string;
@@ -68,6 +72,7 @@ export interface ChannelWireMessage extends WireMessage {
   reactions?: WireReaction[];
   deliveries?: WireDelivery[];
   attachments?: readonly AttachmentRef[];
+  genui?: unknown;
   voice?: WireMessageVoice;
   clearedAttachments?: readonly {
     name: string;

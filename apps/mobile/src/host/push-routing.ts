@@ -13,10 +13,10 @@ import { nativeCarrier } from './native-carrier';
 import { onNotificationTap } from './native-notifications';
 import { alertBanners } from './alert-banners';
 import { parsePushData, pushHref, type PushTarget } from './push';
-import { decideFromPush, removeFromPush } from './push-actions';
+import { ANSWERED, decideFromPush, removeFromPush } from './push-actions';
+import { decideOverRoute } from './native-push-decide';
 import { removeDevice } from './pairing';
 import { t } from '../ui/strings';
-import { decideApproval } from './requests';
 import { recordFeature } from '../telemetry/features';
 
 class RoutingFailure extends Error {}
@@ -148,24 +148,15 @@ export function usePushRouting(
                 Alert.alert(removed === 'removed' ? t.deviceRemoved : t.deviceRemoveFailed);
               continue;
             }
-            if (action !== undefined)
-              await decideFromPush(
+            if (action !== undefined) {
+              const decision = await decideFromPush(
                 hostSession.getState().hosts,
                 target,
                 action,
-                async (host, route, ref, outcome) => {
-                  const client = createHostClient({
-                    ...host,
-                    routes: [route],
-                    carrier: nativeCarrier(),
-                  });
-                  try {
-                    return await decideApproval(client, ref, outcome, 'notification');
-                  } finally {
-                    client.stop();
-                  }
-                },
+                decideOverRoute,
               );
+              if (decision !== undefined && ANSWERED.has(decision)) continue;
+            }
             if (!isCurrent()) continue;
             if (next.selection !== hostSession.getSelectionRevision()) continue;
             if (!(await hostSession.switchTo(target.hostId, () => isCurrent())))

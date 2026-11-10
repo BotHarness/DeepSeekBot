@@ -74,9 +74,9 @@ final class CallAttempt: NSObject, RTCPeerConnectionDelegate {
         finish(.failure(CallError(code: "native-unavailable"))); return
       }
       self.peer = peer
-      // Mute restarts the audio engine without its input instead of only silencing voice
-      // processing, so the microphone and its privacy indicator turn off while muted.
-      _ = factory.audioDeviceModule.setMuteMode(.restartEngine)
+      // Mute silences the voice processing input and keeps the engine running, so the Bot's
+      // voice keeps the call output path and level. The privacy indicator stays on while muted.
+      _ = factory.audioDeviceModule.setMuteMode(.voiceProcessing)
       let microphone = factory.audioTrack(with: factory.audioSource(with: nil), trackId: "call-mic")
       // Echo cancellation keeps the Bot's own reply on the speaker out of the uplink.
       // A test build forces software processing so the capture hook that replaces

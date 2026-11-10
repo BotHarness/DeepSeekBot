@@ -1,6 +1,11 @@
 import type { AlertSnapshot } from './device-alerts';
 import type { ConnectionSummary } from './connection-summary';
 import type { NotificationDiagnosticsPort } from './notification-diagnostics';
+import { AppState } from 'react-native';
+import { alertBanners } from './alert-banners';
+import { createInAppBanners } from './in-app-banners';
+
+const inAppBanners = createInAppBanners(alertBanners.reconcile);
 
 const inactive: { enabled: boolean; running: boolean; error: string | null } = {
   enabled: false,
@@ -41,6 +46,10 @@ export const connectionMode = {
     _approvalsEnabled: boolean,
     _hostPreferences: Record<string, boolean>,
   ): Promise<void> {},
-  async reconcile(_snapshot: AlertSnapshot): Promise<void> {},
-  async forget(_hostId: string): Promise<void> {},
+  async reconcile(snapshot: AlertSnapshot): Promise<void> {
+    inAppBanners.reconcile(snapshot, AppState.currentState === 'active');
+  },
+  async forget(hostId: string): Promise<void> {
+    inAppBanners.forget(hostId);
+  },
 };

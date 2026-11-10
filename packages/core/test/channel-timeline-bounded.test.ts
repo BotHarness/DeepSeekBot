@@ -416,6 +416,40 @@ describe('SQLite bounded timeline hydration', () => {
     ).toBe('read');
   });
 
+  it('adds a media hint with a current thumbnail to reply previews in every read path', async () => {
+    const current = fixture();
+    const png = await current.files.upload({
+      data: (async function* () {
+        yield new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
+      })(),
+      name: 'photo.png',
+    });
+    current.seed(
+      message('album', { body: '', attachments: [png, png] }),
+      message('spoken', { voice: { state: 'ready', attachment: 'voice', durationMs: 7000 } }),
+      message('reply-album', { author: { kind: 'human' }, replyTo: 'album' }),
+      message('reply-spoken', { author: { kind: 'human' }, replyTo: 'spoken' }),
+    );
+    const expected = [
+      {
+        author: { kind: 'bot', slug: 'ada' },
+        body: '',
+        media: { kind: 'image', count: 2, thumbnail: current.files.current(png) },
+      },
+      {
+        author: { kind: 'bot', slug: 'ada' },
+        body: 'spoken',
+        media: { kind: 'voice', durationMs: 7000 },
+      },
+    ];
+    const previews = (entries: readonly ChannelMessage[] | undefined) =>
+      entries?.filter((entry) => entry.replyTo !== undefined).map((entry) => entry.replyToPreview);
+    expect(previews(current.channels.readTimeline(current.channel.id)?.entries)).toEqual(expected);
+    expect(previews(current.channels.readMessages(current.channel.id).toReversed())).toEqual(
+      expected,
+    );
+  });
+
   it('refuses NaN window sizes instead of loading all history', () => {
     const current = fixture();
     current.seed(message('one'));

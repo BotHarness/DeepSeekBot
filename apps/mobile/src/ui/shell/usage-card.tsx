@@ -10,7 +10,7 @@ import { androidSettings, radius, space } from '../design/tokens';
 import { useMounted } from '../mounted';
 import { Text } from '../primitives/text';
 import { DayBars, type DayBar } from '../primitives/day-bars';
-import { useStrings, t } from '../strings';
+import { dateLocale, useStrings, t } from '../strings';
 import { ChevronRightIcon } from './icons';
 
 export type Loaded<T> =
@@ -58,7 +58,7 @@ export function dayBars(days: readonly Day[]): DayBar[] {
   return days.map(({ day, tokens }) => ({
     key: day,
     segments: [tokens ?? 0],
-    ...(days.length <= 7 ? { label: weekdayLabel(day) } : {}),
+    ...(days.length <= 7 ? { label: weekdayLabel(day, dateLocale()) } : {}),
   }));
 }
 

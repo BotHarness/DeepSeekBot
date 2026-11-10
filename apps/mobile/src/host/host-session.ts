@@ -1,6 +1,8 @@
 import { hostStore, hostStoreAvailable } from './host-store';
 import type { AccountOwner } from './account-owner';
 import { removeAccountConnections } from './account-connections';
+import type { ConnectHost } from './connect-account';
+import { followConnectHosts } from './connect-follow';
 import { sourceDrafts } from './native-source-drafts';
 import { use, useCallback, useMemo, useSyncExternalStore } from 'react';
 import { HostScope } from './host-scope';
@@ -31,12 +33,13 @@ import { nativeNotifications } from './native-notifications';
 import { notificationAvatars } from './native-notification-avatars';
 import { avatarInputs } from './notification-avatars';
 import { revokePairing } from './pairing';
-import { createHostPush } from './push';
+import { createHostPush, type PushDelivery } from './push';
 import { createPushSession, type PushStatus } from './push-session';
 import { notificationPreferences } from './native-notification-preferences';
 import { connectionMode } from './native-connection-mode';
 import { createDeviceAlerts } from './device-alerts';
 import { alertBanners } from './alert-banners';
+import { attentionFocus, dmChannel } from './attention-focus';
 import { createConnectionLifetime } from './connection-lifetime';
 import { connectionSummary } from './connection-summary';
 import { createQuietChannels } from './quiet-channels';
@@ -79,7 +82,7 @@ export function retainHostConnection(client: HostClient): () => void {
   };
 }
 const feedListeners = new Set<() => void>();
-const visibleConversations = new Map<Conversation, { hostId: string; channelId: string }>();
+const visibleConversations = new Map<Conversation, () => void>();
 let feeds: readonly ConnectedHost[] = [];
 function publishFeeds(): void {
   feeds = [...sessions.values()].map(({ host }) => ({
@@ -118,9 +121,8 @@ const deviceAlerts = createDeviceAlerts(connectionMode, {
           approvalText: t.localApprovalText,
           ...(preferences ? { preferences } : {}),
           quietChannelIds: quietChannels.get(host.saved.hostId),
-          visibleChannelId: [...visibleConversations.values()].find(
-            (entry) => entry.hostId === host.saved.hostId,
-          )?.channelId,
+          focusedChannelIds: attentionFocus.channels(host.saved.hostId),
+          inAppOnly: deliveryModes.get(host.saved.hostId) === 'in-app',
           text: {
             approval: t.localApprovalText,
             question: t.localQuestionText,
@@ -147,6 +149,10 @@ function scheduleAlerts(): void {
   deviceAlerts.refresh();
 }
 if (connectionMode.supported) notificationPreferences.subscribe(scheduleAlerts);
+attentionFocus.subscribe(() => {
+  alertBanners.discard((alert) => attentionFocus.covers(alert.data));
+  scheduleAlerts();
+});
 let previousMode = connectionMode.getSnapshot();
 connectionMode.subscribe(() => {
   const mode = connectionMode.getSnapshot();
@@ -166,10 +172,25 @@ export function onHostRemoval(listener: (host: SavedHost) => Promise<void>): () 
     removalListeners.delete(listener);
   };
 }
+const forgetHostDelivery = (hostId: string) => {
+  deliveryModes.delete(hostId);
+  deliveryRevisions.set(hostId, deliveryRevision(hostId) + 1);
+};
 const clearPresentations = async (host: SavedHost) => {
+  forgetHostDelivery(host.hostId);
   await deviceAlerts.forget(host.hostId);
   await Promise.allSettled([...removalListeners].map((listener) => listener(host)));
 };
+const deliveryModes = new Map<string, PushDelivery>();
+const deliveryRevisions = new Map<string, number>();
+const deliveryRevision = (hostId: string) => deliveryRevisions.get(hostId) ?? 0;
+export function setHostDelivery(hostId: string, delivery: PushDelivery, revision?: number): void {
+  if (revision !== undefined && revision !== deliveryRevision(hostId)) return;
+  if (revision === undefined) deliveryRevisions.set(hostId, deliveryRevision(hostId) + 1);
+  if (deliveryModes.get(hostId) === delivery) return;
+  deliveryModes.set(hostId, delivery);
+  scheduleAlerts();
+}
 export function setHostNotificationsEnabled(hostId: string, enabled: boolean): void {
   deviceAlerts.setHostEnabled(hostId, enabled);
   const client = sessions.get(hostId)?.host.client;
@@ -208,7 +229,18 @@ function reflectInbox(hostId: string, inbox: Inbox): void {
       .filter((item) => item.category === 'action')
       .map((item) => item.id),
   );
-  pushSession.reflect(hostId, unresolved, unresolved.size);
+  const pending =
+    snapshot.notificationItems === undefined
+      ? undefined
+      : new Set(snapshot.notificationItems.map((item) => item.id));
+  pushSession.reflect(hostId, unresolved, unresolved.size, pending);
+  if (pending !== undefined)
+    alertBanners.discard(
+      (alert) =>
+        alert.data.hostId === hostId &&
+        (alert.data.kind === 'channel-reply' || alert.data.kind === 'channel-mention') &&
+        !pending.has(alert.data.itemId),
+    );
 }
 
 connectionMode.onApproval(({ hostId, itemId }) => {
@@ -312,19 +344,21 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
     }
     const now = snapshot.connection.status === 'connected';
     if (now && !connected) {
-      if (connectionMode.supported)
-        void hostPush
-          .settings(saved)
-          .then((settings) => {
-            if (
-              sessions.get(saved.hostId)?.host.client === client &&
-              client.getSnapshot().connection.status !== 'refused'
-            ) {
-              quietChannels.set(saved.hostId, settings.quietChannelIds);
-              setHostNotificationsEnabled(saved.hostId, settings.enabled);
-            }
-          })
-          .catch(() => undefined);
+      const revision = deliveryRevision(saved.hostId);
+      void hostPush
+        .settings(saved)
+        .then((settings) => {
+          if (
+            sessions.get(saved.hostId)?.host.client === client &&
+            client.getSnapshot().connection.status !== 'refused'
+          ) {
+            setHostDelivery(saved.hostId, settings.delivery, revision);
+            if (!connectionMode.supported) return;
+            quietChannels.set(saved.hostId, settings.quietChannelIds);
+            setHostNotificationsEnabled(saved.hostId, settings.enabled);
+          }
+        })
+        .catch(() => undefined);
       void pushSession.retryFailed();
       void notificationPreferences.retry().catch(() => undefined);
       catchUpHostConversations(
@@ -381,6 +415,7 @@ function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
     ) {
       sessions.delete(id);
       session.dispose();
+      if (saved?.credential !== session.host.saved.credential) forgetHostDelivery(id);
     }
   }
   for (const saved of next.hosts) {
@@ -479,6 +514,7 @@ export const hostSession = {
       const replacement = {
         ...host,
         ...(previous.accountOwner ? { accountOwner: previous.accountOwner } : {}),
+        ...(previous.connectHost ? { connectHost: previous.connectHost } : {}),
       };
       await commit({
         ...stored,
@@ -486,6 +522,24 @@ export const hostSession = {
       });
       void pushSession.sync(stored.hosts);
       void revokePairing({ host: previous, carrier: nativeCarrier() });
+    });
+  },
+  async followConnectHosts(listed: readonly ConnectHost[]): Promise<void> {
+    return serialize(async () => {
+      const follows = followConnectHosts(stored.hosts, listed);
+      if (follows.length === 0) return;
+      await commit({
+        ...stored,
+        hosts: stored.hosts.map((host) => {
+          const follow = follows.find(
+            (entry) => entry.hostId === host.hostId && entry.credential === host.credential,
+          );
+          return follow
+            ? { ...host, connectHost: follow.connectHost, routes: follow.routes }
+            : host;
+        }),
+      });
+      void pushSession.sync(stored.hosts);
     });
   },
   async updateRoutes(
@@ -754,6 +808,20 @@ export function prepareConversation(
   preparedConversations.set(client, { conversation, release });
 }
 
+function dmChannelOf(client: HostClient, slug: string | undefined): string | undefined {
+  if (slug === undefined) return undefined;
+  const bot = client.getSnapshot().roster?.bots.find((entry) => entry.slug === slug);
+  return bot?.dmChannelId ?? dmChannel(slug);
+}
+
+export function focusCall(hostId: string, slug: string): () => void {
+  const client = sessions.get(hostId)?.host.client;
+  return attentionFocus.hold({
+    hostId,
+    channelId: (client && dmChannelOf(client, slug)) ?? dmChannel(slug),
+  });
+}
+
 function conversationFor(
   client: HostClient,
   key: string,
@@ -798,12 +866,14 @@ function conversationFor(
     setForeground(active) {
       inner.setForeground?.(active);
       const hostId = clientHosts.get(client);
-      if (active && hostId && options.channelId)
-        visibleConversations.set(conversation, { hostId, channelId: options.channelId });
-      else visibleConversations.delete(conversation);
-      scheduleAlerts();
+      const channelId = options.channelId ?? dmChannelOf(client, options.botSlug);
+      visibleConversations.get(conversation)?.();
+      visibleConversations.delete(conversation);
+      if (active && hostId && channelId)
+        visibleConversations.set(conversation, attentionFocus.hold({ hostId, channelId }));
     },
     stop() {
+      visibleConversations.get(conversation)?.();
       visibleConversations.delete(conversation);
       releasePreparedConversation(client, conversation);
       clearTimeout(idle);

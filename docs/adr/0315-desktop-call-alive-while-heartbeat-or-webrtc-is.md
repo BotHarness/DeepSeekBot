@@ -1,4 +1,4 @@
-# ADR-0311: A desktop call is alive while its heartbeat or its WebRTC connection is, and notices restore the window through a relaunch
+# ADR-0315: A desktop call is alive while its heartbeat or its WebRTC connection is, and notices restore the window through a relaunch
 
 - Status: Accepted (Windows, DSH Desktop 0.2.2-rc.1)
 - Date: 2026-11-10

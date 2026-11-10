@@ -1,6 +1,6 @@
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createCore } from '../src/plugin.js';
 import { createBotMessageTool } from '../src/runtime/bot-message-tool.js';
@@ -19,6 +19,8 @@ function adapter(onRun: (run: OrchestratorAgentRun) => Promise<void>): BotAgentA
 }
 
 async function reviewRounds(rounds: number, botHopLimit?: number) {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-10-26T00:00:00.000Z'));
   const runs: string[] = [];
   const receipts: Array<Record<string, unknown>> = [];
   let groupId = '';
@@ -63,6 +65,7 @@ async function reviewRounds(rounds: number, botHopLimit?: number) {
   } finally {
     await core.runtime.close();
     core.operationalDatabase.close();
+    vi.useRealTimers();
   }
 }
 

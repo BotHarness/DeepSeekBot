@@ -28,6 +28,7 @@ function fixture(saved?: PushPreferences) {
     return {
       registered: true,
       enabled: true,
+      delivery: 'push' as const,
       quietChannelIds: [],
       preferences: { ...DEFAULT_NOTIFICATION_PREFERENCES, approval: false },
     };
@@ -45,7 +46,13 @@ function fixture(saved?: PushPreferences) {
         if (offline.has(entry.hostId)) throw new Error('offline');
         const copy = { ...DEFAULT_NOTIFICATION_PREFERENCES, ...preferences };
         copies.set(entry.credential, copy);
-        return { registered: false, enabled: true, quietChannelIds: [], preferences: copy };
+        return {
+          registered: false,
+          enabled: true,
+          delivery: 'push' as const,
+          quietChannelIds: [],
+          preferences: copy,
+        };
       }),
     },
   };
@@ -62,6 +69,7 @@ function registrationFixture(f: ReturnType<typeof fixture>) {
   const register = vi.fn<HostPush['register']>(async () => ({
     registered: true,
     enabled: true,
+    delivery: 'push' as const,
     quietChannelIds: [],
     preferences: DEFAULT_NOTIFICATION_PREFERENCES,
   }));
@@ -83,6 +91,7 @@ function registrationFixture(f: ReturnType<typeof fixture>) {
       test: async () => {},
       unregister: async () => {},
       setEnabled: f.options.push.settings,
+      setDelivery: f.options.push.settings,
       setQuiet: f.options.push.settings,
     },
     beforeRegister: () => f.prefs.ready,
@@ -109,6 +118,7 @@ describe('phone-owned notification preferences', () => {
         return {
           registered: false,
           enabled: true,
+          delivery: 'push' as const,
           quietChannelIds: [],
           preferences: { ...DEFAULT_NOTIFICATION_PREFERENCES, ...preferences },
         };
@@ -142,6 +152,7 @@ describe('phone-owned notification preferences', () => {
         return {
           registered: false,
           enabled: true,
+          delivery: 'push' as const,
           quietChannelIds: [],
           preferences: { ...DEFAULT_NOTIFICATION_PREFERENCES, ...preferences },
         };
@@ -212,7 +223,13 @@ describe('phone-owned notification preferences', () => {
       const { session, register } = registrationFixture(f);
       register.mockImplementation(async () => {
         expect(f.copies.get('a')).toEqual(f.disk());
-        return { registered: true, enabled: true, quietChannelIds: [], preferences: f.disk()! };
+        return {
+          registered: true,
+          enabled: true,
+          delivery: 'push' as const,
+          quietChannelIds: [],
+          preferences: f.disk()!,
+        };
       });
       const registering = session.sync([host('a')]);
       await flush();
@@ -376,6 +393,7 @@ describe('phone-owned notification preferences', () => {
       return {
         registered: entry.hostId === 'b',
         enabled: true,
+        delivery: 'push' as const,
         quietChannelIds: [],
         preferences: { ...DEFAULT_NOTIFICATION_PREFERENCES, approval: entry.hostId !== 'b' },
       };
