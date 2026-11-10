@@ -129,7 +129,7 @@ describe('tunnel and DNS lifecycle', () => {
     ]);
   });
 
-  it('deletes orphan and stale records after the window and leaves other records alone', async () => {
+  it('deletes orphan and stale records after the window and leaves other and e2e test records alone', async () => {
     const env = await pool();
     const idle = await env.link('user_a', 'Legacy reclaimed');
     await env.provision('user_a', idle);
@@ -146,15 +146,16 @@ describe('tunnel and DNS lifecycle', () => {
         zone: ZONE,
         createdAt: env.at(),
       });
-    add('orphan', `hzzzzzzzzzzzz.${ZONE}`);
+    add('orphan', `hqqqqqqqqqqqq.${ZONE}`);
+    add('e2e', `hzzzzqqqqqqqq.${ZONE}`);
     add('site', `www.${ZONE}`);
-    add('nested', `hzzzzzzzzzzzz.preview.${ZONE}`);
+    add('nested', `hqqqqqqqqqqqq.preview.${ZONE}`);
     let report = await env.relay.reclaim();
     expect([report.orphanRecords, report.staleRecords]).toEqual([0, 0]);
     env.advance(6 * MINUTE);
     report = await env.relay.reclaim();
     expect([report.orphanRecords, report.staleRecords]).toEqual([1, 1]);
-    expect([...env.tunnels.records.keys()].sort()).toEqual(['nested', 'site']);
+    expect([...env.tunnels.records.keys()].sort()).toEqual(['e2e', 'nested', 'site']);
     expect(env.tunnels.records.has(legacyRecord)).toBe(false);
     expect(await env.row(idle)).toMatchObject({ dns_record_id: null });
   });
@@ -176,7 +177,7 @@ describe('tunnel and DNS lifecycle', () => {
     await env.provision('user_a', id);
     await env.online(id);
     env.tunnels.tunnels.set('orphan', {
-      name: 'dsb-hzzzzzzzzzzzz',
+      name: 'dsb-hqqqqqqqqqqqq',
       status: 'healthy',
       createdAt: env.at(),
     });
@@ -199,7 +200,7 @@ describe('tunnel and DNS lifecycle', () => {
   it('leaves tunnels of another relay prefix alone', async () => {
     const env = await pool(undefined, { tunnelPrefix: 'dsbe2e-' });
     env.tunnels.tunnels.set('production', {
-      name: 'dsb-hzzzzzzzzzzzz',
+      name: 'dsb-hqqqqqqqqqqqq',
       status: 'down',
       createdAt: env.at(),
     });
@@ -208,7 +209,7 @@ describe('tunnel and DNS lifecycle', () => {
     const id = await env.link('user_a');
     await env.provision('user_a', id);
     expect([...env.tunnels.tunnels.values()].map((tunnel) => tunnel.name).sort()).toEqual([
-      'dsb-hzzzzzzzzzzzz',
+      'dsb-hqqqqqqqqqqqq',
       `dsbe2e-${id}`,
     ]);
   });
@@ -269,7 +270,7 @@ describe('tunnel and DNS lifecycle', () => {
     await env.online(id);
     env.tunnels.records.clear();
     env.tunnels.records.set('orphan', {
-      name: `hzzzzzzzzzzzz.${ZONE}`,
+      name: `hqqqqqqqqqqqq.${ZONE}`,
       target: 'gone.cfargotunnel.com',
       zone: ZONE,
       createdAt: env.at(),
