@@ -1,4 +1,4 @@
-import { createElement, Fragment, type ReactNode } from 'react';
+import { createElement, Fragment, useState, type ReactNode } from 'react';
 
 type Props = Record<string, unknown> & { children?: ReactNode };
 
@@ -44,15 +44,18 @@ export const useDerivedValue = <T>(worklet: () => T) => ({ value: worklet(), get
 export const useAnimatedReaction = () => {};
 export const useAnimatedScrollHandler = (handlers: unknown) => handlers;
 export const useScrollOffset = () => ({ value: 0 });
-export const useSharedValue = <T>(value: T) => ({
-  value,
-  get() {
-    return this.value;
-  },
-  set(next: T) {
-    this.value = next;
-  },
-});
+export const useSharedValue = <T>(value: T) => {
+  const [mutable] = useState(() => ({
+    value,
+    get() {
+      return this.value;
+    },
+    set(next: T) {
+      this.value = next;
+    },
+  }));
+  return mutable;
+};
 export const FadeOut = transition;
 export const FadeIn = transition;
 export const withSpring = <T>(
