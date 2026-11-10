@@ -1,5 +1,10 @@
 import { execFile } from 'node:child_process';
 import { Worker } from 'node:worker_threads';
+import {
+  recordSchedulingDiagnostic,
+  schedulingIdentity,
+  schedulingScan,
+} from './scheduling-diagnostics.js';
 
 export interface OffThreadOptions {
   readonly cwd?: string | undefined;
@@ -120,22 +125,33 @@ function direct(
   args: readonly string[],
   options: OffThreadOptions,
   encoding: Encoding,
+  diagnostic: { operation: number; scan: number },
 ): Promise<{ stdout: string | Buffer; stderr: string | Buffer }> {
   const { stdio: _stdio, ...rest } = options;
   return new Promise((resolve, reject) => {
-    execFile(
-      file,
-      [...args],
-      { ...rest, encoding: encoding === 'buffer' ? 'buffer' : 'utf8' },
-      (error: Error | null, stdout: string | Buffer, stderr: string | Buffer) => {
-        if (error) {
-          const failure = error as OffThreadError;
-          failure.stdout = stdout;
-          failure.stderr = stderr;
-          reject(failure);
-        } else resolve({ stdout, stderr });
-      },
-    );
+    try {
+      execFile(
+        file,
+        [...args],
+        { ...rest, encoding: encoding === 'buffer' ? 'buffer' : 'utf8' },
+        (error: Error | null, stdout: string | Buffer, stderr: string | Buffer) => {
+          recordSchedulingDiagnostic({
+            kind: 'exec-settle',
+            ...diagnostic,
+            outcome: error ? 'error' : 'ok',
+          });
+          if (error) {
+            const failure = error as OffThreadError;
+            failure.stdout = stdout;
+            failure.stderr = stderr;
+            reject(failure);
+          } else resolve({ stdout, stderr });
+        },
+      );
+    } catch (error) {
+      recordSchedulingDiagnostic({ kind: 'exec-settle', ...diagnostic, outcome: 'error' });
+      reject(error);
+    }
   });
 }
 
@@ -146,23 +162,38 @@ async function run(
   encoding: Encoding,
 ): Promise<{ stdout: string | Buffer; stderr: string | Buffer }> {
   const runner = ensureWorker();
-  if (runner === undefined) return direct(file, args, options, encoding);
-  const id = nextId++;
-  const reply = await new Promise<Reply>((resolve, reject) => {
-    pending.set(id, { encoding, resolve, reject });
-    runner.postMessage({
-      id,
-      file,
-      args: [...args],
-      options: {
-        ...options,
-        env: options.env ?? { ...process.env },
-        ...(options.stdio ? { stdio: [...options.stdio] } : {}),
-        encoding: encoding === 'buffer' ? 'buffer' : 'utf8',
-      },
-    });
+  const operation = schedulingIdentity();
+  const scan = schedulingScan();
+  recordSchedulingDiagnostic({
+    kind: 'exec-dispatch',
+    operation,
+    scan,
+    mode: runner === undefined ? 'direct' : 'worker',
   });
-  return settle(reply, encoding);
+  if (runner === undefined) return direct(file, args, options, encoding, { operation, scan });
+  let outcome: 'ok' | 'error' = 'error';
+  try {
+    const id = nextId++;
+    const reply = await new Promise<Reply>((resolve, reject) => {
+      pending.set(id, { encoding, resolve, reject });
+      runner.postMessage({
+        id,
+        file,
+        args: [...args],
+        options: {
+          ...options,
+          env: options.env ?? { ...process.env },
+          ...(options.stdio ? { stdio: [...options.stdio] } : {}),
+          encoding: encoding === 'buffer' ? 'buffer' : 'utf8',
+        },
+      });
+    });
+    const result = settle(reply, encoding);
+    outcome = 'ok';
+    return result;
+  } finally {
+    recordSchedulingDiagnostic({ kind: 'exec-settle', operation, scan, outcome });
+  }
 }
 
 export async function execFileText(
