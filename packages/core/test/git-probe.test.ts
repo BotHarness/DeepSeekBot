@@ -161,3 +161,16 @@ describe.skipIf(process.platform === 'win32')('Bot creation with an old Git', ()
     }
   });
 });
+
+describe('Git availability reuse', () => {
+  it('asks again when PATH changes inside the reuse window', () => {
+    const installed = probeGit();
+    vi.stubEnv('PATH', join(createTempRoot('botharness-no-git-'), 'absent'));
+    try {
+      expect(probeGit()).toMatchObject({ available: false });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+    expect(probeGit()).toEqual(installed);
+  });
+});

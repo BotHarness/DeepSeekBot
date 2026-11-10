@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { execFileText } from '../process/exec-off-thread.js';
 import { isIP } from 'node:net';
 import { watchTailnet } from './bot-tailnet-watch.js';
 
@@ -27,24 +27,16 @@ async function command(args: string[]): Promise<unknown> {
       : ['tailscale'];
   for (const binary of binaries) {
     try {
-      return await new Promise<unknown>((resolve, reject) => {
-        execFile(
-          binary,
-          args,
-          { timeout: 3000, maxBuffer: 2 * 1024 * 1024, windowsHide: true },
-          (error, stdout) => {
-            if (error) {
-              reject(error);
-              return;
-            }
-            try {
-              resolve(JSON.parse(stdout));
-            } catch {
-              reject(new Error('tailnet-state-invalid'));
-            }
-          },
-        );
+      const { stdout } = await execFileText(binary, args, {
+        timeout: 3000,
+        maxBuffer: 2 * 1024 * 1024,
+        windowsHide: true,
       });
+      try {
+        return JSON.parse(stdout) as unknown;
+      } catch {
+        throw new Error('tailnet-state-invalid');
+      }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT')
         throw new Error('tailnet-unavailable');
@@ -53,7 +45,24 @@ async function command(args: string[]): Promise<unknown> {
   throw new Error('tailnet-unavailable');
 }
 
-export function createBotTailnet(run: (args: string[]) => Promise<unknown> = command): BotTailnet {
+export const TAILNET_REUSE_MS = 5_000;
+
+export function createBotTailnet(
+  run: (args: string[]) => Promise<unknown> = command,
+  now: () => number = Date.now,
+): BotTailnet {
+  const reused = new Map<string, { at: number; value: Promise<unknown> }>();
+  const reuse = <T>(key: string, load: () => Promise<T>): Promise<T> => {
+    const at = now();
+    const held = reused.get(key);
+    if (held !== undefined && at - held.at < TAILNET_REUSE_MS) return held.value as Promise<T>;
+    const value = load();
+    reused.set(key, { at, value });
+    value.catch(() => {
+      if (reused.get(key)?.value === value) reused.delete(key);
+    });
+    return value;
+  };
   async function snapshot() {
     const status = record(await run(['status', '--json']));
     const suffix = record(status['CurrentTailnet'])['MagicDNSSuffix'];
@@ -101,10 +110,12 @@ export function createBotTailnet(run: (args: string[]) => Promise<unknown> = com
     async admit(rawAddress) {
       const address = rawAddress.replace(/^::ffff:/u, '');
       if (isIP(address) !== 4) throw new Error('tailnet-peer-denied');
-      const current = await snapshot();
+      const current = await reuse('status', snapshot);
       const peer = [current.self, ...current.peers].find((peer) => peer.address === address);
       if (!peer) throw new Error('tailnet-peer-denied');
-      const node = record(record(await run(['whois', '--json', address]))['Node']);
+      const node = record(
+        record(await reuse(`whois:${address}`, () => run(['whois', '--json', address])))['Node'],
+      );
       if (node['StableID'] !== peer.nodeId) throw new Error('tailnet-peer-denied');
       return peer;
     },
