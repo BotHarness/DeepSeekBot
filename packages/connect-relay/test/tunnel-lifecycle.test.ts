@@ -714,7 +714,7 @@ describe('eviction scoring', () => {
     );
   });
 
-  it('moves a Host that never got a record off a zone whose DNS calls fail', async () => {
+  it('moves a Host that never got a record to the default zone when shared-zone DNS calls fail', async () => {
     const env = await pool(['user_a'], {
       zones: [ZONE, EXTRA],
       zoneRecords: 2,
@@ -723,7 +723,7 @@ describe('eviction scoring', () => {
     env.tunnels.deniedZones.add(EXTRA);
     const a = await env.link('user_a');
     expect((await env.provision('user_a', a, { zones: [ZONE, EXTRA] })).status).toBe(502);
-    expect(await env.row(a)).toMatchObject({ zone: null, tunnel_id: null });
+    expect(await env.row(a)).toMatchObject({ zone: ZONE, tunnel_id: null });
     expect((await env.provision('user_a', a, { zones: [ZONE, EXTRA] })).body.hostname).toBe(
       `${a}.${ZONE}`,
     );

@@ -580,8 +580,8 @@ export function createRelay(options: RelayOptions) {
         log('connect-zone-failed', { host: current.id, zone: zoneOf(current) });
         quotaUntil.set(zoneOf(current), now().getTime() + 10 * 60 * 1000);
         await db
-          .prepare('UPDATE hosts SET zone = NULL WHERE id = ? AND dns_record_id IS NULL')
-          .bind(current.id)
+          .prepare('UPDATE hosts SET zone = ? WHERE id = ? AND dns_record_id IS NULL')
+          .bind(defaultZone, current.id)
           .run();
       }
       throw error;
