@@ -2783,6 +2783,11 @@ class BotRuntimeImplementation implements BotRuntime {
     if (activeEvents === undefined || this.#memory?.scanChanges === undefined)
       return this.#agents.steerOrchestrator?.(botSlug, prompt) ?? false;
     const delivered = this.#steerMemoryInbox(botSlug, activeEvents, prompt);
+    recordSchedulingDiagnostic({
+      kind: 'steer',
+      turn: schedulingIdentity(activeEvents),
+      delivered,
+    });
     this.#scanMemoryWhileSteering(botSlug, activeEvents);
     return delivered;
   }
@@ -2813,6 +2818,12 @@ class BotRuntimeImplementation implements BotRuntime {
   ): void {
     const running = this.#steerMemoryScans.get(botSlug);
     if (running !== undefined) {
+      if (!running.again)
+        recordSchedulingDiagnostic({
+          kind: 'scan-coalesced',
+          turn: schedulingIdentity(activeEvents),
+          operation: schedulingIdentity(running),
+        });
       running.again = true;
       return;
     }
@@ -2828,15 +2839,25 @@ class BotRuntimeImplementation implements BotRuntime {
     entry.done = (async () => {
       do {
         entry.again = false;
+        const operation = schedulingIdentity(entry);
+        const turn = schedulingIdentity(activeEvents);
+        recordSchedulingDiagnostic({ kind: 'scan-start', turn, operation });
+        let outcome: 'ok' | 'stale' | 'error' = 'error';
         try {
-          const observation = await scan(botSlug);
-          if (!current()) return;
+          const observation = await withinSchedulingScan(operation, () => scan(botSlug));
+          if (!current()) {
+            outcome = 'stale';
+            return;
+          }
           this.#recordMemoryObservation(botSlug, observation);
           this.#steerMemoryInbox(botSlug, activeEvents, undefined);
+          outcome = 'ok';
         } catch (error) {
           activeEvents.preserveObservation = true;
           this.#warn?.(`Memory observation failed for ${botSlug}: ${String(error)}`);
           return;
+        } finally {
+          recordSchedulingDiagnostic({ kind: 'scan-end', turn, operation, outcome });
         }
       } while (entry.again && current());
     })().finally(() => {
@@ -10763,3 +10784,8 @@ export function callVisualNote(
 }
 
 const timelineSuffix = (note: string | undefined) => (note === undefined ? '' : `: ${note}`);
+import {
+  recordSchedulingDiagnostic,
+  schedulingIdentity,
+  withinSchedulingScan,
+} from '../process/scheduling-diagnostics.js';

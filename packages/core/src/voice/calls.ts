@@ -2138,11 +2138,31 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         const after = command['after'];
         if (after !== undefined && (!Number.isSafeInteger(after) || (after as number) < 0))
           throw new CallRefusal('invalid-input', 'after must be an event sequence number.');
-        if (call.phase !== 'ended') {
-          call.lastHeartbeat = now();
-          tick(call);
+        const diagnosticCall = schedulingIdentity(call);
+        const operation = schedulingIdentity();
+        recordSchedulingDiagnostic({
+          kind: 'heartbeat-owner-enter',
+          call: diagnosticCall,
+          operation,
+          active: call.phase !== 'ended',
+        });
+        let outcome: 'ok' | 'error' = 'error';
+        try {
+          if (call.phase !== 'ended') {
+            call.lastHeartbeat = now();
+            tick(call);
+          }
+          const result = view(call, (after as number | undefined) ?? 0);
+          outcome = 'ok';
+          return { ok: true, call: result };
+        } finally {
+          recordSchedulingDiagnostic({
+            kind: 'heartbeat-owner-settle',
+            call: diagnosticCall,
+            operation,
+            outcome,
+          });
         }
-        return { ok: true, call: view(call, (after as number | undefined) ?? 0) };
       }
       case 'mute': {
         const call = own(caller, command['callId']);
@@ -2370,3 +2390,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     },
   };
 }
+import {
+  recordSchedulingDiagnostic,
+  schedulingIdentity,
+} from '../process/scheduling-diagnostics.js';
