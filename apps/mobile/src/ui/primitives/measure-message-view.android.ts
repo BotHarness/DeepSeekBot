@@ -11,10 +11,6 @@ const native =
       }>('ChatRecycler')
     : null;
 
-/**
- * Measures a message view in window coordinates. Exactly one of `callback` or `failed` runs, so
- * a caller that hides the view until it is measured can always reveal it.
- */
 export function measureMessageView(
   view: ViewInstance | null,
   callback: (x: number, y: number, width: number, height: number) => void,

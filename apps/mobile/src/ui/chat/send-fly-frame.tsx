@@ -65,7 +65,6 @@ export function SendFlyFrame({
       skip();
       return;
     }
-    // A bubble that cannot be measured lands in place: the flight is optional, the bubble is not.
     measureMessageView(
       view,
       (x, y, width, height) => {
