@@ -80,6 +80,7 @@ const REFUSAL_TEXT: Record<string, readonly [BotHarnessKey, BotHarnessKey?]> = {
   BOT_UNAVAILABLE: ['failure.refused.bot'],
   SESSION_OWNER_MISSING: ['failure.refused.owner', 'failure.refused.ownerHint'],
   SESSION_REFUSED: ['failure.refused.generic'],
+  HOST_INCOMPATIBLE: ['failure.hostIncompatible', 'failure.hostIncompatibleHint'],
 };
 
 function failureSummary(
