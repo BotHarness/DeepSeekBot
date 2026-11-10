@@ -1735,6 +1735,16 @@ printf '%s' '{"version":1,"session":"agent-qa-0001","entries":[{"ts":17800000000
 
 `diagnostic-logs` 按时间倒序返回条目（`source`、`category`、`level`、`code`、`session`、`fields`），并带上 `source`（`host` 或 `offline`）；与导出一样，它也会退回直接读取 `logs.db`，`--offline` 和 `--home` 的用法相同。导出的 ZIP 包含 `manifest.json`（时间范围、版本、计数、脱敏次数）、`logs.jsonl` 和易读的 `timeline.txt`；用户目录路径、token、密钥和邮箱会被替换，文件只会新建不会覆盖。当 Host 无法连接、无法登录或插件没有加载时，`diagnostic-logs-export` 会直接读取 `$DSH_HOME/botharness/logs.db`，生成同样已脱敏的 ZIP；`--offline` 跳过 Host，`--home` 指定其他 DSH 目录，结果会带上 `source: "offline"` 和 `fallback` 原因。除 Client 条目外，日志还为每个 Bot 回合记录一条 `bot-turn`（模型、首字耗时和总耗时、步数、工具调用和错误、结果，不含消息内容），为每条 IM 入站事件记录一条 `messaging-inbound`（`handled`、带原因的 `skipped` 或 `refused`），并把 Host 的结构化 `{"event","phase"}` 日志（如 `messaging-outbox`）存成带字段的条目。`diagnostic-log-record` 以 Web Client 相同的方式写入条目，用于 agent QA；拒绝码为 `invalid-report`、`report-too-large`、`rate-limited`（每分钟 600 条）和 `persistence-unavailable`。
 
+### 问题报告
+
+Web Client 的 **诊断日志 → 报告问题** 和 CLI 的 `bug-report` 生成同一种 ZIP：`manifest.json`（标题、版本、客户端、附件列表、脱敏次数）、`report.md`（标题、环境信息和问题描述）、`diagnostic-logs/` 下所选时间范围内已脱敏的诊断日志，以及 `attachments/` 下的附件。窗口里可以把文件拖到虚线框里，点击虚线框多选文件，或在窗口中任意位置粘贴截图。附件总共不超过 25 MB（GitHub 单个附件的上限），生成的 ZIP 也受同样的限制。不会上传任何内容：ZIP 保存在本地，窗口给出一个新建 `BotHarness/DeepSeekBot` Issue 的链接，bug 模板里的版本、描述和证据栏都已预填。Human 把 ZIP 拖进 Issue 后自己提交。GitHub 没有给 Issue 上传附件的 API，所以不保存任何 token。
+
+```bash
+printf '%s' '升级后群聊一直加载。' | deepseekbot bug-report --title "群聊一直加载" --body-stdin --attach ./screen.png [--attach ./more.txt] [--hours 0-168] --out report.zip [--offline] [--home <DSH_HOME>]
+```
+
+结果包含 `saved`、`path`、`bytes`、`attachments`、`issueUrl`（带 ZIP 文件名）、`nextStep` 和 `source`。`--hours 0` 不带日志，默认 24 小时。与 `diagnostic-logs-export` 一样，Host 不可用时直接读取 `logs.db` 生成报告，并返回 `source: "offline"` 和 `fallback` 原因。拒绝码有 `usage`（标题和描述都为空、文件不存在、超过 20 个文件、`--out` 已存在）、`report-too-large`，以及 `not-found` 和 `log-unreadable`（两者都会建议用 `--hours 0`）。
+
 ### 消息反馈（#2811）
 
 单条消息反馈独立于匿名遥测。Host 生成冻结并脱敏的材料，默认选择锚点前后各 20 条消息，

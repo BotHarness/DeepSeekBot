@@ -1786,6 +1786,16 @@ printf '%s' '{"version":1,"session":"agent-qa-0001","entries":[{"ts":17800000000
 
 `diagnostic-logs` returns newest entries first (`source`, `category`, `level`, `code`, `session`, `fields`) and `source` (`host` or `offline`); like the export it falls back to reading `logs.db` directly, with `--offline` and `--home` for the same purpose. The export ZIP holds `manifest.json` (range, versions, counts, redaction hits), `logs.jsonl` and a readable `timeline.txt`; home paths, tokens, secrets and emails are replaced, and the file is created exclusively. When the Host cannot be reached, cannot log in, or the plugin did not load, `diagnostic-logs-export` reads `$DSH_HOME/botharness/logs.db` directly and builds the same redacted ZIP; `--offline` skips the Host, `--home` points at another DSH home, and the result reports `source: "offline"` with the `fallback` reason. Besides Client entries, the log holds one `bot-turn` row per Bot turn (model, first-token and total time, steps, tool calls and errors, outcome; no message text), one `messaging-inbound` row per IM event (`handled`, `skipped` with a reason, or `refused`), and the Host's structured `{"event","phase"}` lines such as `messaging-outbox` as fielded rows. `diagnostic-log-record` writes Client entries the way the Web Client does, for agent QA; refusals are `invalid-report`, `report-too-large`, `rate-limited` (600 entries per minute) and `persistence-unavailable`.
 
+### Bug reports
+
+**Diagnostic logs → Report a problem** in the Web Client and `bug-report` in the CLI build the same ZIP: `manifest.json` (title, versions, client, attachment list, redaction hits), `report.md` (title, environment line and description), the redacted diagnostic log under `diagnostic-logs/` for the chosen hours, and the attachments under `attachments/`. The dialog takes files by drag and drop onto the dashed area, by clicking it to choose several, or by pasting screenshots anywhere in the dialog. Attachments may total 25 MB, the most GitHub accepts for one file; the finished ZIP has the same cap. Nothing is uploaded: the ZIP is saved locally, and the dialog shows a link to a new issue on `BotHarness/DeepSeekBot` with the bug template's version, description and evidence fields prefilled. The Human drags the ZIP into the issue and submits it. GitHub offers no API to attach files to an issue, so no token is stored.
+
+```bash
+printf '%s' 'The group chat keeps loading after the update.' | deepseekbot bug-report --title "Group chat keeps loading" --body-stdin --attach ./screen.png [--attach ./more.txt] [--hours 0-168] --out report.zip [--offline] [--home <DSH_HOME>]
+```
+
+The result reports `saved`, `path`, `bytes`, `attachments`, `issueUrl` (with the ZIP's file name), `nextStep` and `source`. `--hours 0` leaves the log out; the default is 24. Like `diagnostic-logs-export`, it builds the report from `logs.db` directly when the Host is unavailable, with `source: "offline"` and the `fallback` reason. Refusals are `usage` (no title or description, a missing file, more than 20 files, an existing `--out`), `report-too-large`, `not-found` and `log-unreadable` (both suggest `--hours 0`).
+
 ### Message feedback (#2811)
 
 Single-message feedback is separate from automatic telemetry. The Host owner prepares one frozen,

@@ -472,6 +472,13 @@
       "commands": ["diagnostic-logs", "diagnostic-logs-export", "diagnostic-log-record"]
     },
     {
+      "id": "bug-report",
+      "description": "Report a problem: description, attachments, redacted diagnostic log and versions packed into one ZIP with a prefilled GitHub issue link.",
+      "scope": "Host",
+      "surfaces": ["route:packages/core/src/diagnostics/diagnostic-log.ts:BUG_REPORT_PATH"],
+      "commands": ["bug-report"]
+    },
+    {
       "id": "bot-transfer",
       "description": "Bot Zip export and file-list inspection lack direct CLI; create --from-zip already covers import.",
       "scope": "Host",
