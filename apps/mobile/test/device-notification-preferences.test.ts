@@ -542,6 +542,33 @@ describe('phone-owned notification preferences', () => {
       vi.useRealTimers();
     }
   });
+  it('leaves an unreachable Host to the backoff when other Hosts reconnect or routes change', async () => {
+    vi.useFakeTimers();
+    const f = fixture(DEFAULT_NOTIFICATION_PREFERENCES);
+    const sentTo = (id: string) =>
+      f.options.push.setPreferences.mock.calls.filter(([entry]) => entry.hostId === id).length;
+    try {
+      f.prefs.setForeground(true);
+      f.offline.add('b');
+      await f.prefs.sync([host('a'), host('b')]);
+      expect(sentTo('b')).toBe(1);
+      for (let turn = 0; turn < 10; turn++) {
+        await f.prefs.sync([host('a'), host('b')]);
+        await f.prefs.retry(host('a'));
+        await vi.advanceTimersByTimeAsync(400);
+      }
+      expect(sentTo('b')).toBe(3);
+      await f.prefs.retry(host('b'));
+      expect(sentTo('b')).toBe(4);
+      f.offline.clear();
+      await f.prefs.retry();
+      expect(sentTo('b')).toBe(5);
+      expect(f.prefs.getSnapshot().failed).toEqual([]);
+    } finally {
+      f.prefs.setForeground(false);
+      vi.useRealTimers();
+    }
+  });
   it('seeds once from existing switches and copies every change to every pairing', async () => {
     const f = fixture();
     await f.prefs.sync([host('a'), host('b')]);
