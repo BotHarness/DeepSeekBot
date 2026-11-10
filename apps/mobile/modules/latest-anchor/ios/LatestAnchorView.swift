@@ -55,16 +55,22 @@ final class LatestAnchorView: ExpoView {
 
   override func didMoveToWindow() {
     super.didMoveToWindow()
-    attach()
+    detach()
+    guard window != nil else { return }
+    DispatchQueue.main.async { [weak self] in self?.attach() }
   }
 
   var gliding: Bool { link != nil }
 
-  private func attach() {
+  private func detach() {
     observation?.invalidate()
     observation = nil
     stop()
     scroller = nil
+  }
+
+  private func attach() {
+    detach()
     guard window != nil else { return }
     var node = superview
     while let current = node, !(current is UIScrollView) { node = current.superview }
