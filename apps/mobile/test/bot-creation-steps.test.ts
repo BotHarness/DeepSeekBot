@@ -39,6 +39,12 @@ it.each([
   ['the only Environment', [{ hostId: 'A', status: 'online' }], '', 'A'],
   ['nothing when the only Environment is offline', [{ hostId: 'A', status: 'offline' }], 'A', ''],
   [
+    'nothing when the only Environment needs pairing again',
+    [{ hostId: 'A', status: 'refused' }],
+    'A',
+    '',
+  ],
+  [
     'the last-used Environment',
     [
       { hostId: 'A', status: 'online' },
@@ -75,9 +81,11 @@ it('allows leaving a step only with what it asks for', () => {
   const choices = [
     { hostId: 'A', status: 'online' as const },
     { hostId: 'B', status: 'offline' as const },
+    { hostId: 'C', status: 'refused' as const },
   ];
   expect(creationStepReady('environment', draft, choices)).toBe(true);
   expect(creationStepReady('environment', { ...draft, hostId: 'B' }, choices)).toBe(false);
+  expect(creationStepReady('environment', { ...draft, hostId: 'C' }, choices)).toBe(false);
   expect(creationStepReady('environment', { ...draft, hostId: '' }, choices)).toBe(false);
   expect(creationStepReady('identity', draft, choices)).toBe(false);
   expect(creationStepReady('identity', { ...draft, displayName: 'Ada' }, choices)).toBe(true);

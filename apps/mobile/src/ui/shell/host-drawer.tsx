@@ -271,7 +271,13 @@ function PanHostDrawerEdge({
 }
 
 function statusText(status: HostStatus): string {
-  return status === 'online' ? t.hostOnline : status === 'offline' ? t.hostOffline : t.hostChecking;
+  return status === 'online'
+    ? t.hostOnline
+    : status === 'offline'
+      ? t.hostOffline
+      : status === 'refused'
+        ? t.hostRefused
+        : t.hostChecking;
 }
 
 function closeThen(action: () => void): void {
