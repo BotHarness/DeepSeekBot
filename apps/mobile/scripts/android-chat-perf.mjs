@@ -1,6 +1,3 @@
-#!/usr/bin/env node
-// Release-build chat performance capture on the shared Android phone lane.
-// Usage and measurement rules: apps/mobile/scripts/android-chat-perf.md.
 import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
