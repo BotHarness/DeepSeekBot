@@ -48,6 +48,11 @@ import {
   TOB_DIAGNOSTIC_CAPABILITIES,
 } from './tob/cli-diagnostic-operations.js';
 import {
+  createTobHostCliOperations,
+  spawnHostCli,
+  TOB_HOST_CLI_CAPABILITY,
+} from './tob/cli-host-commands.js';
+import {
   createTobShareDraftOperations,
   TOB_SHARE_DRAFT_CAPABILITIES,
 } from './tob/cli-share-draft-operations.js';
@@ -67,7 +72,7 @@ import {
   createTobMaintenanceOperations,
   TOB_MAINTENANCE_CAPABILITIES,
 } from './tob/cli-maintenance-operations.js';
-import { installTobCliShell } from './tob/cli-shell.js';
+import { cliModulePath, installTobCliShell } from './tob/cli-shell.js';
 import { createTobVoiceOperations, TOB_VOICE_CAPABILITIES } from './tob/cli-voice-operations.js';
 import {
   LOCAL_VOICE_SKILL_CONTENT,
@@ -1560,7 +1565,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
               return {
                 signal: execution.signal,
                 authorize,
-                prepareOperation: async (command, args) => {
+                prepareOperation: async (command, args, signal) => {
                   const prepared =
                     (await tobModelOperations(command, args)) ??
                     (await tobMaintenanceOperations(command, args)) ??
@@ -1569,7 +1574,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                     (await tobShareDraftOperations(command, args)) ??
                     (await tobDiagnosticOperations(command, args)) ??
                     (await tobChannelOperations(command, args)) ??
-                    (await tobVoiceOperations(command, args));
+                    (await tobVoiceOperations(command, args)) ??
+                    (await tobHostCliOperations(command, args, signal));
                   if (!prepared || !['create', 'group-create'].includes(command)) return prepared;
                   return {
                     ...prepared,
@@ -1594,6 +1600,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                   ...TOB_DIAGNOSTIC_CAPABILITIES,
                   ...TOB_CHANNEL_CAPABILITIES,
                   ...TOB_VOICE_CAPABILITIES,
+                  TOB_HOST_CLI_CAPABILITY,
                 ],
                 beforeWrite: () => source.markSideEffect?.(),
                 readSetting: () => core.tob.readSetting(),
@@ -3263,6 +3270,28 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       return run.value;
     },
     environment: hostDiagnosticEnvironment,
+  });
+  let tobHostTarget: (() => { origin: string; token: string } | undefined) | undefined;
+  ctx.inject(['connection', 'webServer'], (webCtx) => {
+    const services = webCtx as unknown as {
+      connection: { authenticatedUrl(baseUrl: string): string };
+      webServer: { getOrigin(): string };
+    };
+    webCtx.effect(() => {
+      tobHostTarget = () => {
+        const origin = services.webServer.getOrigin();
+        const token = [
+          ...new URL(services.connection.authenticatedUrl(`${origin}/`)).searchParams.values(),
+        ][0];
+        return token ? { origin, token } : undefined;
+      };
+      return () => {
+        tobHostTarget = undefined;
+      };
+    }, 'botharness: Tob Host CLI target');
+  });
+  const tobHostCliOperations = createTobHostCliOperations({
+    run: spawnHostCli({ modulePath: cliModulePath, host: () => tobHostTarget?.() }),
   });
   const tobChannelOperations = createTobChannelOperations({
     management: core.channelManagement,
