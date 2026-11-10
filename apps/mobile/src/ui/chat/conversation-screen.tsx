@@ -2013,7 +2013,7 @@ function ChatConversation({
                                   ),
                               }}
                               keyboardDismissMode={ios ? 'interactive' : 'on-drag'}
-                              keyboardShouldPersistTaps="handled"
+                              keyboardShouldPersistTaps="never"
                               {...{
                                 [android ? 'ListFooterComponent' : 'ListHeaderComponent']:
                                   snapshot.loadingOlder || snapshot.olderError ? (
