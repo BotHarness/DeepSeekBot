@@ -3,6 +3,7 @@
   "android": {
     "modules": [
       "expo.modules.streamreveal.StreamRevealModule",
+      "expo.modules.streamreveal.TextPlaybackModule",
       "expo.modules.streamreveal.StreamSurfaceModule"
     ]
   },

@@ -56,3 +56,5 @@ additional native view requires a fresh native build, not an OTA-only update.
 surface test checks actual drawing/clipping and proves child measurement/bounds
 remain untouched across paint frames. Device recordings and alternating Release
 frame measurements are still required for visual/performance acceptance.
+
+Android `TextPlayback` is an independent opt-in shared-object engine (`EXPO_PUBLIC_TEXT_PLAYBACK=native`). It preserves JS conversation ownership while moving pacing and one-shot frame timing to Android; missing modules retain JS. A native rebuild is required. ADR-0318 and the `text-playback-native` journey describe lifetime and pending device validation.
