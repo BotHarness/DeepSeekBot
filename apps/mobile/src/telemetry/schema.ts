@@ -67,7 +67,8 @@ export type ConnectionReason =
   | 'none'
   | 'device-revoked'
   | 'device-unknown'
-  | 'device-credential-missing';
+  | 'device-credential-missing'
+  | 'host-key-changed';
 export interface EventProperties {
   'bot_library:create_attempt_start': {
     kind: BotOperationKind;
@@ -212,7 +213,13 @@ export const MOBILE_EVENT_FIELDS: Record<
   'connection:attempt_complete': {
     trigger: member('pair', 'open', 'resume', 'switch', 'recovery', 'manual_retry'),
     outcome: member('ready', 'refused', 'timeout', 'cancelled'),
-    reason: member('none', 'device-revoked', 'device-unknown', 'device-credential-missing'),
+    reason: member(
+      'none',
+      'device-revoked',
+      'device-unknown',
+      'device-credential-missing',
+      'host-key-changed',
+    ),
     attempt_id: isUuid,
     duration_bucket: duration,
     retry_count_bucket: member('0', '1', '2-3', '4plus'),

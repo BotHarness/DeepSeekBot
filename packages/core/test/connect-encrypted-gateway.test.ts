@@ -255,20 +255,22 @@ async function endpointFixture(
     } else void gateway.upgrade(req, socket, head);
   });
   const peers: { socket: WebSocket; channel: ConnectChannel }[] = [];
-  const connect = async (key = deviceKey) => {
+  const connect = async (key = deviceKey, expectedHostKey = noisePublicKey(hostKey)) => {
     const channel = new ConnectChannel({
       route: options.route ?? 'connect',
       role: 'initiator',
       hostId: pairing.host().id,
       staticKey: key,
       ephemeralKey: randomBytes(32),
-      hostKey: noisePublicKey(hostKey),
+      hostKey: expectedHostKey,
     });
     const socket = new WebSocket(`ws://127.0.0.1:${port}/botharness-device/channel`);
     peers.push({ socket, channel });
     const answers: Record<string, unknown>[] = [];
     const waiters: ((value: Record<string, unknown>) => void)[] = [];
-    const closed = new Promise<void>((resolve) => socket.once('close', () => resolve()));
+    const closed = new Promise<string>((resolve) =>
+      socket.once('close', (_code, reason) => resolve(reason.toString())),
+    );
     const frames = (value: unknown) => channel.send(JSON.stringify(value));
     const send = (value: unknown) => {
       for (const wire of frames(value)) socket.send(wire);
@@ -968,6 +970,16 @@ it('does not let a cancelled request callback consume its replacement request', 
     expect(result).toMatchObject({ type: 'response', id: 'same', status: 200 });
     expect(Buffer.from(String(result.body), 'base64').toString()).toBe('effect-same');
     expect(f.effects).toEqual(['hold-old', 'effect-same']);
+  } finally {
+    await f.close();
+  }
+});
+
+it('tells a phone paired with another Host key that the handshake was rejected', async () => {
+  const f = await endpointFixture({ route: 'lan' });
+  try {
+    const peer = await f.connect(undefined, noisePublicKey(randomBytes(32)));
+    expect(await peer.closed).toBe('channel-handshake-rejected');
   } finally {
     await f.close();
   }

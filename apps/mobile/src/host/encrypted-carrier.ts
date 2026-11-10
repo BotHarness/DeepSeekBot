@@ -13,6 +13,11 @@ import type {
 import type { HostEncryption } from './hosts';
 import { checkRoute, isEncryptedRoute, isLanRoute, socketOrigin } from './route';
 
+export const HOST_KEY_REJECTIONS: ReadonlySet<string> = new Set([
+  'channel-authentication-failed',
+  'channel-handshake-rejected',
+]);
+
 export class ConnectRefused extends Error {
   constructor(readonly code: string) {
     super(code);
@@ -311,15 +316,14 @@ export function encryptedCarrier(options: {
       closed: (reason) => {
         if (registry.get(origin) === current) registry.delete(origin);
         if (registry === directs) {
-          if (reason === 'channel-authentication-failed') blockDirect(origin);
+          if (HOST_KEY_REJECTIONS.has(reason)) blockDirect(origin);
           else retryDirect(origin);
         }
         clearTimeout(deadline);
         clearInterval(heartbeat);
-        const error =
-          reason === 'channel-authentication-failed'
-            ? new ConnectRefused(reason)
-            : new Error(reason);
+        const error = HOST_KEY_REJECTIONS.has(reason)
+          ? new ConnectRefused(reason)
+          : new Error(reason);
         reject(error);
         for (const item of requests.values()) item.reject(error);
         for (const stream of streams.values()) stream.closed(reason);

@@ -2,6 +2,8 @@ import { vi } from 'vitest';
 export const notificationTaps = new Set<(data: unknown, action?: string) => void>();
 export const secure = new Map<string, string>();
 export const refreshNotificationPermission = vi.fn(async () => undefined);
+export const preferenceSync = vi.fn(async (_hosts: readonly { hostId: string }[]) => {});
+export const preferenceRetry = vi.fn(async (_host?: { hostId: string }) => {});
 
 vi.mock('expo-secure-store', () => ({
   WHEN_UNLOCKED_THIS_DEVICE_ONLY: 0,
@@ -99,8 +101,8 @@ vi.mock('../src/host/native-notification-preferences', () => ({
     }),
     subscribe: () => () => {},
     setForeground() {},
-    sync: async () => {},
-    retry: async () => {},
+    sync: preferenceSync,
+    retry: preferenceRetry,
     prepare: async () => ({}),
   },
 }));

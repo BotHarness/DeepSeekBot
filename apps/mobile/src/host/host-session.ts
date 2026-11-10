@@ -308,12 +308,17 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
 
   let connected = false;
   let revoked = false;
+  let refused = false;
   let disposed = false;
   let avatars: string | undefined;
   let avatarRetryAt = Infinity;
   const disbanded = watchDisbandedGroups();
   const offConnection = client.subscribe(() => {
     const snapshot = client.getSnapshot();
+    if (snapshot.connection.status === 'refused' && !refused) {
+      refused = true;
+      if (sessions.get(saved.hostId)?.host.client === client) syncPreferenceHosts();
+    }
     if (snapshot.connection.status === 'refused' && deviceAlerts.includes(saved.hostId)) {
       connectionLifetime.refused(client);
       void clearPresentations(saved).catch(() => connectionMode.reportAlertFailure());
@@ -361,7 +366,7 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
           }
         })
         .catch(() => undefined);
-      void pushSession.retryFailed();
+      void pushSession.retryFailed(saved);
       void notificationPreferences.retry(saved).catch(() => undefined);
       catchUpHostConversations(
         saved.hostId,
@@ -402,12 +407,18 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
   };
 }
 
+function syncPreferenceHosts(): void {
+  const hosts = stored.hosts.filter(
+    (host) => sessions.get(host.hostId)?.host.client.getSnapshot().connection.status !== 'refused',
+  );
+  void notificationPreferences.sync(hosts).catch(() => undefined);
+}
+
 function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
   const previous = state.saved;
   mobileTelemetry.foreground(AppState.currentState === 'active', next.hosts.length);
   notificationPreferences.setForeground(AppState.currentState === 'active');
   stored = next;
-  void notificationPreferences.sync(next.hosts).catch(() => undefined);
   for (const [id, session] of sessions) {
     const saved = next.hosts.find((host) => host.hostId === id);
     if (
@@ -432,6 +443,7 @@ function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
     if (connectionMode.supported) connectionLifetime.add(session.host.client);
     else session.host.client.start();
   }
+  syncPreferenceHosts();
   connectionLifetime.backgroundRunning(connectionMode.getSnapshot().running);
   const saved = currentHost(next) ?? null;
   const selected = saved ? sessions.get(saved.hostId)?.host : undefined;
