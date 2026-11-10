@@ -13,6 +13,7 @@ const native = vi.hoisted(() => ({
   handlers: undefined as undefined | { onStart(): void; onEnd(event: { height: number }): void },
   inset: undefined as undefined | ((value: { bottom: number }) => void),
   lift: '',
+  extra: undefined as undefined | { value: number },
   reducedMotion: false,
   queue: [] as Array<() => void>,
 }));
@@ -39,9 +40,11 @@ vi.mock('react-native-keyboard-controller', () => ({
   KeyboardChatScrollView: (props: {
     onContentInsetChange: typeof native.inset;
     keyboardLiftBehavior: string;
+    extraContentPadding?: { value: number };
   }) => {
     native.inset = props.onContentInsetChange;
     native.lift = props.keyboardLiftBehavior;
+    native.extra = props.extraContentPadding;
     return null;
   },
 }));
@@ -93,12 +96,12 @@ afterEach(() => {
   act(() => root?.unmount());
   vi.unstubAllGlobals();
 });
-function mount() {
+function mount(inverted = false) {
   const scrollToOffset = vi.fn();
   const list = { current: { scrollToOffset } as unknown as FlatList<unknown> };
   let current!: ReturnType<typeof useChannelViewport<unknown>>;
   function Probe({ messages = rows }: { messages?: ConversationMessage[] }) {
-    current = useChannelViewport(list, messages, undefined, 0, false);
+    current = useChannelViewport(list, messages, undefined, 0, false, 0, inverted);
     return current.renderScrollComponent?.({}) ?? null;
   }
   root = createRoot(document.createElement('div'));
@@ -271,3 +274,19 @@ describe('Channel viewport through the Android keyboard adapter', () => {
     expect(view.scrollToOffset.mock.calls).toEqual([[{ offset: 1500, animated: false }]]);
   });
 });
+
+it.each([false, true])(
+  'passes UI composer inset only for animated inverted chat (reduced %s)',
+  (reduced) => {
+    native.reducedMotion = reduced;
+    const view = mount(true);
+    expect(native.extra).toBe(reduced ? undefined : view.current.composerInset);
+    if (!reduced) {
+      view.current.composerInset.value = 136;
+      expect(native.extra!.value).toBe(136);
+      act(() => view.current.hold());
+      expect(native.lift).toBe('never');
+      expect(native.extra).toBe(view.current.composerInset);
+    }
+  },
+);

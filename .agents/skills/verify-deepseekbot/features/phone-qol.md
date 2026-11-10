@@ -66,8 +66,19 @@ For #3920, repeat the multiline collapse with reduced motion enabled at app star
 The Android pill and list avoidance use one React height update; measured reply/above,
 footer and notice regions remain separate from the pill. Test first entry, consecutive
 resizes, reply removal, notice appearance/removal and selection/composer replacement.
-Keep normal-motion startup in the matrix: it retains the existing spring path and is
-not proved by a reduced-motion pass. Run both trace-off Debug and Release with the
+For normal-motion startup, the existing pill spring also drives the keyboard scroll
+adapter extra inset; do not count the same height in React content padding. Verify
+resize without append, Send with append, browsing away during resize/append, and
+short/long lists with the keyboard open/closed. Record settled offset as well as gap:
+external inset movement can stop the native latest-anchor spring. Check the bottom
+fade during both shrink and expansion: its white solid cover must not hide a newly
+inserted bubble or leave an uncovered strip below the translated gradient. Normal
+Android uses the explicit history-held state only for extra-inset following, so native
+inset compensation cannot itself remove latest-following eligibility. Grow and shrink
+keep logical latest at offset zero. Deferred corrections recheck the live held state
+and owner disposal; also test a real drag before React commits that state. The IME
+lift policy is unchanged, but keyboard open/close still requires native regression. This path is not
+proved by a reduced-motion pass. Run both trace-off Debug and Release with the
 same fixture; diagnostic UI-value timestamps are not a substitute for visible geometry.
 
 Capture scrcpy clips, retain original timestamps and extract 60 fps frames with ffmpeg.

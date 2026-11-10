@@ -26,7 +26,12 @@ import {
   View,
   type ViewInstance,
 } from 'react-native';
-import Animated, { useAnimatedRef, useScrollOffset, useSharedValue } from 'react-native-reanimated';
+import Animated, {
+  useAnimatedRef,
+  useScrollOffset,
+  useSharedValue,
+  useAnimatedReaction,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EndSheet } from '../primitives/end-sheet';
 import { BotProfileScreen } from './bot-profile-screen';
@@ -104,6 +109,7 @@ import { ChatBackdrop } from './chat-backdrop';
 import { Composer, type ComposerInput } from './composer';
 import { ComposerFollower, ComposerPillContext, ComposerSpacer } from './composer-pill';
 import { ComposerLayoutContext, ComposerLayoutNotice, useComposerLayout } from './composer-layout';
+import { ComposerAnimatedFade } from './composer-animated-fade';
 import { GroupUnavailable } from './group-unavailable';
 import { DraftSaveNotice } from './draft-save-notice';
 import { ClipboardImageOffer, useClipboardImage } from './clipboard-image';
@@ -704,7 +710,24 @@ function ChatConversation({
     [conversation, latest],
   );
   const { viewportHeight, viewportLayout } = latest;
-  const composerLayout = useComposerLayout();
+  const animatedComposer = android && !latest.reducedMotion;
+  const composerLayout = useComposerLayout(animatedComposer ? latest.pill.height : undefined);
+  const composerChrome = composerLayout.chromeHeight;
+  const fallbackComposerHeight = latest.composerHeight;
+  const animatedPillHeight = latest.pill.height;
+  const composerInset = latest.composerInset;
+  useAnimatedReaction(
+    () =>
+      animatedComposer
+        ? (composerChrome === undefined || animatedPillHeight.value === 0
+            ? fallbackComposerHeight
+            : composerChrome + animatedPillHeight.value) + edgeFade.bottom
+        : 0,
+    (height) => {
+      composerInset.value = height;
+    },
+    [animatedComposer, composerChrome, fallbackComposerHeight, animatedPillHeight, composerInset],
+  );
   const synchronizedComposer = android && latest.reducedMotion;
   const composerHeight = synchronizedComposer
     ? (composerLayout.height ?? latest.composerHeight)
@@ -1781,7 +1804,7 @@ function ChatConversation({
                 onComposerLayout={latest.onComposerLayout}
                 composer={
                   <ComposerLayoutContext.Provider
-                    value={synchronizedComposer ? composerLayout.controller : undefined}
+                    value={android ? composerLayout.controller : undefined}
                   >
                     <ComposerPillContext.Provider value={nativeSpacer ? latest.pill : undefined}>
                       {android ? noticeView : null}
@@ -1925,7 +1948,9 @@ function ChatConversation({
                                 ),
                                 justifyContent: android ? 'flex-start' : 'flex-end',
                                 paddingTop: android
-                                  ? composerHeight + edgeFade.bottom
+                                  ? animatedComposer
+                                    ? 0
+                                    : composerHeight + edgeFade.bottom
                                   : space.x3 + listTop,
                                 paddingBottom: android
                                   ? space.x3 + headerPadding
@@ -2103,7 +2128,15 @@ function ChatConversation({
                             color={fadeColor}
                           />
                         ) : null}
-                        {nativeSpacer ? (
+                        {animatedComposer ? (
+                          <ComposerAnimatedFade
+                            inset={composerInset}
+                            measuredCover={composerCover}
+                            color={fadeColor}
+                          >
+                            {bottomFade}
+                          </ComposerAnimatedFade>
+                        ) : nativeSpacer ? (
                           <ComposerFollower pill={latest.pill} measured={composerHeight}>
                             {bottomFade}
                           </ComposerFollower>

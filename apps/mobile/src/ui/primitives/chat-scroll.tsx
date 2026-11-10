@@ -1,5 +1,6 @@
 import type { ScrollViewProps } from 'react-native';
 import type { ReactElement } from 'react';
+import type { SharedValue } from 'react-native-reanimated';
 
 export interface ChatKeyboardCoordination {
   onStart(): void;
@@ -10,6 +11,7 @@ export interface ChatKeyboardCoordination {
 export function useChatScrollAdapter(
   _keyboard: ChatKeyboardCoordination,
   _held: boolean,
+  _extraContentPadding?: SharedValue<number>,
 ): ((props: ScrollViewProps) => ReactElement) | undefined {
   return undefined;
 }

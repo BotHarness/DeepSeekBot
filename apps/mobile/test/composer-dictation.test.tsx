@@ -935,3 +935,61 @@ describe('synchronized reduced-motion composer geometry', () => {
     expect(displayed).toBe(100 + chrome);
   });
 });
+
+describe('animated composer authority', () => {
+  it('keeps the existing spring and exposes chrome independently of its current height', async () => {
+    const { ComposerLayoutContext, useComposerLayout } =
+      await import('../src/ui/chat/composer-layout');
+    const animation = await import('react-native-reanimated');
+    const spring = vi.spyOn(animation, 'withSpring').mockImplementation(() => 120);
+    const shared = animation.useSharedValue(0);
+    let chrome: number | undefined;
+    function AnimatedComposer() {
+      const layout = useComposerLayout(shared);
+      chrome = layout.chromeHeight;
+      return (
+        <ComposerLayoutContext.Provider value={layout.controller}>
+          <Harness />
+        </ComposerLayoutContext.Provider>
+      );
+    }
+    try {
+      await act(async () => root!.render(<AnimatedComposer />));
+      const measure = async (id: string, height: number) => {
+        await act(async () =>
+          (speech.layouts.get(id)!['onLayout'] as (event: unknown) => void)({
+            nativeEvent: { layout: { height, width: 350 } },
+          }),
+        );
+      };
+      await measure('composer-above', 0);
+      await measure('composer-pill-content', 168);
+      const actualChrome = chrome;
+      expect(shared.value).toBe(168);
+      await measure('composer-pill-content', 56);
+      expect(spring).toHaveBeenCalledWith(56, expect.any(Object));
+      expect(shared.value).toBe(120);
+      expect(chrome).toBe(actualChrome);
+      const styles = speech.layouts.get('composer-pill')!['style'] as Array<
+        Record<string, unknown>
+      >;
+      expect(Object.assign({}, ...styles)['height']).toBe(120);
+      await measure('composer-above', 40);
+      expect(chrome).toBe(actualChrome! + 40);
+      expect(shared.value).toBe(120);
+      const oldLayout = speech.layouts.get('composer-pill-content')!['onLayout'] as (
+        event: unknown,
+      ) => void;
+      await act(async () => root!.render(null));
+      expect(shared.value).toBe(0);
+      await act(async () => root!.render(<AnimatedComposer />));
+      await measure('composer-above', 0);
+      await measure('composer-pill-content', 56);
+      expect(shared.value).toBe(56);
+      await act(async () => oldLayout({ nativeEvent: { layout: { height: 300, width: 350 } } }));
+      expect(shared.value).toBe(56);
+    } finally {
+      spring.mockRestore();
+    }
+  });
+});

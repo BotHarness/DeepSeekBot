@@ -229,10 +229,13 @@ export function Composer({
   );
   const ownPill = useSharedValue(lineHeight + 2 * inset);
   const sharedPill = useContext(ComposerPillContext);
-  const pillHeight = sharedPill?.height ?? ownPill;
+  const pillHeight = bodyLayout.animatedPill ?? sharedPill?.height ?? ownPill;
   const pillRest = useRef(lineHeight + 2 * inset);
   pillRest.current = lineHeight + 2 * inset;
-  const pillStyle = useAnimatedStyle(() => ({ height: pillHeight.value }));
+  const animatedBody = bodyLayout.animatedPill !== undefined;
+  const pillStyle = useAnimatedStyle(() => ({
+    height: animatedBody && pillHeight.value === 0 ? lineHeight + 2 * inset : pillHeight.value,
+  }));
   const holdPill = useCallback(
     (node: unknown) => {
       if (node !== null && sharedPill !== undefined && sharedPill.height.value === 0)
@@ -471,7 +474,9 @@ export function Composer({
           onLayout={(event) => sharedPill?.layout(event.nativeEvent.layout.height)}
           style={[
             { flex: 1, borderRadius: corner, overflow: 'hidden' },
-            bodyLayout.enabled ? { height: pill.height || lineHeight + 2 * inset } : pillStyle,
+            bodyLayout.enabled && bodyLayout.animatedPill === undefined
+              ? { height: pill.height || lineHeight + 2 * inset }
+              : pillStyle,
           ]}
         >
           <ComposerFieldMaterial cornerRadius={corner} />
@@ -481,8 +486,9 @@ export function Composer({
             onLayout={(event) => {
               const { width, height } = event.nativeEvent.layout;
               if (bodyLayout.enabled) {
-                bodyLayout.measure('pill', height);
-                pillHeight.value = height;
+                if (!bodyLayout.measure('pill', height)) return;
+                if (bodyLayout.animatedPill === undefined) pillHeight.value = height;
+                else settlePill(height);
               } else settlePill(height);
               setPill({ width, height });
             }}
