@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const speech = vi.hoisted(() => ({
   scale: 1,
+  layouts: new Map<string, Record<string, unknown>>(),
   viewportHeight: 874,
   input: undefined as Record<string, unknown> | undefined,
   platform: 'android',
@@ -43,6 +44,7 @@ vi.mock('react-native', async () => {
     return renderView(props);
   };
   const renderView = (props: Record<string, unknown>) => {
+    if (typeof props['testID'] === 'string') speech.layouts.set(props['testID'], props);
     const tap = props['onAccessibilityTap'] as (() => void) | undefined;
     return tap === undefined
       ? shim.View(props)
@@ -88,11 +90,17 @@ vi.mock('react-native-safe-area-context', () => ({
 vi.mock('react-native-reanimated', async () => {
   const shim = await import('./react-native-shim');
   return {
-    default: { View: shim.View },
+    default: {
+      View: (props: Record<string, unknown>) => {
+        if (typeof props['testID'] === 'string') speech.layouts.set(props['testID'], props);
+        return shim.View(props);
+      },
+    },
     ReduceMotion: { System: 'system' },
     useSharedValue: (value: number) => ({ value }),
     useAnimatedStyle: (style: () => object) => style(),
     withTiming: (value: number) => value,
+    withSpring: (value: number) => value,
   };
 });
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
@@ -240,6 +248,7 @@ beforeEach(async () => {
   setHapticsEnabled(true);
   speech.platform = 'android';
   speech.scale = 1;
+  speech.layouts.clear();
   speech.viewportHeight = 874;
   speech.input = undefined;
   speech.hardware.clear();
@@ -874,5 +883,55 @@ describe.each(['ios', 'android'])('%s composer haptic coverage', (platform) => {
     setHapticsEnabled(true);
     await press(t.send);
     expect(played).toEqual(['impact:light']);
+  });
+});
+
+describe('synchronized reduced-motion composer geometry', () => {
+  it('commits the real pill and list avoidance together before delayed outer measurements', async () => {
+    const { ComposerLayoutContext, useComposerLayout } =
+      await import('../src/ui/chat/composer-layout');
+    let outer = 184;
+    let displayed = 0;
+    let draw: () => void;
+    function Synchronized() {
+      const layout = useComposerLayout();
+      displayed = layout.height ?? outer;
+      return (
+        <ComposerLayoutContext.Provider value={layout.controller}>
+          <Harness />
+        </ComposerLayoutContext.Provider>
+      );
+    }
+    draw = () => root!.render(<Synchronized />);
+    await act(async () => draw());
+    const measure = async (id: string, height: number) => {
+      await act(async () =>
+        (speech.layouts.get(id)!['onLayout'] as (event: unknown) => void)({
+          nativeEvent: { layout: { height, width: 350 } },
+        }),
+      );
+    };
+    const pillHeight = () => {
+      const styles = speech.layouts.get('composer-pill')!['style'] as Array<
+        Record<string, unknown>
+      >;
+      return Object.assign({}, ...styles)['height'];
+    };
+    await measure('composer-above', 0);
+    await measure('composer-pill-content', 168);
+    const chrome = displayed - 168;
+    expect(chrome).toBeGreaterThan(0);
+    expect(pillHeight()).toBe(168);
+    await measure('composer-pill-content', 56);
+    expect([pillHeight(), displayed]).toEqual([56, 56 + chrome]);
+    outer = 184;
+    await act(async () => draw());
+    expect([pillHeight(), displayed]).toEqual([56, 56 + chrome]);
+    await measure('composer-pill-content', 100);
+    expect([pillHeight(), displayed]).toEqual([100, 100 + chrome]);
+    await measure('composer-above', 40);
+    expect(displayed).toBe(140 + chrome);
+    await measure('composer-above', 0);
+    expect(displayed).toBe(100 + chrome);
   });
 });
