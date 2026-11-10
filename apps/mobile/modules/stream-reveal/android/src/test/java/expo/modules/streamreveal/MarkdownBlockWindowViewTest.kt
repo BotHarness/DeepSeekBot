@@ -31,7 +31,7 @@ class MarkdownBlockWindowViewTest {
       override fun getModulesMap(): Map<Class<out Module>, String?> = emptyMap()
     }
     val app = AppContext(modules, ModuleRegistry(emptyList(), emptyList()), WeakReference(react))
-    val block = MarkdownBlockWindowView(activity, app).apply { eligible = true }
+    val block = MarkdownBlockWindowView(react, app).apply { eligible = true }
     var measures = 0
     val child = object : View(activity) {
       override fun onMeasure(w: Int, h: Int) { measures++; super.onMeasure(w, h) }
