@@ -11,7 +11,6 @@ import { createCore } from '../src/plugin.js';
 import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
 import { FakeAgentHost } from './dsh-agent-host-fixture.js';
 import { createTempRoot } from './helpers.js';
-import { createTestRegistry } from './registry-fixture.js';
 
 const png = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a3ioAAAAASUVORK5CYII=',
@@ -20,6 +19,13 @@ const png = Buffer.from(
 async function* chunks() {
   yield png;
 }
+
+const forwardingReference = ({ fileId, name, mime, size }: ChannelAttachmentRef) => ({
+  fileId,
+  name,
+  mime,
+  size,
+});
 
 type Fixture = {
   core: ReturnType<typeof createCore>;
@@ -107,13 +113,9 @@ async function fixture(check: (f: Fixture) => Promise<void>, recipients = 0) {
   try {
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
     const members = ['ada'];
-    const registry = createTestRegistry({
-      rootDir: core.registry.rootDir,
-      database: core.operationalDatabase,
-    });
     for (let index = 0; index < recipients; index += 1) {
       const slug = 'peer-' + index;
-      expect(registry.create({ slug, displayName: 'Peer ' + index }).ok).toBe(true);
+      expect(core.registry.create({ slug, displayName: 'Peer ' + index }).ok).toBe(true);
       members.push(slug);
     }
     groupId = core.channels.createGroup({ name: 'Destination', members }).id;
@@ -181,12 +183,18 @@ describe('trusted Orchestrator attachment forwarding', () => {
       const references = compact.messages.find(
         (view: { message: { id: string } }) => view.message.id === 'source',
       ).message.attachments;
-      expect(references).toEqual([f.image, f.currentLegacy]);
+      expect(references).toMatchObject([f.image, f.currentLegacy]);
+      expect(references).toEqual(f.core.channels.message(f.dmId, 'source')!.attachments);
+      expect(references.map(forwardingReference)).toEqual([
+        forwardingReference(f.image),
+        forwardingReference(f.currentLegacy),
+      ]);
+      expect(references.some((ref: ChannelAttachmentRef) => 'hash' in ref)).toBe(false);
       expect(JSON.stringify(compact)).not.toContain(f.core.attachments.rootDir);
       const old = f.core.channels.message(f.dmId, 'source')!.attachments!;
       const defaultAck = await send(f, {
         body: '',
-        attachments: [references[0]],
+        attachments: [forwardingReference(references[0])],
         source_event_id: f.sourceId,
       });
       expect(defaultAck.channelId).toBe(f.dmId);
@@ -196,7 +204,11 @@ describe('trusted Orchestrator attachment forwarding', () => {
         replyTo: 'source',
       });
       for (const [index, ref] of old.entries()) {
-        const args = { body: '', channel_id: f.groupId, attachments: [ref] };
+        const args = {
+          body: '',
+          channel_id: f.groupId,
+          attachments: [forwardingReference(ref)],
+        };
         const ack = await send(f, args, 'forward-' + index);
         expect(ack.channelId).toBe(f.groupId);
         expect(f.core.channels.message(f.groupId, ack.messageId)?.attachments).toEqual([ref]);

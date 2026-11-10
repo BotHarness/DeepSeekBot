@@ -935,7 +935,14 @@ export interface BotRuntimeOptions {
     Partial<
       Pick<
         MemoryService,
-        'scanChanges' | 'preparedObservation' | 'pendingCommits' | 'advanceCommitCursor'
+        | 'scanChanges'
+        | 'preparedObservation'
+        | 'pendingCommits'
+        | 'advanceCommitCursor'
+        | 'prepareTurnAsync'
+        | 'reconcileTurnAsync'
+        | 'abortTurnAsync'
+        | 'pendingCommitsAsync'
       >
     >;
   attachments?: AttachmentStore;
@@ -1631,6 +1638,7 @@ class BotRuntimeImplementation implements BotRuntime {
       steeredChannelIds: Set<string>;
     }
   >();
+  readonly #memoryTurnOperations = new Set<string>();
   readonly #activeMemoryEvents = new Map<
     string,
     { eventIds: string[]; preserveObservation: boolean }
@@ -2768,6 +2776,7 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   #steerWithMemory(botSlug: string, prompt: string): boolean {
+    if (this.#memoryTurnOperations.has(botSlug)) return false;
     const activeEvents = this.#activeMemoryEvents.get(botSlug);
     if (activeEvents === undefined || this.#memory?.scanChanges === undefined)
       return this.#agents.steerOrchestrator?.(botSlug, prompt) ?? false;
@@ -5664,7 +5673,9 @@ class BotRuntimeImplementation implements BotRuntime {
     if (waiting !== undefined && (turn === undefined || active === undefined))
       return this.#closed ? undefined : { sessionId: waiting.sessionId };
     if (this.#closed || turn === undefined || active === undefined) return undefined;
-    const sessionId = this.#agents.stopOrchestratorTurn?.(botSlug);
+    const sessionId =
+      this.#agents.stopOrchestratorTurn?.(botSlug) ??
+      (this.#memoryTurnOperations.has(botSlug) ? turn.sessionId : undefined);
     if (sessionId === undefined) return undefined;
     this.#stoppedTurns.add(botSlug);
     this.groupSendReview.stop(botSlug);
@@ -6049,11 +6060,18 @@ class BotRuntimeImplementation implements BotRuntime {
           },
           ['bot-inbox'],
         );
+      if (observeMemory) this.#memoryTurnOperations.add(bot.slug);
       const change = observeMemory
-        ? this.#memory?.prepareTurn(bot.slug, orchestrator.sessionId, {
-            coordinateBranchSwitch,
-          })
+        ? await (this.#memory?.prepareTurnAsync ?? this.#memory?.prepareTurn)?.(
+            bot.slug,
+            orchestrator.sessionId,
+            {
+              coordinateBranchSwitch,
+            },
+          )
         : undefined;
+      if (this.#closed || this.#stoppedTurns.has(bot.slug))
+        throw new Error(SESSION_STOPPED_REFUSAL);
       const observation = observeMemory
         ? this.#memory?.preparedObservation?.(bot.slug, orchestrator.sessionId)
         : undefined;
@@ -6083,6 +6101,7 @@ class BotRuntimeImplementation implements BotRuntime {
           eventIds: memoryEventIds,
           preserveObservation: false,
         });
+      this.#memoryTurnOperations.delete(bot.slug);
       processing = this.#externalMessaging?.beginProcessing(bot.slug, typingSources);
       if (processing) this.#typingTurns.set(bot.slug, processing);
       await this.#agents.runOrchestrator({
@@ -6139,13 +6158,14 @@ class BotRuntimeImplementation implements BotRuntime {
         }),
       });
       if (observeMemory) {
-        this.#memory?.reconcileTurn({
+        this.#memoryTurnOperations.add(bot.slug);
+        await (this.#memory?.reconcileTurnAsync ?? this.#memory?.reconcileTurn)?.({
           botSlug: bot.slug,
           sessionId: orchestrator.sessionId,
           sourceEventId,
           preserveObservation: this.#activeMemoryEvents.get(bot.slug)?.preserveObservation ?? false,
         });
-        this.#recordTurnCommits(bot.slug, sourceEventId!);
+        await this.#recordTurnCommits(bot.slug, sourceEventId!);
       }
       this.#markReportsHandled(memoryEventIds);
       this.#settleHarvestHandled(bot.slug, [...readAdmissions]);
@@ -6156,14 +6176,17 @@ class BotRuntimeImplementation implements BotRuntime {
       this.#setObserved(memoryEventIds, null);
       this.#settleHarvestFailure(bot.slug, [...readAdmissions], String(error));
       this.#notifyReadAdmissions(readAdmissions);
-      if (observeMemory)
-        this.#memory?.abortTurn(
+      if (observeMemory) {
+        this.#memoryTurnOperations.add(bot.slug);
+        await (this.#memory?.abortTurnAsync ?? this.#memory?.abortTurn)?.(
           bot.slug,
           orchestrator.sessionId,
           preserveObservation || this.#activeMemoryEvents.get(bot.slug)?.preserveObservation,
         );
+      }
       throw error;
     } finally {
+      this.#memoryTurnOperations.delete(bot.slug);
       await processing?.stop();
       if (this.#typingTurns.get(bot.slug) === processing) this.#typingTurns.delete(bot.slug);
       if (this.#turnSources.get(bot.slug)?.eventIds === turnSources) {
@@ -8609,11 +8632,11 @@ class BotRuntimeImplementation implements BotRuntime {
     return result.message;
   }
 
-  #recordTurnCommits(botSlug: string, causeSourceEventId: string): void {
+  async #recordTurnCommits(botSlug: string, causeSourceEventId: string): Promise<void> {
     const memory = this.#memory;
     if (memory?.pendingCommits === undefined || memory.advanceCommitCursor === undefined) return;
     try {
-      const pending = memory.pendingCommits(botSlug);
+      const pending = await (memory.pendingCommitsAsync ?? memory.pendingCommits)(botSlug);
       if (pending.commits.length > 0)
         this.#channels.appendMemoryCommits({
           botSlug,

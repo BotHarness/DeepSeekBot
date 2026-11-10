@@ -72,9 +72,12 @@ async function secondReport(delivery: 'steered' | 'read') {
       body: '@美工 Aura 再给一个赛博朋克配色，完成后 @总控 Nexus',
       mentions: [{ botSlug: 'aura', label: '美工 Aura', start: 0, end: 8 }],
     });
+    const priorSteers = steered.length;
     core.runtime.admitGroupMessage(group.id, 'task-2');
-    if (delivery === 'steered') expect(steered).toHaveLength(2);
-    else run.channels.read({ channelId: group.id });
+    if (delivery === 'steered') {
+      expect(steered).toHaveLength(priorSteers + 1);
+      expect(steered.at(-1)).toContain('赛博朋克配色');
+    } else run.channels.read({ channelId: group.id });
     const second = await run.channels.send({
       channelId: group.id,
       body: '@总控 Nexus 第二份配色已完成',

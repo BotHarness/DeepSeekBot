@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { ChannelMessage } from '../src/channels/channel.js';
 import { attachOperationalModule } from '../src/database/owner.js';
@@ -19,12 +19,16 @@ function adapter(onRun: (run: OrchestratorAgentRun) => Promise<void>): BotAgentA
 
 type Script = (run: OrchestratorAgentRun, groupId: string) => Promise<void>;
 
+afterEach(() => vi.useRealTimers());
+
 async function groupScenario(input: {
   bots: { slug: string; displayName: string; member?: boolean; paused?: boolean }[];
   kickoff: string[];
   scripts: Record<string, Script>;
   botHopLimit?: number;
 }) {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime('2026-10-14T00:00:00.000Z');
   const home = createTempRoot('botharness-bot-mention-text-');
   let groupId = '';
   const wakes: { bot: string; message: string }[] = [];
