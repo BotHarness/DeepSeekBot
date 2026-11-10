@@ -8,5 +8,5 @@
   "packages/computer/src/index.ts": 4,
   "packages/core/src/devices/mount.ts": 2,
   "packages/core/src/diagnostics/diagnostic-log.ts": 1,
-  "packages/core/src/plugin.ts": 10
+  "packages/core/src/plugin.ts": 11
 }
