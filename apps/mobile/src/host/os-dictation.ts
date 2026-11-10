@@ -1,5 +1,5 @@
 import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 
 import {
   DictationMicError,
@@ -29,12 +29,24 @@ function problemOf(code: string): DictationProblem {
   return 'failed';
 }
 
-async function permitted(): Promise<void> {
+async function permitted(): Promise<boolean> {
   if (!ExpoSpeechRecognitionModule.isRecognitionAvailable())
     throw new DictationMicError('microphone-missing');
-  if ((await ExpoSpeechRecognitionModule.getPermissionsAsync()).granted) return;
+  if ((await ExpoSpeechRecognitionModule.getPermissionsAsync()).granted) return false;
   if (!(await ExpoSpeechRecognitionModule.requestPermissionsAsync()).granted)
     throw new DictationMicError('microphone-denied');
+  return true;
+}
+
+function foreground(): Promise<void> {
+  if (AppState.currentState === 'active') return Promise.resolve();
+  return new Promise((resolve) => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      subscription.remove();
+      resolve();
+    });
+  });
 }
 
 export function createOsRecognizer(
@@ -78,7 +90,7 @@ export function createOsRecognizer(
     },
     async start(events) {
       listener = events;
-      await permitted();
+      if (await permitted()) await foreground();
       if (done) return;
       started = true;
       ExpoSpeechRecognitionModule.start({
