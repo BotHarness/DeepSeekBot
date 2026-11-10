@@ -172,9 +172,12 @@ export function onHostRemoval(listener: (host: SavedHost) => Promise<void>): () 
     removalListeners.delete(listener);
   };
 }
+const forgetHostDelivery = (hostId: string) => {
+  deliveryModes.delete(hostId);
+  deliveryRevisions.set(hostId, deliveryRevision(hostId) + 1);
+};
 const clearPresentations = async (host: SavedHost) => {
-  deliveryModes.delete(host.hostId);
-  deliveryRevisions.set(host.hostId, (deliveryRevisions.get(host.hostId) ?? 0) + 1);
+  forgetHostDelivery(host.hostId);
   await deviceAlerts.forget(host.hostId);
   await Promise.allSettled([...removalListeners].map((listener) => listener(host)));
 };
@@ -412,6 +415,7 @@ function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
     ) {
       sessions.delete(id);
       session.dispose();
+      if (saved?.credential !== session.host.saved.credential) forgetHostDelivery(id);
     }
   }
   for (const saved of next.hosts) {
