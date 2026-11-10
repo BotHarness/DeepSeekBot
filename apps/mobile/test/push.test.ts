@@ -593,6 +593,25 @@ describe('push registration with a real Host gateway', () => {
     expect(phone.state.dismissed).toEqual(['n1']);
   });
 
+  it('clears reply notifications read on another device once the full notification set is known', async () => {
+    const phone = fakeNotifications('granted');
+    phone.state.presented = [
+      { id: 'n1', data: { v: 1, hostId: 'h', itemId: 'reply:1', kind: 'channel-reply' } },
+      { id: 'n2', data: { v: 1, hostId: 'h', itemId: 'reply:2', kind: 'channel-mention' } },
+      { id: 'n3', data: { v: 1, hostId: 'h', itemId: 'dm-reply:3', kind: 'channel-reply' } },
+      { id: 'n4', data: { v: 1, hostId: 'other', itemId: 'reply:1', kind: 'channel-reply' } },
+    ];
+    const session = createPushSession({
+      notifications: phone.port,
+      hostPush: createHostPush(nodeCarrier()),
+      platform: 'ios',
+      locale: 'en',
+    });
+    session.reflect('h', new Set(), 0, new Set(['reply:2']));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(phone.state.dismissed).toEqual(['n1', 'n3']);
+  });
+
   it('reflects an unchanged Inbox again after the app returns to the foreground', async () => {
     const phone = fakeNotifications('granted');
     const session = createPushSession({
