@@ -1741,9 +1741,16 @@ const en = {
   openSettings: 'Open phone settings',
   notifyAbout: 'Notify me about',
   notificationPreferencePending: 'Saved on this phone. Some Hosts will sync when reachable.',
-  allowNotifications: 'Allow notifications',
   allowNotificationsOff:
     'This phone gets no notifications from this computer. Your choices below come back when you turn them on again.',
+  deliveryTitle: 'Delivery',
+  deliveryPush: 'Push',
+  deliveryInApp: 'In app only',
+  deliveryOff: 'Off',
+  deliveryPushHint:
+    'Notifications reach this phone even when the app is closed. While the app is open they show as in-app banners.',
+  deliveryInAppHint:
+    'No push to this phone. You see banners only while the app is open, and the badge still updates.',
   channelNotifications: {
     quietHere: 'Do Not Disturb on this phone',
     quietHereFootnote:
@@ -4105,8 +4112,13 @@ const zh: typeof en = {
   openSettings: '打开手机设置',
   notifyAbout: '通知我',
   notificationPreferencePending: '已保存在此手机。部分远程恢复连接后会同步。',
-  allowNotifications: '允许通知',
   allowNotificationsOff: '这台手机不会收到这台电脑的任何通知。重新打开后，下面的选择会恢复。',
+  deliveryTitle: '送达方式',
+  deliveryPush: '推送',
+  deliveryInApp: '仅 App 内',
+  deliveryOff: '关闭',
+  deliveryPushHint: 'App 关着也会推送到这台手机。App 打开时改用 App 内横幅。',
+  deliveryInAppHint: '不推送到这台手机，只在打开 App 时显示横幅，角标照常更新。',
   channelNotifications: {
     quietHere: '这台手机免打扰',
     quietHereFootnote:

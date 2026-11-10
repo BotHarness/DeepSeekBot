@@ -68,7 +68,13 @@ it('the development CLI and UI use one persistent owner and distinguish pending 
       setPreferences: vi.fn(async (host, preferences) => {
         if (offline.has(host.hostId)) throw Error('offline');
         copies.set(host.hostId, preferences);
-        return { registered: false, enabled: true, preferences, quietChannelIds: [] };
+        return {
+          registered: false,
+          enabled: true,
+          delivery: 'push' as const,
+          preferences,
+          quietChannelIds: [],
+        };
       }),
     },
   };

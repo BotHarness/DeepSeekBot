@@ -36,6 +36,7 @@ async function render(element: ReactElement): Promise<HTMLElement> {
 const settled: PushSettings = {
   registered: true,
   enabled: true,
+  delivery: 'push' as const,
   preferences: { approval: true, question: true, 'private-input': true, reply: true },
   quietChannelIds: [],
 };
