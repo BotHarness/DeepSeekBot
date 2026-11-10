@@ -53,11 +53,6 @@ final class LatestAnchorView: ExpoView {
     link?.invalidate()
   }
 
-  override func willMove(toWindow newWindow: UIWindow?) {
-    super.willMove(toWindow: newWindow)
-    detach()
-  }
-
   override func didMoveToWindow() {
     super.didMoveToWindow()
     detach()
