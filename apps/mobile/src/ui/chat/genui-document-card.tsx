@@ -125,7 +125,7 @@ function GenuiFrame({
     release.current = starts.take(() => {
       setTurn(true);
       lapse = setTimeout(() => release.current(), GENUI_EXECUTION_LIMITS.startupMs * 2);
-    });
+    }, Date.parse(document.observedAt));
     return () => {
       clearTimeout(lapse);
       release.current();
