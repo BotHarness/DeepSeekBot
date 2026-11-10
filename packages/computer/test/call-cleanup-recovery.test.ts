@@ -8,6 +8,7 @@ const harness = vi.hoisted(() => ({
   proof: () => undefined as void,
   exit: () => undefined as void,
   verify: async (_signal?: AbortSignal) => true,
+  connection: (_value: object) => undefined as void,
 }));
 
 vi.mock('../src/media/install.js', async (original) => ({
@@ -33,6 +34,7 @@ vi.mock('node:child_process', async (original) => {
         );
       const helper = (value: object) =>
         envelope({ event: 'helper-message', json: JSON.stringify(value) });
+      harness.connection = (value) => helper({ ...value, event: 'connection' });
       harness.proof = () => envelope({ event: 'tree-closed', version: 1, activeProcesses: 0 });
       harness.exit = () => {
         process.emit('exit', 0);
@@ -110,6 +112,40 @@ function setup(mode: string, enabled = true) {
   );
   return { events, started, abort, outcome, media };
 }
+
+it.each([true, false])(
+  'binds peer diagnostics to this call without accepting control authority (enabled=%s)',
+  async (enabled) => {
+    const h = setup('success', enabled);
+    const { peer } = await h.outcome;
+    harness.connection({
+      seq: 1,
+      elapsedMs: 10,
+      stage: 'ice',
+      peer: 'connecting',
+      ice: 'checking',
+      gathering: 'complete',
+      localCandidates: 2,
+      remoteCandidates: 1,
+      call: 'forged-call',
+      sdp: 'private-sdp',
+    });
+    harness.connection({ seq: 2, elapsedMs: 20, stage: 'tree-closed', activeProcesses: 0 });
+    const rows = h.events.filter((row) => row.includes('phase=call-media-connection'));
+    expect(rows).toHaveLength(enabled ? 1 : 0);
+    if (enabled) expect(rows[0]).toContain('call=call-qa');
+    expect(h.events.join(' ')).not.toMatch(/forged-call|private-sdp/);
+    await expect(
+      h.media.open({
+        callId: 'other',
+        signal: new AbortController().signal,
+        onPcm: () => undefined,
+        onStatus: () => undefined,
+      }),
+    ).rejects.toMatchObject({ code: 'busy' });
+    await peer!.close();
+  },
+);
 
 it('releases unspawned admission after verification cancellation settles', async () => {
   let entered!: () => void;

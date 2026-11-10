@@ -1,4 +1,5 @@
 import { launcherControl } from './launcher-control.js';
+import { callConnectionDiagnostics } from './call-connection-diagnostics.js';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -107,6 +108,7 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
       const launchId = randomUUID();
       const started = Date.now();
       const event = (detail: string) => options.onEvent?.(`call=${callId} ${detail}`);
+      const connectionDiagnostics = callConnectionDiagnostics(event);
       let child: ChildProcessWithoutNullStreams | undefined;
       let profile: string | undefined;
       let output = '';
@@ -248,6 +250,11 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
         void close().catch(() => undefined);
       };
       const helperMessage = (message: Record<string, unknown>): boolean => {
+        if (message['event'] === 'connection') {
+          if (!closed && process.env['BOTHARNESS_CALL_DIAGNOSTICS'] === '1')
+            connectionDiagnostics(message);
+          return true;
+        }
         if ('id' in message && typeof message['id'] === 'number' && 'ok' in message) {
           const waiter = pending.get(message['id']);
           if (!waiter) return false;
@@ -328,6 +335,9 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
               ...localDriverEnv(),
               ...(mac ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
               BOTHARNESS_MEDIA_USER_DATA: profile,
+              ...(process.env['BOTHARNESS_CALL_DIAGNOSTICS'] === '1'
+                ? { BOTHARNESS_CALL_DIAGNOSTICS: '1' }
+                : {}),
             },
             windowsHide: true,
             stdio: ['pipe', 'pipe', 'pipe'],
