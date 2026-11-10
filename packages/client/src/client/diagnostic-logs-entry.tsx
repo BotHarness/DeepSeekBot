@@ -10,7 +10,7 @@ export function DiagnosticLogsEntry({ t }: { t: BotHarnessTranslate }): ReactEle
   const [open, setOpen] = useState<'logs' | 'report'>();
   return (
     <span>
-      <Tooltip label={t('panel.diagnosticLogs')} side="right">
+      <Tooltip label={t('panel.diagnosticLogs')} side="right" portal>
         <button
           type="button"
           aria-label={t('panel.diagnosticLogs')}

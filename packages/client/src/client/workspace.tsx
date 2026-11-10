@@ -307,7 +307,7 @@ function WorkspaceRail({
       {...controlMenu.triggerProps}
     >
       {controlMenu.menu}
-      <Tooltip label={t('panel.exit')} side="right">
+      <Tooltip label={t('panel.exit')} side="right" portal>
         <button
           className="bh-workspace-exit"
           data-glyph={icon === 'bot' ? '' : undefined}
