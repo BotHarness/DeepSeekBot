@@ -4,12 +4,28 @@ const speech = vi.hoisted(() => ({
   os: 'ios' as 'ios' | 'android',
   available: true,
   granted: true,
+  asked: undefined as boolean | undefined,
+  appState: 'active' as string,
+  appListeners: [] as Array<(state: string) => void>,
   start: vi.fn(),
   stop: vi.fn(),
   abort: vi.fn(),
 }));
 
 vi.mock('react-native', () => ({
+  AppState: {
+    get currentState() {
+      return speech.appState;
+    },
+    addEventListener: (_: string, listener: (state: string) => void) => {
+      speech.appListeners.push(listener);
+      return {
+        remove: () => {
+          speech.appListeners = speech.appListeners.filter((item) => item !== listener);
+        },
+      };
+    },
+  },
   Platform: {
     get OS() {
       return speech.os;
@@ -20,7 +36,7 @@ vi.mock('expo-speech-recognition', () => ({
   ExpoSpeechRecognitionModule: {
     isRecognitionAvailable: () => speech.available,
     getPermissionsAsync: () => Promise.resolve({ granted: speech.granted }),
-    requestPermissionsAsync: () => Promise.resolve({ granted: speech.granted }),
+    requestPermissionsAsync: () => Promise.resolve({ granted: speech.asked ?? speech.granted }),
     start: speech.start,
     stop: speech.stop,
     abort: speech.abort,
@@ -54,6 +70,9 @@ beforeEach(() => {
   speech.os = 'ios';
   speech.available = true;
   speech.granted = true;
+  speech.asked = undefined;
+  speech.appState = 'active';
+  speech.appListeners = [];
 });
 
 describe('phone speech recognition behind the dictation controller (#3784)', () => {
@@ -71,6 +90,24 @@ describe('phone speech recognition behind the dictation controller (#3784)', () 
     recognizer.events.end();
     expect(await stopped).toBe('a table');
     expect(controller.snapshot().status).toBe('idle');
+  });
+
+  it('waits for the app to come back from the first permission prompt before listening', async () => {
+    speech.granted = false;
+    speech.asked = true;
+    speech.appState = 'inactive';
+    const { recognizer, controller, drafts } = dictation();
+    controller.start('toggle', { before: '', after: '' });
+    await settle();
+    expect(speech.start).not.toHaveBeenCalled();
+    speech.appState = 'active';
+    for (const listener of speech.appListeners) listener('active');
+    await settle();
+    expect(speech.start).toHaveBeenCalledOnce();
+    expect(speech.appListeners).toHaveLength(0);
+    recognizer.events.start();
+    recognizer.events.result(result('Book a table', true));
+    expect(drafts.at(-1)).toBe('Book a table');
   });
 
   it('joins CJK without a space and keeps the text after the caret tight', async () => {

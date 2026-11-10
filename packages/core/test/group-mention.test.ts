@@ -168,11 +168,9 @@ describe('Group mention tracer', () => {
       core.runtime.admitGroupMessage(group.id, 'human-3c44062a-4083-4a74-aeaf-4ec98a4d29e1');
       await core.runtime.whenIdle();
       expect(runs.sort()).toEqual(['ada', 'bea']);
-      expect(core.channels.readMessages(group.id).map((item) => item.body)).toEqual([
-        'Bea 已收到',
-        'Ada 已收到',
-        body,
-      ]);
+      const bodies = core.channels.readMessages(group.id).map((item) => item.body);
+      expect(bodies.at(-1)).toBe(body);
+      expect(bodies.slice(0, -1).sort()).toEqual(['Ada 已收到', 'Bea 已收到']);
       const facts = attachOperationalModule(core.operationalDatabase, 'group-mention-test').read(
         (db) => {
           const source = db

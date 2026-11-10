@@ -107,6 +107,18 @@ describe('composer dictation', () => {
     expect(lengths).toHaveLength(2);
   });
 
+  it('keeps a short word spoken alone before a long pause', async () => {
+    const { providers, lengths } = segmentedProviders();
+    const dictations = createVoiceDictations({ providers: () => providers });
+    const opened = await dictations.open({});
+    const audio = concat(silence(400), speech(200), silence(2500), speech(900, { seed: 4 }));
+    for (const chunk of chunks(audio, 3200)) dictations.push(opened.id, chunk);
+    await flush();
+    const done = await dictations.stop(opened.id);
+    expect(done).toMatchObject({ state: 'done', text: '第1段第2段' });
+    expect(lengths).toHaveLength(2);
+  });
+
   it('reports a provider failure and drops the session', async () => {
     const { providers } = segmentedProviders(true);
     const dictations = createVoiceDictations({ providers: () => providers });
