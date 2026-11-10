@@ -6,7 +6,7 @@ import {
   useReanimatedKeyboardAnimation,
 } from 'react-native-keyboard-controller';
 import { scheduleOnRN } from 'react-native-worklets';
-import { useAnimatedStyle } from 'react-native-reanimated';
+import { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
 
 import type { ChatKeyboardCoordination } from './chat-scroll';
 
@@ -20,12 +20,14 @@ function ChatScroll({
   keyboard,
   held,
   shape,
+  extraContentPadding,
   ref,
   ...props
 }: ScrollViewProps & {
   keyboard: ChatKeyboardCoordination;
   held: boolean;
   shape: ChatScrollShape;
+  extraContentPadding: SharedValue<number> | undefined;
   ref?: Ref<ScrollViewInstance>;
 }) {
   const { onStart, onEnd, onInsetChange } = keyboard;
@@ -59,6 +61,7 @@ function ChatScroll({
       {...props}
       inverted={inverted}
       offset={offset}
+      {...(extraContentPadding === undefined ? {} : { extraContentPadding })}
       ref={ref}
       {...(inverted
         ? { automaticallyAdjustContentInsets: false, contentInsetAdjustmentBehavior: 'never' }
@@ -73,6 +76,7 @@ export function useKeyboardChatScroll(
   keyboard: ChatKeyboardCoordination,
   held: boolean,
   shape: ChatScrollShape,
+  extraContentPadding?: SharedValue<number>,
 ) {
   const { onStart, onEnd, onInsetChange } = keyboard;
   const { inverted, offset, inset } = shape;
@@ -81,11 +85,12 @@ export function useKeyboardChatScroll(
       <ChatScroll
         {...props}
         held={held}
+        extraContentPadding={extraContentPadding}
         shape={{ inverted, offset, inset }}
         keyboard={{ onStart, onEnd, onInsetChange }}
       />
     ),
-    [held, inverted, offset, inset, onStart, onEnd, onInsetChange],
+    [held, inverted, offset, inset, onStart, onEnd, onInsetChange, extraContentPadding],
   );
 }
 

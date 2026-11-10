@@ -30,7 +30,12 @@ export function useChannelViewport<Row>(
     LatestAnchor !== undefined,
   );
   const overlayStyle = useChatOverlayStyle();
-  const renderScrollComponent = useChatScrollAdapter(latest.keyboard, latest.away);
+  const composerInset = useSharedValue(0);
+  const renderScrollComponent = useChatScrollAdapter(
+    latest.keyboard,
+    latest.away,
+    inverted && !reducedMotion ? composerInset : undefined,
+  );
   const [composerHeight, setComposerHeight] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   const viewportLayout = useSharedValue(0);
@@ -77,6 +82,7 @@ export function useChannelViewport<Row>(
     send: latest.send,
     listProps: latest.listProps,
     renderScrollComponent,
+    composerInset,
     overlayStyle,
     composerHeight,
     viewportHeight,
