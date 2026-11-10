@@ -8,26 +8,40 @@ function lineHeightOf(element: Element): number {
   return Number.isFinite(line) ? line : Number.parseFloat(style.fontSize) * 1.2;
 }
 
-function measure(bubble: HTMLElement): void {
+function singleLine(bubble: HTMLElement, height: number): boolean {
   const body = bubble.querySelector('.bh-bubble-body');
+  if (body === null) return false;
   const style = getComputedStyle(bubble);
-  const single =
-    body !== null &&
-    singleLineBubble(
-      bubble.clientHeight,
-      Number.parseFloat(style.paddingTop) + Number.parseFloat(style.paddingBottom),
-      lineHeightOf(body),
-    );
-  if (single) bubble.dataset['singleLine'] = '';
-  else delete bubble.dataset['singleLine'];
+  return singleLineBubble(
+    height,
+    Number.parseFloat(style.paddingTop) + Number.parseFloat(style.paddingBottom),
+    lineHeightOf(body),
+  );
+}
+
+let shared: ResizeObserver | undefined;
+
+function observer(): ResizeObserver {
+  shared ??= new ResizeObserver((entries) => {
+    const results: [HTMLElement, boolean][] = [];
+    for (const entry of entries) {
+      const bubble = entry.target as HTMLElement;
+      if (!bubble.isConnected) continue;
+      results.push([bubble, singleLine(bubble, bubble.clientHeight)]);
+    }
+    for (const [bubble, single] of results) {
+      if (single === bubble.hasAttribute('data-single-line')) continue;
+      if (single) bubble.dataset['singleLine'] = '';
+      else delete bubble.dataset['singleLine'];
+    }
+  });
+  return shared;
 }
 
 export function observeSingleLineBubble(wrap: HTMLElement): (() => void) | undefined {
   const bubble = wrap.querySelector<HTMLElement>('.bh-bubble');
-  if (bubble === null) return;
-  measure(bubble);
-  if (typeof ResizeObserver !== 'function') return;
-  const observer = new ResizeObserver(() => measure(bubble));
-  observer.observe(bubble);
-  return () => observer.disconnect();
+  if (bubble === null || typeof ResizeObserver !== 'function') return;
+  const resize = observer();
+  resize.observe(bubble);
+  return () => resize.unobserve(bubble);
 }

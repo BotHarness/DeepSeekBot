@@ -63,6 +63,20 @@ command in the `perf-budget` job; see
 4. Put the table and the commit SHAs in the PR. Keep raw JSON and profiles under
    `.humanlayer/perf/` (ignored by Git); do not commit traces.
 
+## Scroll smoothness
+
+`scripts/perf-timeline-scroll.mjs` measures the scroll itself, which the idle run does not. It
+reuses the idle run's `fixture.json`, mounts and visits the whole history, then sends trusted
+CDP wheel input (120 px per tick, one tick per ~16 ms) up and back down `--distance` pixels and
+reports the CDP main-thread totals over the scroll (`taskMs`, `recalcStyleMs`, `styleRecalcs`),
+rAF interval percentiles, the share of frames over 25 ms and Long Animation Frames. `--mode
+cold` instead opens the Group and wheels up to the first message while older pages load.
+`--geometry` adds per-frame gap and anchor-jump checks; they read layout, so keep them out of
+timing runs. Run it headed under Xvfb (`xvfb-run -a node scripts/perf-timeline-scroll.mjs
+--headed ...`) for real compositor frames, and launch the Host with
+`BOTHARNESS_CLIENT_DIAGNOSTICS=0` so the development-only shell observer does not add layout
+reads that users never run.
+
 ## Reading a profile
 
 - A hot `MessageGroupView`, `ConversationView` or React reconciler frames during typing mean
@@ -90,6 +104,13 @@ command in the `perf-budget` job; see
   `content-visibility: auto` registers an internal IntersectionObserver recomputed every frame.
 - `IntersectionObserverController::computeIntersections` high in a trace means too many observed
   targets: every target is recomputed each frame while anything animates.
+- A whole-document `UpdateLayoutTree` (element count near the page's node count) after every
+  DOM insertion points at a `:has()` rule whose anchor is left of a combinator and whose subject
+  has no class, id or attribute (`A:has(B) > div`, `:root:has(X) .y`, `html:has(X) body > :not(#root)`).
+  Chromium cannot narrow its invalidation and restyles the page; with ~8k rules that was ~15 ms
+  per insertion. Put `:has()` on the subject, use sibling combinators, or have script set an
+  attribute on the anchor. `test/has-invalidation.test.ts` rejects the pattern in the Client CSS;
+  `has-sibling-rewrite.ts` rewrites the `:has(> X) > S` shape in DSH's own sheets at runtime.
 - Before blaming an animation, run `document.getAnimations()` in the page; it lists what runs.
 - Summarize a trace by thread and event name before guessing; most idle cost is native (style,
   intersections, commit), not JavaScript, and does not show in a CPU profile.

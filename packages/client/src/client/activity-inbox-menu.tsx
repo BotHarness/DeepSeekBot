@@ -1,4 +1,5 @@
 import { Menu } from './appearance-primitives.js';
+import { useSearchOpenMark } from './search-open-mark.js';
 import { useState, useRef, type ReactElement } from 'react';
 import {
   IconEllipsisOutlineRegular,
@@ -272,6 +273,7 @@ export function ActivityInboxHeader({
 }): ReactElement {
   const { feed, query } = useActivityFeed(actions);
   const [searchOpen, setSearchOpen] = useState(query.search !== '');
+  const searchOpenMark = useSearchOpenMark(searchOpen);
   const [text, setText] = useState(query.search);
   const input = useRef<HTMLInputElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -286,7 +288,10 @@ export function ActivityInboxHeader({
   };
   return (
     <div ref={mount} className="bh-header bh-activity-header-actions">
-      <div className={`bh-search-slot${searchOpen ? ' bh-search-slot-open' : ''}`}>
+      <div
+        ref={searchOpenMark}
+        className={`bh-search-slot${searchOpen ? ' bh-search-slot-open' : ''}`}
+      >
         <div className={`bh-search${searchOpen ? ' bh-search-open' : ''}`}>
           <Tooltip label={t('activityInbox.search')} side="bottom" disabled={searchOpen}>
             <button

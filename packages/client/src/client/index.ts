@@ -1,4 +1,5 @@
 import { CHANNEL_BODY_PANEL, readChannelDock, writeChannelDock } from './channel-dock-layout.js';
+import { rewriteHasSiblingRules } from './has-sibling-rewrite.js';
 import { createBotPresentation } from './bot-presentation.js';
 import { disposeClientLog, installClientLog } from './diagnostic-log.js';
 import { watchClientLogState } from './diagnostic-log-state.js';
@@ -604,6 +605,10 @@ export function apply(ctx: ClientContext): void {
   }, 'botharness: Profile Cards');
 
   ctx.effect(installStyles, 'botharness: client styles');
+  ctx.effect(
+    () => (typeof document === 'undefined' ? () => {} : rewriteHasSiblingRules(document)),
+    'botharness: cheap :has() invalidation for host sheets',
+  );
   ctx.effect(mountDevClientRefresh, 'botharness: local development refresh');
   ctx.effect(
     () => prefs.attachSystemMotion(browserSystemMotionSource()),
