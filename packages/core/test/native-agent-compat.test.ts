@@ -5,9 +5,11 @@ import { ToolRuntime, defineTool } from '@deepseek-ai/dsh-tools';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  HostIncompatibleError,
   executeNativeTool,
   installNativeTools,
   installAgentNativeTools,
+  probeHostCapabilities,
 } from '../src/runtime/native-agent-compat.js';
 
 const input = () => ({
@@ -49,6 +51,10 @@ describe('native tool API generations', () => {
               execute: async () => 'written',
             }),
           );
+          expect(probeHostCapabilities(ctx)).toEqual({
+            toolPresentation: 'current',
+            toolExecution: 'current',
+          });
           const release = await installAgentNativeTools(ctx, agent);
           release();
           const reattached = await installAgentNativeTools(ctx, agent);
@@ -154,5 +160,71 @@ describe('native tool API generations', () => {
     const ctx = { tools: { setExecutor: vi.fn(), execute } } as unknown as Context;
     await expect(executeNativeTool(ctx, input())).rejects.toBe(refusal);
     expect(execute).toHaveBeenCalledOnce();
+  });
+
+  it('reports each Host generation and a Host with neither API', () => {
+    const fn = vi.fn();
+    expect(
+      probeHostCapabilities({ tools: { setExecutor: fn, execute: fn } } as unknown as Context),
+    ).toEqual({ toolPresentation: 'current', toolExecution: 'current' });
+    expect(
+      probeHostCapabilities({ tools: { presentAs: fn, execute: fn } } as unknown as Context),
+    ).toEqual({ toolPresentation: 'legacy', toolExecution: 'legacy' });
+    expect(probeHostCapabilities({} as Context)).toEqual({
+      toolPresentation: 'missing',
+      toolExecution: 'missing',
+    });
+  });
+
+  it('keeps the turn running and warns once when tool presentation is unavailable', async () => {
+    const warn = vi.fn();
+    const ctx = { tools: { execute: vi.fn() }, logger: { warn } } as unknown as Context;
+    const dispose = await installNativeTools(ctx);
+    expect(dispose()).toBeUndefined();
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn.mock.calls[0]?.[0]).toMatch(
+      /^botharness\.host_capability\.degraded capability=tools\.presentAs .*reason=missing$/u,
+    );
+  });
+
+  it('degrades a presentation call whose signature changed and keeps the original error', async () => {
+    const warn = vi.fn();
+    const presentAs = vi.fn(() => {
+      throw new TypeError('mode.toUpperCase is not a function');
+    });
+    const ctx = { tools: { presentAs }, logger: { warn } } as unknown as Context;
+    await expect(installNativeTools(ctx)).resolves.toBeTypeOf('function');
+    expect(warn.mock.calls[0]?.[0]).toContain('TypeError: mode.toUpperCase is not a function');
+  });
+
+  it('still propagates a presentation refusal', async () => {
+    const refusal = new Error('presentation refused');
+    const ctx = {
+      tools: {
+        presentAs: () => {
+          throw refusal;
+        },
+      },
+    } as unknown as Context;
+    await expect(installNativeTools(ctx)).rejects.toBe(refusal);
+  });
+
+  it('fails a direct call with an actionable code and the missing capability when execution is gone', async () => {
+    const ctx = { tools: { presentAs: vi.fn() } } as unknown as Context;
+    const failure = executeNativeTool(ctx, input());
+    await expect(failure).rejects.toBeInstanceOf(HostIncompatibleError);
+    await expect(failure).rejects.toThrow(
+      /^HOST_INCOMPATIBLE: This Tobs version does not support DSH .+: tools\.execute is unavailable\. Update Tobs, then retry\.$/u,
+    );
+  });
+
+  it('keeps the original error in a compatibility failure', () => {
+    const cause = new TypeError('NativeToolExecutor is not a constructor');
+    const error = new HostIncompatibleError('the native tool executor', '0.3.0-rc.1', cause);
+    expect(error.code).toBe('HOST_INCOMPATIBLE');
+    expect(error.cause).toBe(cause);
+    expect(error.message).toBe(
+      'HOST_INCOMPATIBLE: This Tobs version does not support DSH 0.3.0-rc.1: the native tool executor is unavailable. Update Tobs, then retry. Original error: TypeError: NativeToolExecutor is not a constructor',
+    );
   });
 });
