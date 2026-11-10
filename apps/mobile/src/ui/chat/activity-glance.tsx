@@ -11,7 +11,7 @@ import { radius, space } from '../design/tokens';
 import { DayBars } from '../primitives/day-bars';
 import { Text } from '../primitives/text';
 import { ChevronRightIcon } from '../shell/icons';
-import { useStrings, t } from '../strings';
+import { dateLocale, useStrings, t } from '../strings';
 import { tokenAmount } from '../shell/usage-card';
 
 export function tokenTotalText(total: TokenTotal, compact = true): string {
@@ -26,8 +26,8 @@ function Glance({ activity, onOpen }: { activity: ProfileActivity; onOpen(): voi
   const theme = useDesignTheme();
   const glance = weekGlance(activity);
   const range = t.activityRange(
-    dayLabel(glance.days[0] ?? activity.today),
-    dayLabel(glance.days.at(-1) ?? activity.today),
+    dayLabel(glance.days[0] ?? activity.today, dateLocale()),
+    dayLabel(glance.days.at(-1) ?? activity.today, dateLocale()),
   );
   const tokens = t.activityTokens(tokenTotalText(glance.total));
   const times = t.activityCount(glance.activity.reduce((sum, value) => sum + value, 0));
@@ -76,7 +76,7 @@ function Glance({ activity, onOpen }: { activity: ProfileActivity; onOpen(): voi
       <DayBars
         bars={glance.days.map((day, index) => ({
           key: day,
-          label: weekdayLabel(day),
+          label: weekdayLabel(day, dateLocale()),
           segments: [glance.activity[index] ?? 0],
         }))}
         colors={[theme.color.accent]}
