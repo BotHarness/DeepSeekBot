@@ -4,6 +4,7 @@ export interface TobManagementProposal {
   readonly previousValue: unknown;
   readonly patch: unknown;
   readonly expectedRevision?: number;
+  readonly via?: 'cli';
 }
 
 export interface PreparedTobOperation {
@@ -20,4 +21,5 @@ export interface TobCliCapability {
 export type PrepareTobOperation = (
   command: string,
   args: Record<string, unknown>,
+  signal?: AbortSignal,
 ) => PreparedTobOperation | undefined | Promise<PreparedTobOperation | undefined>;

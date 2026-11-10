@@ -131,13 +131,14 @@ describe('scoped Tob CLI', () => {
       },
     ]);
   });
-  it('does not fall back to offline stores or Human credentials for unsupported commands and overrides', async () => {
+  it('does not fall back to offline stores, Human credentials or a chosen Host target', async () => {
     const live = await broker();
     for (const argv of [
       ['list', '--home', '/tmp/profile'],
-      ['channel-create'],
+      ['channel-create', '--host', 'http://127.0.0.1:1'],
+      ['memory-save', 'tob', '--token-file', '/tmp/private'],
       ['pause', 'tob', '--home', '/tmp/profile'],
-      ['settings', 'other'],
+      ['settings', 'other', '--home', '/tmp/profile'],
       ['settings', 'botharness-client', '--host', 'http://127.0.0.1:1'],
       ['settings', 'botharness-client', '--token-file', '/tmp/private'],
       ['settings', 'botharness-client', '--home', '/tmp/profile'],
@@ -146,6 +147,25 @@ describe('scoped Tob CLI', () => {
       expect((await invoke(argv, live.endpoint)).json.error.code).toBe('agent-scope-denied');
     }
     expect(live.calls).toEqual([]);
+  });
+  it('forwards every other command, with its stdin and folder, for the Host to run', async () => {
+    const live = await broker({ ok: true, value: { done: true } });
+    expect(
+      (await invoke(['channel-create', '--compact', '--name', 'Ops'], live.endpoint)).code,
+    ).toBe(0);
+    await invoke(['settings', 'other'], live.endpoint);
+    await invoke(['secret-put', 'API_KEY'], live.endpoint, 'value');
+    expect(live.calls).toEqual([
+      {
+        command: 'cli',
+        args: { argv: ['channel-create', '--name', 'Ops'], stdin: '', cwd: process.cwd() },
+      },
+      { command: 'cli', args: { argv: ['settings', 'other'], stdin: '', cwd: process.cwd() } },
+      {
+        command: 'cli',
+        args: { argv: ['secret-put', 'API_KEY'], stdin: 'value', cwd: process.cwd() },
+      },
+    ]);
   });
   it('routes standard Bot arguments through the scoped broker and requires reviewed identity', async () => {
     const live = await broker({ ok: true, value: { accepted: true } });

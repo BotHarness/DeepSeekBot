@@ -1,6 +1,6 @@
 # ADR-0224: Tob management uses a scoped native Shell CLI journey
 
-- Status: Accepted
+- Status: Superseded by [ADR-0314](0314-tob-runs-every-cli-command-with-approved-writes.md) for the allowlist; the authority, broker and lifecycle rules remain
 - Date: 2026-10-18
 - Related: [#2081](https://github.com/BotHarness/DeepSeekBot/issues/2081), [#2087](https://github.com/BotHarness/DeepSeekBot/issues/2087), [ADR-0223](0223-tob-is-a-protected-local-personabot.md)
 

@@ -443,7 +443,12 @@ Home:
   clicks); without it, DSH_HOME from the environment is used.
 `;
 
-const LOCAL_LOG_COMMANDS = new Set(['doctor', 'diagnostic-logs', 'diagnostic-logs-export']);
+const LOCAL_LOG_COMMANDS = new Set([
+  'doctor',
+  'diagnostic-logs',
+  'diagnostic-logs-export',
+  'bug-report',
+]);
 
 const STATIC_CATALOG_PROVIDER_IDS: ReadonlySet<string> = new Set([
   'amazon-bedrock',
@@ -2635,7 +2640,7 @@ export async function runBotCreateCli(
       return 0;
     }
     if (hasAgentCliContext(io.env)) {
-      out.stdout(JSON.stringify(await runAgentCli(command, rest, values, io), null, 2));
+      out.stdout(JSON.stringify(await runAgentCli(command, rest, values, io, argv), null, 2));
       return 0;
     }
     if (values.help === true || command === undefined || command === 'help') {

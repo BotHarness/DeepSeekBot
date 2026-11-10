@@ -31,7 +31,8 @@ import type { OverviewMemory, OverviewUsage, UsagePeriod } from '../src/host/usa
 import { MethodRefused } from '../src/host/client';
 import { dayLabel, trailingDays } from '../src/host/usage-days';
 import { SettingsView, type SettingsActions } from '../src/ui/settings-view';
-import { daysLabel, tokenAmount } from '../src/ui/shell/usage-card';
+import { dayBars, daysLabel, tokenAmount } from '../src/ui/shell/usage-card';
+import { interfacePreferences } from '../src/ui/interface-preferences';
 import { t } from '../src/ui/strings';
 import { UsageView, type UsageSources } from '../src/ui/usage-view';
 import usageWire from './fixtures/usage-wire.json';
@@ -89,6 +90,18 @@ function actions(overrides: Partial<SettingsActions> = {}): SettingsActions {
 }
 
 describe('Usage card in Settings', () => {
+  it('names the weekdays in the app language, not the phone language', () => {
+    const week = [{ day: '2026-11-09', tokens: 1 }];
+    try {
+      interfacePreferences.setLanguage('en');
+      expect(dayBars(week)[0]!.label).toBe('M');
+      interfacePreferences.setLanguage('zh');
+      expect(dayBars(week)[0]!.label).toBe('一');
+    } finally {
+      interfacePreferences.setLanguage('system');
+    }
+  });
+
   it("shows the Host's 7-day total over a bar per day, and opens the Usage screen", async () => {
     const handlers = actions();
     const load = vi.fn(async () => week());

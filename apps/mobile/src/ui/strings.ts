@@ -1582,7 +1582,7 @@ const en = {
   messageDisplay: {
     title: 'Message display',
     streaming: 'Streaming',
-    complete: 'Complete bubbles',
+    complete: 'Complete',
     storageError: 'This choice could not be saved. Tap an option to retry.',
   },
   draftSaveFailed: 'Draft not saved. Retry before leaving the app.',
@@ -4862,6 +4862,12 @@ interfacePreferences.subscribe(() => {
   locale = interfacePreferences.getSnapshot().locale;
   t = locale === 'zh' ? zh : en;
 });
+
+export function dateLocale(): string {
+  const device = new Intl.DateTimeFormat().resolvedOptions().locale;
+  if (device.toLowerCase().startsWith(locale)) return device;
+  return locale === 'zh' ? 'zh-CN' : 'en';
+}
 
 export function useStrings(): typeof en {
   const state = useSyncExternalStore(
