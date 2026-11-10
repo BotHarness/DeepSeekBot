@@ -107,6 +107,7 @@ describe('Device Pairing', () => {
       issue: 'relay-unavailable' as const,
       recovery: 'automatic' as const,
     },
+    { state: 'signing-in' as const },
   ])(
     'keeps a %o Host on its account tunnel instead of a disable the account would undo',
     async (state) => {

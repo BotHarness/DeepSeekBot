@@ -372,8 +372,9 @@ export function createDevicesHttp(options: {
       const owner = account?.status();
       if (
         input['action'] === 'disable' &&
-        (owner?.state === 'signed-in' ||
-          (owner?.state === 'error' && owner.recovery === 'automatic'))
+        owner !== undefined &&
+        owner.state !== 'signed-out' &&
+        !(owner.state === 'error' && owner.recovery !== 'automatic')
       )
         return json(
           {

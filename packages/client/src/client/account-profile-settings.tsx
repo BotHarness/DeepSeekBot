@@ -79,16 +79,17 @@ export function AccountProfileSettings({
   const pending = useRef(false);
   const mounted = useRef(false);
   const signInEpoch = useRef(0);
+  const signingIn = useRef(false);
 
   const load = async (): Promise<void> => {
     const epoch = signInEpoch.current;
     try {
       const account = await actions.marketplaceAccount();
-      if (!mounted.current || epoch !== signInEpoch.current) return;
+      if (!mounted.current || signingIn.current || epoch !== signInEpoch.current) return;
       setState({ status: 'ready', account });
       if (!account.signedIn && account.issue !== undefined) setSignIn(undefined);
     } catch (error) {
-      if (mounted.current && epoch === signInEpoch.current)
+      if (mounted.current && !signingIn.current && epoch === signInEpoch.current)
         setState({ status: 'error', message: marketplaceError(error, t) });
     }
   };
@@ -109,7 +110,7 @@ export function AccountProfileSettings({
   const beginSignIn = async (): Promise<void> => {
     setBusy(true);
     setSignInFailed(false);
-    signInEpoch.current += 1;
+    signingIn.current = true;
     try {
       const code = await startSignIn();
       signInEpoch.current += 1;
@@ -117,6 +118,7 @@ export function AccountProfileSettings({
     } catch {
       if (mounted.current) setSignInFailed(true);
     } finally {
+      signingIn.current = false;
       if (mounted.current) setBusy(false);
     }
   };
