@@ -1,8 +1,12 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { secure, remotes } from './host-session-fixture';
 import { FakeHost } from './fake-host';
-import type { AlertSnapshot } from '../src/host/device-alerts';
 
+interface Reconciled {
+  inApp?: boolean;
+  pending: string[];
+  alerts: Array<{ data: { itemId: string } }>;
+}
 const native = vi.hoisted(() => ({ snapshots: [] as unknown[] }));
 vi.mock('expo-router', () => ({ useFocusEffect: () => undefined }));
 vi.mock('react-native', () => ({
@@ -75,7 +79,7 @@ it('feeds in-app only banners on iOS, where there is no background connection mo
   module.setHostNotificationsEnabled('a', true);
   await vi.waitFor(() =>
     expect(
-      (native.snapshots as AlertSnapshot[]).some(
+      (native.snapshots as Reconciled[]).some(
         (snapshot) =>
           snapshot.inApp === true &&
           snapshot.pending.includes('approval:1') &&
