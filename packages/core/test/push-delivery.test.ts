@@ -812,6 +812,27 @@ describe('Human Inbox push source', () => {
     expect(JSON.stringify(pending)).not.toContain(SECRET_TEXT);
   });
 
+  it('reads only unread replies, deep enough that a long unread backlog is not resolved by mistake', () => {
+    const queries: unknown[] = [];
+    const dmLimits: number[] = [];
+    activityListPushSource(
+      {
+        list: (query) => {
+          queries.push(query);
+          return { items: [] };
+        },
+        actionCount: () => 0,
+        dmReplies: (limit) => {
+          dmLimits.push(limit);
+          return [];
+        },
+      },
+      () => undefined,
+    ).pending();
+    expect(queries[1]).toEqual({ category: 'replies', unreadOnly: true, limit: 200 });
+    expect(dmLimits).toEqual([200]);
+  });
+
   it('offers Always allow from the notification only when the Host offers it', () => {
     const source = activityListPushSource(
       {

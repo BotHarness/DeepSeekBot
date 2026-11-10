@@ -213,7 +213,18 @@ function reflectInbox(hostId: string, inbox: Inbox): void {
       .filter((item) => item.category === 'action')
       .map((item) => item.id),
   );
-  pushSession.reflect(hostId, unresolved, unresolved.size);
+  const pending =
+    snapshot.notificationItems === undefined
+      ? undefined
+      : new Set(snapshot.notificationItems.map((item) => item.id));
+  pushSession.reflect(hostId, unresolved, unresolved.size, pending);
+  if (pending !== undefined)
+    alertBanners.discard(
+      (alert) =>
+        alert.data.hostId === hostId &&
+        (alert.data.kind === 'channel-reply' || alert.data.kind === 'channel-mention') &&
+        !pending.has(alert.data.itemId),
+    );
 }
 
 connectionMode.onApproval(({ hostId, itemId }) => {

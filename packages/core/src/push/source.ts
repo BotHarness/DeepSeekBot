@@ -18,7 +18,7 @@ const KIND: Partial<Record<HumanAttentionItem['kind'], PushKind>> = {
 };
 
 const ACTION_LIMIT = 100;
-const REPLY_LIMIT = 30;
+const REPLY_LIMIT = 200;
 const PREVIEW_LIMIT = 140;
 const PREVIEW_FIELDS = ['command', 'cmd', 'script', 'code', 'url', 'path', 'file_path'];
 
@@ -110,7 +110,7 @@ export function activityListPushSource(
     pending() {
       const action = attention.list({ category: 'action', limit: ACTION_LIMIT }).items;
       const replies = attention
-        .list({ category: 'replies', limit: REPLY_LIMIT })
+        .list({ category: 'replies', unreadOnly: true, limit: REPLY_LIMIT })
         .items.filter((item) => item.isUnread !== false);
       const dms = attention.dmReplies(REPLY_LIMIT);
       return {
