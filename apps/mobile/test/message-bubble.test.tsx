@@ -1091,9 +1091,25 @@ describe('message time', () => {
     expect(spacer?.textContent).toBe(shown.textContent);
   });
 
-  it('shows no time while a message is sending, after it failed, or while a reply streams', () => {
-    for (const message of [human({ delivery: 'pending' }), human({ delivery: 'failed' })])
-      expect(time(renderToStaticMarkup(<MessageBubble message={message} />))).toBeUndefined();
+  it('keeps the time row while a message is sending or failed, with the check hidden until commit', () => {
+    const committed = document.createElement('div');
+    committed.innerHTML = renderToStaticMarkup(<MessageBubble message={human({})} />);
+    const shown = committed.querySelector('[data-testid="message-time"]')!;
+    for (const message of [human({ delivery: 'pending' }), human({ delivery: 'failed' })]) {
+      const container = document.createElement('div');
+      container.innerHTML = renderToStaticMarkup(<MessageBubble message={message} />);
+      const unsent = container.querySelector('[data-testid="message-time"]')!;
+      expect(unsent.textContent).toBe(shown.textContent);
+      expect(unsent.getAttribute('data-accessibilitylabel')).toMatch(/^\d{1,2}:\d{2}/);
+      expect(unsent.getAttribute('data-accessibilitylabel')).not.toContain('✓');
+      expect(container.querySelector('[data-testid="message-time-unsent"]')?.textContent).toBe(
+        '\u00a0✓',
+      );
+    }
+    expect(committed.querySelector('[data-testid="message-time-unsent"]')).toBeNull();
+  });
+
+  it('shows no time while a reply streams', () => {
     expect(
       time(renderToStaticMarkup(<MessageBubble message={bot({})} streaming />)),
     ).toBeUndefined();
