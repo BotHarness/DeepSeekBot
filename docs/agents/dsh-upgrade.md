@@ -34,7 +34,7 @@ A setup error or any `botharness.host_capability.degraded` diagnostic row fails 
 the trigger for this runbook. Run it locally with `--dsh-version <version>`; it uses the AX model
 when one is configured. Host API access, optional/required capability tiers and the
 `HOST_INCOMPATIBLE` failure are defined in
-[ADR-0315](../adr/0315-host-capabilities-degrade-or-fail-with-host-incompatible.md).
+[ADR-0316](../adr/0316-host-capabilities-degrade-or-fail-with-host-incompatible.md).
 
 ## 1. Establish the upstream and product baseline
 
