@@ -1,6 +1,7 @@
 package expo.modules.latestanchor
 
 import android.app.Activity
+import android.os.Looper
 import android.view.View
 import androidx.recyclerview.widget.RecyclerView
 import com.facebook.react.bridge.BridgeReactContext
@@ -14,6 +15,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
@@ -31,6 +33,12 @@ class ChatRecyclerViewTest {
     list.measure(View.MeasureSpec.makeMeasureSpec(300, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(500, View.MeasureSpec.EXACTLY))
     list.layout(0, 0, 300, 500)
     val recycler = list.getChildAt(0) as RecyclerView
+    assertTrue(recycler.childCount in 1..30)
+    list.setTop(72.0)
+    list.setBottom(80.0)
+    shadowOf(Looper.getMainLooper()).idle()
+    assertEquals(list.height, recycler.height)
+    assertTrue(recycler.height > recycler.paddingTop + recycler.paddingBottom)
     assertTrue(recycler.childCount in 1..30)
     val identity = recycler.adapter!!.getItemId(5)
     list.setRows(listOf("new") + (0..9999).map { "row-$it" })
