@@ -2,6 +2,7 @@ import type { DesktopCall, DesktopCallSnapshot } from './desktop-call.js';
 import { revealDesktopWindow } from './desktop-window.js';
 
 export const CALL_NOTICE_TAG = 'botharness-call';
+export const CALL_NOTICE_SETTLE_MS = 1_500;
 
 export interface CallNoticeHandle {
   close(): void;
@@ -69,6 +70,8 @@ export interface CallPresenceOptions {
   readonly doc?: PresenceDocument;
   readonly notice?: () => CallNoticeFactory | undefined;
   readonly focus?: () => void;
+  readonly settleMs?: number;
+  readonly now?: () => number;
 }
 
 export function callNoticeWanted(snapshot: DesktopCallSnapshot, hidden: boolean): boolean {
@@ -81,6 +84,33 @@ export function watchCallPresence(options: CallPresenceOptions): () => void {
   let shown: CallNoticeHandle | undefined;
   let shownFor: string | undefined;
   let answered: string | undefined;
+  const settleMs = options.settleMs ?? CALL_NOTICE_SETTLE_MS;
+  const now = options.now ?? Date.now;
+  let settled = where.hidden();
+  let changedAt: number | undefined;
+  let pending: ReturnType<typeof setTimeout> | undefined;
+  const settle = () => {
+    const raw = where.hidden();
+    if (raw === settled) {
+      changedAt = undefined;
+      if (pending !== undefined) clearTimeout(pending);
+      pending = undefined;
+      return;
+    }
+    const at = now();
+    changedAt ??= at;
+    const left = settleMs - (at - changedAt);
+    if (left <= 0) {
+      settled = raw;
+      changedAt = undefined;
+      return;
+    }
+    if (pending !== undefined) clearTimeout(pending);
+    pending = setTimeout(() => {
+      pending = undefined;
+      sync();
+    }, left);
+  };
   const close = () => {
     const current = shown;
     shown = undefined;
@@ -92,10 +122,11 @@ export function watchCallPresence(options: CallPresenceOptions): () => void {
       current.close();
     } catch {}
   };
-  const sync = () => {
+  function sync(): void {
     const snapshot = options.call.snapshot();
     const place = snapshot.place;
-    const hidden = where.hidden();
+    settle();
+    const hidden = settled;
     if (!hidden) answered = undefined;
     if (
       place === undefined ||
@@ -137,13 +168,14 @@ export function watchCallPresence(options: CallPresenceOptions): () => void {
     };
     shown = created;
     shownFor = key;
-  };
+  }
   const unsubscribe = options.call.subscribe(sync);
   const unwatch = where.subscribe(sync);
   sync();
   return () => {
     unsubscribe();
     unwatch();
+    if (pending !== undefined) clearTimeout(pending);
     close();
   };
 }

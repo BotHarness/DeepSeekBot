@@ -609,6 +609,7 @@ describe('desktop call in the background', () => {
     const opened: string[] = [];
     let focused = 0;
     const stop = watchCallPresence({
+      settleMs: 0,
       call: mac.call,
       doc: page.doc,
       notice: () => notices.factory,
@@ -655,6 +656,7 @@ describe('desktop call in the background', () => {
     const page = presenceDoc();
     const notices = presenceNotices();
     const stop = watchCallPresence({
+      settleMs: 0,
       call: mac.call,
       doc: page.doc,
       notice: () => notices.factory,
@@ -674,14 +676,11 @@ describe('desktop call in the background', () => {
     const page = presenceDoc();
     const notices = presenceNotices();
     cleanup.push(
-      watchCallPresence({
-        call: mac.call,
-        doc: page.doc,
-        notice: () => undefined,
-      }),
+      watchCallPresence({ settleMs: 0, call: mac.call, doc: page.doc, notice: () => undefined }),
     );
     cleanup.push(
       watchCallPresence({
+        settleMs: 0,
         call: mac.call,
         doc: page.doc,
         notice: () => notices.factory,
@@ -693,7 +692,9 @@ describe('desktop call in the background', () => {
     page.set('visible');
     await mac.call.hangup();
     const silent = desktopWindow(fetcher, 'window-bg-0004');
-    cleanup.push(watchCallPresence({ call: silent.call, doc: page.doc, notice: () => undefined }));
+    cleanup.push(
+      watchCallPresence({ settleMs: 0, call: silent.call, doc: page.doc, notice: () => undefined }),
+    );
     await silent.call.start('mira', { title: 'x', body: 'y', open: () => undefined });
     page.set('hidden');
     expect(notices.shown).toHaveLength(0);
@@ -706,6 +707,7 @@ describe('desktop call in the background', () => {
     const notices = presenceNotices();
     cleanup.push(
       watchCallPresence({
+        settleMs: 0,
         call: mac.call,
         doc: page.doc,
         notice: () => notices.factory,
@@ -746,6 +748,57 @@ describe('desktop call in the background', () => {
     expect(requests).toEqual([
       { url: './api/botharness/desktop-window', body: { action: 'reveal' } },
     ]);
+  });
+  it('ignores brief visibility flips, so a covered or flickering window gets one notice', async () => {
+    vi.useFakeTimers();
+    cleanup.push(() => vi.useRealTimers());
+    const { fetcher } = host();
+    const mac = desktopWindow(fetcher, 'window-bg-0008');
+    const page = presenceDoc();
+    const notices = presenceNotices();
+    let clock = 0;
+    cleanup.push(
+      watchCallPresence({
+        call: mac.call,
+        doc: page.doc,
+        notice: () => notices.factory,
+        focus: () => undefined,
+        settleMs: 1_500,
+        now: () => clock,
+      }),
+    );
+    await mac.call.start('mira', { title: 'On a call with Mira', body: '', open: () => undefined });
+    const step = async (ms: number) => {
+      clock += ms;
+      await vi.advanceTimersByTimeAsync(ms);
+    };
+    page.set('hidden');
+    await step(500);
+    page.set('visible');
+    await step(500);
+    expect(notices.shown).toHaveLength(0);
+    page.set('hidden');
+    await step(1_600);
+    expect(notices.shown).toHaveLength(1);
+    page.set('visible');
+    await step(400);
+    page.set('hidden');
+    await step(2_000);
+    expect(notices.shown).toHaveLength(1);
+    expect(notices.shown[0]?.closed).toBe(false);
+    notices.shown[0]?.handle.onclose?.(new Event('close'));
+    page.set('visible');
+    await step(300);
+    page.set('hidden');
+    await step(2_000);
+    expect(notices.shown).toHaveLength(1);
+    page.set('visible');
+    await step(1_600);
+    page.set('hidden');
+    await step(1_600);
+    expect(notices.shown).toHaveLength(2);
+    await mac.call.hangup();
+    expect(notices.shown[1]?.closed).toBe(true);
   });
   it('asks for notification permission only while it is undecided', async () => {
     const requests: string[] = [];
