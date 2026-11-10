@@ -35,6 +35,7 @@ export interface RelayOptions {
   fetchHost?: typeof fetch;
   now?: () => Date;
   hostId?: () => string;
+  ownsLabel?: (label: string) => boolean;
 }
 
 interface PoolStatus {
@@ -197,10 +198,15 @@ function changes(result: unknown): number {
   return value?.meta?.changes ?? value?.changes ?? 0;
 }
 
+export const TEST_LABEL_PREFIX = 'hzzzz';
+
 export function randomHostId(): string {
   const alphabet = 'abcdefghijklmnopqrstuvwxyz234567';
-  const bytes = crypto.getRandomValues(new Uint8Array(12));
-  return `h${Array.from(bytes, (byte) => alphabet[byte % 32]).join('')}`;
+  for (;;) {
+    const bytes = crypto.getRandomValues(new Uint8Array(12));
+    const id = `h${Array.from(bytes, (byte) => alphabet[byte % 32]).join('')}`;
+    if (!id.startsWith(TEST_LABEL_PREFIX)) return id;
+  }
 }
 
 function validName(value: unknown): value is string {
@@ -216,6 +222,7 @@ export function createRelay(options: RelayOptions) {
   const { db, tunnels } = options;
   const now = options.now ?? (() => new Date());
   const nextHostId = options.hostId ?? randomHostId;
+  const ownsLabel = options.ownsLabel ?? ((label: string) => !label.startsWith(TEST_LABEL_PREFIX));
   const activity = createActivityRegistry(db, options.activitySender, now);
   const allowAll = options.allowedUsers.length === 0 || options.allowedUsers.includes('*');
   const defaultZone = options.zone;
@@ -489,23 +496,32 @@ export function createRelay(options: RelayOptions) {
     throw new RelayFull('pool-full', await queuePosition(current));
   };
 
-  const chooseZone = async (current: HostRow, accepted: ReadonlySet<string>) => {
-    if (current.zone !== null) return current.zone;
-    const clock = now().getTime();
-    const usable = zones.filter(
-      (zone) =>
-        (zone === defaultZone || accepted.has(zone)) && (quotaUntil.get(zone) ?? 0) <= clock,
-    );
-    if (usable.length === 0) return defaultZone;
-    if (usable.length === 1) return usable[0] as string;
+  const zoneUse = async () => {
     const { results } = await db
       .prepare(
         'SELECT COALESCE(zone, ?) AS zone, COUNT(*) AS n FROM hosts WHERE tunnel_id IS NOT NULL OR dns_record_id IS NOT NULL GROUP BY COALESCE(zone, ?)',
       )
       .bind(defaultZone, defaultZone)
       .all<{ zone: string; n: number }>();
-    const used = new Map(results.map((entry) => [entry.zone, entry.n]));
-    return pickZone(usable, used, limitOf) ?? defaultZone;
+    return new Map(results.map((entry) => [entry.zone, entry.n]));
+  };
+
+  const usableZones = (accepted: ReadonlySet<string>, avoid?: string) => {
+    const clock = now().getTime();
+    return zones.filter(
+      (zone) =>
+        zone !== avoid &&
+        (zone === defaultZone || accepted.has(zone)) &&
+        (quotaUntil.get(zone) ?? 0) <= clock,
+    );
+  };
+
+  const chooseZone = async (current: HostRow, accepted: ReadonlySet<string>) => {
+    if (current.zone !== null) return current.zone;
+    const usable = usableZones(accepted);
+    if (usable.length === 0) return defaultZone;
+    if (usable.length === 1) return usable[0] as string;
+    return pickZone(usable, await zoneUse(), limitOf) ?? defaultZone;
   };
 
   const provision = async (row: HostRow, originPort: number, accepted: ReadonlySet<string>) => {
@@ -568,6 +584,20 @@ export function createRelay(options: RelayOptions) {
             .run();
         await markWaiting(current);
         throw new RelayFull('zone-full', await queuePosition(current));
+      }
+      if (current.dns_record_id === null && zoneOf(current) !== defaultZone) {
+        log('connect-zone-failed', { host: current.id, zone: zoneOf(current) });
+        quotaUntil.set(zoneOf(current), now().getTime() + 10 * 60 * 1000);
+        await db
+          .prepare(
+            'UPDATE hosts SET zone = ? WHERE id = ? AND dns_record_id IS NULL AND tunnel_id IS NULL AND zone = ?',
+          )
+          .bind(
+            pickZone(usableZones(accepted, zoneOf(current)), await zoneUse(), limitOf) ?? null,
+            current.id,
+            zoneOf(current),
+          )
+          .run();
       }
       throw error;
     }
@@ -1204,7 +1234,7 @@ export function createRelay(options: RelayOptions) {
       if (records === undefined) continue;
       for (const record of records) {
         const match = HOST_LABEL.exec(record.name.toLowerCase());
-        if (match === null || match[2] !== zone) continue;
+        if (match === null || match[2] !== zone || !ownsLabel(match[1] as string)) continue;
         const row = rowByLabel.get(match[1] as string);
         const live =
           row !== undefined &&

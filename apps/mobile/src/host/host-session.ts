@@ -94,6 +94,7 @@ function publishFeeds(): void {
   scheduleAlerts();
 }
 
+const localAlerts = connectionMode.supported || Platform.OS === 'ios';
 const deviceAlerts = createDeviceAlerts(connectionMode, {
   ready: notificationPreferences.ready,
   failed: () => connectionMode.reportAlertFailure(),
@@ -134,21 +135,22 @@ const deviceAlerts = createDeviceAlerts(connectionMode, {
   },
 });
 function scheduleAlerts(): void {
-  if (!connectionMode.supported) return;
-  connectionMode.updateSummary(
-    connectionSummary(
-      feeds.map((host) => ({
-        hostId: host.saved.hostId,
-        enabled: connectionLifetime.backgroundAllowed(host.client),
-        snapshot: host.snapshot,
-        attention: host.attention,
-      })),
-    ),
-    locale,
-  );
+  if (!localAlerts) return;
+  if (connectionMode.supported)
+    connectionMode.updateSummary(
+      connectionSummary(
+        feeds.map((host) => ({
+          hostId: host.saved.hostId,
+          enabled: connectionLifetime.backgroundAllowed(host.client),
+          snapshot: host.snapshot,
+          attention: host.attention,
+        })),
+      ),
+      locale,
+    );
   deviceAlerts.refresh();
 }
-if (connectionMode.supported) notificationPreferences.subscribe(scheduleAlerts);
+if (localAlerts) notificationPreferences.subscribe(scheduleAlerts);
 attentionFocus.subscribe(() => {
   alertBanners.discard((alert) => attentionFocus.covers(alert.data));
   scheduleAlerts();
@@ -223,7 +225,7 @@ export const pushSession = createPushSession({
 function reflectInbox(hostId: string, inbox: Inbox): void {
   const snapshot = inbox.getSnapshot();
   if (snapshot.status !== 'ready') return;
-  if (connectionMode.supported && snapshot.notificationItems === undefined) return;
+  if (localAlerts && snapshot.notificationItems === undefined) return;
   const unresolved = new Set(
     (snapshot.notificationItems ?? snapshot.sections.action)
       .filter((item) => item.category === 'action')
@@ -298,7 +300,7 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
   });
   clientHosts.set(client, saved.hostId);
   warmHostConversations(saved.hostId);
-  const inbox = createInbox(client, { notifications: connectionMode.supported });
+  const inbox = createInbox(client, { notifications: localAlerts });
   const offInbox = inbox.subscribe(() => {
     reflectInbox(saved.hostId, inbox);
     publishFeeds();
@@ -353,7 +355,7 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
             client.getSnapshot().connection.status !== 'refused'
           ) {
             setHostDelivery(saved.hostId, settings.delivery, revision);
-            if (!connectionMode.supported) return;
+            if (!localAlerts) return;
             quietChannels.set(saved.hostId, settings.quietChannelIds);
             setHostNotificationsEnabled(saved.hostId, settings.enabled);
           }

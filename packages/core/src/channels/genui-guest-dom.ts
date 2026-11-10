@@ -180,7 +180,7 @@ function createDom(html: string, initial: GenuiDocumentState, stateful: boolean)
     },
     restore: (next: GenuiDocumentState) => {
       state = clone(next);
-      environment.dispatchEvent(new environment.Event('genui:state'));
+      document.dispatchEvent(new environment.Event('genui:state', { bubbles: true }));
     },
     theme: (theme: 'light' | 'dark') => {
       document.documentElement.style.colorScheme = theme;

@@ -229,7 +229,8 @@ export function NotificationSettings({
             )}
           </SettingsSection>
         ) : null}
-        {preference?.preferences !== undefined || (on && settings?.enabled === true) ? (
+        {(preference?.preferences !== undefined || (on && settings?.enabled === true)) &&
+        settings?.enabled !== false ? (
           <SettingsSection
             on="raised"
             title={t.notifyAbout}

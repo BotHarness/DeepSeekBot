@@ -1393,9 +1393,10 @@ describe('chat list chrome', () => {
     const list = view.querySelector<HTMLElement>('[data-testid="chat-list"]')!;
     expect(list.dataset['insetBottom']).toBe('-34');
     expect(list.dataset['dismiss']).toBe('on-drag');
+    expect(list.dataset['persistTaps']).toBe('never');
   });
 
-  it('dismisses the keyboard interactively on iOS', async () => {
+  it('dismisses the keyboard interactively and on a tap anywhere in the list on iOS', async () => {
     const os = Platform.OS;
     Object.assign(Platform, { OS: 'ios' });
     try {
@@ -1403,6 +1404,7 @@ describe('chat list chrome', () => {
       const view = await render({ kind: 'dm', slug: 'gone' });
       const list = view.querySelector<HTMLElement>('[data-testid="chat-list"]')!;
       expect(list.dataset['dismiss']).toBe('interactive');
+      expect(list.dataset['persistTaps']).toBe('never');
     } finally {
       Object.assign(Platform, { OS: os });
     }

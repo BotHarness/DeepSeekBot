@@ -2,6 +2,7 @@ import {
   useId,
   useRef,
   useState,
+  useSyncExternalStore,
   type CSSProperties,
   type ReactElement,
   type RefObject,
@@ -12,6 +13,7 @@ import { COMMUNITY } from './community-links.js';
 import { CommunityIcon } from './community-icons.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { Tooltip } from './ds/tooltip.js';
+import { hostAcknowledgements } from './host-acknowledgements.js';
 import { useMountedResource } from './mounted-resource.js';
 import type { BotHarnessTranslate } from './locale.js';
 
@@ -19,7 +21,11 @@ export const TESTFLIGHT_URL = 'https://testflight.apple.com/join/sA9EznXr';
 
 const SEEN_KEY = 'botharness/mobile-apps/seen';
 
+const SEEN_ACK = 'mobile-apps';
+
 export function mobileAppsSeen(): boolean {
+  const acks = hostAcknowledgements();
+  if (acks !== undefined) return acks.value(SEEN_ACK, SEEN_KEY) !== undefined || !acks.settled;
   try {
     return localStorage.getItem(SEEN_KEY) === '1';
   } catch {
@@ -28,14 +34,25 @@ export function mobileAppsSeen(): boolean {
 }
 
 function markMobileAppsSeen(): void {
+  const acks = hostAcknowledgements();
+  if (acks !== undefined) {
+    acks.record(SEEN_ACK, '1', SEEN_KEY);
+    return;
+  }
   try {
     localStorage.setItem(SEEN_KEY, '1');
   } catch {}
 }
 
+const noAcknowledgements = (): (() => void) => () => {};
+const noRevision = (): number => 0;
+
 export function MobileAppsEntry({ t }: { t: BotHarnessTranslate }): ReactElement {
   const trigger = useRef<HTMLButtonElement>(null);
-  const [seen, setSeen] = useState(mobileAppsSeen);
+  const acks = hostAcknowledgements();
+  useSyncExternalStore(acks?.subscribe ?? noAcknowledgements, acks?.getRevision ?? noRevision);
+  const [dismissed, setSeen] = useState(false);
+  const seen = dismissed || mobileAppsSeen();
   const [open, setOpen] = useState(false);
   const show = () => {
     markMobileAppsSeen();

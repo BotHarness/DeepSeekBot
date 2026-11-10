@@ -29,6 +29,49 @@ Native mobile checks use the assigned [shared-device queue](../../../../docs/age
 
 ## Observable proof
 
+### Android native latest anchor (#3868)
+
+In an assigned Windows batch, rebuild for each lane's ABI with `LatestAnchor` included.
+Run `:latest-anchor:testDebugUnitTest` from the generated Android project. Compare the
+same build with the default native path and Metro restarted with
+`EXPO_PUBLIC_FOLLOW_LATEST=js`. Keep Android mVCP enabled in both variants.
+
+On both emulator and phone, record sending at the bottom, a new Bot reply, a long
+Streaming reply, and reading-chip start/stop on the final message. Restore Full bubble
+after the streaming scenario. Also check history hold, explicit Jump to latest,
+keyboard/composer resizing and animator duration scale zero; restore original settings.
+Use repeatable fixtures and matched native/JS trials rather than different model replies.
+
+Handoff v2 adds these required scenarios on both lanes and both paths:
+
+- Send a long multiline draft with the keyboard open, then closed. Track the newest
+  bubble's bottom edge relative to the composer throughout collapse; fail steps or
+  delayed jumps, and confirm the flying text remains visible throughout the send.
+- Delay server confirmation, then commit the pending Human message. Its local time
+  row must already be present, with the check hidden until commit; bubble height
+  must not change. Check the failed state as well. This shared fix is in #3901.
+- Flick away from the bottom with small release velocity, then return to the bottom.
+  The latest arrow must clear even when no momentum-start event follows the drag
+  (#3889 uses a 120 ms fallback). Also verify a real fling retains history ownership.
+
+The shared fixes in #3889, #3894, #3896 and #3901 require Android checks, not duplicate
+implementations. Keep `nativeSpacer = !android && LatestAnchor !== undefined` unchanged
+until the multiline-send measurement proves Android needs a spacer. If needed, place
+it in the inverted list's header, add an A/B switch and remeasure. Do not copy iOS
+shrink glue without a measured Android shrink jump. Record separate list displacement,
+composer edge, bubble edge and bubble height: list-only correlation cannot prove a
+stable bubble/composer gap or stable timestamp-row height.
+
+Capture scrcpy clips, retain original timestamps and extract 60 fps frames with ffmpeg.
+Cross-correlate neighbouring frames in a fixed list-only crop, excluding the composer
+and changing stream text. Record frame timestamp, vertical displacement, correlation
+confidence, cumulative displacement and end visibility in a per-frame table. Count
+frames to the end, direction reversals and stalls inside the glide; flag duplicated
+capture frames and low-confidence comparisons instead of treating them as app stalls.
+Confirm the final message is above the composer. The reading chip must not move rows.
+Capture light/dark screenshots and publish redacted before/after clips through
+`pnpm evidence:publish`. Report each lane separately; unit tests are not native acceptance.
+
 Record the source/head, installed binary, actual actions, visible result and canonical readback for sends/creation. First-frame history behavior needs a recording or equivalent frame evidence. Label each case PASS, FAIL or UNTESTED separately for iOS, Android, Simulator and physical/Human checks. Restore assigned fixtures/settings and verify task-owned processes and ports are released.
 
 ## Gotchas

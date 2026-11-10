@@ -496,6 +496,15 @@ describe('Host call owner', () => {
     );
   });
 
+  it('revokes the canonical device call independently of its transport connection', async () => {
+    const { media, state } = fakeMedia();
+    const h = harness({ media });
+    const callId = await connected(h);
+    await h.calls.revoke(h.phone.deviceId!);
+    expect(await view(h, callId)).toMatchObject({ phase: 'ended', endReason: 'connection-lost' });
+    expect(state.closed).toBe(1);
+  });
+
   it('ends a call whose phone stops sending heartbeats, keeping what was already sent', async () => {
     const { media, state } = fakeMedia();
     const h = harness({ media });

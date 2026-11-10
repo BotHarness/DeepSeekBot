@@ -25,6 +25,17 @@ remain failures to investigate. An admitted future version is not a tested versi
 The current oldest concrete qualification target is `0.2.0-rc.2`; the broader
 admission floor does not establish runtime evidence for earlier prereleases.
 
+## 0. The canary sees new releases first
+
+`.github/workflows/dsh-canary.yml` runs `node scripts/dsh-canary.mjs run` once for each new
+version on the DSH `next` dist-tag: it starts the Tobs Bundle on that Host, creates a Bot, sends a
+DM and requires the turn to reach the model (`MISSING_CREDENTIAL` without a key counts as passed).
+A setup error or any `botharness.host_capability.degraded` diagnostic row fails it. A red canary is
+the trigger for this runbook. Run it locally with `--dsh-version <version>`; it uses the AX model
+when one is configured. Host API access, optional/required capability tiers and the
+`HOST_INCOMPATIBLE` failure are defined in
+[ADR-0316](../adr/0316-host-capabilities-degrade-or-fail-with-host-incompatible.md).
+
 ## 1. Establish the upstream and product baseline
 
 Read the official release notes, source comparison and published package manifests.

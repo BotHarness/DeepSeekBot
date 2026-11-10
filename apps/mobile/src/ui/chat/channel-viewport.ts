@@ -27,7 +27,7 @@ export function useChannelViewport<Row>(
     !reducedMotion,
     minIndexForVisible,
     inverted,
-    !inverted && LatestAnchor !== undefined,
+    LatestAnchor !== undefined,
   );
   const overlayStyle = useChatOverlayStyle();
   const renderScrollComponent = useChatScrollAdapter(latest.keyboard, latest.away);

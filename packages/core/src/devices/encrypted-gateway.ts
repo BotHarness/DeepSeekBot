@@ -64,6 +64,28 @@ function pathAllowed(path: string): boolean {
   );
 }
 
+type CloseTrigger =
+  | 'socket-close'
+  | 'socket-error'
+  | 'send-failed'
+  | 'queue-limit'
+  | 'stream-error'
+  | 'revoked'
+  | 'idle-timeout'
+  | 'handshake-timeout'
+  | 'gateway-dispose'
+  | 'invalid-frame'
+  | 'request-failed'
+  | 'refused';
+export interface CallChannelDiagnostic {
+  channelId: string;
+  route: 'connect' | 'lan';
+  phase: 'channel-close' | 'abandoned-open-cleanup' | 'hangup-request';
+  trigger: CloseTrigger | 'request-cancelled' | 'device-command';
+  callId?: string;
+}
+let nextCallChannel = 0;
+
 export function createEncryptedGateway(options: {
   pairing: DevicePairing;
   route?: 'connect' | 'lan';
@@ -71,6 +93,7 @@ export function createEncryptedGateway(options: {
   port(): number;
   changed?: (state: { negotiating: number; encrypted: number }) => void;
   log?: (phase: string) => void;
+  callDiagnostic?: (event: CallChannelDiagnostic) => void;
   localVideo?: (input: {
     deviceId: string;
     command: unknown;
@@ -122,26 +145,45 @@ export function createEncryptedGateway(options: {
     const requests = new Map<string, () => void>();
     let videoBinding: LocalVideoBinding | undefined;
     let videoPending = 0;
-    const callIds = new Set<string>();
+    const observedCalls = new Set<string>();
+    const channelId = `channel-${++nextCallChannel}`;
+    let diagnosticCount = 0;
+    let closeTrigger: CloseTrigger | undefined;
+    const diagnostic = (
+      phase: CallChannelDiagnostic['phase'],
+      trigger: CallChannelDiagnostic['trigger'],
+      callId?: string,
+    ) => {
+      if (!options.callDiagnostic || diagnosticCount >= (phase === 'channel-close' ? 64 : 32))
+        return;
+      diagnosticCount++;
+      try {
+        options.callDiagnostic({
+          channelId,
+          route: options.route ?? 'connect',
+          phase,
+          trigger,
+          ...(callId !== undefined && /^call-[a-f0-9]{1,64}$/u.test(callId) ? { callId } : {}),
+        });
+      } catch {}
+    };
     let callPending = 0;
-    const hangUpCalls = () => {
+    const abandonOpen = (callId: string) => {
       const dispatch = options.voiceCall;
       if (!dispatch) return;
-      for (const callId of callIds) {
-        const abort = new AbortController();
-        const timer = setTimeout(() => abort.abort(), LOCAL_VIDEO_LIMITS.cleanupTimeoutMs);
-        void Promise.resolve()
-          .then(() =>
-            dispatch({
-              deviceId: deviceId!,
-              command: { kind: 'hangup', callId },
-              signal: abort.signal,
-            }),
-          )
-          .catch(() => {})
-          .finally(() => clearTimeout(timer));
-      }
-      callIds.clear();
+      diagnostic('abandoned-open-cleanup', closeTrigger ?? 'request-cancelled', callId);
+      const abort = new AbortController();
+      const timer = setTimeout(() => abort.abort(), LOCAL_VIDEO_LIMITS.cleanupTimeoutMs);
+      void Promise.resolve()
+        .then(() =>
+          dispatch({
+            deviceId: deviceId!,
+            command: { kind: 'hangup', callId },
+            signal: abort.signal,
+          }),
+        )
+        .catch(() => {})
+        .finally(() => clearTimeout(timer));
     };
     const closeVideo = (binding: LocalVideoBinding) => {
       const dispatch = options.localVideo;
@@ -159,9 +201,12 @@ export function createEncryptedGateway(options: {
         .catch(() => {})
         .finally(() => clearTimeout(timer));
     };
-    const close = () => {
+    const close = (trigger: CloseTrigger) => {
       if (closed) return;
       closed = true;
+      closeTrigger = trigger;
+      if (observedCalls.size === 0 && callPending > 0) diagnostic('channel-close', trigger);
+      for (const callId of observedCalls) diagnostic('channel-close', trigger, callId);
       clearTimeout(deadline);
       clearInterval(keepalive);
       detach?.();
@@ -172,36 +217,42 @@ export function createEncryptedGateway(options: {
       requests.clear();
       if (videoBinding) closeVideo(videoBinding);
       videoBinding = undefined;
-      hangUpCalls();
-      active.delete(close);
+      observedCalls.clear();
+      active.delete(dispose);
       if (admitted) encrypted--;
       else negotiating--;
       changed();
       socket.terminate();
     };
-    const deadline = setTimeout(close, DEADLINE);
+    const deadline = setTimeout(() => close('handshake-timeout'), DEADLINE);
     let lastMessage = Date.now();
     const keepalive = setInterval(() => {
-      if (Date.now() - lastMessage > 60_000) close();
+      if (Date.now() - lastMessage > 60_000) close('idle-timeout');
     }, 15_000);
-    active.add(close);
+    const dispose = () => close('gateway-dispose');
+    active.add(dispose);
     negotiating++;
     changed();
-    const send = (value: unknown) => {
-      if (closed || socket.readyState !== WebSocket.OPEN) return;
+    const send = (value: unknown): boolean => {
+      if (closed || socket.readyState !== WebSocket.OPEN) return false;
       try {
         for (const frame of channel.send(JSON.stringify(value))) {
-          if (socket.bufferedAmount + frame.length > QUEUE_LIMIT) return close();
+          if (socket.bufferedAmount + frame.length > QUEUE_LIMIT) {
+            close('queue-limit');
+            return false;
+          }
           socket.send(frame);
         }
+        return true;
       } catch {
-        close();
+        close('send-failed');
+        return false;
       }
     };
     const refuse = (code: string) => {
       send({ type: 'refused', code });
       socket.close(1008, 'channel-refused');
-      setTimeout(close, 100).unref();
+      setTimeout(() => close('refused'), 100).unref();
     };
     const video = (id: string, input: Record<string, unknown>) => {
       const respond = (result: LocalVideoResult) =>
@@ -412,6 +463,17 @@ export function createEncryptedGateway(options: {
           error: 'The call command must be JSON.',
         });
       }
+      if (
+        typeof command === 'object' &&
+        command !== null &&
+        'kind' in command &&
+        command.kind === 'hangup'
+      )
+        diagnostic(
+          'hangup-request',
+          'device-command',
+          'callId' in command && typeof command.callId === 'string' ? command.callId : undefined,
+        );
       const abort = new AbortController();
       const cancel = () => {
         abort.abort();
@@ -442,15 +504,32 @@ export function createEncryptedGateway(options: {
         .then(
           (result) => {
             if (result.ok && result.call !== undefined) {
-              if (result.call.phase === 'ended') callIds.delete(result.call.callId);
+              if (result.call.phase === 'ended') observedCalls.delete(result.call.callId);
               else if (closed || abort.signal.aborted) {
-                callIds.add(result.call.callId);
-                hangUpCalls();
-              } else callIds.add(result.call.callId);
+                if (
+                  typeof command === 'object' &&
+                  command !== null &&
+                  'kind' in command &&
+                  command.kind === 'open'
+                )
+                  abandonOpen(result.call.callId);
+              } else if (options.callDiagnostic && observedCalls.size < 32)
+                observedCalls.add(result.call.callId);
             }
             if (requests.get(id) !== cancel) return;
             requests.delete(id);
-            respond(result);
+            const queued = respond(result);
+            if (
+              !queued &&
+              result.ok &&
+              result.call !== undefined &&
+              result.call.phase !== 'ended' &&
+              typeof command === 'object' &&
+              command !== null &&
+              'kind' in command &&
+              command.kind === 'open'
+            )
+              abandonOpen(result.call.callId);
           },
           () => {
             if (requests.get(id) !== cancel) return;
@@ -510,7 +589,7 @@ export function createEncryptedGateway(options: {
             size += chunk.length;
             if (size > BODY_LIMIT) {
               upstream.destroy();
-              close();
+              close('request-failed');
             } else chunks.push(chunk);
           });
           response.on('end', () => {
@@ -525,7 +604,7 @@ export function createEncryptedGateway(options: {
                 body: Buffer.concat(chunks).toString('base64'),
               });
           });
-          response.on('error', close);
+          response.on('error', () => close('request-failed'));
         },
       );
       const cancel = () => upstream.destroy();
@@ -598,11 +677,11 @@ export function createEncryptedGateway(options: {
         encrypted++;
         changed();
         deviceId = admission.device.id;
-        detach = options.pairing.attachStream(deviceId, close);
+        detach = options.pairing.attachStream(deviceId, () => close('revoked'));
         send({ type: 'admitted' });
         return;
       }
-      if (!options.pairing.check(deviceId!).ok) return close();
+      if (!options.pairing.check(deviceId!).ok) return close('revoked');
       if (type === 'ping') return send({ type: 'pong' });
       if (type === 'request') return forward(input);
       const id = field(input, 'id');
@@ -641,7 +720,7 @@ export function createEncryptedGateway(options: {
           send({ type: 'closed', id });
         });
         stream.on('error', () => {
-          if (streams.get(id) === stream) close();
+          if (streams.get(id) === stream) close('stream-error');
         });
       } else if (type === 'send') {
         const stream = streams.get(id),
@@ -665,7 +744,7 @@ export function createEncryptedGateway(options: {
       queuedBytes = 0;
     socket.on('message', (data, binary) => {
       try {
-        if (binary) return close();
+        if (binary) return close('invalid-frame');
         lastMessage = Date.now();
         const result = channel.receive(data.toString());
         if (result.reply) socket.send(result.reply);
@@ -673,7 +752,7 @@ export function createEncryptedGateway(options: {
         if (result.message !== undefined) {
           const size = result.message.length;
           queuedBytes += size;
-          if (++queued > 32 || queuedBytes > 16 * 1024 * 1024) return close();
+          if (++queued > 32 || queuedBytes > 16 * 1024 * 1024) return close('invalid-frame');
           const input = record(JSON.parse(result.message));
           operations = operations
             .then(async () => {
@@ -688,7 +767,7 @@ export function createEncryptedGateway(options: {
                 if (!closed && credit !== undefined) send({ type: 'ack', credit });
               }
             })
-            .catch(() => close())
+            .catch(() => close('invalid-frame'))
             .finally(() => {
               queued--;
               queuedBytes -= size;
@@ -696,11 +775,11 @@ export function createEncryptedGateway(options: {
         }
       } catch {
         options.log?.('refused');
-        close();
+        close('invalid-frame');
       }
     });
-    socket.on('close', close);
-    socket.on('error', close);
+    socket.on('close', () => close('socket-close'));
+    socket.on('error', () => close('socket-error'));
   };
   return {
     async upgrade(request: IncomingMessage, socket: Duplex, head: Buffer): Promise<void> {

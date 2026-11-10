@@ -104,6 +104,22 @@ describe('GenUI bounded guest DOM adapter', () => {
     expect(() => guest.restore({ version: 1, values: { injected: true } })).toThrow();
   });
 
+  it.each(['window', 'document'])(
+    'redraws a document that listens for restoration on %s',
+    async (target) => {
+      const guest = await open(
+        `<p id="out">none</p><script>${target}.addEventListener('genui:state',()=>{document.getElementById('out').textContent=window.genui.getState().filter})</script>`,
+      );
+      guest.restore({
+        version: 1,
+        values: { ...guest.snapshot().state.values, filter: 'restored' },
+      });
+      expect(parseHTML(guest.snapshot().html).document.querySelector('#out')?.textContent).toBe(
+        'restored',
+      );
+    },
+  );
+
   it('extracts executable scripts through the parser rather than a source regexp', async () => {
     const guest = await open(
       `<html><head><script id="data" type="application/json">{"text":"executed"}</script></head><body><p id="result"></p><SCRIPT type="text/javascript">document.querySelector('#result').textContent=JSON.parse(document.querySelector('#data').textContent).text</SCRIPT></body></html>`,

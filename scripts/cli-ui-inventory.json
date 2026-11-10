@@ -565,9 +565,10 @@
         "storage:packages/client/src/client/onboarding.ts:setItem(key)",
         "storage:packages/client/src/client/onboarding.ts:removeItem('botharness/onboarding/sessions-return')",
         "storage:packages/client/src/client/onboarding.ts:setItem(`botharness/onboarding/layout-v2/${this.state.receipt.profileId}`)",
-        "storage:packages/client/src/client/onboarding.ts:setItem(introKey(receipt.profileId))"
+        "storage:packages/client/src/client/onboarding.ts:setItem(introKey(receipt.profileId))",
+        "storage:packages/client/src/client/host-acknowledgements.ts:setItem(key)"
       ],
-      "exemption": "Device-local tour anchors and seen markers are presentation state, not Host settings. Profile tutorial lifecycle is available through onboarding.",
+      "exemption": "Device-local tour anchors and local copies of seen markers are presentation state, not Host settings. Profile tutorial lifecycle is available through onboarding; Profile seen markers through acknowledgements and acknowledge.",
       "configurable": false
     },
     {
@@ -595,10 +596,10 @@
     },
     {
       "id": "ui-mobile-apps-hint",
-      "description": "The Control Rail's mobile app hint is shown once per device until opened or dismissed.",
+      "description": "The Control Rail's mobile app hint is shown once per Profile until opened or dismissed.",
       "scope": "Client transport / transient state",
       "surfaces": ["storage:packages/client/src/client/mobile-apps.tsx:setItem(SEEN_KEY)"],
-      "exemption": "A device-local seen marker for a presentation hint, not a Host setting; the entry only links to public TestFlight, Discord and QQ destinations.",
+      "exemption": "A local copy of the Profile seen marker for a presentation hint, not a Host setting; the marker is read and recorded with acknowledgements and acknowledge mobile-apps, and the entry only links to public TestFlight, Discord and QQ destinations.",
       "configurable": false
     },
     {

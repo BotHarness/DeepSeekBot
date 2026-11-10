@@ -758,6 +758,12 @@ export class BotharnessBridgeService extends TypertRemoteService {
   onboarding(slug?: string, action?: TutorialAction): Promise<OnboardingSnapshot> {
     return unwrapAsync(this.methods.onboarding({ slug, action }));
   }
+  acknowledgements(): { items: Record<string, string> } {
+    return unwrap(this.methods.acknowledgements({}));
+  }
+  acknowledge(key: string, value?: string): { key: string; value: string } {
+    return unwrap(this.methods.acknowledge(value === undefined ? { key } : { key, value }));
+  }
   onboardingModel(
     slug: string | undefined,
     expectedRevision: number,
@@ -2855,6 +2861,8 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'messagingSend',
   'tobHome',
   'onboarding',
+  'acknowledgements',
+  'acknowledge',
   'onboardingModel',
   'telemetryEvent',
   'modelPlanInherit',

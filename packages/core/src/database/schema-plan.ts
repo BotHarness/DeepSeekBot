@@ -3095,6 +3095,21 @@ const CALL_VISUAL_UNSAVED_MIGRATION: SchemaMigration = {
   },
 };
 
+const CLIENT_ACKNOWLEDGEMENT_MIGRATION: SchemaMigration = {
+  generation: 136,
+  module: 'bot-onboarding',
+  description: 'Remember one-time Client notices per Profile instead of per browser origin',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE client_acknowledgements (
+        ack_key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        recorded_at TEXT NOT NULL
+      );
+    `);
+  },
+};
+
 const CALL_VISUAL_TIMELINE_MIGRATION: SchemaMigration = {
   generation: 135,
   module: 'messaging',
@@ -3304,4 +3319,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   CALL_GRID_ROWS_MIGRATION,
   CALL_VISUAL_UNSAVED_MIGRATION,
   CALL_VISUAL_TIMELINE_MIGRATION,
+  CLIENT_ACKNOWLEDGEMENT_MIGRATION,
 ]);

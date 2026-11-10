@@ -86,6 +86,10 @@ import {
 } from './voice/skill.js';
 import { approveTobCliOperation } from './tob/cli-approval.js';
 import { onboardingNewsAvailable } from './onboarding/search.js';
+import {
+  createClientAcknowledgements,
+  type ClientAcknowledgements,
+} from './onboarding/acknowledgements.js';
 import { nativeTimedQuestions } from './channels/native-timed-questions.js';
 import { credentialStoreDenial } from './credentials/store-guard.js';
 import { secretCommandDenial } from './credentials/secret-command.js';
@@ -509,6 +513,7 @@ export interface BotHarnessCore {
   profileRecovery: ProfileRecovery;
   rootDir: string;
   onboarding: BotOnboarding;
+  acknowledgements: ClientAcknowledgements;
   tob: TobService;
   creations: BotCreationService;
   zipImports: BotZipImportService;
@@ -1280,6 +1285,9 @@ export function createCore(
     registry,
     channels,
   });
+  const acknowledgements = createClientAcknowledgements({
+    database: attachOperationalModule(operationalDatabase, 'bot-onboarding'),
+  });
   if (operationalDatabase.mode === 'ready') schedules.start();
   return {
     voiceProviders,
@@ -1291,6 +1299,7 @@ export function createCore(
     profileRecovery,
     contentPurge,
     onboarding,
+    acknowledgements,
     tob,
     creations,
     zipImports,
@@ -3035,6 +3044,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     modelCatalog,
     modelReadiness,
     onboarding: core.onboarding,
+    acknowledgements: core.acknowledgements,
     tob: core.tob,
     creations: core.creations,
     zipImports: core.zipImports,

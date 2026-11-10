@@ -10,7 +10,7 @@ import { createLanBotControl } from './bot-lan-control.js';
 import { createActivityDelivery, type ActivityDelivery } from '../live-activity/delivery.js';
 import type { ChannelSendStatus } from '../channels/store.js';
 import { createNoiseIdentity } from './noise-identity.js';
-import { createEncryptedGateway } from './encrypted-gateway.js';
+import { createEncryptedGateway, type CallChannelDiagnostic } from './encrypted-gateway.js';
 import { CONNECT_CHANNEL_PATH } from './noise/channel.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { credentialKey, type CredentialProvider } from '@deepseek-ai/dsh-credentials';
@@ -406,6 +406,12 @@ export function mountDevicePairing(
           localVideo: ({ deviceId, command, signal }) =>
             localVideoCommand(videoOwner(), { deviceId }, command, signal),
           voiceCall: ({ deviceId, command, signal }) => voiceCall({ deviceId }, command, signal),
+          ...(process.env.BOTHARNESS_CALL_DIAGNOSTICS === '1'
+            ? {
+                callDiagnostic: (event: CallChannelDiagnostic) =>
+                  write('voice', event.phase, JSON.stringify({ module: 'call-channel', ...event })),
+              }
+            : {}),
           log: (phase) => write('device-lan', phase, `device-lan phase=${phase}`),
         }),
       ...(options.botNetwork === undefined
@@ -544,6 +550,12 @@ export function mountDevicePairing(
       },
       verifyEnrollment: (body, signature) => account.verifyOffer(body, signature),
       log: (phase) => write('device-encryption', phase, `device-encryption phase=${phase}`),
+      ...(process.env.BOTHARNESS_CALL_DIAGNOSTICS === '1'
+        ? {
+            callDiagnostic: (event: CallChannelDiagnostic) =>
+              write('voice', event.phase, JSON.stringify({ module: 'call-channel', ...event })),
+          }
+        : {}),
     });
     webCtx.effect(
       () => () => {

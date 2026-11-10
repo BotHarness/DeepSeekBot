@@ -15,6 +15,7 @@ const FlatList = (props: {
   ListEmptyComponent?: ReactNode;
   contentInset?: { bottom?: number };
   keyboardDismissMode?: string;
+  keyboardShouldPersistTaps?: string;
 }) =>
   createElement(
     'div',
@@ -22,6 +23,7 @@ const FlatList = (props: {
       'data-testid': 'chat-list',
       'data-inset-bottom': props.contentInset?.bottom,
       'data-dismiss': props.keyboardDismissMode,
+      'data-persist-taps': props.keyboardShouldPersistTaps,
     },
     props.ListHeaderComponent ?? null,
     props.data.length === 0 ? (props.ListEmptyComponent ?? null) : null,

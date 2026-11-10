@@ -955,6 +955,38 @@ it('leaves settled growth to the native latest anchor but still pins the first p
   }
 });
 
+it('retains Android mVCP while native following owns growth and JS owns explicit jumps', () => {
+  const view = mount([message('latest', 'bot')], 0, false, true, true, true);
+  try {
+    act(() => {
+      view.current.listProps.onLayout(layout(LAYOUT));
+      view.current.listProps.onContentSizeChange(0, CONTENT);
+    });
+    flushFrames();
+    expect(view.current.ready).toBe(true);
+    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: 0, animated: false });
+    expect(view.current.listProps.maintainVisibleContentPosition).toEqual({
+      minIndexForVisible: 0,
+    });
+    view.scrollToOffset.mockClear();
+    act(() => view.current.listProps.onContentSizeChange(0, CONTENT + 60));
+    flushFrames();
+    expect(view.scrollToOffset).not.toHaveBeenCalled();
+    act(() => view.current.listProps.onScrollBeginDrag());
+    expect(view.current.away).toBe(true);
+    expect(view.current.listProps.maintainVisibleContentPosition).toEqual({
+      minIndexForVisible: 0,
+    });
+    act(() => view.current.jumpToLatest());
+    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: 0, animated: true });
+    expect(view.current.listProps.maintainVisibleContentPosition).toEqual({
+      minIndexForVisible: 0,
+    });
+  } finally {
+    view.unmount();
+  }
+});
+
 it('keeps native keyboard ownership even when streaming growth is animated', () => {
   const view = mount([message('latest', 'bot')], 0, false, true);
   try {
