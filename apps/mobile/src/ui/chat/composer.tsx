@@ -36,6 +36,7 @@ import {
 } from './composer-chrome';
 import { ComposerActionButton } from './composer-action';
 import { ComposerPillContext } from './composer-pill';
+import { useComposerBodyLayout } from './composer-layout';
 import { VoiceButton } from './voice-button';
 import { ComposerHold } from './composer-hold';
 import { DraftEditor } from './draft-editor';
@@ -222,6 +223,10 @@ export function Composer({
   const button = composerControl(theme);
   const inset = (bar - button) / 2;
   const corner = bar / 2;
+  const bodyLayout = useComposerBodyLayout(
+    space.x3 + Math.max(insets.bottom, space.x3),
+    footer !== undefined,
+  );
   const ownPill = useSharedValue(lineHeight + 2 * inset);
   const sharedPill = useContext(ComposerPillContext);
   const pillHeight = sharedPill?.height ?? ownPill;
@@ -431,7 +436,16 @@ export function Composer({
           }}
         />
       ) : null}
-      {editing ? null : above}
+      {bodyLayout.enabled ? (
+        <View
+          testID="composer-above"
+          onLayout={(event) => bodyLayout.measure('above', event.nativeEvent.layout.height)}
+        >
+          {editing ? null : above}
+        </View>
+      ) : editing ? null : (
+        above
+      )}
       <Text
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
@@ -452,16 +466,24 @@ export function Composer({
       <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: space.x3 }}>
         {integratedLeading ? null : leading}
         <Animated.View
+          testID="composer-pill"
           ref={holdPill}
           onLayout={(event) => sharedPill?.layout(event.nativeEvent.layout.height)}
-          style={[{ flex: 1, borderRadius: corner, overflow: 'hidden' }, pillStyle]}
+          style={[
+            { flex: 1, borderRadius: corner, overflow: 'hidden' },
+            bodyLayout.enabled ? { height: pill.height || lineHeight + 2 * inset } : pillStyle,
+          ]}
         >
           <ComposerFieldMaterial cornerRadius={corner} />
           <View
+            testID="composer-pill-content"
             style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}
             onLayout={(event) => {
               const { width, height } = event.nativeEvent.layout;
-              settlePill(height);
+              if (bodyLayout.enabled) {
+                bodyLayout.measure('pill', height);
+                pillHeight.value = height;
+              } else settlePill(height);
               setPill({ width, height });
             }}
           >
@@ -541,7 +563,11 @@ export function Composer({
       </View>
       {footer === undefined ? null : (
         <View
-          onLayout={(event) => setFooterHeight(event.nativeEvent.layout.height)}
+          onLayout={(event) => {
+            const height = event.nativeEvent.layout.height;
+            setFooterHeight(height);
+            if (bodyLayout.enabled) bodyLayout.measure('footer', height);
+          }}
           style={{ paddingTop: space.x2 }}
         >
           {footer}

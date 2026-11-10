@@ -103,6 +103,7 @@ import { ConversationTopBar } from './conversation-top-bar';
 import { ChatBackdrop } from './chat-backdrop';
 import { Composer, type ComposerInput } from './composer';
 import { ComposerFollower, ComposerPillContext, ComposerSpacer } from './composer-pill';
+import { ComposerLayoutContext, ComposerLayoutNotice, useComposerLayout } from './composer-layout';
 import { GroupUnavailable } from './group-unavailable';
 import { DraftSaveNotice } from './draft-save-notice';
 import { ClipboardImageOffer, useClipboardImage } from './clipboard-image';
@@ -702,7 +703,12 @@ function ChatConversation({
     },
     [conversation, latest],
   );
-  const { composerHeight, viewportHeight, viewportLayout } = latest;
+  const { viewportHeight, viewportLayout } = latest;
+  const composerLayout = useComposerLayout();
+  const synchronizedComposer = android && latest.reducedMotion;
+  const composerHeight = synchronizedComposer
+    ? (composerLayout.height ?? latest.composerHeight)
+    : latest.composerHeight;
   const stage = useMemo(
     () => ({
       registry: speakers,
@@ -1561,7 +1567,7 @@ function ChatConversation({
 
   const noticeView =
     notice === undefined ? null : (
-      <View
+      <ComposerLayoutNotice
         style={{
           marginTop: android ? 0 : headerOverlap + headerPadding,
           backgroundColor: theme.color.warningSoft,
@@ -1604,7 +1610,7 @@ function ChatConversation({
             </Text>
           </Pressable>
         ) : null}
-      </View>
+      </ComposerLayoutNotice>
     );
 
   const listTop = !android && notice === undefined ? headerPadding : 0;
@@ -1774,92 +1780,96 @@ function ChatConversation({
                 }
                 onComposerLayout={latest.onComposerLayout}
                 composer={
-                  <ComposerPillContext.Provider value={nativeSpacer ? latest.pill : undefined}>
-                    {android ? noticeView : null}
-                    {missingGroup ? null : selected !== undefined ? (
-                      <SelectionBar
-                        count={selected.length}
-                        onCancel={() => setPicked(undefined)}
-                        onCopy={() => copyMessage(selectionText(selected, visible))}
-                        onScreenshot={() =>
-                          setImageSelection({
-                            scope: selectionScope,
-                            messages: visible.filter((m) => selected.includes(m.id)),
-                          })
-                        }
-                      />
-                    ) : botDm ? (
-                      <View style={{ padding: space.x5, alignItems: 'center' }}>
-                        <Text variant="meta" tone="muted">
-                          {t.activityRow.botDm}
-                        </Text>
-                      </View>
-                    ) : (
-                      <Composer
-                        value={draft}
-                        disabled={
-                          conversation === undefined ||
-                          host.connection.status !== 'connected' ||
-                          !draftPersistence.loaded ||
-                          draftPersistence.failed
-                        }
-                        files={files}
-                        canAttach={files.length < MAX_PICKED}
-                        dictation={dictation.state.status}
-                        canDictate={conversation !== undefined}
-                        onChange={edit}
-                        selection={selection}
-                        onSelection={(next) => {
-                          setSelection(undefined);
-                          setCaret(next);
-                        }}
-                        above={
-                          <>
-                            {replyTarget === undefined ? null : (
-                              <ReplyBar
-                                message={replyTarget}
-                                botName={botName}
-                                onCancel={() => setReplying(undefined)}
-                              />
-                            )}
-                            {draftPersistence.failed ? (
-                              <DraftSaveNotice
-                                busy={retryingDraft}
-                                onRetry={() => void retryDraft()}
-                              />
-                            ) : null}
-                            {candidates.length > 0 ? (
-                              <MentionSuggestions candidates={candidates} onChoose={mention} />
-                            ) : clipboard.offered ? (
-                              <ClipboardImageOffer
-                                onUnreadable={clipboard.used}
-                                onPaste={(data) => {
-                                  clipboard.used();
-                                  setAttachError(false);
-                                  setFiles((current) =>
-                                    [...current, fromClipboardImage(data)].slice(0, MAX_PICKED),
-                                  );
-                                }}
-                              />
-                            ) : null}
-                          </>
-                        }
-                        onSend={send}
-                        onPick={pick}
-                        onRemove={(id) =>
-                          setFiles((current) => current.filter((file) => file.id !== id))
-                        }
-                        onDictate={() => {
-                          setAttachError(false);
-                          dictation.start({ text: draft, ...(typing ? { caret } : {}) });
-                        }}
-                        onStopDictation={dictation.stop}
-                        onCancelDictation={dictation.cancel}
-                        inputRef={composerInput}
-                        onFocusChange={setTyping}
-                      />
-                    )}
-                  </ComposerPillContext.Provider>
+                  <ComposerLayoutContext.Provider
+                    value={synchronizedComposer ? composerLayout.controller : undefined}
+                  >
+                    <ComposerPillContext.Provider value={nativeSpacer ? latest.pill : undefined}>
+                      {android ? noticeView : null}
+                      {missingGroup ? null : selected !== undefined ? (
+                        <SelectionBar
+                          count={selected.length}
+                          onCancel={() => setPicked(undefined)}
+                          onCopy={() => copyMessage(selectionText(selected, visible))}
+                          onScreenshot={() =>
+                            setImageSelection({
+                              scope: selectionScope,
+                              messages: visible.filter((m) => selected.includes(m.id)),
+                            })
+                          }
+                        />
+                      ) : botDm ? (
+                        <View style={{ padding: space.x5, alignItems: 'center' }}>
+                          <Text variant="meta" tone="muted">
+                            {t.activityRow.botDm}
+                          </Text>
+                        </View>
+                      ) : (
+                        <Composer
+                          value={draft}
+                          disabled={
+                            conversation === undefined ||
+                            host.connection.status !== 'connected' ||
+                            !draftPersistence.loaded ||
+                            draftPersistence.failed
+                          }
+                          files={files}
+                          canAttach={files.length < MAX_PICKED}
+                          dictation={dictation.state.status}
+                          canDictate={conversation !== undefined}
+                          onChange={edit}
+                          selection={selection}
+                          onSelection={(next) => {
+                            setSelection(undefined);
+                            setCaret(next);
+                          }}
+                          above={
+                            <>
+                              {replyTarget === undefined ? null : (
+                                <ReplyBar
+                                  message={replyTarget}
+                                  botName={botName}
+                                  onCancel={() => setReplying(undefined)}
+                                />
+                              )}
+                              {draftPersistence.failed ? (
+                                <DraftSaveNotice
+                                  busy={retryingDraft}
+                                  onRetry={() => void retryDraft()}
+                                />
+                              ) : null}
+                              {candidates.length > 0 ? (
+                                <MentionSuggestions candidates={candidates} onChoose={mention} />
+                              ) : clipboard.offered ? (
+                                <ClipboardImageOffer
+                                  onUnreadable={clipboard.used}
+                                  onPaste={(data) => {
+                                    clipboard.used();
+                                    setAttachError(false);
+                                    setFiles((current) =>
+                                      [...current, fromClipboardImage(data)].slice(0, MAX_PICKED),
+                                    );
+                                  }}
+                                />
+                              ) : null}
+                            </>
+                          }
+                          onSend={send}
+                          onPick={pick}
+                          onRemove={(id) =>
+                            setFiles((current) => current.filter((file) => file.id !== id))
+                          }
+                          onDictate={() => {
+                            setAttachError(false);
+                            dictation.start({ text: draft, ...(typing ? { caret } : {}) });
+                          }}
+                          onStopDictation={dictation.stop}
+                          onCancelDictation={dictation.cancel}
+                          inputRef={composerInput}
+                          onFocusChange={setTyping}
+                        />
+                      )}
+                    </ComposerPillContext.Provider>
+                  </ComposerLayoutContext.Provider>
                 }
               >
                 {android ? null : noticeView}

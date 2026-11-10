@@ -62,6 +62,14 @@ shrink glue without a measured Android shrink jump. Record separate list displac
 composer edge, bubble edge and bubble height: list-only correlation cannot prove a
 stable bubble/composer gap or stable timestamp-row height.
 
+For #3920, repeat the multiline collapse with reduced motion enabled at app startup.
+The Android pill and list avoidance use one React height update; measured reply/above,
+footer and notice regions remain separate from the pill. Test first entry, consecutive
+resizes, reply removal, notice appearance/removal and selection/composer replacement.
+Keep normal-motion startup in the matrix: it retains the existing spring path and is
+not proved by a reduced-motion pass. Run both trace-off Debug and Release with the
+same fixture; diagnostic UI-value timestamps are not a substitute for visible geometry.
+
 Capture scrcpy clips, retain original timestamps and extract 60 fps frames with ffmpeg.
 Cross-correlate neighbouring frames in a fixed list-only crop, excluding the composer
 and changing stream text. Record frame timestamp, vertical displacement, correlation
