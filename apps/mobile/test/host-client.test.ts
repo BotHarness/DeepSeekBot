@@ -430,12 +430,12 @@ describe('Host client', () => {
       expect(host.calls.filter((entry) => entry.method === 'pending-write')).toHaveLength(1);
     },
   );
-  it('backs a failing Host off to minutes instead of retrying every few seconds', () => {
+  it('backs a failing Host off to half a minute so a returning Host is found quickly', () => {
     expect(defaultBackoff(1)).toBe(500);
     expect(defaultBackoff(6)).toBe(16_000);
-    expect(defaultBackoff(12)).toBe(MAX_RECONNECT_DELAY_MS);
+    expect(defaultBackoff(7)).toBe(MAX_RECONNECT_DELAY_MS);
     expect(defaultBackoff(40)).toBe(MAX_RECONNECT_DELAY_MS);
-    expect(MAX_RECONNECT_DELAY_MS).toBe(300_000);
+    expect(MAX_RECONNECT_DELAY_MS).toBe(30_000);
   });
 
   it('stops calling a Host once it no longer accepts this phone', async () => {

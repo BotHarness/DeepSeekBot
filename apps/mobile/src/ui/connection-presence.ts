@@ -11,7 +11,11 @@ export function connectionPresence(
   disruptedFor: number | undefined,
 ): ConnectionPresence {
   if (disruptedFor === undefined || disruptedFor < CONNECTION_QUIET_MS) return { offline: false };
-  if (status === 'unreachable' && disruptedFor >= CONNECTION_OFFLINE_MS) return { offline: true };
+  if (
+    (status === 'unreachable' || status === 'reconnecting') &&
+    disruptedFor >= CONNECTION_OFFLINE_MS
+  )
+    return { offline: true };
   if (status === 'connecting') return { progress: 'connecting', offline: false };
   if (
     status === 'reconnecting' ||

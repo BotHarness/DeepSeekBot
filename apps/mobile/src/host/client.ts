@@ -253,7 +253,7 @@ interface Follower {
   reopen?: ReturnType<typeof setTimeout> | undefined;
 }
 
-export const MAX_RECONNECT_DELAY_MS = 300_000;
+export const MAX_RECONNECT_DELAY_MS = 30_000;
 export const STABLE_CONNECTION_MS = 60_000;
 export const REUSE_ON_RECONNECT_MS = 600_000;
 export const defaultBackoff = (attempt: number): number =>

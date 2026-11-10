@@ -1588,7 +1588,7 @@ function ChatConversation({
           action={
             hostRefused
               ? { label: t.pairAgain, onPress: () => router.push('/pair') }
-              : notice === t.offline && host.connection.status === 'unreachable'
+              : notice === t.offline && host.connection.status !== 'stopped'
                 ? {
                     label: t.retry,
                     testID: 'chat-connection-retry',

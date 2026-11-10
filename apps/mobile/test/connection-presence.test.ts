@@ -17,7 +17,7 @@ describe('connection presence', () => {
     });
   });
 
-  it('shows progress once the drop lasts, and offline only for a long unreachable spell', () => {
+  it('shows progress once the drop lasts, and offline once a lost connection stays down', () => {
     expect(connectionPresence('connecting', false, CONNECTION_QUIET_MS)).toEqual({
       progress: 'connecting',
       offline: false,
@@ -27,7 +27,10 @@ describe('connection presence', () => {
       offline: false,
     });
     expect(connectionPresence('reconnecting', false, CONNECTION_OFFLINE_MS)).toEqual({
-      progress: 'reconnecting',
+      offline: true,
+    });
+    expect(connectionPresence('connecting', false, CONNECTION_OFFLINE_MS)).toEqual({
+      progress: 'connecting',
       offline: false,
     });
     expect(connectionPresence('unreachable', false, CONNECTION_OFFLINE_MS)).toEqual({
