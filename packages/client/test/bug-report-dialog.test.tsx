@@ -167,9 +167,7 @@ it('marks up an image attachment and replaces it with the annotated PNG', async 
       set: () => true,
     },
   );
-  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
-    context as unknown as CanvasRenderingContext2D,
-  );
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context as never);
   vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation((done) =>
     done(new Blob(['png'], { type: 'image/png' })),
   );
