@@ -1135,16 +1135,16 @@ _避免使用_：-1 屏、侧边栏、Host drawer
 从 Host chip 打开的导航抽屉，列出已配对的 Computer 和云端工作区并在它们之间切换。
 _避免使用_：Host drawer、侧边栏、菜单
 
-**Conversation screen**（会话页）：
-显示一个 DM 或 Channel 的页面：顶部 header、Conversation Timeline 和 Composer。Tob Mode 打开的也是这个页面。
+**Conversation screen**：
+会话页。显示一个 DM 或 Channel 的页面：顶部 header、Conversation Timeline 和 Composer。Tob Mode 打开的也是这个页面。
 _避免使用_：Chat、聊天页、聊天详情
 
-**Conversation Timeline**（会话时间线）：
-Conversation screen 里按顺序滚动显示一个会话的消息和活动行的呈现层。它只显示 Messaging 的事实，只持有可丢弃的缓存，从不是消息存储。
+**Conversation Timeline**：
+会话时间线。Conversation screen 里按顺序滚动显示一个会话的消息和活动行的呈现层。它只显示 Messaging 的事实，只持有可丢弃的缓存，从不是消息存储。
 _避免使用_：聊天列表、消息列表（单独使用）、FlatList、Recycler
 
-**Composer**（输入栏）：
-Conversation screen 底部 Human 写消息、发送消息的输入区域。
+**Composer**：
+输入栏。Conversation screen 底部 Human 写消息、发送消息的输入区域。
 _避免使用_：输入框、文本框（单独使用）
 
 **Bot profile**：
