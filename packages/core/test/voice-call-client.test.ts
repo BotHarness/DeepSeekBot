@@ -181,9 +181,9 @@ describe('phone call client', () => {
     const after = world.client.state();
     if (after.status !== 'live') throw new Error(after.status);
     expect(after.events.map((event) => event.type)).toEqual(
-      expect.arrayContaining(['connected', 'speech-start', 'ack', 'sent', 'playing', 'played']),
+      expect.arrayContaining(['connected', 'speech-start', 'sent', 'playing', 'played']),
     );
-    expect(world.hostSide.played).toBe(2);
+    expect(world.hostSide.played).toBe(1);
   });
 
   it('mutes the native track and the Host, and hangs up cleanly', async () => {

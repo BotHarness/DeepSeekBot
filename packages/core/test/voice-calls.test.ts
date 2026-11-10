@@ -321,13 +321,7 @@ describe('Host call owner', () => {
     const heardRange = h.sent[0]!.speech!;
     expect(heardRange.toMs - heardRange.fromMs).toBeGreaterThan(1_000);
     let current = await view(h, callId);
-    expect(types(current.events)).toEqual([
-      'connected',
-      'speech-start',
-      'ack',
-      'transcribing',
-      'sent',
-    ]);
+    expect(types(current.events)).toEqual(['connected', 'speech-start', 'transcribing', 'sent']);
 
     h.advance(1_200);
     const archived = await heard(
@@ -341,10 +335,7 @@ describe('Host call owner', () => {
     );
     await settled();
     expect(archived).toEqual({ audio: new Uint8Array(MP3), mime: 'audio/mpeg' });
-    expect(state.played).toEqual([
-      { bytes: MP3.length, mime: 'audio/mpeg' },
-      { bytes: MP3.length, mime: 'audio/mpeg' },
-    ]);
+    expect(state.played).toEqual([{ bytes: MP3.length, mime: 'audio/mpeg' }]);
     current = await view(h, callId, current.lastSeq);
     expect(current.events).toEqual([
       expect.objectContaining({ type: 'committed', messageId: 'bot-reply-1', reused: 0 }),
@@ -395,7 +386,7 @@ describe('Host call owner', () => {
     expect(types(current.events)).toContain('noise-discarded');
   });
 
-  it('shows busy while the Orchestrator runs a turn and plays only the acknowledgement', async () => {
+  it('shows busy while the Orchestrator runs a turn and plays nothing on its own', async () => {
     let busy = false;
     const { media, state } = fakeMedia();
     const h = harness({ media, busy: () => busy });
@@ -407,7 +398,7 @@ describe('Host call owner', () => {
     h.feed(state.onPcm!, concat(silence(300), speech(1000), silence(900)));
     await settled();
     expect(h.sent).toHaveLength(1);
-    expect(state.audio).toEqual([clipFor('嗯。')]);
+    expect(state.audio).toEqual([]);
     busy = false;
     const after = await view(h, callId, during.lastSeq);
     expect(after.busy).toBe(false);
@@ -909,7 +900,7 @@ describe('Host call owner', () => {
       });
     await settled();
     expect(state.played).toEqual([]);
-    expect(h.synthesized).toEqual(['嗯。']);
+    expect(h.synthesized).toEqual([]);
   });
 });
 
@@ -1141,7 +1132,6 @@ describe('streamed voice replies', () => {
     expect(types(events)).toEqual([
       'connected',
       'speech-start',
-      'ack',
       'transcribing',
       'sent',
       'reply-text',
@@ -1152,10 +1142,6 @@ describe('streamed voice replies', () => {
       'committed',
       'reply-done',
     ]);
-    expect((events.find((event) => event.type === 'ack') as { ms: number }).ms).toBeLessThanOrEqual(
-      200,
-    );
-    expect(at('ack')).toBeLessThanOrEqual(at('sent'));
     expect(events.find((event) => event.type === 'reply-text')).toMatchObject({ responseMs: 800 });
     expect(events.find((event) => event.type === 'playing')).toMatchObject({
       sentence: 0,
@@ -1167,10 +1153,10 @@ describe('streamed voice replies', () => {
       reused: 2,
       synthesized: 0,
     });
-    expect(h.synthesized).toEqual(['嗯。', '明天会下雨。', '带上伞吧。']);
-    expect(state.audio).toEqual([clipFor('嗯。'), clipFor('明天会下雨。'), clipFor('带上伞吧。')]);
+    expect(h.synthesized).toEqual(['明天会下雨。', '带上伞吧。']);
+    expect(state.audio).toEqual([clipFor('明天会下雨。'), clipFor('带上伞吧。')]);
     expect(archived).toEqual(
-      joinAudio(state.audio.slice(1).map((audio) => ({ audio, mime: 'audio/mpeg' }))),
+      joinAudio(state.audio.map((audio) => ({ audio, mime: 'audio/mpeg' }))),
     );
     expect(Buffer.from(archived!.audio).toString('latin1')).toContain(
       Buffer.from('明天会下雨。带上伞吧。').toString('latin1'),
@@ -1191,7 +1177,7 @@ describe('streamed voice replies', () => {
     await settled();
     const current = await view(h, callId);
     expect(state.stopped).toBe(1);
-    expect(state.audio).toEqual([clipFor('嗯。'), clipFor('第一句话。')]);
+    expect(state.audio).toEqual([clipFor('第一句话。')]);
     expect(current.phase).toBe('listening');
     expect(types(current.events).slice(-3)).toEqual(['reply-text', 'playing', 'reply-stopped']);
     expect(current.events.at(-1)).toMatchObject({ reason: 'abandoned' });
@@ -1222,7 +1208,7 @@ describe('streamed voice replies', () => {
     const draft = stream(h);
     draft.update('第一句。第二句。', { voice: false, bodyComplete: true });
     await settled();
-    expect(state.audio).toEqual([clipFor('嗯。')]);
+    expect(state.audio).toEqual([]);
     draft.settled();
     const archived = await heard(
       h.calls.speak({
@@ -1277,11 +1263,7 @@ describe('streamed voice replies', () => {
       reused: 1,
       synthesized: 1,
     });
-    expect(state.audio.slice(1)).toEqual([
-      clipFor('好的。'),
-      clipFor('我来看看。'),
-      clipFor('明天晴。'),
-    ]);
+    expect(state.audio).toEqual([clipFor('好的。'), clipFor('我来看看。'), clipFor('明天晴。')]);
     expect(archived).toEqual(
       joinAudio(
         [clipFor('好的。'), clipFor('明天晴。')].map((audio) => ({ audio, mime: 'audio/mpeg' })),
@@ -1301,7 +1283,7 @@ describe('streamed voice replies', () => {
     await settled();
     draft.update('好吧。别的说法。然后再说。还有');
     await settled();
-    expect(state.audio.slice(1)).toEqual([clipFor('好的。'), clipFor('我来看看。')]);
+    expect(state.audio).toEqual([clipFor('好的。'), clipFor('我来看看。')]);
     const events = (await view(h, callId)).events;
     expect(events.filter((event) => event.type === 'reply-stopped')).toEqual([
       expect.objectContaining({ reason: 'revised' }),
@@ -1365,7 +1347,7 @@ describe('streamed voice replies', () => {
       ),
     );
     expect(state.stopped).toBe(1);
-    expect(state.audio).toHaveLength(2);
+    expect(state.audio).toHaveLength(1);
   });
 });
 
@@ -1445,7 +1427,7 @@ describe('barge-in while the Bot speaks', () => {
     h.calls.draft({ type: 'settled', channelId: 'dm-mira', draftId: 'b1:c1', attemptId: 'b1' });
     const archived = await heard(commit(h, 'bot-1', '第一句话。第二句话。第三句话。第四句话。'));
     await settled();
-    expect(state.audio).toEqual([clipFor('嗯。'), clipFor('第一句话。')]);
+    expect(state.audio).toEqual([clipFor('第一句话。')]);
     expect(archived).toEqual({ audio: clipFor('第一句话。'), mime: 'audio/mpeg' });
     expect((await view(h, callId)).events.slice(-2)).toEqual([
       expect.objectContaining({ type: 'committed', reused: 1, synthesized: 0, interrupted: true }),
@@ -1464,8 +1446,10 @@ describe('barge-in while the Bot speaks', () => {
           return { text: transcripts.shift() ?? '', latencyMs: 5 };
         },
         async synthesize({ text }) {
-          const ms = text === '嗯。' ? 100 : 4_000;
-          return { audio: wavFromPcm16(new Int16Array(ms * 16), 16_000), mime: 'audio/wav' };
+          return {
+            audio: wavFromPcm16(new Int16Array(4_000 * 16), 16_000),
+            mime: 'audio/wav',
+          };
         },
       },
     });
