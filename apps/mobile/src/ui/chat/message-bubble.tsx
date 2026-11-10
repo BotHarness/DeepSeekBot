@@ -439,10 +439,14 @@ function PressableBubble({
   const held = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   const shrinks = Platform.OS === 'ios' && !reduced && onLongPress !== undefined;
   const measure = (then?: (rect: Rect) => void) =>
-    measureMessageView(ref.current, (x, y, width, height) => {
-      anchor.current = { x, y, width, height };
-      then?.(anchor.current);
-    });
+    measureMessageView(
+      ref.current,
+      (x, y, width, height) => {
+        anchor.current = { x, y, width, height };
+        then?.(anchor.current);
+      },
+      () => undefined,
+    );
   const open = () => {
     if (onLongPress === undefined) return;
     if (anchor.current !== undefined) onLongPress(anchor.current);

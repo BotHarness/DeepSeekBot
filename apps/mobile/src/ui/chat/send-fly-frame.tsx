@@ -61,35 +61,40 @@ export function SendFlyFrame({
       shown.set(1);
       land();
     };
-    if (view === null || from === undefined) {
+    if (from === undefined) {
       skip();
       return;
     }
-    measureMessageView(view, (x, y, width, height) => {
-      if (width <= 0 || height <= 0) {
-        skip();
-        return;
-      }
-      const offset = flyOffset(
-        from,
-        textFrame({ x, y, width, height }, BUBBLE_PADDING.horizontal, BUBBLE_PADDING.vertical),
-        flights.inverted,
-      );
-      offsetX.set(offset.x);
-      offsetY.set(offset.y);
-      shown.set(1);
-      progress.set(
-        withTiming(
-          1,
-          {
-            duration: sendFly.duration,
-            easing: Easing.bezier(...decelerateCurve),
-            reduceMotion: ReduceMotion.System,
-          },
-          () => scheduleOnRN(land),
-        ),
-      );
-    });
+    // A bubble that cannot be measured lands in place: the flight is optional, the bubble is not.
+    measureMessageView(
+      view,
+      (x, y, width, height) => {
+        if (width <= 0 || height <= 0) {
+          skip();
+          return;
+        }
+        const offset = flyOffset(
+          from,
+          textFrame({ x, y, width, height }, BUBBLE_PADDING.horizontal, BUBBLE_PADDING.vertical),
+          flights.inverted,
+        );
+        offsetX.set(offset.x);
+        offsetY.set(offset.y);
+        shown.set(1);
+        progress.set(
+          withTiming(
+            1,
+            {
+              duration: sendFly.duration,
+              easing: Easing.bezier(...decelerateCurve),
+              reduceMotion: ReduceMotion.System,
+            },
+            () => scheduleOnRN(land),
+          ),
+        );
+      },
+      skip,
+    );
   };
   return (
     <Animated.View ref={ref} collapsable={false} onLayout={onLayout} style={[style, frame]}>

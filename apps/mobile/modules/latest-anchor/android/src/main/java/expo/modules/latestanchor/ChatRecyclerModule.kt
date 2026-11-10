@@ -7,21 +7,22 @@ import com.facebook.react.uimanager.UIManagerHelper
 import com.facebook.react.bridge.ReactContext
 import android.graphics.RectF
 import android.graphics.Matrix
+import android.view.Choreographer
+import android.view.View
+import android.view.ViewTreeObserver
+import expo.modules.kotlin.Promise
 
 class ChatRecyclerModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("ChatRecycler")
     Constants("supported" to (android.os.Build.VERSION.SDK_INT >= 29))
-    AsyncFunction("measureInWindow") { tag: Int ->
-      val context = appContext.reactContext as? ReactContext ?: return@AsyncFunction null
-      val view = UIManagerHelper.getUIManagerForReactTag(context, tag)?.resolveView(tag) ?: return@AsyncFunction null
-      if (!view.isAttachedToWindow) return@AsyncFunction null
-      val matrix = Matrix()
-      view.transformMatrixToGlobal(matrix)
-      val bounds = RectF(0f, 0f, view.width.toFloat(), view.height.toFloat())
-      matrix.mapRect(bounds)
-      val density = view.resources.displayMetrics.density
-      mapOf("x" to bounds.left / density, "y" to bounds.top / density, "width" to bounds.width() / density, "height" to bounds.height() / density)
+    // A cell mounts before the RecyclerView binds it into a row, so the first measurement can
+    // arrive while the view is detached. Wait for that bind (bounded to two frames) instead of
+    // answering null at once; JavaScript shows the message in place when the answer is null.
+    AsyncFunction("measureInWindow") { tag: Int, promise: Promise ->
+      val context = appContext.reactContext as? ReactContext
+      val view = context?.let { UIManagerHelper.getUIManagerForReactTag(it, tag)?.resolveView(tag) }
+      if (view == null) promise.resolve(null) else whenDrawable(view) { promise.resolve(it?.let(::windowBounds)) }
     }.runOnQueue(Queues.MAIN)
     View(ChatRecyclerView::class) {
       Events("onWindow", "onScroll", "onScrollBeginDrag", "onScrollEndDrag", "onMomentumScrollBegin", "onMomentumScrollEnd", "onContentSize", "onVisible", "onKeyboardInset")
@@ -58,4 +59,43 @@ class ChatRecyclerCellModule : Module() {
       }
     }
   }
+}
+
+private fun windowBounds(view: View): Map<String, Float> {
+  val matrix = Matrix()
+  view.transformMatrixToGlobal(matrix)
+  val bounds = RectF(0f, 0f, view.width.toFloat(), view.height.toFloat())
+  matrix.mapRect(bounds)
+  val density = view.resources.displayMetrics.density
+  return mapOf("x" to bounds.left / density, "y" to bounds.top / density, "width" to bounds.width() / density, "height" to bounds.height() / density)
+}
+
+/** Calls [done] once: with [view] when it is attached and laid out, or null after two frames. */
+private fun whenDrawable(view: View, done: (View?) -> Unit) {
+  if (view.isAttachedToWindow && !view.isLayoutRequested) return done(view)
+  var finished = false
+  var observer: ViewTreeObserver? = null
+  lateinit var predraw: ViewTreeObserver.OnPreDrawListener
+  lateinit var attach: View.OnAttachStateChangeListener
+  fun finish(result: View?) {
+    if (finished) return
+    finished = true
+    view.removeOnAttachStateChangeListener(attach)
+    observer?.takeIf { it.isAlive }?.removeOnPreDrawListener(predraw)
+    done(result)
+  }
+  predraw = ViewTreeObserver.OnPreDrawListener {
+    if (view.isAttachedToWindow && !view.isLayoutRequested) finish(view)
+    true
+  }
+  attach = object : View.OnAttachStateChangeListener {
+    override fun onViewAttachedToWindow(v: View) {
+      observer = v.viewTreeObserver.also { it.addOnPreDrawListener(predraw) }
+    }
+    override fun onViewDetachedFromWindow(v: View) = Unit
+  }
+  view.addOnAttachStateChangeListener(attach)
+  if (view.isAttachedToWindow) observer = view.viewTreeObserver.also { it.addOnPreDrawListener(predraw) }
+  val choreographer = Choreographer.getInstance()
+  choreographer.postFrameCallback { choreographer.postFrameCallback { finish(null) } }
 }
