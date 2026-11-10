@@ -5,6 +5,8 @@ import {
   Checkbox,
   IconCheckCircleOutlineRegular,
   IconCloseOutlineRegular,
+  IconEditOutlineRegular,
+  IconFullscreenOutlineRegular,
   IconLinkOutlineRegular,
   IconPaperclipOutlineRegular,
   IconShieldOutlineRegular,
@@ -23,6 +25,9 @@ import {
   type BugReportHours,
   type BugReportReceipt,
 } from './bug-report.js';
+import { canCaptureScreen, grabFrame, requestScreen } from './bug-report-annotate.js';
+import { AnnotateDialog } from './bug-report-annotate-dialog.js';
+import { ChipButton } from './ds/chip-button.js';
 import { clientLog, logClient } from './diagnostic-log.js';
 import { FieldStack, TextAreaField, TextField } from './ds/field.js';
 import { PanelDialog } from './ds/panel-dialog.js';
@@ -181,6 +186,7 @@ const styles = stylex.create({
     textDecoration: { default: 'none', ':hover': 'underline' },
   },
   hiddenInput: { display: 'none' },
+  captureRow: { display: 'flex', flexWrap: 'wrap', gap: space.x2 },
   status: { color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
 });
 
@@ -224,6 +230,8 @@ export function BugReportDialog({
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string>();
   const [receipt, setReceipt] = useState<BugReportReceipt>();
+  const [annotating, setAnnotating] = useState<{ entry?: BugReportFile; file: File }>();
+  const [capturing, setCapturing] = useState(false);
   const filesRef = useRef(files);
 
   const add = (incoming: readonly File[], pasted = false) => {
@@ -275,15 +283,59 @@ export function BugReportDialog({
   const tooLarge = bytes > BUG_REPORT_MAX_BYTES;
   const empty = title.trim() === '' && description.trim() === '';
 
-  const backToForm = () => {
-    const next = filesRef.current.map((entry): BugReportFile => {
+  const restorePreviews = (list: readonly BugReportFile[]) => {
+    const next = list.map((entry): BugReportFile => {
       if (entry.preview === undefined) return entry;
       const preview = previewOf(entry.file);
       return preview === undefined ? { id: entry.id, file: entry.file } : { ...entry, preview };
     });
     filesRef.current = next;
     setFiles(next);
+  };
+
+  const backToForm = () => {
+    restorePreviews(filesRef.current);
     setReceipt(undefined);
+  };
+
+  const closeAnnotation = (result?: File) => {
+    const target = annotating?.entry;
+    setAnnotating(undefined);
+    if (result !== undefined && target !== undefined) {
+      restorePreviews(
+        filesRef.current.map((entry) =>
+          entry.id === target.id ? { ...entry, file: result } : entry,
+        ),
+      );
+      logClient('action', 'bug-report-annotate', { source: 'attachment' });
+      return;
+    }
+    restorePreviews(filesRef.current);
+    if (result !== undefined) {
+      add([result]);
+      logClient('action', 'bug-report-annotate', { source: 'screenshot' });
+    }
+  };
+
+  const capture = async () => {
+    setNotice(undefined);
+    let stream: MediaStream;
+    try {
+      stream = await requestScreen(globalThis.navigator);
+    } catch {
+      return;
+    }
+    setCapturing(true);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      const shot = await grabFrame(stream);
+      setAnnotating({ file: shot });
+    } catch {
+      restorePreviews(filesRef.current);
+      setNotice(t('bugReport.screenshotFailed'));
+    } finally {
+      setCapturing(false);
+    }
   };
 
   const submit = async (github: boolean) => {
@@ -315,6 +367,18 @@ export function BugReportDialog({
       setBusy(false);
     }
   };
+
+  if (capturing) return <></>;
+
+  if (annotating !== undefined)
+    return (
+      <AnnotateDialog
+        file={annotating.file}
+        t={t}
+        onCancel={() => closeAnnotation()}
+        onDone={(result) => closeAnnotation(result)}
+      />
+    );
 
   if (receipt !== undefined)
     return (
@@ -454,6 +518,16 @@ export function BugReportDialog({
           }}
           {...stylex.props(styles.hiddenInput)}
         />
+        {canCaptureScreen(globalThis.navigator) ? (
+          <div {...stylex.props(styles.captureRow)}>
+            <ChipButton
+              icon={<IconFullscreenOutlineRegular size={14} />}
+              label={t('bugReport.screenshot')}
+              data-bug-report-screenshot=""
+              onClick={() => void capture()}
+            />
+          </div>
+        ) : null}
         {files.length === 0 ? null : (
           <ul aria-labelledby={`${id}-files`} {...stylex.props(styles.files)}>
             {files.map((entry) => (
@@ -478,6 +552,18 @@ export function BugReportDialog({
                   </span>
                   <span {...stylex.props(styles.meta)}>{formatBytes(entry.file.size)}</span>
                 </span>
+                {entry.preview === undefined ? null : (
+                  <button
+                    type="button"
+                    aria-label={t('bugReport.annotateFile', { name: entry.file.name })}
+                    title={t('bugReport.annotateFile', { name: entry.file.name })}
+                    data-bug-report-annotate={entry.file.name}
+                    onClick={() => setAnnotating({ entry, file: entry.file })}
+                    {...stylex.props(styles.remove)}
+                  >
+                    <IconEditOutlineRegular size={14} />
+                  </button>
+                )}
                 <button
                   type="button"
                   aria-label={t('bugReport.remove', { name: entry.file.name })}
