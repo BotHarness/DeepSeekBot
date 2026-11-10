@@ -3,7 +3,7 @@ import { createReadStream as nodeCreateReadStream } from 'node:fs';
 import * as nodePromises from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
-import { dirname, join, resolve, sep } from 'node:path';
+import { dirname, isAbsolute, join, resolve, sep } from 'node:path';
 
 import { LocalVideoError } from '../local-video-contract.js';
 import type { ComputerProgress, ComputerRuntimeRunner } from '../provider.js';
@@ -36,6 +36,15 @@ const ASSETS = [
 export const LOCAL_VIDEO_LAUNCHER = 'botharness-media-launcher.exe';
 
 export function localVideoHelperDirectory(): string {
+  const override = process.env.BOTHARNESS_LOCAL_VIDEO_HELPER_DIRECTORY?.trim();
+  if (process.platform === 'win32' && override) {
+    if (!isAbsolute(override))
+      throw new LocalVideoError(
+        'helper-missing',
+        'The Windows video helper directory must be absolute.',
+      );
+    return resolve(override);
+  }
   return join(
     homedir(),
     '.botharness',

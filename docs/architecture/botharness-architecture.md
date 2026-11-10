@@ -1528,3 +1528,5 @@ Web and native message adapters share the pure bubble fill/ink and readable-text
 ### Android 会话导航与读取交接（#3257）
 
 Android 聊天行成功发起导航后，可为已有 Channel 或已有 Bot 私聊提前订阅 `host-session` 管理的同一个 Conversation，让消息读取与页面挂载并行。当前 HostClient 身份与 roster 目标先经过核对；未知或尚未创建的私聊仍由原页面流程处理。每个 HostClient 最多保留一份待交接订阅，页面订阅建立后释放临时订阅；替换目标、两秒内未接手或 Host 移除也会释放。消息缓存、待发送消息保留与 Host 权限边界沿用原有 owner，不产生新的缓存、发送、已读标记或 Host 协议。
+
+Windows local-media launchers send ownership and cleanup proofs on a dedicated stderr control channel; helper stdout remains framed media data and helper stderr is not forwarded. Call admission is released only after both trusted cleanup and launcher close, including late confirmations. See ADR-0245 and #3877.
