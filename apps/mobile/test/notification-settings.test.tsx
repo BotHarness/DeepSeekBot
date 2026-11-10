@@ -206,7 +206,7 @@ describe('Notification settings', () => {
           status={{ status: 'on', failed: [] }}
           hostName="studio"
           port={settings}
-          preference={preference}
+          {...(preference === undefined ? {} : { preference })}
           onEnable={() => {}}
           onOpenSettings={() => {}}
         />,
