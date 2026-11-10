@@ -274,7 +274,6 @@ interface Call {
   guardUntil: number;
   gain: number | undefined;
   barge?: { state: 'suspected' | 'confirmed' } | undefined;
-  ackStop?: AbortController | undefined;
   interrupted: Reply[];
   settledDraft?: string | undefined;
   lastHeartbeat: number;
@@ -312,7 +311,6 @@ interface Call {
   perfAt: number;
   sampling: boolean;
   stoppedDrafts: Set<string>;
-  ack?: AudioClip | undefined;
 }
 
 export interface VoiceCalls {
@@ -361,10 +359,6 @@ function callPcm(value: string): Int16Array {
 const ended = (call: { phase: VoiceCallPhase }) => call.phase === 'ended';
 
 const SETTLED_CLAIM_MS = 15_000;
-
-export function ackText(language: string | undefined): string {
-  return language === undefined || /^(zh|yue|ja)/iu.test(language) ? '嗯。' : 'Mm-hm.';
-}
 
 interface Spoken {
   readonly text: string;
@@ -1417,7 +1411,6 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       call.vad.linger(barge.pauseMs);
     }
     const stopped = [...call.replies];
-    call.ackStop?.abort();
     for (const reply of stopped) interrupt(call, reply);
     setGain(call, 1);
     push(call, { type: 'barge-in', by, replyIds: stopped.map((reply) => reply.id) });
@@ -1566,40 +1559,6 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     push(call, { type: 'reply-stopped', replyId: reply.id, reason });
     log('call-reply-stopped', { call: call.id, reply: reply.id, reason });
     settle(call);
-  };
-
-  const acknowledge = (call: Call) => {
-    const clip = call.ack;
-    if (clip === undefined) return;
-    const heardAt = now();
-    call.playback = call.playback.then(async () => {
-      if (ended(call) || call.replies.some(pending)) return;
-      const stop = new AbortController();
-      call.ackStop = stop;
-      startPlaying(call);
-      push(call, { type: 'ack', ms: now() - heardAt });
-      await call.peer
-        ?.play(clip.audio, clip.mime, AbortSignal.any([call.abort.signal, stop.signal]))
-        .catch(() => undefined);
-      if (call.ackStop === stop) call.ackStop = undefined;
-      stopPlaying(call);
-    });
-  };
-
-  const prepareAck = (call: Call) => {
-    const bot = deps.bot(call.slug);
-    void synthesize(call, ackText(bot?.asr?.language), call.abort.signal).then(
-      (clip) => {
-        if (!ended(call)) call.ack = clip;
-      },
-      (error: unknown) => {
-        if (!ended(call))
-          log('call-ack-unavailable', {
-            call: call.id,
-            code: error instanceof VoiceError ? error.code : 'synthesis-failed',
-          });
-      },
-    );
   };
 
   const onDraft = (event: ChannelDraftEvent) => {
@@ -1795,11 +1754,9 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         if (suspected) dismiss(call, 'ended');
       } else {
         const suspected = call.barge?.state === 'suspected';
-        const confirmed = call.barge?.state === 'confirmed';
         const gated = suspected && talking(call);
         call.barge = undefined;
         if (suspected && !gated) setGain(call, 1);
-        if (!gated && !confirmed) acknowledge(call);
         transcribe(
           call,
           event.pcm,
@@ -2045,7 +2002,6 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       recordStart(call);
       push(call, { type: 'connected' });
       if (call.busy) push(call, { type: 'busy' });
-      prepareAck(call);
       log('call-connected', { call: call.id, ms: now() - call.startedAt });
       void samplePerf(call, now());
     };

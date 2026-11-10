@@ -133,7 +133,6 @@ export type VoiceCallEvent =
   | { seq: number; at: number; type: 'text'; messageId: string; atMs: number; grid?: number }
   | { seq: number; at: number; type: 'asr-failed'; code: string; message: string }
   | { seq: number; at: number; type: 'send-failed'; code: string; message: string }
-  | { seq: number; at: number; type: 'ack'; ms: number }
   | { seq: number; at: number; type: 'reply-text'; replyId: string; responseMs?: number }
   | {
       seq: number;
