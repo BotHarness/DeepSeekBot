@@ -17,7 +17,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.Implements
 import org.robolectric.annotation.Implementation
@@ -42,10 +41,11 @@ class MessageTargetViewTest {
     val app = AppContext(modules, ModuleRegistry(emptyList(), emptyList()), WeakReference(react))
     val target = MessageTargetView(react, app).apply { active = true; request = "one" }
     val content = FrameLayout(activity).apply { addView(target) }
-    val scroll = ScrollView(activity).apply { addView(content) }
+    val scroll = object : ScrollView(activity) {
+      override fun getWindowVisibleDisplayFrame(outRect: Rect) { outRect.set(-100000, -100000, 100000, 100000) }
+    }.apply { addView(content) }
     activity.setContentView(scroll)
     scroll.layout(0, 0, 300, 500)
-    shadowOf(scroll).setWindowVisibleDisplayFrame(Rect(0, 0, 300, 500))
     content.layout(0, 0, 300, 3000)
     target.layout(0, 1500, 300, 1600)
     if (inverted) { scroll.scaleY = -1f; target.scaleY = -1f }
