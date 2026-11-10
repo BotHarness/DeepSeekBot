@@ -29,6 +29,8 @@
 
 `deepseekbot device-notifications --device-file <私有配对.json>` 从运行中的 Host 读取当前配对设备的通知发送副本。加上 `--preferences-stdin`，从标准输入传入 `{"approval":true,"question":true,"private-input":true,"reply":false}`，即可替换四种通知选择，无需先注册推送 token。私有文件使用已保存配对的结构（`hostId`、`hostName`、`routes`、`deviceId`、`credential`）；凭据不能放入参数或公开文件。标准输出仅有一个不含凭据的 JSON，配对撤销后返回 `device-revoked`。命令只修改该 Host 的发送副本；手机持久化选择仍是权威，下次同步会覆盖副本。浏览器通知选择只保存在该浏览器，不影响 Host attention。
 
+手机上 通知 → 送达方式 可为该 Host 选择 **推送**、**仅 App 内** 或 **关闭**。仅 App 内会停止向这台设备推送，但角标照常更新；App 只在打开时显示横幅。CLI 用 `deepseekbot device-notifications --device-file <私有配对.json> --delivery push|in-app` 设置，返回带 `delivery` 的设置；关闭即原有的 `enabled:false`。`--delivery` 不能和 `--preferences-stdin` 同时使用，未注册推送的设备返回 `push-not-registered`。
+
 `deepseekbot device-activity capability --device-file <私有配对.json>` 检查此电脑的锁屏状态服务。`prepare`、`register`、`stop` 通过 `--activity-stdin` 接收 JSON：prepare 需要 `channelId`、`messageId`、`bundleIdentifier`；register 另需 iOS 实际生成的 `clientActivityId`、每项活动的 `token` 和 `locale`（`en`/`zh`）；stop 只需 `clientActivityId`。`status` 同样只需 `clientActivityId`，读取本设备自己的登记（活动结束后也可读）：返回请求的 `channelId`、`messageId`、`progress`；若该请求创建或推进了某个任务（Assignment），另含 `assignmentId`（即 Assignment Session id，手机据此打开 `bot/[slug]/assignment/[id]`）；`prepare`、`register` 在已知时也带同一 `assignmentId`。设备身份来自配对凭据，不能由输入指定。token 属于秘密，只能私下传入标准输入，不能放在参数或公开文件中。命令调用与手机相同的鉴权/加密路由，只输出一个 JSON 结果或拒绝码；未配置、不支持、已结束或撤销配对会明确拒绝。停止显示不会停止原请求。`activity-cleanup-pending` 表示停止投递尚未确认；Host 只重试清理，到确认或登记到期为止。`send-status <bot> --message-id <id>` 新增 `progress`，仅显式 Inbox 解决事实表示完成，单轮处理结束不算完成；若该请求创建或推进了任务，另含 `assignmentId`（以最近一次为准）。CLI 源码测试与真实 Host、iPhone 后台送达仍是独立验收项，参见 [ADR-0255](adr/0255-live-activities-project-one-admitted-dm-request.md)。
 
 ```bash
@@ -1199,7 +1201,7 @@ deepseekbot memory-move <bot-id> --default-location
 
 `deepseekbot tob-home` 幂等准备受保护的本地 Tob、Memory、管理 Workspace 与 DM，返回标识及权威 Attention 摘要，不发送消息。`deepseekbot home-model-set --provider <id> --model <id>` 修改原生 Host 默认模型，保留其他 Bot 的独立计划。
 
-Tob 通过普通原生 bash／pwsh Tool 调用 `deepseekbot`；专用的 `tob_assignment_limit_read`、`tob_assignment_limit_set` Tool 及直接运行入口已移除。既有 Assignment Tools 不变。受限 CLI 流程支持下方列出的 Bot 创建／资料／生命周期、建群／邀请、群设置／成员移除、取消邀请／入群决定、模型、运行、隐私、Git 和更新操作；这是明确的允许清单，不代表开放全部 Human CLI 命令或其他 Bot 的数据。
+Tob 通过普通原生 bash／pwsh Tool 调用 `deepseekbot`；专用的 `tob_assignment_limit_read`、`tob_assignment_limit_set` Tool 及直接运行入口已移除。既有 Assignment Tools 不变。Tob 可以运行所有 Human CLI 命令（[ADR-0314](adr/0314-tob-runs-every-cli-command-with-approved-writes.md)）。下方列出的 Bot 创建／资料／生命周期、群组、模型、运行、隐私、Git、更新、Share Draft、诊断和语音操作保留各自的类型化审核（目标、旧值、revision、operation key）。其他命令以原样的 argv、stdin 和当前目录发给 Host，由 Host 用自己的启动 token 代为运行 Human CLI，该 token 不会进入 Tob 的 Shell。在 Host 只读清单中且不带 `--out` 的命令直接执行；其他命令（包括清单尚未收录的命令）都会先给 Human 一张审批卡，显示完整 argv、目录，以及 stdin 的字节数和 SHA-256。完全访问和审批模板都不能跳过这张卡，只有 Human 在卡上选择的“始终允许”可以；被拒绝的卡不会执行命令。Human CLI 自身的错误代码和消息原样返回。`--host`、`--token-file` 和 `--home` 会被拒绝，`ssh-tunnel` 和 `voice-local-kit` 仍只在 Human 自己的 CLI 中可用。
 
 在具备权限的 Tob Shell 执行中：
 
@@ -1216,11 +1218,11 @@ printf '%s' '{"assignmentConcurrencyLimit":3}' | deepseekbot settings-set bothar
 
 `capabilities`（以及受限模式的 `--help`）列出支持的命令、字段、必需的审核输入和带代码的拒绝原因。读取返回 `{scope, ns, revision, value}`，`value` 只包含授权字段。写入将解析后的命名空间、旧值、新值和 revision 交给现有 Host 审批策略；审批前后和执行时重验真实 Tob root Orchestrator 与准确的已准入 Human DM 来源，随后读回 native Settings 的值。群聊／外部 IM、Bot 来源、Assignment Sessions 和调用方自报身份均不能授予此权限。
 
-Host 将短期 loopback endpoint 与受限 token 注入这次 Shell 的子进程环境。它是短期 bearer capability，不是 Human 管理员凭据，也不构成同一 OS 用户之间的隔离边界；不要打印或持久化它。Shell 完成、取消或释放后立即撤销。不支持的命令／参数、不完整的受限上下文、指定其他 Host／token／离线 home 的尝试均会拒绝，不回退到 Human 或离线访问。`stale-setting` 要求重新读取并提案；`agent-write-uncertain`、`setting-outcome-uncertain` 和 `setting-readback-mismatch` 要求重试前先读回。上下文过期后必须发起新的 Shell 执行。
+Host 将短期 loopback endpoint 与受限 token 注入这次 Shell 的子进程环境。它是短期 bearer capability，不是 Human 管理员凭据，也不构成同一 OS 用户之间的隔离边界；不要打印或持久化它。Shell 完成、取消或释放后立即撤销。类型化操作不支持的参数、不完整的受限上下文、指定其他 Host／token／离线 home 的尝试均会拒绝，不回退到 Human 或离线访问。`stale-setting` 要求重新读取并提案；`agent-write-uncertain`、`setting-outcome-uncertain` 和 `setting-readback-mismatch` 要求重试前先读回。上下文过期后必须发起新的 Shell 执行。
 
 已认证 Human 的 `settings-set` 保持原行为，新增成对的 `--expected-revision` 与 `--previous-value` 参数，用于提交已审核的 patch；后者为与 patch 字段一致的 JSON 对象。同时省略这两个参数仍使用原有先读再写流程。Tob 的删除／归档仍返回 `protected-bot`。
 
-[UI／CLI 覆盖清单](agents/cli-ui-coverage.md) 区分既有 Human 命令和 Tob 受限访问，并跟踪后续缺口。身份与生命周期边界见 [ADR-0224](adr/0224-tob-management-uses-scoped-native-shell-cli.md)。
+[UI／CLI 覆盖清单](agents/cli-ui-coverage.md) 区分既有 Human 命令和 Tob 受限访问，并跟踪后续缺口。身份与生命周期边界见 [ADR-0224](adr/0224-tob-management-uses-scoped-native-shell-cli.md)，完整命令范围见 [ADR-0314](adr/0314-tob-runs-every-cli-command-with-approved-writes.md)。
 
 ### Tob 创建 Bot、资料与生命周期
 
@@ -1285,7 +1287,7 @@ deepseekbot group-invite <channel-id> --bot <bot-c> --operation-key invite-resea
 
 已认证 Human 的在线 `group-create` 和 `group-invite` 也支持稳定 operation key；邀请支持 `--expected-channel` 绑定已读取状态。这些审核／重试参数对 Human 命令可选，对受限 Tob 必需。原有不带 key 的 Human 操作保持既有 owner 行为。
 
-后续切片加入下节所述的群名称／头像、成员唤醒设置、移除成员、取消待处理邀请和决定待处理入群申请；个人免打扰／置顶／昵称／显隐、删除群、附件和外部成员管理仍不在受限允许清单内。部分已有上文的 Human CLI 命令，不等于已向 Tob 开放。#2090 保留未完成范围，不因本切片关闭。详见 [ADR-0226](adr/0226-group-management-receipts-preserve-channel-authority.md) 和[覆盖清单](agents/cli-ui-coverage.md#2090-group-management-scope)。直接 CLI、真实 Tob 审批／读回、Web 成员／历史和 macOS Desktop 分别验收。
+后续切片加入下节所述的群名称／头像、成员唤醒设置、移除成员、取消待处理邀请和决定待处理入群申请；个人免打扰／置顶／昵称／显隐、删除群、附件和外部成员管理没有类型化的 Tob 操作；已有 Human CLI 命令的，Tob 通过通用路径运行，须先由 Human 批准完整命令。#2090 保留未完成范围，不因本切片关闭。详见 [ADR-0226](adr/0226-group-management-receipts-preserve-channel-authority.md) 和[覆盖清单](agents/cli-ui-coverage.md#2090-group-management-scope)。直接 CLI、真实 Tob 审批／读回、Web 成员／历史和 macOS Desktop 分别验收。
 
 ### Tob 群设置与成员移除
 
@@ -1447,6 +1449,16 @@ DSH CLI 明确拒绝管理 `desktop` Profile；原生插件管理器会优先解
 卸载产品前先 `disable`，并重启以恢复原生包解析。手动字体偏好仍由原生 `ui-theme` Patch 保存。
 JSON 标准输出包含 `restartRequired:true`、`runtimeVerified:false`；包配置成功不表示原生窗口已加载。
 包操作结果不确定时不会自动重试。
+
+### 让 Windows 桌面端窗口回到前台
+
+点击桌面通知（通话通知、审批、回复）时，Client 会请 Host 把窗口带回前台：在 Windows 上，Host 以运行中应用的 `--user-data-dir` 重新启动自身所在的 `DeepSeek Harness.exe`，由 Shell 的单实例处理恢复、显示并聚焦已有窗口（包括托盘中的窗口），多出的这次启动会立即退出。CLI 可执行同一操作：
+
+```sh
+deepseekbot desktop-window-reveal --host <host> --token-file <私有文件>
+```
+
+返回 `{ok:true, launched}`；`launched:false` 表示 1.5 秒内已执行过一次。拒绝代码：`desktop-window-platform-unsupported`（非 Windows，Client 仍聚焦页面）、`desktop-window-app-unresolved`（Host 不在桌面应用内运行）和 `desktop-window-launch-failed`。
 
 ### 在 Bot 设置中启用
 
@@ -1732,6 +1744,16 @@ printf '%s' '{"version":1,"session":"agent-qa-0001","entries":[{"ts":17800000000
 出问题时先运行 `doctor`。它返回一份报告：`ok`、`versions`（Tobs、DSH、Node、操作系统），以及 `checks`，逐项给出 `ok`、`warn`、`fail` 或 `skip`：DSH 目录、Host、Tobs 插件（Host 有响应但没有插件路由时报告 `plugin-not-loaded`）、最近一次版本或插件更新（阶段、失败原因、诊断信息和 `logPath`，需要 Host）、日志本身，以及最近 24 小时按错误码分组计数的错误。它还返回 `next` 建议命令和给编码 agent 的 `guide`：先看失败的检查项；不要删除或修改 DSH 目录里的数据；重启或重装前先问 Human；修不好时导出日志并附到预填好的 bug 报告里。Host 未运行、未配置或插件没有加载时，`doctor` 直接读取 `$DSH_HOME/botharness/logs.db`，并报告 `source: "offline"` 和 `fallback` 原因，所以界面打不开时也能用：把 `npx -y @botharness/tobs doctor` 这一行交给 Codex、Claude Code 等编码 agent 即可。Human 报告问题时，托布会先运行它。
 
 `diagnostic-logs` 按时间倒序返回条目（`source`、`category`、`level`、`code`、`session`、`fields`），并带上 `source`（`host` 或 `offline`）；与导出一样，它也会退回直接读取 `logs.db`，`--offline` 和 `--home` 的用法相同。导出的 ZIP 包含 `manifest.json`（时间范围、版本、计数、脱敏次数）、`logs.jsonl` 和易读的 `timeline.txt`；用户目录路径、token、密钥和邮箱会被替换，文件只会新建不会覆盖。当 Host 无法连接、无法登录或插件没有加载时，`diagnostic-logs-export` 会直接读取 `$DSH_HOME/botharness/logs.db`，生成同样已脱敏的 ZIP；`--offline` 跳过 Host，`--home` 指定其他 DSH 目录，结果会带上 `source: "offline"` 和 `fallback` 原因。除 Client 条目外，日志还为每个 Bot 回合记录一条 `bot-turn`（模型、首字耗时和总耗时、步数、工具调用和错误、结果，不含消息内容），为每条 IM 入站事件记录一条 `messaging-inbound`（`handled`、带原因的 `skipped` 或 `refused`），并把 Host 的结构化 `{"event","phase"}` 日志（如 `messaging-outbox`）存成带字段的条目。`diagnostic-log-record` 以 Web Client 相同的方式写入条目，用于 agent QA；拒绝码为 `invalid-report`、`report-too-large`、`rate-limited`（每分钟 600 条）和 `persistence-unavailable`。
+
+### 问题报告
+
+Web Client 的 **诊断日志 → 报告问题** 和 CLI 的 `bug-report` 生成同一种 ZIP：`manifest.json`（标题、版本、客户端、附件列表、脱敏次数）、`report.md`（标题、环境信息和问题描述）、`diagnostic-logs/` 下所选时间范围内已脱敏的诊断日志，以及 `attachments/` 下的附件。窗口里可以把文件拖到虚线框里，点击虚线框多选文件，或在窗口中任意位置粘贴截图。附件总共不超过 25 MB（GitHub 单个附件的上限），生成的 ZIP 也受同样的限制。不会上传任何内容：ZIP 保存在本地，窗口给出一个新建 `BotHarness/DeepSeekBot` Issue 的链接，bug 模板里的版本、描述和证据栏都已预填。Human 把 ZIP 拖进 Issue 后自己提交。GitHub 没有给 Issue 上传附件的 API，所以不保存任何 token。
+
+```bash
+printf '%s' '升级后群聊一直加载。' | deepseekbot bug-report --title "群聊一直加载" --body-stdin --attach ./screen.png [--attach ./more.txt] [--hours 0-168] --out report.zip [--offline] [--home <DSH_HOME>]
+```
+
+结果包含 `saved`、`path`、`bytes`、`attachments`、`issueUrl`（带 ZIP 文件名）、`nextStep` 和 `source`。`--hours 0` 不带日志，默认 24 小时。与 `diagnostic-logs-export` 一样，Host 不可用时直接读取 `logs.db` 生成报告，并返回 `source: "offline"` 和 `fallback` 原因。拒绝码有 `usage`（标题和描述都为空、文件不存在、超过 20 个文件、`--out` 已存在）、`report-too-large`，以及 `not-found` 和 `log-unreadable`（两者都会建议用 `--hours 0`）。
 
 ### 消息反馈（#2811）
 

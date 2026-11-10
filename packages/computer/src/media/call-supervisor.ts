@@ -25,6 +25,7 @@ import {
 } from './install.js';
 
 const REQUEST_TIMEOUT = 9_000;
+const STALL_GRACE = 1_000;
 const MAX_PENDING = 4;
 const LINE_LIMIT = 128 * 1024;
 const SIGNAL_LIMIT = 96 * 1024;
@@ -177,10 +178,18 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
             new CallMediaError('helper-failed', 'The call helper byte queue is full.'),
           );
         return new Promise((resolve, reject) => {
-          const timer = setTimeout(() => {
+          const due = Date.now() + REQUEST_TIMEOUT;
+          const expire = () => {
+            if (!pending.has(id)) return;
             pending.delete(id);
             reject(new CallMediaError('helper-failed', 'The call helper did not respond in time.'));
             failed();
+          };
+          const timer = setTimeout(() => {
+            const waiter = pending.get(id);
+            if (waiter === undefined) return;
+            if (Date.now() - due <= STALL_GRACE) return expire();
+            waiter.timer = setTimeout(expire, STALL_GRACE);
           }, REQUEST_TIMEOUT);
           pending.set(id, { resolve, reject, timer });
           child!.stdin.write(line, (error) => {

@@ -1,10 +1,13 @@
 import type { DesktopCall, DesktopCallSnapshot } from './desktop-call.js';
+import { revealDesktopWindow } from './desktop-window.js';
 
 export const CALL_NOTICE_TAG = 'botharness-call';
+export const CALL_NOTICE_SETTLE_MS = 1_500;
 
 export interface CallNoticeHandle {
   close(): void;
   onclick: ((event: Event) => void) | null;
+  onclose?: ((event: Event) => void) | null;
 }
 
 export type CallNoticeFactory = (
@@ -36,11 +39,39 @@ function browserNotice(): CallNoticeFactory | undefined {
   return (title, options) => new Ctor(title, options);
 }
 
+export interface CallWindow {
+  hidden(): boolean;
+  subscribe(listener: () => void): () => void;
+  reveal(): void;
+}
+
+type PresenceDocument = Pick<
+  Document,
+  'visibilityState' | 'addEventListener' | 'removeEventListener'
+>;
+
+export function documentCallWindow(
+  doc: PresenceDocument,
+  reveal: () => void = () => revealDesktopWindow(),
+): CallWindow {
+  return {
+    hidden: () => doc.visibilityState === 'hidden',
+    subscribe(listener) {
+      doc.addEventListener('visibilitychange', listener);
+      return () => doc.removeEventListener('visibilitychange', listener);
+    },
+    reveal,
+  };
+}
+
 export interface CallPresenceOptions {
   readonly call: DesktopCall;
-  readonly doc?: Pick<Document, 'visibilityState' | 'addEventListener' | 'removeEventListener'>;
+  readonly window?: CallWindow;
+  readonly doc?: PresenceDocument;
   readonly notice?: () => CallNoticeFactory | undefined;
   readonly focus?: () => void;
+  readonly settleMs?: number;
+  readonly now?: () => number;
 }
 
 export function callNoticeWanted(snapshot: DesktopCallSnapshot, hidden: boolean): boolean {
@@ -48,33 +79,65 @@ export function callNoticeWanted(snapshot: DesktopCallSnapshot, hidden: boolean)
 }
 
 export function watchCallPresence(options: CallPresenceOptions): () => void {
-  const doc = options.doc ?? document;
+  const where = options.window ?? documentCallWindow(options.doc ?? document, options.focus);
   const notice = options.notice ?? browserNotice;
-  const focus = options.focus ?? (() => globalThis.focus?.());
   let shown: CallNoticeHandle | undefined;
   let shownFor: string | undefined;
+  let answered: string | undefined;
+  const settleMs = options.settleMs ?? CALL_NOTICE_SETTLE_MS;
+  const now = options.now ?? Date.now;
+  let settled = where.hidden();
+  let changedAt: number | undefined;
+  let pending: ReturnType<typeof setTimeout> | undefined;
+  const settle = () => {
+    const raw = where.hidden();
+    if (raw === settled) {
+      changedAt = undefined;
+      if (pending !== undefined) clearTimeout(pending);
+      pending = undefined;
+      return;
+    }
+    const at = now();
+    changedAt ??= at;
+    const left = settleMs - (at - changedAt);
+    if (left <= 0) {
+      settled = raw;
+      changedAt = undefined;
+      return;
+    }
+    if (pending !== undefined) clearTimeout(pending);
+    pending = setTimeout(() => {
+      pending = undefined;
+      sync();
+    }, left);
+  };
   const close = () => {
     const current = shown;
     shown = undefined;
     shownFor = undefined;
     if (current === undefined) return;
     current.onclick = null;
+    if (current.onclose !== undefined) current.onclose = null;
     try {
       current.close();
     } catch {}
   };
-  const sync = () => {
+  function sync(): void {
     const snapshot = options.call.snapshot();
     const place = snapshot.place;
+    settle();
+    const hidden = settled;
+    if (!hidden) answered = undefined;
     if (
       place === undefined ||
       snapshot.state.status !== 'live' ||
-      !callNoticeWanted(snapshot, doc.visibilityState === 'hidden')
+      !callNoticeWanted(snapshot, hidden)
     ) {
       close();
       return;
     }
     const key = snapshot.state.call.callId;
+    if (answered === key) return;
     if (shown !== undefined && shownFor === key) return;
     close();
     const make = notice();
@@ -92,19 +155,27 @@ export function watchCallPresence(options: CallPresenceOptions): () => void {
     }
     created.onclick = (event) => {
       event.preventDefault?.();
-      focus();
+      answered = key;
+      where.reveal();
       place.open();
       close();
     };
+    created.onclose = () => {
+      if (shown !== created) return;
+      answered = key;
+      shown = undefined;
+      shownFor = undefined;
+    };
     shown = created;
     shownFor = key;
-  };
+  }
   const unsubscribe = options.call.subscribe(sync);
-  doc.addEventListener('visibilitychange', sync);
+  const unwatch = where.subscribe(sync);
   sync();
   return () => {
     unsubscribe();
-    doc.removeEventListener('visibilitychange', sync);
+    unwatch();
+    if (pending !== undefined) clearTimeout(pending);
     close();
   };
 }

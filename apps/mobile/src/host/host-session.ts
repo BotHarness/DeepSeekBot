@@ -33,7 +33,7 @@ import { nativeNotifications } from './native-notifications';
 import { notificationAvatars } from './native-notification-avatars';
 import { avatarInputs } from './notification-avatars';
 import { revokePairing } from './pairing';
-import { createHostPush } from './push';
+import { createHostPush, type PushDelivery } from './push';
 import { createPushSession, type PushStatus } from './push-session';
 import { notificationPreferences } from './native-notification-preferences';
 import { connectionMode } from './native-connection-mode';
@@ -122,6 +122,7 @@ const deviceAlerts = createDeviceAlerts(connectionMode, {
           ...(preferences ? { preferences } : {}),
           quietChannelIds: quietChannels.get(host.saved.hostId),
           focusedChannelIds: attentionFocus.channels(host.saved.hostId),
+          inAppOnly: deliveryModes.get(host.saved.hostId) === 'in-app',
           text: {
             approval: t.localApprovalText,
             question: t.localQuestionText,
@@ -171,10 +172,25 @@ export function onHostRemoval(listener: (host: SavedHost) => Promise<void>): () 
     removalListeners.delete(listener);
   };
 }
+const forgetHostDelivery = (hostId: string) => {
+  deliveryModes.delete(hostId);
+  deliveryRevisions.set(hostId, deliveryRevision(hostId) + 1);
+};
 const clearPresentations = async (host: SavedHost) => {
+  forgetHostDelivery(host.hostId);
   await deviceAlerts.forget(host.hostId);
   await Promise.allSettled([...removalListeners].map((listener) => listener(host)));
 };
+const deliveryModes = new Map<string, PushDelivery>();
+const deliveryRevisions = new Map<string, number>();
+const deliveryRevision = (hostId: string) => deliveryRevisions.get(hostId) ?? 0;
+export function setHostDelivery(hostId: string, delivery: PushDelivery, revision?: number): void {
+  if (revision !== undefined && revision !== deliveryRevision(hostId)) return;
+  if (revision === undefined) deliveryRevisions.set(hostId, deliveryRevision(hostId) + 1);
+  if (deliveryModes.get(hostId) === delivery) return;
+  deliveryModes.set(hostId, delivery);
+  scheduleAlerts();
+}
 export function setHostNotificationsEnabled(hostId: string, enabled: boolean): void {
   deviceAlerts.setHostEnabled(hostId, enabled);
   const client = sessions.get(hostId)?.host.client;
@@ -328,19 +344,21 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
     }
     const now = snapshot.connection.status === 'connected';
     if (now && !connected) {
-      if (connectionMode.supported)
-        void hostPush
-          .settings(saved)
-          .then((settings) => {
-            if (
-              sessions.get(saved.hostId)?.host.client === client &&
-              client.getSnapshot().connection.status !== 'refused'
-            ) {
-              quietChannels.set(saved.hostId, settings.quietChannelIds);
-              setHostNotificationsEnabled(saved.hostId, settings.enabled);
-            }
-          })
-          .catch(() => undefined);
+      const revision = deliveryRevision(saved.hostId);
+      void hostPush
+        .settings(saved)
+        .then((settings) => {
+          if (
+            sessions.get(saved.hostId)?.host.client === client &&
+            client.getSnapshot().connection.status !== 'refused'
+          ) {
+            setHostDelivery(saved.hostId, settings.delivery, revision);
+            if (!connectionMode.supported) return;
+            quietChannels.set(saved.hostId, settings.quietChannelIds);
+            setHostNotificationsEnabled(saved.hostId, settings.enabled);
+          }
+        })
+        .catch(() => undefined);
       void pushSession.retryFailed();
       void notificationPreferences.retry().catch(() => undefined);
       catchUpHostConversations(
@@ -397,6 +415,7 @@ function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
     ) {
       sessions.delete(id);
       session.dispose();
+      if (saved?.credential !== session.host.saved.credential) forgetHostDelivery(id);
     }
   }
   for (const saved of next.hosts) {

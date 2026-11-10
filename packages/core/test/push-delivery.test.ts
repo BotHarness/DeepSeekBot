@@ -571,6 +571,28 @@ describe('Push delivery', () => {
     expect(sent()).toEqual(['approval:1', 'reply:2']);
   });
 
+  it('keeps an in-app-only device off push while still updating its badge', async () => {
+    const f = fixture();
+    const phone = f.device('Phone');
+    f.push.register(phone.device.id, { token: TOKEN_A, platform: 'ios' });
+    expect(f.push.setPreferences(phone.device.id, undefined, undefined, 'in-app')).toMatchObject({
+      enabled: true,
+      delivery: 'in-app',
+    });
+    f.advance(1000);
+    f.setInbox([approval('approval:1', f.at(0))]);
+    await f.push.reconcile();
+    const sent = f.expo.flat();
+    expect(sent.map((message) => message.data.itemId)).toEqual([undefined]);
+    expect(sent[0]).toMatchObject({ to: TOKEN_A, badge: 1 });
+    expect(f.push.setPreferences(phone.device.id, undefined, undefined, 'push')).toMatchObject({
+      delivery: 'push',
+    });
+    f.setInbox([approval('approval:1', f.at(0)), approval('approval:2', f.at(0))]);
+    await f.push.reconcile();
+    expect(f.expo.flat().map((message) => message.data.itemId)).toEqual([undefined, 'approval:2']);
+  });
+
   it('stops and removes the token when the device is revoked', async () => {
     const f = fixture();
     const phone = f.device('Phone');

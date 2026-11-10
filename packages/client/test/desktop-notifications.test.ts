@@ -259,6 +259,29 @@ describe('desktop notifier', () => {
     env.dispose();
   });
 
+  it('asks the Host to bring a minimized or tray-hidden Desktop window back on click', async () => {
+    const env = setup();
+    await env.fire();
+    const approval = item({ id: 'approval:reveal', channelId: 'dm-ada', messageId: 'm2' });
+    env.setItems([approval]);
+    await env.fire();
+    const shown = env.fake.shown[0]!;
+    const focus = vi.fn();
+    const fetcher = vi.fn(async () => new Response('{}'));
+    vi.stubGlobal('focus', focus);
+    vi.stubGlobal('fetch', fetcher);
+    vi.stubGlobal('dshDesktop', { protocolVersion: 1 });
+    shown.handle.onclick?.({ preventDefault: vi.fn() } as unknown as Event);
+    vi.unstubAllGlobals();
+    expect(fetcher).toHaveBeenCalledWith(
+      './api/botharness/desktop-window',
+      expect.objectContaining({ method: 'POST', body: JSON.stringify({ action: 'reveal' }) }),
+    );
+    expect(focus).toHaveBeenCalledOnce();
+    expect(env.open).toHaveBeenCalledWith(approval);
+    env.dispose();
+  });
+
   it('stays quiet when turned off', async () => {
     const env = setup();
     await env.fire();

@@ -472,6 +472,13 @@
       "commands": ["diagnostic-logs", "diagnostic-logs-export", "diagnostic-log-record"]
     },
     {
+      "id": "bug-report",
+      "description": "Report a problem: description, attachments, redacted diagnostic log and versions packed into one ZIP with a prefilled GitHub issue link.",
+      "scope": "Host",
+      "surfaces": ["route:packages/core/src/diagnostics/diagnostic-log.ts:BUG_REPORT_PATH"],
+      "commands": ["bug-report"]
+    },
+    {
       "id": "bot-transfer",
       "description": "Bot Zip export and file-list inspection lack direct CLI; create --from-zip already covers import.",
       "scope": "Host",
@@ -947,6 +954,13 @@
         "storage:packages/client/src/client/window-zoom.ts:setItem(WINDOW_ZOOM_KEY)"
       ],
       "commands": ["window-zoom-clients", "window-zoom-get", "window-zoom-set", "window-zoom-reset"]
+    },
+    {
+      "id": "desktop-window-reveal",
+      "description": "Host relaunches the Windows Desktop executable so the shell restores and focuses its running window, as a notification click does.",
+      "scope": "Host / Windows Desktop window",
+      "surfaces": ["route:packages/core/src/plugin.ts:DESKTOP_WINDOW_PATH"],
+      "commands": ["desktop-window-reveal"]
     },
     {
       "id": "desktop-presence",

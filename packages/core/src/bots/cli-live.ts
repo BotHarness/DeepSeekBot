@@ -12,6 +12,7 @@ import {
   WINDOW_ZOOM_OPTIONS,
   runWindowZoomCommand,
 } from './cli-window-zoom.js';
+import { DESKTOP_WINDOW_COMMANDS, runDesktopWindowCommand } from './cli-desktop-window.js';
 import { PRESENCE_COMMANDS, PRESENCE_OPTIONS, runPresenceCommand } from './cli-presence.js';
 import { PHONE_ROUTE_COMMANDS, runPhoneRouteCommand } from './cli-phone-route.js';
 import { DEVICES_COMMANDS, isDevicesCommand, runDevicesCommand } from './cli-devices.js';
@@ -28,6 +29,7 @@ import {
 import { FEEDBACK_COMMANDS, runFeedbackCommand } from './cli-feedback.js';
 import { DIAGNOSTIC_LOG_COMMANDS, runDiagnosticLogCommand } from './cli-diagnostic-logs.js';
 import { DOCTOR_COMMANDS, runDoctor } from './cli-doctor.js';
+import { BUG_REPORT_COMMANDS, runBugReport } from './cli-bug-report.js';
 import { APPEARANCE_COMMANDS, APPEARANCE_OPTIONS, runAppearanceCommand } from './cli-appearance.js';
 import { prepareCloud, prepareCloudWork } from './cli-cloud.js';
 import { randomUUID } from 'node:crypto';
@@ -237,6 +239,7 @@ export const LIVE_OPTIONS = {
   refresh: { type: 'boolean' },
   'previous-value': { type: 'string' },
   member: { type: 'string', multiple: true },
+  attach: { type: 'string', multiple: true },
   app: { type: 'string' },
   bot: { type: 'string' },
   conversation: { type: 'string' },
@@ -314,7 +317,9 @@ export const LIVE_COMMANDS = [
   ...FEEDBACK_COMMANDS,
   ...DIAGNOSTIC_LOG_COMMANDS,
   ...DOCTOR_COMMANDS,
+  ...BUG_REPORT_COMMANDS,
   ...WINDOW_ZOOM_COMMANDS,
+  ...DESKTOP_WINDOW_COMMANDS,
   ...PRESENCE_COMMANDS,
   ...PHONE_ROUTE_COMMANDS,
   ...DEVICES_COMMANDS,
@@ -630,6 +635,8 @@ interface LiveValues
   recovery?: string;
   body?: string;
   'body-stdin'?: boolean;
+  attach?: string[];
+  title?: string;
   'answer-stdin'?: boolean;
   'values-stdin'?: boolean;
   outcome?: string;
@@ -990,6 +997,10 @@ export async function runLiveCli(
     return runBrowserNotifications(command, rest, values, io, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
+  if (command === 'bug-report')
+    return runBugReport(values, io, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
   if (command === 'doctor')
     return runDoctor(values, io, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
@@ -1032,6 +1043,10 @@ export async function runLiveCli(
     });
   if (isConnectCommand(command))
     return runConnectCommand(command, rest, values, io, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
+  if (DESKTOP_WINDOW_COMMANDS.some((entry) => entry.command === command))
+    return runDesktopWindowCommand(rest, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
   if (WINDOW_ZOOM_COMMANDS.some((entry) => entry.command === command))

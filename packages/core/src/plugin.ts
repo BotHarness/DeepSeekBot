@@ -20,6 +20,7 @@ import { createVoiceMessages, type VoiceMessages } from './voice/messages.js';
 import { createVoiceCalls, type VoiceCallMedia, type VoiceCalls } from './voice/calls.js';
 import { callVisualMessage, createCallTextHarvest } from './voice/call-text.js';
 import { voiceCallFramesAt, voiceCallRecordBody } from './channels/voice-call-record.js';
+import { DESKTOP_WINDOW_PATH, createDesktopWindowReveal } from './desktop-window/reveal.js';
 import { VOICE_CALL_PATH } from './voice/call-contract.js';
 import { createVoiceCallHttp } from './voice/call-http.js';
 import { CloudConnections } from './cloud/connections.js';
@@ -48,6 +49,11 @@ import {
   TOB_DIAGNOSTIC_CAPABILITIES,
 } from './tob/cli-diagnostic-operations.js';
 import {
+  createTobHostCliOperations,
+  spawnHostCli,
+  TOB_HOST_CLI_CAPABILITY,
+} from './tob/cli-host-commands.js';
+import {
   createTobShareDraftOperations,
   TOB_SHARE_DRAFT_CAPABILITIES,
 } from './tob/cli-share-draft-operations.js';
@@ -67,7 +73,7 @@ import {
   createTobMaintenanceOperations,
   TOB_MAINTENANCE_CAPABILITIES,
 } from './tob/cli-maintenance-operations.js';
-import { installTobCliShell } from './tob/cli-shell.js';
+import { cliModulePath, installTobCliShell } from './tob/cli-shell.js';
 import { createTobVoiceOperations, TOB_VOICE_CAPABILITIES } from './tob/cli-voice-operations.js';
 import {
   LOCAL_VOICE_SKILL_CONTENT,
@@ -1560,7 +1566,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
               return {
                 signal: execution.signal,
                 authorize,
-                prepareOperation: async (command, args) => {
+                prepareOperation: async (command, args, signal) => {
                   const prepared =
                     (await tobModelOperations(command, args)) ??
                     (await tobMaintenanceOperations(command, args)) ??
@@ -1569,7 +1575,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                     (await tobShareDraftOperations(command, args)) ??
                     (await tobDiagnosticOperations(command, args)) ??
                     (await tobChannelOperations(command, args)) ??
-                    (await tobVoiceOperations(command, args));
+                    (await tobVoiceOperations(command, args)) ??
+                    (await tobHostCliOperations(command, args, signal));
                   if (!prepared || !['create', 'group-create'].includes(command)) return prepared;
                   return {
                     ...prepared,
@@ -1594,6 +1601,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                   ...TOB_DIAGNOSTIC_CAPABILITIES,
                   ...TOB_CHANNEL_CAPABILITIES,
                   ...TOB_VOICE_CAPABILITIES,
+                  TOB_HOST_CLI_CAPABILITY,
                 ],
                 beforeWrite: () => source.markSideEffect?.(),
                 readSetting: () => core.tob.readSetting(),
@@ -3264,6 +3272,28 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     },
     environment: hostDiagnosticEnvironment,
   });
+  let tobHostTarget: (() => { origin: string; token: string } | undefined) | undefined;
+  ctx.inject(['connection', 'webServer'], (webCtx) => {
+    const services = webCtx as unknown as {
+      connection: { authenticatedUrl(baseUrl: string): string };
+      webServer: { getOrigin(): string };
+    };
+    webCtx.effect(() => {
+      tobHostTarget = () => {
+        const origin = services.webServer.getOrigin();
+        const token = [
+          ...new URL(services.connection.authenticatedUrl(`${origin}/`)).searchParams.values(),
+        ][0];
+        return token ? { origin, token } : undefined;
+      };
+      return () => {
+        tobHostTarget = undefined;
+      };
+    }, 'botharness: Tob Host CLI target');
+  });
+  const tobHostCliOperations = createTobHostCliOperations({
+    run: spawnHostCli({ modulePath: cliModulePath, host: () => tobHostTarget?.() }),
+  });
   const tobChannelOperations = createTobChannelOperations({
     management: core.channelManagement,
     channels: core.channels,
@@ -3523,6 +3553,18 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         await off();
       };
     }, 'botharness: explicit Client-local appearance control');
+    connectionCtx.effect(() => {
+      const desktopWindow = createDesktopWindowReveal({
+        log: (phase, detail) => ctx.logger.info('desktop-window %j', { phase, ...detail }),
+      });
+      desktopWindow.prime();
+      return connection.fetch.register({
+        path: DESKTOP_WINDOW_PATH,
+        methods: ['POST'],
+        requestBody: 'buffered',
+        fetch: desktopWindow.fetch,
+      });
+    }, 'botharness: bring the Desktop window back from a notification');
     connectionCtx.effect(
       () =>
         connection.fetch.register({
