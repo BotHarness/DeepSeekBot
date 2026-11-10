@@ -8,6 +8,7 @@ import { createMarkdownBlocks, textMarkdownSupported, type MarkdownBlock } from 
 import { markdownBlockContent } from './markdown-block-content';
 import { MarkdownText } from './markdown-text';
 import { markdownStyle } from './markdown-style';
+import { pressLink } from './link-press';
 import { space } from './design/tokens';
 import { useMarkdownViewport } from './markdown-viewport';
 import { createMarkdownWindow } from './markdown-window';
@@ -32,7 +33,10 @@ const MarkdownBlockView = memo(function MarkdownBlockView({
 }) {
   const theme = useDesignTheme();
   const style = useMemo(() => markdownStyle(theme, color), [theme, color]);
-  const linkPressed = useCallback(({ url }: LinkPressEvent) => onOpenLink(url), [onOpenLink]);
+  const linkPressed = useCallback(
+    ({ url }: LinkPressEvent) => pressLink(onOpenLink, url),
+    [onOpenLink],
+  );
   const { markdown, tokens } = useMemo(
     () => markdownBlockContent(block, streaming),
     [block, streaming],
