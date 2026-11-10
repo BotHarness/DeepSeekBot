@@ -138,6 +138,24 @@ describe('GenUI bounded guest DOM adapter', () => {
     );
   });
 
+  it('gives the startup restoration its own number format budget', async () => {
+    const document = {
+      ...syntheticGenuiDocument,
+      html: `<p id="out"></p><script>const draw=()=>{for(let index=0;index<60;index++)document.getElementById('out').textContent=new Intl.NumberFormat('en-US').format(index)+window.genui.getState().filter};draw();document.addEventListener('genui:state',draw)</script>`,
+    };
+    const initial = initialGenuiDocumentState(document);
+    const guest = await createGenuiGuest({
+      document,
+      state: { ...initial, values: { ...initial.values, filter: 'saved' } },
+      librarySource,
+      wasmBinary,
+    });
+    guests.push(guest);
+    expect(parseHTML(guest.snapshot().html).document.querySelector('#out')?.textContent).toBe(
+      '59saved',
+    );
+  });
+
   it('extracts executable scripts through the parser rather than a source regexp', async () => {
     const guest = await open(
       `<html><head><script id="data" type="application/json">{"text":"executed"}</script></head><body><p id="result"></p><SCRIPT type="text/javascript">document.querySelector('#result').textContent=JSON.parse(document.querySelector('#data').textContent).text</SCRIPT></body></html>`,
