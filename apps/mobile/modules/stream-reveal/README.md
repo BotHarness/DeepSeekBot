@@ -15,7 +15,7 @@ Android API 28 and earlier keep all block content in this candidate.
 
 Native wrappers remain allocated, and their traversal has a cost. A/B must measure
 that cost as well as JS work; this is not a performance claim or default rollout.
-See ADR-0317 and #3926. Native unit tests share `:stream-reveal:testDebugUnitTest`.
+See ADR-0321 and #3926. Native unit tests share `:stream-reveal:testDebugUnitTest`.
 
 This local Expo module observes the existing React Native paragraph `TextView`.
 Markdown parsing, text, typography, layout, selection and accessibility stay with
@@ -74,4 +74,4 @@ surface test checks actual drawing/clipping and proves child measurement/bounds
 remain untouched across paint frames. Device recordings and alternating Release
 frame measurements are still required for visual/performance acceptance.
 
-Android `TextPlayback` is an independent opt-in shared-object engine (`EXPO_PUBLIC_TEXT_PLAYBACK=native`). It preserves JS conversation ownership while moving pacing and one-shot frame timing to Android; missing modules retain JS. A native rebuild is required. ADR-0318 and the `text-playback-native` journey describe lifetime and pending device validation.
+Android `TextPlayback` is an independent opt-in shared-object engine (`EXPO_PUBLIC_TEXT_PLAYBACK=native`). It preserves JS conversation ownership while moving pacing and one-shot frame timing to Android; missing modules retain JS. A native rebuild is required. ADR-0322 and the `text-playback-native` journey describe lifetime and pending device validation.

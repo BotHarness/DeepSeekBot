@@ -1,4 +1,4 @@
-# ADR-0317: Android Markdown windowing has an opt-in native geometry owner
+# ADR-0321: Android Markdown windowing has an opt-in native geometry owner
 
 Date: 2026-11-10
 
