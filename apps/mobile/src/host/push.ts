@@ -8,9 +8,12 @@ export const PUSH_KINDS = ['approval', 'question', 'private-input', 'reply'] as 
 export type PushKind = (typeof PUSH_KINDS)[number];
 export type PushPreferences = Record<PushKind, boolean>;
 
+export type PushDelivery = 'push' | 'in-app';
+
 export interface PushSettings {
   registered: boolean;
   enabled: boolean;
+  delivery: PushDelivery;
   preferences: PushPreferences;
   quietChannelIds: string[];
 }
@@ -151,6 +154,7 @@ function settingsOf(value: unknown): PushSettings {
   return {
     registered: body['registered'] === true,
     enabled: body['enabled'] !== false,
+    delivery: body['delivery'] === 'in-app' ? 'in-app' : 'push',
     preferences: Object.fromEntries(
       PUSH_KINDS.map((kind) => [kind, preferences[kind] !== false]),
     ) as PushPreferences,
@@ -172,6 +176,7 @@ export interface HostPush {
   register(host: SavedHost, registration: PushRegistration): Promise<PushSettings>;
   setPreferences(host: SavedHost, preferences: Partial<PushPreferences>): Promise<PushSettings>;
   setEnabled(host: SavedHost, enabled: boolean): Promise<PushSettings>;
+  setDelivery(host: SavedHost, delivery: PushDelivery): Promise<PushSettings>;
   setQuiet(host: SavedHost, channelId: string, quiet: boolean): Promise<PushSettings>;
   test(host: SavedHost): Promise<void>;
   unregister(host: SavedHost): Promise<void>;
@@ -233,6 +238,8 @@ export function createHostPush(carrier: HostCarrier, timeoutMs = 10_000): HostPu
       settingsOf(await request(host, '/preferences', { preferences })),
     setEnabled: async (host, enabled) =>
       settingsOf(await request(host, '/preferences', { enabled })),
+    setDelivery: async (host, delivery) =>
+      settingsOf(await request(host, '/preferences', { delivery })),
     setQuiet: async (host, channelId, quiet) =>
       settingsOf(await request(host, '/quiet', { channelId, quiet })),
     async test(host) {

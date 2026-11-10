@@ -454,6 +454,7 @@ describe('push registration with a real Host gateway', () => {
     expect(await hostPush.settings(h.saved)).toEqual({
       registered: true,
       enabled: true,
+      delivery: 'push',
       preferences: { approval: true, question: true, 'private-input': true, reply: true },
       quietChannelIds: [],
     });
@@ -463,6 +464,8 @@ describe('push registration with a real Host gateway', () => {
       enabled: true,
       quietChannelIds: ['g1'],
     });
+    expect((await hostPush.setDelivery(h.saved, 'in-app')).delivery).toBe('in-app');
+    expect((await hostPush.setDelivery(h.saved, 'push')).delivery).toBe('push');
 
     h.raise('approval:1');
     await h.push.reconcile();

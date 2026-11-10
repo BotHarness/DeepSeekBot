@@ -14,6 +14,7 @@ const host: SavedHost = {
 const settings: PushSettings = {
   registered: true,
   enabled: true,
+  delivery: 'push',
   preferences: { approval: true, question: true, 'private-input': true, reply: true },
   quietChannelIds: [],
 };
@@ -52,6 +53,7 @@ function fixture(token: () => Promise<string> = async () => 'A') {
     settings: vi.fn(),
     setPreferences: vi.fn(),
     setEnabled: vi.fn(),
+    setDelivery: vi.fn(),
     setQuiet: vi.fn(),
     test: vi.fn(),
     unregister: vi.fn(),

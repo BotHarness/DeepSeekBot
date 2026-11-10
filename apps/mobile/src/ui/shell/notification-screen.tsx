@@ -9,6 +9,7 @@ import {
   useConnectionSummary,
   pushSession,
   setHostNotificationsEnabled,
+  setHostDelivery,
 } from '../../host/host-session';
 import { NotificationSettings, type NotificationSettingsPort } from '../notification-settings';
 import { notificationPreferences } from '../../host/native-notification-preferences';
@@ -43,6 +44,11 @@ export default function NotificationsScreen() {
             setEnabled: async (enabled) => {
               const settings = await hostPush.setEnabled(saved, enabled);
               setHostNotificationsEnabled(saved.hostId, settings.enabled);
+              return settings;
+            },
+            setDelivery: async (delivery) => {
+              const settings = await hostPush.setDelivery(saved, delivery);
+              setHostDelivery(saved.hostId, settings.delivery);
               return settings;
             },
             test: () => hostPush.test(saved),
