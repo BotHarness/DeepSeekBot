@@ -36,8 +36,8 @@ type Props = ViewProps & {
   rows: string[];
   following: boolean;
   estimate: number;
-  top: number;
-  bottom: number;
+  contentTop: number;
+  contentBottom: number;
   onWindow(event: Event<{ start: number; end: number; width: number }>): void;
   onContentSize(event: Event<{ width: number; height: number }>): void;
   onVisible(event: Event<{ indices: number[] }>): void;
@@ -101,8 +101,8 @@ function RecyclerList<T>({ ref, ...props }: FlatListProps<T> & { ref?: Ref<ChatL
       rows={keys}
       following={following.current}
       estimate={96}
-      top={top}
-      bottom={bottom}
+      contentTop={top}
+      contentBottom={bottom}
       style={props.style}
       testID={props.testID}
       pointerEvents={props.pointerEvents}

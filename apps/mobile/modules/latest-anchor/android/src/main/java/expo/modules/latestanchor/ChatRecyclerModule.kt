@@ -28,8 +28,8 @@ class ChatRecyclerModule : Module() {
       Prop("rows") { view: ChatRecyclerView, rows: List<String> -> view.setRows(rows) }
       Prop("following") { view: ChatRecyclerView, following: Boolean -> view.following = following }
       Prop("estimate") { view: ChatRecyclerView, value: Double -> view.setEstimate(value) }
-      Prop("top") { view: ChatRecyclerView, value: Double -> view.setTop(value) }
-      Prop("bottom") { view: ChatRecyclerView, value: Double -> view.setBottom(value) }
+      Prop("contentTop") { view: ChatRecyclerView, value: Double -> view.setTop(value) }
+      Prop("contentBottom") { view: ChatRecyclerView, value: Double -> view.setBottom(value) }
       AsyncFunction("measureCell") { view: ChatRecyclerView, key: String, height: Double -> view.measureCell(key, height) }
       AsyncFunction("scrollToOffset") { view: ChatRecyclerView, offset: Double, animated: Boolean -> view.scrollToOffset(offset, animated) }
       AsyncFunction("scrollToIndex") { view: ChatRecyclerView, index: Int, position: Double -> view.scrollToIndex(index, position) }

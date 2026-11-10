@@ -782,7 +782,7 @@ function ChatConversation({
     () => ({
       scroll,
       viewport,
-      content,
+      content: nativeChatRecycler ? undefined : content,
       layout: viewportLayout,
       active: focused,
       inverted: android,

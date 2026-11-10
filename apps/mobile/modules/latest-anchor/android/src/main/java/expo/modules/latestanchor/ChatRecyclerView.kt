@@ -75,8 +75,8 @@ class ChatRecyclerView(context: Context, app: AppContext) : ExpoView(context, ap
   private var pull = 0f
   private var velocityY = 0f
   var following = true
-  private var top = 0
-  private var bottom = 0
+  private var contentTop = 0
+  private var contentBottom = 0
   private var ime = 0
   private var animatingIme = false
   private var lastWindow = ""
@@ -187,11 +187,11 @@ class ChatRecyclerView(context: Context, app: AppContext) : ExpoView(context, ap
     restore(anchor)
   }
   fun setEstimate(value: Double) { estimate = maxOf(1, value.roundToInt()) }
-  fun setTop(value: Double) { top = (value * density).roundToInt(); applyPadding() }
-  fun setBottom(value: Double) { bottom = (value * density).roundToInt(); applyPadding() }
+  fun setTop(value: Double) { contentTop = (value * density).roundToInt(); applyPadding() }
+  fun setBottom(value: Double) { contentBottom = (value * density).roundToInt(); applyPadding() }
   private fun applyPadding() {
     val anchor = anchor()
-    recycler.setPadding(0, top + ime, 0, bottom)
+    recycler.setPadding(0, contentTop + ime, 0, contentBottom)
     restore(anchor)
   }
   fun register(cell: ChatRecyclerCell, index: Int) {

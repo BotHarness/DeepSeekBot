@@ -15,7 +15,7 @@ import type { MarkdownViewport } from './markdown-window';
 
 export type MarkdownViewportStage = {
   viewport: AnimatedRef<ViewInstance>;
-  content: AnimatedRef<ViewInstance>;
+  content: AnimatedRef<ViewInstance> | undefined;
   scroll: SharedValue<number>;
   layout: SharedValue<number>;
   active: boolean;
