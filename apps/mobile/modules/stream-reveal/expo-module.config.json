@@ -3,7 +3,8 @@
   "android": {
     "modules": [
       "expo.modules.streamreveal.StreamRevealModule",
-      "expo.modules.streamreveal.StreamSurfaceModule"
+      "expo.modules.streamreveal.StreamSurfaceModule",
+      "expo.modules.streamreveal.MarkdownBlockWindowModule"
     ]
   },
   "apple": {
