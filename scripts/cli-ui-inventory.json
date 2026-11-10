@@ -949,6 +949,13 @@
       "commands": ["window-zoom-clients", "window-zoom-get", "window-zoom-set", "window-zoom-reset"]
     },
     {
+      "id": "desktop-presence",
+      "description": "Desktop Clients lease an active state on the Host; while any is active, reply pushes to phones wait until it lapses.",
+      "scope": "Host / push delivery",
+      "surfaces": ["route:packages/core/src/plugin.ts:PRESENCE_PATH"],
+      "commands": ["presence-status", "presence-report"]
+    },
+    {
       "id": "desktop-window-zoom-setup",
       "description": "Host schedules the Desktop zoom Profile link to be added or removed after the app quits, then reopens the app.",
       "scope": "Host / desktop Profile",

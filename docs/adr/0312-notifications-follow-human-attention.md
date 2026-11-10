@@ -35,15 +35,13 @@ Mainstream messengers (Slack, WhatsApp, Telegram, WeChat) also show no system no
 
 **While the app is in the foreground, nothing reaches the system tray.** A push or local alert that arrives while the app is active becomes an in-app banner (the existing `alertBanners` queue and `DeviceAlertBanner`), or nothing if it is covered by attention focus. The system banner, list entry and sound are reserved for when the app is not in front. This matches the desktop Client and mainstream messengers. _(Slice 2.)_
 
-**The Host learns device presence and holds push for the device in use.** Each paired Client reports a short-lived presence lease to the Host: active or inactive, plus the attended channels while active. The lease is renewed by the existing connection and expires after about 30 seconds without renewal. The push owner then decides per device, in this order:
+**The Host learns desktop presence and holds reply push while the desk is in use.** Each desktop or web Client reports a presence lease to the Host (`/api/botharness/presence`): active while its window is visible and it saw input in the last 10 minutes. It renews the 90-second lease every 30 seconds and reports idle 1 minute after the window is hidden or the screen locks, or after 10 minutes without input. That is Slack's hold. The push owner then decides per phone, in this order:
 
 1. The kind is not enabled, or the channel is quiet: drop.
-2. This device holds the item's channel in attention: drop, and mark it seen.
-3. This device is active: drop; the live connection shows it in-app.
-4. Another device of the same Human is active (for example the desktop Client is focused): wait. Push once that device has been inactive for the hold time, unless the item was read meanwhile. The default hold is Slack's: 1 minute after lock or hide, 10 minutes after the last input. A per-device setting can choose "immediately".
-5. Otherwise push now.
+2. A desktop Client is active and the item is a reply: wait. The item stays out of `push_sent`, so it pushes once when no Client is active, unless it was read meanwhile.
+3. Otherwise push now.
 
-Requests use the same rules except step 4, because an approval that blocks a Bot must not wait 10 minutes. _(Slice 3.)_
+Requests (approvals, questions, private input) skip rule 2, because a request that blocks a Bot must not wait 10 minutes. Whether the phone itself is in use stays a phone decision: the foreground handler and attention focus already turn pushes into in-app banners or nothing (slices 1 and 2). The Host does not skip pushes to an active phone, because on iOS the foreground push is what raises the in-app banner. _(Slice 3.)_
 
 **Reading anywhere withdraws everywhere.** The Host already sends `resolved` pushes for requests that disappear. Replies follow the same rule: when a reply becomes read on any device, every device dismisses its notification for that item, and the badge is recomputed. _(Slice 4.)_
 
@@ -52,10 +50,10 @@ Requests use the same rules except step 4, because an approval that blocks a Bot
 ## Consequences
 
 - Slice 1 is client-only. The foreground handler can only suppress pushes that arrive while the app is open. A push that arrives while the phone is locked or the app is in the background is still shown by the OS. This includes iOS during a backgrounded call, until slice 3.
-- Slice 3 adds a Host route (presence) and a push-owner rule. Per CLI parity (AGENTS.md), it ships `deepseekbot push-presence` (report, list and expire a device lease) and a `push-decide --item <id> --device <id>` explain command. The explain command shows which rule kept or dropped a push, the way the flowchart does for Slack. Delivery decisions are recorded as bounded developer log events (`push.decided` with rule and device), not as a new store.
-- The hold in rule 4 needs a timer in the push owner. Items keep their existing `push_sent` identity, so a held item is pushed once at most and is dropped if it is read or resolved first.
+- Slice 3 adds a Host route (presence) and a push-owner rule. Per CLI parity (AGENTS.md), it ships `deepseekbot presence-status` and `presence-report --client-id <id> --active|--idle`. Presence lives in Host memory; a Host restart starts with no active Client, and each Client re-reports within 30 seconds.
+- The hold needs no extra timer in the push owner. A lease lapse fires the push watch, and the 60-second sweep covers the rest. Items keep their existing `push_sent` identity, so a held item is pushed once at most and is dropped if it is read or resolved first.
 - iOS approval actions still open the app. Background actions on iOS rely on a background launch that must be verified on a device first. They follow once that is accepted.
-- The desktop Client keeps its `attentive()` rule. Slice 3 makes it also report presence, so the phone stays quiet while the Human is working at the desk.
+- The desktop Client keeps its `attentive()` rule. Slice 3 makes it also report presence, so the phone stays quiet while the Human is working at the desk. Presence counts a visible window, not a focused one, because a Human working in another app beside it is still at the desk; the 10-minute input rule ends that.
 
 ## Sources
 

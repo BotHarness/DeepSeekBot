@@ -149,6 +149,7 @@ export interface PushDeliveryOptions {
   sender: ExpoSender;
   host(): { id: string; name: string };
   deviceActive(deviceId: string): boolean;
+  held?: () => boolean;
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
   record?: (event: PushEvent) => void;
@@ -436,6 +437,7 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
     const { items, badge } = source.pending();
     const present = new Set(items.map((item) => item.id));
     const hostId = options.host().id;
+    const held = options.held?.() === true;
     for (const device of devices) {
       if (!options.deviceActive(device.device_id)) {
         dropToken(device.device_id, 'device-revoked');
@@ -457,7 +459,10 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
         ),
       );
       const fresh = items.filter(
-        (item) => !seen.has(item.id) && Date.parse(item.createdAt) >= registeredAt,
+        (item) =>
+          !seen.has(item.id) &&
+          Date.parse(item.createdAt) >= registeredAt &&
+          !(held && item.kind === 'reply'),
       );
       const gone = [...seen].filter((id) => !present.has(id));
       database.transaction(

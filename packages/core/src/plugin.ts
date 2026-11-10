@@ -1,6 +1,7 @@
 import { BotNetworkDeliveryError } from './runtime/bot-network.js';
 import type { AssignmentReportContent } from './runtime/assignment-report.js';
 import { createWindowZoomControl, WINDOW_ZOOM_CONTROL_PATH } from './window-zoom/control.js';
+import { createPresence, PRESENCE_PATH } from './push/presence.js';
 import {
   compactUnknownContext,
   contextCapacity,
@@ -1789,6 +1790,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   );
   let connectAccount: ConnectAccount | undefined;
   let voiceCalls: VoiceCalls | undefined;
+  const presence = createPresence();
+  ctx.effect(() => () => presence.dispose(), 'botharness: desktop presence');
   mountDevicePairing(ctx, {
     calls: () => voiceCalls,
     botNetwork: {
@@ -1823,11 +1826,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         const offActivity = core.states.onActivity((event) => {
           if (event.cause === 'attention-changed') changed();
         });
+        const offPresence = presence.subscribe(changed);
         return () => {
           offDatabase();
           offActivity();
+          offPresence();
         };
       },
+      held: () => presence.active(),
     },
   });
   if (core.operationalDatabase.mode === 'ready' && telemetryState.lockedBy === undefined) {
@@ -3466,6 +3472,16 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         };
       }
     ).connection;
+    connectionCtx.effect(
+      () =>
+        connection.fetch.register({
+          path: PRESENCE_PATH,
+          methods: ['GET', 'POST'],
+          requestBody: 'buffered',
+          fetch: presence.fetch,
+        }),
+      'botharness: desktop presence route',
+    );
     connectionCtx.effect(() => {
       const control = createWindowZoomControl(Date.now, (phase, detail) =>
         ctx.logger.info('window-zoom-control %j', { phase, ...detail }),
