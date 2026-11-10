@@ -8,6 +8,8 @@ const identities = new WeakMap<object, number>();
 let nextId = 1;
 
 export type SchedulingDiagnostic =
+  | { kind: 'heartbeat-owner-enter'; call: number; operation: number; active: boolean }
+  | { kind: 'heartbeat-owner-settle'; call: number; operation: number; outcome: 'ok' | 'error' }
   | { kind: 'steer'; turn: number; delivered: boolean }
   | { kind: 'scan-start' | 'scan-coalesced'; turn: number; operation: number }
   | { kind: 'scan-end'; turn: number; operation: number; outcome: 'ok' | 'stale' | 'error' }

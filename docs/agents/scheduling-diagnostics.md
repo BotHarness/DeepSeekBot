@@ -1,7 +1,8 @@
 # Opt-in Host scheduling evidence
 
 This development-only capture helps distinguish a delivered steer, its asynchronous Memory scan,
-and child-command execution. It does not diagnose a historical call failure by itself. It is off
+child-command execution, and admitted call-heartbeat owner work. It does not diagnose a historical
+call failure by itself. It is off
 unless `BOTHARNESS_SCHEDULING_DIAGNOSTICS=1` **and** a subscriber is present. No database writes,
 call deadlines, admission policy, or scan scheduling are changed.
 
@@ -49,6 +50,14 @@ are not calibrated by this capture.
 | `exec-dispatch`           | Command submitted through `worker` or fallback `direct`; the same numeric `operation` joins its settlement. This is submission, not a measured worker-side spawn timestamp. |
 | `exec-settle`             | Command success/error returned on the Host. No error text is retained.                                                                                                      |
 
+`heartbeat-owner-enter` records an admitted owner's synchronous processing boundary, after call
+ownership and event-sequence validation. `heartbeat-owner-settle` pairs by anonymous numeric
+`call` and `operation`, with `outcome: ok | error`. Between those markers the existing code updates
+lastHeartbeat, runs tick, and constructs the response view. `active` means the call was not ended
+on entry; it also includes connecting calls. Rejected ownership/invalid input has no markers.
+The markers exclude network ingress, gateway/authentication work, prior queueing, serialization
+and response delivery. They do not establish deadline margin or connected-media health.
+
 Scan `operation` identifies one coalescing chain: successive passes reuse it and are paired in
 row order. `exec.scan` links commands launched within that scan's asynchronous context; zero
 means no recorded scan context. Numeric identities are process-local and must not be joined
@@ -59,7 +68,9 @@ that all command time is a main-thread pause or that a scan-end is the exact chi
 
 Use only known synthetic WAV with the physical microphone denied. During a canonically active
 Bot turn, deliver a further question and require a delivered steer, matching scan start/end, and
-actual heartbeat processing during that interval. Keep the existing native/control/media and
+an `active:true` heartbeat-owner entry and matching `outcome:ok` settlement fully within that
+scan interval on the same PID/Host monotonic clock. Canonical facts must separately establish
+the connected target call; anonymous call IDs and `active` alone cannot. Keep the existing native/control/media and
 canonical Host facts, final UI Hang up, and cleanup proof. Missing overlap is **inconclusive**.
 Anonymous turn IDs do not identify a Bot. Establish that only the intended Bot is active and
 receiving steering in the window using canonical evidence, or mark attribution inconclusive.

@@ -1,10 +1,12 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
+import { channel } from 'node:diagnostics_channel';
+import { createSchedulingCapture } from '../../../scripts/capture-scheduling-diagnostics.mjs';
 
 import { Context } from '@deepseek-ai/cordis';
 import LocalCredentialProvider from '@deepseek-ai/dsh-credentials-local';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
@@ -280,6 +282,105 @@ async function view(h: ReturnType<typeof harness>, callId: string, after = 0) {
 }
 
 describe('Host call owner', () => {
+  it.each([false, true])(
+    'records only admitted heartbeat owner work when diagnostics enabled=%s',
+    async (enabled) => {
+      vi.stubEnv('BOTHARNESS_SCHEDULING_DIAGNOSTICS', enabled ? '1' : '');
+      const capture = createSchedulingCapture();
+      const output = channel('botharness.scheduling.v1');
+      output.subscribe(capture.record);
+      try {
+        const h = harness({ media: fakeMedia().media });
+        const callId = await connected(h);
+        expect(
+          await h.calls.handle({ deviceId: 'other-private-device' }, { kind: 'heartbeat', callId }),
+        ).toMatchObject({ ok: false, code: 'call-not-found' });
+        expect(
+          await h.calls.handle(h.phone, { kind: 'heartbeat', callId, after: -1 }),
+        ).toMatchObject({ ok: false, code: 'invalid-input' });
+        expect(capture.snapshot().rows).toHaveLength(0);
+        expect((await h.ok({ kind: 'heartbeat', callId })).call?.phase).toBe('listening');
+        await h.ok({ kind: 'hangup', callId });
+        expect((await h.ok({ kind: 'heartbeat', callId })).call?.phase).toBe('ended');
+        const { rows } = capture.snapshot();
+        if (!enabled) {
+          expect(rows).toHaveLength(0);
+          return;
+        }
+        expect(rows.map((row) => row.kind)).toEqual([
+          'heartbeat-owner-enter',
+          'heartbeat-owner-settle',
+          'heartbeat-owner-enter',
+          'heartbeat-owner-settle',
+        ]);
+        expect(rows[0]).toMatchObject({ active: true });
+        expect(rows[2]).toMatchObject({ active: false });
+        expect(rows[1]).toMatchObject({
+          outcome: 'ok',
+          operation: rows[0]?.operation,
+          call: rows[0]?.call,
+        });
+        expect(rows[3]).toMatchObject({
+          outcome: 'ok',
+          operation: rows[2]?.operation,
+          call: rows[0]?.call,
+        });
+        expect(rows[0]?.operation).not.toBe(rows[2]?.operation);
+        expect(rows[1]!.monotonicMs).toBeGreaterThanOrEqual(rows[0]!.monotonicMs);
+        expect(JSON.stringify(rows)).not.toMatch(
+          new RegExp(callId + '|mira|phone-1|other-private-device'),
+        );
+      } finally {
+        output.unsubscribe(capture.record);
+        vi.unstubAllEnvs();
+      }
+    },
+  );
+
+  it('settles a throwing heartbeat owner operation as error without changing its refusal', async () => {
+    vi.stubEnv('BOTHARNESS_SCHEDULING_DIAGNOSTICS', '1');
+    const capture = createSchedulingCapture();
+    const output = channel('botharness.scheduling.v1');
+    output.subscribe(capture.record);
+    let fail = false;
+    try {
+      const h = harness({
+        media: fakeMedia().media,
+        busy: () => {
+          if (fail) throw new Error('private-owner-failure');
+          return false;
+        },
+      });
+      const callId = await connected(h);
+      fail = true;
+      const result = await h.calls.handle(h.phone, { kind: 'heartbeat', callId });
+      fail = false;
+      expect(result).toMatchObject({ ok: false });
+      const { rows } = capture.snapshot();
+      expect(rows.map((row) => row.kind)).toEqual([
+        'heartbeat-owner-enter',
+        'heartbeat-owner-settle',
+      ]);
+      expect(rows[1]).toMatchObject({
+        outcome: 'error',
+        operation: rows[0]?.operation,
+        call: rows[0]?.call,
+      });
+      expect(JSON.stringify(rows)).not.toContain('private-owner-failure');
+      vi.stubEnv('BOTHARNESS_SCHEDULING_DIAGNOSTICS', '');
+      fail = true;
+      const withoutDiagnostics = await h.calls.handle(h.phone, { kind: 'heartbeat', callId });
+      fail = false;
+      expect(withoutDiagnostics).toEqual(result);
+      expect(capture.snapshot().rows).toHaveLength(2);
+      expect((await h.ok({ kind: 'heartbeat', callId })).call?.phase).toBe('listening');
+    } finally {
+      fail = false;
+      output.unsubscribe(capture.record);
+      vi.unstubAllEnvs();
+    }
+  });
+
   it('hears one sentence, posts the transcript to the DM and plays the committed voice reply', async () => {
     const service = await fakeSpeechService(['明天上海会下雨吗？']);
     const providers = await realProviders();

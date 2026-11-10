@@ -5,6 +5,8 @@ import { isMainThread } from 'node:worker_threads';
 
 const CAPACITY = 4096;
 const fields = {
+  'heartbeat-owner-enter': ['call', 'operation', 'active'],
+  'heartbeat-owner-settle': ['call', 'operation', 'outcome'],
   steer: ['turn', 'delivered'],
   'scan-start': ['turn', 'operation'],
   'scan-coalesced': ['turn', 'operation'],
@@ -32,7 +34,7 @@ export function createSchedulingCapture(capacity = CAPACITY) {
         for (const key of allowed) {
           const value = event[key];
           const valid =
-            key === 'delivered'
+            key === 'delivered' || key === 'active'
               ? typeof value === 'boolean'
               : key === 'mode'
                 ? value === 'worker' || value === 'direct'
