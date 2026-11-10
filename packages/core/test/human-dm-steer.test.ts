@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -235,26 +235,31 @@ describe('Human DM steering', () => {
           );
         await send('steered');
         expect(inboxes).toHaveLength(1);
+        expect(steered).toHaveLength(1);
+        expect(steered[0]).toContain('steered');
+        expect(steered[0]).not.toContain('external.md');
         const items = () =>
           core.attention
             .list({ botSlug: 'ada' })
             .items.filter((item) => item.reason === 'memory-change');
-        if (outcome === 'admission-failed') {
-          expect(steered).toHaveLength(0);
-          expect(items()).toHaveLength(0);
-          port.transaction((db) => db.exec('DROP TRIGGER reject_steered_memory'));
-        } else {
-          expect(steered[0]).toContain('external.md');
-          expect(steered[0]).not.toContain('External private content');
-          expect(items()[0]?.state).toBe(outcome === 'refused' ? 'pending' : 'processing');
-        }
+        if (outcome === 'accepted' || outcome === 'interrupted') {
+          await vi.waitFor(() => expect(steered).toHaveLength(2), { timeout: 30_000 });
+          expect(steered[1]).toContain('external.md');
+          expect(steered[1]).not.toContain('External private content');
+          expect(items()[0]?.state).toBe('processing');
+        } else expect(items()).toHaveLength(0);
         if (outcome === 'accepted') {
           await send('steered-again');
-          expect(steered).toHaveLength(2);
-          expect(steered[1]).not.toContain('external.md');
+          expect(steered).toHaveLength(3);
+          expect(steered[2]).not.toContain('external.md');
         }
         releaseTurn();
         await core.runtime.whenIdle();
+        if (outcome === 'admission-failed') {
+          expect(steered).toHaveLength(1);
+          expect(items()).toHaveLength(0);
+          port.transaction((db) => db.exec('DROP TRIGGER reject_steered_memory'));
+        }
         await send('next-turn');
         await core.runtime.whenIdle();
         expect(inboxes).toHaveLength(outcome === 'refused' ? 3 : 2);

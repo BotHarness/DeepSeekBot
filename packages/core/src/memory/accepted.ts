@@ -183,6 +183,7 @@ export interface MemoryAcceptance {
   ): Promise<MemoryAcceptedCommit[]>;
   abortTurnAsync(...args: Parameters<MemoryAcceptance['abortTurn']>): Promise<void>;
   pendingCommitsAsync(botSlug: string): Promise<MemoryPendingCommits>;
+  scanChangesAsync(botSlug: string): Promise<MemoryChangeScan>;
   sourceReferences(sourceEventIds: readonly string[]): Array<{
     sourceEventId: string;
     botSlug: string;
@@ -1557,6 +1558,7 @@ export function createMemoryAcceptance(options: {
     abortTurnAsync: (botSlug, sessionId, preserveObservation) =>
       runAsync(botSlug, abortTurnSteps(botSlug, sessionId, preserveObservation)),
     pendingCommitsAsync: (botSlug) => runAsync(botSlug, pendingCommitsSteps(botSlug)),
+    scanChangesAsync: (botSlug) => runAsync(botSlug, scanChangesSteps(botSlug)),
     continueFromCommit(input) {
       assertIdle(input.botSlug);
       requireOwned(input.botSlug, input.sessionId);

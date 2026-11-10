@@ -936,6 +936,7 @@ export interface BotRuntimeOptions {
       Pick<
         MemoryService,
         | 'scanChanges'
+        | 'scanChangesAsync'
         | 'preparedObservation'
         | 'pendingCommits'
         | 'advanceCommitCursor'
@@ -1639,6 +1640,7 @@ class BotRuntimeImplementation implements BotRuntime {
     }
   >();
   readonly #memoryTurnOperations = new Set<string>();
+  readonly #steerMemoryScans = new Map<string, { again: boolean; done: Promise<void> }>();
   readonly #activeMemoryEvents = new Map<
     string,
     { eventIds: string[]; preserveObservation: boolean }
@@ -2780,23 +2782,81 @@ class BotRuntimeImplementation implements BotRuntime {
     const activeEvents = this.#activeMemoryEvents.get(botSlug);
     if (activeEvents === undefined || this.#memory?.scanChanges === undefined)
       return this.#agents.steerOrchestrator?.(botSlug, prompt) ?? false;
-    try {
-      this.#recordMemoryObservation(botSlug, this.#memory.scanChanges(botSlug));
-    } catch (error) {
-      activeEvents.preserveObservation = true;
-      throw error;
-    }
+    const delivered = this.#steerMemoryInbox(botSlug, activeEvents, prompt);
+    this.#scanMemoryWhileSteering(botSlug, activeEvents);
+    return delivered;
+  }
+
+  #steerMemoryInbox(
+    botSlug: string,
+    activeEvents: { eventIds: string[]; preserveObservation: boolean },
+    prompt: string | undefined,
+  ): boolean {
     const memoryInbox = this.#collectMemoryInbox(botSlug);
-    const text =
+    if (prompt === undefined && memoryInbox.units.length === 0) return false;
+    const rendered =
       memoryInbox.units.length === 0
-        ? prompt
-        : `${prompt}\n\n${renderInbox(memoryInbox.units, this.#promptText(botSlug))}`;
+        ? undefined
+        : renderInbox(memoryInbox.units, this.#promptText(botSlug));
+    const text = [prompt, rendered].filter((part) => part !== undefined).join('\n\n');
     const delivered = this.#agents.steerOrchestrator?.(botSlug, text) ?? false;
     if (delivered) {
       activeEvents.eventIds.push(...memoryInbox.eventIds);
       this.#setObserved(memoryInbox.eventIds, this.#now().toISOString());
     }
     return delivered;
+  }
+
+  #scanMemoryWhileSteering(
+    botSlug: string,
+    activeEvents: { eventIds: string[]; preserveObservation: boolean },
+  ): void {
+    const running = this.#steerMemoryScans.get(botSlug);
+    if (running !== undefined) {
+      running.again = true;
+      return;
+    }
+    const memory = this.#memory;
+    const scan =
+      memory?.scanChangesAsync ??
+      (memory?.scanChanges === undefined
+        ? undefined
+        : async (slug: string) => memory.scanChanges!(slug));
+    if (scan === undefined) return;
+    const current = this.#activeTurn(botSlug, activeEvents);
+    const entry = { again: false, done: Promise.resolve() };
+    entry.done = (async () => {
+      do {
+        entry.again = false;
+        try {
+          const observation = await scan(botSlug);
+          if (!current()) return;
+          this.#recordMemoryObservation(botSlug, observation);
+          this.#steerMemoryInbox(botSlug, activeEvents, undefined);
+        } catch (error) {
+          activeEvents.preserveObservation = true;
+          this.#warn?.(`Memory observation failed for ${botSlug}: ${String(error)}`);
+          return;
+        }
+      } while (entry.again && current());
+    })().finally(() => {
+      if (this.#steerMemoryScans.get(botSlug) === entry) this.#steerMemoryScans.delete(botSlug);
+    });
+    this.#steerMemoryScans.set(botSlug, entry);
+  }
+
+  #activeTurn(
+    botSlug: string,
+    activeEvents: { eventIds: string[]; preserveObservation: boolean },
+  ): () => boolean {
+    return () =>
+      !this.#closed &&
+      this.#activeMemoryEvents.get(botSlug) === activeEvents &&
+      !this.#memoryTurnOperations.has(botSlug);
+  }
+
+  async #settleSteerMemoryScan(botSlug: string): Promise<void> {
+    await this.#steerMemoryScans.get(botSlug)?.done;
   }
 
   #claimDmContext(
@@ -6158,6 +6218,7 @@ class BotRuntimeImplementation implements BotRuntime {
         }),
       });
       if (observeMemory) {
+        await this.#settleSteerMemoryScan(bot.slug);
         this.#memoryTurnOperations.add(bot.slug);
         await (this.#memory?.reconcileTurnAsync ?? this.#memory?.reconcileTurn)?.({
           botSlug: bot.slug,
@@ -6177,6 +6238,7 @@ class BotRuntimeImplementation implements BotRuntime {
       this.#settleHarvestFailure(bot.slug, [...readAdmissions], String(error));
       this.#notifyReadAdmissions(readAdmissions);
       if (observeMemory) {
+        await this.#settleSteerMemoryScan(bot.slug);
         this.#memoryTurnOperations.add(bot.slug);
         await (this.#memory?.abortTurnAsync ?? this.#memory?.abortTurn)?.(
           bot.slug,
