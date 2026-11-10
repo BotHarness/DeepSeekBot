@@ -37,8 +37,6 @@ afterEach(() => {
   localStorage.clear();
 });
 
-// The control rail clips its overflow, so a rail tooltip only shows when it
-// renders under document.body.
 it.each([
   ['Mobile app', () => createElement(MobileAppsEntry, { t }), en['mobileApps.open']],
   ['Diagnostic logs', () => createElement(DiagnosticLogsEntry, { t }), en['panel.diagnosticLogs']],
