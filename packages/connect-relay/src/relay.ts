@@ -35,6 +35,7 @@ export interface RelayOptions {
   fetchHost?: typeof fetch;
   now?: () => Date;
   hostId?: () => string;
+  ownsLabel?: (label: string) => boolean;
 }
 
 interface PoolStatus {
@@ -197,10 +198,15 @@ function changes(result: unknown): number {
   return value?.meta?.changes ?? value?.changes ?? 0;
 }
 
+export const TEST_LABEL_PREFIX = 'hzzzz';
+
 export function randomHostId(): string {
   const alphabet = 'abcdefghijklmnopqrstuvwxyz234567';
-  const bytes = crypto.getRandomValues(new Uint8Array(12));
-  return `h${Array.from(bytes, (byte) => alphabet[byte % 32]).join('')}`;
+  for (;;) {
+    const bytes = crypto.getRandomValues(new Uint8Array(12));
+    const id = `h${Array.from(bytes, (byte) => alphabet[byte % 32]).join('')}`;
+    if (!id.startsWith(TEST_LABEL_PREFIX)) return id;
+  }
 }
 
 function validName(value: unknown): value is string {
@@ -216,6 +222,7 @@ export function createRelay(options: RelayOptions) {
   const { db, tunnels } = options;
   const now = options.now ?? (() => new Date());
   const nextHostId = options.hostId ?? randomHostId;
+  const ownsLabel = options.ownsLabel ?? ((label: string) => !label.startsWith(TEST_LABEL_PREFIX));
   const activity = createActivityRegistry(db, options.activitySender, now);
   const allowAll = options.allowedUsers.length === 0 || options.allowedUsers.includes('*');
   const defaultZone = options.zone;
@@ -1204,7 +1211,7 @@ export function createRelay(options: RelayOptions) {
       if (records === undefined) continue;
       for (const record of records) {
         const match = HOST_LABEL.exec(record.name.toLowerCase());
-        if (match === null || match[2] !== zone) continue;
+        if (match === null || match[2] !== zone || !ownsLabel(match[1] as string)) continue;
         const row = rowByLabel.get(match[1] as string);
         const live =
           row !== undefined &&
