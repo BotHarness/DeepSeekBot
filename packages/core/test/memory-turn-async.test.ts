@@ -285,6 +285,9 @@ describe('Memory turn Host responsiveness', () => {
       await send('during-prepare');
       await send('ordinary-during-prepare', false);
       vi.setSystemTime(new Date(FIXED_NOW().getTime() + 31_000));
+      if (core.runtime.resumePendingDigests === undefined) {
+        throw new Error('Runtime digest resumption is unavailable');
+      }
       core.runtime.resumePendingDigests('atlas');
       prepareGate.resolve();
       await reconcileEntered.promise;
