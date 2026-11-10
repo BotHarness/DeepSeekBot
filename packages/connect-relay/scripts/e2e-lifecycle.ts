@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
+import { lookup } from 'node:dns/promises';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -47,6 +48,7 @@ if (
 
 const PREFIX = 'dsbe2e-';
 const WINDOW_MS = 60_000;
+const USE_STEP_MS = 60_000;
 const TEST_RECORD = new RegExp(`^${TEST_LABEL_PREFIX}[a-z2-7]{8}\\.`, 'u');
 const testZones = [
   { name: zone, id: zoneId },
@@ -108,16 +110,41 @@ const disconnect = (id: string) => {
   connectors.get(id)?.kill();
   connectors.delete(id);
 };
+let lastSeen: unknown;
 const reachable = async (hostname: string, timeoutMs = 90_000) => {
   const until = Date.now() + timeoutMs;
   while (Date.now() < until) {
     try {
       const response = await fetch(`https://${hostname}/botharness-device/channel`);
+      lastSeen = response.status;
       if (response.status === 200 && (await response.text()) === 'connect-e2e') return true;
-    } catch {}
+    } catch (error) {
+      lastSeen = error instanceof Error ? `${error.message} ${String(error.cause ?? '')}` : error;
+    }
     await sleep(3000);
   }
   return false;
+};
+const diagnose = async (hostname: string) => {
+  const system = await lookup(hostname).catch((error: Error) => error.message);
+  const doh = await fetch(`https://cloudflare-dns.com/dns-query?name=${hostname}&type=A`, {
+    headers: { accept: 'application/dns-json' },
+  })
+    .then((response) => response.json() as Promise<{ Status: number; Answer?: unknown[] }>)
+    .then((body) => ({ status: body.Status, answers: body.Answer?.length ?? 0 }))
+    .catch((error: Error) => error.message);
+  return { lastSeen, system, doh };
+};
+const reachableOrWhy = async (hostname: string) => {
+  const started = Date.now();
+  const ok = await reachable(hostname);
+  return {
+    ok,
+    detail: {
+      seconds: Math.round((Date.now() - started) / 1000),
+      ...(ok ? {} : await diagnose(hostname)),
+    },
+  };
 };
 
 const testRelay = (
@@ -272,14 +299,9 @@ const lifecycle = async () => {
       { before: second.body.hostname, after: back.body.hostname },
     );
     connect(bob, back.body.token);
-    const started = Date.now();
-    record(
-      'returned Host reachable on the fresh hostname within 90 s',
-      await reachable(back.body.hostname),
-      {
-        seconds: Math.round((Date.now() - started) / 1000),
-      },
-    );
+    record('returned Host comes online', await untilOnline(bob));
+    const returned = await reachableOrWhy(back.body.hostname);
+    record('returned Host reachable on the fresh hostname', returned.ok, returned.detail);
   } finally {
     await run.release();
   }
@@ -348,7 +370,7 @@ const sharedPool = async (secondZone: string) => {
       listed.body.pool,
     );
 
-    await sleep(PROTECT_MS + 5000);
+    await sleep(Math.max(PROTECT_MS, USE_STEP_MS) + 5000);
     await untilOnline(d1);
     await untilOnline(d2);
     const used = await call('GET', `/v1/hosts?host=${d1}&idle=0`, 'e2e_dave');
