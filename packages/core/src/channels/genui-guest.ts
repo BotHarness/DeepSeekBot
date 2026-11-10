@@ -1,4 +1,5 @@
 import {
+  initialGenuiDocumentState,
   validateGenuiDocumentState,
   type GenuiDocument,
   type GenuiDocumentState,
@@ -153,6 +154,8 @@ export async function createGenuiGuest(options: {
       throw new GenuiVmError('invalid-content', 'Invalid document scripts.');
     resetFormatBudget();
     vm.executeScripts(scripts);
+    if (JSON.stringify(state) !== JSON.stringify(initialGenuiDocumentState(options.document)))
+      vm.execute(`__genuiRuntime.restore(${JSON.stringify(state)})`);
     const guest = new GenuiGuest(vm, options.document, resetFormatBudget);
     guest.snapshot();
     return guest;
