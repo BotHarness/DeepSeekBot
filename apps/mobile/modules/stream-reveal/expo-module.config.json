@@ -4,7 +4,8 @@
     "modules": [
       "expo.modules.streamreveal.StreamRevealModule",
       "expo.modules.streamreveal.StreamSurfaceModule",
-      "expo.modules.streamreveal.MarkdownBlockWindowModule"
+      "expo.modules.streamreveal.MarkdownBlockWindowModule",
+      "expo.modules.streamreveal.TextPlaybackModule"
     ]
   },
   "apple": {
