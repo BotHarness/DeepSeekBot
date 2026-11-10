@@ -20,7 +20,11 @@ import kotlin.math.roundToInt
 class ChatRecyclerCell(context: Context, app: AppContext) : ExpoView(context, app) {
   var rowKey = ""
   // A row keeps its measured height while decorations such as the reading chip overflow it, as in FlatList.
-  init { clipChildren = false }
+  // ExpoView also clips its canvas to the padding box unless clipToPadding is off.
+  init {
+    clipChildren = false
+    clipToPadding = false
+  }
   override fun onMeasure(w: Int, h: Int) = setMeasuredDimension(MeasureSpec.getSize(w), MeasureSpec.getSize(h))
   override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) = Unit
 }
