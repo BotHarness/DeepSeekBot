@@ -1,5 +1,5 @@
 import { bubbleTime, type ChatRow } from './message-groups';
-import { BUBBLE_PADDING, AVATAR_CORNER } from './bubble-shape';
+import { BUBBLE_PADDING, AVATAR_CORNER, SPEAKER_AVATAR } from './bubble-shape';
 import { motion, radius, space, swipeReply } from '../design/tokens';
 
 export type NativeTextRow = {
@@ -10,6 +10,8 @@ export type NativeTextRow = {
   body: string;
   time: string;
   markdown: boolean;
+  speaker?: true;
+  name?: string;
 };
 
 export type NativeTextStyle = {
@@ -39,6 +41,9 @@ export type NativeTextStyle = {
   paragraphGap: number;
   markdown?: object | undefined;
   touch?: NativeTouchStyle | undefined;
+  avatar: number;
+  avatarGap: number;
+  nameGap: number;
 };
 
 export type NativeTouchStyle = {
@@ -95,11 +100,13 @@ export type NativeRowContext = {
   selecting: boolean;
   latest: string | undefined;
   reading: ReadonlyMap<string, unknown>;
+  speaker?: { name: string } | undefined;
 };
 
 export function nativeTextRow(row: ChatRow, context: NativeRowContext): NativeTextRow | undefined {
-  if (row.kind !== 'message' || !context.dm || context.selecting) return undefined;
+  if (row.kind !== 'message' || context.selecting) return undefined;
   const message = row.message;
+  if (!context.dm && message.author !== 'human' && context.speaker === undefined) return undefined;
   if (message.id === context.latest || context.reading.has(message.id)) return undefined;
   if (message.author === 'system' || message.delivery !== 'committed') return undefined;
   if (
@@ -129,6 +136,9 @@ export function nativeTextRow(row: ChatRow, context: NativeRowContext): NativeTe
     body: message.body,
     time: human ? `${clock}${DELIVERED}` : clock,
     markdown,
+    ...(human || context.speaker === undefined
+      ? {}
+      : { speaker: true as const, ...(row.first ? { name: context.speaker.name } : {}) }),
   };
 }
 
@@ -162,5 +172,8 @@ export function nativeTextStyle(
     paragraphGap: space.x3,
     markdown,
     touch,
+    avatar: SPEAKER_AVATAR,
+    avatarGap: space.x3,
+    nameGap: space.x1,
   };
 }

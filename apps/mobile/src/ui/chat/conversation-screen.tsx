@@ -1,5 +1,14 @@
 import { useHeaderStatus } from './use-header-status';
 import type { ChatPlace } from './chat-place';
+
+const REQUEST_CARDS: ReadonlySet<string> = new Set([
+  'tool-approval',
+  'user-question',
+  'grant',
+  'takeover',
+  'private-input',
+]);
+
 export type { ChatPlace } from './chat-place';
 import { HeaderTitleButton } from './header-title-button';
 import { useProfilePaging } from './profile-paging';
@@ -97,7 +106,7 @@ import { PrivateInputCard } from './private-input-card';
 import { TakeoverCard } from './takeover-card';
 import { ActivityRow } from './activity-row';
 import { CallRecordBubble } from './call-record';
-import type { BubbleGroup } from './bubble-shape';
+import { BADGE_OVERLAP, type BubbleGroup } from './bubble-shape';
 import { botBusy } from './bot-tone';
 import { ChannelTitle } from './channel-title';
 import { ChatHeaderRow } from './chat-header-row';
@@ -135,6 +144,7 @@ import {
   nativeChatRecycler,
   type ChatListHandle,
   type NativeRowAction,
+  type SpeakerRowSlot,
 } from '../primitives/chat-list';
 import { haptic } from '../haptics';
 import { nativeMarkdownStyle } from '../native-markdown-style';
@@ -176,7 +186,7 @@ import { LatestAnchor } from './latest-anchor';
 import { sendJumpPreferences } from '../../host/native-send-jump';
 import { SpeakerAnchor } from './speaker-anchor';
 import { SPEAKER_VIEWPORT } from './speaker-span';
-import { createSpeakerRegistry, SpeakerStageContext } from './speaker-row';
+import { createSpeakerRegistry, SpeakerAvatar, SpeakerStageContext } from './speaker-row';
 import { createSendFlights, SendFlightsContext, textFrame, type SendFlight } from './send-fly';
 import { QuestionCard } from './question-card';
 import { TimeSeparator } from './time-separator';
@@ -1103,6 +1113,17 @@ function ChatConversation({
   const botName = useBotNames(identityBots);
   const reading = useMemo(() => readingBots(snapshot.messages), [snapshot.messages]);
   const newestMessageId = snapshot.messages.at(-1)?.id;
+  const speakerOf = useCallback(
+    (id: string, row: { key: string; first: boolean; last: boolean }): Speaker => ({
+      name: botName(id),
+      bot: roster?.bots.find((entry) => entry.slug === id),
+      group: groupOf.get(row.key) ?? row.key,
+      first: row.first,
+      last: row.last,
+    }),
+    [roster, botName, groupOf],
+  );
+
   const nativeRows = nativeChatRecycler;
   const nativeRow = useCallback(
     (row: Row) =>
@@ -1113,8 +1134,52 @@ function ChatConversation({
             selecting: selected !== undefined,
             latest: newestMessageId,
             reading,
+            speaker:
+              !dm && row.kind === 'message' && row.message.bot !== undefined
+                ? { name: botName(row.message.bot) }
+                : undefined,
           }),
-    [dm, selected, newestMessageId, reading],
+    [dm, selected, newestMessageId, reading, botName],
+  );
+  const speakerRow = useCallback(
+    (row: Row): SpeakerRowSlot | undefined => {
+      if (dm) return undefined;
+      const group = groupOf.get(row.key) ?? row.key;
+      if (row.kind === 'draft')
+        return { key: row.key, group, first: true, name: true, bottom: space.x2 };
+      if (row.kind !== 'message' || row.message.bot === undefined) return undefined;
+      const message = row.message;
+      if (
+        message.activity !== undefined ||
+        message.sessionFailure !== undefined ||
+        (message.card !== undefined && REQUEST_CARDS.has(message.card.kind))
+      )
+        return undefined;
+      return {
+        key: row.key,
+        group,
+        first: row.first,
+        name: row.first,
+        bottom:
+          (message.reactions?.length ?? 0) > 0 ? BADGE_OVERLAP + space.x2 : row.last ? space.x2 : 0,
+      };
+    },
+    [dm, groupOf],
+  );
+  const speakerAvatar = useCallback(
+    (group: string) => {
+      const row = rows.find((entry) => (groupOf.get(entry.key) ?? entry.key) === group);
+      const slug =
+        row?.kind === 'message'
+          ? row.message.bot
+          : row?.kind === 'draft'
+            ? row.draft.botSlug
+            : undefined;
+      return slug === undefined ? null : (
+        <SpeakerAvatar speaker={speakerOf(slug, { key: group, first: true, last: true })} />
+      );
+    },
+    [rows, groupOf, speakerOf],
   );
   const nativeStyle = useMemo(
     () =>
@@ -1147,14 +1212,19 @@ function ChatConversation({
       if (row.kind !== 'message') return;
       const message = row.message;
       if (event.action === 'press' && event.anchor !== undefined)
-        openActions(message, event.anchor, { first: row.first, last: row.last, compact: false });
+        openActions(message, event.anchor, {
+          first: row.first,
+          last: row.last,
+          avatar: !dm && row.last && message.bot !== undefined,
+          compact: false,
+        });
       else if (event.action === 'hold') {
         haptic('menu');
         selectMessage(message);
       } else if (event.action === 'arm') haptic('selection');
       else if (event.action === 'reply' && nativeSwipe) startReply(message);
     },
-    [openActions, selectMessage, startReply, nativeSwipe],
+    [openActions, selectMessage, startReply, nativeSwipe, dm],
   );
   const [deliveryFor, setDeliveryFor] = useState<string>();
   const openDelivery = useCallback(
@@ -1175,17 +1245,6 @@ function ChatConversation({
       },
     });
   };
-
-  const speakerOf = useCallback(
-    (id: string, row: { key: string; first: boolean; last: boolean }): Speaker => ({
-      name: botName(id),
-      bot: roster?.bots.find((entry) => entry.slug === id),
-      group: groupOf.get(row.key) ?? row.key,
-      first: row.first,
-      last: row.last,
-    }),
-    [roster, botName, groupOf],
-  );
 
   const renderItem = useCallback(
     ({ item }: { item: Row }) => {
@@ -2044,7 +2103,14 @@ function ChatConversation({
                               data={rows}
                               keyExtractor={(row) => row.key}
                               {...((nativeRows
-                                ? { nativeRow, nativeStyle, nativeSwipe, onNativeRow }
+                                ? {
+                                    nativeRow,
+                                    nativeStyle,
+                                    nativeSwipe,
+                                    onNativeRow,
+                                    speakerRow,
+                                    speakerAvatar,
+                                  }
                                 : {}) as object)}
                               renderItem={renderItem}
                               onViewableItemsChanged={onFocusViewabilityChange}

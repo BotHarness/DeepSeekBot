@@ -19,9 +19,25 @@ const state = vi.hoisted(() => ({
   haptics: [] as string[],
   detected: [] as unknown[],
   natives: [] as { blocks: unknown[]; enabled: boolean }[],
+  scroller: undefined as
+    | undefined
+    | {
+        onLayout?: (event: { nativeEvent: { layout: { width: number } } }) => void;
+        onContentSizeChange?: (width: number, height: number) => void;
+      },
 }));
 
-vi.mock('react-native', () => import('./react-native-shim'));
+vi.mock('react-native', async () => {
+  const shim = await import('./react-native-shim');
+  const { createElement } = await import('react');
+  return {
+    ...shim,
+    ScrollView: (props: NonNullable<typeof state.scroller> & { children?: unknown }) => {
+      state.scroller = props;
+      return createElement('div', null, props.children as never);
+    },
+  };
+});
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null, Circle: () => null }));
 vi.mock('../src/ui/haptics', () => ({ haptic: (moment: string) => state.haptics.push(moment) }));
@@ -112,6 +128,21 @@ describe('swipe left to reply', () => {
     expect(state.natives[0]!.blocks).toEqual([pan]);
     expect(state.natives[0]!.enabled).toBe(false);
     expect(state.detected.at(-1)).not.toBe(pan);
+  });
+
+  it('turns the blocker on when the scroller overflows and off when its content fits', async () => {
+    await act(async () =>
+      root.render(
+        <ReplySwipe enabled onReply={() => undefined}>
+          <HorizontalScroll>wide table</HorizontalScroll>
+        </ReplySwipe>,
+      ),
+    );
+    await act(async () => state.scroller?.onLayout?.({ nativeEvent: { layout: { width: 300 } } }));
+    await act(async () => state.scroller?.onContentSizeChange?.(420, 40));
+    expect(state.natives.at(-1)?.enabled).toBe(true);
+    await act(async () => state.scroller?.onContentSizeChange?.(240, 40));
+    expect(state.natives.at(-1)?.enabled).toBe(false);
   });
 
   it('blocks the reply pan only while the content is wider than the scroller', async () => {

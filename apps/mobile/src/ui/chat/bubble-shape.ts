@@ -4,6 +4,8 @@ export type BubbleGroup = { first: boolean; last: boolean; avatar?: boolean; com
 
 export const AVATAR_CORNER = radius.sm;
 
+export const SPEAKER_AVATAR = 32;
+
 export const BUBBLE_MAX = '88%';
 
 const PAD_V = space.x3 + space.x1;

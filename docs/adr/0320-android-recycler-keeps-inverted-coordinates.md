@@ -25,3 +25,7 @@ A one-run-per-arm comparison on a 120 Hz phone (main 05fb4a182) favoured Recycle
 Native rows handle the gestures React bubbles do: a tap opens the anchored message menu with the bubble's window rect, a long press selects, and a horizontal drag replies with the ReplySwipe thresholds. The view sends these to JavaScript as `onRowAction`; JavaScript drops a tap or long press while the keyboard is up, as the responder capture does for React rows.
 
 The project owner chose the default rollout on the performance comparison and a physical walk of tap, long press, reply swipe, keyboard-open and keyboard-closed send, following an incoming reply, back-to-latest, dark appearance, and 0.85×, 1.3× and 2.0× system text with the message menu. The owner waived the TalkBack check for this rollout.
+
+## Group rows (2026-11-12)
+
+Group and Channel Bot text rows use the same native bubble as direct messages, indented for the speaker avatar column and with the speaker name above the first bubble of a run (#4014). Avatars stay React content, one cell per run in the window, mounted in a layer over the RecyclerView. Native code places each avatar from row offsets alone: beside the run's last bubble, held above the composer while that bubble is below it, and never above the run's first bubble, for native and React rows alike. JavaScript sends each run row's group, whether it names the speaker, and the distance from the row's bottom to its bubble; React rows in the native list no longer draw their own sticky avatar.

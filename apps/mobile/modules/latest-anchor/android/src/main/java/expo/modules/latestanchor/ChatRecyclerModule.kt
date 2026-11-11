@@ -30,6 +30,7 @@ class ChatRecyclerModule : Module() {
       Prop("estimate") { view: ChatRecyclerView, value: Double -> view.setEstimate(value) }
       Prop("textRows") { view: ChatRecyclerView, rows: List<Map<String, Any?>> -> view.setTextRows(rows) }
       Prop("textStyle") { view: ChatRecyclerView, style: Map<String, Any?> -> view.setTextStyle(style) }
+      Prop("speakerRows") { view: ChatRecyclerView, rows: List<Map<String, Any?>> -> view.setSpeakerRows(rows) }
       Prop("rowSwipe") { view: ChatRecyclerView, value: Boolean -> view.rowSwipe = value }
       Prop("contentTop") { view: ChatRecyclerView, value: Double -> view.setTop(value) }
       Prop("contentBottom") { view: ChatRecyclerView, value: Double -> view.setBottom(value) }
