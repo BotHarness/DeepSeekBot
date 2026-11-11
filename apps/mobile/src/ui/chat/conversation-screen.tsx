@@ -1462,6 +1462,10 @@ function ChatConversation({
     focused,
   );
   const ios = Platform.OS === 'ios';
+  // R0 (#3974): a top-down FlatList first mounts the oldest rows, which the reader never sees.
+  // This experiment starts the first render at the newest row instead.
+  const openAtLatest =
+    ios && process.env.EXPO_PUBLIC_IOS_OPEN_AT_LATEST === '1' && focus === undefined;
   const headerGap = glassPress.gap;
   const headerActions = canOpenProfile ? (
     <HeaderActionGroup
@@ -1884,10 +1888,16 @@ function ChatConversation({
                         <SpeakerStageContext.Provider value={dm ? undefined : stage}>
                           <SendFlightsContext.Provider value={flights}>
                             <ChatList
+                              key={openAtLatest && rows.length > 0 ? 'rows' : 'list'}
                               inverted={android}
                               {...(android
                                 ? { initialNumToRender: 6, maxToRenderPerBatch: 6, windowSize: 5 }
-                                : {})}
+                                : openAtLatest
+                                  ? {
+                                      initialScrollIndex: Math.max(0, rows.length - 1),
+                                      initialNumToRender: 4,
+                                    }
+                                  : {})}
                               ref={attachList}
                               renderScrollComponent={latest.renderScrollComponent}
                               removeClippedSubviews={false}
