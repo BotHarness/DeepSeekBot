@@ -1119,7 +1119,7 @@ Default-following Sessions headers omit a redundant scope label. Group scope cho
 The phone's navigation destinations. A screen is named for its job and keeps the same name on iOS and Android; how each platform draws it is decided in `apps/mobile/DESIGN.md`. Deeper pages inside a screen, such as Bot Memory or a Settings sub-page, take their plain titles and are not terms. The PersonaBot Profile and Group Profile above are mobile screens too, opened from a Conversation screen header.
 
 **Chats**:
-The tab that lists the current Computer's or cloud workspace's DMs and Channels, and where the Human opens a Conversation screen.
+The tab that lists DMs and Channels, from the current Computer or cloud workspace or, under All, from every online paired Computer and available cloud workspace, and where the Human opens a Conversation screen.
 _Avoid_: home, conversation list, Chat list
 
 **Activity tab**:
@@ -1139,7 +1139,7 @@ The navigation drawer, opened from the Host chip, that lists paired Computers an
 _Avoid_: Host drawer, sidebar, menu
 
 **Conversation screen**:
-The screen that shows one DM or Channel: a header, the Conversation Timeline and the Composer. Tob Mode opens this same screen.
+The screen that shows one DM or Channel: a header, the Conversation Timeline and, where the Human can post, the Composer (a read-only Bot-to-Bot DM has none). Tob Mode opens this same screen.
 _Avoid_: Chat, chat page, chat detail, 聊天页
 
 **Conversation Timeline**:

@@ -8,7 +8,7 @@ The iOS Conversation Timeline is moving from React Native `FlatList` rows to a n
 
 ## Decision
 
-Use `UICollectionView` with a custom layout, not self-sizing cells and not a custom scroll engine. Markdown is parsed with the md4c parser already used by the app's native Markdown renderer, turned into attributed text and laid out off the main thread; the result is cached per message, revision, width, font scale and theme. The layout reads only cached sizes, and binding a row only assigns cached layout. Background work never creates UIKit views.
+Use `UICollectionView` with a custom layout, not self-sizing cells and not a custom scroll engine. Markdown is parsed with the md4c parser already used by the app's native Markdown renderer, turned into attributed text and laid out off the main thread; the result is cached per message identity, displayed-content generation, width, font scale and theme. The generation changes on every displayed body change, including streamed playback and drafts that have no Host revision, so a cache entry never outlives the text it was laid out from. The layout reads only cached sizes, and binding a row only assigns cached layout. Background work never creates UIKit views.
 
 ## Considered options
 
@@ -17,4 +17,4 @@ Use `UICollectionView` with a custom layout, not self-sizing cells and not a cus
 
 ## Consequences
 
-The existing LatestAnchor and StreamSurface modules are folded into this layout and removed once their slices are accepted. Telegram's CoreList anchoring rules (hold while dragging, follow streaming growth at the newest edge, preserve the visible row on prepend) are the reference behaviour for the layout's anchoring.
+On iOS, the LatestAnchor and StreamSurface implementations are folded into this layout and their iOS code is removed once their slices are accepted. Their Android implementations stay and are governed by #3955. Telegram's CoreList anchoring rules (hold while dragging, follow streaming growth at the newest edge, preserve the visible row on prepend) are the reference behaviour for the layout's anchoring.
