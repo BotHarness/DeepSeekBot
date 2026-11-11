@@ -9,7 +9,7 @@ artifact；DSH 版本与上游 revision 记录这些内容是基于什么版本�
 
 ### Documentation
 
-- 准备下游 Tobs 1.7.0 发布日志与版本亮点；独立版本的 DSH Skill 及其已验证上游来源保持不变（[#4021](https://github.com/BotHarness/DeepSeekBot/issues/4021)）。
+- 准备下游 Tobs 1.7.0 发布日志、版本亮点与候选包隐私复核指南；独立版本的 DSH Skill 及其已验证上游来源保持不变（[#4021](https://github.com/BotHarness/DeepSeekBot/issues/4021)）。
 
 - 补充下游 DSH 0.2.1 与 0.2.2 两代 API 的同产物验收要求；稳定 Skill 版本与上游验证来源不变（[#3477](https://github.com/BotHarness/DeepSeekBot/issues/3477)）。
 

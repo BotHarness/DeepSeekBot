@@ -10,7 +10,7 @@ Preparing the next DSH Skill release independently from downstream product relea
 
 ### Documentation
 
-- Prepared the downstream Tobs 1.7.0 release ledger and highlights; the independently versioned DSH Skill and its verified upstream provenance are unchanged ([#4021](https://github.com/BotHarness/DeepSeekBot/issues/4021)).
+- Prepared the downstream Tobs 1.7.0 release ledger, highlights and candidate privacy-review guidance; the independently versioned DSH Skill and its verified upstream provenance are unchanged ([#4021](https://github.com/BotHarness/DeepSeekBot/issues/4021)).
 
 - Added downstream same-artifact qualification requirements for the DSH 0.2.1 and 0.2.2 API generations; the stable Skill version and upstream verification provenance are unchanged ([#3477](https://github.com/BotHarness/DeepSeekBot/issues/3477)).
 
