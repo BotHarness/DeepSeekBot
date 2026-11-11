@@ -3,6 +3,8 @@ package expo.modules.dismissibledrawer
 import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Color
+import android.graphics.Matrix
+import android.graphics.RectF
 import android.os.Build
 import android.view.ContextThemeWrapper
 import android.view.Gravity
@@ -244,11 +246,9 @@ class EndSheetView(context: Context, appContext: AppContext) : ExpoView(context,
   }
 }
 
-private fun horizontalTarget(view: View, x: Float, y: Float): Boolean {
+internal fun horizontalTarget(view: View, x: Float, y: Float): Boolean {
   if (!view.isShown) return false
-  val at = IntArray(2)
-  view.getLocationOnScreen(at)
-  if (x < at[0] || x >= at[0] + view.width || y < at[1] || y >= at[1] + view.height) return false
+  if (!screenBounds(view).contains(x, y)) return false
   if (view is EditText || view.canScrollHorizontally(-1) || view.canScrollHorizontally(1)) return true
   // A replyable message row owns its swipe left; the sheet opens from anywhere else.
   if (ownsHorizontalSwipe(view.getTag(com.facebook.react.R.id.view_tag_native_id))) return true
@@ -260,4 +260,24 @@ private fun horizontalTarget(view: View, x: Float, y: Float): Boolean {
   }
   if (view is ViewGroup) for (i in view.childCount - 1 downTo 0) if (horizontalTarget(view.getChildAt(i), x, y)) return true
   return false
+}
+
+/**
+ * [view]'s bounds on screen through every ancestor's transform. getLocationOnScreen maps only the
+ * top-left corner, so a row flipped by the inverted chat list reported its bottom edge as its top
+ * and hid the reply-swipe owner inside it.
+ */
+private fun screenBounds(view: View): RectF {
+  val matrix = Matrix()
+  var node = view
+  while (true) {
+    if (!node.matrix.isIdentity) matrix.postConcat(node.matrix)
+    matrix.postTranslate(node.left.toFloat(), node.top.toFloat())
+    val parent = node.parent as? View ?: break
+    matrix.postTranslate(-parent.scrollX.toFloat(), -parent.scrollY.toFloat())
+    node = parent
+  }
+  val screen = IntArray(2).also(node::getLocationOnScreen)
+  matrix.postTranslate((screen[0] - node.left).toFloat(), (screen[1] - node.top).toFloat())
+  return RectF(0f, 0f, view.width.toFloat(), view.height.toFloat()).also(matrix::mapRect)
 }

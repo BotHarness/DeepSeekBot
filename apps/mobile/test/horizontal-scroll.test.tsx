@@ -8,7 +8,7 @@ const { HorizontalScroll } = await import('../src/ui/primitives/horizontal-scrol
 const { ReplySwipeBlocker } = await import('../src/ui/chat/reply-swipe-context');
 
 it('lets a scroller inside a reply-swipe bubble claim its own horizontal drags', () => {
-  const Blocker = ({ children }: { children: ReactNode }) =>
+  const Blocker = ({ children }: { children: ReactNode; blocking: boolean }) =>
     createElement('section', { 'data-blocker': 'reply' }, children);
   const html = renderToStaticMarkup(
     createElement(

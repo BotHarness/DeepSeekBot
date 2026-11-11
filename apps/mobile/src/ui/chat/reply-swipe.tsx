@@ -60,8 +60,17 @@ export function ReplySwipe({
   );
   const blocker = useMemo<SwipeBlocker>(
     () =>
-      function SwipeBlocker({ children: scroller }: { children: ReactNode }) {
-        const native = useMemo(() => Gesture.Native().blocksExternalGesture(pan), []);
+      function SwipeBlocker({
+        children: scroller,
+        blocking,
+      }: {
+        children: ReactNode;
+        blocking: boolean;
+      }) {
+        const native = useMemo(
+          () => Gesture.Native().enabled(blocking).blocksExternalGesture(pan),
+          [blocking],
+        );
         return <GestureDetector gesture={native}>{scroller}</GestureDetector>;
       },
     [pan],

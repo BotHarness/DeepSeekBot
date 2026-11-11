@@ -18,7 +18,7 @@ const state = vi.hoisted(() => ({
   pans: [] as Pan[],
   haptics: [] as string[],
   detected: [] as unknown[],
-  natives: [] as { blocks: unknown[] }[],
+  natives: [] as { blocks: unknown[]; enabled: boolean }[],
 }));
 
 vi.mock('react-native', () => import('./react-native-shim'));
@@ -53,9 +53,10 @@ vi.mock('react-native-gesture-handler', async () => {
         return builder;
       },
       Native: () => {
-        const native = { blocks: [] as unknown[] };
+        const native = { blocks: [] as unknown[], enabled: true };
         state.natives.push(native);
         const builder = {
+          enabled: (value: boolean) => ((native.enabled = value), builder),
           blocksExternalGesture: (...gestures: unknown[]) => (
             native.blocks.push(...gestures),
             builder
@@ -109,7 +110,16 @@ describe('swipe left to reply', () => {
     const pan = state.detected[0];
     expect(state.natives).toHaveLength(1);
     expect(state.natives[0]!.blocks).toEqual([pan]);
+    expect(state.natives[0]!.enabled).toBe(false);
     expect(state.detected.at(-1)).not.toBe(pan);
+  });
+
+  it('blocks the reply pan only while the content is wider than the scroller', async () => {
+    const { overflowsHorizontally } = await import('../src/ui/primitives/horizontal-scroll');
+    expect(overflowsHorizontally(400, 300)).toBe(true);
+    expect(overflowsHorizontally(300, 300)).toBe(false);
+    expect(overflowsHorizontally(200, 300)).toBe(false);
+    expect(overflowsHorizontally(400, 0)).toBe(false);
   });
 
   it('leaves a scroller plain when the bubble cannot be replied to', async () => {
