@@ -42,6 +42,7 @@ data class TextRowStyle(
   val open: Float, val join: Float, val tail: Float, val besideMax: Int, val maxWidth: Float,
   val paragraphGap: Float = 0f,
   val markdown: Map<String, Any?>? = null,
+  val touch: TouchStyle? = null,
 ) {
   companion object {
     fun from(value: Map<String, Any?>): TextRowStyle? {
@@ -57,6 +58,31 @@ data class TextRowStyle(
         number("open") ?: 0f, number("join") ?: 0f, number("tail") ?: 0f,
         number("besideMax")?.toInt() ?: 60, number("maxWidth") ?: 0.88f, number("paragraphGap") ?: 0f,
         @Suppress("UNCHECKED_CAST") (value["markdown"] as? Map<String, Any?>),
+        @Suppress("UNCHECKED_CAST") (value["touch"] as? Map<String, Any?>)?.let(TouchStyle::from),
+      )
+    }
+  }
+}
+
+/** Press feedback and swipe-to-reply tokens, in logical pixels and CSS colors. */
+data class TouchStyle(
+  val pressHuman: Int, val pressBot: Int, val hintFill: Int, val hintInk: Int, val holdMs: Long,
+  val swipe: ReplySwipe, val hintEnd: Float, val hintIcon: Float, val glyph: Float,
+) {
+  companion object {
+    fun from(value: Map<String, Any?>): TouchStyle? {
+      fun number(name: String) = (value[name] as? Number)?.toFloat()
+      fun color(name: String) = (value[name] as? String)?.let(::cssColor)
+      return TouchStyle(
+        color("pressHuman") ?: return null, color("pressBot") ?: return null,
+        color("hintFill") ?: return null, color("hintInk") ?: return null,
+        number("holdMs")?.toLong() ?: 500L,
+        ReplySwipe(
+          number("swipeStart") ?: return null, number("swipeBackFail") ?: return null,
+          number("swipeVerticalFail") ?: return null, number("swipeCommit") ?: return null,
+          number("swipeReach") ?: return null,
+        ),
+        number("hintEnd") ?: 0f, number("hintIcon") ?: 28f, number("glyph") ?: 16f,
       )
     }
   }
@@ -191,15 +217,4 @@ class TextBubbleLayout(
     canvas.restore()
     canvas.drawText(row.time, timeX, timeBaseline, timePaint)
   }
-}
-
-class TextBubbleView(context: Context) : View(context) {
-  var layout: TextBubbleLayout? = null
-    set(value) {
-      field = value
-      contentDescription = value?.let { "${it.row.body}, ${it.row.time.replace(' ', ' ')}" }
-      invalidate()
-    }
-  init { importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_YES }
-  override fun onDraw(canvas: Canvas) { layout?.draw(canvas) }
 }

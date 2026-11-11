@@ -20,10 +20,10 @@ import {
 } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { requireNativeView, requireOptionalNativeModule } from 'expo';
-import type { ChatListHandle } from './chat-list';
+import type { ChatListHandle, NativeRowAction } from './chat-list';
 
 export const nativeChatRecycler =
-  process.env.EXPO_PUBLIC_CHAT_LIST === 'recycler' &&
+  process.env.EXPO_PUBLIC_CHAT_LIST !== 'flatlist' &&
   requireOptionalNativeModule<{ supported: boolean }>('ChatRecycler')?.supported === true;
 type Event<T> = { nativeEvent: T };
 type ScrollEvent = NativeSyntheticEvent<NativeScrollEvent>;
@@ -45,6 +45,8 @@ type Props = ViewProps & {
   onContentSize(event: Event<{ width: number; height: number }>): void;
   onVisible(event: Event<{ indices: number[] }>): void;
   onKeyboardInset(event: Event<{ height: number }>): void;
+  rowSwipe: boolean;
+  onRowAction(event: Event<{ key: string } & NativeRowAction>): void;
   onScroll?: ((event: ScrollEvent) => void) | undefined;
   onScrollBeginDrag?: ((event: ScrollEvent) => void) | undefined;
   onScrollEndDrag?: ((event: ScrollEvent) => void) | undefined;
@@ -68,12 +70,16 @@ function element(value: ComponentType | ReactElement | null | undefined) {
 export type NativeRowProps<T> = {
   nativeRow?: ((item: T) => ({ key: string } & object) | undefined) | undefined;
   nativeStyle?: object | undefined;
+  nativeSwipe?: boolean | undefined;
+  onNativeRow?: ((item: T, event: NativeRowAction) => void) | undefined;
 };
 
 function RecyclerList<T>({
   ref,
   nativeRow,
   nativeStyle,
+  nativeSwipe = false,
+  onNativeRow,
   ...props
 }: FlatListProps<T> & NativeRowProps<T> & { ref?: Ref<ChatListHandle<T>> }) {
   const native = useRef<Handle>(null);
@@ -88,16 +94,19 @@ function RecyclerList<T>({
       : ['$footer']),
   ];
   const offset = hasHeader ? 1 : 0;
-  const textRows = useMemo(
-    () =>
-      nativeRow === undefined
-        ? []
-        : Array.from(data, (item) => nativeRow(item)).flatMap((row) =>
-            row === undefined ? [] : [{ ...row, key: `item:${row.key}` }],
-          ),
-    [data, nativeRow],
-  );
-  const nativeKeys = useMemo(() => new Set(textRows.map((row) => row.key)), [textRows]);
+  const { textRows, nativeItems } = useMemo(() => {
+    const rows: Array<{ key: string } & object> = [];
+    const items = new Map<string, T>();
+    if (nativeRow !== undefined)
+      for (const item of Array.from(data)) {
+        const row = nativeRow(item);
+        if (row === undefined) continue;
+        const key = `item:${row.key}`;
+        rows.push({ ...row, key });
+        items.set(key, item);
+      }
+    return { textRows: rows, nativeItems: items };
+  }, [data, nativeRow]);
   const style = StyleSheet.flatten(props.contentContainerStyle);
   const top = typeof style?.paddingTop === 'number' ? style.paddingTop : 0;
   const bottom = typeof style?.paddingBottom === 'number' ? style.paddingBottom : 0;
@@ -147,6 +156,18 @@ function RecyclerList<T>({
         props.onContentSizeChange?.(nativeEvent.width, nativeEvent.height)
       }
       onKeyboardInset={() => undefined}
+      rowSwipe={nativeSwipe}
+      onRowAction={({ nativeEvent: { key, ...event } }) => {
+        const item = nativeItems.get(key);
+        if (item === undefined) return;
+        if (
+          (event.action === 'press' || event.action === 'hold') &&
+          props.keyboardShouldPersistTaps === 'never' &&
+          Keyboard.isVisible()
+        )
+          return;
+        onNativeRow?.(item, event);
+      }}
       onStartShouldSetResponderCapture={() =>
         props.keyboardShouldPersistTaps === 'never' && Keyboard.isVisible()
       }
@@ -195,7 +216,7 @@ function RecyclerList<T>({
       }}
     >
       {keys.slice(window.start, window.end).map((key, relative) => {
-        if (nativeKeys.has(key)) return null;
+        if (nativeItems.has(key)) return null;
         const index = window.start + relative - offset;
         const content =
           key === '$header'

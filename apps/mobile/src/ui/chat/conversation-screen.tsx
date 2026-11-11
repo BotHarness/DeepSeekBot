@@ -131,13 +131,20 @@ import {
 } from './native-header';
 import { useChannelViewport } from './channel-viewport';
 import { MessageTarget, nativeMessageJump } from '../primitives/message-target';
-import { ChatList, nativeChatRecycler, type ChatListHandle } from '../primitives/chat-list';
+import {
+  ChatList,
+  nativeChatRecycler,
+  type ChatListHandle,
+  type NativeRowAction,
+} from '../primitives/chat-list';
+import { haptic } from '../haptics';
 import { nativeMarkdownStyle } from '../native-markdown-style';
 import {
   nativeMarkdownRows,
   nativeTextRow,
   nativeTextRows,
   nativeTextStyle,
+  nativeTouchStyle,
 } from './native-text-row';
 import { usePullToCompose } from './pull-to-compose';
 import { chatHref, useRecentChat } from '../shell/recent-chats';
@@ -1131,8 +1138,32 @@ function ChatConversation({
         theme.type,
         theme.fontScale,
         nativeMarkdownRows ? nativeMarkdownStyle(theme) : undefined,
+        nativeTouchStyle(
+          {
+            pressHuman: pressTint(theme.color.onAccent),
+            pressBot: pressTint(theme.color.fg),
+            hintFill: theme.layer.raised.fill,
+            hintInk: theme.color.muted,
+          },
+          theme.type.meta.line,
+        ),
       ),
     [theme],
+  );
+  const nativeSwipe = composable && selected === undefined;
+  const onNativeRow = useCallback(
+    (row: Row, event: NativeRowAction) => {
+      if (row.kind !== 'message') return;
+      const message = row.message;
+      if (event.action === 'press' && event.anchor !== undefined)
+        openActions(message, event.anchor, { first: row.first, last: row.last, compact: false });
+      else if (event.action === 'hold') {
+        haptic('menu');
+        selectMessage(message);
+      } else if (event.action === 'arm') haptic('selection');
+      else if (event.action === 'reply' && nativeSwipe) startReply(message);
+    },
+    [openActions, selectMessage, startReply, nativeSwipe],
   );
   const [deliveryFor, setDeliveryFor] = useState<string>();
   const openDelivery = useCallback(
@@ -2021,7 +2052,9 @@ function ChatConversation({
                               }}
                               data={rows}
                               keyExtractor={(row) => row.key}
-                              {...((nativeRows ? { nativeRow, nativeStyle } : {}) as object)}
+                              {...((nativeRows
+                                ? { nativeRow, nativeStyle, nativeSwipe, onNativeRow }
+                                : {}) as object)}
                               renderItem={
                                 nativeMessageJump && !nativeChatRecycler
                                   ? ({ item }: { item: Row }) => (
