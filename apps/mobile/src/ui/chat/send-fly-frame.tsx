@@ -93,6 +93,7 @@ export function SendFlyFrame({
         );
       },
       skip,
+      true,
     );
   };
   return (

@@ -4,6 +4,7 @@ export function measureMessageView(
   view: ViewInstance | null,
   callback: (x: number, y: number, width: number, height: number) => void,
   failed: () => void,
+  _actual?: boolean,
 ) {
   if (view === null) failed();
   else view.measureInWindow(callback);

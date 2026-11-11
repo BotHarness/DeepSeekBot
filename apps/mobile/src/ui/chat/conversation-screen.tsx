@@ -723,7 +723,7 @@ function ChatConversation({
     [speakers, scroll, viewport, viewportLayout, frame, content, android, composerHeight],
   );
   const composerInput = useRef<ComposerInput>(null);
-  const flights = useMemo(() => createSendFlights(android && !nativeChatRecycler), [android]);
+  const flights = useMemo(() => createSendFlights(false), []);
   const launchFly = useCallback((): SendFlight => {
     const flight: SendFlight = { from: undefined };
     composerInput.current?.measureInWindow((x, y, width, height) => {
