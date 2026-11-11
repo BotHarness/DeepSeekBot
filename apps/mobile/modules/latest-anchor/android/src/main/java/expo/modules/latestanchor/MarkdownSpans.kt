@@ -17,15 +17,19 @@ import com.swmansion.enriched.markdown.styles.StyleConfig
  */
 class MarkdownSpans(private val context: Context) {
   private var source: Map<String, Any?>? = null
+  private var scale = 0f
   private var config: StyleConfig? = null
   private val renderer = Renderer()
   private val flags = Md4cFlags(latexMath = false)
 
   fun render(body: String, style: Map<String, Any?>): CharSequence? =
     try {
-      if (style != source) {
+      val metrics = context.resources.displayMetrics
+      val nextScale = metrics.scaledDensity / metrics.density
+      if (style != source || nextScale != scale) {
         config = StyleConfig(readableMap(listIndent(style)), context, true, 0f)
         source = style
+        scale = nextScale
       }
       Parser.shared.parseMarkdown(body, flags, true)?.let { ast ->
         renderer.configure(config!!, context)
