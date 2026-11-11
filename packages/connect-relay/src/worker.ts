@@ -3,6 +3,7 @@ import { createAccessTokenVerifier, workosKeys } from './auth.js';
 import { createCloudflareApi, parseZones } from './cloudflare.js';
 import type { D1Database } from './d1.js';
 import { createEmailCode } from './email-code.js';
+import { createPasswordAuth } from './password-auth.js';
 import { createRelay, hmac } from './relay.js';
 
 export interface ConnectRelayEnv {
@@ -31,6 +32,7 @@ export interface ConnectRelayEnv {
   RECLAIM_AFTER_MINUTES?: string;
   CONNECT_HOST_KEY?: string;
   WORKOS_API_KEY?: string;
+  PASSWORD_AUTH_ENABLED?: string;
   MARKET?: { fetch: typeof fetch };
 }
 
@@ -148,6 +150,15 @@ export function relayForEnv(env: ConnectRelayEnv): ReturnType<typeof createRelay
             apiKey,
             clientId,
             limit: async (key: string) => (await limiter.limit({ key })).success,
+          }),
+        }
+      : {}),
+    ...(apiKey && limiter !== undefined && env.PASSWORD_AUTH_ENABLED === 'true'
+      ? {
+          passwordAuth: createPasswordAuth({
+            apiKey,
+            clientId,
+            limit: async (key) => (await limiter.limit({ key })).success,
           }),
         }
       : {}),

@@ -91,3 +91,30 @@ Run the real `connect-sign-in --wait` CLI against that Host: synthetic authoriza
 Open Bot settings → Connections → Manage. The first state explains automatic retry; the second tells the Human to sign in again later. `scripts/e2e-connect-account-recovery.mjs --name <n> --label <label> --expected automatic|sign-in --theme light|dark --locale en|zh` drives that real surface, compares the canonical API state, and saves a cropped Connect screenshot, accessibility tree and console evidence. `--expected legacy` is only for the pre-fix screenshot, where the same blocked state falsely promises automatic retry. Inspect and publish only the crop: the surrounding connection list can contain machine-specific network information.
 
 For authorization recovery, reset fixture counters and set `mode=authorization-transient`, then sign in: the first device-token reply is HTTP 503 and the second succeeds; the original authorization flow stays active, no second device authorization is requested, and the subsequent synthetic tunnel failure has `recovery=automatic`. Unit regressions separately cover post-login register/tunnel retry without duplicate registration, explicit OAuth refusals, `slow_down`, timeout backoff and in-flight expiry/late-response rejection. These controlled failures do not identify the historical production incident or qualify real WorkOS/Cloudflare availability. Stop the task Host and its owned subprocesses using the cleanup runbook.
+
+## Native email/password account access (#4017)
+
+In the assigned iOS/Android device window, use a disposable WorkOS account and a relay advertising
+`passwordAuth`. Open Settings → account → Sign in, or Pair a computer → Tobs account → Sign in.
+The native form defaults to password and retains Apple/Google, email-code and hosted sign-in.
+Use `email-sign-in-email`, `email-sign-in-password` and `email-sign-in-password-submit`.
+
+Register through `email-sign-in-register`; require email verification before a session is saved.
+Enter a wrong code, then the received code; observe the account identity and authenticated computer
+list. Sign out, try a wrong password, then the correct password. Restart the app and confirm the
+same identity and computer list. Test cancellation with a delayed response: no session may appear
+later. Switch to email-code and back without retaining the password. With an older relay, require
+the existing email-code entry instead of an unusable password form.
+
+Use `email-sign-in-forgot` to request reset. Existing and absent accounts receive the same UI
+acknowledgment; the reset link is delivered by WorkOS, never displayed by the relay. Follow the
+email link in the system browser, set a new password, and verify old-password refusal and
+new-password success with the same account. A privately retrieved Staging code/reset token proves
+the API seam only, not email delivery or the hosted reset page. Unsupported MFA/organization
+challenges must direct users to hosted sign-in without bypassing policy.
+
+Exercise visible keyboards, password autofill, focus changes, scrolling and reachable submission
+at default/intermediate/maximum system text in both themes on each platform. Capture matched
+before/after form images without account identifiers or secrets. The reviewer gate additionally
+requires the prepared verified account to pair its dedicated demo Host over a public network and
+receive a real Bot reply. Keep API, simulator, physical-device, Android and Human results separate.

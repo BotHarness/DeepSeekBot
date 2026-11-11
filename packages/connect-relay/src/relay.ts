@@ -3,6 +3,7 @@ import type { AccessTokenVerifier } from './auth.js';
 import { RecordQuotaError, type TunnelApi, type TunnelRecord } from './cloudflare.js';
 import type { D1Database } from './d1.js';
 import type { EmailCode } from './email-code.js';
+import type { PasswordAuth } from './password-auth.js';
 import { ONLINE, pickVictim, pickZone, type EvictionTier, type PoolTunnel } from './pool.js';
 
 export interface RelayOptions {
@@ -30,6 +31,7 @@ export interface RelayOptions {
   deleteUser?: (account: string) => Promise<void>;
   revokeSession?: (sessionId: string) => Promise<void>;
   emailCode?: EmailCode;
+  passwordAuth?: PasswordAuth;
   deleteMarketplaceAuthor?: (accessToken: string) => Promise<void>;
   hostKey?: (hostId: string) => Promise<string>;
   fetchHost?: typeof fetch;
@@ -897,7 +899,43 @@ export function createRelay(options: RelayOptions) {
         zone: defaultZone,
         zones,
         ...(options.emailCode === undefined ? {} : { emailCode: true }),
+        ...(options.passwordAuth === undefined ? {} : { passwordAuth: true }),
       });
+    }
+    if (
+      [
+        '/v1/auth/password',
+        '/v1/auth/password/register',
+        '/v1/auth/password/verify',
+        '/v1/auth/password/reset',
+      ].includes(url.pathname)
+    ) {
+      if (request.method !== 'POST') return failure(405, 'method-not-allowed');
+      if (!options.passwordAuth) return failure(503, 'password-unavailable');
+      const body = await readBody(request, 24576);
+      if (body === undefined) return failure(400, 'invalid-body');
+      const ip = request.headers.get('cf-connecting-ip') ?? undefined;
+      const userAgent = request.headers.get('user-agent') ?? undefined;
+      const caller = { ...(ip ? { ip } : {}), ...(userAgent ? { userAgent } : {}) };
+      try {
+        const result = url.pathname.endsWith('/verify')
+          ? await options.passwordAuth.verify({
+              ...caller,
+              pendingToken: body['pendingToken'],
+              code: body['code'],
+            })
+          : url.pathname.endsWith('/reset')
+            ? await options.passwordAuth.reset({ ...caller, email: body['email'] })
+            : await options.passwordAuth.signIn({
+                ...caller,
+                email: body['email'],
+                password: body['password'],
+                register: url.pathname.endsWith('/register'),
+              });
+        return json(result.status, result.body);
+      } catch {
+        return failure(502, 'workos-unavailable');
+      }
     }
     if (url.pathname === '/v1/auth/email-code' || url.pathname === '/v1/auth/email-code/verify') {
       if (request.method !== 'POST') return failure(405, 'method-not-allowed');
