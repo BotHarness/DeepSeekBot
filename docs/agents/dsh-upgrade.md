@@ -43,6 +43,31 @@ Record the exact tag/source revision, package versions and artifact digests. Che
 that the RC's dependency wave is installable before changing the working baseline.
 Review open upgrade claims and related upstream issues.
 
+Before an npm qualification run, use `scripts/dsh-npm-availability.mjs <exact-version>`
+from the selected checkout and retain its JSON output. This read-only check queries
+the exact CLI and Theme versions at `https://registry.npmjs.org`, independently of
+local npm configuration. It never installs packages, changes pins or selects a fallback.
+Exit 0 means both manifests are available; exit 1 means unavailable or inconclusive;
+exit 2 means invalid arguments. Availability is metadata evidence only: tarball
+integrity, the complete dependency wave, installation and runtime remain separate gates.
+
+- `version-unavailable`: exact endpoint returned 404, the package metadata returned
+  200 with the expected name, and its versions omit the requested version.
+- `package-unavailable`: both endpoints returned 404; recheck the upstream package
+  name and public distribution. This alone does not prove a never-published package.
+- `lookup-failed`: network, authorization, rate-limit, server or JSON failure; do
+  not report this as an unpublished release.
+- `metadata-inconsistent`: manifest identity disagrees, or the exact endpoint and
+  package version list disagree; investigate before installation.
+
+The Desktop feed, Git tag and npm wave are independent. In #4024, official Windows
+Desktop rc.2 was downloadable while both npm rc.2 versions were absent. The Tobs
+optional Desktop zoom setup links its packaged, hash-checked Theme through the
+Desktop's package manager; it does not fetch the rc.2 npm Theme or require an rc.2
+npm CLI. Preserve that path and its exact version, integrity, ownership and stopped
+Profile checks. Do not replace it with an unqualified npm override. Recheck npm
+when the upstream wave appears, then qualify those actual artifacts separately.
+
 First install the current **published Tobs artifact** on the new RC in an isolated
 Profile. Preserve the installed package inventory, startup logs, API health and
 Client diagnostics. Exercise the reported or changed paths. A successful linked
