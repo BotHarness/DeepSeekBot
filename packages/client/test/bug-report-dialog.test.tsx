@@ -13,6 +13,8 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
     IconCheckOutlineRegular: icon,
     IconCopyOutlineRegular: icon,
     IconDownloadOutlineRegular: icon,
+    SegmentedControl: ({ label }: { label: string }) =>
+      element('span', { 'data-segmented': label }),
     Checkbox: ({
       checked,
       onChange,
@@ -146,6 +148,21 @@ it('shows the Host refusal and keeps the form', async () => {
   expect(dialog().querySelector('[role="status"]')?.textContent).toContain('超过 25 MB');
   expect(dialog().getAttribute('aria-label')).toBe('报告问题');
   expect(fieldNamed('标题').value).toBe('x');
+});
+
+it('opens the logs from the report and comes back with the draft intact', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => Response.json({ entries: [] })),
+  );
+  await act(async () => root.render(createElement(BugReportDialog, { onClose: () => {}, t })));
+  await typeInto(fieldNamed('标题'), 'draft');
+  await act(async () => buttonNamed('查看日志').click());
+  expect(document.querySelector('[data-diagnostic-logs]')).not.toBeNull();
+  expect(document.querySelector('[data-bug-report="form"]')).toBeNull();
+  await act(async () => buttonNamed('返回报告').click());
+  expect(document.querySelector('[data-bug-report="form"]')).not.toBeNull();
+  expect(fieldNamed('标题').value).toBe('draft');
 });
 
 it('says what to do when the Host cannot read the diagnostic log', async () => {

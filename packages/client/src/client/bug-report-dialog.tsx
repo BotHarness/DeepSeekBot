@@ -33,6 +33,7 @@ import { afterPaint, copyImage, openCapture, type CaptureSource } from './bug-re
 import { CaptureDock } from './bug-report-dock.js';
 import { ChipButton } from './ds/chip-button.js';
 import { clientLog, logClient } from './diagnostic-log.js';
+import { DiagnosticLogsDialog } from './diagnostic-logs-dialog.js';
 import { FieldStack, TextAreaField, TextField } from './ds/field.js';
 import { PanelDialog } from './ds/panel-dialog.js';
 import { Select } from './ds/select.js';
@@ -192,6 +193,12 @@ const styles = stylex.create({
   hiddenInput: { display: 'none' },
   note: { color: color.muted },
   spacer: { flexGrow: 1 },
+  logsHead: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space.x3,
+  },
   inlineAction: {
     display: 'inline-flex',
     alignItems: 'center',
@@ -258,6 +265,7 @@ export function BugReportDialog({
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string>();
   const [receipt, setReceipt] = useState<BugReportReceipt>();
+  const [viewingLogs, setViewingLogs] = useState(false);
   const [annotating, setAnnotating] = useState<{
     entry?: BugReportFile;
     file: File;
@@ -342,6 +350,11 @@ export function BugReportDialog({
     });
     filesRef.current = next;
     setFiles(next);
+  };
+
+  const backFromLogs = () => {
+    restorePreviews(filesRef.current);
+    setViewingLogs(false);
   };
 
   const backToForm = () => {
@@ -497,6 +510,8 @@ export function BugReportDialog({
     );
 
   if (annotation !== null) return annotation;
+
+  if (viewingLogs) return <DiagnosticLogsDialog onClose={onClose} onBack={backFromLogs} t={t} />;
 
   if (receipt !== undefined)
     return (
@@ -734,7 +749,17 @@ export function BugReportDialog({
         </div>
       </div>
       <div {...stylex.props(styles.logs)}>
-        <span {...stylex.props(styles.label)}>{t('bugReport.include')}</span>
+        <div {...stylex.props(styles.logsHead)}>
+          <span {...stylex.props(styles.label)}>{t('bugReport.include')}</span>
+          <button
+            type="button"
+            data-bug-report-view-logs=""
+            onClick={() => setViewingLogs(true)}
+            {...stylex.props(styles.inlineAction)}
+          >
+            {t('bugReport.viewLogs')}
+          </button>
+        </div>
         <div {...stylex.props(styles.logRow)}>
           <Checkbox
             checked={includeLogs}
