@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({}));
 
 import { CSS } from '../src/client/styles.js';
-import { siblingSelector } from '../src/client/has-sibling-rewrite.js';
+import { ancestorSelector, siblingSelector } from '../src/client/has-sibling-rewrite.js';
 
 function withoutArguments(selector: string): string {
   let out = '';
@@ -80,10 +80,10 @@ describe(':has() invalidation', () => {
 describe('host :has() sibling rewrite', () => {
   it('rewrites a parent :has(> X) > S rule into the equivalent sibling selectors', () => {
     expect(siblingSelector(':has(> .nav.fill) > :not(.nav)')).toBe(
-      '.nav.fill ~ :not(.nav), :not(.nav):not(.bh-timeline-slot):has(~ .nav.fill)',
+      '.nav.fill ~ :not(.nav), :not(.nav):not(.bh-timeline-slot):not(.bh-chat-body *):has(~ .nav.fill)',
     );
     expect(siblingSelector(':has(> .nav:not(.whole)) > :not(.nav)')).toBe(
-      '.nav:not(.whole) ~ :not(.nav), :not(.nav):not(.bh-timeline-slot):has(~ .nav:not(.whole))',
+      '.nav:not(.whole) ~ :not(.nav), :not(.nav):not(.bh-timeline-slot):not(.bh-chat-body *):has(~ .nav:not(.whole))',
     );
     expect(invalidatesWholeDocument(siblingSelector(':has(> .a) > :not(.b)')!)).toBe(false);
   });
@@ -94,5 +94,22 @@ describe('host :has() sibling rewrite', () => {
     expect(siblingSelector(':has(.a) > .b')).toBeUndefined();
     expect(siblingSelector(':has(> .a) .b')).toBeUndefined();
     expect(siblingSelector(':has(> .a) > .b, .c')).toBeUndefined();
+  });
+});
+
+describe('host :is() ancestor rewrite', () => {
+  it('splits a leading :is() of single classes or attributes so the ancestor filter can reject it', () => {
+    expect(ancestorSelector(':is(.col, [data-slot="flow"]) > .item + :not([hidden])')).toBe(
+      '.col > .item + :not([hidden]), [data-slot="flow"] > .item + :not([hidden])',
+    );
+    expect(ancestorSelector('.x, :is(.a, .b) .c')).toBe('.x, .a .c, .b .c');
+  });
+
+  it('leaves selectors whose specificity or meaning could change alone', () => {
+    expect(ancestorSelector(':is(.a, div) > .c')).toBeUndefined();
+    expect(ancestorSelector(':is(.a, .b.c) > .d')).toBeUndefined();
+    expect(ancestorSelector(':is(.a, .b):hover')).toBeUndefined();
+    expect(ancestorSelector(':is(.a, .b)')).toBeUndefined();
+    expect(ancestorSelector('.p :is(.a, .b) > .c')).toBeUndefined();
   });
 });

@@ -148,6 +148,16 @@ Remove both before committing, and confirm the fix with one A/B pair.
   therefore keeps one fixed slot per message group, inside chunks of 32 slots: mounting only
   inserts into that slot, and no sibling list is longer than a chunk. Keep it that way, and keep
   `:has(~ ...)` subjects off `.bh-timeline-slot`.
+- When style recalculation is a large share of a scroll, record a trace with the
+  `disabled-by-default-blink.debug` category and sum the `SelectorStats` events per selector
+  (`elapsed (us)`, `match_attempts`, `fast_reject_count`). The costly rules try every element and
+  have no fast rejects: Chromium's ancestor filter skips a rule only through classes, ids, tags or
+  attribute names in plain compounds to the left of a descendant or child combinator. A `:is()`
+  in that position, an attribute name that many ancestors carry (`data-slot`), or a universal
+  subject with `:has()` defeats it. Split `:is(A, B) X` into `A X, B X`, and scope a `:has()`
+  subject under a specific ancestor. `has-sibling-rewrite.ts` splits DSH's leading `:is()` lists.
+- A `MutationObserver` on `document.body` with `subtree: true` runs on every timeline mount. Skip
+  records inside the timeline with `outsideTimeline` from `timeline-mutations.ts`.
 - Before blaming an animation, run `document.getAnimations()` in the page; it lists what runs.
 - Summarize a trace by thread and event name before guessing; most idle cost is native (style,
   intersections, commit), not JavaScript, and does not show in a CPU profile.
