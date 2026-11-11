@@ -13,4 +13,6 @@ export const genuiWebViewPolicy = {
   mediaPlaybackRequiresUserAction: true,
   dataDetectorTypes: ['none'] as ['none'],
   textZoom: 100,
+  scrollEnabled: false,
+  nestedScrollEnabled: false,
 };

@@ -28,7 +28,7 @@ import {
 import { genuiStartQueue } from '../../genui/start-queue';
 import { genuiWebViewPolicy } from '../../genui/webview-policy';
 import { genuiDocumentView, type GenuiDocumentViewModel } from '../../genui/view';
-import { genuiFrame, radius, space } from '../design/tokens';
+import { radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
@@ -152,12 +152,11 @@ function GenuiFrame({
       view.edit(message.state);
     } else fail();
   };
-  const visible = Math.min(height, genuiFrame.maxHeight);
   return (
     <View style={{ gap: space.x2 }} ref={queue}>
       <View
         style={{
-          height: visible,
+          height,
           borderRadius: radius.md,
           overflow: 'hidden',
           opacity: status === 'ready' ? 1 : 0,
@@ -165,6 +164,7 @@ function GenuiFrame({
         accessibilityLabel={document.title}
         testID="genui-document-frame"
         ref={attach}
+        onStartShouldSetResponder={() => true}
       >
         {turn ? (
           <WebView
@@ -179,8 +179,6 @@ function GenuiFrame({
             onRenderProcessGone={fail}
             onContentProcessDidTerminate={fail}
             {...genuiWebViewPolicy}
-            scrollEnabled={height > genuiFrame.maxHeight}
-            nestedScrollEnabled={height > genuiFrame.maxHeight}
             style={{ backgroundColor: theme.color.surface }}
           />
         ) : null}
