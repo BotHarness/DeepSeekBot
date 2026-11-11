@@ -243,7 +243,7 @@ class ChatRecyclerView(context: Context, app: AppContext) : ExpoView(context, ap
         continue
       }
       val current = textLayouts[key]
-      if (current != null && current.row == row && current.width == width && current.style == style) continue
+      if (current != null && current.row == row && current.width == width && current.tokens == style) continue
       val layout = TextBubbleLayout(row, style, width, density)
       textLayouts[key] = layout
       heights[key] = layout.height

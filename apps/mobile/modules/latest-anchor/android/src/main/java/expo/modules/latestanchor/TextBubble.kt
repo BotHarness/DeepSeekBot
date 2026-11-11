@@ -78,33 +78,33 @@ fun cssColor(value: String): Int? {
 }
 
 /** Text layout, bubble geometry and row height for one row at one width, in physical pixels. */
-class TextBubbleLayout(val row: TextRow, val style: TextRowStyle, val width: Int, density: Float) {
-  private val scale = density * style.fontScale
+class TextBubbleLayout(val row: TextRow, val tokens: TextRowStyle, val width: Int, density: Float) {
+  private val scale = density * tokens.fontScale
   val body: StaticLayout
   val timePaint = TextPaint(Paint.ANTI_ALIAS_FLAG)
   val bubble: RectF
   val timeX: Float
   val timeBaseline: Float
   val height: Int
-  val fill = if (row.human) style.accent else style.surface
+  val fill = if (row.human) tokens.accent else tokens.surface
   val radii: FloatArray
   private val textTop: Float
   private val textLeft: Float
 
   init {
     val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-      textSize = style.bodySize * scale
-      color = if (row.human) style.onAccent else style.fg
+      textSize = tokens.bodySize * scale
+      color = if (row.human) tokens.onAccent else tokens.fg
     }
-    timePaint.textSize = style.metaSize * scale
-    timePaint.color = if (row.human) style.onAccent else style.muted
-    val line = style.bodyLine * scale
-    val metaLine = style.metaLine * scale
-    val padX = style.padX * density
-    val padY = style.padY * density
-    val gap = style.timeGap * density
-    val inset = style.rowInset * density
-    val inner = max(1, ((width - 2 * inset) * style.maxWidth - 2 * padX).toInt())
+    timePaint.textSize = tokens.metaSize * scale
+    timePaint.color = if (row.human) tokens.onAccent else tokens.muted
+    val line = tokens.bodyLine * scale
+    val metaLine = tokens.metaLine * scale
+    val padX = tokens.padX * density
+    val padY = tokens.padY * density
+    val gap = tokens.timeGap * density
+    val inset = tokens.rowInset * density
+    val inner = max(1, ((width - 2 * inset) * tokens.maxWidth - 2 * padX).toInt())
     val natural = ceil(Layout.getDesiredWidth(row.body, paint)).toInt()
     val spacing = line - paint.getFontMetricsInt(null)
     body = StaticLayout.Builder.obtain(row.body, 0, row.body.length, paint, max(1, min(natural, inner)))
@@ -116,7 +116,7 @@ class TextBubbleLayout(val row: TextRow, val style: TextRowStyle, val width: Int
     val timeWidth = timePaint.measureText(row.time)
     val textHeight = body.lineCount * line
     val beside = !row.human && body.lineCount == 1 && !row.body.contains('\n') &&
-      row.body.length <= style.besideMax && textWidth + gap + timeWidth <= inner
+      row.body.length <= tokens.besideMax && textWidth + gap + timeWidth <= inner
     val contentWidth: Float
     val contentHeight: Float
     if (row.human) {
@@ -128,19 +128,19 @@ class TextBubbleLayout(val row: TextRow, val style: TextRowStyle, val width: Int
       contentHeight = max(line, metaLine)
     } else {
       contentWidth = max(textWidth, timeWidth)
-      contentHeight = textHeight + style.stackGap * density + metaLine
+      contentHeight = textHeight + tokens.stackGap * density + metaLine
     }
     val bubbleWidth = contentWidth + 2 * padX
     val bubbleHeight = contentHeight + 2 * padY
-    val top = (if (row.first) style.firstGap else style.joinGap) * density
+    val top = (if (row.first) tokens.firstGap else tokens.joinGap) * density
     val left = if (row.human) width - inset - bubbleWidth else inset
     bubble = RectF(left, top, left + bubbleWidth, top + bubbleHeight)
     timeX = bubble.right - padX - timeWidth
     timeBaseline = bubble.bottom - padY - timePaint.fontMetrics.descent
-    height = ceil(bubble.bottom + (if (row.last) style.lastGap else 0f) * density).toInt()
-    val open = style.open * density
-    val join = style.join * density
-    val tail = style.tail * density
+    height = ceil(bubble.bottom + (if (row.last) tokens.lastGap else 0f) * density).toInt()
+    val open = tokens.open * density
+    val join = tokens.join * density
+    val tail = tokens.tail * density
     val (topLeft, topRight, bottomRight, bottomLeft) = if (row.human)
       listOf(open, if (row.first) open else join, if (row.last) tail else join, open)
     else
