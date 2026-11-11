@@ -1,11 +1,15 @@
 import { useRef, useState, type KeyboardEvent, type PointerEvent, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Button, IconCopyOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import {
+  ANNOTATION_TEXT_CHARS,
   ANNOTATION_TOOLS,
   annotatedName,
+  boxNoteAnchor,
   canvasPoint,
+  labelSize,
+  textAnnotation,
   extendAnnotation,
   finishAnnotation,
   paintAnnotation,
@@ -14,9 +18,13 @@ import {
   strokeWidth,
   type Annotation,
   type AnnotationDraft,
+  type AnnotationPoint,
   type AnnotationTool,
 } from './bug-report-annotate.js';
+import { BUG_REPORT_NOTE_CHARS } from './bug-report.js';
+import { canCopyImage, copyImage } from './bug-report-capture.js';
 import { ChipButton } from './ds/chip-button.js';
+import { TextField } from './ds/field.js';
 import { PanelDialog } from './ds/panel-dialog.js';
 import { border, color, dialog, radius, size, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -33,6 +41,26 @@ const styles = stylex.create({
     padding: space.x2,
     borderRadius: radius.md,
     backgroundColor: color.well,
+  },
+  frame: { position: 'relative', display: 'grid', maxWidth: '100%', minWidth: 0 },
+  label: {
+    position: 'absolute',
+    zIndex: 1,
+    boxSizing: 'border-box',
+    width: 'min(260px, 60%)',
+    paddingBlock: space.x2,
+    paddingInline: space.x3,
+    borderWidth: border.hairline,
+    borderStyle: 'solid',
+    borderColor: color.danger,
+    borderRadius: radius.xs,
+    backgroundColor: color.modal,
+    color: color.fg,
+    fontFamily: 'inherit',
+    fontSize: text.bodySize,
+    lineHeight: text.bodyLine,
+    outline: 'none',
+    boxShadow: 'var(--dsw-elevation-prominent)',
   },
   canvas: {
     display: 'block',
@@ -71,23 +99,34 @@ const styles = stylex.create({
 
 export function AnnotateDialog({
   file,
+  annotations = [],
+  note: initialNote = '',
   t,
+  doneLabel,
+  cancelLabel,
   onCancel,
   onDone,
 }: {
   file: File;
+  annotations?: readonly Annotation[] | undefined;
+  note?: string | undefined;
   t: BotHarnessTranslate;
+  doneLabel?: string | undefined;
+  cancelLabel?: string | undefined;
   onCancel(): void;
-  onDone(next: File): void;
+  onDone(next: File, edit: { note: string; annotations: readonly Annotation[] }): void;
 }): ReactElement {
   const [tool, setTool] = useState<AnnotationTool>('box');
-  const [count, setCount] = useState(0);
+  const [note, setNote] = useState(initialNote);
+  const [count, setCount] = useState(annotations.length);
+  const [label, setLabel] = useState<{ at: AnnotationPoint; value: string }>();
+  const [copied, setCopied] = useState<'done' | 'failed'>();
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const image = useRef<CanvasImageSource | undefined>(undefined);
-  const done = useRef<Annotation[]>([]);
+  const done = useRef<Annotation[]>([...annotations]);
   const draft = useRef<AnnotationDraft | undefined>(undefined);
 
   const paint = () => {
@@ -100,6 +139,8 @@ export function AnnotateDialog({
     const options = {
       stroke: getComputedStyle(canvas).color,
       width: strokeWidth(canvas),
+      label: labelSize(canvas),
+      canvasWidth: canvas.width,
     };
     const pending = draft.current === undefined ? undefined : previewAnnotation(draft.current);
     for (const annotation of pending === undefined ? done.current : [...done.current, pending])
@@ -148,22 +189,54 @@ export function AnnotateDialog({
     paint();
   };
 
-  const finish = async () => {
+  const commitLabel = () => {
+    if (label === undefined) return;
+    setLabel(undefined);
+    const added = textAnnotation(label.at, label.value);
+    if (added === undefined) return;
+    done.current = [...done.current, added];
+    setCount(done.current.length);
+    paint();
+  };
+
+  const render = async (): Promise<Blob | null> => {
     const canvas = canvasRef.current;
-    if (canvas === null || !ready) return;
-    setBusy(true);
+    if (canvas === null || !ready) return null;
+    commitLabel();
     draft.current = undefined;
     paint();
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+    return new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+  };
+
+  const copy = async () => {
+    setCopied(undefined);
+    const blob = await render();
+    try {
+      if (blob === null) throw new Error('render-failed');
+      await copyImage(blob);
+      setCopied('done');
+    } catch {
+      setCopied('failed');
+    }
+  };
+
+  const finish = async () => {
+    if (canvasRef.current === null || !ready) return;
+    setBusy(true);
+    const blob = await render();
     setBusy(false);
     if (blob === null) {
       setFailed(true);
       return;
     }
-    onDone(new File([blob], annotatedName(file.name), { type: 'image/png' }));
+    onDone(new File([blob], annotatedName(file.name), { type: 'image/png' }), {
+      note: note.trim(),
+      annotations: done.current,
+    });
   };
 
   const onKey = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.target instanceof HTMLInputElement) return;
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
       event.preventDefault();
       undo();
@@ -183,19 +256,36 @@ export function AnnotateDialog({
           <span role="alert" {...stylex.props(styles.hint)}>
             {t('bugReport.annotate.failed')}
           </span>
+        ) : canCopyImage() ? (
+          <span {...stylex.props(styles.tools)}>
+            <Button
+              variant="ghost"
+              icon={<IconCopyOutlineRegular size={16} />}
+              disabled={!ready || busy}
+              data-annotate-copy=""
+              onClick={() => void copy()}
+            >
+              {t('bugReport.annotate.copy')}
+            </Button>
+            <span role="status" {...stylex.props(styles.hint)}>
+              {copied === undefined
+                ? ''
+                : t(copied === 'done' ? 'bugReport.copied' : 'bugReport.copyFailed')}
+            </span>
+          </span>
         ) : undefined
       }
       actions={
         <>
           <Button variant="outline" onClick={onCancel}>
-            {t('bugReport.annotate.cancel')}
+            {cancelLabel ?? t('bugReport.annotate.cancel')}
           </Button>
           <Button
             variant="primary"
             onClick={() => void finish()}
             disabled={!ready || busy || failed}
           >
-            {t('bugReport.annotate.done')}
+            {doneLabel ?? t('bugReport.annotate.done')}
           </Button>
         </>
       }
@@ -222,38 +312,95 @@ export function AnnotateDialog({
           <ChipButton label={t('bugReport.annotate.undo')} disabled={count === 0} onClick={undo} />
         </div>
         <div {...stylex.props(styles.stage)}>
-          <canvas
-            ref={mount}
-            role="img"
-            aria-label={file.name}
-            data-annotate-canvas=""
-            onPointerDown={(event) => {
-              if (!ready) return;
-              event.currentTarget.setPointerCapture?.(event.pointerId);
-              draft.current = startAnnotation(tool, pointAt(event));
-            }}
-            onPointerMove={(event) => {
-              if (draft.current === undefined) return;
-              draft.current = extendAnnotation(draft.current, pointAt(event));
-              paint();
-            }}
-            onPointerUp={() => {
-              const finished =
-                draft.current === undefined ? undefined : finishAnnotation(draft.current);
-              draft.current = undefined;
-              if (finished !== undefined) {
-                done.current = [...done.current, finished];
-                setCount(done.current.length);
-              }
-              paint();
-            }}
-            onPointerCancel={() => {
-              draft.current = undefined;
-              paint();
-            }}
-            {...stylex.props(styles.canvas)}
-          />
+          <div {...stylex.props(styles.frame)}>
+            {label === undefined || canvasRef.current === null ? null : (
+              <input
+                autoFocus
+                aria-label={t('bugReport.annotate.label')}
+                placeholder={t('bugReport.annotate.labelPlaceholder')}
+                maxLength={ANNOTATION_TEXT_CHARS}
+                data-annotate-label=""
+                value={label.value}
+                onChange={(event) => setLabel({ ...label, value: event.currentTarget.value })}
+                onBlur={commitLabel}
+                onKeyDown={(event) => {
+                  if (event.nativeEvent.isComposing) return;
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    commitLabel();
+                  } else if (event.key === 'Escape') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setLabel(undefined);
+                  }
+                }}
+                style={{
+                  left: `${Math.min(70, (label.at[0] / canvasRef.current.width) * 100)}%`,
+                  top: `${Math.min(90, (label.at[1] / canvasRef.current.height) * 100)}%`,
+                }}
+                {...stylex.props(styles.label)}
+              />
+            )}
+            <canvas
+              ref={mount}
+              role="img"
+              aria-label={file.name}
+              data-annotate-canvas=""
+              onPointerDown={(event) => {
+                if (!ready) return;
+                if (label !== undefined) {
+                  event.preventDefault();
+                  commitLabel();
+                  return;
+                }
+                if (tool === 'text') {
+                  event.preventDefault();
+                  setLabel({ at: pointAt(event), value: '' });
+                  return;
+                }
+                event.currentTarget.setPointerCapture?.(event.pointerId);
+                draft.current = startAnnotation(tool, pointAt(event));
+              }}
+              onPointerMove={(event) => {
+                if (draft.current === undefined) return;
+                draft.current = extendAnnotation(draft.current, pointAt(event));
+                paint();
+              }}
+              onPointerUp={() => {
+                const finished =
+                  draft.current === undefined ? undefined : finishAnnotation(draft.current);
+                draft.current = undefined;
+                if (finished !== undefined) {
+                  done.current = [...done.current, finished];
+                  setCount(done.current.length);
+                  const canvas = canvasRef.current;
+                  if (finished.tool === 'box' && canvas !== null)
+                    setLabel({ at: boxNoteAnchor(finished, canvas), value: '' });
+                }
+                paint();
+              }}
+              onPointerCancel={() => {
+                draft.current = undefined;
+                paint();
+              }}
+              {...stylex.props(styles.canvas)}
+            />
+          </div>
         </div>
+        <TextField
+          label={t('bugReport.annotate.note')}
+          value={note}
+          onChange={setNote}
+          maxLength={BUG_REPORT_NOTE_CHARS}
+          placeholder={t('bugReport.annotate.notePlaceholder')}
+          data-annotate-note=""
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+              event.preventDefault();
+              void finish();
+            }
+          }}
+        />
       </div>
     </PanelDialog>
   );
