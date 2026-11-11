@@ -61,7 +61,9 @@ describe('product-owned desktop theme payload', () => {
         statSync(join(source, file)).isFile() &&
         !['PROVENANCE.json', 'README.botharness.md'].includes(file),
     );
-    expect(files.sort()).toEqual(Object.keys(provenance.files).sort());
+    expect(files.map((file) => file.split(sep).join('/')).sort()).toEqual(
+      Object.keys(provenance.files).sort(),
+    );
   });
 
   it.each([

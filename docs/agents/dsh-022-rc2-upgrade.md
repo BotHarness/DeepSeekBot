@@ -189,7 +189,8 @@ For release decisions, retain these distinct controls:
    updater or guarantee that an unknown future Host remains usable.
 
 The additional discovery and full-artifact canary coverage above is a required
-follow-up design, **not a claim that those automated gates have shipped**. Existing
+follow-up in [#4026](https://github.com/BotHarness/DeepSeekBot/issues/4026),
+**not a claim that those automated gates have shipped**. Existing
 adapters reduce breakage; only artifact-bound runtime evidence establishes the
 tested tuple. Windows, native mobile, external IM and Human acceptance stay separate.
 
