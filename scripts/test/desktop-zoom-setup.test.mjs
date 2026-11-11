@@ -275,7 +275,7 @@ function windowsFixture(entry = 'deepseekbot') {
 it.each([desktopFixture, windowsFixture])(
   'refuses a mismatched Desktop release before installing a theme alias',
   (makeFixture) => {
-    for (const version of ['0.2.2-rc.2', '0.2.1-rc.3', '', 'unknown']) {
+    for (const version of ['0.2.3-rc.1', '0.2.1-rc.3', '', 'unknown']) {
       const f = makeFixture();
       const before = readFileSync(f.path, 'utf8');
       f.run.mockReturnValueOnce(version);

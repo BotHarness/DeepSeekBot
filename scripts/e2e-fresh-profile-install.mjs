@@ -3,10 +3,12 @@ import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import semver from 'semver';
 import { productDshVersions } from './product-artifacts.mjs';
 import { verifiedProductArtifacts } from './packaged-profile.mjs';
 
-const usage = 'Use node scripts/e2e-fresh-profile-install.mjs <artifacts> <fresh-output>';
+const usage =
+  'Use node scripts/e2e-fresh-profile-install.mjs <artifacts> <fresh-output> [--upgrade-from <version>] [--dsh-version <version>] [--upgrade-only]';
 
 export function freshProfileOverrides(artifacts, productName = 'deepseekbot') {
   return Object.fromEntries(
@@ -364,7 +366,21 @@ async function qualify(artifacts, version, root, port, productName, upgradeFrom)
 }
 
 async function main() {
-  if (process.argv.length !== 4) throw new Error(usage);
+  if (process.argv.length < 4) throw new Error(usage);
+  let upgradeFrom = '1.4.1';
+  let selectedVersion;
+  let upgradeOnly = false;
+  for (let index = 4; index < process.argv.length; index++) {
+    const flag = process.argv[index];
+    if (flag === '--upgrade-only') upgradeOnly = true;
+    else if (flag === '--upgrade-from' || flag === '--dsh-version') {
+      const value = process.argv[++index];
+      if (!value || !semver.valid(value)) throw new Error(usage);
+      if (flag === '--upgrade-from') upgradeFrom = value;
+      else selectedVersion = value;
+    } else throw new Error(usage);
+  }
+  const versions = selectedVersion ? [selectedVersion] : productDshVersions;
   const artifacts = verifiedProductArtifacts(resolve(process.argv[2]));
   const output = resolve(process.argv[3]);
   if (existsSync(output)) throw new Error('Use a fresh output directory');
@@ -373,21 +389,25 @@ async function main() {
     productVersion: artifacts.productVersion,
     node: process.version,
     platform: process.platform,
-    scope:
-      'Fresh Profiles plus published 1.4.1 upgrade and old Bundle removal/Tobs installation in the same Profile: preserve Bot configuration, DM identity/history and SOUL/MEMORY across restart; CLI cross-writes and unauthorized refusal parity. Browser, model and IM delivery are separate gates.',
+    scope: `Fresh Profiles plus published ${upgradeFrom} upgrade and old Bundle removal/Tobs installation in the same Profile: preserve Bot configuration, DM identity/history and SOUL/MEMORY across restart; CLI cross-writes and unauthorized refusal parity. Browser, model and IM delivery are separate gates.`,
     rows: [
-      ...productDshVersions.flatMap((dsh) =>
+      ...(upgradeOnly ? [] : versions).flatMap((dsh) =>
         ['deepseekbot', '@botharness/tobs'].map((productName) => ({
           dsh,
           productName,
           state: 'pending',
         })),
       ),
-      { dsh: '0.2.1-rc.2', productName: 'deepseekbot', upgradeFrom: '1.4.1', state: 'pending' },
       {
-        dsh: '0.2.1-rc.2',
+        dsh: selectedVersion ?? '0.2.1-rc.2',
+        productName: 'deepseekbot',
+        upgradeFrom,
+        state: 'pending',
+      },
+      {
+        dsh: selectedVersion ?? '0.2.1-rc.2',
         productName: '@botharness/tobs',
-        upgradeFrom: '1.4.1',
+        upgradeFrom,
         state: 'pending',
       },
     ],

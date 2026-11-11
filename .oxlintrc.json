@@ -12,6 +12,7 @@
     ".tmp",
     "n",
     "n1",
-    "output"
+    "output",
+    "packages/client/vendor/dsh-ui-theme-022-rc2"
   ]
 }

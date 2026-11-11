@@ -118,3 +118,89 @@ are evidence, not running QA services.
 minimum/previous runtime matrix, unavailable npm rc2, remaining zoom/menu/Control Rail,
 Browser/Computer/Connect/IM, Windows and release-required mobile/Human gates. A merge of
 these compatibility fixes does not publish Tobs or declare those gates passed.
+
+## Packed qualification follow-up (#4024)
+
+The release coordinator confirmed that Tobs 1.7.0 is **not yet frozen**. The
+qualification-only candidate starts at `284ab894effb3451b9e6fff88884b0b84f65ebb8`;
+neither these test versions nor their installation authorize publication. Keep
+the previous #4019 linked-source results separate from the packed runs below.
+
+### What rc2 changed, and why Tobs is affected
+
+The [official release notes](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.2-rc.2)
+describe new Worktree review, named/nested Subagents and Desktop update channels,
+along with UI, model, tool, Computer Use and Session changes. This is a prerelease
+with documented migration work, not a promise of unchanged Plugin APIs. The
+[tag comparison](https://github.com/deepseek-ai/deepseek-harness/compare/dsh-v0.2.2-rc.1...dsh-v0.2.2-rc.2)
+and actual distribution must both be checked; a truncated GitHub file listing is
+not a complete interface audit.
+
+The reproduced Tobs failures cross three different seams:
+
+| Seam                           | Change and observed consequence                                                                                                  | Adaptation                                                                             |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Native Client primitives       | Removed positioning hook and Menu anchor API change; opening the old model picker crashes the Bot subtree                        | #4025 preserves the old hook when available and uses CSS anchors/new refs on rc2       |
+| Native Subagent activation     | rc2 reads the parent and request fields at the top level; the previous nested-only request fails at `parent.id`                  | #4025 supplies both representations in one activation, without execution retries       |
+| Optional Desktop theme payload | The opt-in zoom adapter only had reviewed rc1/older payloads; actual rc2 enable refuses `desktop-zoom-setup-version-unsupported` | #4024 adds the exact rc2 theme input and transformation; unknown versions still refuse |
+
+On 2026-11-11 UTC, both the npm rc2 CLI and theme package still returned E404.
+The signed official macOS arm64 archive is available and reports boot commit
+`a6b1b85`. Its public GitHub tag remains a separate identity. The checked-in rc2
+theme runtime input carries its MIT license and per-file provenance; its native
+Desktop distribution omits declaration files. Builds do not fetch a moving feed
+or substitute the rc1 payload. The adapter verifies both entry-point hashes before
+changing the same owned font-shortcut scope as earlier versions.
+
+### What protects a future upgrade
+
+The admission floor `>=0.2.0-0` permits installation; it does **not** certify
+0.2.3 or an untested prerelease. Existing capability adapters and
+[ADR-0316](../adr/0316-host-capabilities-degrade-or-fail-with-host-incompatible.md)
+provide local degradation/refusal at known boundaries. They cannot predict a
+method that keeps its name while changing its argument or persistence contract.
+
+The current scheduled canary watches npm `next`, starts a linked Bundle and checks
+that a Bot turn reaches the model. Missing credentials can count as setup success.
+It does not watch the independent Desktop feed, operate model menus, complete a
+native child, or qualify published product bytes. Its pass cache is keyed by DSH
+version, not the full product/artifact tuple. Thus its green status could not cover
+this Desktop-first release or the two reproduced interaction failures.
+
+For release decisions, retain these distinct controls:
+
+1. Track npm and official Desktop artifacts independently, including digest and
+   actual boot identity. A newly discovered distribution starts a new qualification;
+   a version-only cache is not release acceptance.
+2. Exercise the published Tobs version first, then one frozen candidate on the
+   oldest concrete supported runtime, previous baseline and new runtime. Include
+   Client interactions, real model/native-child completion and restart, not only
+   Host health. `e2e-fresh-profile-install.mjs --upgrade-from 1.6.1` selects the
+   current published upgrade fixture without erasing historical 1.4.1 coverage;
+   `--dsh-version` and `--upgrade-only` explicitly bound a rerun.
+3. Keep upstream-sensitive contracts in narrow adapters and test observable old/new
+   behavior. Optional failures must not tear down unrelated chat; required failures
+   must retain a concrete diagnosis, not retry side effects through another API.
+4. Before a Host update, preserve a closed, consistent Profile backup and known-good
+   application/runtime artifacts. Do not reopen an rc2-written Subagent catalog in
+   rc1 as a rollback strategy. Restore the pre-update snapshot in a separate Profile.
+5. Use the Desktop's release channel deliberately and hold an unqualified update
+   when stability is required. Tobs does not currently intercept the upstream
+   updater or guarantee that an unknown future Host remains usable.
+
+The additional discovery and full-artifact canary coverage above is a required
+follow-up design, **not a claim that those automated gates have shipped**. Existing
+adapters reduce breakage; only artifact-bound runtime evidence establishes the
+tested tuple. Windows, native mobile, external IM and Human acceptance stay separate.
+
+### Performance boundary
+
+The new theme is a separately packaged, opt-in replacement for the matching native
+Desktop theme, not an additional Client bundle or a new per-message operation.
+The adapter retains one owned shortcut lease and restores the native handlers on
+release. Existing shortcut ownership/disposal tests remain the regression guard;
+the package tests additionally check all pinned rc2 inputs and parse the transformed
+Client entry point. Native zoom levels -1/0/1/2 preserve the root font tokens and
+keep the model selector inside the viewport. These are correctness checks, not a
+frame-rate or end-to-end performance claim. The added payload increases download
+and installed size; it is not a performance improvement.
