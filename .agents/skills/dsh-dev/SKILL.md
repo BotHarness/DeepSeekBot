@@ -605,3 +605,12 @@ actual `__DSH_BOOT__.release` and archive digest separately from the public tag:
 the tested rc.2 Desktop reports commit `a6b1b85`, whereas the public rc.2 tag points
 to `ddac96760b6edf8fa0fe17cbdcf0b512f4c12b2c`. Do not substitute a source tag for
 runtime artifact provenance or describe the Desktop run as npm qualification.
+
+For an exact npm 404, run `scripts/dsh-npm-availability.mjs <exact-version>` and
+retain the timestamped JSON. A missing version is established only by the exact
+endpoint's 404 plus valid package metadata omitting that version; network/auth
+failures remain inconclusive. See the [upgrade runbook](../../../docs/agents/dsh-upgrade.md).
+In #4024 both official rc.2 npm packages were absent while Desktop was available.
+Optional Desktop zoom uses the product's packaged, hash-checked Theme via a local
+link, not an rc.2 npm Theme download. Do not change pins, weaken integrity checks,
+or treat the metadata probe as installation/runtime qualification.
