@@ -1113,7 +1113,7 @@ _避免使用_：短网址、UTM 链接、邀请链接
 
 ### 移动端页面
 
-手机上能导航到的页面。页面按它的职能命名，iOS 和 Android 用同一个名字；各平台怎么画由 `apps/mobile/DESIGN.md` 决定。页面里更深的子页（如 Bot 的 Memory、Settings 的子页）直接用它们的标题，不算术语。
+手机上能导航到的页面。页面按它的职能命名，iOS 和 Android 用同一个名字；各平台怎么画由 `apps/mobile/DESIGN.md` 决定。页面里更深的子页（如 Bot 的 Memory、Settings 的子页）直接用它们的标题，不算术语。上文的 PersonaBot Profile 和 Group Profile 也是移动端页面，从 Conversation screen 的 header 进入。
 
 **Chats**：
 列出当前 Computer 或云端工作区的 DM 和 Channel 的 tab，Human 从这里打开 Conversation screen。
@@ -1146,14 +1146,6 @@ _避免使用_：聊天列表、消息列表（单独使用）、FlatList、Recy
 **Composer**：
 输入栏。Conversation screen 底部 Human 写消息、发送消息的输入区域。
 _避免使用_：输入框、文本框（单独使用）
-
-**Bot profile**：
-一个 PersonaBot 的页面，从头像或它的 Conversation screen header 进入，包含身份以及 Memory、Routine、模型和访问权限等子页。
-_避免使用_：Bot 设置、Bot 详情
-
-**Channel info**：
-一个 Group Channel 的页面，从它的 Conversation screen header 进入，包含名称、头像、成员、邀请和通知。
-_避免使用_：群设置、群详情
 
 **Computer viewer**：
 以实时视频显示 Bot 的 Computer，并让 Human 观看或接管的页面。

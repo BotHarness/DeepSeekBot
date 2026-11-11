@@ -1116,7 +1116,7 @@ Default-following Sessions headers omit a redundant scope label. Group scope cho
 
 ### Mobile screens
 
-The phone's navigation destinations. A screen is named for its job and keeps the same name on iOS and Android; how each platform draws it is decided in `apps/mobile/DESIGN.md`. Deeper pages inside a screen, such as Bot Memory or a Settings sub-page, take their plain titles and are not terms.
+The phone's navigation destinations. A screen is named for its job and keeps the same name on iOS and Android; how each platform draws it is decided in `apps/mobile/DESIGN.md`. Deeper pages inside a screen, such as Bot Memory or a Settings sub-page, take their plain titles and are not terms. The PersonaBot Profile and Group Profile above are mobile screens too, opened from a Conversation screen header.
 
 **Chats**:
 The tab that lists the current Computer's or cloud workspace's DMs and Channels, and where the Human opens a Conversation screen.
@@ -1149,14 +1149,6 @@ _Avoid_: chat list, message list (alone), FlatList, Recycler
 **Composer**:
 The input area at the bottom of the Conversation screen where the Human writes and sends a message.
 _Avoid_: input box, text field (alone)
-
-**Bot profile**:
-The screen for one PersonaBot, opened from its avatar or its Conversation screen header, with its identity and its Memory, Routines, model and access pages.
-_Avoid_: Bot settings, Bot detail
-
-**Channel info**:
-The screen for one Group Channel, opened from its Conversation screen header, with its name, photo, members, invitations and notifications.
-_Avoid_: group settings, group detail
 
 **Computer viewer**:
 The screen that shows a Bot's Computer as live video and lets the Human watch or take control.
