@@ -270,7 +270,7 @@ describe('device gateway', () => {
     expect(seen.host).toBe(`127.0.0.1:${String(host.port)}`);
   });
 
-  it('asks a phone app older than the supported minimum to update', async () => {
+  it('serves a phone app of any version and never refuses it for being old', async () => {
     const host = await fakeDsh();
     const { offer } = host.pairing.createOffer();
     const paired = await pair(host.base, offer);
@@ -284,13 +284,9 @@ describe('device gateway', () => {
         },
         body: '{"type":"client-request"}',
       });
-    const old = await list('1.5.2');
-    expect(old.status).toBe(426);
-    expect(await old.json()).toEqual({ code: 'app-update-required' });
+    expect((await list('1.0.0')).status).toBe(200);
     expect((await list(MIN_PHONE_APP_VERSION)).status).toBe(200);
-    expect((await list('2.0.0')).status).toBe(200);
     expect((await list()).status).toBe(200);
-    expect((await list('0.0.1')).status).toBe(200);
   });
 
   it('refuses unpaired and cross-origin callers with coded errors', async () => {

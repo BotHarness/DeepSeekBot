@@ -17,7 +17,7 @@ async function connected(target: HostClient): Promise<void> {
   throw new Error('timed out');
 }
 
-function start(host: FakeHost): HostClient {
+function start(host: FakeHost, appVersion?: string): HostClient {
   vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
   const target = createHostClient({
     routes: ['https://studio.tailnet-example.ts.net'],
@@ -25,6 +25,7 @@ function start(host: FakeHost): HostClient {
     carrier: host.carrier,
     backoff: () => 5,
     timeoutMs: 200,
+    ...(appVersion === undefined ? {} : { appVersion }),
   });
   client = target;
   target.start();
@@ -111,23 +112,16 @@ it('records the computer version from ping and flags one below the supported min
   expect(target.getSnapshot().connection.status).toBe('connected');
 });
 
-it('sends the app version and shows when the computer needs a newer app', async () => {
+it('sends the app version and suggests an app update without blocking calls', async () => {
   const host = new FakeHost();
-  const target = createHostClient({
-    routes: ['https://studio.tailnet-example.ts.net'],
-    credential: host.credential,
-    carrier: host.carrier,
-    backoff: () => 5,
-    timeoutMs: 200,
-    appVersion: '1.7.0',
-  });
-  client = target;
-  target.start();
+  host.methods.set('ping', () => ({ ok: true, version: '1.9.0', minAppVersion: '1.8.0' }));
+  const target = start(host, '1.7.0');
   await connected(target);
-  await target.call('ping');
+  vi.advanceTimersByTime(20_000);
+  await vi.waitFor(() =>
+    expect(target.getSnapshot().compatibility).toEqual({ hostVersion: '1.9.0', update: 'app' }),
+  );
   expect(host.lastHeaders?.['x-tobs-app-version']).toBe('1.7.0');
-  host.appTooOld = true;
-  await expect(target.call('ping')).rejects.toMatchObject({ code: 'app-update-required' });
-  expect(target.getSnapshot().compatibility).toEqual({ update: 'app' });
+  await expect(target.call('list')).resolves.toBeDefined();
   expect(target.getSnapshot().connection.status).toBe('connected');
 });

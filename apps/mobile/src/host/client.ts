@@ -34,7 +34,6 @@ import {
 } from '../../../../packages/core/src/voice/call-contract';
 import { secretRouteRefusal } from '../../../../packages/core/src/bridge/secret-route';
 import {
-  APP_UPDATE_REQUIRED,
   APP_VERSION_HEADER,
   MIN_HOST_VERSION,
   belowMinimum,
@@ -253,15 +252,6 @@ class Unreachable extends Error {
     readonly status?: number,
   ) {
     super(message);
-  }
-}
-
-function refusalCode(text: string): string | undefined {
-  try {
-    const code = record(JSON.parse(text))['code'];
-    return typeof code === 'string' ? code : undefined;
-  } catch {
-    return undefined;
   }
 }
 
@@ -722,13 +712,6 @@ export function createHostClient(options: HostClientOptions): HostClient {
       if (response.status === 401) {
         const code = refusalOf(await response.text());
         if (code !== undefined) throw new CredentialRefused(code);
-      }
-      if (response.status === 426 && refusalCode(await response.text()) === APP_UPDATE_REQUIRED) {
-        setCompatibility({ ...compatibility, update: 'app' });
-        throw new MethodRefused(
-          APP_UPDATE_REQUIRED,
-          'This computer needs a newer Tobs app. Update the app on this phone.',
-        );
       }
       if (response.status === 404)
         throw new Unreachable(
@@ -1295,10 +1278,15 @@ export function createHostClient(options: HostClientOptions): HostClient {
       try {
         const answer = record(await call<unknown>('ping'));
         const version = answer['version'];
+        const minAppVersion = answer['minAppVersion'];
         if (typeof version === 'string')
           setCompatibility({
             hostVersion: version,
-            ...(belowMinimum(version, MIN_HOST_VERSION) ? { update: 'host' as const } : {}),
+            ...(belowMinimum(version, MIN_HOST_VERSION)
+              ? { update: 'host' as const }
+              : typeof minAppVersion === 'string' && belowMinimum(appVersion, minAppVersion)
+                ? { update: 'app' as const }
+                : {}),
           });
         return answer;
       } catch (error) {
