@@ -838,6 +838,8 @@ Mobile entries describe changes to the separately versioned phone app; they do n
 
 - The store privacy guide separates system dictation from Bot-call audio and shared camera frames, explains the password path under review, and marks prior answer files as requiring exact-candidate reconciliation before submission ([#2733](https://github.com/BotHarness/DeepSeekBot/issues/2733)).
 
+- Clarified DSH upgrade qualification with an exact npm CLI/Theme availability check that distinguishes missing versions from lookup failures and keeps Desktop evidence separate ([#4024](https://github.com/BotHarness/DeepSeekBot/issues/4024)).
+
 ## [1.6.1] - 2026-11-02
 
 Tobs adds Bot Network, so Bots on computers in the same Tailscale network, under the same Connect account, or on a LAN both sides approve can find and message each other; long conversations and chat switching are much smoother with static Bot avatars and lighter history loading; and the bundled cloudflared receives a security update.
