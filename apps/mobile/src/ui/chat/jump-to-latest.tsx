@@ -1,7 +1,8 @@
 import { Platform, Pressable, View } from 'react-native';
 
 import { useDesignTheme } from '../design/theme';
-import { chatComposerSurface, radius, space } from '../design/tokens';
+import { islandStyle } from '../design/island';
+import { radius, space } from '../design/tokens';
 import { badgeCount } from '../primitives/badge-count';
 import { Text } from '../primitives/text';
 import { ChevronDownIcon } from '../shell/icons';
@@ -12,7 +13,6 @@ import { useStrings } from '../strings';
 export function JumpToLatest({ unseen, onPress }: { unseen: number; onPress(): void }) {
   const t = useStrings();
   const theme = useDesignTheme();
-  const layer = theme.layer.raised;
   const badge = theme.type.meta.line;
   const glass = useLiquidGlass();
   const label = unseen > 0 ? t.unseenLatest(unseen) : t.jumpToLatest;
@@ -71,10 +71,7 @@ export function JumpToLatest({ unseen, onPress }: { unseen: number; onPress(): v
         borderRadius: radius.round,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: pressed ? layer.pressed : layer.fill,
-        borderWidth: chatComposerSurface.rim.width,
-        borderColor: chatComposerSurface.rim[theme.scheme],
-        boxShadow: `${chatComposerSurface.shadow[theme.scheme]}, ${chatComposerSurface.highlight[theme.scheme]}`,
+        ...islandStyle(theme, pressed),
       })}
     >
       <ChevronDownIcon color={theme.color.fg} size={theme.type.body.line} />

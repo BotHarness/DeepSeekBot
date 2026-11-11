@@ -176,15 +176,7 @@ import { createSendFlights, SendFlightsContext, textFrame, type SendFlight } fro
 import { QuestionCard } from './question-card';
 import { TimeSeparator } from './time-separator';
 import { AccentProvider, pressTint, useDesignTheme } from '../design/theme';
-import {
-  chatComposerSurface,
-  edge,
-  edgeFade,
-  glassPress,
-  pullToCompose,
-  radius,
-  space,
-} from '../design/tokens';
+import { edge, edgeFade, glassPress, island, pullToCompose, radius, space } from '../design/tokens';
 import { navigateChannel } from '../shell/channel-navigation';
 import { leaveScreen } from '../shell/leave-screen';
 import { Text } from '../primitives/text';
@@ -1663,7 +1655,7 @@ function ChatConversation({
       cover={composerCover}
       solid={android ? 0 : composerCover}
       color={fadeColor}
-      {...(android ? { shape: chatComposerSurface.fade } : {})}
+      {...(android ? { shape: island.fade } : {})}
     />
   );
   const replyBar =

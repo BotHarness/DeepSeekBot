@@ -6,17 +6,12 @@ import {
   IconButton,
   RNHostView,
   Row,
-  Shape,
   Surface,
   Text,
 } from '@expo/ui/jetpack-compose';
 import {
-  background,
-  clip,
-  dropShadow,
   fillMaxWidth,
   height as nativeHeight,
-  innerShadow,
   padding,
   semantics,
   size,
@@ -29,19 +24,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BotAvatar } from '../bot-avatar';
 import { useDesignTheme } from '../design/theme';
-import { chatHeaderSurface, materialIconButton, radius, space } from '../design/tokens';
+import { composeIsland } from '../design/island-compose.android';
+import { materialIconButton, radius, space } from '../design/tokens';
 import { useStrings } from '../strings';
 import type { ConversationTopBarProps } from './conversation-top-bar';
 import { ChatHeaderSurface } from './chat-header-surface.android';
 import { GroupMark } from './group-mark';
 import { HeaderBotStack } from './header-bot-stack';
-
-function withAlpha(hex: string, alpha: number): string {
-  if (!/^#[0-9a-f]{6}$/iu.test(hex)) return hex;
-  return `${hex}${Math.round(alpha * 255)
-    .toString(16)
-    .padStart(2, '0')}`;
-}
 
 export function ConversationTopBar({
   title,
@@ -78,32 +67,7 @@ export function ConversationTopBar({
       <Icon source={source} size={materialIconButton.iconSize} />
     </IconButton>
   );
-  const look = chatHeaderSurface.island;
-  const scheme = theme.scheme;
-  const ink = look.ink[scheme];
-  const pill = { type: 'roundedCorner', radius: islandHeight / 2 } as const;
-  const island = {
-    color: 'transparent',
-    contentColor: theme.color.fg,
-    shape: Shape.Pill({}),
-    border: { width: look.rim.width, color: withAlpha(ink, look.rim[scheme]) },
-  };
-  const islandLook = [
-    dropShadow(pill, {
-      radius: look.shadow.radius,
-      offsetY: look.shadow.offsetY,
-      color: look.shade,
-      alpha: look.shadow[scheme],
-    }),
-    clip(pill),
-    background(theme.layer.raised.fill),
-    innerShadow(pill, {
-      radius: look.highlight.width,
-      offsetY: look.highlight.width,
-      color: look.light,
-      alpha: look.highlight[scheme],
-    }),
-  ];
+  const { surface: island, modifiers: islandLook } = composeIsland(theme, islandHeight);
   return (
     <View
       testID="android-chat-header"
