@@ -26,7 +26,12 @@ node apps/mobile/scripts/android-chat-perf.mjs analyze --dir <arm-dir>/<label> -
 | `back-to-latest` | 10 fast flings toward older history               | Tap Jump to latest and 2 s of settling                    |
 | `own-send`       | Focus the composer and type `--marker`            | Tap send and 2.5 s of flight and commit                   |
 
-Streaming replay is not part of this script: it needs an isolated Host with the fixed provider in [stream-replay.md](stream-replay.md), coordinated with the Host owner.
+| `stream` | none | Run `--trigger` (a Node script that arms one fixed replay and sends the message that answers it) and 12 s of streaming at the latest message |
+| `stream-read` | none | Same trigger, then one drag toward older history 1.5 s in; the reader's position must hold |
+
+## Fixed workload Host
+
+Scroll and streaming runs use an isolated Host, never a shared QA Host. Launch it with `scripts/dev-instance.mjs --home <persistent-home> --port <n>` and add an OpenAI-compatible `qa-replay` provider pointing at [stream-replay.mjs](stream-replay.md) to the profile's own `cordis.patch.yml` (the launcher keeps it when it writes its model patch). Create one Bot, set its orchestrator to `qa-replay`, and generate the history with `android-chat-perf-workload.mjs 240 <workload.jsonl>`: for each index, arm `{"slug": <bot-id>, "workload": <index>, "runId": <unique>}` and send one Human message; verify every reply equals its workload body. The reply arrives through the real `bot_send_message` tool, without a model. Record the workload hash with the results and send nothing else to that conversation afterwards. Pair the phone with `device-offer`, an exact `adb reverse` for the Host port, and fingerprint checks on both sides.
 
 ## Rules
 

@@ -5,7 +5,14 @@ import { join, resolve } from 'node:path';
 
 const APP = 'ai.botharness.deepseekbot.dev';
 const LATEST = /content-desc="(返回最新消息|Jump to latest)"/;
-const SCENARIOS = ['warm-fling', 'cold-paging', 'back-to-latest', 'own-send'];
+const SCENARIOS = [
+  'warm-fling',
+  'cold-paging',
+  'back-to-latest',
+  'own-send',
+  'stream',
+  'stream-read',
+];
 
 function parse(argv) {
   const [command, ...rest] = argv;
@@ -171,7 +178,7 @@ async function setup(d, options) {
   }
 }
 
-async function gestures(d, scenario) {
+async function gestures(d, scenario, options) {
   const actions = [];
   const act = async (name, fn, pause = 0) => {
     const at = d.uptime();
@@ -186,11 +193,23 @@ async function gestures(d, scenario) {
   if (scenario === 'back-to-latest') await act('latest', () => d.tap(d.xml(), LATEST), 2000);
   if (scenario === 'own-send')
     await act('send', () => d.tap(d.xml(), /resource-id="composer-send"/), 2500);
+  if (scenario === 'stream' || scenario === 'stream-read') {
+    const trigger = spawn(process.execPath, [options.trigger], {
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+    const finished = new Promise((done) => trigger.once('exit', done));
+    await act('trigger', () => {}, 1500);
+    if (scenario === 'stream-read') await act('older', () => swipe(d, true, 400), 0);
+    await wait(scenario === 'stream' ? 10500 : 10100);
+    actions.push({ name: 'trigger-exit', code: await finished });
+  }
   return actions;
 }
 
 async function capture(options) {
   required(options, 'scenario', 'label', 'config', 'out', 'conversation');
+  if (options.scenario.startsWith('stream')) required(options, 'trigger');
   if (!SCENARIOS.includes(options.scenario))
     throw new Error(`Scenario must be one of ${SCENARIOS.join(', ')}`);
   const d = phone(options);
@@ -210,7 +229,7 @@ async function capture(options) {
   await wait(2000);
   if (trace.exitCode !== null) throw new Error(`Trace stopped before the scenario: ${log}`);
   const start = d.uptime();
-  const actions = await gestures(d, options.scenario);
+  const actions = await gestures(d, options.scenario, options);
   await wait(500);
   const end = d.uptime();
   writeFileSync(join(out, 'memory-after.txt'), d.shell('dumpsys', 'meminfo', APP));
