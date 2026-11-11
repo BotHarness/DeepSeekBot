@@ -1,6 +1,6 @@
 import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const APP = 'ai.botharness.deepseekbot.dev';
@@ -388,11 +388,61 @@ ORDER BY a.ts;`,
   console.log(JSON.stringify(summary));
 }
 
+function aggregate(options) {
+  required(options, 'out');
+  const root = options.out;
+  const samples = readdirSync(root, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && /^[ab]-[1-9]$/.test(entry.name))
+    .map((entry) => entry.name)
+    .sort();
+  const metrics = {
+    p50: (s) => s.intervalMs?.p50,
+    p95: (s) => s.intervalMs?.p95,
+    p99: (s) => s.intervalMs?.p99,
+    over16ms: (s) => s.intervalsOver16ms,
+    over8ms: (s) => s.intervalsOver8ms,
+    deadlineMissed: (s) => s.appDeadlineMissed,
+    dropped: (s) => s.droppedFrames,
+    presented: (s) => s.presentedFrames,
+    pssAfterKiB: (s) => s.pssAfterKiB,
+  };
+  const result = {};
+  for (const sample of samples) {
+    for (const scenario of SCENARIOS) {
+      const file = join(root, sample, scenario, 'summary.json');
+      if (!existsSync(file)) continue;
+      const summary = JSON.parse(readFileSync(file, 'utf8'));
+      const arm = sample[0];
+      result[scenario] ??= { a: {}, b: {} };
+      for (const [name, read] of Object.entries(metrics)) {
+        (result[scenario][arm][name] ??= []).push({ sample, value: read(summary) });
+      }
+    }
+  }
+  const median = (values) => quantile(values, 0.5);
+  const table = {};
+  for (const [scenario, arms] of Object.entries(result)) {
+    table[scenario] = {};
+    for (const [name] of Object.entries(metrics)) {
+      const a = (arms.a[name] ?? []).map((v) => v.value).filter(Number.isFinite);
+      const b = (arms.b[name] ?? []).map((v) => v.value).filter(Number.isFinite);
+      table[scenario][name] = {
+        a: a.length ? median(a) : null,
+        b: b.length ? median(b) : null,
+        runs: { a: arms.a[name] ?? [], b: arms.b[name] ?? [] },
+      };
+    }
+  }
+  writeFileSync(join(root, 'aggregate.json'), JSON.stringify(table, null, 2));
+  console.log(JSON.stringify(table));
+}
+
 const { command, options } = parse(process.argv.slice(2));
 if (command === 'prepare') await prepare(options);
 else if (command === 'capture') await capture(options);
 else if (command === 'analyze') analyze(options);
+else if (command === 'aggregate') aggregate(options);
 else
   throw new Error(
-    'Usage: android-chat-perf.mjs prepare|capture|analyze (see android-chat-perf.md)',
+    'Usage: android-chat-perf.mjs prepare|capture|analyze|aggregate (see android-chat-perf.md)',
   );
