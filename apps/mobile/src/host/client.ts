@@ -895,7 +895,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
       });
     } catch (error) {
       if (
-        error instanceof Unreachable ||
+        (error instanceof Unreachable && !hostLacksMethod(error)) ||
         error instanceof MethodRefused ||
         error instanceof CredentialRefused
       )
@@ -940,7 +940,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     fetchedArrangement = undefined;
     return call<unknown>('rosterGet')
       .then(arrangementOf, (error: unknown) => {
-        if (error instanceof MethodRefused) return undefined;
+        if (error instanceof MethodRefused || hostLacksMethod(error)) return undefined;
         throw error;
       })
       .then((value) => {
@@ -1277,17 +1277,16 @@ export function createHostClient(options: HostClientOptions): HostClient {
     if (pingAvailable)
       try {
         const answer = record(await call<unknown>('ping'));
-        const version = answer['version'];
+        const version = typeof answer['version'] === 'string' ? answer['version'] : undefined;
         const minAppVersion = answer['minAppVersion'];
-        if (typeof version === 'string')
-          setCompatibility({
-            hostVersion: version,
-            ...(belowMinimum(version, MIN_HOST_VERSION)
-              ? { update: 'host' as const }
-              : typeof minAppVersion === 'string' && belowMinimum(appVersion, minAppVersion)
-                ? { update: 'app' as const }
-                : {}),
-          });
+        setCompatibility({
+          ...(version === undefined ? {} : { hostVersion: version }),
+          ...(version !== undefined && belowMinimum(version, MIN_HOST_VERSION)
+            ? { update: 'host' as const }
+            : typeof minAppVersion === 'string' && belowMinimum(appVersion, minAppVersion)
+              ? { update: 'app' as const }
+              : {}),
+        });
         return answer;
       } catch (error) {
         if (

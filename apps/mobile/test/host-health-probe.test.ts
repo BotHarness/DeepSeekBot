@@ -125,3 +125,23 @@ it('sends the app version and suggests an app update without blocking calls', as
   await expect(target.call('list')).resolves.toBeDefined();
   expect(target.getSnapshot().connection.status).toBe('connected');
 });
+
+it('stays connected to an older computer without the roster arrangement or list changes', async () => {
+  const host = new FakeHost();
+  host.absent.add('rosterGet');
+  host.absent.add('channelListChanges');
+  const target = start(host);
+  await connected(target);
+  await target.refresh();
+  expect(target.getSnapshot().connection.status).toBe('connected');
+  expect(target.getSnapshot().roster).toBeDefined();
+});
+
+it('suggests an app update when ping has no Host version', async () => {
+  const host = new FakeHost();
+  host.methods.set('ping', () => ({ ok: true, minAppVersion: '1.8.0' }));
+  const target = start(host, '1.7.0');
+  await connected(target);
+  vi.advanceTimersByTime(20_000);
+  await vi.waitFor(() => expect(target.getSnapshot().compatibility).toEqual({ update: 'app' }));
+});
