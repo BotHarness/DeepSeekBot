@@ -13,6 +13,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createDeviceGateway, DEVICE_GATEWAY_PREFIX } from '../src/devices/gateway.js';
+import { APP_VERSION_HEADER, MIN_PHONE_APP_VERSION } from '../src/devices/client-compat.js';
 import { createDevicePairing } from '../src/devices/pairing.js';
 import { createGatewayOrigin } from '../src/devices/connect.js';
 import { DEVICE_ROUTE_HEADER, isConnectRequest } from '../src/devices/route-context.js';
@@ -267,6 +268,29 @@ describe('device gateway', () => {
     const seen = host.state.seen.at(-1)!;
     expect(seen.authorization).toBeUndefined();
     expect(seen.host).toBe(`127.0.0.1:${String(host.port)}`);
+  });
+
+  it('asks a phone app older than the supported minimum to update', async () => {
+    const host = await fakeDsh();
+    const { offer } = host.pairing.createOffer();
+    const paired = await pair(host.base, offer);
+    const list = (appVersion?: string) =>
+      fetch(`${host.base}/botharness-device/api/botharness/list`, {
+        method: 'POST',
+        headers: {
+          authorization: `Device ${paired.body.credential}`,
+          'content-type': 'application/json',
+          ...(appVersion === undefined ? {} : { [APP_VERSION_HEADER]: appVersion }),
+        },
+        body: '{"type":"client-request"}',
+      });
+    const old = await list('1.5.2');
+    expect(old.status).toBe(426);
+    expect(await old.json()).toEqual({ code: 'app-update-required' });
+    expect((await list(MIN_PHONE_APP_VERSION)).status).toBe(200);
+    expect((await list('2.0.0')).status).toBe(200);
+    expect((await list()).status).toBe(200);
+    expect((await list('0.0.1')).status).toBe(200);
   });
 
   it('refuses unpaired and cross-origin callers with coded errors', async () => {

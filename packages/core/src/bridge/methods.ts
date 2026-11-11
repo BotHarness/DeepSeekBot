@@ -805,7 +805,7 @@ export interface BridgeMethods {
   }>;
   pause(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   resume(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
-  ping(payload: unknown): BridgeResult<{ ok: true }>;
+  ping(payload: unknown): BridgeResult<{ ok: true; version?: string }>;
   humanIdentity(payload: unknown): BridgeResult<LocalHumanIdentity>;
   composerIdentity(payload: unknown): BridgeResult<ComposerRecoveryIdentity>;
   composerValidate(payload: unknown): BridgeResult<{
@@ -1300,6 +1300,7 @@ export interface BridgeMethodsDeps {
   shareDrafts?: ShareDrafts;
   marketplaceReceipts?: InstallReceipts;
   release?: ReleaseService;
+  hostVersion?: () => string;
   plugins?: PluginUpdateService;
   updates?: UpdateRuns;
   telemetry?: {
@@ -5386,7 +5387,8 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       return { ok: true, value: detailOf(result.record) };
     },
     ping() {
-      return { ok: true, value: { ok: true } };
+      const version = deps.hostVersion?.();
+      return { ok: true, value: { ok: true, ...(version === undefined ? {} : { version }) } };
     },
     humanIdentity() {
       return { ok: true, value: deps.channels.humanIdentity() };

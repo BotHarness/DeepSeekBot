@@ -43,8 +43,10 @@ it.each(['connect', 'lan'] as const)(
     const paired = pairing.redeem({ offer: offer.offer, publicKey });
     if (!paired.ok) throw new Error('pairing failed');
     const observed: string[] = [];
+    const appVersions: (string | string[] | undefined)[] = [];
     const server = createServer(async (request, response) => {
       expect(request.headers.authorization).toBe(`Device ${paired.credential}`);
+      appVersions.push(request.headers['x-tobs-app-version']);
       if (request.url === '/botharness-device/push') {
         response.setHeader('content-type', 'application/json');
         response.end(
@@ -116,6 +118,7 @@ it.each(['connect', 'lan'] as const)(
           method: 'POST',
           path: '/botharness-device/api/botharness/privateInputSubmit',
           body: sentinel,
+          appVersion: '1.7.0',
         }),
       )) {
         observed.push(frame);
@@ -124,6 +127,7 @@ it.each(['connect', 'lan'] as const)(
       const answer = await wait();
       expect(Buffer.from(String(answer.body), 'base64').toString()).toBe(sentinel);
       expect(observed.join('')).not.toContain(sentinel);
+      expect(appVersions.at(-1)).toBe('1.7.0');
       const carrier = encryptedCarrier({
         hostId: pairing.host().id,
         credential: paired.credential,
@@ -160,11 +164,15 @@ it.each(['connect', 'lan'] as const)(
           {
             method: 'POST',
             body: sentinel,
-            headers: { authorization: `Device ${paired.credential}` },
+            headers: {
+              authorization: `Device ${paired.credential}`,
+              'x-tobs-app-version': '1.7.1',
+            },
             signal: new AbortController().signal,
           },
         );
         expect(await response.text()).toBe(sentinel);
+        expect(appVersions.at(-1)).toBe('1.7.1');
         const activity = await carrier.request(`${origin}/botharness-device/activity/register`, {
           method: 'POST',
           body: 'private-activity-token',

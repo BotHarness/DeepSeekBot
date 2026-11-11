@@ -18,6 +18,12 @@ import {
 } from '../voice/call-contract.js';
 import { refuseConnectRpc } from './rpc-policy.js';
 import { connectMux } from './connect-mux.js';
+import {
+  APP_UPDATE_REQUIRED,
+  APP_VERSION_HEADER,
+  MIN_PHONE_APP_VERSION,
+  belowMinimum,
+} from './client-compat.js';
 
 export const DEVICE_GATEWAY_PREFIX = '/botharness-device';
 export const DEVICE_PAIR_PATH = `${DEVICE_GATEWAY_PREFIX}/pair`;
@@ -77,6 +83,7 @@ export type GatewayRefusal =
   | 'ticket-invalid'
   | 'relay-signature-invalid'
   | 'host-session-unavailable'
+  | typeof APP_UPDATE_REQUIRED
   | 'not-found';
 
 export interface DeviceGatewayOptions {
@@ -678,6 +685,8 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
         return video(request, response, pairing.admit(header(request, 'authorization')));
       if (decodedPath === `${DEVICE_GATEWAY_PREFIX}${VOICE_CALL_PATH}`)
         return call(request, response, pairing.admit(header(request, 'authorization')));
+      if (belowMinimum(header(request, APP_VERSION_HEADER), MIN_PHONE_APP_VERSION))
+        return refuse(response, 426, APP_UPDATE_REQUIRED);
       if (path.startsWith(`${DEVICE_GATEWAY_PREFIX}/api/`))
         return forward(
           request,
