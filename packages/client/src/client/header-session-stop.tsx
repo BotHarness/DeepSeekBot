@@ -1,12 +1,8 @@
+import { useAnchoredPanel } from './anchored-panel.js';
 import { useRef, useState, type ReactElement, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import * as stylex from '@stylexjs/stylex';
-import {
-  IconStopFillRegular,
-  MenuSurface,
-  Tag,
-  useAnchoredPosition,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconStopFillRegular, MenuSurface, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { PersonaBotAvatar } from './avatar.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
@@ -339,11 +335,10 @@ export function SessionStopPopover({
   const [stopping, setStopping] = useState<ReadonlySet<string>>(() => new Set());
   const [stoppingBots, setStoppingBots] = useState<ReadonlySet<string>>(() => new Set());
   const [error, setError] = useState<string>();
-  const position = useAnchoredPosition({
+  const position = useAnchoredPanel({
     open: true,
     anchorRef: anchor,
     panelRef: panel,
-    align: 'start',
     gap: 6,
     margin: 12,
   });
@@ -403,7 +398,7 @@ export function SessionStopPopover({
       data-session-stop-popover=""
       data-bh-appearance-owned=""
       className={stylex.props(styles.surface).className}
-      style={position ?? { left: 0, top: 0, visibility: 'hidden' }}
+      style={position}
     >
       <div {...stylex.props(styles.heading)}>{t('sessionStop.title')}</div>
       {groups.length === 0 ? (

@@ -36,7 +36,6 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
       return createElement('div', { ...props, ref });
     },
   ),
-  useAnchoredPosition: () => ({ left: 0, top: 0 }),
   fileSizeText: (size: number) => `${size} B`,
 }));
 

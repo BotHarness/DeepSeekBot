@@ -1,3 +1,4 @@
+import { useAnchoredPanel } from './anchored-panel.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 import { useId, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
 import { createPortal } from 'react-dom';
@@ -6,7 +7,6 @@ import {
   IconPlusOutlineRegular,
   Input,
   MenuSurface,
-  useAnchoredPosition,
   useDismissOnOutsidePointer,
 } from '@deepseek-ai/dsh-client-ui-primitives';
 
@@ -123,10 +123,11 @@ export function Combobox({
   const highlighted = shown.findIndex(
     (option) => option.value === active && option.disabled !== true,
   );
-  const position = useAnchoredPosition({
+  const position = useAnchoredPanel({
     open,
     anchorRef: root,
     panelRef: panel,
+    matchWidth: true,
     gap: 4,
     margin: 12,
   });
@@ -249,8 +250,6 @@ export function Combobox({
               data-bh-appearance-owned=""
               style={{
                 ...position,
-                width: root.current?.getBoundingClientRect().width ?? 200,
-                visibility: position === null ? 'hidden' : undefined,
               }}
             >
               <div className="bh-combobox-scroll">

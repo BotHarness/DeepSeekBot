@@ -134,7 +134,7 @@ export function ChannelSidebarSettings({
         align="end"
         className="bh-sidebar-settings-menu"
         listClassName="bh-sidebar-settings-list"
-        getAnchorRect={() => anchor.current?.getBoundingClientRect() ?? null}
+        anchorRef={anchor}
         anchor={
           <Tooltip label={label} side="bottom" delayMs={500}>
             <button

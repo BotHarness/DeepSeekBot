@@ -48,7 +48,11 @@ describe('DSH Subagent version adapter', () => {
     const f = fixture();
     const startActivation = vi.fn(async () => f.activation);
     const run = await startCallerActivation({ startActivation }, f.spec);
-    expect(startActivation).toHaveBeenCalledWith({ ...f.spec, delivery: 'caller' });
+    expect(startActivation).toHaveBeenCalledWith({
+      ...f.spec,
+      ...f.spec.request,
+      delivery: 'caller',
+    });
     f.controller.abort();
     await run.dispose();
     expect(f.activation.dispose).toHaveBeenCalledOnce();
@@ -93,7 +97,11 @@ describe('DSH Subagent version adapter', () => {
     const startActivation = vi.fn(async () => modern.activation);
     const failure = vi.fn();
     await startParentActivation({ startActivation }, modern.spec, failure);
-    expect(startActivation).toHaveBeenCalledWith({ ...modern.spec, delivery: 'parent' });
+    expect(startActivation).toHaveBeenCalledWith({
+      ...modern.spec,
+      ...modern.spec.request,
+      delivery: 'parent',
+    });
     modern.controller.abort();
     expect(modern.activation.dispose).not.toHaveBeenCalled();
     modern.resolve({ stopReason: 'completed', output: [] });
