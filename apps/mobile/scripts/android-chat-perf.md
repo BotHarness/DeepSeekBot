@@ -33,6 +33,10 @@ node apps/mobile/scripts/android-chat-perf.mjs analyze --dir <arm-dir>/<label> -
 
 Scroll and streaming runs use an isolated Host, never a shared QA Host. Launch it with `scripts/dev-instance.mjs --home <persistent-home> --port <n>` and add an OpenAI-compatible `qa-replay` provider pointing at [stream-replay.mjs](stream-replay.md) to the profile's own `cordis.patch.yml` (the launcher keeps it when it writes its model patch). Create one Bot, set its orchestrator to `qa-replay`, and generate the history with `android-chat-perf-workload.mjs 240 <workload.jsonl>`: for each index, arm `{"slug": <bot-id>, "workload": <index>, "runId": <unique>}` and send one Human message; verify every reply equals its workload body. The reply arrives through the real `bot_send_message` tool, without a model. Record the workload hash with the results and send nothing else to that conversation afterwards. Pair the phone with `device-offer`, an exact `adb reverse` for the Host port, and fingerprint checks on both sides.
 
+## Counters and hotspots
+
+Run one `capture` per arm with `--config apps/mobile/scripts/android-chat-perf-sections.pbtxt`. It adds app trace sections (RecyclerView `RV *`, Fabric `MountItemDispatcher`, `ReactTextView`, `Constructing StaticLayout`) to the frame timeline without a rebuild, so a change can be checked with deterministic counts before frame A/B runs. Rank work inside frames longer than 12 ms to find the hotspot; to test whether a site is on the critical path, inject a fixed delay there in a local diagnostic build and compare one A/B pair.
+
 ## Rules
 
 - Same phone, Release with production JavaScript, same frozen conversation, font scale, theme, refresh mode and animation scales on both arms. Record and restore the animation scales the device started with.
