@@ -101,6 +101,7 @@ class ChatRecyclerView(context: Context, app: AppContext) : ExpoView(context, ap
   private var textRows = emptyMap<String, TextRow>()
   private var textStyle: TextRowStyle? = null
   private val textLayouts = mutableMapOf<String, TextBubbleLayout>()
+  private val markdownSpans by lazy { MarkdownSpans(context) }
 
   private inner class Holder(val box: FrameLayout, val bubble: TextBubbleView? = null) : RecyclerView.ViewHolder(box)
   private val adapter = object : RecyclerView.Adapter<Holder>() {
@@ -244,7 +245,7 @@ class ChatRecyclerView(context: Context, app: AppContext) : ExpoView(context, ap
       }
       val current = textLayouts[key]
       if (current != null && current.row == row && current.width == width && current.tokens == style) continue
-      val layout = TextBubbleLayout(row, style, width, density)
+      val layout = TextBubbleLayout(row, style, width, density) { body -> style.markdown?.let { markdownSpans.render(body, it) } }
       textLayouts[key] = layout
       heights[key] = layout.height
       positions[key]?.let { geometry.update(it, layout.height); refreshAt(it) }
