@@ -14,7 +14,12 @@ type Pan = {
   finalize(): void;
 };
 
-const state = vi.hoisted(() => ({ pans: [] as Pan[], haptics: [] as string[] }));
+const state = vi.hoisted(() => ({
+  pans: [] as Pan[],
+  haptics: [] as string[],
+  detected: [] as unknown[],
+  natives: [] as { blocks: unknown[] }[],
+}));
 
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
@@ -47,14 +52,28 @@ vi.mock('react-native-gesture-handler', async () => {
         };
         return builder;
       },
+      Native: () => {
+        const native = { blocks: [] as unknown[] };
+        state.natives.push(native);
+        const builder = {
+          blocksExternalGesture: (...gestures: unknown[]) => (
+            native.blocks.push(...gestures),
+            builder
+          ),
+        };
+        return builder;
+      },
     },
-    GestureDetector: ({ children }: { children: unknown }) =>
-      createElement(Fragment, null, children as never),
+    GestureDetector: ({ gesture, children }: { gesture: unknown; children: unknown }) => {
+      state.detected.push(gesture);
+      return createElement(Fragment, null, children as never);
+    },
   };
 });
 
 const { ReplySwipe } = await import('../src/ui/chat/reply-swipe');
 const { ReplyBar } = await import('../src/ui/chat/reply-bar');
+const { HorizontalScroll } = await import('../src/ui/primitives/horizontal-scroll');
 const { horizontalSwipeOwner, replyTravel, repliesAt } =
   await import('../src/ui/chat/reply-swipe-model');
 const { swipeReply } = await import('../src/ui/design/tokens');
@@ -69,12 +88,39 @@ describe('swipe left to reply', () => {
   beforeEach(() => {
     state.pans.length = 0;
     state.haptics.length = 0;
+    state.detected.length = 0;
+    state.natives.length = 0;
     container = document.createElement('div');
     root = createRoot(container);
   });
 
   afterEach(async () => {
     await act(async () => root.unmount());
+  });
+
+  it('lets a horizontal scroller in the bubble block the reply pan', async () => {
+    await act(async () =>
+      root.render(
+        <ReplySwipe enabled onReply={() => undefined}>
+          <HorizontalScroll>wide table</HorizontalScroll>
+        </ReplySwipe>,
+      ),
+    );
+    const pan = state.detected[0];
+    expect(state.natives).toHaveLength(1);
+    expect(state.natives[0]!.blocks).toEqual([pan]);
+    expect(state.detected.at(-1)).not.toBe(pan);
+  });
+
+  it('leaves a scroller plain when the bubble cannot be replied to', async () => {
+    await act(async () =>
+      root.render(
+        <ReplySwipe enabled={false} onReply={() => undefined}>
+          <HorizontalScroll>wide table</HorizontalScroll>
+        </ReplySwipe>,
+      ),
+    );
+    expect(state.natives).toHaveLength(0);
   });
 
   it('follows the finger up to its reach, then resists, and commits past the threshold', () => {
