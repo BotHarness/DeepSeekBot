@@ -6,7 +6,11 @@ Unreleased entries arrive as [change fragments](changes/README.md) and are folde
 
 ## [Unreleased]
 
-Preparing Tobs 1.7.0: Bot calls, phone history and search, richer documents, and connection and conversation reliability.
+Changes under development.
+
+## [1.7.0] - 2026-11-12
+
+Tobs 1.7.0: Bot calls, phone history and search, richer documents, and connection and conversation reliability.
 
 Mobile entries describe changes to the separately versioned phone app; they do not announce an App Store or Play release.
 
@@ -167,6 +171,12 @@ Mobile entries describe changes to the separately versioned phone app; they do n
 - Updating Tobs or a BotHarness plugin from inside Tobs now shows live progress: the update reminder, Bot settings › About and Bot settings › Plugins share one panel with the steps, every package-manager command with its output and exit code, and the reason when it fails. **Stop** cancels a running install and puts the previous version back. The same run is available from `deepseekbot update-status` and `deepseekbot update-cancel`. ([#3845](https://github.com/BotHarness/DeepSeekBot/pull/3845))
 
 - Bots can send voice messages: add a TTS Provider (Fish Audio, ElevenLabs, OpenAI, or any OpenAI-compatible endpoint such as a local Kokoro) in Settings › Voice, pick a voice for each Bot in its Voice settings with a preview, and a Bot that replies with `voice: true` shows a playable voice bar above its text on desktop and iOS. Code, file paths, links and tables are not read out word for word, the text always stays, and a failed voice says why. The same steps are available from `deepseekbot voice-provider-add`, `voice-provider-test`, `voice-set` and `voice-synthesize` ([#3399](https://github.com/BotHarness/DeepSeekBot/issues/3399)).
+
+- Phones can connect to Hosts under the same Tobs Connect account without manual device approval or fingerprint comparison; unsigned and private pairing retain device approval ([#2734](https://github.com/BotHarness/DeepSeekBot/issues/2734)).
+
+- Tobs on iOS and Android supports email/password sign-in, registration with email verification, and password reset when enabled by Connect; email-code, Apple and Google sign-in remain available ([#4017](https://github.com/BotHarness/DeepSeekBot/issues/4017)).
+
+- When the phone connects to a computer with an older Tobs, or one that asks for a newer app, the chat list shows a quiet suggestion to update. It never blocks anything; tap Got it to hide it. The computer's connection details now list both versions ([#4004](https://github.com/BotHarness/DeepSeekBot/pull/4004)).
 
 ### Fixed
 
@@ -432,7 +442,7 @@ Mobile entries describe changes to the separately versioned phone app; they do n
 
 - On iPhone, muting the microphone during a Bot call no longer makes the Bot's voice quieter or cuts it briefly. The microphone is silenced inside voice processing, so the orange microphone indicator stays on while muted ([#3811](https://github.com/BotHarness/DeepSeekBot/pull/3811)).
 
-- The call's Lock Screen Live Activity now counts as m:ss from the first frame instead of "<1 minute", and at the largest text sizes the time and the Mute button no longer wrap or get clipped ([#3814](https://github.com/BotHarness/DeepSeekBot/pull/3814)).
+- The call's Lock Screen Live Activity now counts as m:ss from the first frame instead of `<1 minute`, and at the largest text sizes the time and the Mute button no longer wrap or get clipped ([#3814](https://github.com/BotHarness/DeepSeekBot/pull/3814)).
 
 - Returning to an Android Bot call keeps its live computer connection instead of reconnecting and hanging up the call; idle and disconnected computers still use normal foreground recovery ([#3815](https://github.com/BotHarness/DeepSeekBot/issues/3815)).
 
@@ -634,6 +644,12 @@ Mobile entries describe changes to the separately versioned phone app; they do n
 
 - Desktop chat history no longer stays blank after the messages on screen are replaced or removed; the timeline re-renders the messages at your scroll position instead of waiting for you to scroll to the top ([#3312](https://github.com/BotHarness/DeepSeekBot/pull/3312)).
 
+- Fixed model pickers, session-stop panels and anchored menus on DSH 0.2.2-rc.2, and restored Bot Subagent creation across the old and new Host request formats ([#4019](https://github.com/BotHarness/DeepSeekBot/issues/4019)).
+
+- Restored optional whole-window zoom on the official DSH 0.2.2-rc.2 Desktop using its matching theme, while retaining integrity checks and refusal of unknown Desktop versions ([#4024](https://github.com/BotHarness/DeepSeekBot/issues/4024)).
+
+- On Android, swiping left on a short table in a message now replies to it instead of opening the Bot's side panel ([#4028](https://github.com/BotHarness/DeepSeekBot/pull/4028)).
+
 ### Changed
 
 - The message box measures its height at most once per frame instead of on every keystroke, so typing does less layout work while Bots stream replies ([#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)).
@@ -804,6 +820,8 @@ Mobile entries describe changes to the separately versioned phone app; they do n
 
 - More Bot settings pages use the status blocks from Tobs Connect: Tobs sign-in (one shared block for Connect, Profile and the marketplace), updates, backup, storage, voice services and LAN Bot collaboration. Each shows its state with an icon and one main button, turns yellow when you need to act, and shows addresses, commands and fingerprints as chips you tap to copy ([#3864](https://github.com/BotHarness/DeepSeekBot/pull/3864)).
 
+- On Android, group chats and Channels now draw Bot text messages natively, like direct messages, so scrolling a busy group is smoother; speaker names and avatars look and follow the conversation as before ([#4014](https://github.com/BotHarness/DeepSeekBot/issues/4014)).
+
 ### Documentation
 
 - Prepared the Tobs 1.7.0 release highlights and folded merged changes into the bilingual ledger; the published install identity and release date remain unchanged until publication approval ([#4021](https://github.com/BotHarness/DeepSeekBot/issues/4021)).
@@ -817,6 +835,8 @@ Mobile entries describe changes to the separately versioned phone app; they do n
 - Recorded the proposed machine Assignment dispatch contract, separating creation, durable delivery acceptance, processing and lifecycle; runtime implementation and protocol choices remain pending ([ADR-0297](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/adr/0297-machine-assignment-dispatch-separates-creation-delivery-and-processing.md), [#3578](https://github.com/BotHarness/DeepSeekBot/issues/3578)).
 
 - Revised the GenUI architecture target to T3 Code-style isolated HTML documents for richer visual and interactive content, preserving ordinary-message ownership and checked actions. The existing Web comparison-report candidate is not HTML or native qualification ([#3684](https://github.com/BotHarness/DeepSeekBot/issues/3684), [ADR-0301](docs/adr/0301-genui-rich-documents-use-isolated-html.md)).
+
+- The store privacy guide separates system dictation from Bot-call audio and shared camera frames, explains the password path under review, and marks prior answer files as requiring exact-candidate reconciliation before submission ([#2733](https://github.com/BotHarness/DeepSeekBot/issues/2733)).
 
 ## [1.6.1] - 2026-11-02
 

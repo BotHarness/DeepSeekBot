@@ -6,7 +6,11 @@
 
 ## [Unreleased]
 
-准备 Tobs 1.7.0：Bot 通话、手机历史记录与搜索、丰富文档，以及连接和对话可靠性改进。
+开发中的变化。
+
+## [1.7.0] - 2026-11-12
+
+Tobs 1.7.0：Bot 通话、手机历史记录与搜索、丰富文档，以及连接和对话可靠性改进。
 
 移动端条目描述独立版本手机应用的变化，不代表已在 App Store 或 Google Play 发布。
 
@@ -167,6 +171,12 @@
 - 在 Tobs 里更新 Tobs 本身或 BotHarness 插件时，现在能看到实时进度：更新提醒、Bot 设置 › 关于和 Bot 设置 › 插件共用同一个面板，显示进行到哪一步、执行的每条包管理命令及其输出和退出码，失败时显示原因。点 **终止** 可以停止正在进行的安装，并恢复原来的版本。同样的信息也可以用 `deepseekbot update-status` 和 `deepseekbot update-cancel` 查看和操作。([#3845](https://github.com/BotHarness/DeepSeekBot/pull/3845))
 
 - Bot 可以发语音消息了：在设置 › 语音中添加 TTS 语音服务（Fish Audio、ElevenLabs、OpenAI，或任何兼容 OpenAI 的端点，例如本地 Kokoro），在每个 Bot 的语音设置里选择音色并试听；Bot 用 `voice: true` 回复时，桌面端和 iOS 会在文字上方显示可播放的语音条。代码、文件路径、链接和表格不会逐字朗读，文字始终保留，语音生成失败时会说明原因。同样的操作也可以用 `deepseekbot voice-provider-add`、`voice-provider-test`、`voice-set` 和 `voice-synthesize` 完成（[#3399](https://github.com/BotHarness/DeepSeekBot/issues/3399)）。
+
+- 手机可直接连接同一 Tobs Connect 账号下的 Host，无需人工批准设备或核对指纹；未登录和私有配对仍需设备批准（[#2734](https://github.com/BotHarness/DeepSeekBot/issues/2734)）。
+
+- Connect 开启账密认证后，iOS 和 Android 版 Tobs 支持邮箱密码登录、注册与邮箱验证，以及密码重置，并保留邮箱验证码、Apple 和 Google 登录（[#4017](https://github.com/BotHarness/DeepSeekBot/issues/4017)）。
+
+- 手机连接到 Tobs 版本较旧的电脑，或电脑建议使用新版 App 时，聊天列表会显示一条更新建议。它不会阻止任何操作，点「知道了」即可关闭。电脑的连接详情里也会显示两边的版本号（[#4004](https://github.com/BotHarness/DeepSeekBot/pull/4004)）。
 
 ### Fixed
 
@@ -432,7 +442,7 @@
 
 - 在 iPhone 上与 Bot 通话时，麦克风静音不再让 Bot 的声音变小或短暂中断。静音改为在语音处理内关闭麦克风输入，因此静音时橙色麦克风指示点会保持亮起（[#3811](https://github.com/BotHarness/DeepSeekBot/pull/3811)）。
 
-- 通话的锁屏实时活动从第一帧起按 m:ss 计时，不再显示“<1 分钟”；在最大字号下，时间和静音按钮也不会再换行或被截断（[#3814](https://github.com/BotHarness/DeepSeekBot/pull/3814)）。
+- 通话的锁屏实时活动从第一帧起按 m:ss 计时，不再显示`<1 分钟`；在最大字号下，时间和静音按钮也不会再换行或被截断（[#3814](https://github.com/BotHarness/DeepSeekBot/pull/3814)）。
 
 - 返回 Android Bot 通话时保留仍有效的电脑连接，避免强制重连导致挂断；空闲和已断线的电脑仍按原有方式恢复前台连接（[#3815](https://github.com/BotHarness/DeepSeekBot/issues/3815)）。
 
@@ -634,6 +644,12 @@
 
 - 桌面端聊天在屏幕上的消息被替换或移除后，不会再一直空白；时间线会直接重新显示当前滚动位置的消息，不必再拉到最上面才出来（[#3312](https://github.com/BotHarness/DeepSeekBot/pull/3312)）。
 
+- 修复 DSH 0.2.2-rc.2 上的模型选择、停止会话面板及锚点菜单，并兼容新旧 Host 的启动参数，恢复 Bot 子代理创建（[#4019](https://github.com/BotHarness/DeepSeekBot/issues/4019)）。
+
+- 使用对应版本的主题恢复官方 DSH 0.2.2-rc.2 桌面的可选整窗缩放，继续校验文件完整性并拒绝未适配的桌面版本（[#4024](https://github.com/BotHarness/DeepSeekBot/issues/4024)）。
+
+- Android 上在消息里较窄的表格上左滑，现在会回复这条消息，不会再误打开 Bot 侧边栏（[#4028](https://github.com/BotHarness/DeepSeekBot/pull/4028)）。
+
 ### Changed
 
 - 输入框高度改为每帧最多测量一次，不再每次按键都测，Bot 流式回复时打字的布局开销更小（[#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)）。
@@ -804,6 +820,8 @@
 
 - 更多 Bot 设置页改用 Tobs Connect 的状态块：Tobs 登录（Connect、个人资料和市场共用一个登录块）、更新、备份、存储、语音服务和局域网 Bot 协作。每块用图标和一个主按钮表示状态，需要你处理时变成黄色，地址、命令和指纹做成点一下就复制的标签（[#3864](https://github.com/BotHarness/DeepSeekBot/pull/3864)）。
 
+- Android 上群聊和频道里 Bot 的文字消息现在也像私聊一样原生绘制，消息多的群滚动更顺；发言人名字和头像的样式与跟随效果保持不变（[#4014](https://github.com/BotHarness/DeepSeekBot/issues/4014)）。
+
 ### Documentation
 
 - 准备 Tobs 1.7.0 版本亮点，并将已合并的变更汇入双语日志；发布获批前不推进已发布安装版本，也不声明发布日期（[#4021](https://github.com/BotHarness/DeepSeekBot/issues/4021)）。
@@ -817,6 +835,8 @@
 - 记录机器直调 Assignment 的拟议契约，区分创建、持久投递准入、处理结果与生命周期；运行时实现及协议参数仍待完成（[ADR-0297](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/adr/0297-machine-assignment-dispatch-separates-creation-delivery-and-processing.md)、[#3578](https://github.com/BotHarness/DeepSeekBot/issues/3578)）。
 
 - GenUI 架构目标调整为 T3 Code 式隔离 HTML 文档，以支持更丰富的可视化与交互内容，同时保留普通消息归属和受控操作边界。现有 Web 比较报告候选不代表 HTML 或原生验收已通过（[#3684](https://github.com/BotHarness/DeepSeekBot/issues/3684)、[ADR-0301](docs/adr/0301-genui-rich-documents-use-isolated-html.md)）。
+
+- 商店隐私指南区分系统听写、Bot 通话音频与共享摄像头画面，补充待审查的密码数据路径，并明确旧答卷需要按准确候选包重新核对后才能提交（[#2733](https://github.com/BotHarness/DeepSeekBot/issues/2733)）。
 
 ## [1.6.1] - 2026-11-02
 
