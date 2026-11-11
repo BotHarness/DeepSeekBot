@@ -221,6 +221,8 @@ export const glass = {
   saturate: 180,
 } as const;
 
+export const draftEditor = { aboveMax: '40%' } as const;
+
 export const island = {
   fade: { curve: 0.85, peak: 0.91 },
   ink: { light: '#000000', dark: '#ffffff' },

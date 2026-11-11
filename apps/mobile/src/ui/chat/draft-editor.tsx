@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react';
-import { Modal, View } from 'react-native';
+import { Modal, ScrollView, View } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useDesignTheme } from '../design/theme';
-import { space } from '../design/tokens';
+import { draftEditor, space } from '../design/tokens';
 import { HardwareSend } from '../primitives/hardware-send';
 import { TextInput } from '../primitives/system-text';
 import { Text } from '../primitives/text';
@@ -73,7 +73,14 @@ export function DraftEditor({
             </HeaderCircleButton>
           ) : null}
         </View>
-        {above}
+        {above === undefined ? null : (
+          <ScrollView
+            style={{ flexGrow: 0, maxHeight: draftEditor.aboveMax }}
+            keyboardShouldPersistTaps="handled"
+          >
+            {above}
+          </ScrollView>
+        )}
         <HardwareSend enabled={canSend} enter={false} onSend={onSend} style={{ flex: 1 }}>
           <TextInput
             autoFocus
