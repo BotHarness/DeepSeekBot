@@ -64,9 +64,9 @@ assuming inspector commands or performance entry types work on every version.
 xcrun xctrace list templates
 xcrun xctrace list devices
 xcrun xctrace record --template 'Time Profiler' --device '<owned-device>' \
-  --attach '<exact-app-pid>' --time-limit 25s --output '<unique-run>.trace'
+  --attach '<exact-app-pid>' --time-limit 15s --output '<unique-run>.trace'
 xcrun xctrace record --template 'Animation Hitches' --device '<physical-device>' \
-  --attach '<exact-app-pid>' --time-limit 25s --output '<unique-run>-hitches.trace'
+  --attach '<exact-app-pid>' --time-limit 15s --output '<unique-run>-hitches.trace'
 xcrun xctrace export --input '<unique-run>.trace' --toc --output '<unique-run>.toc.xml'
 ```
 

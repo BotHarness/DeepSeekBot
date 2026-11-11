@@ -151,7 +151,7 @@ The three T1 catalog components are metric, table and bar-chart. Approval, Quest
 
 ## Separate remaining gates
 
-For a foreground diagnostic, `scripts/perf-idle-timeline.mjs --headed --foreground-scroll --trace` records native trusted wheel input, focus/visibility, sampled gaps/anchors, bounded rAF diagnostics and a separate compositor trace. `--foreground-scroll` refuses headless mode. Its sample checks are not a full zero-jump proof, presented FPS, or a performance acceptance verdict. Use a frozen fixture and at least three interleaved baseline/candidate runs, inspect compositor evidence and real display identity, and retain busy-machine failures instead of relaxing budgets. The existing headless default remains a structural/idle diagnostic for CI.
+For a foreground diagnostic, `scripts/perf-idle-timeline.mjs --headed --foreground-scroll --trace` records native trusted wheel input, focus/visibility, sampled gaps/anchors, bounded rAF diagnostics and a separate compositor trace. `--foreground-scroll` refuses headless mode. Its sample checks are not a full zero-jump proof, presented FPS, or a performance acceptance verdict. Use a frozen fixture and a baseline/candidate pair (interleaved repeats only when close, per the [fast loop](ax-performance.md#fast-loop-big-wins-first)), inspect compositor evidence and real display identity, and retain busy-machine failures instead of relaxing budgets. The existing headless default remains a structural/idle diagnostic for CI.
 
 Record pass, fail or untested for every layer, never a blanket end-to-end claim:
 
@@ -165,7 +165,7 @@ calibration does not prove compositor presentation or exclusive machine ownershi
 - Focused automated coverage: malformed/oversized/versioned reports, forged selections, publication failures, idempotent retries, dirty-draft remounts, access loss and canonical Content Purge.
 - Additional real Web fault journeys: failed saves, uncertain-response retry, access revocation and purge while a report is open. Unit coverage does not qualify these browser scenes.
 - Accessibility: keyboard selection is narrow evidence, not full keyboard navigation, screen-reader or large-text acceptance.
-- Performance: matched base/candidate ordinary-history journeys plus separately budgeted added report work, at least three interleaved runs, foreground scrolling and zero jumps/gaps. Timing under shared machine load is not qualification.
+- Performance: matched base/candidate ordinary-history journeys plus separately budgeted added report work, an A/B pair (repeats only when close), foreground scrolling and zero jumps/gaps. Timing under shared machine load is not qualification.
 - Dynamic-height recovery: `packages/client/test/timeline-window-recovery.test.tsx` reproduces the all-gap window after cached geometry becomes stale. The existing timeline owner retains a measurable edge group so later measurements can recover. This correctness guard is not frame-pacing or performance qualification.
 - Desktop shell, installed iOS, installed Android and Human acceptance remain separate. An 800-pixel Web viewport does not qualify a mobile application.
 
@@ -192,8 +192,8 @@ establish a matched A/B. Older summaries lack this measured-phase evidence and m
 retroactively relabelled from their startup geometry.
 
 Active-animation assertions, zero sampled gaps and rAF cadence do not establish presented
-FPS. Retain compositor traces, source/browser/build identities and at least three interleaved
-base/change pairs. Distinguish Chromium's presentation feedback, diagnostic-observer cost,
+FPS. Retain compositor traces, source/browser/build identities and the base/change pair
+(interleaved repeats only when close). Distinguish Chromium's presentation feedback, diagnostic-observer cost,
 physical display behavior, opening latency and installed-native acceptance.
 
 Preserve phase-specific
@@ -247,7 +247,7 @@ still in the viewport after layout settles, not just before scroll/window update
 Keep PNG originals, ARIA observations and the manifest under the task's private evidence directory, with an index in the machine's main checkout. Preserve source SHA plus dirty diff identity, built Host/Client hashes, browser identity, fixtures, canonical references, capture times, viewport and theme. Bind any pre-commit capture to the final source only after verifying production source and bundle identities have not changed.
 
 For a separate natural-GC diagnostic, run the same frozen performance driver and fixture
-with `--trace --heap-observe 30` in at least three interleaved baseline/change pairs.
+with `--trace --heap-observe 30` in a baseline/change pair (repeats only when close).
 The driver retains raw boundary samples in `<label>.heap-observation.json`, including
 browser timestamps when available, then observes an untouched fixed window after the
 original idle endpoint and before typing. It never forces GC or replaces that endpoint

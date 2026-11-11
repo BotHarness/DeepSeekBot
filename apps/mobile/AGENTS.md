@@ -61,8 +61,8 @@ Screens follow the shared [UI design standard](../../docs/agents/ui-design.md) a
 
 Performance work follows the mandatory [iOS performance tuning and physical-device verification
 (AX)](../../docs/agents/ios-performance.md) workflow: validate the workload, capture the relevant
-JS/React/native/display layer, attribute the cause, make the smallest change and run matched
-physical Release A/B/B/A/A/B measurements. Keep Simulator, physical Release and Human QA results
+JS/React/native/display layer, attribute the cause, make the smallest change and run a matched
+physical Release A/B pair (A/B/B/A/A/B only when the difference is close), with short, bounded captures. Keep Simulator, physical Release and Human QA results
 separate, and preserve failed/invalid samples.
 
 Use `react-native-best-practices` for diagnosis and implementation. RN DevTools/Hermes and
