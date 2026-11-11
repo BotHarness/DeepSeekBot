@@ -3,6 +3,8 @@ import config from '../../vitest.config.ts';
 import { matchesGlob } from '../ci-plan.mjs';
 
 const fixtures = [
+  'packages/core/test/bot-group-review-rounds.test.ts',
+  'packages/core/test/channel-attachment-forwarding.test.ts',
   'packages/core/test/genui-vm.test.ts',
   'packages/core/test/genui-guest.test.ts',
   'packages/core/test/genui-execution-session.test.ts',
@@ -33,5 +35,16 @@ describe('GenUI real-time test resource ownership', () => {
     expect(budgeted.test.fileParallelism).toBe(false);
     expect(budgeted.test.sequence.groupOrder).toBeGreaterThan(ordinary.test.sequence.groupOrder);
     expect(budgeted.test.testTimeout).toBe(config.test.testTimeout);
+  });
+});
+
+describe('Durable integration test resource ownership', () => {
+  it('keeps disk-heavy workflows serial after other projects without changing their deadlines', () => {
+    const durable = config.test.projects.find(({ test }) => test.name === 'durable-integration');
+    expect(durable.test.maxWorkers).toBe(1);
+    expect(durable.test.fileParallelism).toBe(false);
+    expect(durable.test.testTimeout).toBe(config.test.testTimeout);
+    for (const project of config.test.projects.filter((project) => project !== durable))
+      expect(durable.test.sequence.groupOrder).toBeGreaterThan(project.test.sequence.groupOrder);
   });
 });

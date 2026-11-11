@@ -12,7 +12,8 @@
     "dist",
     "cordis.patch.yml",
     "desktop-theme",
-    "desktop-theme-0.2.2-rc.1"
+    "desktop-theme-0.2.2-rc.1",
+    "desktop-theme-0.2.2-rc.2"
   ],
   "type": "module",
   "dependencies": {

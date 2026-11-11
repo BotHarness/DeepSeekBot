@@ -299,6 +299,10 @@ export default defineConfig([
     deps: { alwaysBundle: ['@deepseek-ai/schemastery'] },
     onSuccess: () => {
       preparePackagedDesktopZoomTheme({
+        source: join(ROOT_DIR, 'packages/client/vendor/dsh-ui-theme-022-rc2'),
+        target: join(ROOT_DIR, 'packages/deepseekbot/desktop-theme-0.2.2-rc.2'),
+      });
+      preparePackagedDesktopZoomTheme({
         source: join(ROOT_DIR, 'packages/client/node_modules/@deepseek-ai/dsh-client-ui-theme'),
         target: join(ROOT_DIR, 'packages/deepseekbot/desktop-theme'),
       });

@@ -1,0 +1,28 @@
+{
+  "source": "Official macOS arm64 Desktop archive",
+  "url": "https://download.deepseek.com/dsh-desk/bin/mac-arm64/deepseek-harness-0.2.2-rc.2-mac-arm64.zip",
+  "archiveSha512": "SAKrGOp6y3vla/r7QG6hP+y3LfHeRKS3xQ+lxFBuiF7ezSt+dqkCedm9znqKqr7akCkLgag0GnC+yZhkAWL/+Q==",
+  "bootCommit": "a6b1b85",
+  "package": "@deepseek-ai/dsh-client-ui-theme",
+  "version": "0.2.2-rc.2",
+  "reason": "npm rc2 unavailable at qualification; unmodified runtime files retained with MIT license. Desktop omits declaration files.",
+  "files": {
+    "LICENSE": "ebb4f09972aee8608be255debaf78451a68e95c290f55c240dec2ecfa16ea6be",
+    "lib/client.js": "240054c87e227009dc508fb41ef2c582ada3623e36a57b89f26d551e42ae095e",
+    "lib/index.js": "1adf59906ab10e91765d96f3e42268b0b7669f921c4baf4021a3057894cf3000",
+    "lib/styles/Montserrat-OFL.txt": "861d64229728cd65a98d119612c12769582574d1a092f0b63c8b0fd474e7065f",
+    "lib/styles/brand-font.css": "d0733ee69620e686561800ac788e54fc0bb9e02af5294c8b6f74c109132210cf",
+    "lib/styles/montserrat-light.woff2": "da25f1327eb1dcc70c193897b5d7e00d31821d9518c0a49e073ff50d97a3f10a",
+    "lib/styles/montserrat-medium.woff2": "8a81ca6f05cb6831d5487e4b287ce5a625a718c39226b736f155900adc394166",
+    "lib/styles/montserrat-regular.woff2": "0f4a15e29a9535af580a64db967929a8d6b202fad9a467be390619a591d2c4c5",
+    "locale/de.json": "95c41656d83d4ca447e694eadb4dac86ca15b8abd2905989382aaed33781dda7",
+    "locale/en.json": "d399b62dda178495eea774ad8d8d82a5b83e7e34edd737edc4603add95061f93",
+    "locale/es.json": "06400304407e6bfe3fb51db7a2da63481e2fa0fdf0d969e6d9eaf8461911a042",
+    "locale/fr.json": "6d38449d28a19df33e29454c0d62fa21920d54603188381055533adb1090425c",
+    "locale/ja.json": "9e9b02437b10b811ff5c7314fc86fd0e924fc2ac7894ef690d98c74ab338f004",
+    "locale/pt.json": "f2b0b5a9c84e16c71330a3770245cff3ffad8b668173647c0c7425b12f24bc4a",
+    "locale/ru.json": "b71117ca67de48cedcfbcab7d2db3dac51f9ff386fe4536d21cdeb129b9a9c37",
+    "locale/zh.json": "3ddafe57b8132f59c1ff91b07c422996ff0dcad7002ea474bb8665edf5cbb7d4",
+    "package.json": "52f21393c3a6d6faccbb8e8421f4de3564fc068c59973f2839b5d220345ab32c"
+  }
+}
