@@ -96,7 +96,7 @@ export function ConversationTopBar({
       alpha: look.shadow[scheme],
     }),
     clip(pill),
-    background(withAlpha(theme.layer.raised.fill, look.tint)),
+    background(theme.layer.raised.fill),
     innerShadow(pill, {
       radius: look.highlight.width,
       offsetY: look.highlight.width,

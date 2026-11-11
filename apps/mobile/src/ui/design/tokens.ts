@@ -224,7 +224,6 @@ export const glass = {
 export const chatHeaderSurface = {
   fade: { curve: 0.85, peak: 0.91 },
   island: {
-    tint: 0.86,
     rim: { width: 0.5, light: 0.1, dark: 0.1 },
     highlight: { width: 1, light: 0.55, dark: 0.08 },
     shadow: { radius: 2.7, offsetY: 0.85, light: 0.13, dark: 0.3 },
