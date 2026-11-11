@@ -918,6 +918,29 @@ describe('sending a message', () => {
     }
   });
 
+  it('returns to the newest message when a send leaves the content shorter and the list shifted', () => {
+    const view = settled(true, true);
+    vi.useFakeTimers();
+    try {
+      act(() => {
+        view.current.send();
+      });
+      view.rerender([message('latest', 'bot'), message('sent', 'human')]);
+      act(() => {
+        view.current.listProps.onContentSizeChange(0, CONTENT - 20);
+        view.current.listProps.onScroll(event(42, 0, CONTENT - 20));
+      });
+      act(() => vi.advanceTimersByTime(NATIVE_GLIDE_MS));
+      expect(view.scrollToOffset).toHaveBeenLastCalledWith({
+        offset: CONTENT - 20 - LAYOUT,
+        animated: true,
+      });
+    } finally {
+      view.unmount();
+      vi.useRealTimers();
+    }
+  });
+
   it('requests no fly when Reduce Motion is on but still follows the new message', () => {
     const view = settled(false);
     try {

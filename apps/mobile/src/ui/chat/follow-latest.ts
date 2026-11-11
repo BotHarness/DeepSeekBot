@@ -342,7 +342,7 @@ export function useFollowLatest<Row>(
         if (checks.current < CHECK_BUDGET) setCanRetry(false);
       }
       if (nativeFollow && settled.current) {
-        if (height > previous) catchUp();
+        if (height !== previous) catchUp();
         return;
       }
       pin(animateScroll && settled.current && height > previous);
