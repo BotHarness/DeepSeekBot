@@ -306,7 +306,12 @@ export const decelerate: Record<PlatformOS, readonly [number, number, number, nu
 
 export const popScale = { bubble: 0.92, badge: 0.9 } as const;
 
-export const sendFly = { duration: 360 } as const;
+export const sendFly = {
+  duration: 250,
+  vertical: [0.199, 0.011, 0.279, 0.91],
+  horizontal: [0.23, 1, 0.32, 1],
+  settle: [0, 0, 0.58, 1],
+} as const;
 
 export const pullToCompose = { threshold: 40, flick: 0.3 } as const;
 
