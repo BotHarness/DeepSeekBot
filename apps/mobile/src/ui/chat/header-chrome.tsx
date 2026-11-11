@@ -10,7 +10,7 @@ import { BackIcon } from '../shell/back-icon';
 import { HeaderIconGlyph, type HeaderIcon } from '../shell/header-icon-button';
 import { glassHeader, headerIslands } from './header-kind';
 import { useStrings } from '../strings';
-import { edgeFadeStops } from './edge-fade';
+import { edgeFadeStops, type EdgeFadeShape } from './edge-fade';
 
 const ICON = 22;
 
@@ -152,19 +152,21 @@ export function EdgeFade({
   cover = 0,
   solid,
   color,
+  shape,
 }: {
   edge: 'top' | 'bottom';
   height: number;
   cover?: number;
   solid?: number;
   color?: string;
+  shape?: EdgeFadeShape;
 }) {
   const theme = useDesignTheme();
   const glass = useLiquidGlass();
   const id = `fade-${useId().replace(/[^a-z0-9]/giu, '')}`;
   const top = side === 'top';
   const insets = useSafeAreaInsets();
-  const stops = edgeFadeStops(height, cover, solid ?? (top ? insets.top : insets.bottom));
+  const stops = edgeFadeStops(height, cover, solid ?? (top ? insets.top : insets.bottom), shape);
   const span = Math.ceil(height) + 1;
   return (
     <View
