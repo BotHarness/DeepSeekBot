@@ -69,6 +69,7 @@ vi.mock('../src/telemetry/connection', () => ({
 vi.mock('../src/host/push-session', () => ({
   createPushSession: () => ({
     getSnapshot: () => ({ status: 'off' }),
+    enable: async () => undefined,
     sync: async () => undefined,
     forget: async () => undefined,
     retryFailed: async () => undefined,

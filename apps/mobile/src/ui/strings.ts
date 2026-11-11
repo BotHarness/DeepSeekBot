@@ -473,6 +473,14 @@ const en = {
   hostListLoadFailed: 'Could not load chats. Try again.',
   hostListUnavailable: 'Could not refresh chats. Showing the last list.',
   hostListOffline: 'Offline. Showing the last list.',
+  hostCompatibility: {
+    updateHost: 'Tobs on this computer is out of date. Some features may not work.',
+    updateApp: 'Update this app to use every feature of this computer.',
+    dismiss: 'Got it',
+    hostVersion: 'Tobs on this computer',
+    appVersion: 'This app',
+    olderThan170: 'Older than 1.7.0',
+  },
   sourceChanged: 'This conversation belongs to another Computer. Select that Computer to continue.',
   cloudSourceChanged:
     'This conversation belongs to a different cloud sign-in. Open it again from your conversation list.',
@@ -2514,6 +2522,7 @@ const en = {
   hostLookReset: 'Reset to default',
   hostLookMissing: 'This computer is no longer paired.',
   connectionRoutes: {
+    versions: 'Versions',
     scan: 'Scan to update addresses',
     scanHint: 'Open a fresh pairing code on this computer. Your existing pairing is kept.',
     title: 'Connections',
@@ -2948,6 +2957,14 @@ const zh: typeof en = {
   hostListLoadFailed: '聊天未能加载，再试一次。',
   hostListUnavailable: '聊天未能刷新，当前显示上次的列表。',
   hostListOffline: '离线中，显示的是上次的列表。',
+  hostCompatibility: {
+    updateHost: '电脑上的 Tobs 版本较旧，部分功能可能用不了。',
+    updateApp: '更新 App 后才能使用这台电脑的全部功能。',
+    dismiss: '知道了',
+    hostVersion: '电脑上的 Tobs',
+    appVersion: '这个 App',
+    olderThan170: '低于 1.7.0',
+  },
   sourceChanged: '此会话属于另一台电脑，选择对应电脑后继续。',
   cloudSourceChanged: '此会话属于另一个云端登录身份，从会话列表重新打开。',
   conversationDetails: '会话详情',
@@ -4863,6 +4880,7 @@ const zh: typeof en = {
   hostLookReset: '恢复默认',
   hostLookMissing: '这台电脑已不再配对。',
   connectionRoutes: {
+    versions: '版本',
     scan: '扫码更新地址',
     scanHint: '在这台电脑打开新的配对码。原有配对会保留。',
     title: '连接详情',
