@@ -3438,7 +3438,10 @@ html[data-botharness-motion='reduce'] .bh-chat-body { transition: none; }
 .bh-message-block[data-follows] {
   padding-top: ${space.x4};
 }
-.bh-timeline-gap {
+.bh-timeline-chunk,
+.bh-timeline-slot {
+  display: flex;
+  flex-direction: column;
   flex-shrink: 0;
 }
 .bh-message-day {
@@ -6821,9 +6824,8 @@ button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-panel-activity[data-wi
 .bh-overview-usage .bh-profile-pin:hover {background:var(--bh-hover);color:var(--bh-text);}
 .bh-overview-usage .bh-profile-pin:disabled {cursor:default;opacity:0.5;}
 .bh-statistics-content > header h3 {font-size:var(--dsh-content-font-size);margin:0;}
-/* Siblings of the see-through intro dialog, written without a :has() anchor left of a combinator. */
-[role='presentation'] > .bh-intro-see-through ~ [aria-hidden='true']::after,
-[role='presentation'] > [aria-hidden='true']:has(~ .bh-intro-see-through)::after {
+/* The see-through intro step marks the document, so no :has() scans the backdrop's siblings. */
+html[data-bh-intro-see-through] [role='presentation'] > [aria-hidden='true']::after {
   opacity: 0.2;
 }
 .bh-release-dialog {

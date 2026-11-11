@@ -2,7 +2,7 @@
 import { act, createElement, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
-import { useTimelineWindow } from '../src/client/timeline-window.js';
+import { useTimelineSlots, useTimelineWindow } from '../src/client/timeline-window.js';
 
 it('retains a measurable report group when changing heights leaves the viewport outside cached bounds', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -27,6 +27,7 @@ it('retains a measurable report group when changing heights leaves the viewport 
   );
   function ReportTimeline() {
     const timeline = useTimelineWindow(['report'], new Set());
+    const slots = useTimelineSlots(timeline);
     const mount = useCallback(
       (node: HTMLDivElement | null) => {
         if (node) node.scrollTop = 5000;
@@ -37,9 +38,13 @@ it('retains a measurable report group when changing heights leaves the viewport 
     return createElement(
       'div',
       { ref: mount },
-      timeline.runs.map((run) =>
-        run.kind === 'gap'
-          ? createElement('div', { key: 'gap', 'data-gap': '', style: { height: run.height } })
+      slots.map((slot) =>
+        slot.placeholder !== undefined
+          ? createElement('div', {
+              key: 'gap',
+              'data-gap': '',
+              style: { height: slot.placeholder },
+            })
           : createElement(
               'div',
               { key: 'report', ref: timeline.blockRef('report'), 'data-group-key': 'report' },
