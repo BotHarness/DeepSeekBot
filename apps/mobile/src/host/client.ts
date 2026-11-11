@@ -1251,6 +1251,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     }
     if (reloading === undefined) reuseNextPass = true;
     pingAvailable = true;
+    setCompatibility({});
     void readCompatibility().catch(() => undefined);
     await reload();
     if (current !== generation) return;
@@ -1279,7 +1280,10 @@ export function createHostClient(options: HostClientOptions): HostClient {
     const current = generation;
     const sequence = connectionSequence;
     const currentRoute = route;
+    const currentSocket = liveSocket;
     const isCurrent = () =>
+      currentSocket !== undefined &&
+      currentSocket === liveSocket &&
       running &&
       current === generation &&
       sequence === connectionSequence &&

@@ -17,13 +17,13 @@ async function connected(target: HostClient): Promise<void> {
   throw new Error('timed out');
 }
 
-function start(host: FakeHost, appVersion?: string): HostClient {
+function start(host: FakeHost, appVersion?: string, retryMs = 5): HostClient {
   vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
   const target = createHostClient({
     routes: ['https://studio.tailnet-example.ts.net'],
     credential: host.credential,
     carrier: host.carrier,
-    backoff: () => 5,
+    backoff: () => retryMs,
     timeoutMs: 200,
     ...(appVersion === undefined ? {} : { appVersion }),
   });
@@ -232,6 +232,54 @@ it.each(['success', 'missing'] as const)(
       await vi.waitFor(() => expect(probes(host)).toEqual(['ping']));
     } finally {
       oldVersion.resolve({ version: '1.7.0' });
+    }
+  },
+);
+
+it('clears old compatibility while the reconnected computer version is pending', async () => {
+  const host = new FakeHost();
+  host.absent.add('ping');
+  const target = start(host);
+  await connected(target);
+  expect(target.getSnapshot().compatibility).toEqual({ update: 'host' });
+  const version = pendingVersion();
+  host.absent.delete('ping');
+  host.methods.set('ping', () => version.promise);
+  try {
+    host.kill();
+    await vi.waitFor(() => expect(target.getSnapshot().connection.status).not.toBe('connected'));
+    host.restart();
+    await connected(target);
+    expect(target.getSnapshot().compatibility?.update).toBeUndefined();
+    expect(target.getSnapshot().compatibility?.hostVersion).toBeUndefined();
+    version.resolve({ version: '1.7.0' });
+    await vi.waitFor(() =>
+      expect(target.getSnapshot().compatibility).toEqual({ hostVersion: '1.7.0' }),
+    );
+  } finally {
+    version.resolve({ version: '1.7.0' });
+  }
+});
+
+it.each(['success', 'missing'] as const)(
+  'ignores a late %s version read during the reconnect backoff',
+  async (outcome) => {
+    const host = new FakeHost();
+    const version = pendingVersion();
+    host.methods.set('ping', () => version.promise);
+    const target = start(host, undefined, 500);
+    try {
+      await connected(target);
+      host.kill();
+      await vi.waitFor(() => expect(target.getSnapshot().connection.status).toBe('reconnecting'));
+      if (outcome === 'success') version.resolve({ version: '1.0.0' });
+      else
+        version.reject(Object.assign(new Error('missing'), { code: 'gateway/method-not-found' }));
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(target.getSnapshot().compatibility).toBeUndefined();
+      expect(probes(host).filter((method) => method === 'ping')).toHaveLength(1);
+    } finally {
+      version.resolve({ version: '1.7.0' });
     }
   },
 );
