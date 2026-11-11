@@ -24,4 +24,4 @@ A one-run-per-arm comparison on a 120 Hz phone (main 05fb4a182) favoured Recycle
 
 Native rows handle the gestures React bubbles do: a tap opens the anchored message menu with the bubble's window rect, a long press selects, and a horizontal drag replies with the ReplySwipe thresholds. The view sends these to JavaScript as `onRowAction`; JavaScript drops a tap or long press while the keyboard is up, as the responder capture does for React rows.
 
-The project owner chose the default rollout on the performance comparison and a physical walk of tap, long press, reply swipe, keyboard-open and keyboard-closed send, following an incoming reply, back-to-latest, dark appearance and 1.3× text. TalkBack and the minimum and maximum system text sizes were not yet checked at rollout and remain open acceptance items.
+The project owner chose the default rollout on the performance comparison and a physical walk of tap, long press, reply swipe, keyboard-open and keyboard-closed send, following an incoming reply, back-to-latest, dark appearance, and 0.85×, 1.3× and 2.0× system text with the message menu. The owner waived the TalkBack check for this rollout.
