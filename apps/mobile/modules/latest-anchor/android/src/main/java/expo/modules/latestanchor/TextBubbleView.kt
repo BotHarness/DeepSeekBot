@@ -15,7 +15,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.animation.DecelerateInterpolator
-import com.facebook.react.uimanager.events.NativeGestureUtil
+import com.facebook.react.uimanager.RootView
 import kotlin.math.hypot
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -156,7 +156,7 @@ class TextBubbleView(context: Context) : View(context) {
               removeCallbacks(hold)
               isPressed = false
               parent?.requestDisallowInterceptTouchEvent(true)
-              NativeGestureUtil.notifyNativeGestureStarted(this, event)
+              reactRoot()?.onChildStartedNativeGesture(this, event)
             }
             ReplySwipe.Intent.CANCEL -> swipeDead = true
             ReplySwipe.Intent.WAIT -> Unit
@@ -177,7 +177,7 @@ class TextBubbleView(context: Context) : View(context) {
         removeCallbacks(hold)
         val pressed = isPressed
         if (swiping) {
-          NativeGestureUtil.notifyNativeGestureEnded(this, event)
+          reactRoot()?.onChildEndedNativeGesture(this, event)
           if (swipe.replies(dx)) actions?.reply(layout.row)
           settleBack()
         } else if (pressed && !held) performClick()
@@ -188,7 +188,7 @@ class TextBubbleView(context: Context) : View(context) {
       MotionEvent.ACTION_CANCEL -> {
         if (!tracking) return false
         removeCallbacks(hold)
-        if (swiping) NativeGestureUtil.notifyNativeGestureEnded(this, event)
+        if (swiping) reactRoot()?.onChildEndedNativeGesture(this, event)
         settleBack()
         tracking = false
         swiping = false
@@ -196,6 +196,13 @@ class TextBubbleView(context: Context) : View(context) {
       }
     }
     return true
+  }
+
+  /** The React root that cancels JavaScript touches while this bubble owns a swipe. */
+  private fun reactRoot(): RootView? {
+    var current = parent
+    while (current != null && current !is RootView) current = current.parent
+    return current as? RootView
   }
 
   private fun settleBack() {
