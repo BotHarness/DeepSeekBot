@@ -156,3 +156,72 @@ it('clears the update suggestion after the computer is updated and reconnects', 
   await connected(target);
   expect(target.getSnapshot().compatibility).toEqual({ hostVersion: '1.7.0' });
 });
+
+it('connects and loads chats while the optional version read is still pending', async () => {
+  const host = new FakeHost();
+  const version = Promise.withResolvers<unknown>();
+  host.methods.set('ping', () => version.promise);
+  const target = start(host);
+  try {
+    await connected(target);
+    expect(target.getSnapshot().roster).toBeDefined();
+    expect(target.getSnapshot().compatibility).toBeUndefined();
+    expect(probes(host).filter((method) => method === 'ping')).toHaveLength(1);
+    version.resolve({ version: '1.7.0' });
+    await vi.waitFor(() =>
+      expect(target.getSnapshot().compatibility).toEqual({ hostVersion: '1.7.0' }),
+    );
+  } finally {
+    version.resolve({ version: '1.7.0' });
+  }
+});
+
+it('retries application refusals without calling the computer outdated', async () => {
+  const host = new FakeHost();
+  host.methods.set('ping', () => {
+    throw Object.assign(new Error('try again'), { code: 'temporarily-unavailable' });
+  });
+  const target = start(host);
+  await connected(target);
+  expect(target.getSnapshot().compatibility).toBeUndefined();
+  host.methods.set('ping', () => ({ version: '1.7.0' }));
+  host.calls.length = 0;
+  vi.advanceTimersByTime(20_000);
+  await vi.waitFor(() =>
+    expect(target.getSnapshot().compatibility).toEqual({ hostVersion: '1.7.0' }),
+  );
+  expect(probes(host)).toEqual(['ping']);
+});
+
+it.each(['success', 'missing'] as const)(
+  'ignores stale %s compatibility after reconnecting',
+  async (outcome) => {
+    const host = new FakeHost();
+    const oldVersion = Promise.withResolvers<unknown>();
+    host.methods.set('ping', () => oldVersion.promise);
+    const target = start(host);
+    try {
+      await connected(target);
+      host.methods.set('ping', () => ({ version: '1.7.0' }));
+      host.kill();
+      await vi.waitFor(() => expect(target.getSnapshot().connection.status).not.toBe('connected'));
+      host.restart();
+      await connected(target);
+      await vi.waitFor(() =>
+        expect(target.getSnapshot().compatibility).toEqual({ hostVersion: '1.7.0' }),
+      );
+      if (outcome === 'success') oldVersion.resolve({ version: '1.0.0' });
+      else
+        oldVersion.reject(
+          Object.assign(new Error('missing'), { code: 'gateway/method-not-found' }),
+        );
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(target.getSnapshot().compatibility).toEqual({ hostVersion: '1.7.0' });
+      host.calls.length = 0;
+      vi.advanceTimersByTime(20_000);
+      await vi.waitFor(() => expect(probes(host)).toEqual(['ping']));
+    } finally {
+      oldVersion.resolve({ version: '1.7.0' });
+    }
+  },
+);

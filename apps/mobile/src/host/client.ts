@@ -1251,9 +1251,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
     }
     if (reloading === undefined) reuseNextPass = true;
     pingAvailable = true;
-    const compatible = readCompatibility().catch(() => undefined);
+    void readCompatibility().catch(() => undefined);
     await reload();
-    await compatible;
     if (current !== generation) return;
     const stable = setTimeout(() => {
       attempt = 0;
@@ -1277,8 +1276,17 @@ export function createHostClient(options: HostClientOptions): HostClient {
 
   let pingAvailable = true;
   const readCompatibility = async (): Promise<unknown> => {
+    const current = generation;
+    const sequence = connectionSequence;
+    const currentRoute = route;
+    const isCurrent = () =>
+      running &&
+      current === generation &&
+      sequence === connectionSequence &&
+      currentRoute === route;
     try {
       const answer = record(await call<unknown>('ping'));
+      if (!isCurrent()) return undefined;
       const version = typeof answer['version'] === 'string' ? answer['version'] : undefined;
       const minAppVersion = answer['minAppVersion'];
       setCompatibility({
@@ -1292,11 +1300,11 @@ export function createHostClient(options: HostClientOptions): HostClient {
       return answer;
     } catch (error) {
       if (
-        (error instanceof Unreachable && !hostLacksMethod(error)) ||
-        error instanceof CredentialRefused ||
-        error instanceof ConnectRefused
+        !hostLacksMethod(error) &&
+        !(error instanceof MethodRefused && error.code === 'gateway/method-not-found')
       )
         throw error;
+      if (!isCurrent()) return undefined;
       pingAvailable = false;
       setCompatibility({ update: 'host' });
       return undefined;
