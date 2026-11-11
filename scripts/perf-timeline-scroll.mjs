@@ -21,8 +21,10 @@ Group once with scripts/perf-idle-timeline.mjs and pass its fixture.json.
   --cpu-throttle <n>   CDP CPU throttling rate (default 1).
   --profile            Save a CPU profile of the scroll window and list the hottest functions.
   --trace              Save a Chrome trace of the scroll window.
-  --geometry           Check every frame for blank gaps and anchor jumps. The checks read layout,
-                       so keep timing runs without it and run a separate correctness pass.
+  --geometry           Check every painted frame for blank gaps and anchor jumps. A jump is a
+                       message that moved by neither the scrollTop change nor a whole number of
+                       wheel steps, so scroll-anchoring corrections above the view do not count.
+                       The checks read layout, so keep timing runs without it.
   --headed             Open a real browser window (use under Xvfb or on a desktop).
   --uncapped           Lift the vsync frame-rate cap so each rAF interval is the time the page
                        needed to produce that frame. Use it to judge the 8.3 ms (120 Hz) and
@@ -123,69 +125,81 @@ const loaded = () =>
     Number(node.dataset.loadedMessages ?? node.querySelectorAll('[data-message-id]').length),
   );
 
-async function installRecorder(geometry) {
-  await page.evaluate((geometry) => {
-    const pane = document.querySelector('.bh-chat-body');
-    const state = {
-      raf: [],
-      last: 0,
-      gapFrames: 0,
-      maxGapPx: 0,
-      loaf: [],
-      jumps: 0,
-      maxJumpPx: 0,
-    };
-    let anchor;
-    const frame = (now) => {
-      if (state.last) state.raf.push(now - state.last);
-      state.last = now;
-      state.id = requestAnimationFrame(frame);
-      if (!geometry) return;
-      const view = pane.getBoundingClientRect();
-      let gap = 0;
-      for (const node of pane.querySelectorAll('.bh-timeline-gap')) {
-        const bounds = node.getBoundingClientRect();
-        gap += Math.max(0, Math.min(bounds.bottom, view.bottom) - Math.max(bounds.top, view.top));
-      }
-      if (gap > 0) state.gapFrames++;
-      state.maxGapPx = Math.max(state.maxGapPx, gap);
-      if (anchor !== undefined) {
-        const node = anchor.node.isConnected ? anchor.node : undefined;
-        if (node !== undefined) {
-          const expected = anchor.y - (pane.scrollTop - anchor.scrollTop);
-          const moved = Math.abs(node.getBoundingClientRect().top - expected);
-          if (moved > 1) {
-            state.jumps++;
-            state.maxJumpPx = Math.max(state.maxJumpPx, moved);
+async function installRecorder(geometry, step) {
+  await page.evaluate(
+    (geometry, step) => {
+      const pane = document.querySelector('.bh-chat-body');
+      const state = {
+        raf: [],
+        last: 0,
+        gapFrames: 0,
+        maxGapPx: 0,
+        loaf: [],
+        jumps: 0,
+        maxJumpPx: 0,
+      };
+      let anchor;
+      const frame = (now) => {
+        if (state.last) state.raf.push(now - state.last);
+        state.last = now;
+        state.id = requestAnimationFrame(frame);
+        if (geometry) painted.port2.postMessage(0);
+      };
+      const painted = new MessageChannel();
+      painted.port1.onmessage = () => {
+        const view = pane.getBoundingClientRect();
+        let gap = 0;
+        for (const node of pane.querySelectorAll('.bh-timeline-gap')) {
+          const bounds = node.getBoundingClientRect();
+          gap += Math.max(0, Math.min(bounds.bottom, view.bottom) - Math.max(bounds.top, view.top));
+        }
+        if (gap > 0) state.gapFrames++;
+        state.maxGapPx = Math.max(state.maxGapPx, gap);
+        if (anchor !== undefined) {
+          const node = anchor.node.isConnected ? anchor.node : undefined;
+          if (node !== undefined) {
+            const top = node.getBoundingClientRect().top;
+            const shifted = top - anchor.y;
+            const notches = Math.round(shifted / step);
+            const moved = Math.min(
+              Math.abs(top - (anchor.y - (pane.scrollTop - anchor.scrollTop))),
+              Math.abs(shifted - notches * step),
+            );
+            if (moved > 1) {
+              state.jumps++;
+              state.maxJumpPx = Math.max(state.maxJumpPx, moved);
+            }
           }
         }
-      }
-      anchor = undefined;
-      for (const node of pane.querySelectorAll('[data-message-id]')) {
-        const bounds = node.getBoundingClientRect();
-        if (bounds.bottom > view.top && bounds.top < view.bottom) {
-          anchor = { node, y: bounds.top, scrollTop: pane.scrollTop };
-          break;
+        anchor = undefined;
+        for (const node of pane.querySelectorAll('[data-message-id]')) {
+          const bounds = node.getBoundingClientRect();
+          if (bounds.bottom > view.top && bounds.top < view.bottom) {
+            anchor = { node, y: bounds.top, scrollTop: pane.scrollTop };
+            break;
+          }
         }
-      }
-    };
-    state.id = requestAnimationFrame(frame);
-    const observer = new PerformanceObserver((list) => {
-      for (const entry of list.getEntries())
-        state.loaf.push({
-          duration: entry.duration,
-          blocking: entry.blockingDuration,
-        });
-    });
-    try {
-      observer.observe({ type: 'long-animation-frame' });
-    } catch {}
-    window.__scrollBench = () => {
-      cancelAnimationFrame(state.id);
-      observer.disconnect();
-      return state;
-    };
-  }, geometry);
+      };
+      state.id = requestAnimationFrame(frame);
+      const observer = new PerformanceObserver((list) => {
+        for (const entry of list.getEntries())
+          state.loaf.push({
+            duration: entry.duration,
+            blocking: entry.blockingDuration,
+          });
+      });
+      try {
+        observer.observe({ type: 'long-animation-frame' });
+      } catch {}
+      window.__scrollBench = () => {
+        cancelAnimationFrame(state.id);
+        observer.disconnect();
+        return state;
+      };
+    },
+    geometry,
+    step,
+  );
 }
 
 function share(intervals, budget) {
@@ -276,7 +290,7 @@ try {
       path: resolve(out, `${options.label}.trace.json`),
       categories: ['devtools.timeline', 'disabled-by-default-devtools.timeline', 'blink', 'cc'],
     });
-  await installRecorder(options.geometry);
+  await installRecorder(options.geometry, step);
   const before = await cdp.send('Performance.getMetrics');
   const started = performance.now();
   let ticks = 0;

@@ -58,8 +58,11 @@ command in the `perf-budget` job; see
 2. Build the Client for each side (`pnpm exec tsdown --config tsdown.client.config.ts
    --config-loader unrun` is enough for Client-only changes), reload nothing by hand: every run
    opens a fresh browser.
-3. Run each side at least three times, with and without `--animate`, using distinct labels
-   (`main-idle-1`, `fix-anim-1`, ...). Report the median and the spread, not one run.
+3. Keep runs short and bounded (a cold open, or `--distance` of a few thousand pixels). Long
+   recordings drift with heat and memory pressure, and they have frozen phones and Macs. Start
+   with one interleaved A/B pair, using distinct labels (`main-idle-1`, `fix-anim-1`, ...). A
+   big win shows in that one pair, so take the big wins first. Repeat runs and report the median
+   and spread only when chasing a small difference, or when one pair disagrees with the profile.
 4. Put the table and the commit SHAs in the PR. Keep raw JSON and profiles under
    `.humanlayer/perf/` (ignored by Git); do not commit traces.
 
@@ -74,11 +77,28 @@ Frames. Add `--uncapped` to lift the vsync cap: each rAF interval then is the ti
 needed for that frame, which is what the 8.3 ms (120 Hz) and 16.7 ms (60 Hz) budgets mean;
 a capped run cannot show a frame under one vsync. `--mode
 cold` instead opens the Group and wheels up to the first message while older pages load.
-`--geometry` adds per-frame gap and anchor-jump checks; they read layout, so keep them out of
-timing runs. Run it headed under Xvfb (`xvfb-run -a node scripts/perf-timeline-scroll.mjs
+`--geometry` adds gap and anchor-jump checks on every painted frame; they read layout, so keep
+them out of timing runs. A jump is a message that moved by neither the `scrollTop` change nor a
+whole number of wheel steps, so Chromium's scroll-anchoring corrections for height changes above
+the view do not count. Run it headed under Xvfb (`xvfb-run -a node scripts/perf-timeline-scroll.mjs
 --headed ...`) for real compositor frames, and launch the Host with
 `BOTHARNESS_CLIENT_DIAGNOSTICS=0` so the development-only shell observer does not add layout
 reads that users never run.
+
+## Finding the hot path
+
+A profile shows where time went in one run; it does not show how often a path runs or how much
+it amplifies. Two cheap probes answer that before any rewrite:
+
+- **Count.** Add a temporary counter or `console.log` at the suspected entry points (a render,
+  a ref callback, a scroll handler, an observer callback) and print the totals per frame or per
+  scroll. A path that runs 50 times per frame, or once per message instead of once per scroll,
+  is the target even when each call looks cheap.
+- **Inject a delay.** Add a short busy-wait (for example 1 ms) to one path at a time and rerun
+  the same bounded scroll. The path whose delay multiplies the most into frame time is the hot
+  path, and the multiplier is its call count per frame.
+
+Remove both before committing, and confirm the fix with one A/B pair.
 
 ## Reading a profile
 
@@ -103,6 +123,11 @@ reads that users never run.
   exactly.
   The near range updates synchronously in the native scroll listener, before React's
   `onScroll`, so the read mark never sees a gap in view after a large drag.
+- Giving an older page estimated heights and mounting its groups only as they come into range
+  cut the per-page long frame from about 200 ms to about 120 ms and total blocking from 1.3 s to
+  0.6 s. However, frames over 16.7 ms rose from about 1% to about 7%. Each estimate is corrected
+  on the scroll path, so the cost moves into the steady scroll. Mounting a few groups per frame in
+  the background instead gave 4× more frames over 50 ms. Neither shipped.
 - Earlier attempts with `content-visibility` failed on real runs: a skipped flex item shrinks to
   0 without `flex-shrink: 0`, `contain-intrinsic-size: auto` reports 0 before first paint, and
   `content-visibility: auto` registers an internal IntersectionObserver recomputed every frame.
