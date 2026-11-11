@@ -1,7 +1,7 @@
 ---
 Status: Proposed
 Date: 2026-11-11
-Issues: [#3998](https://github.com/BotHarness/DeepSeekBot/pull/3998)
+Issues: [#3998](https://github.com/BotHarness/DeepSeekBot/pull/3998), [#4004](https://github.com/BotHarness/DeepSeekBot/pull/4004)
 ---
 
 # Phone and computer tolerate each other's older release
