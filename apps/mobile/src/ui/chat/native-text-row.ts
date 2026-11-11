@@ -53,9 +53,7 @@ const UNSUPPORTED_MARKDOWN =
 const INDENTED_CODE = /(^|\n[ \t]*\n)( {4}|\t)\S/;
 
 export function nativeMarkdown(body: string): boolean {
-  return (
-    body.trim() !== '' && !UNSUPPORTED_MARKDOWN.test(body) && !INDENTED_CODE.test(body)
-  );
+  return body.trim() !== '' && !UNSUPPORTED_MARKDOWN.test(body) && !INDENTED_CODE.test(body);
 }
 
 export function plainText(body: string): boolean {

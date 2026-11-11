@@ -127,8 +127,7 @@ import {
 import { useChannelViewport } from './channel-viewport';
 import { MessageTarget, nativeMessageJump } from '../primitives/message-target';
 import { ChatList, nativeChatRecycler, type ChatListHandle } from '../primitives/chat-list';
-import { normalizeMarkdownStyle } from 'react-native-enriched-markdown/lib/module/normalizeMarkdownStyle';
-import { markdownStyle } from '../markdown-style';
+import { nativeMarkdownStyle } from '../native-markdown-style';
 import {
   nativeMarkdownRows,
   nativeTextRow,
@@ -1116,9 +1115,7 @@ function ChatConversation({
         },
         theme.type,
         theme.fontScale,
-        nativeMarkdownRows
-          ? normalizeMarkdownStyle(markdownStyle(theme, theme.color.fg))
-          : undefined,
+        nativeMarkdownRows ? nativeMarkdownStyle(theme) : undefined,
       ),
     [theme],
   );
