@@ -130,7 +130,6 @@ import {
   useHeaderPadding,
 } from './native-header';
 import { useChannelViewport } from './channel-viewport';
-import { MessageTarget, nativeMessageJump } from '../primitives/message-target';
 import {
   ChatList,
   nativeChatRecycler,
@@ -139,13 +138,7 @@ import {
 } from '../primitives/chat-list';
 import { haptic } from '../haptics';
 import { nativeMarkdownStyle } from '../native-markdown-style';
-import {
-  nativeMarkdownRows,
-  nativeTextRow,
-  nativeTextRows,
-  nativeTextStyle,
-  nativeTouchStyle,
-} from './native-text-row';
+import { nativeTextRow, nativeTextStyle, nativeTouchStyle } from './native-text-row';
 import { usePullToCompose } from './pull-to-compose';
 import { chatHref, useRecentChat } from '../shell/recent-chats';
 import { SwipeOpen } from '../shell/swipe-open';
@@ -625,7 +618,6 @@ function ChatConversation({
       const attempt = focusAttempt.current;
       if (
         android &&
-        (!nativeMessageJump || nativeChatRecycler) &&
         focusHasLiveLayout.current &&
         attempt !== undefined &&
         !focusCancelled.current &&
@@ -890,7 +882,7 @@ function ChatConversation({
       jumped.current = focus;
       focusAttempt.current = { message: focus, request: focusRequest, index };
       latest.hold();
-      list.current.scrollToIndex({ index, viewPosition: 0.5, animated: !nativeMessageJump });
+      list.current.scrollToIndex({ index, viewPosition: 0.5, animated: true });
     } else if (latestWindowOnly && snapshot.status === 'live') jumped.current = focus;
     else if (
       snapshot.status === 'live' &&
@@ -1111,7 +1103,7 @@ function ChatConversation({
   const botName = useBotNames(identityBots);
   const reading = useMemo(() => readingBots(snapshot.messages), [snapshot.messages]);
   const newestMessageId = snapshot.messages.at(-1)?.id;
-  const nativeRows = nativeTextRows && nativeChatRecycler;
+  const nativeRows = nativeChatRecycler;
   const nativeRow = useCallback(
     (row: Row) =>
       row.kind === 'draft'
@@ -1121,7 +1113,6 @@ function ChatConversation({
             selecting: selected !== undefined,
             latest: newestMessageId,
             reading,
-            markdown: nativeMarkdownRows,
           }),
     [dm, selected, newestMessageId, reading],
   );
@@ -1137,7 +1128,7 @@ function ChatConversation({
         },
         theme.type,
         theme.fontScale,
-        nativeMarkdownRows ? nativeMarkdownStyle(theme) : undefined,
+        nativeMarkdownStyle(theme),
         nativeTouchStyle(
           {
             pressHuman: pressTint(theme.color.onAccent),
@@ -2055,43 +2046,7 @@ function ChatConversation({
                               {...((nativeRows
                                 ? { nativeRow, nativeStyle, nativeSwipe, onNativeRow }
                                 : {}) as object)}
-                              renderItem={
-                                nativeMessageJump && !nativeChatRecycler
-                                  ? ({ item }: { item: Row }) => (
-                                      <MessageTarget
-                                        request={JSON.stringify([focus, focusRequest])}
-                                        active={
-                                          focused &&
-                                          positioningFocus &&
-                                          item.kind === 'message' &&
-                                          item.message.id === focus &&
-                                          !focusCancelled.current
-                                        }
-                                        top={headerOverlap + headerPadding}
-                                        bottom={composerHeight + edgeFade.bottom}
-                                        onPositioned={(request) => {
-                                          if (
-                                            focusCancelled.current ||
-                                            request !==
-                                              JSON.stringify([
-                                                focusIntent.current.message,
-                                                focusIntent.current.request,
-                                              ])
-                                          )
-                                            return;
-                                          setAnchoredFocus({
-                                            message: focusIntent.current.message,
-                                            request: focusIntent.current.request,
-                                          });
-                                          focusAttempt.current = undefined;
-                                          focusNeedsLayout.current = false;
-                                        }}
-                                      >
-                                        {renderItem({ item })}
-                                      </MessageTarget>
-                                    )
-                                  : renderItem
-                              }
+                              renderItem={renderItem}
                               onViewableItemsChanged={onFocusViewabilityChange}
                               onScrollToIndexFailed={(info) => {
                                 const attempt = focusAttempt.current;

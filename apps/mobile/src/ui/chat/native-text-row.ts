@@ -2,10 +2,6 @@ import { bubbleTime, type ChatRow } from './message-groups';
 import { BUBBLE_PADDING, AVATAR_CORNER } from './bubble-shape';
 import { motion, radius, space, swipeReply } from '../design/tokens';
 
-const nativeRowsMode = process.env.EXPO_PUBLIC_NATIVE_ROWS ?? 'markdown';
-export const nativeTextRows = nativeRowsMode === 'text' || nativeRowsMode === 'markdown';
-export const nativeMarkdownRows = nativeRowsMode === 'markdown';
-
 export type NativeTextRow = {
   key: string;
   human: boolean;
@@ -82,7 +78,6 @@ export function nativeTouchStyle(
 const MARKDOWN = /[*_`#>|[\]~<\\]|^\s*([-+]|\d+[.)])\s|https?:\/\/|www\./m;
 const NBSP = String.fromCharCode(0xa0);
 const DELIVERED = `${NBSP}✓`;
-const SOFT_BREAK = /[^\n]\n[^\n]/;
 const UNSUPPORTED_MARKDOWN =
   /^\s*\|.*\|\s*$|!\[|\[[^\]]*\]\(|https?:\/\/|www\.|<[a-zA-Z!/]|\$|^ {0,3}(`{3}|~{3})/m;
 const INDENTED_CODE = /(^|\n[ \t]*\n)( {4}|\t)\S/;
@@ -100,7 +95,6 @@ export type NativeRowContext = {
   selecting: boolean;
   latest: string | undefined;
   reading: ReadonlyMap<string, unknown>;
-  markdown?: boolean;
 };
 
 export function nativeTextRow(row: ChatRow, context: NativeRowContext): NativeTextRow | undefined {
@@ -123,9 +117,8 @@ export function nativeTextRow(row: ChatRow, context: NativeRowContext): NativeTe
   )
     return undefined;
   const human = message.author === 'human';
-  const markdown = !human && context.markdown === true;
+  const markdown = !human;
   if (markdown ? !nativeMarkdown(message.body) : !plainText(message.body)) return undefined;
-  if (!human && !markdown && SOFT_BREAK.test(message.body.trim())) return undefined;
   const clock = bubbleTime(message.at);
   if (clock === '') return undefined;
   return {

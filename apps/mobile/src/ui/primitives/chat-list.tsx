@@ -9,5 +9,5 @@ export type NativeRowAction = {
   action: 'press' | 'hold' | 'arm' | 'reply';
   anchor?: { x: number; y: number; width: number; height: number };
 };
-export const nativeChatRecycler = false;
+export { nativeChatRecycler } from './chat-recycler';
 export const ChatList = Animated.FlatList;
