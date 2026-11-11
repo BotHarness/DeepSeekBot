@@ -15,8 +15,14 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
-/** A committed plain-text DM message drawn natively instead of mounted as React views. */
-data class TextRow(val key: String, val human: Boolean, val first: Boolean, val last: Boolean, val body: String, val time: String, val markdown: Boolean = false) {
+/**
+ * A committed text message drawn natively instead of mounted as React views. A group Bot row
+ * ([speaker]) leaves room for the speaker's avatar and shows [name] above the first bubble of a run.
+ */
+data class TextRow(
+  val key: String, val human: Boolean, val first: Boolean, val last: Boolean, val body: String, val time: String,
+  val markdown: Boolean = false, val speaker: Boolean = false, val name: String? = null,
+) {
   companion object {
     fun from(value: Map<String, Any?>): TextRow? {
       val key = value["key"] as? String ?: return null
@@ -28,6 +34,8 @@ data class TextRow(val key: String, val human: Boolean, val first: Boolean, val 
         value["body"] as? String ?: return null,
         value["time"] as? String ?: "",
         value["markdown"] == true,
+        value["speaker"] == true,
+        value["name"] as? String,
       )
     }
   }
@@ -43,6 +51,9 @@ data class TextRowStyle(
   val paragraphGap: Float = 0f,
   val markdown: Map<String, Any?>? = null,
   val touch: TouchStyle? = null,
+  val avatar: Float = 32f,
+  val avatarGap: Float = 12f,
+  val nameGap: Float = 4f,
 ) {
   companion object {
     fun from(value: Map<String, Any?>): TextRowStyle? {
@@ -59,6 +70,7 @@ data class TextRowStyle(
         number("besideMax")?.toInt() ?: 60, number("maxWidth") ?: 0.88f, number("paragraphGap") ?: 0f,
         @Suppress("UNCHECKED_CAST") (value["markdown"] as? Map<String, Any?>),
         @Suppress("UNCHECKED_CAST") (value["touch"] as? Map<String, Any?>)?.let(TouchStyle::from),
+        number("avatar") ?: 32f, number("avatarGap") ?: 12f, number("nameGap") ?: 4f,
       )
     }
   }
@@ -127,6 +139,9 @@ class TextBubbleLayout(
   val radii: FloatArray
   private val textTop: Float
   private val textLeft: Float
+  private val name: StaticLayout?
+  private val nameLeft: Float
+  private val nameTop: Float
 
   init {
     val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -141,7 +156,8 @@ class TextBubbleLayout(
     val padY = tokens.padY * density
     val gap = tokens.timeGap * density
     val inset = tokens.rowInset * density
-    val inner = max(1, ((width - 2 * inset) * tokens.maxWidth - 2 * padX).toInt())
+    val lead = if (row.speaker) (tokens.avatar + tokens.avatarGap) * density else 0f
+    val inner = max(1, ((width - 2 * inset - lead) * tokens.maxWidth - 2 * padX).toInt())
     val spacing = line - paint.getFontMetricsInt(null)
     val styled = if (row.markdown) markdown?.invoke(row.body) else null
     val texts: List<CharSequence> = when {
@@ -182,8 +198,23 @@ class TextBubbleLayout(
     }
     val bubbleWidth = contentWidth + 2 * padX
     val bubbleHeight = contentHeight + 2 * padY
-    val top = (if (row.first) tokens.firstGap else tokens.joinGap) * density
-    val left = if (row.human) width - inset - bubbleWidth else inset
+    val rowTop = (if (row.first) tokens.firstGap else tokens.joinGap) * density
+    val namePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+      textSize = tokens.metaSize * scale
+      color = tokens.muted
+      isFakeBoldText = true
+    }
+    val nameWidth = max(1, (width - 2 * inset - lead).toInt())
+    name = row.name?.takeIf { it.isNotEmpty() }?.let { text ->
+      StaticLayout.Builder.obtain(text, 0, text.length, namePaint, nameWidth)
+        .setIncludePad(false).setMaxLines(1).setEllipsize(android.text.TextUtils.TruncateAt.END)
+        .setLineSpacing(metaLine - namePaint.getFontMetricsInt(null), 1f)
+        .build()
+    }
+    nameLeft = inset + lead
+    nameTop = rowTop
+    val top = rowTop + (name?.let { it.height + tokens.nameGap * density } ?: 0f)
+    val left = if (row.human) width - inset - bubbleWidth else inset + lead
     bubble = RectF(left, top, left + bubbleWidth, top + bubbleHeight)
     timeX = bubble.right - padX - timeWidth
     timeBaseline = bubble.bottom - padY - timePaint.fontMetrics.descent
@@ -204,6 +235,12 @@ class TextBubbleLayout(
   private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG)
 
   fun draw(canvas: Canvas) {
+    name?.let {
+      canvas.save()
+      canvas.translate(nameLeft, nameTop)
+      it.draw(canvas)
+      canvas.restore()
+    }
     fillPaint.color = fill
     path.reset()
     path.addRoundRect(bubble, radii, Path.Direction.CW)

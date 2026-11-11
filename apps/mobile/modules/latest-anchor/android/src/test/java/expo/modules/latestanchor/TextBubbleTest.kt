@@ -48,6 +48,16 @@ class TextBubbleTest {
     assertNull(cssColor("teal"))
   }
 
+  @Test fun leavesRoomForTheSpeakerAvatarAndNamesTheFirstRowOfARun() {
+    val plain = TextBubbleLayout(TextRow("b", false, true, true, "hello", "09:30"), tokens, 1200, 3f)
+    val named = TextBubbleLayout(TextRow("b", false, true, true, "hello", "09:30", speaker = true, name = "Perf QA"), tokens, 1200, 3f)
+    val joined = TextBubbleLayout(TextRow("b", false, false, true, "hello", "09:30", speaker = true), tokens, 1200, 3f)
+    assertEquals(plain.bubble.left + (32f + 12f) * 3f, named.bubble.left, 0.5f)
+    assertTrue(named.bubble.top > plain.bubble.top + 4f * 3f)
+    assertEquals(plain.bubble.top - (12f - 2f) * 3f, joined.bubble.top, 0.5f)
+    assertTrue(named.height > plain.height)
+  }
+
   @Test fun placesBubblesBySenderAndGroup() {
     val human = TextBubbleLayout(TextRow("h", true, true, true, "hello", "09:30 ✓"), tokens, 1200, 3f)
     val bot = TextBubbleLayout(TextRow("b", false, false, false, "hello", "09:30"), tokens, 1200, 3f)

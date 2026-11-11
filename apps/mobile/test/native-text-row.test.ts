@@ -86,6 +86,18 @@ describe('native text rows', () => {
     expect(nativeTextRow(row({ author: 'human', body: 'plain' }), context)?.markdown).toBe(false);
   });
 
+  it('draws group Bot rows natively with the speaker name on the first row of a run', () => {
+    const group = { ...context, dm: false, speaker: { name: 'Perf QA' } };
+    expect(nativeTextRow(row(), group)).toMatchObject({ speaker: true, name: 'Perf QA' });
+    const joined = nativeTextRow({ ...row(), first: false } as ChatRow, group);
+    expect(joined).toMatchObject({ speaker: true });
+    expect(joined).not.toHaveProperty('name');
+    expect(nativeTextRow(row(), { ...context, dm: false })).toBeUndefined();
+    expect(nativeTextRow(row({ author: 'human' }), { ...context, dm: false })).not.toHaveProperty(
+      'speaker',
+    );
+  });
+
   it('keeps tables, images, links, HTML, math and code blocks on React rows', () => {
     expect(nativeMarkdown('- one\n- two\n\n> quote\n\n**bold** and `code`')).toBe(true);
     expect(nativeMarkdown('1. one\n    still one\n2. two')).toBe(true);

@@ -31,7 +31,7 @@ class ChatRecyclerCell(context: Context, app: AppContext) : ExpoView(context, ap
 }
 
 class ChatRecyclerView(context: Context, app: AppContext) : ExpoView(context, app) {
-  private companion object { const val CELL = 0; const val TEXT = 1 }
+  private companion object { const val CELL = 0; const val TEXT = 1; const val AVATAR = "avatar:" }
   private val density get() = resources.displayMetrics.density
   private val manager = LinearLayoutManager(context)
   private val recycler = object : RecyclerView(context) {
@@ -118,6 +118,10 @@ class ChatRecyclerView(context: Context, app: AppContext) : ExpoView(context, ap
   private var textStyle: TextRowStyle? = null
   private val textLayouts = mutableMapOf<String, TextBubbleLayout>()
   private val markdownSpans by lazy { MarkdownSpans(context) }
+  /** Speaker avatars of group chats, one React cell per run, placed over the list by [placeAvatars]. */
+  private val avatarLayer = FrameLayout(context).apply { clipChildren = false; clipToPadding = false }
+  private val avatars = mutableMapOf<String, ChatRecyclerCell>()
+  private var speakerSlots = emptyMap<String, SpeakerSlot>()
 
   private inner class Holder(val box: FrameLayout, val bubble: TextBubbleView? = null) : RecyclerView.ViewHolder(box)
   private val adapter = object : RecyclerView.Adapter<Holder>() {
@@ -167,6 +171,7 @@ class ChatRecyclerView(context: Context, app: AppContext) : ExpoView(context, ap
     recycler.clipToPadding = false
     recycler.clipChildren = false
     addView(recycler)
+    addView(avatarLayer)
     recycler.addOnScrollListener(object : RecyclerView.OnScrollListener() {
       private var dragging = false
       override fun onScrolled(view: RecyclerView, dx: Int, dy: Int) { publish() }
@@ -297,11 +302,65 @@ class ChatRecyclerView(context: Context, app: AppContext) : ExpoView(context, ap
   }
   fun register(cell: ChatRecyclerCell, index: Int) {
     cells.add(index.coerceAtMost(cells.size), cell)
+    val group = cell.rowKey.removePrefix(AVATAR)
+    if (group != cell.rowKey) {
+      avatars[group] = cell
+      (cell.parent as? ViewGroup)?.removeView(cell)
+      val size = ((textStyle?.avatar ?: 32f) * density).roundToInt()
+      avatarLayer.addView(cell, FrameLayout.LayoutParams(size, size))
+      placeAvatars()
+      return
+    }
     refresh(cell.rowKey)
   }
   fun unregister(cell: ChatRecyclerCell) {
     cells.remove(cell)
+    avatars.values.remove(cell)
     (cell.parent as? ViewGroup)?.removeView(cell)
+  }
+  fun setSpeakerRows(rows: List<Map<String, Any?>>) {
+    val next = rows.mapNotNull(SpeakerSlot::from).associateBy { it.key }
+    if (next == speakerSlots) return
+    speakerSlots = next
+    placeAvatars()
+  }
+
+  /**
+   * Places each run's avatar beside the run's last bubble, keeps it above the composer while that
+   * bubble is below it and below the run's first bubble, from row offsets alone, so rows outside
+   * the RecyclerView's window still count. The list is flipped: position 0 is at the bottom.
+   */
+  private fun placeAvatars() {
+    if (avatars.isEmpty()) return
+    val style = textStyle ?: return
+    if (height == 0) return
+    val size = style.avatar * density
+    val floor = (height - recycler.paddingTop).toFloat()
+    val scrolled = offset()
+    fun visualTop(position: Int) = (height - (geometry.prefix(position) + recycler.paddingTop - scrolled + heightAt(position))).toFloat()
+    val runs = mutableMapOf<String, IntRange>()
+    for (slot in speakerSlots.values) {
+      val position = positions[slot.key] ?: continue
+      val known = runs[slot.group]
+      runs[slot.group] = if (known == null) position..position else minOf(known.first, position)..maxOf(known.last, position)
+    }
+    for ((group, cell) in avatars) {
+      val run = runs[group]
+      val last = run?.let { speakerSlots[keys[it.first]] }
+      val first = run?.let { speakerSlots[keys[it.last]] }
+      val top = if (run == null || last == null || first == null) null else {
+        val runBottom = visualTop(run.first) + heightAt(run.first) - last.bottom * density
+        val nameHeight = if (first.name) style.metaLine * style.fontScale * density + style.nameGap * density else 0f
+        val runTop = visualTop(run.last) + (if (first.first) style.firstGap else style.joinGap) * density + nameHeight
+        SpeakerPlacement.avatarTop(runTop, runBottom, floor, size, height.toFloat())
+      }
+      if (top == null) cell.visibility = INVISIBLE
+      else {
+        cell.visibility = VISIBLE
+        cell.translationX = style.rowInset * density
+        cell.translationY = top
+      }
+    }
   }
   private fun refresh(key: String) {
     val position = positions[key] ?: return
@@ -380,15 +439,18 @@ class ChatRecyclerView(context: Context, app: AppContext) : ExpoView(context, ap
       lastContent = size
       onContentSize(mapOf("width" to width / density, "height" to size / density))
     }
+    placeAvatars()
     onScroll(metrics())
     onVisible(mapOf("indices" to (first..minOf(last, keys.lastIndex)).filter { heights.containsKey(keys[it]) && jump?.first != keys[it] }))
   }
   override fun onMeasure(w: Int, h: Int) {
     setMeasuredDimension(MeasureSpec.getSize(w), MeasureSpec.getSize(h))
     recycler.measure(MeasureSpec.makeMeasureSpec(measuredWidth, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(measuredHeight, MeasureSpec.EXACTLY))
+    avatarLayer.measure(MeasureSpec.makeMeasureSpec(measuredWidth, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(measuredHeight, MeasureSpec.EXACTLY))
   }
   override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
     recycler.layout(0, 0, r - l, b - t)
+    avatarLayer.layout(0, 0, r - l, b - t)
     positionJump()
     publish()
   }
