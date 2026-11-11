@@ -4,6 +4,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import CanvasKitInit from "canvaskit-wasm";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const DOCS = resolve(ROOT, "apps/docs");
@@ -17,7 +18,7 @@ describe("built release and Development status surfaces", () => {
   it(
     "exposes one concise bilingual history unit across human and agent routes",
     { timeout: process.platform === "win32" ? 360_000 : 120_000 },
-    () => {
+    async () => {
       execFileSync(
         process.execPath,
         [resolve(DOCS, "node_modules/astro/bin/astro.mjs"), "build"],
@@ -106,6 +107,29 @@ describe("built release and Development status surfaces", () => {
       expect(
         existsSync(resolve(DIST, "changelog/2026-09-20-roster-storage")),
       ).toBe(false);
+
+      const previewDescription = built("zh/changelog/v170/index.html").match(
+        /<meta property="og:description" content="([^"]+)"/u,
+      )?.[1];
+      if (!previewDescription) throw new Error("Missing Chinese 1.7.0 OG description");
+      const canvas = await CanvasKitInit({
+        locateFile: (file) =>
+          resolve(DOCS, "node_modules/canvaskit-wasm/bin", file),
+      });
+      const font = canvas.Typeface.MakeFreeTypeFaceFromData(
+        Uint8Array.from(
+          readFileSync(resolve(DOCS, "public/fonts/NotoSansSC-Bold.og-subset.otf")),
+        ).buffer,
+      );
+      if (!font) throw new Error("Cannot load the Chinese OG font");
+      try {
+        const missing = [...new Set(previewDescription)].filter(
+          (character) => font.getGlyphIDs(character)[0] === 0,
+        );
+        expect(missing).toEqual([]);
+      } finally {
+        font.delete();
+      }
 
       const statusEnglish = built("development/index.html");
       const statusChinese = built("zh/development/index.html");
