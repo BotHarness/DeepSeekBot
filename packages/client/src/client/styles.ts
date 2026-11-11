@@ -4125,9 +4125,10 @@ ${STAMP_ME_SPACERS} {
 /* Hover actions float over the bubble's top-right edge so showing them never
    shifts the layout. The lane spans the bubble and right-aligns the pill; a
    Bot bubble narrower than the pill keeps it from spilling over the avatar.
-   Every bubble keeps a hidden toolbar, so it is placed with bottom instead of
-   a transform: a transform per message makes Chromium rebuild every bubble's
-   compositing on each repaint. */
+   A toolbar mounts once the pointer moves over its bubble (or for every bubble
+   once Tab is used) and stays mounted, hidden, after that. It is placed with
+   bottom instead of a transform: a transform per message makes Chromium
+   rebuild every bubble's compositing on each repaint. */
 .bh-bubble-toolbar {
   position: absolute;
   z-index: 2;

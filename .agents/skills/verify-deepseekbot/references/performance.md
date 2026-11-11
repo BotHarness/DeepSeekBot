@@ -131,6 +131,13 @@ Remove both before committing, and confirm the fix with one A/B pair.
   page through `useDeferredValue` starved: the scroll listener's `flushSync` restarts the
   background render every frame, so the page never committed and loading stopped at 150
   messages.
+- Style cost scales with the elements a mounted group adds, at roughly 15–20 µs each, and not
+  with selector matching (selector stats put matching under 5% of style time). Per-element
+  ablation in the page (clone a few mounted slots, insert them, time `offsetHeight`, repeat with
+  one part removed) finds the expensive parts quickly. The hidden hover toolbar was a third of
+  every bubble's elements, so it mounts on the first `pointermove` over its bubble (not
+  `pointerenter`, which fires for every bubble that scrolls under a still cursor), or for every
+  bubble once Tab is pressed.
 - Earlier attempts with `content-visibility` failed on real runs: a skipped flex item shrinks to
   0 without `flex-shrink: 0`, `contain-intrinsic-size: auto` reports 0 before first paint, and
   `content-visibility: auto` registers an internal IntersectionObserver recomputed every frame.

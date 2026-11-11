@@ -1,5 +1,6 @@
 import { CONVERSATION_STATE_KEYS, type ConversationStateView } from './store.js';
 import { PendingDelivery } from './message-delivery.js';
+import { BubbleHoveredContext, BubbleToolbar } from './bubble-toolbar.js';
 import { AppearanceContext } from './appearance-context.js';
 import type { Appearance } from './appearance.js';
 import { onboardingFor, type OnboardingViewState } from './onboarding.js';
@@ -507,6 +508,8 @@ export function MessageBubbleWrap({
       if (timer.current !== undefined) clearTimeout(timer.current);
     };
   }, []);
+  const [hovered, setHovered] = useState(false);
+  const hover = hovered ? undefined : () => setHovered(true);
   const cancel = (): void => {
     clearTimer();
     origin.current = undefined;
@@ -514,6 +517,8 @@ export function MessageBubbleWrap({
   return (
     <div
       ref={mount}
+      onPointerMove={hover}
+      onFocus={hover}
       className={`bh-bubble-wrap${entering ? ' bh-bubble-enter' : ''}${focused ? ' bh-bubble-focused' : ''}${message.failed === undefined ? '' : ' bh-bubble-wrap-failed'}${selection?.active === true ? ' bh-bubble-selecting' : ''}`}
       data-message-id={message.id}
       {...(selection?.active === true && selectable
@@ -593,7 +598,7 @@ export function MessageBubbleWrap({
           {checked ? <IconCheckOutlineRegular size={12} /> : null}
         </span>
       ) : null}
-      {children}
+      <BubbleHoveredContext.Provider value={hovered}>{children}</BubbleHoveredContext.Provider>
     </div>
   );
 }
@@ -940,7 +945,7 @@ const MessageGroupView = memo(function MessageGroupView({
                   bots={bots}
                   t={t}
                 />
-                <div className="bh-bubble-toolbar">
+                <BubbleToolbar>
                   <div className="bh-bubble-actions">
                     {onReact !== undefined && reactableMessage(message) ? (
                       <MessageReactionPicker
@@ -966,7 +971,7 @@ const MessageGroupView = memo(function MessageGroupView({
                     ) : null}
                     <MessageCopyAction body={message.body} t={t} />
                   </div>
-                </div>
+                </BubbleToolbar>
               </div>
               <div className="bh-bubble-side">
                 <ChannelDeliveryReceipt
