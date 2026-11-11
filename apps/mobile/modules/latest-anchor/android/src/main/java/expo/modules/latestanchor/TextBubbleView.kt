@@ -20,6 +20,9 @@ import kotlin.math.hypot
 import kotlin.math.min
 import kotlin.math.roundToInt
 
+/** ReplySwipe's nativeID; the end drawer leaves a swipe left that starts inside such a view. */
+internal const val HORIZONTAL_SWIPE_OWNER = "horizontal-swipe-owner"
+
 /** What a native message bubble asks of its list: the same gestures a React bubble handles. */
 interface BubbleActions {
   /** Whether a horizontal drag may reply; false while replying is unavailable. */
@@ -36,7 +39,10 @@ interface BubbleActions {
 
 /**
  * A native message bubble: draws a [TextBubbleLayout] and handles tap, long press and
- * swipe-to-reply inside the bubble, with the ripple a React bubble shows when pressed.
+ * swipe-to-reply, with the ripple a React bubble shows when pressed. The list sizes the view to
+ * [TextBubbleLayout.bubble] so hit tests, accessibility focus and the end drawer's
+ * horizontal-swipe check see the bubble rather than the whole row; the layout stays in row
+ * coordinates and drawing and touches are offset by the bubble's origin.
  */
 class TextBubbleView(context: Context) : View(context) {
   var actions: BubbleActions? = null
@@ -47,6 +53,15 @@ class TextBubbleView(context: Context) : View(context) {
       reset()
       ripple = value?.let(::rippleFor)
       invalidate()
+    }
+  /**
+   * Marks the view as owning its swipe left, as ReplySwipe's nativeID does for React rows, so the
+   * end drawer does not open from a reply swipe.
+   */
+  var swipeOwner = false
+    set(value) {
+      field = value
+      setTag(com.facebook.react.R.id.view_tag_native_id, if (value) HORIZONTAL_SWIPE_OWNER else null)
     }
   private val density get() = resources.displayMetrics.density
   private val slop = ViewConfiguration.get(context).scaledTouchSlop.toFloat()
@@ -125,28 +140,30 @@ class TextBubbleView(context: Context) : View(context) {
     val layout = layout ?: return false
     val touch = layout.tokens.touch ?: return false
     val swipe = touch.swipe
-    val dx = (event.x - downX) * side / density
-    val dy = (event.y - downY) / density
+    val x = event.x + layout.bubble.left
+    val y = event.y + layout.bubble.top
+    val dx = (x - downX) * side / density
+    val dy = (y - downY) / density
     when (event.actionMasked) {
       MotionEvent.ACTION_DOWN -> {
-        if (!layout.bubble.contains(event.x, event.y)) return false
+        if (!layout.bubble.contains(x, y)) return false
         settle?.cancel()
         shift = 0f
-        downX = event.x
-        downY = event.y
+        downX = x
+        downY = y
         tracking = true
         swiping = false
         held = false
         armed = false
         swipeDead = actions?.swipeEnabled != true
-        ripple?.setHotspot(event.x, event.y)
+        ripple?.setHotspot(x, y)
         isPressed = true
         postDelayed(hold, touch.holdMs)
       }
       MotionEvent.ACTION_MOVE -> {
         if (!tracking) return false
         if (!swiping) {
-          if (hypot(event.x - downX, event.y - downY) > slop) {
+          if (hypot(x - downX, y - downY) > slop) {
             removeCallbacks(hold)
             isPressed = false
           }
@@ -235,6 +252,7 @@ class TextBubbleView(context: Context) : View(context) {
 
   override fun onDraw(canvas: Canvas) {
     val layout = layout ?: return
+    canvas.translate(-layout.bubble.left, -layout.bubble.top)
     layout.tokens.touch?.let { if (shift > 0f) drawHint(canvas, layout, it) }
     canvas.save()
     canvas.translate(shift * side, 0f)

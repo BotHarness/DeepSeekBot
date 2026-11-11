@@ -44,14 +44,17 @@ class TextBubbleViewTest {
     val layout = TextBubbleLayout(TextRow("item:m", true, true, true, "hello", "09:30"), TextRowStyle.from(style)!!, 1200, view.resources.displayMetrics.density)
     view.layout = layout
     view.actions = actions
-    view.measure(View.MeasureSpec.makeMeasureSpec(1200, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(layout.height, View.MeasureSpec.EXACTLY))
-    view.layout(0, 0, 1200, layout.height)
+    val width = layout.bubble.width().toInt()
+    val height = layout.bubble.height().toInt()
+    view.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY))
+    view.layout(0, 0, width, height)
     return view
   }
 
   private val start = SystemClock.uptimeMillis()
+  /** Touches at ([x], [y]) in row coordinates, as the bubble-sized view receives them. */
   private fun TextBubbleView.touch(action: Int, x: Float, y: Float, at: Long = 0) =
-    onTouchEvent(MotionEvent.obtain(start, start + at, action, x, y, 0))
+    onTouchEvent(MotionEvent.obtain(start, start + at, action, x - layout!!.bubble.left, y - layout!!.bubble.top, 0))
 
   @Test fun tapInsideTheBubblePresses() {
     val actions = Recorder()
@@ -103,5 +106,15 @@ class TextBubbleViewTest {
     view.touch(MotionEvent.ACTION_MOVE, x - 60 * density, y, 116)
     view.touch(MotionEvent.ACTION_UP, x - 60 * density, y, 132)
     assertEquals(emptyList<String>(), actions.calls)
+  }
+
+  @Test fun ownsTheSwipeLeftOnlyWhileReplyingIsAvailable() {
+    val view = bubble(Recorder())
+    val tag = com.facebook.react.R.id.view_tag_native_id
+    assertNull(view.getTag(tag))
+    view.swipeOwner = true
+    assertEquals("horizontal-swipe-owner", view.getTag(tag))
+    view.swipeOwner = false
+    assertNull(view.getTag(tag))
   }
 }

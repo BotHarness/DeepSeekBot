@@ -15,6 +15,7 @@ import com.facebook.react.uimanager.events.NativeGestureUtil
 import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.views.ExpoView
 import expo.modules.kotlin.viewevent.EventDispatcher
+import kotlin.math.ceil
 import kotlin.math.roundToInt
 
 class ChatRecyclerCell(context: Context, app: AppContext) : ExpoView(context, app) {
@@ -101,6 +102,11 @@ class ChatRecyclerView(context: Context, app: AppContext) : ExpoView(context, ap
   private val onRowAction by EventDispatcher()
   /** Whether native rows may swipe to reply, as React rows do while a reply can be composed. */
   var rowSwipe = false
+    set(value) {
+      if (field == value) return
+      field = value
+      for (i in 0 until recycler.childCount) (recycler.getChildViewHolder(recycler.getChildAt(i)) as? Holder)?.bubble?.swipeOwner = value
+    }
   private val bubbleActions = object : BubbleActions {
     override val swipeEnabled get() = rowSwipe
     override fun press(view: TextBubbleView, row: TextRow) = rowAction("press", row, view)
@@ -122,14 +128,24 @@ class ChatRecyclerView(context: Context, app: AppContext) : ExpoView(context, ap
       val box = FrameLayout(context).apply { clipChildren = false }
       if (type != TEXT) return Holder(box)
       val bubble = TextBubbleView(context).also { it.actions = bubbleActions }
-      box.addView(bubble, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+      box.addView(bubble)
       return Holder(box, bubble)
     }
     override fun onBindViewHolder(holder: Holder, position: Int) {
       holder.box.layoutParams = RecyclerView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, heightAt(position))
       holder.box.scaleY = -1f
       if (holder.bubble != null) {
-        holder.bubble.layout = textLayouts[keys[position]]
+        val layout = textLayouts[keys[position]]
+        holder.bubble.layout = layout
+        holder.bubble.swipeOwner = rowSwipe
+        layout?.bubble?.let { bubble ->
+          val left = bubble.left.toInt()
+          val top = bubble.top.toInt()
+          holder.bubble.layoutParams = FrameLayout.LayoutParams(ceil(bubble.right).toInt() - left, ceil(bubble.bottom).toInt() - top).apply {
+            leftMargin = left
+            topMargin = top
+          }
+        }
         return
       }
       holder.box.removeAllViews()
@@ -189,8 +205,7 @@ class ChatRecyclerView(context: Context, app: AppContext) : ExpoView(context, ap
 
   private fun rowAction(action: String, row: TextRow, view: TextBubbleView? = null) {
     val event = mutableMapOf<String, Any>("action" to action, "key" to row.key)
-    val bubble = view?.layout?.bubble
-    if (view != null && bubble != null) event["anchor"] = windowBounds(view, bubble)
+    if (view != null) event["anchor"] = windowBounds(view)
     onRowAction(event)
   }
 
