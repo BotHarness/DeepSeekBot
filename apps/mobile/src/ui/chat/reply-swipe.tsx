@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useCallback, useMemo, useRef, type ReactNode } from 'react';
 import { I18nManager, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -12,6 +12,7 @@ import { spring } from '../design/motion';
 import { space, swipeReply } from '../design/tokens';
 import { haptic } from '../haptics';
 import { ReplyIcon } from '../shell/icons';
+import { ReplySwipeBlocker, type SwipeBlocker } from './reply-swipe-context';
 import { horizontalSwipeOwner, repliesAt, replyTravel } from './reply-swipe-model';
 
 export function ReplySwipe({
@@ -27,29 +28,44 @@ export function ReplySwipe({
   const travel = useSharedValue(0);
   const armed = useSharedValue(false);
   const direction = I18nManager.isRTL ? 1 : -1;
-  const arm = () => haptic('selection');
-  const pan = Gesture.Pan()
-    .enabled(enabled)
-    .activeOffsetX(direction * swipeReply.start)
-    .failOffsetX(-direction * swipeReply.backFail)
-    .failOffsetY([-swipeReply.verticalFail, swipeReply.verticalFail])
-    .onStart(() => {
-      armed.value = false;
-    })
-    .onUpdate((event) => {
-      const x = event.translationX * direction;
-      travel.value = replyTravel(x);
-      if (armed.value === repliesAt(x)) return;
-      armed.value = repliesAt(x);
-      if (armed.value) runOnJS(arm)();
-    })
-    .onEnd((event) => {
-      if (repliesAt(event.translationX * direction)) runOnJS(onReply)();
-    })
-    .onFinalize(() => {
-      armed.value = false;
-      travel.value = withSpring(0, spring.spatial.fast);
-    });
+  const reply = useRef(onReply);
+  reply.current = onReply;
+  const arm = useCallback(() => haptic('selection'), []);
+  const fire = useCallback(() => reply.current(), []);
+  const pan = useMemo(
+    () =>
+      Gesture.Pan()
+        .enabled(enabled)
+        .activeOffsetX(direction * swipeReply.start)
+        .failOffsetX(-direction * swipeReply.backFail)
+        .failOffsetY([-swipeReply.verticalFail, swipeReply.verticalFail])
+        .onStart(() => {
+          armed.value = false;
+        })
+        .onUpdate((event) => {
+          const x = event.translationX * direction;
+          travel.value = replyTravel(x);
+          if (armed.value === repliesAt(x)) return;
+          armed.value = repliesAt(x);
+          if (armed.value) runOnJS(arm)();
+        })
+        .onEnd((event) => {
+          if (repliesAt(event.translationX * direction)) runOnJS(fire)();
+        })
+        .onFinalize(() => {
+          armed.value = false;
+          travel.value = withSpring(0, spring.spatial.fast);
+        }),
+    [enabled, direction, arm, fire, armed, travel],
+  );
+  const blocker = useMemo<SwipeBlocker>(
+    () =>
+      function SwipeBlocker({ children: scroller }: { children: ReactNode }) {
+        const native = useMemo(() => Gesture.Native().blocksExternalGesture(pan), []);
+        return <GestureDetector gesture={native}>{scroller}</GestureDetector>;
+      },
+    [pan],
+  );
   const moving = useAnimatedStyle(() => ({
     transform: [{ translateX: travel.value * direction }],
   }));
@@ -86,7 +102,11 @@ export function ReplySwipe({
             <ReplyIcon color={theme.color.muted} size={theme.type.meta.line} />
           </View>
         </Animated.View>
-        <Animated.View style={moving}>{children}</Animated.View>
+        <Animated.View style={moving}>
+          <ReplySwipeBlocker.Provider value={enabled ? blocker : undefined}>
+            {children}
+          </ReplySwipeBlocker.Provider>
+        </Animated.View>
       </View>
     </GestureDetector>
   );

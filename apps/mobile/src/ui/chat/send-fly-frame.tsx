@@ -10,10 +10,13 @@ import Animated, {
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { decelerateCurve } from '../design/motion';
 import { sendFly } from '../design/tokens';
 import { BUBBLE_PADDING } from './bubble-shape';
 import { flyOffset, textFrame, type SendFlight, type SendFlights } from './send-fly';
+
+const vertical = Easing.bezierFn(...sendFly.vertical);
+const horizontal = Easing.bezierFn(...sendFly.horizontal);
+const settle = Easing.bezierFn(...sendFly.settle);
 
 type BackdropStyle = ReturnType<typeof useAnimatedStyle>;
 
@@ -40,13 +43,16 @@ export function SendFlyFrame({
   const progress = useSharedValue(0);
   const [landed, setLanded] = useState(false);
   const frame = useAnimatedStyle(() => {
-    const rest = 1 - progress.get();
+    const at = progress.get();
     return {
       opacity: shown.get(),
-      transform: [{ translateX: offsetX.get() * rest }, { translateY: offsetY.get() * rest }],
+      transform: [
+        { translateX: offsetX.get() * (1 - settle(horizontal(at))) },
+        { translateY: offsetY.get() * (1 - vertical(at)) },
+      ],
     };
   });
-  const backdrop = useAnimatedStyle(() => ({ opacity: progress.get() }));
+  const backdrop = useAnimatedStyle(() => ({ opacity: vertical(progress.get()) }));
   const land = useCallback(() => {
     flights.land(messageId);
     setLanded(true);
@@ -85,7 +91,7 @@ export function SendFlyFrame({
             1,
             {
               duration: sendFly.duration,
-              easing: Easing.bezier(...decelerateCurve),
+              easing: Easing.linear,
               reduceMotion: ReduceMotion.System,
             },
             () => scheduleOnRN(land),

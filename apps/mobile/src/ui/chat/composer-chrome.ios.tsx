@@ -13,6 +13,10 @@ export function composerPrimary(theme: DesignTheme): { fill: string; ink: string
   return { fill: theme.color.fg, ink: theme.color.base };
 }
 
+export function composerPillShadow(_theme: DesignTheme): string | undefined {
+  return undefined;
+}
+
 export function composerBar(theme: DesignTheme): number {
   return theme.touch + space.x3;
 }

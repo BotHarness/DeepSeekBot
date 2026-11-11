@@ -13,6 +13,7 @@ import type { ConversationMessage } from '../src/host/conversation';
 import {
   CHECK_BUDGET,
   MOMENTUM_WAIT_MS,
+  NATIVE_GLIDE_MS,
   STABLE_FRAMES,
   useFollowLatest,
 } from '../src/ui/chat/follow-latest';
@@ -890,6 +891,53 @@ describe('sending a message', () => {
       expect(view.current.away).toBe(false);
     } finally {
       view.unmount();
+    }
+  });
+
+  it('finishes the glide when the native anchor stops short of the newest message', () => {
+    const view = settled(true, true);
+    vi.useFakeTimers();
+    try {
+      act(() => {
+        view.current.send();
+      });
+      view.rerender([message('latest', 'bot'), message('sent', 'human')]);
+      act(() => {
+        view.current.listProps.onContentSizeChange(0, CONTENT + 60);
+        view.current.listProps.onScroll(event(48, 0, CONTENT + 60));
+      });
+      expect(view.scrollToOffset).not.toHaveBeenCalled();
+      act(() => vi.advanceTimersByTime(NATIVE_GLIDE_MS));
+      expect(view.scrollToOffset).toHaveBeenLastCalledWith({
+        offset: CONTENT + 60 - LAYOUT,
+        animated: true,
+      });
+    } finally {
+      view.unmount();
+      vi.useRealTimers();
+    }
+  });
+
+  it('returns to the newest message when a send leaves the content shorter and the list shifted', () => {
+    const view = settled(true, true);
+    vi.useFakeTimers();
+    try {
+      act(() => {
+        view.current.send();
+      });
+      view.rerender([message('latest', 'bot'), message('sent', 'human')]);
+      act(() => {
+        view.current.listProps.onContentSizeChange(0, CONTENT - 20);
+        view.current.listProps.onScroll(event(42, 0, CONTENT - 20));
+      });
+      act(() => vi.advanceTimersByTime(NATIVE_GLIDE_MS));
+      expect(view.scrollToOffset).toHaveBeenLastCalledWith({
+        offset: CONTENT - 20 - LAYOUT,
+        animated: true,
+      });
+    } finally {
+      view.unmount();
+      vi.useRealTimers();
     }
   });
 

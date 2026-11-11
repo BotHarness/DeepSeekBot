@@ -1,0 +1,18 @@
+export const genuiWebViewPolicy = {
+  javaScriptEnabled: true,
+  javaScriptCanOpenWindowsAutomatically: false,
+  setSupportMultipleWindows: false,
+  domStorageEnabled: false,
+  cacheEnabled: false,
+  incognito: true,
+  allowFileAccess: false,
+  allowFileAccessFromFileURLs: false,
+  allowUniversalAccessFromFileURLs: false,
+  allowsLinkPreview: false,
+  allowsInlineMediaPlayback: false,
+  mediaPlaybackRequiresUserAction: true,
+  dataDetectorTypes: ['none'] as ['none'],
+  textZoom: 100,
+  scrollEnabled: false,
+  nestedScrollEnabled: false,
+};

@@ -8,7 +8,7 @@ const native = requireOptionalNativeModule<{
   ): Promise<{ x: number; y: number; width: number; height: number } | null>;
 }>('ChatRecycler');
 
-const recycler = process.env.EXPO_PUBLIC_CHAT_LIST === 'recycler';
+const recycler = process.env.EXPO_PUBLIC_CHAT_LIST !== 'flatlist';
 
 export function measureMessageView(
   view: ViewInstance | null,

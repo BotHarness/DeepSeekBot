@@ -69,7 +69,7 @@ SOFTWARE.
 - Package: `lucide` icons (vendored glyph paths; see ADR-0032)
 - License: ISC
 - Source: <https://github.com/lucide-icons/lucide>
-- Used for: Channel sidebar function/settings/check glyphs (`house`, `files`, `git-branch`, `messages-square`, `inbox`, `folder-key`, `users`, `settings-2`, `settings`, `monitor`, `globe`, `panels-top-left`, `grip-vertical`, `check`, `message-square`, `keyboard`, `smartphone`, `sliders-horizontal`, `info`, `eye`, `eye-off`, `chevron-right`, from `lucide-react@1.46.0`) in `channel-sidebar-icon.tsx`; the `inbox` Activity Center glyph (`InboxIcon` in `src/client/inbox-icon.tsx`) and the `hash` channel glyph (`HashIcon` in `src/client/hash-icon.tsx`, from `lucide-react@1.46.0`); the `git-commit-vertical` Memory commit glyph (`GitCommitIcon` in `src/client/git-commit-icon.tsx`, from `lucide-react@1.46.0`)
+- Used for: Channel sidebar function/settings/check glyphs (`house`, `files`, `git-branch`, `messages-square`, `inbox`, `folder-key`, `users`, `settings-2`, `settings`, `monitor`, `globe`, `panels-top-left`, `grip-vertical`, `check`, `message-square`, `keyboard`, `smartphone`, `sliders-horizontal`, `info`, `eye`, `eye-off`, `chevron-right`, from `lucide-react@1.46.0`) in `channel-sidebar-icon.tsx`; the `inbox` Activity Center glyph (`InboxIcon` in `src/client/inbox-icon.tsx`) and the `hash` channel glyph (`HashIcon` in `src/client/hash-icon.tsx`, from `lucide-react@1.46.0`); the `git-commit-vertical` Memory commit glyph (`GitCommitIcon` in `src/client/git-commit-icon.tsx`, from `lucide-react@1.46.0`); the `bug` report-a-problem glyph (`BugIcon` in `src/client/bug-icon.tsx`, from `lucide-react@1.46.0`)
 
 ```
 ISC License
@@ -217,6 +217,36 @@ SOFTWARE.
 MIT License
 
 Copyright (c) 2017-2025 W.Y.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+## modern-screenshot
+
+- Package: `modern-screenshot` 4.7.0, locally bundled.
+- Source: <https://github.com/qq15725/modern-screenshot>
+- Use: renders the visible page to a PNG when the Human takes a screenshot for a problem report and screen sharing is unavailable (as in the Desktop app); nothing is uploaded.
+
+```
+The MIT License (MIT)
+
+Copyright (c) 2021-present wxm
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

@@ -1391,6 +1391,11 @@ const en = {
   copyHint: 'Long-press for Copy.',
   messageActionsHint: 'Long-press to react, copy or share.',
   messageActions: 'Message actions',
+  messageSelection: {
+    count: (count: number) => `${count} selected`,
+    close: 'Stop selecting',
+    feedback: 'Feedback',
+  },
   reply: {
     action: 'Reply',
     to: (name: string) => `Replying to ${name}`,
@@ -3800,6 +3805,11 @@ const zh: typeof en = {
   copyHint: '长按可复制。',
   messageActionsHint: '长按可回应、复制或分享。',
   messageActions: '消息操作',
+  messageSelection: {
+    count: (count: number) => `已选择 ${count} 项`,
+    close: '退出选择',
+    feedback: '反馈',
+  },
   reply: {
     action: '回复',
     to: (name: string) => `回复 ${name}`,
