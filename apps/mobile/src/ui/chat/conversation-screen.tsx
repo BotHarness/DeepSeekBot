@@ -1464,6 +1464,8 @@ function ChatConversation({
   const ios = Platform.OS === 'ios';
   const openAtLatest =
     ios && process.env.EXPO_PUBLIC_IOS_OPEN_AT_LATEST !== '0' && focus === undefined;
+  const [openedAtLatest, setOpenedAtLatest] = useState(false);
+  if (!openedAtLatest && openAtLatest && rows.length > 0) setOpenedAtLatest(true);
   const headerGap = glassPress.gap;
   const headerActions = canOpenProfile ? (
     <HeaderActionGroup
@@ -1886,7 +1888,11 @@ function ChatConversation({
                         <SpeakerStageContext.Provider value={dm ? undefined : stage}>
                           <SendFlightsContext.Provider value={flights}>
                             <ChatList
-                              key={openAtLatest && rows.length > 0 ? 'rows' : 'list'}
+                              key={
+                                openedAtLatest || (openAtLatest && rows.length > 0)
+                                  ? 'rows'
+                                  : 'list'
+                              }
                               inverted={android}
                               {...(android
                                 ? { initialNumToRender: 6, maxToRenderPerBatch: 6, windowSize: 5 }
