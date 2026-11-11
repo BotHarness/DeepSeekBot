@@ -452,14 +452,14 @@ function PressableBubble({
     if (anchor.current !== undefined) onLongPress(anchor.current);
     else measure(onLongPress);
   };
-  const holdRef = useRef<() => void>(undefined);
-  holdRef.current = () => {
-    haptic('menu');
-    if (shrinks) scale.value = withSpring(1, spring.spatial.fast);
-    open();
-  };
-  const holds = onLongPress !== undefined;
-  const hold = useMemo(() => (holds ? () => holdRef.current?.() : undefined), [holds]);
+  const hold =
+    onLongPress === undefined
+      ? undefined
+      : () => {
+          haptic('menu');
+          if (shrinks) scale.value = withSpring(1, spring.spatial.fast);
+          open();
+        };
   return (
     <Animated.View
       ref={ref}
