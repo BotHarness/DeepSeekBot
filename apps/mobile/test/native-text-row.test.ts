@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { ConversationMessage } from '../src/host/conversation';
 import type { ChatRow } from '../src/ui/chat/message-groups';
-import { nativeTextRow, plainText } from '../src/ui/chat/native-text-row';
+import { nativeMarkdown, nativeTextRow, plainText } from '../src/ui/chat/native-text-row';
 
 const message = (overrides: Partial<ConversationMessage> = {}): ConversationMessage => ({
   id: 'm1',
@@ -77,5 +77,34 @@ describe('native text rows', () => {
       '[link](x)',
     ])
       expect(plainText(body)).toBe(false);
+  });
+
+  it('routes bot Markdown through the native Markdown renderer when enabled', () => {
+    const markdown = { ...context, markdown: true };
+    const bold = nativeTextRow(row({ body: '**bold** and `code`\nsoft break' }), markdown);
+    expect(bold).toMatchObject({ markdown: true, body: '**bold** and `code`\nsoft break' });
+    expect(
+      nativeTextRow(row({ author: 'human', body: '**not markdown**' }), markdown),
+    ).toBeUndefined();
+    expect(nativeTextRow(row({ author: 'human', body: 'plain' }), markdown)?.markdown).toBe(false);
+    expect(nativeTextRow(row({ body: 'plain' }), context)?.markdown).toBe(false);
+  });
+
+  it('keeps tables, images, links, HTML, math and code blocks on React rows', () => {
+    expect(nativeMarkdown('- one\n- two\n\n> quote\n\n**bold** and `code`')).toBe(true);
+    expect(nativeMarkdown('1. one\n    still one\n2. two')).toBe(true);
+    for (const body of [
+      '```ts\nconst a = 1;\n```',
+      'text\n\n  ~~~\nx\n~~~',
+      '    const a = 1;',
+      'text\n\n\tconst a = 1;',
+      '| a | b |\n| --- | --- |',
+      '![x](y.png)',
+      '[docs](https://x.y)',
+      'see www.x.y',
+      '<b>x</b>',
+      '$x$',
+    ])
+      expect(nativeMarkdown(body)).toBe(false);
   });
 });

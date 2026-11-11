@@ -32,6 +32,15 @@ class TextBubbleTest {
   )
   private val tokens = TextRowStyle.from(style)!!
 
+  @Test fun convertsNestedMarkdownStyleToReadableMaps() {
+    val map = readableMap(mapOf("paragraph" to mapOf("fontSize" to 14.0, "color" to "#111111"), "fonts" to listOf("a", mapOf("b" to true)), "none" to null))
+    assertEquals(14.0, map.getMap("paragraph")!!.getDouble("fontSize"), 0.0)
+    assertEquals("#111111", map.getMap("paragraph")!!.getString("color"))
+    assertEquals("a", map.getArray("fonts")!!.getString(0))
+    assertTrue(map.getArray("fonts")!!.getMap(1)!!.getBoolean("b"))
+    assertTrue(map.isNull("none"))
+  }
+
   @Test fun parsesCssColors() {
     assertEquals(Color.parseColor("#c0392b"), cssColor("#c0392b"))
     assertEquals(Color.argb(128, 1, 2, 3), cssColor("rgba(1, 2, 3, 0.5)"))
