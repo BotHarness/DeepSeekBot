@@ -127,7 +127,10 @@ Remove both before committing, and confirm the fix with one A/B pair.
   cut the per-page long frame from about 200 ms to about 120 ms and total blocking from 1.3 s to
   0.6 s. However, frames over 16.7 ms rose from about 1% to about 7%. Each estimate is corrected
   on the scroll path, so the cost moves into the steady scroll. Mounting a few groups per frame in
-  the background instead gave 4× more frames over 50 ms. Neither shipped.
+  the background instead gave 4× more frames over 50 ms. Neither shipped. Rendering an older
+  page through `useDeferredValue` starved: the scroll listener's `flushSync` restarts the
+  background render every frame, so the page never committed and loading stopped at 150
+  messages.
 - Earlier attempts with `content-visibility` failed on real runs: a skipped flex item shrinks to
   0 without `flex-shrink: 0`, `contain-intrinsic-size: auto` reports 0 before first paint, and
   `content-visibility: auto` registers an internal IntersectionObserver recomputed every frame.
