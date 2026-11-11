@@ -1,4 +1,4 @@
-import { bytesToHex, concatBytes, utf8ToBytes } from '@noble/hashes/utils.js';
+import { bytesToHex, hexToBytes, concatBytes, utf8ToBytes } from '@noble/hashes/utils.js';
 import { NoiseXk, NOISE_PROTOCOL, type NoiseTransport, type NoiseKeyAgreement } from './xk.js';
 
 export const CONNECT_PROTOCOL = 'connect-noise-xk-v1';
@@ -13,20 +13,6 @@ export interface ChannelResult {
   reply?: string;
   message?: string;
   ready?: true;
-}
-
-const NIBBLE = new Int8Array(128).fill(-1);
-for (let index = 0; index < 16; index++) NIBBLE['0123456789abcdef'.charCodeAt(index)] = index;
-
-function wireBytes(wire: string): Uint8Array {
-  const bytes = new Uint8Array((wire.length - 1) / 2);
-  for (let index = 0, at = 1; index < bytes.length; index++, at += 2) {
-    const high = NIBBLE[wire.charCodeAt(at)] ?? -1;
-    const low = NIBBLE[wire.charCodeAt(at + 1)] ?? -1;
-    if (high < 0 || low < 0) throw new Error('channel-frame-invalid');
-    bytes[index] = (high << 4) | low;
-  }
-  return bytes;
 }
 
 export class ConnectChannel {
@@ -85,8 +71,7 @@ export class ConnectChannel {
       if (
         this.closed ||
         wire.length > 2 * (HEADER + CHUNK + 17) + 1 ||
-        (wire[0] !== 'h' && wire[0] !== 'd') ||
-        wire.length < 3 ||
+        !/^[hd][0-9a-f]+$/u.test(wire) ||
         wire.length % 2 !== 1
       )
         throw new Error('channel-frame-invalid');
@@ -98,7 +83,8 @@ export class ConnectChannel {
           (this.role === 'initiator' && this.stage !== 1)
         )
           throw new Error('channel-handshake-invalid');
-        if (this.noise.read(wireBytes(wire)).length !== 0) throw new Error('channel-early-payload');
+        if (this.noise.read(hexToBytes(wire.slice(1))).length !== 0)
+          throw new Error('channel-early-payload');
         if (this.role === 'responder' && this.stage === 0) {
           this.stage = 1;
           return { reply: `h${bytesToHex(this.noise.write())}` };
@@ -108,7 +94,7 @@ export class ConnectChannel {
         return { ...(reply === undefined ? {} : { reply }), ready: true };
       }
       if (wire[0] !== 'd') throw new Error('channel-frame-invalid');
-      const frame = wireBytes(wire);
+      const frame = hexToBytes(wire.slice(1));
       if (frame.length < HEADER + 17) throw new Error('channel-length-invalid');
       const header = frame.subarray(0, HEADER);
       const view = new DataView(header.buffer, header.byteOffset, header.byteLength);
