@@ -1737,23 +1737,24 @@ function ConversationView({
     });
   };
   const scheduleReadMark = (): void => {
-    const element = scrollRef.current;
-    if (channelId === undefined || element === null || conversation.status !== 'ready') return;
-    const committedIds = committedMessageIds(messages);
-    const viewport = element.getBoundingClientRect();
-    const visible = Array.from(element.querySelectorAll<HTMLElement>('[data-message-id]'))
-      .filter((candidate) => {
-        const id = candidate.dataset['messageId'];
-        if (id === undefined || !committedIds.has(id)) return false;
-        const bounds = candidate.getBoundingClientRect();
-        return bounds.top < viewport.bottom && bounds.bottom > viewport.top;
-      })
-      .at(-1);
-    const messageId = visible?.dataset['messageId'];
-    if (messageId === undefined) return;
+    if (channelId === undefined || scrollRef.current === null || conversation.status !== 'ready')
+      return;
     window.clearTimeout(readMarkTimer.current);
     readMarkTimer.current = window.setTimeout(() => {
-      if (currentChannel.current !== channelId) return;
+      const element = scrollRef.current;
+      if (currentChannel.current !== channelId || element === null) return;
+      const committedIds = committedMessageIds(messages);
+      const viewport = element.getBoundingClientRect();
+      const visible = Array.from(element.querySelectorAll<HTMLElement>('[data-message-id]'))
+        .filter((candidate) => {
+          const id = candidate.dataset['messageId'];
+          if (id === undefined || !committedIds.has(id)) return false;
+          const bounds = candidate.getBoundingClientRect();
+          return bounds.top < viewport.bottom && bounds.bottom > viewport.top;
+        })
+        .at(-1);
+      const messageId = visible?.dataset['messageId'];
+      if (messageId === undefined) return;
       void actions.markRead(channelId, messageId).catch((error: unknown) => {
         console.warn('botharness: channel read position failed', error);
       });
