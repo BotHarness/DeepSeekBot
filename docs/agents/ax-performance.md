@@ -76,8 +76,11 @@ Use component ablation (not Git history bisect) when a profile leaves several pl
 - Freeze exact dependency versions/lockfiles, loaded bundle hashes, Host source, fixture digest,
   build mode, cache state, hardware/display/browser and viewport. Reuse canonical data rather
   than independently reseeding; keep machine load and competing services in the evidence.
-- Alternate or counterbalance base/change, at least three runs per side. Use at least five per
-  side when choosing a package. Separate cold initialization, warm reuse and streaming updates;
+- One matched base/change pair per scenario is enough when the difference is clear. Alternate
+  or counterbalance at least three runs per side only when the result is ambiguous or for a final
+  precision pass; repeated runs mostly add heat and drift. Use at least five per side when
+  choosing a package. Keep each capture short and bounded (see
+  [iOS short captures](ios-performance.md#short-captures-and-hot-path-probes)). Separate cold initialization, warm reuse and streaming updates;
   do not hide lazy grammar compilation, worker startup or deferred work outside the measured
   user wait. Await completed work and verify the output, not only that a function returned.
 - For Markdown, compare equivalent features and safety: GFM, math, code language/highlighting,
