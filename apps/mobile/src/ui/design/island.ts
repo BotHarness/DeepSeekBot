@@ -1,7 +1,10 @@
-import type { DesignTheme } from './theme';
 import { island } from './tokens';
 
-type Scheme = DesignTheme['scheme'];
+type Scheme = keyof typeof island.ink;
+type IslandTheme = {
+  scheme: Scheme;
+  layer: { raised: { fill: string; pressed: string } };
+};
 
 function rgba(hex: string, alpha: number): string {
   const value = Number.parseInt(hex.slice(1), 16);
@@ -25,7 +28,7 @@ export function islandShadow(scheme: Scheme): string {
   return `0 ${offsetY}px ${radius}px ${rgba(island.shade, island.shadow[scheme])}`;
 }
 
-export function islandStyle(theme: DesignTheme, pressed = false) {
+export function islandStyle(theme: IslandTheme, pressed = false) {
   return {
     backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
     ...islandRim(theme.scheme),
