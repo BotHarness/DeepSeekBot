@@ -216,17 +216,23 @@ function subscribeSurface(listener: () => void): () => void {
   };
 }
 
+let lastSurface: { epoch: number; background: string } | undefined;
+
 export function useConversationSurface(): {
   background: string;
   probe(element: Element | null): void;
 } {
   const probe = useRef<Element | null>(null);
-  const snapshot = useCallback(
-    () =>
-      (probe.current?.isConnected ? renderedBackground(probe.current) : undefined) ??
-      REFERENCE_SURFACES[currentTheme()].background,
-    [],
-  );
+  const snapshot = useCallback(() => {
+    const measured = probe.current?.isConnected ? renderedBackground(probe.current) : undefined;
+    if (measured !== undefined) {
+      lastSurface = { epoch: surfaceEpoch, background: measured };
+      return measured;
+    }
+    return lastSurface?.epoch === surfaceEpoch
+      ? lastSurface.background
+      : REFERENCE_SURFACES[currentTheme()].background;
+  }, []);
   const background = useSyncExternalStore(subscribeSurface, snapshot, snapshot);
   const attach = useCallback((element: Element | null) => {
     probe.current = element;
