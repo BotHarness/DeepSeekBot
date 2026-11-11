@@ -26,10 +26,11 @@ it('holds the system bar strip fully opaque before the curve starts', () => {
   expect(stops.at(-1)).toEqual({ offset: 1, opacity: 0 });
 });
 
-it('lets the header fade start below opaque and ease out more evenly', () => {
+it('keeps the status strip opaque and eases the header fade out more evenly', () => {
   const stops = edgeFadeStops(140, 76, 28, chatHeaderSurface.fade);
   expect(stops[0]).toEqual({ offset: 0, opacity: 1 });
-  expect(stops[1]).toEqual({ offset: 0.2, opacity: chatHeaderSurface.fade.peak });
+  expect(stops[1]).toEqual({ offset: 0.2, opacity: 1 });
+  expect(stops[2]!.opacity).toBeLessThan(chatHeaderSurface.fade.peak);
   expect(stops.at(-1)).toEqual({ offset: 1, opacity: 0 });
   const third = stops.find((stop) => stop.offset >= 0.2 + 0.8 / 3)!;
   expect(third.opacity).toBeGreaterThan(0.55);
