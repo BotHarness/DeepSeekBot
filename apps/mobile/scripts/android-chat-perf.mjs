@@ -106,7 +106,7 @@ function state(d) {
 async function openConversation(d, title) {
   let tree = d.xml();
   if (!tree.includes('resource-id="composer-input"')) {
-    d.tap(tree, new RegExp(`(text|content-desc)="${title}`));
+    d.tap(tree, new RegExp(`(text|content-desc)="${title}[",]`));
     await wait(2500);
     tree = d.xml();
   }
