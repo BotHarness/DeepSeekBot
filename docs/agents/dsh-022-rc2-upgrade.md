@@ -175,8 +175,9 @@ For release decisions, retain these distinct controls:
 2. Exercise the published Tobs version first, then one frozen candidate on the
    oldest concrete supported runtime, previous baseline and new runtime. Include
    Client interactions, real model/native-child completion and restart, not only
-   Host health. `e2e-fresh-profile-install.mjs --upgrade-from 1.6.1` selects the
-   current published upgrade fixture without erasing historical 1.4.1 coverage;
+   Host health. The command below selects the current published upgrade fixture
+   without erasing historical 1.4.1 coverage:
+   `node scripts/e2e-fresh-profile-install.mjs <artifacts> <fresh-output> --upgrade-from 1.6.1`.
    `--dsh-version` and `--upgrade-only` explicitly bound a rerun.
 3. Keep upstream-sensitive contracts in narrow adapters and test observable old/new
    behavior. Optional failures must not tear down unrelated chat; required failures

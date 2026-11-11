@@ -1595,7 +1595,7 @@
       "behaviors": ["product.fresh-install"],
       "reason": "Exact artifacts through both Bundles; configurable published upgrade (1.4.1 historical default; --upgrade-from for current published release), optional --dsh-version and --upgrade-only select explicitly scoped rows; upgrade and removal/replacement preserve Bot configuration, DM history and SOUL/MEMORY across restart; shared CLI writes/refusals; no Client check. Scoped Tobs package identity is @botharness/tobs; the executable stays tobs.",
       "task": 2744,
-      "sha256": "1b0b205c68487e06ea91f6003bba3c25e5591ec668f692b0c256badde9de7a3e"
+      "sha256": "8db1eae639d0cd9e06de801ecbd1a4ce0b365f65796e80fff77e01abecb4db98"
     },
     {
       "path": "scripts/e2e-grant-attention.mjs",

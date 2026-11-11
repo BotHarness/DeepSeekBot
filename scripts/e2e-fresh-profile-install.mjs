@@ -389,7 +389,7 @@ async function main() {
     productVersion: artifacts.productVersion,
     node: process.version,
     platform: process.platform,
-    scope: `Fresh Profiles plus published ${upgradeFrom} upgrade and old Bundle removal/Tobs installation in the same Profile: preserve Bot configuration, DM identity/history and SOUL/MEMORY across restart; CLI cross-writes and unauthorized refusal parity. Browser, model and IM delivery are separate gates.`,
+    scope: `${upgradeOnly ? 'Published' : 'Fresh Profiles plus published'} ${upgradeFrom} upgrade and old Bundle removal/Tobs installation in the same Profile: preserve Bot configuration, DM identity/history and SOUL/MEMORY across restart; CLI cross-writes and unauthorized refusal parity. Browser, model and IM delivery are separate gates.`,
     rows: [
       ...(upgradeOnly ? [] : versions).flatMap((dsh) =>
         ['deepseekbot', '@botharness/tobs'].map((productName) => ({
