@@ -58,7 +58,9 @@ native mobile). It sets the default run count for the rest of these docs.
      suspect site at a time and measure how much the scenario slows. The site where a small delay
      is amplified most runs most often on the hot path.
 
-  Keep these probes local; remove them before the final A/B so both arms run identical code.
+  Keep these probes local; remove them before the final A/B so both arms run identical code. For
+  the Web timeline, see
+  [finding the hot path](../../.agents/skills/verify-deepseekbot/references/performance.md#finding-the-hot-path).
 
 ## Observe before changing
 
