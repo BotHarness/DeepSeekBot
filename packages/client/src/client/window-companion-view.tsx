@@ -23,7 +23,7 @@ import type { CompanionBot } from '../../../core/src/companions/feed.js';
 import type { CompanionViewState, WindowCompanion } from './window-companion.js';
 import {
   CompanionMotion,
-  repaintsOnly,
+  pointUpdate,
   toolbarSide,
   type CompanionPoint,
 } from './companion-motion.js';
@@ -274,7 +274,11 @@ export function WindowCompanionView({
   const presentPoint = useRef<(next: CompanionPoint) => void>(setPoint);
   const motionFrameAt = useRef(performance.now());
   const displayedPoint = useRef(point);
-  displayedPoint.current = point;
+  const renderedPoint = useRef(point);
+  if (renderedPoint.current !== point) {
+    renderedPoint.current = point;
+    displayedPoint.current = point;
+  }
   const anchor = useRef<AvatarAnchor | undefined>(undefined);
   const viewport = useRef({ left: 0, bottom: window.innerHeight, height: window.innerHeight });
   const anchorRef = useCallback((value: AvatarAnchor | undefined) => {
@@ -530,17 +534,20 @@ export function WindowCompanionView({
           if (walking && (next.x <= 8 || next.x >= Math.max(8, next.width - 104)))
             direction.current *= -1;
           setStride(walking ? (direction.current > 0 ? 'right' : 'left') : undefined);
-          if (next !== previousPoint) {
-            const shown = displayedPoint.current;
-            if (body.current && character.current) {
-              body.current.style.transform = `translate3d(${next.x}px, ${-next.y}px, 0)`;
-              character.current.style.rotate = `${next.tilt}deg`;
-              character.current.style.transform = `scale(${1 + next.squash}, ${1 - next.squash})`;
-            }
-            if (body.current && character.current && repaintsOnly(speaking(state), shown, next))
-              displayedPoint.current = next;
-            else setPoint(next);
+          const shown = displayedPoint.current;
+          if (next !== shown && body.current && character.current) {
+            body.current.style.transform = `translate3d(${next.x}px, ${-next.y}px, 0)`;
+            character.current.style.rotate = `${next.tilt}deg`;
+            character.current.style.transform = `scale(${1 + next.squash}, ${1 - next.squash})`;
           }
+          const update =
+            body.current && character.current
+              ? pointUpdate(speaking(state), shown, renderedPoint.current, next)
+              : renderedPoint.current === next
+                ? 'none'
+                : 'render';
+          if (update === 'repaint') displayedPoint.current = next;
+          else if (update === 'render') setPoint(next);
           if (previousPoint.phase !== 'rest' && next.phase === 'rest') persistPosition();
         }
         sampled = undefined;

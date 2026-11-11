@@ -20,6 +20,14 @@ export const repaintsOnly = (
   shown.width === next.width &&
   toolbarSide(shown) === toolbarSide(next);
 
+export const pointUpdate = (
+  talking: boolean,
+  shown: CompanionPoint,
+  rendered: CompanionPoint,
+  next: CompanionPoint,
+): 'repaint' | 'render' | 'none' =>
+  repaintsOnly(talking, shown, next) ? 'repaint' : rendered === next ? 'none' : 'render';
+
 export interface CompanionInteraction {
   kind: 'grab' | 'drag' | 'throw' | 'land';
   strength: number;
