@@ -127,6 +127,13 @@ import {
 import { useChannelViewport } from './channel-viewport';
 import { MessageTarget, nativeMessageJump } from '../primitives/message-target';
 import { ChatList, nativeChatRecycler, type ChatListHandle } from '../primitives/chat-list';
+import { nativeMarkdownStyle } from '../native-markdown-style';
+import {
+  nativeMarkdownRows,
+  nativeTextRow,
+  nativeTextRows,
+  nativeTextStyle,
+} from './native-text-row';
 import { usePullToCompose } from './pull-to-compose';
 import { chatHref, useRecentChat } from '../shell/recent-chats';
 import { SwipeOpen } from '../shell/swipe-open';
@@ -423,7 +430,6 @@ function ChatConversation({
   const nativeHeaderPadding = useHeaderPadding();
   const inlineHeaderHeight = useChatHeaderHeight();
   const [measuredHeaderHeight, setMeasuredHeaderHeight] = useState(0);
-  const blurTarget = useRef<ViewInstance>(null);
   const insets = useSafeAreaInsets();
   const android = Platform.OS === 'android';
   const nativeSpacer = !android && LatestAnchor !== undefined;
@@ -723,7 +729,7 @@ function ChatConversation({
     [speakers, scroll, viewport, viewportLayout, frame, content, android, composerHeight],
   );
   const composerInput = useRef<ComposerInput>(null);
-  const flights = useMemo(() => createSendFlights(android), [android]);
+  const flights = useMemo(() => createSendFlights(false), []);
   const launchFly = useCallback((): SendFlight => {
     const flight: SendFlight = { from: undefined };
     composerInput.current?.measureInWindow((x, y, width, height) => {
@@ -1081,6 +1087,37 @@ function ChatConversation({
   );
   const botName = useBotNames(identityBots);
   const reading = useMemo(() => readingBots(snapshot.messages), [snapshot.messages]);
+  const newestMessageId = snapshot.messages.at(-1)?.id;
+  const nativeRows = nativeTextRows && nativeChatRecycler;
+  const nativeRow = useCallback(
+    (row: Row) =>
+      row.kind === 'draft'
+        ? undefined
+        : nativeTextRow(row, {
+            dm,
+            selecting: selected !== undefined,
+            latest: newestMessageId,
+            reading,
+            markdown: nativeMarkdownRows,
+          }),
+    [dm, selected, newestMessageId, reading],
+  );
+  const nativeStyle = useMemo(
+    () =>
+      nativeTextStyle(
+        {
+          accent: theme.color.accent,
+          surface: theme.color.surface,
+          onAccent: theme.color.onAccent,
+          fg: theme.color.fg,
+          muted: theme.color.muted,
+        },
+        theme.type,
+        theme.fontScale,
+        nativeMarkdownRows ? nativeMarkdownStyle(theme) : undefined,
+      ),
+    [theme],
+  );
   const [deliveryFor, setDeliveryFor] = useState<string>();
   const openDelivery = useCallback(
     (message: ConversationMessage) => setDeliveryFor(message.id),
@@ -1766,7 +1803,7 @@ function ChatConversation({
               ) : null
             }
           >
-            <ChatBackdrop ref={blurTarget} style={{ flex: 1 }}>
+            <ChatBackdrop style={{ flex: 1 }}>
               <KeyboardChatFrame
                 onMount={screenRef}
                 backgroundColor={background.kind === 'color' ? background.color : theme.color.base}
@@ -1938,6 +1975,7 @@ function ChatConversation({
                               }}
                               data={rows}
                               keyExtractor={(row) => row.key}
+                              {...((nativeRows ? { nativeRow, nativeStyle } : {}) as object)}
                               renderItem={
                                 nativeMessageJump && !nativeChatRecycler
                                   ? ({ item }: { item: Row }) => (
@@ -2179,7 +2217,6 @@ function ChatConversation({
             </ChatBackdrop>
             {android ? (
               <ConversationTopBar
-                blurTarget={blurTarget}
                 title={
                   dm
                     ? (bot?.displayName ?? slug ?? '')

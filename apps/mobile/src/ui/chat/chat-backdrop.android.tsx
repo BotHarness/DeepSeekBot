@@ -1,1 +1,1 @@
-export { BlurTargetView as ChatBackdrop } from 'expo-blur';
+export { View as ChatBackdrop } from 'react-native';

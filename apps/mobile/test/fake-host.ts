@@ -207,6 +207,8 @@ export class FakeHost {
     ],
   ]);
   readonly failing = new Set<string>();
+  readonly absent = new Set<string>();
+  lastHeaders: Record<string, string> | undefined;
   readonly uploads: Array<{ name: string; type: string; text: string }> = [];
 
   channel(id: string): FakeChannel {
@@ -286,6 +288,8 @@ export class FakeHost {
         );
       this.calls.push({ method, args: body.payload.args });
       if (this.failing.has(method)) throw new TypeError('Network request failed');
+      if (this.absent.has(method)) return response(404, 'Not Found');
+      this.lastHeaders = init.headers;
       const handler = this.methods.get(method) ?? this.channelMethod(method);
       if (handler !== undefined) {
         let result: unknown;

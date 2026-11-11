@@ -19,11 +19,18 @@ import kotlin.math.roundToInt
 
 class ChatRecyclerCell(context: Context, app: AppContext) : ExpoView(context, app) {
   var rowKey = ""
+  // A row keeps its measured height while decorations such as the reading chip overflow it, as in FlatList.
+  // ExpoView also clips its canvas to the padding box unless clipToPadding is off.
+  init {
+    clipChildren = false
+    clipToPadding = false
+  }
   override fun onMeasure(w: Int, h: Int) = setMeasuredDimension(MeasureSpec.getSize(w), MeasureSpec.getSize(h))
   override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) = Unit
 }
 
 class ChatRecyclerView(context: Context, app: AppContext) : ExpoView(context, app) {
+  private companion object { const val CELL = 0; const val TEXT = 1 }
   private val density get() = resources.displayMetrics.density
   private val manager = LinearLayoutManager(context)
   private val recycler = object : RecyclerView(context) {
@@ -91,22 +98,37 @@ class ChatRecyclerView(context: Context, app: AppContext) : ExpoView(context, ap
   private val onContentSize by EventDispatcher()
   private val onVisible by EventDispatcher()
   private val onKeyboardInset by EventDispatcher()
+  private var textRows = emptyMap<String, TextRow>()
+  private var textStyle: TextRowStyle? = null
+  private val textLayouts = mutableMapOf<String, TextBubbleLayout>()
+  private val markdownSpans by lazy { MarkdownSpans(context) }
 
-  private inner class Holder(val box: FrameLayout) : RecyclerView.ViewHolder(box)
+  private inner class Holder(val box: FrameLayout, val bubble: TextBubbleView? = null) : RecyclerView.ViewHolder(box)
   private val adapter = object : RecyclerView.Adapter<Holder>() {
     override fun getItemId(position: Int) = identities.getValue(keys[position])
     override fun getItemCount() = keys.size
-    override fun onCreateViewHolder(parent: ViewGroup, type: Int) = Holder(FrameLayout(context))
+    override fun getItemViewType(position: Int) = if (textLayouts.containsKey(keys[position])) TEXT else CELL
+    override fun onCreateViewHolder(parent: ViewGroup, type: Int): Holder {
+      val box = FrameLayout(context).apply { clipChildren = false }
+      if (type != TEXT) return Holder(box)
+      val bubble = TextBubbleView(context)
+      box.addView(bubble, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+      return Holder(box, bubble)
+    }
     override fun onBindViewHolder(holder: Holder, position: Int) {
       holder.box.layoutParams = RecyclerView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, heightAt(position))
       holder.box.scaleY = -1f
+      if (holder.bubble != null) {
+        holder.bubble.layout = textLayouts[keys[position]]
+        return
+      }
       holder.box.removeAllViews()
       cells.firstOrNull { it.rowKey == keys[position] }?.let { cell ->
         (cell.parent as? ViewGroup)?.removeView(cell)
         holder.box.addView(cell, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
       }
     }
-    override fun onViewRecycled(holder: Holder) { holder.box.removeAllViews() }
+    override fun onViewRecycled(holder: Holder) { if (holder.bubble == null) holder.box.removeAllViews() }
   }
 
   init {
@@ -117,6 +139,7 @@ class ChatRecyclerView(context: Context, app: AppContext) : ExpoView(context, ap
     recycler.scaleY = -1f
     recycler.isScrollContainer = true
     recycler.clipToPadding = false
+    recycler.clipChildren = false
     addView(recycler)
     recycler.addOnScrollListener(object : RecyclerView.OnScrollListener() {
       private var dragging = false
@@ -176,17 +199,63 @@ class ChatRecyclerView(context: Context, app: AppContext) : ExpoView(context, ap
   fun setRows(next: List<String>) {
     if (next == keys) return
     val anchor = anchor()
+    val change = rowChange(keys, next)
     keys = next
     positions = next.withIndex().associate { it.value to it.index }
     heights.keys.retainAll(next.toSet())
     identities.keys.retainAll(next.toSet())
     next.forEach { identities.getOrPut(it) { ++nextIdentity } }
     geometry = RecyclerHeights(next.map { heights[it] ?: maxOf(1, (estimate * density).roundToInt()) })
-    adapter.notifyDataSetChanged()
+    if (change == null) adapter.notifyDataSetChanged()
+    else {
+      if (change.removed > 0) adapter.notifyItemRangeRemoved(change.start, change.removed)
+      if (change.inserted > 0) adapter.notifyItemRangeInserted(change.start, change.inserted)
+    }
     lastWindow = ""
     restore(anchor)
   }
   fun setEstimate(value: Double) { estimate = maxOf(1, value.roundToInt()) }
+  fun setTextRows(rows: List<Map<String, Any?>>) {
+    val next = rows.mapNotNull(TextRow::from).associateBy { it.key }
+    if (next == textRows) return
+    val previous = textRows
+    textRows = next
+    layoutText(previous.keys + next.keys)
+  }
+  fun setTextStyle(value: Map<String, Any?>) {
+    val next = TextRowStyle.from(value)
+    if (next == textStyle) return
+    textStyle = next
+    layoutText(textRows.keys + textLayouts.keys)
+  }
+  override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+    super.onSizeChanged(w, h, oldw, oldh)
+    if (w != oldw) layoutText(textRows.keys + textLayouts.keys)
+  }
+  private fun layoutText(changed: Set<String>) {
+    val style = textStyle
+    if (width <= 0) return
+    val anchor = anchor()
+    for (key in changed) {
+      val row = textRows[key]
+      if (row == null || style == null) {
+        textLayouts.remove(key)
+        positions[key]?.let(::refreshAt)
+        continue
+      }
+      val current = textLayouts[key]
+      if (current != null && current.row == row && current.width == width && current.tokens == style) continue
+      val layout = TextBubbleLayout(row, style, width, density) { body -> style.markdown?.let { markdownSpans.render(body, it) } }
+      textLayouts[key] = layout
+      heights[key] = layout.height
+      positions[key]?.let { geometry.update(it, layout.height); refreshAt(it) }
+    }
+    restore(anchor)
+  }
+  private fun refreshAt(position: Int) {
+    if (recycler.isComputingLayout) recycler.post { adapter.notifyItemChanged(position) }
+    else adapter.notifyItemChanged(position)
+  }
   fun setTop(value: Double) { contentTop = (value * density).roundToInt(); applyPadding() }
   fun setBottom(value: Double) { contentBottom = (value * density).roundToInt(); applyPadding() }
   private fun applyPadding() {
@@ -208,8 +277,10 @@ class ChatRecyclerView(context: Context, app: AppContext) : ExpoView(context, ap
     adapter.notifyItemChanged(position)
   }
   fun measureCell(key: String, dp: Double) {
-    if (!dp.isFinite() || dp < 0 || key !in keys) return
+    if (!dp.isFinite() || dp < 0) return
     val height = maxOf(1, (dp * density).roundToInt())
+    // React can report a new row's height before the rows prop that adds it; keep it for setRows.
+    if (key !in keys) { heights[key] = height; return }
     if (heights[key] == height) return
     val anchor = anchor()
     heights[key] = height

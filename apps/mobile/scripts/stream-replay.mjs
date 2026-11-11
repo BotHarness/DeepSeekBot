@@ -8,6 +8,12 @@ const option = (name) => args[args.indexOf(name) + 1];
 const port = Number(option('--port'));
 const control = option('--control');
 const log = args.includes('--log') ? option('--log') : undefined;
+const workload = args.includes('--workload')
+  ? readFileSync(option('--workload'), 'utf8')
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line).body)
+  : [];
 if (
   !args.includes('--port') ||
   !Number.isInteger(port) ||
@@ -17,7 +23,7 @@ if (
   !control
 )
   throw new Error(
-    'Usage: stream-replay.mjs --port <port> --control <private-json> [--log <jsonl>]',
+    'Usage: stream-replay.mjs --port <port> --control <private-json> [--log <jsonl>] [--workload <jsonl>]',
   );
 
 const paragraph =
@@ -94,12 +100,14 @@ const server = createServer(async (req, res) => {
     const config = JSON.parse(readFileSync(control, 'utf8'));
     if (
       !/^[a-z0-9-]+$/i.test(config.slug) ||
-      !Object.hasOwn(fixtures, config.fixture ?? 'prose') ||
+      (config.workload === undefined
+        ? !Object.hasOwn(fixtures, config.fixture ?? 'prose')
+        : !Number.isInteger(config.workload) || workload[config.workload] === undefined) ||
       (config.runId !== undefined &&
         (typeof config.runId !== 'string' || !/^[a-z0-9-]{1,128}$/i.test(config.runId)))
     )
       throw new Error('INVALID_REPLAY_CONTROL');
-    const fixture = config.fixture ?? 'prose';
+    const fixture = config.workload === undefined ? (config.fixture ?? 'prose') : 'workload';
     const intervalMs = ['gentle', 'rhythm'].includes(fixture) ? 100 : 32;
     const chunkGraphemes = fixture === 'gentle' ? 3 : 80;
     const tool = (request.tools ?? []).find((entry) => entry.function?.name === 'bot_send_message');
@@ -112,7 +120,7 @@ const server = createServer(async (req, res) => {
       consumed.add(config.runId);
       if (consumed.size > 64) consumed.delete(consumed.values().next().value);
     }
-    const body = fixtures[fixture];
+    const body = config.workload === undefined ? fixtures[fixture] : workload[config.workload];
     const id = 'qa_replay_' + randomUUID();
     const argumentsText = JSON.stringify({ channel_id: 'dm-' + config.slug, body });
     const toolCalls = [

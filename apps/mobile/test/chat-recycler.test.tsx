@@ -5,6 +5,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
   supported: true,
+  textRows: [] as Array<{ key: string }>,
   window: undefined as
     | undefined
     | ((event: { nativeEvent: { start: number; end: number; width: number } }) => void),
@@ -18,8 +19,12 @@ vi.mock('expo', () => ({
       children?: ReactNode;
       rowKey?: string;
       onWindow?: typeof state.window;
+      textRows?: Array<{ key: string }>;
     }) {
-      if (name === 'ChatRecycler') state.window = props.onWindow;
+      if (name === 'ChatRecycler') {
+        state.window = props.onWindow;
+        state.textRows = props.textRows ?? [];
+      }
       return <div data-cell={props.rowKey}>{props.children}</div>;
     },
 }));
@@ -59,4 +64,28 @@ it('keeps FlatList when the rebuilt module is absent', async () => {
   state.supported = false;
   const { nativeChatRecycler } = await import('../src/ui/primitives/chat-list.android');
   expect(nativeChatRecycler).toBe(false);
+});
+
+it('hands native text rows to the RecyclerView instead of mounting React cells', async () => {
+  vi.stubEnv('EXPO_PUBLIC_CHAT_LIST', 'recycler');
+  const { ChatList } = await import('../src/ui/primitives/chat-list.android');
+  const container = document.createElement('div');
+  const root = createRoot(container);
+  const data = ['a', 'b', 'c'];
+  await act(async () =>
+    root.render(
+      <ChatList
+        data={data}
+        keyExtractor={(item) => item}
+        renderItem={({ item }) => <span>{item}</span>}
+        nativeRow={(item) => (item === 'b' ? { key: item, body: 'plain' } : undefined)}
+        nativeStyle={{}}
+      />,
+    ),
+  );
+  expect(state.textRows).toEqual([{ key: 'item:b', body: 'plain' }]);
+  expect(
+    [...container.querySelectorAll('[data-cell]')].map((cell) => cell.getAttribute('data-cell')),
+  ).toEqual(['item:a', 'item:c']);
+  await act(async () => root.unmount());
 });

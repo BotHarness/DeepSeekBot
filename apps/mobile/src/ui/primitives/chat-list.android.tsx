@@ -1,5 +1,6 @@
 import {
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
   type Ref,
@@ -36,6 +37,8 @@ type Props = ViewProps & {
   rows: string[];
   following: boolean;
   estimate: number;
+  textRows: object[];
+  textStyle?: object | undefined;
   contentTop: number;
   contentBottom: number;
   onWindow(event: Event<{ start: number; end: number; width: number }>): void;
@@ -62,7 +65,17 @@ function element(value: ComponentType | ReactElement | null | undefined) {
   return value;
 }
 
-function RecyclerList<T>({ ref, ...props }: FlatListProps<T> & { ref?: Ref<ChatListHandle<T>> }) {
+export type NativeRowProps<T> = {
+  nativeRow?: ((item: T) => ({ key: string } & object) | undefined) | undefined;
+  nativeStyle?: object | undefined;
+};
+
+function RecyclerList<T>({
+  ref,
+  nativeRow,
+  nativeStyle,
+  ...props
+}: FlatListProps<T> & NativeRowProps<T> & { ref?: Ref<ChatListHandle<T>> }) {
   const native = useRef<Handle>(null);
   const [window, setWindow] = useState({ start: 0, end: 12, width: 0 });
   const data = props.data ?? [];
@@ -75,6 +88,16 @@ function RecyclerList<T>({ ref, ...props }: FlatListProps<T> & { ref?: Ref<ChatL
       : ['$footer']),
   ];
   const offset = hasHeader ? 1 : 0;
+  const textRows = useMemo(
+    () =>
+      nativeRow === undefined
+        ? []
+        : Array.from(data, (item) => nativeRow(item)).flatMap((row) =>
+            row === undefined ? [] : [{ ...row, key: `item:${row.key}` }],
+          ),
+    [data, nativeRow],
+  );
+  const nativeKeys = useMemo(() => new Set(textRows.map((row) => row.key)), [textRows]);
   const style = StyleSheet.flatten(props.contentContainerStyle);
   const top = typeof style?.paddingTop === 'number' ? style.paddingTop : 0;
   const bottom = typeof style?.paddingBottom === 'number' ? style.paddingBottom : 0;
@@ -101,6 +124,8 @@ function RecyclerList<T>({ ref, ...props }: FlatListProps<T> & { ref?: Ref<ChatL
       rows={keys}
       following={following.current}
       estimate={96}
+      textRows={textRows}
+      textStyle={nativeStyle}
       contentTop={top}
       contentBottom={bottom}
       style={props.style}
@@ -170,6 +195,7 @@ function RecyclerList<T>({ ref, ...props }: FlatListProps<T> & { ref?: Ref<ChatL
       }}
     >
       {keys.slice(window.start, window.end).map((key, relative) => {
+        if (nativeKeys.has(key)) return null;
         const index = window.start + relative - offset;
         const content =
           key === '$header'
