@@ -1,7 +1,7 @@
 import { Platform, Pressable, View } from 'react-native';
 
 import { useDesignTheme } from '../design/theme';
-import { edge, radius, space } from '../design/tokens';
+import { chatComposerSurface, radius, space } from '../design/tokens';
 import { badgeCount } from '../primitives/badge-count';
 import { Text } from '../primitives/text';
 import { ChevronDownIcon } from '../shell/icons';
@@ -72,13 +72,9 @@ export function JumpToLatest({ unseen, onPress }: { unseen: number; onPress(): v
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: pressed ? layer.pressed : layer.fill,
-        borderWidth: edge.hairline,
-        borderColor: layer.edge,
-        shadowColor: theme.color.fg,
-        shadowOpacity: 0.12,
-        shadowRadius: radius.lg,
-        shadowOffset: { width: 0, height: space.x2 },
-        elevation: space.x2,
+        borderWidth: chatComposerSurface.rim.width,
+        borderColor: chatComposerSurface.rim[theme.scheme],
+        boxShadow: `${chatComposerSurface.shadow[theme.scheme]}, ${chatComposerSurface.highlight[theme.scheme]}`,
       })}
     >
       <ChevronDownIcon color={theme.color.fg} size={theme.type.body.line} />
