@@ -1,7 +1,7 @@
 import { View } from 'react-native';
 
 import { useDesignTheme } from '../design/theme';
-import { chatHeaderSurface } from '../design/tokens';
+import { island } from '../design/tokens';
 import { EdgeFade } from './header-chrome';
 
 export function ChatHeaderSurface({ height, solid }: { height: number; solid: number }) {
@@ -19,7 +19,7 @@ export function ChatHeaderSurface({ height, solid }: { height: number; solid: nu
         cover={solid}
         solid={0}
         color={theme.color.base}
-        shape={chatHeaderSurface.fade}
+        shape={island.fade}
       />
     </View>
   );

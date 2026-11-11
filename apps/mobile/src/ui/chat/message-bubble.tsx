@@ -411,9 +411,13 @@ function PressableBubble({
   onPress,
   onLongPress,
   onDoubleTap,
+  onHold,
+  tapOpens = false,
   onOpenReply,
   children,
 }: {
+  onHold?: (() => void) | undefined;
+  tapOpens?: boolean;
   onOpenReply?: (() => void) | undefined;
   human: boolean;
   group: BubbleGroup;
@@ -453,13 +457,19 @@ function PressableBubble({
     else measure(onLongPress);
   };
   const hold =
-    onLongPress === undefined
-      ? undefined
-      : () => {
+    onHold !== undefined
+      ? () => {
           haptic('menu');
-          if (shrinks) scale.value = withSpring(1, spring.spatial.fast);
-          open();
-        };
+          onHold();
+        }
+      : onLongPress === undefined
+        ? undefined
+        : () => {
+            haptic('menu');
+            if (shrinks) scale.value = withSpring(1, spring.spatial.fast);
+            open();
+          };
+  const tap = tapOpens && onLongPress !== undefined ? open : undefined;
   return (
     <Animated.View
       ref={ref}
@@ -506,18 +516,20 @@ function PressableBubble({
         {...(hold === undefined ? {} : { onLongPress: hold })}
         {...(onPress !== undefined
           ? { onPress }
-          : onDoubleTap === undefined
-            ? {}
-            : {
-                onPress: () => {
-                  const now = Date.now();
-                  if (secondTap(tapped.current, now)) {
-                    tapped.current = undefined;
-                    haptic('react');
-                    onDoubleTap();
-                  } else tapped.current = now;
-                },
-              })}
+          : tap !== undefined
+            ? { onPress: tap }
+            : onDoubleTap === undefined
+              ? {}
+              : {
+                  onPress: () => {
+                    const now = Date.now();
+                    if (secondTap(tapped.current, now)) {
+                      tapped.current = undefined;
+                      haptic('react');
+                      onDoubleTap();
+                    } else tapped.current = now;
+                  },
+                })}
         delayLongPress={motion.lift}
         android_ripple={{
           color: pressTint(human ? theme.color.onAccent : theme.color.fg),
@@ -566,6 +578,7 @@ export const MessageBubble = memo(function MessageBubble({
   onOpenImage = () => {},
   onShare = async () => {},
   onLongPress = (pressed) => openMessageMenu(pressed.body),
+  onSelect,
   onReact,
   onReply,
   onOpenReply,
@@ -587,6 +600,7 @@ export const MessageBubble = memo(function MessageBubble({
   onOpenImage?: (attachment: MessageAttachment) => void;
   onShare?: (attachment: MessageAttachment) => Promise<void>;
   onLongPress?: (message: ConversationMessage, anchor: Rect, group: BubbleGroup) => void;
+  onSelect?: ((message: ConversationMessage) => void) | undefined;
   onReact?: (messageId: string, emoji: string, active: boolean) => void;
   onReply?: ((message: ConversationMessage) => void) | undefined;
   onOpenReply?: ((messageId: string) => void) | undefined;
@@ -642,6 +656,7 @@ export const MessageBubble = memo(function MessageBubble({
     !streaming &&
     (copyable || message.attachments.length > 0 || (onReact !== undefined && reactable(message)));
   const group = { first, last, avatar: speaker?.last === true, compact };
+  const tapMenu = Platform.OS === 'android' && onSelect !== undefined;
   const replyTo = message.replyTo;
   const bubble = (
     <BubbleBody
@@ -690,13 +705,14 @@ export const MessageBubble = memo(function MessageBubble({
               accessibilityHint: t.messageActionsHint,
               accessibilityActionLabel: t.messageActions,
               onLongPress: (anchor: Rect) => onLongPress(message, anchor, group),
+              ...(tapMenu ? { tapOpens: true, onHold: () => onSelect?.(message) } : {}),
             }
           : {})}
         {...(failed ? { onPress: () => onRetry?.(message.id) } : {})}
         {...(replyTo === undefined || onOpenReply === undefined || !message.replyPreview
           ? {}
           : { onOpenReply: () => onOpenReply(replyTo) })}
-        {...(!streaming && onReact !== undefined && reactable(message)
+        {...(!tapMenu && !streaming && onReact !== undefined && reactable(message)
           ? {
               onDoubleTap: () =>
                 onReact(

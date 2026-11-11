@@ -3,10 +3,11 @@ import type { ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { pressTint, useDesignTheme, type DesignTheme } from '../design/theme';
-import { chatComposerSurface, radius, space } from '../design/tokens';
+import { islandHighlight, islandRim, islandShadow } from '../design/island';
+import { radius, space } from '../design/tokens';
 
 export function composerPillShadow(theme: DesignTheme): string | undefined {
-  return Platform.OS === 'android' ? chatComposerSurface.shadow[theme.scheme] : undefined;
+  return Platform.OS === 'android' ? islandShadow(theme.scheme) : undefined;
 }
 
 export function composerPrimary(theme: DesignTheme): { fill: string; ink: string } {
@@ -76,9 +77,8 @@ export function ComposerFieldMaterial({ cornerRadius }: { cornerRadius: number }
         { borderRadius: cornerRadius, backgroundColor: theme.layer.raised.fill },
         Platform.OS === 'android'
           ? {
-              borderWidth: chatComposerSurface.rim.width,
-              borderColor: chatComposerSurface.rim[theme.scheme],
-              boxShadow: chatComposerSurface.highlight[theme.scheme],
+              ...islandRim(theme.scheme),
+              boxShadow: islandHighlight(theme.scheme),
             }
           : null,
       ]}
