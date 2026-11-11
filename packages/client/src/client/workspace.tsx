@@ -1,6 +1,6 @@
 import { Menu } from './appearance-primitives.js';
 import { DeviceRequestsNotice } from './device-requests-notice.js';
-import { DiagnosticLogsEntry } from './diagnostic-logs-entry.js';
+import { BugReportEntry } from './bug-report-entry.js';
 import { MobileAppsEntry } from './mobile-apps.js';
 import { CallRailButton } from './call-rail-button.js';
 import { activityIndicator } from './activity-indicator.js';
@@ -449,7 +449,7 @@ function WorkspaceRail({
 
       <CallRailButton t={t} onReturn={() => options.dockPanels?.open(CHANNEL_BODY_PANEL)} />
       <MobileAppsEntry t={t} />
-      <DiagnosticLogsEntry t={t} />
+      <BugReportEntry t={t} />
       {launcher ? (
         <RailSearchButton launcher={launcher} bindings={options.shortcutBindings} t={t} />
       ) : null}

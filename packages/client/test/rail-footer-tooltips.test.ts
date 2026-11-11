@@ -14,7 +14,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
     ),
 }));
 
-import { DiagnosticLogsEntry } from '../src/client/diagnostic-logs-entry.js';
+import { BugReportEntry } from '../src/client/bug-report-entry.js';
 import { MobileAppsEntry } from '../src/client/mobile-apps.js';
 import { en, zhTranslate } from '../src/client/locale.js';
 
@@ -39,7 +39,7 @@ afterEach(() => {
 
 it.each([
   ['Mobile app', () => createElement(MobileAppsEntry, { t }), en['mobileApps.open']],
-  ['Diagnostic logs', () => createElement(DiagnosticLogsEntry, { t }), en['panel.diagnosticLogs']],
+  ['Report a problem', () => createElement(BugReportEntry, { t }), en['bugReport.open']],
 ])('portals the %s rail tooltip out of the clipped rail', (_name, render, label) => {
   act(() => root.render(render()));
   const tip = host.querySelector(`[data-tooltip="${label}"]`)!;

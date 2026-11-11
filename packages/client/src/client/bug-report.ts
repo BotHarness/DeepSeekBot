@@ -1,3 +1,5 @@
+import type { Annotation } from './bug-report-annotate.js';
+
 export const BUG_REPORT_ENDPOINT = './api/botharness/bug-report';
 export const BUG_REPORT_MAX_BYTES = 25 * 1024 * 1024;
 export const BUG_REPORT_MAX_FILES = 20;
@@ -8,7 +10,17 @@ export interface BugReportFile {
   readonly id: string;
   readonly file: File;
   readonly preview?: string;
+  readonly note?: string;
+  readonly markup?: BugReportMarkup;
 }
+
+export interface BugReportMarkup {
+  readonly original: File;
+  readonly annotations: readonly Annotation[];
+}
+
+export const BUG_REPORT_NOTE_CHARS = 200;
+const DESCRIPTION_CHARS = 8000;
 
 export interface BugReportDraft {
   readonly title: string;
@@ -59,11 +71,22 @@ export function addReportFiles(
 export function bugReportForm(draft: BugReportDraft, client: string): FormData {
   const form = new FormData();
   form.set('title', draft.title.trim());
-  form.set('description', draft.description.trim());
+  form.set('description', describeAttachments(draft.description, draft.files));
   form.set('hours', draft.includeLogs ? draft.hours : '0');
   form.set('client', client);
   for (const entry of draft.files) form.append('attachment', entry.file, entry.file.name);
   return form;
+}
+
+export function describeAttachments(description: string, files: readonly BugReportFile[]): string {
+  const notes = files.flatMap((entry) => {
+    const note = entry.note?.trim() ?? '';
+    return note === '' ? [] : [`- ${entry.file.name}: ${note}`];
+  });
+  const body = description.trim();
+  if (notes.length === 0) return body;
+  const section = ['Attachment notes:', ...notes].join('\n');
+  return (body === '' ? section : `${body}\n\n${section}`).slice(0, DESCRIPTION_CHARS);
 }
 
 export function clientDescription(navigatorLike: { userAgent?: string } | undefined): string {
