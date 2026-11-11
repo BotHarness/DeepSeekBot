@@ -56,7 +56,7 @@ class TextBubbleTest {
     assertEquals(1, short.body.lineCount)
     assertTrue(short.timeX > short.bubble.left + short.body.width)
     assertTrue(long.body.lineCount > 1)
-    assertTrue(long.timeBaseline > long.bubble.top + long.body.height)
+    assertTrue("baseline=${long.timeBaseline} top=${long.bubble.top} body=${long.body.height} bottom=${long.bubble.bottom} descent=${long.timePaint.fontMetrics.descent}", long.timeBaseline > long.bubble.top + long.body.height)
     assertTrue(long.bubble.width() <= (1200 - 72) * 0.88f + 0.5f)
   }
 
