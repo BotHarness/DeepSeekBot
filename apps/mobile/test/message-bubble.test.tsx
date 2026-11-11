@@ -20,6 +20,7 @@ const native = vi.hoisted(() => ({
   shared: [] as string[],
   pick: 0,
   presses: new Map<string, () => void>(),
+  holds: new Map<string, () => void>(),
   actions: new Map<string, (event: { nativeEvent: { actionName: string } }) => void>(),
   layouts: new Map<string, (event: { nativeEvent: { layout: { height: number } } }) => void>(),
   dismiss: () => {},
@@ -36,6 +37,8 @@ vi.mock('react-native', async () => {
       const pressKey = props['accessibilityLabel'] ?? props['accessibilityHint'];
       if (typeof props['onPress'] === 'function' && typeof pressKey === 'string')
         native.presses.set(pressKey, props['onPress'] as () => void);
+      if (typeof props['onLongPress'] === 'function' && typeof pressKey === 'string')
+        native.holds.set(pressKey, props['onLongPress'] as () => void);
       if (typeof props['onAccessibilityAction'] === 'function' && typeof pressKey === 'string')
         native.actions.set(pressKey, props['onAccessibilityAction'] as never);
       if (typeof props['onLayout'] === 'function' && typeof props['testID'] === 'string')
@@ -190,6 +193,7 @@ beforeEach(() => {
   native.shared.length = 0;
   native.pick = 0;
   native.presses.clear();
+  native.holds.clear();
   native.layouts.clear();
   native.actions.clear();
 });
@@ -676,6 +680,18 @@ describe('double-tap to react', () => {
 
   it('leaves messages that cannot take reactions alone', () => {
     expect(doubleTap({ ...bot, delivery: 'pending' })).not.toHaveBeenCalled();
+  });
+
+  it('on Android with selection, selects on a long press and no longer reacts to taps', () => {
+    native.os = 'android';
+    const onReact = vi.fn();
+    const onSelect = vi.fn();
+    renderToStaticMarkup(<MessageBubble message={bot} onReact={onReact} onSelect={onSelect} />);
+    native.presses.get(t.messageActionsHint)?.();
+    native.presses.get(t.messageActionsHint)?.();
+    expect(onReact).not.toHaveBeenCalled();
+    native.holds.get(t.messageActionsHint)?.();
+    expect(onSelect).toHaveBeenCalledWith(bot);
   });
 });
 

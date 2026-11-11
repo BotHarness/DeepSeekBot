@@ -183,7 +183,6 @@ vi.mock('@expo/ui/jetpack-compose', async () => {
 });
 
 const ios = await import('../src/ui/chat/message-actions.ios');
-const android = await import('../src/ui/chat/message-actions.android');
 const { menuGroups } = await import('../src/ui/chat/message-sheet');
 const { t } = await import('../src/ui/strings');
 const { MENU_REACTIONS, QUICK_REACTIONS } = await import('../src/host/conversation');
@@ -333,49 +332,5 @@ describe('iOS message sheet', () => {
     const { handlers } = mount(ios.MessageActions, { target: { message: bot, anchor, group } });
     act(() => native.presented?.(false));
     expect(handlers.onClose).toHaveBeenCalledOnce();
-  });
-});
-
-describe('Android message sheet', () => {
-  it('shows nothing until a message is pressed', () => {
-    native.os = 'android';
-    mount(android.MessageActions, { target: undefined });
-    expect(host?.querySelector('[role="dialog"]')).toBeNull();
-  });
-
-  it('lists reactions as toggle buttons, then actions with leading Material icons', () => {
-    native.os = 'android';
-    const { handlers } = mount(android.MessageActions, {
-      target: { message: bot, anchor, group },
-    });
-    expect(byLabel(t.messageActions)).not.toBeNull();
-    expect(byLabel(t.reactions)?.querySelectorAll('button')).toHaveLength(MENU_REACTIONS.length);
-    expect(byLabel(t.unreact('🔥'))?.getAttribute('aria-selected')).toBe('true');
-    expect(rows()).toEqual([
-      ['content_copy', t.copy],
-      ['share', t.shareText],
-    ]);
-    expect(host?.querySelectorAll('li i[data-symbol]')).toHaveLength(2);
-    expect(byLabel(t.react('👍'))?.getAttribute('data-min')).toBe('true');
-    act(() => byLabel(t.react('👍'))?.click());
-    expect(handlers.onReact).toHaveBeenCalledWith(bot, '👍', true);
-    expect(handlers.onClose).toHaveBeenCalledOnce();
-  });
-
-  it('runs actions at once and closes', () => {
-    native.os = 'android';
-    const onOpen = vi.fn();
-    const { handlers } = mount(android.MessageActions, {
-      target: { message: bot, anchor, group, activity: { label: 'Open memory', onOpen } },
-    });
-    expect(byLabel(t.reactions)).toBeNull();
-    expect(host?.textContent).toContain(bot.body);
-    expect(rows()[1]).toEqual(['open_in_new', 'Open memory']);
-    const items = [...(host?.querySelectorAll('li') ?? [])];
-    act(() => items[1]?.click());
-    expect(onOpen).toHaveBeenCalledOnce();
-    act(() => items[2]?.click());
-    expect(handlers.onShareText).toHaveBeenCalledWith(bot.body);
-    expect(handlers.onClose).toHaveBeenCalledTimes(2);
   });
 });

@@ -7,7 +7,12 @@ import { NativePageHeader } from '../primitives/native-page-navigation';
 import type { InitiatedActivityRequest } from '../../host/live-activity-routing';
 import { ConnectionProgress, useConnectionPresence } from '../primitives/connection-progress';
 import { StatusChip } from '../primitives/status-chip';
-import { SelectionBar, SelectionScreenshot, MessageSelectionRow } from './message-selection-ui';
+import {
+  SelectionBar,
+  SelectionIslands,
+  SelectionScreenshot,
+  MessageSelectionRow,
+} from './message-selection-ui';
 import { selectionText, toggleMessageSelection } from './message-selection';
 import { HostScope } from '../../host/host-scope';
 import { useSourceDraft } from '../../host/native-source-drafts';
@@ -161,7 +166,7 @@ import {
   type SelectedMention,
 } from './mention-draft';
 import { MentionSuggestions } from './mention-suggestions';
-import { PlaybackBubble, type Speaker } from './message-bubble';
+import { PlaybackBubble, replyable, type Speaker } from './message-bubble';
 import { useArrivals } from './arrivals';
 import { MessageIdentities } from './message-identities';
 import { copyMessage, shareText } from './message-menu';
@@ -1070,6 +1075,17 @@ function ChatConversation({
     },
     [selected, togglePicked, reportingActions],
   );
+  const selectMessage = useCallback(
+    (message: ConversationMessage) => {
+      if (selected !== undefined) {
+        togglePicked(message);
+        return;
+      }
+      const ids = toggleMessageSelection([], message);
+      if (ids.length > 0) setPicked({ scope: selectionScope, ids });
+    },
+    [selected, togglePicked, selectionScope],
+  );
 
   const react = useCallback(
     (messageId: string, emoji: string, active: boolean): void => {
@@ -1305,6 +1321,7 @@ function ChatConversation({
           onOpenImage={setViewing}
           onShare={share}
           onLongPress={openActions}
+          {...(android ? { onSelect: selectMessage } : {})}
           lifted={Platform.OS === 'web' && item.message.id === actionsFor?.message.id}
           {...(botDm || !online ? {} : { onReact: react })}
           {...(composable && selected === undefined ? { onReply: startReply } : {})}
@@ -1334,6 +1351,7 @@ function ChatConversation({
       answered,
       retry,
       openActions,
+      selectMessage,
       reportingActions,
       selected,
       togglePicked,
@@ -1648,6 +1666,35 @@ function ChatConversation({
   const topFade = android ? 0 : floatingHeader ? headerPadding : headerOverlap;
   const composerCover = Math.max(0, composerHeight - space.x3 - space.x2);
   const fadeColor = background.kind === 'color' ? background.color : theme.color.base;
+  const single =
+    selected?.length === 1 ? visible.find((message) => message.id === selected[0]) : undefined;
+  const pickedTools =
+    selected === undefined
+      ? undefined
+      : {
+          count: selected.length,
+          onCancel: () => setPicked(undefined),
+          onCopy: () => copyMessage(selectionText(selected, visible)),
+          onScreenshot: () =>
+            setImageSelection({
+              scope: selectionScope,
+              messages: visible.filter((m) => selected.includes(m.id)),
+            }),
+          onReply:
+            single !== undefined && replyable(single)
+              ? () => {
+                  setPicked(undefined);
+                  startReply(single);
+                }
+              : undefined,
+          onFeedback:
+            single !== undefined && single.delivery === 'committed'
+              ? () => {
+                  setPicked(undefined);
+                  reportingActions(single)?.feedback();
+                }
+              : undefined,
+        };
   const bottomFade = (
     <EdgeFade
       edge="bottom"
@@ -1817,18 +1864,17 @@ function ChatConversation({
                 composer={
                   <ComposerPillContext.Provider value={nativeSpacer ? latest.pill : undefined}>
                     {android ? noticeView : null}
-                    {missingGroup ? null : selected !== undefined ? (
-                      <SelectionBar
-                        count={selected.length}
-                        onCancel={() => setPicked(undefined)}
-                        onCopy={() => copyMessage(selectionText(selected, visible))}
-                        onScreenshot={() =>
-                          setImageSelection({
-                            scope: selectionScope,
-                            messages: visible.filter((m) => selected.includes(m.id)),
-                          })
-                        }
-                      />
+                    {missingGroup ? null : pickedTools !== undefined ? (
+                      android ? (
+                        <SelectionIslands
+                          {...(composable ? { reply: { onPress: pickedTools.onReply } } : {})}
+                          {...(activeChannel && saved
+                            ? { feedback: { onPress: pickedTools.onFeedback } }
+                            : {})}
+                        />
+                      ) : (
+                        <SelectionBar {...pickedTools} />
+                      )
                     ) : botDm ? (
                       <View style={{ padding: space.x5, alignItems: 'center' }}>
                         <Text variant="meta" tone="muted">
@@ -2219,6 +2265,7 @@ function ChatConversation({
                 onProfile={canOpenProfile ? openProfile : undefined}
                 onCall={canOpenProfile ? placeCall : undefined}
                 onHeight={setMeasuredHeaderHeight}
+                selection={pickedTools}
               />
             ) : null}
           </EndSheet>
