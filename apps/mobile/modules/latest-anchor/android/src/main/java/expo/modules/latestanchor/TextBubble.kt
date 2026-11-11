@@ -119,7 +119,9 @@ class TextBubbleLayout(val row: TextRow, val tokens: TextRowStyle, val width: In
     }
     val last = paragraphs.last()
     val lines = paragraphs.sumOf { it.lineCount }
-    val textWidth = paragraphs.maxOf { layout -> (0 until layout.lineCount).maxOf { layout.getLineWidth(it) } }
+    val wrapped = paragraphs.any { it.lineCount > 1 }
+    val textWidth = if (wrapped) inner.toFloat()
+      else paragraphs.maxOf { layout -> (0 until layout.lineCount).maxOf { layout.getLineWidth(it) } }
     val lastWidth = last.getLineWidth(last.lineCount - 1)
     val timeWidth = timePaint.measureText(row.time)
     val textHeight = paragraphs.sumOf { it.height }.toFloat() + paragraphGap * (paragraphs.size - 1)
