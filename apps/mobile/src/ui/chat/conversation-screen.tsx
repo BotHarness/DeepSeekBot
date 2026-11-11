@@ -1462,10 +1462,10 @@ function ChatConversation({
     focused,
   );
   const ios = Platform.OS === 'ios';
-  // R0 (#3974): a top-down FlatList first mounts the oldest rows, which the reader never sees.
-  // This experiment starts the first render at the newest row instead.
+  // A top-down FlatList first mounts the oldest rows, which the reader never sees (#3974).
+  // Start the first render at the newest row. EXPO_PUBLIC_IOS_OPEN_AT_LATEST=0 restores the old path.
   const openAtLatest =
-    ios && process.env.EXPO_PUBLIC_IOS_OPEN_AT_LATEST === '1' && focus === undefined;
+    ios && process.env.EXPO_PUBLIC_IOS_OPEN_AT_LATEST !== '0' && focus === undefined;
   const headerGap = glassPress.gap;
   const headerActions = canOpenProfile ? (
     <HeaderActionGroup
