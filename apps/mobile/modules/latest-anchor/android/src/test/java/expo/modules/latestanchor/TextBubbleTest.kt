@@ -56,6 +56,8 @@ class TextBubbleTest {
     assertTrue(named.bubble.top > plain.bubble.top + 4f * 3f)
     assertEquals(plain.bubble.top - (12f - 2f) * 3f, joined.bubble.top, 0.5f)
     assertTrue(named.height > plain.height)
+    assertTrue(named.frame.top < named.bubble.top)
+    assertEquals(joined.bubble, joined.frame)
   }
 
   @Test fun placesBubblesBySenderAndGroup() {

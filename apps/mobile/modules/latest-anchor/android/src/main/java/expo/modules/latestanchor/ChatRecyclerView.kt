@@ -1,6 +1,7 @@
 package expo.modules.latestanchor
 
 import android.content.Context
+import android.graphics.RectF
 import android.view.View
 import android.view.ViewGroup
 import android.view.MotionEvent
@@ -142,10 +143,10 @@ class ChatRecyclerView(context: Context, app: AppContext) : ExpoView(context, ap
         val layout = textLayouts[keys[position]]
         holder.bubble.layout = layout
         holder.bubble.swipeOwner = rowSwipe
-        layout?.bubble?.let { bubble ->
-          val left = bubble.left.toInt()
-          val top = bubble.top.toInt()
-          holder.bubble.layoutParams = FrameLayout.LayoutParams(ceil(bubble.right).toInt() - left, ceil(bubble.bottom).toInt() - top).apply {
+        layout?.frame?.let { frame ->
+          val left = frame.left.toInt()
+          val top = frame.top.toInt()
+          holder.bubble.layoutParams = FrameLayout.LayoutParams(ceil(frame.right).toInt() - left, ceil(frame.bottom).toInt() - top).apply {
             leftMargin = left
             topMargin = top
           }
@@ -210,7 +211,9 @@ class ChatRecyclerView(context: Context, app: AppContext) : ExpoView(context, ap
 
   private fun rowAction(action: String, row: TextRow, view: TextBubbleView? = null) {
     val event = mutableMapOf<String, Any>("action" to action, "key" to row.key)
-    if (view != null) event["anchor"] = windowBounds(view)
+    val layout = view?.layout
+    if (view != null && layout != null)
+      event["anchor"] = windowBounds(view, RectF(layout.bubble).apply { offset(-layout.frame.left, -layout.frame.top) })
     onRowAction(event)
   }
 

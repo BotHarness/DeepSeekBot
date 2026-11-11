@@ -140,6 +140,8 @@ class TextBubbleLayout(
   private val textTop: Float
   private val textLeft: Float
   private val name: StaticLayout?
+  /** The bubble and the speaker name above it: the area the row's view covers. */
+  val frame: RectF
   private val nameLeft: Float
   private val nameTop: Float
 
@@ -229,6 +231,9 @@ class TextBubbleLayout(
     radii = floatArrayOf(topLeft, topLeft, topRight, topRight, bottomRight, bottomRight, bottomLeft, bottomLeft)
     textTop = bubble.top + padY
     textLeft = bubble.left + padX
+    frame = RectF(bubble).apply {
+      name?.let { union(nameLeft, nameTop, nameLeft + it.getLineRight(0), nameTop + it.height) }
+    }
   }
 
   private val path = Path()
