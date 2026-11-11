@@ -27,7 +27,11 @@ export async function startCallerActivation(
     });
     return { childId: run.id, result: run.result, dispose: () => run.dispose() };
   }
-  const activation = await subagents.startActivation({ ...spec, delivery: 'caller' });
+  const activation = await subagents.startActivation({
+    ...spec,
+    ...spec.request,
+    delivery: 'caller',
+  });
   let disposal: Promise<void> | undefined;
   const dispose = () => {
     spec.signal.removeEventListener('abort', onAbort);
@@ -55,7 +59,11 @@ export async function startParentActivation(
       throw new Error('DSH parent-delivered Subagent capability is unavailable');
     return subagents.startContinuable(spec);
   }
-  const activation = await subagents.startActivation({ ...spec, delivery: 'parent' });
+  const activation = await subagents.startActivation({
+    ...spec,
+    ...spec.request,
+    delivery: 'parent',
+  });
   void activation.result.catch((error) => onFailure(activation.childId, error));
   return { childId: activation.childId };
 }

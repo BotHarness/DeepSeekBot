@@ -3578,7 +3578,7 @@ function BotModelMenu({
   setOpen(open: boolean): void;
   apply(route: ModelRouteView): void;
 }): ReactElement {
-  const anchor = useRef<HTMLSpanElement>(null);
+  const anchor = useRef<HTMLElement | null>(null);
   const [active, setActive] = useState<string>();
   return (
     <span onPointerDown={(event) => event.stopPropagation()}>
@@ -3591,10 +3591,12 @@ function BotModelMenu({
         closeOnPointerLeave
         className="bh-model-menu-anchor"
         listClassName="bh-model-menu-list"
-        getAnchorRect={() => anchor.current?.closest('button')?.getBoundingClientRect() ?? null}
+        anchorRef={anchor}
         anchor={
           <span
-            ref={anchor}
+            ref={(node) => {
+              anchor.current = node?.closest('button') ?? null;
+            }}
             className="bh-move-checked"
             onMouseEnter={() => {
               if (!disabled) setOpen(true);

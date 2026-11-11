@@ -29,7 +29,7 @@ export function pointerMenuPosition(
 
 type PointerMenuProps = Omit<
   ComponentProps<typeof Menu>,
-  'open' | 'portal' | 'getAnchorRect' | 'side' | 'align' | 'className'
+  'open' | 'portal' | 'anchorRef' | 'side' | 'align' | 'className'
 > & { point: MenuPoint; container?: Element; align?: 'start' | 'end' };
 
 export function PointerMenu({
