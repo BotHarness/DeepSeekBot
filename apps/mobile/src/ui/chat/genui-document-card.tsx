@@ -26,6 +26,7 @@ import {
   type GenuiDocumentReply,
 } from '../../genui/document';
 import { genuiStartQueue } from '../../genui/start-queue';
+import { genuiWebViewPolicy } from '../../genui/webview-policy';
 import { genuiDocumentView, type GenuiDocumentViewModel } from '../../genui/view';
 import { genuiFrame, radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
@@ -177,20 +178,7 @@ function GenuiFrame({
             onHttpError={fail}
             onRenderProcessGone={fail}
             onContentProcessDidTerminate={fail}
-            javaScriptEnabled
-            javaScriptCanOpenWindowsAutomatically={false}
-            setSupportMultipleWindows={false}
-            domStorageEnabled={false}
-            cacheEnabled={false}
-            incognito
-            allowFileAccess={false}
-            allowFileAccessFromFileURLs={false}
-            allowUniversalAccessFromFileURLs={false}
-            allowsLinkPreview={false}
-            allowsInlineMediaPlayback={false}
-            mediaPlaybackRequiresUserAction
-            dataDetectorTypes="none"
-            textZoom={100}
+            {...genuiWebViewPolicy}
             scrollEnabled={height > genuiFrame.maxHeight}
             nestedScrollEnabled={height > genuiFrame.maxHeight}
             style={{ backgroundColor: theme.color.surface }}
