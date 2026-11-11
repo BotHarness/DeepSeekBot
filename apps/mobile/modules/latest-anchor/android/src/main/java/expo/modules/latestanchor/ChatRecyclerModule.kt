@@ -29,6 +29,8 @@ class ChatRecyclerModule : Module() {
       Prop("rows") { view: ChatRecyclerView, rows: List<String> -> view.setRows(rows) }
       Prop("following") { view: ChatRecyclerView, following: Boolean -> view.following = following }
       Prop("estimate") { view: ChatRecyclerView, value: Double -> view.setEstimate(value) }
+      Prop("textRows") { view: ChatRecyclerView, rows: List<Map<String, Any?>> -> view.setTextRows(rows) }
+      Prop("textStyle") { view: ChatRecyclerView, style: Map<String, Any?> -> view.setTextStyle(style) }
       Prop("contentTop") { view: ChatRecyclerView, value: Double -> view.setTop(value) }
       Prop("contentBottom") { view: ChatRecyclerView, value: Double -> view.setBottom(value) }
       AsyncFunction("measureCell") { view: ChatRecyclerView, key: String, height: Double -> view.measureCell(key, height) }

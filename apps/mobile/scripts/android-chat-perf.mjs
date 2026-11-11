@@ -45,13 +45,21 @@ function phone(options) {
   const config = JSON.parse(readFileSync(join(queue, 'config.json'), 'utf8'));
   const adb = join(config.sdk, 'platform-tools', process.platform === 'win32' ? 'adb.exe' : 'adb');
   const serial = active.serial;
-  const run = (args, timeout = 15000) =>
-    execFileSync(adb, ['-s', serial, ...args], {
-      encoding: 'utf8',
-      timeout,
-      windowsHide: true,
-      maxBuffer: 16e6,
-    });
+  const run = (args, timeout = 15000) => {
+    const once = () =>
+      execFileSync(adb, ['-s', serial, ...args], {
+        encoding: 'utf8',
+        timeout,
+        windowsHide: true,
+        maxBuffer: 16e6,
+      });
+    try {
+      return once();
+    } catch (error) {
+      if (error?.code !== 'ETIMEDOUT') throw error;
+      return once();
+    }
+  };
   const bytes = (args) =>
     execFileSync(adb, ['-s', serial, ...args], {
       timeout: 15000,
