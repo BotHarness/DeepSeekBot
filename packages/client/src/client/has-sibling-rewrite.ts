@@ -21,6 +21,41 @@ function compound(text: string): boolean {
 }
 
 const LONG_LIST_ITEM = '.bh-timeline-slot';
+const LONG_LIST = '.bh-chat-body';
+
+function topLevel(text: string, separator: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (char === '(') depth += 1;
+    else if (char === ')') depth -= 1;
+    else if (depth === 0 && char === separator) {
+      parts.push(text.slice(start, index).trim());
+      start = index + 1;
+    }
+  }
+  parts.push(text.slice(start).trim());
+  return parts;
+}
+
+const SINGLE = /^(?:\.[\w-]+|\[[\w-]+(?:="[^"]*")?\])$/;
+
+export function ancestorSelector(selector: string): string | undefined {
+  let changed = false;
+  const parts = topLevel(selector, ',').flatMap((part) => {
+    if (!part.startsWith(':is(')) return [part];
+    const end = closingParen(part, ':is'.length);
+    const rest = part.slice(end + 1);
+    if (end < 0 || !/^\s/.test(rest) || rest.trim() === '') return [part];
+    const choices = topLevel(part.slice(':is('.length, end), ',');
+    if (choices.length < 2 || !choices.every((choice) => SINGLE.test(choice))) return [part];
+    changed = true;
+    return choices.map((choice) => `${choice}${rest}`);
+  });
+  return changed ? parts.join(', ') : undefined;
+}
 
 export function siblingSelector(selector: string): string | undefined {
   const trimmed = selector.trim();
@@ -33,7 +68,7 @@ export function siblingSelector(selector: string): string | undefined {
   const child = inner.slice(1).trim();
   const subject = rest.slice(1).trim();
   if (!compound(child) || !compound(subject)) return undefined;
-  return `${child} ~ ${subject}, ${subject}:not(${LONG_LIST_ITEM}):has(~ ${child})`;
+  return `${child} ~ ${subject}, ${subject}:not(${LONG_LIST_ITEM}):not(${LONG_LIST} *):has(~ ${child})`;
 }
 
 function rewriteRules(sheet: CSSStyleSheet | CSSGroupingRule): void {
@@ -42,7 +77,7 @@ function rewriteRules(sheet: CSSStyleSheet | CSSGroupingRule): void {
     const rule = rules[index]!;
     if ('selectorText' in rule) {
       const style = rule as CSSStyleRule;
-      const next = siblingSelector(style.selectorText);
+      const next = siblingSelector(style.selectorText) ?? ancestorSelector(style.selectorText);
       if (next !== undefined) style.selectorText = next;
     } else if ('cssRules' in rule) {
       rewriteRules(rule as CSSGroupingRule);

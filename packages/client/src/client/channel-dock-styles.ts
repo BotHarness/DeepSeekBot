@@ -97,7 +97,8 @@ html[data-platform="darwin"] .bh-dock .bh-dock-header :is(button, a, input, sele
 }
 .bh-dock-body > .bh-chat-pane { flex: 1 1 0; }
 .bh-dock :is([data-sidebar-entry-body], [data-dock-panel-body]):has([data-panel-empty]),
-.bh-dock :is([data-sidebar-entry-body], [data-dock-panel-body]) :has([data-panel-empty]) {
+.bh-dock [data-sidebar-entry-body] :has([data-panel-empty]),
+.bh-dock [data-dock-panel-body] :has([data-panel-empty]) {
   display: flex;
   flex-direction: column;
   flex: 1;
