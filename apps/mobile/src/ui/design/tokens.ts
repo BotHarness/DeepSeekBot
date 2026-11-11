@@ -15,8 +15,6 @@ export const statusChip = { height: 36, dot: 8 } as const;
 
 export const groupUnavailable = { icon: 48 } as const;
 
-export const genuiFrame = { maxHeight: 560 } as const;
-
 export const materialSearch = { height: 56, lineHeight: 24 } as const;
 
 export const splitButton = { initial: { width: 160, height: 40 } } as const;

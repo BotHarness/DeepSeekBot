@@ -6,6 +6,10 @@ it('passes data detector types as a list, which the native WebView props parser 
   expect(genuiWebViewPolicy.dataDetectorTypes).toEqual(['none']);
 });
 
+it('never scrolls inside the bubble, so a vertical drag scrolls the conversation instead', () => {
+  expect(genuiWebViewPolicy).toMatchObject({ scrollEnabled: false, nestedScrollEnabled: false });
+});
+
 it('keeps the GenUI WebView isolated from storage, files, windows and links', () => {
   expect(genuiWebViewPolicy).toMatchObject({
     javaScriptCanOpenWindowsAutomatically: false,
