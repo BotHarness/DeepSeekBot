@@ -53,6 +53,7 @@ describe('native text rows', () => {
       { activity: {} as never },
       { author: 'system' },
       { body: '**bold** reply' },
+      { body: 'Markdown joins\nthese lines' },
     ];
     for (const overrides of decorated)
       expect(nativeTextRow(row(overrides), context)).toBeUndefined();

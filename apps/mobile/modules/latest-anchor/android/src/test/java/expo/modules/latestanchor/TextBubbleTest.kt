@@ -53,10 +53,18 @@ class TextBubbleTest {
   @Test fun putsShortBotTimeBesideAndKeepsLongTextWithinTheBubbleWidth() {
     val short = TextBubbleLayout(TextRow("s", false, true, true, "short", "09:30"), tokens, 1200, 3f)
     val long = TextBubbleLayout(TextRow("l", false, true, true, "word ".repeat(80).trim(), "09:30"), tokens, 1200, 3f)
-    assertEquals(1, short.body.lineCount)
-    assertTrue(short.timeX > short.bubble.left + short.body.width)
-    if (long.body.lineCount > 1) assertTrue(long.timeBaseline > long.bubble.top + long.body.height)
+    assertEquals(1, short.paragraphs.single().lineCount)
+    assertTrue(short.timeX > short.bubble.left + short.paragraphs.single().width)
+    if (long.paragraphs.single().lineCount > 1) assertTrue(long.timeBaseline > long.bubble.top + long.paragraphs.single().height)
     assertTrue(long.bubble.width() <= (1200 - 72) * 0.88f + 0.5f)
+  }
+
+  @Test fun separatesBotParagraphsByTheMarkdownGap() {
+    val gapped = tokens.copy(paragraphGap = 8f)
+    val two = TextBubbleLayout(TextRow("p", false, true, true, "first\n\nsecond", "09:30"), gapped, 1200, 3f)
+    val human = TextBubbleLayout(TextRow("q", true, true, true, "first\n\nsecond", "09:30"), gapped, 1200, 3f)
+    assertEquals(2, two.paragraphs.size)
+    assertEquals(1, human.paragraphs.size)
   }
 
   @Test fun recyclerDrawsTextRowsNativelyWithTheirOwnHeights() {

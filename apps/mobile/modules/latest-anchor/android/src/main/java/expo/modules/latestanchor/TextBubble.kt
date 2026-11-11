@@ -39,6 +39,7 @@ data class TextRowStyle(
   val rowInset: Float, val firstGap: Float, val joinGap: Float, val lastGap: Float,
   val padX: Float, val padY: Float, val timeGap: Float, val stackGap: Float,
   val open: Float, val join: Float, val tail: Float, val besideMax: Int, val maxWidth: Float,
+  val paragraphGap: Float = 0f,
 ) {
   companion object {
     fun from(value: Map<String, Any?>): TextRowStyle? {
@@ -52,7 +53,7 @@ data class TextRowStyle(
         number("rowInset") ?: 0f, number("firstGap") ?: 0f, number("joinGap") ?: 0f, number("lastGap") ?: 0f,
         number("padX") ?: 0f, number("padY") ?: 0f, number("timeGap") ?: 0f, number("stackGap") ?: 0f,
         number("open") ?: 0f, number("join") ?: 0f, number("tail") ?: 0f,
-        number("besideMax")?.toInt() ?: 60, number("maxWidth") ?: 0.88f,
+        number("besideMax")?.toInt() ?: 60, number("maxWidth") ?: 0.88f, number("paragraphGap") ?: 0f,
       )
     }
   }
@@ -80,7 +81,8 @@ fun cssColor(value: String): Int? {
 /** Text layout, bubble geometry and row height for one row at one width, in physical pixels. */
 class TextBubbleLayout(val row: TextRow, val tokens: TextRowStyle, val width: Int, density: Float) {
   private val scale = density * tokens.fontScale
-  val body: StaticLayout
+  val paragraphs: List<StaticLayout>
+  private val paragraphGap: Float
   val timePaint = TextPaint(Paint.ANTI_ALIAS_FLAG)
   val bubble: RectF
   val timeX: Float
@@ -105,17 +107,23 @@ class TextBubbleLayout(val row: TextRow, val tokens: TextRowStyle, val width: In
     val gap = tokens.timeGap * density
     val inset = tokens.rowInset * density
     val inner = max(1, ((width - 2 * inset) * tokens.maxWidth - 2 * padX).toInt())
-    val natural = ceil(Layout.getDesiredWidth(row.body, paint)).toInt()
     val spacing = line - paint.getFontMetricsInt(null)
-    body = StaticLayout.Builder.obtain(row.body, 0, row.body.length, paint, max(1, min(natural, inner)))
-      .setIncludePad(false)
-      .setLineSpacing(spacing, 1f)
-      .build()
-    val textWidth = (0 until body.lineCount).maxOf { body.getLineWidth(it) }
-    val lastWidth = body.getLineWidth(body.lineCount - 1)
+    val texts = if (row.human) listOf(row.body) else row.body.split(Regex("\n\\s*\n"))
+    paragraphGap = if (row.human) 0f else tokens.paragraphGap * density
+    paragraphs = texts.map { text ->
+      val natural = ceil(Layout.getDesiredWidth(text, paint)).toInt()
+      StaticLayout.Builder.obtain(text, 0, text.length, paint, max(1, min(natural, inner)))
+        .setIncludePad(false)
+        .setLineSpacing(spacing, 1f)
+        .build()
+    }
+    val last = paragraphs.last()
+    val lines = paragraphs.sumOf { it.lineCount }
+    val textWidth = paragraphs.maxOf { layout -> (0 until layout.lineCount).maxOf { layout.getLineWidth(it) } }
+    val lastWidth = last.getLineWidth(last.lineCount - 1)
     val timeWidth = timePaint.measureText(row.time)
-    val textHeight = body.height.toFloat()
-    val beside = !row.human && body.lineCount == 1 && !row.body.contains('\n') &&
+    val textHeight = paragraphs.sumOf { it.height }.toFloat() + paragraphGap * (paragraphs.size - 1)
+    val beside = !row.human && lines == 1 && !row.body.contains('\n') &&
       row.body.length <= tokens.besideMax && textWidth + gap + timeWidth <= inner
     val contentWidth: Float
     val contentHeight: Float
@@ -160,7 +168,10 @@ class TextBubbleLayout(val row: TextRow, val tokens: TextRowStyle, val width: In
     canvas.drawPath(path, fillPaint)
     canvas.save()
     canvas.translate(textLeft, textTop)
-    body.draw(canvas)
+    for (layout in paragraphs) {
+      layout.draw(canvas)
+      canvas.translate(0f, layout.height + paragraphGap)
+    }
     canvas.restore()
     canvas.drawText(row.time, timeX, timeBaseline, timePaint)
   }

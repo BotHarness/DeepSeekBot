@@ -37,10 +37,13 @@ export type NativeTextStyle = {
   tail: number;
   besideMax: number;
   maxWidth: number;
+  paragraphGap: number;
 };
 
 const MARKDOWN = /[*_`#>|[\]~<\\]|^\s*([-+]|\d+[.)])\s|https?:\/\/|www\./m;
-const DELIVERED = ' ✓';
+const NBSP = String.fromCharCode(0xa0);
+const DELIVERED = `${NBSP}✓`;
+const SOFT_BREAK = /[^\n]\n[^\n]/;
 
 export function plainText(body: string): boolean {
   return body.trim() !== '' && !MARKDOWN.test(body);
@@ -73,6 +76,7 @@ export function nativeTextRow(row: ChatRow, context: NativeRowContext): NativeTe
   )
     return undefined;
   if (!plainText(message.body)) return undefined;
+  if (message.author !== 'human' && SOFT_BREAK.test(message.body.trim())) return undefined;
   const clock = bubbleTime(message.at);
   if (clock === '') return undefined;
   const human = message.author === 'human';
@@ -111,5 +115,6 @@ export function nativeTextStyle(
     tail: AVATAR_CORNER,
     besideMax: 60,
     maxWidth: 0.88,
+    paragraphGap: space.x3,
   };
 }
