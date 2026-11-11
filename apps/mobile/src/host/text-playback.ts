@@ -71,10 +71,15 @@ export function createTextPlayback(initial = '', now = Date.now()) {
       const oldLength = ends.length;
       const shown = body.length;
       const from = next.startsWith(target) ? (ends.at(-2) ?? 0) : 0;
-      ends.length = from === 0 ? 0 : ends.length - 1;
-      for (const part of graphemeSegments(next.slice(from)))
-        ends.push(from + part.index + part.segment.length);
-      cursor = firstEndAfter(ends, shown);
+      const kept = from === 0 ? [] : ends.filter((end) => end <= from);
+      ends = [
+        ...kept,
+        ...[...graphemeSegments(next.slice(from))].map(
+          (part) => from + part.index + part.segment.length,
+        ),
+      ];
+      cursor = ends.findIndex((end) => end > shown);
+      if (cursor < 0) cursor = ends.length;
       target = next;
       const added = Math.max(0, ends.length - oldLength);
       if (added > 0) {
@@ -152,17 +157,6 @@ export function createTextPlayback(initial = '', now = Date.now()) {
       pauseUntil = 0;
     },
   };
-}
-
-function firstEndAfter(ends: number[], offset: number) {
-  let low = 0;
-  let high = ends.length;
-  while (low < high) {
-    const middle = (low + high) >>> 1;
-    if (ends[middle]! > offset) high = middle;
-    else low = middle + 1;
-  }
-  return low;
 }
 
 export type TextPlayback = ReturnType<typeof createTextPlayback>;
