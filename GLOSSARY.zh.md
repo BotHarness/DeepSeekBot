@@ -785,7 +785,7 @@ _避免使用_：caller-supplied author、transport metadata（单独使用）
 
 **Chat**：
 PersonaBot 参与的 Feishu/Lark conversation——group 或 p2p——通过 `chat_id` 识别。
-_避免使用_：room、channel、group（当含义也包括 p2p 时）
+_避免使用_：room、channel、group（当含义也包括 p2p 时）；指移动端页面时说 Conversation screen
 
 **DM**：
 两位 Actor 之间的一对一 conversation——即 `dm` 类型的 Channel，或它的 bridged equivalent。Human–PersonaBot DM 是 Human 与一个 Bot 的直接对话；Bot-to-Bot DM 有两个 PersonaBot 参与者，Human 可以只读查看而不成为参与者。
@@ -1110,6 +1110,58 @@ _避免使用_：短网址、UTM 链接、邀请链接
 查看已有 Session 的唯一会话 surface（`sessions`，TextQuote 图标）；在两层目标布局中，它是消息面板内的 Channel subpanel（ADR-0221）。PersonaBot 私聊固定查看该 Bot；群聊默认查看「当前频道」，即原始 Source Event 属于该群的 Assignment，跨负责 Bot 展示。Human 可以明确选择可访问的群成员 Bot，查看其 Orchestrator 与 Assignment Session，且不改变当前聊天。范围是按频道保存的本地视图偏好，与历史筛选及工作区分组独立。它不创建 Assignment、不发送执行请求；唯一的执行控制是对运行中行的 Session Stop 和 Bot Stop。旧工作面板退役；「活动」仍负责 Human 待处理事项与审批。见 ADR-0220。
 
 会话面板默认跟随当前频道时不重复显示范围标签；群聊范围选择收进视图选项菜单，仅显式指定 Bot 时在标题栏显示 `Bot · 名称`。
+
+### 移动端页面
+
+手机上能导航到的页面。页面按它的职能命名，iOS 和 Android 用同一个名字；各平台怎么画由 `apps/mobile/DESIGN.md` 决定。页面里更深的子页（如 Bot 的 Memory、Settings 的子页）直接用它们的标题，不算术语。上文的 PersonaBot Profile 和 Group Profile 也是移动端页面，从 Conversation screen 的 header 进入。
+
+**Chats**：
+列出 DM 和 Channel 的 tab：来自当前 Computer 或云端工作区，选 All 时来自所有在线的已配对 Computer 和可用的云端工作区；Human 从这里打开 Conversation screen。
+_避免使用_：首页、会话列表、Chat list
+
+**Activity tab**：
+显示 Activity 的 tab。
+_避免使用_：通知 tab、收件箱
+
+**Settings**：
+手机本地偏好，以及 Human 的账号、模型、用量和存储所在的 tab。
+_避免使用_：偏好页、齿轮菜单
+
+**Workspace panel**：
+iOS 上 Chats 左边的常驻页面，列出已配对的 Computer 和云端工作区并在它们之间切换。其他地方由 Workspace drawer 承担同一职能。
+_避免使用_：-1 屏、侧边栏、Host drawer
+
+**Workspace drawer**：
+从 Host chip 打开的导航抽屉，列出已配对的 Computer 和云端工作区并在它们之间切换。
+_避免使用_：Host drawer、侧边栏、菜单
+
+**Conversation screen**：
+会话页。显示一个 DM 或 Channel 的页面：顶部 header、Conversation Timeline，以及 Human 能发言时的 Composer（只读的 Bot-to-Bot DM 没有）。Tob Mode 打开的也是这个页面。
+_避免使用_：Chat、聊天页、聊天详情
+
+**Conversation Timeline**：
+会话时间线。Conversation screen 里按顺序滚动显示一个会话的消息和活动行的呈现层。它只显示 Messaging 的事实，只持有可丢弃的缓存，从不是消息存储。
+_避免使用_：聊天列表、消息列表（单独使用）、FlatList、Recycler
+
+**Composer**：
+输入栏。Conversation screen 底部 Human 写消息、发送消息的输入区域。
+_避免使用_：输入框、文本框（单独使用）
+
+**Computer viewer**：
+以实时视频显示 Bot 的 Computer，并让 Human 观看或接管的页面。
+_避免使用_：远程桌面、屏幕共享
+
+**Browser viewer**：
+实时显示 Bot 的 Browser，并让 Human 观看或接管的页面。
+_避免使用_：web view、内置浏览器
+
+**Call screen**：
+与 Bot 进行语音或视频通话的全屏页面。
+_避免使用_：通话页、通话浮层
+
+**Pairing**：
+把手机与 Computer 配对，或加入云端工作区的流程。
+_避免使用_：登录、设置向导
 
 ### 原生 UI 组件
 

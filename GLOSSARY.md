@@ -788,7 +788,7 @@ _Avoid_: caller-supplied author, transport metadata (bare)
 
 **Chat**:
 A Feishu/Lark conversation — group or p2p — that a PersonaBot takes part in, identified by `chat_id`.
-_Avoid_: room, channel, group (when p2p is meant too)
+_Avoid_: room, channel, group (when p2p is meant too); for the mobile screen, say Conversation screen
 
 **DM**:
 A 1:1 conversation between two Actors — a Channel of type `dm`, or its bridged equivalent. A Human–PersonaBot DM is the Human's direct conversation with one Bot; a Bot-to-Bot DM has two PersonaBot participants and may be inspected read-only by a Human without making that Human a participant.
@@ -1113,6 +1113,58 @@ _Avoid_: short URL, UTM link, referral link
 The single Sessions surface (`sessions`, TextQuote icon) for inspecting existing Sessions; in the two-level target it is a Channel subpanel inside Messages (ADR-0221). In a PersonaBot DM its scope is that Bot. In a Group Channel its default scope is **Current channel**: Assignments whose original Source Event belongs to that Group, across responsible Bots. The Human can explicitly select an accessible member Bot to inspect that Bot's owned Orchestrator and Assignment Sessions without changing the active conversation. Scope is a per-Channel local view preference, separate from history and workspace grouping. It does not create Assignments or send requests; its only execution control is Session Stop and Bot Stop on running rows. The former Work panel is retired; Activity still owns Human attention and approval. See ADR-0220.
 
 Default-following Sessions headers omit a redundant scope label. Group scope choices live in the existing view-options menu; only an explicit member-Bot override shows `Bot · name` in the header.
+
+### Mobile screens
+
+The phone's navigation destinations. A screen is named for its job and keeps the same name on iOS and Android; how each platform draws it is decided in `apps/mobile/DESIGN.md`. Deeper pages inside a screen, such as Bot Memory or a Settings sub-page, take their plain titles and are not terms. The PersonaBot Profile and Group Profile above are mobile screens too, opened from a Conversation screen header.
+
+**Chats**:
+The tab that lists DMs and Channels, from the current Computer or cloud workspace or, under All, from every online paired Computer and available cloud workspace, and where the Human opens a Conversation screen.
+_Avoid_: home, conversation list, Chat list
+
+**Activity tab**:
+The tab that shows Activity.
+_Avoid_: notifications tab, inbox
+
+**Settings**:
+The tab for the phone's own preferences and the Human's account, models, usage and storage.
+_Avoid_: preferences page, gear menu
+
+**Workspace panel**:
+On iOS, the retained page to the left of Chats that lists paired Computers and cloud workspaces and switches between them. The Workspace drawer does the same job everywhere else.
+_Avoid_: -1 screen, sidebar, Host drawer
+
+**Workspace drawer**:
+The navigation drawer, opened from the Host chip, that lists paired Computers and cloud workspaces and switches between them.
+_Avoid_: Host drawer, sidebar, menu
+
+**Conversation screen**:
+The screen that shows one DM or Channel: a header, the Conversation Timeline and, where the Human can post, the Composer (a read-only Bot-to-Bot DM has none). Tob Mode opens this same screen.
+_Avoid_: Chat, chat page, chat detail, 聊天页
+
+**Conversation Timeline**:
+The ordered, scrolling presentation of one conversation's messages and activity rows inside the Conversation screen. It only shows Messaging's facts and keeps discardable caches; it is never a message store.
+_Avoid_: chat list, message list (alone), FlatList, Recycler
+
+**Composer**:
+The input area at the bottom of the Conversation screen where the Human writes and sends a message.
+_Avoid_: input box, text field (alone)
+
+**Computer viewer**:
+The screen that shows a Bot's Computer as live video and lets the Human watch or take control.
+_Avoid_: remote desktop, screen share
+
+**Browser viewer**:
+The screen that shows a Bot's Browser live and lets the Human watch or take control.
+_Avoid_: web view, in-app browser
+
+**Call screen**:
+The full screen for a live voice or video call with a Bot.
+_Avoid_: call page, call overlay
+
+**Pairing**:
+The flow that pairs the phone with a Computer or joins a cloud workspace.
+_Avoid_: login, setup wizard
 
 ### Native UI components
 
