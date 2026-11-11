@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useSyncExternalStore } from 'react';
 import { reportInvariant } from './diagnostic-log.js';
 import { flushSync } from 'react-dom';
 
@@ -88,9 +88,13 @@ function sameKeys(left: ReadonlySet<string>, right: ReadonlySet<string>): boolea
   return true;
 }
 
+type TimelineView = { seen: ReadonlySet<string>; top: number; bottom: number };
+
 export interface TimelineWindow {
-  slots: TimelineSlot[];
   chunks: TimelineChunk[];
+  subscribe(listener: () => void): () => void;
+  view(): TimelineView;
+  slots(view: TimelineView): TimelineSlot[];
   blockRef(key: string): (node: HTMLElement | null) => void;
   rootRef(node: HTMLElement | null): void;
 }
@@ -162,9 +166,15 @@ export function useTimelineWindow(
     bottom: Infinity,
   });
   const reported = useRef(false);
-  const [view, setView] = useState<{ seen: ReadonlySet<string>; top: number; bottom: number }>(
-    () => ({ seen: new Set(), top: -Infinity, bottom: Infinity }),
-  );
+  const current = useRef<TimelineView>({ seen: new Set(), top: -Infinity, bottom: Infinity });
+  const listeners = useRef(new Set<() => void>());
+  const latestPinned = useRef(pinned);
+  latestPinned.current = pinned;
+  const subscribe = useCallback((listener: () => void) => {
+    listeners.current.add(listener);
+    return () => listeners.current.delete(listener);
+  }, []);
+  const view = useCallback(() => current.current, []);
 
   const update = useCallback(() => {
     const element = root.current;
@@ -207,12 +217,14 @@ export function useTimelineWindow(
       });
     }
     range.current = { keys: new Set(order), top, bottom };
-    setView((current) =>
-      sameKeys(windowKeys(order, sizes, current.top, current.bottom), next) &&
-      sameKeys(current.seen, new Set(order))
-        ? current
-        : { seen: new Set(order), top, bottom },
-    );
+    const shown = current.current;
+    if (
+      sameKeys(windowKeys(order, sizes, shown.top, shown.bottom), next) &&
+      sameKeys(shown.seen, new Set(order))
+    )
+      return;
+    current.current = { seen: new Set(order), top, bottom };
+    for (const listener of listeners.current) listener();
   }, []);
 
   const schedule = useCallback(() => {
@@ -303,16 +315,28 @@ export function useTimelineWindow(
     const next = timelineChunks(keys, chunked.current.assigned, CHUNK_SIZE);
     chunked.current = { keys, assigned: next.assigned, chunks: next.chunks };
   }
-  const sizes = knownSizes();
-  const near = windowKeys(keys, sizes, view.top, view.bottom);
+  const slots = (shown: TimelineView): TimelineSlot[] => {
+    const order = latestKeys.current;
+    const sizes = knownSizes();
+    const near = windowKeys(order, sizes, shown.top, shown.bottom);
+    return timelineSlots(
+      order,
+      sizes,
+      (key) =>
+        (!shown.seen.has(key) && !sizes.has(key)) || near.has(key) || latestPinned.current.has(key),
+    );
+  };
   return {
     chunks: chunked.current.chunks,
-    slots: timelineSlots(
-      keys,
-      sizes,
-      (key) => (!view.seen.has(key) && !sizes.has(key)) || near.has(key) || pinned.has(key),
-    ),
+    subscribe,
+    view,
+    slots,
     blockRef,
     rootRef,
   };
+}
+
+export function useTimelineSlots(timeline: TimelineWindow): TimelineSlot[] {
+  const shown = useSyncExternalStore(timeline.subscribe, timeline.view, timeline.view);
+  return timeline.slots(shown);
 }

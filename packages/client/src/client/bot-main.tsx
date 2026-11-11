@@ -17,7 +17,7 @@ import { PanelEmptyState } from './ds/empty-state.js';
 import { Workspace, type WorkspaceOptions } from './workspace.js';
 import { WorkspaceContext } from './workspace-context.js';
 import { OnboardingMemoryNavigation } from './onboarding-memory.js';
-import { useTimelineWindow } from './timeline-window.js';
+import { useTimelineSlots, useTimelineWindow, type TimelineWindow } from './timeline-window.js';
 import { OnboardingOverlay } from './onboarding-view.js';
 import { BotIntro } from './bot-intro.js';
 import type { Wallpaper } from './wallpaper.js';
@@ -1133,6 +1133,40 @@ function EmptyConversation({
           : `${bot === undefined ? t('main.localChat') : t('main.localChat.with', { name: bot.displayName })} · ${t('main.localChat.hint')}`}
       </PanelEmptyState>
     </div>
+  );
+}
+
+function TimelineSlots({
+  timeline,
+  keys,
+  renderGroup,
+}: {
+  timeline: TimelineWindow;
+  keys: readonly string[];
+  renderGroup: (index: number) => ReactElement;
+}): ReactElement {
+  const slots = useTimelineSlots(timeline);
+  return (
+    <>
+      {timeline.chunks.map((chunk) => (
+        <div key={chunk.id} className="bh-timeline-chunk">
+          {slots.slice(chunk.start, chunk.end).map((slot) =>
+            slot.placeholder !== undefined ? (
+              <div
+                key={keys[slot.index]}
+                className="bh-timeline-slot bh-timeline-gap"
+                aria-hidden="true"
+                style={{ height: slot.placeholder }}
+              />
+            ) : (
+              <div key={keys[slot.index]} className="bh-timeline-slot">
+                {renderGroup(slot.index)}
+              </div>
+            ),
+          )}
+        </div>
+      ))}
+    </>
   );
 }
 
@@ -3065,263 +3099,238 @@ function ConversationView({
               <EmptyConversation channel={channel} bot={bot} t={t} />
             ) : null}
             <MessageSelectionContext.Provider value={messageSelection}>
-              {timelineWindow.chunks.map((chunk) => (
-                <div key={chunk.id} className="bh-timeline-chunk">
-                  {timelineWindow.slots.slice(chunk.start, chunk.end).map((slot) => {
-                    const groups = messageGroups;
-                    const index = slot.index;
-                    const group = groups[index]!;
-                    if (slot.placeholder !== undefined)
-                      return (
-                        <div
-                          key={group.key}
-                          className="bh-timeline-slot bh-timeline-gap"
-                          aria-hidden="true"
-                          style={{ height: slot.placeholder }}
-                        />
-                      );
-                    const first = group.messages[0]!;
-                    const previous = groups[index - 1]?.messages.at(-1);
-                    const firstDay = Number.isFinite(Date.parse(first.at))
-                      ? new Date(first.at).toDateString()
+              <TimelineSlots
+                timeline={timelineWindow}
+                keys={groupKeys}
+                renderGroup={(index) => {
+                  const groups = messageGroups;
+                  const group = groups[index]!;
+                  const first = group.messages[0]!;
+                  const previous = groups[index - 1]?.messages.at(-1);
+                  const firstDay = Number.isFinite(Date.parse(first.at))
+                    ? new Date(first.at).toDateString()
+                    : undefined;
+                  const previousDay =
+                    previous !== undefined && Number.isFinite(Date.parse(previous.at))
+                      ? new Date(previous.at).toDateString()
                       : undefined;
-                    const previousDay =
-                      previous !== undefined && Number.isFinite(Date.parse(previous.at))
-                        ? new Date(previous.at).toDateString()
-                        : undefined;
-                    return (
-                      <div key={group.key} className="bh-timeline-slot">
-                        <div
-                          ref={timelineWindow.blockRef(group.key)}
-                          className="bh-message-block"
-                          data-group-key={group.key}
-                          data-follows={index > 0 ? '' : undefined}
-                        >
-                          {unreadAfter !== undefined && previous?.id === unreadAfter ? (
-                            <TimelineUnreadDivider label={t('messages.newDivider')} />
-                          ) : null}
-                          {firstDay !== undefined && firstDay !== previousDay ? (
-                            <div className="bh-message-day">
-                              {new Date(first.at).toLocaleDateString(t('main.date.locale'), {
-                                year: 'numeric',
-                                month: 'long',
-                                day: 'numeric',
-                              })}
-                            </div>
-                          ) : null}
-                          {first.toolAutoApproval !== undefined ? (
-                            <AutoApprovalLine
-                              messageId={first.id}
-                              record={first.toolAutoApproval}
-                              bots={state.bots}
-                              t={t}
-                            />
-                          ) : first.toolAutoApprovalPause !== undefined ? (
-                            <AutoApprovalPauseLine
-                              messageId={first.id}
-                              record={first.toolAutoApprovalPause}
-                              bots={state.bots}
-                              t={t}
-                            />
-                          ) : first.voiceCallRecord !== undefined ? (
-                            <VoiceCallRecordBubble
-                              messageId={first.id}
-                              record={first.voiceCallRecord}
-                              t={t}
-                            />
-                          ) : first.turnStop !== undefined ? (
-                            <div className="bh-member-departure" data-message-id={first.id}>
-                              <span>{turnStopText(first.turnStop, t)}</span>
-                            </div>
-                          ) : first.memberDeparture !== undefined ? (
-                            <div className="bh-member-departure" data-message-id={first.id}>
-                              <span>
-                                {t(
-                                  first.memberDeparture.departureType === 'removed'
-                                    ? 'member.removed'
-                                    : 'member.left',
-                                  { name: first.memberDeparture.displayName },
-                                )}
-                              </span>
-                              <ChannelDeliveryReceipt
-                                message={first}
-                                bots={state.bots}
-                                humanMembers={channel?.humanMembers ?? []}
-                                onOpenInbox={(target) =>
-                                  setInboxTarget({ ...target, messageId: first.id })
-                                }
-                                t={t}
-                              />
-                            </div>
-                          ) : first.botChannelPost !== undefined ? (
-                            <BotChannelPostLine
-                              posts={group.messages}
-                              channels={state.channels}
-                              bots={state.bots}
-                              t={t}
-                              onOpen={(targetChannelId, messageId) => {
-                                void actions
-                                  .openChannel(targetChannelId)
-                                  .then(() => actions.openAround(targetChannelId, messageId));
-                              }}
-                            />
-                          ) : first.memoryCommit !== undefined ? (
-                            <MemoryCommitLine
-                              messageId={first.id}
-                              commit={first.memoryCommit}
-                              compact={
-                                dmBotSlug !== undefined &&
-                                first.noticeOrigin !== undefined &&
-                                memoryDisplay === 'compact'
-                              }
-                              bots={state.bots}
-                              action={
-                                first.noticeOrigin === undefined
-                                  ? undefined
-                                  : elsewhereAction(
-                                      'memory',
-                                      first.noticeOrigin.channelId,
-                                      first.memoryCommit.botSlug,
-                                      state.channels,
-                                      state.bots,
-                                      t,
-                                    )
-                              }
-                              t={t}
-                              onOpen={() => {
-                                const commit = first.memoryCommit!;
-                                if (channel?.type === 'dm' && channel.botSlug === commit.botSlug) {
-                                  openMemoryView({ kind: 'commit', sha: commit.sha });
-                                  return;
-                                }
-                                const dm = state.channels.find(
-                                  (candidate) =>
-                                    candidate.type === 'dm' && candidate.botSlug === commit.botSlug,
-                                );
-                                if (dm !== undefined)
-                                  store.setMemoryCommitIntent({
-                                    channelId: dm.id,
-                                    sha: commit.sha,
-                                  });
-                                void actions.openBot(commit.botSlug);
-                              }}
-                            />
-                          ) : first.botCreateAction !== undefined ? (
-                            <button
-                              type="button"
-                              className="bh-bot-dm-action"
-                              data-message-id={first.id}
-                              onClick={() => void actions.openBot(first.botCreateAction!.botSlug)}
-                            >
-                              <BotDmActionLabel
-                                messageKey="botCreate.action"
-                                senderSlug={
-                                  first.author.kind === 'bot' ? first.author.slug : undefined
-                                }
-                                senderName={authorLabel(
-                                  first,
-                                  state.bots,
-                                  t,
-                                  channelHumanName(channel),
-                                )}
-                                recipientSlug={first.botCreateAction.botSlug}
-                                recipientName={
-                                  state.bots.find(
-                                    (bot) => bot.slug === first.botCreateAction!.botSlug,
-                                  )?.displayName ?? first.botCreateAction.displayName
-                                }
-                                bots={state.bots}
-                                t={t}
-                              />
-                            </button>
-                          ) : first.botDmAction === undefined ? (
-                            <OnboardingMemoryNavigation.Provider
-                              value={timelineCallbacks.memoryNavigation}
-                            >
-                              <TakeoverTimeline.Provider value={takeoverTimeline}>
-                                <MessageGroupView
-                                  humanMembers={channel?.humanMembers ?? NO_HUMAN_MEMBERS}
-                                  group={group}
-                                  arrivals={arrivals}
-                                  reading={reading}
-                                  channelId={channelId}
-                                  remoteBot={channel?.remoteBot}
-                                  remoteContact={channel?.remoteContact}
-                                  remoteAvailability={channel?.remoteAvailability}
-                                  actions={actions}
-                                  gallery={imageGallery.gallery}
-                                  nativeChatT={nativeChatT}
-                                  resolvedGrantRequests={timelineDecisions.resolvedGrantRequests}
-                                  toolApprovalDecisions={timelineDecisions.toolApprovalDecisions}
-                                  userQuestionResolutions={
-                                    timelineDecisions.userQuestionResolutions
-                                  }
-                                  focusMessageId={conversation.focusMessageId}
-                                  currentDmBotSlug={
-                                    channel?.type === 'dm' && !botDm ? channel.botSlug : undefined
-                                  }
-                                  bots={state.bots}
-                                  onContextMenu={timelineCallbacks.contextMenu}
-                                  onAvatarMenu={
-                                    channel?.type === 'group'
-                                      ? timelineCallbacks.avatarMenu
-                                      : undefined
-                                  }
-                                  onOpenInbox={timelineCallbacks.openInbox}
-                                  onReply={readOnlyDm ? undefined : timelineCallbacks.reply}
-                                  onReact={
-                                    reactToMessage === undefined
-                                      ? undefined
-                                      : timelineCallbacks.react
-                                  }
-                                  onJumpReply={timelineCallbacks.jumpReply}
-                                  onRestoreFailed={
-                                    readOnlyDm ? undefined : timelineCallbacks.restoreFailed
-                                  }
-                                  t={t}
-                                />
-                              </TakeoverTimeline.Provider>
-                            </OnboardingMemoryNavigation.Provider>
-                          ) : (
-                            <button
-                              type="button"
-                              className="bh-bot-dm-action"
-                              data-message-id={first.id}
-                              onClick={() => {
-                                const action = first.botDmAction!;
-                                void actions
-                                  .openChannel(action.channelId)
-                                  .then(() =>
-                                    actions.openAround(action.channelId, action.messageId),
-                                  );
-                              }}
-                            >
-                              <BotDmActionLabel
-                                senderSlug={
-                                  first.author.kind === 'bot' ? first.author.slug : undefined
-                                }
-                                senderName={authorLabel(
-                                  first,
-                                  state.bots,
-                                  t,
-                                  channelHumanName(channel),
-                                )}
-                                recipientSlug={first.botDmAction.recipientBotSlug}
-                                recipientName={memberName(
-                                  state.bots,
-                                  first.botDmAction.recipientBotSlug,
-                                )}
-                                bots={state.bots}
-                                t={t}
-                              />
-                            </button>
-                          )}
+                  return (
+                    <div
+                      ref={timelineWindow.blockRef(group.key)}
+                      className="bh-message-block"
+                      data-group-key={group.key}
+                      data-follows={index > 0 ? '' : undefined}
+                    >
+                      {unreadAfter !== undefined && previous?.id === unreadAfter ? (
+                        <TimelineUnreadDivider label={t('messages.newDivider')} />
+                      ) : null}
+                      {firstDay !== undefined && firstDay !== previousDay ? (
+                        <div className="bh-message-day">
+                          {new Date(first.at).toLocaleDateString(t('main.date.locale'), {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                          })}
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
+                      ) : null}
+                      {first.toolAutoApproval !== undefined ? (
+                        <AutoApprovalLine
+                          messageId={first.id}
+                          record={first.toolAutoApproval}
+                          bots={state.bots}
+                          t={t}
+                        />
+                      ) : first.toolAutoApprovalPause !== undefined ? (
+                        <AutoApprovalPauseLine
+                          messageId={first.id}
+                          record={first.toolAutoApprovalPause}
+                          bots={state.bots}
+                          t={t}
+                        />
+                      ) : first.voiceCallRecord !== undefined ? (
+                        <VoiceCallRecordBubble
+                          messageId={first.id}
+                          record={first.voiceCallRecord}
+                          t={t}
+                        />
+                      ) : first.turnStop !== undefined ? (
+                        <div className="bh-member-departure" data-message-id={first.id}>
+                          <span>{turnStopText(first.turnStop, t)}</span>
+                        </div>
+                      ) : first.memberDeparture !== undefined ? (
+                        <div className="bh-member-departure" data-message-id={first.id}>
+                          <span>
+                            {t(
+                              first.memberDeparture.departureType === 'removed'
+                                ? 'member.removed'
+                                : 'member.left',
+                              { name: first.memberDeparture.displayName },
+                            )}
+                          </span>
+                          <ChannelDeliveryReceipt
+                            message={first}
+                            bots={state.bots}
+                            humanMembers={channel?.humanMembers ?? []}
+                            onOpenInbox={(target) =>
+                              setInboxTarget({ ...target, messageId: first.id })
+                            }
+                            t={t}
+                          />
+                        </div>
+                      ) : first.botChannelPost !== undefined ? (
+                        <BotChannelPostLine
+                          posts={group.messages}
+                          channels={state.channels}
+                          bots={state.bots}
+                          t={t}
+                          onOpen={(targetChannelId, messageId) => {
+                            void actions
+                              .openChannel(targetChannelId)
+                              .then(() => actions.openAround(targetChannelId, messageId));
+                          }}
+                        />
+                      ) : first.memoryCommit !== undefined ? (
+                        <MemoryCommitLine
+                          messageId={first.id}
+                          commit={first.memoryCommit}
+                          compact={
+                            dmBotSlug !== undefined &&
+                            first.noticeOrigin !== undefined &&
+                            memoryDisplay === 'compact'
+                          }
+                          bots={state.bots}
+                          action={
+                            first.noticeOrigin === undefined
+                              ? undefined
+                              : elsewhereAction(
+                                  'memory',
+                                  first.noticeOrigin.channelId,
+                                  first.memoryCommit.botSlug,
+                                  state.channels,
+                                  state.bots,
+                                  t,
+                                )
+                          }
+                          t={t}
+                          onOpen={() => {
+                            const commit = first.memoryCommit!;
+                            if (channel?.type === 'dm' && channel.botSlug === commit.botSlug) {
+                              openMemoryView({ kind: 'commit', sha: commit.sha });
+                              return;
+                            }
+                            const dm = state.channels.find(
+                              (candidate) =>
+                                candidate.type === 'dm' && candidate.botSlug === commit.botSlug,
+                            );
+                            if (dm !== undefined)
+                              store.setMemoryCommitIntent({
+                                channelId: dm.id,
+                                sha: commit.sha,
+                              });
+                            void actions.openBot(commit.botSlug);
+                          }}
+                        />
+                      ) : first.botCreateAction !== undefined ? (
+                        <button
+                          type="button"
+                          className="bh-bot-dm-action"
+                          data-message-id={first.id}
+                          onClick={() => void actions.openBot(first.botCreateAction!.botSlug)}
+                        >
+                          <BotDmActionLabel
+                            messageKey="botCreate.action"
+                            senderSlug={first.author.kind === 'bot' ? first.author.slug : undefined}
+                            senderName={authorLabel(
+                              first,
+                              state.bots,
+                              t,
+                              channelHumanName(channel),
+                            )}
+                            recipientSlug={first.botCreateAction.botSlug}
+                            recipientName={
+                              state.bots.find((bot) => bot.slug === first.botCreateAction!.botSlug)
+                                ?.displayName ?? first.botCreateAction.displayName
+                            }
+                            bots={state.bots}
+                            t={t}
+                          />
+                        </button>
+                      ) : first.botDmAction === undefined ? (
+                        <OnboardingMemoryNavigation.Provider
+                          value={timelineCallbacks.memoryNavigation}
+                        >
+                          <TakeoverTimeline.Provider value={takeoverTimeline}>
+                            <MessageGroupView
+                              humanMembers={channel?.humanMembers ?? NO_HUMAN_MEMBERS}
+                              group={group}
+                              arrivals={arrivals}
+                              reading={reading}
+                              channelId={channelId}
+                              remoteBot={channel?.remoteBot}
+                              remoteContact={channel?.remoteContact}
+                              remoteAvailability={channel?.remoteAvailability}
+                              actions={actions}
+                              gallery={imageGallery.gallery}
+                              nativeChatT={nativeChatT}
+                              resolvedGrantRequests={timelineDecisions.resolvedGrantRequests}
+                              toolApprovalDecisions={timelineDecisions.toolApprovalDecisions}
+                              userQuestionResolutions={timelineDecisions.userQuestionResolutions}
+                              focusMessageId={conversation.focusMessageId}
+                              currentDmBotSlug={
+                                channel?.type === 'dm' && !botDm ? channel.botSlug : undefined
+                              }
+                              bots={state.bots}
+                              onContextMenu={timelineCallbacks.contextMenu}
+                              onAvatarMenu={
+                                channel?.type === 'group' ? timelineCallbacks.avatarMenu : undefined
+                              }
+                              onOpenInbox={timelineCallbacks.openInbox}
+                              onReply={readOnlyDm ? undefined : timelineCallbacks.reply}
+                              onReact={
+                                reactToMessage === undefined ? undefined : timelineCallbacks.react
+                              }
+                              onJumpReply={timelineCallbacks.jumpReply}
+                              onRestoreFailed={
+                                readOnlyDm ? undefined : timelineCallbacks.restoreFailed
+                              }
+                              t={t}
+                            />
+                          </TakeoverTimeline.Provider>
+                        </OnboardingMemoryNavigation.Provider>
+                      ) : (
+                        <button
+                          type="button"
+                          className="bh-bot-dm-action"
+                          data-message-id={first.id}
+                          onClick={() => {
+                            const action = first.botDmAction!;
+                            void actions
+                              .openChannel(action.channelId)
+                              .then(() => actions.openAround(action.channelId, action.messageId));
+                          }}
+                        >
+                          <BotDmActionLabel
+                            senderSlug={first.author.kind === 'bot' ? first.author.slug : undefined}
+                            senderName={authorLabel(
+                              first,
+                              state.bots,
+                              t,
+                              channelHumanName(channel),
+                            )}
+                            recipientSlug={first.botDmAction.recipientBotSlug}
+                            recipientName={memberName(
+                              state.bots,
+                              first.botDmAction.recipientBotSlug,
+                            )}
+                            bots={state.bots}
+                            t={t}
+                          />
+                        </button>
+                      )}
+                    </div>
+                  );
+                }}
+              />
             </MessageSelectionContext.Provider>
             {imageGallery.lightbox}
             {conversation.timeline.hasNewer ? (

@@ -95,11 +95,12 @@ reads that users never run.
 - Headless Chromium does not run the desktop-only paths (`dsh-app://app` window zoom and its
   tooltip observer). A clean headless result does not clear a desktop report; say which paths
   ran.
-- Far message groups are not mounted: `timeline-window.ts` replaces runs of them with one
-  `.bh-timeline-gap` whose height is the sum of their measured heights. A group that was never
-  measured always renders, and so do the focus target and the group carrying the unread
+- Far message groups are not mounted: `timeline-window.ts` renders each of them as its own
+  `.bh-timeline-slot.bh-timeline-gap` placeholder with that group's measured height. A group
+  that was never measured renders, and so do the focus target and the group carrying the unread
   divider, so `scrollIntoView` and anchors keep working. Spacing between groups is padding on
-  `[data-follows]`, not margin, so a measured height includes it and a gap matches exactly.
+  `[data-follows]`, not margin, so a measured height includes it and a placeholder matches
+  exactly.
   The near range updates synchronously in the native scroll listener, before React's
   `onScroll`, so the read mark never sees a gap in view after a large drag.
 - Earlier attempts with `content-visibility` failed on real runs: a skipped flex item shrinks to
