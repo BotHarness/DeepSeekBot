@@ -127,6 +127,7 @@ import {
 import { useChannelViewport } from './channel-viewport';
 import { MessageTarget, nativeMessageJump } from '../primitives/message-target';
 import { ChatList, nativeChatRecycler, type ChatListHandle } from '../primitives/chat-list';
+import { nativeTextRow, nativeTextRows, nativeTextStyle } from './native-text-row';
 import { usePullToCompose } from './pull-to-compose';
 import { chatHref, useRecentChat } from '../shell/recent-chats';
 import { SwipeOpen } from '../shell/swipe-open';
@@ -1081,6 +1082,35 @@ function ChatConversation({
   );
   const botName = useBotNames(identityBots);
   const reading = useMemo(() => readingBots(snapshot.messages), [snapshot.messages]);
+  const newestMessageId = snapshot.messages.at(-1)?.id;
+  const nativeRows = nativeTextRows && nativeChatRecycler;
+  const nativeRow = useCallback(
+    (row: Row) =>
+      row.kind === 'draft'
+        ? undefined
+        : nativeTextRow(row, {
+            dm,
+            selecting: selected !== undefined,
+            latest: newestMessageId,
+            reading,
+          }),
+    [dm, selected, newestMessageId, reading],
+  );
+  const nativeStyle = useMemo(
+    () =>
+      nativeTextStyle(
+        {
+          accent: theme.color.accent,
+          surface: theme.color.surface,
+          onAccent: theme.color.onAccent,
+          fg: theme.color.fg,
+          muted: theme.color.muted,
+        },
+        theme.type,
+        theme.fontScale,
+      ),
+    [theme],
+  );
   const [deliveryFor, setDeliveryFor] = useState<string>();
   const openDelivery = useCallback(
     (message: ConversationMessage) => setDeliveryFor(message.id),
@@ -1924,6 +1954,7 @@ function ChatConversation({
                               }}
                               data={rows}
                               keyExtractor={(row) => row.key}
+                              {...((nativeRows ? { nativeRow, nativeStyle } : {}) as object)}
                               renderItem={
                                 nativeMessageJump && !nativeChatRecycler
                                   ? ({ item }: { item: Row }) => (
