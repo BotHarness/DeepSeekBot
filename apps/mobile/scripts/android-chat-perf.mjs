@@ -104,14 +104,18 @@ function state(d) {
 }
 
 async function openConversation(d, title) {
-  let tree = d.xml();
-  if (!tree.includes('resource-id="composer-input"')) {
-    d.tap(tree, new RegExp(`(text|content-desc)="${title}[",]`));
+  const row = new RegExp(`(text|content-desc)="${title}[",]`);
+  const header = new RegExp(`text="${title}"`);
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const tree = d.xml();
+    const open = tree.includes('resource-id="composer-input"');
+    if (open && header.test(tree)) return;
+    if (open) d.shell('input', 'keyevent', 'KEYCODE_BACK');
+    else if (row.test(tree)) d.tap(tree, row);
+    else d.shell('input', 'keyevent', 'KEYCODE_BACK');
     await wait(2500);
-    tree = d.xml();
   }
-  if (!tree.includes(title) || !tree.includes('resource-id="composer-input"'))
-    throw new Error('Conversation not open');
+  throw new Error(`Conversation ${title} not open`);
 }
 
 async function launch(d, title) {
@@ -169,6 +173,12 @@ async function setup(d, options) {
     await wait(1500);
     if (!LATEST.test(d.xml())) throw new Error('Jump to latest is not offered');
   }
+  if (scenario === 'stream' || scenario === 'stream-read') {
+    if (/mInputShown=true/.test(d.shell('dumpsys', 'input_method'))) {
+      d.shell('input', 'keyevent', 'KEYCODE_BACK');
+      await wait(1500);
+    }
+  }
   if (scenario === 'own-send') {
     required(options, 'marker');
     d.tap(d.xml(), /resource-id="composer-input"/);
@@ -189,7 +199,7 @@ async function gestures(d, scenario, options) {
   if (scenario === 'warm-fling')
     for (let i = 0; i < 16; i++) await act(i < 8 ? 'older' : 'newer', () => swipe(d, i < 8));
   if (scenario === 'cold-paging')
-    for (let i = 0; i < 14; i++) await act('older', () => swipe(d, true, 220), 250);
+    for (let i = 0; i < 40; i++) await act('older', () => swipe(d, true, 120), 150);
   if (scenario === 'back-to-latest') await act('latest', () => d.tap(d.xml(), LATEST), 2000);
   if (scenario === 'own-send')
     await act('send', () => d.tap(d.xml(), /resource-id="composer-send"/), 2500);

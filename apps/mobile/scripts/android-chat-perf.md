@@ -19,12 +19,12 @@ node apps/mobile/scripts/android-chat-perf.mjs analyze --dir <arm-dir>/<label> -
 
 ## Scenarios
 
-| Scenario         | Setup (not measured)                              | Measured                                                  |
-| ---------------- | ------------------------------------------------- | --------------------------------------------------------- |
-| `warm-fling`     | 16 drags to load and return to the latest message | 16 matched drags over loaded history                      |
-| `cold-paging`    | Force-stop, launch, open the conversation         | 14 fast flings toward older history, including page loads |
-| `back-to-latest` | 10 fast flings toward older history               | Tap Jump to latest and 2 s of settling                    |
-| `own-send`       | Focus the composer and type `--marker`            | Tap send and 2.5 s of flight and commit                   |
+| Scenario         | Setup (not measured)                              | Measured                                                            |
+| ---------------- | ------------------------------------------------- | ------------------------------------------------------------------- |
+| `warm-fling`     | 16 drags to load and return to the latest message | 16 matched drags over loaded history                                |
+| `cold-paging`    | Force-stop, launch, open the conversation         | 40 fast flings toward older history, through at least one page load |
+| `back-to-latest` | 10 fast flings toward older history               | Tap Jump to latest and 2 s of settling                              |
+| `own-send`       | Focus the composer and type `--marker`            | Tap send and 2.5 s of flight and commit                             |
 
 | `stream` | none | Run `--trigger` (a Node script that arms one fixed replay and sends the message that answers it) and 12 s of streaming at the latest message |
 | `stream-read` | none | Same trigger, then one drag toward older history 1.5 s in; the reader's position must hold |
