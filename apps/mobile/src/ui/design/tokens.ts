@@ -223,33 +223,14 @@ export const glass = {
 
 export const draftEditor = { aboveMax: '40%' } as const;
 
-export const chatHeaderSurface = {
+export const island = {
   fade: { curve: 0.85, peak: 0.91 },
-  island: {
-    ink: { light: '#000000', dark: '#ffffff' },
-    light: '#ffffff',
-    shade: '#000000',
-    rim: { width: 0.5, light: 0.1, dark: 0.1 },
-    highlight: { width: 1, light: 0.55, dark: 0.08 },
-    shadow: { radius: 2.7, offsetY: 0.85, light: 0.13, dark: 0.3 },
-  },
-} as const;
-
-export const chatComposerSurface = {
-  fade: chatHeaderSurface.fade,
-  rim: {
-    width: chatHeaderSurface.island.rim.width,
-    light: 'rgba(0, 0, 0, 0.1)',
-    dark: 'rgba(255, 255, 255, 0.1)',
-  },
-  highlight: {
-    light: 'inset 0 1px 1px rgba(255, 255, 255, 0.55)',
-    dark: 'inset 0 1px 1px rgba(255, 255, 255, 0.08)',
-  },
-  shadow: {
-    light: '0 0.85px 2.7px rgba(0, 0, 0, 0.13)',
-    dark: '0 0.85px 2.7px rgba(0, 0, 0, 0.3)',
-  },
+  ink: { light: '#000000', dark: '#ffffff' },
+  light: '#ffffff',
+  shade: '#000000',
+  rim: { width: 0.5, light: 0.1, dark: 0.1 },
+  highlight: { width: 1, light: 0.55, dark: 0.08 },
+  shadow: { radius: 2.7, offsetY: 0.85, light: 0.13, dark: 0.3 },
 } as const;
 
 export const edgeFade = {
