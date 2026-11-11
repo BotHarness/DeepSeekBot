@@ -14,6 +14,19 @@ index b7edde7a019a91eac7c2e78eacab2654106d607b..0f6c81595b643206cff2b5bbe07356bc
  
    CGRect contentBounds = [self contentBounds];
    if (contentBounds.size.width > 0) {
+diff --git a/ios/utils/ENRMTextViewSetup.h b/ios/utils/ENRMTextViewSetup.h
+index 0151d0fc54691c34348be6e77febd693a725c3fa..8f260458adc084b19fbffc3d6ba781aecb61a9d3 100644
+--- a/ios/utils/ENRMTextViewSetup.h
++++ b/ios/utils/ENRMTextViewSetup.h
+@@ -14,7 +14,7 @@ static inline void ENRMAttachLayoutManager(ENRMPlatformTextView *textView, Style
+   if (layoutManager == nil) {
+     return;
+   }
+-  layoutManager.allowsNonContiguousLayout = NO;
++  layoutManager.allowsNonContiguousLayout = YES;
+   object_setClass(layoutManager, [TextViewLayoutManager class]);
+   if (config != nil) {
+     [layoutManager setValue:config forKey:@"config"];
 diff --git a/ios/views/EnrichedMarkdownInternalText.h b/ios/views/EnrichedMarkdownInternalText.h
 index dce09c7a95bf19a5bfaf65d7697b6e73f3ac08e6..a98ee0cb4cb00ae366c4888ece2d722c4adb269f 100644
 --- a/ios/views/EnrichedMarkdownInternalText.h
