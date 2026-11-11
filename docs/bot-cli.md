@@ -1849,3 +1849,9 @@ For several IM requests in one turn, call `ask_secret` with the existing account
 ## Docker private connectivity
 
 `private-connect --hostname <https-origin> --token-stdin --confirm` claims an unclaimed private Docker relay through the authenticated local Host. The setup key comes only from stdin, never command arguments. `devices` reports `privateRelay` state; `device-offer --out <absolute-new-file>` writes the sensitive pairing invitation after the relay is connected. Use `device-requests`, `device-approve-key` and `device-revoke` for exact-device approval and revocation. See [private deployment](private-connect.md). A failed/unknown claim is not automatically replayed, and no official fallback is selected.
+
+### Same-account Connect enrollment
+
+A phone signed into the same Tobs Connect account as a Host can enroll without Host-side approval or manual fingerprint comparison. Account authentication and the relay authorize this path; unsigned/QR/private pairing retains existing device approval. `connect-status` reports account and connection state, `devices` lists resulting grants, and `device-revoke` revokes an exact device. No review-specific configuration is required.
+
+Signing out stops new account enrollment but leaves existing grants intact. Code rollback also leaves issued grants intact. A holder of account access can enroll again after a device is revoked; secure account access when responding to compromise. Existing signature, account/Host, freshness, phone-verifier and pinned encrypted-channel checks still apply. See [ADR-0327](adr/0327-connect-account-ownership-authorizes-enrollment.md).

@@ -87,7 +87,9 @@ export type ConnectedHostsResult =
   | { ok: true; hosts: ConnectedHost[] }
   | { ok: false; code: AccountFailureCode };
 
-export type OfferVerification = { ok: true; verifierHash: string; name?: string } | { ok: false };
+export type OfferVerification =
+  | { ok: true; verifierHash: string; name?: string; accountAutoApprove?: true }
+  | { ok: false };
 
 export interface ConnectAccount {
   botNetwork: ReturnType<typeof createConnectBotNetwork>;
@@ -809,7 +811,12 @@ export function createConnectAccount(options: {
       return { ok: false };
     }
     record('offer-signed');
-    return { ok: true, verifierHash, ...(typeof name === 'string' ? { name } : {}) };
+    return {
+      ok: true,
+      verifierHash,
+      ...(typeof name === 'string' ? { name } : {}),
+      accountAutoApprove: true,
+    };
   };
 
   const activityCall = (body?: Record<string, unknown>, signal?: AbortSignal) =>

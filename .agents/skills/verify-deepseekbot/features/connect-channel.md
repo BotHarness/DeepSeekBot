@@ -118,3 +118,7 @@ at default/intermediate/maximum system text in both themes on each platform. Cap
 before/after form images without account identifiers or secrets. The reviewer gate additionally
 requires the prepared verified account to pair its dedicated demo Host over a public network and
 receive a real Bot reply. Keep API, simulator, physical-device, Android and Human results separate.
+
+## Same-account Connect enrollment (#2734)
+
+Sign in on a fresh phone with the Host's exact account and select that online Host. Expect connection without either a fingerprint comparison or Host-side phone approval, then send a real DM and correlate its reply with `send-status`. Preserve before/after evidence with source provenance. Reconnect and device revocation are separate checks. Wrong account/Host, expired or forged signed offers, signed-out state, invalid verifier, unsigned offers and LAN must not auto-approve. Run `account-enrollment.test.ts`, `connect-account.test.ts` and mobile account trust tests for these boundaries. Raw links cannot claim account-list trust. The account system and relay are trusted enrollment authorities under ADR-0327; do not claim compromised-relay enrollment resistance. Never place credentials in evidence.

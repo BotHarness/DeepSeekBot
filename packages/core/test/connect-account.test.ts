@@ -885,6 +885,7 @@ describe('Connect account sign-in', () => {
     const good = sign(fresh);
     expect(await account.verifyOffer(good.body, good.signature)).toEqual({
       ok: true,
+      accountAutoApprove: true,
       verifierHash,
       name: 'iPhone',
     });
@@ -1569,3 +1570,29 @@ it('uses the account credential owner for Bot verification and rejects it after 
     await account.close();
   }
 });
+
+it.each(['match', 'other-account', 'other-host', 'expired'] as const)(
+  'same-account enrollment authorization: %s',
+  async (mode) => {
+    const { account } = setup(fakeServices({ pending: 0 }));
+    try {
+      await account.signIn();
+      await settle(account);
+      const body = JSON.stringify({
+        account: mode === 'other-account' ? 'user_bob' : 'user_alice',
+        hostId: mode === 'other-host' ? 'another-host' : 'hstudioaaaaa',
+        verifierHash: Buffer.alloc(32, 7).toString('base64url'),
+        issuedAt: new Date(Date.now() - (mode === 'expired' ? 120_000 : 0)).toISOString(),
+      });
+      const signature = createHmac('sha256', RELAY_KEY).update(body).digest('base64url');
+      const result = await account.verifyOffer(body, signature);
+      expect(result.ok).toBe(mode === 'match');
+      if (result.ok) expect(result.accountAutoApprove).toBe(true);
+      expect(await account.verifyOffer(body, 'forged')).toEqual({ ok: false });
+      await account.signOut();
+      expect(await account.verifyOffer(body, signature)).toEqual({ ok: false });
+    } finally {
+      await account.close();
+    }
+  },
+);
