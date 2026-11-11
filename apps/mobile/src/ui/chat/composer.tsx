@@ -422,7 +422,16 @@ export function Composer({
           value={value}
           canSend={canSend}
           showSend={actions.includes('send')}
-          above={above}
+          above={
+            inside === undefined ? (
+              above
+            ) : (
+              <>
+                {inside}
+                {above}
+              </>
+            )
+          }
           selection={selection}
           onSelection={onSelection}
           onChange={onChange}
