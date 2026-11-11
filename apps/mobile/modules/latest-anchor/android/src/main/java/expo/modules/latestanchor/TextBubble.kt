@@ -83,6 +83,12 @@ fun cssColor(value: String): Int? {
 
 /** Text layout, bubble geometry and row height for one row at one width, in physical pixels. */
 class TextBubbleLayout(
+  val row: TextRow,
+  val tokens: TextRowStyle,
+  val width: Int,
+  density: Float,
+  markdown: ((String) -> CharSequence?)? = null,
+) {
   private val scale = density * tokens.fontScale
   val paragraphs: List<StaticLayout>
   private val paragraphGap: Float
