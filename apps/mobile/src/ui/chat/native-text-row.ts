@@ -1,8 +1,8 @@
 import { bubbleTime, type ChatRow } from './message-groups';
 import { BUBBLE_PADDING, AVATAR_CORNER } from './bubble-shape';
-import { radius, space } from '../design/tokens';
+import { motion, radius, space, swipeReply } from '../design/tokens';
 
-const nativeRowsMode = process.env.EXPO_PUBLIC_NATIVE_ROWS;
+const nativeRowsMode = process.env.EXPO_PUBLIC_NATIVE_ROWS ?? 'markdown';
 export const nativeTextRows = nativeRowsMode === 'text' || nativeRowsMode === 'markdown';
 export const nativeMarkdownRows = nativeRowsMode === 'markdown';
 
@@ -42,7 +42,42 @@ export type NativeTextStyle = {
   maxWidth: number;
   paragraphGap: number;
   markdown?: object | undefined;
+  touch?: NativeTouchStyle | undefined;
 };
+
+export type NativeTouchStyle = {
+  pressHuman: string;
+  pressBot: string;
+  hintFill: string;
+  hintInk: string;
+  holdMs: number;
+  swipeStart: number;
+  swipeBackFail: number;
+  swipeVerticalFail: number;
+  swipeCommit: number;
+  swipeReach: number;
+  hintEnd: number;
+  hintIcon: number;
+  glyph: number;
+};
+
+export function nativeTouchStyle(
+  color: { pressHuman: string; pressBot: string; hintFill: string; hintInk: string },
+  glyph: number,
+): NativeTouchStyle {
+  return {
+    ...color,
+    holdMs: motion.lift,
+    swipeStart: swipeReply.start,
+    swipeBackFail: swipeReply.backFail,
+    swipeVerticalFail: swipeReply.verticalFail,
+    swipeCommit: swipeReply.commit,
+    swipeReach: swipeReply.reach,
+    hintEnd: space.x3,
+    hintIcon: swipeReply.icon,
+    glyph,
+  };
+}
 
 const MARKDOWN = /[*_`#>|[\]~<\\]|^\s*([-+]|\d+[.)])\s|https?:\/\/|www\./m;
 const NBSP = String.fromCharCode(0xa0);
@@ -109,6 +144,7 @@ export function nativeTextStyle(
   type: { body: { size: number; line: number }; meta: { size: number; line: number } },
   fontScale: number,
   markdown?: object,
+  touch?: NativeTouchStyle,
 ): NativeTextStyle {
   return {
     ...color,
@@ -132,5 +168,6 @@ export function nativeTextStyle(
     maxWidth: 0.88,
     paragraphGap: space.x3,
     markdown,
+    touch,
   };
 }

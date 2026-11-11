@@ -98,6 +98,16 @@ class ChatRecyclerView(context: Context, app: AppContext) : ExpoView(context, ap
   private val onContentSize by EventDispatcher()
   private val onVisible by EventDispatcher()
   private val onKeyboardInset by EventDispatcher()
+  private val onRowAction by EventDispatcher()
+  /** Whether native rows may swipe to reply, as React rows do while a reply can be composed. */
+  var rowSwipe = false
+  private val bubbleActions = object : BubbleActions {
+    override val swipeEnabled get() = rowSwipe
+    override fun press(view: TextBubbleView, row: TextRow) = rowAction("press", row, view)
+    override fun hold(view: TextBubbleView, row: TextRow) = rowAction("hold", row, view)
+    override fun arm(row: TextRow) = rowAction("arm", row)
+    override fun reply(row: TextRow) = rowAction("reply", row)
+  }
   private var textRows = emptyMap<String, TextRow>()
   private var textStyle: TextRowStyle? = null
   private val textLayouts = mutableMapOf<String, TextBubbleLayout>()
@@ -111,7 +121,7 @@ class ChatRecyclerView(context: Context, app: AppContext) : ExpoView(context, ap
     override fun onCreateViewHolder(parent: ViewGroup, type: Int): Holder {
       val box = FrameLayout(context).apply { clipChildren = false }
       if (type != TEXT) return Holder(box)
-      val bubble = TextBubbleView(context)
+      val bubble = TextBubbleView(context).also { it.actions = bubbleActions }
       box.addView(bubble, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
       return Holder(box, bubble)
     }
@@ -175,6 +185,11 @@ class ChatRecyclerView(context: Context, app: AppContext) : ExpoView(context, ap
       }
       override fun onEnd(animation: WindowInsetsAnimationCompat) { animatingIme = false }
     })
+  }
+
+  private fun rowAction(action: String, row: TextRow, view: TextBubbleView? = null) {
+    val anchor = view?.layout?.let { windowBounds(view, it.bubble) }
+    onRowAction(mapOf("action" to action, "key" to row.key) + (anchor?.let { mapOf("anchor" to it) } ?: emptyMap()))
   }
 
   private fun heightAt(index: Int) = geometry.height(index)

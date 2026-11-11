@@ -25,12 +25,13 @@ class ChatRecyclerModule : Module() {
       if (view == null) promise.resolve(null) else whenDrawable(view) { promise.resolve(it?.let(::windowBounds)) }
     }.runOnQueue(Queues.MAIN)
     View(ChatRecyclerView::class) {
-      Events("onWindow", "onScroll", "onScrollBeginDrag", "onScrollEndDrag", "onMomentumScrollBegin", "onMomentumScrollEnd", "onContentSize", "onVisible", "onKeyboardInset")
+      Events("onWindow", "onScroll", "onScrollBeginDrag", "onScrollEndDrag", "onMomentumScrollBegin", "onMomentumScrollEnd", "onContentSize", "onVisible", "onKeyboardInset", "onRowAction")
       Prop("rows") { view: ChatRecyclerView, rows: List<String> -> view.setRows(rows) }
       Prop("following") { view: ChatRecyclerView, following: Boolean -> view.following = following }
       Prop("estimate") { view: ChatRecyclerView, value: Double -> view.setEstimate(value) }
       Prop("textRows") { view: ChatRecyclerView, rows: List<Map<String, Any?>> -> view.setTextRows(rows) }
       Prop("textStyle") { view: ChatRecyclerView, style: Map<String, Any?> -> view.setTextStyle(style) }
+      Prop("rowSwipe") { view: ChatRecyclerView, value: Boolean -> view.rowSwipe = value }
       Prop("contentTop") { view: ChatRecyclerView, value: Double -> view.setTop(value) }
       Prop("contentBottom") { view: ChatRecyclerView, value: Double -> view.setBottom(value) }
       AsyncFunction("measureCell") { view: ChatRecyclerView, key: String, height: Double -> view.measureCell(key, height) }
@@ -63,10 +64,11 @@ class ChatRecyclerCellModule : Module() {
   }
 }
 
-private fun windowBounds(view: View): Map<String, Float> {
+/** [rect], in [view]'s pixels (the whole view by default), as window coordinates in logical pixels. */
+internal fun windowBounds(view: View, rect: RectF = RectF(0f, 0f, view.width.toFloat(), view.height.toFloat())): Map<String, Float> {
   val matrix = Matrix()
   view.transformMatrixToGlobal(matrix)
-  val bounds = RectF(0f, 0f, view.width.toFloat(), view.height.toFloat())
+  val bounds = RectF(rect)
   matrix.mapRect(bounds)
   val density = view.resources.displayMetrics.density
   return mapOf("x" to bounds.left / density, "y" to bounds.top / density, "width" to bounds.width() / density, "height" to bounds.height() / density)

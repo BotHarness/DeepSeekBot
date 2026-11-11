@@ -1,6 +1,6 @@
 # ADR-0320: Android RecyclerView keeps inverted coordinates
 
-Status: accepted for an opt-in comparison, not default rollout
+Status: accepted; default on Android API 29+ since 2026-11-11 (see Rollout)
 
 ## Context and decision
 
@@ -17,3 +17,9 @@ Fabric does not know the native holder's reparented position. Message menus, sel
 ## Verification and rollout
 
 Tests cover bounded React/native windows, stable IDs, variable row heights, default fallback and navigation. Physical acceptance must cover gesture arbitration, links/selection, menus, TalkBack, font changes, live streams, draft commit identity, history prepends, keyboard transitions, multi-line send, target replacement and detach. Hold other switches fixed during A/B. No production default or performance claim changes before that evidence.
+
+## Rollout (2026-11-11)
+
+A one-run-per-arm comparison on a 120 Hz phone (main 05fb4a182) favoured RecyclerView with native Markdown rows over FlatList with React rows: cold-paging app deadline misses 54 vs 148, main-thread doFrame P95 8.0 ms vs 11.5 ms, and a longest back-to-latest frame of 49 ms vs 494 ms. RecyclerView with native rows is now the Android default. `EXPO_PUBLIC_CHAT_LIST=flatlist` restores FlatList and `EXPO_PUBLIC_NATIVE_ROWS=off` keeps every row in React (`text` limits native rows to plain text).
+
+Native rows handle the gestures React bubbles do: a tap opens the anchored message menu with the bubble's window rect, a long press selects, and a horizontal drag replies with the ReplySwipe thresholds. The view sends these to JavaScript as `onRowAction`; JavaScript drops a tap or long press while the keyboard is up, as the responder capture does for React rows.
