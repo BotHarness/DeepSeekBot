@@ -32,6 +32,16 @@ function start(host: FakeHost, appVersion?: string): HostClient {
   return target;
 }
 
+function pendingVersion() {
+  let resolve: (value: unknown) => void = () => {};
+  let reject: (reason: unknown) => void = () => {};
+  const promise = new Promise<unknown>((yes, no) => {
+    resolve = yes;
+    reject = no;
+  });
+  return { promise, resolve, reject };
+}
+
 const probes = (host: FakeHost) =>
   host.calls.map((call) => call.method).filter((method) => method === 'ping' || method === 'list');
 
@@ -159,7 +169,7 @@ it('clears the update suggestion after the computer is updated and reconnects', 
 
 it('connects and loads chats while the optional version read is still pending', async () => {
   const host = new FakeHost();
-  const version = Promise.withResolvers<unknown>();
+  const version = pendingVersion();
   host.methods.set('ping', () => version.promise);
   const target = start(host);
   try {
@@ -197,7 +207,7 @@ it.each(['success', 'missing'] as const)(
   'ignores stale %s compatibility after reconnecting',
   async (outcome) => {
     const host = new FakeHost();
-    const oldVersion = Promise.withResolvers<unknown>();
+    const oldVersion = pendingVersion();
     host.methods.set('ping', () => oldVersion.promise);
     const target = start(host);
     try {
