@@ -1,0 +1,55 @@
+diff --git a/ios/views/EnrichedMarkdownInternalText.m b/ios/views/EnrichedMarkdownInternalText.m
+index 93eef7ac4edf45f001a93ebb230588817e3e921b..f776d3d3c63568248d788330f2c9702a2d4be30c 100644
+--- a/ios/views/EnrichedMarkdownInternalText.m
++++ b/ios/views/EnrichedMarkdownInternalText.m
+@@ -16,6 +16,11 @@
+ #endif
+   BOOL _accessibilityNeedsRebuild;
+   ENRMSpoilerOverlayManager *_spoilerManager;
++  BOOL _measureValid;
++  CGFloat _measuredMaxWidth;
++  BOOL _measuredAllowTrailingMargin;
++  CGFloat _measuredLastElementMarginBottom;
++  CGSize _measuredSize;
+ }
+ 
+ @synthesize textView = _textView;
+@@ -56,6 +61,12 @@
+   ENRMAttachLayoutManager(_textView, _config);
+ }
+ 
++- (void)setConfig:(StyleConfig *)config
++{
++  _config = config;
++  _measureValid = NO;
++}
++
+ - (void)setSpoilerOverlay:(ENRMSpoilerOverlay)spoilerOverlay
+ {
+   _spoilerOverlay = spoilerOverlay;
+@@ -73,6 +84,7 @@
+ 
+   _accessibilityElements = nil;
+   _accessibilityNeedsRebuild = YES;
++  _measureValid = NO;
+ 
+   ENRMSetAttributedText(_textView, text);
+ 
+@@ -94,7 +106,16 @@
+ 
+ - (CGSize)measureSize:(CGFloat)maxWidth
+ {
+-  return ENRMMeasureMarkdownText(_textView, maxWidth, _config, _allowTrailingMargin, _lastElementMarginBottom);
++  if (_measureValid && _measuredMaxWidth == maxWidth && _measuredAllowTrailingMargin == _allowTrailingMargin &&
++      _measuredLastElementMarginBottom == _lastElementMarginBottom) {
++    return _measuredSize;
++  }
++  _measuredSize = ENRMMeasureMarkdownText(_textView, maxWidth, _config, _allowTrailingMargin, _lastElementMarginBottom);
++  _measuredMaxWidth = maxWidth;
++  _measuredAllowTrailingMargin = _allowTrailingMargin;
++  _measuredLastElementMarginBottom = _lastElementMarginBottom;
++  _measureValid = YES;
++  return _measuredSize;
+ }
+ 
+ - (void)layoutSubviews
