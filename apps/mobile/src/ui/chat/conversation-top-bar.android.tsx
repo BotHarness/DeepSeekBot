@@ -80,7 +80,7 @@ export function ConversationTopBar({
   );
   const look = chatHeaderSurface.island;
   const scheme = theme.scheme;
-  const ink = scheme === 'dark' ? '#ffffff' : '#000000';
+  const ink = look.ink[scheme];
   const pill = { type: 'roundedCorner', radius: islandHeight / 2 } as const;
   const island = {
     color: 'transparent',
@@ -92,7 +92,7 @@ export function ConversationTopBar({
     dropShadow(pill, {
       radius: look.shadow.radius,
       offsetY: look.shadow.offsetY,
-      color: '#000000',
+      color: look.shade,
       alpha: look.shadow[scheme],
     }),
     clip(pill),
@@ -100,7 +100,7 @@ export function ConversationTopBar({
     innerShadow(pill, {
       radius: look.highlight.width,
       offsetY: look.highlight.width,
-      color: '#ffffff',
+      color: look.light,
       alpha: look.highlight[scheme],
     }),
   ];

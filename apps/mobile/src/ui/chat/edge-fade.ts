@@ -16,7 +16,7 @@ export function edgeFadeStops(
       const step = index / edgeFade.samples;
       return {
         offset: start + step * (1 - start),
-        opacity: step === 0 ? 1 : shape.peak * (1 - step) ** shape.curve,
+        opacity: shape.peak * (1 - step) ** shape.curve,
       };
     }),
   ];

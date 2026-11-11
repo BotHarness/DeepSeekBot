@@ -17,7 +17,7 @@ export function ChatHeaderSurface({ height, solid }: { height: number; solid: nu
         edge="top"
         height={height}
         cover={solid}
-        solid={solid}
+        solid={0}
         color={theme.color.base}
         shape={chatHeaderSurface.fade}
       />
