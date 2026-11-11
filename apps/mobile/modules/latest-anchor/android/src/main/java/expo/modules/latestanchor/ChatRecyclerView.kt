@@ -183,13 +183,18 @@ class ChatRecyclerView(context: Context, app: AppContext) : ExpoView(context, ap
   fun setRows(next: List<String>) {
     if (next == keys) return
     val anchor = anchor()
+    val change = rowChange(keys, next)
     keys = next
     positions = next.withIndex().associate { it.value to it.index }
     heights.keys.retainAll(next.toSet())
     identities.keys.retainAll(next.toSet())
     next.forEach { identities.getOrPut(it) { ++nextIdentity } }
     geometry = RecyclerHeights(next.map { heights[it] ?: maxOf(1, (estimate * density).roundToInt()) })
-    adapter.notifyDataSetChanged()
+    if (change == null) adapter.notifyDataSetChanged()
+    else {
+      if (change.removed > 0) adapter.notifyItemRangeRemoved(change.start, change.removed)
+      if (change.inserted > 0) adapter.notifyItemRangeInserted(change.start, change.inserted)
+    }
     lastWindow = ""
     restore(anchor)
   }

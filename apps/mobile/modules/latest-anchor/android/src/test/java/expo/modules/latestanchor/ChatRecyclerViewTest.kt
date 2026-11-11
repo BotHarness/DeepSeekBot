@@ -41,8 +41,17 @@ class ChatRecyclerViewTest {
     assertTrue(recycler.height > recycler.paddingTop + recycler.paddingBottom)
     assertTrue(recycler.childCount in 1..30)
     val identity = recycler.adapter!!.getItemId(5)
+    var full = 0
+    val inserted = mutableListOf<Pair<Int, Int>>()
+    recycler.adapter!!.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
+      override fun onChanged() { full++ }
+      override fun onItemRangeInserted(start: Int, count: Int) { inserted += start to count }
+    })
     list.setRows(listOf("new") + (0..9999).map { "row-$it" })
     assertEquals(identity, recycler.adapter!!.getItemId(6))
+    list.setRows(listOf("new") + (0..10029).map { "row-$it" })
+    assertEquals(0, full)
+    assertEquals(listOf(0 to 1, 10001 to 30), inserted)
     list.scrollToIndex(5000, 0.5)
     list.layout(0, 0, 300, 500)
     assertTrue(recycler.childCount <= 30)
