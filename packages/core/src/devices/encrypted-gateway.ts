@@ -19,6 +19,7 @@ import {
   type VoiceCallResult,
 } from '../voice/call-contract.js';
 import { DIRECT_PATH, type DirectResult } from './direct.js';
+import { APP_VERSION_HEADER } from './client-compat.js';
 
 const BODY_LIMIT = 4 * 1024 * 1024;
 const QUEUE_LIMIT = 20 * 1024 * 1024;
@@ -84,6 +85,13 @@ export interface CallChannelDiagnostic {
   trigger: CloseTrigger | 'request-cancelled' | 'device-command';
   callId?: string;
 }
+function appVersionHeader(input: Record<string, unknown>): Record<string, string> {
+  const version = input['appVersion'];
+  return typeof version === 'string' && version.length <= 32 && /^[0-9A-Za-z.+-]+$/u.test(version)
+    ? { [APP_VERSION_HEADER]: version }
+    : {};
+}
+
 let nextCallChannel = 0;
 
 export function createEncryptedGateway(options: {
@@ -575,6 +583,7 @@ export function createEncryptedGateway(options: {
           method,
           headers: {
             authorization: `Device ${credential!}`,
+            ...appVersionHeader(input),
             'content-type':
               input['contentType'] === 'application/octet-stream'
                 ? 'application/octet-stream'

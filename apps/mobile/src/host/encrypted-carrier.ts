@@ -12,6 +12,7 @@ import type {
 } from './carrier';
 import type { HostEncryption } from './hosts';
 import { checkRoute, isEncryptedRoute, isLanRoute, socketOrigin } from './route';
+import { APP_VERSION_HEADER } from '../../../../packages/core/src/devices/client-compat';
 
 export const HOST_KEY_REJECTIONS: ReadonlySet<string> = new Set([
   'channel-authentication-failed',
@@ -531,6 +532,9 @@ export function encryptedCarrier(options: {
           ...(body === undefined ? {} : { body }),
           encoding: typeof init.body === 'string' ? 'text' : 'base64',
           contentType: init.headers?.['content-type'],
+          ...(init.headers?.[APP_VERSION_HEADER] === undefined
+            ? {}
+            : { appVersion: init.headers[APP_VERSION_HEADER] }),
         });
       } catch (error) {
         cleanup();

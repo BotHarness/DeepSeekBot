@@ -2921,6 +2921,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     log: (event) => ctx.logger.info(JSON.stringify(event)),
   });
   const bridgeMethods = createBridgeMethods({
+    hostVersion: () => release.version(),
     callText: createCallTextHarvest({ calls: () => voiceCalls, attachments: core.attachments }),
     voiceProviders: core.voiceProviders,
     voiceLog: (phase, fields) => diagnosticEvents.record('voice', phase, fields),

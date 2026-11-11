@@ -34,6 +34,12 @@ import {
 } from '../../../../packages/core/src/voice/call-contract';
 import { secretRouteRefusal } from '../../../../packages/core/src/bridge/secret-route';
 import {
+  APP_VERSION_HEADER,
+  MIN_HOST_VERSION,
+  belowMinimum,
+} from '../../../../packages/core/src/devices/client-compat';
+import { installedAppVersion } from './app-version';
+import {
   REMOTE_STREAM_MUX_PATH,
   type ActivityLiveFrame,
   type AttachmentRef,
@@ -131,12 +137,18 @@ export interface RosterView {
   sorting?: RosterSorting;
 }
 
+export interface HostCompatibility {
+  hostVersion?: string;
+  update?: 'host' | 'app';
+}
+
 export interface HostSnapshot {
   routes?: readonly {
     url: string;
     status: 'unchecked' | 'verified' | 'unreachable';
   }[];
   computerAvailable?: boolean;
+  compatibility?: HostCompatibility;
   connection: ConnectionState;
   disruptedSince?: number;
   activity?: readonly WireBotActivity[];
@@ -199,6 +211,7 @@ export interface HostClientOptions {
   backoff?: (attempt: number) => number;
   timeoutMs?: number;
   localStore?: () => Promise<LocalStore | undefined>;
+  appVersion?: string;
 }
 
 export type DeviceRefusal =
@@ -240,6 +253,10 @@ class Unreachable extends Error {
   ) {
     super(message);
   }
+}
+
+function hostLacksMethod(error: unknown): boolean {
+  return error instanceof Unreachable && error.status === 404;
 }
 
 const UPLOAD_TOO_LARGE = 'The file is larger than the Host accepts.';
@@ -356,7 +373,18 @@ export function createHostClient(options: HostClientOptions): HostClient {
   let routes = preferredRoutes(options.routes);
   const routeChecks = new Map<string, 'verified' | 'unreachable'>();
   const authorization = { authorization: `Device ${options.credential}` };
-  const jsonAuthorization = { ...authorization, 'content-type': 'application/json' };
+  const appVersion = options.appVersion ?? installedAppVersion();
+  const jsonAuthorization = {
+    ...authorization,
+    'content-type': 'application/json',
+    ...(appVersion === undefined ? {} : { [APP_VERSION_HEADER]: appVersion }),
+  };
+  let compatibility: HostCompatibility | undefined;
+  const setCompatibility = (next: HostCompatibility): void => {
+    if (JSON.stringify(next) === JSON.stringify(compatibility ?? {})) return;
+    compatibility = next;
+    publish();
+  };
   let route = options.routes[0] ?? '';
   const backoff = options.backoff ?? defaultBackoff;
   const timeoutMs = options.timeoutMs ?? 10_000;
@@ -454,6 +482,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
       ...(disruptedSince === undefined ? {} : { disruptedSince }),
       activity: share('activity', [...rawStates.values()]),
       ...(computerAvailable === undefined ? {} : { computerAvailable }),
+      ...(compatibility === undefined ? {} : { compatibility }),
       ...(roster === undefined ? {} : { roster }),
     };
     const unchanged =
@@ -684,6 +713,11 @@ export function createHostClient(options: HostClientOptions): HostClient {
         const code = refusalOf(await response.text());
         if (code !== undefined) throw new CredentialRefused(code);
       }
+      if (response.status === 404)
+        throw new Unreachable(
+          `This computer's Tobs does not support ${name} yet. Update Tobs on the computer.`,
+          404,
+        );
       if (response.status >= 400)
         throw new Unreachable(`The Host answered ${response.status}.`, response.status);
       let envelope: Record<string, unknown>;
@@ -837,8 +871,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
 
   const unlessRefused = <T>(work: Promise<T>): Promise<T | undefined> =>
     work.catch((error: unknown) => {
-      if (error instanceof MethodRefused || (error instanceof Unreachable && error.status === 404))
-        return undefined;
+      if (error instanceof MethodRefused || hostLacksMethod(error)) return undefined;
       throw error;
     });
 
@@ -862,7 +895,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
       });
     } catch (error) {
       if (
-        error instanceof Unreachable ||
+        (error instanceof Unreachable && !hostLacksMethod(error)) ||
         error instanceof MethodRefused ||
         error instanceof CredentialRefused
       )
@@ -907,7 +940,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     fetchedArrangement = undefined;
     return call<unknown>('rosterGet')
       .then(arrangementOf, (error: unknown) => {
-        if (error instanceof MethodRefused) return undefined;
+        if (error instanceof MethodRefused || hostLacksMethod(error)) return undefined;
         throw error;
       })
       .then((value) => {
@@ -1243,10 +1276,21 @@ export function createHostClient(options: HostClientOptions): HostClient {
   const probeHost = async (): Promise<unknown> => {
     if (pingAvailable)
       try {
-        return await call('ping');
+        const answer = record(await call<unknown>('ping'));
+        const version = typeof answer['version'] === 'string' ? answer['version'] : undefined;
+        const minAppVersion = answer['minAppVersion'];
+        setCompatibility({
+          ...(version === undefined ? {} : { hostVersion: version }),
+          ...(version !== undefined && belowMinimum(version, MIN_HOST_VERSION)
+            ? { update: 'host' as const }
+            : typeof minAppVersion === 'string' && belowMinimum(appVersion, minAppVersion)
+              ? { update: 'app' as const }
+              : {}),
+        });
+        return answer;
       } catch (error) {
         if (
-          error instanceof Unreachable ||
+          (error instanceof Unreachable && !hostLacksMethod(error)) ||
           error instanceof CredentialRefused ||
           error instanceof ConnectRefused
         )

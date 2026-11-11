@@ -472,6 +472,7 @@ import {
   type ResolvedPromptPart,
 } from '../prompts/prompt-presets.js';
 import type { PromptSettings } from '../prompts/prompt-settings.js';
+import { MIN_PHONE_APP_VERSION } from '../devices/client-compat.js';
 
 export interface ActivityOverview {
   actionCount: number;
@@ -805,7 +806,7 @@ export interface BridgeMethods {
   }>;
   pause(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   resume(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
-  ping(payload: unknown): BridgeResult<{ ok: true }>;
+  ping(payload: unknown): BridgeResult<{ ok: true; version?: string; minAppVersion: string }>;
   humanIdentity(payload: unknown): BridgeResult<LocalHumanIdentity>;
   composerIdentity(payload: unknown): BridgeResult<ComposerRecoveryIdentity>;
   composerValidate(payload: unknown): BridgeResult<{
@@ -1300,6 +1301,7 @@ export interface BridgeMethodsDeps {
   shareDrafts?: ShareDrafts;
   marketplaceReceipts?: InstallReceipts;
   release?: ReleaseService;
+  hostVersion?: () => string;
   plugins?: PluginUpdateService;
   updates?: UpdateRuns;
   telemetry?: {
@@ -5386,7 +5388,15 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       return { ok: true, value: detailOf(result.record) };
     },
     ping() {
-      return { ok: true, value: { ok: true } };
+      const version = deps.hostVersion?.();
+      return {
+        ok: true,
+        value: {
+          ok: true,
+          ...(version === undefined ? {} : { version }),
+          minAppVersion: MIN_PHONE_APP_VERSION,
+        },
+      };
     },
     humanIdentity() {
       return { ok: true, value: deps.channels.humanIdentity() };
