@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 
 import { edgeFadeStops } from '../src/ui/chat/edge-fade';
-import { edgeFade } from '../src/ui/design/tokens';
+import { chatHeaderSurface, edgeFade } from '../src/ui/design/tokens';
 
 it('keeps the light edge curve when nothing floats over the edge', () => {
   expect(edgeFadeStops(80, 0)).toBe(edgeFade.stops);
@@ -24,4 +24,13 @@ it('holds the system bar strip fully opaque before the curve starts', () => {
   expect(stops[0]).toEqual({ offset: 0, opacity: 1 });
   expect(stops[1]).toEqual({ offset: 0.2, opacity: 1 });
   expect(stops.at(-1)).toEqual({ offset: 1, opacity: 0 });
+});
+
+it('lets the header fade start below opaque and ease out more evenly', () => {
+  const stops = edgeFadeStops(140, 76, 28, chatHeaderSurface.fade);
+  expect(stops[0]).toEqual({ offset: 0, opacity: 1 });
+  expect(stops[1]).toEqual({ offset: 0.2, opacity: chatHeaderSurface.fade.peak });
+  expect(stops.at(-1)).toEqual({ offset: 1, opacity: 0 });
+  const third = stops.find((stop) => stop.offset >= 0.2 + 0.8 / 3)!;
+  expect(third.opacity).toBeGreaterThan(0.55);
 });

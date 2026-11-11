@@ -11,8 +11,12 @@ import {
   Text,
 } from '@expo/ui/jetpack-compose';
 import {
+  background,
+  clip,
+  dropShadow,
   fillMaxWidth,
   height as nativeHeight,
+  innerShadow,
   padding,
   semantics,
   size,
@@ -25,15 +29,21 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BotAvatar } from '../bot-avatar';
 import { useDesignTheme } from '../design/theme';
-import { materialIconButton, radius, space } from '../design/tokens';
+import { chatHeaderSurface, materialIconButton, radius, space } from '../design/tokens';
 import { useStrings } from '../strings';
 import type { ConversationTopBarProps } from './conversation-top-bar';
 import { ChatHeaderSurface } from './chat-header-surface.android';
 import { GroupMark } from './group-mark';
 import { HeaderBotStack } from './header-bot-stack';
 
+function withAlpha(hex: string, alpha: number): string {
+  if (!/^#[0-9a-f]{6}$/iu.test(hex)) return hex;
+  return `${hex}${Math.round(alpha * 255)
+    .toString(16)
+    .padStart(2, '0')}`;
+}
+
 export function ConversationTopBar({
-  blurTarget,
   title,
   subtitle,
   bot,
@@ -68,11 +78,32 @@ export function ConversationTopBar({
       <Icon source={source} size={materialIconButton.iconSize} />
     </IconButton>
   );
+  const look = chatHeaderSurface.island;
+  const scheme = theme.scheme;
+  const ink = scheme === 'dark' ? '#ffffff' : '#000000';
+  const pill = { type: 'roundedCorner', radius: islandHeight / 2 } as const;
   const island = {
-    color: theme.layer.raised.fill,
+    color: 'transparent',
     contentColor: theme.color.fg,
     shape: Shape.Pill({}),
+    border: { width: look.rim.width, color: withAlpha(ink, look.rim[scheme]) },
   };
+  const islandLook = [
+    dropShadow(pill, {
+      radius: look.shadow.radius,
+      offsetY: look.shadow.offsetY,
+      color: '#000000',
+      alpha: look.shadow[scheme],
+    }),
+    clip(pill),
+    background(withAlpha(theme.layer.raised.fill, look.tint)),
+    innerShadow(pill, {
+      radius: look.highlight.width,
+      offsetY: look.highlight.width,
+      color: '#ffffff',
+      alpha: look.highlight[scheme],
+    }),
+  ];
   return (
     <View
       testID="android-chat-header"
@@ -93,7 +124,6 @@ export function ConversationTopBar({
       }}
     >
       <ChatHeaderSurface
-        target={blurTarget}
         height={height || insets.top + theme.touch + space.x3}
         solid={insets.top}
       />
@@ -108,7 +138,7 @@ export function ConversationTopBar({
           horizontalArrangement={{ spacedBy: space.x2 }}
           modifiers={[fillMaxWidth(), padding(space.x3, space.x2, space.x3, space.x2)]}
         >
-          <Surface {...island}>
+          <Surface {...island} modifiers={islandLook}>
             {action('chat-back', t.back, require('../../../assets/header/arrow-back.xml'), onBack)}
           </Surface>
           <Surface
@@ -116,6 +146,7 @@ export function ConversationTopBar({
             {...(onProfile === undefined ? {} : { onClick: onProfile })}
             modifiers={[
               weight(1),
+              ...islandLook,
               testID('chat-identity'),
               semantics({ contentDescription: [title, status].filter(Boolean).join(', ') }),
             ]}
@@ -184,7 +215,7 @@ export function ConversationTopBar({
             </Row>
           </Surface>
           {onCall === undefined && onProfile === undefined ? null : (
-            <Surface {...island} modifiers={[testID('chat-action-island')]}>
+            <Surface {...island} modifiers={[...islandLook, testID('chat-action-island')]}>
               <Row verticalAlignment="center">
                 {onCall === undefined
                   ? null

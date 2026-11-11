@@ -430,7 +430,6 @@ function ChatConversation({
   const nativeHeaderPadding = useHeaderPadding();
   const inlineHeaderHeight = useChatHeaderHeight();
   const [measuredHeaderHeight, setMeasuredHeaderHeight] = useState(0);
-  const blurTarget = useRef<ViewInstance>(null);
   const insets = useSafeAreaInsets();
   const android = Platform.OS === 'android';
   const nativeSpacer = !android && LatestAnchor !== undefined;
@@ -1800,7 +1799,7 @@ function ChatConversation({
               ) : null
             }
           >
-            <ChatBackdrop ref={blurTarget} style={{ flex: 1 }}>
+            <ChatBackdrop style={{ flex: 1 }}>
               <KeyboardChatFrame
                 onMount={screenRef}
                 backgroundColor={background.kind === 'color' ? background.color : theme.color.base}
@@ -2204,7 +2203,6 @@ function ChatConversation({
             </ChatBackdrop>
             {android ? (
               <ConversationTopBar
-                blurTarget={blurTarget}
                 title={
                   dm
                     ? (bot?.displayName ?? slug ?? '')
