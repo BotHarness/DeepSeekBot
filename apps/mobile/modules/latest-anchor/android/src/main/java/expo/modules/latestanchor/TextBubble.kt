@@ -114,7 +114,7 @@ class TextBubbleLayout(val row: TextRow, val tokens: TextRowStyle, val width: In
     val textWidth = (0 until body.lineCount).maxOf { body.getLineWidth(it) }
     val lastWidth = body.getLineWidth(body.lineCount - 1)
     val timeWidth = timePaint.measureText(row.time)
-    val textHeight = body.lineCount * line
+    val textHeight = body.height.toFloat()
     val beside = !row.human && body.lineCount == 1 && !row.body.contains('\n') &&
       row.body.length <= tokens.besideMax && textWidth + gap + timeWidth <= inner
     val contentWidth: Float
@@ -125,7 +125,7 @@ class TextBubbleLayout(val row: TextRow, val tokens: TextRowStyle, val width: In
       contentHeight = textHeight + if (fits) 0f else metaLine
     } else if (beside) {
       contentWidth = textWidth + gap + timeWidth
-      contentHeight = max(line, metaLine)
+      contentHeight = max(textHeight, metaLine)
     } else {
       contentWidth = max(textWidth, timeWidth)
       contentHeight = textHeight + tokens.stackGap * density + metaLine
