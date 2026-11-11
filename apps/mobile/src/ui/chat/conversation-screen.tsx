@@ -176,7 +176,15 @@ import { createSendFlights, SendFlightsContext, textFrame, type SendFlight } fro
 import { QuestionCard } from './question-card';
 import { TimeSeparator } from './time-separator';
 import { AccentProvider, pressTint, useDesignTheme } from '../design/theme';
-import { edge, edgeFade, glassPress, pullToCompose, radius, space } from '../design/tokens';
+import {
+  chatComposerSurface,
+  edge,
+  edgeFade,
+  glassPress,
+  pullToCompose,
+  radius,
+  space,
+} from '../design/tokens';
 import { navigateChannel } from '../shell/channel-navigation';
 import { leaveScreen } from '../shell/leave-screen';
 import { Text } from '../primitives/text';
@@ -1657,10 +1665,15 @@ function ChatConversation({
       edge="bottom"
       height={composerCover + edgeFade.bottom}
       cover={composerCover}
-      solid={composerCover}
+      solid={android ? 0 : composerCover}
       color={fadeColor}
+      {...(android ? { shape: chatComposerSurface.fade } : {})}
     />
   );
+  const replyBar =
+    replyTarget === undefined ? undefined : (
+      <ReplyBar message={replyTarget} botName={botName} onCancel={() => setReplying(undefined)} />
+    );
 
   return (
     <ChatOffline value={!online}>
@@ -1853,15 +1866,10 @@ function ChatConversation({
                           setSelection(undefined);
                           setCaret(next);
                         }}
+                        inside={android ? replyBar : undefined}
                         above={
                           <>
-                            {replyTarget === undefined ? null : (
-                              <ReplyBar
-                                message={replyTarget}
-                                botName={botName}
-                                onCancel={() => setReplying(undefined)}
-                              />
-                            )}
+                            {android ? null : replyBar}
                             {draftPersistence.failed ? (
                               <DraftSaveNotice
                                 busy={retryingDraft}
