@@ -42,6 +42,7 @@ import {
 import { CloudConversationRow } from '../../../src/ui/chat/cloud-conversation-row';
 import { useConversationFilter } from '../../../src/host/native-conversation-filter';
 import { StatusChip } from '../../../src/ui/primitives/status-chip';
+import { HostCompatibilityChips } from '../../../src/ui/host-compatibility-chip';
 import { searchAppBar, space } from '../../../src/ui/design/tokens';
 import {
   conversationEnvironments,
@@ -705,6 +706,23 @@ const HomeContent = memo(function HomeContent({
                           busy={refreshing}
                         />
                       ) : null}
+                      <HostCompatibilityChips
+                        named={selectedHost === undefined && hosts.length > 1}
+                        hosts={loadingHosts.flatMap((host) =>
+                          host.snapshot.connection.status === 'connected'
+                            ? [
+                                {
+                                  hostId: host.saved.hostId,
+                                  name: shownHostName(
+                                    hostLooks.look(host.saved.hostId),
+                                    host.saved.hostName,
+                                  ),
+                                  compatibility: host.snapshot.compatibility,
+                                },
+                              ]
+                            : [],
+                        )}
+                      />
                       {(cloudFailed || error) && (
                         <StatusChip
                           testID="cloud-status-chip"

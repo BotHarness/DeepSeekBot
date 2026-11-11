@@ -51,9 +51,10 @@ it('falls back to the Bot list on a Host without ping', async () => {
   });
   const target = start(host);
   await connected(target);
+  expect(target.getSnapshot().compatibility).toEqual({ update: 'host' });
   host.calls.length = 0;
   vi.advanceTimersByTime(20_000);
-  await vi.waitFor(() => expect(probes(host)).toEqual(['ping', 'list']));
+  await vi.waitFor(() => expect(probes(host)).toEqual(['list']));
   host.calls.length = 0;
   vi.advanceTimersByTime(20_000);
   await vi.waitFor(() => expect(probes(host)).toEqual(['list']));
@@ -65,9 +66,10 @@ it('falls back to the Bot list when an older Host answers ping with 404', async 
   host.absent.add('ping');
   const target = start(host);
   await connected(target);
+  expect(target.getSnapshot().compatibility).toEqual({ update: 'host' });
   host.calls.length = 0;
   vi.advanceTimersByTime(20_000);
-  await vi.waitFor(() => expect(probes(host)).toEqual(['ping', 'list']));
+  await vi.waitFor(() => expect(probes(host)).toEqual(['list']));
   host.calls.length = 0;
   vi.advanceTimersByTime(20_000);
   await vi.waitFor(() => expect(probes(host)).toEqual(['list']));
@@ -95,15 +97,12 @@ it('tells the Human to update the computer when it lacks a method', async () => 
   expect(target.getSnapshot().connection.status).toBe('connected');
 });
 
-it('records the computer version from ping and flags one below the supported minimum', async () => {
+it('knows the computer version as soon as it connects and flags one below the minimum', async () => {
   const host = new FakeHost();
   host.methods.set('ping', () => ({ ok: true, version: '1.7.0' }));
   const target = start(host);
   await connected(target);
-  vi.advanceTimersByTime(20_000);
-  await vi.waitFor(() =>
-    expect(target.getSnapshot().compatibility).toEqual({ hostVersion: '1.7.0' }),
-  );
+  expect(target.getSnapshot().compatibility).toEqual({ hostVersion: '1.7.0' });
   host.methods.set('ping', () => ({ ok: true, version: '1.5.0' }));
   vi.advanceTimersByTime(20_000);
   await vi.waitFor(() =>
@@ -117,10 +116,7 @@ it('sends the app version and suggests an app update without blocking calls', as
   host.methods.set('ping', () => ({ ok: true, version: '1.9.0', minAppVersion: '1.8.0' }));
   const target = start(host, '1.7.0');
   await connected(target);
-  vi.advanceTimersByTime(20_000);
-  await vi.waitFor(() =>
-    expect(target.getSnapshot().compatibility).toEqual({ hostVersion: '1.9.0', update: 'app' }),
-  );
+  expect(target.getSnapshot().compatibility).toEqual({ hostVersion: '1.9.0', update: 'app' });
   expect(host.lastHeaders?.['x-tobs-app-version']).toBe('1.7.0');
   await expect(target.call('list')).resolves.toBeDefined();
   expect(target.getSnapshot().connection.status).toBe('connected');

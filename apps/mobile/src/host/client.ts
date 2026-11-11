@@ -1250,7 +1250,9 @@ export function createHostClient(options: HostClientOptions): HostClient {
       clearTimeout(deadline);
     }
     if (reloading === undefined) reuseNextPass = true;
+    const compatible = pingAvailable ? readCompatibility().catch(() => undefined) : undefined;
     await reload();
+    await compatible;
     if (current !== generation) return;
     const stable = setTimeout(() => {
       attempt = 0;
@@ -1273,30 +1275,37 @@ export function createHostClient(options: HostClientOptions): HostClient {
   };
 
   let pingAvailable = true;
+  const readCompatibility = async (): Promise<unknown> => {
+    try {
+      const answer = record(await call<unknown>('ping'));
+      const version = typeof answer['version'] === 'string' ? answer['version'] : undefined;
+      const minAppVersion = answer['minAppVersion'];
+      setCompatibility({
+        ...(version === undefined ? {} : { hostVersion: version }),
+        ...(version !== undefined && belowMinimum(version, MIN_HOST_VERSION)
+          ? { update: 'host' as const }
+          : typeof minAppVersion === 'string' && belowMinimum(appVersion, minAppVersion)
+            ? { update: 'app' as const }
+            : {}),
+      });
+      return answer;
+    } catch (error) {
+      if (
+        (error instanceof Unreachable && !hostLacksMethod(error)) ||
+        error instanceof CredentialRefused ||
+        error instanceof ConnectRefused
+      )
+        throw error;
+      pingAvailable = false;
+      setCompatibility({ update: 'host' });
+      return undefined;
+    }
+  };
   const probeHost = async (): Promise<unknown> => {
-    if (pingAvailable)
-      try {
-        const answer = record(await call<unknown>('ping'));
-        const version = typeof answer['version'] === 'string' ? answer['version'] : undefined;
-        const minAppVersion = answer['minAppVersion'];
-        setCompatibility({
-          ...(version === undefined ? {} : { hostVersion: version }),
-          ...(version !== undefined && belowMinimum(version, MIN_HOST_VERSION)
-            ? { update: 'host' as const }
-            : typeof minAppVersion === 'string' && belowMinimum(appVersion, minAppVersion)
-              ? { update: 'app' as const }
-              : {}),
-        });
-        return answer;
-      } catch (error) {
-        if (
-          (error instanceof Unreachable && !hostLacksMethod(error)) ||
-          error instanceof CredentialRefused ||
-          error instanceof ConnectRefused
-        )
-          throw error;
-        pingAvailable = false;
-      }
+    if (pingAvailable) {
+      const answer = await readCompatibility();
+      if (pingAvailable) return answer;
+    }
     return call('list');
   };
   const refreshConnected = async (read: () => Promise<unknown> = reload): Promise<void> => {
