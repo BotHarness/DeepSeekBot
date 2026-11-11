@@ -21,7 +21,12 @@ import { useMountedResource } from './mounted-resource.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { CompanionBot } from '../../../core/src/companions/feed.js';
 import type { CompanionViewState, WindowCompanion } from './window-companion.js';
-import { CompanionMotion, type CompanionPoint } from './companion-motion.js';
+import {
+  CompanionMotion,
+  repaintsOnly,
+  toolbarSide,
+  type CompanionPoint,
+} from './companion-motion.js';
 import { CompanionBubbles, type BubblePlacement } from './companion-bubbles.js';
 import { CompanionFrames, type CompanionFrameTask } from './companion-frames.js';
 import { isAvatarAppearance } from '../../../core/src/bots/avatar-appearance.js';
@@ -282,6 +287,7 @@ export function WindowCompanionView({
   const [bubble, setBubble] = useState<BubblePlacement | undefined>(undefined);
   const root = useRef<HTMLDivElement | null>(null);
   const character = useRef<HTMLButtonElement | null>(null);
+  const body = useRef<HTMLElement | null>(null);
   const pointer = useRef<
     | {
         id: number;
@@ -524,7 +530,17 @@ export function WindowCompanionView({
           if (walking && (next.x <= 8 || next.x >= Math.max(8, next.width - 104)))
             direction.current *= -1;
           setStride(walking ? (direction.current > 0 ? 'right' : 'left') : undefined);
-          if (next !== previousPoint) setPoint(next);
+          if (next !== previousPoint) {
+            const shown = displayedPoint.current;
+            if (body.current && character.current) {
+              body.current.style.transform = `translate3d(${next.x}px, ${-next.y}px, 0)`;
+              character.current.style.rotate = `${next.tilt}deg`;
+              character.current.style.transform = `scale(${1 + next.squash}, ${1 - next.squash})`;
+            }
+            if (body.current && character.current && repaintsOnly(speaking(state), shown, next))
+              displayedPoint.current = next;
+            else setPoint(next);
+          }
           if (previousPoint.phase !== 'rest' && next.phase === 'rest') persistPosition();
         }
         sampled = undefined;
@@ -691,6 +707,7 @@ export function WindowCompanionView({
         </svg>
       ) : null}
       <section
+        ref={body}
         {...hooked('bh-companion', styles.companion)}
         aria-label={t('companion.label', { name: bot.name })}
         data-bh-tour="companion"
@@ -699,7 +716,7 @@ export function WindowCompanionView({
         data-sync={view.sync}
         data-motion={point.phase}
         data-bot={bot.slug}
-        data-toolbar={point.x > point.width - 150 ? 'left' : 'right'}
+        data-toolbar={toolbarSide(point)}
         style={{
           left: 0,
           bottom: 0,

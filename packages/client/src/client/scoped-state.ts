@@ -19,17 +19,14 @@ export function useScopedState<T>(scope: Scope, initial?: T | (() => T)) {
   const current = stored.scope === scope ? stored : fresh();
   if (current !== stored) setStored(current);
   const setValue: Dispatch<SetStateAction<T | undefined>> = (next) => {
-    setStored((previous) =>
-      previous.generation !== current.generation
-        ? previous
-        : {
-            ...previous,
-            value:
-              typeof next === 'function'
-                ? (next as (value: T | undefined) => T | undefined)(previous.value)
-                : next,
-          },
-    );
+    setStored((previous) => {
+      if (previous.generation !== current.generation) return previous;
+      const value =
+        typeof next === 'function'
+          ? (next as (value: T | undefined) => T | undefined)(previous.value)
+          : next;
+      return Object.is(value, previous.value) ? previous : { ...previous, value };
+    });
   };
   return [current.value, setValue] as const;
 }
