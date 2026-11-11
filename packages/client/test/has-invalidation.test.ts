@@ -80,10 +80,10 @@ describe(':has() invalidation', () => {
 describe('host :has() sibling rewrite', () => {
   it('rewrites a parent :has(> X) > S rule into the equivalent sibling selectors', () => {
     expect(siblingSelector(':has(> .nav.fill) > :not(.nav)')).toBe(
-      '.nav.fill ~ :not(.nav), :not(.nav):has(~ .nav.fill)',
+      '.nav.fill ~ :not(.nav), :not(.nav):not(.bh-timeline-slot):has(~ .nav.fill)',
     );
     expect(siblingSelector(':has(> .nav:not(.whole)) > :not(.nav)')).toBe(
-      '.nav:not(.whole) ~ :not(.nav), :not(.nav):has(~ .nav:not(.whole))',
+      '.nav:not(.whole) ~ :not(.nav), :not(.nav):not(.bh-timeline-slot):has(~ .nav:not(.whole))',
     );
     expect(invalidatesWholeDocument(siblingSelector(':has(> .a) > :not(.b)')!)).toBe(false);
   });

@@ -3,32 +3,50 @@ import { reportInvariant } from './diagnostic-log.js';
 import { flushSync } from 'react-dom';
 
 const KEEP_RENDERED_VIEWPORTS = 1.5;
+const CHUNK_SIZE = 32;
 
-export type TimelineRun =
-  | { kind: 'group'; index: number }
-  | { kind: 'gap'; from: number; to: number; height: number };
+export type TimelineSlot = { index: number; placeholder?: number };
 
-export function timelineRuns(
+export function timelineSlots(
   keys: readonly string[],
   heights: ReadonlyMap<string, number>,
   rendered: (key: string) => boolean,
-): TimelineRun[] {
-  const runs: TimelineRun[] = [];
-  keys.forEach((key, index) => {
+): TimelineSlot[] {
+  return keys.map((key, index) => {
     const height = heights.get(key);
-    if (height === undefined || rendered(key)) {
-      runs.push({ kind: 'group', index });
-      return;
-    }
-    const last = runs.at(-1);
-    if (last?.kind === 'gap' && last.to === index - 1) {
-      last.to = index;
-      last.height += height;
-    } else {
-      runs.push({ kind: 'gap', from: index, to: index, height });
-    }
+    return height === undefined || rendered(key) ? { index } : { index, placeholder: height };
   });
-  return runs;
+}
+
+export type TimelineChunk = { id: string; start: number; end: number };
+
+export function timelineChunks(
+  keys: readonly string[],
+  previous: ReadonlyMap<string, string>,
+  size: number,
+): { chunks: TimelineChunk[]; assigned: Map<string, string> } {
+  const chunks: TimelineChunk[] = [];
+  const assigned = new Map<string, string>();
+  const ids = new Set(previous.values());
+  const closed = new Set<string>();
+  let current: TimelineChunk | undefined;
+  keys.forEach((key, index) => {
+    const known = previous.get(key);
+    if (known !== undefined && current?.id === known) current.end = index + 1;
+    else if (known !== undefined && !closed.has(known)) {
+      if (current !== undefined) closed.add(current.id);
+      current = { id: known, start: index, end: index + 1 };
+      chunks.push(current);
+    } else if (current !== undefined && current.end - current.start < size) current.end = index + 1;
+    else {
+      if (current !== undefined) closed.add(current.id);
+      const id = ids.has(key) || closed.has(key) ? `${key}#${index}` : key;
+      current = { id, start: index, end: index + 1 };
+      chunks.push(current);
+    }
+    assigned.set(key, current.id);
+  });
+  return { chunks, assigned };
 }
 
 export function nearKeys(
@@ -71,7 +89,8 @@ function sameKeys(left: ReadonlySet<string>, right: ReadonlySet<string>): boolea
 }
 
 export interface TimelineWindow {
-  runs: TimelineRun[];
+  slots: TimelineSlot[];
+  chunks: TimelineChunk[];
   blockRef(key: string): (node: HTMLElement | null) => void;
   rootRef(node: HTMLElement | null): void;
 }
@@ -116,6 +135,11 @@ export function useTimelineWindow(
     keys?: readonly string[];
     members?: ReadonlyMap<string, readonly string[]>;
   }>({});
+  const chunked = useRef<{
+    keys?: readonly string[];
+    assigned: ReadonlyMap<string, string>;
+    chunks: TimelineChunk[];
+  }>({ assigned: new Map(), chunks: [] });
   const latestMembers = useRef(members);
   latestMembers.current = members;
   const record = (key: string, height: number): void => {
@@ -275,10 +299,15 @@ export function useTimelineWindow(
     for (const id of [...shares.current.keys()]) if (!ids.has(id)) shares.current.delete(id);
   }
 
+  if (chunked.current.keys !== keys) {
+    const next = timelineChunks(keys, chunked.current.assigned, CHUNK_SIZE);
+    chunked.current = { keys, assigned: next.assigned, chunks: next.chunks };
+  }
   const sizes = knownSizes();
   const near = windowKeys(keys, sizes, view.top, view.bottom);
   return {
-    runs: timelineRuns(
+    chunks: chunked.current.chunks,
+    slots: timelineSlots(
       keys,
       sizes,
       (key) => (!view.seen.has(key) && !sizes.has(key)) || near.has(key) || pinned.has(key),

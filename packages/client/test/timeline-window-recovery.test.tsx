@@ -37,9 +37,13 @@ it('retains a measurable report group when changing heights leaves the viewport 
     return createElement(
       'div',
       { ref: mount },
-      timeline.runs.map((run) =>
-        run.kind === 'gap'
-          ? createElement('div', { key: 'gap', 'data-gap': '', style: { height: run.height } })
+      timeline.slots.map((slot) =>
+        slot.placeholder !== undefined
+          ? createElement('div', {
+              key: 'gap',
+              'data-gap': '',
+              style: { height: slot.placeholder },
+            })
           : createElement(
               'div',
               { key: 'report', ref: timeline.blockRef('report'), 'data-group-key': 'report' },

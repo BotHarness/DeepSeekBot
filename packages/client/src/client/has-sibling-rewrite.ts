@@ -20,6 +20,8 @@ function compound(text: string): boolean {
   return depth === 0 && text.length > 0;
 }
 
+const LONG_LIST_ITEM = '.bh-timeline-slot';
+
 export function siblingSelector(selector: string): string | undefined {
   const trimmed = selector.trim();
   if (!trimmed.startsWith(':has(')) return undefined;
@@ -31,7 +33,7 @@ export function siblingSelector(selector: string): string | undefined {
   const child = inner.slice(1).trim();
   const subject = rest.slice(1).trim();
   if (!compound(child) || !compound(subject)) return undefined;
-  return `${child} ~ ${subject}, ${subject}:has(~ ${child})`;
+  return `${child} ~ ${subject}, ${subject}:not(${LONG_LIST_ITEM}):has(~ ${child})`;
 }
 
 function rewriteRules(sheet: CSSStyleSheet | CSSGroupingRule): void {

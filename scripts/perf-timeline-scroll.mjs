@@ -24,6 +24,9 @@ Group once with scripts/perf-idle-timeline.mjs and pass its fixture.json.
   --geometry           Check every frame for blank gaps and anchor jumps. The checks read layout,
                        so keep timing runs without it and run a separate correctness pass.
   --headed             Open a real browser window (use under Xvfb or on a desktop).
+  --uncapped           Lift the vsync frame-rate cap so each rAF interval is the time the page
+                       needed to produce that frame. Use it to judge the 8.3 ms (120 Hz) and
+                       16.7 ms (60 Hz) budgets; capped runs cannot show a frame under one vsync.
   --label <name>       Evidence label (default "run").
   --out <dir>          Evidence directory (default .humanlayer/perf/timeline-scroll).
 
@@ -41,6 +44,7 @@ const { values: options } = parseArgs({
     trace: { type: 'boolean', default: false },
     headed: { type: 'boolean', default: false },
     geometry: { type: 'boolean', default: false },
+    uncapped: { type: 'boolean', default: false },
     label: { type: 'string', default: 'run' },
     out: { type: 'string', default: '.humanlayer/perf/timeline-scroll' },
     help: { type: 'boolean', default: false },
@@ -68,7 +72,12 @@ const distance = Number(options.distance);
 
 const browser = await puppeteer.launch({
   headless: !options.headed,
-  args: ['--no-sandbox', '--lang=en-US', '--enable-precise-memory-info'],
+  args: [
+    '--no-sandbox',
+    '--lang=en-US',
+    '--enable-precise-memory-info',
+    ...(options.uncapped ? ['--disable-gpu-vsync', '--disable-frame-rate-limit'] : []),
+  ],
   protocolTimeout: 600_000,
 });
 const page = await browser.newPage();
@@ -179,6 +188,11 @@ async function installRecorder(geometry) {
   }, geometry);
 }
 
+function share(intervals, budget) {
+  const over = intervals.filter((ms) => ms > budget).length;
+  return Math.round((over / Math.max(1, intervals.length)) * 1000) / 10;
+}
+
 function summarize(state) {
   const raf = [...state.raf].sort((a, b) => a - b);
   const at = (q) => Math.round(raf[Math.min(raf.length - 1, Math.floor(raf.length * q))] * 10) / 10;
@@ -190,8 +204,10 @@ function summarize(state) {
     rafP99: at(0.99),
     rafMax: Math.round(raf.at(-1) ?? 0),
     slowFrames: raf.filter((ms) => ms > 25).length,
-    slowFramePct:
-      Math.round((raf.filter((ms) => ms > 25).length / Math.max(1, raf.length)) * 1000) / 10,
+    slowFramePct: share(raf, 25),
+    over8Pct: share(raf, 1000 / 120),
+    over16Pct: share(raf, 1000 / 60),
+    over50: raf.filter((ms) => ms > 50).length,
     longFrames: loaf.length,
     longFrameBlockingMs: Math.round(loaf.reduce((sum, entry) => sum + entry.blocking, 0)),
     longFrameMaxMs: Math.round(Math.max(0, ...loaf.map((entry) => entry.duration))),
@@ -311,6 +327,7 @@ try {
     mode: options.mode,
     geometry: options.geometry,
     cpuThrottle: Number(options['cpu-throttle']),
+    uncapped: options.uncapped,
     ticks,
     scrolledPx: scrolled,
     elapsedMs: Math.round(elapsedMs),

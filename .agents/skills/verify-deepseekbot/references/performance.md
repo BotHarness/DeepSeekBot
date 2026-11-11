@@ -69,7 +69,10 @@ command in the `perf-budget` job; see
 reuses the idle run's `fixture.json`, mounts and visits the whole history, then sends trusted
 CDP wheel input (120 px per tick, one tick per ~16 ms) up and back down `--distance` pixels and
 reports the CDP main-thread totals over the scroll (`taskMs`, `recalcStyleMs`, `styleRecalcs`),
-rAF interval percentiles, the share of frames over 25 ms and Long Animation Frames. `--mode
+rAF interval percentiles, the share of frames over 8.3, 16.7 and 25 ms and Long Animation
+Frames. Add `--uncapped` to lift the vsync cap: each rAF interval then is the time the page
+needed for that frame, which is what the 8.3 ms (120 Hz) and 16.7 ms (60 Hz) budgets mean;
+a capped run cannot show a frame under one vsync. `--mode
 cold` instead opens the Group and wheels up to the first message while older pages load.
 `--geometry` adds per-frame gap and anchor-jump checks; they read layout, so keep them out of
 timing runs. Run it headed under Xvfb (`xvfb-run -a node scripts/perf-timeline-scroll.mjs
@@ -111,6 +114,14 @@ reads that users never run.
   per insertion. Put `:has()` on the subject, use sibling combinators, or have script set an
   attribute on the anchor. `test/has-invalidation.test.ts` rejects the pattern in the Client CSS;
   `has-sibling-rewrite.ts` rewrites the `:has(> X) > S` shape in DSH's own sheets at runtime.
+- A recalc that touches every mounted timeline element (or every placeholder) after a mount
+  means sibling invalidation. Chromium schedules a sibling rule for an inserted child as a
+  descendant invalidation on the parent, so a universal sibling rule anywhere in the page
+  (`.x > * + *`, `div + div`, `:not(...) ~ :not(...)`) restyles the parent's whole subtree, and a
+  `:has(~ X)` whose subject can match the list items re-matches every sibling. The timeline
+  therefore keeps one fixed slot per message group, inside chunks of 32 slots: mounting only
+  inserts into that slot, and no sibling list is longer than a chunk. Keep it that way, and keep
+  `:has(~ ...)` subjects off `.bh-timeline-slot`.
 - Before blaming an animation, run `document.getAnimations()` in the page; it lists what runs.
 - Summarize a trace by thread and event name before guessing; most idle cost is native (style,
   intersections, commit), not JavaScript, and does not show in a CPU profile.
