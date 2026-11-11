@@ -48,10 +48,14 @@ const MARKDOWN = /[*_`#>|[\]~<\\]|^\s*([-+]|\d+[.)])\s|https?:\/\/|www\./m;
 const NBSP = String.fromCharCode(0xa0);
 const DELIVERED = `${NBSP}✓`;
 const SOFT_BREAK = /[^\n]\n[^\n]/;
-const UNSUPPORTED_MARKDOWN = /^\s*\|.*\|\s*$|!\[|\[[^\]]*\]\(|https?:\/\/|www\.|<[a-zA-Z!/]|\$/m;
+const UNSUPPORTED_MARKDOWN =
+  /^\s*\|.*\|\s*$|!\[|\[[^\]]*\]\(|https?:\/\/|www\.|<[a-zA-Z!/]|\$|^ {0,3}(`{3}|~{3})/m;
+const INDENTED_CODE = /(^|\n[ \t]*\n)( {4}|\t)\S/;
 
 export function nativeMarkdown(body: string): boolean {
-  return body.trim() !== '' && !UNSUPPORTED_MARKDOWN.test(body);
+  return (
+    body.trim() !== '' && !UNSUPPORTED_MARKDOWN.test(body) && !INDENTED_CODE.test(body)
+  );
 }
 
 export function plainText(body: string): boolean {

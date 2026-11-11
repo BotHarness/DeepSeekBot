@@ -1,7 +1,10 @@
 package expo.modules.latestanchor
 
 import android.content.Context
+import android.text.TextPaint
 import com.facebook.react.bridge.JavaOnlyArray
+import com.facebook.react.common.ReactConstants
+import com.facebook.react.views.text.ReactTypefaceUtils
 import com.facebook.react.bridge.JavaOnlyMap
 import com.swmansion.enriched.markdown.parser.Md4cFlags
 import com.swmansion.enriched.markdown.parser.Parser
@@ -21,7 +24,7 @@ class MarkdownSpans(private val context: Context) {
   fun render(body: String, style: Map<String, Any?>): CharSequence? =
     try {
       if (style != source) {
-        config = StyleConfig(readableMap(style), context, true, 0f)
+        config = StyleConfig(readableMap(listIndent(style)), context, true, 0f)
         source = style
       }
       Parser.shared.parseMarkdown(body, flags, true)?.let { ast ->
@@ -32,6 +35,31 @@ class MarkdownSpans(private val context: Context) {
       android.util.Log.w("ChatRecycler", "Native Markdown row fell back to plain text", error)
       null
     }
+
+  /**
+   * The React list indents by `marginLeft`, then draws its marker. enriched ignores `marginLeft`
+   * at the top level and right-aligns the marker in a column, so widen that column to end where
+   * a React single-digit marker ends.
+   */
+  private fun listIndent(style: Map<String, Any?>): Map<String, Any?> {
+    val list = style["list"] as? Map<*, *> ?: return style
+    val margin = (list["marginLeft"] as? Number)?.toFloat() ?: return style
+    val resolved = StyleConfig(readableMap(style), context, true, 0f).listStyle
+    val paint =
+      TextPaint().apply {
+        textSize = resolved.fontSize
+        typeface =
+          ReactTypefaceUtils.applyStyles(
+            null,
+            ReactConstants.UNSET,
+            ReactTypefaceUtils.parseFontWeight(resolved.markerFontWeight),
+            resolved.fontFamily.takeIf { it.isNotEmpty() },
+            context.assets,
+          )
+      }
+    val marker = paint.measureText("9.") / context.resources.displayMetrics.density
+    return style + ("list" to list + ("markerMinWidth" to margin + marker))
+  }
 }
 
 /** Deep copy of a JavaScript object into React Native's Java-only readable types. */

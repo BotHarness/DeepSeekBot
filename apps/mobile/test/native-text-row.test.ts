@@ -90,9 +90,14 @@ describe('native text rows', () => {
     expect(nativeTextRow(row({ body: 'plain' }), context)?.markdown).toBe(false);
   });
 
-  it('keeps tables, images, links, HTML and math on React rows', () => {
-    expect(nativeMarkdown('- one\n- two\n\n> quote\n\n```ts\nconst a = 1;\n```')).toBe(true);
+  it('keeps tables, images, links, HTML, math and code blocks on React rows', () => {
+    expect(nativeMarkdown('- one\n- two\n\n> quote\n\n**bold** and `code`')).toBe(true);
+    expect(nativeMarkdown('1. one\n    still one\n2. two')).toBe(true);
     for (const body of [
+      '```ts\nconst a = 1;\n```',
+      'text\n\n  ~~~\nx\n~~~',
+      '    const a = 1;',
+      'text\n\n\tconst a = 1;',
       '| a | b |\n| --- | --- |',
       '![x](y.png)',
       '[docs](https://x.y)',
