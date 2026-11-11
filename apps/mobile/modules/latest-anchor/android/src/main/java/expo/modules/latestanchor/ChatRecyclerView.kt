@@ -188,8 +188,10 @@ class ChatRecyclerView(context: Context, app: AppContext) : ExpoView(context, ap
   }
 
   private fun rowAction(action: String, row: TextRow, view: TextBubbleView? = null) {
-    val anchor = view?.layout?.let { windowBounds(view, it.bubble) }
-    onRowAction(mapOf("action" to action, "key" to row.key) + (anchor?.let { mapOf("anchor" to it) } ?: emptyMap()))
+    val event = mutableMapOf<String, Any>("action" to action, "key" to row.key)
+    val bubble = view?.layout?.bubble
+    if (view != null && bubble != null) event["anchor"] = windowBounds(view, bubble)
+    onRowAction(event)
   }
 
   private fun heightAt(index: Int) = geometry.height(index)
