@@ -118,3 +118,7 @@ at default/intermediate/maximum system text in both themes on each platform. Cap
 before/after form images without account identifiers or secrets. The reviewer gate additionally
 requires the prepared verified account to pair its dedicated demo Host over a public network and
 receive a real Bot reply. Keep API, simulator, physical-device, Android and Human results separate.
+
+## Dedicated review Host exception (#2734)
+
+With all three documented `BOTHARNESS_REVIEW_*` values configured on an isolated Host, inspect `connect-status`, sign in on a fresh phone with the exact account, select the Host and compare its fingerprint. Expect connection without the Host-side phone-approval wait, then send a real DM and correlate its reply with `send-status`. Preserve a before screenshot of ordinary manual approval and after evidence of the fresh device's real reply. Reconnect and device revocation remain separate checks. Missing, expired or mismatched configuration, unsigned offers, invalid verifier and LAN must not auto-approve. Run `review-enrollment.test.ts` and `connect-account.test.ts` for these negative boundaries. Never place review credentials in evidence.

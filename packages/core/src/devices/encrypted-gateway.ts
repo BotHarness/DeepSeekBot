@@ -1,3 +1,4 @@
+import type { OfferVerification } from './connect-account.js';
 import type { IncomingMessage } from 'node:http';
 import { request } from 'node:http';
 import { randomBytes } from 'node:crypto';
@@ -117,10 +118,7 @@ export function createEncryptedGateway(options: {
     command: unknown;
     signal: AbortSignal;
   }) => Promise<VoiceCallResult>;
-  verifyEnrollment?: (
-    body: string,
-    signature: string,
-  ) => Promise<{ ok: true; verifierHash: string; name?: string } | { ok: false }>;
+  verifyEnrollment?: (body: string, signature: string) => Promise<OfferVerification>;
 }) {
   const server = new WebSocketServer({
     noServer: true,
@@ -632,6 +630,7 @@ export function createEncryptedGateway(options: {
         const publicKey = Buffer.from(channel.peerKey()).toString('hex');
         if (type === 'pair') {
           let offer = field(input, 'offer');
+          let reviewAutoApprove = false;
           if (input['enrollment'] !== undefined) {
             const enrollment = record(input['enrollment']);
             const body = field(enrollment, 'body'),
@@ -641,7 +640,15 @@ export function createEncryptedGateway(options: {
             if (enrollmentOffer === undefined) {
               const verified = await options.verifyEnrollment?.(body, signature);
               if (closed || !verified?.ok) throw new Error('enrollment-refused');
-              enrollmentOffer = { body, offer: options.pairing.createOffer(verified).offer };
+              reviewAutoApprove =
+                verified.reviewAutoApprove === true && (options.route ?? 'connect') === 'connect';
+              enrollmentOffer = {
+                body,
+                offer: options.pairing.createOffer({
+                  verifierHash: verified.verifierHash,
+                  ...(verified.name === undefined ? {} : { name: verified.name }),
+                }).offer,
+              };
             }
             if (enrollmentOffer.body !== body) throw new Error('enrollment-mismatch');
             offer = enrollmentOffer.offer;
@@ -656,6 +663,8 @@ export function createEncryptedGateway(options: {
             ...(verifier === undefined ? {} : { verifier }),
           });
           if (!proposed.ok) return refuse(proposed.code);
+          if (reviewAutoApprove && options.pairing.approveKey(proposed.receipt, publicKey))
+            options.log?.('review-device-approved');
           const paired = options.pairing.redeem({
             offer,
             publicKey,

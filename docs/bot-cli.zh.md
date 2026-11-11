@@ -1795,3 +1795,17 @@ Bot 已有存活的 Orchestrator Agent 后，`bot-tools` 也会列出其注册�
 ## Docker 私有连接
 
 `private-connect --hostname <https-origin> --token-stdin --confirm` 经本机已认证 Host 认领尚未认领的私有中继。首次设置密钥只从标准输入读取，不放在命令参数中。`devices` 返回 `privateRelay` 状态；连接成功后，`device-offer --out <absolute-new-file>` 将敏感配对邀请写入新建的绝对路径文件。使用 `device-requests`、`device-approve-key`、`device-revoke` 批准准确设备并撤销。参见[私有部署](private-connect.zh.md)。未知认领结果不会自动重试，也不会暗中切换到官方中继。
+
+### 专用商店审核 Host 自动配对
+
+仅独立演示 Host 可显式开启手机自动批准。启动该 Host 前，由运维配置全部三个环境变量：
+
+```text
+BOTHARNESS_REVIEW_ACCOUNT_ID=<准确的 WorkOS 用户 ID>
+BOTHARNESS_REVIEW_HOST_ID=<connect-status 返回的准确 Connect 注册 ID>
+BOTHARNESS_REVIEW_EXPIRES_AT=<含时区的明确 ISO 8601 到期时间>
+```
+
+向已认证的 Host 执行 `deepseekbot connect-status`。`connect.account.reviewEnrollment` 返回配置的账号、Host、到期时间和 `configured` 或 `expired` 状态；已配置不代表当前登录账号匹配。缺少或无效的配置关闭该策略。签名、账号与 Host 归属、时效、手机配对证明和加密通道校验仍全部生效；手机仍需核对 Host 指纹。只有首次已验证的 Connect 配对可以批准对应的确切手机密钥，LAN、私有连接及其他账号或 Host 仍需人工批准。
+
+到期或移除环境配置后，停止批准新设备；修改配置后需重启 Host。已有审核设备需另外用 `device-revoke` 撤销。凭据不得进入命令参数或公开审核说明。参见 [ADR-0327](adr/0327-review-host-enrollment-is-explicit-and-expiring.md)。

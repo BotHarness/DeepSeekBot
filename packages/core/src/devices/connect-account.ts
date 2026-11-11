@@ -1,3 +1,4 @@
+import { permitsReviewEnrollment, type ReviewEnrollmentPolicy } from './review-enrollment.js';
 import { createConnectBotNetwork } from './connect-bot-network.js';
 import type { ActivityProvider } from '../live-activity/contract.js';
 import { createHmac, timingSafeEqual } from 'node:crypto';
@@ -48,6 +49,7 @@ export interface ConnectWait {
 }
 
 export interface AccountStatus {
+  reviewEnrollment?: ReviewEnrollmentPolicy & { state: 'configured' | 'expired' };
   state: 'signed-out' | 'signing-in' | 'signed-in' | 'error';
   email?: string;
   hostId?: string;
@@ -87,7 +89,9 @@ export type ConnectedHostsResult =
   | { ok: true; hosts: ConnectedHost[] }
   | { ok: false; code: AccountFailureCode };
 
-export type OfferVerification = { ok: true; verifierHash: string; name?: string } | { ok: false };
+export type OfferVerification =
+  | { ok: true; verifierHash: string; name?: string; reviewAutoApprove?: true }
+  | { ok: false };
 
 export interface ConnectAccount {
   botNetwork: ReturnType<typeof createConnectBotNetwork>;
@@ -231,6 +235,7 @@ function originPort(connect: DeviceConnect): number | undefined {
 }
 
 export function createConnectAccount(options: {
+  reviewEnrollment?: ReviewEnrollmentPolicy | undefined;
   credentials: () => Credentials | undefined;
   connect: DeviceConnect;
   relay?: string;
@@ -809,7 +814,17 @@ export function createConnectAccount(options: {
       return { ok: false };
     }
     record('offer-signed');
-    return { ok: true, verifierHash, ...(typeof name === 'string' ? { name } : {}) };
+    return {
+      ok: true,
+      verifierHash,
+      ...(typeof name === 'string' ? { name } : {}),
+      ...(permitsReviewEnrollment(options.reviewEnrollment, {
+        account: current.account,
+        hostId: current.hostId,
+      })
+        ? { reviewAutoApprove: true as const }
+        : {}),
+    };
   };
 
   const activityCall = (body?: Record<string, unknown>, signal?: AbortSignal) =>
@@ -911,7 +926,20 @@ export function createConnectAccount(options: {
       },
       call: activityCall,
     },
-    status: () => ({ ...status }),
+    status: () => ({
+      ...status,
+      ...(options.reviewEnrollment === undefined
+        ? {}
+        : {
+            reviewEnrollment: {
+              ...options.reviewEnrollment,
+              state:
+                Date.parse(options.reviewEnrollment.expiresAt) > Date.now()
+                  ? ('configured' as const)
+                  : ('expired' as const),
+            },
+          }),
+    }),
     connectedHosts: () =>
       serial(async (): Promise<ConnectedHostsResult> => {
         let current: AccountRecord | undefined;

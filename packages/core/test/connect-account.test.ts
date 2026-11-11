@@ -228,7 +228,12 @@ async function settle(account: { status(): { state: string } }) {
     await new Promise((done) => setImmediate(done));
 }
 
-function setup(services = fakeServices(), port = 41001, watchMs = 60_000) {
+function setup(
+  services = fakeServices(),
+  port = 41001,
+  watchMs = 60_000,
+  reviewEnrollment?: Parameters<typeof createConnectAccount>[0]['reviewEnrollment'],
+) {
   const credentials = memoryCredentials();
   const tunnel = fakeConnect(port);
   const account = createConnectAccount({
@@ -240,6 +245,7 @@ function setup(services = fakeServices(), port = 41001, watchMs = 60_000) {
     freePort: async () => 41001,
     sleep: async () => {},
     watchMs,
+    ...(reviewEnrollment === undefined ? {} : { reviewEnrollment }),
   });
   return { account, credentials, tunnel, services };
 }
@@ -1568,4 +1574,58 @@ it('uses the account credential owner for Bot verification and rejects it after 
   } finally {
     await account.close();
   }
+});
+
+it.each(['match', 'other-account', 'other-host', 'expired', 'disabled'] as const)(
+  'review enrollment policy: %s',
+  async (mode) => {
+    const policy = {
+      account: mode === 'other-account' ? 'user_bob' : 'user_alice',
+      hostId: mode === 'other-host' ? 'another-host' : 'hstudioaaaaa',
+      expiresAt: new Date(Date.now() + (mode === 'expired' ? -1_000 : 60_000)).toISOString(),
+    };
+    const { account } = setup(
+      fakeServices({ pending: 0 }),
+      41001,
+      60_000,
+      mode === 'disabled' ? undefined : policy,
+    );
+    try {
+      await account.signIn();
+      await settle(account);
+      const payload = {
+        account: 'user_alice',
+        hostId: 'hstudioaaaaa',
+        verifierHash: Buffer.alloc(32, 7).toString('base64url'),
+        issuedAt: new Date().toISOString(),
+      };
+      const body = JSON.stringify(payload);
+      const signature = createHmac('sha256', RELAY_KEY).update(body).digest('base64url');
+      const result = await account.verifyOffer(body, signature);
+      expect(result.ok).toBe(true);
+      expect(result.ok && result.reviewAutoApprove === true).toBe(mode === 'match');
+      expect(await account.verifyOffer(body, 'forged')).toEqual({ ok: false });
+      await account.signOut();
+      expect(await account.verifyOffer(body, signature)).toEqual({ ok: false });
+    } finally {
+      await account.close();
+    }
+  },
+);
+
+it('exposes the expiring review scope through the existing connect-status CLI', async () => {
+  const reviewEnrollment = {
+    account: 'user_review',
+    hostId: 'hreview',
+    expiresAt: '2030-01-01T00:00:00Z',
+    state: 'configured',
+  };
+  const snapshot = {
+    connect: { state: 'connected', account: { state: 'signed-in', reviewEnrollment } },
+  };
+  const http = vi.fn(async () => ({ bytes: new TextEncoder().encode(JSON.stringify(snapshot)) }));
+  expect(await runConnectCommand('connect-status', [], {}, {}, async () => ({ http }))).toEqual(
+    snapshot,
+  );
+  expect(http).toHaveBeenCalledTimes(1);
 });
