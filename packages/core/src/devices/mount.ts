@@ -1,4 +1,3 @@
-import { reviewEnrollmentPolicy } from './review-enrollment.js';
 import { createDirectPeers } from './direct.js';
 import { createPrivateConnection } from './private-relay.js';
 import { createPrivateTunnel } from './private-tunnel.js';
@@ -583,7 +582,6 @@ export function mountDevicePairing(
         write('device-connect', phase, `device-connect phase=${phase}${info ? ` ${info}` : ''}`),
     });
     const account = createConnectAccount({
-      reviewEnrollment: reviewEnrollmentPolicy(process.env),
       credentials: options.credentials ?? (() => undefined),
       connect,
       record: (phase, info) => {

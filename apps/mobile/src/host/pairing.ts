@@ -401,7 +401,10 @@ export async function pairHost(options: {
             deviceName: options.deviceName,
             carrier: options.carrier,
             ...(options.onPending === undefined ? {} : { onPending: options.onPending }),
-            ...(options.method === 'qr'
+            ...(options.method === 'qr' ||
+            (options.method === 'account' &&
+              typeof options.text === 'function' &&
+              parsed.payload.enrollment !== undefined)
               ? { confirmFingerprint: async () => true }
               : options.confirmFingerprint === undefined
                 ? {}

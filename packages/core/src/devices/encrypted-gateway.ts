@@ -630,7 +630,7 @@ export function createEncryptedGateway(options: {
         const publicKey = Buffer.from(channel.peerKey()).toString('hex');
         if (type === 'pair') {
           let offer = field(input, 'offer');
-          let reviewAutoApprove = false;
+          let accountAutoApprove = false;
           if (input['enrollment'] !== undefined) {
             const enrollment = record(input['enrollment']);
             const body = field(enrollment, 'body'),
@@ -640,8 +640,8 @@ export function createEncryptedGateway(options: {
             if (enrollmentOffer === undefined) {
               const verified = await options.verifyEnrollment?.(body, signature);
               if (closed || !verified?.ok) throw new Error('enrollment-refused');
-              reviewAutoApprove =
-                verified.reviewAutoApprove === true && (options.route ?? 'connect') === 'connect';
+              accountAutoApprove =
+                verified.accountAutoApprove === true && (options.route ?? 'connect') === 'connect';
               enrollmentOffer = {
                 body,
                 offer: options.pairing.createOffer({
@@ -663,8 +663,8 @@ export function createEncryptedGateway(options: {
             ...(verifier === undefined ? {} : { verifier }),
           });
           if (!proposed.ok) return refuse(proposed.code);
-          if (reviewAutoApprove && options.pairing.approveKey(proposed.receipt, publicKey))
-            options.log?.('review-device-approved');
+          if (accountAutoApprove && options.pairing.approveKey(proposed.receipt, publicKey))
+            options.log?.('account-device-approved');
           const paired = options.pairing.redeem({
             offer,
             publicKey,

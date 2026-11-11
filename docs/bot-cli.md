@@ -1850,16 +1850,8 @@ For several IM requests in one turn, call `ask_secret` with the existing account
 
 `private-connect --hostname <https-origin> --token-stdin --confirm` claims an unclaimed private Docker relay through the authenticated local Host. The setup key comes only from stdin, never command arguments. `devices` reports `privateRelay` state; `device-offer --out <absolute-new-file>` writes the sensitive pairing invitation after the relay is connected. Use `device-requests`, `device-approve-key` and `device-revoke` for exact-device approval and revocation. See [private deployment](private-connect.md). A failed/unknown claim is not automatically replayed, and no official fallback is selected.
 
-### Dedicated store-review Host enrollment
+### Same-account Connect enrollment
 
-Only an isolated demonstration Host may opt into automatic phone approval. Set all three operator-owned environment values before starting that Host:
+A phone signed into the same Tobs Connect account as a Host can enroll without Host-side approval or manual fingerprint comparison. Account authentication and the relay authorize this path; unsigned/QR/private pairing retains existing device approval. `connect-status` reports account and connection state, `devices` lists resulting grants, and `device-revoke` revokes an exact device. No review-specific configuration is required.
 
-```text
-BOTHARNESS_REVIEW_ACCOUNT_ID=<exact WorkOS user ID>
-BOTHARNESS_REVIEW_HOST_ID=<exact Connect registration ID from connect-status>
-BOTHARNESS_REVIEW_EXPIRES_AT=<explicit ISO 8601 expiration with timezone>
-```
-
-Run `deepseekbot connect-status` against that authenticated Host. `connect.account.reviewEnrollment` reports the configured account, Host, expiration and `configured` or `expired` state; configured does not mean the signed-in account matches. Missing or invalid configuration disables the policy. Existing signature, same-account/Host, freshness, verifier and encrypted-channel checks still apply; the phone still verifies the Host fingerprint. Only the initial verified Connect enrollment can approve its exact phone key. LAN/private offers and other accounts or Hosts keep manual approval.
-
-After expiry or removal of the environment configuration (restart after changing it), new automatic approvals stop. Revoke existing review devices separately with `device-revoke`. Keep credentials outside command arguments and public review notes. See [ADR-0327](adr/0327-review-host-enrollment-is-explicit-and-expiring.md).
+Signing out stops new account enrollment but leaves existing grants intact. Code rollback also leaves issued grants intact. A holder of account access can enroll again after a device is revoked; secure account access when responding to compromise. Existing signature, account/Host, freshness, phone-verifier and pinned encrypted-channel checks still apply. See [ADR-0327](adr/0327-connect-account-ownership-authorizes-enrollment.md).

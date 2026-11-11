@@ -4,8 +4,8 @@ section: Added
 
 ## en
 
-- Dedicated store-review Hosts can opt into expiring automatic phone approval for one exact Connect account and Host, while ordinary pairing retains manual approval ([#2734](https://github.com/BotHarness/DeepSeekBot/issues/2734)).
+- Phones can connect to Hosts under the same Tobs Connect account without manual device approval or fingerprint comparison; unsigned and private pairing retain device approval ([#2734](https://github.com/BotHarness/DeepSeekBot/issues/2734)).
 
 ## zh
 
-- 专用商店审核 Host 可显式配置带到期时间的手机自动批准，仅匹配指定 Connect 账号与 Host；普通配对仍需人工批准（[#2734](https://github.com/BotHarness/DeepSeekBot/issues/2734)）。
+- 手机可直接连接同一 Tobs Connect 账号下的 Host，无需人工批准设备或核对指纹；未登录和私有配对仍需设备批准（[#2734](https://github.com/BotHarness/DeepSeekBot/issues/2734)）。
