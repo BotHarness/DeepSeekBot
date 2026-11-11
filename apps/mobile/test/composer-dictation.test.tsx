@@ -214,6 +214,7 @@ function Harness({ disabled = false, caret }: { disabled?: boolean; caret?: numb
             Mika
           </button>
         }
+        inside={<span data-testid="inside-quote">Replying</span>}
         disabled={disabled}
         files={[]}
         canAttach
@@ -444,6 +445,12 @@ describe('Composer dictation', () => {
       expect(editor()).toBeNull();
     },
   );
+
+  it('draws the inside content in the field pill and the above content outside it', () => {
+    const pill = host.querySelector('[data-testid="inside-quote"]')!.parentElement!.parentElement!;
+    expect(pill.contains(field())).toBe(true);
+    expect(pill.contains(button('Pick Mika'))).toBe(false);
+  });
 
   it('shows the mic while empty and fills the field with what was heard', async () => {
     expect(button(t.dictate)).not.toBeNull();

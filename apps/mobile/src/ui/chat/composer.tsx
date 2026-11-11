@@ -31,6 +31,7 @@ import {
   ComposerCircleButton,
   ComposerFieldMaterial,
   composerBar,
+  composerPillShadow,
   composerControl,
   composerPrimary,
 } from './composer-chrome';
@@ -174,6 +175,7 @@ export function Composer({
   onCancelDictation,
   footer,
   above,
+  inside,
   selection,
   onSelection,
   inputRef,
@@ -194,6 +196,7 @@ export function Composer({
   onCancelDictation(): void;
   footer?: ReactNode;
   above?: ReactNode;
+  inside?: ReactNode;
   selection?: { start: number; end: number } | undefined;
   onSelection?(caret: number): void;
   inputRef?: Ref<ComposerInput>;
@@ -454,7 +457,15 @@ export function Composer({
         <Animated.View
           ref={holdPill}
           onLayout={(event) => sharedPill?.layout(event.nativeEvent.layout.height)}
-          style={[{ flex: 1, borderRadius: corner, overflow: 'hidden' }, pillStyle]}
+          style={[
+            {
+              flex: 1,
+              borderRadius: corner,
+              overflow: 'hidden',
+              boxShadow: composerPillShadow(theme),
+            },
+            pillStyle,
+          ]}
         >
           <ComposerFieldMaterial cornerRadius={corner} />
           <View
@@ -465,6 +476,9 @@ export function Composer({
               setPill({ width, height });
             }}
           >
+            {inside === undefined || editing ? null : (
+              <View style={{ paddingTop: space.x2 }}>{inside}</View>
+            )}
             {files.length > 0 ? (
               <ScrollView
                 horizontal
