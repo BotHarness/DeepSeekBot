@@ -26,7 +26,7 @@ import { canCopyImage, copyImage } from './bug-report-capture.js';
 import { ChipButton } from './ds/chip-button.js';
 import { TextField } from './ds/field.js';
 import { PanelDialog } from './ds/panel-dialog.js';
-import { border, color, dialog, radius, size, space, text } from './ds/tokens.stylex.js';
+import { border, color, dialog, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 
@@ -74,9 +74,10 @@ const styles = stylex.create({
   tool: {
     display: 'inline-flex',
     alignItems: 'center',
-    minHeight: size.icon,
-    paddingBlock: space.x1,
-    paddingInline: space.x3,
+    gap: space.x2,
+    minHeight: '36px',
+    paddingBlock: space.x2,
+    paddingInline: space.x4,
     borderWidth: border.hairline,
     borderStyle: 'solid',
     borderColor: color.border,
@@ -84,18 +85,53 @@ const styles = stylex.create({
     backgroundColor: { default: 'transparent', ':hover': color.hover },
     color: { default: color.muted, ':hover': color.fg },
     fontFamily: 'inherit',
-    fontSize: text.metaSize,
+    fontSize: text.bodySize,
     lineHeight: text.bodyLine,
     cursor: 'pointer',
     outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
     outlineOffset: '-2px',
   },
+  toolIcon: { display: 'block', flexShrink: 0 },
   pressed: {
     borderColor: color.accent,
     backgroundColor: { default: color.accentTint, ':hover': color.accentTint },
     color: { default: color.accentText, ':hover': color.accentText },
   },
 });
+
+function ToolIcon({ tool }: { tool: AnnotationTool }): ReactElement {
+  const shape =
+    tool === 'box' ? (
+      <rect x="2.5" y="3.5" width="11" height="9" rx="1" fill="none" />
+    ) : tool === 'pen' ? (
+      <path
+        d="M3 13l1-3.5L10.5 3a1.4 1.4 0 0 1 2 0l.5.5a1.4 1.4 0 0 1 0 2L6.5 12 3 13z"
+        fill="none"
+      />
+    ) : tool === 'text' ? (
+      <path d="M3.5 4V3h9v1M8 3v10M6 13h4" fill="none" />
+    ) : (
+      <>
+        <rect x="2.5" y="4.5" width="11" height="7" rx="1" fill="currentColor" stroke="none" />
+        <path d="M2 14L14 2" fill="none" />
+      </>
+    );
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      stroke="currentColor"
+      strokeWidth="1.3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      {...stylex.props(styles.toolIcon)}
+    >
+      {shape}
+    </svg>
+  );
+}
 
 export function AnnotateDialog({
   file,
@@ -305,6 +341,7 @@ export function AnnotateDialog({
               onClick={() => setTool(name)}
               {...stylex.props(styles.tool, tool === name && styles.pressed)}
             >
+              <ToolIcon tool={name} />
               {t(`bugReport.annotate.tool.${name}`)}
             </button>
           ))}

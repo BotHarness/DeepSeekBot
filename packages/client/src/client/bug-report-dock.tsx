@@ -24,15 +24,18 @@ const styles = stylex.create({
     transform: 'translateX(-50%)',
     boxSizing: 'border-box',
     display: 'flex',
-    alignItems: 'center',
+    flexDirection: 'column',
+    alignItems: 'stretch',
     gap: space.x3,
-    maxWidth: 'calc(100vw - 32px)',
+    width: 'max-content',
+    maxWidth: 'min(720px, calc(100vw - 32px))',
     padding: space.x3,
     backgroundColor: color.modal,
     '--dsw-elevation-stroke-color': color.divider,
     boxShadow: 'var(--dsw-elevation-prominent)',
   },
   hidden: { visibility: 'hidden' },
+  bar: { display: 'flex', alignItems: 'center', gap: space.x3, minWidth: 0 },
   copy: {
     display: 'flex',
     flexDirection: 'column',
@@ -58,18 +61,22 @@ const styles = stylex.create({
   info: { color: color.success },
   shots: {
     display: 'flex',
+    justifyContent: 'flex-start',
     gap: space.x2,
-    maxWidth: 'min(360px, 40vw)',
+    width: 0,
+    minWidth: '100%',
     overflowX: 'auto',
     margin: 0,
-    padding: 0,
+    paddingBlock: space.x1,
+    paddingInline: space.x1,
     listStyle: 'none',
+    scrollbarWidth: 'thin',
   },
   shot: { position: 'relative', flexShrink: 0 },
   thumb: {
     display: 'block',
-    width: '64px',
-    height: '40px',
+    width: '96px',
+    height: '60px',
     padding: 0,
     overflow: 'hidden',
     borderWidth: border.hairline,
@@ -139,33 +146,8 @@ export function CaptureDock({
     button.focus({ preventScroll: true });
   }, []);
   const own = useMountedResource<HTMLDivElement>(() => () => source.stop(), [source]);
-  return createPortal(
-    <MenuSurface
-      ref={own}
-      role="toolbar"
-      aria-label={t('bugReport.dock.label')}
-      aria-hidden={hidden || undefined}
-      {...{ [CAPTURE_DOCK_ATTRIBUTE]: '' }}
-      data-bh-appearance-owned=""
-      className={stylex.props(styles.dock, hidden && styles.hidden).className}
-    >
-      <div {...stylex.props(styles.copy)}>
-        <span role="status" data-bug-report-dock-count="" {...stylex.props(styles.count)}>
-          {busy
-            ? t('bugReport.dock.busy')
-            : t('bugReport.dock.count', { count: String(shots.length) })}
-        </span>
-        {notice === undefined ? (
-          <span {...stylex.props(styles.hint)}>{t('bugReport.dock.hint')}</span>
-        ) : (
-          <span
-            role={notice.tone === 'error' ? 'alert' : 'status'}
-            {...stylex.props(styles.status, notice.tone === 'info' && styles.info)}
-          >
-            {notice.text}
-          </span>
-        )}
-      </div>
+  const shotList = (
+    <>
       {shots.length === 0 ? null : (
         <ul {...stylex.props(styles.shots)}>
           {shots.map((entry) => (
@@ -199,25 +181,57 @@ export function CaptureDock({
           ))}
         </ul>
       )}
-      <Button
-        ref={focus}
-        variant="primary"
-        icon={<IconFullscreenOutlineRegular size={16} />}
-        disabled={busy}
-        data-bug-report-dock-capture=""
-        onClick={onCapture}
-      >
-        {t('bugReport.dock.capture')}
-      </Button>
-      <Button
-        variant="outline"
-        icon={<IconCheckOutlineRegular size={16} />}
-        disabled={busy}
-        data-bug-report-dock-done=""
-        onClick={onDone}
-      >
-        {t('bugReport.dock.done')}
-      </Button>
+    </>
+  );
+  return createPortal(
+    <MenuSurface
+      ref={own}
+      role="toolbar"
+      aria-label={t('bugReport.dock.label')}
+      aria-hidden={hidden || undefined}
+      {...{ [CAPTURE_DOCK_ATTRIBUTE]: '' }}
+      data-bh-appearance-owned=""
+      className={stylex.props(styles.dock, hidden && styles.hidden).className}
+    >
+      {shotList}
+      <div {...stylex.props(styles.bar)}>
+        <div {...stylex.props(styles.copy)}>
+          <span role="status" data-bug-report-dock-count="" {...stylex.props(styles.count)}>
+            {busy
+              ? t('bugReport.dock.busy')
+              : t('bugReport.dock.count', { count: String(shots.length) })}
+          </span>
+          {notice === undefined ? (
+            <span {...stylex.props(styles.hint)}>{t('bugReport.dock.hint')}</span>
+          ) : (
+            <span
+              role={notice.tone === 'error' ? 'alert' : 'status'}
+              {...stylex.props(styles.status, notice.tone === 'info' && styles.info)}
+            >
+              {notice.text}
+            </span>
+          )}
+        </div>
+        <Button
+          ref={focus}
+          variant="primary"
+          icon={<IconFullscreenOutlineRegular size={16} />}
+          disabled={busy}
+          data-bug-report-dock-capture=""
+          onClick={onCapture}
+        >
+          {t('bugReport.dock.capture')}
+        </Button>
+        <Button
+          variant="outline"
+          icon={<IconCheckOutlineRegular size={16} />}
+          disabled={busy}
+          data-bug-report-dock-done=""
+          onClick={onDone}
+        >
+          {t('bugReport.dock.done')}
+        </Button>
+      </div>
     </MenuSurface>,
     document.body,
   );
