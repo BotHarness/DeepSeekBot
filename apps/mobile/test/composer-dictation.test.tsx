@@ -805,6 +805,15 @@ describe('native compose bar', () => {
 });
 
 describe('expanded draft', () => {
+  it('keeps the inside content, such as a reply, visible above the expanded editor', async () => {
+    speech.scale = 3.571;
+    await act(async () => root!.render(<Harness />));
+    await press(t.expandDraft);
+    const quotes = host.querySelectorAll('[data-testid="inside-quote"]');
+    expect(quotes).toHaveLength(1);
+    expect(quotes[0]!.closest('[role="dialog"]')).not.toBeNull();
+  });
+
   it('shares edits with the existing composer and sends the current draft once', async () => {
     const original = field();
     speech.scale = 3.571;
