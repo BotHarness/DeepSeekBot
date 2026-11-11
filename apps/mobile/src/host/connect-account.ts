@@ -22,13 +22,28 @@ export interface ConnectRuntime {
 export type EmailCodeRefusal =
   | 'invalid-email'
   | 'invalid-code'
+  | 'invalid-credentials'
+  | 'sign-up-failed'
+  | 'password-unavailable'
   | 'rate-limited'
   | 'use-browser-sign-in'
   | 'email-code-unavailable'
   | 'relay-unavailable'
   | 'sign-in-failed';
 
+export type PasswordOutcome =
+  | { ok: true; kind: 'signed-in'; email: string | undefined }
+  | { ok: true; kind: 'verify-email' }
+  | { ok: false; code: EmailCodeRefusal };
+
+export interface PasswordFlow {
+  submit(email: string, password: string, register: boolean): Promise<PasswordOutcome>;
+  verify(code: string): Promise<PasswordOutcome>;
+  reset(email: string): Promise<{ ok: true } | { ok: false; code: EmailCodeRefusal }>;
+}
+
 export interface EmailCodeFlow {
+  password?: PasswordFlow;
   send(email: string): Promise<{ ok: true } | { ok: false; code: EmailCodeRefusal }>;
   verify(
     email: string,
@@ -356,6 +371,9 @@ export function createConnectAccount(options: {
     const code = record(body['error'])['code'];
     return code === 'invalid-email' ||
       code === 'invalid-code' ||
+      code === 'invalid-credentials' ||
+      code === 'sign-up-failed' ||
+      code === 'password-unavailable' ||
       code === 'rate-limited' ||
       code === 'use-browser-sign-in' ||
       code === 'email-code-unavailable'
@@ -363,7 +381,11 @@ export function createConnectAccount(options: {
       : 'relay-unavailable';
   };
 
-  const emailCodeFlow = (clientId: string): EmailCodeFlow => {
+  const emailCodeFlow = (
+    clientId: string,
+    passwordEnabled: boolean,
+    active: () => boolean,
+  ): EmailCodeFlow => {
     const post = async (path: string, body: Record<string, string>) => {
       try {
         return await call(`${relay}${path}`, {
@@ -375,7 +397,62 @@ export function createConnectAccount(options: {
         return { status: 0, body: {} };
       }
     };
+    let pendingToken: string | undefined;
+    const passwordResult = async (
+      reply: Awaited<ReturnType<typeof post>>,
+    ): Promise<PasswordOutcome> => {
+      if (!active()) return { ok: false, code: 'sign-in-failed' };
+      if (reply.status !== 200) return { ok: false, code: emailRefusal(reply.body) };
+      if (
+        reply.body['verification_required'] === true &&
+        typeof reply.body['pending_authentication_token'] === 'string'
+      ) {
+        pendingToken = reply.body['pending_authentication_token'];
+        return { ok: true, kind: 'verify-email' };
+      }
+      try {
+        const email = await signedIn(clientId, reply);
+        pendingToken = undefined;
+        return { ok: true, kind: 'signed-in', email };
+      } catch {
+        return { ok: false, code: 'sign-in-failed' };
+      }
+    };
     return {
+      ...(passwordEnabled
+        ? {
+            password: {
+              async submit(
+                email: string,
+                password: string,
+                register: boolean,
+              ): Promise<PasswordOutcome> {
+                if (!active()) return { ok: false, code: 'sign-in-failed' };
+                pendingToken = undefined;
+                return passwordResult(
+                  await post(`/v1/auth/password${register ? '/register' : ''}`, {
+                    email: email.trim(),
+                    password,
+                  }),
+                );
+              },
+              async verify(code: string): Promise<PasswordOutcome> {
+                if (!active()) return { ok: false, code: 'sign-in-failed' };
+                if (!pendingToken) return { ok: false, code: 'invalid-code' };
+                return passwordResult(
+                  await post('/v1/auth/password/verify', { pendingToken, code: code.trim() }),
+                );
+              },
+              async reset(email: string) {
+                if (!active()) return { ok: false as const, code: 'sign-in-failed' as const };
+                const reply = await post('/v1/auth/password/reset', { email: email.trim() });
+                return reply.status === 200
+                  ? { ok: true as const }
+                  : { ok: false as const, code: emailRefusal(reply.body) };
+              },
+            },
+          }
+        : {}),
       async send(email) {
         const reply = await post('/v1/auth/email-code', { email: email.trim() });
         return reply.status === 200 ? { ok: true } : { ok: false, code: emailRefusal(reply.body) };
@@ -492,10 +569,20 @@ export function createConnectAccount(options: {
           !/^client_[A-Za-z0-9]+$/u.test(clientId)
         )
           throw new Refused('relay-unavailable');
-        if (config.body['emailCode'] === true && runtime.collectEmailCode) {
-          const outcome = await runtime.collectEmailCode(emailCodeFlow(clientId));
-          if (outcome.kind === 'cancelled') throw new Refused('sign-in-cancelled');
-          return outcome.email;
+        if (
+          (config.body['emailCode'] === true || config.body['passwordAuth'] === true) &&
+          runtime.collectEmailCode
+        ) {
+          let active = true;
+          try {
+            const outcome = await runtime.collectEmailCode(
+              emailCodeFlow(clientId, config.body['passwordAuth'] === true, () => active),
+            );
+            if (outcome.kind === 'cancelled') throw new Refused('sign-in-cancelled');
+            return outcome.email;
+          } finally {
+            active = false;
+          }
         }
         return authKit(clientId, 'authkit');
       }),
