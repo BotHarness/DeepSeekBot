@@ -838,6 +838,8 @@ Tobs 1.7.0：Bot 通话、手机历史记录与搜索、丰富文档，以及连
 
 - 商店隐私指南区分系统听写、Bot 通话音频与共享摄像头画面，补充待审查的密码数据路径，并明确旧答卷需要按准确候选包重新核对后才能提交（[#2733](https://github.com/BotHarness/DeepSeekBot/issues/2733)）。
 
+- 完善 DSH 升级验收流程，提供精确 npm CLI/Theme 版本检查，区分版本缺失与查询失败，并单独记录 Desktop 证据（[#4024](https://github.com/BotHarness/DeepSeekBot/issues/4024)）。
+
 ## [1.6.1] - 2026-11-02
 
 Tobs 新增 Bot 网络：同一 Tailscale 网络、同一 Connect 账号，或经双方批准的局域网电脑之间，Bot 可以互相发现并私聊；长对话和切换聊天明显更流畅（头像改为静态图片、历史按需加载）；随附 cloudflared 安全更新。
