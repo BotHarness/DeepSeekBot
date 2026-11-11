@@ -12,6 +12,7 @@ export const LATEST_SLOP = 40;
 export const SETTLE_FRAMES = 45;
 export const STABLE_FRAMES = 6;
 export const CHECK_BUDGET = SETTLE_FRAMES * 4;
+export const NATIVE_GLIDE_MS = 450;
 const KEYBOARD_SETTLE_MS = 1000;
 export const MOMENTUM_WAIT_MS = 120;
 
@@ -100,6 +101,7 @@ export function useFollowLatest<Row>(
   const checks = useRef(0);
   const keyboardTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const momentumTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const catchUpTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useLayoutEffect(() => {
     if (!followingNow.current) onFollowingChange?.(false);
   }, [onFollowingChange]);
@@ -111,6 +113,7 @@ export function useFollowLatest<Row>(
       confirmation.current = undefined;
       clearTimeout(keyboardTimer.current);
       clearTimeout(momentumTimer.current);
+      clearTimeout(catchUpTimer.current);
     },
     [],
   );
@@ -224,6 +227,15 @@ export function useFollowLatest<Row>(
     pin();
   }, [rowsPresent, pin]);
 
+  const catchUp = useCallback(() => {
+    clearTimeout(catchUpTimer.current);
+    catchUpTimer.current = setTimeout(() => {
+      catchUpTimer.current = undefined;
+      if (!followingNow.current || dragging.current || keyboardMoving.current) return;
+      if (distanceFromLatest(metrics.current, inverted) > 1) scrollToLatest(true);
+    }, NATIVE_GLIDE_MS);
+  }, [inverted, scrollToLatest]);
+
   const onKeyboardStart = useCallback(() => {
     keyboardMoving.current = true;
     if (frame.current !== undefined) cancelAnimationFrame(frame.current);
@@ -329,10 +341,13 @@ export function useFollowLatest<Row>(
         attempts.current = 0;
         if (checks.current < CHECK_BUDGET) setCanRetry(false);
       }
-      if (nativeFollow && settled.current) return;
+      if (nativeFollow && settled.current) {
+        if (height !== previous) catchUp();
+        return;
+      }
       pin(animateScroll && settled.current && height > previous);
     },
-    [pin, animateScroll, nativeFollow],
+    [pin, animateScroll, nativeFollow, catchUp],
   );
 
   const onLayout = useCallback(
