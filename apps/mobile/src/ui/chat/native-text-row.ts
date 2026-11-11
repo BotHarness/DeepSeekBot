@@ -1,10 +1,6 @@
 import { bubbleTime, type ChatRow } from './message-groups';
-import { BUBBLE_PADDING, AVATAR_CORNER } from './bubble-shape';
+import { BUBBLE_PADDING, AVATAR_CORNER, SPEAKER_AVATAR } from './bubble-shape';
 import { motion, radius, space, swipeReply } from '../design/tokens';
-
-const nativeRowsMode = process.env.EXPO_PUBLIC_NATIVE_ROWS ?? 'markdown';
-export const nativeTextRows = nativeRowsMode === 'text' || nativeRowsMode === 'markdown';
-export const nativeMarkdownRows = nativeRowsMode === 'markdown';
 
 export type NativeTextRow = {
   key: string;
@@ -14,6 +10,8 @@ export type NativeTextRow = {
   body: string;
   time: string;
   markdown: boolean;
+  speaker?: true;
+  name?: string;
 };
 
 export type NativeTextStyle = {
@@ -43,6 +41,9 @@ export type NativeTextStyle = {
   paragraphGap: number;
   markdown?: object | undefined;
   touch?: NativeTouchStyle | undefined;
+  avatar: number;
+  avatarGap: number;
+  nameGap: number;
 };
 
 export type NativeTouchStyle = {
@@ -82,7 +83,6 @@ export function nativeTouchStyle(
 const MARKDOWN = /[*_`#>|[\]~<\\]|^\s*([-+]|\d+[.)])\s|https?:\/\/|www\./m;
 const NBSP = String.fromCharCode(0xa0);
 const DELIVERED = `${NBSP}✓`;
-const SOFT_BREAK = /[^\n]\n[^\n]/;
 const UNSUPPORTED_MARKDOWN =
   /^\s*\|.*\|\s*$|!\[|\[[^\]]*\]\(|https?:\/\/|www\.|<[a-zA-Z!/]|\$|^ {0,3}(`{3}|~{3})/m;
 const INDENTED_CODE = /(^|\n[ \t]*\n)( {4}|\t)\S/;
@@ -100,12 +100,13 @@ export type NativeRowContext = {
   selecting: boolean;
   latest: string | undefined;
   reading: ReadonlyMap<string, unknown>;
-  markdown?: boolean;
+  speaker?: { name: string } | undefined;
 };
 
 export function nativeTextRow(row: ChatRow, context: NativeRowContext): NativeTextRow | undefined {
-  if (row.kind !== 'message' || !context.dm || context.selecting) return undefined;
+  if (row.kind !== 'message' || context.selecting) return undefined;
   const message = row.message;
+  if (!context.dm && message.author !== 'human' && context.speaker === undefined) return undefined;
   if (message.id === context.latest || context.reading.has(message.id)) return undefined;
   if (message.author === 'system' || message.delivery !== 'committed') return undefined;
   if (
@@ -123,9 +124,8 @@ export function nativeTextRow(row: ChatRow, context: NativeRowContext): NativeTe
   )
     return undefined;
   const human = message.author === 'human';
-  const markdown = !human && context.markdown === true;
+  const markdown = !human;
   if (markdown ? !nativeMarkdown(message.body) : !plainText(message.body)) return undefined;
-  if (!human && !markdown && SOFT_BREAK.test(message.body.trim())) return undefined;
   const clock = bubbleTime(message.at);
   if (clock === '') return undefined;
   return {
@@ -136,6 +136,9 @@ export function nativeTextRow(row: ChatRow, context: NativeRowContext): NativeTe
     body: message.body,
     time: human ? `${clock}${DELIVERED}` : clock,
     markdown,
+    ...(human || context.speaker === undefined
+      ? {}
+      : { speaker: true as const, ...(row.first ? { name: context.speaker.name } : {}) }),
   };
 }
 
@@ -169,5 +172,8 @@ export function nativeTextStyle(
     paragraphGap: space.x3,
     markdown,
     touch,
+    avatar: SPEAKER_AVATAR,
+    avatarGap: space.x3,
+    nameGap: space.x1,
   };
 }

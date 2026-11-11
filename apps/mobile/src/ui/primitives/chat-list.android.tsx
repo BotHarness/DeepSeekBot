@@ -5,6 +5,7 @@ import {
   useState,
   type Ref,
   type ReactElement,
+  type ReactNode,
   type ComponentType,
 } from 'react';
 import {
@@ -18,13 +19,10 @@ import {
   type ViewProps,
   type ViewInstance,
 } from 'react-native';
-import Animated from 'react-native-reanimated';
-import { requireNativeView, requireOptionalNativeModule } from 'expo';
-import type { ChatListHandle, NativeRowAction } from './chat-list';
+import { requireNativeView } from 'expo';
+import type { ChatListHandle, NativeRowAction, SpeakerRowSlot } from './chat-list';
 
-export const nativeChatRecycler =
-  process.env.EXPO_PUBLIC_CHAT_LIST !== 'flatlist' &&
-  requireOptionalNativeModule<{ supported: boolean }>('ChatRecycler')?.supported === true;
+export { nativeChatRecycler } from './chat-recycler';
 type Event<T> = { nativeEvent: T };
 type ScrollEvent = NativeSyntheticEvent<NativeScrollEvent>;
 type Handle = ViewInstance & {
@@ -46,6 +44,7 @@ type Props = ViewProps & {
   onVisible(event: Event<{ indices: number[] }>): void;
   onKeyboardInset(event: Event<{ height: number }>): void;
   rowSwipe: boolean;
+  speakerRows: object[];
   onRowAction(event: Event<{ key: string } & NativeRowAction>): void;
   onScroll?: ((event: ScrollEvent) => void) | undefined;
   onScrollBeginDrag?: ((event: ScrollEvent) => void) | undefined;
@@ -53,10 +52,8 @@ type Props = ViewProps & {
   onMomentumScrollBegin?: ((event: ScrollEvent) => void) | undefined;
   onMomentumScrollEnd?: ((event: ScrollEvent) => void) | undefined;
 };
-const Native = nativeChatRecycler ? requireNativeView<Props>('ChatRecycler') : undefined;
-const Cell = nativeChatRecycler
-  ? requireNativeView<ViewProps & { rowKey: string }>('ChatRecyclerCell')
-  : undefined;
+const Native = requireNativeView<Props>('ChatRecycler');
+const Cell = requireNativeView<ViewProps & { rowKey: string }>('ChatRecyclerCell');
 
 function element(value: ComponentType | ReactElement | null | undefined) {
   if (value === null || value === undefined) return null;
@@ -72,6 +69,8 @@ export type NativeRowProps<T> = {
   nativeStyle?: object | undefined;
   nativeSwipe?: boolean | undefined;
   onNativeRow?: ((item: T, event: NativeRowAction) => void) | undefined;
+  speakerRow?: ((item: T) => SpeakerRowSlot | undefined) | undefined;
+  speakerAvatar?: ((group: string) => ReactNode) | undefined;
 };
 
 function RecyclerList<T>({
@@ -80,6 +79,8 @@ function RecyclerList<T>({
   nativeStyle,
   nativeSwipe = false,
   onNativeRow,
+  speakerRow,
+  speakerAvatar,
   ...props
 }: FlatListProps<T> & NativeRowProps<T> & { ref?: Ref<ChatListHandle<T>> }) {
   const native = useRef<Handle>(null);
@@ -107,6 +108,30 @@ function RecyclerList<T>({
       }
     return { textRows: rows, nativeItems: items };
   }, [data, nativeRow]);
+  const speakerRows = useMemo(() => {
+    const rows: SpeakerRowSlot[] = [];
+    if (speakerRow !== undefined)
+      for (const item of Array.from(data)) {
+        const row = speakerRow(item);
+        if (row !== undefined) rows.push({ ...row, key: `item:${row.key}` });
+      }
+    return rows;
+  }, [data, speakerRow]);
+  const groupOf = useMemo(
+    () => new Map(speakerRows.map((row) => [row.key, row.group])),
+    [speakerRows],
+  );
+  const shownGroups =
+    speakerAvatar === undefined
+      ? []
+      : [
+          ...new Set(
+            keys.slice(window.start, window.end).flatMap((key) => {
+              const group = groupOf.get(key);
+              return group === undefined ? [] : [group];
+            }),
+          ),
+        ];
   const style = StyleSheet.flatten(props.contentContainerStyle);
   const top = typeof style?.paddingTop === 'number' ? style.paddingTop : 0;
   const bottom = typeof style?.paddingBottom === 'number' ? style.paddingBottom : 0;
@@ -126,7 +151,6 @@ function RecyclerList<T>({
     }),
     [offset],
   );
-  if (Native === undefined || Cell === undefined) return null;
   return (
     <Native
       ref={native}
@@ -157,6 +181,7 @@ function RecyclerList<T>({
       }
       onKeyboardInset={() => undefined}
       rowSwipe={nativeSwipe}
+      speakerRows={speakerRows}
       onRowAction={({ nativeEvent: { key, ...event } }) => {
         const item = nativeItems.get(key);
         if (item === undefined) return;
@@ -242,8 +267,18 @@ function RecyclerList<T>({
           </Cell>
         );
       })}
+      {shownGroups.map((group) => (
+        <Cell
+          key={`avatar:${group}`}
+          rowKey={`avatar:${group}`}
+          style={{ position: 'absolute', top: 0, left: 0 }}
+          pointerEvents="box-none"
+        >
+          {speakerAvatar?.(group)}
+        </Cell>
+      ))}
     </Native>
   );
 }
 
-export const ChatList = nativeChatRecycler ? RecyclerList : Animated.FlatList;
+export const ChatList = RecyclerList;

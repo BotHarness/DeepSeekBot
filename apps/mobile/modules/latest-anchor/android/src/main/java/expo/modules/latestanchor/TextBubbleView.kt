@@ -140,8 +140,8 @@ class TextBubbleView(context: Context) : View(context) {
     val layout = layout ?: return false
     val touch = layout.tokens.touch ?: return false
     val swipe = touch.swipe
-    val x = event.x + layout.bubble.left
-    val y = event.y + layout.bubble.top
+    val x = event.x + layout.frame.left
+    val y = event.y + layout.frame.top
     val dx = (x - downX) * side / density
     val dy = (y - downY) / density
     when (event.actionMasked) {
@@ -252,7 +252,7 @@ class TextBubbleView(context: Context) : View(context) {
 
   override fun onDraw(canvas: Canvas) {
     val layout = layout ?: return
-    canvas.translate(-layout.bubble.left, -layout.bubble.top)
+    canvas.translate(-layout.frame.left, -layout.frame.top)
     layout.tokens.touch?.let { if (shift > 0f) drawHint(canvas, layout, it) }
     canvas.save()
     canvas.translate(shift * side, 0f)

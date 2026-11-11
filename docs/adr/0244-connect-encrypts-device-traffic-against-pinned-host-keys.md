@@ -1,5 +1,7 @@
 ---
 Status: Accepted — approved by Vain on 2026-10-22; Track B implementation in progress
+
+Update 2026-11-12: [ADR-0327](0327-connect-account-ownership-authorizes-enrollment.md) supersedes independent first-key trust and new-device approval for authenticated same-account Connect enrollment. That path trusts account authentication and the relay; the compromised-relay enrollment guarantee below no longer applies to it. Unsigned/QR/private pairing and existing pinned transport retain their checks.
 Date: 2026-10-22
 Issues: [#2542](https://github.com/BotHarness/DeepSeekBot/issues/2542), [#2541](https://github.com/BotHarness/DeepSeekBot/issues/2541)
 Amends: ADR-0241 and ADR-0242

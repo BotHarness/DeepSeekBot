@@ -11,6 +11,11 @@ const genuiBudgetTests = [
   'packages/client/test/genui-dom-mirror.test.ts',
 ];
 
+const durableIntegrationTests = [
+  'packages/core/test/bot-group-review-rounds.test.ts',
+  'packages/core/test/channel-attachment-forwarding.test.ts',
+];
+
 function sourceOptions(): ViteUserConfig {
   return {
     plugins: [stylexPlugin({ rootDir: fileURLToPath(new URL('.', import.meta.url)) })],
@@ -55,7 +60,7 @@ export default defineConfig({
         test: {
           ...testDefaults,
           name: 'default',
-          exclude: [...configDefaults.exclude, ...genuiBudgetTests],
+          exclude: [...configDefaults.exclude, ...genuiBudgetTests, ...durableIntegrationTests],
           sequence: { groupOrder: 0 },
         },
       },
@@ -69,6 +74,18 @@ export default defineConfig({
           maxWorkers: 1,
           fileParallelism: false,
           sequence: { groupOrder: 1 },
+        },
+      },
+      {
+        extends: false,
+        ...sourceOptions(),
+        test: {
+          ...testDefaults,
+          name: 'durable-integration',
+          include: durableIntegrationTests,
+          maxWorkers: 1,
+          fileParallelism: false,
+          sequence: { groupOrder: 2 },
         },
       },
     ],

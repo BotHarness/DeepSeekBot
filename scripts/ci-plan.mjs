@@ -28,6 +28,10 @@ const none = (glob, why, docsSite = false) => ({ glob, tests: 'none', docsSite, 
 
 export const RULES = [
   full('deploy/private-relay/**', 'Private Docker relay runtime, deployment and admission tests'),
+  full(
+    'packages/client/vendor/dsh-ui-theme-022-rc2/**',
+    'Pinned official Desktop theme input and its runtime adapters',
+  ),
   full('package.json', 'Workspace manifest'),
   full('*/*/package.json', 'Package manifests'),
   full('pnpm-lock.yaml', 'Lockfile'),

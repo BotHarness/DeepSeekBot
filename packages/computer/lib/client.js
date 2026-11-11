@@ -2221,8 +2221,11 @@ window.__ModuleLoader__.load({
 		//#endregion
 		//#region packages/client/src/client/appearance-primitives.tsx
 		function Menu$1(props) {
+			const { anchorRef } = props;
+			const legacyAnchor = anchorRef === void 0 ? {} : { getAnchorRect: () => anchorRef.current?.getBoundingClientRect() ?? null };
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Menu, {
 				...props,
+				...legacyAnchor,
 				listClassName: [APPEARANCE_CLASS, props.listClassName].filter(Boolean).join(" ")
 			});
 		}

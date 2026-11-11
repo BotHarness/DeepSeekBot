@@ -93,6 +93,7 @@ export function productManifest(manifest, version) {
       'dist',
       'desktop-theme',
       'desktop-theme-0.2.2-rc.1',
+      'desktop-theme-0.2.2-rc.2',
       'cordis.im.patch.yml',
       'README.md',
       'LICENSE',
@@ -332,6 +333,7 @@ export function packProduct({
     'dist',
     'desktop-theme',
     'desktop-theme-0.2.2-rc.1',
+    'desktop-theme-0.2.2-rc.2',
     'cordis.im.patch.yml',
     'README.md',
   ]);
@@ -345,7 +347,12 @@ export function packProduct({
   cpSync(join(repoRoot, 'README.en.md'), join(tobs, 'README.md'));
   const launcher = join(tobs, 'src/tobs.mjs');
   writeFileSync(launcher, `#!/usr/bin/env node\n${readFileSync(launcher, 'utf8')}`);
-  copyAvailable(source, tobs, ['cordis.im.patch.yml', 'desktop-theme', 'desktop-theme-0.2.2-rc.1']);
+  copyAvailable(source, tobs, [
+    'cordis.im.patch.yml',
+    'desktop-theme',
+    'desktop-theme-0.2.2-rc.1',
+    'desktop-theme-0.2.2-rc.2',
+  ]);
   mkdirSync(join(tobs, 'dist'), { recursive: true });
   cpSync(join(source, 'dist/theme-schema.mjs'), join(tobs, 'dist/theme-schema.mjs'));
   cpSync(join(repoRoot, 'LICENSE'), join(tobs, 'LICENSE'));
@@ -402,6 +409,7 @@ export function tobsManifest(product) {
       'dist/theme-schema.mjs',
       'desktop-theme',
       'desktop-theme-0.2.2-rc.1',
+      'desktop-theme-0.2.2-rc.2',
       'cordis.im.patch.yml',
       'README.md',
       'LICENSE',

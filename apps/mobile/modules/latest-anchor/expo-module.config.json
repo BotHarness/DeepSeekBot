@@ -5,10 +5,8 @@
   },
   "android": {
     "modules": [
-      "expo.modules.latestanchor.LatestAnchorModule",
       "expo.modules.latestanchor.ChatRecyclerModule",
-      "expo.modules.latestanchor.ChatRecyclerCellModule",
-      "expo.modules.latestanchor.MessageTargetModule"
+      "expo.modules.latestanchor.ChatRecyclerCellModule"
     ]
   }
 }

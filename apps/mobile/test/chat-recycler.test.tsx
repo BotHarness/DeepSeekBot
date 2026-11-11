@@ -4,13 +4,13 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
-  supported: true,
   textRows: [] as Array<{ key: string }>,
   rowSwipe: undefined as boolean | undefined,
   rowAction: undefined as
     | undefined
     | ((event: { nativeEvent: { key: string; action: string; anchor?: object } }) => void),
   keyboard: false,
+  speakerRows: [] as object[],
   window: undefined as
     | undefined
     | ((event: { nativeEvent: { start: number; end: number; width: number } }) => void),
@@ -18,7 +18,6 @@ const state = vi.hoisted(() => ({
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('expo', () => ({
-  requireOptionalNativeModule: () => (state.supported ? { supported: true } : null),
   requireNativeView: (name: string) =>
     function Native(props: {
       children?: ReactNode;
@@ -27,25 +26,24 @@ vi.mock('expo', () => ({
       textRows?: Array<{ key: string }>;
       rowSwipe?: boolean;
       onRowAction?: typeof state.rowAction;
+      speakerRows?: object[];
     }) {
       if (name === 'ChatRecycler') {
         state.window = props.onWindow;
         state.textRows = props.textRows ?? [];
         state.rowSwipe = props.rowSwipe;
         state.rowAction = props.onRowAction;
+        state.speakerRows = props.speakerRows ?? [];
       }
       return <div data-cell={props.rowKey}>{props.children}</div>;
     },
 }));
 afterEach(() => {
-  vi.unstubAllEnvs();
   vi.resetModules();
-  state.supported = true;
   state.keyboard = false;
 });
 
 it('mounts only the native requested window and restores the same message identities', async () => {
-  vi.stubEnv('EXPO_PUBLIC_CHAT_LIST', 'recycler');
   const { ChatList } = await import('../src/ui/primitives/chat-list.android');
   const container = document.createElement('div');
   const root = createRoot(container);
@@ -69,15 +67,7 @@ it('mounts only the native requested window and restores the same message identi
   await act(async () => root.unmount());
 });
 
-it('keeps FlatList when the rebuilt module is absent', async () => {
-  vi.stubEnv('EXPO_PUBLIC_CHAT_LIST', 'recycler');
-  state.supported = false;
-  const { nativeChatRecycler } = await import('../src/ui/primitives/chat-list.android');
-  expect(nativeChatRecycler).toBe(false);
-});
-
 it('hands native text rows to the RecyclerView instead of mounting React cells', async () => {
-  vi.stubEnv('EXPO_PUBLIC_CHAT_LIST', 'recycler');
   const { ChatList } = await import('../src/ui/primitives/chat-list.android');
   const container = document.createElement('div');
   const root = createRoot(container);
@@ -98,13 +88,6 @@ it('hands native text rows to the RecyclerView instead of mounting React cells',
     [...container.querySelectorAll('[data-cell]')].map((cell) => cell.getAttribute('data-cell')),
   ).toEqual(['item:a', 'item:c']);
   await act(async () => root.unmount());
-});
-
-it('uses the RecyclerView by default and FlatList only when switched off', async () => {
-  expect((await import('../src/ui/primitives/chat-list.android')).nativeChatRecycler).toBe(true);
-  vi.resetModules();
-  vi.stubEnv('EXPO_PUBLIC_CHAT_LIST', 'flatlist');
-  expect((await import('../src/ui/primitives/chat-list.android')).nativeChatRecycler).toBe(false);
 });
 
 it('routes native row gestures to the item, and drops taps that only dismiss the keyboard', async () => {
@@ -139,5 +122,34 @@ it('routes native row gestures to the item, and drops taps that only dismiss the
     ['b', { action: 'press', anchor }],
     ['a', { action: 'reply' }],
   ]);
+  await act(async () => root.unmount());
+});
+
+it('sends speaker runs to the list and mounts one avatar cell per run in the window', async () => {
+  const { ChatList } = await import('../src/ui/primitives/chat-list.android');
+  const container = document.createElement('div');
+  const root = createRoot(container);
+  const data = ['a', 'b', 'c'];
+  await act(async () =>
+    root.render(
+      <ChatList
+        data={data}
+        keyExtractor={(item) => item}
+        renderItem={({ item }) => <span>{item}</span>}
+        speakerRow={(item) =>
+          item === 'c'
+            ? undefined
+            : { key: item, group: 'run', first: item === 'b', name: item === 'b', bottom: 8 }
+        }
+        speakerAvatar={(group) => <i data-avatar={group} />}
+      />,
+    ),
+  );
+  expect(state.speakerRows).toEqual([
+    { key: 'item:a', group: 'run', first: false, name: false, bottom: 8 },
+    { key: 'item:b', group: 'run', first: true, name: true, bottom: 8 },
+  ]);
+  expect(container.querySelectorAll('[data-cell="avatar:run"]')).toHaveLength(1);
+  expect(container.querySelector('[data-avatar="run"]')).not.toBeNull();
   await act(async () => root.unmount());
 });

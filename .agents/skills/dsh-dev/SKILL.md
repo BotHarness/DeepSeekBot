@@ -581,3 +581,27 @@ The Electron desktop carrier patches Node filesystem APIs to interpret `.asar` a
 ### Completed preparation PID reused by an unrelated process (#3519)
 
 A development Home can refuse recovery as `Home is in use` after its Host has stopped if an old launch record retains an exited preparation PID that the OS has reused. Successful preparation must retire its resource record only after process exit and descendant verification; live resources and unresolved cleanup remain protected. Old records are not automatically safe to remove: compare the process creation time, command ownership and Home listeners, preserve the original metadata, and remove only a proven stale entry. Never kill a currently live PID based only on an old record or weaken the ownership scan. This was observed during Android QA recovery; the unrelated application process was left running and normal startup succeeded after the verified stale entry was removed.
+
+### DSH 0.2.2-rc.2 Client anchors and Subagent requests (#4019)
+
+The official macOS rc.2 Desktop removes `useAnchoredPosition` and replaces
+`Menu.getAnchorRect` with `anchorRef`. Opening a model picker with the old hook
+crashes the Bot Client subtree even though Host boot and a plain DM work. The
+application-owned anchored-panel adapter retains the native hook when exported;
+otherwise it uses CSS anchors. The Menu adapter supplies the same trigger to
+both generations. Verify focus, Escape, selection, zoom and constrained viewports
+in the actual Client; successful Host health does not prove this seam.
+
+The rc.2 `subagents.startActivation` reads the live parent, prompt and child
+options directly from the spec instead of from `spec.request`. Passing only the
+old nested request fails at `spec.parent.id`. The compatibility boundary supplies
+the same request fields in both locations in one call, preserving the exact live
+parent, model policy, signal and delivery owner. Never retry a failed activation
+through a second API shape. Qualify caller-delivered and parent-delivered children
+on both generations; a completed Assignment alone does not prove a native child.
+
+The npm rc.2 CLI can lag the official Desktop feed. Inspect the signed Desktop's
+actual `__DSH_BOOT__.release` and archive digest separately from the public tag:
+the tested rc.2 Desktop reports commit `a6b1b85`, whereas the public rc.2 tag points
+to `ddac96760b6edf8fa0fe17cbdcf0b512f4c12b2c`. Do not substitute a source tag for
+runtime artifact provenance or describe the Desktop run as npm qualification.

@@ -1,6 +1,6 @@
 # ADR-0319: Android message targets acknowledge native bounds
 
-Status: accepted for opt-in device comparison
+Status: superseded by ADR-0320 on 2026-11-12. RecyclerView became the only Android chat list and owns exact index landing, so the FlatList message target and `EXPO_PUBLIC_MESSAGE_JUMP` were removed.
 
 ## Decision
 

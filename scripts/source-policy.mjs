@@ -14,6 +14,7 @@ import {
 const codeExtensions = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.mts', '.cts']);
 const sourceExtensions = new Set([...codeExtensions, '.astro', '.css']);
 const generatedPrefixes = [
+  'packages/client/vendor/dsh-ui-theme-022-rc2/',
   'packages/computer/lib/',
   'packages/browser/lib/',
   'apps/docs/dist/',

@@ -177,3 +177,16 @@ Finally, run `deepseekbot connect-sign-in --wait` against an isolated Host, appr
 the browser with an allowlisted application user, and check `deepseekbot connect-status`.
 It must report a connected tunnel. The tunnel hostname must reach `/botharness-device/*`,
 while `/` and `/api` return `404`. Sign out the disposable Host after verification.
+
+## Native password sign-in
+
+With `PASSWORD_AUTH_ENABLED=true`, `WORKOS_API_KEY` and `CONNECT_LIMIT`, `/v1/config` advertises `passwordAuth: true`. Keep the flag off until the same WorkOS environment enables passwords, open signup, verification emails and password-reset emails. Verify the hosted reset URL before rollout. Unset the flag to roll back the new form; existing sessions and other authentication methods remain valid.
+
+| POST route                   | Input                            | Result                                                                                                                         |
+| ---------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `/v1/auth/password`          | `email`, `password`              | Existing `refresh_token` and `user { id, email }`, or `verification_required` with an in-memory `pending_authentication_token` |
+| `/v1/auth/password/register` | `email`, `password`              | Creates an unverified user, then authenticates as above                                                                        |
+| `/v1/auth/password/verify`   | `pendingToken`, six-digit `code` | Completes WorkOS email verification and returns the existing session contract                                                  |
+| `/v1/auth/password/reset`    | `email`                          | Generic `sent: true`; WorkOS emails its hosted reset link, never returned here                                                 |
+
+All routes limit request bytes and apply email/challenge plus shared IP rate limits before calling WorkOS. The Worker uses the trusted Cloudflare caller-IP header; do not expose a proxy that accepts a client-supplied replacement. Passwords are never trimmed. Unsupported MFA/Radar/organization challenges return `use-browser-sign-in`. No route logs authentication payloads. Native tests must separately cover keyboard/autofill, cancellation, error recovery, session refresh and the account's Host pairing journey.

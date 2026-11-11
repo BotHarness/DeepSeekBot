@@ -6,6 +6,7 @@ import {
   type EmailCodeFlow,
   type EmailCodeOutcome,
   type EmailCodeRefusal,
+  type PasswordOutcome,
   type SocialProvider,
 } from '../../host/connect-account';
 import { useDesignTheme } from '../design/theme';
@@ -81,6 +82,12 @@ export function EmailCodeSignIn({
   const t = useStrings();
   const copy = t.emailSignIn;
   const [email, setEmail] = useState('');
+  const [mode, setMode] = useState<'password' | 'register' | 'code' | 'reset'>(
+    flow.password ? 'password' : 'code',
+  );
+  const [password, setPassword] = useState('');
+  const [verifyPassword, setVerifyPassword] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
   const [sentTo, setSentTo] = useState<string>();
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
@@ -109,9 +116,46 @@ export function EmailCodeSignIn({
       setSentTo(address.trim());
       setCode('');
     });
+  const passwordResult = (result: PasswordOutcome) => {
+    if (!result.ok) {
+      setError(result.code);
+      if (result.code === 'invalid-code') setCode('');
+      return;
+    }
+    setPassword('');
+    if (result.kind === 'signed-in') finish({ kind: 'signed-in', email: result.email });
+    else {
+      setVerifyPassword(true);
+      setSentTo(email.trim());
+      setCode('');
+    }
+  };
+  const submitPassword = () =>
+    run(async () => {
+      if (!flow.password || !password || !email.trim()) return;
+      passwordResult(await flow.password.submit(email, password, mode === 'register'));
+    });
+  const reset = () =>
+    run(async () => {
+      if (!flow.password) return;
+      const result = await flow.password.reset(email);
+      if (!result.ok) setError(result.code);
+      else setResetSent(true);
+    });
+  const changeMode = (next: typeof mode) => {
+    setMode(next);
+    setPassword('');
+    setError(undefined);
+    setResetSent(false);
+    setVerifyPassword(false);
+  };
   const verify = (value: string) =>
     run(async () => {
       if (sentTo === undefined) return;
+      if (verifyPassword && flow.password) {
+        passwordResult(await flow.password.verify(value));
+        return;
+      }
       const result = await flow.verify(sentTo, value);
       if (result.ok) finish({ kind: 'signed-in', email: result.email });
       else {
@@ -145,7 +189,17 @@ export function EmailCodeSignIn({
     >
       {sentTo === undefined ? (
         <>
-          <Heading icon title={copy.heading} detail={copy.headingDetail} />
+          <Heading
+            icon
+            title={
+              mode === 'register'
+                ? copy.register
+                : mode === 'reset'
+                  ? copy.resetTitle
+                  : copy.heading
+            }
+            detail={mode === 'reset' ? copy.resetDetail : copy.headingDetail}
+          />
           {providers.map((provider) => (
             <SignInBrandButton
               key={provider.id}
@@ -171,18 +225,82 @@ export function EmailCodeSignIn({
             textContentType="emailAddress"
             keyboardType="email-address"
             inputMode="email"
-            returnKeyType="send"
+            returnKeyType={mode === 'password' || mode === 'register' ? 'done' : 'send'}
             invalid={error === 'invalid-email'}
-            onSubmitEditing={() => void send(email)}
+            onSubmitEditing={() => {
+              if (mode === 'code') void send(email);
+              else if (mode === 'reset') void reset();
+            }}
           />
-          <Button
-            testID="email-sign-in-send"
-            label={copy.sendCode}
-            tone="primary"
-            busy={busy}
-            disabled={!email.trim()}
-            onPress={() => void send(email)}
-          />
+          {mode === 'password' || mode === 'register' ? (
+            <>
+              <TextField
+                testID="email-sign-in-password"
+                accessibilityLabel={copy.password}
+                label={copy.password}
+                placeholder={copy.password}
+                value={password}
+                onChangeText={setPassword}
+                editable={!busy}
+                secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
+                textContentType={mode === 'register' ? 'newPassword' : 'password'}
+                returnKeyType="go"
+                invalid={error === 'invalid-credentials' || error === 'sign-up-failed'}
+                onSubmitEditing={() => void submitPassword()}
+              />
+              <Button
+                testID="email-sign-in-password-submit"
+                label={mode === 'register' ? copy.register : copy.title}
+                tone="primary"
+                busy={busy}
+                disabled={!email.trim() || !password}
+                onPress={() => void submitPassword()}
+              />
+              <Button
+                testID="email-sign-in-forgot"
+                label={copy.forgotPassword}
+                variant="text"
+                disabled={busy}
+                onPress={() => changeMode('reset')}
+              />
+            </>
+          ) : (
+            <Button
+              testID="email-sign-in-send"
+              label={mode === 'reset' ? copy.sendReset : copy.sendCode}
+              tone="primary"
+              busy={busy}
+              disabled={!email.trim()}
+              onPress={() => {
+                if (mode === 'reset') void reset();
+                else void send(email);
+              }}
+            />
+          )}
+          {resetSent ? <Text accessibilityLiveRegion="polite">{copy.resetSent}</Text> : null}
+          {flow.password ? (
+            <View style={{ gap: space.x2 }}>
+              <Button
+                testID="email-sign-in-mode"
+                label={mode === 'code' || mode === 'reset' ? copy.usePassword : copy.useCode}
+                variant="text"
+                disabled={busy}
+                onPress={() =>
+                  changeMode(mode === 'code' || mode === 'reset' ? 'password' : 'code')
+                }
+              />
+              <Button
+                testID="email-sign-in-register"
+                label={mode === 'register' ? copy.haveAccount : copy.register}
+                variant="text"
+                disabled={busy}
+                onPress={() => changeMode(mode === 'register' ? 'password' : 'register')}
+              />
+            </View>
+          ) : null}
         </>
       ) : (
         <>
@@ -216,13 +334,15 @@ export function EmailCodeSignIn({
             onPress={() => void verify(code)}
           />
           <View style={{ gap: space.x2 }}>
-            <Button
-              testID="email-sign-in-resend"
-              label={copy.resend}
-              variant="text"
-              disabled={busy}
-              onPress={() => void send(sentTo)}
-            />
+            {verifyPassword ? null : (
+              <Button
+                testID="email-sign-in-resend"
+                label={copy.resend}
+                variant="text"
+                disabled={busy}
+                onPress={() => void send(sentTo)}
+              />
+            )}
             <Button
               testID="email-sign-in-change-email"
               label={copy.changeEmail}
@@ -230,6 +350,7 @@ export function EmailCodeSignIn({
               disabled={busy}
               onPress={() => {
                 setSentTo(undefined);
+                setVerifyPassword(false);
                 setCode('');
                 setError(undefined);
               }}

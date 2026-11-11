@@ -52,8 +52,8 @@ describe('native text rows', () => {
       { card: {} as never },
       { activity: {} as never },
       { author: 'system' },
-      { body: '**bold** reply' },
-      { body: 'Markdown joins\nthese lines' },
+      { author: 'human', body: '**bold** reply' },
+      { body: '| a | b |' },
     ];
     for (const overrides of decorated)
       expect(nativeTextRow(row(overrides), context)).toBeUndefined();
@@ -79,15 +79,23 @@ describe('native text rows', () => {
       expect(plainText(body)).toBe(false);
   });
 
-  it('routes bot Markdown through the native Markdown renderer when enabled', () => {
-    const markdown = { ...context, markdown: true };
-    const bold = nativeTextRow(row({ body: '**bold** and `code`\nsoft break' }), markdown);
+  it('routes Bot replies through the native Markdown renderer and keeps Human text plain', () => {
+    const bold = nativeTextRow(row({ body: '**bold** and `code`\nsoft break' }), context);
     expect(bold).toMatchObject({ markdown: true, body: '**bold** and `code`\nsoft break' });
-    expect(
-      nativeTextRow(row({ author: 'human', body: '**not markdown**' }), markdown),
-    ).toBeUndefined();
-    expect(nativeTextRow(row({ author: 'human', body: 'plain' }), markdown)?.markdown).toBe(false);
-    expect(nativeTextRow(row({ body: 'plain' }), context)?.markdown).toBe(false);
+    expect(nativeTextRow(row({ body: 'plain' }), context)?.markdown).toBe(true);
+    expect(nativeTextRow(row({ author: 'human', body: 'plain' }), context)?.markdown).toBe(false);
+  });
+
+  it('draws group Bot rows natively with the speaker name on the first row of a run', () => {
+    const group = { ...context, dm: false, speaker: { name: 'Perf QA' } };
+    expect(nativeTextRow(row(), group)).toMatchObject({ speaker: true, name: 'Perf QA' });
+    const joined = nativeTextRow({ ...row(), first: false } as ChatRow, group);
+    expect(joined).toMatchObject({ speaker: true });
+    expect(joined).not.toHaveProperty('name');
+    expect(nativeTextRow(row(), { ...context, dm: false })).toBeUndefined();
+    expect(nativeTextRow(row({ author: 'human' }), { ...context, dm: false })).not.toHaveProperty(
+      'speaker',
+    );
   });
 
   it('keeps tables, images, links, HTML, math and code blocks on React rows', () => {

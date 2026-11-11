@@ -19,9 +19,10 @@ import { spring } from '../design/motion';
 import { popScale, space } from '../design/tokens';
 import { useMounted } from '../mounted';
 import { Text } from '../primitives/text';
-import { AVATAR_CORNER } from './bubble-shape';
+import { AVATAR_CORNER, SPEAKER_AVATAR } from './bubble-shape';
 import { usePopIn } from './pop-in';
 import { SpeakerAnchor } from './speaker-anchor';
+import { nativeChatRecycler } from '../primitives/chat-recycler';
 import {
   groupSpan,
   SPEAKER_VIEWPORT,
@@ -38,7 +39,7 @@ export type Speaker = {
   last: boolean;
 };
 
-export const SPEAKER_AVATAR = 32;
+export { SPEAKER_AVATAR } from './bubble-shape';
 
 export type SpeakerRegistry = ReturnType<typeof createSpeakerRegistry>;
 
@@ -143,7 +144,7 @@ export function SpeakerRow({
     >
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: space.x3 }}>
         <Animated.View ref={row} style={{ width: SPEAKER_AVATAR, alignSelf: 'stretch' }}>
-          {speaker.last ? (
+          {speaker.last && !nativeChatRecycler ? (
             <StickyAvatar
               speaker={speaker}
               stage={stage}
@@ -336,7 +337,7 @@ function AnimatedStickyAvatar({
   );
 }
 
-function SpeakerAvatar({ speaker }: { speaker: Speaker }) {
+export function SpeakerAvatar({ speaker }: { speaker: Speaker }) {
   const theme = useDesignTheme();
   if (speaker.bot !== undefined)
     return (

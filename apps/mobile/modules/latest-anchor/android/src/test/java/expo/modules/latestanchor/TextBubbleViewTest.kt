@@ -44,8 +44,8 @@ class TextBubbleViewTest {
     val layout = TextBubbleLayout(TextRow("item:m", true, true, true, "hello", "09:30"), TextRowStyle.from(style)!!, 1200, view.resources.displayMetrics.density)
     view.layout = layout
     view.actions = actions
-    val width = layout.bubble.width().toInt()
-    val height = layout.bubble.height().toInt()
+    val width = layout.frame.width().toInt()
+    val height = layout.frame.height().toInt()
     view.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY))
     view.layout(0, 0, width, height)
     return view
@@ -54,7 +54,7 @@ class TextBubbleViewTest {
   private val start = SystemClock.uptimeMillis()
   /** Touches at ([x], [y]) in row coordinates, as the bubble-sized view receives them. */
   private fun TextBubbleView.touch(action: Int, x: Float, y: Float, at: Long = 0) =
-    onTouchEvent(MotionEvent.obtain(start, start + at, action, x - layout!!.bubble.left, y - layout!!.bubble.top, 0))
+    onTouchEvent(MotionEvent.obtain(start, start + at, action, x - layout!!.frame.left, y - layout!!.frame.top, 0))
 
   @Test fun tapInsideTheBubblePresses() {
     val actions = Recorder()

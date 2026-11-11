@@ -4,9 +4,32 @@ window.__ModuleLoader__.load({
 		var module = { exports: {} };
 		var exports = module.exports;
 		Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
+		//#region \0rolldown/runtime.js
+		var __create = Object.create;
+		var __defProp = Object.defineProperty;
+		var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+		var __getOwnPropNames = Object.getOwnPropertyNames;
+		var __getProtoOf = Object.getPrototypeOf;
+		var __hasOwnProp = Object.prototype.hasOwnProperty;
+		var __copyProps = (to, from, except, desc) => {
+			if (from && typeof from === "object" || typeof from === "function") for (var keys = __getOwnPropNames(from), i = 0, n = keys.length, key; i < n; i++) {
+				key = keys[i];
+				if (!__hasOwnProp.call(to, key) && key !== except) __defProp(to, key, {
+					get: ((k) => from[k]).bind(null, key),
+					enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable
+				});
+			}
+			return to;
+		};
+		var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(isNodeMode || !mod || !mod.__esModule || !__hasOwnProp.call(mod, "default") ? __defProp(target, "default", {
+			value: mod,
+			enumerable: true
+		}) : target, mod));
+		//#endregion
 		let react = require("react");
 		let react_jsx_runtime = require("react/jsx-runtime");
 		let _deepseek_ai_dsh_client_ui_primitives = require("@deepseek-ai/dsh-client-ui-primitives");
+		_deepseek_ai_dsh_client_ui_primitives = __toESM(_deepseek_ai_dsh_client_ui_primitives, 1);
 		let react_dom = require("react-dom");
 		//#region node_modules/.pnpm/@stylexjs+stylex@0.19.1/node_modules/@stylexjs/stylex/lib/es/stylex.mjs
 		var styleq = {};
@@ -2367,6 +2390,51 @@ window.__ModuleLoader__.load({
 			});
 		}
 		//#endregion
+		//#region packages/client/src/client/anchored-panel.ts
+		const useLegacyPosition = "useAnchoredPosition" in _deepseek_ai_dsh_client_ui_primitives ? _deepseek_ai_dsh_client_ui_primitives.useAnchoredPosition : void 0;
+		function useAnchoredPanel({ open, anchorRef, panelRef, gap, margin, matchWidth = false }) {
+			const position = useLegacyPosition?.({
+				open,
+				anchorRef,
+				panelRef,
+				gap,
+				margin
+			});
+			const name = `--bh-panel-${(0, react.useId)().replace(/[^a-zA-Z0-9_-]/gu, "")}`;
+			(0, react.useLayoutEffect)(() => {
+				const anchor = anchorRef.current;
+				if (useLegacyPosition !== void 0 || !open || anchor === null) return;
+				const previous = anchor.style.getPropertyValue("anchor-name");
+				const priority = anchor.style.getPropertyPriority("anchor-name");
+				anchor.style.setProperty("anchor-name", name);
+				return () => anchor.style.setProperty("anchor-name", previous, priority);
+			}, [
+				open,
+				anchorRef,
+				name
+			]);
+			if (useLegacyPosition !== void 0) return {
+				...position,
+				...matchWidth ? { width: anchorRef.current?.getBoundingClientRect().width ?? 200 } : {},
+				visibility: position === null ? "hidden" : void 0
+			};
+			return {
+				position: "fixed",
+				positionAnchor: name,
+				top: `max(${margin}px, var(--dsh-frame-overlay-top, ${margin}px), calc(anchor(bottom) + ${gap}px))`,
+				bottom: margin,
+				left: `max(${margin}px, anchor(left))`,
+				right: margin,
+				alignSelf: "start",
+				justifySelf: "start",
+				margin: 0,
+				height: "fit-content",
+				maxWidth: `calc(100vw - ${margin * 2}px)`,
+				positionTryFallbacks: "flip-block, flip-inline, flip-block flip-inline",
+				...matchWidth ? { width: `min(anchor-size(width), calc(100vw - ${margin * 2}px))` } : {}
+			};
+		}
+		//#endregion
 		//#region packages/client/src/client/combobox.tsx
 		const COMBOBOX_CSS = `
 .bh-combobox { position: relative; flex: 1; min-width: 0; }
@@ -2433,10 +2501,11 @@ window.__ModuleLoader__.load({
 			const enabled = shown.filter((option) => option.disabled !== true);
 			const hasPopup = shown.length > 0 || choices.length === 0 && emptyLabel !== void 0;
 			const highlighted = shown.findIndex((option) => option.value === active && option.disabled !== true);
-			const position = (0, _deepseek_ai_dsh_client_ui_primitives.useAnchoredPosition)({
+			const position = useAnchoredPanel({
 				open,
 				anchorRef: root,
 				panelRef: panel,
+				matchWidth: true,
 				gap: 4,
 				margin: 12
 			});
@@ -2539,11 +2608,7 @@ window.__ModuleLoader__.load({
 						"aria-label": label,
 						className: "bh-combobox-list",
 						"data-bh-appearance-owned": "",
-						style: {
-							...position,
-							width: root.current?.getBoundingClientRect().width ?? 200,
-							visibility: position === null ? "hidden" : void 0
-						},
+						style: { ...position },
 						children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 							className: "bh-combobox-scroll",
 							children: [choices.length === 0 && emptyLabel !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
@@ -2610,8 +2675,11 @@ window.__ModuleLoader__.load({
 		//#endregion
 		//#region packages/client/src/client/appearance-primitives.tsx
 		function Menu(props) {
+			const { anchorRef } = props;
+			const legacyAnchor = anchorRef === void 0 ? {} : { getAnchorRect: () => anchorRef.current?.getBoundingClientRect() ?? null };
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Menu, {
 				...props,
+				...legacyAnchor,
 				listClassName: [APPEARANCE_CLASS, props.listClassName].filter(Boolean).join(" ")
 			});
 		}

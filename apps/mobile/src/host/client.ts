@@ -1250,6 +1250,9 @@ export function createHostClient(options: HostClientOptions): HostClient {
       clearTimeout(deadline);
     }
     if (reloading === undefined) reuseNextPass = true;
+    pingAvailable = true;
+    setCompatibility({});
+    void readCompatibility().catch(() => undefined);
     await reload();
     if (current !== generation) return;
     const stable = setTimeout(() => {
@@ -1273,30 +1276,49 @@ export function createHostClient(options: HostClientOptions): HostClient {
   };
 
   let pingAvailable = true;
+  const readCompatibility = async (): Promise<unknown> => {
+    const current = generation;
+    const sequence = connectionSequence;
+    const currentRoute = route;
+    const currentSocket = liveSocket;
+    const isCurrent = () =>
+      currentSocket !== undefined &&
+      currentSocket === liveSocket &&
+      running &&
+      current === generation &&
+      sequence === connectionSequence &&
+      currentRoute === route;
+    try {
+      const answer = record(await call<unknown>('ping'));
+      if (!isCurrent()) return undefined;
+      const version = typeof answer['version'] === 'string' ? answer['version'] : undefined;
+      const minAppVersion = answer['minAppVersion'];
+      setCompatibility({
+        ...(version === undefined ? {} : { hostVersion: version }),
+        ...(version !== undefined && belowMinimum(version, MIN_HOST_VERSION)
+          ? { update: 'host' as const }
+          : typeof minAppVersion === 'string' && belowMinimum(appVersion, minAppVersion)
+            ? { update: 'app' as const }
+            : {}),
+      });
+      return answer;
+    } catch (error) {
+      if (
+        !hostLacksMethod(error) &&
+        !(error instanceof MethodRefused && error.code === 'gateway/method-not-found')
+      )
+        throw error;
+      if (!isCurrent()) return undefined;
+      pingAvailable = false;
+      setCompatibility({ update: 'host' });
+      return undefined;
+    }
+  };
   const probeHost = async (): Promise<unknown> => {
-    if (pingAvailable)
-      try {
-        const answer = record(await call<unknown>('ping'));
-        const version = typeof answer['version'] === 'string' ? answer['version'] : undefined;
-        const minAppVersion = answer['minAppVersion'];
-        setCompatibility({
-          ...(version === undefined ? {} : { hostVersion: version }),
-          ...(version !== undefined && belowMinimum(version, MIN_HOST_VERSION)
-            ? { update: 'host' as const }
-            : typeof minAppVersion === 'string' && belowMinimum(appVersion, minAppVersion)
-              ? { update: 'app' as const }
-              : {}),
-        });
-        return answer;
-      } catch (error) {
-        if (
-          (error instanceof Unreachable && !hostLacksMethod(error)) ||
-          error instanceof CredentialRefused ||
-          error instanceof ConnectRefused
-        )
-          throw error;
-        pingAvailable = false;
-      }
+    if (pingAvailable) {
+      const answer = await readCompatibility();
+      if (pingAvailable) return answer;
+    }
     return call('list');
   };
   const refreshConnected = async (read: () => Promise<unknown> = reload): Promise<void> => {

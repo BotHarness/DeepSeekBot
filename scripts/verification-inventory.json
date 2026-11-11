@@ -1593,9 +1593,9 @@
       "path": "scripts/e2e-fresh-profile-install.mjs",
       "category": "historical-regression",
       "behaviors": ["product.fresh-install"],
-      "reason": "Exact artifacts through both Bundles; published 1.4.1 upgrade and removal/replacement preserve Bot configuration, DM history and SOUL/MEMORY across restart; shared CLI writes/refusals; no Client check. Scoped Tobs package identity is @botharness/tobs; the executable stays tobs.",
+      "reason": "Exact artifacts through both Bundles; configurable published upgrade (1.4.1 historical default; --upgrade-from for current published release), optional --dsh-version and --upgrade-only select explicitly scoped rows; upgrade and removal/replacement preserve Bot configuration, DM history and SOUL/MEMORY across restart; shared CLI writes/refusals; no Client check. Scoped Tobs package identity is @botharness/tobs; the executable stays tobs.",
       "task": 2744,
-      "sha256": "da6396ff22fa9240e0b5b3b3196ceb6c518142508fa10f0cf79af23a24ff943d"
+      "sha256": "8db1eae639d0cd9e06de801ecbd1a4ce0b365f65796e80fff77e01abecb4db98"
     },
     {
       "path": "scripts/e2e-grant-attention.mjs",
