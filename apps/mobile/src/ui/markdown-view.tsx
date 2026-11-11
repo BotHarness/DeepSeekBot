@@ -1,16 +1,25 @@
 import { memo, useCallback, useMemo } from 'react';
-import { Linking } from 'react-native';
+import { Linking, useWindowDimensions } from 'react-native';
 import { EnrichedMarkdownText, type LinkPressEvent } from 'react-native-enriched-markdown';
 import remend from 'remend';
 
 import { useDesignTheme } from './design/theme';
+import { MarkdownDocument, type MarkdownProps } from './markdown-document';
 import { markdownStyle } from './markdown-style';
 import { pressLink } from './link-press';
 
 const flags = { latexMath: false } as const;
 const openLink = (url: string) => void Linking.openURL(url).catch(() => undefined);
 
-export const MarkdownView = memo(function MarkdownView({
+const windowed = process.env.EXPO_PUBLIC_IOS_MARKDOWN_WINDOW === '1';
+
+export const MarkdownView = memo(function MarkdownView(props: MarkdownProps) {
+  const { width, fontScale } = useWindowDimensions();
+  if (windowed) return <MarkdownDocument key={`${width}:${fontScale}`} {...props} />;
+  return <WholeMarkdown {...props} />;
+});
+
+const WholeMarkdown = memo(function WholeMarkdown({
   source,
   color,
   selectable = true,
