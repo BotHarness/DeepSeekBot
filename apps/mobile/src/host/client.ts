@@ -1250,7 +1250,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
       clearTimeout(deadline);
     }
     if (reloading === undefined) reuseNextPass = true;
-    const compatible = pingAvailable ? readCompatibility().catch(() => undefined) : undefined;
+    pingAvailable = true;
+    const compatible = readCompatibility().catch(() => undefined);
     await reload();
     await compatible;
     if (current !== generation) return;

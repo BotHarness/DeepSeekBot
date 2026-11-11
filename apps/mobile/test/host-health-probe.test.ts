@@ -141,3 +141,18 @@ it('suggests an app update when ping has no Host version', async () => {
   vi.advanceTimersByTime(20_000);
   await vi.waitFor(() => expect(target.getSnapshot().compatibility).toEqual({ update: 'app' }));
 });
+
+it('clears the update suggestion after the computer is updated and reconnects', async () => {
+  const host = new FakeHost();
+  host.absent.add('ping');
+  const target = start(host);
+  await connected(target);
+  expect(target.getSnapshot().compatibility).toEqual({ update: 'host' });
+  host.absent.delete('ping');
+  host.methods.set('ping', () => ({ ok: true, version: '1.7.0' }));
+  host.kill();
+  await vi.waitFor(() => expect(target.getSnapshot().connection.status).not.toBe('connected'));
+  host.restart();
+  await connected(target);
+  expect(target.getSnapshot().compatibility).toEqual({ hostVersion: '1.7.0' });
+});
