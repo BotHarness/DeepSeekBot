@@ -177,7 +177,7 @@ patchedDependencies:
   expo-router@58.0.30: 71702498b257a9f975eec364e8ab0178136553210ca927546a23fb8053585a67
   expo@58.0.23: cedd384da50d12bd7d24b38cd3aaea689b90368bd951a027cca4867ccd0a89a5
   react-native-collapsible-tab-view@8.0.1: 818450c9be9c04749318a55fe1392f43d82e2dca396d761506211ae6ce21ec56
-  react-native-enriched-markdown@1.1.1: f3e85a762bdb10cffb36f230ff642b7bc9c47ace1c9dee0720d87d20ecbf798c
+  react-native-enriched-markdown@1.1.1: 2afd368d66675792116254c8ddf50ee519f3ad8b9eeb7e52de7ad0677b160bcd
   react-native-pager-view@9.0.7: 0ad084150115f3ab23867ad66b5b0691c742cbe9deddcde909b068f6aac852b6
   react-native-view-shot@6.1.1: a288c04a105e6e1b53da39a97f1b500ae8375b9967c3fc6cbac861efc0b9a5b2
   react-native@0.88.1: a78dc912fd1bd468798fdc5696b7bd88926720d8af5747bb74973897ea963830
@@ -501,7 +501,7 @@ importers:
         version: 8.0.1(patch_hash=818450c9be9c04749318a55fe1392f43d82e2dca396d761506211ae6ce21ec56)(db536d8f11b11c95524a6483a69a8b7b)
       react-native-enriched-markdown:
         specifier: 1.1.1
-        version: 1.1.1(patch_hash=f3e85a762bdb10cffb36f230ff642b7bc9c47ace1c9dee0720d87d20ecbf798c)(katex@0.16.47)(react-native@0.88.1(patch_hash=a78dc912fd1bd468798fdc5696b7bd88926720d8af5747bb74973897ea963830)(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.3.0)(react@19.3.0)(supports-color@10.2.2))(react@19.3.0)
+        version: 1.1.1(patch_hash=2afd368d66675792116254c8ddf50ee519f3ad8b9eeb7e52de7ad0677b160bcd)(katex@0.16.47)(react-native@0.88.1(patch_hash=a78dc912fd1bd468798fdc5696b7bd88926720d8af5747bb74973897ea963830)(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.3.0)(react@19.3.0)(supports-color@10.2.2))(react@19.3.0)
       react-native-gesture-handler:
         specifier: ~3.3.0
         version: 3.3.0(react-native@0.88.1(patch_hash=a78dc912fd1bd468798fdc5696b7bd88926720d8af5747bb74973897ea963830)(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.3.0)(react@19.3.0)(supports-color@10.2.2))(react@19.3.0)
@@ -26640,7 +26640,7 @@ snapshots:
       react-native-reanimated: 4.7.1(react-native-worklets@0.13.0(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(react-native@0.88.1(patch_hash=a78dc912fd1bd468798fdc5696b7bd88926720d8af5747bb74973897ea963830)(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.3.0)(react@19.3.0)(supports-color@10.2.2))(react@19.3.0)(supports-color@10.2.2))(react-native@0.88.1(patch_hash=a78dc912fd1bd468798fdc5696b7bd88926720d8af5747bb74973897ea963830)(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.3.0)(react@19.3.0)(supports-color@10.2.2))(react@19.3.0)
       use-latest-callback: 0.2.6(react@19.3.0)
 
-  react-native-enriched-markdown@1.1.1(patch_hash=f3e85a762bdb10cffb36f230ff642b7bc9c47ace1c9dee0720d87d20ecbf798c)(katex@0.16.47)(react-native@0.88.1(patch_hash=a78dc912fd1bd468798fdc5696b7bd88926720d8af5747bb74973897ea963830)(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.3.0)(react@19.3.0)(supports-color@10.2.2))(react@19.3.0):
+  react-native-enriched-markdown@1.1.1(patch_hash=2afd368d66675792116254c8ddf50ee519f3ad8b9eeb7e52de7ad0677b160bcd)(katex@0.16.47)(react-native@0.88.1(patch_hash=a78dc912fd1bd468798fdc5696b7bd88926720d8af5747bb74973897ea963830)(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.3.0)(react@19.3.0)(supports-color@10.2.2))(react@19.3.0):
     dependencies:
       react: 19.3.0
       react-native: 0.88.1(patch_hash=a78dc912fd1bd468798fdc5696b7bd88926720d8af5747bb74973897ea963830)(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.3.0)(react@19.3.0)(supports-color@10.2.2)

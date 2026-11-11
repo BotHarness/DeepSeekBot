@@ -1,5 +1,33 @@
+diff --git a/ios/EnrichedMarkdown.mm b/ios/EnrichedMarkdown.mm
+index b7edde7a019a91eac7c2e78eacab2654106d607b..0f6c81595b643206cff2b5bbe07356bc3b7906cf 100644
+--- a/ios/EnrichedMarkdown.mm
++++ b/ios/EnrichedMarkdown.mm
+@@ -687,6 +687,11 @@ static char kENRMSegmentFadeAnimatorKey;
+   if (_renderedMarkdown.length > 0) {
+     MeasurementCache::shared().removeMatchingMarkdown(std::string(_renderedMarkdown.UTF8String));
+   }
++  for (RCTUIView *segment in _segmentViews) {
++    if ([segment isKindOfClass:[EnrichedMarkdownInternalText class]]) {
++      [(EnrichedMarkdownInternalText *)segment invalidateMeasurement];
++    }
++  }
+ 
+   CGRect contentBounds = [self contentBounds];
+   if (contentBounds.size.width > 0) {
+diff --git a/ios/views/EnrichedMarkdownInternalText.h b/ios/views/EnrichedMarkdownInternalText.h
+index dce09c7a95bf19a5bfaf65d7697b6e73f3ac08e6..a98ee0cb4cb00ae366c4888ece2d722c4adb269f 100644
+--- a/ios/views/EnrichedMarkdownInternalText.h
++++ b/ios/views/EnrichedMarkdownInternalText.h
+@@ -21,6 +21,7 @@ NS_ASSUME_NONNULL_BEGIN
+ 
+ - (CGFloat)measureHeight:(CGFloat)maxWidth;
+ - (CGSize)measureSize:(CGFloat)maxWidth;
++- (void)invalidateMeasurement;
+ 
+ @property (nonatomic, readonly) ENRMPlatformTextView *textView;
+ @property (nonatomic, readonly) ENRMSpoilerOverlayManager *spoilerManager;
 diff --git a/ios/views/EnrichedMarkdownInternalText.m b/ios/views/EnrichedMarkdownInternalText.m
-index 93eef7ac4edf45f001a93ebb230588817e3e921b..f776d3d3c63568248d788330f2c9702a2d4be30c 100644
+index 93eef7ac4edf45f001a93ebb230588817e3e921b..ba536bd1f3ae756d7483b764b50b940b48d5690c 100644
 --- a/ios/views/EnrichedMarkdownInternalText.m
 +++ b/ios/views/EnrichedMarkdownInternalText.m
 @@ -16,6 +16,11 @@
@@ -35,8 +63,15 @@ index 93eef7ac4edf45f001a93ebb230588817e3e921b..f776d3d3c63568248d788330f2c9702a
  
    ENRMSetAttributedText(_textView, text);
  
-@@ -94,7 +106,16 @@
+@@ -92,9 +104,23 @@
+   return [self measureSize:maxWidth].height;
+ }
  
++- (void)invalidateMeasurement
++{
++  _measureValid = NO;
++}
++
  - (CGSize)measureSize:(CGFloat)maxWidth
  {
 -  return ENRMMeasureMarkdownText(_textView, maxWidth, _config, _allowTrailingMargin, _lastElementMarginBottom);
