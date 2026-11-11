@@ -20,10 +20,12 @@ export function DraftEditor({
   onChange,
   onSend,
   onClose,
+  pinned,
   above,
   selection,
   onSelection,
 }: {
+  pinned?: ReactNode;
   value: string;
   placeholder?: string;
   canSend: boolean;
@@ -73,6 +75,7 @@ export function DraftEditor({
             </HeaderCircleButton>
           ) : null}
         </View>
+        {pinned}
         {above === undefined ? null : (
           <ScrollView
             style={{ flexGrow: 0, maxHeight: draftEditor.aboveMax }}

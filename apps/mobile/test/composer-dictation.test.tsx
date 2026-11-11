@@ -812,6 +812,8 @@ describe('expanded draft', () => {
     const quotes = host.querySelectorAll('[data-testid="inside-quote"]');
     expect(quotes).toHaveLength(1);
     expect(quotes[0]!.closest('[role="dialog"]')).not.toBeNull();
+    const suggestion = host.querySelector('[role="dialog"] button[aria-label="Pick Mika"]')!;
+    expect(suggestion.parentElement!.contains(quotes[0]!)).toBe(false);
   });
 
   it('shares edits with the existing composer and sends the current draft once', async () => {
