@@ -64,9 +64,9 @@ assuming inspector commands or performance entry types work on every version.
 xcrun xctrace list templates
 xcrun xctrace list devices
 xcrun xctrace record --template 'Time Profiler' --device '<owned-device>' \
-  --attach '<exact-app-pid>' --time-limit 25s --output '<unique-run>.trace'
+  --attach '<exact-app-pid>' --time-limit 15s --output '<unique-run>.trace'
 xcrun xctrace record --template 'Animation Hitches' --device '<physical-device>' \
-  --attach '<exact-app-pid>' --time-limit 25s --output '<unique-run>-hitches.trace'
+  --attach '<exact-app-pid>' --time-limit 15s --output '<unique-run>-hitches.trace'
 xcrun xctrace export --input '<unique-run>.trace' --toc --output '<unique-run>.toc.xml'
 ```
 
@@ -91,11 +91,32 @@ self CPU time. Audit sampling attribution and overhead before quantitative use. 
 these fields native FPS, exact per-frame cost or measured display drops. Prefer supported
 DevTools exports or a validated sampling-only path when the React hook is unavailable.
 
+### Short captures and hot-path probes
+
+- **Capture seconds, not minutes.** Record one bounded scenario window (a few gestures, about
+  10–20 s), stop the recording as soon as the scenario ends, extract the numbers and delete the
+  trace. Long recordings add heat and background noise, and they can exhaust the phone's writable
+  storage and the Mac's memory. Check the phone's free space before each run.
+- **Big costs first.** Find the largest phase before polishing small ones.
+- **Locate hot paths in code.** Count calls on suspect paths with bounded logs, and inject a
+  deliberate delay (for example a short sleep) into a candidate path to see where the effect is
+  amplified most. Remove both before the A/B; keep instrumentation identical across arms.
+- **Know the device's tool limits.** If `--attach` cannot find the app, launch it under the
+  recording (`--launch -- <bundle-id>`) and wait for the app to be ready before the window
+  starts. On some device/Xcode combinations the `Animation Hitches` template keeps only the first
+  seconds of a recording; check each table's time range, and use the `Time Profiler` template
+  with the `Hitches`, `Display` and `Activity Monitor` instruments when it does.
+- **Separate harness cost.** XCUITest gestures make the app answer accessibility queries on the
+  main thread. Classify those samples (accessibility/XCTest frames) as harness time, report
+  main-thread budgets with and without them, and mark hitches that overlap them.
+
 ## Matched physical-device A/B acceptance
 
 - Freeze the data, gestures, scenario window, settings and dependencies. Warm each binary the
-  same way; alternate **A/B/B/A/A/B**, yielding at least three valid runs per version. Record
-  thermal/power conditions; keep other builds and competing profiling off the measurement host.
+  same way. One matched A/B pair per scenario is enough when it shows a clear difference; repeat
+  in **A/B/B/A/A/B** order only when the result is ambiguous or for a final precision pass,
+  because repeated runs mostly add thermal drift. Record thermal/power conditions; keep other
+  builds and competing profiling off the measurement host.
 - Capture CPU and display traces in controlled runs. Record visual evidence separately, or keep
   recording conditions identical and disclose overhead. Keep Debug/Simulator diagnostic results
   separate from physical Release results; do not pool them.

@@ -122,3 +122,36 @@ it('recomputes when the workspace material scope changes', async () => {
     mount.remove();
   }
 });
+
+it('starts a new surface from the last measured background so it renders once', async () => {
+  let renders = 0;
+  function Surface() {
+    renders += 1;
+    const surface = useConversationSurface();
+    return createElement('span', { ref: surface.probe }, surface.background);
+  }
+  const host = document.createElement('div');
+  host.style.backgroundColor = '#20232a';
+  document.body.append(host);
+  const root = createRoot(host);
+  try {
+    await act(async () => root.render(createElement(Surface, { key: 'a' })));
+    expect(host.textContent).toBe('#20232a');
+    renders = 0;
+    await act(async () =>
+      root.render(
+        createElement(
+          'div',
+          null,
+          createElement(Surface, { key: 'a' }),
+          createElement(Surface, { key: 'b' }),
+        ),
+      ),
+    );
+    expect(host.textContent).toBe('#20232a#20232a');
+    expect(renders).toBe(2);
+  } finally {
+    act(() => root.unmount());
+    host.remove();
+  }
+});

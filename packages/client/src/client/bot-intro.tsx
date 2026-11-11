@@ -1,4 +1,10 @@
-import { useState, useSyncExternalStore, type ReactElement, type ReactNode } from 'react';
+import {
+  useLayoutEffect,
+  useState,
+  useSyncExternalStore,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { BridgeActions } from './actions.js';
@@ -364,10 +370,20 @@ export function BotIntro({
     startPicks[1](NO_PICKS);
     return controller.closeIntro(outcome);
   };
+  const clear =
+    intro !== undefined &&
+    (INTRO_STEPS[intro.step] ?? 'welcome') === 'theme' &&
+    media?.current !== undefined;
+  const seeThrough = clear && !intro.hidden;
+  useLayoutEffect(() => {
+    if (!seeThrough) return;
+    const root = document.documentElement;
+    root.setAttribute('data-bh-intro-see-through', '');
+    return () => root.removeAttribute('data-bh-intro-see-through');
+  }, [seeThrough]);
   if (!intro) return null;
   const step = INTRO_STEPS[intro.step] ?? 'welcome';
   const last = intro.step === INTRO_STEPS.length - 1;
-  const clear = step === 'theme' && media?.current !== undefined;
   const go = async (next: number) => {
     if (next > intro.step && step === 'model' && model) {
       setBusy(true);

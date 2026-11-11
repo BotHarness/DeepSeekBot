@@ -598,7 +598,9 @@ button:has(.bh-panel-glyph[data-wide='true']) .bh-panel-glyph > .bh-bot-icon {
   height: 24px;
 }
 
-button:has(.bh-panel-glyph[data-wide='true']) > span:not(.bh-panel-glyph):not(.bh-panel-glyph-hit):not(.bh-panel-actions) {
+/* The glyph marks its button: a :has() anchor with a plain span subject restyles the whole page
+   on every DOM insertion. */
+button[data-bh-wide-glyph] > span:not(.bh-panel-glyph):not(.bh-panel-glyph-hit):not(.bh-panel-actions) {
   font-size: 16px;
   line-height: 24px;
 }
@@ -3436,7 +3438,10 @@ html[data-botharness-motion='reduce'] .bh-chat-body { transition: none; }
 .bh-message-block[data-follows] {
   padding-top: ${space.x4};
 }
-.bh-timeline-gap {
+.bh-timeline-chunk,
+.bh-timeline-slot {
+  display: flex;
+  flex-direction: column;
   flex-shrink: 0;
 }
 .bh-message-day {
@@ -3821,7 +3826,7 @@ html[data-botharness-motion='reduce'] [data-badge-motion='leave'] { animation-na
   --bh-bubble-me-fill: var(--bh-bubble-me-fill-light, color-mix(in srgb, ${color.accent} 90%, ${color.fg}));
   --bh-bubble-me-ink: var(--bh-bubble-me-ink-light, ${color.onAccent});
 }
-:root:has(style[data-bh-appearance="dark"]) .bh-message-group-me {
+:root[data-bh-appearance="dark"] .bh-message-group-me {
   --bh-bubble-me-fill: var(--bh-bubble-me-fill-dark, ${color.accent});
   --bh-bubble-me-ink: var(--bh-bubble-me-ink-dark, ${color.onAccent});
 }
@@ -4120,9 +4125,10 @@ ${STAMP_ME_SPACERS} {
 /* Hover actions float over the bubble's top-right edge so showing them never
    shifts the layout. The lane spans the bubble and right-aligns the pill; a
    Bot bubble narrower than the pill keeps it from spilling over the avatar.
-   Every bubble keeps a hidden toolbar, so it is placed with bottom instead of
-   a transform: a transform per message makes Chromium rebuild every bubble's
-   compositing on each repaint. */
+   A toolbar mounts once the pointer moves over its bubble (or for every bubble
+   once Tab is used) and stays mounted, hidden, after that. It is placed with
+   bottom instead of a transform: a transform per message makes Chromium
+   rebuild every bubble's compositing on each repaint. */
 .bh-bubble-toolbar {
   position: absolute;
   z-index: 2;
@@ -6398,7 +6404,7 @@ nav:has(> .bh-panel-activity) {
   grid-template-columns: minmax(0, 1fr);
   align-items: center;
 }
-nav:has(> .bh-panel-activity) > button { grid-column: 1; }
+nav > button:is(.bh-panel-activity, .bh-panel-activity ~ *, :has(~ .bh-panel-activity)) { grid-column: 1; }
 button:has(> .bh-panel-actions) { padding-right: 112px; }
 .bh-panel-activity {
   position: relative;
@@ -6819,7 +6825,8 @@ button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-panel-activity[data-wi
 .bh-overview-usage .bh-profile-pin:hover {background:var(--bh-hover);color:var(--bh-text);}
 .bh-overview-usage .bh-profile-pin:disabled {cursor:default;opacity:0.5;}
 .bh-statistics-content > header h3 {font-size:var(--dsh-content-font-size);margin:0;}
-[role='presentation']:has(> .bh-intro-see-through) > [aria-hidden='true']::after {
+/* The see-through intro step marks the document, so no :has() scans the backdrop's siblings. */
+html[data-bh-intro-see-through] [role='presentation'] > [aria-hidden='true']::after {
   opacity: 0.2;
 }
 .bh-release-dialog {

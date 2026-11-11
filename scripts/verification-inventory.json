@@ -1001,7 +1001,7 @@
       "path": "scripts/e2e-tool-approval-simple.mjs",
       "category": "mapped",
       "behaviors": ["desktop.approval.three-actions"],
-      "reason": "Task-owned isolated Windows Host; real native pwsh requests, Web Always allow, changed inputs, other-tool/CLI/revoke checks and rememberable permission management under Full Access. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification. #2847 adds multi-IM refusal, model-guided rebinding and direct CLI native approval; same credential journey, synthetic inputs only.",
+      "reason": "Task-owned isolated Windows Host; real native pwsh requests, Web Always allow, changed inputs, other-tool/CLI/revoke checks and rememberable permission management under Full Access. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification. #2847 adds multi-IM refusal, model-guided rebinding and direct CLI native approval; same credential journey, synthetic inputs only.",
       "task": 2730,
       "sha256": "69f0c60976b84a85c22874c93e4238329f78caa210511b9426963cfb7fb780a9"
     },
@@ -1009,7 +1009,7 @@
       "path": "scripts/e2e-workspace-request-write.mjs",
       "category": "mapped",
       "behaviors": ["desktop.grants.request-write-continue"],
-      "reason": "Task-owned isolated Host and temporary folder; real Web confirmation, authoritative Grant readback, native Orchestrator/Assignment file writes and same-task reply. No mobile or full recovery claim. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Task-owned isolated Host and temporary folder; real Web confirmation, authoritative Grant readback, native Orchestrator/Assignment file writes and same-task reply. No mobile or full recovery claim. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 2080,
       "sha256": "aa435da3a89bb89b952a282326e438c656864ee34561783c6b16105d7ce91963"
     },
@@ -1049,7 +1049,7 @@
       "path": "scripts/e2e-activity-recovery.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.activity.live"],
-      "reason": "Requires real model and cookie profile; deliberately refuses activity streams to compare polling/reconnect with visible sidebar and composer. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Requires real model and cookie profile; deliberately refuses activity streams to compare polling/reconnect with visible sidebar and composer. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "d54e46c551bf914d541d72f3fc8c4e8cfe417ad59fcae67a3590a48276a17045"
     },
@@ -1065,7 +1065,7 @@
       "path": "scripts/e2e-approval-capacity-proof.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.assignment.lifecycle"],
-      "reason": "Imported proof validator for approval-capacity; asserts native original/competing tool order and grant revocation, not a launchable journey. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Imported proof validator for approval-capacity; asserts native original/competing tool order and grant revocation, not a launchable journey. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "b23a05bc07513a9d28d5032e40f26828015865d589f9a5c00ca91256f711fbb2"
     },
@@ -1073,7 +1073,7 @@
       "path": "scripts/e2e-approval-capacity.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.assignment.lifecycle", "desktop.inbox.requests"],
-      "reason": "#1037 task-owned workspace, live model and limit=1; real approval UI and competing native command effects; changes settings. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "#1037 task-owned workspace, live model and limit=1; real approval UI and competing native command effects; changes settings. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "2bc74784f083f465057da155dea91c6d81fd70ae9a3807e45d98128c7a3d0794"
     },
@@ -1081,7 +1081,7 @@
       "path": "scripts/e2e-assignment-active-crash.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.assignment.lifecycle"],
-      "reason": "Multi-phase real-model fixture needs deliberate task Host interruption; verifies one retained active Report and interrupted Turn. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification. #2906 re-audit: assignment proof reads title and description instead of purpose (ADR-0262); classification unchanged.",
+      "reason": "Multi-phase real-model fixture needs deliberate task Host interruption; verifies one retained active Report and interrupted Turn. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification. #2906 re-audit: assignment proof reads title and description instead of purpose (ADR-0262); classification unchanged.",
       "task": 1967,
       "sha256": "d71ef5e2d2fb60e23c94fe6a9310942652340de33134f0afec89be1bbe22e45d"
     },
@@ -1089,7 +1089,7 @@
       "path": "scripts/e2e-assignment-attention.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.assignment.lifecycle", "desktop.activity.live"],
-      "reason": "#123 stored scene and live model; compares Assignment waiting-Human attention with Overview and answered revision. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "#123 stored scene and live model; compares Assignment waiting-Human attention with Overview and answered revision. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "958adfc1962f6fbc66b2e67bbd770f5bc9a591541dc1fdbabd6e793270775724"
     },
@@ -1097,7 +1097,7 @@
       "path": "scripts/e2e-assignment-escalation.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.assignment.lifecycle"],
-      "reason": "#194 prepare/pending/verify/answered phases; exact Assignment Session resumes from Human answer and reports once. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "#194 prepare/pending/verify/answered phases; exact Assignment Session resumes from Human answer and reports once. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "a2059d6c14afb9acf0fd2de3f0479bd50b08d4442143bdbc3863e45d01e43268"
     },
@@ -1105,7 +1105,7 @@
       "path": "scripts/e2e-assignment-failed-report.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.assignment.lifecycle"],
-      "reason": "Prepare/restart/verify with private state; validates failed Report exposure and no duplicate Assignment after restart. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Prepare/restart/verify with private state; validates failed Report exposure and no duplicate Assignment after restart. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "fe6860f4091e21bc504901de88e8a3b1963ab36f047cd94bd1e99252bec1ef55"
     },
@@ -1121,7 +1121,7 @@
       "path": "scripts/e2e-assignment-model-switch.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.model.routing"],
-      "reason": "Needs two live catalog routes and workspace; checks explicit route switch and rejected/preset changes preserving existing Assignment. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Needs two live catalog routes and workspace; checks explicit route switch and rejected/preset changes preserving existing Assignment. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "4f16946a32b535b07b46aa64c78f5a0f467d0a0d091674358dd1698dbedcf3b3"
     },
@@ -1129,7 +1129,7 @@
       "path": "scripts/e2e-assignment-native-cancel.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.assignment.lifecycle"],
-      "reason": "Prepare/baseline/cancelled/restart phases require actual native cancellation; compares retained facts and Turn counts. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Prepare/baseline/cancelled/restart phases require actual native cancellation; compares retained facts and Turn counts. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "120160f6f19e55f7c1e7ef743b3dced3cf8f5f1a1250c13cc5c8f7dc68da2c40"
     },
@@ -1137,7 +1137,7 @@
       "path": "scripts/e2e-assignment-native-error.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.assignment.lifecycle"],
-      "reason": "Prepare/baseline/failed/restart phases require native failure; verifies terminal notice, continuity removal and no replay. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Prepare/baseline/failed/restart phases require native failure; verifies terminal notice, continuity removal and no replay. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "113162ac05df442d866ec286b042e562ce265f4872588d1cd6255a0f06d8f501"
     },
@@ -1145,7 +1145,7 @@
       "path": "scripts/e2e-assignment-observed-restart.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.assignment.lifecycle"],
-      "reason": "#194 stored scene and real model; observes Report then restarts task Host to verify same idle Assignment and one tool call. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "#194 stored scene and real model; observes Report then restarts task Host to verify same idle Assignment and one tool call. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "feefdbb0003e234de884186de3b655d5290132f20d8cb6211296f887863dd107"
     },
@@ -1161,7 +1161,7 @@
       "path": "scripts/e2e-assignment-recovery-notice.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.assignment.lifecycle"],
-      "reason": "Private multi-phase state and restarted Host; checks recovery notice headers and original Report rather than replay. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification. #2906 re-audit: assignment proof reads title and description instead of purpose (ADR-0262); classification unchanged.",
+      "reason": "Private multi-phase state and restarted Host; checks recovery notice headers and original Report rather than replay. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification. #2906 re-audit: assignment proof reads title and description instead of purpose (ADR-0262); classification unchanged.",
       "task": 1967,
       "sha256": "4814165d989c8bf848e9c30aaa63bfa7c98c529991848855bde359ae06039bd7"
     },
@@ -1169,7 +1169,7 @@
       "path": "scripts/e2e-assignment-repair-severity.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.assignment.lifecycle"],
-      "reason": "Needs prior repair scene; introduces weaker report then restarts, checking severity retention and single exposure. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Needs prior repair scene; introduces weaker report then restarts, checking severity retention and single exposure. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "77efdd39b368fd9701b3399dd73014f610b0908ffb87be92e7062879f0ac73c8"
     },
@@ -1177,7 +1177,7 @@
       "path": "scripts/e2e-assignment-report-harvest.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.assignment.lifecycle"],
-      "reason": "#194 real-model prepare/complete/verify/capture; three actual Report calls with one Assignment and independent sources. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "#194 real-model prepare/complete/verify/capture; three actual Report calls with one Assignment and independent sources. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "a882d59f92f6704ed701b1ee540022b22a2e9c3ee7801d9c601bcf9e1a6459fc"
     },
@@ -1193,7 +1193,7 @@
       "path": "scripts/e2e-assignment-report-restart.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.assignment.lifecycle"],
-      "reason": "#194 pending Reports survive task Host restart, then Human DM harvests them in the original Orchestrator. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "#194 pending Reports survive task Host restart, then Human DM harvests them in the original Orchestrator. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "f64fadb6e84d899037d60e1ed763b43e65eae8218c192fc780c0cb72ff1c893b"
     },
@@ -1209,7 +1209,7 @@
       "path": "scripts/e2e-assignment-stop-recovery.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.assignment.lifecycle"],
-      "reason": "#81 prepared grant/model fixture; native stop_assignment and shell result checked across stop/restart phases. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "#81 prepared grant/model fixture; native stop_assignment and shell result checked across stop/restart phases. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "2b946937f69f8513558d26b740faf774f6e0f3cacac1ef889405a1f449b29a8c"
     },
@@ -1217,7 +1217,7 @@
       "path": "scripts/e2e-assignment-terminal-notice.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.assignment.lifecycle"],
-      "reason": "#194 multi-phase live execution; terminal Notice is retained, exposed and handled exactly once after restart. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "#194 multi-phase live execution; terminal Notice is retained, exposed and handled exactly once after restart. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "05fcf8e6efe659f95ec331846fada64e2440aae5b66aa25de3fc56f350d31dd9"
     },
@@ -1225,7 +1225,7 @@
       "path": "scripts/e2e-assignment-wait.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.assignment.lifecycle", "desktop.activity.live"],
-      "reason": "#123 pending native approval and real model; Assignment source replaces then restores Orchestrator presentation. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "#123 pending native approval and real model; Assignment source replaces then restores Orchestrator presentation. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "b893234e0828e5acc05fad69db21e7b3cc5e85f649726c3b0e254d6499a63947"
     },
@@ -1257,7 +1257,7 @@
       "path": "scripts/e2e-browser-access.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.browser.lifecycle"],
-      "reason": "Task fixture server and phase state; live model navigates, stops, revokes access and restarts with independent Computer access. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Task fixture server and phase state; live model navigates, stops, revokes access and restarts with independent Computer access. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1976,
       "sha256": "4a15fcc889075ac80efaa0c366cdef133be0008cb2e794191939172e25066e3f"
     },
@@ -1273,7 +1273,7 @@
       "path": "scripts/e2e-browser-container.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.browser.lifecycle"],
-      "reason": "Needs explicitly named task-owned container, fixture server and model; verifies query/open effects only at authorized phase. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Needs explicitly named task-owned container, fixture server and model; verifies query/open effects only at authorized phase. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1976,
       "sha256": "8496d954fe23e98c2e9cacaa83ec7b7366c37ad3f38803e53fef40f5fccd18ea"
     },
@@ -1289,7 +1289,7 @@
       "path": "scripts/e2e-browser-entry.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.browser.lifecycle"],
-      "reason": "Three-tab task scene and separately collected UI results; verifies Browser entry/focus without replacing ongoing work. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Three-tab task scene and separately collected UI results; verifies Browser entry/focus without replacing ongoing work. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1976,
       "sha256": "8369dae71f49e9229fd4915c1dc58efee02a933a9c49ef9cdb03b81cd2659824"
     },
@@ -1297,7 +1297,7 @@
       "path": "scripts/e2e-browser-interaction.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.browser.tools"],
-      "reason": "Local fixture server, model and phase state; probes input timeout and focus preservation with screenshot evidence. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Local fixture server, model and phase state; probes input timeout and focus preservation with screenshot evidence. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1976,
       "sha256": "79496ba4b644ef435c0e63d619e5f91b21a8afa62e08255290e71fd9abf5777a"
     },
@@ -1321,7 +1321,7 @@
       "path": "scripts/e2e-browser-multitab.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.browser.lifecycle"],
-      "reason": "Two Bots and local fixture server; checks tab/focus isolation and separate screenshots, not model delivery alone. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Two Bots and local fixture server; checks tab/focus isolation and separate screenshots, not model delivery alone. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1976,
       "sha256": "8b296c8392bf24e0456af3068b785c92c1df024d8421fb0af94094931526b061"
     },
@@ -1337,7 +1337,7 @@
       "path": "scripts/e2e-browser-observation.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.browser.tools"],
-      "reason": "Local fixture plus paused live Browser; tests read/screenshot refusal and resumed frame with same scoped Session. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Local fixture plus paused live Browser; tests read/screenshot refusal and resumed frame with same scoped Session. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1976,
       "sha256": "e31b999a4f3fdbd89dd342eb147b25c361bafda38461b05c3a978ced3694a772"
     },
@@ -1361,7 +1361,7 @@
       "path": "scripts/e2e-browser-profiles.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.browser.lifecycle"],
-      "reason": "Shared/work account fixture, model and separate UI proof; verifies profile persistence and login isolation across idle/resume. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Shared/work account fixture, model and separate UI proof; verifies profile persistence and login isolation across idle/resume. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1976,
       "sha256": "14af2c1c9960a67b1f1ae2266a9a7686f0e75a034997bc8e2f303429183706d0"
     },
@@ -1385,7 +1385,7 @@
       "path": "scripts/e2e-browser-screenshot-upload.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.browser.tools"],
-      "reason": "Task-owned screenshot files and upload fixture; actual image attachment plus bounded retention, no unrelated files. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Task-owned screenshot files and upload fixture; actual image attachment plus bounded retention, no unrelated files. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1976,
       "sha256": "ea646184d43a096d2e86920b4aad31adc0f0237313a79881b2cf88d072ad69a6"
     },
@@ -1393,7 +1393,7 @@
       "path": "scripts/e2e-browser-scroll.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.browser.tools"],
-      "reason": "Prepared scroll fixture and live Session; verifies scroll/refusal audit, original tab and single completion. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Prepared scroll fixture and live Session; verifies scroll/refusal audit, original tab and single completion. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1976,
       "sha256": "e1b9865b26246905640116adf3f1ee366782a62b5d392c0290070448e61ecdab"
     },
@@ -1401,7 +1401,7 @@
       "path": "scripts/e2e-browser-upload-target.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.browser.tools"],
-      "reason": "Prepared upload fixture and live Session; one invalid target refuses and one valid target succeeds, focus retained. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Prepared upload fixture and live Session; one invalid target refuses and one valid target succeeds, focus retained. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1976,
       "sha256": "10728c3f340aa009c66fd323b5a62772dbd7a93712f759d251c1c3f4f8701717"
     },
@@ -1409,7 +1409,7 @@
       "path": "scripts/e2e-browser-upload.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.browser.tools"],
-      "reason": "Task assets and local upload server; two accepted/two rejected uploads with actual receipts and path/content-redacted audit. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Task assets and local upload server; two accepted/two rejected uploads with actual receipts and path/content-redacted audit. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1976,
       "sha256": "d4062ac4b3840c3cf2862fd56ed328e6522183055bccec4d7395358ae9595a13"
     },
@@ -1417,7 +1417,7 @@
       "path": "scripts/e2e-channel-activity.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.activity.metrics"],
-      "reason": "#703 prepared task Host; compares daily Human/Bot counts and late arrivals without changing Human attention. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "#703 prepared task Host; compares daily Human/Bot counts and late arrivals without changing Human attention. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "36e76af3c046d4f96deb3e90dff8f58bdfc138cab6cf8eafdeab3933d4890026"
     },
@@ -1425,7 +1425,7 @@
       "path": "scripts/e2e-channel-image-read.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.dm.reply", "desktop.attachments"],
-      "reason": "Authenticated browser uploads generated image; requires vision-capable real model reply containing IMAGE-Z9. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Authenticated browser uploads generated image; requires vision-capable real model reply containing IMAGE-Z9. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "3b626f3f042ad6f0a64b4728a30ac712257672e9196a4555c0fdd9de895f9a5e"
     },
@@ -1481,7 +1481,7 @@
       "path": "scripts/e2e-cli-live.mjs",
       "category": "historical-regression",
       "behaviors": ["cli.send-receipt"],
-      "reason": "Private launcher and explicit QA Bot; repeated real-model send/send-status checks same receipt and no auth in output. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Private launcher and explicit QA Bot; repeated real-model send/send-status checks same receipt and no auth in output. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "262e4aaaefb4181c8cb9a0612955ba637ceefd204ee33ec10588804a83fe4393"
     },
@@ -1529,7 +1529,7 @@
       "path": "scripts/e2e-concurrent-activity.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.activity.live"],
-      "reason": "#123 real concurrent native tools and approval; sorted references, active-tool count and restored idle presentation. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "#123 real concurrent native tools and approval; sorted references, active-tool count and restored idle presentation. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "e85b9f092a1918435a3b0f05742b78d045d8e709351e9ffedb3eb665117b2211"
     },
@@ -1537,7 +1537,7 @@
       "path": "scripts/e2e-daily-control.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.browser.lifecycle"],
-      "reason": "#766 local editing fixture plus model; Human takeover, resume and returned navigation cannot cause forbidden write. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "#766 local editing fixture plus model; Human takeover, resume and returned navigation cannot cause forbidden write. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1976,
       "sha256": "f549a79e38fe8660d86c68e865d524d22c42908b01a39f37bfbd51179bebe836"
     },
@@ -1569,7 +1569,7 @@
       "path": "scripts/e2e-dm-activity.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.activity.live"],
-      "reason": "Real model/tool approval with optional steering; tracks same Host/sidebar/composer working-to-idle frames. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Real model/tool approval with optional steering; tracks same Host/sidebar/composer working-to-idle frames. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "9acd768fd7e5a5a3180545d0aed1f5af9365cdd106d23fb675e280b43c214a4f"
     },
@@ -1577,7 +1577,7 @@
       "path": "scripts/e2e-dm-scroll.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.timeline.read-position"],
-      "reason": "Real model reply and expanding activity footer; asserts scroll geometry in light/dark, prepared task profile. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Real model reply and expanding activity footer; asserts scroll geometry in light/dark, prepared task profile. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "4ea51928ece47020f6efe63023344895464703eac6c38cb7bf13b8c60147d0d1"
     },
@@ -1601,7 +1601,7 @@
       "path": "scripts/e2e-grant-attention.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.grants", "desktop.activity.live"],
-      "reason": "#123 model-created grant request; verifies pending/dismissed attention and Overview revisions, not full revoke journey. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "#123 model-created grant request; verifies pending/dismissed attention and Overview revisions, not full revoke journey. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1974,
       "sha256": "cecebd144f1926d45fbd4507f389bd3cd48ac7fbb36e048705994e5dadad43e8"
     },
@@ -1609,7 +1609,7 @@
       "path": "scripts/e2e-group-activity.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.group.activity"],
-      "reason": "Task group and live model; measures header/profile state and overflow against Host activity snapshot. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Task group and live model; measures header/profile state and overflow against Host activity snapshot. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "9eec5112103ac1eaaf48382f27a41e0939f7198d07a3e4f2411a41404fdfc504"
     },
@@ -1617,7 +1617,7 @@
       "path": "scripts/e2e-group-assignment-activity.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.group.activity", "desktop.assignment.lifecycle"],
-      "reason": "#124 real native timer and Group reply; layout and successful Assignment result precede committed completion. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "#124 real native timer and Group reply; layout and successful Assignment result precede committed completion. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "0066ac880f4a642f9b7e3011479d0ef6184e8b021b4f7bcad52c06578d5cd1aa"
     },
@@ -1633,7 +1633,7 @@
       "path": "scripts/e2e-group-attention-tools.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.group.attention"],
-      "reason": "Port/home real-model fixture; Bot wake-policy tools, Human override and restart durability. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Port/home real-model fixture; Bot wake-policy tools, Human override and restart durability. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "288e1ad1532bed23d23b82ec5ad4123a2a77fb467671bbf9948b32dc8ba31dec"
     },
@@ -1641,7 +1641,7 @@
       "path": "scripts/e2e-group-backlog.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.group.attention"],
-      "reason": "Port/home live model; pending backlog selection supplies oldest/nearby context and leaves unselected messages pending. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Port/home live model; pending backlog selection supplies oldest/nearby context and leaves unselected messages pending. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "05fc9626439a5f8bac268ba295a1e4606cdfc37d58584668cdc556c252cc5447"
     },
@@ -1673,7 +1673,7 @@
       "path": "scripts/e2e-group-motion-matrix.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.group.activity"],
-      "reason": "#124 live tool and model; full/reduced motion matrix, overflow and completion ordering in Group header/profile. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "#124 live tool and model; full/reduced motion matrix, overflow and completion ordering in Group header/profile. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "ed7ee00349fef9e95b7f237bb2e58ffe48dd6b7ad9d70ad701da757696f5230e"
     },
@@ -1705,7 +1705,7 @@
       "path": "scripts/e2e-group-shell.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.group.activity"],
-      "reason": "#124 prepared live Group/model fixture; verifies source timeline, avatar ownership and narrow layout. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "#124 prepared live Group/model fixture; verifies source timeline, avatar ownership and narrow layout. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "569cd998328030dae76aa79e0198bc903bca8e7a87580c1d3555ea5316db56e9"
     },
@@ -1729,7 +1729,7 @@
       "path": "scripts/e2e-human-channel-names.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.identity.names"],
-      "reason": "#622 prepared scene and real model; separate DM/Group aliases and stable local-human identity in replies. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "#622 prepared scene and real model; separate DM/Group aliases and stable local-human identity in replies. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "98721a755b47553390ea251d23a23bd83e544e08fb84c6c92ff3f5d939074bc6"
     },
@@ -1745,7 +1745,7 @@
       "path": "scripts/e2e-activity-list-reply.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.inbox.messages"],
-      "reason": "#547 prepared sources and real model; exact Group/DM reply correlation and drafts survive failed navigation. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "#547 prepared sources and real model; exact Group/DM reply correlation and drafts survive failed navigation. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "9b6474ef0cd7a6a45f5645f872964c12e7904f5a81db1360d638aa0aeb172cc3"
     },
@@ -1753,7 +1753,7 @@
       "path": "scripts/e2e-human-mentions.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.inbox.messages"],
-      "reason": "#549 source fixture, personal attention and second identity; filtered mentions and exact reply target. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "#549 source fixture, personal attention and second identity; filtered mentions and exact reply target. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "0f1fd7c72a101d536888cf39c39b3e9ac09cfdb4aff238e70a941dad285369fb"
     },
@@ -1761,7 +1761,7 @@
       "path": "scripts/e2e-human-names.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.identity.names"],
-      "reason": "#621 prepared scene; changes Human display name while preserving message authors, mentions, attention and default fallback. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "#621 prepared scene; changes Human display name while preserving message authors, mentions, attention and default fallback. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "1393c4a80636749d486ceba66ad7f5b50ffaf82d80a3efdc1ff0392dc8462392"
     },
@@ -1769,7 +1769,7 @@
       "path": "scripts/e2e-human-personal-replies.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.inbox.messages"],
-      "reason": "#548 prepared reply source; exact read-state and Human response identity, with actual browser target. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "#548 prepared reply source; exact read-state and Human response identity, with actual browser target. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "ae1be57bc45e85836099aba4cae230e99895f6943fd51191a2faec9a4d19600a"
     },
@@ -1777,7 +1777,7 @@
       "path": "scripts/e2e-inbox-grant-assignment.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.inbox.requests", "desktop.grants"],
-      "reason": "#552 live grant/Assignment fixture; approval and replies resume exact Session, preserve independent requests and stale refusal. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "#552 live grant/Assignment fixture; approval and replies resume exact Session, preserve independent requests and stale refusal. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1974,
       "sha256": "4f7dc56060d8d923c331662ea08686804efb27949afd710cc0e041a3e5261cb0"
     },
@@ -1785,7 +1785,7 @@
       "path": "scripts/e2e-activity-live.mjs",
       "category": "mapped",
       "behaviors": ["desktop.activity-center.inline-tool-approval"],
-      "reason": "Task-local real browser: idle and slow-read stability, live cross-Channel message and request arrivals, read/source identity, actual WebSocket reconnect, snooze expiry, group-join decision and bounded CLI watch. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Task-local real browser: idle and slow-read stability, live cross-Channel message and request arrivals, read/source identity, actual WebSocket reconnect, snooze expiry, group-join decision and bounded CLI watch. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 2230,
       "sha256": "23ba3fe91edbf01faf4c487565e73a52f16ba1abaeec3b02dae23a6996a4d223"
     },
@@ -1817,7 +1817,7 @@
       "path": "scripts/e2e-local-computer-idle.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.computer.native"],
-      "reason": "Requires task native fixture PID/marker/baseline; raw driver screenshot hashes and Access-off state, explicit native permissions needed. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Requires task native fixture PID/marker/baseline; raw driver screenshot hashes and Access-off state, explicit native permissions needed. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1977,
       "sha256": "0de557e0329dbbf9d463259a02c4012a5ebfeb3800c5659d37f70a25da51f540"
     },
@@ -1825,7 +1825,7 @@
       "path": "scripts/e2e-local-computer-screenshot.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.computer.native"],
-      "reason": "Native fixture PID and model; captures real image/readback, induces driver failure and checks Access-off Turn; no shared device implied. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Native fixture PID and model; captures real image/readback, induces driver failure and checks Access-off Turn; no shared device implied. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1977,
       "sha256": "0202f03deec1f87cdbc5a2221a072b7b50cf11752a8a6ea2c4d248f5c392e8f8"
     },
@@ -1961,7 +1961,7 @@
       "path": "scripts/e2e-model-usage.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.usage", "desktop.model.routing"],
-      "reason": "Real model selection and native usage compared with Profile totals and theme/refresh; requires usable catalog route. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Real model selection and native usage compared with Profile totals and theme/refresh; requires usable catalog route. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "7b0d19b63b6d2ccd81a266fb09878017f80945a3b45400224d05c25f5dc9329f"
     },
@@ -1969,7 +1969,7 @@
       "path": "scripts/e2e-orchestrator-activity.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.activity.live"],
-      "reason": "Real model/native shell and approval; execution/source ownership and idle attention checked through public snapshots. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Real model/native shell and approval; execution/source ownership and idle attention checked through public snapshots. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "55fa26fc3e12420f66b95fee812ea0c054a433d1bfd1b1667d51dd2f22621a74"
     },
@@ -1977,7 +1977,7 @@
       "path": "scripts/e2e-orchestrator-reply-delivery.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.dm.reply"],
-      "reason": "Loopback Host, explicit models/scenarios and image/question fixtures; matrix of committed real-model replies, not full IM. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Loopback Host, explicit models/scenarios and image/question fixtures; matrix of committed real-model replies, not full IM. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "4425f1a9c3781ca907ac4c7d17df8e869773c7ce52a12c8b1da551084ea6c162"
     },
@@ -1985,7 +1985,7 @@
       "path": "scripts/e2e-output-committed.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.dm.reply"],
-      "reason": "#125 event probe requires owned Sessions; actual channel_send and one frozen already-committed output event across phases. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "#125 event probe requires owned Sessions; actual channel_send and one frozen already-committed output event across phases. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "0805f2ec4085538cdbf8c44aa10dfefbe49ef91a3a72bb7370038c5531d3dc5b"
     },
@@ -2001,7 +2001,7 @@
       "path": "scripts/e2e-overview-priority.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.activity.metrics", "desktop.inbox.requests"],
-      "reason": "#705 stored scene; stacked chart and collapse persist; mark-all-read leaves requests and later unread message intact. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "#705 stored scene; stacked chart and collapse persist; mark-all-read leaves requests and later unread message intact. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "7c818af9bc21cd9cee7ed6513f0ac59ac87144551330ed13e60de80beeb66769"
     },
@@ -2009,7 +2009,7 @@
       "path": "scripts/e2e-overview-usage.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.activity.metrics", "desktop.usage"],
-      "reason": "#709 actual model usage and Profile/Overview totals; range/chart/navigation plus subsequent usage, prepared launcher. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "#709 actual model usage and Profile/Overview totals; range/chart/navigation plus subsequent usage, prepared launcher. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "ac56237193b3e4676600062ec84ea40bbca72b5e597722671620c4e635ce1a4d"
     },
@@ -2038,7 +2038,7 @@
       "path": "scripts/e2e-question-attention.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.inbox.requests", "desktop.activity.live"],
-      "reason": "#123 real model asks formal question; offline read, answer/cancel and Host attention revision compared. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "#123 real model asks formal question; offline read, answer/cancel and Host attention revision compared. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "d3be54555348e39fa608a79a7c9f3d359002884ce4e4aa4700bb5d9c542a1496"
     },
@@ -2078,9 +2078,9 @@
       "path": "scripts/e2e-safe-tool-activity.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.activity.tool-details"],
-      "reason": "Real native tool/model and optional reconnected Bot; checks safe summary, disclosure, exact Session title/events and layout. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Real native tool/model and optional reconnected Bot; checks safe summary, disclosure, exact Session title/events and layout. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "1be5ba72dc363a6f8203b8411d1580aafc803da442bcdca77421718d7f79cb3b"
+      "sha256": "8085246c0ba8c4878fc33ee4cfc75fd85d40eab5e73dbfae07112bd38ce36ed6"
     },
     {
       "path": "scripts/e2e-sidebar-preview.mjs",
@@ -2094,7 +2094,7 @@
       "path": "scripts/e2e-silent-channel-read.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.group.attention"],
-      "reason": "Real model and silent Group; explicit Channel read supplies exact latest content without automatic wake. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Real model and silent Group; explicit Channel read supplies exact latest content without automatic wake. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "964878300b7b11a3dd54a5b31d97a3b3a356dcc0ac92769e6429efa7b692c3ee"
     },
@@ -2102,7 +2102,7 @@
       "path": "scripts/e2e-subagent-routing.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.model.routing"],
-      "reason": "Two live catalog routes and task workspace; inherited/denied/fallback child routes checked against native Session ownership. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Two live catalog routes and task workspace; inherited/denied/fallback child routes checked against native Session ownership. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "426de32eb3795d7be639fddfa85d51616a7639cafd7c0344a439ef7649a20bc4"
     },
@@ -2272,7 +2272,7 @@
       "path": "scripts/e2e-llm-scenarios.mjs",
       "category": "mapped",
       "behaviors": ["desktop.dm.reply", "desktop.group.mention"],
-      "reason": "Real model DM/mention scenarios; exact committed DM oracle rejects failure cards; retain full histories and unknown usage for paired send-review evaluation. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification. #2872 re-audit: adds review-rounds (repeated Bot-to-Bot mention wakes) and long-task-reports (receipt, progress and result timing against Memory file writes around a one-minute step) and department-task (four Bots in an all-messages Group start, collaborate to a final plan and go quiet); classification unchanged. #3060 re-audit: adds tob-share-draft-secret (Tob reviews a Share Draft in its DM, asks about a planted key with ask_user_question, drops it on the answer, and the source Memory repository stays unchanged); tolerates messages without an author. #3296 re-audit: adds dm-reply-schema-filled (the model fills every optional bot_send_message field with an empty value; reads the Bot Session tool calls and requires the schema-filled call to commit a DM reply, not be refused); classification unchanged. #3377 re-audit: adds browser-youtube-search (Browser Access on, a DM asks the Bot to search YouTube; passes when its current Bot Browser tab is the youtube.com/results page for the query and it replied; keeps browser calls, final tabs and Host logs/diagnostics), marked external so it runs only when named and never in the default or changed-from selection; classification unchanged.",
+      "reason": "Real model DM/mention scenarios; exact committed DM oracle rejects failure cards; retain full histories and unknown usage for paired send-review evaluation. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification. #2872 re-audit: adds review-rounds (repeated Bot-to-Bot mention wakes) and long-task-reports (receipt, progress and result timing against Memory file writes around a one-minute step) and department-task (four Bots in an all-messages Group start, collaborate to a final plan and go quiet); classification unchanged. #3060 re-audit: adds tob-share-draft-secret (Tob reviews a Share Draft in its DM, asks about a planted key with ask_user_question, drops it on the answer, and the source Memory repository stays unchanged); tolerates messages without an author. #3296 re-audit: adds dm-reply-schema-filled (the model fills every optional bot_send_message field with an empty value; reads the Bot Session tool calls and requires the schema-filled call to commit a DM reply, not be refused); classification unchanged. #3377 re-audit: adds browser-youtube-search (Browser Access on, a DM asks the Bot to search YouTube; passes when its current Bot Browser tab is the youtube.com/results page for the query and it replied; keeps browser calls, final tabs and Host logs/diagnostics), marked external so it runs only when named and never in the default or changed-from selection; classification unchanged.",
       "task": 3377,
       "sha256": "a5c5b73821d32c7b937001d7f1fd91ddf20d0b3ac671d399e9881a4b8463bebd"
     },
@@ -2296,7 +2296,7 @@
       "path": "scripts/e2e-group-send-review.mjs",
       "category": "mapped",
       "behaviors": ["desktop.group.send-review"],
-      "reason": "Task-owned isolated paired pilot with whole Group/DM history, silent cancellation, revoked-source continuation check, explicit Inbox completion, versioned multi-turn ingest supplement and complete usage; Human acceptance remains separate. Native export also includes inbox_snooze arguments/results for bounded review and deferred-resume assessment (#2055). #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Task-owned isolated paired pilot with whole Group/DM history, silent cancellation, revoked-source continuation check, explicit Inbox completion, versioned multi-turn ingest supplement and complete usage; Human acceptance remains separate. Native export also includes inbox_snooze arguments/results for bounded review and deferred-resume assessment (#2055). #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 2053,
       "sha256": "795715f31d9989c039c68dfc22a72d2e614a6c5c8b13345c79bc0e55ee3d8cf6"
     },
@@ -2328,7 +2328,7 @@
       "path": "scripts/e2e-group-busy-review.mjs",
       "category": "mapped",
       "behaviors": ["desktop.group.send-review"],
-      "reason": "Real DSH busy-Group triplets with full records and all-Bot costs. v3 bounds outcome time and waits for original, observed and snoozed canonical Inbox responsibility before early settlement; preserves frozen older cohorts, unknown future cost and separate semantic judgment. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Real DSH busy-Group triplets with full records and all-Bot costs. v3 bounds outcome time and waits for original, observed and snoozed canonical Inbox responsibility before early settlement; preserves frozen older cohorts, unknown future cost and separate semantic judgment. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 2055,
       "sha256": "fc67fab47d8be6e580dd0346c3c738b96caab11b3927e2bd75c696c9d21ccc74"
     },
@@ -2352,7 +2352,7 @@
       "path": "scripts/e2e-activity-approve-sync.mjs",
       "category": "mapped",
       "behaviors": ["desktop.activity-center.inline-tool-approval"],
-      "reason": "Real native bash Allow once from Activity and conversation with independent browser observers, canonical decision identity and native file effect. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Real native bash Allow once from Activity and conversation with independent browser observers, canonical decision identity and native file effect. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 2230,
       "sha256": "db6fcaaaf55eda5877f0ea481bc91276276aa806e83927f00dd45ccda8cc22f6"
     },
@@ -2360,7 +2360,7 @@
       "path": "scripts/e2e-activity-load.mjs",
       "category": "mapped",
       "behaviors": ["desktop.activity-center.inline-tool-approval"],
-      "reason": "Sequential main/candidate real Host load: 24 silent Groups, public direct channel_send, three 240-message rounds, query/coalescing/latency/long-task/heap and idle-recovery evidence. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Sequential main/candidate real Host load: 24 silent Groups, public direct channel_send, three 240-message rounds, query/coalescing/latency/long-task/heap and idle-recovery evidence. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 2230,
       "sha256": "07a97a0743b998e206f73d5d9500fe872f1674917a7206a2db8ed8e0d5b50e7a"
     },
@@ -2392,7 +2392,7 @@
       "path": "scripts/e2e-vrm-companion.mjs",
       "sha256": "38fb73a5d34efe8fffc4135b9ef845b3a78ffba97249711bf101060b1559449d",
       "category": "mapped",
-      "reason": "Isolated real Host journey for VRM loading (opting past the headless software-renderer notice), live speech, fixed bindings, refresh, Group gating and renderer disposal; native CLI uninstall/reinstall requires a task-owned Host restart. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification. #3089 re-audit: Home removed; steps enter Tob Mode or open the target panel from the rail instead of Home. Classification unchanged.",
+      "reason": "Isolated real Host journey for VRM loading (opting past the headless software-renderer notice), live speech, fixed bindings, refresh, Group gating and renderer disposal; native CLI uninstall/reinstall requires a task-owned Host restart. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification. #3089 re-audit: Home removed; steps enter Tob Mode or open the target panel from the rail instead of Home. Classification unchanged.",
       "task": 3089,
       "behaviors": ["desktop.vrm-companion"]
     },
@@ -2488,7 +2488,7 @@
       "path": "scripts/e2e-private-input-origin.mjs",
       "category": "mapped",
       "behaviors": ["credentials.private-input-origin"],
-      "reason": "Isolated Host, visible DM composer, synthetic private input, native approval and actual Tool result with two live accepted IM sources; no production receiver or credential. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification. #3089 re-audit: Home removed; steps enter Tob Mode or open the target panel from the rail instead of Home. Classification unchanged.",
+      "reason": "Isolated Host, visible DM composer, synthetic private input, native approval and actual Tool result with two live accepted IM sources; no production receiver or credential. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification. #3089 re-audit: Home removed; steps enter Tob Mode or open the target panel from the rail instead of Home. Classification unchanged.",
       "task": 3089,
       "sha256": "e4724d10c8af9f37c6805beadecf97271c39f27dbfd53947c8fb1c673d04510b"
     },
@@ -2520,7 +2520,7 @@
       "path": "scripts/e2e-timeline-navigation.mjs",
       "category": "mapped",
       "behaviors": ["desktop.timeline.read-position", "desktop.timeline.messages"],
-      "reason": "Task-owned isolated Host; real direct Bot tool seeds 260 messages and 140 unread. Browser verifies read-anchor opening, bounded cursor paging and idle edges, ordinary history return button, live count, multiline composer without sending, actual themes, read-complete reopen and paged jump to latest; closes its browser in finally. Caller owns Host cleanup. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Task-owned isolated Host; real direct Bot tool seeds 260 messages and 140 unread. Browser verifies read-anchor opening, bounded cursor paging and idle edges, ordinary history return button, live count, multiline composer without sending, actual themes, read-complete reopen and paged jump to latest; closes its browser in finally. Caller owns Host cleanup. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 2748,
       "sha256": "ee8785b8e2b9d8631d9aebf9d209af76c1d762e101f88363785fe3b65670bf24"
     },

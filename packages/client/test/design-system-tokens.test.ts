@@ -127,7 +127,7 @@ const ALLOWANCES: readonly Allowance[] = [
       '.bh-composer',
       '.bh-composer-with-footer',
       '.bh-composer-input',
-      "button:has(.bh-panel-glyph[data-wide='true']) > span:not(.bh-panel-glyph):not(.bh-panel-glyph-hit):not(.bh-panel-actions)",
+      'button[data-bh-wide-glyph] > span:not(.bh-panel-glyph):not(.bh-panel-glyph-hit):not(.bh-panel-actions)',
     ],
   },
   {

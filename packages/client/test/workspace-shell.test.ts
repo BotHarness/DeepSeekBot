@@ -6,6 +6,7 @@ import { WORKSPACE_CSS } from '../src/client/workspace-styles.js';
 afterEach(() => {
   document.body.innerHTML = '';
   document.documentElement.removeAttribute('data-windows-titlebar');
+  document.documentElement.removeAttribute('data-bh-workspace-dock');
   document.documentElement.removeAttribute('data-fullscreen');
   document.head.querySelector('[data-workspace-test-styles]')?.remove();
 });
@@ -41,6 +42,7 @@ describe('workspace shell ownership', () => {
 
   it('gives Windows blank headers and rail window drag while recalling titles and controls', () => {
     document.documentElement.setAttribute('data-windows-titlebar', '');
+    document.documentElement.setAttribute('data-bh-workspace-dock', '');
     const styles = document.createElement('style');
     styles.setAttribute('data-workspace-test-styles', '');
     styles.textContent = WORKSPACE_CSS.replaceAll('-webkit-app-region', '--test-app-region');
@@ -61,6 +63,7 @@ describe('workspace shell ownership', () => {
     ))
       expect(region(node)).toBe('no-drag');
     document.documentElement.removeAttribute('data-windows-titlebar');
+    document.documentElement.removeAttribute('data-bh-workspace-dock');
     expect(region(document.querySelector('[data-window-drag]')!)).not.toBe('drag');
   });
 

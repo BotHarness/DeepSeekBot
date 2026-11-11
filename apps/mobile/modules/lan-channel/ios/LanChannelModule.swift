@@ -11,7 +11,12 @@ private func lanCloseReason(_ data: Data?) -> String? {
 }
 
 private final class LanSessionDelegate: NSObject, URLSessionWebSocketDelegate {
+  var opened: ((URLSessionWebSocketTask) -> Void)?
   var closed: ((URLSessionWebSocketTask, String?) -> Void)?
+  func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask,
+    didOpenWithProtocol protocol: String?) {
+    opened?(webSocketTask)
+  }
   func urlSession(_ session: URLSession, task: URLSessionTask,
     willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest,
     completionHandler: @escaping (URLRequest?) -> Void) { completionHandler(nil) }
@@ -40,6 +45,13 @@ public final class LanChannelModule: Module {
     Name("LanChannel")
     Events("channel")
     OnCreate {
+      self.delegate.opened = { [weak self] task in
+        guard let self else { return }
+        self.lock.lock()
+        let id = self.channels.first(where: { $0.value === task })?.key
+        self.lock.unlock()
+        if let id { self.emit(id, "open") }
+      }
       self.delegate.closed = { [weak self] task, reason in
         guard let self else { return }
         self.lock.lock()
@@ -62,14 +74,14 @@ public final class LanChannelModule: Module {
       self.channels[id] = socket
       self.queued[id] = 0
       self.lock.unlock()
+      // "open" waits for the WebSocket upgrade, so an unreachable Computer costs no Noise handshake.
       socket.resume()
-      // send() queues until the WebSocket upgrade completes; no application data precedes Noise.
-      self.emit(id, "open")
       self.receive(id, socket)
     }
     Function("send") { (id: String, text: String) in
-      guard self.valid(text), let socket = self.socket(id) else {
-        throw NSError(domain: "channel-frame-invalid", code: 1)
+      guard self.valid(text) else { throw NSError(domain: "channel-frame-invalid", code: 1) }
+      guard let socket = self.socket(id) else {
+        throw NSError(domain: "channel-disconnected", code: 1)
       }
       self.lock.lock()
       let size = (self.queued[id] ?? 0) + text.utf8.count

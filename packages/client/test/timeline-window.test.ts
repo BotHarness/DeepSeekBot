@@ -1,5 +1,11 @@
 import { expect, it } from 'vitest';
-import { knownHeights, nearKeys, timelineRuns, windowKeys } from '../src/client/timeline-window.js';
+import {
+  knownHeights,
+  nearKeys,
+  timelineChunks,
+  timelineSlots,
+  windowKeys,
+} from '../src/client/timeline-window.js';
 
 const keys = ['a', 'b', 'c', 'd', 'e', 'f'];
 const heights = new Map(keys.map((key) => [key, 100]));
@@ -9,13 +15,15 @@ it('keeps the groups that intersect the kept range', () => {
   expect([...nearKeys(keys, heights, 1000, 1200)]).toEqual([]);
 });
 
-it('folds consecutive far groups into one gap of their summed height', () => {
+it('keeps a placeholder of the measured height for every far group', () => {
   const near = new Set(['c', 'd']);
-  expect(timelineRuns(keys, heights, (key) => near.has(key))).toEqual([
-    { kind: 'gap', from: 0, to: 1, height: 200 },
-    { kind: 'group', index: 2 },
-    { kind: 'group', index: 3 },
-    { kind: 'gap', from: 4, to: 5, height: 200 },
+  expect(timelineSlots(keys, heights, (key) => near.has(key))).toEqual([
+    { index: 0, placeholder: 100 },
+    { index: 1, placeholder: 100 },
+    { index: 2 },
+    { index: 3 },
+    { index: 4, placeholder: 100 },
+    { index: 5, placeholder: 100 },
   ]);
 });
 
@@ -25,12 +33,13 @@ it('always renders groups that were never measured', () => {
     ['b', 100],
     ['d', 100],
   ]);
-  expect(timelineRuns(keys, partial, () => false)).toEqual([
-    { kind: 'gap', from: 0, to: 1, height: 200 },
-    { kind: 'group', index: 2 },
-    { kind: 'gap', from: 3, to: 3, height: 100 },
-    { kind: 'group', index: 4 },
-    { kind: 'group', index: 5 },
+  expect(timelineSlots(keys, partial, () => false)).toEqual([
+    { index: 0, placeholder: 100 },
+    { index: 1, placeholder: 100 },
+    { index: 2 },
+    { index: 3, placeholder: 100 },
+    { index: 4 },
+    { index: 5 },
   ]);
 });
 
@@ -49,11 +58,13 @@ it('keeps rendering groups after the on-screen groups are removed', () => {
   const bottom = 800;
   const remaining = before.slice(0, 4);
   const near = windowKeys(remaining, measured, top, bottom);
-  const runs = timelineRuns(remaining, measured, (key) => !seen.has(key) || near.has(key));
-  expect(runs.some((run) => run.kind === 'group')).toBe(true);
-  expect(timelineRuns(remaining, measured, (key) => !seen.has(key))).toEqual([
-    { kind: 'gap', from: 0, to: 3, height: 400 },
-  ]);
+  const slots = timelineSlots(remaining, measured, (key) => !seen.has(key) || near.has(key));
+  expect(slots.some((slot) => slot.placeholder === undefined)).toBe(true);
+  expect(
+    timelineSlots(remaining, measured, (key) => !seen.has(key)).every(
+      (slot) => slot.placeholder === 100,
+    ),
+  ).toBe(true);
 });
 
 it('does not invent groups while nothing has been measured', () => {
@@ -76,9 +87,9 @@ it('sizes regrouped history from its measured messages so only nearby groups mou
   expect(sizes.get('m0')).toBe(150);
   expect(sizes.get('m3')).toBe(400);
   const near = windowKeys(regrouped, sizes, 0, 500);
-  const mounted = timelineRuns(regrouped, sizes, (key) => !sizes.has(key) || near.has(key))
-    .filter((run) => run.kind === 'group')
-    .map((run) => regrouped[run.kind === 'group' ? run.index : 0]);
+  const mounted = timelineSlots(regrouped, sizes, (key) => !sizes.has(key) || near.has(key))
+    .filter((slot) => slot.placeholder === undefined)
+    .map((slot) => regrouped[slot.index]);
   expect(mounted).toEqual(['new', 'm0', 'm3']);
 });
 
@@ -93,4 +104,36 @@ it('prefers a measured group height over the estimate from its messages', () => 
     ]),
   );
   expect(sizes.get('a')).toBe(120);
+});
+
+it('keeps slot chunks stable when older history is prepended and new messages arrive', () => {
+  const first = timelineChunks(['a', 'b', 'c', 'd', 'e'], new Map(), 2);
+  expect(first.chunks).toEqual([
+    { id: 'a', start: 0, end: 2 },
+    { id: 'c', start: 2, end: 4 },
+    { id: 'e', start: 4, end: 5 },
+  ]);
+  const next = timelineChunks(
+    ['x', 'y', 'z', 'a', 'b', 'c', 'd', 'e', 'f', 'g'],
+    first.assigned,
+    2,
+  );
+  expect(next.chunks).toEqual([
+    { id: 'x', start: 0, end: 2 },
+    { id: 'z', start: 2, end: 3 },
+    { id: 'a', start: 3, end: 5 },
+    { id: 'c', start: 5, end: 7 },
+    { id: 'e', start: 7, end: 9 },
+    { id: 'g', start: 9, end: 10 },
+  ]);
+});
+
+it('keeps every key in exactly one contiguous chunk when groups merge or reorder', () => {
+  const first = timelineChunks(['a', 'b', 'c', 'd'], new Map(), 2);
+  const next = timelineChunks(['c', 'a', 'd', 'b'], first.assigned, 2);
+  const covered = next.chunks.flatMap((chunk) =>
+    Array.from({ length: chunk.end - chunk.start }, (_, offset) => chunk.start + offset),
+  );
+  expect(covered).toEqual([0, 1, 2, 3]);
+  expect(new Set(next.chunks.map((chunk) => chunk.id)).size).toBe(next.chunks.length);
 });

@@ -1,4 +1,5 @@
 import { UnreadCount, unreadCountLabel } from './unread-count.js';
+import { useSearchOpenMark } from './search-open-mark.js';
 import { observeHumanAttention } from './messaging-defaults-live.js';
 export { unreadCountLabel } from './unread-count.js';
 import { Menu } from './appearance-primitives.js';
@@ -282,6 +283,7 @@ export function BotPanelIcon({
       button?.style.setProperty('--bh-bot-texture', `url("${botBackdropUri(icon)}")`);
       if (button === null) return;
       button.setAttribute('data-bh-tour', 'bot-mode');
+      button.toggleAttribute('data-bh-wide-glyph', wide);
       const priorGridRow = button.style.gridRow;
       const siblings = Array.from(button.parentElement?.children ?? []).filter(
         (node) => !node.classList.contains('bh-activity-list-entry'),
@@ -315,12 +317,13 @@ export function BotPanelIcon({
         button.addEventListener('click', onClick, true);
       }
       return () => {
+        button.removeAttribute('data-bh-wide-glyph');
         button.style.gridRow = priorGridRow;
         button.removeEventListener('keydown', onKeyDown);
         button.removeEventListener('click', onClick, true);
       };
     },
-    [size, icon, active, onExit],
+    [size, wide, icon, active, onExit],
   );
 
   const openInbox = (event: SyntheticEvent): void => {
@@ -1053,6 +1056,7 @@ export function BotSidebar({
   const [sectionMenuId, setSectionMenuId] = useState<string | undefined>(undefined);
   const [sectionCreateMenuId, setSectionCreateMenuId] = useState<string | undefined>(undefined);
   const [searchOpen, setSearchOpen] = useState(false);
+  const searchOpenMark = useSearchOpenMark(searchOpen);
   const [channelMenu, setChannelMenu] = useState<ChannelMenuRequest | undefined>(undefined);
   const [sharing, setSharing] = useState<BotSummary | undefined>(undefined);
   const [avatarTarget, setAvatarTarget] = useState<{ slug: string; channelId: string } | undefined>(
@@ -2136,7 +2140,10 @@ export function BotSidebar({
           {t('roster.messages')}
         </span>
       )}
-      <div className={`bh-search-slot${searchOpen ? ' bh-search-slot-open' : ''}`}>
+      <div
+        ref={searchOpenMark}
+        className={`bh-search-slot${searchOpen ? ' bh-search-slot-open' : ''}`}
+      >
         <div
           ref={searchMount}
           className={`bh-search${searchOpen ? ' bh-search-open' : ''}`}

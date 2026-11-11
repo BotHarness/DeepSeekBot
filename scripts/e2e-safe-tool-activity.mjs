@@ -467,7 +467,9 @@ try {
       const transparentHistory = await page.evaluate(() => {
         const timeline = document.querySelector('.bh-chat-body');
         const header = document.querySelector('.bh-composer-activity-toggle');
-        const latest = timeline.querySelector('.bh-message-block:last-child');
+        const latest = timeline.querySelector(
+          '.bh-timeline-chunk:last-child > .bh-timeline-slot:last-child > .bh-message-block',
+        );
         const guardedBottom = latest?.getBoundingClientRect().bottom;
         const headerTop = header.getBoundingClientRect().top;
         const bottom = timeline.scrollTop;

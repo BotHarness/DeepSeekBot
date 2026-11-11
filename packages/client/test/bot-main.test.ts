@@ -1071,9 +1071,7 @@ describe('Bot main Sessions pane', () => {
     expect(markup).not.toContain('bh-bubble-time');
     expect(markup).not.toContain('bh-bubble-meta');
     expect(markup.match(/<time[^>]*dateTime="2026-09-21T00:01:00.000Z"/g)).toHaveLength(1);
-    expect(markup.match(/class="bh-bubble-toolbar"/g)).toHaveLength(2);
-    expect(markup.match(/aria-label="回复"/g)).toHaveLength(2);
-    expect(markup.match(/aria-label="复制消息"/g)).toHaveLength(2);
+    expect(markup).not.toContain('bh-bubble-toolbar');
     expect(markup).toContain('bh-bubble-focused');
     expect(markup.match(/<time[^>]*dateTime="2026-09-21T00:01:05.000Z"/g)).toHaveLength(1);
     expect(markup).not.toContain('data-unread-divider');
@@ -1277,6 +1275,13 @@ describe('Bot main Sessions pane', () => {
     expect(chip?.getAttribute('aria-pressed')).toBe('false');
     await act(async () => chip!.click());
     expect(reactToMessage).toHaveBeenLastCalledWith('dm-ada', 'b1', '🎉', true);
+    expect(container.querySelector('.bh-bubble-toolbar')).toBeNull();
+    await act(async () =>
+      container
+        .querySelector('.bh-bubble-wrap')!
+        .dispatchEvent(new MouseEvent('pointermove', { bubbles: true })),
+    );
+    expect(container.querySelectorAll('.bh-bubble-toolbar [data-bubble-action]')).toHaveLength(3);
     await act(async () =>
       container.querySelector<HTMLButtonElement>('[data-reaction-picker-trigger]')!.click(),
     );
