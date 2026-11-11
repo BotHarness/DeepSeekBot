@@ -207,8 +207,11 @@ export function MessageSelectionRow({
         onOpen === undefined || selecting
           ? undefined
           : () => {
-              measureMessageView(ref.current, (x, y, width, height) =>
-                onOpen(message, { x, y, width, height }, { first: true, last: true }),
+              measureMessageView(
+                ref.current,
+                (x, y, width, height) =>
+                  onOpen(message, { x, y, width, height }, { first: true, last: true }),
+                () => undefined,
               );
             }
       }

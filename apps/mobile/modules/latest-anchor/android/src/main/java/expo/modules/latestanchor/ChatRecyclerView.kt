@@ -19,6 +19,12 @@ import kotlin.math.roundToInt
 
 class ChatRecyclerCell(context: Context, app: AppContext) : ExpoView(context, app) {
   var rowKey = ""
+  // A row keeps its measured height while decorations such as the reading chip overflow it, as in FlatList.
+  // ExpoView also clips its canvas to the padding box unless clipToPadding is off.
+  init {
+    clipChildren = false
+    clipToPadding = false
+  }
   override fun onMeasure(w: Int, h: Int) = setMeasuredDimension(MeasureSpec.getSize(w), MeasureSpec.getSize(h))
   override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) = Unit
 }
@@ -96,7 +102,7 @@ class ChatRecyclerView(context: Context, app: AppContext) : ExpoView(context, ap
   private val adapter = object : RecyclerView.Adapter<Holder>() {
     override fun getItemId(position: Int) = identities.getValue(keys[position])
     override fun getItemCount() = keys.size
-    override fun onCreateViewHolder(parent: ViewGroup, type: Int) = Holder(FrameLayout(context))
+    override fun onCreateViewHolder(parent: ViewGroup, type: Int) = Holder(FrameLayout(context).apply { clipChildren = false })
     override fun onBindViewHolder(holder: Holder, position: Int) {
       holder.box.layoutParams = RecyclerView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, heightAt(position))
       holder.box.scaleY = -1f
@@ -117,6 +123,7 @@ class ChatRecyclerView(context: Context, app: AppContext) : ExpoView(context, ap
     recycler.scaleY = -1f
     recycler.isScrollContainer = true
     recycler.clipToPadding = false
+    recycler.clipChildren = false
     addView(recycler)
     recycler.addOnScrollListener(object : RecyclerView.OnScrollListener() {
       private var dragging = false
@@ -208,8 +215,10 @@ class ChatRecyclerView(context: Context, app: AppContext) : ExpoView(context, ap
     adapter.notifyItemChanged(position)
   }
   fun measureCell(key: String, dp: Double) {
-    if (!dp.isFinite() || dp < 0 || key !in keys) return
+    if (!dp.isFinite() || dp < 0) return
     val height = maxOf(1, (dp * density).roundToInt())
+    // React can report a new row's height before the rows prop that adds it; keep it for setRows.
+    if (key !in keys) { heights[key] = height; return }
     if (heights[key] == height) return
     val anchor = anchor()
     heights[key] = height
