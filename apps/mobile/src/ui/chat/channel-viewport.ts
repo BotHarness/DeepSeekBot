@@ -3,6 +3,7 @@ import type { FlatList, LayoutChangeEvent } from 'react-native';
 import { useSharedValue, useReducedMotion } from 'react-native-reanimated';
 
 import type { ConversationMessage } from '../../host/conversation';
+import { nativeChatRecycler } from '../primitives/chat-recycler';
 import { useChatScrollAdapter, useChatOverlayStyle } from '../primitives/chat-scroll';
 import { useFollowLatest } from './follow-latest';
 import type { ComposerPill } from './composer-pill';
@@ -27,7 +28,7 @@ export function useChannelViewport<Row>(
     !reducedMotion,
     minIndexForVisible,
     inverted,
-    LatestAnchor !== undefined,
+    LatestAnchor !== undefined || nativeChatRecycler,
   );
   const overlayStyle = useChatOverlayStyle();
   const renderScrollComponent = useChatScrollAdapter(latest.keyboard, latest.away);

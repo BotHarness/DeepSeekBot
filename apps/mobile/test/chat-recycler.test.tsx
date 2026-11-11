@@ -4,7 +4,6 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
-  supported: true,
   textRows: [] as Array<{ key: string }>,
   rowSwipe: undefined as boolean | undefined,
   rowAction: undefined as
@@ -18,7 +17,6 @@ const state = vi.hoisted(() => ({
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('expo', () => ({
-  requireOptionalNativeModule: () => (state.supported ? { supported: true } : null),
   requireNativeView: (name: string) =>
     function Native(props: {
       children?: ReactNode;
@@ -38,14 +36,11 @@ vi.mock('expo', () => ({
     },
 }));
 afterEach(() => {
-  vi.unstubAllEnvs();
   vi.resetModules();
-  state.supported = true;
   state.keyboard = false;
 });
 
 it('mounts only the native requested window and restores the same message identities', async () => {
-  vi.stubEnv('EXPO_PUBLIC_CHAT_LIST', 'recycler');
   const { ChatList } = await import('../src/ui/primitives/chat-list.android');
   const container = document.createElement('div');
   const root = createRoot(container);
@@ -69,15 +64,7 @@ it('mounts only the native requested window and restores the same message identi
   await act(async () => root.unmount());
 });
 
-it('keeps FlatList when the rebuilt module is absent', async () => {
-  vi.stubEnv('EXPO_PUBLIC_CHAT_LIST', 'recycler');
-  state.supported = false;
-  const { nativeChatRecycler } = await import('../src/ui/primitives/chat-list.android');
-  expect(nativeChatRecycler).toBe(false);
-});
-
 it('hands native text rows to the RecyclerView instead of mounting React cells', async () => {
-  vi.stubEnv('EXPO_PUBLIC_CHAT_LIST', 'recycler');
   const { ChatList } = await import('../src/ui/primitives/chat-list.android');
   const container = document.createElement('div');
   const root = createRoot(container);
@@ -98,13 +85,6 @@ it('hands native text rows to the RecyclerView instead of mounting React cells',
     [...container.querySelectorAll('[data-cell]')].map((cell) => cell.getAttribute('data-cell')),
   ).toEqual(['item:a', 'item:c']);
   await act(async () => root.unmount());
-});
-
-it('uses the RecyclerView by default and FlatList only when switched off', async () => {
-  expect((await import('../src/ui/primitives/chat-list.android')).nativeChatRecycler).toBe(true);
-  vi.resetModules();
-  vi.stubEnv('EXPO_PUBLIC_CHAT_LIST', 'flatlist');
-  expect((await import('../src/ui/primitives/chat-list.android')).nativeChatRecycler).toBe(false);
 });
 
 it('routes native row gestures to the item, and drops taps that only dismiss the keyboard', async () => {

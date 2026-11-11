@@ -18,13 +18,10 @@ import {
   type ViewProps,
   type ViewInstance,
 } from 'react-native';
-import Animated from 'react-native-reanimated';
-import { requireNativeView, requireOptionalNativeModule } from 'expo';
+import { requireNativeView } from 'expo';
 import type { ChatListHandle, NativeRowAction } from './chat-list';
 
-export const nativeChatRecycler =
-  process.env.EXPO_PUBLIC_CHAT_LIST !== 'flatlist' &&
-  requireOptionalNativeModule<{ supported: boolean }>('ChatRecycler')?.supported === true;
+export { nativeChatRecycler } from './chat-recycler';
 type Event<T> = { nativeEvent: T };
 type ScrollEvent = NativeSyntheticEvent<NativeScrollEvent>;
 type Handle = ViewInstance & {
@@ -53,10 +50,8 @@ type Props = ViewProps & {
   onMomentumScrollBegin?: ((event: ScrollEvent) => void) | undefined;
   onMomentumScrollEnd?: ((event: ScrollEvent) => void) | undefined;
 };
-const Native = nativeChatRecycler ? requireNativeView<Props>('ChatRecycler') : undefined;
-const Cell = nativeChatRecycler
-  ? requireNativeView<ViewProps & { rowKey: string }>('ChatRecyclerCell')
-  : undefined;
+const Native = requireNativeView<Props>('ChatRecycler');
+const Cell = requireNativeView<ViewProps & { rowKey: string }>('ChatRecyclerCell');
 
 function element(value: ComponentType | ReactElement | null | undefined) {
   if (value === null || value === undefined) return null;
@@ -126,7 +121,6 @@ function RecyclerList<T>({
     }),
     [offset],
   );
-  if (Native === undefined || Cell === undefined) return null;
   return (
     <Native
       ref={native}
@@ -246,4 +240,4 @@ function RecyclerList<T>({
   );
 }
 
-export const ChatList = nativeChatRecycler ? RecyclerList : Animated.FlatList;
+export const ChatList = RecyclerList;

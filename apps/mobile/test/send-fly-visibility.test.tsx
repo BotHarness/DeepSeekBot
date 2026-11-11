@@ -13,8 +13,7 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock('expo', () => ({
-  requireOptionalNativeModule: () => ({
-    supported: true,
+  requireNativeModule: () => ({
     measureInWindow: () => state.answer(),
   }),
 }));
@@ -52,7 +51,6 @@ afterEach(() => {
 });
 
 async function measure() {
-  vi.stubEnv('EXPO_PUBLIC_CHAT_LIST', 'recycler');
   const { measureMessageView } = await import('../src/ui/primitives/measure-message-view.android');
   const measured = vi.fn();
   const failed = vi.fn();
@@ -82,7 +80,6 @@ describe('Recycler message measurement', () => {
   });
 
   it('reports a missing view as failed without measuring', async () => {
-    vi.stubEnv('EXPO_PUBLIC_CHAT_LIST', 'recycler');
     const { measureMessageView } =
       await import('../src/ui/primitives/measure-message-view.android');
     const measured = vi.fn();
@@ -100,28 +97,8 @@ describe('Recycler message measurement', () => {
   });
 });
 
-describe('FlatList message measurement', () => {
-  it('measures a flight target by its actual Android bounds and keeps menus on React Native', async () => {
-    vi.stubEnv('EXPO_PUBLIC_CHAT_LIST', 'flatlist');
-    state.answer = () => Promise.resolve({ x: 1, y: 2, width: 3, height: 4 });
-    const { measureMessageView } =
-      await import('../src/ui/primitives/measure-message-view.android');
-    const reactNative = vi.fn();
-    const view = { measureInWindow: reactNative } as never;
-    const flight = vi.fn();
-    measureMessageView(view, flight, vi.fn(), true);
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(flight).toHaveBeenCalledWith(1, 2, 3, 4);
-    expect(reactNative).not.toHaveBeenCalled();
-    measureMessageView(view, vi.fn(), vi.fn());
-    expect(reactNative).toHaveBeenCalledTimes(1);
-  });
-});
-
 describe('send flight frame', () => {
   it('shows and lands the sent bubble when it cannot be measured', async () => {
-    vi.stubEnv('EXPO_PUBLIC_CHAT_LIST', 'recycler');
     const { SendFlyFrame } = await import('../src/ui/chat/send-fly-frame');
     const { createSendFlights } = await import('../src/ui/chat/send-fly');
     const flights = createSendFlights(true);
@@ -148,7 +125,6 @@ describe('send flight frame', () => {
   });
 
   it('shows and lands the sent bubble when its view reference is missing', async () => {
-    vi.stubEnv('EXPO_PUBLIC_CHAT_LIST', 'recycler');
     state.detached = true;
     const { SendFlyFrame } = await import('../src/ui/chat/send-fly-frame');
     const { createSendFlights } = await import('../src/ui/chat/send-fly');

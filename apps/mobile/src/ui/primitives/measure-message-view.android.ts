@@ -1,27 +1,19 @@
-import { requireOptionalNativeModule } from 'expo';
+import { requireNativeModule } from 'expo';
 import { findNodeHandle, type ViewInstance } from 'react-native';
 
-const native = requireOptionalNativeModule<{
-  supported: boolean;
+const native = requireNativeModule<{
   measureInWindow(
     tag: number,
   ): Promise<{ x: number; y: number; width: number; height: number } | null>;
 }>('ChatRecycler');
 
-const recycler = process.env.EXPO_PUBLIC_CHAT_LIST !== 'flatlist';
-
 export function measureMessageView(
   view: ViewInstance | null,
   callback: (x: number, y: number, width: number, height: number) => void,
   failed: () => void,
-  actual = recycler,
 ) {
   if (view === null) {
     failed();
-    return;
-  }
-  if (!actual || native?.supported !== true) {
-    view.measureInWindow(callback);
     return;
   }
   const tag = findNodeHandle(view);

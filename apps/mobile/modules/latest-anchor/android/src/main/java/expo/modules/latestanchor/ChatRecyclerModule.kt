@@ -15,7 +15,6 @@ import expo.modules.kotlin.Promise
 class ChatRecyclerModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("ChatRecycler")
-    Constants("supported" to (android.os.Build.VERSION.SDK_INT >= 29))
     // React reports a new cell's layout before the RecyclerView binds it into a row, so the first
     // measurement arrives while the view is detached. Wait for that bind instead of
     // answering null at once; JavaScript shows the message in place when the answer is null.
@@ -66,12 +65,27 @@ class ChatRecyclerCellModule : Module() {
 
 /** [rect], in [view]'s pixels (the whole view by default), as window coordinates in logical pixels. */
 internal fun windowBounds(view: View, rect: RectF = RectF(0f, 0f, view.width.toFloat(), view.height.toFloat())): Map<String, Float> {
-  val matrix = Matrix()
-  view.transformMatrixToGlobal(matrix)
+  val matrix = windowMatrix(view)
   val bounds = RectF(rect)
   matrix.mapRect(bounds)
   val density = view.resources.displayMetrics.density
   return mapOf("x" to bounds.left / density, "y" to bounds.top / density, "width" to bounds.width() / density, "height" to bounds.height() / density)
+}
+
+/**
+ * Maps [view]'s coordinates to its window, including the flipped rows of the inverted list:
+ * View.transformMatrixToGlobal does the same but needs API 29, and the app supports API 24.
+ */
+internal fun windowMatrix(view: View): Matrix {
+  val matrix = Matrix()
+  var node = view
+  while (true) {
+    if (!node.matrix.isIdentity) matrix.postConcat(node.matrix)
+    matrix.postTranslate(node.left.toFloat(), node.top.toFloat())
+    val parent = node.parent as? View ?: return matrix
+    matrix.postTranslate(-parent.scrollX.toFloat(), -parent.scrollY.toFloat())
+    node = parent
+  }
 }
 
 /** Calls [done] once: with [view] when it is attached and laid out, or null when it is not. */
