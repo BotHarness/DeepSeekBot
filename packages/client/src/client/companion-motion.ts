@@ -7,6 +7,19 @@ export interface CompanionPoint {
   phase: 'rest' | 'drag' | 'fall' | 'land';
 }
 
+export const toolbarSide = (point: CompanionPoint): 'left' | 'right' =>
+  point.x > point.width - 150 ? 'left' : 'right';
+
+export const repaintsOnly = (
+  talking: boolean,
+  shown: CompanionPoint,
+  next: CompanionPoint,
+): boolean =>
+  !talking &&
+  shown.phase === next.phase &&
+  shown.width === next.width &&
+  toolbarSide(shown) === toolbarSide(next);
+
 export interface CompanionInteraction {
   kind: 'grab' | 'drag' | 'throw' | 'land';
   strength: number;
