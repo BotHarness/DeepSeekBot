@@ -46,7 +46,8 @@ native mobile). It sets the default run count for the rest of these docs.
 - **Keep captures short and bounded.** Record about a dozen seconds covering a few gestures or one
   streamed reply, not minutes of activity. Long recordings filled phone storage, froze the Mac
   and buried the signal. Give every trace, profile or screen recording a hard stop, extract the
-  numbers, then delete the raw file. On iOS follow
+  numbers and move only the traces the evidence needs into `.humanlayer/` (see below). Delete
+  every other raw file and remove all capture copies from the phone and the Mac. On iOS follow
   [short captures](ios-performance.md#short-captures-and-hot-path-probes).
 - **Localize the hot path cheaply.** Two quick probes often find the cause faster than a full
   profile:
