@@ -88,6 +88,7 @@ export const Easing = {
   out: (curve: unknown) => curve,
   in: (curve: unknown) => curve,
   bezier: () => (t: number) => t,
+  bezierFn: () => (t: number) => t,
   quad: (t: number) => t * t,
 };
 export class Keyframe {
