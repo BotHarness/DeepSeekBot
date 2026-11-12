@@ -191,6 +191,7 @@ import { createGitService } from './memory/managed-git.js';
 import { createProcessRestarter, type ReleaseRestarter } from './release/restart.js';
 import { createPluginUpdateService } from './release/plugins.js';
 import { createUpdateRuns } from './release/update-runs.js';
+import { createUpdateLifecycle } from './diagnostics/update-lifecycle.js';
 import {
   createTelemetryService,
   installedDshVersion,
@@ -1402,6 +1403,19 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     environment: hostDiagnosticEnvironment,
   });
   const release = installedRelease(import.meta.url);
+  const updateLifecycle = createUpdateLifecycle({
+    dir: join(
+      dshHome,
+      'botharness',
+      'diagnostics',
+      createHash('sha256')
+        .update(profile?.dir ?? dshHome)
+        .digest('hex')
+        .slice(0, 24),
+    ),
+    events: diagnosticEvents,
+    runningVersion: runningRelease.version,
+  });
   const telemetryChoice = telemetryDecision(config.telemetry);
   const telemetryDir = join(dshHome, 'botharness');
   const telemetry = createTelemetryService({
@@ -1670,7 +1684,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   let imCommandServices: import('./messaging/im-commands.js').ImCommandServices | undefined;
   let botNetwork: import('./runtime/bot-network.js').BotNetworkPort | undefined;
   const core = createCore({
-    databaseDiagnostic: (snapshot) => recordDatabaseStartup(diagnosticEvents, snapshot),
+    databaseDiagnostic: (snapshot) => {
+      recordDatabaseStartup(diagnosticEvents, snapshot);
+      updateLifecycle.startup(snapshot.startup.instanceId, snapshot.startup.stage);
+    },
     credentials: () => ctx.get('credentials'),
     voiceLog: (phase, fields) => diagnosticEvents.record('voice', phase, fields),
     botNetwork: {
@@ -2825,7 +2842,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       };
     }, 'botharness: release installer');
   });
-  const updateRuns = createUpdateRuns({ canceller: () => releaseInstaller.current });
+  const updateRuns = createUpdateRuns({
+    canceller: () => releaseInstaller.current,
+    observe: (summary) => updateLifecycle.observe(summary),
+  });
   {
     const events = ctx as unknown as {
       on(event: string, listener: (value: unknown) => void): () => void;
@@ -2840,6 +2860,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     exitCtx.effect(() => {
       releaseRestarter.current = createProcessRestarter({
         exit: (exitCtx as unknown as { appExit: (code: number) => void }).appExit,
+        onFailure: () => updateLifecycle.restartFailed(),
       });
       return () => {
         releaseRestarter.current = undefined;
@@ -2883,6 +2904,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     installer: () => releaseInstaller.current,
     restarter: () => releaseRestarter.current,
     runs: updateRuns,
+    diagnostics: updateLifecycle,
     warn: (message) => ctx.logger.warn(message),
   });
   const pluginUpdates = createPluginUpdateService({

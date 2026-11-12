@@ -1732,6 +1732,15 @@ tobs profile-backup-restore --file environment.botharness-backup --new-home new-
 
 ### 诊断日志
 
+版本更新尝试以 `source: "release-update"` 记录，包含稳定的 `updateId`、安全的
+`oldVersion`/`targetVersion` 和已观测阶段。重启后，`startup-observed` 将同一 ID 关联到
+数据库启动的 `mountId`；`targetObserved` 只比较运行版本，`previousProcessExit` 和中断的
+`transitionOutcome` 保持 `unknown`。这些是过程证据，不是重新安装或重启的授权。
+沿用 `release-install`、`update-run`、`update-cancel` 和需确认的 `release-restart` 命令。
+用 `diagnostic-logs --kind all`、`diagnostic-logs-export` 或 `bug-report` 查看关联记录；
+Host 停止后用 `--offline --home <DSH_HOME>` 读取同一批保留日志。每个 Profile 的待关联标记
+七天后过期，不能恢复此前缺失的日志条目。
+
 数据库启动会写入结构化的 `operational-database` 条目：`mount-started`、`ready`、`recovery`、`failure-cause` 和 `closed`。用 `mountId` 和 `pid` 关联同一次启动，查看 `stage`、数据库代数、耗时及有数量限制的原因链（`code`、SQLite `errcode`、`syscall` 和脱敏消息）。租约失败会区分打开锁文件、取得写锁和发布占锁信息三个阶段。`writerPid`、`writerInstanceId`、`writerAcquiredAt` 和 `writerRelation` 仅描述失败时观察到的元数据，不证明对应进程仍存活；`writerEvidence: metadata-only` 明确标识这一限制，缺少元数据则为 `unavailable`。报告不包含机器名和进程命令行。租约没有固定到期时间，诊断不会删锁或终止进程。即使业务启动失败，现有在线／离线导出和问题报告 ZIP 也会包含这些条目。
 
 排查 Connect 登录失败时，查看 `device-connect` 中 `phase=account-request-error` 的条目。它们标明服务（`relay` 中继或 `identity` 登录服务）、操作和失败原因：`transport` 附带限定范围的错误码，`http` 附带 `httpStatus`，`invalid-response` 表示响应无效。不记录请求 URL、账号标识、凭证或响应正文。单凭 `relay-unavailable` 不能判定 DNS 失败；Host 的隧道 DNS 记录在创建该 Host 时配置，随机 `*.deepseekbot.dev` 子域不一定存在。
