@@ -166,6 +166,7 @@ import type { GenuiDocumentReply } from '../../genui/document';
 import { ChatOffline } from './chat-offline';
 import { MessageActions, type MessageMenuTarget } from './message-actions';
 import { MessageSourcePage } from './message-source-page';
+import { useMessageSourceState } from './message-source-state';
 import {
   activeMentionQuery,
   chooseMention,
@@ -577,11 +578,11 @@ function ChatConversation({
   const [actionsFor, setActionsFor] = useState<MessageMenuTarget>();
   const [initiatedRequest, setInitiatedRequest] = useState<InitiatedActivityRequest>();
   const selectionScope = (saved?.hostId ?? '') + ':' + (activeChannel ?? '');
-  const [sourceFor, setSourceFor] = useState<{ scope: string; id: string }>();
-  const sourceMessage =
-    focused && sourceFor?.scope === selectionScope
-      ? snapshot.messages.find((message) => message.id === sourceFor.id)
-      : undefined;
+  const {
+    message: sourceMessage,
+    select: selectSource,
+    close: closeSource,
+  } = useMessageSourceState(selectionScope, focused, snapshot.messages);
   const [picked, setPicked] = useState<{
     scope: string;
     ids: readonly string[];
@@ -597,7 +598,6 @@ function ChatConversation({
     setPicked(undefined);
     setImageSelection(undefined);
     setActionsFor(undefined);
-    setSourceFor(undefined);
   }, [selectionScope, focused]);
   const togglePicked = useCallback(
     (message: ConversationMessage) => {
@@ -2407,9 +2407,7 @@ function ChatConversation({
             onReact={(message, emoji, active) => react(message.id, emoji, active)}
             onCopy={copyMessage}
             onSelectCopy={
-              Platform.OS === 'android' || Platform.OS === 'ios'
-                ? (message) => setSourceFor({ scope: selectionScope, id: message.id })
-                : undefined
+              Platform.OS === 'android' || Platform.OS === 'ios' ? selectSource : undefined
             }
             onShareText={shareText}
             onShareAttachment={(attachment) => void share(attachment)}
@@ -2418,7 +2416,7 @@ function ChatConversation({
             <MessageSourcePage
               key={selectionScope + ':' + sourceMessage.id}
               message={sourceMessage}
-              onClose={() => setSourceFor(undefined)}
+              onClose={closeSource}
               onCopy={copyMessage}
             />
           )}
