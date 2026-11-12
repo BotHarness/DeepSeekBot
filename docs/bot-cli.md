@@ -1783,6 +1783,16 @@ Historical v1 archives remain readable. New v2 archives record Host and resolved
 
 ### Diagnostic logs
 
+Release update attempts appear as `source: "release-update"` rows with a stable `updateId`, safe
+`oldVersion`/`targetVersion`, and observed phase. After restart, `startup-observed` joins that ID
+to the database startup `mountId`; `targetObserved` compares the running version, while
+`previousProcessExit` and interrupted `transitionOutcome` remain `unknown`. This is evidence,
+not permission to reinstall or restart. Use the existing `release-install`, `update-run`,
+`update-cancel` and confirmed `release-restart` commands to exercise their existing owners.
+Read the chain with `diagnostic-logs --kind all`, `diagnostic-logs-export`, or `bug-report`;
+`--offline --home <DSH_HOME>` reads the same retained rows when the Host is stopped. The pending
+Profile-scoped marker expires after seven days and cannot restore missing earlier log rows.
+
 Database startup writes structured `operational-database` entries: `mount-started`, `ready`, `recovery`, `failure-cause` and `closed`. Correlate them by `mountId` and `pid`; inspect `stage`, schema generations, elapsed time and the bounded cause chain (`code`, SQLite `errcode`, `syscall`, redacted message). Lease failures distinguish opening the lock file, taking the lock and publishing writer metadata. `writerPid`, `writerInstanceId`, `writerAcquiredAt` and `writerRelation` describe the metadata observed at failure, not proof that its process is alive; `writerEvidence: metadata-only` makes this explicit. Missing metadata remains `unavailable`. Reports omit machine names and process command lines. A lease has no fixed expiry, and these diagnostics never remove locks or terminate processes. The existing online/offline exports and bug-report ZIP include these entries even when operational startup fails.
 
 Core startup writes separate `core-startup` entries: `started`, `ready`, `failed` and up to four `failure-cause` rows. `attemptId`, `mountId` and `pid` join a construction attempt to its database startup; `module`, `stage`, `durationMs` and `stageDurationMs` locate the failed initializer. `databaseMode` records the mounted mode without replacing its owner. `scope: application-core` means only synchronous Core construction: database ready, Core ready and DSH Host/API/Client readiness are separate facts. A missing terminal entry after abrupt exit is unknown. Causes retain only allowlisted error classes, OS/SQLite codes, numeric SQLite error codes and syscall names; message text, stacks and arbitrary thrown values are omitted to exclude paths and user content. Existing diagnostic-log and bug-report exports retain failed attempts offline and distinguish a later successful restart; diagnostic persistence remains best effort.

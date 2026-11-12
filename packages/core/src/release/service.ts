@@ -137,6 +137,7 @@ export interface ReleaseServiceOptions {
   installer?: () => ReleaseInstaller | undefined;
   restarter?: () => ReleaseRestarter | undefined;
   runs?: UpdateRuns;
+  diagnostics?: { restartRequested(version: string): void; restartFailed(): void };
 }
 
 function readFirst(candidates: readonly URL[]): string | undefined {
@@ -592,7 +593,13 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
         installed ?? newerInProfile(runningVersion, (await profileBundle())?.version);
       if (pendingVersion === undefined) return { status: 'failed', reason: 'not-pending' };
       beforeEffect?.(pendingVersion);
-      restarter.restart();
+      options.diagnostics?.restartRequested(pendingVersion);
+      try {
+        restarter.restart();
+      } catch (error) {
+        options.diagnostics?.restartFailed();
+        throw error;
+      }
       return { status: 'restarting' };
     },
   };

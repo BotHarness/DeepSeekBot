@@ -1204,6 +1204,13 @@ Messaging owner 既有的保留附件转换继续使用单一并发操作、待�
 
 ### AX Client 启动证据
 
+版本更新通过既有 DiagnosticEvents 日志保留有界的应用定义过程证据。Update Lifecycle 所有者观测
+Update Run 的阶段变化和 Release Service 已批准的重启请求，仅用一个按 Profile 隔离、七天过期的
+标记将安全的 ID／版本／阶段摘要带过进程替换。下一次数据库启动观测将摘要关联到 `mountId`；就绪和
+恢复结论仍由数据库／Core 所有者负责，未观测的安装／重启结果和前一进程退出情况保持未知。既有在线、
+离线诊断导出和问题报告读取同一批记录。标记不控制安装、版本身份或重启资格。见
+[ADR-0330](../adr/0330-update-restart-correlation-is-bounded-process-evidence.md)。
+
 应用定义的 Client 诊断 collector 扩展既有 ADR-0063／0064 开发者日志边界。在明确启用的 Host 中（隔离 AX launcher 只为自己的子进程启用），Host Cordis Fiber 通过原生 `webServer.tapIndex` 在 Client 导入前安装 observer，并在 `/api/botharness/client-diagnostics` 注册精确、经过认证的 Connection Fetch route。浏览器报告白名单错误／生命周期 code、顺序化文档 attempt、固定保留的首次失败与 shell 挂载记录及有界遗漏；Host 保留有界实时 read model，并将同一过程证据写入既有 `logs.db`。它不创建 SessionEvent、产品状态、额外 SSE 或操作权威。API 健康、已提交且可见的 shell 观测、新鲜度、真实浏览器 console／DOM 核验分别成立；未知、后台延后及失败证据不能隐式变成成功。见 [agent 核验流程](../dev/guides/client-startup-diagnostics.zh.md) 与 [#1184](https://github.com/BotHarness/DeepSeekBot/issues/1184)。
 
 ### Provider-owned inline app setup (#1111)
