@@ -7,7 +7,13 @@ const native = vi.hoisted(() => ({
   dismiss: () => {},
   actions: new Map<string, () => void>(),
 }));
-vi.mock('react-native', () => ({ Platform: { OS: 'ios' } }));
+vi.mock('react-native', () => ({
+  Platform: { OS: 'ios' },
+  useWindowDimensions: () => ({ height: 874 }),
+}));
+vi.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 62, bottom: 34 }),
+}));
 vi.mock('../src/ui/primitives/row-icon', () => ({ rowSymbol: () => ({ ios: 'doc.on.doc' }) }));
 vi.mock('../src/ui/design/theme', () => ({
   useDesignTheme: () => ({
@@ -37,6 +43,7 @@ vi.mock('@expo/ui/swift-ui/modifiers', () => {
     padding: modifier,
     presentationBackground: modifier,
     presentationDragIndicator: modifier,
+    onGeometryChange: modifier,
     shapes: { circle: modifier, roundedRectangle: modifier, rectangle: modifier },
   };
 });

@@ -1,15 +1,13 @@
 import { useState } from 'react';
-import { Modal, Platform, ScrollView, View } from 'react-native';
+import { Modal, Platform, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ConversationMessage } from '../../host/conversation';
 import { useDesignTheme } from '../design/theme';
-import { space } from '../design/tokens';
-import { Text } from '../primitives/text';
 import { NativePageNavigation } from '../primitives/native-page-navigation';
 import { LoadingIndicator } from '../primitives/loading-indicator';
-import { useStrings } from '../strings';
 import { messageSource } from './message-source';
 import { MessageSourceHeader } from './message-source-header';
+import { MessageSourceContent } from './message-source-content';
 
 export function MessageSourcePage({
   message,
@@ -22,7 +20,6 @@ export function MessageSourcePage({
 }) {
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
-  const t = useStrings();
   const [ready, setReady] = useState(false);
   const source = messageSource(message);
   return (
@@ -48,23 +45,7 @@ export function MessageSourcePage({
           {Platform.OS === 'ios' ? null : (
             <MessageSourceHeader onClose={onClose} onCopy={() => onCopy(source)} />
           )}
-          {ready ? (
-            <ScrollView
-              testID="message-source-scroll"
-              contentInsetAdjustmentBehavior="automatic"
-              style={{ flex: 1 }}
-              contentContainerStyle={{ padding: space.x5, paddingBottom: insets.bottom + space.x5 }}
-            >
-              <Text tone="muted" variant="meta" style={{ marginBottom: space.x5 }}>
-                {t.selectCopyHint}
-              </Text>
-              <Text selectable testID="message-source-text">
-                {source}
-              </Text>
-            </ScrollView>
-          ) : (
-            <LoadingIndicator />
-          )}
+          {ready ? <MessageSourceContent source={source} /> : <LoadingIndicator />}
         </View>
         {Platform.OS === 'ios' ? (
           <MessageSourceHeader onClose={onClose} onCopy={() => onCopy(source)} />

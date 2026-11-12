@@ -25,12 +25,14 @@ import {
   frame,
   imageScale,
   padding,
+  onGeometryChange,
   presentationBackground,
   presentationDragIndicator,
   shapes,
 } from '@expo/ui/swift-ui/modifiers';
 import { Fragment, useRef, useState } from 'react';
-import { Platform } from 'react-native';
+import { Platform, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MENU_REACTIONS, reactedByMe } from '../../host/conversation';
 import { radius, space } from '../design/tokens';
@@ -72,6 +74,13 @@ export function MessageActions({
   onShareAttachment,
 }: MessageActionsProps) {
   const theme = useDesignTheme();
+  const { height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const [contentHeight, setContentHeight] = useState(0);
+  const available = Math.max(
+    theme.touch,
+    height - insets.top - insets.bottom - space.x6 - space.x4,
+  );
   const queue = useRef(dismissQueue(Platform.OS)).current;
   const [last, setLast] = useState(target);
   if (target !== undefined && target !== last) setLast(target);
@@ -100,28 +109,33 @@ export function MessageActions({
             presentationBackground(theme.overlay.fill),
           ]}
         >
-          <SheetContent
-            target={shown}
-            readOnly={readOnly}
-            selectCopy={onSelectCopy !== undefined}
-            onReact={(emoji, active) => {
-              onReact(shown.message, emoji, active);
-              onClose();
-            }}
-            onAction={(action) => {
-              runAction(action, shown.message, {
-                onFeedback: () => queue.after(() => shown.actions?.feedback()),
-                onSelect: () => queue.after(() => shown.actions?.select()),
-                onCopy,
-                onSelectCopy: (message) => queue.after(() => onSelectCopy?.(message)),
-                onShareText: (text) => queue.after(() => onShareText(text)),
-                onShareAttachment: (attachment) =>
-                  queue.after(() => onShareAttachment?.(attachment)),
-                onOpen: () => queue.after(() => shown.activity?.onOpen?.()),
-              });
-              onClose();
-            }}
-          />
+          <ScrollView
+            modifiers={[frame({ height: Math.min(contentHeight || available, available) })]}
+          >
+            <SheetContent
+              onHeight={setContentHeight}
+              target={shown}
+              readOnly={readOnly}
+              selectCopy={onSelectCopy !== undefined}
+              onReact={(emoji, active) => {
+                onReact(shown.message, emoji, active);
+                onClose();
+              }}
+              onAction={(action) => {
+                runAction(action, shown.message, {
+                  onFeedback: () => queue.after(() => shown.actions?.feedback()),
+                  onSelect: () => queue.after(() => shown.actions?.select()),
+                  onCopy,
+                  onSelectCopy: (message) => queue.after(() => onSelectCopy?.(message)),
+                  onShareText: (text) => queue.after(() => onShareText(text)),
+                  onShareAttachment: (attachment) =>
+                    queue.after(() => onShareAttachment?.(attachment)),
+                  onOpen: () => queue.after(() => shown.activity?.onOpen?.()),
+                });
+                onClose();
+              }}
+            />
+          </ScrollView>
         </Group>
       </BottomSheet>
     </Host>
@@ -129,12 +143,14 @@ export function MessageActions({
 }
 
 function SheetContent({
+  onHeight,
   target,
   readOnly,
   selectCopy,
   onReact,
   onAction,
 }: {
+  onHeight(height: number): void;
   target: MessageMenuTarget;
   readOnly: boolean;
   selectCopy: boolean;
@@ -152,6 +168,7 @@ function SheetContent({
       spacing={space.x5}
       modifiers={[
         fixedSize({ horizontal: false, vertical: true }),
+        onGeometryChange(({ height }) => onHeight(height)),
         accessibilityElement('contain'),
         accessibilityLabel(menuLabel(target)),
       ]}

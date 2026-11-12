@@ -10,10 +10,11 @@ export function MessageSourceHeader({ onClose, onCopy }: MessageSourceHeaderProp
     <ScreenStackHeaderConfig
       title={t.selectCopy}
       hideBackButton
-      translucent={false}
+      translucent
       backgroundColor={theme.color.base}
       color={theme.color.fg}
       titleColor={theme.color.fg}
+      experimental_userInterfaceStyle={theme.scheme}
       headerLeftBarButtonItems={[
         {
           type: 'button',
