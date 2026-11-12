@@ -37,6 +37,10 @@ export type PairingReason =
   | 'account-action-pending'
   | 'account-cleanup-failed'
   | 'account-deletion-uncertain'
+  | 'current-host'
+  | 'host-not-found'
+  | 'session-unknown'
+  | 'invalid-host-id'
   | 'unknown';
 export type DurationBucket = 'under1s' | '1-5s' | '5-15s' | '15-60s' | '60plus';
 export type ActivationStep = 'host_ready' | 'message_accepted' | 'bot_message_observed';
@@ -287,6 +291,10 @@ export const MOBILE_EVENT_FIELDS: Record<
       'account-action-pending',
       'account-cleanup-failed',
       'account-deletion-uncertain',
+      'current-host',
+      'host-not-found',
+      'session-unknown',
+      'invalid-host-id',
       'unknown',
     ),
     detail: (value) => value === undefined || isPairingFailureDetail(value),

@@ -10,6 +10,7 @@ export type AccountFixtureScenario =
   | 'session-write'
   | 'expired-retry'
   | 'completion-write'
+  | 'linked-computers'
   | 'environments';
 
 const response = (body: unknown, status = 200) =>
@@ -50,6 +51,7 @@ export function createAccountActionFixture(scenario: AccountFixtureScenario = 's
   let failed = false;
   let remoteDeleted = false;
   let sequence = 0;
+  const unlinked = new Set<string>();
   const counters = {
     accountWrites: 0,
     pairingWrites: 0,
@@ -68,6 +70,7 @@ export function createAccountActionFixture(scenario: AccountFixtureScenario = 's
       current: state.current ?? null,
       pending: state.pendingAccountRemoval?.map((host) => host.hostId) ?? [],
       remoteDeleted,
+      unlinked: [...unlinked],
     });
     for (const listener of listeners) listener();
   };
@@ -111,35 +114,64 @@ export function createAccountActionFixture(scenario: AccountFixtureScenario = 's
         if (url === `${owner.relay}/v1/hosts`)
           return response({
             hosts:
-              scenario === 'environments'
+              scenario === 'linked-computers'
                 ? [
                     {
-                      id: 'studio',
-                      name: 'Studio Mac',
-                      hostname: 'studio.fixture.invalid',
-                      tunnel: true,
-                    },
-                    {
-                      id: 'laptop',
-                      name: 'Travel Laptop',
-                      hostname: 'laptop.fixture.invalid',
-                      tunnel: true,
-                    },
-                    {
-                      id: 'owned',
-                      name: 'Home PC',
-                      hostname: 'owned.fixture.invalid',
-                      tunnel: true,
-                    },
-                    {
-                      id: 'office',
-                      name: 'Office Server',
-                      hostname: 'office.fixture.invalid',
+                      id: 'hoffline',
+                      name: 'Offline laptop',
+                      hostname: 'offline.fixture.invalid',
                       tunnel: false,
+                      sessionKnown: true,
                     },
-                  ]
-                : [],
+                    {
+                      id: 'hlegacy',
+                      name: 'Older computer',
+                      hostname: 'legacy.fixture.invalid',
+                      tunnel: false,
+                      sessionKnown: false,
+                    },
+                  ].filter((host) => !unlinked.has(host.id))
+                : scenario === 'environments'
+                  ? [
+                      {
+                        id: 'studio',
+                        name: 'Studio Mac',
+                        hostname: 'studio.fixture.invalid',
+                        tunnel: true,
+                      },
+                      {
+                        id: 'laptop',
+                        name: 'Travel Laptop',
+                        hostname: 'laptop.fixture.invalid',
+                        tunnel: true,
+                      },
+                      {
+                        id: 'owned',
+                        name: 'Home PC',
+                        hostname: 'owned.fixture.invalid',
+                        tunnel: true,
+                      },
+                      {
+                        id: 'office',
+                        name: 'Office Server',
+                        hostname: 'office.fixture.invalid',
+                        tunnel: false,
+                      },
+                    ]
+                  : [],
           });
+        if (scenario === 'linked-computers' && init?.method === 'POST' && url.endsWith('/revoke')) {
+          const id = new URL(url).pathname.split('/')[3]!;
+          if (!['hoffline', 'hlegacy'].includes(id) || unlinked.has(id))
+            return response({ error: { code: 'host-not-found' } }, 404);
+          unlinked.add(id);
+          publish();
+          return response({
+            deleted: true,
+            sessionKnown: id !== 'hlegacy',
+            sessionRevoked: id !== 'hlegacy',
+          });
+        }
         if (url === `${owner.relay}/v1/account` && init?.method === 'DELETE') {
           counters.deletes++;
           remoteDeleted = true;
