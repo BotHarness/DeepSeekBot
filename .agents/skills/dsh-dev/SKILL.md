@@ -67,6 +67,15 @@ Ordinary localhost pages do not open the application-defined development-refresh
 
 ## Prime directive: `/api` belongs to the API gateway
 
+### Timed-question recovery Registry trap (#4066)
+
+The installed DSH `0.2.2-rc.2` Agent Registry resolves a live Session with `get(sessionId)`;
+it does not expose `roots()`. An invented `roots()` test double hid a real post-restart answer
+refusal. Verify the exact installed Registry and native question Service contract, and exercise
+the original durable `continued` call after restart. A rendered card or an `open` native call
+alone does not prove recoverable continuation. Keep application source authority distinct from
+native answer state; the question's own Bot Source Event is not a fresh Memory admission.
+
 The web client calls `/api/<endpoint>` over plain HTTP (`fetch` + auth cookie). The route and its **single interceptor** are owned by `@deepseek-ai/dsh-api-gateway`, which claims endpoints from the **typert registry** (all native controllers register there).
 
 - **Never** call `connection.rpc.intercept('/api', …)` from a plugin. The slot is taken; a second interceptor shadows every native API (`settings/describe`, `llm/listProviders`, plugins, `directoryPicker/list` …) with a plain-text `404 not found` while your own endpoints keep working.

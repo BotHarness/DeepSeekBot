@@ -25,7 +25,11 @@ export type ChannelQuestionStatus = 'pending' | 'submitted' | 'answered' | 'expi
 type NativeDelivery = (deliver: () => boolean) => Promise<boolean>;
 
 export interface TimedQuestionPort {
-  bind?(sessionId: string, channelId: string): NativeDelivery | undefined;
+  bind?(
+    sessionId: string,
+    channelId: string,
+    question: { messageId: string; callId: string },
+  ): NativeDelivery | undefined;
   recover?(
     sessionId: string,
     channelId: string,
@@ -218,7 +222,12 @@ export class ChannelUserQuestions {
       submitted: false,
       ...(callId === undefined || this.#timed?.bind === undefined
         ? {}
-        : { deliverNative: this.#timed.bind(agent.session.id, channelId) }),
+        : {
+            deliverNative: this.#timed.bind(agent.session.id, channelId, {
+              messageId: message.id,
+              callId,
+            }),
+          }),
     };
     this.#pending.set(message.id, pending);
     request.signal?.addEventListener('abort', pending.abort, { once: true });

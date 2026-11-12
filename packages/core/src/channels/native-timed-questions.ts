@@ -17,11 +17,9 @@ export function nativeTimedQuestions(
   const views = new Map<string, Record<string, unknown>>();
   const liveRoot = (sessionId: string): unknown => {
     const agents = record(ctx.get('agents'));
-    if (typeof agents?.['roots'] !== 'function') return undefined;
-    const roots: unknown = agents['roots'].call(agents);
-    return Array.isArray(roots)
-      ? roots.find((agent: unknown) => record(record(agent)?.['session'])?.['id'] === sessionId)
-      : undefined;
+    if (typeof agents?.['get'] !== 'function') return undefined;
+    const agent: unknown = agents['get'].call(agents, sessionId);
+    return record(record(agent)?.['session'])?.['id'] === sessionId ? agent : undefined;
   };
   const questionsOf = (sessionId: string): Record<string, unknown> | undefined => {
     const session = record(liveRoot(sessionId))?.['session'] ?? sessions.get(sessionId);
@@ -35,7 +33,8 @@ export function nativeTimedQuestions(
     return questions;
   };
   return {
-    bind: (sessionId, channelId) => runtime.bindNativeQuestionInput?.(sessionId, channelId),
+    bind: (sessionId, channelId, question) =>
+      runtime.bindNativeQuestionInput?.(sessionId, channelId, question),
     recover: (sessionId, channelId, requestMessageId) =>
       runtime.recoverNativeQuestionInput?.(sessionId, channelId, requestMessageId),
     available: (sessionId, channelId) =>

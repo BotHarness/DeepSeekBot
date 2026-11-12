@@ -93,7 +93,11 @@ import { isValidSlug } from '../bots/slug.js';
 import type { AssignmentAccessStore } from '../workspaces/assignment-access.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { BotCreatePreview } from '../workspaces/tool-approval.js';
-import type { MemoryChangeDelta, MemoryChangeScan } from '../memory/accepted.js';
+import {
+  MemoryAcceptError,
+  type MemoryChangeDelta,
+  type MemoryChangeScan,
+} from '../memory/accepted.js';
 import type { MemoryService } from '../memory/service.js';
 import {
   isBotDmChannel,
@@ -823,6 +827,7 @@ export interface BotRuntime {
   bindNativeQuestionInput?(
     sessionId: string,
     channelId: string,
+    question?: { messageId: string; callId: string },
   ): ((deliver: () => boolean) => Promise<boolean>) | undefined;
   recoverNativeQuestionInput?(
     sessionId: string,
@@ -1637,6 +1642,7 @@ class BotRuntimeImplementation implements BotRuntime {
       acceptedEventIds: Set<string>;
       inboundChannelId: string | undefined;
       steeredChannelIds: Set<string>;
+      memoryObservation: 'source-event' | 'recovered-question';
     }
   >();
   readonly #memoryTurnOperations = new Set<string>();
@@ -4442,12 +4448,29 @@ class BotRuntimeImplementation implements BotRuntime {
   bindNativeQuestionInput(
     sessionId: string,
     channelId: string,
+    question?: { messageId: string; callId: string },
   ): ((deliver: () => boolean) => Promise<boolean>) | undefined {
     const owner = this.#ownership.resolve(sessionId);
     const turn = owner === undefined ? undefined : this.#turnSources.get(owner.botSlug);
     const sources = turn?.sessionId === sessionId ? turn.acceptedEventIds : undefined;
     const sourceEventId = sources?.values().next().value;
     if (owner?.rootRole !== 'orchestrator' || sourceEventId === undefined) return undefined;
+    if (turn?.memoryObservation === 'recovered-question') {
+      if (question === undefined) return undefined;
+      return (deliver) => {
+        const request = this.#channels.message(channelId, question.messageId)?.userQuestionRequest;
+        if (request?.callId !== question.callId) {
+          this.#warn?.(
+            'native-question-input-refused phase=binding reason=question-card-unavailable',
+          );
+          return Promise.resolve(false);
+        }
+        return (
+          this.recoverNativeQuestionInput(sessionId, channelId, question.messageId)?.(deliver) ??
+          Promise.resolve(false)
+        );
+      };
+    }
     return this.#nativeQuestionInput(
       owner.botSlug,
       sessionId,
@@ -4465,6 +4488,22 @@ class BotRuntimeImplementation implements BotRuntime {
   ): ((deliver: () => boolean) => Promise<boolean>) | undefined {
     const owner = this.#ownership.resolve(sessionId);
     if (owner?.rootRole !== 'orchestrator') return undefined;
+    const request = this.#channels.message(channelId, requestMessageId)?.userQuestionRequest;
+    const callId = request?.callId;
+    const holdsCard = (): boolean => {
+      const card = this.#channels.message(channelId, requestMessageId);
+      return (
+        callId !== undefined &&
+        card?.author.kind === 'bot' &&
+        card.author.slug === owner.botSlug &&
+        card.userQuestionRequest?.sessionId === sessionId &&
+        card.userQuestionRequest.callId === callId
+      );
+    };
+    if (!holdsCard()) {
+      this.#warn?.('native-question-input-refused phase=recovery reason=question-card-unavailable');
+      return undefined;
+    }
     const row = this.#database.read((db) =>
       db
         .prepare(
@@ -4484,6 +4523,7 @@ class BotRuntimeImplementation implements BotRuntime {
       row.source_event_id,
       [row.source_event_id],
       () => undefined,
+      { kind: 'recovered-question', holdsCard },
     );
   }
 
@@ -4640,6 +4680,9 @@ class BotRuntimeImplementation implements BotRuntime {
     sourceEventId: string,
     sourceIds: readonly string[],
     markAttemptSideEffect: () => void,
+    input: { kind: 'source-event' } | { kind: 'recovered-question'; holdsCard(): boolean } = {
+      kind: 'source-event',
+    },
   ): ((deliver: () => boolean) => Promise<boolean>) | undefined {
     const owner = { botSlug };
     const held = (): boolean => {
@@ -4650,12 +4693,28 @@ class BotRuntimeImplementation implements BotRuntime {
     };
     if (!held()) return undefined;
     return (deliver) => {
+      let phase:
+        | 'queue'
+        | 'authority'
+        | 'resume'
+        | 'native-delivery'
+        | 'continuation'
+        | 'completed' = 'queue';
+      const correlation = `bot=${botSlug.slice(0, 120)} session=${sessionId.slice(0, 120)} source=${sourceEventId.slice(0, 120)}`;
+      const refused = (
+        reason: 'owner-unavailable' | 'native-refused' | 'run-failed',
+        kind?: string,
+      ): void =>
+        this.#warn?.(
+          `native-question-input-refused phase=${phase} reason=${reason}${kind === undefined ? '' : ` kind=${kind}`} ${correlation}`,
+        );
       let accept!: (value: boolean) => void;
       const accepted = new Promise<boolean>((resolve) => {
         accept = resolve;
       });
       const done = this.#enqueue(owner.botSlug, async () => {
         try {
+          phase = 'authority';
           const bot = this.#registry.get(owner.botSlug);
           const current = this.#ownership.resolve(sessionId);
           if (
@@ -4666,12 +4725,16 @@ class BotRuntimeImplementation implements BotRuntime {
             current.botSlug !== owner.botSlug ||
             !this.#ownership.contentAvailable(sessionId) ||
             this.#sessionArchived?.(sessionId) === true ||
-            !held()
-          )
+            !held() ||
+            (input.kind === 'recovered-question' && !input.holdsCard())
+          ) {
+            refused('owner-unavailable');
             return;
+          }
           this.#database.read((db) => {
             for (const id of sourceIds) requireSourceEffects(db, id, owner.botSlug);
           });
+          phase = 'resume';
           await this.#runOrchestratorTurn(
             bot,
             { sessionId, resume: true },
@@ -4684,6 +4747,7 @@ class BotRuntimeImplementation implements BotRuntime {
             [],
             [],
             () => {
+              phase = 'native-delivery';
               const currentBot = this.#registry.get(owner.botSlug);
               const currentOwner = this.#ownership.resolve(sessionId);
               if (
@@ -4694,8 +4758,10 @@ class BotRuntimeImplementation implements BotRuntime {
                 currentOwner.botSlug !== owner.botSlug ||
                 !this.#ownership.contentAvailable(sessionId) ||
                 this.#sessionArchived?.(sessionId) === true ||
-                !held()
+                !held() ||
+                (input.kind === 'recovered-question' && !input.holdsCard())
               ) {
+                refused('owner-unavailable');
                 accept(false);
                 return false;
               }
@@ -4703,18 +4769,34 @@ class BotRuntimeImplementation implements BotRuntime {
                 for (const id of sourceIds) requireSourceEffects(db, id, owner.botSlug);
               });
               const result = deliver();
+              if (!result) refused('native-refused');
+              else phase = 'continuation';
               accept(result);
               return result;
             },
             sourceIds,
+            input.kind,
           );
+          phase = 'completed';
         } finally {
           accept(false);
         }
       });
-      void done.catch(() => {
+      void done.catch((error: unknown) => {
         accept(false);
-        this.#warn?.('native-question-input-run-failed');
+        const kind =
+          error instanceof MemoryAcceptError
+            ? 'memory'
+            : error instanceof TypeError
+              ? 'type'
+              : error instanceof RangeError
+                ? 'range'
+                : error instanceof SyntaxError
+                  ? 'syntax'
+                  : error instanceof Error
+                    ? 'error'
+                    : 'non-error';
+        refused('run-failed', kind);
       });
       void done.then(
         () => accept(false),
@@ -6061,6 +6143,7 @@ class BotRuntimeImplementation implements BotRuntime {
     wakeEventIds: readonly string[] = sourceEventId === undefined ? [] : [sourceEventId],
     acceptNativeInput?: () => boolean,
     nativeSourceIds: readonly string[] = [],
+    memoryObservation: 'source-event' | 'recovered-question' = 'source-event',
   ): Promise<void> {
     const readAdmissions = new Set<string>();
     this.#requireExecution?.(bot.slug);
@@ -6076,6 +6159,7 @@ class BotRuntimeImplementation implements BotRuntime {
       acceptedEventIds: new Set(turnSources),
       inboundChannelId: channelId,
       steeredChannelIds: new Set(),
+      memoryObservation,
     });
     const typingSources = [...turnSources, ...inboxUnits.map((unit) => unit.sourceEventId)];
     for (const unit of inboxUnits) {
@@ -6099,6 +6183,7 @@ class BotRuntimeImplementation implements BotRuntime {
         .get(bot.slug, sourceEventId ?? null),
     );
     const observeMemory =
+      memoryObservation === 'source-event' &&
       sourceEventId !== undefined &&
       memorySource?.source_kind !== 'bridge-message' &&
       !(memorySource?.source_kind === 'bot-message' && memorySource.ordinary === 1);
