@@ -80,7 +80,7 @@ describe('update lifecycle process evidence', () => {
           previousProcessExit: 'unknown',
         });
         expect(JSON.stringify(f.rows())).not.toContain('SECRET');
-        expect(existsSync(join(f.dir, 'update-correlation.json'))).toBe(false);
+        expect(existsSync(join(f.dir, 'update-correlation.json'))).toBe(true);
       } finally {
         f.database.close();
       }
@@ -174,7 +174,7 @@ describe('update lifecycle process evidence', () => {
         'another-mount',
       );
       expect(f.rows().at(-1)?.code).toBe('correlation-read-failed');
-      expect(existsSync(join(f.dir, 'update-correlation.json'))).toBe(true);
+      expect(existsSync(join(f.dir, 'update-correlation.json'))).toBe(false);
     } finally {
       f.database.close();
     }
@@ -208,9 +208,12 @@ describe('update lifecycle process evidence', () => {
         version: 'unsafe metadata',
         phase: 'installed',
       });
-      createUpdateLifecycle({ dir: f.dir, events: f.events, runningVersion: 'unknown' }).startup(
-        'mount',
-      );
+      createUpdateLifecycle({
+        dir: f.dir,
+        events: f.events,
+        runningVersion: 'unknown',
+        now: () => 2000,
+      }).startup('mount');
       expect(f.rows().at(-1)?.fields).toMatchObject({
         targetVersion: 'unknown',
         runningVersion: 'unknown',
