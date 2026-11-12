@@ -48,10 +48,11 @@ export interface LogMigration {
 
 export interface OpenLogDatabaseOptions {
   readonly onEvidenceGap?: (
-    phase: 'open-failed' | 'write-failed' | 'primary-reset',
+    phase: 'open-failed' | 'write-failed' | 'read-failed' | 'primary-reset',
     error: unknown,
   ) => void;
   readonly dir: string;
+  readonly strictReads?: boolean;
   readonly now?: () => number;
 
   readonly maxRows?: number;
@@ -245,7 +246,7 @@ export function openLogDatabase(options: OpenLogDatabaseOptions): LogDatabase {
   };
 
   function evidenceGap(
-    phase: 'open-failed' | 'write-failed' | 'primary-reset',
+    phase: 'open-failed' | 'write-failed' | 'read-failed' | 'primary-reset',
     error: unknown,
   ): void {
     try {
@@ -416,6 +417,8 @@ export function openLogDatabase(options: OpenLogDatabaseOptions): LogDatabase {
         ...(row.payload === null ? {} : { payload: row.payload }),
       }));
     } catch (error) {
+      evidenceGap('read-failed', error);
+      if (options.strictReads === true) throw error;
       if (options.readOnly === true)
         throw new LogDatabaseUnreadableError('logs.db entries are unreadable', { cause: error });
       return [];

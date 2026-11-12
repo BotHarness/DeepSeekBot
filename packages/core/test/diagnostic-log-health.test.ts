@@ -2,14 +2,16 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync }
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { readZip } from '../src/bots/zip-archive.js';
-import { buildBugReport } from '../src/diagnostics/bug-report.js';
+import { buildBugReport, createBugReportHttp } from '../src/diagnostics/bug-report.js';
 import {
   buildDiagnosticExport,
   createDiagnosticLogWriter,
+  createDiagnosticLogHttp,
   diagnosticEventRecorder,
   exportDiagnosticLogOffline,
+  listDiagnosticLogs,
 } from '../src/diagnostics/diagnostic-log.js';
 import {
   createLogHealth,
@@ -18,6 +20,11 @@ import {
   readLogHealth,
 } from '../src/diagnostics/log-health.js';
 import { openLogDatabase } from '../src/logs/log-db.js';
+
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>();
+  return { ...actual, writeFileSync: vi.fn(actual.writeFileSync) };
+});
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -61,6 +68,72 @@ it('observes destructive schema recovery even when the primary open ultimately s
       }).manifest,
     ).toMatchObject({ completeness: { status: 'partial' } });
   } finally {
+    database.close();
+  }
+});
+
+it('marks real live-handle read failures unavailable instead of treating swallowed errors as empty logs', async () => {
+  const dir = home();
+  const health = createLogHealth(dir);
+  const database = openLogDatabase({
+    dir,
+    strictReads: true,
+    onEvidenceGap: (phase, error) => health.failure(phase, error),
+  });
+  const raw = new DatabaseSync(join(dir, 'logs.db'));
+  try {
+    raw.exec('DROP TABLE log_entries');
+    expect(
+      listDiagnosticLogs(database, { filter: 'all', since: 0, limit: 10, homes: [] }),
+    ).toMatchObject({ entries: [], completeness: { status: 'partial', primary: 'unavailable' } });
+    expect(
+      buildDiagnosticExport(database, {
+        hours: 1,
+        now: Date.now,
+        environment,
+        homes: [],
+        health: health.snapshot(),
+      }).manifest,
+    ).toMatchObject({ entries: 0, completeness: { status: 'partial', primary: 'unavailable' } });
+    expect(health.snapshot().transitions.at(-1)?.phase).toBe('read-failed');
+    const http = createDiagnosticLogHttp({
+      database: () => database,
+      writer: () => undefined,
+      environment,
+      homes: [],
+      health: () => health.snapshot(),
+    });
+    const list = await http(new Request('http://localhost/api/botharness/diagnostic-logs'));
+    expect(await list.json()).toMatchObject({
+      completeness: { status: 'partial', primary: 'unavailable' },
+    });
+    const archive = await http(
+      new Request('http://localhost/api/botharness/diagnostic-logs/export'),
+    );
+    expect(archive.status).toBe(200);
+    expect(archive.headers.get('x-diagnostic-log-completeness')).toBe('partial');
+    const bug = createBugReportHttp({
+      database: () => database,
+      environment,
+      homes: [],
+      health: () => health.snapshot(),
+    });
+    const form = new FormData();
+    form.set('title', 'Read fault fixture');
+    const response = await bug(
+      new Request('http://localhost/api/botharness/bug-report', { method: 'POST', body: form }),
+    );
+    expect(response.status).toBe(200);
+    const files = readZip(Buffer.from(await response.arrayBuffer()), {
+      maxEntries: 10,
+      maxTotalBytes: 100_000,
+    });
+    const manifest = files.find((file) => file.path === 'manifest.json');
+    expect(JSON.parse(Buffer.from(manifest?.data ?? []).toString())).toMatchObject({
+      logs: { completeness: { status: 'partial', primary: 'unavailable' } },
+    });
+  } finally {
+    raw.close();
     database.close();
   }
 });
@@ -203,14 +276,33 @@ it('bounds additional storage for a 600-event flush against the existing writer'
     const database = openLogDatabase({ dir });
     const health = withHealth ? createLogHealth(dir) : undefined;
     const writer = createDiagnosticLogWriter(database, health === undefined ? {} : { health });
+    const writes = vi.mocked(writeFileSync);
+    writes.mockClear();
     try {
       const start = performance.now();
       writer.write(Array.from({ length: 600 }, () => row));
+      expect(
+        writes.mock.calls.filter(([path]) => String(path).endsWith(LOG_HEALTH_FILENAME + '.tmp')),
+      ).toHaveLength(0);
       writer.flush();
       const durationMs = performance.now() - start;
       expect(database.query({ limit: 1000 })).toHaveLength(600);
       if (health !== undefined)
         expect(statSync(join(dir, LOG_HEALTH_FILENAME)).size).toBeLessThan(LOG_HEALTH_MAX_BYTES);
+      expect(
+        writes.mock.calls.filter(([path]) => String(path).endsWith(LOG_HEALTH_FILENAME + '.tmp')),
+      ).toHaveLength(withHealth ? 1 : 0);
+      if (health !== undefined) {
+        for (let i = 0; i < 600; i++) health.loss('rate-loss', 1);
+        expect(
+          writes.mock.calls.filter(([path]) => String(path).endsWith(LOG_HEALTH_FILENAME + '.tmp')),
+        ).toHaveLength(1);
+        health.snapshot();
+        health.snapshot();
+        expect(
+          writes.mock.calls.filter(([path]) => String(path).endsWith(LOG_HEALTH_FILENAME + '.tmp')),
+        ).toHaveLength(2);
+      }
       return durationMs;
     } finally {
       database.close();

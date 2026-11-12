@@ -932,6 +932,7 @@ export function mountDiagnosticLog(
       try {
         database = openLogDatabase({
           dir,
+          strictReads: true,
           onEvidenceGap: (phase, error) => health.failure(phase, error),
         });
       } catch (error) {

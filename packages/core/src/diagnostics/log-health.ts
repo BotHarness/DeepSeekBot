@@ -10,6 +10,7 @@ const transition = z.object({
   phase: z.enum([
     'open-failed',
     'write-failed',
+    'read-failed',
     'primary-reset',
     'recovered',
     'queue-loss',
@@ -121,7 +122,11 @@ export function createLogHealth(dir: string, now: () => number = Date.now) {
     dirty = true;
   };
   return {
-    failure(phase: 'open-failed' | 'write-failed' | 'primary-reset', error: unknown, lost = 0) {
+    failure(
+      phase: 'open-failed' | 'write-failed' | 'read-failed' | 'primary-reset',
+      error: unknown,
+      lost = 0,
+    ) {
       state.degraded = true;
       state.failureObservations = Math.min(Number.MAX_SAFE_INTEGER, state.failureObservations + 1);
       if (phase === 'primary-reset')
