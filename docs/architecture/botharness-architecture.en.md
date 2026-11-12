@@ -737,6 +737,15 @@ Supported pixel companions request the optional BotPixel `mouthLayers` contract 
 
 ### AX Client startup evidence
 
+Release updates retain bounded application-defined process evidence through the existing
+DiagnosticEvents log. The Update Lifecycle owner observes changed Update Run phases and approved
+Release Service restart requests, then carries only a safe ID/version/phase summary across process
+replacement in one seven-day, Profile-scoped marker. The next database startup observation joins
+that summary to its `mountId`; readiness and recovery still belong to database/Core owners, and
+unobserved install/restart outcomes and previous process exit remain unknown. Existing online and
+offline diagnostic exports and bug-report packages read the same rows. The marker never controls
+installation, release identity or restart eligibility. See [ADR-0330](../adr/0330-update-restart-correlation-is-bounded-process-evidence.md).
+
 The application-defined Client diagnostics collector extends the existing ADR-0063/0064 developer-log boundary. On explicitly enabled Hosts (the isolated AX launcher enables its own child), a Host Cordis Fiber installs an early observer through native `webServer.tapIndex`, before Client imports, and registers an exact authenticated Connection Fetch route at `/api/botharness/client-diagnostics`. The browser reports allowlisted error/lifecycle codes, ordered document attempts, pinned first-failure and shell-mount observations and bounded omissions; the Host keeps a bounded live read model and appends the same process evidence to existing `logs.db`. It creates no SessionEvent, product state, extra SSE or authority for actions. API health, visible committed shell observation, freshness and real browser console/DOM verification remain distinct; unknown, background-deferred and failed evidence cannot become implicit success. See the [agent verification loop](../dev/guides/client-startup-diagnostics.md) and [#1184](https://github.com/BotHarness/DeepSeekBot/issues/1184).
 
 ### Bot folders in the native DSH Session list (#1997)
