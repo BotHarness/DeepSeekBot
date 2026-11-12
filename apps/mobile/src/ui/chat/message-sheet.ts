@@ -7,6 +7,7 @@ import { t } from '../strings';
 import type { BubbleGroup } from './bubble-shape';
 import type { Rect } from './menu-placement';
 import { separatorLabel } from './message-groups';
+import { messageSource } from './message-source';
 
 export type ActivityMenuLink = { label?: string; onOpen?: () => void };
 export type MessageMenuTarget = {
@@ -18,7 +19,7 @@ export type MessageMenuTarget = {
 };
 
 export type MessageMenuAction =
-  | { key: 'copy' | 'share' | 'open' | 'feedback' | 'select'; label: string }
+  | { key: 'copy' | 'select-copy' | 'share' | 'open' | 'feedback' | 'select'; label: string }
   | { key: 'download'; label: string; attachment: MessageAttachment };
 
 export function actionId(action: MessageMenuAction): string {
@@ -42,6 +43,7 @@ export type MessageActionsProps = {
   onClose(): void;
   onReact(message: ConversationMessage, emoji: string, active: boolean): void;
   onCopy(text: string): void;
+  onSelectCopy?: ((message: ConversationMessage) => void) | undefined;
   onShareText(text: string): void;
   onShareAttachment?: ((attachment: MessageAttachment) => void) | undefined;
 };
@@ -50,6 +52,7 @@ export function messageMenuActions(
   message: ConversationMessage,
   activity?: ActivityMenuLink,
   reporting = false,
+  selectCopy = false,
 ): MessageMenuAction[] {
   const extra: MessageMenuAction[] =
     reporting && message.delivery === 'committed'
@@ -59,12 +62,17 @@ export function messageMenuActions(
         ]
       : [];
   const files = activity === undefined ? downloads(message) : [];
-  if (message.body.trim() === '') return [...files, ...extra];
+  const source: MessageMenuAction[] =
+    selectCopy && activity === undefined && messageSource(message).trim() !== ''
+      ? [{ key: 'select-copy', label: t.selectCopy }]
+      : [];
+  if (message.body.trim() === '') return [...source, ...files, ...extra];
   return [
     ...(activity?.onOpen === undefined || activity.label === undefined
       ? []
       : [{ key: 'open' as const, label: activity.label }]),
     { key: 'copy', label: t.copy },
+    ...source,
     { key: 'share', label: t.shareText },
     ...files,
     ...extra,
@@ -115,6 +123,7 @@ export function runAction(
   message: ConversationMessage,
   handlers: {
     onCopy(text: string): void;
+    onSelectCopy?: ((message: ConversationMessage) => void) | undefined;
     onShareText(text: string): void;
     onOpen(): void;
     onFeedback?: (() => void) | undefined;
@@ -125,6 +134,7 @@ export function runAction(
   if (action.key === 'download') handlers.onShareAttachment?.(action.attachment);
   else if (action.key === 'open') handlers.onOpen();
   else if (action.key === 'copy') handlers.onCopy(message.body);
+  else if (action.key === 'select-copy') handlers.onSelectCopy?.(message);
   else if (action.key === 'feedback') handlers.onFeedback?.();
   else if (action.key === 'select') handlers.onSelect?.();
   else handlers.onShareText(message.body);

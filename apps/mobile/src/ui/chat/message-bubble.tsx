@@ -12,6 +12,7 @@ import {
 } from 'react';
 import { useReplyHaptic } from './reply-haptic';
 import { MediaLongPress } from './media-long-press';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import {
   AppState,
   Platform,
@@ -470,7 +471,19 @@ function PressableBubble({
             open();
           };
   const tap = tapOpens && onLongPress !== undefined ? open : undefined;
-  return (
+  const nativeHolding = Platform.OS === 'android' && hold !== undefined;
+  const currentHold = useRef(hold);
+  currentHold.current = hold;
+  const nativeHold = useMemo(
+    () =>
+      Gesture.LongPress()
+        .enabled(nativeHolding)
+        .minDuration(motion.lift)
+        .runOnJS(true)
+        .onStart(() => currentHold.current?.()),
+    [nativeHolding],
+  );
+  const bubble = (
     <Animated.View
       ref={ref}
       collapsable={false}
@@ -513,7 +526,7 @@ function PressableBubble({
                 open();
               },
             })}
-        {...(hold === undefined ? {} : { onLongPress: hold })}
+        {...(hold === undefined || nativeHolding ? {} : { onLongPress: hold })}
         {...(onPress !== undefined
           ? { onPress }
           : tap !== undefined
@@ -548,10 +561,13 @@ function PressableBubble({
           if (shrinks) scale.value = withSpring(1, spring.spatial.fast);
         }}
       >
-        <MediaLongPress.Provider value={hold}>{children}</MediaLongPress.Provider>
+        <MediaLongPress.Provider value={nativeHolding ? undefined : hold}>
+          {children}
+        </MediaLongPress.Provider>
       </Pressable>
     </Animated.View>
   );
+  return nativeHolding ? <GestureDetector gesture={nativeHold}>{bubble}</GestureDetector> : bubble;
 }
 
 const entered = new Set<string>();

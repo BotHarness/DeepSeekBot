@@ -165,6 +165,7 @@ import { GenuiReplies, GenuiViewHost } from './genui-view-client';
 import type { GenuiDocumentReply } from '../../genui/document';
 import { ChatOffline } from './chat-offline';
 import { MessageActions, type MessageMenuTarget } from './message-actions';
+import { MessageSourcePage } from './message-source-page';
 import {
   activeMentionQuery,
   chooseMention,
@@ -576,6 +577,11 @@ function ChatConversation({
   const [actionsFor, setActionsFor] = useState<MessageMenuTarget>();
   const [initiatedRequest, setInitiatedRequest] = useState<InitiatedActivityRequest>();
   const selectionScope = (saved?.hostId ?? '') + ':' + (activeChannel ?? '');
+  const [sourceFor, setSourceFor] = useState<{ scope: string; id: string }>();
+  const sourceMessage =
+    sourceFor?.scope === selectionScope
+      ? snapshot.messages.find((message) => message.id === sourceFor.id)
+      : undefined;
   const [picked, setPicked] = useState<{
     scope: string;
     ids: readonly string[];
@@ -591,6 +597,7 @@ function ChatConversation({
     setPicked(undefined);
     setImageSelection(undefined);
     setActionsFor(undefined);
+    setSourceFor(undefined);
   }, [selectionScope, focused]);
   const togglePicked = useCallback(
     (message: ConversationMessage) => {
@@ -2397,9 +2404,22 @@ function ChatConversation({
             onClose={() => setActionsFor(undefined)}
             onReact={(message, emoji, active) => react(message.id, emoji, active)}
             onCopy={copyMessage}
+            onSelectCopy={
+              Platform.OS === 'android'
+                ? (message) => setSourceFor({ scope: selectionScope, id: message.id })
+                : undefined
+            }
             onShareText={shareText}
             onShareAttachment={(attachment) => void share(attachment)}
           />
+          {sourceMessage === undefined ? null : (
+            <MessageSourcePage
+              key={selectionScope + ':' + sourceMessage.id}
+              message={sourceMessage}
+              onClose={() => setSourceFor(undefined)}
+              onCopy={copyMessage}
+            />
+          )}
           {paging === undefined ? null : (
             <NativePageHeader
               title={ios && glassHeader ? title : titleItem}

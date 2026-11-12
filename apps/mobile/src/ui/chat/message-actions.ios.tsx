@@ -231,7 +231,7 @@ function SheetContent({
                     ]}
                   >
                     <Image
-                      systemName={rowSymbol(action.key).ios}
+                      systemName={rowSymbol(action.key === 'select-copy' ? 'copy' : action.key).ios}
                       modifiers={[
                         font({ textStyle: 'body' }),
                         foregroundStyle(theme.color.fg),

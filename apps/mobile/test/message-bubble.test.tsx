@@ -24,12 +24,34 @@ const native = vi.hoisted(() => ({
   actions: new Map<string, (event: { nativeEvent: { actionName: string } }) => void>(),
   layouts: new Map<string, (event: { nativeEvent: { layout: { height: number } } }) => void>(),
   dismiss: () => {},
+  longPresses: Array<{ enabled: boolean; duration: number; start: () => void }>(),
 }));
 
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-worklets', () => ({ scheduleOnRN: (callback: () => void) => callback() }));
 
-vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
+vi.mock('react-native-gesture-handler', async () => {
+  const shim = await import('./gesture-handler-shim');
+  return {
+    ...shim,
+    Gesture: new Proxy(shim.Gesture, {
+      get: (target, key) => {
+        if (key !== 'LongPress') return Reflect.get(target, key);
+        return () => {
+          const gesture = { enabled: true, duration: 500, start: () => {} };
+          native.longPresses.push(gesture);
+          const builder = {
+            enabled: (value: boolean) => ((gesture.enabled = value), builder),
+            minDuration: (value: number) => ((gesture.duration = value), builder),
+            runOnJS: () => builder,
+            onStart: (callback: () => void) => ((gesture.start = callback), builder),
+          };
+          return builder;
+        };
+      },
+    }),
+  };
+});
 vi.mock('react-native', async () => {
   const { useWindowDimensions, StyleSheet } = await import('./react-native-shim');
   const host = (name: string) => {
@@ -196,6 +218,7 @@ beforeEach(() => {
   native.holds.clear();
   native.layouts.clear();
   native.actions.clear();
+  native.longPresses.length = 0;
 });
 
 const human = (overrides: Partial<ConversationMessage>): ConversationMessage => ({
@@ -690,8 +713,19 @@ describe('double-tap to react', () => {
     native.presses.get(t.messageActionsHint)?.();
     native.presses.get(t.messageActionsHint)?.();
     expect(onReact).not.toHaveBeenCalled();
-    native.holds.get(t.messageActionsHint)?.();
+    native.longPresses.find((gesture) => gesture.enabled)?.start();
     expect(onSelect).toHaveBeenCalledWith(bot);
+  });
+
+  it('recognizes Android bubble holds natively without the transformed React responder region', () => {
+    native.os = 'android';
+    const onSelect = vi.fn();
+    renderToStaticMarkup(<MessageBubble message={bot} onSelect={onSelect} />);
+    const gestures = native.longPresses.filter((gesture) => gesture.enabled);
+    expect(gestures).toHaveLength(1);
+    expect(native.holds.has(t.messageActionsHint)).toBe(false);
+    gestures[0]?.start();
+    expect(onSelect).toHaveBeenCalledExactlyOnceWith(bot);
   });
 });
 
