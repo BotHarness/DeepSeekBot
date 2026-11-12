@@ -25,6 +25,12 @@ module.exports = function withWebPreview(config) {
     ],
   ]);
   config.resolver.resolveRequest = (context, moduleName, platform) => {
+    if (
+      platform === 'web' &&
+      moduleName === 'expo-application' &&
+      context.originModulePath === path.resolve(__dirname, '../../app/qa/account-actions.tsx')
+    )
+      return { type: 'sourceFile', filePath: path.resolve(__dirname, 'qa-application.ts') };
     if (platform === 'web' && moduleName === 'expo-secure-store')
       return { type: 'sourceFile', filePath: path.resolve(__dirname, 'secure-store.ts') };
     const resolved = resolve(context, moduleName, platform);
