@@ -221,6 +221,8 @@ Use the repository's pinned Node and pnpm versions. SDK 58 targets React Native 
 
 CI checks Expo Doctor, types and tests, and exports both iOS and Android bundles in a required `mobile-export` job. Exporting bundles does not compile native code: separately verify a fresh iOS build and Android Release build (including R8), then the native user journeys. Android compilation requires compile SDK 37. The web preview explicitly retains single-page output. The simulator cache uses the strict fingerprint preset so app-version changes invalidate a cached native binary; SDK 58's balanced default ignores those version fields.
 
+The pinned `expo-dev-launcher@58.0.20` patch keeps its account toolbar on the default axis. Its optional `axisBehavior` modifier requires the iOS 27.1 SDK, while Xcode 27.0 already satisfies the upstream Swift compiler guard. Runtime availability checks cannot make that missing SDK symbol compile. Remove this patch when the upstream SDK guard is corrected or the minimum build toolchain includes that API. This affects the development launcher only.
+
 For retained-data acceptance, install over an existing build with the same app identity and verify paired Hosts, local appearance, collapsed sections, DM activity preferences and statistics settings after restart. The fresh-install simulator journey alone does not prove upgrade preservation. Record simulator, real-device and Human QA results separately; follow [shared device QA](../../docs/agents/device-qa.md) for scheduling and resource limits.
 
 ### Channel Agents (UAT candidate)
