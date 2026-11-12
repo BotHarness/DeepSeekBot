@@ -4504,7 +4504,7 @@ class BotRuntimeImplementation implements BotRuntime {
       row.source_event_id,
       [row.source_event_id],
       () => undefined,
-      holdsCard,
+      { kind: 'recovered-question', holdsCard },
     );
   }
 
@@ -4661,7 +4661,9 @@ class BotRuntimeImplementation implements BotRuntime {
     sourceEventId: string,
     sourceIds: readonly string[],
     markAttemptSideEffect: () => void,
-    holdsRecoveredCard?: () => boolean,
+    input: { kind: 'source-event' } | { kind: 'recovered-question'; holdsCard(): boolean } = {
+      kind: 'source-event',
+    },
   ): ((deliver: () => boolean) => Promise<boolean>) | undefined {
     const owner = { botSlug };
     const held = (): boolean => {
@@ -4705,7 +4707,7 @@ class BotRuntimeImplementation implements BotRuntime {
             !this.#ownership.contentAvailable(sessionId) ||
             this.#sessionArchived?.(sessionId) === true ||
             !held() ||
-            holdsRecoveredCard?.() === false
+            (input.kind === 'recovered-question' && !input.holdsCard())
           ) {
             refused('owner-unavailable');
             return;
@@ -4738,7 +4740,7 @@ class BotRuntimeImplementation implements BotRuntime {
                 !this.#ownership.contentAvailable(sessionId) ||
                 this.#sessionArchived?.(sessionId) === true ||
                 !held() ||
-                holdsRecoveredCard?.() === false
+                (input.kind === 'recovered-question' && !input.holdsCard())
               ) {
                 refused('owner-unavailable');
                 accept(false);
@@ -4754,7 +4756,7 @@ class BotRuntimeImplementation implements BotRuntime {
               return result;
             },
             sourceIds,
-            holdsRecoveredCard === undefined ? 'source-event' : 'recovered-question',
+            input.kind,
           );
           phase = 'completed';
         } finally {
