@@ -71,6 +71,8 @@ export interface UpdateRuns {
   state(progress: unknown): void;
 }
 
+export type UpdateRunSummary = Pick<UpdateRun, 'id' | 'kind' | 'version' | 'phase'>;
+
 export const UPDATE_RUN_OUTPUT_CHARS = 32_000;
 export const UPDATE_RUN_COMMANDS = 24;
 const RETAINED_RUNS = 4;
@@ -104,6 +106,7 @@ export function createUpdateRuns(
     canceller?: () => UpdateCanceller | undefined;
     now?: () => number;
     newId?: () => string;
+    observe?: (summary: UpdateRunSummary) => void;
   } = {},
 ): UpdateRuns {
   const now = options.now ?? Date.now;
@@ -115,6 +118,14 @@ export function createUpdateRuns(
     | undefined;
 
   const stamp = () => new Date(now()).toISOString();
+  const observed = new Map<string, UpdateRunPhase>();
+  const observe = (run: UpdateRun) => {
+    if (observed.get(run.id) === run.phase) return;
+    observed.set(run.id, run.phase);
+    try {
+      options.observe?.({ id: run.id, kind: run.kind, version: run.version, phase: run.phase });
+    } catch {}
+  };
   const find = (id: string): UpdateRun | undefined => {
     const primary = aliases.get(id) ?? id;
     return runs.find((run) => run.id === primary);
@@ -124,6 +135,7 @@ export function createUpdateRuns(
     runs.push(run);
     while (runs.length > RETAINED_RUNS) {
       const dropped = runs.shift()!;
+      observed.delete(dropped.id);
       for (const [alias, primary] of aliases) if (primary === dropped.id) aliases.delete(alias);
     }
   };
@@ -136,6 +148,7 @@ export function createUpdateRuns(
     if (outcome.status === 'installed') {
       run.phase = 'installed';
       run.installed = { applied: outcome.applied };
+      observe(run);
       return;
     }
     run.phase = outcome.reason === 'cancelled' ? 'cancelled' : 'failed';
@@ -144,6 +157,7 @@ export function createUpdateRuns(
       ...(outcome.diagnostic === undefined ? {} : { diagnostic: outcome.diagnostic }),
       ...(outcome.logPath === undefined ? {} : { logPath: outcome.logPath }),
     };
+    observe(run);
   };
 
   return {
@@ -167,6 +181,7 @@ export function createUpdateRuns(
         cancellable: true,
       };
       remember(run);
+      observe(run);
       const entry = {
         run,
         cancelled: false,
@@ -181,6 +196,7 @@ export function createUpdateRuns(
         installing() {
           entry.installing = true;
           if (run.phase === 'checking') run.phase = 'installing';
+          observe(run);
         },
       };
       const promise = Promise.resolve()
@@ -217,12 +233,14 @@ export function createUpdateRuns(
       if (!entry.installing) {
         entry.cancelled = true;
         run.phase = 'cancelling';
+        observe(run);
         return { status: 'cancelling' };
       }
       const canceller = options.canceller?.();
       if (canceller?.cancelInstall === undefined) return { status: 'unsupported' };
       entry.cancelled = true;
       run.phase = 'cancelling';
+      observe(run);
       let answer: string;
       try {
         answer = (await canceller.cancelInstall(run.id)).status;
@@ -233,6 +251,7 @@ export function createUpdateRuns(
         entry.cancelled = false;
         if (run.phase === 'cancelling') run.phase = 'applying';
         run.cancellable = false;
+        observe(run);
         return { status: 'too-late' };
       }
       return { status: answer === 'cancelled' ? 'cancelled' : 'cancelling' };
@@ -262,6 +281,7 @@ export function createUpdateRuns(
       const exitCode = chunk['exitCode'];
       if (exitCode === null || typeof exitCode === 'number') command.exitCode = exitCode;
       if (run.phase === 'checking') run.phase = 'installing';
+      observe(run);
     },
 
     state(value) {
@@ -284,6 +304,7 @@ export function createUpdateRuns(
         run.phase = 'applying';
         run.cancellable = false;
       }
+      observe(run);
     },
   };
 }

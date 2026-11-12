@@ -1,4 +1,5 @@
 import { spawn as spawnProcess, type ChildProcess, type SpawnOptions } from 'node:child_process';
+import { errorMonitor, type EventEmitter } from 'node:events';
 
 const RESTART_DELAY_MS = 300;
 const RELAUNCH_FALLBACK_MS = 8_000;
@@ -24,6 +25,7 @@ export interface ProcessRestarterOptions {
   host?: RestartHost;
   spawn?: (command: string, args: readonly string[], options: SpawnOptions) => ChildProcess;
   setTimer?: (callback: () => void, ms: number) => { unref(): unknown };
+  onFailure?: () => void;
 }
 
 export function relaunchArguments(argv: readonly string[]): string[] {
@@ -48,12 +50,20 @@ export function createProcessRestarter(options: ProcessRestarterOptions): Releas
       let child: ChildProcess | undefined;
       const relaunch = (): void => {
         if (child !== undefined) return;
-        child = spawn(host.execPath, args, {
-          cwd: host.cwd(),
-          env: host.env,
-          stdio: 'inherit',
-        });
+        try {
+          child = spawn(host.execPath, args, {
+            cwd: host.cwd(),
+            env: host.env,
+            stdio: 'inherit',
+            windowsHide: true,
+          });
+        } catch (error) {
+          options.onFailure?.();
+          throw error;
+        }
         const started = child;
+        const errors: EventEmitter = started;
+        errors.once(errorMonitor, () => options.onFailure?.());
         for (const signal of FORWARDED_SIGNALS) {
           host.prependListener(signal, () => {
             started.kill(signal);

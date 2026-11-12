@@ -208,7 +208,6 @@ export async function runDoctor(
   if (errors === undefined) {
     try {
       errors = readLogsOffline({ filter: 'error', since, limit: DOCTOR_ERROR_LIMIT }, values, io);
-      checks.push({ id: 'log', status: 'ok', source: 'offline' });
     } catch (error) {
       if (!(error instanceof CliLiveError)) throw error;
       checks.push({
@@ -218,7 +217,28 @@ export async function runDoctor(
         detail: error.message,
       });
     }
-  } else checks.push({ id: 'log', status: 'ok', source: 'host' });
+  }
+  if (errors !== undefined) {
+    const completeness = errors.completeness;
+    if (completeness?.['primary'] === 'unavailable') {
+      checks.push({
+        id: 'log',
+        status: 'warn',
+        code: existsSync(dshHome) ? 'log-unavailable' : 'not-found',
+        source,
+        completeness,
+        hint: 'Export diagnostics to inspect retained health evidence; the error count is unavailable.',
+      });
+      errors = undefined;
+    } else
+      checks.push({
+        id: 'log',
+        status: completeness?.['status'] === 'partial' ? 'warn' : 'ok',
+        ...(completeness?.['status'] === 'partial' ? { code: 'partial-evidence' } : {}),
+        source,
+        ...(completeness === undefined ? {} : { completeness }),
+      });
+  }
 
   const offline = source === 'offline';
   return doctorReport({
@@ -253,8 +273,12 @@ export function doctorReport(options: {
     const top = topErrors(errors);
     checks.push({
       id: 'errors-24h',
-      status: errors.entries.length === 0 ? 'ok' : 'warn',
+      status:
+        errors.entries.length === 0 && errors.completeness?.['status'] !== 'partial'
+          ? 'ok'
+          : 'warn',
       count: errors.entries.length,
+      ...(errors.completeness === undefined ? {} : { completeness: errors.completeness }),
       ...(errors.entries.length >= DOCTOR_ERROR_LIMIT ? { truncated: true } : {}),
       ...(top.length === 0 ? {} : { top }),
     });
