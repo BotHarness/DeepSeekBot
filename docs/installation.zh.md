@@ -84,7 +84,7 @@ dsh plugin --profile <your-profile> add @botharness/tobs@1.7.0
 
 使用你实际启动的 Profile 名称，之后在该 Profile 的插件页启用插件。
 
-如果想导入同一份已编译安装包，可以运行 `npm pack @botharness/tobs@1.7.0` 下载公共 npm tarball，它会在当前目录保存 `botharness-tobs-<version>.tgz`。在 Web 界面的「包名或地址」填写 **运行 DSH 的机器上的绝对路径**；另一台浏览器机器的路径不能替代 Host 路径。使用 CLI 时，也可以在下载目录运行 `dsh plugin --profile <your-profile> add ./botharness-tobs-<version>.tgz`。
+如果想导入同一份已编译安装包，可以运行 `npm pack @botharness/tobs@1.7.0` 下载公共 npm tarball，它会在当前目录保存 `botharness-tobs-1.7.0.tgz`。在 Web 界面的「包名或地址」填写 **运行 DSH 的机器上的绝对路径**；另一台浏览器机器的路径不能替代 Host 路径。使用 CLI 时，也可以在下载目录运行 `dsh plugin --profile <your-profile> add ./botharness-tobs-1.7.0.tgz`。
 
 ## 安装遇到问题
 
