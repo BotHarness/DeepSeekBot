@@ -1751,6 +1751,8 @@ printf '%s' '{"version":1,"session":"agent-qa-0001","entries":[{"ts":17800000000
 
 出问题时先运行 `doctor`。它返回一份报告：`ok`、`versions`（Tobs、DSH、Node、操作系统），以及 `checks`，逐项给出 `ok`、`warn`、`fail` 或 `skip`：DSH 目录、Host、Tobs 插件（Host 有响应但没有插件路由时报告 `plugin-not-loaded`）、最近一次版本或插件更新（阶段、失败原因、诊断信息和 `logPath`，需要 Host）、日志本身，以及最近 24 小时按错误码分组计数的错误。它还返回 `next` 建议命令和给编码 agent 的 `guide`：先看失败的检查项；不要删除或修改 DSH 目录里的数据；重启或重装前先问 Human；修不好时导出日志并附到预填好的 bug 报告里。Host 未运行、未配置或插件没有加载时，`doctor` 直接读取 `$DSH_HOME/botharness/logs.db`，并报告 `source: "offline"` 和 `fallback` 原因，所以界面打不开时也能用：把 `npx -y @botharness/tobs doctor` 这一行交给 Codex、Claude Code 等编码 agent 即可。Human 报告问题时，托布会先运行它。
 
+`doctor` 同样读取诊断完整性信息：主日志不可用时以 `log-unavailable` 警告并跳过错误计数；目录不存在时保留 `not-found`。主日志可读但存在已知证据缺口时以 `partial-evidence` 警告，显示的计数仅代表已观察到的错误，并附上相同完整性元数据。
+
 `diagnostic-logs` 按时间倒序返回条目（`source`、`category`、`level`、`code`、`session`、`fields`），并带上 `source`（`host` 或 `offline`）；与导出一样，它也会退回直接读取 `logs.db`，`--offline` 和 `--home` 的用法相同。导出的 ZIP 包含 `manifest.json`（时间范围、版本、计数、脱敏次数）、`logs.jsonl` 和易读的 `timeline.txt`；用户目录路径、token、密钥和邮箱会被替换，文件只会新建不会覆盖。当 Host 无法连接、无法登录或插件没有加载时，`diagnostic-logs-export` 会直接读取 `$DSH_HOME/botharness/logs.db`，生成同样已脱敏的 ZIP；`--offline` 跳过 Host，`--home` 指定其他 DSH 目录，结果会带上 `source: "offline"` 和 `fallback` 原因。除 Client 条目外，日志还为每个 Bot 回合记录一条 `bot-turn`（模型、首字耗时和总耗时、步数、工具调用和错误、结果，不含消息内容），为每条 IM 入站事件记录一条 `messaging-inbound`（`handled`、带原因的 `skipped` 或 `refused`），并把 Host 的结构化 `{"event","phase"}` 日志（如 `messaging-outbox`）存成带字段的条目。`diagnostic-log-record` 以 Web Client 相同的方式写入条目，用于 agent QA；拒绝码为 `invalid-report`、`report-too-large`、`rate-limited`（每分钟 600 条）和 `persistence-unavailable`。
 
 ### 问题报告
@@ -1761,7 +1763,9 @@ Web Client 的 **诊断日志 → 报告问题** 和 CLI 的 `bug-report` 生成
 printf '%s' '升级后群聊一直加载。' | deepseekbot bug-report --title "群聊一直加载" --body-stdin --attach ./screen.png [--attach ./more.txt] [--hours 0-168] --out report.zip [--offline] [--home <DSH_HOME>]
 ```
 
-结果包含 `saved`、`path`、`bytes`、`attachments`、`issueUrl`（带 ZIP 文件名）、`nextStep` 和 `source`。`--hours 0` 不带日志，默认 24 小时。与 `diagnostic-logs-export` 一样，Host 不可用时直接读取 `logs.db` 生成报告，并返回 `source: "offline"` 和 `fallback` 原因。拒绝码有 `usage`（标题和描述都为空、文件不存在、超过 20 个文件、`--out` 已存在）、`report-too-large`，以及 `not-found` 和 `log-unreadable`（两者都会建议用 `--hours 0`）。
+结果包含 `saved`、`path`、`bytes`、`attachments`、`issueUrl`（带 ZIP 文件名）、`nextStep` 和 `source`。`--hours 0` 明确排除日志，默认 24 小时。与 `diagnostic-logs-export` 一样，Host 不可用时以只读方式生成报告，并返回 `source: "offline"` 和 `fallback` 原因。拒绝码有 `usage`（标题和描述都为空、附件不存在、超过 20 个文件、`--out` 已存在）及 `report-too-large`。
+
+日志列表及 ZIP 清单包含 `completeness`：已知证据缺失时 `status` 为 `partial`，否则为 `unknown`，不宣称完整覆盖。`primary` 区分日志可读与不可用；`omissions` 引用现有丢失、溢出事实及导出截断标记。`health` 包含 `diagnostic-health.json` 中容量受限的阶段与原因、已知丢失数量下界、观察起点及最后成功写入时间；`evidence` 区分 `durable`、`memory-only` 与 `unavailable`。数据库缺失或不可读时，仍生成含可用健康元数据的不完整 ZIP，不伪造日志。离线读取保留原文件，不修复数据库。问题报告在 `logs.completeness` 中提供相同信息，小时数为 0 时标记 `omission: human-excluded`。CLI 日志导出结果也提供完整性信息，旧 Host 未提供时为 `unknown`。
 
 ### 消息反馈（#2811）
 

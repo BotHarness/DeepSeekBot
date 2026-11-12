@@ -2,10 +2,11 @@ import { writeZip } from '../bots/zip-archive.js';
 import type { LogDatabase } from '../logs/log-db.js';
 import {
   diagnosticLogFiles,
-  diagnosticLogRows,
+  availableDiagnosticRows,
   type DiagnosticLogEnvironment,
 } from './diagnostic-log.js';
 import { createDiagnosticRedactor } from './redaction.js';
+import type { LogHealthSnapshot } from './log-health.js';
 
 export const BUG_REPORT_PATH = '/api/botharness/bug-report';
 export const BUG_REPORT_FORMAT = 'tobs-bug-report';
@@ -162,6 +163,7 @@ export function buildBugReport(
     client?: string;
     now?: () => number;
     exportedBy: 'host' | 'cli-offline';
+    health?: LogHealthSnapshot;
   },
 ): BugReportResult {
   const report = validateBugReport(input);
@@ -172,14 +174,13 @@ export function buildBugReport(
   const client = options.client === undefined ? undefined : redactor.text(options.client);
   const encoder = new TextEncoder();
   const files: Array<{ path: string; data: Uint8Array }> = [];
-  let logs: Record<string, unknown> = { included: false };
+  let logs: Record<string, unknown> = { included: false, omission: 'human-excluded' };
   if (report.hours > 0) {
-    if (options.database === undefined)
-      throw new BugReportError(
-        'persistence-unavailable',
-        'The diagnostic log is unavailable; send the report without logs (hours 0).',
-      );
-    const { rows, since, truncated } = diagnosticLogRows(options.database, report.hours, until);
+    const { rows, since, truncated, primary } = availableDiagnosticRows(
+      options.database,
+      report.hours,
+      until,
+    );
     const built = diagnosticLogFiles(rows, {
       since,
       until,
@@ -187,6 +188,8 @@ export function buildBugReport(
       environment: options.environment,
       homes: options.homes,
       exportedBy: options.exportedBy,
+      primary,
+      ...(options.health === undefined ? {} : { health: options.health }),
     });
     for (const file of built.files)
       files.push({ path: `diagnostic-logs/${file.path}`, data: file.data });
@@ -195,6 +198,7 @@ export function buildBugReport(
       hours: report.hours,
       entries: built.manifest['entries'],
       truncated,
+      completeness: built.manifest['completeness'],
     };
   }
   const used = new Set<string>();
@@ -302,6 +306,7 @@ export async function parseBugReportForm(request: Request): Promise<{
 const HEADERS = { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' };
 
 export function createBugReportHttp(options: {
+  health?: () => LogHealthSnapshot;
   database(): LogDatabase | undefined;
   flush?(): void;
   environment: DiagnosticLogEnvironment;
@@ -321,6 +326,7 @@ export function createBugReportHttp(options: {
         ...(client === undefined ? {} : { client }),
         ...(options.now === undefined ? {} : { now: options.now }),
         exportedBy: 'host',
+        ...(options.health === undefined ? {} : { health: options.health() }),
       });
       options.log?.(
         `bug-report initiator=human phase=built attachments=${input.attachments.length} hours=${input.hours} bytes=${built.archive.byteLength}`,

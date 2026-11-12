@@ -845,6 +845,8 @@ flowchart TB
 | Session transcript / execution    | DSH SessionPersistence                                                           | only through a verified DSH export adapter; otherwise declared omitted |
 | credentials and DSH settings      | DSH services                                                                     | never copied; restore creates suspended rebind requests                |
 
+application-defined 诊断日志 owner 在 `logs.db` 之外，以 `$DSH_HOME/botharness/diagnostic-health.json` 保留容量受限且仅含元数据的健康证据（[ADR-0331](../adr/0331-diagnostic-log-health-is-independent-bounded-evidence.md)）。现有在线／离线日志列表、日志导出和问题报告 ZIP 明确标出不可用的主日志、丢失数量下界、省略项及未知覆盖范围。实时 writer 负责重试与恢复；离线 reader 不修复或修改任何来源。备用文件失败时仅保留明确标记为 process-local 的证据，不影响正常运行。
+
 v1 只有两个备份动作：Export Profile 生成一个 self-contained `.botharness-backup`，Import Profile 选择一个文件。没有自动备份、scheduler、catalog、retention 或 incremental chain。Restore 总是在隔离 staging 中验证；成功后 PersonaBot 仍为 cold，provider authority suspended，Workspace/model/plugin dependencies 必须在目标机重新解析并由 Human 明确激活。
 
 #886 的 v1 实现使用 application-defined Portability coordinator；各 owning module 提供历史 Memory 定位、当前附件引用闭包与恢复时的挂起转换。Database owner 在现有 Profile Writer Lease 下阻止事务写入并执行 `VACUUM INTO`；`ContentPurge.withCheckpoint` 覆盖同步快照与受管文件捕获。文件在捕获前后核对身份、时间、大小和 SHA-256，集合变化、缺失引用、超出资源／屏障时限均拒绝发布；屏障释放后压缩并完整校验。包保留 deleted identity 的 retained Memory，只有 canonical erasure proof 才允许省略；源 Git 授权配置替换为安全默认值，恢复后 hooks 隔离。当前界限为 DSH `0.2.0-rc.1`、60,000 entries 与 512 MiB；底层 Session 内容无已验证 adapter，明确标为 unsupported。
