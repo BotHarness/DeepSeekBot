@@ -18,6 +18,8 @@ export type GenuiDocumentFailure = (typeof GENUI_PAGE_FAILURES)[number];
 export type GenuiBridgeMessage =
   | { type: 'ready' }
   | { type: 'height'; height: number }
+  | { type: 'focus'; top: number; height: number }
+  | { type: 'blur' }
   | { type: 'failure'; reason: GenuiDocumentFailure }
   | { type: 'state'; state: GenuiDocumentState };
 
@@ -111,6 +113,22 @@ export function parseGenuiBridgeMessage(
   const message = value as Record<string, unknown>;
   if (message['instanceId'] !== instanceId) return undefined;
   if (message['type'] === 'ready' && keys(message) === 'instanceId,type') return { type: 'ready' };
+  if (message['type'] === 'blur' && keys(message) === 'instanceId,type') return { type: 'blur' };
+  if (message['type'] === 'focus' && keys(message) === 'height,instanceId,top,type') {
+    const top = message['top'];
+    const height = message['height'];
+    if (
+      typeof top === 'number' &&
+      Number.isFinite(top) &&
+      top >= 0 &&
+      typeof height === 'number' &&
+      Number.isFinite(height) &&
+      height > 0 &&
+      top + height <= GENUI_FRAME_MAX_HEIGHT
+    )
+      return { type: 'focus', top, height };
+    return undefined;
+  }
   if (message['type'] === 'height' && keys(message) === 'height,instanceId,type') {
     const height = message['height'];
     if (

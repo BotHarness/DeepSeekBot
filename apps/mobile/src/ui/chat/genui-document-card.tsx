@@ -7,7 +7,7 @@ import {
   useSyncExternalStore,
   type ComponentRef,
 } from 'react';
-import { Platform, View } from 'react-native';
+import { Platform, View, type ViewInstance } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 
 import { GENUI_EXECUTION_LIMITS } from '../../../../../packages/core/src/channels/genui-execution-limits';
@@ -33,7 +33,7 @@ import { useDesignTheme } from '../design/theme';
 import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
-import { GenuiReplies, GenuiViewHost, type GenuiReplySend } from './genui-view-client';
+import { GenuiInteraction, GenuiViewHost, type GenuiReplySend } from './genui-view-client';
 
 type Status = 'loading' | 'ready' | 'failed';
 
@@ -54,6 +54,7 @@ function GenuiFrame({
   onFailure(): void;
 }) {
   const theme = useDesignTheme();
+  const inputViewport = use(GenuiInteraction)?.inputViewport;
   const t = useStrings();
   const instanceId = useMemo(() => `genui-mobile-${++mounts}`, []);
   const [initial] = useState(() => view.getSnapshot().state);
@@ -65,6 +66,7 @@ function GenuiFrame({
     () => rememberedGenuiHeight(heightKey) ?? GENUI_EXECUTION_LIMITS.mirrorMinHeight,
   );
   const web = useRef<ComponentRef<typeof WebView>>(null);
+  const frame = useRef<ViewInstance | null>(null);
   const failed = useRef(false);
   const settled = useRef(false);
   const synced = useRef(JSON.stringify(initial));
@@ -110,15 +112,18 @@ function GenuiFrame({
     }, GENUI_EXECUTION_LIMITS.startupMs * 2);
   };
   const attach = useCallback(
-    (node: unknown): void | (() => void) => {
+    (node: ViewInstance | null): void | (() => void) => {
       if (node === null) return;
+      frame.current = node;
       const unsubscribe = view.subscribe(sync);
       return () => {
+        inputViewport?.(node, undefined);
+        if (frame.current === node) frame.current = null;
         clearTimeout(startup.current);
         unsubscribe();
       };
     },
-    [view, sync],
+    [view, sync, inputViewport],
   );
   const queue = useCallback((node: unknown): void | (() => void) => {
     if (node === null) return;
@@ -145,6 +150,14 @@ function GenuiFrame({
       const visible = Math.ceil(message.height * zoom);
       rememberGenuiHeight(heightKey, visible);
       setHeight(visible);
+    } else if (message.type === 'focus' || message.type === 'blur') {
+      if (Platform.OS === 'ios' && frame.current)
+        inputViewport?.(
+          frame.current,
+          message.type === 'blur'
+            ? undefined
+            : { top: message.top * zoom, height: message.height * zoom },
+        );
     } else if (message.type === 'state') {
       const identity = JSON.stringify(message.state);
       if (identity === synced.current) return;
@@ -373,7 +386,7 @@ export function GenuiDocumentCard({
   const frame = `${attempt}:${current.mount}:${look}`;
   const [readyFrame, setReadyFrame] = useState<string>();
   const ready = readyFrame === frame;
-  const send = use(GenuiReplies);
+  const send = use(GenuiInteraction)?.send;
   return (
     <View style={{ gap: space.x3 }} testID="genui-document-card">
       <Text variant="body" strong>

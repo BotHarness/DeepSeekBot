@@ -116,6 +116,7 @@ import { runningSessionCount } from '../../host/session-stop';
 import { ConversationTopBar } from './conversation-top-bar';
 import { ChatBackdrop } from './chat-backdrop';
 import { Composer, type ComposerInput } from './composer';
+import { useGenuiInputViewport } from './genui-input-viewport';
 import { ComposerFollower, ComposerPillContext, ComposerSpacer } from './composer-pill';
 import { GroupUnavailable } from './group-unavailable';
 import { DraftSaveNotice } from './draft-save-notice';
@@ -161,7 +162,7 @@ import { useBotNames } from './use-bot-names';
 import { ImageViewer } from './image-viewer';
 import { JumpToLatest } from './jump-to-latest';
 import { DeliverySheet } from './delivery-sheet';
-import { GenuiReplies, GenuiViewHost } from './genui-view-client';
+import { GenuiInteraction, GenuiViewHost } from './genui-view-client';
 import type { GenuiDocumentReply } from '../../genui/document';
 import { ChatOffline } from './chat-offline';
 import { MessageActions, type MessageMenuTarget } from './message-actions';
@@ -750,6 +751,20 @@ function ChatConversation({
     [speakers, scroll, viewport, viewportLayout, frame, content, android, composerHeight],
   );
   const composerInput = useRef<ComposerInput>(null);
+  const genuiInputViewport = useGenuiInputViewport(
+    composerInput,
+    latest.reveal,
+    headerOverlap + headerPadding + space.x3,
+    Platform.OS === 'ios' && focused && !profileOpen && !profileOpening,
+    selectionScope,
+  );
+  const genuiInteraction = useMemo(
+    () => ({
+      send: dm && conversation !== undefined ? sendGenuiReply : undefined,
+      inputViewport: Platform.OS === 'ios' ? genuiInputViewport : undefined,
+    }),
+    [dm, conversation, sendGenuiReply, genuiInputViewport],
+  );
   const flights = useMemo(() => createSendFlights(false), []);
   const launchFly = useCallback((): SendFlight => {
     const flight: SendFlight = { from: undefined };
@@ -1807,7 +1822,7 @@ function ChatConversation({
   return (
     <ChatOffline value={!online}>
       <GenuiViewHost value={client}>
-        <GenuiReplies value={dm && conversation !== undefined ? sendGenuiReply : undefined}>
+        <GenuiInteraction value={genuiInteraction}>
           {paging === undefined && presentation === undefined ? (
             <Stack.Screen
               options={{
@@ -2437,7 +2452,7 @@ function ChatConversation({
               }
             />
           )}
-        </GenuiReplies>
+        </GenuiInteraction>
       </GenuiViewHost>
     </ChatOffline>
   );

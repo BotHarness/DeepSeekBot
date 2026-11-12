@@ -240,6 +240,12 @@ describe('GenUI native WebView bridge', () => {
       message({ type: 'height', height: -5 }),
       message({ type: 'height', height: GENUI_FRAME_MAX_HEIGHT + 1 }),
       message({ type: 'height', height: '100' }),
+      message({ type: 'focus', top: -1, height: 40 }),
+      message({ type: 'focus', top: GENUI_FRAME_MAX_HEIGHT, height: 40 }),
+      message({ type: 'focus', top: 100, height: 0 }),
+      message({ type: 'focus', top: '100', height: 40 }),
+      message({ type: 'focus', top: 100, height: 40, value: 'private input' }),
+      message({ type: 'blur', top: 100 }),
       message({ type: 'failure', reason: 'navigate' }),
       message({ type: 'navigate', url: 'https://example.com' }),
       JSON.stringify([{ type: 'ready', instanceId: 'genui-mobile-1' }]),
@@ -249,6 +255,18 @@ describe('GenUI native WebView bridge', () => {
       undefined,
     ])
       expect(parseGenuiBridgeMessage(data, 'genui-mobile-1')).toBeUndefined();
+  });
+
+  it('accepts only current-mount input geometry without input contents', () => {
+    expect(
+      parseGenuiBridgeMessage(message({ type: 'focus', top: 300, height: 100 }), 'genui-mobile-1'),
+    ).toEqual({ type: 'focus', top: 300, height: 100 });
+    expect(parseGenuiBridgeMessage(message({ type: 'blur' }), 'genui-mobile-1')).toEqual({
+      type: 'blur',
+    });
+    expect(
+      parseGenuiBridgeMessage(message({ type: 'focus', top: 300, height: 100 }), 'other-mount'),
+    ).toBeUndefined();
   });
 
   it('allows only the initial document and its script-disabled mirror frame', () => {

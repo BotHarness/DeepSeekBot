@@ -51,17 +51,36 @@ const previewReport = `const status = { ready: false, measured: false, failed: f
 function nativeReport(instanceId: string): string {
   return `const channel = window.ReactNativeWebView;
     let stopped = false;
+    let focusChanged = () => {};
     const post = (message) => { try { channel.postMessage(JSON.stringify({ instanceId: ${scriptJson(instanceId)}, ...message })); } catch {} };
     const failed = (reason) => {
       if (stopped) return;
       stopped = true;
       post({ type: 'failure', reason: ${scriptJson(GENUI_PAGE_FAILURES)}.includes(reason) ? reason : 'unsupported' });
     };
-    const measured = (height) => { if (!stopped) post({ type: 'height', height }); };
+    const measured = (height) => { if (!stopped) { post({ type: 'height', height }); focusChanged(); } };
     const ready = () => { if (!stopped) post({ type: 'ready' }); };
     const startupFailed = () => failed('startup');
     const changed = (state) => { if (!stopped) post({ type: 'state', state }); };
     const attach = (surface) => {
+      surface.ready.then(() => {
+        const frame = document.querySelector('#genui-document iframe');
+        const mirror = frame?.contentDocument;
+        if (!mirror) return;
+        const focus = () => {
+          if (stopped) return;
+          const field = mirror.activeElement;
+          if (!field || !['input', 'textarea'].includes(field.localName)) {
+            post({ type: 'blur' });
+            return;
+          }
+          const box = field.getBoundingClientRect();
+          post({ type: 'focus', top: frame.getBoundingClientRect().top + box.top, height: box.height });
+        };
+        focusChanged = focus;
+        mirror.addEventListener('focusin', focus);
+        mirror.addEventListener('focusout', () => requestAnimationFrame(focus));
+      }, () => {});
       const receive = (event) => {
         if (stopped || typeof event.data !== 'string' || event.data.length > ${GENUI_NATIVE_INBOUND_BYTES}) return;
         let message;
