@@ -55,6 +55,31 @@ function service(
   });
 }
 describe('compatible release discovery', () => {
+  it('records restart only after approval, and preserves a restart failure', async () => {
+    const restartRequested = vi.fn();
+    const restartFailed = vi.fn();
+    const restart = vi.fn(() => {
+      throw new Error('restart fixture refusal');
+    });
+    const release = service(fixture(), {
+      installer: () => ({
+        listBundles: async () => [{ name: 'deepseekbot', installed: true, version: '1.3.2' }],
+        installBundle: async () => ({ application: 'restart-required' }),
+      }),
+      restarter: () => ({ restart }),
+      diagnostics: { restartRequested, restartFailed },
+    });
+    await expect(
+      release.restart(() => {
+        throw new Error('approval refusal');
+      }),
+    ).rejects.toThrow('approval refusal');
+    expect(restartRequested).not.toHaveBeenCalled();
+    expect(restart).not.toHaveBeenCalled();
+    await expect(release.restart()).rejects.toThrow('restart fixture refusal');
+    expect(restartRequested).toHaveBeenCalledExactlyOnceWith('1.3.2');
+    expect(restartFailed).toHaveBeenCalledOnce();
+  });
   it('offers the newest compatible release when latest requires a newer DSH', async () => {
     expect(await service(fixture()).update()).toMatchObject({
       status: 'available',

@@ -1732,6 +1732,15 @@ tobs profile-backup-restore --file environment.botharness-backup --new-home new-
 
 ### 诊断日志
 
+版本更新尝试以 `source: "release-update"` 记录，包含稳定的 `updateId`、安全的
+`oldVersion`/`targetVersion` 和已观测阶段。重启后，`startup-observed` 将同一 ID 关联到
+数据库启动的 `mountId`；`targetObserved` 只比较运行版本，`previousProcessExit` 和中断的
+`transitionOutcome` 保持 `unknown`。这些是过程证据，不是重新安装或重启的授权。
+沿用 `release-install`、`update-run`、`update-cancel` 和需确认的 `release-restart` 命令。
+用 `diagnostic-logs --kind all`、`diagnostic-logs-export` 或 `bug-report` 查看关联记录；
+Host 停止后用 `--offline --home <DSH_HOME>` 读取同一批保留日志。每个 Profile 的待关联标记
+七天后过期，不能恢复此前缺失的日志条目。
+
 数据库启动会写入结构化的 `operational-database` 条目：`mount-started`、`ready`、`recovery`、`failure-cause` 和 `closed`。用 `mountId` 和 `pid` 关联同一次启动，查看 `stage`、数据库代数、耗时及有数量限制的原因链（`code`、SQLite `errcode`、`syscall` 和脱敏消息）。租约失败会区分打开锁文件、取得写锁和发布占锁信息三个阶段。`writerPid`、`writerInstanceId`、`writerAcquiredAt` 和 `writerRelation` 仅描述失败时观察到的元数据，不证明对应进程仍存活；`writerEvidence: metadata-only` 明确标识这一限制，缺少元数据则为 `unavailable`。报告不包含机器名和进程命令行。租约没有固定到期时间，诊断不会删锁或终止进程。即使业务启动失败，现有在线／离线导出和问题报告 ZIP 也会包含这些条目。
 
 Core 启动另行写入 `core-startup` 记录：`started`、`ready`、`failed`，以及最多四条 `failure-cause`。通过 `attemptId`、`mountId` 和 `pid` 关联本次构造与数据库启动；`module`、`stage`、`durationMs` 和 `stageDurationMs` 定位失败的初始化步骤。`databaseMode` 仅记录挂载模式，不替代数据库所有者。`scope: application-core` 只表示同步 Core 构造完成；数据库、Core、DSH Host/API/Client 就绪是独立事实。进程突然退出后缺少终态时，结果为未知。错误原因只保留白名单内的错误类型、OS/SQLite 错误码、SQLite 数字错误码及系统调用名；不保存消息文本、堆栈及任意抛出值，以排除路径和用户内容。现有诊断日志及错误报告的离线导出保留失败尝试，并可区分后续成功重启；诊断持久化仍为尽力记录。
