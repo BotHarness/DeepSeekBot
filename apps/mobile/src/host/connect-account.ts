@@ -54,6 +54,10 @@ export type ConnectRefusal =
   | 'account-not-allowed'
   | 'host-offline'
   | 'host-refused'
+  | 'host-not-found'
+  | 'current-host'
+  | 'session-unknown'
+  | 'invalid-host-id'
   | 'relay-unavailable'
   | 'account-changed'
   | 'account-identity-required'
@@ -66,6 +70,7 @@ export interface ConnectHost {
   name: string;
   hostname: string;
   online: boolean;
+  sessionKnown?: boolean;
 }
 
 export type ConnectResult<T> =
@@ -185,6 +190,9 @@ export function createConnectAccount(options: {
       throw new Refused('host-offline', relayFailureDetail(code, error['cause']));
     if (code === 'host-refused')
       throw new Refused('host-refused', relayFailureDetail(code, error['cause']));
+    if (reply.status === 404 && code === 'host-not-found') throw new Refused('host-not-found');
+    if (reply.status === 409 && (code === 'current-host' || code === 'session-unknown'))
+      throw new Refused(code);
     if (reply.status !== 200)
       throw new Refused(
         'relay-unavailable',
@@ -457,10 +465,33 @@ export function createConnectAccount(options: {
                     typeof host['connected'] === 'boolean'
                       ? host['connected']
                       : host['tunnel'] === true,
+                  ...(typeof host['sessionKnown'] === 'boolean'
+                    ? { sessionKnown: host['sessionKnown'] }
+                    : {}),
                 },
               ]
             : [];
         });
+      }),
+
+    revokeHost: (expected: string, hostId: string) =>
+      settle(async () => {
+        await current(expected);
+        if (!/^h[a-z0-9]+$/u.test(hostId) || hostId.length > 255)
+          throw new Refused('invalid-host-id');
+        const body = await relayCall(
+          `/v1/hosts/${encodeURIComponent(hostId)}/revoke`,
+          await access(),
+          undefined,
+          'POST',
+        );
+        if (
+          body['deleted'] !== true ||
+          typeof body['sessionKnown'] !== 'boolean' ||
+          typeof body['sessionRevoked'] !== 'boolean'
+        )
+          throw new Refused('relay-unavailable');
+        return { sessionKnown: body['sessionKnown'], sessionRevoked: body['sessionRevoked'] };
       }),
 
     offer: (hostId: string, deviceName: string) =>

@@ -89,9 +89,20 @@ No session IDs, relay keys or tokens reach the Client, CLI or public evidence.
 
 Migration `0005_host_sessions.sql` must precede the Worker rollout. Remote migration/deployment,
 real hosted end-to-end behavior, installed Desktop acceptance and Human acceptance remain separate
-gates. Mobile management is deliberately deferred. The performance cost is one indexed tombstone
+gates. Mobile management consumes this same contract (amendment below). The performance cost is one indexed tombstone
 lookup per session-authenticated relay request; account list reads are on-demand, never added to
 the three-second Devices snapshot poll. Tests guard snapshot request counts and the five-link cap.
+
+## Amendment — mobile linked-computer management (2026-11-12, #4039)
+
+The mobile Connect account client consumes the existing list and session-aware revoke endpoint
+without requiring a Paired Device or live Host. A named confirmation captures the phone's existing
+account action key; the account owner checks that key in its serialized operation before refreshing
+credentials and revoking the target. The relay remains the durable association/session authority.
+No new Host bridge, database or credential store is introduced. Receipt validation distinguishes
+session revocation from legacy removal; legacy reconnection limitations remain visible. Phone
+pairings and account sign-in stay intact. Failed list refreshes retain content but disable unlink
+until a fresh read. The existing on-demand refresh cadence remains unchanged.
 
 ## Trust boundaries
 

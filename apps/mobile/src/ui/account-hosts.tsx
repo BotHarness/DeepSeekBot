@@ -1,6 +1,6 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import type { ConnectAccount, ConnectHost } from '../host/connect-account';
+import type { ConnectAccount, ConnectHost, ConnectResult } from '../host/connect-account';
 import type { SavedHost } from '../host/hosts';
 import { accountHostAdded } from '../host/account-pairing';
 import { confirmDestructive } from './primitives/app-dialog';
@@ -13,6 +13,7 @@ export function AccountHosts(props: {
     | 'email'
     | 'signIn'
     | 'hosts'
+    | 'revokeHost'
     | 'signOut'
     | 'deleteAccount'
     | 'actionKey'
@@ -32,6 +33,9 @@ export function AccountHosts(props: {
   const [hosts, setHosts] = useState<ConnectHost[]>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
+  const [notice, setNotice] = useState<string>();
+  const [managing, setManaging] = useState(false);
+  const [fresh, setFresh] = useState(false);
   const [pendingDeletion, setPendingDeletion] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const generation = useRef(0);
@@ -40,7 +44,8 @@ export function AccountHosts(props: {
   const locked = useRef(false);
   locked.current = props.busy || loading;
 
-  const load = async (ticket: number): Promise<void> => {
+  const load = async (ticket: number): Promise<ConnectResult<ConnectHost[]> | undefined> => {
+    setFresh(false);
     setLoading(true);
     setError(undefined);
     const listed = await account.hosts();
@@ -48,14 +53,17 @@ export function AccountHosts(props: {
     setLoading(false);
     if (listed.ok) {
       setHosts(listed.value);
-      return;
+      setFresh(true);
+      return listed;
     }
     setError(t.pairRefused[listed.code]);
     if (listed.code === 'sign-in-required') {
       setEmail(null);
       setHosts(undefined);
+      setFresh(false);
       setSelected([]);
     }
+    return listed;
   };
   useFocusEffect(
     useCallback(() => {
@@ -65,6 +73,8 @@ export function AccountHosts(props: {
       setEmail(false);
       setLoading(false);
       setError(undefined);
+      setNotice(undefined);
+      setManaging(false);
       setHosts(undefined);
       setSelected([]);
       void account
@@ -96,21 +106,49 @@ export function AccountHosts(props: {
   );
 
   const run = async (
-    action: 'signIn' | 'signOut' | 'deleteAccount' | 'finishLocalCleanup' | 'refresh',
+    action:
+      | 'signIn'
+      | 'signOut'
+      | 'deleteAccount'
+      | 'finishLocalCleanup'
+      | 'refresh'
+      | 'revokeHost',
     confirmedKey?: string,
+    hostId?: string,
   ) => {
     if (working.current || locked.current) return;
     working.current = true;
     const ticket = ++generation.current;
     setLoading(true);
     setError(undefined);
+    setNotice(undefined);
     try {
       if (action === 'refresh') await load(ticket);
       else {
         const result =
-          action === 'signIn' ? await account.signIn() : await account[action](confirmedKey ?? '');
+          action === 'signIn'
+            ? await account.signIn()
+            : action === 'revokeHost'
+              ? await account.revokeHost(confirmedKey ?? '', hostId ?? '')
+              : await account[action](confirmedKey ?? '');
         if (ticket !== generation.current) return;
         if (!result.ok) {
+          if (result.code === 'sign-in-required') {
+            setEmail(null);
+            setHosts(undefined);
+            setSelected([]);
+          }
+          if (action === 'revokeHost' && result.code === 'host-not-found') {
+            const refreshed = await load(ticket);
+            if (ticket !== generation.current) return;
+            if (refreshed === undefined) return t.pairRefused['relay-unavailable'];
+            if (!refreshed.ok) return t.pairRefused[refreshed.code];
+            if (!refreshed.value.some((host) => host.id === hostId)) {
+              setSelected((old) => old.filter((id) => id !== hostId));
+              setNotice(t.pairAccount.alreadyUnlinked);
+              return;
+            }
+          }
           setError(t.pairRefused[result.code]);
           return t.pairRefused[result.code];
         }
@@ -118,6 +156,13 @@ export function AccountHosts(props: {
         if (action === 'deleteAccount' || action === 'signOut' || action === 'finishLocalCleanup') {
           setEmail(null);
           setHosts(undefined);
+        } else if (action === 'revokeHost') {
+          if (result.value && typeof result.value === 'object')
+            setNotice(
+              result.value.sessionKnown ? t.pairAccount.unlinked : t.pairAccount.legacyUnlinked,
+            );
+          setHosts((old) => old?.filter((host) => host.id !== hostId));
+          await load(ticket);
         } else {
           setEmail(typeof result.value === 'string' ? result.value : undefined);
           await load(ticket);
@@ -143,20 +188,29 @@ export function AccountHosts(props: {
       if (ticket === generation.current) setLoading(false);
     }
   };
-  const confirm = (action: 'signOut' | 'deleteAccount' | 'finishLocalCleanup') => {
+  const confirm = (
+    action: 'signOut' | 'deleteAccount' | 'finishLocalCleanup' | 'revokeHost',
+    host?: ConnectHost,
+  ) => {
     if (working.current || locked.current || !actionKey.current) return;
     let ticket = generation.current;
     const confirmedKey = actionKey.current;
     let used = false;
     const copy =
-      action === 'finishLocalCleanup'
-        ? [t.pairAccount.cleanupTitle, t.pairAccount.cleanupMessage, t.pairAccount.cleanupConfirm]
-        : action === 'signOut'
-          ? [t.pairAccount.signOutTitle, t.pairAccount.signOutMessage, t.pairAccount.signOut]
-          : [t.pairAccount.deleteTitle, t.pairAccount.deleteMessage, t.pairAccount.deleteConfirm];
+      action === 'revokeHost' && host
+        ? [
+            t.pairAccount.unlinkTitle(host.name),
+            host.sessionKnown ? t.pairAccount.unlinkMessage : t.pairAccount.legacyUnlinkMessage,
+            t.pairAccount.unlink,
+          ]
+        : action === 'finishLocalCleanup'
+          ? [t.pairAccount.cleanupTitle, t.pairAccount.cleanupMessage, t.pairAccount.cleanupConfirm]
+          : action === 'signOut'
+            ? [t.pairAccount.signOutTitle, t.pairAccount.signOutMessage, t.pairAccount.signOut]
+            : [t.pairAccount.deleteTitle, t.pairAccount.deleteMessage, t.pairAccount.deleteConfirm];
     confirmDestructive(copy[0]!, copy[1]!, copy[2]!, async () => {
       if (used || ticket !== generation.current || locked.current || working.current) return;
-      const failure = await run(action, confirmedKey);
+      const failure = await run(action, confirmedKey, host?.id);
       if (failure) {
         if (generation.current === ticket + 1) ticket = generation.current;
         throw new Error(failure);
@@ -177,21 +231,37 @@ export function AccountHosts(props: {
       loading={loading}
       busy={props.busy}
       error={error}
+      notice={notice}
+      managing={managing}
+      managementDisabled={!fresh || pendingDeletion}
+      onManage={() => {
+        if (locked.current || working.current || pendingDeletion) return;
+        setManaging((old) => !old);
+        setSelected([]);
+      }}
+      onRevoke={(id) => {
+        const host = hosts?.find((entry) => entry.id === id);
+        if (managing && fresh && host && !pendingDeletion) confirm('revokeHost', host);
+      }}
       rows={hosts?.map((host) => {
         const isAdded = added(host),
           result = props.results[host.id];
-        const detail = isAdded
-          ? t.pairAccount.added
-          : result === 'cancelled'
-            ? t.pairAccount.cancelled
-            : result && result !== 'added'
-              ? [t.pairRefused[result], props.failureDetails?.[host.id]]
-                  .filter((part) => part !== undefined)
-                  .map((part, index) => (index === 0 ? part : t.pairFailureDetail(part)))
-                  .join('\n')
-              : host.online
-                ? t.pairAccount.online
-                : t.pairAccount.offline;
+        const detail = managing
+          ? host.online
+            ? t.pairAccount.online
+            : t.pairAccount.offline
+          : isAdded
+            ? t.pairAccount.added
+            : result === 'cancelled'
+              ? t.pairAccount.cancelled
+              : result && result !== 'added'
+                ? [t.pairRefused[result], props.failureDetails?.[host.id]]
+                    .filter((part) => part !== undefined)
+                    .map((part, index) => (index === 0 ? part : t.pairFailureDetail(part)))
+                    .join('\n')
+                : host.online
+                  ? t.pairAccount.online
+                  : t.pairAccount.offline;
         return {
           id: host.id,
           name: host.name,

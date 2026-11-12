@@ -28,6 +28,7 @@ function AccountActionsFixture() {
     'expired-retry',
     'completion-write',
     'environments',
+    'linked-computers',
   ];
   const scenario = scenarios.find((value) => value === params.scenario) ?? 'success';
   const [reset, setReset] = useState(0);

@@ -79,16 +79,30 @@ export function AccountPanel(props: AccountPanelProps) {
           </Section>
           {props.email !== null && props.email !== false ? (
             <Section title={t.pairAccount.computers} modifiers={row}>
+              <Button
+                testID="account-manage-computers"
+                label={props.managing ? t.pairAccount.doneManaging : t.pairAccount.manage}
+                systemImage="desktopcomputer"
+                onPress={props.onManage}
+                modifiers={[disabled(locked || props.pendingDeletion === true)]}
+              />
               {props.rows?.map((row) => (
                 <Button
                   key={row.id}
                   testID={`account-computer-${row.id}`}
-                  onPress={() => props.onToggle(row.id)}
+                  role={props.managing ? 'destructive' : 'default'}
+                  onPress={() => (props.managing ? props.onRevoke(row.id) : props.onToggle(row.id))}
                   modifiers={[
                     buttonStyle('plain'),
-                    disabled(row.disabled || locked),
+                    disabled(
+                      locked ||
+                        props.pendingDeletion === true ||
+                        (props.managing ? props.managementDisabled === true : row.disabled),
+                    ),
                     accessibilityLabel(
-                      `${row.name}, ${row.pairing ? t.pairAccount.pairing : row.detail}${row.selected ? `, ${t.pairAccount.selected}` : ''}`,
+                      props.managing
+                        ? `${t.pairAccount.unlinkTitle(row.name)}, ${row.detail}`
+                        : `${row.name}, ${row.pairing ? t.pairAccount.pairing : row.detail}${row.selected ? `, ${t.pairAccount.selected}` : ''}`,
                     ),
                   ]}
                 >
@@ -105,7 +119,11 @@ export function AccountPanel(props: AccountPanelProps) {
                           }),
                         ]}
                       >
-                        {row.pairing ? t.pairAccount.pairing : row.detail}
+                        {props.managing
+                          ? `${row.detail} · ${t.pairAccount.unlink}`
+                          : row.pairing
+                            ? t.pairAccount.pairing
+                            : row.detail}
                       </Text>
                     </VStack>
                     <Spacer />
@@ -139,6 +157,11 @@ export function AccountPanel(props: AccountPanelProps) {
               />
             </Section>
           ) : null}
+          {props.notice ? (
+            <Section modifiers={row}>
+              <Text>{props.notice}</Text>
+            </Section>
+          ) : null}
           {props.error ? (
             <Section modifiers={row}>
               <Text modifiers={[foregroundStyle({ type: 'color', color: theme.color.danger })]}>
@@ -148,7 +171,7 @@ export function AccountPanel(props: AccountPanelProps) {
           ) : null}
         </Form>
       </Host>
-      {props.rows?.length ? (
+      {!props.managing && props.rows?.length ? (
         <StepBar
           primary={{
             testID: 'account-add-selected',

@@ -10,7 +10,13 @@ const REDIRECT = 'ai.botharness.deepseekbot.dev:/oauth2redirect';
 const challenge = async (value: string) => createHash('sha256').update(value).digest('base64url');
 
 function fakeRelay(
-  options: { offline?: boolean; expired?: boolean; deletion?: number; hostname?: string } = {},
+  options: {
+    offline?: boolean;
+    expired?: boolean;
+    deletion?: number;
+    hostname?: string;
+    revoke?: { status: number; body: unknown };
+  } = {},
 ) {
   let stored: string | null = null;
   let randoms = 0;
@@ -59,6 +65,11 @@ function fakeRelay(
       return options.deletion === undefined
         ? Response.json({ deleted: true })
         : Response.json({ error: { code: 'upstream-unavailable' } }, { status: options.deletion });
+    if (url === `${RELAY}/v1/hosts/hlaptop/revoke` && init?.method === 'POST')
+      return Response.json(
+        options.revoke?.body ?? { deleted: true, sessionKnown: true, sessionRevoked: true },
+        { status: options.revoke?.status ?? 200 },
+      );
     return Response.json({}, { status: 404 });
   });
   const authorize = vi.fn(async (url: string) => {
@@ -84,6 +95,50 @@ function fakeRelay(
 }
 
 describe('phone Connect account', () => {
+  it('revokes an offline computer from the signed-in phone without pairing or signing the phone out', async () => {
+    const relay = fakeRelay();
+    await relay.account.signIn();
+    const key = await relay.account.actionKey();
+    expect(await relay.account.revokeHost(key!, 'hlaptop')).toEqual({
+      ok: true,
+      value: { sessionKnown: true, sessionRevoked: true },
+    });
+    expect(relay.calls.at(-1)).toMatchObject({
+      url: `${RELAY}/v1/hosts/hlaptop/revoke`,
+      method: 'POST',
+      auth: 'Bearer access-1',
+    });
+    expect(await relay.account.email()).toBe('alice@example.com');
+    expect(await relay.account.actionKey()).toBe(key);
+    expect(relay.calls.some((call) => call.url.endsWith('/offer'))).toBe(false);
+  });
+
+  it('refuses a confirmation from a previous phone login before contacting the relay', async () => {
+    const relay = fakeRelay();
+    await relay.account.signIn();
+    const key = await relay.account.actionKey();
+    await relay.account.signIn();
+    expect(await relay.account.revokeHost(key!, 'hlaptop')).toEqual({
+      ok: false,
+      code: 'account-changed',
+    });
+    expect(relay.calls.some((call) => call.url.endsWith('/revoke'))).toBe(false);
+  });
+
+  it.each([
+    [404, { error: { code: 'host-not-found' } }, 'host-not-found'],
+    [409, { error: { code: 'current-host' } }, 'current-host'],
+    [409, { error: { code: 'session-unknown' } }, 'session-unknown'],
+    [502, { error: { code: 'upstream-unavailable' } }, 'relay-unavailable'],
+    [200, { deleted: true }, 'relay-unavailable'],
+  ])('does not turn an incomplete revoke receipt (%s) into success', async (status, body, code) => {
+    const relay = fakeRelay({ revoke: { status, body } });
+    await relay.account.signIn();
+    expect(
+      await relay.account.revokeHost((await relay.account.actionKey())!, 'hlaptop'),
+    ).toMatchObject({ ok: false, code });
+  });
+
   it('signs in with PKCE against the relay client and lists the linked Hosts', async () => {
     const relay = fakeRelay();
     expect(await relay.account.email()).toBeNull();
