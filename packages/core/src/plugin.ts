@@ -166,6 +166,8 @@ import type { BotAgentSetupInfo } from './runtime/dsh-bot-agent-adapter.js';
 import { registerBridge } from './bridge/rpc.js';
 import { mountClientDiagnostics } from './diagnostics/client-diagnostics.js';
 import { mountDiagnosticLog } from './diagnostics/diagnostic-log.js';
+import { createCoreStartup } from './diagnostics/core-startup.js';
+import type { DiagnosticEvents } from './diagnostics/diagnostic-log.js';
 import { recordDatabaseStartup } from './diagnostics/database-startup.js';
 import { createCoreTakeoverHandoffs, mountTakeoverTools } from './takeover/mount.js';
 import { createTurnLog } from './diagnostics/turn-log.js';
@@ -624,6 +626,7 @@ export function createCore(
     dshHome?: string;
     companionProfileDir?: string | undefined;
     warn?: (message: string) => void;
+    startupDiagnostic?: DiagnosticEvents;
     databaseDiagnostic?: (
       snapshot: import('./database/owner.js').OperationalDatabaseDiagnostics,
     ) => void;
@@ -667,15 +670,34 @@ export function createCore(
     voiceFetch?: typeof fetch;
   } = {},
 ): BotHarnessCore {
+  const startup = createCoreStartup(options.startupDiagnostic);
+  try {
+    const core = initializeCore(options, startup);
+    startup.ready();
+    return core;
+  } catch (error) {
+    try {
+      startup.failed(error);
+    } catch {}
+    throw error;
+  }
+}
+
+function initializeCore(
+  options: NonNullable<Parameters<typeof createCore>[0]>,
+  startup: ReturnType<typeof createCoreStartup>,
+): BotHarnessCore {
   const dshHome = options.dshHome ?? resolveDshHome();
   const rootDir = join(dshHome, 'botharness', 'bots');
   const operationalDatabase = mountOperationalDatabase({
     dshHome,
+    instanceId: startup.mountId,
     schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
     ...(options.databaseDiagnostic === undefined
       ? {}
       : { onDiagnostic: options.databaseDiagnostic }),
   });
+  startup.mounted(operationalDatabase.diagnostics());
   if (operationalDatabase.recovery !== undefined)
     options.warn?.(
       `operational-database initiator=host-startup phase=recovery code=${operationalDatabase.recovery.code} path=${JSON.stringify(operationalDatabase.databasePath)} reason=${JSON.stringify(operationalDatabase.recovery.message)}`,
@@ -685,6 +707,7 @@ export function createCore(
       `operational-database initiator=host-startup phase=foreign-key-orphans path=${JSON.stringify(operationalDatabase.databasePath)} orphans=${JSON.stringify(operationalDatabase.foreignKeyOrphans)}`,
     );
   let usage: UsageProjection | undefined;
+  startup.enter('avatar-part-library', 'initialize');
   const partLibrary = createPartLibrary({
     database: attachOperationalModule(operationalDatabase, 'avatar-part-library'),
   });
@@ -693,6 +716,7 @@ export function createCore(
   let roster: RosterStore;
   let live: ChannelLiveHub | undefined;
   try {
+    startup.enter('bot-registry', 'initialize');
     registry = createPersonaBotRegistry({
       rootDir,
       database: operationalDatabase,
@@ -744,11 +768,13 @@ export function createCore(
             };
       },
     });
+    startup.enter('roster', 'initialize');
     roster = createRosterStore({
       database: operationalDatabase,
       warn: options.warn,
       onCommitted: () => live?.publishRosterCommitted(),
     });
+    startup.enter('model-presets', 'initialize');
     modelPresets = createModelPresetStore({
       rootDir: join(dshHome, 'botharness'),
       database: operationalDatabase,
@@ -762,20 +788,27 @@ export function createCore(
     throw error;
   }
   if (operationalDatabase.mode === 'ready') {
+    startup.enter('bot-registry', 'backfill-banners');
     backfillBotBanners(registry, options.warn);
+    startup.enter('bot-registry', 'backfill-descriptors');
     backfillBotDescriptors(registry, options.warn);
+    startup.enter('bot-registry', 'migrate-souls');
     migrateLegacySouls(registry, options.warn);
   }
+  startup.enter('bot-state', 'initialize');
   const states = createBotStateTracker();
+  startup.enter('attachments', 'initialize');
   const attachments = createAttachmentStore({
     rootDir: join(dshHome, 'botharness', 'attachments'),
   });
   let changedFiles: ((fileId: string) => void) | undefined;
+  startup.enter('media-versions', 'initialize');
   const mediaVersions = createMediaVersions(
     attachments,
     () => loadImageProcessor(options.warn),
     (fileId) => changedFiles?.(fileId),
   );
+  startup.enter('content-purge', 'initialize');
   const contentPurge = mountContentPurge({
     dshHome,
     database: operationalDatabase,
@@ -807,9 +840,11 @@ export function createCore(
   let runtime: BotRuntime | undefined;
   let companions: CompanionFeed | undefined;
   let reconcileToolRuleCreators: ((botSlug: string) => void) | undefined;
+  startup.enter('bot-inbox', 'initialize');
   const sourcePolicy = createBotSourcePolicyStore(
     attachOperationalModule(operationalDatabase, 'bot-inbox'),
   );
+  startup.enter('messaging', 'outbound');
   const externalMessaging = createOutboundMessaging({
     channels: {
       get: (id) => channels.get(id),
@@ -848,6 +883,7 @@ export function createCore(
     return isBotHopLimit(value) ? value : DEFAULT_BOT_HOP_LIMIT;
   };
   const groupInvitationPolicies: { policy: () => boolean }[] = [];
+  startup.enter('messaging', 'channels');
   const channels = createSqliteChannelStore({
     botHopLimit,
     autoAcceptGroupInvitations: () =>
@@ -914,14 +950,17 @@ export function createCore(
     ...(options.warn === undefined ? {} : { warn: options.warn }),
   });
   changedFiles = (fileId) => channels.recordAttachmentChange?.(fileId);
+  startup.enter('bot-attention', 'initialize');
   const attention = createBotAttentionQuery(
     attachOperationalModule(operationalDatabase, 'messaging'),
     channels,
   );
+  startup.enter('inbox-history', 'initialize');
   const inboxHistory = createInboxHistoryQuery(
     attachOperationalModule(operationalDatabase, 'messaging'),
     channels,
   );
+  startup.enter('human-attention', 'initialize');
   const humanAttentionDatabase = attachOperationalModule(operationalDatabase, 'human-attention');
   const humanAttention = createHumanAttentionQuery(
     humanAttentionDatabase,
@@ -936,8 +975,10 @@ export function createCore(
       }
     },
   );
+  startup.enter('human-attention', 'decisions');
   const humanAttentionDecisions = createHumanAttentionDecisions(humanAttentionDatabase);
   if (operationalDatabase.mode === 'ready') {
+    startup.enter('human-attention', 'restore');
     const refreshDurableAttention = () =>
       states.replaceDurableAttention(
         humanAttention.durableAttention().filter((row) => registry.get(row.botSlug) !== undefined),
@@ -972,6 +1013,7 @@ export function createCore(
         durableAttention.schedule();
     });
   }
+  startup.enter('channel-live', 'initialize');
   live = createChannelLiveHub(
     channels,
     {
@@ -993,12 +1035,15 @@ export function createCore(
         changed,
       ),
   );
+  startup.enter('messaging', 'reconcile-paused-invitations');
   if (operationalDatabase.mode === 'ready')
     for (const bot of registry.list())
       if (bot.paused === true) channels.cancelInvitationsForBot(bot.slug);
+  startup.enter('session-ownership', 'initialize');
   const ownership = createSessionOwnership(
     attachOperationalModule(operationalDatabase, 'session-ownership'),
   );
+  startup.enter('companion-feed', 'initialize');
   companions = createCompanionFeed({
     profileId: createHash('sha256')
       .update(options.companionProfileDir ?? dshHome)
@@ -1035,12 +1080,14 @@ export function createCore(
     observeOutput: (id, messageId) => channels.observeOutput(id, messageId),
     checkpoint: () => channels.outputCheckpoint(),
   });
+  startup.enter('memory', 'initialize');
   const memory = createMemoryService({
     registry,
     ownership,
     database: operationalDatabase,
     ...(options.warn === undefined ? {} : { warn: options.warn }),
   });
+  startup.enter('usage', 'initialize');
   usage =
     operationalDatabase.mode === 'ready'
       ? createUsageProjection({
@@ -1049,10 +1096,12 @@ export function createCore(
           botCreatedAt: (slug) => registry.getHistorical(slug)?.createdAt,
         })
       : undefined;
+  startup.enter('workspace-grants', 'initialize');
   const grants = createWorkspaceGrantStore({
     database: attachOperationalModule(operationalDatabase, 'workspace-grants'),
     workspaces: options.workspaces ?? (() => undefined),
   });
+  startup.enter('tool-rules', 'initialize');
   const toolRules = createToolApprovalRuleStore(
     attachOperationalModule(operationalDatabase, 'tool-approval-rules'),
     (botSlug, creator) => externalMessaging.toolRuleCreatorAuthorized(botSlug, creator),
@@ -1061,9 +1110,11 @@ export function createCore(
     toolRules.reconcileExternal(slug);
     externalMessaging.approvals.refreshRules(slug);
   };
+  startup.enter('assignment-access', 'initialize');
   const assignmentAccess = createAssignmentAccessStore(
     attachOperationalModule(operationalDatabase, 'assignment-access'),
   );
+  startup.enter('tob', 'initialize');
   const tob = createTobService({
     database: attachOperationalModule(operationalDatabase, 'tob'),
     registry,
@@ -1073,12 +1124,14 @@ export function createCore(
     ...(options.ensureTobWorkspace ? { ensureWorkspace: options.ensureTobWorkspace } : {}),
     ...(options.tobSettings ? { settings: options.tobSettings } : {}),
   });
+  startup.enter('bot-creation', 'initialize');
   const creations = createBotCreation({
     database: attachOperationalModule(operationalDatabase, 'bot-creation'),
     registry,
     channels,
     ...(options.warn === undefined ? {} : { log: options.warn }),
   });
+  startup.enter('bot-import', 'initialize');
   const zipImports = createBotZipImport({
     uploads: createBotZipUploads({
       rootDir: join(dshHome, 'botharness', 'zip-uploads'),
@@ -1087,6 +1140,7 @@ export function createCore(
     registry,
     log: (event) => options.warn?.(JSON.stringify(event)),
   });
+  startup.enter('channel-management', 'initialize');
   const channelManagement = createChannelManagement({
     database: attachOperationalModule(operationalDatabase, 'channel-management'),
     channels,
@@ -1097,6 +1151,7 @@ export function createCore(
     onInvitation: (dmId, invitationId) => runtime?.admitGroupInvitation(dmId, invitationId),
     onJoinDecision: (dmId, requestId) => runtime?.admitGroupJoinDecision?.(dmId, requestId),
   });
+  startup.enter('profile-recovery', 'initialize');
   const profileRecovery = createProfileRecovery(operationalDatabase, registry, ownership);
   const orchestratorCwd = (bot: { slug: string }): string | undefined =>
     registry.memoryDirFor(bot.slug);
@@ -1116,6 +1171,7 @@ export function createCore(
     for (const contribute of [...botAgentSetups]) contribute(agentCtx, agent, info);
   };
 
+  startup.enter('bot-schedules', 'initialize');
   const schedules = createBotScheduleStore({
     database: attachOperationalModule(operationalDatabase, 'bot-schedules'),
     isBotActive: (slug) => {
@@ -1125,12 +1181,15 @@ export function createCore(
     onAdmitted: (slug) => runtime?.admitScheduleFiring?.(slug),
     ...(options.warn === undefined ? {} : { warn: options.warn }),
   });
+  startup.enter('message-perf', 'initialize');
   const messagePerf: MessagePerfTracker = createMessagePerfTracker();
+  startup.enter('prompt-settings', 'initialize');
   const prompts = createPromptSettings({
     library: createPromptPresetLibrary(join(dshHome, 'botharness', 'prompt-presets')),
     registry,
     ownership,
   });
+  startup.enter('voice-providers', 'initialize');
   const voiceProviders = new VoiceProviders({
     database: attachOperationalModule(operationalDatabase, 'voice'),
     credentials: options.credentials ?? (() => undefined),
@@ -1140,6 +1199,7 @@ export function createCore(
   const voiceSpeech: {
     speak?: Parameters<typeof createVoiceMessages>[0]['speak'];
   } = {};
+  startup.enter('voice-messages', 'initialize');
   const voiceMessages = createVoiceMessages({
     providers: voiceProviders,
     bot: (slug) => voiceProviders.effective(registry.get(slug)),
@@ -1149,6 +1209,7 @@ export function createCore(
     ...(options.voiceLog === undefined ? {} : { log: options.voiceLog }),
   });
   const voiceZoom: { zoom?: VoiceCalls['zoom'] | undefined } = {};
+  startup.enter('bot-runtime', 'initialize');
   runtime = createBotRuntime({
     voiceMessages,
     callFrames: {
@@ -1211,7 +1272,9 @@ export function createCore(
       options.workspaces?.()?.archivedSessionIds?.includes(sessionId) === true,
     ...(options.warn === undefined ? {} : { warn: options.warn }),
   });
+  startup.enter('bot-runtime', 'reconcile-memory');
   if (operationalDatabase.mode === 'ready') runtime.reconcileMemoryChangesOnStartup?.();
+  startup.enter('bot-deletion', 'initialize');
   const deletions = createPersonaBotDeletions({
     accept: (slug, commit) => channels.removeBotFromGroups(slug, commit),
     ...(options.capture === undefined ? {} : { capture: options.capture }),
@@ -1272,6 +1335,7 @@ export function createCore(
     log: (event) => options.warn?.(JSON.stringify(event)),
   });
   if (operationalDatabase.mode === 'ready') {
+    startup.enter('messaging', 'reconcile-group-members');
     const activeBots = new Set(registry.list().map((bot) => bot.slug));
     const missingMembers = new Set(
       channels
@@ -1287,15 +1351,18 @@ export function createCore(
     );
     for (const slug of missingMembers) channels.removeBotFromGroups(slug);
   }
+  startup.enter('bot-onboarding', 'initialize');
   const onboarding = createBotOnboarding({
     database: attachOperationalModule(operationalDatabase, 'bot-onboarding'),
     tob,
     registry,
     channels,
   });
+  startup.enter('client-acknowledgements', 'initialize');
   const acknowledgements = createClientAcknowledgements({
     database: attachOperationalModule(operationalDatabase, 'bot-onboarding'),
   });
+  startup.enter('bot-schedules', 'start');
   if (operationalDatabase.mode === 'ready') schedules.start();
   return {
     voiceProviders,
@@ -1684,6 +1751,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   let imCommandServices: import('./messaging/im-commands.js').ImCommandServices | undefined;
   let botNetwork: import('./runtime/bot-network.js').BotNetworkPort | undefined;
   const core = createCore({
+    startupDiagnostic: diagnosticEvents,
     databaseDiagnostic: (snapshot) => {
       recordDatabaseStartup(diagnosticEvents, snapshot);
       updateLifecycle.startup(snapshot.startup.instanceId, snapshot.startup.stage);
@@ -1904,7 +1972,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   ctx.effect(() => {
     const controller = new AbortController();
     if (core.operationalDatabase.mode === 'ready')
-      void core.channels.migrateAttachments?.(controller.signal).catch(() => {
+      void core.channels.migrateAttachments?.(controller.signal, diagnosticEvents).catch(() => {
         if (!controller.signal.aborted)
           ctx.logger.warn('attachment-migration phase=failed action=inspect-database-and-restart');
       });

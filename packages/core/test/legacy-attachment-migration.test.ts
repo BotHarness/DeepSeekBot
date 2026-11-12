@@ -14,6 +14,30 @@ import { attachOperationalModule, mountOperationalDatabase } from '../src/databa
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { boundModelPage, readModelContent } from '../src/runtime/channel-model-read.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
+import type { DiagnosticEventFields, DiagnosticEvents } from '../src/diagnostics/diagnostic-log.js';
+import {
+  createDiagnosticLogHttp,
+  createDiagnosticLogWriter,
+  diagnosticEventRow,
+  DIAGNOSTIC_LOGS_EXPORT_PATH,
+} from '../src/diagnostics/diagnostic-log.js';
+import { openLogDatabase } from '../src/logs/log-db.js';
+import { buildBugReport } from '../src/diagnostics/bug-report.js';
+import { readZip } from '../src/bots/zip-archive.js';
+import { Context } from '@deepseek-ai/cordis';
+import { mountDiagnosticLog } from '../src/diagnostics/diagnostic-log.js';
+import type { AttachmentMigrationResult } from '../src/attachments/legacy-migration.js';
+
+function diagnostics() {
+  const rows: Array<{ phase: string; fields: DiagnosticEventFields }> = [];
+  const events: DiagnosticEvents = {
+    record(source, phase, fields) {
+      expect(source).toBe('attachment-migration');
+      rows.push({ phase, fields });
+    },
+  };
+  return { rows, events };
+}
 
 function fixture(members: string[] = []) {
   const home = createTempRoot();
@@ -110,6 +134,274 @@ function fixture(members: string[] = []) {
 }
 
 describe('retained legacy attachment migration', () => {
+  it('retains a bounded partial failure and a separately correlated safe retry without private data', async () => {
+    const f = fixture();
+    f.seed('first');
+    f.seed('second');
+    const d = diagnostics();
+    const upload = f.files.upload.bind(f.files);
+    const hook = vi
+      .spyOn(f.files, 'upload')
+      .mockImplementationOnce(async () => {
+        throw new Error(`secret-token ${f.home} /private/报告 notes.txt retained message text`, {
+          cause: Object.assign(new Error('private underlying filename.txt'), { code: 'ENOSPC' }),
+        });
+      })
+      .mockImplementation(upload);
+    expect(await f.channels.migrateAttachments!(undefined, d.events)).toEqual({
+      converted: 1,
+      failed: 1,
+      resumed: 0,
+    });
+    expect(d.rows[0]?.phase).toBe('started');
+    expect(d.rows.at(-1)).toMatchObject({
+      phase: 'failed',
+      fields: { converted: 1, failed: 1, processed: 2, total: 2, remaining: 0, omittedCauses: 0 },
+    });
+    expect(d.rows.find((row) => row.phase === 'failure-cause')).toMatchObject({
+      fields: { stage: 'upload', causeCodes: 'unclassified-error > ENOSPC' },
+    });
+    expect(new Set(d.rows.map((row) => row.fields.attemptId)).size).toBe(1);
+    const encoded = JSON.stringify(d.rows);
+    for (const privateValue of [
+      f.home,
+      f.ref.name,
+      f.hash,
+      'secret-token',
+      'filename.txt',
+      'retained message text',
+    ])
+      expect(encoded).not.toContain(privateValue);
+    expect(d.rows.at(-1)?.fields.durationMs).toEqual(expect.any(Number));
+    hook.mockRestore();
+    const retry = diagnostics();
+    expect(await f.channels.migrateAttachments!(undefined, retry.events)).toEqual({
+      converted: 1,
+      failed: 0,
+      resumed: 1,
+    });
+    expect(retry.rows.at(-1)).toMatchObject({
+      phase: 'completed',
+      fields: { processed: 2, remaining: 0 },
+    });
+    expect(retry.rows[0]?.fields.attemptId).not.toBe(d.rows[0]?.fields.attemptId);
+    expect(await (await f.get(f.hash, 'first')).text()).toBe(f.body);
+  });
+
+  it('records shutdown cancellation separately and resumes the same pending identity', async () => {
+    const f = fixture();
+    f.seed('cancelled');
+    const d = diagnostics();
+    const controller = new AbortController();
+    const upload = f.files.upload.bind(f.files);
+    const hook = vi.spyOn(f.files, 'upload').mockImplementation(async (input) => {
+      const target = await upload(input);
+      controller.abort(new Error('private shutdown details'));
+      return target;
+    });
+    expect(await f.channels.migrateAttachments!(controller.signal, d.events)).toEqual({
+      converted: 0,
+      failed: 0,
+      resumed: 0,
+    });
+    const pending = f.database.read((db) =>
+      db.prepare('SELECT file_id FROM attachment_file_bindings').get(),
+    )!;
+    expect(d.rows.at(-1)).toMatchObject({
+      phase: 'cancelled',
+      fields: { reason: 'caller-aborted', processed: 0, remaining: 1 },
+    });
+    expect(d.rows.some((row) => row.phase === 'failure-cause')).toBe(false);
+    expect(JSON.stringify(d.rows)).not.toContain('private shutdown details');
+    hook.mockRestore();
+    expect(await f.channels.migrateAttachments!(undefined, d.events)).toEqual({
+      converted: 1,
+      failed: 0,
+      resumed: 1,
+    });
+    expect(f.channels.message(f.channel.id, 'cancelled')?.attachments?.[0]?.fileId).toBe(
+      pending.file_id,
+    );
+  });
+
+  it('bounds evidence for many failures and ignores a broken diagnostic sink', async () => {
+    const f = fixture();
+    for (let index = 0; index < 20; index++) f.seed(`many-${index}`);
+    rmSync(f.path);
+    const d = diagnostics();
+    expect(await f.channels.migrateAttachments!(undefined, d.events)).toEqual({
+      converted: 0,
+      failed: 20,
+      resumed: 0,
+    });
+    expect(d.rows.filter((row) => row.phase === 'failure-cause')).toHaveLength(8);
+    expect(d.rows.length).toBeLessThanOrEqual(28);
+    expect(d.rows.at(-1)).toMatchObject({
+      phase: 'failed',
+      fields: { omittedCauses: 12, failed: 20 },
+    });
+    writeFileSync(f.path, f.body);
+    expect(
+      await f.channels.migrateAttachments!(undefined, {
+        record() {
+          throw new Error('diagnostics unavailable');
+        },
+      }),
+    ).toEqual({ converted: 20, failed: 0, resumed: 20 });
+  });
+
+  it('reports bounded progress while scanning already-ready bindings without rewriting them', async () => {
+    const f = fixture();
+    f.seed('ready-first');
+    f.seed('ready-second');
+    await f.channels.migrateAttachments!();
+    const facts = f.facts();
+    const d = diagnostics();
+    expect(await f.channels.migrateAttachments!(undefined, d.events)).toEqual({
+      converted: 0,
+      failed: 0,
+      resumed: 0,
+    });
+    expect(
+      d.rows.filter((row) => row.phase === 'progress').map((row) => row.fields.processed),
+    ).toEqual([0, 1, 2]);
+    expect(f.facts()).toEqual(facts);
+  });
+
+  it('keeps an already-aborted attempt terminal without claiming work was processed', async () => {
+    const f = fixture();
+    f.seed('already-aborted');
+    const controller = new AbortController();
+    controller.abort();
+    const d = diagnostics();
+    expect(await f.channels.migrateAttachments!(controller.signal, d.events)).toEqual({
+      converted: 0,
+      failed: 0,
+      resumed: 0,
+    });
+    expect(d.rows.map((row) => row.phase)).toEqual(['started', 'cancelled']);
+    expect(d.rows.at(-1)?.fields.processed).toBe(0);
+  });
+
+  it('persists cancellation before the real Host Fiber closes its diagnostic writer', async () => {
+    const f = fixture();
+    f.seed('shutdown');
+    let signalEntered = () => {};
+    let releaseUpload = () => {};
+    const entered = new Promise<void>((resolve) => {
+      signalEntered = resolve;
+    });
+    const release = new Promise<void>((resolve) => {
+      releaseUpload = resolve;
+    });
+    const upload = f.files.upload.bind(f.files);
+    const hook = vi.spyOn(f.files, 'upload').mockImplementation(async (input) => {
+      signalEntered();
+      await release;
+      return upload(input);
+    });
+    const ctx = new Context();
+    let operation: Promise<AttachmentMigrationResult> | undefined;
+    const fiber = ctx.plugin((child) => {
+      const events = mountDiagnosticLog(child, {
+        dshHome: f.home,
+        homes: [],
+        environment: () => ({
+          version: 'test',
+          platform: process.platform,
+          arch: process.arch,
+          node: process.version,
+        }),
+      });
+      child.effect(() => {
+        const controller = new AbortController();
+        operation = f.channels.migrateAttachments!(controller.signal, events);
+        return () => controller.abort();
+      });
+    });
+    await entered;
+    await fiber.dispose();
+    const logs = openLogDatabase({ dir: join(f.home, 'botharness') });
+    try {
+      const rows = logs.range(0, 100);
+      expect(rows.filter((row) => row.kind === 'cancelled')).toHaveLength(1);
+      releaseUpload();
+      expect(await operation).toEqual({ converted: 0, failed: 0, resumed: 0 });
+      expect(logs.range(0, 100).filter((row) => row.kind === 'cancelled')).toHaveLength(1);
+    } finally {
+      releaseUpload();
+      await operation;
+      logs.close();
+      hook.mockRestore();
+    }
+  });
+
+  it('retains a fatal snapshot failure without changing its rejection', async () => {
+    const f = fixture();
+    f.seed('closed-owner');
+    f.owner.close();
+    const d = diagnostics();
+    await expect(f.channels.migrateAttachments!(undefined, d.events)).rejects.toThrow();
+    expect(d.rows.at(-1)).toMatchObject({
+      phase: 'failed',
+      fields: { stage: 'read-retained', processed: 0 },
+    });
+    expect(d.rows.find((row) => row.phase === 'failure-cause')).toBeDefined();
+    expect(d.rows.at(-1)?.fields.total).toBeUndefined();
+  });
+
+  it('exports actual migration failure evidence through diagnostic logs and offline problem reports', async () => {
+    const f = fixture();
+    f.seed('export-failure');
+    rmSync(f.path);
+    const logs = openLogDatabase({ dir: join(f.home, 'logs') });
+    try {
+      await f.channels.migrateAttachments!(undefined, {
+        record(source, phase, fields) {
+          const row = diagnosticEventRow(source, phase, fields);
+          if (row !== undefined) logs.write(row);
+        },
+      });
+      const environment = {
+        version: 'test',
+        platform: process.platform,
+        arch: process.arch,
+        node: process.version,
+      };
+      const http = createDiagnosticLogHttp({
+        database: () => logs,
+        writer: () => createDiagnosticLogWriter(logs),
+        environment,
+        homes: [],
+      });
+      const response = await http(
+        new Request(`http://local${DIAGNOSTIC_LOGS_EXPORT_PATH}?hours=1`),
+      );
+      expect(response.status).toBe(200);
+      const report = buildBugReport(
+        {
+          title: 'Migration failure',
+          description: 'Diagnostic regression',
+          hours: 1,
+          attachments: [],
+        },
+        { database: logs, environment, homes: [], exportedBy: 'cli-offline' },
+      );
+      for (const archive of [Buffer.from(await response.arrayBuffer()), report.archive]) {
+        const text = readZip(archive, { maxEntries: 16, maxTotalBytes: 1 << 20 })
+          .map((file) => Buffer.from(file.data).toString())
+          .join('\n');
+        expect(text).toContain('attachment-migration');
+        expect(text).toContain('failure-cause');
+        expect(text).toContain('not-found');
+        expect(text).not.toContain(f.ref.name);
+        expect(text).not.toContain(f.home);
+      }
+    } finally {
+      logs.close();
+    }
+  });
+
   it('preserves immutable facts, independent equal-content occurrences and explicit canonical identity reuse', async () => {
     const f = fixture();
     f.seed('first');

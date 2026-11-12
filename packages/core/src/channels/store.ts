@@ -10,6 +10,7 @@ import {
 import type { DatabaseSync } from 'node:sqlite';
 import { allBotPreview, assertAllBotPreview, type AllBotPreview } from './all-bot-mention.js';
 import type { AttachmentMigrationResult } from '../attachments/legacy-migration.js';
+import type { DiagnosticEvents } from '../diagnostics/diagnostic-log.js';
 import { projectAttachmentFiles } from '../attachments/message-files.js';
 import { replyPreviewOf } from './reply-preview.js';
 import { assertGrantRequestReply, isGrantRequestResolved } from './grant-request.js';
@@ -416,7 +417,10 @@ export interface ChannelStore {
   assertAttachmentRefs(refs: readonly ChannelAttachmentRef[]): void;
 
   referencedAttachmentHashes(): ReadonlySet<string>;
-  migrateAttachments?(signal?: AbortSignal): Promise<AttachmentMigrationResult>;
+  migrateAttachments?(
+    signal?: AbortSignal,
+    events?: DiagnosticEvents,
+  ): Promise<AttachmentMigrationResult>;
   projectMessageAttachments?(sourceEventId: string, message: ChannelMessage): ChannelMessage;
   attachmentReference?(
     channelId: string,

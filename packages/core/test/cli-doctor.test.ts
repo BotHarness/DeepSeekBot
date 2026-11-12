@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { runDoctor } from '../src/bots/cli-doctor.js';
 import { CliLiveError } from '../src/bots/cli-live-error.js';
 import { openLogDatabase } from '../src/logs/log-db.js';
+import { createLogHealth } from '../src/diagnostics/log-health.js';
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -37,6 +38,45 @@ const check = (result: unknown, id: string) =>
   (result as { checks: Check[] }).checks.find((entry) => entry.id === id);
 
 describe('doctor CLI', () => {
+  it('warns about known loss with a readable primary instead of declaring zero errors healthy', async () => {
+    const home = homeWithErrors([]);
+    createLogHealth(join(home, 'botharness')).failure('write-failed', new Error(), 3);
+    const result = await runDoctor(
+      { home, offline: true },
+      io() as never,
+      vi.fn() as unknown as Connect,
+      () => NOW,
+    );
+    expect(check(result, 'log')).toMatchObject({
+      status: 'warn',
+      code: 'partial-evidence',
+      completeness: { status: 'partial', primary: 'available' },
+    });
+    expect(check(result, 'errors-24h')).toMatchObject({
+      status: 'warn',
+      count: 0,
+      completeness: { status: 'partial' },
+    });
+  });
+
+  it('marks the error count unavailable when an existing primary cannot be read', async () => {
+    const home = homeWithErrors([]);
+    writeFileSync(join(home, 'botharness', 'logs.db'), 'owned unreadable fixture');
+    const result = await runDoctor(
+      { home, offline: true },
+      io() as never,
+      vi.fn() as unknown as Connect,
+      () => NOW,
+    );
+    expect(check(result, 'dsh-home')).toMatchObject({ status: 'ok' });
+    expect(check(result, 'log')).toMatchObject({
+      status: 'warn',
+      code: 'log-unavailable',
+      completeness: { primary: 'unavailable' },
+    });
+    expect(check(result, 'errors-24h')).toMatchObject({ status: 'skip', code: 'log-unavailable' });
+  });
+
   it('reports from logs.db alone when the Host is down, with a guide for agents', async () => {
     const home = homeWithErrors([
       'channel-load-timeout',

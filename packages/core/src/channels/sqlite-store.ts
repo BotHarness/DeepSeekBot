@@ -3068,7 +3068,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       return row?.position ?? 0;
     },
     assertAttachmentRefs,
-    migrateAttachments: (signal) => attachmentMigration.migrate(signal),
+    migrateAttachments: (signal, events) => attachmentMigration.migrate(signal, events),
     projectMessageAttachments,
     attachmentReference(channelId, messageId, identity) {
       if (readRecord(channelId) === undefined) return undefined;
