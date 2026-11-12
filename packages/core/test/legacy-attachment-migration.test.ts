@@ -24,6 +24,9 @@ import {
 import { openLogDatabase } from '../src/logs/log-db.js';
 import { buildBugReport } from '../src/diagnostics/bug-report.js';
 import { readZip } from '../src/bots/zip-archive.js';
+import { Context } from '@deepseek-ai/cordis';
+import { mountDiagnosticLog } from '../src/diagnostics/diagnostic-log.js';
+import type { AttachmentMigrationResult } from '../src/attachments/legacy-migration.js';
 
 function diagnostics() {
   const rows: Array<{ phase: string; fields: DiagnosticEventFields }> = [];
@@ -245,6 +248,74 @@ describe('retained legacy attachment migration', () => {
         },
       }),
     ).toEqual({ converted: 20, failed: 0, resumed: 20 });
+  });
+
+  it('keeps an already-aborted attempt terminal without claiming work was processed', async () => {
+    const f = fixture();
+    f.seed('already-aborted');
+    const controller = new AbortController();
+    controller.abort();
+    const d = diagnostics();
+    expect(await f.channels.migrateAttachments!(controller.signal, d.events)).toEqual({
+      converted: 0,
+      failed: 0,
+      resumed: 0,
+    });
+    expect(d.rows.map((row) => row.phase)).toEqual(['started', 'cancelled']);
+    expect(d.rows.at(-1)?.fields.processed).toBe(0);
+  });
+
+  it('persists cancellation before the real Host Fiber closes its diagnostic writer', async () => {
+    const f = fixture();
+    f.seed('shutdown');
+    let signalEntered = () => {};
+    let releaseUpload = () => {};
+    const entered = new Promise<void>((resolve) => {
+      signalEntered = resolve;
+    });
+    const release = new Promise<void>((resolve) => {
+      releaseUpload = resolve;
+    });
+    const upload = f.files.upload.bind(f.files);
+    const hook = vi.spyOn(f.files, 'upload').mockImplementation(async (input) => {
+      signalEntered();
+      await release;
+      return upload(input);
+    });
+    const ctx = new Context();
+    let operation: Promise<AttachmentMigrationResult> | undefined;
+    const fiber = ctx.plugin((child) => {
+      const events = mountDiagnosticLog(child, {
+        dshHome: f.home,
+        homes: [],
+        environment: () => ({
+          version: 'test',
+          platform: process.platform,
+          arch: process.arch,
+          node: process.version,
+        }),
+      });
+      child.effect(() => {
+        const controller = new AbortController();
+        operation = f.channels.migrateAttachments!(controller.signal, events);
+        return () => controller.abort();
+      });
+    });
+    await entered;
+    await fiber.dispose();
+    const logs = openLogDatabase({ dir: join(f.home, 'botharness') });
+    try {
+      const rows = logs.range(0, 100);
+      expect(rows.filter((row) => row.kind === 'cancelled')).toHaveLength(1);
+      releaseUpload();
+      expect(await operation).toEqual({ converted: 0, failed: 0, resumed: 0 });
+      expect(logs.range(0, 100).filter((row) => row.kind === 'cancelled')).toHaveLength(1);
+    } finally {
+      releaseUpload();
+      await operation;
+      logs.close();
+      hook.mockRestore();
+    }
   });
 
   it('retains a fatal snapshot failure without changing its rejection', async () => {

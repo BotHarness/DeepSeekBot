@@ -132,7 +132,15 @@ export function createLegacyAttachmentMigration(
         record('failure-cause', { code: 'unclassified-error', causeIndex: causes - 1 });
       }
     };
+    let terminal = false;
+    const cancelled = () => {
+      if (terminal) return;
+      terminal = true;
+      record('cancelled', { reason: 'caller-aborted', omittedCauses: Math.max(0, causes - 8) });
+    };
+    signal?.addEventListener('abort', cancelled, { once: true });
     record('started');
+    if (signal?.aborted) cancelled();
     try {
       if (files === undefined) return result;
       let announced = false;
@@ -142,7 +150,7 @@ export function createLegacyAttachmentMigration(
           count + (message.attachments ?? []).filter((ref) => ref.hash !== undefined).length,
         0,
       );
-      record('progress');
+      if (!terminal) record('progress');
       for (const { sourceEventId, message } of messages) {
         for (const [index, ref] of (message.attachments ?? []).entries()) {
           if (signal?.aborted) return result;
@@ -277,7 +285,7 @@ export function createLegacyAttachmentMigration(
               `attachment-migration phase=refused source=${encodeURIComponent(sourceEventId).slice(0, 80)} index=${index} code=${code} action=repair-legacy-object-and-restart`,
             );
           }
-          if (processed % Math.max(1, Math.ceil(total / 16)) === 0) record('progress');
+          if (!terminal && processed % Math.max(1, Math.ceil(total / 16)) === 0) record('progress');
         }
       }
       if (announced)
@@ -289,13 +297,13 @@ export function createLegacyAttachmentMigration(
       if (!signal?.aborted) failure(error);
       throw error;
     } finally {
-      record(
-        signal?.aborted ? 'cancelled' : causes > 0 || result.failed > 0 ? 'failed' : 'completed',
-        {
-          reason: signal?.aborted ? 'caller-aborted' : undefined,
+      signal?.removeEventListener('abort', cancelled);
+      if (!terminal) {
+        terminal = true;
+        record(causes > 0 || result.failed > 0 ? 'failed' : 'completed', {
           omittedCauses: Math.max(0, causes - 8),
-        },
-      );
+        });
+      }
     }
   };
   return {

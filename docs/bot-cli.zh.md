@@ -1738,7 +1738,7 @@ tobs profile-backup-restore --file environment.botharness-backup --new-home new-
 
 Tobs 会一直在本地记录诊断日志，保存在 `$DSH_HOME/botharness/logs.db`（30 天，最多 5 万条）：Client 的操作与导航轨迹、未捕获错误和控制台警告、UI 不变量被破坏、长帧和慢的 Host 调用，以及 Host 警告和 BotHarness 生命周期日志。不会记录输入的文字、消息正文或文件内容，也不会离开这台设备。Workspace Control Rail 上的 **诊断日志** 按钮可查看最近 24 小时，并导出与 CLI 相同的 ZIP。
 
-保留附件迁移会写入以 `attemptId` 关联的 `attachment-migration` 条目：`started`、有数量限制的 `progress` 和 `failure-cause`，最后为 `completed`、`failed` 或 `cancelled`。查看 `stage`、`durationMs`、`total`、`processed`、`remaining`、`converted`、`failed` 与 `resumed`；读取保留消息快照前不会提供总数。`remaining` 统计尚未访问的旧引用，`failed` 统计已访问但仍需修复的引用。最多八条原因只保留白名单错误码和最多三层的 `causeCodes` 原因链，额外失败由 `omittedCauses` 计数；不记录原始错误消息、文件名、路径或附件内容。`cancelled` 和 `reason: caller-aborted` 区分关机中断与需要修复的失败，重试沿用已预留的附件身份。现有在线／离线日志导出及问题报告 ZIP 均包含这些条目。
+保留附件迁移会写入以 `attemptId` 关联的 `attachment-migration` 条目：`started`、有数量限制的 `progress` 和 `failure-cause`，最后为 `completed`、`failed` 或 `cancelled`。查看 `stage`、`durationMs`、`total`、`processed`、`remaining`、`converted`、`failed` 与 `resumed`；读取保留消息快照前不会提供总数。`remaining` 统计尚未访问的旧引用，`failed` 统计已访问但仍需修复的引用。最多八条原因只保留白名单错误码和最多三层的 `causeCodes` 原因链，额外失败由 `omittedCauses` 计数；不记录原始错误消息、文件名、路径或附件内容。`cancelled` 和 `reason: caller-aborted` 区分关机中断与需要修复的失败，取消计数在中止请求发生时记录，不等待异步清理完成，重试沿用已预留的附件身份。现有在线／离线日志导出及问题报告 ZIP 均包含这些条目。
 
 ```bash
 deepseekbot doctor [--offline] [--home <DSH_HOME>]
