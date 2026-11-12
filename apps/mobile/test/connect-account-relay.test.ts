@@ -32,7 +32,7 @@ it('releases an offline slot through the mobile owner and HTTP relay without cle
     const body = Buffer.concat(chunks);
     const result = await relay.fetch(
       new Request(`https://connect.botharness.ai${req.url}`, {
-        method: req.method,
+        method: req.method ?? 'GET',
         headers: { authorization: req.headers.authorization ?? '' },
         ...(body.length ? { body } : {}),
       }),
