@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
-import type { DatabaseSync } from 'node:sqlite';
+import { DatabaseSync } from 'node:sqlite';
 
+import { OperationalDatabaseError } from './owner.js';
 import { defineSchemaPlan, type SchemaMigration } from './schema.js';
 import { INBOX_HISTORY_INDEX_SQL, MESSAGE_SEARCH_INDEX_SQL } from './inbox-history-index.js';
 import { deriveAssignmentTitle } from '../runtime/assignment-title.js';
@@ -3184,6 +3185,46 @@ const CALL_GRID_ROWS_MIGRATION: SchemaMigration = {
   },
 };
 
+const QUESTION_MESSAGING_RECOVERY_MIGRATION: SchemaMigration = {
+  generation: 137,
+  module: 'messaging',
+  description: 'Recover the question schema skipped by the generation-116 QQ defaults hotfix',
+  migrate(database) {
+    const reference = new DatabaseSync(':memory:');
+    try {
+      QUESTION_MESSAGING_MIGRATION.migrate(reference);
+      const query = `SELECT type, name, tbl_name, sql FROM sqlite_schema
+        WHERE tbl_name = 'messaging_question_deliveries'
+           OR name IN ('messaging_question_deliveries', 'messaging_question_deliveries_bot')`;
+      const expected = reference.prepare(query).all();
+      const actual = database.prepare(query).all();
+      const normalize = (sql: unknown) =>
+        typeof sql === 'string' ? sql.replace(/\s+/gu, ' ').trim() : sql;
+      for (const object of actual) {
+        const match = expected.find((candidate) => candidate.name === object.name);
+        if (
+          match === undefined ||
+          match.type !== object.type ||
+          match.tbl_name !== object.tbl_name ||
+          normalize(match.sql) !== normalize(object.sql)
+        ) {
+          throw new OperationalDatabaseError(
+            'migration-failed',
+            'Incompatible question notification schema; retain the Profile for recovery',
+          );
+        }
+      }
+      for (const object of expected) {
+        if (typeof object.sql === 'string' && !actual.some((entry) => entry.name === object.name)) {
+          database.exec(object.sql);
+        }
+      }
+    } finally {
+      reference.close();
+    }
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -3320,4 +3361,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   CALL_VISUAL_UNSAVED_MIGRATION,
   CALL_VISUAL_TIMELINE_MIGRATION,
   CLIENT_ACKNOWLEDGEMENT_MIGRATION,
+  QUESTION_MESSAGING_RECOVERY_MIGRATION,
 ]);
