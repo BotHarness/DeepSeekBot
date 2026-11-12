@@ -8,6 +8,42 @@ Unreleased entries arrive as [change fragments](changes/README.md) and are folde
 
 Changes under development.
 
+## [1.7.1] - 2026-11-13
+
+Tobs 1.7.1 restores upgrades from the QQ-default hotfix, supports QQ platform defaults, and makes startup, update and diagnostic failures easier to locate.
+
+Mobile entries describe changes to the separately versioned phone app; they do not announce an App Store or Play release.
+
+### Added
+
+- Manage linked computers from the phone's Connect account screen, even before pairing a Host. Confirm unlinking an online or offline computer to free a slot; session-bound computers must sign in again, while older links explicitly warn that automatic reconnection may occur. Local Bots, chats, files and phone pairings remain ([#4039](https://github.com/BotHarness/DeepSeekBot/issues/4039)).
+
+- Diagnostic logs and bug reports now link a release update attempt to the next observed Host startup, including interrupted and failed restart evidence without storing installer output ([#4057](https://github.com/BotHarness/DeepSeekBot/issues/4057)).
+
+- Added an Android Select and copy page for native text selection of original Markdown and GenUI HTML, with a Copy all action ([#4044](https://github.com/BotHarness/DeepSeekBot/issues/4044)).
+
+### Fixed
+
+- Fixed core startup after upgrading a Profile that ran the generation-116 QQ-default hotfix: a forward migration restores the missing question-notification schema while retaining existing records and QQ preferences. Incompatible existing structures refuse migration without replacing the original database; this is not a general official 1.6.1 upgrade failure ([#4040](https://github.com/BotHarness/DeepSeekBot/issues/4040)).
+
+- Align the mobile app with the SDK 58 Expo, development client and SQLite patch versions required by compatibility checks, retaining the Android activity shutdown fix. The message source page also uses the shared native loading control. Existing development builds must be rebuilt for the updated native dependencies ([#4050](https://github.com/BotHarness/DeepSeekBot/pull/4050)).
+
+- Startup diagnostic reports now retain the database failure stage, bounded underlying error codes and observed writer identity, so lock contention can be distinguished from file access and migration failures. Correlated startup and close records are included in sanitized online and offline exports; writer metadata is explicitly a clue, not proof of a live process ([#4049](https://github.com/BotHarness/DeepSeekBot/issues/4049)).
+
+- Diagnostic log and bug-report exports now disclose missing evidence, dropped entries and unknown coverage. A bounded, metadata-only fallback retains log-store failures and recovery when its own storage is available; online and offline exports can produce clearly marked partial ZIPs when the log database cannot be read ([#4055](https://github.com/BotHarness/DeepSeekBot/issues/4055)).
+
+- Diagnostic exports now identify the Core initializer and stage that failed after database startup, retain bounded redacted causes, and distinguish a later successful restart. Core readiness is explicitly separate from DSH Host readiness ([#4056](https://github.com/BotHarness/DeepSeekBot/issues/4056)).
+
+- Diagnostic logs and problem reports now retain attachment migration attempts, bounded progress, safe failure codes and cancellation outcomes, so interrupted migrations can be distinguished from files needing repair ([#4058](https://github.com/BotHarness/DeepSeekBot/issues/4058)).
+
+- Restored Android message menus, code-block copying and long-press selection for rich Bot replies and the newest message ([#4044](https://github.com/BotHarness/DeepSeekBot/issues/4044)).
+
+- QQ now supports platform defaults through the Host API and CLI, so new groups can inherit all-message collection while preserving existing custom choices and historical hotfix defaults. Configuration remains separate from actual ordinary-message delivery evidence ([#3419](https://github.com/BotHarness/DeepSeekBot/issues/3419)).
+
+### Documentation
+
+- Updated the installation guide to the verified Tobs 1.7.0 npm release and its four qualified DSH versions, with archive filenames and local import commands following the exact stable package version ([#4021](https://github.com/BotHarness/DeepSeekBot/issues/4021)).
+
 ## [1.7.0] - 2026-11-12
 
 Tobs 1.7.0: Bot calls, phone history and search, richer documents, and connection and conversation reliability.
