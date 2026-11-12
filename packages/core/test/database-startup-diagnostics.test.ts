@@ -8,6 +8,7 @@ import { expect, it } from 'vitest';
 import { mountOperationalDatabase, type OperationalDatabaseOwner } from '../src/database/owner.js';
 import { defineSchemaPlan } from '../src/database/schema.js';
 import { recordDatabaseStartup } from '../src/diagnostics/database-startup.js';
+import { createDiagnosticRedactor } from '../src/diagnostics/redaction.js';
 import {
   createDiagnosticLogHttp,
   DIAGNOSTIC_LOGS_EXPORT_PATH,
@@ -18,6 +19,17 @@ import { buildBugReport } from '../src/diagnostics/bug-report.js';
 import { openLogDatabase } from '../src/logs/log-db.js';
 import { readZip } from '../src/bots/zip-archive.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
+
+it.each([
+  'Migration failed: {"password":"fixture-password"}',
+  String.raw`password="left\"right"`,
+  String.raw`password='left\'right'`,
+  'password="truncated fixture-password',
+])('redacts complete quoted credentials in error text: %s', (message) => {
+  const redacted = createDiagnosticRedactor({ homes: [] }).text(message);
+  expect(redacted).toContain('<secret>');
+  expect(redacted).not.toMatch(/fixture-password|left|right|truncated/u);
+});
 
 it('reports the failing lease stage and both mount identities before core startup continues', () => {
   const dshHome = createTempRoot('database-startup-diagnostics-');
