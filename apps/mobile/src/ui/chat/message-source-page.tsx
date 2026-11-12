@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { ActivityIndicator, Modal, ScrollView, View } from 'react-native';
+import { Modal, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ConversationMessage } from '../../host/conversation';
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { Text } from '../primitives/text';
+import { LoadingIndicator } from '../primitives/loading-indicator';
 import { useStrings } from '../strings';
 import { messageSource } from './message-source';
 import { MessageSourceHeader } from './message-source-header';
@@ -57,7 +58,7 @@ export function MessageSourcePage({
             </Text>
           </ScrollView>
         ) : (
-          <ActivityIndicator color={theme.color.accent} />
+          <LoadingIndicator size="control" color={theme.color.accent} />
         )}
       </View>
     </Modal>

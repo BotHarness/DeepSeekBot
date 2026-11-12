@@ -166,6 +166,7 @@ import type { BotAgentSetupInfo } from './runtime/dsh-bot-agent-adapter.js';
 import { registerBridge } from './bridge/rpc.js';
 import { mountClientDiagnostics } from './diagnostics/client-diagnostics.js';
 import { mountDiagnosticLog } from './diagnostics/diagnostic-log.js';
+import { recordDatabaseStartup } from './diagnostics/database-startup.js';
 import { createCoreTakeoverHandoffs, mountTakeoverTools } from './takeover/mount.js';
 import { createTurnLog } from './diagnostics/turn-log.js';
 import { mountDevicePairing } from './devices/mount.js';
@@ -622,6 +623,9 @@ export function createCore(
     dshHome?: string;
     companionProfileDir?: string | undefined;
     warn?: (message: string) => void;
+    databaseDiagnostic?: (
+      snapshot: import('./database/owner.js').OperationalDatabaseDiagnostics,
+    ) => void;
     agents?: BotAgentAdapter;
     saveReportSpill?: (input: {
       sessionId: string;
@@ -667,6 +671,9 @@ export function createCore(
   const operationalDatabase = mountOperationalDatabase({
     dshHome,
     schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
+    ...(options.databaseDiagnostic === undefined
+      ? {}
+      : { onDiagnostic: options.databaseDiagnostic }),
   });
   if (operationalDatabase.recovery !== undefined)
     options.warn?.(
@@ -1663,6 +1670,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   let imCommandServices: import('./messaging/im-commands.js').ImCommandServices | undefined;
   let botNetwork: import('./runtime/bot-network.js').BotNetworkPort | undefined;
   const core = createCore({
+    databaseDiagnostic: (snapshot) => recordDatabaseStartup(diagnosticEvents, snapshot),
     credentials: () => ctx.get('credentials'),
     voiceLog: (phase, fields) => diagnosticEvents.record('voice', phase, fields),
     botNetwork: {

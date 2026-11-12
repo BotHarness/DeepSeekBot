@@ -152,14 +152,40 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: gradle
+      - name: Configure Android test dependency downloads and failure details
+        run: |
+          cat > "$RUNNER_TEMP/android-test-init.gradle" <<'GRADLE'
+          allprojects {
+            tasks.withType(org.gradle.api.tasks.testing.Test).configureEach {
+              systemProperty 'robolectric.dependency.repo.url', 'https://repo.maven.apache.org/maven2'
+              testLogging {
+                exceptionFormat = 'full'
+                showCauses = true
+                showStackTraces = true
+              }
+            }
+          }
+          GRADLE
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @botharness/mobile exec expo prebuild --platform android --no-install
         env:
           CI: '1'
           EXPO_OFFLINE: '1'
-      - run: bash apps/mobile/android/gradlew -p apps/mobile/android :stream-reveal:testDebugUnitTest :latest-anchor:testDebugUnitTest :hardware-send:testDebugUnitTest :remote-keyboard:testDebugUnitTest :material-search:testDebugUnitTest :material-button-group:testDebugUnitTest :material-tab-row:testDebugUnitTest :conversation-notifications:testDebugUnitTest :local-computer-video:testDebugUnitTest :lan-channel:testDebugUnitTest :material-fab-menu:testDebugUnitTest :material-split-button:testDebugUnitTest :material-search-bar:testDebugUnitTest :predictive-back:compileDebugKotlin :dismissible-drawer:testDebugUnitTest -PreactNativeArchitectures=x86_64 --max-workers=2 --console=plain
+      - run: bash apps/mobile/android/gradlew -I "$RUNNER_TEMP/android-test-init.gradle" -p apps/mobile/android :stream-reveal:testDebugUnitTest :latest-anchor:testDebugUnitTest :hardware-send:testDebugUnitTest :remote-keyboard:testDebugUnitTest :material-search:testDebugUnitTest :material-button-group:testDebugUnitTest :material-tab-row:testDebugUnitTest :conversation-notifications:testDebugUnitTest :local-computer-video:testDebugUnitTest :lan-channel:testDebugUnitTest :material-fab-menu:testDebugUnitTest :material-split-button:testDebugUnitTest :material-search-bar:testDebugUnitTest :predictive-back:compileDebugKotlin :dismissible-drawer:testDebugUnitTest -PreactNativeArchitectures=x86_64 --max-workers=2 --console=plain
 
-      - run: bash apps/mobile/android/gradlew -p apps/mobile/android :expo:testDebugUnitTest --tests expo.modules.ReactActivityDelegateWrapperTest -PreactNativeArchitectures=x86_64 --max-workers=2 --console=plain
+      - run: bash apps/mobile/android/gradlew -I "$RUNNER_TEMP/android-test-init.gradle" -p apps/mobile/android :expo:testDebugUnitTest --tests expo.modules.ReactActivityDelegateWrapperTest -PreactNativeArchitectures=x86_64 --max-workers=2 --console=plain
+      - name: Retain Android unit-test failure reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-unit-test-reports
+          path: |
+            apps/mobile/modules/*/android/build/test-results/**
+            apps/mobile/modules/*/android/build/reports/tests/**
+            apps/mobile/node_modules/expo/android/build/test-results/**
+            apps/mobile/node_modules/expo/android/build/reports/tests/**
+          if-no-files-found: ignore
+          retention-days: 7
 
   mobile-native-ios:
     name: iOS HardwareSend UIKit tests (manual)
