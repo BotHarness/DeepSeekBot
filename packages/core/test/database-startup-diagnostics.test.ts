@@ -25,6 +25,9 @@ it.each([
   String.raw`password="left\"right"`,
   String.raw`password='left\'right'`,
   'password="truncated fixture-password',
+  'DB_PASSWORD=fixture-password',
+  'Authorization: Device fixture-password',
+  'Cookie: session=fixture-password; other=fixture-password',
   'password="left right' + '\\',
   "password='left right" + '\\',
   'password="left' + '\\' + '\nright"',
@@ -150,7 +153,7 @@ it('exports correlated migration causes through both report paths without exposi
             description: 'failing migration',
             migrate() {
               throw new Error(
-                `Cannot migrate ${join(dshHome, 'private.db')} ${token} password=fixture-password`,
+                `Cannot migrate ${join(dshHome, 'private.db')} ${token} password=fixture-password DB_PASSWORD=fixture-env\nAuthorization: Device fixture-auth\nCookie: session=fixture-cookie`,
                 {
                   cause: new Error('underlying failure'),
                 },
@@ -189,6 +192,7 @@ it('exports correlated migration causes through both report paths without exposi
       expect(text).not.toContain(dshHome);
       expect(text).not.toContain(token);
       expect(text).not.toContain('fixture-password');
+      expect(text).not.toMatch(/fixture-env|fixture-auth|fixture-cookie/u);
       expect(text).not.toContain(hostname());
       const rows = text
         .trim()
@@ -216,6 +220,9 @@ it('exports correlated migration causes through both report paths without exposi
       );
     }
     expect(JSON.stringify(logs.range(0, 100).map(diagnosticLogView))).not.toContain(token);
+    expect(JSON.stringify(logs.range(0, 100).map(diagnosticLogView))).not.toMatch(
+      /fixture-env|fixture-auth|fixture-cookie/u,
+    );
     expect(JSON.stringify(logs.range(0, 100).map(diagnosticLogView))).not.toContain(
       'fixture-password',
     );
