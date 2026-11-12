@@ -1887,7 +1887,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   ctx.effect(() => {
     const controller = new AbortController();
     if (core.operationalDatabase.mode === 'ready')
-      void core.channels.migrateAttachments?.(controller.signal).catch(() => {
+      void core.channels.migrateAttachments?.(controller.signal, diagnosticEvents).catch(() => {
         if (!controller.signal.aborted)
           ctx.logger.warn('attachment-migration phase=failed action=inspect-database-and-restart');
       });

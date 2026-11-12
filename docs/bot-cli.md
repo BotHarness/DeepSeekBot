@@ -1789,6 +1789,8 @@ For Connect sign-in failures, inspect `device-connect` entries with `phase=accou
 
 Tobs keeps an always-on local diagnostic log in `$DSH_HOME/botharness/logs.db` (30 days, 50 000 rows): Client action and navigation breadcrumbs, uncaught errors and console warnings, UI invariant violations, long frames and slow Host calls, plus Host warnings and BotHarness lifecycle lines. It never records typed text, message bodies or file contents, and nothing leaves the device. The Workspace Control Rail's **Diagnostic logs** button shows the last 24 hours and exports the same ZIP as the CLI.
 
+Retained attachment migration writes `attachment-migration` entries correlated by `attemptId`: `started`, bounded `progress` and `failure-cause`, then `completed`, `failed` or `cancelled`. Inspect `stage`, `durationMs`, `total`, `processed`, `remaining`, `converted`, `failed` and `resumed`; totals remain absent until the retained snapshot is read. `remaining` counts unvisited legacy references, while `failed` counts visited references still needing repair. Up to eight causes retain only allowlisted error codes and a three-level `causeCodes` chain; `omittedCauses` reports further failures. Raw error messages, filenames, paths and attachment contents are excluded. `cancelled` with `reason: caller-aborted` distinguishes shutdown interruption from repair failure; retry retains the reserved attachment identity. Existing online/offline log exports and problem-report ZIPs include these entries.
+
 ```bash
 deepseekbot doctor [--offline] [--home <DSH_HOME>]
 deepseekbot diagnostic-logs [--kind all|error|perf|action] [--since <ms>] [--limit 1-1000] [--offline] [--home <DSH_HOME>]
