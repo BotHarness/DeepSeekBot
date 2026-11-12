@@ -33,7 +33,8 @@ export function nativeTimedQuestions(
     return questions;
   };
   return {
-    bind: (sessionId, channelId) => runtime.bindNativeQuestionInput?.(sessionId, channelId),
+    bind: (sessionId, channelId, question) =>
+      runtime.bindNativeQuestionInput?.(sessionId, channelId, question),
     recover: (sessionId, channelId, requestMessageId) =>
       runtime.recoverNativeQuestionInput?.(sessionId, channelId, requestMessageId),
     available: (sessionId, channelId) =>

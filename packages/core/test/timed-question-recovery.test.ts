@@ -31,7 +31,8 @@ function port(
   delivered: string[],
 ): TimedQuestionPort {
   return {
-    bind: (id, channelId) => core.runtime.bindNativeQuestionInput?.(id, channelId),
+    bind: (id, channelId, question) =>
+      core.runtime.bindNativeQuestionInput?.(id, channelId, question),
     recover: (id, channelId, messageId) =>
       core.runtime.recoverNativeQuestionInput?.(id, channelId, messageId),
     available: (id, channelId) => core.runtime.nativeQuestionAvailable?.(id, channelId) ?? true,
@@ -50,6 +51,10 @@ describe('a timed question card across a Host restart', () => {
     const runs: OrchestratorAgentRun[] = [];
     const warnings: string[] = [];
     let memoryDir: string;
+    let followup: ReturnType<
+      NonNullable<ReturnType<typeof createCore>['runtime']['bindNativeQuestionInput']>
+    >;
+    let foreignFollowup: typeof followup;
     const agents: BotAgentAdapter = {
       async runOrchestrator(run) {
         runs.push(run);
@@ -59,6 +64,23 @@ describe('a timed question card across a Host restart', () => {
           expect(run.memory).toBeUndefined();
           expect(readFileSync(join(memoryDir, 'retained.md'), 'utf8')).toBe('Existing Memory');
           writeFileSync(join(memoryDir, 'answer-note.md'), 'Stable');
+          if (runs.length === 1) {
+            followup = second.runtime.bindNativeQuestionInput?.(sessionId, channelId, {
+              messageId: 'followup-card',
+              callId: 'call-followup',
+            });
+            foreignFollowup = second.runtime.bindNativeQuestionInput?.(sessionId, channelId, {
+              messageId: 'missing-followup',
+              callId: 'call-followup',
+            });
+            await second.channels.appendMessage(channelId, {
+              id: 'followup-card',
+              at: new Date().toISOString(),
+              author: { kind: 'bot', slug: 'ada' },
+              body: 'Follow-up question',
+              userQuestionRequest: { sessionId, callId: 'call-followup', questions },
+            });
+          }
           await run.channels.send({ body: 'Continued with Stable' });
         }
       },
@@ -134,7 +156,10 @@ describe('a timed question card across a Host restart', () => {
 
       expect(await broker.answer('ada', messageId, answer)).toBe(true);
       await second.runtime.whenIdle();
-      expect(warnings).not.toContainEqual(expect.stringContaining('native-question-input-refused'));
+      expect(await foreignFollowup!(() => true)).toBe(false);
+      expect(await followup!(() => true)).toBe(true);
+      await second.runtime.whenIdle();
+      expect(warnings).not.toContainEqual(expect.stringContaining('reason=run-failed'));
       expect(readFileSync(join(memoryDir!, 'retained.md'), 'utf8')).toBe('Existing Memory');
       expect(readFileSync(join(memoryDir!, 'answer-note.md'), 'utf8')).toBe('Stable');
       expect(
@@ -145,11 +170,14 @@ describe('a timed question card across a Host restart', () => {
       expect(delivered).toEqual([`${sessionId}:call-1`]);
       expect(runs.map((run) => [run.sessionId, run.resume, run.message])).toEqual([
         [sessionId, true, ''],
+        [sessionId, true, ''],
       ]);
       expect(runs[0]?.inboundChannelId).toBe(channelId);
       native.current = { state: 'answered', answer };
       await broker.reconcileSession(sessionId);
-      expect(second.humanAttention.openTimedQuestionCards()).toEqual([]);
+      expect(second.humanAttention.openTimedQuestionCards()).toEqual([
+        { channelId, messageId: 'followup-card' },
+      ]);
       expect(broker.status('ada', messageId, channelId)).toBe('answered');
     } finally {
       broker?.close();

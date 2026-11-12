@@ -827,6 +827,7 @@ export interface BotRuntime {
   bindNativeQuestionInput?(
     sessionId: string,
     channelId: string,
+    question?: { messageId: string; callId: string },
   ): ((deliver: () => boolean) => Promise<boolean>) | undefined;
   recoverNativeQuestionInput?(
     sessionId: string,
@@ -1641,6 +1642,7 @@ class BotRuntimeImplementation implements BotRuntime {
       acceptedEventIds: Set<string>;
       inboundChannelId: string | undefined;
       steeredChannelIds: Set<string>;
+      memoryObservation: 'source-event' | 'recovered-question';
     }
   >();
   readonly #memoryTurnOperations = new Set<string>();
@@ -4446,12 +4448,29 @@ class BotRuntimeImplementation implements BotRuntime {
   bindNativeQuestionInput(
     sessionId: string,
     channelId: string,
+    question?: { messageId: string; callId: string },
   ): ((deliver: () => boolean) => Promise<boolean>) | undefined {
     const owner = this.#ownership.resolve(sessionId);
     const turn = owner === undefined ? undefined : this.#turnSources.get(owner.botSlug);
     const sources = turn?.sessionId === sessionId ? turn.acceptedEventIds : undefined;
     const sourceEventId = sources?.values().next().value;
     if (owner?.rootRole !== 'orchestrator' || sourceEventId === undefined) return undefined;
+    if (turn?.memoryObservation === 'recovered-question') {
+      if (question === undefined) return undefined;
+      return (deliver) => {
+        const request = this.#channels.message(channelId, question.messageId)?.userQuestionRequest;
+        if (request?.callId !== question.callId) {
+          this.#warn?.(
+            'native-question-input-refused phase=binding reason=question-card-unavailable',
+          );
+          return Promise.resolve(false);
+        }
+        return (
+          this.recoverNativeQuestionInput(sessionId, channelId, question.messageId)?.(deliver) ??
+          Promise.resolve(false)
+        );
+      };
+    }
     return this.#nativeQuestionInput(
       owner.botSlug,
       sessionId,
@@ -6140,6 +6159,7 @@ class BotRuntimeImplementation implements BotRuntime {
       acceptedEventIds: new Set(turnSources),
       inboundChannelId: channelId,
       steeredChannelIds: new Set(),
+      memoryObservation,
     });
     const typingSources = [...turnSources, ...inboxUnits.map((unit) => unit.sourceEventId)];
     for (const unit of inboxUnits) {

@@ -57,6 +57,12 @@ is preserved. A later admitted Human turn can observe eligible file changes norm
 answers retain their admitted turn's existing Memory behavior. The Memory owner's general source
 allowlist is unchanged.
 
+A follow-up question created during a recovered continuation retains that execution mode.
+Its binding captures the new card and call identities before commit, then resolves the new
+card's own Source Event through the same qualified recovery path at delivery. It does not reuse
+the previous card's validator or infer authority from an arbitrary Bot message. This applies even
+when the follow-up is answered without another Host restart.
+
 Recovery refusals record a stable phase and coded reason through the existing developer log
 surface, without exception messages, prompts, answers or filesystem paths. These process facts
 do not become a second question or Memory authority.
