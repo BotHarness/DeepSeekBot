@@ -1,5 +1,7 @@
 # Conversation timeline
 
+- **iOS Channel speaker scroll lifetime (#4052).** Repeatedly enter a synthetic Channel from the chat list and from a Bot DM, scroll old/latest Human/Bot messages with reactions, quotes, code, tables and media, then leave and re-enter. The application must remain alive, speaker avatars must stay attached to their groups, and child controls must remain usable. `apps/mobile/modules/speaker-anchor/ios/SpeakerAnchorView.swift` uses React Native's scroll-listener seam rather than KVO; `apps/mobile/modules/speaker-anchor/ios/Tests/SpeakerAnchorTests.swift` checks geometry, native class stability across recycling and detached callbacks. Run the actual native Channel journey as well: unit geometry does not qualify the UIKit/Fabric lifecycle. Preserve the failing native stack and avatar-only ablation; restore the normal native avatar path for acceptance.
+
 Reading a Bot DM or group: where the timeline opens, how it keeps your place, and how long messages and images display.
 
 ## Sub-features

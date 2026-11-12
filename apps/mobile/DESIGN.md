@@ -23,6 +23,8 @@ All new or changed screens follow the cross-platform [UI design standard](../../
 
 ## Native first
 
+iOS Channel speaker avatars subscribe through React Native's `RCTScrollableProtocol` scroll-listener API and detach when their window changes. Keep the list's delegate and UIKit runtime class intact; do not add KVO to its scrolling properties. Layout and prop updates still place the avatar immediately. The diagnostic Reanimated fallback is not a production fix for an observer lifetime failure.
+
 iOS message bubbles use a native LongPress recognizer to open their message sheet; Android keeps its existing native hold-to-select behavior. The iOS recognizer must cancel on scrolling and leave short-press media/code controls intact. When Markdown selection is disabled inside a bubble, disable the renderer’s block context menu too; code Copy buttons remain independent short-press controls. Standalone selectable Markdown keeps its native block menus.
 
 iOS message sheets keep their natural content height up to the available safe-area height; a native SwiftUI `ScrollView` makes every action reachable beyond that limit without reducing Dynamic Type.
