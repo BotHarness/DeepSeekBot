@@ -250,6 +250,24 @@ describe('retained legacy attachment migration', () => {
     ).toEqual({ converted: 20, failed: 0, resumed: 20 });
   });
 
+  it('reports bounded progress while scanning already-ready bindings without rewriting them', async () => {
+    const f = fixture();
+    f.seed('ready-first');
+    f.seed('ready-second');
+    await f.channels.migrateAttachments!();
+    const facts = f.facts();
+    const d = diagnostics();
+    expect(await f.channels.migrateAttachments!(undefined, d.events)).toEqual({
+      converted: 0,
+      failed: 0,
+      resumed: 0,
+    });
+    expect(
+      d.rows.filter((row) => row.phase === 'progress').map((row) => row.fields.processed),
+    ).toEqual([0, 1, 2]);
+    expect(f.facts()).toEqual(facts);
+  });
+
   it('keeps an already-aborted attempt terminal without claiming work was processed', async () => {
     const f = fixture();
     f.seed('already-aborted');

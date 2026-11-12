@@ -159,6 +159,8 @@ export function createLegacyAttachmentMigration(
           let row = binding(sourceEventId, index);
           if (row?.state === 'ready') {
             processed += 1;
+            if (!terminal && processed % Math.max(1, Math.ceil(total / 16)) === 0)
+              record('progress');
             continue;
           }
           if (!announced) {
