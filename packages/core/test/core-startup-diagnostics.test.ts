@@ -47,7 +47,13 @@ it('retains a post-database initializer failure, original throw and cleanup, the
     throw failure;
   });
   try {
-    expect(() => createCore(options)).toThrow(failure);
+    let caught: unknown;
+    try {
+      createCore(options);
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBe(failure);
     const failedRows = logs.range(0, 100).map(diagnosticLogView);
     const failed = failedRows.find((row) => row.source === 'core-startup' && row.code === 'failed');
     expect(failed?.fields).toMatchObject({
