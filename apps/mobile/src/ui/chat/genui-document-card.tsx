@@ -206,6 +206,7 @@ function GenuiFrame({
 }
 
 function ViewControls({ view, stateful }: { view: GenuiDocumentViewModel; stateful: boolean }) {
+  const theme = useDesignTheme();
   const t = useStrings();
   const snapshot = useSyncExternalStore(view.subscribe, view.getSnapshot, view.getSnapshot);
   if (!snapshot.available)
@@ -230,7 +231,7 @@ function ViewControls({ view, stateful }: { view: GenuiDocumentViewModel; statef
               : t.genuiSaved;
   const alert = status === 'save-error' || status === 'load-error' || status === 'conflict';
   return (
-    <View style={{ gap: space.x2, alignItems: 'flex-start' }}>
+    <View style={{ gap: space.x2, alignItems: theme.largeText ? 'stretch' : 'flex-start' }}>
       <Text
         variant="meta"
         tone="muted"
@@ -323,11 +324,11 @@ function Replies({
   };
   const justSent = Object.values(sent).length > 0;
   return (
-    <View style={{ gap: space.x2, alignItems: 'flex-start' }}>
+    <View style={{ gap: space.x2, alignItems: theme.largeText ? 'stretch' : 'flex-start' }}>
       <View
         style={{
-          flexDirection: theme.fontScale > 1.3 ? 'column' : 'row',
-          flexWrap: 'wrap',
+          flexDirection: theme.largeText ? 'column' : 'row',
+          flexWrap: theme.largeText ? 'nowrap' : 'wrap',
           gap: space.x2,
         }}
       >
@@ -393,7 +394,7 @@ export function GenuiDocumentCard({
         {document.title}
       </Text>
       {!snapshot.available ? null : failed ? (
-        <View style={{ gap: space.x2, alignItems: 'flex-start' }}>
+        <View style={{ gap: space.x2, alignItems: theme.largeText ? 'stretch' : 'flex-start' }}>
           <Text variant="meta" tone="muted" accessibilityRole="alert">
             {t.genuiFailed}
           </Text>
