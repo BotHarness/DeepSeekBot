@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createConversation, type ConversationMessage } from '../src/host/conversation';
 import { createHostClient } from '../src/host/client';
 import { FakeHost } from './fake-host';
+import { syntheticGenuiDocument } from '../../../packages/core/test/fixtures/genui-document';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -87,6 +88,7 @@ vi.mock('react-native', async () => {
           attributes[`data-${key.toLowerCase()}`] =
             typeof props[key] === 'object' ? JSON.stringify(props[key]) : String(props[key]);
       const style = props['style'] as { opacity?: number } | undefined;
+      const touch = props['onTouchStart'];
       return (
         <div
           ref={props['ref'] as never}
@@ -94,6 +96,7 @@ vi.mock('react-native', async () => {
           {...attributes}
           style={{ opacity: style?.opacity }}
           onClick={props['onPress'] as (() => void) | undefined}
+          onTouchStart={typeof touch === 'function' ? () => touch() : undefined}
         >
           {children as never}
         </div>
@@ -159,6 +162,9 @@ vi.mock('react-native', async () => {
 });
 
 vi.mock('../src/ui/primitives/system-symbol', () => ({ SystemSymbol: () => null }));
+vi.mock('../src/ui/chat/genui-document-card', () => ({
+  GenuiDocumentCard: () => <input aria-label="GenUI note" />,
+}));
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 47, right: 0, bottom: 34, left: 0 }),
@@ -231,6 +237,33 @@ const human = (overrides: Partial<ConversationMessage>): ConversationMessage => 
   attachments: [],
   delivery: 'committed',
   ...overrides,
+});
+
+describe('GenUI keyboard interaction', () => {
+  it.each(['ios', 'android'])(
+    'pauses following before an embedded input opens the keyboard on %s',
+    (os) => {
+      native.os = os;
+      const onInteractionStart = vi.fn();
+      const container = document.createElement('div');
+      const root = createRoot(container);
+      act(() =>
+        root.render(
+          <MessageBubble
+            {...{
+              message: human({ author: 'bot', genuiDocument: syntheticGenuiDocument }),
+              onInteractionStart,
+            }}
+          />,
+        ),
+      );
+      act(() =>
+        container.querySelector('input')!.dispatchEvent(new Event('touchstart', { bubbles: true })),
+      );
+      expect(onInteractionStart).toHaveBeenCalledTimes(os === 'ios' ? 1 : 0);
+      act(() => root.unmount());
+    },
+  );
 });
 
 describe('reply swipe touch region', () => {

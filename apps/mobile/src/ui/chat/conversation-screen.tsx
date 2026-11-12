@@ -1405,6 +1405,7 @@ function ChatConversation({
           message={item.message}
           first={item.first}
           last={item.last}
+          onInteractionStart={latest.hold}
           onRetry={retry}
           onOpenImage={setViewing}
           onShare={share}
@@ -1431,6 +1432,7 @@ function ChatConversation({
       focused,
       conversation,
       latestMessageId,
+      latest.hold,
       client,
       slug,
       inbox,
