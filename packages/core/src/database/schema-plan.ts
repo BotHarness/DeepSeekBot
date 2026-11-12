@@ -3225,6 +3225,29 @@ const QUESTION_MESSAGING_RECOVERY_MIGRATION: SchemaMigration = {
   },
 };
 
+const QQ_PLATFORM_DEFAULTS_MIGRATION: SchemaMigration = {
+  generation: 138,
+  module: 'messaging',
+  description:
+    'Allow QQ platform defaults while preserving official and historical hotfix preferences',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE messaging_default_revisions_qualified (
+        platform TEXT NOT NULL CHECK (platform IN ('feishu', 'slack', 'discord', 'weixin', 'qq')),
+        revision INTEGER NOT NULL CHECK (revision > 0), body TEXT NOT NULL,
+        PRIMARY KEY (platform, revision)
+      );
+      INSERT INTO messaging_default_revisions_qualified SELECT * FROM messaging_default_revisions;
+      DROP TABLE messaging_default_revisions;
+      ALTER TABLE messaging_default_revisions_qualified RENAME TO messaging_default_revisions;
+      CREATE TRIGGER messaging_defaults_no_update BEFORE UPDATE ON messaging_default_revisions
+        BEGIN SELECT RAISE(ABORT, 'Messaging defaults revisions are immutable'); END;
+      CREATE TRIGGER messaging_defaults_no_delete BEFORE DELETE ON messaging_default_revisions
+        BEGIN SELECT RAISE(ABORT, 'Messaging defaults revisions are immutable'); END;
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -3362,4 +3385,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   CALL_VISUAL_TIMELINE_MIGRATION,
   CLIENT_ACKNOWLEDGEMENT_MIGRATION,
   QUESTION_MESSAGING_RECOVERY_MIGRATION,
+  QQ_PLATFORM_DEFAULTS_MIGRATION,
 ]);
