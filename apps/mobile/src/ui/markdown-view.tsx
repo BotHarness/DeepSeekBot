@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo } from 'react';
-import { Linking } from 'react-native';
+import { Linking, Platform } from 'react-native';
 import { EnrichedMarkdownText, type LinkPressEvent } from 'react-native-enriched-markdown';
 import remend from 'remend';
 
@@ -37,7 +37,7 @@ export const MarkdownView = memo(function MarkdownView({
       markdownStyle={style}
       flavor="github"
       selectable={selectable}
-      enableBlockContextMenu={selectable}
+      enableBlockContextMenu={Platform.OS !== 'ios' || selectable}
       md4cFlags={flags}
       enableTaskListItemToggle={false}
       onLinkPress={linkPressed}

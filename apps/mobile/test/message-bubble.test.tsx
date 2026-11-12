@@ -430,6 +430,15 @@ describe('message states', () => {
     expect(html).toContain('data-block-context-menu="true"');
   });
 
+  it('preserves the Android renderer block-menu default', async () => {
+    native.os = 'android';
+    const { MarkdownView } = await import('../src/ui/markdown-view');
+    const html = renderToStaticMarkup(
+      <MarkdownView source={'```ts\nconst value = 1;\n```'} selectable={false} />,
+    );
+    expect(html).toContain('data-block-context-menu="true"');
+  });
+
   it('renders a Bot reply as Markdown that long-press copies whole', () => {
     const html = renderToStaticMarkup(
       <MessageBubble
