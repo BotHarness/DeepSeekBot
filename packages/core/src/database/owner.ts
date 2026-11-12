@@ -826,8 +826,8 @@ function errorCauses(cause: unknown): OperationalDatabaseCause[] {
   while (cause instanceof Error && causes.length < 4 && !seen.has(cause)) {
     seen.add(cause);
     const entry: OperationalDatabaseCause = {
-      name: cause.name.slice(0, 80),
-      message: cause.message.slice(0, 600),
+      name: typeof cause.name === 'string' ? cause.name.slice(0, 80) : 'Error',
+      message: typeof cause.message === 'string' ? cause.message.slice(0, 600) : 'Unknown error',
     };
     if ('code' in cause && typeof cause.code === 'string') entry.code = cause.code.slice(0, 80);
     if ('errcode' in cause && typeof cause.errcode === 'number' && Number.isFinite(cause.errcode))
@@ -842,12 +842,17 @@ function errorCauses(cause: unknown): OperationalDatabaseCause[] {
 
 function notifyDiagnostic(internal: InternalOwner): void {
   internal.startup.durationMs = Math.round(performance.now() - internal.startedAt);
-  try {
-    internal.onDiagnostic?.(internal.owner.diagnostics());
-  } catch (error) {
+  const observerFailed = (error: unknown): void => {
     try {
-      internal.onObserverError?.(error);
+      void Promise.resolve(internal.onObserverError?.(error)).catch(() => {});
     } catch {}
+  };
+  try {
+    void Promise.resolve(internal.onDiagnostic?.(internal.owner.diagnostics())).catch(
+      observerFailed,
+    );
+  } catch (error) {
+    observerFailed(error);
   }
 }
 

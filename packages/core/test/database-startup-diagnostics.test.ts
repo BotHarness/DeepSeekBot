@@ -134,9 +134,12 @@ it('exports correlated migration causes through both report paths without exposi
             module: 'fixture',
             description: 'failing migration',
             migrate() {
-              throw new Error(`Cannot migrate ${join(dshHome, 'private.db')} ${token}`, {
-                cause: new Error('underlying failure'),
-              });
+              throw new Error(
+                `Cannot migrate ${join(dshHome, 'private.db')} ${token} password=fixture-password`,
+                {
+                  cause: new Error('underlying failure'),
+                },
+              );
             },
           },
         ]),
@@ -170,6 +173,7 @@ it('exports correlated migration causes through both report paths without exposi
       const text = Buffer.from(files.find((file) => file.path === path)!.data).toString();
       expect(text).not.toContain(dshHome);
       expect(text).not.toContain(token);
+      expect(text).not.toContain('fixture-password');
       expect(text).not.toContain(hostname());
       const rows = text
         .trim()
@@ -197,6 +201,9 @@ it('exports correlated migration causes through both report paths without exposi
       );
     }
     expect(JSON.stringify(logs.range(0, 100).map(diagnosticLogView))).not.toContain(token);
+    expect(JSON.stringify(logs.range(0, 100).map(diagnosticLogView))).not.toContain(
+      'fixture-password',
+    );
   } finally {
     owner?.close();
     logs.close();
@@ -249,6 +256,48 @@ it('bounds long cyclic cause chains without losing the refusal code', () => {
   expect(owner.recovery?.code).toBe('migration-failed');
   expect(owner.recovery?.causes).toHaveLength(4);
   expect(owner.recovery?.causes?.every((cause) => cause.message.length <= 600)).toBe(true);
+});
+
+it('preserves recovery when nested Error fields are malformed', () => {
+  const malformed = new Error('fixture');
+  Object.defineProperties(malformed, { name: { value: undefined }, message: { value: null } });
+  const owner = trackTestOwner(
+    mountOperationalDatabase({
+      dshHome: createTempRoot('database-startup-diagnostics-'),
+      schemaPlan: defineSchemaPlan([
+        {
+          generation: 2,
+          module: 'fixture',
+          description: 'malformed cause',
+          migrate() {
+            throw new Error('migration failed', { cause: malformed });
+          },
+        },
+      ]),
+    }),
+  );
+  expect(owner.mode).toBe('recovery');
+  expect(owner.recovery?.causes).toContainEqual({ name: 'Error', message: 'Unknown error' });
+});
+
+it('handles rejected diagnostic observers and error handlers', async () => {
+  const errors: unknown[] = [];
+  const owner = trackTestOwner(
+    mountOperationalDatabase({
+      dshHome: createTempRoot('database-startup-diagnostics-'),
+      onDiagnostic: async () => {
+        throw new Error('async observer');
+      },
+      onObserverError: async (error) => {
+        errors.push(error);
+        throw new Error('async handler');
+      },
+    }),
+  );
+  owner.close();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(owner.mode).toBe('closed');
+  expect(errors).toHaveLength(3);
 });
 
 it.each([

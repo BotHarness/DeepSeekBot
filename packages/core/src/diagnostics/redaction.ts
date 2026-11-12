@@ -44,6 +44,8 @@ const SECRET_TOKENS: readonly RegExp[] = [
 
 const URL_SECRET =
   /([?&](?:token|key|api_key|apikey|secret|password|access_token|refresh_token|sig|signature|code)=)[^&\s"'<>]+/giu;
+const TEXT_SECRET =
+  /\b((?:api[_-]?key|client[_-]?secret|app[_-]?secret|secret|password|passwd|access[_-]?token|refresh[_-]?token|token)\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;<>]+)/giu;
 const EMAIL = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b/gu;
 const STOP = String.raw`\s"'<>|\x60，。；：！？、（）【】「」《》,;`;
 const POSIX_PATH = new RegExp(
@@ -99,6 +101,10 @@ export function createDiagnosticRedactor(options: {
       });
     output = output.replace(URL_SECRET, (_match, prefix: string) => {
       counts['url-secret'] += 1;
+      return `${prefix}<secret>`;
+    });
+    output = output.replace(TEXT_SECRET, (_match, prefix: string) => {
+      counts['secret-field'] += 1;
       return `${prefix}<secret>`;
     });
     output = output.replace(EMAIL, (match) => {
