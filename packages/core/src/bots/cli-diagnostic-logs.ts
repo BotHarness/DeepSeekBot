@@ -9,7 +9,6 @@ import {
   type DiagnosticLogList,
 } from '../diagnostics/diagnostic-log.js';
 import { resolveDshHome } from '../im/config-store.js';
-import { LogDatabaseUnreadableError } from '../logs/log-db.js';
 import { installedRelease } from '../release/service.js';
 import { installedDshVersion } from '../telemetry/service.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
@@ -94,23 +93,7 @@ export function readLogsOffline(
   io: BotCreateCliIo,
 ): DiagnosticLogList {
   const dshHome = diagnosticHome(values, io);
-  let list: DiagnosticLogList | undefined;
-  try {
-    list = readDiagnosticLogOffline({ dshHome, ...query, homes: diagnosticHomes(dshHome) });
-  } catch (error) {
-    if (error instanceof LogDatabaseUnreadableError)
-      throw new CliLiveError(
-        'log-unreadable',
-        `The diagnostic log could not be read (${error.message}); it was left unchanged.`,
-      );
-    throw error;
-  }
-  if (list === undefined)
-    throw new CliLiveError(
-      'not-found',
-      'No diagnostic log was found under DSH_HOME; pass --home with the DSH home folder.',
-    );
-  return list;
+  return readDiagnosticLogOffline({ dshHome, ...query, homes: diagnosticHomes(dshHome) });
 }
 
 function exportOffline(
@@ -121,27 +104,12 @@ function exportOffline(
   fallback: string | undefined,
 ) {
   const dshHome = diagnosticHome(values, io);
-  let exported: ReturnType<typeof exportDiagnosticLogOffline>;
-  try {
-    exported = exportDiagnosticLogOffline({
-      dshHome,
-      hours,
-      homes: diagnosticHomes(dshHome),
-      environment: diagnosticEnvironment(),
-    });
-  } catch (error) {
-    if (error instanceof LogDatabaseUnreadableError)
-      throw new CliLiveError(
-        'log-unreadable',
-        `The diagnostic log could not be read (${error.message}); it was left unchanged.`,
-      );
-    throw error;
-  }
-  if (exported === undefined)
-    throw new CliLiveError(
-      'not-found',
-      'No diagnostic log was found under DSH_HOME; pass --home with the DSH home folder.',
-    );
+  const exported = exportDiagnosticLogOffline({
+    dshHome,
+    hours,
+    homes: diagnosticHomes(dshHome),
+    environment: diagnosticEnvironment(),
+  });
   writeFileSync(out, exported.archive, { flag: 'wx', mode: 0o600 });
   return {
     saved: true,
@@ -149,6 +117,7 @@ function exportOffline(
     bytes: exported.archive.byteLength,
     entries: Number(exported.manifest['entries'] ?? 0),
     source: 'offline',
+    completeness: exported.manifest['completeness'],
     ...(fallback === undefined ? {} : { fallback }),
   };
 }
@@ -275,6 +244,7 @@ export async function runDiagnosticLogCommand(
       bytes: bytes.byteLength,
       entries: Number(response.headers.get('x-diagnostic-log-entries') ?? 0),
       source: 'host',
+      completeness: response.headers.get('x-diagnostic-log-completeness') ?? 'unknown',
     };
   }
   let input: Record<string, unknown>;

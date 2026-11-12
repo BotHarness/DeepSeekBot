@@ -47,6 +47,10 @@ export interface LogMigration {
 }
 
 export interface OpenLogDatabaseOptions {
+  readonly onEvidenceGap?: (
+    phase: 'open-failed' | 'write-failed' | 'primary-reset',
+    error: unknown,
+  ) => void;
   readonly dir: string;
   readonly now?: () => number;
 
@@ -225,11 +229,29 @@ export function openLogDatabase(options: OpenLogDatabaseOptions): LogDatabase {
           ensureIndexes(database);
           return database;
         }
-      } catch {}
+      } catch (error) {
+        evidenceGap('open-failed', error);
+      }
       database.close();
-    } catch {}
+      evidenceGap(
+        'open-failed',
+        new LogDatabaseUnreadableError('logs.db schema cannot be retained'),
+      );
+    } catch (error) {
+      evidenceGap('open-failed', error);
+    }
+    evidenceGap('primary-reset', new LogDatabaseUnreadableError('logs.db reset attempted'));
     return rebuildEmpty();
   };
+
+  function evidenceGap(
+    phase: 'open-failed' | 'write-failed' | 'primary-reset',
+    error: unknown,
+  ): void {
+    try {
+      options.onEvidenceGap?.(phase, error);
+    } catch {}
+  }
 
   let database = openOrRebuild();
 
@@ -295,7 +317,8 @@ export function openLogDatabase(options: OpenLogDatabaseOptions): LogDatabase {
       try {
         if (!existsSync(path)) swap(openOrRebuild());
         writeRow(entry);
-      } catch {
+      } catch (error) {
+        evidenceGap('write-failed', error);
         swap(openOrRebuild());
         writeRow(entry);
       }
@@ -306,7 +329,8 @@ export function openLogDatabase(options: OpenLogDatabaseOptions): LogDatabase {
       try {
         if (!existsSync(path)) swap(openOrRebuild());
         writeRows(entries);
-      } catch {
+      } catch (error) {
+        evidenceGap('write-failed', error);
         swap(openOrRebuild());
         writeRows(entries);
       }

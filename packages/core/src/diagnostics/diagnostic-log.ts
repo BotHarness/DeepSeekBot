@@ -14,6 +14,12 @@ import {
 import { scrubHomePaths } from '../telemetry/exceptions.js';
 import { BUG_REPORT_PATH, createBugReportHttp } from './bug-report.js';
 import { createDiagnosticRedactor } from './redaction.js';
+import {
+  createLogHealth,
+  readLogHealth,
+  type LogHealth,
+  type LogHealthSnapshot,
+} from './log-health.js';
 
 export const CLIENT_LOG_PATH = '/api/botharness/client-log';
 export const DIAGNOSTIC_LOGS_PATH = '/api/botharness/diagnostic-logs';
@@ -213,7 +219,12 @@ function minuteBudget(perMinute: number, now: () => number) {
 
 export function createDiagnosticLogWriter(
   database: Pick<LogDatabase, 'writeMany'>,
-  options: { flushMs?: number; maxPending?: number; onError?: (error: unknown) => void } = {},
+  options: {
+    flushMs?: number;
+    maxPending?: number;
+    onError?: (error: unknown) => void;
+    health?: LogHealth;
+  } = {},
 ) {
   const flushMs = options.flushMs ?? 1000;
   const maxPending = options.maxPending ?? 2000;
@@ -225,8 +236,10 @@ export function createDiagnosticLogWriter(
     timer = undefined;
     if (pending.length === 0 && overflow === 0) return;
     const rows = pending;
+    const attemptedEvents = rows.length;
     pending = [];
     if (overflow > 0) {
+      options.health?.loss('queue-loss', overflow);
       rows.push({
         plugin: HOST_PLUGIN,
         owner: 'profile-shared',
@@ -238,7 +251,9 @@ export function createDiagnosticLogWriter(
     }
     try {
       database.writeMany(rows);
+      options.health?.success();
     } catch (error) {
+      options.health?.failure('write-failed', error, attemptedEvents);
       options.onError?.(error);
     }
   };
@@ -366,7 +381,7 @@ function structuredEvent(message: Message, home: string | undefined): LogEntryIn
 
 export function hostLogExporter(
   write: (rows: LogEntryInput[]) => void,
-  options: { now?: () => number; home?: string } = {},
+  options: { now?: () => number; home?: string; onLoss?: (count: number) => void } = {},
 ) {
   const budget = minuteBudget(DIAGNOSTIC_LOG_LIMITS.hostEntriesPerMinute, options.now ?? Date.now);
   let busy = false;
@@ -377,7 +392,10 @@ export function hostLogExporter(
     export(message: Message): void {
       if (busy) return;
       if (message.type !== 'warn' && message.type !== 'error') return;
-      if (budget.take(1) === 0) return;
+      if (budget.take(1) === 0) {
+        options.onLoss?.(1);
+        return;
+      }
       busy = true;
       try {
         const structured = structuredEvent(message, options.home);
@@ -491,6 +509,7 @@ export interface DiagnosticLogEnvironment {
 }
 
 export interface DiagnosticLogHttpOptions {
+  health?: () => LogHealthSnapshot;
   database(): LogDatabase | undefined;
   writer(): DiagnosticLogWriter | undefined;
   environment: DiagnosticLogEnvironment;
@@ -551,17 +570,22 @@ function timelineLine(view: DiagnosticLogView): string {
 }
 
 export function buildDiagnosticExport(
-  database: Pick<LogDatabase, 'range'>,
+  database: Pick<LogDatabase, 'range'> | undefined,
   options: {
     hours: number;
     now: () => number;
     environment: DiagnosticLogEnvironment;
     homes: ReadonlyArray<{ path: string; label: string }>;
     exportedBy?: 'host' | 'cli-offline';
+    health?: LogHealthSnapshot;
   },
 ): { archive: Buffer; manifest: Record<string, unknown>; until: number } {
   const until = options.now();
-  const { rows, since, truncated } = diagnosticLogRows(database, options.hours, until);
+  const { rows, since, truncated, primary } = availableDiagnosticRows(
+    database,
+    options.hours,
+    until,
+  );
   const built = diagnosticLogArchive(rows, {
     since,
     until,
@@ -569,11 +593,14 @@ export function buildDiagnosticExport(
     homes: options.homes,
     truncated,
     exportedBy: options.exportedBy ?? 'host',
+    primary,
+    ...(options.health === undefined ? {} : { health: options.health }),
   });
   return { ...built, until };
 }
 
 export interface DiagnosticLogList {
+  completeness?: Record<string, unknown>;
   version: number;
   since: number;
   filter: string;
@@ -581,12 +608,13 @@ export interface DiagnosticLogList {
 }
 
 export function listDiagnosticLogs(
-  database: Pick<LogDatabase, 'query'>,
+  database: Pick<LogDatabase, 'query'> | undefined,
   options: {
     filter: string;
     since: number;
     limit: number;
     homes: ReadonlyArray<{ path: string; label: string }>;
+    health?: LogHealthSnapshot;
   },
 ): DiagnosticLogList {
   const { filter, since } = options;
@@ -596,13 +624,26 @@ export function listDiagnosticLogs(
     throw new DiagnosticLogError('invalid-input', 'since and limit must be numbers.');
   const limit = Math.min(options.limit, DIAGNOSTIC_LOG_LIMITS.listMax);
   const kinds = filter === 'all' ? undefined : LEVEL_FILTERS[filter];
-  const rows = database.query({ since, limit, ...(kinds === undefined ? {} : { kinds }) });
+  let rows: LogEntry[] = [];
+  let primary: 'available' | 'unavailable' = 'unavailable';
+  try {
+    if (database !== undefined) {
+      rows = database.query({ since, limit, ...(kinds === undefined ? {} : { kinds }) });
+      primary = 'available';
+    }
+  } catch {}
   const redactor = createDiagnosticRedactor({ homes: options.homes });
+  const entries = rows.map((row) => redactor.value(diagnosticLogView(row)));
   return {
     version: DIAGNOSTIC_LOG_VERSION,
     since,
     filter,
-    entries: rows.map((row) => redactor.value(diagnosticLogView(row))),
+    entries,
+    completeness: diagnosticCompleteness(entries, {
+      primary,
+      truncated: rows.length >= limit,
+      ...(options.health === undefined ? {} : { health: options.health }),
+    }),
   };
 }
 
@@ -612,14 +653,16 @@ export function readDiagnosticLogOffline(options: {
   since: number;
   limit: number;
   homes: ReadonlyArray<{ path: string; label: string }>;
-}): DiagnosticLogList | undefined {
+}): DiagnosticLogList {
   const dir = join(options.dshHome, 'botharness');
-  if (!existsSync(join(dir, LOG_DB_FILENAME))) return;
-  const database = openLogDatabase({ dir, readOnly: true });
+  let database: LogDatabase | undefined;
   try {
-    return listDiagnosticLogs(database, options);
+    if (existsSync(join(dir, LOG_DB_FILENAME))) database = openLogDatabase({ dir, readOnly: true });
+  } catch {}
+  try {
+    return listDiagnosticLogs(database, { ...options, health: readLogHealth(dir) });
   } finally {
-    database.close();
+    database?.close();
   }
 }
 
@@ -629,10 +672,12 @@ export function exportDiagnosticLogOffline(options: {
   environment: DiagnosticLogEnvironment;
   homes: ReadonlyArray<{ path: string; label: string }>;
   now?: () => number;
-}): { archive: Buffer; manifest: Record<string, unknown> } | undefined {
+}): { archive: Buffer; manifest: Record<string, unknown> } {
   const dir = join(options.dshHome, 'botharness');
-  if (!existsSync(join(dir, LOG_DB_FILENAME))) return;
-  const database = openLogDatabase({ dir, readOnly: true });
+  let database: LogDatabase | undefined;
+  try {
+    if (existsSync(join(dir, LOG_DB_FILENAME))) database = openLogDatabase({ dir, readOnly: true });
+  } catch {}
   try {
     return buildDiagnosticExport(database, {
       hours: options.hours,
@@ -640,13 +685,16 @@ export function exportDiagnosticLogOffline(options: {
       environment: options.environment,
       homes: options.homes,
       exportedBy: 'cli-offline',
+      health: readLogHealth(dir),
     });
   } finally {
-    database.close();
+    database?.close();
   }
 }
 
 export interface DiagnosticLogArchiveOptions {
+  health?: LogHealthSnapshot;
+  primary?: 'available' | 'unavailable';
   since: number;
   until: number;
   environment: DiagnosticLogEnvironment;
@@ -688,6 +736,7 @@ export function diagnosticLogFiles(
     environment: options.environment,
     entries: views.length,
     truncated: options.truncated,
+    completeness: diagnosticCompleteness(views, options),
     clientSessions: sessions.size,
     counts,
     redaction: { level: redactor.level, hits: redactor.report() },
@@ -718,6 +767,52 @@ export function diagnosticLogRows(
     .filter((row) => row.ts <= until);
   const truncated = rows.length > DIAGNOSTIC_LOG_LIMITS.exportMaxRows;
   return { rows: truncated ? rows.slice(1) : rows, since, truncated };
+}
+
+export function availableDiagnosticRows(
+  database: Pick<LogDatabase, 'range'> | undefined,
+  hours: number,
+  until: number,
+) {
+  try {
+    if (database !== undefined)
+      return { ...diagnosticLogRows(database, hours, until), primary: 'available' as const };
+  } catch {}
+  return {
+    rows: [],
+    since: until - hours * 3_600_000,
+    truncated: false,
+    primary: 'unavailable' as const,
+  };
+}
+
+export function diagnosticCompleteness(
+  views: readonly DiagnosticLogView[],
+  options: {
+    health?: LogHealthSnapshot;
+    primary?: 'available' | 'unavailable';
+    truncated?: boolean;
+  },
+): Record<string, unknown> {
+  const lossFacts = views
+    .filter((view) => view.code === 'log-dropped' || view.code === 'log-overflow')
+    .map(({ id, ts, code }) => ({ id, ts, code }));
+  return {
+    status:
+      options.primary === 'unavailable' ||
+      options.truncated ||
+      lossFacts.length > 0 ||
+      (options.health?.lostEvents ?? 0) > 0 ||
+      (options.health?.failureObservations ?? 0) > 0 ||
+      options.health?.transitions.some((event) => event.phase.endsWith('failed'))
+        ? 'partial'
+        : 'unknown',
+    primary: options.primary ?? 'available',
+    coverage: 'unknown',
+    omissions: { exportTruncated: options.truncated ?? false, lossFacts },
+    health: options.health ?? { evidence: 'unavailable', coverage: 'unknown' },
+    note: 'Retained evidence only; absence of recorded loss does not establish complete coverage. Health counters are lower bounds across the retained observation history.',
+  };
 }
 
 export function createDiagnosticLogHttp(options: DiagnosticLogHttpOptions) {
@@ -765,10 +860,8 @@ export function createDiagnosticLogHttp(options: DiagnosticLogHttpOptions) {
         return Response.json({ ok: true, accepted: granted }, { headers: HEADERS });
       }
       if (request.method !== 'GET') return new Response(null, { status: 405, headers: HEADERS });
-      const database = options.database();
-      if (database === undefined)
-        throw new DiagnosticLogError('persistence-unavailable', 'Diagnostic log is unavailable.');
       options.writer()?.flush();
+      const database = options.database();
       if (url.pathname === DIAGNOSTIC_LOGS_PATH) {
         const sinceRaw = url.searchParams.get('since');
         const limitRaw = url.searchParams.get('limit');
@@ -778,6 +871,7 @@ export function createDiagnosticLogHttp(options: DiagnosticLogHttpOptions) {
             since: sinceRaw === null ? now() - 24 * 3_600_000 : Number(sinceRaw),
             limit: limitRaw === null ? DIAGNOSTIC_LOG_LIMITS.listDefault : Number(limitRaw),
             homes: options.homes,
+            ...(options.health === undefined ? {} : { health: options.health() }),
           }),
           { headers: HEADERS },
         );
@@ -790,6 +884,7 @@ export function createDiagnosticLogHttp(options: DiagnosticLogHttpOptions) {
         now,
         environment: options.environment,
         homes: options.homes,
+        ...(options.health === undefined ? {} : { health: options.health() }),
       });
       const stamp = new Date(until).toISOString().replace(/[:.]/gu, '-').slice(0, 19);
       options.log?.(
@@ -802,6 +897,9 @@ export function createDiagnosticLogHttp(options: DiagnosticLogHttpOptions) {
           'content-length': String(archive.length),
           'content-disposition': `attachment; filename="deepseekbot-logs-${stamp}.zip"`,
           'x-diagnostic-log-entries': String(manifest['entries']),
+          'x-diagnostic-log-completeness': String(
+            (manifest['completeness'] as Record<string, unknown>)['status'],
+          ),
         },
       });
     } catch (error) {
@@ -822,29 +920,49 @@ export function mountDiagnosticLog(
   let database: LogDatabase | undefined;
   let writer: DiagnosticLogWriter | undefined;
   const home = options.homes.find((entry) => entry.label === '~')?.path;
-  const events = diagnosticEventRecorder((rows) => writer?.write(rows), { home });
+  const dir = join(options.dshHome, 'botharness');
+  const health = createLogHealth(dir);
+  const events = diagnosticEventRecorder((rows) => writer?.write(rows), {
+    home,
+    onLoss: (count) => health.loss('rate-loss', count),
+  });
   ctx.effect(() => {
+    const open = () => {
+      if (database !== undefined) return database;
+      try {
+        database = openLogDatabase({
+          dir,
+          onEvidenceGap: (phase, error) => health.failure(phase, error),
+        });
+      } catch (error) {
+        health.failure('open-failed', error);
+        throw error;
+      }
+      return database;
+    };
     try {
-      database = openLogDatabase({ dir: join(options.dshHome, 'botharness') });
-    } catch {
-      database = undefined;
-      ctx.logger.warn('diagnostic-logs phase=persistence-unavailable');
-      return () => {};
-    }
-    let failed = false;
-    writer = createDiagnosticLogWriter(database, {
-      onError: () => {
-        if (failed) return;
-        failed = true;
-        console.warn('botharness: diagnostic-logs phase=write-failed');
+      open();
+    } catch {}
+    writer = createDiagnosticLogWriter(
+      {
+        writeMany(rows) {
+          open().writeMany(rows);
+        },
       },
-    });
+      { health },
+    );
     const offExporter = (
       ctx.logger as unknown as { exporter(exporter: unknown): () => void }
-    ).exporter(hostLogExporter((rows) => writer?.write(rows), home === undefined ? {} : { home }));
+    ).exporter(
+      hostLogExporter((rows) => writer?.write(rows), {
+        ...(home === undefined ? {} : { home }),
+        onLoss: (count) => health.loss('rate-loss', count),
+      }),
+    );
     return () => {
       offExporter();
       writer?.flush();
+      health.snapshot();
       writer = undefined;
       database?.close();
       database = undefined;
@@ -867,6 +985,7 @@ export function mountDiagnosticLog(
     ).connection;
     const http = createDiagnosticLogHttp({
       database: () => database,
+      health: () => health.snapshot(),
       writer: () => writer,
       environment: options.environment(),
       homes: options.homes,
@@ -882,6 +1001,7 @@ export function mountDiagnosticLog(
       );
     const bugReport = createBugReportHttp({
       database: () => database,
+      health: () => health.snapshot(),
       flush: () => writer?.flush(),
       environment: options.environment(),
       homes: options.homes,
@@ -901,16 +1021,19 @@ export function mountDiagnosticLog(
   return {
     ...events,
     list(query) {
-      if (database === undefined) return undefined;
       writer?.flush();
-      return listDiagnosticLogs(database, { ...query, homes: options.homes });
+      return listDiagnosticLogs(database, {
+        ...query,
+        homes: options.homes,
+        health: health.snapshot(),
+      });
     },
   };
 }
 
 export function diagnosticEventRecorder(
   write: (rows: LogEntryInput[]) => void,
-  options: { home?: string | undefined; now?: () => number } = {},
+  options: { home?: string | undefined; now?: () => number; onLoss?: (count: number) => void } = {},
 ): DiagnosticEvents {
   const budget = minuteBudget(DIAGNOSTIC_LOG_LIMITS.eventEntriesPerMinute, options.now ?? Date.now);
   return {
@@ -921,7 +1044,10 @@ export function diagnosticEventRecorder(
           ts: (options.now ?? Date.now)(),
           ...(options.home === undefined ? {} : { home: options.home }),
         });
-        if (row !== undefined && budget.take(1) > 0) write([row]);
+        if (row !== undefined) {
+          if (budget.take(1) > 0) write([row]);
+          else options.onLoss?.(1);
+        }
       } catch {}
     },
   };

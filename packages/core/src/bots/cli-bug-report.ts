@@ -10,7 +10,8 @@ import {
   type BugReportAttachment,
   type BugReportInput,
 } from '../diagnostics/bug-report.js';
-import { LOG_DB_FILENAME, LogDatabaseUnreadableError, openLogDatabase } from '../logs/log-db.js';
+import { LOG_DB_FILENAME, openLogDatabase } from '../logs/log-db.js';
+import { readLogHealth } from '../diagnostics/log-health.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import {
   diagnosticEnvironment,
@@ -64,21 +65,10 @@ function buildOffline(
   const dir = join(dshHome, 'botharness');
   let database: ReturnType<typeof openLogDatabase> | undefined;
   if (input.hours > 0) {
-    if (!existsSync(join(dir, LOG_DB_FILENAME)))
-      throw new CliLiveError(
-        'not-found',
-        'No diagnostic log was found under DSH_HOME; pass --home, or --hours 0 to send the report without logs.',
-      );
     try {
-      database = openLogDatabase({ dir, readOnly: true });
-    } catch (error) {
-      if (error instanceof LogDatabaseUnreadableError)
-        throw new CliLiveError(
-          'log-unreadable',
-          `The diagnostic log could not be read (${error.message}); pass --hours 0 to send the report without logs.`,
-        );
-      throw error;
-    }
+      if (existsSync(join(dir, LOG_DB_FILENAME)))
+        database = openLogDatabase({ dir, readOnly: true });
+    } catch {}
   }
   try {
     return buildBugReport(input, {
@@ -86,6 +76,7 @@ function buildOffline(
       environment: diagnosticEnvironment(),
       homes: diagnosticHomes(dshHome),
       exportedBy: 'cli-offline',
+      health: readLogHealth(dir),
     });
   } catch (error) {
     if (error instanceof BugReportError) throw new CliLiveError(error.code, error.message);

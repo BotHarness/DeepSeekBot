@@ -57,7 +57,14 @@ describe('diagnostic log CLI', () => {
         io() as never,
         connect,
       ),
-    ).toEqual({ saved: true, path: out, bytes: 4, entries: 42, source: 'host' });
+    ).toEqual({
+      saved: true,
+      path: out,
+      bytes: 4,
+      entries: 42,
+      source: 'host',
+      completeness: 'unknown',
+    });
     expect(http).toHaveBeenCalledWith('/api/botharness/diagnostic-logs/export?hours=2');
     expect(readFileSync(out)).toHaveLength(4);
     await expect(
@@ -150,7 +157,14 @@ describe('diagnostic log CLI', () => {
         io() as never,
         connect,
       ),
-    ).rejects.toMatchObject({ code: 'not-found' });
+    ).resolves.toMatchObject({
+      saved: true,
+      completeness: {
+        status: 'partial',
+        primary: 'unavailable',
+        health: { evidence: 'unavailable' },
+      },
+    });
     expect(connect).not.toHaveBeenCalled();
   });
 
@@ -172,7 +186,10 @@ describe('diagnostic log CLI', () => {
         io() as never,
         vi.fn() as unknown as Connect,
       ),
-    ).rejects.toMatchObject({ code: 'log-unreadable' });
+    ).resolves.toMatchObject({
+      saved: true,
+      completeness: { status: 'partial', primary: 'unavailable' },
+    });
     const check = new DatabaseSync(join(dir, LOG_DB_FILENAME), { readOnly: true });
     expect(check.prepare('SELECT COUNT(*) AS n FROM log_entries').get()).toMatchObject({ n: 1 });
     check.close();
@@ -194,7 +211,10 @@ describe('diagnostic log CLI', () => {
         io() as never,
         vi.fn() as unknown as Connect,
       ),
-    ).rejects.toMatchObject({ code: 'log-unreadable' });
+    ).resolves.toMatchObject({
+      saved: true,
+      completeness: { status: 'partial', primary: 'unavailable' },
+    });
   });
 
   it('falls back to logs.db when the Host answers with something that is not a log list', async () => {

@@ -1757,7 +1757,9 @@ Web Client 的 **诊断日志 → 报告问题** 和 CLI 的 `bug-report` 生成
 printf '%s' '升级后群聊一直加载。' | deepseekbot bug-report --title "群聊一直加载" --body-stdin --attach ./screen.png [--attach ./more.txt] [--hours 0-168] --out report.zip [--offline] [--home <DSH_HOME>]
 ```
 
-结果包含 `saved`、`path`、`bytes`、`attachments`、`issueUrl`（带 ZIP 文件名）、`nextStep` 和 `source`。`--hours 0` 不带日志，默认 24 小时。与 `diagnostic-logs-export` 一样，Host 不可用时直接读取 `logs.db` 生成报告，并返回 `source: "offline"` 和 `fallback` 原因。拒绝码有 `usage`（标题和描述都为空、文件不存在、超过 20 个文件、`--out` 已存在）、`report-too-large`，以及 `not-found` 和 `log-unreadable`（两者都会建议用 `--hours 0`）。
+结果包含 `saved`、`path`、`bytes`、`attachments`、`issueUrl`（带 ZIP 文件名）、`nextStep` 和 `source`。`--hours 0` 明确排除日志，默认 24 小时。与 `diagnostic-logs-export` 一样，Host 不可用时以只读方式生成报告，并返回 `source: "offline"` 和 `fallback` 原因。拒绝码有 `usage`（标题和描述都为空、附件不存在、超过 20 个文件、`--out` 已存在）及 `report-too-large`。
+
+日志列表及 ZIP 清单包含 `completeness`：已知证据缺失时 `status` 为 `partial`，否则为 `unknown`，不宣称完整覆盖。`primary` 区分日志可读与不可用；`omissions` 引用现有丢失、溢出事实及导出截断标记。`health` 包含 `diagnostic-health.json` 中容量受限的阶段与原因、已知丢失数量下界、观察起点及最后成功写入时间；`evidence` 区分 `durable`、`memory-only` 与 `unavailable`。数据库缺失或不可读时，仍生成含可用健康元数据的不完整 ZIP，不伪造日志。离线读取保留原文件，不修复数据库。问题报告在 `logs.completeness` 中提供相同信息，小时数为 0 时标记 `omission: human-excluded`。CLI 日志导出结果也提供完整性信息，旧 Host 未提供时为 `unknown`。
 
 ### 消息反馈（#2811）
 
