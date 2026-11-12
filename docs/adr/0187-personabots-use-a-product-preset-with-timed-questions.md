@@ -40,3 +40,23 @@ DSH keeps a timed question in the Session log: the `userQuestions` projection sh
 - On start the Host re-opens unresolved timed cards whose Session the same Bot's Orchestrator still owns, whose native question is still there, and whose Channel the Bot still holds. A card DSH settled while the Host was down is recorded as answered.
 - A late answer to a recovered card runs through the Bot's turn queue like a live one, resumes the Orchestrator Session, and is delivered only if the native question is `continued` after the resume. The card's own Source Event anchors that turn, because the turn that asked is gone. An archived Session, revoked content or a lost Channel membership refuses it.
 - A turn that the Human stops drops the native question; the card is then cancelled.
+
+## Amendment: qualified recovered answers do not admit a new Memory observation (#4066)
+
+The native Agent Registry resolves a live Agent with `get(sessionId)`. A recovered answer uses
+that Agent and the original native call, without replaying the Human input or creating another
+question. The application rechecks the exact card's Bot author, Session, call and Channel before
+resuming and before native delivery.
+
+The card's own Source Event remains the recovered turn's effect and purge anchor. It is not a
+fresh Inbox Admission and does not grant ordinary Bot messages Memory observation authority.
+Only this validated recovered-answer path skips passive Memory preparation and reconciliation,
+including the application branch-continuation and branch-switch capabilities that depend on
+them. Native Memory file access retains its existing owner and restrictions; existing Memory
+is preserved. A later admitted Human turn can observe eligible file changes normally. Warm late
+answers retain their admitted turn's existing Memory behavior. The Memory owner's general source
+allowlist is unchanged.
+
+Recovery refusals record a stable phase and coded reason through the existing developer log
+surface, without exception messages, prompts, answers or filesystem paths. These process facts
+do not become a second question or Memory authority.

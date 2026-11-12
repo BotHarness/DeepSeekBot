@@ -2,6 +2,7 @@
 
 | Feature | Needs a model | Scripted journey | File |
 | --- | --- | --- | --- |
+| Durable timed-question answers across Host restart | yes | `verify-app` original card + `user-question-answer` | [timed-question-recovery.md](timed-question-recovery.md) |
 | Tobs channel group create, rename, delete and failure recovery | no | `verify-app` sidebar path | [channel-sections.md](channel-sections.md) |
 | Complete environment backup across versions | no | `verify-app` Settings + backup CLI | [profile-backup.md](profile-backup.md) |
 

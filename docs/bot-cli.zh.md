@@ -173,6 +173,11 @@ deepseekbot grant-create <bot-id> --workspace <workspace-id>
 
 `tool-approval-status` 返回 `status`；卡片仍为 `pending` 时还返回 `expiresAt`，即网页卡片倒计时的截止时间。`--outcome allowed-always-kind` 对应 `secret_cli` 卡片上的“总是允许此类”：批准这一次，并为同一程序、账号和环境变量名保存一条规则；`tool-approval-rules` 会以 `secret-cli` 类型列出它。其他卡片会拒绝这个选项。
 
+`user-question-answer` 接受与网页卡片相同的已提供选项。持久化限时提问可在 Host 重启后回答，
+请保留原 Channel 与卡片 ID。冷恢复继续原生调用并保留 Memory，但不产生新的 Inbox Admission
+或被动 Memory 观察。所属 Session 缺失、归档或权限撤销时仍拒绝。使用 `diagnostic-logs` 或
+日志导出读取 `native-question-input-refused` 的稳定 `phase` 与 `reason`；记录不含问题、答案或异常原文。
+
 ### Agent 控制
 
 这些命令让 Agent 不经 Web 界面就能配置 Bot 的能力和 Host，走的是界面所用的同一套 Host 接口与检查：

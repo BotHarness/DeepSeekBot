@@ -4,6 +4,14 @@
   "boundary": "All scripts/e2e-*.mjs files and all current feature-map documents, augmented by implemented Client/CLI/mobile source entry points. Behavior rows group related acceptance paths; they are not an exhaustive product behavior denominator. Planned unmerged #1954 work and packaged/restart identity promises are excluded.",
   "behaviors": [
     {
+      "id": "question.durable-recovery",
+      "label": "Original timed-question answers after durable continuation and Host restart",
+      "source": "packages/core/src/channels/native-timed-questions.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/timed-question-recovery.md",
+      "task": 4066,
+      "gap": "Interruption while the native question is still open and external IM delivery remain separate qualification paths."
+    },
+    {
       "id": "connect.account-recovery",
       "label": "Connect authorization expiry, transient retries and truthful recovery instructions",
       "source": "packages/core/src/devices/connect-account.ts",

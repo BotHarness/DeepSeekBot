@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import { createCore } from '../src/plugin.js';
 import type { BotAgentAdapter, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
@@ -46,12 +48,18 @@ describe('a timed question card across a Host restart', () => {
     const home = createTempRoot('bh-timed-question-recovery-');
     const native = nativeLog();
     const runs: OrchestratorAgentRun[] = [];
+    const warnings: string[] = [];
+    let memoryDir: string;
     const agents: BotAgentAdapter = {
       async runOrchestrator(run) {
         runs.push(run);
         if (run.acceptNativeInput !== undefined) {
           native.current = { state: 'continued' };
-          run.acceptNativeInput();
+          if (!run.acceptNativeInput()) return;
+          expect(run.memory).toBeUndefined();
+          expect(readFileSync(join(memoryDir, 'retained.md'), 'utf8')).toBe('Existing Memory');
+          writeFileSync(join(memoryDir, 'answer-note.md'), 'Stable');
+          await run.channels.send({ body: 'Continued with Stable' });
         }
       },
       async runAssignment() {},
@@ -66,6 +74,8 @@ describe('a timed question card across a Host restart', () => {
     let channelId: string;
     try {
       first.registry.create({ slug: 'ada', displayName: 'Ada' });
+      memoryDir = first.registry.memoryDirFor('ada')!;
+      writeFileSync(join(memoryDir, 'retained.md'), 'Existing Memory');
       channelId = first.channels.getOrCreateDm('ada', 'Ada')!.id;
       first.ownership.claim({
         sessionId,
@@ -103,6 +113,7 @@ describe('a timed question card across a Host restart', () => {
     const second = createCore({
       dshHome: home,
       agents,
+      warn: (message) => warnings.push(message),
       activeQuestionMessageIds: () => broker?.activeMessageIds() ?? [],
     });
     try {
@@ -122,6 +133,15 @@ describe('a timed question card across a Host restart', () => {
       ).toMatchObject([{ kind: 'user-question', messageId }]);
 
       expect(await broker.answer('ada', messageId, answer)).toBe(true);
+      await second.runtime.whenIdle();
+      expect(warnings).not.toContainEqual(expect.stringContaining('native-question-input-refused'));
+      expect(readFileSync(join(memoryDir!, 'retained.md'), 'utf8')).toBe('Existing Memory');
+      expect(readFileSync(join(memoryDir!, 'answer-note.md'), 'utf8')).toBe('Stable');
+      expect(
+        second.channels
+          .readMessages(channelId)
+          .some((entry) => entry.body === 'Continued with Stable'),
+      ).toBe(true);
       expect(delivered).toEqual([`${sessionId}:call-1`]);
       expect(runs.map((run) => [run.sessionId, run.resume, run.message])).toEqual([
         [sessionId, true, ''],
@@ -179,6 +199,15 @@ describe('a timed question card across a Host restart', () => {
       expect(core.runtime.recoverNativeQuestionInput?.(sessionId, channelId, 'other')).toBe(
         undefined,
       );
+      await core.channels.appendMessage(channelId, {
+        id: 'ordinary-bot-message',
+        at: new Date().toISOString(),
+        author: { kind: 'bot', slug: 'ada' },
+        body: 'Not a question',
+      });
+      expect(
+        core.runtime.recoverNativeQuestionInput?.(sessionId, channelId, 'ordinary-bot-message'),
+      ).toBeUndefined();
       expect(core.runtime.recoverNativeQuestionInput?.('unowned', channelId, 'card')).toBe(
         undefined,
       );
@@ -208,7 +237,7 @@ describe('the native timed question port', () => {
   });
 
   it('reads a stored Session through the native projection and keeps the last live view', async () => {
-    const roots: unknown[] = [];
+    const roots: Array<{ session: { id: string } }> = [];
     const session = { id: sessionId };
     let live = view('open');
     const restore = vi.fn(() => ({ snapshot: { values: { userQuestions: view('continued') } } }));
@@ -218,7 +247,7 @@ describe('the native timed question port', () => {
       events: [{ seq: 0 }],
     }));
     const services = {
-      agents: { roots: () => roots },
+      agents: { get: (id: string) => roots.find((agent) => agent.session.id === id) },
       sessionProjections: {
         stateOf: () => ({ questions: live }),
         restore,
@@ -253,7 +282,7 @@ describe('the native timed question port', () => {
       throw new Error('missing');
     });
     const ctx = context({
-      agents: { roots: () => [] },
+      agents: { get: () => undefined },
       sessionProjections: { stateOf: () => undefined, restore: vi.fn() },
       sessionQuery: { readSession },
     });
@@ -264,5 +293,16 @@ describe('the native timed question port', () => {
     await port.load?.(['live', 'gone']);
     expect(readSession).toHaveBeenCalledTimes(1);
     expect(port.read('gone', 'call-1')).toBeUndefined();
+  });
+
+  it('refuses a missing or foreign live Agent returned by the Registry', () => {
+    const answerNative = vi.fn(() => true);
+    const ctx = context({
+      agents: { get: () => ({ session: { id: 'foreign-session' } }) },
+      userQuestions: { answer: answerNative },
+    });
+    const port = nativeTimedQuestions(ctx, runtime, { get: () => undefined, list: () => [] });
+    expect(port.answer(sessionId, 'call-1', answer)).toBe(false);
+    expect(answerNative).not.toHaveBeenCalled();
   });
 });

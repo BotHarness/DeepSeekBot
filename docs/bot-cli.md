@@ -178,6 +178,13 @@ deepseekbot grant-create <bot-id> --workspace <workspace-id>
 
 `tool-approval-status` returns `status` and, while the card is still `pending`, its `expiresAt`, the time the Web card counts down to. `--outcome allowed-always-kind` is the `secret_cli` card's "Always allow this kind": it allows this call and saves a rule for the same program, account and environment variable names, which `tool-approval-rules` lists with kind `secret-cli`; any other card refuses it.
 
+`user-question-answer` accepts the same offered selections as the Web card. A durable timed
+question can be answered after restarting the Host; keep its original Channel and card IDs.
+Cold recovery resumes the original native call and preserves Memory, but does not create a new
+Inbox Admission or passive Memory observation. Missing, archived or revoked owners still refuse.
+Read `diagnostic-logs` or export them to inspect `native-question-input-refused` with a stable
+`phase` and `reason`; these records omit prompts, answers and exception messages.
+
 ### Agent control
 
 These commands let an agent configure a Bot's capabilities and the Host without the Web UI, through the same Host owners and checks the UI uses:

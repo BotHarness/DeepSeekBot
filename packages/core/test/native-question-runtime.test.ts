@@ -36,6 +36,7 @@ async function fixture(
   const ready = gate();
   const native = gate();
   const sessions: string[] = [];
+  const warnings: string[] = [];
   let bound: ReturnType<NonNullable<BotRuntime['bindNativeQuestionInput']>>;
   let runtime!: BotRuntime;
   const agents: BotAgentAdapter = {
@@ -73,6 +74,7 @@ async function fixture(
     agents,
     ownership,
     sessionArchived: (sessionId) => archived.has(sessionId),
+    warn: (message) => warnings.push(message),
   });
   const admission = runtime.admitDmMessage({
     channelId: dm.id,
@@ -91,6 +93,7 @@ async function fixture(
     native,
     admission,
     sessions,
+    warnings,
     getBound: () => bound!,
   };
 }
@@ -157,6 +160,25 @@ describe('native question answer uses the owning Orchestrator runtime', () => {
     expect(deliver).not.toHaveBeenCalled();
     expect(state.sessions).toHaveLength(2);
     await state.runtime.whenIdle();
+    await state.runtime.close();
+  });
+
+  it('exports a bounded recovery stage when the resumed run fails without leaking exception text', async () => {
+    const state = await fixture(() => {
+      throw new Error('PRIVATE_QUESTION_ANSWER_AND_PATH');
+    });
+    state.first.release();
+    await state.admission.settled;
+    const deliver = vi.fn(() => true);
+    expect(await state.getBound()(deliver)).toBe(false);
+    await state.runtime.whenIdle();
+    expect(deliver).not.toHaveBeenCalled();
+    expect(state.warnings).toContainEqual(
+      expect.stringContaining(
+        `native-question-input-refused phase=resume reason=run-failed kind=error bot=ada session=${state.sessions[0]}`,
+      ),
+    );
+    expect(state.warnings.join('\n')).not.toContain('PRIVATE_QUESTION');
     await state.runtime.close();
   });
 });
