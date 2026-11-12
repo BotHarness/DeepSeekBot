@@ -6,6 +6,7 @@ import type { MessagingInboundEvent } from '../src/messaging/provider.js';
 import { createCore, type BotHarnessCore } from '../src/plugin.js';
 import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { createTempRoot } from './helpers.js';
+import { createBridgeMethods } from '../src/bridge/methods.js';
 
 const cores = new Set<BotHarnessCore>();
 async function stop(core: BotHarnessCore) {
@@ -20,7 +21,7 @@ afterEach(async () => {
 });
 
 const policy = { collection: 'all', wake: 'digest', count: 2, intervalSeconds: 60 } as const;
-async function fixture(proactive = true, media = false) {
+async function fixture(proactive = true, media = false, allByDefault = false) {
   const fingerprint = 'a'.repeat(64);
   const home = createTempRoot('qq-ordinary-');
   type Consumer = Parameters<NonNullable<DshImOutboundService['consumeInbound']>>[1];
@@ -134,6 +135,20 @@ async function fixture(proactive = true, media = false) {
     return core;
   };
   let core = boot();
+  if (allByDefault) {
+    expect(
+      await createBridgeMethods({ ...core }).messagingDefaultsSet({
+        platform: 'qq',
+        expectedRevision: 0,
+        collection: 'all',
+        wake: 'digest',
+        count: 10,
+        intervalSeconds: 600,
+        identityEnabled: true,
+        newConversations: 'auto',
+      }),
+    ).toMatchObject({ ok: true });
+  }
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
   const target = (await provider.targets('own-app'))[0]!;
   const grant = await core.externalMessaging.authorize({
@@ -202,6 +217,24 @@ async function fixture(proactive = true, media = false) {
     },
   };
 }
+
+it('QQ inherits all-message defaults before delivery proof and retains collection after restart', async () => {
+  const fx = await fixture(true, false, true);
+  expect((await fx.core.externalMessaging.snapshot('ada')).grants[0]).toMatchObject({
+    ordinaryDelivery: 'unverified',
+    groupPolicy: { collection: 'all', inheritance: 'inherit' },
+  });
+  await fx.receive('first-ordinary');
+  expect(fx.query("SELECT * FROM inbox_admissions WHERE reason = 'group-ordinary'")).toHaveLength(
+    1,
+  );
+  await fx.restart();
+  await fx.receive('ordinary-after-restart');
+  expect(fx.query("SELECT * FROM inbox_admissions WHERE reason = 'group-ordinary'")).toHaveLength(
+    2,
+  );
+  expect(fx.runs).toHaveLength(0);
+});
 
 it('QQ ordinary permission evidence does not collect or wake until the conversation explicitly opts in', async () => {
   const fx = await fixture();

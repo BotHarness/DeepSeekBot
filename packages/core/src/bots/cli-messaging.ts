@@ -161,7 +161,7 @@ export interface MessagingValues {
 
 type Rpc = <T>(method: string, args: Record<string, unknown>) => Promise<T>;
 
-const PLATFORMS = ['feishu', 'slack', 'discord', 'weixin'];
+const PLATFORMS = ['feishu', 'slack', 'discord', 'weixin', 'qq'];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 const STDIN_COMMANDS = new Set<MessagingCommand>([
   'messaging-defaults-set',

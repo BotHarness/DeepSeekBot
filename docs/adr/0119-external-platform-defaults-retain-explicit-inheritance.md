@@ -67,3 +67,7 @@ Binding Consumer and existing implicit Grant admission exclude delayed pre-resum
 events. Explicit custom identities retain their behavior. Schema rollback requires a compatible Host
 or the existing pre-upgrade backup procedure; never downgrade a generation-69 database
 into an older binary. Native fresh-message and typing observations remain Human QA.
+
+## QQ defaults extension (#3419)
+
+QQ uses the existing application-owned platform-default revision store and authenticated API/CLI. Forward generation 138 widens the immutable defaults table to QQ and copies every prior row unchanged, including rows from the historical generation-116 hotfix. Historical migrations remain unchanged; generation 137 separately repairs the skipped question schema. New QQ groups inherit the configured defaults; existing custom identity and group choices remain custom until explicitly restored. Inherited all-message collection is a preference, not ordinary-delivery evidence: the explicit custom-all qualification gate remains enforced. This does not qualify unsupported media or authorize another conversation. Rollback requires matching packages and a fresh complete pre-upgrade Profile backup, not a package-only downgrade.
