@@ -29,6 +29,8 @@
 
 `deepseekbot device-notifications --device-file <私有配对.json>` 从运行中的 Host 读取当前配对设备的通知发送副本。加上 `--preferences-stdin`，从标准输入传入 `{"approval":true,"question":true,"private-input":true,"reply":false}`，即可替换四种通知选择，无需先注册推送 token。私有文件使用已保存配对的结构（`hostId`、`hostName`、`routes`、`deviceId`、`credential`）；凭据不能放入参数或公开文件。标准输出仅有一个不含凭据的 JSON，配对撤销后返回 `device-revoked`。命令只修改该 Host 的发送副本；手机持久化选择仍是权威，下次同步会覆盖副本。浏览器通知选择只保存在该浏览器，不影响 Host attention。
 
+手机上 通知 → 送达方式 可为该 Host 选择 **推送**、**仅 App 内** 或 **关闭**。仅 App 内会停止向这台设备推送，但角标照常更新；App 只在打开时显示横幅。CLI 用 `deepseekbot device-notifications --device-file <私有配对.json> --delivery push|in-app` 设置，返回带 `delivery` 的设置；关闭即原有的 `enabled:false`。`--delivery` 不能和 `--preferences-stdin` 同时使用，未注册推送的设备返回 `push-not-registered`。
+
 `deepseekbot device-activity capability --device-file <私有配对.json>` 检查此电脑的锁屏状态服务。`prepare`、`register`、`stop` 通过 `--activity-stdin` 接收 JSON：prepare 需要 `channelId`、`messageId`、`bundleIdentifier`；register 另需 iOS 实际生成的 `clientActivityId`、每项活动的 `token` 和 `locale`（`en`/`zh`）；stop 只需 `clientActivityId`。`status` 同样只需 `clientActivityId`，读取本设备自己的登记（活动结束后也可读）：返回请求的 `channelId`、`messageId`、`progress`；若该请求创建或推进了某个任务（Assignment），另含 `assignmentId`（即 Assignment Session id，手机据此打开 `bot/[slug]/assignment/[id]`）；`prepare`、`register` 在已知时也带同一 `assignmentId`。设备身份来自配对凭据，不能由输入指定。token 属于秘密，只能私下传入标准输入，不能放在参数或公开文件中。命令调用与手机相同的鉴权/加密路由，只输出一个 JSON 结果或拒绝码；未配置、不支持、已结束或撤销配对会明确拒绝。停止显示不会停止原请求。`activity-cleanup-pending` 表示停止投递尚未确认；Host 只重试清理，到确认或登记到期为止。`send-status <bot> --message-id <id>` 新增 `progress`，仅显式 Inbox 解决事实表示完成，单轮处理结束不算完成；若该请求创建或推进了任务，另含 `assignmentId`（以最近一次为准）。CLI 源码测试与真实 Host、iPhone 后台送达仍是独立验收项，参见 [ADR-0255](adr/0255-live-activities-project-one-admitted-dm-request.md)。
 
 ```bash
@@ -195,6 +197,8 @@ deepseekbot group-create "Skill Lab" --member <bot-id> --member <bot-id>
 
 ### Bot 私聊中的 GenUI 文档
 
+新建的 `genui-submit` 续接将 `request.json.body` 保留为普通、可读的 Human 消息正文。Host 在同一条规范 Source Event 中加入经过校验的有界 `genuiReplyContext` 元数据，供 Bot 模型投影使用，不追加到可见正文；调用方不能指定这项元数据。已有的拼接正文消息及其同意图重试保持不变。
+
 GenUI 是有界的普通消息内容。版本 2 在隔离文档中渲染自包含 HTML、内联 CSS、SVG 和本地 JavaScript；版本 1 报告保持可读。通过既有 direct Tool 路径预览并显式发布，无需模型：
 
 ```bash
@@ -206,7 +210,11 @@ deepseekbot genui-view-save dm-<bot-id> --message-id <report-message-id> --genui
 deepseekbot genui-submit dm-<bot-id> --message-id human-<uuid> --genui-file ./request.json
 ```
 
-`document-preview.json` 包含 `genui_json`（完整文档序列化后的 JSON 字符串）、可选 `width`（240–1600）和 `theme`（`light` 或 `dark`）。预览使用已安装的 Chrome、Edge 或 Chromium 和一次性 Profile，不自动下载浏览器。结果包含文档／策略标识、有界诊断和 DSH 图片附件，不发布 Channel 消息。预览期限为 15 秒，只允许一个并发任务，图片上限为 1 MiB；浏览器收尾可能延长返回时间。这不是硬 CPU／内存沙箱。
+`document-preview.json` 包含 `genui_json`（完整文档序列化后的 JSON 字符串）、可选 `width`（240–1600）和 `theme`（`light` 或 `dark`）。预览使用已安装的 Chrome、Edge 或 Chromium 和一次性 Profile，不自动下载浏览器。结果包含文档／策略标识、精确打包渲染器的 `runtimeSha256`、有界诊断和 DSH 图片附件，不发布 Channel 消息。预览在浏览器自带的第一个页面中渲染，等两帧完成绘制后再截图。预览期限为 15 秒，只允许一个并发任务，图片上限为 1 MiB；浏览器收尾可能延长返回时间。生成脚本在独立监督的 QuickJS Worker 和有限 DOM 适配层中运行，不在浏览器镜像文档中执行。解释器／WASM 限额不代表浏览器／进程总内存上限，也不保证物理内存立即回收。运行时资源缺失、损坏或不受支持时明确拒绝，不退回浏览器原生脚本执行。
+
+直接 CLI 路径保留预览 owner 的错误码：`genui-preview-timeout`、`genui-preview-busy`、`genui-preview-unavailable`、`genui-preview-too-large`，以及按阶段区分的 `genui-preview-{assets,browser,document,renderer,capture}-failed`。已识别的 Browser owner 启动失败保留为 `genui-preview-browser-<kind>`（例如 `genui-preview-browser-startup-timeout`），不包含进程 stderr 或 Profile 路径。`genui_diagram` 的拒绝同样保留其 `genui-diagram-*` 错误码。渲染器拒绝使用 `genui-preview-renderer-{startup,execution,memory,resource,unsupported,invalid-content}`。`genui-preview-image-unavailable` 表示渲染成功，但图片附件保存失败。这些分类不包含生成内容、私有服务细节或原始传输错误；再次诊断前保留首次失败。
+
+收尾失败使用 `genui-preview-cleanup-{browser,profile}-{failed,enotempty,ebusy,eperm,eacces}`，不返回成功预览，也不宣称资源已停止。若渲染此前已经失败，安全错误消息保留原拒绝码，不包含进程细节或私有路径。浏览器停止本身失败后，不删除其 Profile。
 
 版本 2 文档包含 `version: 2`、`snapshotId`、`observedAt`、`title`、`html`，以及可选的 `predecessorMessageId` 和 `stateContract`。完整信封上限 256 KiB，HTML 上限 192 KiB。不允许远程脚本、字体或其他网络资源、外部导航或 Host／工具调用。参见[丰富内容合成样例](../packages/core/test/fixtures/genui-document.ts)。状态契约最多注册 16 个字符串、数字、布尔或枚举字段。`window.genui.getState()` 返回当前值；`window.genui.setState(values)` 提交完整值对象。监听 `genui:state`，在 Host 恢复状态后重新绘制。未注册的 DOM 状态重新打开后复位。
 
@@ -279,6 +287,8 @@ deepseekbot channel-purge-preview <channel> --source-event <id> | jq '{token}' \
 发送中断后，通过 `bot-tool <bot> channel_action --args-stdin` 传入
 `{"channel_id":"...","action":"inspect"}`，读取自己最多 20 条草稿／回执元数据，
 待处理记录优先，并返回 `hasMore`；指定 `draft_id` 可查更早的准确记录。检查不发送消息、不结清 Inbox。
+每条记录的 `state` 在草稿未结束时为 `held` 或 `requires-review`，结束后为 `committed`、`dropped`
+或 `expired`；结束状态不再改变，被停止的草稿在复核时限过后仍显示 `dropped`。
 Host 重启后，先读取当前群聊，再用 `recover:true`、`draft_id`、新 `observation_id`
 和修正后的 `body` 恢复。旧观察无效，过期时间及已消耗的复核预算不重置。
 已提交回执给出原 `messageId`，可读取规范消息核实；同 `draft_id`、同正文重放只返回原消息 ID，
@@ -497,7 +507,11 @@ deepseekbot private-mcp-remove <bot-id> --server <name> --confirm
 
 `session-stop <bot-id> --activity <activity-id>` 停止 Bot 实时活动快照中某一行（`sessions[].id`）对应的 Session，与消息面板顶部弹出框中该行的停止按钮相同。该行已消失表示 Session 已结束，命令返回空的 `stopped` 和 `alreadyIdle` 列表，仍然成功。Session id 和 `--activity` 只能传其中一个。
 
-停止 **Assignment** 不会唤醒 Orchestrator；它的下一轮会读到一条 Host 生命周期通知，说明 Human 停止了该 Assignment，除非 Human 要求，否则不要重新派发。该 Assignment 保留历史且不会被归档；在它保持停止期间，新的 Assignment Request 会被拒绝。只有显式恢复能让它继续：在 Human 明确指示继续后，先调用 `unarchive_assignment`，再重新发送请求。
+停止 **Assignment** 不会唤醒 Orchestrator；它的下一轮会读到一条 Host 生命周期通知，说明 Human 停止了该 Assignment，除非 Human 要求，否则不要重新派发。该 Assignment 保留历史且不会被归档；在它保持停止期间，新的 Assignment Request 会被拒绝。只有显式恢复能让它继续：在 Human 明确指示继续后，调用 `unarchive_assignment` 并把请求作为可选的 `message` 传入，一次调用即可恢复并继续（也可以先取消归档，再重新发送请求）。不带 `message` 时，`unarchive_assignment` 只恢复它，不发送任何内容。带 `message`（以及可选的 `mode`，默认 `next-turn`，或 `next-step`）时，请求走与 `send_assignment_request` 相同的 Assignment Request 投递路径和拒绝规则；`delivery` 为 `steer` 或 `followup` 表示已投递，`code: "request-not-delivered"`（请求被带码拒绝时附带 `requestCode`）表示 Assignment 已取消归档但没有收到请求。无效的 `mode`、空白的 `message`，或只给 `mode` 不给 `message`，会在取消归档之前被拒绝。不经过模型：
+
+```bash
+printf '{"session_id":"<assignment-session-id>","message":"Human 还是要这个，继续"}' | deepseekbot bot-tool <bot-id> unarchive_assignment --args-stdin
+```
 
 停止 **Orchestrator** 只打断它当前的回合（或等待中的自动继续）。它的 Assignment 继续运行，其他一切不变：下一条消息、Assignment 汇报或其他唤醒照常开启新回合，这一回合会带上一条关于停止的 Host 说明。在 Sessions 面板中，如果有正在运行的 Assignment，停止前会先询问，并可选择一并停止它们（Bot Stop）。
 
@@ -679,7 +693,9 @@ printf '{"channel_id":"dm-<bot-id>","body":"检查已通过。"}' | deepseekbot 
 
 `channel_action` 通过同一 `bot-tool` 执行表情与草稿动作：明确指定 `channel_id`，`action` 使用 `inspect`、`drop` 或 `react`，并提供相应草稿或消息引用。它不能发送正文。模型仅看到 `bot_send_message` 发送入口，旧发送名仅供直接 CLI 兼容。主动联系同事使用 `bot_id`；可达外部会话使用 `binding_id` 与 `conversation_id`，均与其他目标形式互斥。
 
-`bot-tools` 列出可直接调用的工具及其输入 schema。`bot-tool` 从标准输入读取参数 JSON 对象，执行与 Bot 回合中完全相同的工具代码，保留工具自身的参数校验、成员资格和权限检查，返回 `{slug, tool, sessionId: "direct", result}`。直接调用没有入站 Channel，回合中默认使用入站 Channel 的地方要显式传 `channel_id`。直接读取不会把 Inbox 条目标为已读。Bot 之间发送时，使用 `--cause-event <source-event-id>` 指定本 Bot 已接收的真实 Source Event；Host 检查接收归属、当前 Channel 成员资格及来源副作用限制。缺少来源仍会拒绝；其他 Bot 的来源返回 `source-unavailable`。该参数独立于工具的唯一发送目标。失败时以非零退出并给出错误码：只能在 Bot 回合内运行的工具（创建或等待 Assignment、提问卡片、切换 Memory 分支、申请工作区授权、交给模型的图片）返回 `tool-not-direct`，此外还有 `invalid-args`、`unknown-bot`、`bot-paused`，以及带工具原始消息的 `tool-failed`。每次调用都记入 Host 的近期直接调用记录，`bot-trace --session direct` 可读取，Host 重启后清空。
+`bot-tools` 列出可直接调用的工具及其输入 schema。`bot-tool` 从标准输入读取参数 JSON 对象，执行与 Bot 回合中完全相同的工具代码，保留工具自身的参数校验、成员资格和权限检查，返回 `{slug, tool, sessionId: "direct", result}`。直接调用没有入站 Channel，回合中默认使用入站 Channel 的地方要显式传 `channel_id`。直接读取不会把 Inbox 条目标为已读。Bot 之间发送时，使用 `--cause-event <source-event-id>` 指定本 Bot 已接收的真实 Source Event；Host 检查接收归属、当前 Channel 成员资格及来源副作用限制。缺少来源仍会拒绝；其他 Bot 的来源返回 `source-unavailable`。该参数独立于工具的唯一发送目标。失败时以非零退出并给出错误码：只能在 Bot 回合内运行的工具（等待 Assignment、提问卡片、切换 Memory 分支、申请工作区授权、交给模型的图片）返回 `tool-not-direct`，此外还有 `invalid-args`、`unknown-bot`、`bot-paused`，以及带工具原始消息的 `tool-failed`。每次调用都记入 Host 的近期直接调用记录，`bot-trace --session direct` 可读取，Host 重启后清空。
+
+通过 `bot-tool <bot-id> create_assignment --args-stdin` 传入 `{"title":"核对发布状态","description":"检查发布流水线并报告卡住的环节。","instructions":"先看最新一次 CI。","grant_id":"<grant-id>","key":"release-status"}`，无需模型即可创建 Assignment；通过 `bot-tool <bot-id> send_assignment_request --args-stdin` 传入 `{"session_id":"<assignment-session-id>","text":"顺便列出失败的 job。"}` 继续投递。两者都以该 Bot 的 Orchestrator 身份运行，结果归 Orchestrator 所有和管理：Host 记录一条直调 Source Event 作为来源，并给 Orchestrator 留一条静默通知，它下一轮 turn 读取，不会被唤醒。`grant_id` 从 `bot-tool <bot-id> list_workspace_grants` 中选取。同一 `key` 的 create 不会建第二个 Session，但不能盲目重试：Assignment 仍在工作时返回 `key-busy`；空闲时会再次发送 instructions 并返回 `reused`，可能重复执行工作。create 或请求结果不确定时，先读取 `assignment` 或 `assignment-timeline`，再决定是否重发。并发上限、Grant 与归档规则与 Orchestrator 一致；投递给已归档的 Assignment 会先解除归档。`wait_for_assignment` 仍只在 turn 内可用，请轮询 `assignment` 或 `assignment-timeline`。见 [ADR-0306](adr/0306-direct-cli-calls-reach-orchestrator-owned-assignments.md)。
 
 通过 `bot-tool <bot-id> inspect_assignment --args-stdin` 传入 `{"session_id":"<assignment-session-id>","report_offset":0}`，无需模型即可选定最新已接受报告。续读传入 `{"session_id":"<assignment-session-id>","report_offset":2000,"report_source_event_id":"<reportPage.reportSourceEventId>"}`，偏移量使用返回的 `reportPage.nextOffset`，不要假定页长。每页最多 2,000 个 Unicode 码点。新报告到达或 Host 重启后，携带身份仍读取原报告；从偏移 0 开始且不带身份时才重新选择最新报告。非零偏移缺少身份会以 `REPORT_ID_REQUIRED` 拒绝；旧调用者应从偏移 0 重新开始并保留返回的身份。该身份属于报告 Source Event，不是 Assignment 起因的 `sourceEventId`。
 
@@ -789,7 +805,7 @@ Tob 的受限 CLI 支持 `voice-providers`、`voice-provider-test`、`voice-prov
 
 ### Bot 通话与语音识别（ASR Provider）
 
-已配对的 iPhone 可以给 Bot 打电话，前提是 Host 运行在 Mac 或 Windows 电脑上。手机通过 WebRTC 在已配对的局域网线路或 Tailscale 上发送麦克风音频（Connect 不承载通话，会返回 `connect-carrier-required`）。Host 用内置的语音活动检测切出每一句话（咳嗽、敲击等短噪声会被忽略），通过 Bot 的 ASR Provider 转成文字，并以 Human 消息发到 DM。Human 说完后，Host 会立即播放一声短的“嗯”（ASR 语言不是中文时为 “Mm-hm”），不经过模型。Bot 用 `voice: true` 回复；如果 `voice` 写在 `body` 之前，Host 会从流式草稿里按句合成并播放，不等消息提交。草稿被放弃或回合被取消时立即停止，不留下任何内容。消息提交后，已经播放的句子拼成它的语音条，所以存档和通话里听到的一致；如果 `voice` 写在 `body` 之后，则在提交后再播放。Bot 说话时 Human 可以直接插话：说话约 200 ms 后 Bot 的音量降到 30%，约 500 ms（或一句有两个实词的短话）后停止播放，Human 这句话进入 DM。咳嗽、敲击、短噪声、一声“嗯”以及 Bot 自己的回声都不会打断它，音量随后恢复。被打断的回复只把已经听到的部分存成语音条。Bot 还在忙上一轮时，手机只显示提示，不会发声；通话里刚说的那句话引起的这一轮不会显示这个提示。录音从不保存：每句话的音频在转写后立即丢弃。
+已配对的 iPhone 可以给 Bot 打电话，前提是 Host 运行在 Mac 或 Windows 电脑上。手机通过 WebRTC 在已配对的局域网线路或 Tailscale 上发送麦克风音频（Connect 不承载通话，会返回 `connect-carrier-required`）。Host 用内置的语音活动检测切出每一句话（咳嗽、敲击等短噪声会被忽略），通过 Bot 的 ASR Provider 转成文字，并以 Human 消息发到 DM。Bot 用 `voice: true` 回复；如果 `voice` 写在 `body` 之前，Host 会从流式草稿里按句合成并播放，不等消息提交。草稿被放弃或回合被取消时立即停止，不留下任何内容。消息提交后，已经播放的句子拼成它的语音条，所以存档和通话里听到的一致；如果 `voice` 写在 `body` 之后，则在提交后再播放。Bot 说话时 Human 可以直接插话：说话约 200 ms 后 Bot 的音量降到 30%，约 500 ms（或一句有两个实词的短话）后停止播放，Human 这句话进入 DM。咳嗽、敲击、短噪声、一声“嗯”以及 Bot 自己的回声都不会打断它，音量随后恢复。被打断的回复只把已经听到的部分存成语音条。Bot 还在忙上一轮时，手机只显示提示，不会发声；通话里刚说的那句话引起的这一轮不会显示这个提示。录音从不保存：每句话的音频在转写后立即丢弃。
 
 ```bash
 printf '%s' "$OPENAI_API_KEY" | deepseekbot voice-provider-add openai --kind asr --model gpt-4o-mini-transcribe --key-stdin
@@ -814,7 +830,7 @@ deepseekbot call-status
 deepseekbot call-hangup <call-id>
 ```
 
-ASR 预设有 `custom`（任何兼容 OpenAI `/audio/transcriptions` 的端点，密钥可选）、`local`（上文的本地语音服务）、`openai`、`groq` 和 `soniox`（WebSocket 流式识别，需要密钥，模型 `stt-rt-v6` 和 `stt-rt-v5`）。`voice-providers` 在 `asrPresets` 和 `asrProviders` 下列出它们，`bot.asr` 显示绑定。对 ASR Provider 运行 `voice-provider-test` 会转写半秒静音。`voice-transcribe` 读取 16 位 PCM WAV，输出 `{providerId, text, latencyMs}`。`voice-dictate` 不用麦克风跑输入框的语音输入链路：打开一个 Host 听写会话（`--bot` 用 Bot 的 ASR：它自己的绑定，没有绑定时用 Host 的默认 ASR Provider；`--provider` 用指定 Provider；都不带时用 Host 的默认 ASR Provider，还没有默认时才用第一个流式 ASR Provider），把 WAV 按 200 ms 一块的 16 kHz PCM 推进去，结束后输出 `{id, providerId, mode, state, text, audioMs, heard}`。流式 Provider（如 Soniox）的 `mode` 是 `stream`；否则是 `segments`，由 Host 用语音活动检测按停顿切段逐段转写。`heard` 列出实时文字的增长过程。会话只在内存里，15 秒没有音频或说满 2 分钟就结束，同时最多 4 个（`too-many-dictations`）。超过 2 分钟的 WAV 会以 `invalid-input` 拒绝；识别失败时按 Host 的错误码退出；会话被 Host 提前结束时以 `dictation-cancelled` 退出。`call-readiness` 返回 `{ready, missing, asrProviderId, ttsProviderId, media, activeCallId, callElsewhere}`，`missing` 可能是 `asr`、`tts`、`bot`、`media-unsupported`、`media-helper-missing`、`media-unavailable` 或 `local-voice-off`（`local` Provider 的本地服务没在运行）；手机上的通话按钮显示同样的原因。`call-simulate` 不需要手机，直接打开一个合成的 Host 通话，按真实时间播放 WAV（或最多 20 步的 `{"at": 毫秒, "file": "/abs.wav"}` 时间线；带 `"after": "playing"` 的一步会在 Bot 下一次开口后 `at` 毫秒开始，用来测试插话；`{"at": 毫秒, "text": "…"}` 一步会在通话中经普通的 Human 发送路径往 Bot DM 里打一段至多 2,000 字的文字），等到每句被听到的话都有已播放的回复，或 `--reply-wait` 秒用完，然后挂断并输出 `{callId, heard, texts, replies, ackMs, bargeIns, bargeDismissed, firstTextMs, firstAudioMs, answered, events}`。`ackMs` 是从说完到应答声的时间，`firstTextMs` 是从发出转写到 Bot 草稿里出现第一段文字的时间（模型首字加工具调用前缀），`firstAudioMs` 是到第一段回复音频的时间。`texts` 里每段文字列出 `messageId`、脚本时钟上的 `atMs`、`sent`（失败时为 `error`）、被通话收割时的 `inCall` 和 `callAtMs`（即 `voiceCall.atMs`，接通起的毫秒数）、跟它走的 `frames`，带图时还有 `commitsBefore`（在它之前切出的画面记录数）、`fromMs`/`toMs` 和 `layout`，画面没变时为 `sameAs`。与该 Bot 的通话在同一 DM 进行时，Human 在这个 DM 打的文字走与语音句子相同的收割：最新至多 9 张待收割关键帧拼成宫格图，附在 Human 自己的附件之后；更老的切成画面记录，并在文字落盘前写完；没有新关键帧时指向本次共享的上一张画面（`sameAs`）；发送失败时把关键帧放回。消息带 `voiceCall: {callId, atMs, visual?}`（没有说话起止，回合提示写成 `typed at 1:24`），带通话提示，格子可用 `call-frame` 放大；事件增加 `text`（`messageId`、`atMs`、`grid`）。前一句还在识别时到达的文字排在那句之后。通话外或另一个 DM 的文字照常发送。每条回复列出 `replyId`、`messageId`、已播放的 `sentences`、`bytes`、`textMs`、`responseMs` 和 `audioBeforeCommit`。事件包括 `ack`、`reply-text`、逐句的 `playing`/`played`、`committed`（带 `reused` 和 `synthesized` 句数）、`reply-stopped`（插话后原因为 `interrupted`）、`reply-done`，以及 `barge-suspected`、`barge-in`（`by: duration | words`）和 `barge-dismissed`（`reason: ended | filler`）。合成通话的播放时长与每段音频一致。每个 Host 同时只有一通电话：同一设备会替换自己的通话，其他设备会收到 `call-active`；`callElsewhere` 在拨打前就会说明这一点。桌面端和 Web 窗口共用 Host owner，所以每个窗口会发送自己的 `client` id，第二个窗口会像第二台设备一样被拒绝。手机断开 8 秒后通话结束（`connection-lost`），已发送的消息仍留在 DM。每通电话会在 `logs.db` 写入带耗时的 `voice` 日志，从不记录音频或转写内容。WebRTC 通话每 5 秒采样一次媒体：`call-status` 里的 `perf` 包含 `samples`、`last`（`uplinkPps`、`uplinkKbps`、`uplinkLossPct`、`concealedPct`、`downlinkPps`、`downlinkKbps`、`jitterMs`、`rttMs`、`helperCpuPct`、`disconnects`、`hostCpuPct`）和整通电话的 `{avg, max}` 区间；上行指手机到 Host。`disconnects` 统计 helper 看到 WebRTC 连接断开的次数；helper 在媒体链路断开 15 秒仍未恢复时才放弃；手机心跳中断 8 秒时 Host 仍会结束通话。同样的采样以 `call-media-stats` 写入 `logs.db`，通话结束时再写一行 `call-media-summary`，agent 可以据此比较改动前后的包率和 CPU。加上 `--video`（摄像头）或 `--screen` 时，call-simulate 会共享一个视频文件（用 ffmpeg 读取）或一个按每秒 2 帧截取的 JPEG 文件夹：它运行与客户端相同的关键帧选择逻辑，按音频时间线把每个关键帧作为 `frame` 命令发出，并在输出中加入 `visual: {source, samples, keyframes, sentFrames, frameBytes, pickMs, prepareMs, framePostMs, harvest, grids, records, unchanged, failed}`。`harvest` 汇总关键帧的去向：`commits`（写出的画面记录条数）、`commitFrames`（其中的关键帧数）、`sentenceFrames`（每句带图句子的关键帧数）、`textFrames`（每段被收割的文字带的关键帧数）、`unchanged`（指向先前画面的句子数）和 `dropped`（兜底上限丢掉的关键帧数，只有画面记录写入卡住时才非 0）。每张宫格图列出 `frames`、`commits`（同一句末切出的画面记录数）、`fromMs`/`toMs`、`layout`、`bytes`、`composeMs`，以及它所附消息的 `messageId` 和 `waitedMs`（识别完成后消息等待宫格图的时间）。一张宫格图最多 9 个关键帧，按每行至多 3 张排成均衡行，`layout` 写各行格数：`1`、`2`、`3` 是单行，然后是 `2+2`、`3+2`、`3+3`、`3+2+2`、`3+3+2` 和 `3+3+3`，较短的最后一行居中。不再按分数挑帧：Host 只为下一句保留最新的 9 张，更老的从最早起每 9 张写一条画面记录（最后一条可不满 9）。Human 沉默时攒满 9 张即写；说话期间攒到 18 张才把最老的 9 张写出去。句末最新的至多 9 张跟句走，其余切成画面记录，并在句子消息之前写完，DM 顺序即时间顺序。句子被判为 filler、没听到内容或发送失败时，已写的画面记录照留，跟句的关键帧放回给下一句。没有新关键帧的句子指向本次共享的上一张画面（`sameAs`），从未出过画面时不附图。最多攒 32 张，超出时丢最老的，并发出 `frames-dropped` 事件（`source`、`dropped`、`total`）。关闭共享或切换来源时，待收割的帧写成画面记录。事件增加 `visual`、`frame-received`、`grid-built`、`grid-sent`、`grid-unchanged`、`frames-dropped` 和 `grid-failed`；同一张宫格图的 `grid-built` 和 `grid-sent` 带相同的 `grid` 编号。重新编码后仍超过 Host 帧大小上限的帧会被跳过。通话进行中，`call-frame <message-id> <cell>` 返回宫格里某一格的原图：`{messageId, cell, released, cells, source, width, height, bytes}`；用 `--out /abs.jpg` 写出 JPEG 时还会带上 `out`。格子编号就是格子上标的数字，按行从左上角起为 1 到 9（单图视为第 1 格），超出范围会被拒绝并返回 `cell-invalid`。Host 只在内存里保留最近 64 个格子背后的原图，通话结束或被更新的关键帧挤出后返回 `{released: true}`。Bot 工具 `call_frame` 读取同一批原图，并在通话事件里加入 `frame-zoomed`（消息、格子、耗时）。共享的画面总会保存到 DM：不随句子发出的关键帧会成为画面记录，即带至多 9 格宫格图和画面起止的系统消息；报告在 `visual.records` 列出它们（`messageId`、`frames`、`layout`、`bytes`、`composeMs`、`fromMs`、`toMs`），事件增加 `frame-record`。没有不保存画面的开关；`visual` 命令仍带已删除的 `save` 字段时会以 `invalid-input` 拒绝。`--share-ends-at <ms>` 在时间线上的这个时刻像系统那样结束共享（共享的窗口被关闭，或摄像头断开）：之后不再发帧，通话发送带 `stopped: true` 的 `visual off`，`visual.shareEndedAtMs` 报告结束时刻，DM 里会出现一条 `share-stopped` 通话记录，告诉 Bot 通话已改为仅语音。Mac、Windows 和 Web 的通话栏在浏览器结束屏幕共享或摄像头时也会这样做。`--share-pause <from>-<to>` 像手机 App 切到后台那样在这段时间暂停共享：先发带 `paused: true` 的 `visual off`，再发带 `resumed: true` 的 `visual`，报告为 `visual.pausedAtMs` 和 `visual.resumedAtMs`，DM 里出现 `share-paused` 和 `share-resumed` 通话记录。暂停期间到点的帧会被丢弃。
+ASR 预设有 `custom`（任何兼容 OpenAI `/audio/transcriptions` 的端点，密钥可选）、`local`（上文的本地语音服务）、`openai`、`groq` 和 `soniox`（WebSocket 流式识别，需要密钥，模型 `stt-rt-v6` 和 `stt-rt-v5`）。`voice-providers` 在 `asrPresets` 和 `asrProviders` 下列出它们，`bot.asr` 显示绑定。对 ASR Provider 运行 `voice-provider-test` 会转写半秒静音。`voice-transcribe` 读取 16 位 PCM WAV，输出 `{providerId, text, latencyMs}`。`voice-dictate` 不用麦克风跑输入框的语音输入链路：打开一个 Host 听写会话（`--bot` 用 Bot 的 ASR：它自己的绑定，没有绑定时用 Host 的默认 ASR Provider；`--provider` 用指定 Provider；都不带时用 Host 的默认 ASR Provider，还没有默认时才用第一个流式 ASR Provider），把 WAV 按 200 ms 一块的 16 kHz PCM 推进去，结束后输出 `{id, providerId, mode, state, text, audioMs, heard}`。流式 Provider（如 Soniox）的 `mode` 是 `stream`；否则是 `segments`，由 Host 用语音活动检测按停顿切段逐段转写。`heard` 列出实时文字的增长过程。会话只在内存里，15 秒没有音频或说满 2 分钟就结束，同时最多 4 个（`too-many-dictations`）。超过 2 分钟的 WAV 会以 `invalid-input` 拒绝；识别失败时按 Host 的错误码退出；会话被 Host 提前结束时以 `dictation-cancelled` 退出。`call-readiness` 返回 `{ready, missing, asrProviderId, ttsProviderId, media, activeCallId, callElsewhere}`，`missing` 可能是 `asr`、`tts`、`bot`、`media-unsupported`、`media-helper-missing`、`media-unavailable` 或 `local-voice-off`（`local` Provider 的本地服务没在运行）；手机上的通话按钮显示同样的原因。`call-simulate` 不需要手机，直接打开一个合成的 Host 通话，按真实时间播放 WAV（或最多 20 步的 `{"at": 毫秒, "file": "/abs.wav"}` 时间线；带 `"after": "playing"` 的一步会在 Bot 下一次开口后 `at` 毫秒开始，用来测试插话；`{"at": 毫秒, "text": "…"}` 一步会在通话中经普通的 Human 发送路径往 Bot DM 里打一段至多 2,000 字的文字），等到每句被听到的话都有已播放的回复，或 `--reply-wait` 秒用完，然后挂断并输出 `{callId, heard, texts, replies, bargeIns, bargeDismissed, firstTextMs, firstAudioMs, answered, events}`。`firstTextMs` 是从发出转写到 Bot 草稿里出现第一段文字的时间（模型首字加工具调用前缀），`firstAudioMs` 是到第一段回复音频的时间。`texts` 里每段文字列出 `messageId`、脚本时钟上的 `atMs`、`sent`（失败时为 `error`）、被通话收割时的 `inCall` 和 `callAtMs`（即 `voiceCall.atMs`，接通起的毫秒数）、跟它走的 `frames`，带图时还有 `commitsBefore`（在它之前切出的画面记录数）、`fromMs`/`toMs` 和 `layout`，画面没变时为 `sameAs`。与该 Bot 的通话在同一 DM 进行时，Human 在这个 DM 打的文字走与语音句子相同的收割：最新至多 9 张待收割关键帧拼成宫格图，附在 Human 自己的附件之后；更老的切成画面记录，并在文字落盘前写完；没有新关键帧时指向本次共享的上一张画面（`sameAs`）；发送失败时把关键帧放回。消息带 `voiceCall: {callId, atMs, visual?}`（没有说话起止，回合提示写成 `typed at 1:24`），带通话提示，格子可用 `call-frame` 放大；事件增加 `text`（`messageId`、`atMs`、`grid`）。前一句还在识别时到达的文字排在那句之后。通话外或另一个 DM 的文字照常发送。每条回复列出 `replyId`、`messageId`、已播放的 `sentences`、`bytes`、`textMs`、`responseMs` 和 `audioBeforeCommit`。事件包括 `ack`、`reply-text`、逐句的 `playing`/`played`、`committed`（带 `reused` 和 `synthesized` 句数）、`reply-stopped`（插话后原因为 `interrupted`）、`reply-done`，以及 `barge-suspected`、`barge-in`（`by: duration | words`）和 `barge-dismissed`（`reason: ended | filler`）。合成通话的播放时长与每段音频一致。每个 Host 同时只有一通电话：同一设备会替换自己的通话，其他设备会收到 `call-active`；`callElsewhere` 在拨打前就会说明这一点。桌面端和 Web 窗口共用 Host owner，所以每个窗口会发送自己的 `client` id，第二个窗口会像第二台设备一样被拒绝。手机断开 8 秒后通话结束（`connection-lost`），已发送的消息仍留在 DM。每通电话会在 `logs.db` 写入带耗时的 `voice` 日志，从不记录音频或转写内容。WebRTC 通话每 5 秒采样一次媒体：`call-status` 里的 `perf` 包含 `samples`、`last`（`uplinkPps`、`uplinkKbps`、`uplinkLossPct`、`concealedPct`、`downlinkPps`、`downlinkKbps`、`jitterMs`、`rttMs`、`helperCpuPct`、`disconnects`、`hostCpuPct`）和整通电话的 `{avg, max}` 区间；上行指手机到 Host。`disconnects` 统计 helper 看到 WebRTC 连接断开的次数；helper 在媒体链路断开 15 秒仍未恢复时才放弃；手机心跳中断 8 秒时 Host 仍会结束通话。同样的采样以 `call-media-stats` 写入 `logs.db`，通话结束时再写一行 `call-media-summary`，agent 可以据此比较改动前后的包率和 CPU。加上 `--video`（摄像头）或 `--screen` 时，call-simulate 会共享一个视频文件（用 ffmpeg 读取）或一个按每秒 2 帧截取的 JPEG 文件夹：它运行与客户端相同的关键帧选择逻辑，按音频时间线把每个关键帧作为 `frame` 命令发出，并在输出中加入 `visual: {source, samples, keyframes, sentFrames, frameBytes, pickMs, prepareMs, framePostMs, harvest, grids, records, unchanged, failed}`。`harvest` 汇总关键帧的去向：`commits`（写出的画面记录条数）、`commitFrames`（其中的关键帧数）、`sentenceFrames`（每句带图句子的关键帧数）、`textFrames`（每段被收割的文字带的关键帧数）、`unchanged`（指向先前画面的句子数）和 `dropped`（兜底上限丢掉的关键帧数，只有画面记录写入卡住时才非 0）。每张宫格图列出 `frames`、`commits`（同一句末切出的画面记录数）、`fromMs`/`toMs`、`layout`、`bytes`、`composeMs`，以及它所附消息的 `messageId` 和 `waitedMs`（识别完成后消息等待宫格图的时间）。一张宫格图最多 9 个关键帧，按每行至多 3 张排成均衡行，`layout` 写各行格数：`1`、`2`、`3` 是单行，然后是 `2+2`、`3+2`、`3+3`、`3+2+2`、`3+3+2` 和 `3+3+3`，较短的最后一行居中。不再按分数挑帧：Host 只为下一句保留最新的 9 张，更老的从最早起每 9 张写一条画面记录（最后一条可不满 9）。Human 沉默时攒满 9 张即写；说话期间攒到 18 张才把最老的 9 张写出去。句末最新的至多 9 张跟句走，其余切成画面记录，并在句子消息之前写完，DM 顺序即时间顺序。句子被判为 filler、没听到内容或发送失败时，已写的画面记录照留，跟句的关键帧放回给下一句。没有新关键帧的句子指向本次共享的上一张画面（`sameAs`），从未出过画面时不附图。最多攒 32 张，超出时丢最老的，并发出 `frames-dropped` 事件（`source`、`dropped`、`total`）。关闭共享或切换来源时，待收割的帧写成画面记录。事件增加 `visual`、`frame-received`、`grid-built`、`grid-sent`、`grid-unchanged`、`frames-dropped` 和 `grid-failed`；同一张宫格图的 `grid-built` 和 `grid-sent` 带相同的 `grid` 编号。重新编码后仍超过 Host 帧大小上限的帧会被跳过。通话进行中，`call-frame <message-id> <cell>` 返回宫格里某一格的原图：`{messageId, cell, released, cells, source, width, height, bytes}`；用 `--out /abs.jpg` 写出 JPEG 时还会带上 `out`。格子编号就是格子上标的数字，按行从左上角起为 1 到 9（单图视为第 1 格），超出范围会被拒绝并返回 `cell-invalid`。Host 只在内存里保留最近 64 个格子背后的原图，通话结束或被更新的关键帧挤出后返回 `{released: true}`。Bot 工具 `call_frame` 读取同一批原图，并在通话事件里加入 `frame-zoomed`（消息、格子、耗时）。共享的画面总会保存到 DM：不随句子发出的关键帧会成为画面记录，即带至多 9 格宫格图和画面起止的系统消息；报告在 `visual.records` 列出它们（`messageId`、`frames`、`layout`、`bytes`、`composeMs`、`fromMs`、`toMs`），事件增加 `frame-record`。没有不保存画面的开关；`visual` 命令仍带已删除的 `save` 字段时会以 `invalid-input` 拒绝。`--share-ends-at <ms>` 在时间线上的这个时刻像系统那样结束共享（共享的窗口被关闭，或摄像头断开）：之后不再发帧，通话发送带 `stopped: true` 的 `visual off`，`visual.shareEndedAtMs` 报告结束时刻，DM 里会出现一条 `share-stopped` 通话记录，告诉 Bot 通话已改为仅语音。Mac、Windows 和 Web 的通话栏在浏览器结束屏幕共享或摄像头时也会这样做。`--share-pause <from>-<to>` 像手机 App 切到后台那样在这段时间暂停共享：先发带 `paused: true` 的 `visual off`，再发带 `resumed: true` 的 `visual`，报告为 `visual.pausedAtMs` 和 `visual.resumedAtMs`，DM 里出现 `share-paused` 和 `share-resumed` 通话记录。暂停期间到点的帧会被丢弃。
 
 Host 保存一个默认 TTS Provider（可带音色）和一个默认 ASR Provider（可带语言）。没有用 `voice-set` 或 `voice-asr-set` 单独绑定的 Bot，在语音消息、通话、输入框语音输入、`voice-transcribe`、`voice-synthesize` 和 `call-readiness` 中都使用它们；Bot 自己的绑定始终优先。`voice-defaults` 输出 `{defaults: {tts, asr}}`，`voice-providers` 也返回同样的 `defaults`。`voice-default-set` 接 `tts` 或 `asr` 和一个同类型的 Provider，或者 `off`；`--voice` 只用于 `tts`，`--language` 只用于 `asr`。每种类型添加的第一个 Provider 会在还没有默认值时自动成为默认；移除 Provider 时，用它的默认值也会一起清除。`voice-vad-set` 设置 Host 的说话阈值（dBFS，限制在 -70 到 -20），`default` 恢复默认的 -50。负数前要加 `--`（`voice-vad-set -- -55`），否则会被当成选项。Host 的语音活动检测只把比这个阈值响、并且比背景噪声高 12 dB 的声音算作说话，所以数值越低，越能听到小声的麦克风。它影响按停顿分段的语音输入（不支持流式的 ASR Provider，例如本地 SenseVoice）和通话里的说话检测；Soniox 语音输入会发送全部音频，由 Soniox 自己判断断句。`voice-defaults` 和 `voice-providers` 以 `speechThreshold: {dbfs, custom, defaultDbfs, min, max}` 显示它。设置 › 语音里的「麦克风测试」有实时音量条，同一个阈值可以用滑块调。Provider 名称可以不填：不带 `--name` 时 Host 使用预设名，重名时自动加编号（`OpenAI 2`）。设置 › 语音在 TTS 和 ASR 两部分顶部显示同样的默认值，每个 Bot 的语音面板里两项都有「跟随全局默认」。
 
@@ -900,6 +916,18 @@ deepseekbot device-revoke <device-id> --confirm
 ```
 
 `devices` 返回 `{host, devices, routes}`：本 Host 的配对身份，每台已配对设备的 `id`、`name`、`pairedAt`、`lastSeenAt` 以及撤销后的 `revokedAt`，和 `phone-route` 相同的手机路由。设备凭据不会出现在列表里。`device-offer` 打开一个 10 分钟有效的一次性配对邀请，只把它的 `deepseekbot://pair?…` 链接写入 `--out`：一个以 0600 权限新建的文件（文件已存在时在打开邀请前以 `output-exists` 拒绝）；标准输出只有 `{receipt, expiresAt, routes, reachable, link: {path}}`。在手机上打开这个链接，或改用设备页里的二维码配对；没有 `--out` 时 `device-offer` 以 `out-required` 拒绝。回执能指代邀请，但不能用来兑换。`device-offer-status` 返回 `state`：`pending`（带 `expiresAt`）、`redeemed`（带新设备的 `deviceId`）、`expired`、`refused`（用错误的验证值兑换而作废）、`superseded`（同时打开了超过 16 个邀请）或 `unknown`；邀请只保存在 Host 内存中，Host 重启后所有回执都是 `unknown`。`device-revoke` 返回 `{revoked, closedStreams, device: {id, name}}`；该设备的下一个请求会以 `device-revoked` 被拒绝，已打开的连接立即关闭。拒绝码：`confirm-required`、`device-unknown`、`device-already-revoked`、`receipt-required` 和 `usage`。
+
+### 桌面在线状态
+
+桌面端或网页端正在使用时，Host 会暂缓发给手机的 Bot 回复推送，让手机保持安静。审批、提问和私密输入请求仍然立即推送。窗口可见且最近 10 分钟内有输入时，Client 算作活跃，每 30 秒续一次 90 秒的租约。窗口隐藏（或锁屏）1 分钟后，或 10 分钟没有输入后，Client 报告空闲。没有活跃的 Client 时，仍未读的回复会推送到手机；期间已在桌面读过的回复不会再推送。
+
+```bash
+deepseekbot presence-status
+deepseekbot presence-report --client-id <id> --active
+deepseekbot presence-report --client-id <id> --idle
+```
+
+两者都返回 `/api/botharness/presence` 的 `{active, clients, leaseMs}`。`presence-report --active` 像 Client 一样占用一个 90 秒租约来暂缓回复；`--idle` 立即移除该 Client。`--client-id` 为 1–128 个字母、数字、`_` 或 `-`。拒绝码：`presence-invalid-input`、`presence-client-limit`（最多 64 个活跃 Client）和 `usage`。
 
 ### 接入指定浏览器客户端
 
@@ -990,6 +1018,8 @@ deepseekbot release-restart --confirm
 deepseekbot plugin-check [--force]
 deepseekbot plugin-install <package> <version> --confirm
 deepseekbot plugin-restart --confirm
+deepseekbot update-status
+deepseekbot update-cancel
 deepseekbot telemetry-status
 deepseekbot telemetry-set --enabled | --disabled
 deepseekbot git-status
@@ -1006,6 +1036,8 @@ deepseekbot pairing-review <bot-id> <pairing-id> --decision revoke --confirm
 `release-info` 包含可选的 Host 所有 `identity`：带源码 revision／dirty 的 `development`、带版本的 `release`，或带元数据／组合原因的 `unknown`。旧 Host 缺少该字段，不代表发布身份已经核实。源码内部版本占位仍为 `0.0.0`，关于页面显示源码身份。`release-check` 可返回 `unknown`，此时安装／重启以 `release-identity-invalid` 拒绝。已安装／待生效版本与运行版本分开，直到新 Host 返回精确目标版本。
 
 `plugin-check`、`plugin-install` 和 `plugin-restart` 对应 **Bot 设置 → 插件** 页面，覆盖除 `deepseekbot` 以外已安装的 `@botharness/*` 插件 Bundle，例如 `@botharness/vrm-companion`。`plugin-check` 返回 `installable`、`restartable`，以及每个插件一条记录，`status` 为 `current`、`available`、`blocked`、`restart-required`、`development` 或 `unavailable`；`--force` 绕过六小时的检查缓存。兼容判断复用运行中 DSH 的评估器，读取该插件在 registry 上的清单。`plugin-install <package> <version> --confirm` 会再次检查兼容性，通过原生 Plugin Manager 安装；Manager 拒绝覆盖已安装的包名时，改用 registry 的安装包地址。返回 `applied: true` 表示 Host 已经加载新版本，只需刷新页面；否则用 `plugin-restart --confirm` 重启 Host，让所有待生效的插件更新生效。失败时以非零退出，错误码为 `plugin-<原因>`，例如 `plugin-incompatible`、`plugin-unknown-plugin` 或 `plugin-not-pending`。
+
+`update-status` 和 `update-cancel` 对应更新提醒、**Bot 设置 → 关于** 和 **Bot 设置 → 插件** 共用的更新进度面板（[ADR-0311](adr/0311-in-app-updates-are-host-owned-runs.md)）。每一次 `release-install` 和 `plugin-install`，无论来自哪个界面还是 Tob，都是 Host 记录的一次**更新运行**。`update-status` 返回 `{ run }`：正在进行的更新，否则是最近一次（还没有时为 `null`），包含 `id`、`kind`（`release` 或 `plugin`）、`name`、`version`、`phase`（`checking`、`installing`、`cancelling`、`applying`、`installed`、`failed` 或 `cancelled`）、`attempt`（正在访问的 registry）、`commands`（原生 Plugin Manager 启动的每次 pnpm 运行：`command`、`output` 末尾、`truncated` 和 `exitCode`）、`cancellable`，结束后还有 `installed.applied` 或 `failure`（`reason`、`diagnostic`、`logPath`）。`update-cancel` 终止正在进行的更新：pnpm 启动前直接以 `cancelled` 结束；pnpm 运行中则请 Plugin Manager 停止，并等到 profile 文件恢复原样。没有可终止的更新时以 `update-not-running` 非零退出；新版本已开始应用时为 `update-too-late`；DSH 不支持终止安装时为 `update-unsupported`。被终止的安装以 `release-cancelled` 或 `plugin-cancelled` 退出。
 
 `--lang zh|en` 按该语言读取列表，与市场页面按界面语言读取一致：名称和简介依次取作者 `bot.json` 里 `i18n` 的翻译、本来就是该语言的简介、市场生成的摘要（`descriptionGenerated: true`）；`marketplace-detail` 返回仓库里该语言的 README，并在 `readmeLanguage` 里注明，没有就返回 `README.md`：`zh` 依次取 `README.zh-CN.md`、`README.zh.md`，再取 `README_CN.md`、`README-zh.md` 等其他写法；`en` 取 `README.en.md`。`marketplace-submit` 和 `marketplace-report` 会像网页一样先完成 Host 下发的工作量证明，因此可能需要几秒；市场本身的拒绝（`repository-missing-topic`、`rate-limited` 等）作为错误码返回。举报说明最多 500 个字符。`release-check` 返回更新状态（`current`、`available`、`restart-required`、`development`、`unknown` 或 `unavailable`）。`release-install` 和 `release-restart` 必须带 `--confirm`；安装或重启失败时以非零退出，错误码为 `release-<原因>`，例如 `release-network` 或 `release-not-pending`。重启会中断所有正在运行的 Bot 回合，只在自己负责的 Host 上执行。`pairing-list` 列出 Bot 的配对请求和角色；`pairing-review` 自行读取当前版本号，期间被改动过的请求会被拒绝而不是被覆盖。对话类请求用一个 `--role` 批准，管理类请求用 `--capability` 批准。
 
@@ -1169,7 +1201,7 @@ deepseekbot memory-move <bot-id> --default-location
 
 `deepseekbot tob-home` 幂等准备受保护的本地 Tob、Memory、管理 Workspace 与 DM，返回标识及权威 Attention 摘要，不发送消息。`deepseekbot home-model-set --provider <id> --model <id>` 修改原生 Host 默认模型，保留其他 Bot 的独立计划。
 
-Tob 通过普通原生 bash／pwsh Tool 调用 `deepseekbot`；专用的 `tob_assignment_limit_read`、`tob_assignment_limit_set` Tool 及直接运行入口已移除。既有 Assignment Tools 不变。受限 CLI 流程支持下方列出的 Bot 创建／资料／生命周期、建群／邀请、群设置／成员移除、取消邀请／入群决定、模型、运行、隐私、Git 和更新操作；这是明确的允许清单，不代表开放全部 Human CLI 命令或其他 Bot 的数据。
+Tob 通过普通原生 bash／pwsh Tool 调用 `deepseekbot`；专用的 `tob_assignment_limit_read`、`tob_assignment_limit_set` Tool 及直接运行入口已移除。既有 Assignment Tools 不变。Tob 可以运行所有 Human CLI 命令（[ADR-0314](adr/0314-tob-runs-every-cli-command-with-approved-writes.md)）。下方列出的 Bot 创建／资料／生命周期、群组、模型、运行、隐私、Git、更新、Share Draft、诊断和语音操作保留各自的类型化审核（目标、旧值、revision、operation key）。其他命令以原样的 argv、stdin 和当前目录发给 Host，由 Host 用自己的启动 token 代为运行 Human CLI，该 token 不会进入 Tob 的 Shell。在 Host 只读清单中且不带 `--out` 的命令直接执行；其他命令（包括清单尚未收录的命令）都会先给 Human 一张审批卡，显示完整 argv、目录，以及 stdin 的字节数和 SHA-256。完全访问和审批模板都不能跳过这张卡，只有 Human 在卡上选择的“始终允许”可以；被拒绝的卡不会执行命令。Human CLI 自身的错误代码和消息原样返回。`--host`、`--token-file` 和 `--home` 会被拒绝，`ssh-tunnel` 和 `voice-local-kit` 仍只在 Human 自己的 CLI 中可用。
 
 在具备权限的 Tob Shell 执行中：
 
@@ -1186,11 +1218,11 @@ printf '%s' '{"assignmentConcurrencyLimit":3}' | deepseekbot settings-set bothar
 
 `capabilities`（以及受限模式的 `--help`）列出支持的命令、字段、必需的审核输入和带代码的拒绝原因。读取返回 `{scope, ns, revision, value}`，`value` 只包含授权字段。写入将解析后的命名空间、旧值、新值和 revision 交给现有 Host 审批策略；审批前后和执行时重验真实 Tob root Orchestrator 与准确的已准入 Human DM 来源，随后读回 native Settings 的值。群聊／外部 IM、Bot 来源、Assignment Sessions 和调用方自报身份均不能授予此权限。
 
-Host 将短期 loopback endpoint 与受限 token 注入这次 Shell 的子进程环境。它是短期 bearer capability，不是 Human 管理员凭据，也不构成同一 OS 用户之间的隔离边界；不要打印或持久化它。Shell 完成、取消或释放后立即撤销。不支持的命令／参数、不完整的受限上下文、指定其他 Host／token／离线 home 的尝试均会拒绝，不回退到 Human 或离线访问。`stale-setting` 要求重新读取并提案；`agent-write-uncertain`、`setting-outcome-uncertain` 和 `setting-readback-mismatch` 要求重试前先读回。上下文过期后必须发起新的 Shell 执行。
+Host 将短期 loopback endpoint 与受限 token 注入这次 Shell 的子进程环境。它是短期 bearer capability，不是 Human 管理员凭据，也不构成同一 OS 用户之间的隔离边界；不要打印或持久化它。Shell 完成、取消或释放后立即撤销。类型化操作不支持的参数、不完整的受限上下文、指定其他 Host／token／离线 home 的尝试均会拒绝，不回退到 Human 或离线访问。`stale-setting` 要求重新读取并提案；`agent-write-uncertain`、`setting-outcome-uncertain` 和 `setting-readback-mismatch` 要求重试前先读回。上下文过期后必须发起新的 Shell 执行。
 
 已认证 Human 的 `settings-set` 保持原行为，新增成对的 `--expected-revision` 与 `--previous-value` 参数，用于提交已审核的 patch；后者为与 patch 字段一致的 JSON 对象。同时省略这两个参数仍使用原有先读再写流程。Tob 的删除／归档仍返回 `protected-bot`。
 
-[UI／CLI 覆盖清单](agents/cli-ui-coverage.md) 区分既有 Human 命令和 Tob 受限访问，并跟踪后续缺口。身份与生命周期边界见 [ADR-0224](adr/0224-tob-management-uses-scoped-native-shell-cli.md)。
+[UI／CLI 覆盖清单](agents/cli-ui-coverage.md) 区分既有 Human 命令和 Tob 受限访问，并跟踪后续缺口。身份与生命周期边界见 [ADR-0224](adr/0224-tob-management-uses-scoped-native-shell-cli.md)，完整命令范围见 [ADR-0314](adr/0314-tob-runs-every-cli-command-with-approved-writes.md)。
 
 ### Tob 创建 Bot、资料与生命周期
 
@@ -1255,7 +1287,7 @@ deepseekbot group-invite <channel-id> --bot <bot-c> --operation-key invite-resea
 
 已认证 Human 的在线 `group-create` 和 `group-invite` 也支持稳定 operation key；邀请支持 `--expected-channel` 绑定已读取状态。这些审核／重试参数对 Human 命令可选，对受限 Tob 必需。原有不带 key 的 Human 操作保持既有 owner 行为。
 
-后续切片加入下节所述的群名称／头像、成员唤醒设置、移除成员、取消待处理邀请和决定待处理入群申请；个人免打扰／置顶／昵称／显隐、删除群、附件和外部成员管理仍不在受限允许清单内。部分已有上文的 Human CLI 命令，不等于已向 Tob 开放。#2090 保留未完成范围，不因本切片关闭。详见 [ADR-0226](adr/0226-group-management-receipts-preserve-channel-authority.md) 和[覆盖清单](agents/cli-ui-coverage.md#2090-group-management-scope)。直接 CLI、真实 Tob 审批／读回、Web 成员／历史和 macOS Desktop 分别验收。
+后续切片加入下节所述的群名称／头像、成员唤醒设置、移除成员、取消待处理邀请和决定待处理入群申请；个人免打扰／置顶／昵称／显隐、删除群、附件和外部成员管理没有类型化的 Tob 操作；已有 Human CLI 命令的，Tob 通过通用路径运行，须先由 Human 批准完整命令。#2090 保留未完成范围，不因本切片关闭。详见 [ADR-0226](adr/0226-group-management-receipts-preserve-channel-authority.md) 和[覆盖清单](agents/cli-ui-coverage.md#2090-group-management-scope)。直接 CLI、真实 Tob 审批／读回、Web 成员／历史和 macOS Desktop 分别验收。
 
 ### Tob 群设置与成员移除
 
@@ -1375,6 +1407,8 @@ Host 重启后先检查草稿、重新读取群聊，再通过同一个
 
 `deepseekbot onboarding` 读取 Profile 引导及实际 Bot／群聊结果引用。`--action start|pause|skip|continue|restart|finish` 控制生命周期；finish 不再要求已实际创建 Bot 与群聊：引导的身份模板和采访会在用户需要时由托布创建。重新开始保留资源、审批、布局和历史。布局教学完成记录属于当前 Client；CLI 不操作界面，也不把模型配置视为执行成功。
 
+`deepseekbot acknowledgements` 读取当前 Profile 已看过的一次性提示，返回 `{ "items": { "<key>": "<value>" } }`。`deepseekbot acknowledge <key>` 记录一项：`bot-mode-entered`（Bot 模式旁的「试试看」）、`onboarding-intro`（新手引导弹窗）、`telemetry-notice`、`mobile-apps`（左侧栏的手机 App 提示）、`onboarding-sessions`（会话导览，也决定新手清单里的会话一项是否勾上）、`release-update-dismissed/<stable|preview>/<版本|restart-版本>`，或 `release-notes-seen --version <x.y.z>`（已看过该版本及以前的更新说明）。这些记录原先只存在浏览器存储里，换了 Desktop／浏览器来源、端口或清除了站点数据后，重启就会再次出现；现在 Client 先读 Profile 记录，并把旧的本地记录上传一次。未知 key 或格式错误的版本返回 `invalid-input`。
+
 ### 绑定版本的 Memory PNG 图片
 
 `memory-file`、`memory-working-diff` 和 `memory-commit-diff` 为 PNG、JPEG/JPG、GIF、WebP 和安全静态 SVG 文件返回可选图片元数据。`source` 标识当前工作树、暂存区或确切提交，`revision` 绑定实际字节；JSON 不包含图片正文。
@@ -1417,6 +1451,16 @@ DSH CLI 明确拒绝管理 `desktop` Profile；原生插件管理器会优先解
 卸载产品前先 `disable`，并重启以恢复原生包解析。手动字体偏好仍由原生 `ui-theme` Patch 保存。
 JSON 标准输出包含 `restartRequired:true`、`runtimeVerified:false`；包配置成功不表示原生窗口已加载。
 包操作结果不确定时不会自动重试。
+
+### 让 Windows 桌面端窗口回到前台
+
+点击桌面通知（通话通知、审批、回复）时，Client 会请 Host 把窗口带回前台：在 Windows 上，Host 以运行中应用的 `--user-data-dir` 重新启动自身所在的 `DeepSeek Harness.exe`，由 Shell 的单实例处理恢复、显示并聚焦已有窗口（包括托盘中的窗口），多出的这次启动会立即退出。CLI 可执行同一操作：
+
+```sh
+deepseekbot desktop-window-reveal --host <host> --token-file <私有文件>
+```
+
+返回 `{ok:true, launched}`；`launched:false` 表示 1.5 秒内已执行过一次。拒绝代码：`desktop-window-platform-unsupported`（非 Windows，Client 仍聚焦页面）、`desktop-window-app-unresolved`（Host 不在桌面应用内运行）和 `desktop-window-launch-failed`。
 
 ### 在 Bot 设置中启用
 
@@ -1503,7 +1547,7 @@ deepseekbot connect-account-revoke <host-id> --confirm --host <host> --token-fil
 `connect-sign-in` 用 `https://connect.botharness.ai` 上 relay 公布的 WorkOS client 发起 CLI Auth
 （设备授权流程；可用 `DEEPSEEKBOT_CONNECT_RELAY` 覆盖 relay 地址）。返回里有 `userCode` 和
 `verificationUri`；加 `--wait` 时 CLI 把它们打印到 stderr，并等 Host 完成登录。之后 Host 只把 refresh
-token 存进 DSH 凭据存储，把自己关联到账号（每个账号最多 5 台 Host），向 relay 申请隧道并像
+token 存进 DSH 凭据存储，把自己关联到账号（每个账号最多 3 台 Host），向 relay 申请隧道并像
 `connect-enable` 一样运行，不再需要手工 token。登录期间隧道停掉时 Host 会重新向 relay 申请，所以
 Host 离线后被回收的隧道会在同一个 `<host-id>.deepseekbot.dev` 上恢复。`connect-status` 增加
 `connect.account`：`state`（`signed-out`、`signing-in`、`signed-in`、`error`）、`email`、`hostId`
@@ -1511,14 +1555,20 @@ Host 离线后被回收的隧道会在同一个 `<host-id>.deepseekbot.dev` 上�
 `account-not-allowed`、`host-limit`、`credential-unavailable`）。登录期间 Host 每分钟向 relay
 复查一次账号；relay 或 WorkOS 拒绝会话后（例如 `DELETE /v1/account` 之后），Host 停掉隧道、退役
 保存的会话，并报告 `error`；relay 返回 `401 session-revoked` 时，`issue` 为 `session-revoked`，
-其他会话拒绝为 `session-expired`。`connect-sign-out` 在 relay 上解除
+其他会话拒绝为 `session-expired`。`connect.account.pool` 给出共享隧道池：`capacity`、`inUse`、
+`free`、`waiting`、`guaranteedMinutes`（电脑在线时新隧道至少保留的分钟数，默认 30），以及没有空位时的
+`nextFreeAt`（最早可能有隧道让出的时间）。登录期间 `protectedUntil` 是这台 Host 自己的隧道最早可能
+让给排队者的时间，手机每次使用都会往后推。隧道池满时账号报告 `error`，`issue` 为 `relay-full`，
+`recovery` 为 `automatic`，并带 `wait`（`reason` 为 `pool-full`、`zone-full` 或 `queued`，先来先到
+队列里的 `position`、`retryAfter` 秒数和 `since`），Host 会自己重试
+（[ADR-0313](adr/0313-connect-tunnels-share-a-multi-zone-pool-with-eviction.md)）。`connect-sign-out` 在 relay 上解除
 关联、停掉隧道并删除会话。任何已登录的账号都能关联 Host。
 
 账号出错时，`connect.account.recovery` 区分 `automatic`（已保存的会话能自动重试注册或隧道设置）和 `sign-in`（需要再次主动登录）。所有权校验失败后不会恢复旧账号，界面提供相同的恢复指引。设备授权轮询在网络失败、没有 OAuth 错误的 HTTP 408/429/5xx 后延长间隔，仍在原授权到期时间停止；明确的 OAuth 拒绝仍会终止登录。`authorization_pending` 保留间隔，`slow_down` 增加五秒，遵循 [RFC 8628](https://www.rfc-editor.org/rfc/rfc8628.html#section-3.5)。
 
 `connect-account-hosts` 按需读取账号中的电脑；本机已关联时会标为 `current`。每行仅含
 `id`、`name`、`hostname`、`createdAt`、可选 `connected`、`current` 和 `sessionKnown`；
-缺少连接状态表示未知。它不会给 Devices 快照轮询增加 relay 请求。本机因五台限制而未关联时，
+缺少连接状态表示未知。它不会给 Devices 快照轮询增加 relay 请求。本机因三台限制而未关联时，
 仍可用已保存的账号会话读取列表。
 
 `connect-account-revoke` 必须带 `--confirm`，owner 在发请求前拒绝 `current-host`；本机退出仍用
@@ -1687,12 +1737,25 @@ tobs profile-backup-restore --file environment.botharness-backup --new-home new-
 Tobs 会一直在本地记录诊断日志，保存在 `$DSH_HOME/botharness/logs.db`（30 天，最多 5 万条）：Client 的操作与导航轨迹、未捕获错误和控制台警告、UI 不变量被破坏、长帧和慢的 Host 调用，以及 Host 警告和 BotHarness 生命周期日志。不会记录输入的文字、消息正文或文件内容，也不会离开这台设备。Workspace Control Rail 上的 **诊断日志** 按钮可查看最近 24 小时，并导出与 CLI 相同的 ZIP。
 
 ```bash
-deepseekbot diagnostic-logs [--kind all|error|perf|action] [--since <ms>] [--limit 1-1000]
+deepseekbot doctor [--offline] [--home <DSH_HOME>]
+deepseekbot diagnostic-logs [--kind all|error|perf|action] [--since <ms>] [--limit 1-1000] [--offline] [--home <DSH_HOME>]
 deepseekbot diagnostic-logs-export --out logs.zip [--hours 1-168] [--offline] [--home <DSH_HOME>]
 printf '%s' '{"version":1,"session":"agent-qa-0001","entries":[{"ts":1780000000000,"category":"action","level":"info","code":"click","fields":{"label":"Send"}}]}' | deepseekbot diagnostic-log-record
 ```
 
-`diagnostic-logs` 按时间倒序返回条目（`source`、`category`、`level`、`code`、`session`、`fields`）。导出的 ZIP 包含 `manifest.json`（时间范围、版本、计数、脱敏次数）、`logs.jsonl` 和易读的 `timeline.txt`；用户目录路径、token、密钥和邮箱会被替换，文件只会新建不会覆盖。当 Host 无法连接、无法登录或插件没有加载时，`diagnostic-logs-export` 会直接读取 `$DSH_HOME/botharness/logs.db`，生成同样已脱敏的 ZIP；`--offline` 跳过 Host，`--home` 指定其他 DSH 目录，结果会带上 `source: "offline"` 和 `fallback` 原因。除 Client 条目外，日志还为每个 Bot 回合记录一条 `bot-turn`（模型、首字耗时和总耗时、步数、工具调用和错误、结果，不含消息内容），为每条 IM 入站事件记录一条 `messaging-inbound`（`handled`、带原因的 `skipped` 或 `refused`），并把 Host 的结构化 `{"event","phase"}` 日志（如 `messaging-outbox`）存成带字段的条目。`diagnostic-log-record` 以 Web Client 相同的方式写入条目，用于 agent QA；拒绝码为 `invalid-report`、`report-too-large`、`rate-limited`（每分钟 600 条）和 `persistence-unavailable`。
+出问题时先运行 `doctor`。它返回一份报告：`ok`、`versions`（Tobs、DSH、Node、操作系统），以及 `checks`，逐项给出 `ok`、`warn`、`fail` 或 `skip`：DSH 目录、Host、Tobs 插件（Host 有响应但没有插件路由时报告 `plugin-not-loaded`）、最近一次版本或插件更新（阶段、失败原因、诊断信息和 `logPath`，需要 Host）、日志本身，以及最近 24 小时按错误码分组计数的错误。它还返回 `next` 建议命令和给编码 agent 的 `guide`：先看失败的检查项；不要删除或修改 DSH 目录里的数据；重启或重装前先问 Human；修不好时导出日志并附到预填好的 bug 报告里。Host 未运行、未配置或插件没有加载时，`doctor` 直接读取 `$DSH_HOME/botharness/logs.db`，并报告 `source: "offline"` 和 `fallback` 原因，所以界面打不开时也能用：把 `npx -y @botharness/tobs doctor` 这一行交给 Codex、Claude Code 等编码 agent 即可。Human 报告问题时，托布会先运行它。
+
+`diagnostic-logs` 按时间倒序返回条目（`source`、`category`、`level`、`code`、`session`、`fields`），并带上 `source`（`host` 或 `offline`）；与导出一样，它也会退回直接读取 `logs.db`，`--offline` 和 `--home` 的用法相同。导出的 ZIP 包含 `manifest.json`（时间范围、版本、计数、脱敏次数）、`logs.jsonl` 和易读的 `timeline.txt`；用户目录路径、token、密钥和邮箱会被替换，文件只会新建不会覆盖。当 Host 无法连接、无法登录或插件没有加载时，`diagnostic-logs-export` 会直接读取 `$DSH_HOME/botharness/logs.db`，生成同样已脱敏的 ZIP；`--offline` 跳过 Host，`--home` 指定其他 DSH 目录，结果会带上 `source: "offline"` 和 `fallback` 原因。除 Client 条目外，日志还为每个 Bot 回合记录一条 `bot-turn`（模型、首字耗时和总耗时、步数、工具调用和错误、结果，不含消息内容），为每条 IM 入站事件记录一条 `messaging-inbound`（`handled`、带原因的 `skipped` 或 `refused`），并把 Host 的结构化 `{"event","phase"}` 日志（如 `messaging-outbox`）存成带字段的条目。`diagnostic-log-record` 以 Web Client 相同的方式写入条目，用于 agent QA；拒绝码为 `invalid-report`、`report-too-large`、`rate-limited`（每分钟 600 条）和 `persistence-unavailable`。
+
+### 问题报告
+
+Web Client 的 **诊断日志 → 报告问题** 和 CLI 的 `bug-report` 生成同一种 ZIP：`manifest.json`（标题、版本、客户端、附件列表、脱敏次数）、`report.md`（标题、环境信息和问题描述）、`diagnostic-logs/` 下所选时间范围内已脱敏的诊断日志，以及 `attachments/` 下的附件。窗口里可以把文件拖到虚线框里，点击虚线框多选文件，或在窗口中任意位置粘贴截图。附件总共不超过 25 MB（GitHub 单个附件的上限），生成的 ZIP 也受同样的限制。不会上传任何内容：ZIP 保存在本地，窗口给出一个新建 `BotHarness/DeepSeekBot` Issue 的链接，bug 模板里的版本、描述和证据栏都已预填。Human 把 ZIP 拖进 Issue 后自己提交。GitHub 没有给 Issue 上传附件的 API，所以不保存任何 token。
+
+```bash
+printf '%s' '升级后群聊一直加载。' | deepseekbot bug-report --title "群聊一直加载" --body-stdin --attach ./screen.png [--attach ./more.txt] [--hours 0-168] --out report.zip [--offline] [--home <DSH_HOME>]
+```
+
+结果包含 `saved`、`path`、`bytes`、`attachments`、`issueUrl`（带 ZIP 文件名）、`nextStep` 和 `source`。`--hours 0` 不带日志，默认 24 小时。与 `diagnostic-logs-export` 一样，Host 不可用时直接读取 `logs.db` 生成报告，并返回 `source: "offline"` 和 `fallback` 原因。拒绝码有 `usage`（标题和描述都为空、文件不存在、超过 20 个文件、`--out` 已存在）、`report-too-large`，以及 `not-found` 和 `log-unreadable`（两者都会建议用 `--hours 0`）。
 
 ### 消息反馈（#2811）
 
@@ -1724,3 +1787,17 @@ printf '%s' '{"token":"<preview-token>","feedback":{"rating":"bad","tags":["no-r
 Bot 已有存活的 Orchestrator Agent 后，`bot-tools` 也会列出其注册的 `ask_secret`、`protected_cli`、`secret_http`、`secret_cli` 和 `secret_mcp_connect`。用 `bot-tool <bot-id> <tool> --args-stdin` 调用，参数 JSON 从 stdin 传入；不要把原值或引用放进命令行参数。执行复用已有 Agent 的原生工具与审批链，不调用模型、不创建新的来源；没有存活的工具注册时拒绝。命令可等待执行审批，由通常的审批命令或 Web 卡片处理。直接调用与原生诊断轨迹都省略私密工具参数和结果。
 
 同轮存在多条 IM 请求时，先用原账号和字段声明调用 `ask_secret`，并传入正在处理的那条已接受请求的精确 `source_event_id`，再消费引用。已配置账号会复用原值，不新建卡片，也不要求 Web 通知地址。Web 与 Schedule 复用不传来源选择器。`private-source-required` 给出这条恢复路径；`private-source-invalid`、`private-source-unavailable`、`private-source-ambiguous`、`private-source-revoked`、`private-account-unavailable` 分别区分其他拒绝原因。不要重复原样调用、选择历史来源，或把 Host 拒绝当成远端故障。同账号来源冲突需要新一轮；撤销检查始终保留。
+
+## 私有连接（无需 Docker）
+
+`private-tunnel-enable --quick --confirm` 启动 Quick Tunnel；`private-tunnel-enable --hostname <主机名> --token-stdin --confirm` 用 stdin 传入的连接器令牌运行你自己的 Named Tunnel。两者都通过 Host 内置的 cloudflared 只公开加密设备通道，并持久化开启状态，Host 重启后自动恢复。`devices` 返回 `privateTunnel`（`state`、`mode`、`origin`、`originPort`、编码的 `issue`/`probe`、`addressChanged`）。公网地址确认连到本机之前，配对邀请会以 `private-tunnel-unreachable` 拒绝。`private-tunnel-disable --confirm` 停止隧道并删除令牌和手机准入。见[私有连接](private-connect.zh.md)。
+
+## Docker 私有连接
+
+`private-connect --hostname <https-origin> --token-stdin --confirm` 经本机已认证 Host 认领尚未认领的私有中继。首次设置密钥只从标准输入读取，不放在命令参数中。`devices` 返回 `privateRelay` 状态；连接成功后，`device-offer --out <absolute-new-file>` 将敏感配对邀请写入新建的绝对路径文件。使用 `device-requests`、`device-approve-key`、`device-revoke` 批准准确设备并撤销。参见[私有部署](private-connect.zh.md)。未知认领结果不会自动重试，也不会暗中切换到官方中继。
+
+### 同账号 Connect 自动配对
+
+手机与 Host 登录同一 Tobs Connect 账号后，连接无需电脑批准或手工核对指纹。此路径信任账号认证和中继来授权新设备；未登录的扫码和私有连接保留现有设备批准。`connect-status` 查看账号及连接状态，`devices` 查看设备授权，`device-revoke` 撤销准确设备。不需要审核专用配置。
+
+退出账号只停止新的账号配对，不撤销已有设备；回退代码也不删除已发出的授权。仍掌握账号访问权的人可以在设备撤销后重新配对，因此应同时保护被盗账号。签名、账号与 Host 归属、时效、手机配对证明和已固定密钥的加密通道校验继续生效。参见 [ADR-0327](adr/0327-connect-account-ownership-authorizes-enrollment.md)。

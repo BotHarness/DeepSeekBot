@@ -4,6 +4,9 @@ import { homedir } from 'node:os';
 import {
   DIAGNOSTIC_LOG_LIMITS,
   exportDiagnosticLogOffline,
+  readDiagnosticLogOffline,
+  type DiagnosticLogEnvironment,
+  type DiagnosticLogList,
 } from '../diagnostics/diagnostic-log.js';
 import { resolveDshHome } from '../im/config-store.js';
 import { LogDatabaseUnreadableError } from '../logs/log-db.js';
@@ -17,7 +20,7 @@ export const DIAGNOSTIC_LOG_COMMANDS = [
   {
     command: 'diagnostic-logs',
     description:
-      'read the local diagnostic log (Client actions, errors, performance, Host warnings); --kind all|error|perf|action',
+      'read the local diagnostic log (Client actions, errors, performance, Host warnings); --kind all|error|perf|action; reads logs.db directly with --offline or when the Host is unavailable',
   },
   {
     command: 'diagnostic-logs-export',
@@ -39,6 +42,77 @@ const OFFLINE_FALLBACK = new Set([
   'not-found',
 ]);
 
+function hostLogList(bytes: Uint8Array): object {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(Buffer.from(bytes).toString('utf8'));
+  } catch {
+    parsed = undefined;
+  }
+  if (
+    typeof parsed !== 'object' ||
+    parsed === null ||
+    !Array.isArray((parsed as { entries?: unknown }).entries)
+  )
+    throw new CliLiveError('host-protocol-error', 'The Host returned an unreadable log list.');
+  return parsed;
+}
+
+export function diagnosticHome(values: { home?: string }, io: BotCreateCliIo): string {
+  return values.home?.trim() || io.env['DSH_HOME']?.trim() || resolveDshHome(io.env);
+}
+
+export function diagnosticHomes(dshHome: string) {
+  return [
+    { path: dshHome, label: '$DSH_HOME' },
+    { path: homedir(), label: '~' },
+  ];
+}
+
+export function diagnosticEnvironment(): DiagnosticLogEnvironment {
+  const dshVersion = installedDshVersion();
+  return {
+    version: installedRelease(import.meta.url).version(),
+    ...(dshVersion === undefined ? {} : { dshVersion }),
+    platform: process.platform,
+    arch: process.arch,
+    node: process.version,
+  };
+}
+
+export function isOfflineFallback(error: unknown): error is CliLiveError {
+  return error instanceof CliLiveError && OFFLINE_FALLBACK.has(error.code);
+}
+
+export function hostConfigured(values: { host?: string }, io: BotCreateCliIo): boolean {
+  return Boolean(values.host || io.env['DEEPSEEKBOT_HOST']);
+}
+
+export function readLogsOffline(
+  query: { filter: string; since: number; limit: number },
+  values: { home?: string },
+  io: BotCreateCliIo,
+): DiagnosticLogList {
+  const dshHome = diagnosticHome(values, io);
+  let list: DiagnosticLogList | undefined;
+  try {
+    list = readDiagnosticLogOffline({ dshHome, ...query, homes: diagnosticHomes(dshHome) });
+  } catch (error) {
+    if (error instanceof LogDatabaseUnreadableError)
+      throw new CliLiveError(
+        'log-unreadable',
+        `The diagnostic log could not be read (${error.message}); it was left unchanged.`,
+      );
+    throw error;
+  }
+  if (list === undefined)
+    throw new CliLiveError(
+      'not-found',
+      'No diagnostic log was found under DSH_HOME; pass --home with the DSH home folder.',
+    );
+  return list;
+}
+
 function exportOffline(
   out: string,
   hours: number,
@@ -46,24 +120,14 @@ function exportOffline(
   io: BotCreateCliIo,
   fallback: string | undefined,
 ) {
-  const dshHome = values.home?.trim() || io.env['DSH_HOME']?.trim() || resolveDshHome(io.env);
-  const dshVersion = installedDshVersion();
+  const dshHome = diagnosticHome(values, io);
   let exported: ReturnType<typeof exportDiagnosticLogOffline>;
   try {
     exported = exportDiagnosticLogOffline({
       dshHome,
       hours,
-      homes: [
-        { path: dshHome, label: '$DSH_HOME' },
-        { path: homedir(), label: '~' },
-      ],
-      environment: {
-        version: installedRelease(import.meta.url).version(),
-        ...(dshVersion === undefined ? {} : { dshVersion }),
-        platform: process.platform,
-        arch: process.arch,
-        node: process.version,
-      },
+      homes: diagnosticHomes(dshHome),
+      environment: diagnosticEnvironment(),
     });
   } catch (error) {
     if (error instanceof LogDatabaseUnreadableError)
@@ -89,6 +153,57 @@ function exportOffline(
   };
 }
 
+function diagnosticLogQuery(values: { kind?: string; since?: string; limit?: string }) {
+  const filter = values.kind?.trim() || 'all';
+  if (!FILTERS.has(filter))
+    throw new CliLiveError('usage', '--kind must be all, error, perf or action.');
+  let since = Date.now() - 24 * 3_600_000;
+  let limit: number = DIAGNOSTIC_LOG_LIMITS.listDefault;
+  if (values.since !== undefined) {
+    since = Number(values.since);
+    if (!Number.isSafeInteger(since) || since < 0)
+      throw new CliLiveError('usage', '--since must be epoch milliseconds.');
+  }
+  if (values.limit !== undefined) {
+    limit = Number(values.limit);
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1000)
+      throw new CliLiveError('usage', '--limit must be 1–1000.');
+  }
+  return { filter, since, limit };
+}
+
+export const TOB_DIAGNOSTIC_COMMAND_USAGE: Readonly<Record<string, string>> = {
+  doctor: 'deepseekbot doctor',
+  'diagnostic-logs':
+    'deepseekbot diagnostic-logs [--kind all|error|perf|action] [--since <epoch ms>] [--limit 1-1000]',
+};
+
+export function parseAgentDiagnostics(
+  command: string,
+  rest: string[],
+  values: Record<string, unknown>,
+): { command: string; args: Record<string, unknown>; write: boolean } | undefined {
+  if (!Object.hasOwn(TOB_DIAGNOSTIC_COMMAND_USAGE, command)) return undefined;
+  const allowed = new Set([
+    'compact',
+    'help',
+    'timeout',
+    ...(command === 'diagnostic-logs' ? ['kind', 'since', 'limit'] : []),
+  ]);
+  if (Object.entries(values).some(([key, value]) => value !== undefined && !allowed.has(key)))
+    throw new CliLiveError(
+      'agent-scope-denied',
+      'This option is not available for the scoped CLI operation.',
+    );
+  if (rest.length) throw new CliLiveError('usage', `${command} takes no positional arguments.`);
+  if (command === 'doctor') return { command, args: {}, write: false };
+  return {
+    command,
+    args: diagnosticLogQuery(values as { kind?: string; since?: string; limit?: string }),
+    write: false,
+  };
+}
+
 export async function runDiagnosticLogCommand(
   command: string,
   values: {
@@ -105,25 +220,27 @@ export async function runDiagnosticLogCommand(
   connect: () => Promise<Awaited<ReturnType<typeof connectLiveHost>>>,
 ): Promise<unknown> {
   if (command === 'diagnostic-logs') {
-    const kind = values.kind?.trim() || 'all';
-    if (!FILTERS.has(kind))
-      throw new CliLiveError('usage', '--kind must be all, error, perf or action.');
+    const { filter: kind, since, limit } = diagnosticLogQuery(values);
     const query = new URLSearchParams({ filter: kind });
-    if (values.since !== undefined) {
-      const since = Number(values.since);
-      if (!Number.isSafeInteger(since) || since < 0)
-        throw new CliLiveError('usage', '--since must be epoch milliseconds.');
-      query.set('since', String(since));
+    if (values.since !== undefined) query.set('since', String(since));
+    if (values.limit !== undefined) query.set('limit', String(limit));
+    const offline = (fallback?: string) => ({
+      ...readLogsOffline({ filter: kind, since, limit }, values, io),
+      source: 'offline',
+      ...(fallback === undefined ? {} : { fallback }),
+    });
+    if (values.offline === true) return offline();
+    if (!hostConfigured(values, io)) return offline('host-not-configured');
+    let list: object;
+    try {
+      const host = await connect();
+      const { bytes } = await host.http(`/api/botharness/diagnostic-logs?${query}`);
+      list = hostLogList(bytes);
+    } catch (error) {
+      if (isOfflineFallback(error)) return offline(error.code);
+      throw error;
     }
-    if (values.limit !== undefined) {
-      const limit = Number(values.limit);
-      if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1000)
-        throw new CliLiveError('usage', '--limit must be 1–1000.');
-      query.set('limit', String(limit));
-    }
-    const host = await connect();
-    const { bytes } = await host.http(`/api/botharness/diagnostic-logs?${query}`);
-    return JSON.parse(Buffer.from(bytes).toString('utf8'));
+    return { ...list, source: 'host' };
   }
   if (command === 'diagnostic-logs-export') {
     if (!values.out) throw new CliLiveError('usage', 'Pass --out for the log ZIP.');
@@ -138,7 +255,7 @@ export async function runDiagnosticLogCommand(
       query.set('hours', String(hours));
     }
     if (values.offline === true) return exportOffline(values.out, hours, values, io, undefined);
-    if (!values.host && !io.env['DEEPSEEKBOT_HOST'])
+    if (!hostConfigured(values, io))
       return exportOffline(values.out, hours, values, io, 'host-not-configured');
     let response: Response;
     let bytes: Uint8Array;
@@ -148,8 +265,7 @@ export async function runDiagnosticLogCommand(
         `/api/botharness/diagnostic-logs/export${query.size ? `?${query}` : ''}`,
       ));
     } catch (error) {
-      if (error instanceof CliLiveError && OFFLINE_FALLBACK.has(error.code))
-        return exportOffline(values.out, hours, values, io, error.code);
+      if (isOfflineFallback(error)) return exportOffline(values.out, hours, values, io, error.code);
       throw error;
     }
     writeFileSync(values.out, bytes, { flag: 'wx', mode: 0o600 });

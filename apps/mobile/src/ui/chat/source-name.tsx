@@ -11,15 +11,18 @@ export function SourceName({
   source,
   look,
   sourceLabel,
+  lines = 1,
+  glyph = true,
 }: {
+  glyph?: boolean;
   sourceLabel?: string | undefined;
+  lines?: number;
   name: string;
   source: 'computer' | 'cloud';
   look?: HostLook | undefined;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
-  const Icon = source === 'cloud' ? CloudIcon : ComputerIcon;
   const size = theme.type.meta.size * theme.fontScale;
   return (
     <View
@@ -35,27 +38,43 @@ export function SourceName({
     >
       <Text
         dynamicTypeRamp="headline"
-        numberOfLines={1}
+        numberOfLines={lines}
         ellipsizeMode="tail"
         style={[conversationType.name, { flex: 1, minWidth: 0 }]}
       >
         {name}
       </Text>
-      <View
-        accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants"
-        style={{ flexShrink: 0 }}
-      >
-        {source === 'computer' && look !== undefined ? (
-          <HostGlyph
-            icon={look.icon}
-            size={size}
-            color={hostColorInk(theme.scheme, theme.color, look.color)}
-          />
-        ) : (
-          <Icon color={theme.color.subtle} size={size} />
-        )}
-      </View>
+      {glyph ? (
+        <View
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          style={{ flexShrink: 0 }}
+        >
+          <SourceMark source={source} look={look} size={size} />
+        </View>
+      ) : null}
     </View>
+  );
+}
+
+export function SourceMark({
+  source,
+  look,
+  size,
+}: {
+  source: 'computer' | 'cloud';
+  look?: HostLook | undefined;
+  size: number;
+}) {
+  const theme = useDesignTheme();
+  const Icon = source === 'cloud' ? CloudIcon : ComputerIcon;
+  return source === 'computer' && look !== undefined ? (
+    <HostGlyph
+      icon={look.icon}
+      size={size}
+      color={hostColorInk(theme.scheme, theme.color, look.color)}
+    />
+  ) : (
+    <Icon color={theme.color.subtle} size={size} />
   );
 }

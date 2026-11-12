@@ -169,7 +169,7 @@ _避免使用_：purpose、task name、prompt、Continuity Key
 _避免使用_：purpose（历史用法）、prompt、Assignment Request、Assignment Report
 
 **Assignment Session**：
-执行且只执行一个 Assignment、由 PersonaBot 拥有的独立 root Session；v1 中它只有一个 working directory。它由 Orchestrator 创建和管理，不要求 Human 另开 Conversation；一个 PersonaBot 可以同时拥有多个 Assignment Session，而 DSH Subagent 永远不算 Assignment Session。
+执行且只执行一个 Assignment、由 PersonaBot 拥有的独立 root Session；v1 中它只有一个 working directory。它由 Orchestrator 创建，或由 Human 通过直调 CLI 代其创建，始终由 Orchestrator 管理，不要求 Human 另开 Conversation；一个 PersonaBot 可以同时拥有多个 Assignment Session，而 DSH Subagent 永远不算 Assignment Session。
 _避免使用_：Work Session、Worker Session、Executor Session、task Session、child Session
 
 **Assignment Agent**：
@@ -189,7 +189,7 @@ _避免使用_：deleted Assignment、stopped Assignment、auto-archive、hidden
 _避免使用_：title similarity、cwd、most-recent Session、global id
 
 **Assignment Request**：
-Orchestrator 向其拥有的某个 Assignment Session 发送的持久、定向、可审计消息，可选择关联到一个 Inbox Admission 或先前报告。其语义模式为 `context-update`、`next-step` 或 `next-turn`；Assignment Runtime 将它映射为 DSH injection、steer 或 follow-up，且不打断当前 step。
+Orchestrator（或由 Human 通过直调 CLI 代其）向其拥有的某个 Assignment Session 发送的持久、定向、可审计消息，可选择关联到一个 Inbox Admission 或先前报告。其语义模式为 `context-update`、`next-step` 或 `next-turn`；Assignment Runtime 将它映射为 DSH injection、steer 或 follow-up，且不打断当前 step。
 _避免使用_：Channel message、Subagent prompt、broadcast、inferred Session
 
 **Assignment Delivery Intent**：
@@ -785,7 +785,7 @@ _避免使用_：caller-supplied author、transport metadata（单独使用）
 
 **Chat**：
 PersonaBot 参与的 Feishu/Lark conversation——group 或 p2p——通过 `chat_id` 识别。
-_避免使用_：room、channel、group（当含义也包括 p2p 时）
+_避免使用_：room、channel、group（当含义也包括 p2p 时）；指移动端页面时说 Conversation screen
 
 **DM**：
 两位 Actor 之间的一对一 conversation——即 `dm` 类型的 Channel，或它的 bridged equivalent。Human–PersonaBot DM 是 Human 与一个 Bot 的直接对话；Bot-to-Bot DM 有两个 PersonaBot 参与者，Human 可以只读查看而不成为参与者。
@@ -1111,6 +1111,58 @@ _避免使用_：短网址、UTM 链接、邀请链接
 
 会话面板默认跟随当前频道时不重复显示范围标签；群聊范围选择收进视图选项菜单，仅显式指定 Bot 时在标题栏显示 `Bot · 名称`。
 
+### 移动端页面
+
+手机上能导航到的页面。页面按它的职能命名，iOS 和 Android 用同一个名字；各平台怎么画由 `apps/mobile/DESIGN.md` 决定。页面里更深的子页（如 Bot 的 Memory、Settings 的子页）直接用它们的标题，不算术语。上文的 PersonaBot Profile 和 Group Profile 也是移动端页面，从 Conversation screen 的 header 进入。
+
+**Chats**：
+列出 DM 和 Channel 的 tab：来自当前 Computer 或云端工作区，选 All 时来自所有在线的已配对 Computer 和可用的云端工作区；Human 从这里打开 Conversation screen。
+_避免使用_：首页、会话列表、Chat list
+
+**Activity tab**：
+显示 Activity 的 tab。
+_避免使用_：通知 tab、收件箱
+
+**Settings**：
+手机本地偏好，以及 Human 的账号、模型、用量和存储所在的 tab。
+_避免使用_：偏好页、齿轮菜单
+
+**Workspace panel**：
+iOS 上 Chats 左边的常驻页面，列出已配对的 Computer 和云端工作区并在它们之间切换。其他地方由 Workspace drawer 承担同一职能。
+_避免使用_：-1 屏、侧边栏、Host drawer
+
+**Workspace drawer**：
+从 Host chip 打开的导航抽屉，列出已配对的 Computer 和云端工作区并在它们之间切换。
+_避免使用_：Host drawer、侧边栏、菜单
+
+**Conversation screen**：
+会话页。显示一个 DM 或 Channel 的页面：顶部 header、Conversation Timeline，以及 Human 能发言时的 Composer（只读的 Bot-to-Bot DM 没有）。Tob Mode 打开的也是这个页面。
+_避免使用_：Chat、聊天页、聊天详情
+
+**Conversation Timeline**：
+会话时间线。Conversation screen 里按顺序滚动显示一个会话的消息和活动行的呈现层。它只显示 Messaging 的事实，只持有可丢弃的缓存，从不是消息存储。
+_避免使用_：聊天列表、消息列表（单独使用）、FlatList、Recycler
+
+**Composer**：
+输入栏。Conversation screen 底部 Human 写消息、发送消息的输入区域。
+_避免使用_：输入框、文本框（单独使用）
+
+**Computer viewer**：
+以实时视频显示 Bot 的 Computer，并让 Human 观看或接管的页面。
+_避免使用_：远程桌面、屏幕共享
+
+**Browser viewer**：
+实时显示 Bot 的 Browser，并让 Human 观看或接管的页面。
+_避免使用_：web view、内置浏览器
+
+**Call screen**：
+与 Bot 进行语音或视频通话的全屏页面。
+_避免使用_：通话页、通话浮层
+
+**Pairing**：
+把手机与 Computer 配对，或加入云端工作区的流程。
+_避免使用_：登录、设置向导
+
 ### 原生 UI 组件
 
 iOS 工作区切换采用应用自定义的常驻导航页面，由 `PagerView` 的显式后端连接原生 UIKit `UIPageViewController`：工作区在左，之后依次为完整聊天列表与底部导航、上次聊天、资料页。Android 保留原导航抽屉。详见 `apps/mobile/DESIGN.md` 的 iOS workspace panel。
@@ -1195,11 +1247,13 @@ _避免使用_：Material You（动态取色以外）、毛玻璃、玻璃拟态
 | 元素的标签或提示                  | Tooltip                                                       | `TooltipBox`, `PlainTooltip`                                                    | iPhone 上没有（help tag 属于 macOS 与 iPadOS 指针）                                    | —                                                                                                                  |
 | 横向滚动浏览一组项目              | Carousel                                                      | `HorizontalMultiBrowseCarousel`                                                 | Collection；有序页面用 page control                                                    | `ScrollView(.horizontal)`, `TabView` + `.tabViewStyle(.page)` · `UICollectionView`, `UIPageControl`                |
 | 返回                              | 系统 Back 与 predictive back；top app bar 的 navigation icon  | `BackHandler`, `PredictiveBackHandler`                                          | Back button 与 interactive pop（边缘或内容区滑动）                                     | `NavigationStack` · `UINavigationController`                                                                       |
+| 应用外仍在进行的通话              | Ongoing call notification (of a foreground service)           | `Notification.CallStyle.forOngoingCall`                                         | Live Activity (Lock Screen and Dynamic Island)                                         | ActivityKit `Activity` · `expo-widgets`                                                                            |
 
 本应用当前的配对（`apps/mobile/DESIGN.md`、#3002）：
 
 - 按钮：主要 → filled ↔ bordered prominent（iOS 26 为 glass prominent）；次要与 tonal → filled tonal ↔ bordered（glass）；文本 → text button ↔ borderless；危险 → 使用 Material error 颜色的 filled ↔ destructive role。
 - Sheet：Android `ModalBottomSheet` ↔ iOS 带 detents 的 form sheet（经 Expo Router 的 `presentation: 'formSheet'`，或 `@expo/ui` 的 SwiftUI `BottomSheet`）。
+- 应用外的 Bot 通话：Android ongoing call notification（`Notification.CallStyle`）加上显示在其他应用上层的自定义通话悬浮球 ↔ iOS Live Activity（ADR-0305）。
 - Chats 的「-1 屏」：Android `DismissibleNavigationDrawer` ↔ iOS 相邻的常驻导航页面：工作区、完整聊天列表及底部导航、上次聊天与资料页，通过 `PagerView` 的显式 UIKit `UIPageViewController` 后端连接。
 - 顶级导航：Android navigation bar 加创建 FAB ↔ iOS tab island 及其 **+**（自定义界面，ADR-0235）。
 - 活动与工作区标签页：Android primary tabs（`PrimaryTabRow`）。

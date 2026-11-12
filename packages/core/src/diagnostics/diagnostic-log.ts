@@ -12,6 +12,7 @@ import {
   type LogEntryInput,
 } from '../logs/log-db.js';
 import { scrubHomePaths } from '../telemetry/exceptions.js';
+import { BUG_REPORT_PATH, createBugReportHttp } from './bug-report.js';
 import { createDiagnosticRedactor } from './redaction.js';
 
 export const CLIENT_LOG_PATH = '/api/botharness/client-log';
@@ -270,6 +271,10 @@ export interface DiagnosticEvents {
     fields: DiagnosticEventFields,
     options?: { bot?: string; level?: 'info' | 'warn' },
   ): void;
+}
+
+export interface MountedDiagnosticLog extends DiagnosticEvents {
+  list(query: { filter: string; since: number; limit: number }): DiagnosticLogList | undefined;
 }
 
 function eventLevel(phase: string, fields: Record<string, DiagnosticFieldValue>): 'info' | 'warn' {
@@ -556,12 +561,8 @@ export function buildDiagnosticExport(
   },
 ): { archive: Buffer; manifest: Record<string, unknown>; until: number } {
   const until = options.now();
-  const since = until - options.hours * 3_600_000;
-  const rows = database
-    .range(since, DIAGNOSTIC_LOG_LIMITS.exportMaxRows + 1)
-    .filter((row) => row.ts <= until);
-  const truncated = rows.length > DIAGNOSTIC_LOG_LIMITS.exportMaxRows;
-  const built = diagnosticLogArchive(truncated ? rows.slice(1) : rows, {
+  const { rows, since, truncated } = diagnosticLogRows(database, options.hours, until);
+  const built = diagnosticLogArchive(rows, {
     since,
     until,
     environment: options.environment,
@@ -570,6 +571,56 @@ export function buildDiagnosticExport(
     exportedBy: options.exportedBy ?? 'host',
   });
   return { ...built, until };
+}
+
+export interface DiagnosticLogList {
+  version: number;
+  since: number;
+  filter: string;
+  entries: DiagnosticLogView[];
+}
+
+export function listDiagnosticLogs(
+  database: Pick<LogDatabase, 'query'>,
+  options: {
+    filter: string;
+    since: number;
+    limit: number;
+    homes: ReadonlyArray<{ path: string; label: string }>;
+  },
+): DiagnosticLogList {
+  const { filter, since } = options;
+  if (filter !== 'all' && LEVEL_FILTERS[filter] === undefined)
+    throw new DiagnosticLogError('invalid-input', 'filter must be all, error, perf or action.');
+  if (!Number.isFinite(since) || !Number.isInteger(options.limit) || options.limit < 1)
+    throw new DiagnosticLogError('invalid-input', 'since and limit must be numbers.');
+  const limit = Math.min(options.limit, DIAGNOSTIC_LOG_LIMITS.listMax);
+  const kinds = filter === 'all' ? undefined : LEVEL_FILTERS[filter];
+  const rows = database.query({ since, limit, ...(kinds === undefined ? {} : { kinds }) });
+  const redactor = createDiagnosticRedactor({ homes: options.homes });
+  return {
+    version: DIAGNOSTIC_LOG_VERSION,
+    since,
+    filter,
+    entries: rows.map((row) => redactor.value(diagnosticLogView(row))),
+  };
+}
+
+export function readDiagnosticLogOffline(options: {
+  dshHome: string;
+  filter: string;
+  since: number;
+  limit: number;
+  homes: ReadonlyArray<{ path: string; label: string }>;
+}): DiagnosticLogList | undefined {
+  const dir = join(options.dshHome, 'botharness');
+  if (!existsSync(join(dir, LOG_DB_FILENAME))) return;
+  const database = openLogDatabase({ dir, readOnly: true });
+  try {
+    return listDiagnosticLogs(database, options);
+  } finally {
+    database.close();
+  }
 }
 
 export function exportDiagnosticLogOffline(options: {
@@ -595,17 +646,27 @@ export function exportDiagnosticLogOffline(options: {
   }
 }
 
+export interface DiagnosticLogArchiveOptions {
+  since: number;
+  until: number;
+  environment: DiagnosticLogEnvironment;
+  homes: ReadonlyArray<{ path: string; label: string }>;
+  truncated: boolean;
+  exportedBy?: 'host' | 'cli-offline';
+}
+
 export function diagnosticLogArchive(
   rows: readonly LogEntry[],
-  options: {
-    since: number;
-    until: number;
-    environment: DiagnosticLogEnvironment;
-    homes: ReadonlyArray<{ path: string; label: string }>;
-    truncated: boolean;
-    exportedBy?: 'host' | 'cli-offline';
-  },
+  options: DiagnosticLogArchiveOptions,
 ): { archive: Buffer; manifest: Record<string, unknown> } {
+  const { files, manifest } = diagnosticLogFiles(rows, options);
+  return { archive: writeZip(files), manifest };
+}
+
+export function diagnosticLogFiles(
+  rows: readonly LogEntry[],
+  options: DiagnosticLogArchiveOptions,
+): { files: Array<{ path: string; data: Uint8Array }>; manifest: Record<string, unknown> } {
   const redactor = createDiagnosticRedactor({ homes: options.homes });
   const views = rows.map((row) => redactor.value(diagnosticLogView(row)));
   const counts: Record<string, number> = {};
@@ -632,7 +693,7 @@ export function diagnosticLogArchive(
     redaction: { level: redactor.level, hits: redactor.report() },
   };
   const encoder = new TextEncoder();
-  const archive = writeZip([
+  const files = [
     { path: 'manifest.json', data: encoder.encode(JSON.stringify(manifest, null, 2) + '\n') },
     {
       path: 'logs.jsonl',
@@ -642,8 +703,21 @@ export function diagnosticLogArchive(
       path: 'timeline.txt',
       data: encoder.encode(views.map(timelineLine).join('\n') + '\n'),
     },
-  ]);
-  return { archive, manifest };
+  ];
+  return { files, manifest };
+}
+
+export function diagnosticLogRows(
+  database: Pick<LogDatabase, 'range'>,
+  hours: number,
+  until: number,
+): { rows: LogEntry[]; since: number; truncated: boolean } {
+  const since = until - hours * 3_600_000;
+  const rows = database
+    .range(since, DIAGNOSTIC_LOG_LIMITS.exportMaxRows + 1)
+    .filter((row) => row.ts <= until);
+  const truncated = rows.length > DIAGNOSTIC_LOG_LIMITS.exportMaxRows;
+  return { rows: truncated ? rows.slice(1) : rows, since, truncated };
 }
 
 export function createDiagnosticLogHttp(options: DiagnosticLogHttpOptions) {
@@ -696,28 +770,15 @@ export function createDiagnosticLogHttp(options: DiagnosticLogHttpOptions) {
         throw new DiagnosticLogError('persistence-unavailable', 'Diagnostic log is unavailable.');
       options.writer()?.flush();
       if (url.pathname === DIAGNOSTIC_LOGS_PATH) {
-        const filter = url.searchParams.get('filter') ?? 'all';
-        if (filter !== 'all' && LEVEL_FILTERS[filter] === undefined)
-          throw new DiagnosticLogError(
-            'invalid-input',
-            'filter must be all, error, perf or action.',
-          );
         const sinceRaw = url.searchParams.get('since');
-        const since = sinceRaw === null ? now() - 24 * 3_600_000 : Number(sinceRaw);
-        const limitRaw = Number(url.searchParams.get('limit') ?? DIAGNOSTIC_LOG_LIMITS.listDefault);
-        if (!Number.isFinite(since) || !Number.isInteger(limitRaw) || limitRaw < 1)
-          throw new DiagnosticLogError('invalid-input', 'since and limit must be numbers.');
-        const limit = Math.min(limitRaw, DIAGNOSTIC_LOG_LIMITS.listMax);
-        const kinds = filter === 'all' ? undefined : LEVEL_FILTERS[filter];
-        const rows = database.query({ since, limit, ...(kinds === undefined ? {} : { kinds }) });
-        const redactor = createDiagnosticRedactor({ homes: options.homes });
+        const limitRaw = url.searchParams.get('limit');
         return Response.json(
-          {
-            version: DIAGNOSTIC_LOG_VERSION,
-            since,
-            filter,
-            entries: rows.map((row) => redactor.value(diagnosticLogView(row))),
-          },
+          listDiagnosticLogs(database, {
+            filter: url.searchParams.get('filter') ?? 'all',
+            since: sinceRaw === null ? now() - 24 * 3_600_000 : Number(sinceRaw),
+            limit: limitRaw === null ? DIAGNOSTIC_LOG_LIMITS.listDefault : Number(limitRaw),
+            homes: options.homes,
+          }),
           { headers: HEADERS },
         );
       }
@@ -757,7 +818,7 @@ export function mountDiagnosticLog(
     environment: () => DiagnosticLogEnvironment;
     onClientEntries?: (session: string, entries: readonly ClientLogEntry[]) => void;
   },
-): DiagnosticEvents {
+): MountedDiagnosticLog {
   let database: LogDatabase | undefined;
   let writer: DiagnosticLogWriter | undefined;
   const home = options.homes.find((entry) => entry.label === '~')?.path;
@@ -819,8 +880,32 @@ export function mountDiagnosticLog(
         () => connection.fetch.register({ path, methods, requestBody: 'buffered', fetch: http }),
         'botharness: diagnostic log ' + path,
       );
+    const bugReport = createBugReportHttp({
+      database: () => database,
+      flush: () => writer?.flush(),
+      environment: options.environment(),
+      homes: options.homes,
+      log: (message) => child.logger.info(message),
+    });
+    child.effect(
+      () =>
+        connection.fetch.register({
+          path: BUG_REPORT_PATH,
+          methods: ['POST'],
+          requestBody: 'buffered',
+          fetch: bugReport,
+        }),
+      'botharness: bug report ' + BUG_REPORT_PATH,
+    );
   });
-  return events;
+  return {
+    ...events,
+    list(query) {
+      if (database === undefined) return undefined;
+      writer?.flush();
+      return listDiagnosticLogs(database, { ...query, homes: options.homes });
+    },
+  };
 }
 
 export function diagnosticEventRecorder(

@@ -1,3 +1,4 @@
+import { replyPreviewOf } from '../../../core/src/channels/reply-preview.js';
 import { approveWorkspaceGrantRequest } from './bridge.js';
 import {
   loadGenuiView,
@@ -3379,10 +3380,7 @@ export function createActions(
               ? {}
               : {
                   replyTo,
-                  replyToPreview:
-                    replyTarget === undefined
-                      ? null
-                      : { author: replyTarget.author, body: replyTarget.body },
+                  replyToPreview: replyTarget === undefined ? null : replyPreviewOf(replyTarget),
                 }),
             pending: true,
           },

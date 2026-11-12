@@ -1,4 +1,5 @@
 import { UnreadCount, unreadCountLabel } from './unread-count.js';
+import { useSearchOpenMark } from './search-open-mark.js';
 import { observeHumanAttention } from './messaging-defaults-live.js';
 export { unreadCountLabel } from './unread-count.js';
 import { Menu } from './appearance-primitives.js';
@@ -282,6 +283,7 @@ export function BotPanelIcon({
       button?.style.setProperty('--bh-bot-texture', `url("${botBackdropUri(icon)}")`);
       if (button === null) return;
       button.setAttribute('data-bh-tour', 'bot-mode');
+      button.toggleAttribute('data-bh-wide-glyph', wide);
       const priorGridRow = button.style.gridRow;
       const siblings = Array.from(button.parentElement?.children ?? []).filter(
         (node) => !node.classList.contains('bh-activity-list-entry'),
@@ -315,12 +317,13 @@ export function BotPanelIcon({
         button.addEventListener('click', onClick, true);
       }
       return () => {
+        button.removeAttribute('data-bh-wide-glyph');
         button.style.gridRow = priorGridRow;
         button.removeEventListener('keydown', onKeyDown);
         button.removeEventListener('click', onClick, true);
       };
     },
-    [size, icon, active, onExit],
+    [size, wide, icon, active, onExit],
   );
 
   const openInbox = (event: SyntheticEvent): void => {
@@ -1053,6 +1056,7 @@ export function BotSidebar({
   const [sectionMenuId, setSectionMenuId] = useState<string | undefined>(undefined);
   const [sectionCreateMenuId, setSectionCreateMenuId] = useState<string | undefined>(undefined);
   const [searchOpen, setSearchOpen] = useState(false);
+  const searchOpenMark = useSearchOpenMark(searchOpen);
   const [channelMenu, setChannelMenu] = useState<ChannelMenuRequest | undefined>(undefined);
   const [sharing, setSharing] = useState<BotSummary | undefined>(undefined);
   const [avatarTarget, setAvatarTarget] = useState<{ slug: string; channelId: string } | undefined>(
@@ -1368,6 +1372,7 @@ export function BotSidebar({
   const navigationIdsRef = useRef<readonly string[]>([]);
   navigationIdsRef.current = [...railPinnedChannels, ...railChannels].map((channel) => channel.id);
   const dragActiveRef = useRef(false);
+  const launcher = quickSwitcherSettings?.launcher;
   const rosterMount = useMountedResource<HTMLDivElement>(() => {
     const acceptDrag = (event: DragEvent): void => {
       if (!dragActiveRef.current) return;
@@ -1477,8 +1482,15 @@ export function BotSidebar({
       event.preventDefault();
       setShowShortcutHints(false);
       setQuickSwitcherOpen(true);
-      actions.telemetryEvent('search:switcher_open');
+      actions.telemetryEvent('search:switcher_open', { source: 'shortcut' });
     };
+    const stopLauncher = launcher?.subscribe((source) => {
+      if (webQuickSwitcherBlocked(null, document)) return false;
+      setShowShortcutHints(false);
+      setQuickSwitcherOpen(true);
+      actions.telemetryEvent('search:switcher_open', { source });
+      return true;
+    });
     document.addEventListener('keydown', onChannelShortcut);
     document.addEventListener('keydown', onConversationStep);
     document.addEventListener('keydown', onQuickSwitcher);
@@ -1493,11 +1505,12 @@ export function BotSidebar({
       document.removeEventListener('keydown', onChannelShortcut);
       document.removeEventListener('keydown', onConversationStep);
       document.removeEventListener('keydown', onQuickSwitcher);
+      stopLauncher?.();
       document.removeEventListener('dragover', acceptDrag);
       document.removeEventListener('drop', acceptDrop);
       if (pinZoneArmTimer.current !== undefined) window.clearTimeout(pinZoneArmTimer.current);
     };
-  }, [actions, shortcutBindings]);
+  }, [actions, shortcutBindings, launcher]);
   const shortcutFor = (channelId: string): string | undefined =>
     webChannelShortcutLabel(shortcutIds.indexOf(channelId));
   const hiddenItems: HiddenChannelItem[] = hiddenChannelSequence(
@@ -2127,7 +2140,10 @@ export function BotSidebar({
           {t('roster.messages')}
         </span>
       )}
-      <div className={`bh-search-slot${searchOpen ? ' bh-search-slot-open' : ''}`}>
+      <div
+        ref={searchOpenMark}
+        className={`bh-search-slot${searchOpen ? ' bh-search-slot-open' : ''}`}
+      >
         <div
           ref={searchMount}
           className={`bh-search${searchOpen ? ' bh-search-open' : ''}`}
@@ -3562,7 +3578,7 @@ function BotModelMenu({
   setOpen(open: boolean): void;
   apply(route: ModelRouteView): void;
 }): ReactElement {
-  const anchor = useRef<HTMLSpanElement>(null);
+  const anchor = useRef<HTMLElement | null>(null);
   const [active, setActive] = useState<string>();
   return (
     <span onPointerDown={(event) => event.stopPropagation()}>
@@ -3575,10 +3591,12 @@ function BotModelMenu({
         closeOnPointerLeave
         className="bh-model-menu-anchor"
         listClassName="bh-model-menu-list"
-        getAnchorRect={() => anchor.current?.closest('button')?.getBoundingClientRect() ?? null}
+        anchorRef={anchor}
         anchor={
           <span
-            ref={anchor}
+            ref={(node) => {
+              anchor.current = node?.closest('button') ?? null;
+            }}
             className="bh-move-checked"
             onMouseEnter={() => {
               if (!disabled) setOpen(true);

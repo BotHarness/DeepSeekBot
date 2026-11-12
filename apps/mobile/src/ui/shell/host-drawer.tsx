@@ -38,6 +38,7 @@ import type { ConnectHost } from '../../host/connect-account';
 import { accountHostLookId } from '../../host/account-host-look';
 import { connectAccount } from '../../host/native-connect-account';
 import { liveGlance, type HostGlance, type HostStatus } from '../../host/host-glance';
+import { SavedHostsWriteError } from '../../host/hosts';
 import {
   hostSession,
   useHostSession,
@@ -101,7 +102,12 @@ export const hostDrawer = createHostDrawer({
   },
   pair: () => router.push('/pair'),
   notifications: () => router.push('/notifications'),
-  failed: () => showAppDialog(t.channelOpeningFailed, undefined, [{ text: t.done }]),
+  failed: (error) =>
+    error instanceof SavedHostsWriteError
+      ? showAppDialog(t.savedComputersKeychainFailed, t.savedComputersErrorDetail(error.message), [
+          { text: t.done },
+        ])
+      : showAppDialog(t.channelOpeningFailed, undefined, [{ text: t.done }]),
 });
 
 const progress = makeMutable(0);
@@ -265,7 +271,13 @@ function PanHostDrawerEdge({
 }
 
 function statusText(status: HostStatus): string {
-  return status === 'online' ? t.hostOnline : status === 'offline' ? t.hostOffline : t.hostChecking;
+  return status === 'online'
+    ? t.hostOnline
+    : status === 'offline'
+      ? t.hostOffline
+      : status === 'refused'
+        ? t.hostRefused
+        : t.hostChecking;
 }
 
 function closeThen(action: () => void): void {
@@ -287,11 +299,17 @@ function confirmUnpair(row: HostDrawerRow, name: string): void {
             noticeHostKept(result, name);
           },
           (error: unknown) =>
-            showAppDialog(
-              `${t.unpairFailed} ${error instanceof Error ? error.message : String(error)}`,
-              undefined,
-              [{ text: t.done }],
-            ),
+            error instanceof SavedHostsWriteError
+              ? showAppDialog(
+                  `${t.unpairFailed} ${t.savedComputersKeychainFailed}`,
+                  t.savedComputersErrorDetail(error.message),
+                  [{ text: t.done }],
+                )
+              : showAppDialog(
+                  `${t.unpairFailed} ${error instanceof Error ? error.message : String(error)}`,
+                  undefined,
+                  [{ text: t.done }],
+                ),
         );
       },
     },
@@ -677,7 +695,7 @@ function AccountHostRow({
   onPress(): void;
   form?: boolean;
 }) {
-  const look = useHostLook(accountHostLookId(host.hostname));
+  const look = useHostLook(accountHostLookId(host.id));
   return (
     <AccountComputerRow
       host={host}

@@ -77,6 +77,37 @@ describe('Harness Bot tool runner commands', () => {
       },
     ]);
   });
+  it('passes an optional unarchive_assignment message so one call revives and continues', async () => {
+    const value = {
+      slug: 'ada',
+      tool: 'unarchive_assignment',
+      sessionId: 'direct',
+      result: {
+        outcome: 'unarchived',
+        sessionId: 'assignment-1',
+        activity: 'stopped',
+        delivery: 'refused',
+        code: 'request-not-delivered',
+        message:
+          'Assignment Session assignment-1 was unarchived, but the request was not delivered',
+      },
+    };
+    const live = await host(() => ({ ok: true, value }));
+    const args = { session_id: 'assignment-1', message: 'Continue the report', mode: 'next-turn' };
+    const result = await invoke(
+      ['bot-tool', 'ada', 'unarchive_assignment', '--cause-event', 'source-owned', '--args-stdin'],
+      live.url,
+      JSON.stringify(args),
+    );
+    expect(result.code).toBe(0);
+    expect(result.json).toEqual(value);
+    expect(live.calls).toEqual([
+      {
+        method: 'botToolRun',
+        args: { slug: 'ada', tool: 'unarchive_assignment', sourceEventId: 'source-owned', args },
+      },
+    ]);
+  });
   it('names the Assignment parent of a Subagent tool with --session', async () => {
     const live = await host(() => ({
       ok: true,

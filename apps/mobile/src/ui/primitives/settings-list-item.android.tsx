@@ -82,6 +82,7 @@ export function SettingsListItem(props: SettingsRowProps) {
     onPress,
   } = props;
   const theme = useDesignTheme();
+  const oneLine = singleLine && !theme.largeText;
   const colors = settingsColors(theme, on);
   const fill = selected === true ? colors.selected : theme.layer[on].fill;
   const control: SettingsRowControl | undefined =
@@ -133,7 +134,7 @@ export function SettingsListItem(props: SettingsRowProps) {
             <ListItem.HeadlineContent>
               <Text
                 {...(headline === undefined ? {} : { color: headline })}
-                {...(singleLine ? { maxLines: 1, overflow: 'ellipsis' as const } : {})}
+                {...(oneLine ? { maxLines: 1, overflow: 'ellipsis' as const } : {})}
                 style={strong ? { fontWeight: 'bold' } : {}}
               >
                 {title}
@@ -142,7 +143,7 @@ export function SettingsListItem(props: SettingsRowProps) {
             {detail === undefined ? null : (
               <ListItem.SupportingContent>
                 {detailDot === undefined ? (
-                  <Text {...(singleLine ? { maxLines: 1, overflow: 'ellipsis' as const } : {})}>
+                  <Text {...(oneLine ? { maxLines: 1, overflow: 'ellipsis' as const } : {})}>
                     {detail}
                   </Text>
                 ) : (
@@ -154,7 +155,7 @@ export function SettingsListItem(props: SettingsRowProps) {
                         background(detailDot),
                       ]}
                     />
-                    <Text {...(singleLine ? { maxLines: 1, overflow: 'ellipsis' as const } : {})}>
+                    <Text {...(oneLine ? { maxLines: 1, overflow: 'ellipsis' as const } : {})}>
                       {detail}
                     </Text>
                   </Row>

@@ -294,6 +294,14 @@ it('disables saved and offline computers while selecting multiple available comp
     hostname: 'hoff.deepseekbot.dev',
     online: false,
   };
+  const queued = {
+    ...other,
+    id: 'hqueue',
+    name: 'Queued',
+    hostname: 'hqueue.deepseekbot.dev',
+    online: false,
+    waiting: true,
+  };
   const spare = { ...other, id: 'hspare', name: 'Spare', hostname: 'hspare.deepseekbot.dev' };
   const account = {
     pendingDeletion: vi.fn(async () => false),
@@ -301,7 +309,7 @@ it('disables saved and offline computers while selecting multiple available comp
     revokeHost: vi.fn(),
     actionKey: vi.fn(async () => 'session-a'),
     email: async () => 'alice@example.com',
-    hosts: async () => ({ ok: true as const, value: [studio, other, offline, spare] }),
+    hosts: async () => ({ ok: true as const, value: [studio, other, offline, queued, spare] }),
     signIn: vi.fn(),
     signOut: vi.fn(),
     deleteAccount: vi.fn(),
@@ -328,6 +336,8 @@ it('disables saved and offline computers while selecting multiple available comp
     host!.querySelector<HTMLButtonElement>(`button[aria-label="${name}"]`)!;
   expect(button('Studio').disabled).toBe(true);
   expect(button('Offline').disabled).toBe(true);
+  expect(button('Queued').disabled).toBe(true);
+  expect(host.textContent).toContain(t.pairAccount.waiting);
   await act(async () => {
     button('Other').click();
     button('Spare').click();

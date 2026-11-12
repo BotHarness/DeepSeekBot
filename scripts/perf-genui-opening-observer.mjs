@@ -1,5 +1,35 @@
 import assert from 'node:assert/strict';
 
+export async function traceGenuiOpening(page, path, observe) {
+  if (path === undefined) return observe();
+  await page.tracing.start({
+    path,
+    categories: [
+      'devtools.timeline',
+      'disabled-by-default-devtools.timeline',
+      'v8',
+      'disabled-by-default-v8.compile',
+      'blink.user_timing',
+      'loading',
+    ],
+  });
+  let failure;
+  let result;
+  try {
+    result = await observe();
+  } catch (error) {
+    failure = error;
+  }
+  try {
+    await page.tracing.stop();
+  } catch (error) {
+    if (failure) failure.traceCleanupFailure = String(error);
+    else failure = error;
+  }
+  if (failure) throw failure;
+  return result;
+}
+
 export function genuiOpeningReady({ messageId, rich, continueLabel }) {
   const state = window.__bhGenuiOpening;
   if (!state || state.clickedAt === null) return null;
@@ -54,12 +84,13 @@ export function genuiOpeningReady({ messageId, rich, continueLabel }) {
 }
 
 export async function observeGenuiOpening(page, target, open) {
-  await page.evaluate(({ channelId, messageId, previsited }) => {
+  await page.evaluate(({ channelId, messageId, previsited, diagnosticTrace }) => {
     const state = { clickedAt: null, trusted: false, previsited };
     const listener = (event) => {
       if (event.target.closest('button[data-channel-id]')?.dataset.channelId !== channelId) return;
       state.clickedAt = performance.now();
       state.trusted = event.isTrusted;
+      if (diagnosticTrace) performance.mark('bh-genui-opening-start');
       document.removeEventListener('click', listener, true);
     };
     document.addEventListener('click', listener, true);
@@ -85,6 +116,8 @@ export async function observeGenuiOpening(page, target, open) {
     const first = await handle.jsonValue();
     await handle.dispose();
     assert.equal(first.error, undefined, first.error);
+    if (target.diagnosticTrace)
+      await page.evaluate(() => performance.mark('bh-genui-opening-ready'));
     await page.evaluate(
       () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))),
     );
@@ -123,7 +156,13 @@ function timings(values) {
   };
 }
 
-export function summarizeGenuiOpening({ publications, openings, pageErrors, cleanupFailures }) {
+export function summarizeGenuiOpening({
+  publications,
+  openings,
+  pageErrors,
+  cleanupFailures,
+  diagnosticTrace = false,
+}) {
   const keys = ['1:plain', '1:rich', '2:plain', '2:rich', '3:plain', '3:rich'];
   const invalidPairs = [publications, openings].reduce((total, rows) => {
     const ids = rows.map((row) => `${row.pair}:${row.arm}`);
@@ -144,6 +183,7 @@ export function summarizeGenuiOpening({ publications, openings, pageErrors, clea
   return {
     scope:
       'Three model-free plain/rich opening pairs; visible-ready and two-rAF diagnostics, not physical presentation, full interaction, native or Human acceptance',
+    qualificationEligible: !diagnosticTrace,
     invalidPairs,
     invalidMeasurements: measurements.filter(
       (value) => typeof value !== 'number' || !Number.isFinite(value) || value < 0,

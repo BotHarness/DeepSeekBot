@@ -1,3 +1,4 @@
+import { outsideTimeline } from './timeline-mutations.js';
 import { useClientFields } from './use-client-store.js';
 import { useId, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -63,8 +64,8 @@ export function mountNativeBotFolderHost(
     changed(host);
     previous?.remove();
   };
-  const observer = new MutationObserver(() => {
-    if (scheduled || disposed) return;
+  const observer = new MutationObserver((records) => {
+    if (scheduled || disposed || !outsideTimeline(records)) return;
     scheduled = true;
     queueMicrotask(() => {
       scheduled = false;

@@ -1,6 +1,8 @@
 import { parseAccountOwner, type AccountOwner } from './account-owner';
+import { isPrivateRoute } from './route';
 
 export interface HostEncryption {
+  privateRelay?: { origin: string; token: string };
   loopback?: 'encrypted';
   protocol: 'connect-noise-xk-v1';
   hostKey: string;
@@ -9,6 +11,7 @@ export interface HostEncryption {
 
 export interface SavedHost {
   accountOwner?: AccountOwner;
+  connectHost?: string;
   encryption?: HostEncryption;
   hostId: string;
   hostName: string;
@@ -29,6 +32,14 @@ function record(value: unknown): Record<string, unknown> {
 
 export function parseSavedHost(input: unknown): SavedHost | undefined {
   const value = record(input);
+  const privateRelay = parsePrivateAdmission(record(value['encryption'])['privateRelay']);
+  if (
+    privateRelay &&
+    (!Array.isArray(value['routes']) ||
+      value['routes'].length !== 1 ||
+      value['routes'][0] !== privateRelay.origin)
+  )
+    return;
   const encryptedRoutes = value['encryptedLoopbackRoutes'];
   if (
     encryptedRoutes !== undefined &&
@@ -56,6 +67,10 @@ export function parseSavedHost(input: unknown): SavedHost | undefined {
         ...(parseAccountOwner(value['accountOwner']) === undefined
           ? {}
           : { accountOwner: parseAccountOwner(value['accountOwner'])! }),
+        ...(typeof value['connectHost'] === 'string' &&
+        /^h[a-z2-7]{12}$/u.test(value['connectHost'])
+          ? { connectHost: value['connectHost'] }
+          : {}),
         ...(parseEncryption(value['encryption']) === undefined
           ? {}
           : { encryption: parseEncryption(value['encryption'])! }),
@@ -147,6 +162,32 @@ export function selectHost(state: SavedHosts, hostId: string): SavedHosts | unde
     : undefined;
 }
 
+export function parsePrivateAdmission(
+  input: unknown,
+): { origin: string; token: string } | undefined {
+  const value = record(input);
+  if (
+    typeof value['origin'] !== 'string' ||
+    typeof value['token'] !== 'string' ||
+    !/^[a-f0-9]{64}$/u.test(value['token'])
+  )
+    return;
+  try {
+    const url = new URL(value['origin']);
+    if (
+      !isPrivateRoute(url.origin) ||
+      url.protocol !== 'https:' ||
+      url.origin !== value['origin'] ||
+      url.username ||
+      url.password
+    )
+      return;
+    return { origin: url.origin, token: value['token'] };
+  } catch {
+    return;
+  }
+}
+
 export function parseEncryption(input: unknown): HostEncryption | undefined {
   const value = record(input);
   return value['protocol'] === 'connect-noise-xk-v1' &&
@@ -155,10 +196,20 @@ export function parseEncryption(input: unknown): HostEncryption | undefined {
     typeof value['deviceKey'] === 'string' &&
     /^[0-9a-f]{64}$/u.test(value['deviceKey'])
     ? {
+        ...(parsePrivateAdmission(value['privateRelay'])
+          ? { privateRelay: parsePrivateAdmission(value['privateRelay'])! }
+          : {}),
         protocol: 'connect-noise-xk-v1',
         hostKey: value['hostKey'],
         deviceKey: value['deviceKey'],
         ...(value['loopback'] === 'encrypted' ? { loopback: 'encrypted' as const } : {}),
       }
     : undefined;
+}
+
+export class SavedHostsWriteError extends Error {
+  constructor(override readonly cause: unknown) {
+    super(cause instanceof Error ? cause.message : String(cause));
+    this.name = 'SavedHostsWriteError';
+  }
 }

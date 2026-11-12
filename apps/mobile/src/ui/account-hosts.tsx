@@ -261,7 +261,9 @@ export function AccountHosts(props: {
                     .join('\n')
                 : host.online
                   ? t.pairAccount.online
-                  : t.pairAccount.offline;
+                  : host.waiting
+                    ? t.pairAccount.waiting
+                    : t.pairAccount.offline;
         return {
           id: host.id,
           name: host.name,

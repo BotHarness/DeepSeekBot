@@ -29,6 +29,7 @@ import { humanLabel } from './actor-names.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { personaBotActivity } from './persona-activity.js';
 import { store, type BotSummary, type ChannelSummary } from './store.js';
+import { useSubmission } from './submission.js';
 import { IconButton } from './ds/icon-button.js';
 
 const styles = stylex.create({
@@ -164,8 +165,7 @@ function InviteMemberModal({
     value.trim().toLocaleLowerCase(),
   );
   const [selected, setSelected] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(false);
+  const submission = useSubmission();
   const available = bots.filter(
     (bot) =>
       bot.tob === undefined &&
@@ -184,13 +184,7 @@ function InviteMemberModal({
   );
   const invite = async (): Promise<void> => {
     if (!selectedAvailable) return;
-    setBusy(true);
-    try {
-      if (await actions.inviteGroupBot(group.id, selected)) onClose();
-      else setError(true);
-    } finally {
-      setBusy(false);
-    }
+    if (await submission.run(() => actions.inviteGroupBot(group.id, selected))) onClose();
   };
   return (
     <FormDialog
@@ -198,8 +192,8 @@ function InviteMemberModal({
       labels={{ close: t('common.close'), cancel: t('common.cancel') }}
       submitLabel={t('group.invite')}
       submitDisabled={!selectedAvailable}
-      busy={busy}
-      error={error ? t('members.error') : undefined}
+      busy={submission.state === 'busy'}
+      error={submission.state === 'failed' ? t('members.error') : undefined}
       onCancel={onClose}
       onSubmit={() => void invite()}
     >
@@ -262,8 +256,8 @@ function GroupAttentionModal({
   t: BotHarnessTranslate;
   onClose: () => void;
 }): ReactElement {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(false);
+  const submission = useSubmission();
+  const busy = submission.state === 'busy';
   const invitationLabels = {
     pending: t('members.pending'),
     accepted: t('members.accepted'),
@@ -271,12 +265,7 @@ function GroupAttentionModal({
     cancelled: t('members.cancelled'),
   };
   const apply = async (result: Promise<boolean>): Promise<void> => {
-    setBusy(true);
-    try {
-      setError(!(await result));
-    } finally {
-      setBusy(false);
-    }
+    await submission.run(() => result);
   };
   return (
     <PanelDialog
@@ -373,7 +362,7 @@ function GroupAttentionModal({
       ) : (
         <Note>{t('members.attention.emptyRequests')}</Note>
       )}
-      {error ? <Note tone="danger">{t('members.error')}</Note> : null}
+      {submission.state === 'failed' ? <Note tone="danger">{t('members.error')}</Note> : null}
     </PanelDialog>
   );
 }
@@ -467,8 +456,8 @@ export function MemberWakePolicyModal({
   );
   const [count, setCount] = useState(saved?.count ?? 5);
   const [seconds, setSeconds] = useState(saved?.intervalSeconds ?? 30);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(false);
+  const submission = useSubmission();
+  const busy = submission.state === 'busy';
   const valid =
     Number.isSafeInteger(count) &&
     count >= 1 &&
@@ -477,21 +466,17 @@ export function MemberWakePolicyModal({
     seconds >= 1 &&
     seconds <= 3600;
   const save = async (inherit = false): Promise<void> => {
-    setBusy(true);
-    try {
-      if (
-        await actions.setGroupWakePolicy(group.id, slug, {
+    if (
+      await submission.run(() =>
+        actions.setGroupWakePolicy(group.id, slug, {
           mode: inherit ? (saved?.mode ?? 'digest') : mode,
           count: inherit ? (saved?.count ?? 5) : count,
           intervalSeconds: inherit ? (saved?.intervalSeconds ?? 30) : seconds,
           ...(inherit ? { inherit } : {}),
-        })
+        }),
       )
-        onClose();
-      else setError(true);
-    } finally {
-      setBusy(false);
-    }
+    )
+      onClose();
   };
   return (
     <FormDialog
@@ -499,8 +484,8 @@ export function MemberWakePolicyModal({
       labels={{ close: t('common.close'), cancel: t('common.cancel') }}
       submitLabel={t('members.wake.save')}
       submitDisabled={!valid}
-      busy={busy}
-      error={error ? t('members.error') : undefined}
+      busy={submission.state === 'busy'}
+      error={submission.state === 'failed' ? t('members.error') : undefined}
       onCancel={onClose}
       onSubmit={() => void save()}
       secondary={
@@ -566,7 +551,7 @@ function MembersEntryForChannel({
   const group = channel?.type === 'group' && channel.id === channelId ? channel : undefined;
   const [menu, setMenu] = useState<{ slug: string; x: number; y: number } | undefined>();
   const [policySlug, setPolicySlug] = useState<string | undefined>();
-  const [error, setError] = useState(false);
+  const removal = useSubmission();
   const proxy = useRef<HTMLSpanElement | null>(null);
   const members = group?.members ?? [];
   const selectedMember = menu?.slug;
@@ -679,9 +664,7 @@ function MembersEntryForChannel({
                   t('members.removeConfirm', { bot: memberName(bots, selectedMember) }),
                 )
               ) {
-                void actions
-                  .removeGroupMember(group.id, selectedMember)
-                  .then((ok) => setError(!ok));
+                void removal.run(() => actions.removeGroupMember(group.id, selectedMember));
               }
             }}
             onClose={() => setMenu(undefined)}
@@ -699,7 +682,7 @@ function MembersEntryForChannel({
           onClose={() => setPolicySlug(undefined)}
         />
       ) : null}
-      {error ? (
+      {removal.state === 'failed' ? (
         <div className="bh-error" role="alert">
           {t('members.error')}
         </div>

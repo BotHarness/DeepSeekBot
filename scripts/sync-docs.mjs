@@ -520,6 +520,49 @@ export const PAGES = [
     },
   },
   {
+    slug: 'docs/private-connect',
+    order: 15,
+    en: {
+      source: 'docs/private-connect.md',
+      title: 'Docker private connection',
+      description: 'Deploy your private relay, verify public reachability and pair your phone.',
+    },
+    zh: {
+      source: 'docs/private-connect.zh.md',
+      title: 'Docker 私有连接',
+      description: '部署私有中继，检查公网可达性并配对手机。',
+    },
+  },
+  {
+    slug: 'docs/private-ingress',
+    order: 15,
+    en: {
+      source: 'docs/private-ingress.md',
+      title: 'Bring your own proxy or tunnel',
+      description:
+        'Connect phones through your own HTTPS proxy or tunnel using the ingress standard.',
+    },
+    zh: {
+      source: 'docs/private-ingress.zh.md',
+      title: '使用自己的代理或隧道',
+      description: '按入站标准，通过自己的 HTTPS 代理或隧道连接手机。',
+    },
+  },
+  {
+    slug: 'docs/private-relay-standard',
+    order: 15,
+    en: {
+      source: 'docs/private-relay-standard.md',
+      title: 'Private relay standard',
+      description: 'Wire protocol and conformance test for relays that serve several computers.',
+    },
+    zh: {
+      source: 'docs/private-relay-standard.zh.md',
+      title: '私有中继标准',
+      description: '服务多台电脑的中继线上协议和一致性测试。',
+    },
+  },
+  {
     slug: 'docs/mobile-pairing',
     order: 16,
     en: {

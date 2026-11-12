@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { botDmChannelId } from '../src/channels/channel.js';
 import { attachOperationalModule } from '../src/database/owner.js';
@@ -12,6 +12,8 @@ import type {
 import { createTempRoot } from './helpers.js';
 
 const AT = '2026-10-09T00:00:00.000Z';
+
+afterEach(() => vi.useRealTimers());
 
 function adapter(onRun: (run: OrchestratorAgentRun) => Promise<void>): BotAgentAdapter {
   return {
@@ -58,6 +60,8 @@ async function mentionAda(core: Core, groupId: string): Promise<void> {
 
 describe('Bot Self-Records for bot_send_message', () => {
   it('places a Group-caused notice in that Group and records it for the sender only', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(AT);
     const runs: string[] = [];
     let groupId = '';
     const core = createCore({

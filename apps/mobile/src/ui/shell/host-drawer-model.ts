@@ -108,7 +108,7 @@ export interface HostDrawerPort {
   showView(hostId: string | undefined): void;
   pair(): void;
   notifications(): void;
-  failed?(): void;
+  failed?(error?: unknown): void;
 }
 
 export interface HostDrawer {
@@ -121,7 +121,9 @@ export interface HostDrawer {
   select(hostId: string): Promise<boolean>;
   selectAll(): void;
   beginWorkspaceSelection(): () => boolean;
+  invalidateWorkspaceSources(): void;
   captureWorkspaceSelection(): () => boolean;
+  captureChosenWorkspace(): () => boolean;
   pairNew(): void;
   openNotifications(): void;
   setReturnFocus(focus: (() => void) | undefined): void;
@@ -132,6 +134,7 @@ export function createHostDrawer(port: HostDrawerPort): HostDrawer {
   let state: HostDrawerState = { open: false, shown: false };
   let returnFocus: (() => void) | undefined;
   let selection = 0;
+  let sources = 0;
   let switching: Promise<boolean> | undefined;
 
   const publish = (next: HostDrawerState): void => {
@@ -145,7 +148,11 @@ export function createHostDrawer(port: HostDrawerPort): HostDrawer {
   const close = (): void => publish({ open: false, shown: state.shown });
   const beginWorkspaceSelection = () => {
     const selected = ++selection;
-    return () => selected === selection;
+    const source = sources;
+    return () => selected === selection && source === sources;
+  };
+  const invalidateWorkspaceSources = () => {
+    sources++;
   };
 
   return {
@@ -173,8 +180,8 @@ export function createHostDrawer(port: HostDrawerPort): HostDrawer {
         if (switched && current()) port.showView(hostId);
         if (!switched && current()) port.failed?.();
         return switched;
-      } catch {
-        if (current()) port.failed?.();
+      } catch (error) {
+        if (current()) port.failed?.(error);
         return false;
       } finally {
         if (switching === pending) switching = undefined;
@@ -186,7 +193,13 @@ export function createHostDrawer(port: HostDrawerPort): HostDrawer {
       port.showView(undefined);
     },
     beginWorkspaceSelection,
+    invalidateWorkspaceSources,
     captureWorkspaceSelection() {
+      const selected = selection;
+      const source = sources;
+      return () => selected === selection && source === sources;
+    },
+    captureChosenWorkspace() {
       const selected = selection;
       return () => selected === selection;
     },

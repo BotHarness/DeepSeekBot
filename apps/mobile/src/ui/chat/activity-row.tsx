@@ -1,3 +1,4 @@
+import { measureMessageView } from '../primitives/measure-message-view';
 import { useRef } from 'react';
 import { Pressable, View, type ViewInstance } from 'react-native';
 
@@ -74,9 +75,11 @@ export function ActivityRow({
   const size = theme.type.meta.line * theme.fontScale;
   const hit = Math.max(0, (theme.touch - size) / 2);
   const open = () => {
-    ref.current?.measureInWindow((x, y, width, height) => {
-      onLongPress({ x, y, width, height }, label, line.target);
-    });
+    measureMessageView(
+      ref.current,
+      (x, y, width, height) => onLongPress({ x, y, width, height }, label, line.target),
+      () => undefined,
+    );
   };
   return (
     <View style={bubbleRow(true)}>

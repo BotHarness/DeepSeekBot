@@ -1,5 +1,6 @@
 import { border, color, radius, size, space } from './ds/tokens.stylex.js';
 
+const exitEase = 'cubic-bezier(0.23, 1, 0.32, 1)';
 const panelBackground = `color-mix(in srgb, ${color.base} 85%, ${color.surface})`;
 
 export const WORKSPACE_CSS = `
@@ -13,7 +14,8 @@ export const WORKSPACE_CSS = `
 /* The native Windows caption stays owned by DSH; workspace blanks add drag boxes. */
 html[data-windows-titlebar] [data-workspace-dock] :is([data-window-drag], .dv-tabs-and-actions-container, .dv-tab) { -webkit-app-region:drag; }
 html[data-windows-titlebar] [data-workspace-dock] :is([data-window-drag-recall], button, a, input, select, textarea, [contenteditable="true"], [role="menu"], [role="dialog"], [role="tooltip"]) { -webkit-app-region:no-drag; }
-html[data-windows-titlebar]:has([data-workspace-dock]) body > :not(#root) { -webkit-app-region:no-drag; }
+/* The workspace dock marks <html> (channel-dock.tsx) instead of html:has([data-workspace-dock]). */
+html[data-windows-titlebar][data-bh-workspace-dock] body > :not(#root) { -webkit-app-region:no-drag; }
 [data-bh-workspace-main] { --dsh-frame-leading-clearance:0px; }
 html[data-platform="darwin"]:not([data-fullscreen]) [data-workspace-enabled] > .bh-workspace-chrome { display:block; position:absolute; top:0; left:0; width:calc((${size.nav} * 2 + ${space.x3}) / var(--bh-workspace-zoom, 1)); height:calc(${size.nav} / var(--bh-workspace-zoom, 1)); z-index:10; background:${color.base}; }
 .bh-dock[data-workspace-dock] .dv-groupview { border-radius:${radius.xs}; corner-shape:round; overflow:hidden; }
@@ -29,12 +31,12 @@ html[data-platform="darwin"]:not([data-fullscreen]) [data-bh-mac-corner] .bh-top
 .bh-workspace-rail { border-radius:${radius.xs}; corner-shape:round; overflow:hidden; position:relative; height:100%; display:flex; flex-direction:column; align-items:center; gap:${space.x2}; padding:${space.x2}; box-sizing:border-box; background:${panelBackground}; }
 /* Light DSH base and the blended Panel are both nearly white. Recess only
    the workspace canvas; keep Panels bright and the existing dark palette. */
-:root:has(style[data-bh-appearance="light"]) .bh-dock[data-workspace-dock],
-:root:has(style[data-bh-appearance="light"]) .bh-dock[data-workspace-dock] .dv-dockview,
-:root:has(style[data-bh-appearance="light"]) .bh-message-member-divider,
-:root:has(style[data-bh-appearance="light"]) .bh-channel-session-divider,
-html[data-platform="darwin"]:not([data-fullscreen]):has(style[data-bh-appearance="light"]) [data-workspace-enabled] > .bh-workspace-chrome { background:${color.surface}; }
-:root:has(style[data-bh-appearance="light"]) .bh-dock[data-workspace-dock] .dv-tabs-and-actions-container { border-bottom-color:${color.surface}; }
+:root[data-bh-appearance="light"] .bh-dock[data-workspace-dock],
+:root[data-bh-appearance="light"] .bh-dock[data-workspace-dock] .dv-dockview,
+:root[data-bh-appearance="light"] .bh-message-member-divider,
+:root[data-bh-appearance="light"] .bh-channel-session-divider,
+html[data-platform="darwin"]:not([data-fullscreen])[data-bh-appearance="light"] [data-workspace-enabled] > .bh-workspace-chrome { background:${color.surface}; }
+:root[data-bh-appearance="light"] .bh-dock[data-workspace-dock] .dv-tabs-and-actions-container { border-bottom-color:${color.surface}; }
 .bh-workspace-rail > button, .bh-workspace-rail > span > button, .bh-workspace-move { display:flex; align-items:center; justify-content:center; flex-shrink:0; width:${size.row}; height:${size.row}; padding:0; border:0; border-radius:${radius.md}; corner-shape:round; color:${color.fg}; background:transparent; cursor:pointer; }
 .bh-workspace-rail button:hover { background:${color.hover}; }
 .bh-workspace-rail button:focus-visible { outline:${border.focus} solid ${color.accent}; outline-offset:calc(-1 * ${space.x1}); }
@@ -43,15 +45,30 @@ html[data-platform="darwin"]:not([data-fullscreen]):has(style[data-bh-appearance
 .bh-workspace-controls { min-height:0; flex:1; overflow:auto; width:100%; }
 .bh-workspace-controls > [data-window-drag-recall] { width:fit-content; margin:0 auto; }
 .bh-workspace-controls .bh-pinned-panels { margin:0; padding:0; }
-.bh-workspace-exit-icon { display:none; color:${color.danger}; }
-.bh-workspace-exit:hover .bh-workspace-brand, .bh-workspace-exit:focus-visible .bh-workspace-brand { display:none; }
-.bh-workspace-exit:hover .bh-workspace-exit-icon, .bh-workspace-exit:focus-visible .bh-workspace-exit-icon { display:flex; }
+/* The Bot avatar fills a Panel-toggle box (36px, radius.md) and keeps their
+   space.x3 gap (rail gap + margin); on hover it morphs into that toggle's
+   button with the destructive exit glyph. Both layers fill the box absolutely,
+   so the glyph centres on it whatever else the button holds, and the swap
+   cross-fades with a slight scale. */
+.bh-workspace-rail > button.bh-workspace-exit { position:relative; width:36px; height:36px; overflow:hidden; background:${color.hover}; margin-bottom:${space.x2}; transition:background-color 160ms ${exitEase}; }
+.bh-workspace-brand, .bh-workspace-exit-icon { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; transition:opacity 160ms ${exitEase}, transform 220ms ${exitEase}, filter 160ms ${exitEase}; }
+.bh-workspace-rail > button.bh-workspace-exit[data-glyph] { color:${color.muted}; }
+.bh-workspace-exit-icon { color:${color.danger}; opacity:0; transform:scale(0.5); filter:blur(2px); }
+.bh-workspace-rail > button.bh-workspace-exit:hover, .bh-workspace-rail > button.bh-workspace-exit:focus-visible { background:${color.selected}; }
+.bh-workspace-exit:hover .bh-workspace-brand, .bh-workspace-exit:focus-visible .bh-workspace-brand { opacity:0; transform:scale(0.75); filter:blur(2px); }
+.bh-workspace-exit:hover .bh-workspace-exit-icon, .bh-workspace-exit:focus-visible .bh-workspace-exit-icon { opacity:1; transform:none; filter:none; }
+.bh-workspace-exit:active .bh-workspace-exit-icon { transform:scale(0.92); }
+html[data-botharness-motion='reduce'] :is(.bh-workspace-brand, .bh-workspace-exit-icon) { transition:opacity 120ms linear; transform:none !important; filter:none !important; }
+/* Footer controls: same 32px ghost button and 16px glyph; an idle notice slot takes no gap. */
+.bh-workspace-rail > span:empty { display:none; }
+.bh-workspace-rail > button.bh-workspace-leave { color:${color.danger}; }
 .bh-workspace-channel-actions { display:flex; align-items:center; min-width:0; }
 .bh-workspace-channel-actions .bh-header { margin:0; padding:0; height:auto; }
-.bh-dock-header:has(.bh-search-open) [data-panel-head] { display:none !important; }
-.bh-dock-header:has(.bh-search-open) > div > span, .bh-dock-header:has(.bh-search-open) .bh-workspace-channel-actions, .bh-dock-header:has(.bh-search-open) .bh-header, .bh-dock-header:has(.bh-search-open) [data-dock-actions] { flex:1; min-width:0; }
-.bh-dock[data-workspace-dock] [data-dock-header="bh:channels"]:has(.bh-search-open) > div { margin-inline:${space.x1} !important; }
-.bh-dock[data-workspace-dock] [data-dock-header="bh:channels"]:has(.bh-search-open) > div > span { padding-inline-end:0 !important; }
+/* An open search marks its headers (search-open-mark.ts): a :has() anchor with a plain subject restyles the whole page on every DOM insertion. */
+.bh-dock-header[data-bh-search-open] [data-panel-head] { display:none !important; }
+.bh-dock-header[data-bh-search-open] > div > span, .bh-dock-header[data-bh-search-open] .bh-workspace-channel-actions, .bh-dock-header[data-bh-search-open] .bh-header, .bh-dock-header[data-bh-search-open] [data-dock-actions] { flex:1; min-width:0; }
+.bh-dock[data-workspace-dock] [data-dock-header="bh:channels"][data-bh-search-open] > div { margin-inline:${space.x1} !important; }
+.bh-dock[data-workspace-dock] [data-dock-header="bh:channels"][data-bh-search-open] > div > span { padding-inline-end:0 !important; }
 .bh-workspace-channel-actions .bh-header:has(.bh-search-open) { gap:0; }
 .bh-workspace-channel-actions .bh-header-actions-hidden { display:none; }
 .bh-workspace-channel-actions .bh-search-open { width:100%; margin-inline:0; }

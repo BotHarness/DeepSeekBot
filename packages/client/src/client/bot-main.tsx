@@ -1,15 +1,24 @@
 import { CONVERSATION_STATE_KEYS, type ConversationStateView } from './store.js';
 import { PendingDelivery } from './message-delivery.js';
+import { BubbleHoveredContext, BubbleToolbar } from './bubble-toolbar.js';
 import { AppearanceContext } from './appearance-context.js';
 import type { Appearance } from './appearance.js';
 import { onboardingFor, type OnboardingViewState } from './onboarding.js';
 import { PointerMenu } from './ds/pointer-menu.js';
 import { useScopedRef, useScopedState } from './scoped-state.js';
+import {
+  flySentBubble,
+  launchSendFlight,
+  sendFollowsLatest,
+  sendFlightExpired,
+  sentMessageId,
+  type SendFlight,
+} from './send-fly.js';
 import { PanelEmptyState } from './ds/empty-state.js';
 import { Workspace, type WorkspaceOptions } from './workspace.js';
 import { WorkspaceContext } from './workspace-context.js';
 import { OnboardingMemoryNavigation } from './onboarding-memory.js';
-import { useTimelineWindow } from './timeline-window.js';
+import { useTimelineSlots, useTimelineWindow, type TimelineWindow } from './timeline-window.js';
 import { OnboardingOverlay } from './onboarding-view.js';
 import { BotIntro } from './bot-intro.js';
 import type { Wallpaper } from './wallpaper.js';
@@ -109,6 +118,7 @@ import {
   botNameColor,
   botNameSource,
   humanBubbleColors,
+  paintBotName,
   useConversationSurface,
 } from './bot-primary-color.js';
 import {
@@ -238,6 +248,8 @@ import {
 } from './message-image-gallery.js';
 import { inlineImageAttachment } from './message-attachment.js';
 import { channelAttachmentUrl } from './bridge.js';
+import { bubbleMedia } from './message-album.js';
+import { ReplyQuoteThumb, replyQuoteText } from './reply-quote-media.js';
 import { turnStopText } from './turn-stop.js';
 import { VoiceCallRecordBubble } from './voice-call-record.js';
 
@@ -334,14 +346,6 @@ const messageStyles = stylex.create({
     borderRadius: radius.xs,
   },
   emptyContainer: { display: 'flex', flexDirection: 'column', flexGrow: 1 },
-  metaTime: {
-    color: color.subtle,
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
-    fontVariantNumeric: 'tabular-nums',
-    whiteSpace: 'nowrap',
-    display: { default: 'inline', '@media (hover: none)': 'none' },
-  },
 });
 
 function Welcome({
@@ -371,11 +375,13 @@ interface MessageMenuRequest {
 function ReplyQuote({
   humanName,
   message,
+  channelId,
   bots,
   onJump,
   t,
 }: {
   message: ChannelMessage;
+  channelId: string | undefined;
   bots: readonly BotSummary[];
   humanName: string;
   onJump(messageId: string): void;
@@ -386,27 +392,69 @@ function ReplyQuote({
   const preview = message.replyToPreview;
   if (preview === undefined || preview === null) {
     return (
-      <div className="bh-bubble-reply bh-bubble-reply-unavailable">
+      <div className="bh-bubble-reply bh-bubble-reply-unavailable" data-bubble-quote="unavailable">
         {t('message.replyUnavailable')}
       </div>
     );
   }
+  const quoted = preview.author;
+  const author = authorLabel({ ...message, author: quoted }, bots, t, humanName);
+  const colorSource =
+    message.author.kind === 'human' || quoted.kind !== 'bot'
+      ? undefined
+      : botNameSource(bots.find((bot) => bot.slug === quoted.slug));
+  const media = preview.media;
+  const thumbnail =
+    media?.kind === 'image' && channelId !== undefined ? media.thumbnail : undefined;
   return (
     <button
       type="button"
-      className="bh-bubble-reply"
+      className={`bh-bubble-reply${thumbnail === undefined ? '' : ' bh-bubble-reply-media'}`}
+      data-bubble-quote={quoted.kind === 'bot' || quoted.kind === 'human' ? quoted.kind : 'other'}
+      data-bubble-quote-media={media?.kind}
+      ref={(element) => paintBotName(element, colorSource)}
       onClick={() => onJump(targetId)}
-      aria-label={t('message.replyJump', {
-        author: authorLabel({ ...message, author: preview.author }, bots, t, humanName),
-      })}
+      aria-label={t('message.replyJump', { author })}
     >
-      <span className="bh-bubble-reply-author">
-        {authorLabel({ ...message, author: preview.author }, bots, t, humanName)}
+      {thumbnail === undefined || channelId === undefined ? null : (
+        <ReplyQuoteThumb thumbnail={thumbnail} channelId={channelId} messageId={targetId} />
+      )}
+      <span className="bh-bubble-reply-author" data-bubble-quote-author="">
+        {author}
       </span>
       <span className="bh-bubble-reply-body">
-        {toolApprovalReplyPreview(message, preview.body, t)}
+        {replyQuoteText(media, toolApprovalReplyPreview(message, preview.body, t), t)}
       </span>
     </button>
+  );
+}
+
+function bubbleStamp(message: ChannelMessage): string | undefined {
+  if (message.pending === true || message.streaming === true || message.failed !== undefined)
+    return undefined;
+  const clock = clockTime(message.at);
+  return clock === '' ? undefined : clock;
+}
+
+function DeliveredCheck(): ReactElement {
+  return (
+    <svg
+      className="bh-bubble-stamp-check"
+      data-bubble-check=""
+      width="13"
+      height="13"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="m4 12 5 5L20 6"
+        stroke="currentColor"
+        strokeWidth="2.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
@@ -460,6 +508,8 @@ export function MessageBubbleWrap({
       if (timer.current !== undefined) clearTimeout(timer.current);
     };
   }, []);
+  const [hovered, setHovered] = useState(false);
+  const hover = hovered ? undefined : () => setHovered(true);
   const cancel = (): void => {
     clearTimer();
     origin.current = undefined;
@@ -467,6 +517,8 @@ export function MessageBubbleWrap({
   return (
     <div
       ref={mount}
+      onPointerMove={hover}
+      onFocus={hover}
       className={`bh-bubble-wrap${entering ? ' bh-bubble-enter' : ''}${focused ? ' bh-bubble-focused' : ''}${message.failed === undefined ? '' : ' bh-bubble-wrap-failed'}${selection?.active === true ? ' bh-bubble-selecting' : ''}`}
       data-message-id={message.id}
       {...(selection?.active === true && selectable
@@ -546,7 +598,7 @@ export function MessageBubbleWrap({
           {checked ? <IconCheckOutlineRegular size={12} /> : null}
         </span>
       ) : null}
-      {children}
+      <BubbleHoveredContext.Provider value={hovered}>{children}</BubbleHoveredContext.Provider>
     </div>
   );
 }
@@ -658,8 +710,9 @@ const MessageGroupView = memo(function MessageGroupView({
   const nameSource = first.bridgeOrigin ? undefined : botNameSource(displayBot);
   const nameColor =
     nameSource === undefined ? undefined : botNameColor(nameSource, surface.background);
+  const dm = currentDmBotSlug !== undefined;
   const avatar =
-    displayBot === undefined ? undefined : (
+    dm || displayBot === undefined ? undefined : (
       <PersonaBotAvatar
         t={t}
         personaBotId={displayBot.slug}
@@ -722,76 +775,62 @@ const MessageGroupView = memo(function MessageGroupView({
       className={`bh-message-group${human ? ' bh-message-group-me' : ''}${arriving && group.messages.length === 1 ? ' bh-message-group-enter' : ''}`}
       data-group-size={group.messages.length}
       style={bubbleStyle}
+      ref={surface.probe}
     >
-      {avatar === undefined ? null : (
+      {avatar === undefined || author.kind !== 'bot' ? null : (
         <span ref={follow} className="bh-message-group-avatar">
           {withAuthorCard(
-            author.kind === 'bot' && currentDmBotSlug !== author.slug ? (
-              <button
-                type="button"
-                className="bh-message-group-avatar-link"
-                aria-label={t('message.mention.openDm', { bot: displayBot?.displayName ?? '' })}
-                {...(onAvatarMenu === undefined ? {} : { 'aria-haspopup': 'menu' as const })}
-                onClick={() => void actions.openBot(author.slug)}
-                onContextMenu={
-                  onAvatarMenu === undefined
-                    ? undefined
-                    : (event) => {
-                        event.preventDefault();
-                        const box = event.currentTarget.getBoundingClientRect();
-                        const keyboard = event.clientX === 0 && event.clientY === 0;
-                        onAvatarMenu(
-                          author.slug,
-                          keyboard ? box.left : event.clientX,
-                          keyboard ? box.bottom : event.clientY,
-                        );
-                      }
-                }
-              >
-                {avatar}
-              </button>
-            ) : (
-              <span
-                className="bh-message-group-avatar-focus"
-                role="group"
-                tabIndex={0}
-                aria-label={t('message.authorCard.label', {
-                  name: displayBot?.displayName ?? '',
-                })}
-              >
-                {avatar}
-              </span>
-            ),
+            <button
+              type="button"
+              className="bh-message-group-avatar-link"
+              aria-label={t('message.mention.openDm', { bot: displayBot?.displayName ?? '' })}
+              {...(onAvatarMenu === undefined ? {} : { 'aria-haspopup': 'menu' as const })}
+              onClick={() => void actions.openBot(author.slug)}
+              onContextMenu={
+                onAvatarMenu === undefined
+                  ? undefined
+                  : (event) => {
+                      event.preventDefault();
+                      const box = event.currentTarget.getBoundingClientRect();
+                      const keyboard = event.clientX === 0 && event.clientY === 0;
+                      onAvatarMenu(
+                        author.slug,
+                        keyboard ? box.left : event.clientX,
+                        keyboard ? box.bottom : event.clientY,
+                      );
+                    }
+              }
+            >
+              {avatar}
+            </button>,
           )}
         </span>
       )}
       <div className="bh-message-stack">
-        <div className="bh-message-identity">
-          {first.bridgeOrigin ? (
-            <BridgeSourceAuthor origin={first.bridgeOrigin} t={t} />
-          ) : (
-            withAuthorCard(
-              <span
-                className="bh-bubble-author"
-                ref={surface.probe}
-                {...(author.kind === 'remote-bot'
-                  ? {
-                      role: 'group',
-                      tabIndex: 0,
-                      'aria-label': t('message.authorCard.label', { name: authorName }),
-                    }
-                  : {})}
-                data-bot-name-color={nameColor}
-                style={nameColor === undefined ? undefined : { color: nameColor }}
-              >
-                {authorName}
-              </span>,
-            )
-          )}
-          <time className="bh-bubble-time" dateTime={first.at} title={fullTime(first.at, t)}>
-            {clockTime(first.at)}
-          </time>
-        </div>
+        {dm || human ? null : (
+          <div className="bh-message-identity">
+            {first.bridgeOrigin ? (
+              <BridgeSourceAuthor origin={first.bridgeOrigin} t={t} />
+            ) : (
+              withAuthorCard(
+                <span
+                  className="bh-bubble-author"
+                  {...(author.kind === 'remote-bot'
+                    ? {
+                        role: 'group',
+                        tabIndex: 0,
+                        'aria-label': t('message.authorCard.label', { name: authorName }),
+                      }
+                    : {})}
+                  data-bot-name-color={nameColor}
+                  style={nameColor === undefined ? undefined : { color: nameColor }}
+                >
+                  {authorName}
+                </span>,
+              )
+            )}
+          </div>
+        )}
         {group.messages.map((message, index) => {
           const position =
             group.messages.length === 1
@@ -801,6 +840,7 @@ const MessageGroupView = memo(function MessageGroupView({
                 : index === group.messages.length - 1
                   ? 'last'
                   : 'middle';
+          const stamp = bubbleStamp(message);
           return (
             <MessageBubbleWrap
               key={message.id}
@@ -811,6 +851,11 @@ const MessageGroupView = memo(function MessageGroupView({
             >
               <div
                 className={`bh-bubble-surface${message.failed === undefined ? '' : ' bh-bubble-surface-failed'}`}
+                style={
+                  stamp === undefined
+                    ? undefined
+                    : ({ '--bh-stamp': JSON.stringify(stamp) } as CSSProperties)
+                }
               >
                 {human && message.pending === true && message.failed === undefined ? (
                   <PendingDelivery message={message} t={t} />
@@ -842,12 +887,14 @@ const MessageGroupView = memo(function MessageGroupView({
                   </button>
                 )}
                 <div
-                  className={`bh-bubble${human ? ' bh-bubble-me' : ''}${message.pending === true || message.streaming === true ? ' bh-bubble-pending' : ''}${message.failed === undefined ? '' : ' bh-bubble-failed'}`}
+                  className={`bh-bubble${human ? ' bh-bubble-me' : ''}${message.pending === true || message.streaming === true ? ' bh-bubble-pending' : ''}${message.failed === undefined ? '' : ' bh-bubble-failed'}${stamp === undefined ? '' : ' bh-bubble-stamped'}`}
                   data-group-position={position}
+                  data-bubble-media={bubbleMedia(message)}
                 >
                   <ReplyQuote
                     humanName={humanName}
                     message={message}
+                    channelId={channelId}
                     bots={bots}
                     onJump={onJumpReply}
                     t={t}
@@ -873,6 +920,17 @@ const MessageGroupView = memo(function MessageGroupView({
                       {t(message.streaming === true ? 'message.generating' : 'message.sending')}
                     </span>
                   ) : null}
+                  {stamp === undefined ? null : (
+                    <time
+                      className="bh-bubble-stamp"
+                      data-bubble-time=""
+                      dateTime={message.at}
+                      title={fullTime(message.at, t)}
+                    >
+                      {stamp}
+                      {human ? <DeliveredCheck /> : null}
+                    </time>
+                  )}
                 </div>
                 <BubbleBadges
                   reactions={message.reactions ?? NO_REACTIONS}
@@ -887,7 +945,7 @@ const MessageGroupView = memo(function MessageGroupView({
                   bots={bots}
                   t={t}
                 />
-                <div className="bh-bubble-toolbar">
+                <BubbleToolbar>
                   <div className="bh-bubble-actions">
                     {onReact !== undefined && reactableMessage(message) ? (
                       <MessageReactionPicker
@@ -913,7 +971,7 @@ const MessageGroupView = memo(function MessageGroupView({
                     ) : null}
                     <MessageCopyAction body={message.body} t={t} />
                   </div>
-                </div>
+                </BubbleToolbar>
               </div>
               <div className="bh-bubble-side">
                 <ChannelDeliveryReceipt
@@ -927,17 +985,6 @@ const MessageGroupView = memo(function MessageGroupView({
                   }
                   t={t}
                 />
-                <div className="bh-bubble-meta">
-                  {index === 0 || clockTime(message.at) === '' ? null : (
-                    <time
-                      dateTime={message.at}
-                      title={fullTime(message.at, t)}
-                      {...stylex.props(messageStyles.metaTime)}
-                    >
-                      {clockTime(message.at)}
-                    </time>
-                  )}
-                </div>
               </div>
             </MessageBubbleWrap>
           );
@@ -1091,6 +1138,40 @@ function EmptyConversation({
           : `${bot === undefined ? t('main.localChat') : t('main.localChat.with', { name: bot.displayName })} · ${t('main.localChat.hint')}`}
       </PanelEmptyState>
     </div>
+  );
+}
+
+function TimelineSlots({
+  timeline,
+  keys,
+  renderGroup,
+}: {
+  timeline: TimelineWindow;
+  keys: readonly string[];
+  renderGroup: (index: number) => ReactElement;
+}): ReactElement {
+  const slots = useTimelineSlots(timeline);
+  return (
+    <>
+      {timeline.chunks.map((chunk) => (
+        <div key={chunk.id} className="bh-timeline-chunk">
+          {slots.slice(chunk.start, chunk.end).map((slot) =>
+            slot.placeholder !== undefined ? (
+              <div
+                key={keys[slot.index]}
+                className="bh-timeline-slot bh-timeline-gap"
+                aria-hidden="true"
+                style={{ height: slot.placeholder }}
+              />
+            ) : (
+              <div key={keys[slot.index]} className="bh-timeline-slot">
+                {renderGroup(slot.index)}
+              </div>
+            ),
+          )}
+        </div>
+      ))}
+    </>
   );
 }
 
@@ -1311,6 +1392,7 @@ function ConversationView({
   };
   const followingLatest = useScopedRef(scopeKey, true);
   const lastTimelineTop = useScopedRef(scopeKey, 0);
+  const sendFlight = useScopedRef<SendFlight | undefined>(scopeKey, undefined);
   const pinTimelineToLatest = (element: HTMLElement): void => {
     element.scrollTop = element.scrollHeight;
     lastTimelineTop.current = element.scrollTop;
@@ -1694,23 +1776,24 @@ function ConversationView({
     });
   };
   const scheduleReadMark = (): void => {
-    const element = scrollRef.current;
-    if (channelId === undefined || element === null || conversation.status !== 'ready') return;
-    const committedIds = committedMessageIds(messages);
-    const viewport = element.getBoundingClientRect();
-    const visible = Array.from(element.querySelectorAll<HTMLElement>('[data-message-id]'))
-      .filter((candidate) => {
-        const id = candidate.dataset['messageId'];
-        if (id === undefined || !committedIds.has(id)) return false;
-        const bounds = candidate.getBoundingClientRect();
-        return bounds.top < viewport.bottom && bounds.bottom > viewport.top;
-      })
-      .at(-1);
-    const messageId = visible?.dataset['messageId'];
-    if (messageId === undefined) return;
+    if (channelId === undefined || scrollRef.current === null || conversation.status !== 'ready')
+      return;
     window.clearTimeout(readMarkTimer.current);
     readMarkTimer.current = window.setTimeout(() => {
-      if (currentChannel.current !== channelId) return;
+      const element = scrollRef.current;
+      if (currentChannel.current !== channelId || element === null) return;
+      const committedIds = committedMessageIds(messages);
+      const viewport = element.getBoundingClientRect();
+      const visible = Array.from(element.querySelectorAll<HTMLElement>('[data-message-id]'))
+        .filter((candidate) => {
+          const id = candidate.dataset['messageId'];
+          if (id === undefined || !committedIds.has(id)) return false;
+          const bounds = candidate.getBoundingClientRect();
+          return bounds.top < viewport.bottom && bounds.bottom > viewport.top;
+        })
+        .at(-1);
+      const messageId = visible?.dataset['messageId'];
+      if (messageId === undefined) return;
       void actions.markRead(channelId, messageId).catch((error: unknown) => {
         console.warn('botharness: channel read position failed', error);
       });
@@ -2286,6 +2369,17 @@ function ConversationView({
           setUnseen((count) => count + conversation.revision - previousRevision);
         }
         lastRevision.current = conversation.revision;
+        const flight = sendFlight.current;
+        const sentId = flight === undefined ? undefined : sentMessageId(flight, messages);
+        if (flight !== undefined && sentId === undefined && sendFlightExpired(flight))
+          sendFlight.current = undefined;
+        if (flight !== undefined && sentId !== undefined) {
+          sendFlight.current = undefined;
+          const bubble = element.querySelector<HTMLElement>(
+            `[data-message-id="${CSS.escape(sentId)}"] .bh-bubble`,
+          );
+          if (bubble !== null && followingLatest.current) flySentBubble(bubble, flight.from);
+        }
       }
       const id = conversation.focusMessageId;
       let focusTimer: number | undefined;
@@ -2514,10 +2608,12 @@ function ConversationView({
       document.activeElement instanceof Element &&
       document.activeElement.closest('.bh-composer-shell') !== null;
     const viewport = scrollRef.current;
-    followingLatest.current =
-      viewport !== null &&
-      !conversation.timeline.hasNewer &&
-      viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= 80;
+    followingLatest.current = sendFollowsLatest(viewport, conversation.timeline.hasNewer);
+    sendFlight.current = launchSendFlight(
+      viewport,
+      conversation.timeline.hasNewer,
+      store.getSnapshot().conversation.messages,
+    );
     setAtLatest(followingLatest.current);
     if (followingLatest.current) setUnseen(0);
     const submittedFor = currentChannel.current;
@@ -2855,7 +2951,12 @@ function ConversationView({
               channel?.type === 'dm' &&
               profileBot !== undefined &&
               profileBot.deleted !== true && (
-                <DmCallControl slug={profileBot.slug} name={profileBot.displayName} t={t} />
+                <DmCallControl
+                  slug={profileBot.slug}
+                  name={profileBot.displayName}
+                  onReturn={() => void actions.openChannel(channel.id).catch(() => undefined)}
+                  t={t}
+                />
               )}
             {!workspaceEnabled && onMobileBack === undefined && inboxAvailable && (
               <span className="bh-channel-island-wrap">
@@ -3003,232 +3104,238 @@ function ConversationView({
               <EmptyConversation channel={channel} bot={bot} t={t} />
             ) : null}
             <MessageSelectionContext.Provider value={messageSelection}>
-              {timelineWindow.runs.map((run) => {
-                const groups = messageGroups;
-                if (run.kind === 'gap')
+              <TimelineSlots
+                timeline={timelineWindow}
+                keys={groupKeys}
+                renderGroup={(index) => {
+                  const groups = messageGroups;
+                  const group = groups[index]!;
+                  const first = group.messages[0]!;
+                  const previous = groups[index - 1]?.messages.at(-1);
+                  const firstDay = Number.isFinite(Date.parse(first.at))
+                    ? new Date(first.at).toDateString()
+                    : undefined;
+                  const previousDay =
+                    previous !== undefined && Number.isFinite(Date.parse(previous.at))
+                      ? new Date(previous.at).toDateString()
+                      : undefined;
                   return (
                     <div
-                      key={`gap:${groups[run.from]!.key}`}
-                      className="bh-timeline-gap"
-                      aria-hidden="true"
-                      style={{ height: run.height }}
-                    />
-                  );
-                const index = run.index;
-                const group = groups[index]!;
-                const first = group.messages[0]!;
-                const previous = groups[index - 1]?.messages.at(-1);
-                const firstDay = Number.isFinite(Date.parse(first.at))
-                  ? new Date(first.at).toDateString()
-                  : undefined;
-                const previousDay =
-                  previous !== undefined && Number.isFinite(Date.parse(previous.at))
-                    ? new Date(previous.at).toDateString()
-                    : undefined;
-                return (
-                  <div
-                    key={group.key}
-                    ref={timelineWindow.blockRef(group.key)}
-                    className="bh-message-block"
-                    data-group-key={group.key}
-                    data-follows={index > 0 ? '' : undefined}
-                  >
-                    {unreadAfter !== undefined && previous?.id === unreadAfter ? (
-                      <TimelineUnreadDivider label={t('messages.newDivider')} />
-                    ) : null}
-                    {firstDay !== undefined && firstDay !== previousDay ? (
-                      <div className="bh-message-day">
-                        {new Date(first.at).toLocaleDateString(t('main.date.locale'), {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                        })}
-                      </div>
-                    ) : null}
-                    {first.toolAutoApproval !== undefined ? (
-                      <AutoApprovalLine
-                        messageId={first.id}
-                        record={first.toolAutoApproval}
-                        bots={state.bots}
-                        t={t}
-                      />
-                    ) : first.toolAutoApprovalPause !== undefined ? (
-                      <AutoApprovalPauseLine
-                        messageId={first.id}
-                        record={first.toolAutoApprovalPause}
-                        bots={state.bots}
-                        t={t}
-                      />
-                    ) : first.voiceCallRecord !== undefined ? (
-                      <VoiceCallRecordBubble
-                        messageId={first.id}
-                        record={first.voiceCallRecord}
-                        t={t}
-                      />
-                    ) : first.turnStop !== undefined ? (
-                      <div className="bh-member-departure" data-message-id={first.id}>
-                        <span>{turnStopText(first.turnStop, t)}</span>
-                      </div>
-                    ) : first.memberDeparture !== undefined ? (
-                      <div className="bh-member-departure" data-message-id={first.id}>
-                        <span>
-                          {t(
-                            first.memberDeparture.departureType === 'removed'
-                              ? 'member.removed'
-                              : 'member.left',
-                            { name: first.memberDeparture.displayName },
-                          )}
-                        </span>
-                        <ChannelDeliveryReceipt
-                          message={first}
-                          bots={state.bots}
-                          humanMembers={channel?.humanMembers ?? []}
-                          onOpenInbox={(target) =>
-                            setInboxTarget({ ...target, messageId: first.id })
-                          }
-                          t={t}
-                        />
-                      </div>
-                    ) : first.botChannelPost !== undefined ? (
-                      <BotChannelPostLine
-                        posts={group.messages}
-                        channels={state.channels}
-                        bots={state.bots}
-                        t={t}
-                        onOpen={(targetChannelId, messageId) => {
-                          void actions
-                            .openChannel(targetChannelId)
-                            .then(() => actions.openAround(targetChannelId, messageId));
-                        }}
-                      />
-                    ) : first.memoryCommit !== undefined ? (
-                      <MemoryCommitLine
-                        messageId={first.id}
-                        commit={first.memoryCommit}
-                        compact={
-                          dmBotSlug !== undefined &&
-                          first.noticeOrigin !== undefined &&
-                          memoryDisplay === 'compact'
-                        }
-                        bots={state.bots}
-                        action={
-                          first.noticeOrigin === undefined
-                            ? undefined
-                            : elsewhereAction(
-                                'memory',
-                                first.noticeOrigin.channelId,
-                                first.memoryCommit.botSlug,
-                                state.channels,
-                                state.bots,
-                                t,
-                              )
-                        }
-                        t={t}
-                        onOpen={() => {
-                          const commit = first.memoryCommit!;
-                          if (channel?.type === 'dm' && channel.botSlug === commit.botSlug) {
-                            openMemoryView({ kind: 'commit', sha: commit.sha });
-                            return;
-                          }
-                          const dm = state.channels.find(
-                            (candidate) =>
-                              candidate.type === 'dm' && candidate.botSlug === commit.botSlug,
-                          );
-                          if (dm !== undefined)
-                            store.setMemoryCommitIntent({
-                              channelId: dm.id,
-                              sha: commit.sha,
-                            });
-                          void actions.openBot(commit.botSlug);
-                        }}
-                      />
-                    ) : first.botCreateAction !== undefined ? (
-                      <button
-                        type="button"
-                        className="bh-bot-dm-action"
-                        data-message-id={first.id}
-                        onClick={() => void actions.openBot(first.botCreateAction!.botSlug)}
-                      >
-                        <BotDmActionLabel
-                          messageKey="botCreate.action"
-                          senderSlug={first.author.kind === 'bot' ? first.author.slug : undefined}
-                          senderName={authorLabel(first, state.bots, t, channelHumanName(channel))}
-                          recipientSlug={first.botCreateAction.botSlug}
-                          recipientName={
-                            state.bots.find((bot) => bot.slug === first.botCreateAction!.botSlug)
-                              ?.displayName ?? first.botCreateAction.displayName
-                          }
+                      ref={timelineWindow.blockRef(group.key)}
+                      className="bh-message-block"
+                      data-group-key={group.key}
+                      data-follows={index > 0 ? '' : undefined}
+                    >
+                      {unreadAfter !== undefined && previous?.id === unreadAfter ? (
+                        <TimelineUnreadDivider label={t('messages.newDivider')} />
+                      ) : null}
+                      {firstDay !== undefined && firstDay !== previousDay ? (
+                        <div className="bh-message-day">
+                          {new Date(first.at).toLocaleDateString(t('main.date.locale'), {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                          })}
+                        </div>
+                      ) : null}
+                      {first.toolAutoApproval !== undefined ? (
+                        <AutoApprovalLine
+                          messageId={first.id}
+                          record={first.toolAutoApproval}
                           bots={state.bots}
                           t={t}
                         />
-                      </button>
-                    ) : first.botDmAction === undefined ? (
-                      <OnboardingMemoryNavigation.Provider
-                        value={timelineCallbacks.memoryNavigation}
-                      >
-                        <TakeoverTimeline.Provider value={takeoverTimeline}>
-                          <MessageGroupView
-                            humanMembers={channel?.humanMembers ?? NO_HUMAN_MEMBERS}
-                            group={group}
-                            arrivals={arrivals}
-                            reading={reading}
-                            channelId={channelId}
-                            remoteBot={channel?.remoteBot}
-                            remoteContact={channel?.remoteContact}
-                            remoteAvailability={channel?.remoteAvailability}
-                            actions={actions}
-                            gallery={imageGallery.gallery}
-                            nativeChatT={nativeChatT}
-                            resolvedGrantRequests={timelineDecisions.resolvedGrantRequests}
-                            toolApprovalDecisions={timelineDecisions.toolApprovalDecisions}
-                            userQuestionResolutions={timelineDecisions.userQuestionResolutions}
-                            focusMessageId={conversation.focusMessageId}
-                            currentDmBotSlug={
-                              channel?.type === 'dm' && !botDm ? channel.botSlug : undefined
-                            }
+                      ) : first.toolAutoApprovalPause !== undefined ? (
+                        <AutoApprovalPauseLine
+                          messageId={first.id}
+                          record={first.toolAutoApprovalPause}
+                          bots={state.bots}
+                          t={t}
+                        />
+                      ) : first.voiceCallRecord !== undefined ? (
+                        <VoiceCallRecordBubble
+                          messageId={first.id}
+                          record={first.voiceCallRecord}
+                          t={t}
+                        />
+                      ) : first.turnStop !== undefined ? (
+                        <div className="bh-member-departure" data-message-id={first.id}>
+                          <span>{turnStopText(first.turnStop, t)}</span>
+                        </div>
+                      ) : first.memberDeparture !== undefined ? (
+                        <div className="bh-member-departure" data-message-id={first.id}>
+                          <span>
+                            {t(
+                              first.memberDeparture.departureType === 'removed'
+                                ? 'member.removed'
+                                : 'member.left',
+                              { name: first.memberDeparture.displayName },
+                            )}
+                          </span>
+                          <ChannelDeliveryReceipt
+                            message={first}
                             bots={state.bots}
-                            onContextMenu={timelineCallbacks.contextMenu}
-                            onAvatarMenu={
-                              channel?.type === 'group' ? timelineCallbacks.avatarMenu : undefined
-                            }
-                            onOpenInbox={timelineCallbacks.openInbox}
-                            onReply={readOnlyDm ? undefined : timelineCallbacks.reply}
-                            onReact={
-                              reactToMessage === undefined ? undefined : timelineCallbacks.react
-                            }
-                            onJumpReply={timelineCallbacks.jumpReply}
-                            onRestoreFailed={
-                              readOnlyDm ? undefined : timelineCallbacks.restoreFailed
+                            humanMembers={channel?.humanMembers ?? []}
+                            onOpenInbox={(target) =>
+                              setInboxTarget({ ...target, messageId: first.id })
                             }
                             t={t}
                           />
-                        </TakeoverTimeline.Provider>
-                      </OnboardingMemoryNavigation.Provider>
-                    ) : (
-                      <button
-                        type="button"
-                        className="bh-bot-dm-action"
-                        data-message-id={first.id}
-                        onClick={() => {
-                          const action = first.botDmAction!;
-                          void actions
-                            .openChannel(action.channelId)
-                            .then(() => actions.openAround(action.channelId, action.messageId));
-                        }}
-                      >
-                        <BotDmActionLabel
-                          senderSlug={first.author.kind === 'bot' ? first.author.slug : undefined}
-                          senderName={authorLabel(first, state.bots, t, channelHumanName(channel))}
-                          recipientSlug={first.botDmAction.recipientBotSlug}
-                          recipientName={memberName(state.bots, first.botDmAction.recipientBotSlug)}
+                        </div>
+                      ) : first.botChannelPost !== undefined ? (
+                        <BotChannelPostLine
+                          posts={group.messages}
+                          channels={state.channels}
                           bots={state.bots}
                           t={t}
+                          onOpen={(targetChannelId, messageId) => {
+                            void actions
+                              .openChannel(targetChannelId)
+                              .then(() => actions.openAround(targetChannelId, messageId));
+                          }}
                         />
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
+                      ) : first.memoryCommit !== undefined ? (
+                        <MemoryCommitLine
+                          messageId={first.id}
+                          commit={first.memoryCommit}
+                          compact={
+                            dmBotSlug !== undefined &&
+                            first.noticeOrigin !== undefined &&
+                            memoryDisplay === 'compact'
+                          }
+                          bots={state.bots}
+                          action={
+                            first.noticeOrigin === undefined
+                              ? undefined
+                              : elsewhereAction(
+                                  'memory',
+                                  first.noticeOrigin.channelId,
+                                  first.memoryCommit.botSlug,
+                                  state.channels,
+                                  state.bots,
+                                  t,
+                                )
+                          }
+                          t={t}
+                          onOpen={() => {
+                            const commit = first.memoryCommit!;
+                            if (channel?.type === 'dm' && channel.botSlug === commit.botSlug) {
+                              openMemoryView({ kind: 'commit', sha: commit.sha });
+                              return;
+                            }
+                            const dm = state.channels.find(
+                              (candidate) =>
+                                candidate.type === 'dm' && candidate.botSlug === commit.botSlug,
+                            );
+                            if (dm !== undefined)
+                              store.setMemoryCommitIntent({
+                                channelId: dm.id,
+                                sha: commit.sha,
+                              });
+                            void actions.openBot(commit.botSlug);
+                          }}
+                        />
+                      ) : first.botCreateAction !== undefined ? (
+                        <button
+                          type="button"
+                          className="bh-bot-dm-action"
+                          data-message-id={first.id}
+                          onClick={() => void actions.openBot(first.botCreateAction!.botSlug)}
+                        >
+                          <BotDmActionLabel
+                            messageKey="botCreate.action"
+                            senderSlug={first.author.kind === 'bot' ? first.author.slug : undefined}
+                            senderName={authorLabel(
+                              first,
+                              state.bots,
+                              t,
+                              channelHumanName(channel),
+                            )}
+                            recipientSlug={first.botCreateAction.botSlug}
+                            recipientName={
+                              state.bots.find((bot) => bot.slug === first.botCreateAction!.botSlug)
+                                ?.displayName ?? first.botCreateAction.displayName
+                            }
+                            bots={state.bots}
+                            t={t}
+                          />
+                        </button>
+                      ) : first.botDmAction === undefined ? (
+                        <OnboardingMemoryNavigation.Provider
+                          value={timelineCallbacks.memoryNavigation}
+                        >
+                          <TakeoverTimeline.Provider value={takeoverTimeline}>
+                            <MessageGroupView
+                              humanMembers={channel?.humanMembers ?? NO_HUMAN_MEMBERS}
+                              group={group}
+                              arrivals={arrivals}
+                              reading={reading}
+                              channelId={channelId}
+                              remoteBot={channel?.remoteBot}
+                              remoteContact={channel?.remoteContact}
+                              remoteAvailability={channel?.remoteAvailability}
+                              actions={actions}
+                              gallery={imageGallery.gallery}
+                              nativeChatT={nativeChatT}
+                              resolvedGrantRequests={timelineDecisions.resolvedGrantRequests}
+                              toolApprovalDecisions={timelineDecisions.toolApprovalDecisions}
+                              userQuestionResolutions={timelineDecisions.userQuestionResolutions}
+                              focusMessageId={conversation.focusMessageId}
+                              currentDmBotSlug={
+                                channel?.type === 'dm' && !botDm ? channel.botSlug : undefined
+                              }
+                              bots={state.bots}
+                              onContextMenu={timelineCallbacks.contextMenu}
+                              onAvatarMenu={
+                                channel?.type === 'group' ? timelineCallbacks.avatarMenu : undefined
+                              }
+                              onOpenInbox={timelineCallbacks.openInbox}
+                              onReply={readOnlyDm ? undefined : timelineCallbacks.reply}
+                              onReact={
+                                reactToMessage === undefined ? undefined : timelineCallbacks.react
+                              }
+                              onJumpReply={timelineCallbacks.jumpReply}
+                              onRestoreFailed={
+                                readOnlyDm ? undefined : timelineCallbacks.restoreFailed
+                              }
+                              t={t}
+                            />
+                          </TakeoverTimeline.Provider>
+                        </OnboardingMemoryNavigation.Provider>
+                      ) : (
+                        <button
+                          type="button"
+                          className="bh-bot-dm-action"
+                          data-message-id={first.id}
+                          onClick={() => {
+                            const action = first.botDmAction!;
+                            void actions
+                              .openChannel(action.channelId)
+                              .then(() => actions.openAround(action.channelId, action.messageId));
+                          }}
+                        >
+                          <BotDmActionLabel
+                            senderSlug={first.author.kind === 'bot' ? first.author.slug : undefined}
+                            senderName={authorLabel(
+                              first,
+                              state.bots,
+                              t,
+                              channelHumanName(channel),
+                            )}
+                            recipientSlug={first.botDmAction.recipientBotSlug}
+                            recipientName={memberName(
+                              state.bots,
+                              first.botDmAction.recipientBotSlug,
+                            )}
+                            bots={state.bots}
+                            t={t}
+                          />
+                        </button>
+                      )}
+                    </div>
+                  );
+                }}
+              />
             </MessageSelectionContext.Provider>
             {imageGallery.lightbox}
             {conversation.timeline.hasNewer ? (
@@ -3646,6 +3753,9 @@ function ConversationView({
                             <DmCallControl
                               slug={profileBot.slug}
                               name={profileBot.displayName}
+                              onReturn={() =>
+                                void actions.openChannel(channel.id).catch(() => undefined)
+                              }
                               variant="header"
                               t={t}
                             />

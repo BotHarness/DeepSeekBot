@@ -5,6 +5,8 @@ import type { StyleProp, TextStyle, ViewStyle } from 'react-native';
 import { beforeEach, expect, it, vi } from 'vitest';
 import Yoga, { type Node as YogaNode } from 'yoga-layout';
 
+vi.mock('expo', () => ({ requireOptionalNativeModule: () => null }));
+
 const native = vi.hoisted(() => ({
   width: 390,
   fontScale: 1,
@@ -78,7 +80,12 @@ vi.mock('../src/ui/chat/message-menu', () => ({
   copyMessage: () => {},
   openMessageMenu: () => {},
 }));
-vi.mock('../src/ui/chat/message-attachments', () => ({ MessageAttachments: () => null }));
+vi.mock('../src/ui/chat/message-attachments', () => ({
+  MessageAlbum: () => null,
+  MessageFiles: () => null,
+  QuoteThumbnail: () => null,
+  albumWidth: () => 0,
+}));
 vi.mock('../src/ui/chat/message-reactions', () => ({ ReactionChips: () => null }));
 vi.mock('../src/ui/chat/speaker-row', () => ({ SpeakerRow: () => null }));
 vi.mock('../src/ui/chat/delivery-stack', () => ({ DeliveryReceiptButton: () => null }));

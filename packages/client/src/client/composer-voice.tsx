@@ -10,11 +10,11 @@ import {
 } from 'react';
 
 import {
+  createBrowserDictationMic,
   createComposerDictation,
   dictationActive,
   DICTATION_HOLD_MS,
   DICTATION_HOLD_SLOP_PX,
-  spliceDictation,
   type ComposerDictation,
   type ComposerDictationSnapshot,
   type DictationMic,
@@ -22,7 +22,7 @@ import {
 } from './composer-dictation.js';
 import { Tooltip } from './ds/tooltip.js';
 import { useMountedResource } from './mounted-resource.js';
-import { smoothLevel } from './voice-level.js';
+import { useVoiceRipple } from './voice-ripple.js';
 import type { BotHarnessTranslate } from './locale.js';
 
 const IDLE: ComposerDictationSnapshot = { status: 'idle', text: '', mode: undefined };
@@ -64,18 +64,14 @@ export function useComposerVoice({
   const [outside, setOutside] = useState(false);
   const latest = useRef({ value, apply, disabled, selection });
   latest.current = { value, apply, disabled, selection };
-  const base = useRef({ before: '', after: '' });
   const controller = useMemo<ComposerDictation | undefined>(
     () =>
       port === undefined
         ? undefined
         : createComposerDictation({
             port,
-            ...(mic === undefined ? {} : { mic }),
-            onText: (text) => {
-              const next = spliceDictation(base.current.before, text, base.current.after);
-              latest.current.apply(next.value, next.caret);
-            },
+            mic: mic ?? createBrowserDictationMic(),
+            onText: (next, caret) => latest.current.apply(next, caret),
           }),
     [port, mic],
   );
@@ -96,19 +92,16 @@ export function useComposerVoice({
     const range = latest.current.selection?.();
     const from = Math.max(0, Math.min(range?.start ?? current.length, current.length));
     const to = Math.max(from, Math.min(range?.end ?? from, current.length));
-    base.current = { before: current.slice(0, from), after: current.slice(to) };
     setOutside(false);
-    controller.start(mode);
+    controller.start(mode, { before: current.slice(0, from), after: current.slice(to) });
   };
   const stop = () => {
     setOutside(false);
     void controller?.stop();
   };
   const cancel = () => {
-    if (controller === undefined || !dictationActive(controller.snapshot().status)) return;
-    controller.cancel();
-    const { before, after } = base.current;
-    latest.current.apply(`${before}${after}`, before.length);
+    if (controller !== undefined && dictationActive(controller.snapshot().status))
+      controller.cancel();
   };
   const readyMount = useMountedResource<HTMLSpanElement>(() => {
     setReady(false);
@@ -243,24 +236,7 @@ export function ComposerMicButton({
   const press = useRef<{ at: number; startedHere: boolean } | undefined>(undefined);
   const recording = voice.active;
   const live = voice.snapshot.status === 'listening' || voice.snapshot.status === 'finishing';
-  const readLevel = useRef(voice.level);
-  readLevel.current = voice.level;
-  const levelMount = useMountedResource<HTMLButtonElement>(
-    (node) => {
-      if (!live || typeof requestAnimationFrame !== 'function') return;
-      let shown = 0;
-      let frame = requestAnimationFrame(function tick() {
-        shown = smoothLevel(shown, readLevel.current());
-        node.style.setProperty('--bh-dictation-level', shown.toFixed(3));
-        frame = requestAnimationFrame(tick);
-      });
-      return () => {
-        cancelAnimationFrame(frame);
-        node.style.removeProperty('--bh-dictation-level');
-      };
-    },
-    [live],
-  );
+  const levelMount = useVoiceRipple<HTMLButtonElement>(live, voice.level);
   const label = recording ? t('composer.stopDictation') : t('composer.dictate');
   return (
     <Tooltip
@@ -278,7 +254,8 @@ export function ComposerMicButton({
       <button
         type="button"
         ref={levelMount}
-        className="bh-composer-mic"
+        className="bh-composer-mic bh-voice-ripple"
+        data-ripple={live ? 'on' : undefined}
         data-state={live ? (voice.snapshot.mode ?? 'toggle') : recording ? 'starting' : 'idle'}
         aria-label={label}
         aria-pressed={live}

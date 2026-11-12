@@ -1,5 +1,22 @@
 # Android streaming text reveal
 
+## Opt-in Markdown block window
+
+Rebuilt Android apps can select `EXPO_PUBLIC_MARKDOWN_WINDOW=native` when starting
+Metro. Leave it unset or use `js` for the existing JS window. Restart Metro between
+variants; old binaries without `MarkdownBlockWindow` retain JS automatically.
+
+Native wrappers cache Fabric-assigned dimensions and compare global transformed
+block/ScrollView bounds before drawing. They notify React only when content must
+mount or unmount, preserving exact-size placeholders. Unlike the JS path, this
+candidate has no JS per-block layout callback or JS viewport subscription. It keeps
+the existing renderer, live tail, unsupported documents and accessible content.
+Android API 28 and earlier keep all block content in this candidate.
+
+Native wrappers remain allocated, and their traversal has a cost. A/B must measure
+that cost as well as JS work; this is not a performance claim or default rollout.
+See ADR-0321 and #3926. Native unit tests share `:stream-reveal:testDebugUnitTest`.
+
 This local Expo module observes the existing React Native paragraph `TextView`.
 Markdown parsing, text, typography, layout, selection and accessibility stay with
 the existing renderer. It owns only temporary appearance spans and their
@@ -56,3 +73,5 @@ additional native view requires a fresh native build, not an OTA-only update.
 surface test checks actual drawing/clipping and proves child measurement/bounds
 remain untouched across paint frames. Device recordings and alternating Release
 frame measurements are still required for visual/performance acceptance.
+
+Android `TextPlayback` is an independent opt-in shared-object engine (`EXPO_PUBLIC_TEXT_PLAYBACK=native`). It preserves JS conversation ownership while moving pacing and one-shot frame timing to Android; missing modules retain JS. A native rebuild is required. ADR-0322 and the `text-playback-native` journey describe lifetime and pending device validation.

@@ -2,6 +2,8 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage } from 'node:http';
 import { TOB_AGENT_COMMAND_USAGE } from '../bots/cli-agent-management.js';
 import { TobError, type TobSetting } from './service.js';
+import { DIAGNOSTIC_ERROR_CODES } from './cli-diagnostic-operations.js';
+import { TobCliCommandError, TOB_HOST_CLI_ERROR_CODES } from './cli-host-commands.js';
 import { SHARE_DRAFT_ERROR_CODES } from './cli-share-draft-operations.js';
 import { TOB_VOICE_ERROR_CODES } from './cli-voice-operations.js';
 import type {
@@ -22,8 +24,10 @@ const IMAGE_COMMANDS = new Set([
   'bot-appearance-set',
   'group-avatar-set',
 ]);
-const LARGE_TEXT_COMMANDS = new Set(['share-draft-decide']);
+const LARGE_TEXT_COMMANDS = new Set(['share-draft-decide', 'cli']);
 const CODES = new Set([
+  ...DIAGNOSTIC_ERROR_CODES,
+  ...TOB_HOST_CLI_ERROR_CODES,
   ...SHARE_DRAFT_ERROR_CODES,
   ...TOB_VOICE_ERROR_CODES,
   'tob-authority-required',
@@ -261,9 +265,11 @@ export async function startTobCliBroker(options: TobCliBrokerOptions): Promise<T
                   ...entry,
                   usage:
                     TOB_AGENT_COMMAND_USAGE[entry.command] ??
-                    (entry.command === 'settings'
-                      ? 'deepseekbot settings [botharness-client|agent-default-model]'
-                      : 'deepseekbot settings-set <namespace> --patch-stdin --expected-revision <observed revision> --previous-value <JSON of previous values for patched fields>'),
+                    (entry.command === 'cli'
+                      ? 'deepseekbot <any command> [options]; find one with deepseekbot search <words>'
+                      : entry.command === 'settings'
+                        ? 'deepseekbot settings [botharness-client|agent-default-model]'
+                        : 'deepseekbot settings-set <namespace> --patch-stdin --expected-revision <observed revision> --previous-value <JSON of previous values for patched fields>'),
                 })),
               }
             : {}),
@@ -277,6 +283,7 @@ export async function startTobCliBroker(options: TobCliBrokerOptions): Promise<T
                   rule: 'Read the current target and pass its observed revision; follow each command usage. Settings patches also require exact previous values for patched fields.',
                   maintenance:
                     'Installation and restart require --confirm plus a fresh Human decision. Never retry an uncertain maintenance write automatically.',
+                  cli: 'Any other deepseekbot command also works. Commands that only read run at once; every other command waits for the Human to approve the exact command on an approval card. The Host chooses the target, so --host, --token-file and --home are refused. Paths are read on the Host from your current folder.',
                 }
               : { required: ['ns', 'patch', 'expectedRevision', 'previousValue'] }),
             approval: 'existing-host-policy',
@@ -286,7 +293,7 @@ export async function startTobCliBroker(options: TobCliBrokerOptions): Promise<T
         };
       } else if (options.prepareOperation) {
         if (typeof input.command !== 'string') refuse('invalid-request');
-        const prepared = await options.prepareOperation(input.command, args);
+        const prepared = await options.prepareOperation(input.command, args, signal);
         authorize();
         if (!prepared) refuse('unsupported-command');
         if (prepared.proposal) {
@@ -357,13 +364,19 @@ export async function startTobCliBroker(options: TobCliBrokerOptions): Promise<T
       response.end(JSON.stringify({ ok: true, value }));
     } catch (error) {
       if (!response.destroyed) {
-        const code = codeOf(error);
-        log('refused', { code });
+        const passthrough = error instanceof TobCliCommandError ? error : undefined;
+        const code = passthrough?.commandCode ?? codeOf(error);
+        log('refused', { code: passthrough ? 'cli-command-failed' : code });
         response.writeHead(
           code === 'unauthorized' ? 401 : code === 'request-too-large' ? 413 : 400,
           { 'content-type': 'application/json', 'cache-control': 'no-store' },
         );
-        response.end(JSON.stringify({ ok: false, error: { code, message: code } }));
+        response.end(
+          JSON.stringify({
+            ok: false,
+            error: { code, message: passthrough?.detail ?? code },
+          }),
+        );
       }
     } finally {
       request.off('aborted', abortRequest);

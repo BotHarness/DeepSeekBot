@@ -32,6 +32,7 @@ const fixture = vi.hoisted(() => {
     selection: 0,
     approvalGate: Promise.resolve(),
     approvals: 0,
+    offline: new Set<string>(),
   };
 });
 vi.mock('react-native', async () => ({
@@ -77,7 +78,10 @@ vi.mock('../src/host/host-session', () => ({
         },
       ],
       client: {
-        getSnapshot: () => fixture.snapshot,
+        getSnapshot: () =>
+          fixture.offline.has(fixture.hostId)
+            ? { connection: { status: 'reconnecting' as const, route: 'https://host.test' } }
+            : fixture.snapshot,
         subscribe: (listener: () => void) => {
           fixture.listeners.add(listener);
           return () => fixture.listeners.delete(listener);
@@ -125,6 +129,26 @@ function initialState(): Parameters<typeof stack.getStateForAction>[0] {
   };
 }
 let state = initialState();
+function hydrateTabs(index = 0) {
+  state = {
+    ...state,
+    routes: state.routes.map((route) => ({
+      ...route,
+      state: {
+        stale: false,
+        type: 'tab',
+        key: 'initial-tabs',
+        routeKeySeq: 0,
+        index,
+        routeNames: ['(home)', '(activity)'],
+        routes: [
+          { key: 'home', name: '(home)' },
+          { key: 'activity', name: '(activity)' },
+        ],
+      },
+    })),
+  };
+}
 const navigation = {
   isReady: () => fixture.navigationReady,
   addListener: (_event: string, listener: () => void) => {
@@ -160,7 +184,7 @@ const workspace = createHostDrawer({
   notifications() {},
 });
 function NotificationEntry() {
-  const ref = usePushRouting(undefined, workspace.captureWorkspaceSelection);
+  const ref = usePushRouting(undefined, workspace.captureChosenWorkspace);
   return <View ref={ref} />;
 }
 let root: Root | undefined;
@@ -168,6 +192,7 @@ let container: HTMLDivElement | undefined;
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 afterEach(() => {
   act(() => root?.unmount());
+  expect(fixture.navigationListeners.size).toBe(0);
   container?.remove();
   vi.useRealTimers();
 });
@@ -185,6 +210,7 @@ beforeEach(() => {
   fixture.snapshot.roster = originalRoster;
   fixture.alerts = [];
   fixture.switchGate = Promise.resolve();
+  fixture.offline = new Set();
 });
 async function mount() {
   container = document.createElement('div');
@@ -212,7 +238,7 @@ it('waits for the cold navigator to mount before dispatching', async () => {
     for (const listener of fixture.navigationListeners) listener();
   });
   expect(state.routes[state.index]).toMatchObject({ name: 'channel/[id]' });
-  expect(fixture.navigationListeners.size).toBe(0);
+  expect(fixture.navigationListeners.size).toBe(1);
 });
 
 it('opens interruption details without waiting for the conversation list', async () => {
@@ -322,6 +348,24 @@ it('waits for cold source initialization and its Roster before opening', async (
     params: { hostId: 'host-a' },
   });
   expect(fixture.listeners.size).toBe(0);
+});
+
+it('keeps cold notification intent when the initial tabs state is hydrated', async () => {
+  fixture.ready = false;
+  fixture.hostId = 'host-b';
+  await mount();
+  await act(async () => fixture.tap?.(notification('host-a')));
+  await act(async () => {
+    hydrateTabs();
+    fixture.ready = true;
+    for (const listener of fixture.sessionListeners) listener();
+  });
+  expect(fixture.hostId).toBe('host-a');
+  expect(state.routes[state.index]).toMatchObject({
+    name: 'channel/[id]',
+    params: { hostId: 'host-a', id: 'group-a' },
+  });
+  expect(fixture.alerts).toEqual([]);
 });
 
 it('bounds the wait and reports a failure instead of silently ignoring a tap', async () => {
@@ -490,4 +534,104 @@ it('a newer ordinary page navigation wins over a pending notification approval',
   expect(state).toBe(selected);
   expect(state.routes[state.index]).toMatchObject({ name: 'dm/[slug]', params: { slug: 'grace' } });
   expect(fixture.alerts).toEqual([]);
+});
+
+it('a manual tab round trip cancels a pending notification even after returning to the same tab', async () => {
+  hydrateTabs();
+  let release = () => {};
+  fixture.approvalGate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await mount();
+  await act(async () =>
+    fixture.tap?.({ ...notification(), kind: 'tool-approval', messageId: 'approval' }, 'approve'),
+  );
+  expect(fixture.approvals).toBe(1);
+  await act(async () => {
+    for (const index of [1, 0]) {
+      hydrateTabs(index);
+      for (const listener of fixture.navigationListeners) listener();
+    }
+    release();
+    await vi.runAllTimersAsync();
+  });
+  expect(state.routes).toHaveLength(1);
+  expect(fixture.alerts).toEqual([]);
+});
+
+function settleStartupWithOfflineSource() {
+  const announce = () => {
+    for (const listener of fixture.navigationListeners) listener();
+  };
+  state = {
+    ...state,
+    routes: state.routes.map((route) => ({
+      ...route,
+      state: {
+        stale: true,
+        type: 'tab',
+        index: 0,
+        routes: [{ name: '(home)' }],
+      },
+    })),
+  } as typeof state;
+  announce();
+  hydrateTabs();
+  announce();
+  state = {
+    ...state,
+    routes: state.routes.map((route) => ({
+      ...route,
+      params: { screen: '(home)', params: {} },
+      state: route.state && { ...route.state, preloadedRouteKeys: ['activity'] },
+    })),
+  } as typeof state;
+  announce();
+  workspace.invalidateWorkspaceSources();
+  for (const listener of fixture.listeners) listener();
+}
+
+it.each([
+  ['reply', { kind: 'channel-reply' }, { name: 'channel/[id]' }],
+  ['question', { kind: 'user-question', messageId: 'question' }, { name: 'channel/[id]' }],
+  ['approval', { kind: 'tool-approval', messageId: 'approval' }, { name: 'channel/[id]' }],
+  ['private input', { kind: 'private-input', channelId: undefined }, { name: 'inbox/[id]' }],
+])(
+  'cold start opens a %s notification for another computer while the shown one is offline',
+  async (_label, overrides, destination) => {
+    fixture.ready = false;
+    fixture.hostId = 'host-b';
+    fixture.offline = new Set(['host-b']);
+    await mount();
+    await act(async () => fixture.tap?.({ ...notification('host-a'), ...overrides }));
+    await act(async () => {
+      settleStartupWithOfflineSource();
+      fixture.ready = true;
+      for (const listener of fixture.sessionListeners) listener();
+      await vi.runAllTimersAsync();
+    });
+    expect(fixture.hostId).toBe('host-a');
+    expect(state.routes[state.index]).toMatchObject({
+      ...destination,
+      params: { hostId: 'host-a' },
+    });
+    expect(fixture.alerts).toEqual([]);
+  },
+);
+
+it('still reports a cold-start notification whose computer never becomes ready', async () => {
+  fixture.ready = false;
+  fixture.hostId = 'host-b';
+  fixture.offline = new Set(['host-a', 'host-b']);
+  await mount();
+  await act(async () => fixture.tap?.(notification('host-a')));
+  await act(async () => {
+    settleStartupWithOfflineSource();
+    fixture.ready = true;
+    for (const listener of fixture.sessionListeners) listener();
+    await vi.runAllTimersAsync();
+  });
+  expect(fixture.hostId).toBe('host-a');
+  expect(fixture.alerts).toEqual([t.channelOpeningFailed]);
+  expect(state.routes).toHaveLength(1);
 });

@@ -11,6 +11,7 @@ import { AppState, Platform, View, type ViewInstance } from 'react-native';
 import { useHostSession, useHostAvailability } from '../../host/host-session';
 import { botCreation, useBotCreation } from '../../host/native-bot-creation';
 import { enterBotCreation, type CreationEntrySource } from '../../host/bot-creation-entry';
+import { hostUnavailable } from '../../host/host-glance';
 import type { BotCreationDraft } from '../../host/bot-creation';
 import {
   creationStepReady,
@@ -551,8 +552,10 @@ function CreationStepContent({ index }: { index: number }) {
                           ? t.hostOnline
                           : status === 'offline'
                             ? t.hostOffline
-                            : t.hostChecking,
-                      disabled: status === 'offline',
+                            : status === 'refused'
+                              ? t.hostRefused
+                              : t.hostChecking,
+                      disabled: hostUnavailable(status),
                     };
                   })}
                   onChange={(hostId) => edit({ hostId })}

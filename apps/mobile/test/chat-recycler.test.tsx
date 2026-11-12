@@ -1,0 +1,155 @@
+// @vitest-environment jsdom
+import { act, type ReactNode } from 'react';
+import { createRoot } from 'react-dom/client';
+import { afterEach, expect, it, vi } from 'vitest';
+
+const state = vi.hoisted(() => ({
+  textRows: [] as Array<{ key: string }>,
+  rowSwipe: undefined as boolean | undefined,
+  rowAction: undefined as
+    | undefined
+    | ((event: { nativeEvent: { key: string; action: string; anchor?: object } }) => void),
+  keyboard: false,
+  speakerRows: [] as object[],
+  window: undefined as
+    | undefined
+    | ((event: { nativeEvent: { start: number; end: number; width: number } }) => void),
+}));
+vi.mock('react-native', () => import('./react-native-shim'));
+vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
+vi.mock('expo', () => ({
+  requireNativeView: (name: string) =>
+    function Native(props: {
+      children?: ReactNode;
+      rowKey?: string;
+      onWindow?: typeof state.window;
+      textRows?: Array<{ key: string }>;
+      rowSwipe?: boolean;
+      onRowAction?: typeof state.rowAction;
+      speakerRows?: object[];
+    }) {
+      if (name === 'ChatRecycler') {
+        state.window = props.onWindow;
+        state.textRows = props.textRows ?? [];
+        state.rowSwipe = props.rowSwipe;
+        state.rowAction = props.onRowAction;
+        state.speakerRows = props.speakerRows ?? [];
+      }
+      return <div data-cell={props.rowKey}>{props.children}</div>;
+    },
+}));
+afterEach(() => {
+  vi.resetModules();
+  state.keyboard = false;
+});
+
+it('mounts only the native requested window and restores the same message identities', async () => {
+  const { ChatList } = await import('../src/ui/primitives/chat-list.android');
+  const container = document.createElement('div');
+  const root = createRoot(container);
+  const data = Array.from({ length: 10000 }, (_, index) => `message-${index}`);
+  await act(async () =>
+    root.render(
+      <ChatList
+        data={data}
+        keyExtractor={(item) => item}
+        renderItem={({ item }) => <span>{item}</span>}
+      />,
+    ),
+  );
+  expect(container.querySelectorAll('[data-cell]').length).toBe(12);
+  await act(async () => state.window?.({ nativeEvent: { start: 500, end: 524, width: 390 } }));
+  expect(container.querySelectorAll('[data-cell]').length).toBe(24);
+  expect(container.textContent).toContain('message-500');
+  expect(container.textContent).not.toContain('message-0');
+  await act(async () => state.window?.({ nativeEvent: { start: 0, end: 12, width: 390 } }));
+  expect(container.querySelector('[data-cell]')?.getAttribute('data-cell')).toBe('item:message-0');
+  await act(async () => root.unmount());
+});
+
+it('hands native text rows to the RecyclerView instead of mounting React cells', async () => {
+  const { ChatList } = await import('../src/ui/primitives/chat-list.android');
+  const container = document.createElement('div');
+  const root = createRoot(container);
+  const data = ['a', 'b', 'c'];
+  await act(async () =>
+    root.render(
+      <ChatList
+        data={data}
+        keyExtractor={(item) => item}
+        renderItem={({ item }) => <span>{item}</span>}
+        nativeRow={(item) => (item === 'b' ? { key: item, body: 'plain' } : undefined)}
+        nativeStyle={{}}
+      />,
+    ),
+  );
+  expect(state.textRows).toEqual([{ key: 'item:b', body: 'plain' }]);
+  expect(
+    [...container.querySelectorAll('[data-cell]')].map((cell) => cell.getAttribute('data-cell')),
+  ).toEqual(['item:a', 'item:c']);
+  await act(async () => root.unmount());
+});
+
+it('routes native row gestures to the item, and drops taps that only dismiss the keyboard', async () => {
+  const { Keyboard } = await import('react-native');
+  vi.spyOn(Keyboard, 'isVisible').mockImplementation(() => state.keyboard);
+  const { ChatList } = await import('../src/ui/primitives/chat-list.android');
+  const container = document.createElement('div');
+  const root = createRoot(container);
+  const onNativeRow = vi.fn();
+  await act(async () =>
+    root.render(
+      <ChatList
+        data={['a', 'b']}
+        keyExtractor={(item) => item}
+        renderItem={({ item }) => <span>{item}</span>}
+        nativeRow={(item) => ({ key: item, body: item })}
+        nativeStyle={{}}
+        nativeSwipe
+        onNativeRow={onNativeRow}
+        keyboardShouldPersistTaps="never"
+      />,
+    ),
+  );
+  expect(state.rowSwipe).toBe(true);
+  const anchor = { x: 1, y: 2, width: 3, height: 4 };
+  state.rowAction?.({ nativeEvent: { key: 'item:b', action: 'press', anchor } });
+  state.rowAction?.({ nativeEvent: { key: 'item:missing', action: 'press', anchor } });
+  state.keyboard = true;
+  state.rowAction?.({ nativeEvent: { key: 'item:a', action: 'hold' } });
+  state.rowAction?.({ nativeEvent: { key: 'item:a', action: 'reply' } });
+  expect(onNativeRow.mock.calls).toEqual([
+    ['b', { action: 'press', anchor }],
+    ['a', { action: 'reply' }],
+  ]);
+  await act(async () => root.unmount());
+});
+
+it('sends speaker runs to the list and mounts one avatar cell per run in the window', async () => {
+  const { ChatList } = await import('../src/ui/primitives/chat-list.android');
+  const container = document.createElement('div');
+  const root = createRoot(container);
+  const data = ['a', 'b', 'c'];
+  await act(async () =>
+    root.render(
+      <ChatList
+        data={data}
+        keyExtractor={(item) => item}
+        renderItem={({ item }) => <span>{item}</span>}
+        speakerRow={(item) =>
+          item === 'c'
+            ? undefined
+            : { key: item, group: 'run', first: item === 'b', name: item === 'b', bottom: 8 }
+        }
+        speakerAvatar={(group) => <i data-avatar={group} />}
+      />,
+    ),
+  );
+  expect(state.speakerRows).toEqual([
+    { key: 'item:a', group: 'run', first: false, name: false, bottom: 8 },
+    { key: 'item:b', group: 'run', first: true, name: true, bottom: 8 },
+  ]);
+  expect(container.querySelectorAll('[data-cell="avatar:run"]')).toHaveLength(1);
+  expect(container.querySelector('[data-avatar="run"]')).not.toBeNull();
+  await act(async () => root.unmount());
+});

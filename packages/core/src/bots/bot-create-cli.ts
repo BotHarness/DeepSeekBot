@@ -204,6 +204,8 @@ Usage:
   tobs plugin-check [--force]
   tobs plugin-install <package> <version> --confirm
   tobs plugin-restart --confirm
+  tobs update-status
+  tobs update-cancel
   tobs marketplace-list [--query <words>] [--topic <topic>] [--sort updated|created|stars] [--cursor <c>] [--include-uploads]
   tobs marketplace-topics
   tobs marketplace-sections [--lang zh|en]
@@ -440,6 +442,13 @@ Home:
   --home points at the target DSH_HOME (a fresh directory works with zero
   clicks); without it, DSH_HOME from the environment is used.
 `;
+
+const LOCAL_LOG_COMMANDS = new Set([
+  'doctor',
+  'diagnostic-logs',
+  'diagnostic-logs-export',
+  'bug-report',
+]);
 
 const STATIC_CATALOG_PROVIDER_IDS: ReadonlySet<string> = new Set([
   'amazon-bedrock',
@@ -2631,7 +2640,7 @@ export async function runBotCreateCli(
       return 0;
     }
     if (hasAgentCliContext(io.env)) {
-      out.stdout(JSON.stringify(await runAgentCli(command, rest, values, io), null, 2));
+      out.stdout(JSON.stringify(await runAgentCli(command, rest, values, io, argv), null, 2));
       return 0;
     }
     if (values.help === true || command === undefined || command === 'help') {
@@ -2733,7 +2742,7 @@ export async function runBotCreateCli(
         (values.host !== undefined || io.env['DEEPSEEKBOT_HOST'] !== undefined)) ||
       (online && INBOX_HOST_COMMANDS.some((entry) => entry === command))
     ) {
-      if (values.home !== undefined)
+      if (values.home !== undefined && !LOCAL_LOG_COMMANDS.has(command))
         throw usageError('Do not combine --home and an online Host target.');
       out.stdout(JSON.stringify(await runLiveCli(command, rest, values, io), null, 2));
       return 0;

@@ -14,9 +14,30 @@ type Pan = {
   finalize(): void;
 };
 
-const state = vi.hoisted(() => ({ pans: [] as Pan[], haptics: [] as string[] }));
+const state = vi.hoisted(() => ({
+  pans: [] as Pan[],
+  haptics: [] as string[],
+  detected: [] as unknown[],
+  natives: [] as { blocks: unknown[]; enabled: boolean }[],
+  scroller: undefined as
+    | undefined
+    | {
+        onLayout?: (event: { nativeEvent: { layout: { width: number } } }) => void;
+        onContentSizeChange?: (width: number, height: number) => void;
+      },
+}));
 
-vi.mock('react-native', () => import('./react-native-shim'));
+vi.mock('react-native', async () => {
+  const shim = await import('./react-native-shim');
+  const { createElement } = await import('react');
+  return {
+    ...shim,
+    ScrollView: (props: NonNullable<typeof state.scroller> & { children?: unknown }) => {
+      state.scroller = props;
+      return createElement('div', null, props.children as never);
+    },
+  };
+});
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null, Circle: () => null }));
 vi.mock('../src/ui/haptics', () => ({ haptic: (moment: string) => state.haptics.push(moment) }));
@@ -47,14 +68,29 @@ vi.mock('react-native-gesture-handler', async () => {
         };
         return builder;
       },
+      Native: () => {
+        const native = { blocks: [] as unknown[], enabled: true };
+        state.natives.push(native);
+        const builder = {
+          enabled: (value: boolean) => ((native.enabled = value), builder),
+          blocksExternalGesture: (...gestures: unknown[]) => (
+            native.blocks.push(...gestures),
+            builder
+          ),
+        };
+        return builder;
+      },
     },
-    GestureDetector: ({ children }: { children: unknown }) =>
-      createElement(Fragment, null, children as never),
+    GestureDetector: ({ gesture, children }: { gesture: unknown; children: unknown }) => {
+      state.detected.push(gesture);
+      return createElement(Fragment, null, children as never);
+    },
   };
 });
 
 const { ReplySwipe } = await import('../src/ui/chat/reply-swipe');
 const { ReplyBar } = await import('../src/ui/chat/reply-bar');
+const { HorizontalScroll } = await import('../src/ui/primitives/horizontal-scroll');
 const { horizontalSwipeOwner, replyTravel, repliesAt } =
   await import('../src/ui/chat/reply-swipe-model');
 const { swipeReply } = await import('../src/ui/design/tokens');
@@ -69,12 +105,63 @@ describe('swipe left to reply', () => {
   beforeEach(() => {
     state.pans.length = 0;
     state.haptics.length = 0;
+    state.detected.length = 0;
+    state.natives.length = 0;
     container = document.createElement('div');
     root = createRoot(container);
   });
 
   afterEach(async () => {
     await act(async () => root.unmount());
+  });
+
+  it('lets a horizontal scroller in the bubble block the reply pan', async () => {
+    await act(async () =>
+      root.render(
+        <ReplySwipe enabled onReply={() => undefined}>
+          <HorizontalScroll>wide table</HorizontalScroll>
+        </ReplySwipe>,
+      ),
+    );
+    const pan = state.detected[0];
+    expect(state.natives).toHaveLength(1);
+    expect(state.natives[0]!.blocks).toEqual([pan]);
+    expect(state.natives[0]!.enabled).toBe(false);
+    expect(state.detected.at(-1)).not.toBe(pan);
+  });
+
+  it('turns the blocker on when the scroller overflows and off when its content fits', async () => {
+    await act(async () =>
+      root.render(
+        <ReplySwipe enabled onReply={() => undefined}>
+          <HorizontalScroll>wide table</HorizontalScroll>
+        </ReplySwipe>,
+      ),
+    );
+    await act(async () => state.scroller?.onLayout?.({ nativeEvent: { layout: { width: 300 } } }));
+    await act(async () => state.scroller?.onContentSizeChange?.(420, 40));
+    expect(state.natives.at(-1)?.enabled).toBe(true);
+    await act(async () => state.scroller?.onContentSizeChange?.(240, 40));
+    expect(state.natives.at(-1)?.enabled).toBe(false);
+  });
+
+  it('blocks the reply pan only while the content is wider than the scroller', async () => {
+    const { overflowsHorizontally } = await import('../src/ui/primitives/horizontal-scroll');
+    expect(overflowsHorizontally(400, 300)).toBe(true);
+    expect(overflowsHorizontally(300, 300)).toBe(false);
+    expect(overflowsHorizontally(200, 300)).toBe(false);
+    expect(overflowsHorizontally(400, 0)).toBe(false);
+  });
+
+  it('leaves a scroller plain when the bubble cannot be replied to', async () => {
+    await act(async () =>
+      root.render(
+        <ReplySwipe enabled={false} onReply={() => undefined}>
+          <HorizontalScroll>wide table</HorizontalScroll>
+        </ReplySwipe>,
+      ),
+    );
+    expect(state.natives).toHaveLength(0);
   });
 
   it('follows the finger up to its reach, then resists, and commits past the threshold', () => {

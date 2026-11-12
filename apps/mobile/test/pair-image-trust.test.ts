@@ -134,3 +134,42 @@ it('preserves the existing camera-only QR trust rule', async () => {
   expect(confirmFingerprint).not.toHaveBeenCalled();
   expect(options.carrier.openSocket).toHaveBeenCalledTimes(1);
 });
+
+it.each(['account', 'paste'] as const)(
+  'only the authenticated account-list callback bypasses manual Host-key comparison: %s',
+  async (method) => {
+    const options = setup();
+    const confirmFingerprint = vi.fn(async () => false);
+    await pairHost({
+      ...options,
+      method,
+      text: async () => ({
+        ok: true,
+        payload: {
+          host: { id: 'qa-host', name: 'QA computer' },
+          offer: '',
+          routes: ['https://hstudio.deepseekbot.dev'],
+          expiresAt: '2099-01-01T00:00:00Z',
+          enrollment: { body: 'signed-body', signature: 'signed-proof' },
+          verifier: 'phone-proof',
+          encryption: { protocol: 'connect-noise-xk-v1', publicKey: '11'.repeat(32) },
+        },
+      }),
+      confirmFingerprint,
+    });
+    expect(confirmFingerprint).toHaveBeenCalledTimes(method === 'account' ? 0 : 1);
+    expect(options.carrier.openSocket).toHaveBeenCalledTimes(method === 'account' ? 1 : 0);
+    expect(options.save).not.toHaveBeenCalled();
+  },
+);
+
+it('an account telemetry label on a raw link cannot grant account-list trust', async () => {
+  const options = setup();
+  const confirmFingerprint = vi.fn(async () => false);
+  expect(await pairHost({ ...options, method: 'account', confirmFingerprint })).toEqual({
+    ok: false,
+    code: 'host-key-confirmation-required',
+  });
+  expect(confirmFingerprint).toHaveBeenCalledOnce();
+  expect(options.carrier.openSocket).not.toHaveBeenCalled();
+});

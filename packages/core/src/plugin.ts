@@ -1,6 +1,7 @@
 import { BotNetworkDeliveryError } from './runtime/bot-network.js';
 import type { AssignmentReportContent } from './runtime/assignment-report.js';
 import { createWindowZoomControl, WINDOW_ZOOM_CONTROL_PATH } from './window-zoom/control.js';
+import { createPresence, PRESENCE_PATH } from './push/presence.js';
 import {
   compactUnknownContext,
   contextCapacity,
@@ -18,8 +19,8 @@ import { VoiceProviders } from './voice/providers.js';
 import { createVoiceMessages, type VoiceMessages } from './voice/messages.js';
 import { createVoiceCalls, type VoiceCallMedia, type VoiceCalls } from './voice/calls.js';
 import { callVisualMessage, createCallTextHarvest } from './voice/call-text.js';
-import { withVoiceDefaults } from './voice/defaults.js';
 import { voiceCallFramesAt, voiceCallRecordBody } from './channels/voice-call-record.js';
+import { DESKTOP_WINDOW_PATH, createDesktopWindowReveal } from './desktop-window/reveal.js';
 import { VOICE_CALL_PATH } from './voice/call-contract.js';
 import { createVoiceCallHttp } from './voice/call-http.js';
 import { CloudConnections } from './cloud/connections.js';
@@ -44,6 +45,15 @@ import {
   TOB_BOT_PROFILE_CAPABILITIES,
 } from './tob/cli-bot-profile-operations.js';
 import {
+  createTobDiagnosticOperations,
+  TOB_DIAGNOSTIC_CAPABILITIES,
+} from './tob/cli-diagnostic-operations.js';
+import {
+  createTobHostCliOperations,
+  spawnHostCli,
+  TOB_HOST_CLI_CAPABILITY,
+} from './tob/cli-host-commands.js';
+import {
   createTobShareDraftOperations,
   TOB_SHARE_DRAFT_CAPABILITIES,
 } from './tob/cli-share-draft-operations.js';
@@ -63,7 +73,7 @@ import {
   createTobMaintenanceOperations,
   TOB_MAINTENANCE_CAPABILITIES,
 } from './tob/cli-maintenance-operations.js';
-import { installTobCliShell } from './tob/cli-shell.js';
+import { cliModulePath, installTobCliShell } from './tob/cli-shell.js';
 import { createTobVoiceOperations, TOB_VOICE_CAPABILITIES } from './tob/cli-voice-operations.js';
 import {
   LOCAL_VOICE_SKILL_CONTENT,
@@ -76,6 +86,10 @@ import {
 } from './voice/skill.js';
 import { approveTobCliOperation } from './tob/cli-approval.js';
 import { onboardingNewsAvailable } from './onboarding/search.js';
+import {
+  createClientAcknowledgements,
+  type ClientAcknowledgements,
+} from './onboarding/acknowledgements.js';
 import { nativeTimedQuestions } from './channels/native-timed-questions.js';
 import { credentialStoreDenial } from './credentials/store-guard.js';
 import { secretCommandDenial } from './credentials/secret-command.js';
@@ -175,6 +189,7 @@ import { loadedReleaseComponents, stampReleaseComponent } from './release/compon
 import { createGitService } from './memory/managed-git.js';
 import { createProcessRestarter, type ReleaseRestarter } from './release/restart.js';
 import { createPluginUpdateService } from './release/plugins.js';
+import { createUpdateRuns } from './release/update-runs.js';
 import {
   createTelemetryService,
   installedDshVersion,
@@ -498,6 +513,7 @@ export interface BotHarnessCore {
   profileRecovery: ProfileRecovery;
   rootDir: string;
   onboarding: BotOnboarding;
+  acknowledgements: ClientAcknowledgements;
   tob: TobService;
   creations: BotCreationService;
   zipImports: BotZipImportService;
@@ -1118,7 +1134,7 @@ export function createCore(
   } = {};
   const voiceMessages = createVoiceMessages({
     providers: voiceProviders,
-    bot: (slug) => withVoiceDefaults(registry.get(slug), () => voiceProviders.defaults()),
+    bot: (slug) => voiceProviders.effective(registry.get(slug)),
     channels,
     attachments: () => attachments,
     speak: async (input) => voiceSpeech.speak?.(input),
@@ -1269,6 +1285,9 @@ export function createCore(
     registry,
     channels,
   });
+  const acknowledgements = createClientAcknowledgements({
+    database: attachOperationalModule(operationalDatabase, 'bot-onboarding'),
+  });
   if (operationalDatabase.mode === 'ready') schedules.start();
   return {
     voiceProviders,
@@ -1280,6 +1299,7 @@ export function createCore(
     profileRecovery,
     contentPurge,
     onboarding,
+    acknowledgements,
     tob,
     creations,
     zipImports,
@@ -1354,6 +1374,16 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     log: (message) => ctx.logger.info(message),
   });
   mountClientDiagnostics(ctx, dshHome);
+  const hostDiagnosticEnvironment = () => {
+    const dshVersion = installedDshVersion();
+    return {
+      version: runningRelease.version,
+      ...(dshVersion === undefined ? {} : { dshVersion }),
+      platform: process.platform,
+      arch: process.arch,
+      node: process.version,
+    };
+  };
   let clientIssues: ClientIssueReporter | undefined;
   const diagnosticEvents = mountDiagnosticLog(ctx, {
     onClientEntries: (session, entries) => clientIssues?.observe(session, entries),
@@ -1362,16 +1392,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       { path: dshHome, label: '$DSH_HOME' },
       { path: homedir(), label: '~' },
     ],
-    environment: () => {
-      const dshVersion = installedDshVersion();
-      return {
-        version: runningRelease.version,
-        ...(dshVersion === undefined ? {} : { dshVersion }),
-        platform: process.platform,
-        arch: process.arch,
-        node: process.version,
-      };
-    },
+    environment: hostDiagnosticEnvironment,
   });
   const release = installedRelease(import.meta.url);
   const telemetryChoice = telemetryDecision(config.telemetry);
@@ -1554,15 +1575,17 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
               return {
                 signal: execution.signal,
                 authorize,
-                prepareOperation: async (command, args) => {
+                prepareOperation: async (command, args, signal) => {
                   const prepared =
                     (await tobModelOperations(command, args)) ??
                     (await tobMaintenanceOperations(command, args)) ??
                     (await tobBotCreationOperations(command, args)) ??
                     (await tobBotProfileOperations(command, args)) ??
                     (await tobShareDraftOperations(command, args)) ??
+                    (await tobDiagnosticOperations(command, args)) ??
                     (await tobChannelOperations(command, args)) ??
-                    (await tobVoiceOperations(command, args));
+                    (await tobVoiceOperations(command, args)) ??
+                    (await tobHostCliOperations(command, args, signal));
                   if (!prepared || !['create', 'group-create'].includes(command)) return prepared;
                   return {
                     ...prepared,
@@ -1584,8 +1607,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                   ...TOB_BOT_CREATE_CAPABILITIES,
                   ...TOB_BOT_PROFILE_CAPABILITIES,
                   ...TOB_SHARE_DRAFT_CAPABILITIES,
+                  ...TOB_DIAGNOSTIC_CAPABILITIES,
                   ...TOB_CHANNEL_CAPABILITIES,
                   ...TOB_VOICE_CAPABILITIES,
+                  TOB_HOST_CLI_CAPABILITY,
                 ],
                 beforeWrite: () => source.markSideEffect?.(),
                 readSetting: () => core.tob.readSetting(),
@@ -1782,6 +1807,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   );
   let connectAccount: ConnectAccount | undefined;
   let voiceCalls: VoiceCalls | undefined;
+  const presence = createPresence();
+  ctx.effect(() => () => presence.dispose(), 'botharness: desktop presence');
   mountDevicePairing(ctx, {
     calls: () => voiceCalls,
     botNetwork: {
@@ -1816,11 +1843,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         const offActivity = core.states.onActivity((event) => {
           if (event.cause === 'attention-changed') changed();
         });
+        const offPresence = presence.subscribe(changed);
         return () => {
           offDatabase();
           offActivity();
+          offPresence();
         };
       },
+      held: () => presence.active(),
     },
   });
   if (core.operationalDatabase.mode === 'ready' && telemetryState.lockedBy === undefined) {
@@ -2787,6 +2817,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       };
     }, 'botharness: release installer');
   });
+  const updateRuns = createUpdateRuns({ canceller: () => releaseInstaller.current });
+  {
+    const events = ctx as unknown as {
+      on(event: string, listener: (value: unknown) => void): () => void;
+    };
+    events.on('plugin-manager/install-log', (chunk) => updateRuns.log(chunk));
+    events.on('plugin-manager/install-state', (progress) => updateRuns.state(progress));
+  }
   const releaseRestarter: { current: ReleaseRestarter | undefined } = {
     current: undefined,
   };
@@ -2836,11 +2874,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     ledgers: () => runningRelease.ledgers,
     installer: () => releaseInstaller.current,
     restarter: () => releaseRestarter.current,
+    runs: updateRuns,
     warn: (message) => ctx.logger.warn(message),
   });
   const pluginUpdates = createPluginUpdateService({
     installer: () => releaseInstaller.current,
     restarter: () => releaseRestarter.current,
+    runs: updateRuns,
   });
   const tobModelOperations = createTobModelOperations({
     registry: core.registry,
@@ -2881,6 +2921,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     log: (event) => ctx.logger.info(JSON.stringify(event)),
   });
   const bridgeMethods = createBridgeMethods({
+    hostVersion: () => release.version(),
     callText: createCallTextHarvest({ calls: () => voiceCalls, attachments: core.attachments }),
     voiceProviders: core.voiceProviders,
     voiceLog: (phase, fields) => diagnosticEvents.record('voice', phase, fields),
@@ -3004,6 +3045,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     modelCatalog,
     modelReadiness,
     onboarding: core.onboarding,
+    acknowledgements: core.acknowledgements,
     tob: core.tob,
     creations: core.creations,
     zipImports: core.zipImports,
@@ -3137,6 +3179,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     }),
     release: releaseService,
     plugins: pluginUpdates,
+    updates: updateRuns,
     telemetry,
     activeDay,
     git,
@@ -3231,6 +3274,37 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const tobShareDraftOperations = createTobShareDraftOperations({
     bridge: () => bridgeMethods,
   });
+  const tobDiagnosticOperations = createTobDiagnosticOperations({
+    list: (query) => diagnosticEvents.list(query),
+    updateRun: () => {
+      const run = bridgeMethods.updateRun({});
+      if (!run.ok) throw new Error(run.error.code);
+      return run.value;
+    },
+    environment: hostDiagnosticEnvironment,
+  });
+  let tobHostTarget: (() => { origin: string; token: string } | undefined) | undefined;
+  ctx.inject(['connection', 'webServer'], (webCtx) => {
+    const services = webCtx as unknown as {
+      connection: { authenticatedUrl(baseUrl: string): string };
+      webServer: { getOrigin(): string };
+    };
+    webCtx.effect(() => {
+      tobHostTarget = () => {
+        const origin = services.webServer.getOrigin();
+        const token = [
+          ...new URL(services.connection.authenticatedUrl(`${origin}/`)).searchParams.values(),
+        ][0];
+        return token ? { origin, token } : undefined;
+      };
+      return () => {
+        tobHostTarget = undefined;
+      };
+    }, 'botharness: Tob Host CLI target');
+  });
+  const tobHostCliOperations = createTobHostCliOperations({
+    run: spawnHostCli({ modulePath: cliModulePath, host: () => tobHostTarget?.() }),
+  });
   const tobChannelOperations = createTobChannelOperations({
     management: core.channelManagement,
     channels: core.channels,
@@ -3238,7 +3312,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     isProtectedBot: (slug) => core.tob.isTob(slug),
   });
   voiceCalls = createVoiceCalls({
-    bot: (slug) => withVoiceDefaults(core.registry.get(slug), () => core.voiceProviders.defaults()),
+    bot: (slug) => core.voiceProviders.effective(core.registry.get(slug)),
     speechDbfs: () => core.voiceProviders.speechThreshold().dbfs,
     async seesImages(slug) {
       const route =
@@ -3439,6 +3513,16 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         };
       }
     ).connection;
+    connectionCtx.effect(
+      () =>
+        connection.fetch.register({
+          path: PRESENCE_PATH,
+          methods: ['GET', 'POST'],
+          requestBody: 'buffered',
+          fetch: presence.fetch,
+        }),
+      'botharness: desktop presence route',
+    );
     connectionCtx.effect(() => {
       const control = createWindowZoomControl(Date.now, (phase, detail) =>
         ctx.logger.info('window-zoom-control %j', { phase, ...detail }),
@@ -3480,6 +3564,18 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         await off();
       };
     }, 'botharness: explicit Client-local appearance control');
+    connectionCtx.effect(() => {
+      const desktopWindow = createDesktopWindowReveal({
+        log: (phase, detail) => ctx.logger.info('desktop-window %j', { phase, ...detail }),
+      });
+      desktopWindow.prime();
+      return connection.fetch.register({
+        path: DESKTOP_WINDOW_PATH,
+        methods: ['POST'],
+        requestBody: 'buffered',
+        fetch: desktopWindow.fetch,
+      });
+    }, 'botharness: bring the Desktop window back from a notification');
     connectionCtx.effect(
       () =>
         connection.fetch.register({

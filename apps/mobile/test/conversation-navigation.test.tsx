@@ -216,6 +216,11 @@ vi.mock('../src/host/native-dm-activity', () => ({ useHiddenDmActivity: () => []
 vi.mock('../src/host/native-message-display', () => ({
   useMessageDisplay: () => state.display,
 }));
+vi.mock('../src/host/native-send-jump', () => ({
+  sendJumpPreferences: {
+    getSnapshot: () => ({ enabled: false, loaded: true, storageError: false }),
+  },
+}));
 vi.mock('../src/host/native-delivery-receipts', () => ({
   useDeliveryReceiptPreferences: () => ({
     enabled: state.receipts,
@@ -1393,9 +1398,10 @@ describe('chat list chrome', () => {
     const list = view.querySelector<HTMLElement>('[data-testid="chat-list"]')!;
     expect(list.dataset['insetBottom']).toBe('-34');
     expect(list.dataset['dismiss']).toBe('on-drag');
+    expect(list.dataset['persistTaps']).toBe('never');
   });
 
-  it('dismisses the keyboard interactively on iOS', async () => {
+  it('dismisses the keyboard interactively and on a tap anywhere in the list on iOS', async () => {
     const os = Platform.OS;
     Object.assign(Platform, { OS: 'ios' });
     try {
@@ -1403,6 +1409,7 @@ describe('chat list chrome', () => {
       const view = await render({ kind: 'dm', slug: 'gone' });
       const list = view.querySelector<HTMLElement>('[data-testid="chat-list"]')!;
       expect(list.dataset['dismiss']).toBe('interactive');
+      expect(list.dataset['persistTaps']).toBe('never');
     } finally {
       Object.assign(Platform, { OS: os });
     }
@@ -1583,11 +1590,33 @@ describe('disbanded group presentation', () => {
     expect(dismiss).toHaveBeenCalledOnce();
     dismiss.mockRestore();
   });
+  it('keeps a short drop out of view and shows offline as a chip once it lasts', async () => {
+    state.host.roster.channels = [
+      { id: 'cached', name: 'Offline group', members: [], memberCount: 0 },
+    ];
+    Object.assign(state.host.connection, { status: 'unreachable' });
+    Object.assign(state.host, { disruptedSince: Date.now() });
+    state.conversation.fromCache = true;
+    const view = await render({ kind: 'channel', channelId: 'cached' });
+    expect(view.textContent).not.toContain(t.offline);
+    expect(view.querySelector('[data-testid="chat-status-chip"]')).toBeNull();
+    Object.assign(state.host, { disruptedSince: Date.now() - 60_000 });
+    await act(async () =>
+      root!.render(
+        <ConversationScreen place={{ kind: 'channel', channelId: 'cached' }} focus={undefined} />,
+      ),
+    );
+    expect(view.querySelector('[data-testid="chat-status-chip"]')?.textContent).toContain(
+      t.offline,
+    );
+    expect(view.querySelector('[data-testid="chat-connection-retry"]')).not.toBeNull();
+  });
   it('retains cached conversation controls until reconnect confirms absence', async () => {
     state.host.roster.channels = [
       { id: 'cached', name: 'Offline group', members: [], memberCount: 0 },
     ];
     Object.assign(state.host.connection, { status: 'unreachable' });
+    Object.assign(state.host, { disruptedSince: Date.now() - 60_000 });
     state.conversation.fromCache = true;
     const view = await render({ kind: 'channel', channelId: 'cached' });
     expect(view.textContent).toContain(t.offline);

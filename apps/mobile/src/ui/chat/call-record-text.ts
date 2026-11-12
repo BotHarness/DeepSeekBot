@@ -1,8 +1,6 @@
-import {
-  voiceCallDuration,
-  type ChannelVoiceCallRecord,
-} from '../../../../../packages/core/src/channels/voice-call-record';
-import { locale, t as defaultStrings } from '../strings';
+import type { ChannelVoiceCallRecord } from '../../../../../packages/core/src/channels/voice-call-record';
+import { formatCallDuration } from '../../../../../packages/core/src/voice/call-view';
+import { dateLocale, t as defaultStrings } from '../strings';
 
 export type CallCopy = Pick<
   typeof defaultStrings.call,
@@ -23,17 +21,11 @@ export type CallCopy = Pick<
   | 'recordShareResumedAt'
 >;
 
-function timeLocale(): string {
-  const device = new Intl.DateTimeFormat().resolvedOptions().locale;
-  if (device.toLowerCase().startsWith(locale)) return device;
-  return locale === 'zh' ? 'zh-CN' : 'en';
-}
-
 function clock(at: string): string {
   const date = new Date(at);
   return Number.isNaN(date.getTime())
     ? ''
-    : new Intl.DateTimeFormat(timeLocale(), {
+    : new Intl.DateTimeFormat(dateLocale(), {
         hour: 'numeric',
         minute: '2-digit',
       }).format(date);
@@ -47,13 +39,13 @@ export function callRecordLines(
     return {
       title: record.source === 'camera' ? copy.recordCamera : copy.recordScreen,
       detail: copy.recordFrames(
-        voiceCallDuration(record.fromMs),
-        voiceCallDuration(record.toMs),
+        formatCallDuration(record.fromMs),
+        formatCallDuration(record.toMs),
         record.frames,
       ),
     };
   if ('atMs' in record) {
-    const time = voiceCallDuration(record.atMs);
+    const time = formatCallDuration(record.atMs);
     const camera = record.source === 'camera';
     if (record.state === 'share-resumed')
       return {
@@ -74,7 +66,7 @@ export function callRecordLines(
   }
   return record.state === 'started'
     ? { title: copy.recordStarted, detail: copy.recordStartedAt(clock(record.startedAt)) }
-    : { title: copy.recordEnded, detail: copy.recordLength(voiceCallDuration(record.durationMs)) };
+    : { title: copy.recordEnded, detail: copy.recordLength(formatCallDuration(record.durationMs)) };
 }
 
 export function callRecordPreview(

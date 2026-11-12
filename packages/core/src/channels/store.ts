@@ -11,6 +11,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import { allBotPreview, assertAllBotPreview, type AllBotPreview } from './all-bot-mention.js';
 import type { AttachmentMigrationResult } from '../attachments/legacy-migration.js';
 import { projectAttachmentFiles } from '../attachments/message-files.js';
+import { replyPreviewOf } from './reply-preview.js';
 import { assertGrantRequestReply, isGrantRequestResolved } from './grant-request.js';
 import { createHash } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
@@ -617,22 +618,23 @@ export class ChannelReplyTargetError extends Error {
   }
 }
 
-const REPLY_PREVIEW_LIMIT = 140;
-
 function projectReplyBase(
   message: ChannelMessage,
   byId: ReadonlyMap<string, ChannelMessage>,
+  attachments?: AttachmentStore,
 ): ChannelMessage {
   if (message.replyTo === undefined) return message;
   const target = byId.get(message.replyTo);
   if (target === undefined) return { ...message, replyToPreview: null };
-  const normalized = target.body.replace(/\s+/gu, ' ').trim();
-  const characters = Array.from(normalized);
-  const body =
-    characters.length > REPLY_PREVIEW_LIMIT
-      ? characters.slice(0, REPLY_PREVIEW_LIMIT).join('') + '...'
-      : normalized;
-  return { ...message, replyToPreview: { author: target.author, body } };
+  return {
+    ...message,
+    replyToPreview: replyPreviewOf(
+      target,
+      (ref) =>
+        projectAttachmentFiles({ ...target, attachments: [ref] }, attachments).attachments?.[0] ??
+        ref,
+    ),
+  };
 }
 
 function sameMessageIntent(left: ChannelMessage, right: ChannelMessage): boolean {
@@ -640,6 +642,7 @@ function sameMessageIntent(left: ChannelMessage, right: ChannelMessage): boolean
     JSON.stringify(left.author) === JSON.stringify(right.author) &&
     JSON.stringify(left.genui) === JSON.stringify(right.genui) &&
     JSON.stringify(left.genuiReply) === JSON.stringify(right.genuiReply) &&
+    left.genuiReplyContext === right.genuiReplyContext &&
     left.body === right.body &&
     left.replyTo === right.replyTo &&
     JSON.stringify(left.grantRequestResolution) === JSON.stringify(right.grantRequestResolution) &&
@@ -667,6 +670,7 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
             : {}),
         },
         byId,
+        options.attachments,
       ),
       options.attachments,
     );

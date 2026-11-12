@@ -9,6 +9,7 @@ vi.mock('../src/client/ds/tooltip.js', () => ({
 
 import type { CallClientMedia } from '../../core/src/voice/call-client.js';
 import { createVoiceCallHttp } from '../../core/src/voice/call-http.js';
+import { CALL_NOTICES } from '../../core/src/voice/call-view.js';
 import {
   createVoiceCalls,
   type VoiceCallMedia,
@@ -26,10 +27,19 @@ import {
   createDesktopCall,
   desktopCallNotice,
   desktopCallView,
-  formatCallDuration,
   type DesktopCallCaptureHandlers,
 } from '../src/client/desktop-call.js';
+import { CallMicrophoneError, createBrowserCallMedia } from '../src/client/call-media.js';
 import { DmCallControl } from '../src/client/dm-call.js';
+import { CallRailButton } from '../src/client/call-rail-button.js';
+import {
+  CALL_NOTICE_TAG,
+  askCallNotifications,
+  watchCallPresence,
+  type CallNoticeFactory,
+  type CallNoticeHandle,
+} from '../src/client/call-presence.js';
+import { revealDesktopWindow } from '../src/client/desktop-window.js';
 import { en } from '../src/client/locale.js';
 
 const cleanup: (() => unknown)[] = [];
@@ -86,13 +96,16 @@ function host(options: { asr?: boolean; busy?: () => boolean; localOff?: boolean
   return { calls, fetcher, records };
 }
 
-function windowMedia() {
+function windowMedia(refuse?: Error) {
   const started: string[] = [];
   const muted: boolean[] = [];
   let stops = 0;
-  const media: CallClientMedia = {
+  let level = 0;
+  const media: CallClientMedia & { level(): number } = {
+    level: () => level,
     async start({ offer }) {
       started.push(offer);
+      if (refuse !== undefined) throw refuse;
       return 'v=0\r\na=answer\r\n';
     },
     mute: (value) => muted.push(value),
@@ -101,7 +114,15 @@ function windowMedia() {
     },
     onState: () => () => undefined,
   };
-  return { media, started, muted, stops: () => stops };
+  return {
+    media,
+    started,
+    muted,
+    stops: () => stops,
+    speak: (value: number) => {
+      level = value;
+    },
+  };
 }
 
 const RED_JPEG =
@@ -161,8 +182,9 @@ function desktopWindow(
   fetcher: typeof fetch,
   client: string,
   camera: ReturnType<typeof fakeCamera> = fakeCamera(),
+  refuse?: Error,
 ) {
-  const media = windowMedia();
+  const media = windowMedia(refuse);
   const call = createDesktopCall({
     post: createCallPost(client, fetcher),
     media: () => media.media,
@@ -207,7 +229,7 @@ describe('desktop call', () => {
     const other = desktopWindow(fetcher, 'window-win-0002');
     await mac.call.start('mira');
     await other.call.start('mira');
-    expect(other.call.snapshot().block).toEqual({ kind: 'elsewhere' });
+    expect(other.call.snapshot().block).toEqual({ kind: 'elsewhere', notices: ['elsewhere'] });
     expect(desktopCallNotice(other.call.snapshot())).toEqual(['call.elsewhere']);
     expect(other.media.started).toEqual([]);
     expect(mac.call.snapshot().state.status).toBe('live');
@@ -250,12 +272,42 @@ describe('desktop call', () => {
         slug: 'mira',
         checking: false,
         block: undefined,
-        state: { status: 'ended', reason: 'media-failed', error: 'microphone-denied', events: [] },
+        state: {
+          status: 'ended',
+          reason: 'media-failed',
+          mediaCode: 'microphone-denied',
+          events: [],
+        },
         visual: DESKTOP_CALL_VISUAL_OFF,
       }),
     ).toEqual(['call.microphoneDenied']);
-    expect(formatCallDuration(65_400)).toBe('01:05');
-    expect(formatCallDuration(3_725_000)).toBe('1:02:05');
+  });
+
+  it('explains a blocked microphone from its code, not its message', async () => {
+    const { fetcher } = host();
+    const denied = new CallMicrophoneError('microphone-denied');
+    expect(denied.message).not.toBe('microphone-denied');
+    const mac = desktopWindow(fetcher, 'window-mac-0001', fakeCamera(), denied);
+    await mac.call.start('mira');
+    expect(mac.call.snapshot().state).toMatchObject({
+      status: 'ended',
+      reason: 'media-failed',
+      mediaCode: 'microphone-denied',
+      error: denied.message,
+    });
+    expect(desktopCallNotice(mac.call.snapshot())).toEqual(['call.microphoneDenied']);
+  });
+
+  it('has desktop copy for every call notice', () => {
+    const keys = desktopCallNotice({
+      slug: 'mira',
+      checking: false,
+      block: { kind: 'refused', notices: CALL_NOTICES },
+      state: { status: 'idle' },
+      visual: DESKTOP_CALL_VISUAL_OFF,
+    })!;
+    expect(keys).toHaveLength(CALL_NOTICES.length);
+    for (const key of keys) expect((en as Record<string, string>)[key]).toEqual(expect.any(String));
   });
 
   it('renders the call button and the call bar in the chat header', async () => {
@@ -284,7 +336,7 @@ describe('desktop call', () => {
     const bar = element.querySelector('[role="group"][aria-label="Call with Mira"]')!;
     expect(bar).not.toBeNull();
     expect(bar.querySelector('[role="status"]')?.textContent).toBe('Listening');
-    expect(bar.querySelector('.bh-call-duration')?.textContent).toMatch(/^00:0\d$/u);
+    expect(bar.querySelector('.bh-call-duration')?.textContent).toMatch(/^0:0\d$/u);
     const mute = bar.querySelector<HTMLButtonElement>('button[aria-label="Mute"]')!;
     await act(async () => mute.click());
     expect(element.querySelector('button[aria-label="Unmute"]')?.getAttribute('aria-pressed')).toBe(
@@ -475,5 +527,394 @@ describe('desktop call', () => {
       notice.querySelector<HTMLButtonElement>('.bh-call-camera-close')!.click(),
     );
     expect(document.body.querySelector('.bh-call-camera')).toBeNull();
+  });
+
+  it('sends hang-up with keepalive so it outlives a closing window', async () => {
+    const seen: { kind: unknown; keepalive: unknown }[] = [];
+    const post = createCallPost('window-keep-0001', (async (_input, init) => {
+      const body = JSON.parse(String(init?.body)) as { kind: unknown };
+      seen.push({ kind: body.kind, keepalive: init?.keepalive });
+      return new Response(JSON.stringify({ ok: true }));
+    }) as typeof fetch);
+    await post({ kind: 'heartbeat', callId: 'c' });
+    await post({ kind: 'hangup', callId: 'c' });
+    expect(seen).toEqual([
+      { kind: 'heartbeat', keepalive: undefined },
+      { kind: 'hangup', keepalive: true },
+    ]);
+  });
+
+  it('reads the caller microphone level only while live and unmuted', async () => {
+    const { fetcher } = host();
+    const mac = desktopWindow(fetcher, 'window-mac-0001');
+    mac.media.speak(0.7);
+    expect(mac.call.level()).toBe(0);
+    await mac.call.start('mira');
+    expect(mac.call.snapshot().state.status).toBe('live');
+    expect(mac.call.level()).toBe(0.7);
+    await mac.call.mute(true);
+    expect(mac.call.level()).toBe(0);
+    await mac.call.mute(false);
+    expect(mac.call.level()).toBe(0.7);
+    await mac.call.hangup();
+    expect(mac.call.level()).toBe(0);
+  });
+
+  it('ripples the call bar microphone while the caller can be heard', async () => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    const { fetcher } = host();
+    const mac = desktopWindow(fetcher, 'window-mac-0001');
+    await mac.call.start('mira');
+    const element = document.createElement('div');
+    const root = createRoot(element);
+    cleanup.push(() => act(() => root.unmount()));
+    await act(async () =>
+      root.render(<DmCallControl slug="mira" name="Mira" t={translate()} call={mac.call} />),
+    );
+    const ripple = () => element.querySelector('.bh-call-mic.bh-voice-ripple');
+    expect(ripple()?.getAttribute('data-ripple')).toBe('on');
+    await act(async () => mac.call.mute(true));
+    expect(ripple()?.hasAttribute('data-ripple')).toBe(false);
+  });
+
+  it('shows the calling Bot in the rail and returns to its chat', async () => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    const { fetcher } = host();
+    const mac = desktopWindow(fetcher, 'window-mac-0001');
+    const element = document.createElement('div');
+    const root = createRoot(element);
+    cleanup.push(() => act(() => root.unmount()));
+    const reveal = vi.fn();
+    await act(async () =>
+      root.render(<CallRailButton t={translate()} onReturn={reveal} call={mac.call} />),
+    );
+    expect(element.querySelector('.bh-call-rail-button')).toBeNull();
+    const open = vi.fn();
+    await act(async () => mac.call.start('mira', { title: 'On a call', body: '', open }));
+    const button = element.querySelector<HTMLButtonElement>(
+      'button[aria-label="Back to the call with mira"]',
+    )!;
+    expect(button).not.toBeNull();
+    expect(button.querySelector('.bh-call-rail-badge')).not.toBeNull();
+    await act(async () => button.click());
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(reveal).toHaveBeenCalledTimes(1);
+    await act(async () => mac.call.hangup());
+    expect(element.querySelector('.bh-call-rail-button')).toBeNull();
+  });
+
+  it('stops a microphone that opens after the call was stopped and never meters it', async () => {
+    const contexts: string[] = [];
+    vi.stubGlobal(
+      'AudioContext',
+      class {
+        constructor() {
+          contexts.push('opened');
+        }
+      },
+    );
+    let stopped = 0;
+    let grant: ((stream: MediaStream) => void) | undefined;
+    const stream = {
+      getTracks: () => [{ stop: () => (stopped += 1) }],
+      getAudioTracks: () => [{ enabled: true, stop: () => (stopped += 1) }],
+    } as unknown as MediaStream;
+    const media = createBrowserCallMedia(
+      () =>
+        ({
+          getUserMedia: () => new Promise<MediaStream>((resolve) => (grant = resolve)),
+        }) as unknown as MediaDevices,
+    );
+    const started = media.start({ callId: 'call-1', offer: 'v=0' });
+    await vi.waitFor(() => expect(grant).toBeDefined());
+    media.stop();
+    grant!(stream);
+    await expect(started).rejects.toThrow('call-stopped');
+    expect(stopped).toBe(1);
+    expect(contexts).toEqual([]);
+    expect(media.level()).toBe(0);
+  });
+
+  it('retries a reset heartbeat once and never aborts one the Host may still read', async () => {
+    const calls: { kind: string; signal: boolean }[] = [];
+    let attempt = 0;
+    const post = createCallPost('window-retry-0001', ((_input, init) => {
+      const kind = (JSON.parse(String(init?.body)) as { kind: string }).kind;
+      calls.push({ kind, signal: init?.signal !== undefined });
+      attempt += 1;
+      if (kind !== 'heartbeat' || attempt === 1)
+        return Promise.reject(new TypeError('fetch failed'));
+      return Promise.resolve(new Response(JSON.stringify({ ok: true })));
+    }) as typeof fetch);
+    await expect(post({ kind: 'heartbeat', callId: 'c' })).resolves.toEqual({ ok: true });
+    await expect(post({ kind: 'mute', callId: 'c', muted: true })).rejects.toThrow('fetch failed');
+    expect(calls).toEqual([
+      { kind: 'heartbeat', signal: false },
+      { kind: 'heartbeat', signal: false },
+      { kind: 'mute', signal: false },
+    ]);
+  });
+});
+function presenceDoc() {
+  let state: DocumentVisibilityState = 'visible';
+  const listeners = new Set<() => void>();
+  return {
+    doc: {
+      get visibilityState() {
+        return state;
+      },
+      addEventListener: (_type: string, listener: () => void) => listeners.add(listener),
+      removeEventListener: (_type: string, listener: () => void) => listeners.delete(listener),
+    } as unknown as Pick<Document, 'visibilityState' | 'addEventListener' | 'removeEventListener'>,
+    set(next: DocumentVisibilityState) {
+      state = next;
+      for (const listener of [...listeners]) listener();
+    },
+    listeners: () => listeners.size,
+  };
+}
+
+function presenceNotices() {
+  const shown: {
+    title: string;
+    body: string;
+    tag: string;
+    closed: boolean;
+    handle: CallNoticeHandle;
+  }[] = [];
+  const factory: CallNoticeFactory = (title, options) => {
+    const entry = {
+      title,
+      body: options.body,
+      tag: options.tag,
+      closed: false,
+      handle: undefined as unknown as CallNoticeHandle,
+    };
+    entry.handle = {
+      onclick: null,
+      close: () => {
+        entry.closed = true;
+      },
+    };
+    shown.push(entry);
+    return entry.handle;
+  };
+  return { shown, factory };
+}
+
+describe('desktop call in the background', () => {
+  it('posts one system notice while the window is hidden and returns to the chat on click', async () => {
+    const { fetcher } = host();
+    const mac = desktopWindow(fetcher, 'window-bg-0001');
+    const page = presenceDoc();
+    const notices = presenceNotices();
+    const opened: string[] = [];
+    let focused = 0;
+    const stop = watchCallPresence({
+      settleMs: 0,
+      call: mac.call,
+      doc: page.doc,
+      notice: () => notices.factory,
+      focus: () => {
+        focused += 1;
+      },
+    });
+    cleanup.push(stop);
+    page.set('hidden');
+    expect(notices.shown).toHaveLength(0);
+    page.set('visible');
+    const t = translate() as (key: string, params?: Record<string, string>) => string;
+    await mac.call.start('mira', {
+      title: t('call.backgroundTitle', { name: 'Mira' }),
+      body: t('call.backgroundBody'),
+      open: () => opened.push('dm-mira'),
+    });
+    expect(notices.shown).toHaveLength(0);
+    page.set('hidden');
+    expect(notices.shown).toEqual([
+      expect.objectContaining({
+        title: 'On a call with Mira',
+        body: 'Click to return to the call.',
+        tag: CALL_NOTICE_TAG,
+        closed: false,
+      }),
+    ]);
+    await mac.call.mute(true);
+    expect(notices.shown).toHaveLength(1);
+    page.set('visible');
+    expect(notices.shown[0]?.closed).toBe(true);
+    page.set('hidden');
+    expect(notices.shown).toHaveLength(2);
+    notices.shown[1]?.handle.onclick?.(new Event('click'));
+    expect(focused).toBe(1);
+    expect(opened).toEqual(['dm-mira']);
+    expect(notices.shown[1]?.closed).toBe(true);
+    expect(mac.call.snapshot().state.status).toBe('live');
+  });
+
+  it('withdraws the notice when the call ends while hidden', async () => {
+    const { fetcher } = host();
+    const mac = desktopWindow(fetcher, 'window-bg-0002');
+    const page = presenceDoc();
+    const notices = presenceNotices();
+    const stop = watchCallPresence({
+      settleMs: 0,
+      call: mac.call,
+      doc: page.doc,
+      notice: () => notices.factory,
+    });
+    await mac.call.start('mira', { title: 'On a call with Mira', body: '', open: () => undefined });
+    page.set('hidden');
+    expect(notices.shown).toHaveLength(1);
+    await mac.call.hangup();
+    expect(notices.shown[0]?.closed).toBe(true);
+    stop();
+    expect(page.listeners()).toBe(0);
+  });
+
+  it('stays quiet without notification permission or a known chat', async () => {
+    const { fetcher } = host();
+    const mac = desktopWindow(fetcher, 'window-bg-0003');
+    const page = presenceDoc();
+    const notices = presenceNotices();
+    cleanup.push(
+      watchCallPresence({ settleMs: 0, call: mac.call, doc: page.doc, notice: () => undefined }),
+    );
+    cleanup.push(
+      watchCallPresence({
+        settleMs: 0,
+        call: mac.call,
+        doc: page.doc,
+        notice: () => notices.factory,
+      }),
+    );
+    await mac.call.start('mira');
+    page.set('hidden');
+    expect(notices.shown).toHaveLength(0);
+    page.set('visible');
+    await mac.call.hangup();
+    const silent = desktopWindow(fetcher, 'window-bg-0004');
+    cleanup.push(
+      watchCallPresence({ settleMs: 0, call: silent.call, doc: page.doc, notice: () => undefined }),
+    );
+    await silent.call.start('mira', { title: 'x', body: 'y', open: () => undefined });
+    page.set('hidden');
+    expect(notices.shown).toHaveLength(0);
+  });
+
+  it('does not post a clicked or dismissed notice again while the window stays hidden', async () => {
+    const { fetcher } = host();
+    const mac = desktopWindow(fetcher, 'window-bg-0005');
+    const page = presenceDoc();
+    const notices = presenceNotices();
+    cleanup.push(
+      watchCallPresence({
+        settleMs: 0,
+        call: mac.call,
+        doc: page.doc,
+        notice: () => notices.factory,
+        focus: () => undefined,
+      }),
+    );
+    await mac.call.start('mira', { title: 'On a call with Mira', body: '', open: () => undefined });
+    page.set('hidden');
+    expect(notices.shown).toHaveLength(1);
+    notices.shown[0]?.handle.onclick?.(new Event('click'));
+    await mac.call.mute(true);
+    await mac.call.mute(false);
+    expect(notices.shown).toHaveLength(1);
+    page.set('visible');
+    page.set('hidden');
+    expect(notices.shown).toHaveLength(2);
+    notices.shown[1]?.handle.onclose?.(new Event('close'));
+    await mac.call.mute(true);
+    expect(notices.shown).toHaveLength(2);
+    page.set('visible');
+    page.set('hidden');
+    expect(notices.shown).toHaveLength(3);
+  });
+
+  it('asks the Host to bring the Desktop window back, and focuses the page either way', async () => {
+    const requests: { url: string; body: unknown }[] = [];
+    let focused = 0;
+    const fetcher = (async (url, init) => {
+      requests.push({ url: String(url), body: JSON.parse(String(init?.body)) });
+      return new Response('{}');
+    }) as typeof fetch;
+    revealDesktopWindow(fetcher, () => (focused += 1));
+    expect(requests).toEqual([]);
+    vi.stubGlobal('dshDesktop', { protocolVersion: 1 });
+    revealDesktopWindow(fetcher, () => (focused += 1));
+    vi.unstubAllGlobals();
+    expect(focused).toBe(2);
+    expect(requests).toEqual([
+      { url: './api/botharness/desktop-window', body: { action: 'reveal' } },
+    ]);
+  });
+  it('ignores brief visibility flips, so a covered or flickering window gets one notice', async () => {
+    vi.useFakeTimers();
+    cleanup.push(() => vi.useRealTimers());
+    const { fetcher } = host();
+    const mac = desktopWindow(fetcher, 'window-bg-0008');
+    const page = presenceDoc();
+    const notices = presenceNotices();
+    let clock = 0;
+    cleanup.push(
+      watchCallPresence({
+        call: mac.call,
+        doc: page.doc,
+        notice: () => notices.factory,
+        focus: () => undefined,
+        settleMs: 1_500,
+        now: () => clock,
+      }),
+    );
+    await mac.call.start('mira', { title: 'On a call with Mira', body: '', open: () => undefined });
+    const step = async (ms: number) => {
+      clock += ms;
+      await vi.advanceTimersByTimeAsync(ms);
+    };
+    page.set('hidden');
+    await step(500);
+    page.set('visible');
+    await step(500);
+    expect(notices.shown).toHaveLength(0);
+    page.set('hidden');
+    await step(1_600);
+    expect(notices.shown).toHaveLength(1);
+    page.set('visible');
+    await step(400);
+    page.set('hidden');
+    await step(2_000);
+    expect(notices.shown).toHaveLength(1);
+    expect(notices.shown[0]?.closed).toBe(false);
+    notices.shown[0]?.handle.onclose?.(new Event('close'));
+    page.set('visible');
+    await step(300);
+    page.set('hidden');
+    await step(2_000);
+    expect(notices.shown).toHaveLength(1);
+    page.set('visible');
+    await step(1_600);
+    page.set('hidden');
+    await step(1_600);
+    expect(notices.shown).toHaveLength(2);
+    await mac.call.hangup();
+    expect(notices.shown[1]?.closed).toBe(true);
+  });
+  it('asks for notification permission only while it is undecided', async () => {
+    const requests: string[] = [];
+    const api = (permission: NotificationPermission) => ({
+      permission,
+      requestPermission: async () => {
+        requests.push(permission);
+        return 'granted' as const;
+      },
+    });
+    askCallNotifications(api('granted'));
+    askCallNotifications(api('denied'));
+    askCallNotifications(api('default'));
+    askCallNotifications(undefined);
+    expect(requests).toEqual(['default']);
   });
 });

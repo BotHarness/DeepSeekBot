@@ -6,6 +6,7 @@ import type { BridgeActions } from './actions.js';
 import { botModeSidebarViewport } from './bot-mode-sidebar-viewport.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
+import { hostAcknowledgements } from './host-acknowledgements.js';
 import { onboardingFor, type OnboardingController } from './onboarding.js';
 import {
   CHECKLIST_ITEMS,
@@ -404,14 +405,25 @@ export function OnboardingChecklist({
 }
 
 const ENTERED_KEY = 'botharness/onboarding/bot-mode-entered';
+const ENTERED_ACK = 'bot-mode-entered';
 
 export function markBotModeEntered(): void {
+  const acks = hostAcknowledgements();
+  if (acks !== undefined) {
+    acks.record(ENTERED_ACK, '1', ENTERED_KEY);
+    return;
+  }
   try {
     localStorage.setItem(ENTERED_KEY, '1');
   } catch {}
 }
 
 function botModeEntered(): boolean {
+  const acks = hostAcknowledgements();
+  if (acks !== undefined) {
+    if (acks.value(ENTERED_ACK, ENTERED_KEY) !== undefined) return true;
+    return !acks.settled;
+  }
   try {
     return localStorage.getItem(ENTERED_KEY) !== null;
   } catch {
@@ -419,7 +431,12 @@ function botModeEntered(): boolean {
   }
 }
 
+const noAcknowledgements = (): (() => void) => () => {};
+const noRevision = (): number => 0;
+
 export function OnboardingEnterHint({ t }: { t: BotHarnessTranslate }): ReactElement | null {
+  const acks = hostAcknowledgements();
+  useSyncExternalStore(acks?.subscribe ?? noAcknowledgements, acks?.getRevision ?? noRevision);
   if (botModeEntered()) return null;
   return (
     <span className="bh-onboarding-enter" title={t('onboarding.enter.hint')}>

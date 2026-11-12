@@ -48,6 +48,7 @@ export function mountAppearance(owner: Appearance): () => void {
   const update = () => {
     style.textContent = appearanceCss(owner.getSnapshot());
     style.dataset.bhAppearance = owner.getSnapshot().mode;
+    document.documentElement.dataset.bhAppearance = owner.getSnapshot().mode;
   };
   const media = window.matchMedia('(prefers-color-scheme: dark)');
   const onStorage = (event: StorageEvent) => {
@@ -61,6 +62,7 @@ export function mountAppearance(owner: Appearance): () => void {
   return () => {
     off();
     style.remove();
+    delete document.documentElement.dataset.bhAppearance;
     media.removeEventListener('change', owner.refresh);
     window.removeEventListener('storage', onStorage);
   };

@@ -25,12 +25,48 @@ remain failures to investigate. An admitted future version is not a tested versi
 The current oldest concrete qualification target is `0.2.0-rc.2`; the broader
 admission floor does not establish runtime evidence for earlier prereleases.
 
+## 0. The canary sees new releases first
+
+`.github/workflows/dsh-canary.yml` runs `node scripts/dsh-canary.mjs run` once for each new
+version on the DSH `next` dist-tag: it starts the Tobs Bundle on that Host, creates a Bot, sends a
+DM and requires the turn to reach the model (`MISSING_CREDENTIAL` without a key counts as passed).
+A setup error or any `botharness.host_capability.degraded` diagnostic row fails it. A red canary is
+the trigger for this runbook. Run it locally with `--dsh-version <version>`; it uses the AX model
+when one is configured. Host API access, optional/required capability tiers and the
+`HOST_INCOMPATIBLE` failure are defined in
+[ADR-0316](../adr/0316-host-capabilities-degrade-or-fail-with-host-incompatible.md).
+
 ## 1. Establish the upstream and product baseline
 
 Read the official release notes, source comparison and published package manifests.
 Record the exact tag/source revision, package versions and artifact digests. Check
 that the RC's dependency wave is installable before changing the working baseline.
 Review open upgrade claims and related upstream issues.
+
+Before an npm qualification run, use `scripts/dsh-npm-availability.mjs <exact-version>`
+from the selected checkout and retain its JSON output. This read-only check queries
+the exact CLI and Theme versions at `https://registry.npmjs.org`, independently of
+local npm configuration. It never installs packages, changes pins or selects a fallback.
+Exit 0 means both manifests are available; exit 1 means unavailable or inconclusive;
+exit 2 means invalid arguments. Availability is metadata evidence only: tarball
+integrity, the complete dependency wave, installation and runtime remain separate gates.
+
+- `version-unavailable`: exact endpoint returned 404, the package metadata returned
+  200 with the expected name, and its versions omit the requested version.
+- `package-unavailable`: both endpoints returned 404; recheck the upstream package
+  name and public distribution. This alone does not prove a never-published package.
+- `lookup-failed`: network, authorization, rate-limit, server or JSON failure; do
+  not report this as an unpublished release.
+- `metadata-inconsistent`: manifest identity disagrees, or the exact endpoint and
+  package version list disagree; investigate before installation.
+
+The Desktop feed, Git tag and npm wave are independent. In #4024, official Windows
+Desktop rc.2 was downloadable while both npm rc.2 versions were absent. The Tobs
+optional Desktop zoom setup links its packaged, hash-checked Theme through the
+Desktop's package manager; it does not fetch the rc.2 npm Theme or require an rc.2
+npm CLI. Preserve that path and its exact version, integrity, ownership and stopped
+Profile checks. Do not replace it with an unqualified npm override. Recheck npm
+when the upstream wave appears, then qualify those actual artifacts separately.
 
 First install the current **published Tobs artifact** on the new RC in an isolated
 Profile. Preserve the installed package inventory, startup logs, API health and

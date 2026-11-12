@@ -2,6 +2,8 @@ import { vi } from 'vitest';
 export const notificationTaps = new Set<(data: unknown, action?: string) => void>();
 export const secure = new Map<string, string>();
 export const refreshNotificationPermission = vi.fn(async () => undefined);
+export const preferenceSync = vi.fn(async (_hosts: readonly { hostId: string }[]) => {});
+export const preferenceRetry = vi.fn(async (_host?: { hostId: string }) => {});
 
 vi.mock('expo-secure-store', () => ({
   WHEN_UNLOCKED_THIS_DEVICE_ONLY: 0,
@@ -24,7 +26,9 @@ vi.mock('../src/host/native-source-drafts', async () => {
       const value = useSyncExternalStore(sourceDrafts.subscribe, () => sourceDrafts.get(key));
       const set = useCallback((value: string) => sourceDrafts.set(key, value), [key]);
       const persistence = useSyncExternalStore(sourceDrafts.subscribe, sourceDrafts.getPersistence);
-      return [value, set, { ...persistence, retry: sourceDrafts.retrySave }] as const;
+      const read = useCallback(() => sourceDrafts.get(key), [key]);
+      const take = useCallback((sent?: string) => sourceDrafts.take(key, sent), [key]);
+      return [value, set, { ...persistence, retry: sourceDrafts.retrySave, read, take }] as const;
     },
   };
 });
@@ -65,6 +69,7 @@ vi.mock('../src/telemetry/connection', () => ({
 vi.mock('../src/host/push-session', () => ({
   createPushSession: () => ({
     getSnapshot: () => ({ status: 'off' }),
+    enable: async () => undefined,
     sync: async () => undefined,
     forget: async () => undefined,
     retryFailed: async () => undefined,
@@ -97,8 +102,8 @@ vi.mock('../src/host/native-notification-preferences', () => ({
     }),
     subscribe: () => () => {},
     setForeground() {},
-    sync: async () => {},
-    retry: async () => {},
+    sync: preferenceSync,
+    retry: preferenceRetry,
     prepare: async () => ({}),
   },
 }));

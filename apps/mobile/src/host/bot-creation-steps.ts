@@ -1,5 +1,5 @@
 import type { BotCreationDraft, BotCreationOperation } from './bot-creation';
-import type { HostStatus } from './host-glance';
+import { hostUnavailable, type HostStatus } from './host-glance';
 
 export type CreationFlow = 'blank' | 'git' | 'zip' | 'marketplace';
 export type CreationStep =
@@ -40,7 +40,7 @@ export interface EnvironmentChoice {
 }
 
 export function defaultEnvironment(choices: readonly EnvironmentChoice[], last: string): string {
-  const usable = choices.filter((choice) => choice.status !== 'offline');
+  const usable = choices.filter((choice) => !hostUnavailable(choice.status));
   if (choices.length === 1) return usable[0]?.hostId ?? '';
   return usable.some((choice) => choice.hostId === last) ? last : '';
 }
@@ -53,7 +53,7 @@ export function creationStepReady(
   switch (step) {
     case 'environment':
       return choices.some(
-        (choice) => choice.hostId === draft.hostId && choice.status !== 'offline',
+        (choice) => choice.hostId === draft.hostId && !hostUnavailable(choice.status),
       );
     case 'git':
       return draft.source?.kind === 'git' && draft.source.gitUrl.trim() !== '';

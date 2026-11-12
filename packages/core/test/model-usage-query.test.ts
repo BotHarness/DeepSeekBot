@@ -82,7 +82,7 @@ function setup() {
 }
 
 describe('observed model usage through the Profile query', () => {
-  it('attributes four provider buckets and exact total independently of the configured model', () => {
+  it('attributes four provider buckets and exact total independently of the configured model', async () => {
     const { methods, dm, fold, time } = setup();
     fold({
       inputTokens: 100,
@@ -91,7 +91,7 @@ describe('observed model usage through the Profile query', () => {
       cacheWriteTokens: 5,
       totalTokens: 155,
     });
-    const result = methods.profileActivity({ channelId: dm.id });
+    const result = await methods.profileActivity({ channelId: dm.id });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.error.message);
     expect(result.value.modelUsageStatus).toBe('ready');
@@ -110,10 +110,10 @@ describe('observed model usage through the Profile query', () => {
     ]);
   });
 
-  it('derives the one bucket a provider left out from its exact total', () => {
+  it('derives the one bucket a provider left out from its exact total', async () => {
     const { methods, dm, fold } = setup();
     fold({ inputTokens: 100, outputTokens: 40, cacheReadTokens: 10, totalTokens: 155 });
-    const result = methods.profileActivity({ channelId: dm.id });
+    const result = await methods.profileActivity({ channelId: dm.id });
     if (!result.ok) throw new Error(result.error.message);
     expect(result.value.modelUsageRows[0]).toMatchObject({
       inputTokens: 100,
@@ -124,13 +124,13 @@ describe('observed model usage through the Profile query', () => {
     });
   });
 
-  it('counts omitted cache buckets as zero when the reported buckets already make the total', () => {
+  it('counts omitted cache buckets as zero when the reported buckets already make the total', async () => {
     const { methods, dm, fold } = setup();
     fold(
       { inputTokens: 22669, outputTokens: 38, totalTokens: 22707 },
       { inputTokens: 248, outputTokens: 1, cacheReadTokens: 22528, totalTokens: 22777 },
     );
-    const result = methods.profileActivity({ channelId: dm.id });
+    const result = await methods.profileActivity({ channelId: dm.id });
     if (!result.ok) throw new Error(result.error.message);
     expect(result.value.modelUsageRows[0]).toMatchObject({
       inputTokens: 22917,
@@ -141,10 +141,10 @@ describe('observed model usage through the Profile query', () => {
     });
   });
 
-  it('keeps several omitted buckets unknown when the total cannot say how they split', () => {
+  it('keeps several omitted buckets unknown when the total cannot say how they split', async () => {
     const { methods, dm, fold } = setup();
     fold({ inputTokens: 100, outputTokens: 40, totalTokens: 155 });
-    const result = methods.profileActivity({ channelId: dm.id });
+    const result = await methods.profileActivity({ channelId: dm.id });
     if (!result.ok) throw new Error(result.error.message);
     expect(result.value.modelUsageRows[0]).toMatchObject({
       inputTokens: 100,
@@ -155,10 +155,10 @@ describe('observed model usage through the Profile query', () => {
     });
   });
 
-  it('does not accept a total that contradicts the reported buckets', () => {
+  it('does not accept a total that contradicts the reported buckets', async () => {
     const { methods, dm, fold, usage, time } = setup();
     fold({ inputTokens: 100, outputTokens: 40, cacheReadTokens: 10, totalTokens: 10 });
-    const result = methods.profileActivity({ channelId: dm.id });
+    const result = await methods.profileActivity({ channelId: dm.id });
     if (!result.ok) throw new Error(result.error.message);
     expect(result.value.modelUsageRows[0]).toMatchObject({
       inputTokens: 100,
@@ -176,7 +176,7 @@ describe('observed model usage through the Profile query', () => {
     });
   });
 
-  it('preserves reported buckets across same-route settlements with incomplete usage', () => {
+  it('preserves reported buckets across same-route settlements with incomplete usage', async () => {
     const { methods, dm, fold } = setup();
     fold(
       {
@@ -188,7 +188,7 @@ describe('observed model usage through the Profile query', () => {
       },
       { outputTokens: 40, cacheReadTokens: 10, totalTokens: 155 },
     );
-    const result = methods.profileActivity({ channelId: dm.id });
+    const result = await methods.profileActivity({ channelId: dm.id });
     if (!result.ok) throw new Error(result.error.message);
     expect(result.value.modelUsageRows[0]).toMatchObject({
       provider: 'actual-provider',
@@ -201,7 +201,7 @@ describe('observed model usage through the Profile query', () => {
     });
   });
 
-  it('separates incomplete multi-route usage into its actual routes', () => {
+  it('separates incomplete multi-route usage into its actual routes', async () => {
     const { methods, dm, fold } = setup();
     fold(
       {
@@ -214,7 +214,7 @@ describe('observed model usage through the Profile query', () => {
       { outputTokens: 40, cacheReadTokens: 10, totalTokens: 155 },
       'other-model',
     );
-    const result = methods.profileActivity({ channelId: dm.id });
+    const result = await methods.profileActivity({ channelId: dm.id });
     if (!result.ok) throw new Error(result.error.message);
     expect(result.value.modelUsageRows[0]).toMatchObject({
       provider: 'actual-provider',
@@ -236,10 +236,10 @@ describe('observed model usage through the Profile query', () => {
     });
   });
 
-  it('shows an actual route with unknown usage instead of a fabricated zero', () => {
+  it('shows an actual route with unknown usage instead of a fabricated zero', async () => {
     const { methods, dm, fold } = setup();
     fold();
-    const result = methods.profileActivity({ channelId: dm.id });
+    const result = await methods.profileActivity({ channelId: dm.id });
     if (!result.ok) throw new Error(result.error.message);
     expect(result.value.modelUsageRows[0]).toMatchObject({
       provider: 'actual-provider',
@@ -252,7 +252,7 @@ describe('observed model usage through the Profile query', () => {
     });
   });
 
-  it('counts failed and retried settlements by their dispatched routes without a completed Turn', () => {
+  it('counts failed and retried settlements by their dispatched routes without a completed Turn', async () => {
     const { methods, dm, usage, time } = setup();
     const report = {
       inputTokens: 2,
@@ -294,7 +294,7 @@ describe('observed model usage through the Profile query', () => {
     ];
     for (const event of events) usage.handleSessionEvent('actual-session', event);
     for (const event of events) usage.handleSessionEvent('actual-session', event);
-    const result = methods.profileActivity({ channelId: dm.id });
+    const result = await methods.profileActivity({ channelId: dm.id });
     if (!result.ok) throw new Error(result.error.message);
     expect(result.value.modelUsageRows).toHaveLength(2);
     expect(result.value.modelUsageRows).toEqual(
@@ -316,12 +316,12 @@ describe('observed model usage through the Profile query', () => {
       seq: 5,
       surfaceOp: { op: 'replace', startSeq: 4, endSeq: 4 },
     });
-    const after = methods.profileActivity({ channelId: dm.id });
+    const after = await methods.profileActivity({ channelId: dm.id });
     if (!after.ok) throw new Error(after.error.message);
     expect(after.value.modelUsageRows).toEqual(result.value.modelUsageRows);
   });
 
-  it('uses only trusted ownership for root, Assignment and Subagent usage', () => {
+  it('uses only trusted ownership for root, Assignment and Subagent usage', async () => {
     const { methods, dm, usage, ownership, time } = setup();
     ownership.claim({
       sessionId: 'assignment',
@@ -348,7 +348,7 @@ describe('observed model usage through the Profile query', () => {
     };
     for (const sessionId of ['actual-session', 'assignment', 'child', 'unowned'])
       usage.handleSessionEvent(sessionId, event);
-    const result = methods.profileActivity({ channelId: dm.id });
+    const result = await methods.profileActivity({ channelId: dm.id });
     if (!result.ok) throw new Error(result.error.message);
     expect(result.value.modelUsageRows.map((row) => row.purpose).sort()).toEqual([
       'assignment',
@@ -358,7 +358,7 @@ describe('observed model usage through the Profile query', () => {
     expect(result.value.modelUsageRows.every((row) => row.totalTokens === 3)).toBe(true);
   });
 
-  it('retains unknown failed attempts independently of a successful route', () => {
+  it('retains unknown failed attempts independently of a successful route', async () => {
     const { methods, dm, usage, fold, time } = setup();
     usage.handleSessionEvent('actual-session', {
       seq: 100,
@@ -373,7 +373,7 @@ describe('observed model usage through the Profile query', () => {
       cacheWriteTokens: 5,
       totalTokens: 155,
     });
-    const result = methods.profileActivity({ channelId: dm.id });
+    const result = await methods.profileActivity({ channelId: dm.id });
     if (!result.ok) throw new Error(result.error.message);
     expect(result.value.modelUsageRows).toEqual(
       expect.arrayContaining([
@@ -393,7 +393,7 @@ describe('observed model usage through the Profile query', () => {
     );
   });
 
-  it('primes the persisted request route on resume and keeps independent unknown buckets', () => {
+  it('primes the persisted request route on resume and keeps independent unknown buckets', async () => {
     const { methods, dm, usage, time } = setup();
     usage.primeSession('actual-session', [
       {
@@ -434,7 +434,7 @@ describe('observed model usage through the Profile query', () => {
         ],
       },
     });
-    const result = methods.profileActivity({ channelId: dm.id });
+    const result = await methods.profileActivity({ channelId: dm.id });
     if (!result.ok) throw new Error(result.error.message);
     expect(result.value.modelUsageRows).toEqual([
       expect.objectContaining({
@@ -449,7 +449,7 @@ describe('observed model usage through the Profile query', () => {
     ]);
   });
 
-  it('attributes a late settlement to the route preceding its durable sequence', () => {
+  it('attributes a late settlement to the route preceding its durable sequence', async () => {
     const { methods, dm, usage, time } = setup();
     usage.primeSession('actual-session', [
       {
@@ -475,14 +475,14 @@ describe('observed model usage through the Profile query', () => {
         ],
       },
     });
-    const result = methods.profileActivity({ channelId: dm.id });
+    const result = await methods.profileActivity({ channelId: dm.id });
     if (!result.ok) throw new Error(result.error.message);
     expect(result.value.modelUsageRows).toEqual([
       expect.objectContaining({ provider: 'earlier', model: 'earlier-model', totalTokens: 3 }),
     ]);
   });
 
-  it('keeps invalid totals unknown in strict queries while Profile retains the reported lower bound', () => {
+  it('keeps invalid totals unknown in strict queries while Profile retains the reported lower bound', async () => {
     const { methods, dm, fold, usage, time } = setup();
     fold({
       inputTokens: 100,
@@ -491,7 +491,7 @@ describe('observed model usage through the Profile query', () => {
       cacheWriteTokens: 5,
       totalTokens: -1,
     });
-    const result = methods.profileActivity({ channelId: dm.id });
+    const result = await methods.profileActivity({ channelId: dm.id });
     if (!result.ok) throw new Error(result.error.message);
     expect(result.value.modelUsageRows[0]).toMatchObject({
       totalTokens: 155,
@@ -506,9 +506,9 @@ describe('observed model usage through the Profile query', () => {
     });
   });
 
-  it('rejects a non-DM channel rather than exposing other usage', () => {
+  it('rejects a non-DM channel rather than exposing other usage', async () => {
     const { methods, channels } = setup();
     const group = channels.createGroup({ name: 'Group', members: [] });
-    expect(methods.profileActivity({ channelId: group.id }).ok).toBe(false);
+    expect((await methods.profileActivity({ channelId: group.id })).ok).toBe(false);
   });
 });

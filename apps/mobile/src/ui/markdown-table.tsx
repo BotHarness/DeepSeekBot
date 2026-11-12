@@ -1,7 +1,8 @@
 import type { Tokens } from 'marked';
 import { memo, useMemo, type ReactNode } from 'react';
 import type { Token } from 'marked';
-import { ScrollView, View } from 'react-native';
+import { View } from 'react-native';
+import { HorizontalScroll } from './primitives/horizontal-scroll';
 
 import { edge, markdownTable, radius, space } from './design/tokens';
 import { useDesignTheme } from './design/theme';
@@ -107,7 +108,7 @@ export function MarkdownTable({
   );
   const align = JSON.stringify(table.align);
   return (
-    <ScrollView horizontal style={{ flexGrow: 0 }}>
+    <HorizontalScroll style={{ flexGrow: 0 }}>
       <View
         style={{
           borderWidth: edge.hairline,
@@ -140,6 +141,6 @@ export function MarkdownTable({
           />
         ))}
       </View>
-    </ScrollView>
+    </HorizontalScroll>
   );
 }

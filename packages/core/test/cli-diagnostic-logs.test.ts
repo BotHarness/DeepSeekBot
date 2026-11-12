@@ -31,11 +31,11 @@ describe('diagnostic log CLI', () => {
     }));
     const result = await runDiagnosticLogCommand(
       'diagnostic-logs',
-      { kind: 'error', limit: '50', since: '1000' },
+      { kind: 'error', limit: '50', since: '1000', host: 'http://127.0.0.1:1' },
       io() as never,
       (async () => ({ http })) as unknown as Connect,
     );
-    expect(result).toEqual({ entries: [{ code: 'click' }] });
+    expect(result).toEqual({ entries: [{ code: 'click' }], source: 'host' });
     expect(http).toHaveBeenCalledWith(
       '/api/botharness/diagnostic-logs?filter=error&since=1000&limit=50',
     );
@@ -195,6 +195,75 @@ describe('diagnostic log CLI', () => {
         vi.fn() as unknown as Connect,
       ),
     ).rejects.toMatchObject({ code: 'log-unreadable' });
+  });
+
+  it('falls back to logs.db when the Host answers with something that is not a log list', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'diagnostic-home-'));
+    dirs.push(home);
+    openLogDatabase({ dir: join(home, 'botharness') }).close();
+    for (const body of ['<html>proxy error</html>', '{"error":"busy"}', 'null']) {
+      const http = vi.fn(async () => ({
+        bytes: new TextEncoder().encode(body),
+        response: new Response(),
+      }));
+      expect(
+        await runDiagnosticLogCommand(
+          'diagnostic-logs',
+          { home, host: 'http://127.0.0.1:1' },
+          io() as never,
+          (async () => ({ http })) as unknown as Connect,
+        ),
+      ).toMatchObject({ source: 'offline', fallback: 'host-protocol-error', entries: [] });
+    }
+  });
+
+  it('reads entries straight from logs.db when the Host is down', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'diagnostic-home-'));
+    dirs.push(home);
+    const database = openLogDatabase({ dir: join(home, 'botharness') });
+    database.write({
+      plugin: 'client',
+      owner: 'profile-shared',
+      kind: 'client.error',
+      detail: 'uncaught-error',
+      payload: JSON.stringify({ level: 'error', path: join(home, 'secret.txt') }),
+    });
+    database.write({
+      plugin: 'client',
+      owner: 'profile-shared',
+      kind: 'client.action',
+      detail: 'click',
+    });
+    database.close();
+    const down = vi.fn(async () => {
+      throw new CliLiveError('host-unreachable', 'down');
+    }) as unknown as Connect;
+    const result = (await runDiagnosticLogCommand(
+      'diagnostic-logs',
+      { kind: 'error', home, host: 'http://127.0.0.1:1' },
+      io() as never,
+      down,
+    )) as { entries: Array<{ code: string; fields: Record<string, unknown> }> };
+    expect(result).toMatchObject({
+      source: 'offline',
+      fallback: 'host-unreachable',
+      filter: 'error',
+    });
+    expect(result.entries.map((entry) => entry.code)).toEqual(['uncaught-error']);
+    expect(JSON.stringify(result)).not.toContain(home);
+    const connect = vi.fn() as unknown as Connect;
+    expect(
+      await runDiagnosticLogCommand(
+        'diagnostic-logs',
+        { home, offline: true },
+        io() as never,
+        connect,
+      ),
+    ).toMatchObject({
+      source: 'offline',
+      entries: [{ code: 'click' }, { code: 'uncaught-error' }],
+    });
+    expect(connect).not.toHaveBeenCalled();
   });
 
   it('refuses bad flags before connecting', async () => {

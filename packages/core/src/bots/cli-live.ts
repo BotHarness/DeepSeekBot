@@ -12,6 +12,8 @@ import {
   WINDOW_ZOOM_OPTIONS,
   runWindowZoomCommand,
 } from './cli-window-zoom.js';
+import { DESKTOP_WINDOW_COMMANDS, runDesktopWindowCommand } from './cli-desktop-window.js';
+import { PRESENCE_COMMANDS, PRESENCE_OPTIONS, runPresenceCommand } from './cli-presence.js';
 import { PHONE_ROUTE_COMMANDS, runPhoneRouteCommand } from './cli-phone-route.js';
 import { DEVICES_COMMANDS, isDevicesCommand, runDevicesCommand } from './cli-devices.js';
 import { DEVICE_CLIENT_COMMANDS, runDeviceClientCommand } from './cli-device-client.js';
@@ -26,6 +28,8 @@ import {
 } from './cli-browser-notifications.js';
 import { FEEDBACK_COMMANDS, runFeedbackCommand } from './cli-feedback.js';
 import { DIAGNOSTIC_LOG_COMMANDS, runDiagnosticLogCommand } from './cli-diagnostic-logs.js';
+import { DOCTOR_COMMANDS, runDoctor } from './cli-doctor.js';
+import { BUG_REPORT_COMMANDS, runBugReport } from './cli-bug-report.js';
 import { APPEARANCE_COMMANDS, APPEARANCE_OPTIONS, runAppearanceCommand } from './cli-appearance.js';
 import { prepareCloud, prepareCloudWork } from './cli-cloud.js';
 import { randomUUID } from 'node:crypto';
@@ -148,13 +152,8 @@ import {
   runVoiceCommand,
   type VoiceValues,
 } from './cli-voice.js';
-import {
-  CALL_COMMANDS,
-  CALL_OPTIONS,
-  CALL_PATH,
-  isCallCommand,
-  runCallCommand,
-} from './cli-call.js';
+import { CALL_COMMANDS, CALL_OPTIONS, isCallCommand, runCallCommand } from './cli-call.js';
+import { VOICE_CALL_PATH, type VoiceCallResult } from '../voice/call-contract.js';
 import {
   isStorageCommand,
   runStorageCommand,
@@ -193,6 +192,7 @@ export const LIVE_OPTIONS = {
   ...DEVICE_NOTIFICATION_OPTIONS,
   'activity-stdin': { type: 'boolean' },
   ...WINDOW_ZOOM_OPTIONS,
+  ...PRESENCE_OPTIONS,
   ...CONNECT_OPTIONS,
   ...APPEARANCE_OPTIONS,
   ...IM_OPTIONS,
@@ -239,6 +239,7 @@ export const LIVE_OPTIONS = {
   refresh: { type: 'boolean' },
   'previous-value': { type: 'string' },
   member: { type: 'string', multiple: true },
+  attach: { type: 'string', multiple: true },
   app: { type: 'string' },
   bot: { type: 'string' },
   conversation: { type: 'string' },
@@ -315,7 +316,11 @@ export const LIVE_COMMANDS = [
   },
   ...FEEDBACK_COMMANDS,
   ...DIAGNOSTIC_LOG_COMMANDS,
+  ...DOCTOR_COMMANDS,
+  ...BUG_REPORT_COMMANDS,
   ...WINDOW_ZOOM_COMMANDS,
+  ...DESKTOP_WINDOW_COMMANDS,
+  ...PRESENCE_COMMANDS,
   ...PHONE_ROUTE_COMMANDS,
   ...DEVICES_COMMANDS,
   ...DEVICE_CLIENT_COMMANDS,
@@ -630,6 +635,8 @@ interface LiveValues
   recovery?: string;
   body?: string;
   'body-stdin'?: boolean;
+  attach?: string[];
+  title?: string;
   'answer-stdin'?: boolean;
   'values-stdin'?: boolean;
   outcome?: string;
@@ -890,7 +897,7 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
     const packages = Array.isArray(detail['packages'])
       ? detail['packages'].filter((name): name is string => typeof name === 'string')
       : [];
-    throw new CliLiveError(
+    const error = new CliLiveError(
       code === undefined ? 'host-refused' : scrub(code),
       scrub(
         (typeof detail['error'] === 'string' && detail['error'] !== ''
@@ -901,6 +908,8 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
           (packages.length === 0 ? '' : ` Packages: ${packages.join(' ')}.`),
       ),
     );
+    error.status = status;
+    throw error;
   };
   const http = async (
     path: string,
@@ -988,6 +997,14 @@ export async function runLiveCli(
     return runBrowserNotifications(command, rest, values, io, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
+  if (command === 'bug-report')
+    return runBugReport(values, io, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
+  if (command === 'doctor')
+    return runDoctor(values, io, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
   if (DIAGNOSTIC_LOG_COMMANDS.some((entry) => entry.command === command))
     return runDiagnosticLogCommand(command, values, io, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
@@ -1028,8 +1045,16 @@ export async function runLiveCli(
     return runConnectCommand(command, rest, values, io, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
+  if (DESKTOP_WINDOW_COMMANDS.some((entry) => entry.command === command))
+    return runDesktopWindowCommand(rest, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
   if (WINDOW_ZOOM_COMMANDS.some((entry) => entry.command === command))
     return runWindowZoomCommand(command, rest, values, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
+  if (PRESENCE_COMMANDS.some((entry) => entry.command === command))
+    return runPresenceCommand(command, rest, values, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
   if (PHONE_ROUTE_COMMANDS.some((entry) => entry.command === command))
@@ -1094,15 +1119,19 @@ export async function runLiveCli(
       const { http, rpc } = await connectLiveHost(values, io, signal);
       return {
         async post(body) {
-          const { bytes } = await http(CALL_PATH, body);
+          const { bytes } = await http(VOICE_CALL_PATH, body);
+          let parsed: Record<string, unknown>;
           try {
-            return record(JSON.parse(new TextDecoder().decode(bytes)));
+            parsed = record(JSON.parse(new TextDecoder().decode(bytes)));
           } catch {
             throw new CliLiveError(
               'host-protocol-error',
               'The Host returned no JSON for the call.',
             );
           }
+          if (typeof parsed['ok'] !== 'boolean')
+            throw new CliLiveError('host-protocol-error', 'The Host returned no call result.');
+          return parsed as unknown as VoiceCallResult;
         },
         text: async (input) => record(await rpc('channelSend', input)),
       };

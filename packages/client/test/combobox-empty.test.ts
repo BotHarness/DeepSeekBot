@@ -16,7 +16,6 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
       );
     },
   ),
-  useAnchoredPosition: () => ({ left: 0, top: 0 }),
   useDismissOnOutsidePointer: () => {},
 }));
 

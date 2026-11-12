@@ -25,6 +25,18 @@ final class StreamSurfaceTests: XCTestCase {
     XCTAssertNil(child.superview)
   }
 
+  func testChildrenStackInMountOrderAboveTheBackground() {
+    let view = StreamSurfaceView()
+    let back = UIView()
+    let middle = UIView()
+    let front = UIView()
+    view.mountChildComponentView(back, index: 0)
+    view.mountChildComponentView(front, index: 1)
+    view.mountChildComponentView(middle, index: 1)
+    XCTAssertEqual(view.surface.subviews, [back, middle, front])
+    XCTAssertTrue(view.surface.layer.sublayers?.first === view.background)
+  }
+
   func testShrinkingAndWidthChangesSnapWithoutChangingChildLayout() {
     let view = StreamSurfaceView()
     view.active = true

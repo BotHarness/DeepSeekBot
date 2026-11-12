@@ -1,3 +1,4 @@
+import { measureMessageView } from '../primitives/measure-message-view';
 import type { Rect } from './menu-placement';
 import type { BubbleGroup } from './bubble-shape';
 import { useRef, useState, type ReactNode } from 'react';
@@ -6,10 +7,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { captureRef, releaseCapture } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import type { ConversationMessage } from '../../host/conversation';
+import { islandStyle } from '../design/island';
 import { useDesignTheme } from '../design/theme';
-import { space } from '../design/tokens';
+import { radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { Button } from '../primitives/button';
+import { MessageIcon, ReplyIcon } from '../shell/icons';
+import { composerBar } from './composer-chrome';
 import { useStrings } from '../strings';
 import { BubbleBody } from './message-bubble';
 import { SELECTION_LIMIT } from './message-selection';
@@ -44,6 +48,87 @@ export function SelectionBar({
     </View>
   );
 }
+function SelectionIsland({
+  label,
+  testID,
+  icon,
+  onPress,
+}: {
+  label: string;
+  testID: string;
+  icon: ReactNode;
+  onPress: (() => void) | undefined;
+}) {
+  const theme = useDesignTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: onPress === undefined }}
+      testID={testID}
+      disabled={onPress === undefined}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        flex: 1,
+        height: composerBar(theme),
+        borderRadius: radius.round,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: space.x3,
+        opacity: onPress === undefined ? 0.4 : 1,
+        ...islandStyle(theme, pressed),
+      })}
+    >
+      {icon}
+      <Text strong>{label}</Text>
+    </Pressable>
+  );
+}
+
+type IslandAction = { onPress: (() => void) | undefined };
+
+export function SelectionIslands({
+  reply,
+  feedback,
+}: {
+  reply?: IslandAction | undefined;
+  feedback?: IslandAction | undefined;
+}) {
+  const t = useStrings();
+  const theme = useDesignTheme();
+  const insets = useSafeAreaInsets();
+  const icon = theme.type.title.line;
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        gap: space.x3,
+        paddingHorizontal: space.x4,
+        paddingTop: space.x3,
+        paddingBottom: Math.max(insets.bottom, space.x3),
+      }}
+    >
+      {reply === undefined ? null : (
+        <SelectionIsland
+          label={t.reply.action}
+          testID="selection-reply"
+          icon={<ReplyIcon color={theme.color.fg} size={icon} />}
+          onPress={reply.onPress}
+        />
+      )}
+      {feedback === undefined ? null : (
+        <SelectionIsland
+          label={t.messageSelection.feedback}
+          testID="selection-feedback"
+          icon={<MessageIcon color={theme.color.fg} size={icon} />}
+          onPress={feedback.onPress}
+        />
+      )}
+    </View>
+  );
+}
+
 export function SelectionScreenshot({
   messages,
   botName,
@@ -206,8 +291,11 @@ export function MessageSelectionRow({
         onOpen === undefined || selecting
           ? undefined
           : () => {
-              ref.current?.measureInWindow((x, y, width, height) =>
-                onOpen(message, { x, y, width, height }, { first: true, last: true }),
+              measureMessageView(
+                ref.current,
+                (x, y, width, height) =>
+                  onOpen(message, { x, y, width, height }, { first: true, last: true }),
+                () => undefined,
               );
             }
       }

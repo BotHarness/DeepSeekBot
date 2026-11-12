@@ -18,6 +18,7 @@ export const VOICE_CALL_LIMITS = {
   heartbeatLossMs: 8_000,
   connectTimeoutMs: 20_000,
   heartbeatMs: 1_000,
+  backgroundHeartbeatMs: 3_000,
   events: 256,
   maxUtteranceMs: 30_000,
   playbackTailMs: 300,
@@ -57,6 +58,7 @@ export interface VoiceCallMediaStats {
   readonly rttMs?: number;
   readonly helperCpuPct?: number;
   readonly disconnects?: number;
+  readonly receivedAgeMs?: number;
 }
 
 export interface VoiceCallPerfSample {
@@ -131,7 +133,6 @@ export type VoiceCallEvent =
   | { seq: number; at: number; type: 'text'; messageId: string; atMs: number; grid?: number }
   | { seq: number; at: number; type: 'asr-failed'; code: string; message: string }
   | { seq: number; at: number; type: 'send-failed'; code: string; message: string }
-  | { seq: number; at: number; type: 'ack'; ms: number }
   | { seq: number; at: number; type: 'reply-text'; replyId: string; responseMs?: number }
   | {
       seq: number;
@@ -411,3 +412,27 @@ export type VoiceCallZoomView =
       readonly bytes: number;
       readonly jpeg: string;
     };
+const MEDIA_ERROR = Symbol.for('botharness.voice-call-media-error');
+
+export class VoiceCallMediaError extends Error {
+  readonly [MEDIA_ERROR] = true;
+  constructor(
+    readonly code: 'unsupported-platform' | 'helper-missing' | 'helper-failed' | 'busy',
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+export function isVoiceCallMediaError(error: unknown): error is VoiceCallMediaError {
+  return (
+    error instanceof Error &&
+    MEDIA_ERROR in error &&
+    error[MEDIA_ERROR] === true &&
+    'code' in error &&
+    (error.code === 'unsupported-platform' ||
+      error.code === 'helper-missing' ||
+      error.code === 'helper-failed' ||
+      error.code === 'busy')
+  );
+}

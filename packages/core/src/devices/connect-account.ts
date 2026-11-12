@@ -8,6 +8,7 @@ import { credentialKey, type CredentialProvider } from '@deepseek-ai/dsh-credent
 import { z } from 'zod';
 
 import type { DeviceConnect } from './connect.js';
+import { CONNECT_ZONES } from './routes.js';
 
 type Credentials = Pick<CredentialProvider, 'readRecord' | 'modifyRecord' | 'deleteRecord'>;
 
@@ -27,7 +28,24 @@ export type AccountIssue =
   | 'session-revoked'
   | 'account-not-allowed'
   | 'host-limit'
+  | 'relay-full'
   | 'credential-unavailable';
+
+export interface ConnectPool {
+  capacity: number;
+  inUse: number;
+  free: number;
+  waiting: number;
+  nextFreeAt?: string | undefined;
+  guaranteedMinutes?: number | undefined;
+}
+
+export interface ConnectWait {
+  reason: 'pool-full' | 'zone-full' | 'queued';
+  position: number;
+  retryAfter: number;
+  since: string;
+}
 
 export interface AccountStatus {
   state: 'signed-out' | 'signing-in' | 'signed-in' | 'error';
@@ -38,6 +56,9 @@ export interface AccountStatus {
   expiresAt?: string;
   issue?: AccountIssue;
   recovery?: 'automatic' | 'sign-in';
+  pool?: ConnectPool;
+  wait?: ConnectWait;
+  protectedUntil?: string;
 }
 
 export type AccountFailureCode =
@@ -66,7 +87,9 @@ export type ConnectedHostsResult =
   | { ok: true; hosts: ConnectedHost[] }
   | { ok: false; code: AccountFailureCode };
 
-export type OfferVerification = { ok: true; verifierHash: string; name?: string } | { ok: false };
+export type OfferVerification =
+  | { ok: true; verifierHash: string; name?: string; accountAutoApprove?: true }
+  | { ok: false };
 
 export interface ConnectAccount {
   botNetwork: ReturnType<typeof createConnectBotNetwork>;
@@ -126,10 +149,30 @@ type StoredAccount = z.infer<typeof storedAccountSchema>;
 type ConnectClientId = z.infer<typeof clientIdSchema>;
 
 class AccountError extends Error {
-  constructor(readonly issue: AccountIssue) {
+  constructor(
+    readonly issue: AccountIssue,
+    readonly wait?: Omit<ConnectWait, 'since'>,
+    readonly pool?: ConnectPool,
+  ) {
     super(issue);
   }
 }
+
+const count = z.number().int().nonnegative();
+const poolSchema = z.object({
+  capacity: count,
+  inUse: count,
+  free: count,
+  waiting: count,
+  nextFreeAt: z.iso.datetime().optional(),
+  guaranteedMinutes: count.optional(),
+});
+const waitSchema = z.object({
+  reason: z.enum(['pool-full', 'zone-full', 'queued']),
+  position: count,
+  retryAfter: count,
+  pool: poolSchema.optional(),
+});
 
 const transportCodes = new Set([
   'ENOTFOUND',
@@ -335,6 +378,20 @@ export function createConnectAccount(options: {
       throw new AccountError(code === 'session-revoked' ? 'session-revoked' : 'session-expired');
     if (code === 'account-not-allowed') throw new AccountError('account-not-allowed');
     if (code === 'host-limit') throw new AccountError('host-limit');
+    if (code === 'relay-full') {
+      const wait = waitSchema.safeParse(parsed['error']);
+      throw wait.success
+        ? new AccountError(
+            'relay-full',
+            {
+              reason: wait.data.reason,
+              position: wait.data.position,
+              retryAfter: wait.data.retryAfter,
+            },
+            wait.data.pool,
+          )
+        : new AccountError('relay-full');
+    }
     if (response.status >= 500 || response.status === 429)
       throw requestError('relay', operation, { reason: 'http', status: response.status });
     return { status: response.status, body: parsed };
@@ -387,6 +444,7 @@ export function createConnectAccount(options: {
       access,
       {
         originPort: port,
+        zones: CONNECT_ZONES,
       },
     );
     if (reply.status === 404) return undefined;
@@ -425,15 +483,22 @@ export function createConnectAccount(options: {
 
   const fail = (error: unknown, current?: AccountRecord): void => {
     const issue = error instanceof AccountError ? error.issue : 'relay-unavailable';
+    const wait = error instanceof AccountError ? error.wait : undefined;
+    const pool = error instanceof AccountError ? error.pool : undefined;
+    const since = status.wait?.since ?? new Date().toISOString();
     status = {
       state: 'error',
       issue,
       recovery:
-        issue === 'relay-unavailable' && canResumeSession && current !== undefined
+        (issue === 'relay-unavailable' || issue === 'relay-full') &&
+        canResumeSession &&
+        current !== undefined
           ? 'automatic'
           : 'sign-in',
       ...(current?.email ? { email: current.email } : {}),
       ...(current?.hostId ? { hostId: current.hostId } : {}),
+      ...(issue === 'relay-full' && wait !== undefined ? { wait: { ...wait, since } } : {}),
+      ...(pool === undefined ? {} : { pool }),
     };
     record('account-error', `issue=${issue}`);
   };
@@ -488,7 +553,12 @@ export function createConnectAccount(options: {
           return;
         }
         const stored = current;
-        const hosts = (token: string) => relayCall('list-hosts', 'GET', '/v1/hosts', token);
+        const idle = connect.idleSeconds?.();
+        const listPath =
+          stored.hostId !== undefined && idle !== undefined
+            ? `/v1/hosts?host=${encodeURIComponent(stored.hostId)}&idle=${String(idle)}`
+            : '/v1/hosts';
+        const hosts = (token: string) => relayCall('list-hosts', 'GET', listPath, token);
         const fresh = async () => hosts(await refresh(stored));
         const reply =
           cached === undefined
@@ -499,6 +569,23 @@ export function createConnectAccount(options: {
                 throw error;
               });
         listed = reply.body['hosts'];
+        const pool = poolSchema.safeParse(reply.body['pool']);
+        if (status.state === 'signed-in') {
+          const own = Array.isArray(listed)
+            ? (listed as unknown[]).find(
+                (host) => (host as { id?: unknown } | null)?.id === stored.hostId,
+              )
+            : undefined;
+          const until = z.iso
+            .datetime()
+            .safeParse((own as { protectedUntil?: unknown } | undefined)?.protectedUntil);
+          const { protectedUntil: _previous, ...rest } = status;
+          status = {
+            ...rest,
+            ...(pool.success ? { pool: pool.data } : {}),
+            ...(until.success ? { protectedUntil: until.data } : {}),
+          };
+        }
       } catch (error) {
         if (
           error instanceof AccountError &&
@@ -670,7 +757,8 @@ export function createConnectAccount(options: {
       const tunnel = connect.status().state;
       if (
         (status.state === 'signed-in' && (tunnel === 'error' || tunnel === 'off')) ||
-        (status.state === 'error' && status.issue === 'relay-unavailable')
+        (status.state === 'error' &&
+          (status.issue === 'relay-unavailable' || status.issue === 'relay-full'))
       )
         void sync();
       else if (status.state === 'signed-in') void check();
@@ -723,7 +811,12 @@ export function createConnectAccount(options: {
       return { ok: false };
     }
     record('offer-signed');
-    return { ok: true, verifierHash, ...(typeof name === 'string' ? { name } : {}) };
+    return {
+      ok: true,
+      verifierHash,
+      ...(typeof name === 'string' ? { name } : {}),
+      accountAutoApprove: true,
+    };
   };
 
   const activityCall = (body?: Record<string, unknown>, signal?: AbortSignal) =>

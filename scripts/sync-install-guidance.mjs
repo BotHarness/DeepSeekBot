@@ -20,12 +20,17 @@ export function installSpec(version, packageName = 'deepseekbot') {
 
 export function renderInstallGuidance(text, version, packageName = 'deepseekbot') {
   const spec = installSpec(version, packageName);
+  const archive = `${packageName.replace(/^@/, '').replace('/', '-')}-${version}.tgz`;
   return text
     .replace(
       /(\badd |\bnpm pack |输入 `|enter `|package \*\*`|正式包 \*\*`|安装的是 `?|exact `?)(?:deepseekbot|@botharness\/tobs)(?:@[0-9A-Za-z.*^~+-]+)?(?=[\s`",.)*。]|$)/gm,
       `$1${spec}`,
     )
-    .replace(/^(?:deepseekbot|@botharness\/tobs)(?:@[^\s]+)?$/gm, spec);
+    .replace(/^(?:deepseekbot|@botharness\/tobs)(?:@[^\s]+)?$/gm, spec)
+    .replace(
+      /(\badd \.\/|`)(?:botharness-tobs|deepseekbot)-(?:<version>|[0-9]+\.[0-9]+\.[0-9]+)\.tgz(?=[`\s]|$)/gm,
+      `$1${archive}`,
+    );
 }
 
 export function syncInstallGuidance(root, check = false) {

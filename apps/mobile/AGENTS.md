@@ -8,6 +8,7 @@ Load `expo-overview` first for any Expo or EAS task; it routes to the right skil
 
 - Screens and styling: `expo-native-ui`. Native components (`@expo/ui` SwiftUI/Compose views, menus, pickers, sheets): `expo-ui`. Navigation: `expo-router`. Motion, gestures and haptics: `expo-animation` for the APIs, and `animate-expo` (with `review-animations`) for the motion decisions: whether to animate, curve, duration, properties and reduced motion.
 - iOS control choice and Liquid Glass (pop-up/pull-down buttons, menus, sheets, toolbars, tab bar, scroll edge effects): `ios-hig`. It maps Apple's HIG onto this app; a decision already in `DESIGN.md` wins, and drift from the HIG is named in the PR.
+- For Expo / React Native iOS development, also load `swiftui-expert-skill`. Apply its relevant guidance to SwiftUI-backed `@expo/ui` views, Swift native modules, state, layout, accessibility and native performance; use `expo-ui` / `expo-module` for the Expo integration and `react-native-best-practices` for React Native behavior. Verify API availability against the project's actual Expo SDK, Xcode and iOS deployment target before adopting upstream examples. Keep the existing CNG, device ownership and performance verification rules.
 - Android control choice (menus, exposed dropdowns, dialogs, bottom sheets, app bars, navigation bar), edge-to-edge and predictive back: `android-material`, the Material 3 twin of `ios-hig`. Spec detail (tokens, colour, type, shape, motion): `material-3`.
 - Network calls and loading/error states: `expo-data-fetching`. The Host client in `src/host/` is ours: screens read it through `useHostSnapshot()` and never call `fetch` themselves.
 - Development builds: `expo-dev-client`. Store builds and submission: `eas-app-stores`. OTA updates: `eas-update`. EAS CI: `eas-workflows`.
@@ -60,8 +61,8 @@ Screens follow the shared [UI design standard](../../docs/agents/ui-design.md) a
 
 Performance work follows the mandatory [iOS performance tuning and physical-device verification
 (AX)](../../docs/agents/ios-performance.md) workflow: validate the workload, capture the relevant
-JS/React/native/display layer, attribute the cause, make the smallest change and run matched
-physical Release A/B/B/A/A/B measurements. Keep Simulator, physical Release and Human QA results
+JS/React/native/display layer, attribute the cause, make the smallest change and run a matched
+physical Release A/B pair (A/B/B/A/A/B only when the difference is close), with short, bounded captures. Keep Simulator, physical Release and Human QA results
 separate, and preserve failed/invalid samples.
 
 Use `react-native-best-practices` for diagnosis and implementation. RN DevTools/Hermes and
@@ -87,4 +88,4 @@ EXPO_OFFLINE=1 pnpm --filter @botharness/mobile export
 
 ## Updating skills
 
-The Expo, Callstack, React Native Testing Library and Emil Kowalski animation skills are third-party, locked in `skills-lock.json`. Do not edit them in place; update them with `npx skills update <name>` and review the diff.
+The Expo, Callstack, React Native Testing Library, Emil Kowalski animation and AvdLee SwiftUI skills are third-party, locked in `skills-lock.json`. Do not edit them in place; update them with `npx skills update <name>` and review the diff.

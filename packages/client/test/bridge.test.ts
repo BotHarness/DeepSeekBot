@@ -400,6 +400,46 @@ describe('bridge parsers', () => {
     expect(messages[1]?.replyToPreview).toBeNull();
   });
 
+  it('parses the media hint of a reply preview and drops one it does not understand', () => {
+    const thumbnail = {
+      fileId: 'file:00000000-0000-4000-8000-000000000001',
+      name: 'photo.png',
+      mime: 'image/png',
+      size: 12,
+      version: 'v1',
+      width: 640,
+      height: 480,
+    };
+    const reply = (id: string, media: unknown) => ({
+      id,
+      at: '2026-09-19T00:02:00.000Z',
+      author: { kind: 'human' },
+      body: 'answer',
+      replyTo: 'original',
+      replyToPreview: { author: { kind: 'bot', slug: 'ada' }, body: '', media },
+    });
+    const messages = parseChannelMessages({
+      messages: [
+        reply('image', { kind: 'image', count: 3, thumbnail }),
+        reply('voice', { kind: 'voice', durationMs: 7000 }),
+        reply('file', { kind: 'file', name: 'Q3 report.pdf', count: 1 }),
+        reply('future', { kind: 'sticker', id: 'x' }),
+        reply('text', undefined),
+      ],
+    });
+    expect(messages.map((message) => [message.id, message.replyToPreview?.media])).toEqual([
+      ['image', { kind: 'image', count: 3, thumbnail }],
+      ['voice', { kind: 'voice', durationMs: 7000 }],
+      ['file', { kind: 'file', name: 'Q3 report.pdf', count: 1 }],
+      ['future', undefined],
+      ['text', undefined],
+    ]);
+    expect(messages[3]?.replyToPreview).toEqual({
+      author: { kind: 'bot', slug: 'ada' },
+      body: '',
+    });
+  });
+
   it('parses owned root Sessions and drops malformed rows', () => {
     expect(
       parseOwnedSessionSummaries({
@@ -1692,6 +1732,40 @@ describe('bridge actions', () => {
     expect(settled.channels.find((channel) => channel.id === 'dm-ada')?.latestMessage?.body).toBe(
       'hello',
     );
+  });
+
+  it('echoes a reply to a file with the same media hint the Host will return', async () => {
+    const report = {
+      fileId: 'file:00000000-0000-4000-8000-000000000002',
+      name: 'Q3 report.pdf',
+      mime: 'application/pdf',
+      size: 2048,
+    };
+    const entries = [
+      {
+        id: 'm1',
+        at: '2026-09-19T00:01:00.000Z',
+        author: { kind: 'bot', slug: 'ada' },
+        body: 'Here   it\nis',
+        attachments: [report],
+      },
+    ];
+    const { clientStore, actions } = setup({
+      channelTimeline: () => ({
+        revision: 1,
+        page: { entries, olderCursor: 'm1', newerCursor: 'm1', hasOlder: false, hasNewer: false },
+      }),
+      channelMessages: () => ({ revision: 1, messages: entries }),
+      channelSend: () => new Promise(() => undefined),
+    });
+    await actions.load();
+    await actions.openBot('ada');
+    void actions.send('thanks', 'm1');
+    expect(clientStore.getSnapshot().conversation.messages.at(-1)?.replyToPreview).toEqual({
+      author: { kind: 'bot', slug: 'ada' },
+      body: 'Here it is',
+      media: { kind: 'file', name: 'Q3 report.pdf', count: 1 },
+    });
   });
 
   it('echoes a reply immediately and sends its target ID through the Channel RPC', async () => {

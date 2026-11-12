@@ -87,7 +87,7 @@ export function ChatTitle({
           </Text>
         </View>
       </View>
-      <ConnectionProgress active={connectionLabel !== undefined} label={connectionLabel} />
+      <ConnectionProgress active={connectionLabel !== undefined} />
     </HeaderTitleButton>
   );
   return chip(onPress);

@@ -11,6 +11,8 @@ export const space = {
   x6: 24,
 } as const;
 
+export const statusChip = { height: 36, dot: 8 } as const;
+
 export const groupUnavailable = { icon: 48 } as const;
 
 export const materialSearch = { height: 56, lineHeight: 24 } as const;
@@ -217,7 +219,17 @@ export const glass = {
   saturate: 180,
 } as const;
 
-export const chatHeaderSurface = { fade: 24, intensity: 70 } as const;
+export const draftEditor = { aboveMax: '40%' } as const;
+
+export const island = {
+  fade: { curve: 0.85, peak: 0.91 },
+  ink: { light: '#000000', dark: '#ffffff' },
+  light: '#ffffff',
+  shade: '#000000',
+  rim: { width: 0.5, light: 0.1, dark: 0.1 },
+  highlight: { width: 1, light: 0.55, dark: 0.08 },
+  shadow: { radius: 2.7, offsetY: 0.85, light: 0.13, dark: 0.3 },
+} as const;
 
 export const edgeFade = {
   bottom: 24,
@@ -292,6 +304,13 @@ export const decelerate: Record<PlatformOS, readonly [number, number, number, nu
 
 export const popScale = { bubble: 0.92, badge: 0.9 } as const;
 
+export const sendFly = {
+  duration: 250,
+  vertical: [0.199, 0.011, 0.279, 0.91],
+  horizontal: [0.23, 1, 0.32, 1],
+  settle: [0, 0, 0.58, 1],
+} as const;
+
 export const pullToCompose = { threshold: 40, flick: 0.3 } as const;
 
 export const doubleTap = { window: 300, emoji: '👍' } as const;
@@ -300,6 +319,7 @@ export const recentChats = { limit: 3 } as const;
 
 export const workspaceStack = { max: 3, tile: 28, overlap: 10, ring: 2 } as const;
 export const cornerBadge = { maxTextScale: 1.2, materialLabel: 11 } as const;
+export const environmentBadge = { size: 20, glyphRatio: 0.62 } as const;
 
 export const swipeOpen = {
   start: 24,
@@ -323,6 +343,37 @@ export const swipeReply = {
   icon: 28,
   bar: 3,
 } as const;
+
+export const replyQuote = { tint: 0.13 } as const;
+
+export const replyThumb = { size: 32 } as const;
+
+export const mediaBubble = {
+  maxWidth: 280,
+  widthRatio: 0.72,
+  gap: 0,
+  scrim: '#00000073',
+  more: '#0000008c',
+  ink: '#ffffff',
+} as const;
+
+export const fileTile = {
+  size: 40,
+  radius: 10,
+  ink: '#ffffff',
+  fill: {
+    pdf: '#d93d42',
+    sheet: '#24804a',
+    doc: '#3358d4',
+    slides: '#c4510d',
+    archive: '#7d45b8',
+    media: '#c2368f',
+    code: '#0b68b5',
+    other: '#62616b',
+  },
+} as const;
+
+export const voiceRow = { play: 36, wave: 24, bar: 3, unplayed: 0.3 } as const;
 
 export const topEntrance = {
   edge: 20,

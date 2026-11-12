@@ -555,6 +555,49 @@ describe('plugin update commands', () => {
   });
 });
 
+describe('update run commands', () => {
+  const running = {
+    id: 'req-00000001',
+    kind: 'plugin',
+    name: '@botharness/vrm-companion',
+    version: '0.2.0',
+    phase: 'installing',
+    startedAt: '2026-11-09T18:00:00.000Z',
+    commands: [{ id: 'job-1', command: 'pnpm add x', output: 'Progress', truncated: false }],
+    cancellable: true,
+  };
+
+  it('shows the running update and stops it by its id', async () => {
+    const live = await host((method) =>
+      ok(method === 'updateRun' ? running : { status: 'cancelled' }),
+    );
+    expect((await invoke(['update-status'], live.url)).json).toEqual({ run: running });
+    expect((await invoke(['update-cancel'], live.url)).json).toEqual({
+      id: 'req-00000001',
+      status: 'cancelled',
+    });
+    expect(live.calls).toEqual([
+      { method: 'updateRun', args: {} },
+      { method: 'updateRun', args: {} },
+      { method: 'updateCancel', args: { id: 'req-00000001' } },
+    ]);
+  });
+
+  it('refuses to stop when nothing runs or the update is already applying', async () => {
+    const idle = await host(() => ok(null));
+    expect((await invoke(['update-status'], idle.url)).json).toEqual({ run: null });
+    const none = await invoke(['update-cancel'], idle.url);
+    expect(none.code).not.toBe(0);
+    expect(none.json.error.code).toBe('update-not-running');
+    const late = await host((method) =>
+      ok(method === 'updateRun' ? running : { status: 'too-late' }),
+    );
+    expect((await invoke(['update-cancel'], late.url)).json.error.code).toBe('update-too-late');
+    const extra = await invoke(['update-status', 'extra'], idle.url);
+    expect(extra.json.error.code).toBe('usage');
+  });
+});
+
 describe('data reset commands', () => {
   it('previews, then clears only with --confirmation-stdin --confirm and a token', async () => {
     const preview = {
@@ -912,4 +955,22 @@ it('queries and changes onboarding through the owning Host with coded invalid-ac
   expect((await invoke(['onboarding', '--action', 'pause'], live.url)).json.action).toBe('pause');
   expect((await invoke(['onboarding', '--action', 'invalid'], live.url)).code).not.toBe(0);
   expect(live.calls).toHaveLength(2);
+});
+
+it('reads and records Profile notice acknowledgements through the owning Host', async () => {
+  const live = await host((method, args) => ok({ method, ...args }));
+  expect((await invoke(['acknowledgements'], live.url)).json.method).toBe('acknowledgements');
+  expect((await invoke(['acknowledge', 'bot-mode-entered'], live.url)).json).toEqual({
+    method: 'acknowledge',
+    key: 'bot-mode-entered',
+  });
+  expect(
+    (await invoke(['acknowledge', 'release-notes-seen', '--version', '1.6.1'], live.url)).json,
+  ).toEqual({ method: 'acknowledge', key: 'release-notes-seen', value: '1.6.1' });
+  expect((await invoke(['acknowledge', 'release-notes-seen'], live.url)).code).not.toBe(0);
+  expect(
+    (await invoke(['acknowledge', 'onboarding-intro', '--version', '1.6.1'], live.url)).code,
+  ).not.toBe(0);
+  expect((await invoke(['onboarding', '--version', '1.6.1'], live.url)).code).not.toBe(0);
+  expect(live.calls).toHaveLength(3);
 });

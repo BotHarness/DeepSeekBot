@@ -19,7 +19,7 @@ summary; rich content adds the maintained nine-scene document fixture.
 
 Readiness requires a frontmost canonical message, a composer, no history skeleton,
 and, for rich content, a visible iframe and enabled product-owned Continue button.
-It rechecks readiness after two rAF callbacks and separately checks nested document
+It rechecks readiness after two rAF callbacks and separately checks script-disabled mirror
 content. This is visible-ready evidence, not proof of physical presentation or full
 interaction. Headed runs use matching actual native viewports, checked before and
 after each opening. `--headless` is the CI diagnostic, not foreground acceptance.
@@ -41,14 +41,22 @@ does not clear execution containment (#3704), native (#3705) or Human acceptance
 
 ## HTML document candidate
 
-The version-2 isolated HTML implementation shipped in PR #3699. Current-main Web qualification is tracked in #3703, independent execution/resource containment in #3704, and installed mobile in #3705; the cross-platform parent #3684 remains open. Closing implementation tickets #3685/#3691 did not turn their outstanding acceptance checkboxes into passes. Run the production-shaped HTML journey against a task-owned Host:
+The original version-2 isolated HTML implementation shipped in PR #3699. Remaining Web qualification is tracked in #3711 (carried forward from closed #3703), independent execution/resource containment in #3704, and installed mobile in #3705; the cross-platform parent #3684 remains open. Closing implementation tickets #3685/#3691 did not turn their outstanding acceptance checkboxes into passes. Run the production-shaped HTML journey against a task-owned Host:
 
 ```bash
 BH_E2E_INSTANCE=.humanlayer/verify/<name>/instance.json \
   node scripts/e2e-genui-documents.mjs --out <private-evidence-directory>
 ```
 
-It creates a synthetic Bot, invokes the model-free `genui_preview` Tool, explicitly publishes the document, and drives its actual isolated frames. It closes its own browser; the caller owns the Host. Default captures are headed. Keep every failure in its original run directory.
+It creates a synthetic Bot, invokes the model-free `genui_preview` Tool, explicitly publishes the document, and drives the actual script-disabled mirror backed by the shared supervised execution runtime. The manifest retains renderer metadata and the lazy Client companion hash. Generated scripts execute only in the Worker VM; Browser automation inspecting the mirror's native DOM is not guest capability evidence. Probe forbidden capabilities from generated guest scripts instead. It closes its own browser; the caller owns the Host. Default captures are headed. Keep every failure in its original run directory.
+
+Poll changing mirror controls from the trusted parent page: animation-frame polling inside a script-disabled iframe can time out even when the visible DOM changes. Use native keyboard input rather than manufacturing private state. The installed Puppeteer click API uses `count` for repeated clicks, not `clickCount`; assert the visible value and canonical state separately. Optional `BH_GENUI_DIAGNOSTIC=1` retains a bounded Worker/native-event trace for this synthetic journey only; do not use instrumented runs as performance qualification.
+
+For narrow tables, use the default `genui-table-scroll` wrapper and verify that headings and row labels remain whole words, with horizontal scrolling confined to the table rather than the conversation. The maintained example reuses keyed row/control nodes across selection, filtering and sorting. Verify native Tab navigation and Space selection, retained radio focus after acknowledgement, and subsequent keyboard activation of details; a successful pointer selection alone does not establish keyboard continuity. Guest/mirror regression tests cover identity and focus, not actual layout or installed accessibility.
+
+For screenshot capture, wait for the actual selected scene to be visible in the mirror before recording its settled view. Retain blank or transitional captures separately rather than counting them as per-scene evidence. A later settled capture does not establish absence of transient gaps or continuous frame pacing; those require their own foreground observation.
+
+The narrow-table correction is passive default CSS with no new observer, timer or dependency. Row reuse changes only the maintained three-row fixture and bounds its retained node cache by those three projects. CSS-size and guest/mirror identity tests are structural guards, not performance measurements; keep final-build opening and foreground scrolling qualification separate.
 
 Add `--with-model` to require a real model-generated linked HTML follow-up after the visible Human continuation. This opts into real provider work on the newly created synthetic Bot. The runner requires the canonical Source Event, correct Channel/Bot/predecessor, and an ordered successful preview/publication in the actual orchestrator trace whose committed message ID matches that canonical message. A direct Tool run, a text-only reply, an earlier message or unrelated Bot does not satisfy this gate. The new message must also render in the actual conversation. The deterministic default is not model acceptance, even if a background model happens to reply.
 
@@ -76,6 +84,8 @@ afterward; never widen the scope to get a passing result.
 
 The public `channelMessages` projection intentionally does not expose `channelId` or `sourceEventId` on every message. The verification runner correlates its already-authorized scoped read with read-only Source Event/placement and Human-request Admission evidence from its own isolated Profile. This is observation only, never a write bypass or another message store. The orchestrator trace must be non-`direct`, and its committed result must identify the very same canonical message.
 
+For new continuations, assert that the visible and canonical Human body equals the readable request, without injected developer context JSON. Separately verify canonical `genuiReplyContext` metadata matches the referenced document identity and submitted state, excludes HTML, and reaches the actual model once. Immediate and recovered/pending DM paths retain their existing context budgets; purge must remove the metadata with the message. Historical appended-body messages are not rewritten. Earlier screenshots are evidence only for their recorded source head, not acceptance of this separation.
+
 | Content or interaction               | Required evidence                                                 |
 | ------------------------------------ | ----------------------------------------------------------------- |
 | Composed document                    | Readable ordinary summary plus rich HTML                          |
@@ -91,9 +101,9 @@ The public `channelMessages` projection intentionally does not expose `channelId
 
 These nine fixture scenes are examples of arbitrary self-contained documents, **not** nine protocol component types or exhaustive coverage of possible HTML. New supported journeys extend the fixture and scene index. Approval/Question/private-input owners remain separate.
 
-Run `BH_GENUI_BROWSER_QA=1 pnpm exec vitest run packages/core/test/genui-html-browser.test.ts --maxWorkers=1` separately for real Chromium loading and blocked fetch, image, stylesheet, frame, form, navigation, refresh and popup requests. It does not intercept requests to manufacture a pass. Unit tests cover checked bridge messages, retained drafts, stale instances, retries and owner limits. None replaces installed WebView or desktop-shell validation.
+After `pnpm build`, run `BH_GENUI_BROWSER_QA=1 pnpm exec vitest run packages/core/test/genui-html-browser.test.ts` separately for real Chromium loading and blocked fetch, image, stylesheet, frame, form, navigation, refresh and popup requests. The spec locates the built renderer explicitly while exercising the source preview owner; a live Host/direct CLI run separately proves packaged asset resolution. Unsupported resource attempts may be explicitly refused, not silently treated as supported content. The test does not intercept requests to manufacture a pass. Unit tests cover generation/sequence/command acknowledgements, retained drafts, stale callbacks, retries and owner limits. VM real-time deadline tests run in the serial `genui-budgeted` project without increased execution budgets. None replaces installed WebView or desktop-shell validation.
 
-**Unresolved execution boundary:** iframe sandbox/CSP restrict capabilities, not CPU or memory. The heartbeat, startup deadline, height/message limits and reload state do not guarantee recovery when generated code blocks the Client event loop. Hard independently interruptible execution/memory containment remains a release gate; do not run untrusted runaway-script fixtures in the Human's daily browser or claim the candidate is production-qualified.
+**Containment qualification:** the old nested-iframe candidate did not independently interrupt generated scripts. The #3704 replacement uses an offline QuickJS Worker with interpreter/WASM budgets and an external Supervisor, then independently validates inert snapshots for a script-disabled mirror. Qualify runaway execution, heartbeat-producing memory pressure, startup failure, delayed overflow, restart and cleanup through the actual consumers. Do not run fault fixtures in the Human's daily browser. One physical Worker and one aggregate 64 MiB WASM module admit at most four independent document runtimes. Verify original and appended reports actually render simultaneously, private/global/timer isolation, sibling survival on normal unmount, capacity fallback without eviction, and explicit sibling failure/reload after a hard Worker stop. Source tests are not this consumer proof. WASM linear-memory limits and Worker termination are not total-process memory containment or proof of immediate physical reclamation. Preserve failures and qualify actual Web, desktop-shell and installed native separately.
 
 ## Offline Pele and default-style slice (#3691)
 
@@ -141,7 +151,7 @@ The three T1 catalog components are metric, table and bar-chart. Approval, Quest
 
 ## Separate remaining gates
 
-For a foreground diagnostic, `scripts/perf-idle-timeline.mjs --headed --foreground-scroll --trace` records native trusted wheel input, focus/visibility, sampled gaps/anchors, bounded rAF diagnostics and a separate compositor trace. `--foreground-scroll` refuses headless mode. Its sample checks are not a full zero-jump proof, presented FPS, or a performance acceptance verdict. Use a frozen fixture and at least three interleaved baseline/candidate runs, inspect compositor evidence and real display identity, and retain busy-machine failures instead of relaxing budgets. The existing headless default remains a structural/idle diagnostic for CI.
+For a foreground diagnostic, `scripts/perf-idle-timeline.mjs --headed --foreground-scroll --trace` records native trusted wheel input, focus/visibility, sampled gaps/anchors, bounded rAF diagnostics and a separate compositor trace. `--foreground-scroll` refuses headless mode. Its sample checks are not a full zero-jump proof, presented FPS, or a performance acceptance verdict. Use a frozen fixture and a baseline/candidate pair (interleaved repeats only when close, per the [fast loop](ax-performance.md#fast-loop-big-wins-first)), inspect compositor evidence and real display identity, and retain busy-machine failures instead of relaxing budgets. The existing headless default remains a structural/idle diagnostic for CI.
 
 Record pass, fail or untested for every layer, never a blanket end-to-end claim:
 
@@ -155,7 +165,7 @@ calibration does not prove compositor presentation or exclusive machine ownershi
 - Focused automated coverage: malformed/oversized/versioned reports, forged selections, publication failures, idempotent retries, dirty-draft remounts, access loss and canonical Content Purge.
 - Additional real Web fault journeys: failed saves, uncertain-response retry, access revocation and purge while a report is open. Unit coverage does not qualify these browser scenes.
 - Accessibility: keyboard selection is narrow evidence, not full keyboard navigation, screen-reader or large-text acceptance.
-- Performance: matched base/candidate ordinary-history journeys plus separately budgeted added report work, at least three interleaved runs, foreground scrolling and zero jumps/gaps. Timing under shared machine load is not qualification.
+- Performance: matched base/candidate ordinary-history journeys plus separately budgeted added report work, an A/B pair (repeats only when close), foreground scrolling and zero jumps/gaps. Timing under shared machine load is not qualification.
 - Dynamic-height recovery: `packages/client/test/timeline-window-recovery.test.tsx` reproduces the all-gap window after cached geometry becomes stale. The existing timeline owner retains a measurable edge group so later measurements can recover. This correctness guard is not frame-pacing or performance qualification.
 - Desktop shell, installed iOS, installed Android and Human acceptance remain separate. An 800-pixel Web viewport does not qualify a mobile application.
 
@@ -182,9 +192,36 @@ establish a matched A/B. Older summaries lack this measured-phase evidence and m
 retroactively relabelled from their startup geometry.
 
 Active-animation assertions, zero sampled gaps and rAF cadence do not establish presented
-FPS. Retain compositor traces, source/browser/build identities and at least three interleaved
-base/change pairs. Distinguish Chromium's presentation feedback, diagnostic-observer cost,
+FPS. Retain compositor traces, source/browser/build identities and the base/change pair
+(interleaved repeats only when close). Distinguish Chromium's presentation feedback, diagnostic-observer cost,
 physical display behavior, opening latency and installed-native acceptance.
+
+Preserve phase-specific
+refusals: the `ad37421ab` Linux CI run completed two rich openings before returning
+`genui-preview-cleanup-profile-enotempty` on its third preview; that is distinct from
+the separately observed local Browser startup timeout. The local Browser owner now
+waits for the child `close` event (process exit plus inherited stdio closure), not just
+`exit` or a sent `SIGKILL`. A missing close after the unchanged four-second termination
+grace and a two-second kill-confirmation window is an explicit shutdown failure;
+retain the Profile and process ownership. This does not establish that all descendants
+or file users have exited, nor prove that the CI filesystem failure is resolved.
+Recheck actual owned processes and the full original journey independently.
+
+For an instrumented opening run, add `--trace` to
+`scripts/perf-genui-opening.mjs` and use a new output directory. The same six fresh-browser
+plain/rich journeys and original readiness deadlines still run. Per-opening traces start
+before the trusted Channel-row click and stop after the unchanged ready/two-rAF endpoint;
+static user-timing markers identify the click and first observed readiness. After that
+endpoint, the runner records bounded timing fields for the Client/GenUI runtime assets.
+This can distinguish asset delivery, compilation and execution evidence without guessing
+which phase caused an earlier slow opening. It does not automatically attribute the delay.
+
+Tracing adds overhead: every summary sets `qualificationEligible: false`, and a fully
+successful instrumented run has status `diagnostic`, never `passed`. It cannot replace an
+untraced failure, qualify foreground presentation, or justify relaxing a deadline. A trace
+cleanup failure fails the run and is retained separately from an opening failure. Retain
+the private raw traces; they may contain local authenticated URLs and must not be uploaded
+as public PR artifacts without a separate privacy review.
 
 ## PR evidence
 
@@ -210,7 +247,7 @@ still in the viewport after layout settles, not just before scroll/window update
 Keep PNG originals, ARIA observations and the manifest under the task's private evidence directory, with an index in the machine's main checkout. Preserve source SHA plus dirty diff identity, built Host/Client hashes, browser identity, fixtures, canonical references, capture times, viewport and theme. Bind any pre-commit capture to the final source only after verifying production source and bundle identities have not changed.
 
 For a separate natural-GC diagnostic, run the same frozen performance driver and fixture
-with `--trace --heap-observe 30` in at least three interleaved baseline/change pairs.
+with `--trace --heap-observe 30` in a baseline/change pair (repeats only when close).
 The driver retains raw boundary samples in `<label>.heap-observation.json`, including
 browser timestamps when available, then observes an untouched fixed window after the
 original idle endpoint and before typing. It never forces GC or replaces that endpoint

@@ -147,5 +147,6 @@ export function parseStats(value: unknown): VoiceCallMediaStats | undefined {
     ...optional('roundTripTimeMs', 'rttMs'),
     ...optional('cpuPercent', 'helperCpuPct'),
     ...optional('disconnects', 'disconnects'),
+    ...optional('receivedAgeMs', 'receivedAgeMs'),
   };
 }

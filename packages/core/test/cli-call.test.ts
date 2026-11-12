@@ -66,10 +66,7 @@ function host(
   const connect = async () => ({
     post: async (body: Record<string, unknown>) => {
       posts.push(body);
-      return (await calls.handle({ deviceId: 'host-owner' }, body)) as unknown as Record<
-        string,
-        unknown
-      >;
+      return calls.handle({ deviceId: 'host-owner' }, body);
     },
     text: async (input: { channelId: string; messageId: string; body: string }) => {
       const harvested = await calls.text({ ...input, picture: true });
@@ -329,7 +326,6 @@ describe('deepseekbot call commands', () => {
       answered: true,
       heard: [{ text: 'what is on my calendar' }],
       replies: [{ bytes: 6, sentences: 1, messageId: expect.stringMatching(/^reply-to-/u) }],
-      ackMs: expect.any(Number),
       firstAudioMs: expect.any(Number),
     });
     expect(posts[0]).toEqual({ kind: 'open', slug: 'ada', media: 'synthetic' });
@@ -339,7 +335,6 @@ describe('deepseekbot call commands', () => {
       expect.arrayContaining([
         'connected',
         'speech-start',
-        'ack',
         'sent',
         'committed',
         'playing',

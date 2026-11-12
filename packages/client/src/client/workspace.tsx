@@ -1,7 +1,8 @@
 import { Menu } from './appearance-primitives.js';
 import { DeviceRequestsNotice } from './device-requests-notice.js';
-import { DiagnosticLogsEntry } from './diagnostic-logs-entry.js';
+import { BugReportEntry } from './bug-report-entry.js';
 import { MobileAppsEntry } from './mobile-apps.js';
+import { CallRailButton } from './call-rail-button.js';
 import { activityIndicator } from './activity-indicator.js';
 import { useActivityIndicatorMenu } from './activity-indicator-menu.js';
 import { onboardingFor } from './onboarding.js';
@@ -30,6 +31,7 @@ import type { ClientState } from './store.js';
 import { BotIcon } from './bot-icon.js';
 import { ExitIcon } from './exit-icon.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { RailSearchButton } from './rail-search-button.js';
 import { PinnedPanelCards } from './pinned-panel-cards.js';
 import { useChannelDockActive, useChannelsHeader } from './channel-dock.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -288,6 +290,7 @@ function WorkspaceRail({
     keepOpen: true,
     onSelect: (id) => setControlVisible(id, hiddenControls.includes(id)),
   });
+  const launcher = options.quickSwitcherSettings?.launcher;
   const [menu, setMenu] = useState(false);
   const [settingsTarget, setSettingsTarget] = useState<HTMLDivElement | null>(null);
   const settingsMount = useMountedResource<HTMLSpanElement>(
@@ -304,17 +307,18 @@ function WorkspaceRail({
       {...controlMenu.triggerProps}
     >
       {controlMenu.menu}
-      <Tooltip label={t('panel.exit')} side="right">
+      <Tooltip label={t('panel.exit')} side="right" portal>
         <button
           className="bh-workspace-exit"
+          data-glyph={icon === 'bot' ? '' : undefined}
           aria-label={t('panel.exit')}
           onClick={options.exitBotMode}
         >
           <span className="bh-workspace-brand">
-            <BotIcon icon={icon} size={24} />
+            <BotIcon icon={icon} size={icon === 'bot' ? 16 : 36} />
           </span>
           <span className="bh-workspace-exit-icon">
-            <ExitIcon size={20} />
+            <ExitIcon />
           </span>
         </button>
       </Tooltip>
@@ -443,17 +447,26 @@ function WorkspaceRail({
           settingsTarget,
         )}
 
+      <CallRailButton t={t} onReturn={() => options.dockPanels?.open(CHANNEL_BODY_PANEL)} />
       <MobileAppsEntry t={t} />
-      <DiagnosticLogsEntry t={t} />
-      <Tooltip label={t('panel.settings')} side="right">
+      <BugReportEntry t={t} />
+      {launcher ? (
+        <RailSearchButton launcher={launcher} bindings={options.shortcutBindings} t={t} />
+      ) : null}
+      <Tooltip label={t('panel.settings')} side="right" portal>
         <button aria-label={t('panel.settings')} onClick={() => options.openBotSettings()}>
           <ChannelSidebarIcon name="settings" />
         </button>
       </Tooltip>
       <DeviceRequestsNotice t={t} />
-      <Tooltip label={t('panel.backToHarness')} side="right">
-        <button type="button" aria-label={t('panel.backToHarness')} onClick={options.exitBotMode}>
-          <ExitIcon size={20} />
+      <Tooltip label={t('panel.backToHarness')} side="right" portal>
+        <button
+          type="button"
+          className="bh-workspace-leave"
+          aria-label={t('panel.backToHarness')}
+          onClick={options.exitBotMode}
+        >
+          <ExitIcon />
         </button>
       </Tooltip>
     </nav>

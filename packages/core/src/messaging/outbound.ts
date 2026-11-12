@@ -1030,6 +1030,32 @@ export function createOutboundMessaging(options: {
     )
       throw new MessagingError('conversation-blocked');
   };
+  const savedDmGrant = async (value: MessagingGrant): Promise<string | undefined> => {
+    const conversationId = value.receiveScope?.conversationId;
+    if (conversationId === undefined) return undefined;
+    const rows = database.read((db) =>
+      db
+        .prepare(
+          'SELECT body FROM messaging_grants WHERE binding_id = ? AND bot_slug = ? AND revoked_at IS NULL ORDER BY created_at, rowid',
+        )
+        .all(value.bindingId, value.botSlug),
+    ) as { body: string }[];
+    const candidates = rows
+      .map((row) => JSON.parse(row.body) as MessagingGrant)
+      .filter((candidate) => candidate.origin !== 'implicit' && !candidate.suspendedReason);
+    if (candidates.length === 0) return undefined;
+    const entry = provider(value.providerId);
+    const targets = await bounded(entry.provider.targets(value.accountRef));
+    return candidates.find((candidate) =>
+      targets.some(
+        (target) =>
+          target.ref === candidate.targetRef &&
+          target.digest === candidate.targetDigest &&
+          target.receiveScope?.kind === 'dm' &&
+          target.receiveScope.conversationId === conversationId,
+      ),
+    )?.id;
+  };
   const check = async (value: MessagingGrant) => {
     active(value.botSlug);
     if (value.revokedAt !== undefined) throw new MessagingError('grant-revoked');
@@ -2122,9 +2148,7 @@ export function createOutboundMessaging(options: {
         throw new MessagingError('capability-unavailable');
       const targets = await bounded(entry.provider.targets(identity.accountRef));
       const matching = targets.filter(
-        (target) =>
-          target.receiveScope?.kind === 'group' &&
-          target.receiveScope.conversationId === conversationId,
+        (target) => target.receiveScope?.conversationId === conversationId,
       );
       const findExisting = (db: DatabaseSync) => {
         const rows = db
@@ -2209,6 +2233,11 @@ export function createOutboundMessaging(options: {
     },
     async post(botSlug, grantId, requestId, text) {
       const value = grant(botSlug, grantId);
+      if (value.origin === 'implicit' && value.receiveScope?.kind === 'dm') {
+        const saved = await savedDmGrant(value);
+        if (saved === undefined) throw new MessagingError('capability-unavailable');
+        return service.post(botSlug, saved, requestId, text);
+      }
       if (
         value.origin === 'implicit'
           ? provider(value.providerId).provider.postConversation === undefined
@@ -2438,7 +2467,8 @@ export function createOutboundMessaging(options: {
               canPost =
                 checked.inspected.account.postSupported !== false &&
                 (value.origin === 'implicit'
-                  ? checked.provider.postConversation !== undefined
+                  ? checked.provider.postConversation !== undefined &&
+                    checked.inspected.target.receiveScope?.kind === 'group'
                   : checked.provider.post !== undefined ||
                     checked.provider.postConversation !== undefined) &&
                 checked.inspected.target.receiveScope !== undefined;

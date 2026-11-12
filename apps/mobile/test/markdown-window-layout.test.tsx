@@ -3,6 +3,8 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 
+vi.mock('expo', () => ({ requireOptionalNativeModule: () => null }));
+
 const geometry = vi.hoisted(() => ({ width: 400 }));
 vi.mock('react-native', async () => {
   const shim = await import('./react-native-shim');

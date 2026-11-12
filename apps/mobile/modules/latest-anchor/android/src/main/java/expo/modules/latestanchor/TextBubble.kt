@@ -1,0 +1,262 @@
+package expo.modules.latestanchor
+
+import android.content.Context
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.RectF
+import android.text.Layout
+import android.text.StaticLayout
+import android.text.TextPaint
+import android.view.View
+import kotlin.math.ceil
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.roundToInt
+
+/**
+ * A committed text message drawn natively instead of mounted as React views. A group Bot row
+ * ([speaker]) leaves room for the speaker's avatar and shows [name] above the first bubble of a run.
+ */
+data class TextRow(
+  val key: String, val human: Boolean, val first: Boolean, val last: Boolean, val body: String, val time: String,
+  val markdown: Boolean = false, val speaker: Boolean = false, val name: String? = null,
+) {
+  companion object {
+    fun from(value: Map<String, Any?>): TextRow? {
+      val key = value["key"] as? String ?: return null
+      return TextRow(
+        key,
+        value["human"] == true,
+        value["first"] == true,
+        value["last"] == true,
+        value["body"] as? String ?: return null,
+        value["time"] as? String ?: "",
+        value["markdown"] == true,
+        value["speaker"] == true,
+        value["name"] as? String,
+      )
+    }
+  }
+}
+
+/** Design tokens in logical pixels and CSS colors, as sent by JavaScript. */
+data class TextRowStyle(
+  val accent: Int, val surface: Int, val onAccent: Int, val fg: Int, val muted: Int,
+  val bodySize: Float, val bodyLine: Float, val metaSize: Float, val metaLine: Float, val fontScale: Float,
+  val rowInset: Float, val firstGap: Float, val joinGap: Float, val lastGap: Float,
+  val padX: Float, val padY: Float, val timeGap: Float, val stackGap: Float,
+  val open: Float, val join: Float, val tail: Float, val besideMax: Int, val maxWidth: Float,
+  val paragraphGap: Float = 0f,
+  val markdown: Map<String, Any?>? = null,
+  val touch: TouchStyle? = null,
+  val avatar: Float = 32f,
+  val avatarGap: Float = 12f,
+  val nameGap: Float = 4f,
+) {
+  companion object {
+    fun from(value: Map<String, Any?>): TextRowStyle? {
+      fun number(name: String) = (value[name] as? Number)?.toFloat()
+      fun color(name: String) = (value[name] as? String)?.let(::cssColor)
+      return TextRowStyle(
+        color("accent") ?: return null, color("surface") ?: return null, color("onAccent") ?: return null,
+        color("fg") ?: return null, color("muted") ?: return null,
+        number("bodySize") ?: return null, number("bodyLine") ?: return null,
+        number("metaSize") ?: return null, number("metaLine") ?: return null, number("fontScale") ?: 1f,
+        number("rowInset") ?: 0f, number("firstGap") ?: 0f, number("joinGap") ?: 0f, number("lastGap") ?: 0f,
+        number("padX") ?: 0f, number("padY") ?: 0f, number("timeGap") ?: 0f, number("stackGap") ?: 0f,
+        number("open") ?: 0f, number("join") ?: 0f, number("tail") ?: 0f,
+        number("besideMax")?.toInt() ?: 60, number("maxWidth") ?: 0.88f, number("paragraphGap") ?: 0f,
+        @Suppress("UNCHECKED_CAST") (value["markdown"] as? Map<String, Any?>),
+        @Suppress("UNCHECKED_CAST") (value["touch"] as? Map<String, Any?>)?.let(TouchStyle::from),
+        number("avatar") ?: 32f, number("avatarGap") ?: 12f, number("nameGap") ?: 4f,
+      )
+    }
+  }
+}
+
+/** Press feedback and swipe-to-reply tokens, in logical pixels and CSS colors. */
+data class TouchStyle(
+  val pressHuman: Int, val pressBot: Int, val hintFill: Int, val hintInk: Int, val holdMs: Long,
+  val swipe: ReplySwipe, val hintEnd: Float, val hintIcon: Float, val glyph: Float,
+) {
+  companion object {
+    fun from(value: Map<String, Any?>): TouchStyle? {
+      fun number(name: String) = (value[name] as? Number)?.toFloat()
+      fun color(name: String) = (value[name] as? String)?.let(::cssColor)
+      return TouchStyle(
+        color("pressHuman") ?: return null, color("pressBot") ?: return null,
+        color("hintFill") ?: return null, color("hintInk") ?: return null,
+        number("holdMs")?.toLong() ?: 500L,
+        ReplySwipe(
+          number("swipeStart") ?: return null, number("swipeBackFail") ?: return null,
+          number("swipeVerticalFail") ?: return null, number("swipeCommit") ?: return null,
+          number("swipeReach") ?: return null,
+        ),
+        number("hintEnd") ?: 0f, number("hintIcon") ?: 28f, number("glyph") ?: 16f,
+      )
+    }
+  }
+}
+
+fun cssColor(value: String): Int? {
+  val text = value.trim()
+  Regex("""rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+)\s*)?\)""").matchEntire(text)?.let { m ->
+    val (r, g, b) = m.destructured
+    val a = m.groupValues[4].ifEmpty { "1" }.toFloat()
+    return Color.argb((a * 255).roundToInt(), r.toFloat().roundToInt(), g.toFloat().roundToInt(), b.toFloat().roundToInt())
+  }
+  if (!text.startsWith("#")) return null
+  val hex = text.substring(1)
+  val full = when (hex.length) {
+    3, 4 -> hex.map { "$it$it" }.joinToString("")
+    6, 8 -> hex
+    else -> return null
+  }
+  val rgb = full.substring(0, 6).toLongOrNull(16) ?: return null
+  val alpha = if (full.length == 8) full.substring(6, 8).toLongOrNull(16) ?: return null else 0xFF
+  return ((alpha shl 24) or rgb).toInt()
+}
+
+/** Text layout, bubble geometry and row height for one row at one width, in physical pixels. */
+class TextBubbleLayout(
+  val row: TextRow,
+  val tokens: TextRowStyle,
+  val width: Int,
+  density: Float,
+  markdown: ((String) -> CharSequence?)? = null,
+) {
+  private val scale = density * tokens.fontScale
+  val paragraphs: List<StaticLayout>
+  private val paragraphGap: Float
+  val timePaint = TextPaint(Paint.ANTI_ALIAS_FLAG)
+  val bubble: RectF
+  val timeX: Float
+  val timeBaseline: Float
+  val height: Int
+  val fill = if (row.human) tokens.accent else tokens.surface
+  val radii: FloatArray
+  private val textTop: Float
+  private val textLeft: Float
+  private val name: StaticLayout?
+  /** The bubble and the speaker name above it: the area the row's view covers. */
+  val frame: RectF
+  private val nameLeft: Float
+  private val nameTop: Float
+
+  init {
+    val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+      textSize = tokens.bodySize * scale
+      color = if (row.human) tokens.onAccent else tokens.fg
+    }
+    timePaint.textSize = tokens.metaSize * scale
+    timePaint.color = if (row.human) tokens.onAccent else tokens.muted
+    val line = tokens.bodyLine * scale
+    val metaLine = tokens.metaLine * scale
+    val padX = tokens.padX * density
+    val padY = tokens.padY * density
+    val gap = tokens.timeGap * density
+    val inset = tokens.rowInset * density
+    val lead = if (row.speaker) (tokens.avatar + tokens.avatarGap) * density else 0f
+    val inner = max(1, ((width - 2 * inset - lead) * tokens.maxWidth - 2 * padX).toInt())
+    val spacing = line - paint.getFontMetricsInt(null)
+    val styled = if (row.markdown) markdown?.invoke(row.body) else null
+    val texts: List<CharSequence> = when {
+      styled != null -> listOf(styled)
+      row.human -> listOf(row.body)
+      else -> row.body.split(Regex("\n\\s*\n"))
+    }
+    paragraphGap = if (row.human || styled != null) 0f else tokens.paragraphGap * density
+    paragraphs = texts.map { text ->
+      val natural = if (styled != null) inner else ceil(Layout.getDesiredWidth(text, paint)).toInt()
+      StaticLayout.Builder.obtain(text, 0, text.length, paint, max(1, min(natural, inner)))
+        .setIncludePad(false)
+        .setLineSpacing(if (styled != null) 0f else spacing, 1f)
+        .build()
+    }
+    val last = paragraphs.last()
+    val lines = paragraphs.sumOf { it.lineCount }
+    val wrapped = paragraphs.any { it.lineCount > 1 }
+    val textWidth = if (wrapped) inner.toFloat()
+      else paragraphs.maxOf { layout -> (0 until layout.lineCount).maxOf { layout.getLineRight(it) } }
+    val lastWidth = last.getLineRight(last.lineCount - 1)
+    val timeWidth = timePaint.measureText(row.time)
+    val textHeight = paragraphs.sumOf { it.height }.toFloat() + paragraphGap * (paragraphs.size - 1)
+    val beside = !row.human && lines == 1 && !row.body.contains('\n') &&
+      row.body.length <= tokens.besideMax && textWidth + gap + timeWidth <= inner
+    val contentWidth: Float
+    val contentHeight: Float
+    if (row.human) {
+      val fits = lastWidth + gap + timeWidth <= inner
+      contentWidth = if (fits) max(textWidth, lastWidth + gap + timeWidth) else max(textWidth, timeWidth)
+      contentHeight = textHeight + if (fits) 0f else metaLine
+    } else if (beside) {
+      contentWidth = textWidth + gap + timeWidth
+      contentHeight = max(textHeight, metaLine)
+    } else {
+      contentWidth = max(textWidth, timeWidth)
+      contentHeight = textHeight + tokens.stackGap * density + metaLine
+    }
+    val bubbleWidth = contentWidth + 2 * padX
+    val bubbleHeight = contentHeight + 2 * padY
+    val rowTop = (if (row.first) tokens.firstGap else tokens.joinGap) * density
+    val namePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+      textSize = tokens.metaSize * scale
+      color = tokens.muted
+      isFakeBoldText = true
+    }
+    val nameWidth = max(1, (width - 2 * inset - lead).toInt())
+    name = row.name?.takeIf { it.isNotEmpty() }?.let { text ->
+      StaticLayout.Builder.obtain(text, 0, text.length, namePaint, nameWidth)
+        .setIncludePad(false).setMaxLines(1).setEllipsize(android.text.TextUtils.TruncateAt.END)
+        .setLineSpacing(metaLine - namePaint.getFontMetricsInt(null), 1f)
+        .build()
+    }
+    nameLeft = inset + lead
+    nameTop = rowTop
+    val top = rowTop + (name?.let { it.height + tokens.nameGap * density } ?: 0f)
+    val left = if (row.human) width - inset - bubbleWidth else inset + lead
+    bubble = RectF(left, top, left + bubbleWidth, top + bubbleHeight)
+    timeX = bubble.right - padX - timeWidth
+    timeBaseline = bubble.bottom - padY - timePaint.fontMetrics.descent
+    height = ceil(bubble.bottom + (if (row.last) tokens.lastGap else 0f) * density).toInt()
+    val open = tokens.open * density
+    val join = tokens.join * density
+    val tail = tokens.tail * density
+    val (topLeft, topRight, bottomRight, bottomLeft) = if (row.human)
+      listOf(open, if (row.first) open else join, if (row.last) tail else join, open)
+    else
+      listOf(if (row.first) open else join, open, open, if (row.last) tail else join)
+    radii = floatArrayOf(topLeft, topLeft, topRight, topRight, bottomRight, bottomRight, bottomLeft, bottomLeft)
+    textTop = bubble.top + padY
+    textLeft = bubble.left + padX
+    frame = RectF(bubble).apply {
+      name?.let { union(nameLeft, nameTop, nameLeft + it.getLineRight(0), nameTop + it.height) }
+    }
+  }
+
+  private val path = Path()
+  private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+  fun draw(canvas: Canvas) {
+    name?.let {
+      canvas.save()
+      canvas.translate(nameLeft, nameTop)
+      it.draw(canvas)
+      canvas.restore()
+    }
+    fillPaint.color = fill
+    path.reset()
+    path.addRoundRect(bubble, radii, Path.Direction.CW)
+    canvas.drawPath(path, fillPaint)
+    canvas.save()
+    canvas.translate(textLeft, textTop)
+    for (layout in paragraphs) {
+      layout.draw(canvas)
+      canvas.translate(0f, layout.height + paragraphGap)
+    }
+    canvas.restore()
+    canvas.drawText(row.time, timeX, timeBaseline, timePaint)
+  }
+}

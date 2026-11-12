@@ -1,3 +1,4 @@
+import { asyncGitSteps, syncGitSteps, type GitSteps } from './git-steps.js';
 import {
   isMemoryMarkdown,
   readMemoryMarkdown,
@@ -13,7 +14,6 @@ import {
   type MemoryImage,
   type MemoryImageComparison,
 } from './image.js';
-import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
   closeSync,
@@ -175,6 +175,15 @@ export interface MemoryWorkingDiff extends MemoryWorkingChange {
 }
 
 export interface MemoryAcceptance {
+  prepareTurnAsync(
+    ...args: Parameters<MemoryAcceptance['prepareTurn']>
+  ): Promise<MemoryChangeDelta | undefined>;
+  reconcileTurnAsync(
+    ...args: Parameters<MemoryAcceptance['reconcileTurn']>
+  ): Promise<MemoryAcceptedCommit[]>;
+  abortTurnAsync(...args: Parameters<MemoryAcceptance['abortTurn']>): Promise<void>;
+  pendingCommitsAsync(botSlug: string): Promise<MemoryPendingCommits>;
+  scanChangesAsync(botSlug: string): Promise<MemoryChangeScan>;
   sourceReferences(sourceEventIds: readonly string[]): Array<{
     sourceEventId: string;
     botSlug: string;
@@ -300,6 +309,10 @@ const MAX_FILE_BYTES = 1024 * 1024;
 const MAX_DIFF_BYTES = 4 * 1024 * 1024;
 
 function run(root: string, args: string[], maxBuffer = MAX_DIFF_BYTES): Buffer {
+  return syncGitSteps(runSteps(root, args, maxBuffer));
+}
+
+function* runSteps(root: string, args: string[], maxBuffer = MAX_DIFF_BYTES): GitSteps<Buffer> {
   const env = { ...process.env };
   for (const key of Object.keys(env)) {
     if (key.startsWith('GIT_')) delete env[key];
@@ -307,9 +320,8 @@ function run(root: string, args: string[], maxBuffer = MAX_DIFF_BYTES): Buffer {
   env.GIT_CONFIG_GLOBAL = '/dev/null';
   env.GIT_CONFIG_NOSYSTEM = '1';
   try {
-    return execFileSync(
-      'git',
-      [
+    return yield {
+      args: [
         `--git-dir=${join(root, '.git')}`,
         `--work-tree=${root}`,
         '-c',
@@ -324,14 +336,14 @@ function run(root: string, args: string[], maxBuffer = MAX_DIFF_BYTES): Buffer {
         'commit.gpgsign=false',
         ...args,
       ],
-      {
+      options: {
         cwd: root,
         env,
         stdio: ['ignore', 'pipe', 'pipe'],
         maxBuffer,
         windowsHide: true,
       },
-    );
+    };
   } catch {
     throw new MemoryAcceptError(
       'memory-invalid',
@@ -341,7 +353,11 @@ function run(root: string, args: string[], maxBuffer = MAX_DIFF_BYTES): Buffer {
 }
 
 function output(root: string, args: string[]): string {
-  return run(root, args).toString('utf8').trim();
+  return syncGitSteps(outputSteps(root, args));
+}
+
+function* outputSteps(root: string, args: string[]): GitSteps<string> {
+  return (yield* runSteps(root, args)).toString('utf8').trim();
 }
 
 function versionNames(root: string): Map<string, MemoryVersionName[]> {
@@ -421,14 +437,22 @@ function nameVersion(root: string, sha: string, name: string): MemoryVersionName
 }
 
 function branchOf(root: string): string {
+  return syncGitSteps(branchOfSteps(root));
+}
+
+function* branchOfSteps(root: string): GitSteps<string> {
   try {
-    return output(root, ['symbolic-ref', '--quiet', '--short', 'HEAD']);
+    return yield* outputSteps(root, ['symbolic-ref', '--quiet', '--short', 'HEAD']);
   } catch {
     throw new MemoryAcceptError('memory-invalid', 'Memory Repository must be on a local branch');
   }
 }
 
 function verifiedRepository(root: string, botSlug: string): string {
+  return syncGitSteps(verifiedRepositorySteps(root, botSlug));
+}
+
+function* verifiedRepositorySteps(root: string, botSlug: string): GitSteps<string> {
   if (
     !existsSync(join(root, '.git')) ||
     !lstatSync(join(root, '.git')).isDirectory() ||
@@ -436,16 +460,20 @@ function verifiedRepository(root: string, botSlug: string): string {
   ) {
     throw new MemoryAcceptError('memory-unavailable', `Memory Repository unavailable: ${botSlug}`);
   }
-  branchOf(root);
+  yield* branchOfSteps(root);
   return root;
 }
 
 function repository(registry: PersonaBotRegistry, botSlug: string): string {
+  return syncGitSteps(repositorySteps(registry, botSlug));
+}
+
+function* repositorySteps(registry: PersonaBotRegistry, botSlug: string): GitSteps<string> {
   const root = registry.memoryDirFor(botSlug);
   if (root === undefined) {
     throw new MemoryAcceptError('memory-unavailable', `Memory Repository unavailable: ${botSlug}`);
   }
-  return verifiedRepository(root, botSlug);
+  return yield* verifiedRepositorySteps(root, botSlug);
 }
 
 export interface MemoryCommitFile {
@@ -472,14 +500,12 @@ export interface MemoryPendingCommits {
 const MAX_RECORDED_COMMITS = 20;
 const MAX_RECORDED_PATHS = 20;
 
-function commitSummary(root: string, sha: string): MemoryCommitSummary {
-  const [fullSha = sha, subject = '', authorName = '', authoredAt = ''] = output(root, [
-    'show',
-    '--no-patch',
-    '--format=%H%x1f%s%x1f%an%x1f%aI',
-    sha,
-  ]).split('\x1f');
-  const files = output(root, ['show', '--numstat', '--no-renames', '--format=', sha])
+function* commitSummarySteps(root: string, sha: string): GitSteps<MemoryCommitSummary> {
+  const [fullSha = sha, subject = '', authorName = '', authoredAt = ''] = (yield* outputSteps(
+    root,
+    ['show', '--no-patch', '--format=%H%x1f%s%x1f%an%x1f%aI', sha],
+  )).split('\x1f');
+  const files = (yield* outputSteps(root, ['show', '--numstat', '--no-renames', '--format=', sha]))
     .split('\n')
     .filter((line) => line.length > 0)
     .map((line) => {
@@ -501,7 +527,11 @@ function commitSummary(root: string, sha: string): MemoryCommitSummary {
 }
 
 function head(root: string): string {
-  const sha = output(root, ['rev-parse', '--verify', 'HEAD']);
+  return syncGitSteps(headSteps(root));
+}
+
+function* headSteps(root: string): GitSteps<string> {
+  const sha = yield* outputSteps(root, ['rev-parse', '--verify', 'HEAD']);
   if (!/^[0-9a-f]{40}$/u.test(sha)) {
     throw new MemoryAcceptError('memory-invalid', 'Memory Repository HEAD is invalid');
   }
@@ -531,20 +561,20 @@ const MAX_ANNOTATION_BYTES = 4096;
 const MAX_OBSERVED_PATHS = 500;
 const MAX_HASHED_FILE_BYTES = 8 * 1024 * 1024;
 
-function indexVersions(root: string, paths: string[]): Map<string, string> {
+function* indexVersionsSteps(root: string, paths: string[]): GitSteps<Map<string, string>> {
   if (paths.length === 0) return new Map();
   const versions = new Map<string, string>();
   let batch: string[] = [];
   let length = 0;
-  const flush = () => {
-    const raw = run(root, [
+  const flush = function* (): GitSteps<void> {
+    const raw = (yield* runSteps(root, [
       '--literal-pathspecs',
       'ls-files',
       '--stage',
       '-z',
       '--',
       ...batch,
-    ]).toString('utf8');
+    ])).toString('utf8');
     for (const entry of raw.split('\0')) {
       const separator = entry.indexOf('\t');
       if (separator < 0) continue;
@@ -555,11 +585,12 @@ function indexVersions(root: string, paths: string[]): Map<string, string> {
     length = 0;
   };
   for (const path of paths) {
-    if (batch.length > 0 && (length + path.length + 1 > 8000 || batch.length === 100)) flush();
+    if (batch.length > 0 && (length + path.length + 1 > 8000 || batch.length === 100))
+      yield* flush();
     batch.push(path);
     length += path.length + 1;
   }
-  if (batch.length > 0) flush();
+  if (batch.length > 0) yield* flush();
   return versions;
 }
 
@@ -641,10 +672,15 @@ function worktreeVersion(root: string, path: string, status: string): string {
   return `file:${hash.digest('hex')}`;
 }
 
-function porcelainFiles(
+function* porcelainFilesSteps(
   root: string,
-): Pick<TurnWorktreeObservation, 'files' | 'overflowHash' | 'overflowCount'> {
-  const raw = run(root, ['status', '--porcelain', '-z', '--untracked-files=all']).toString('utf8');
+): GitSteps<Pick<TurnWorktreeObservation, 'files' | 'overflowHash' | 'overflowCount'>> {
+  const raw = (yield* runSteps(root, [
+    'status',
+    '--porcelain',
+    '-z',
+    '--untracked-files=all',
+  ])).toString('utf8');
   if (raw.length === 0) return { files: [] };
   const changes: Array<{ path: string; status: string; oldPath?: string }> = [];
   const entries = raw.split('\0');
@@ -664,7 +700,7 @@ function porcelainFiles(
   const selected = changes
     .sort((left, right) => left.path.localeCompare(right.path))
     .slice(0, MAX_OBSERVED_PATHS);
-  const index = indexVersions(
+  const index = yield* indexVersionsSteps(
     root,
     selected.map((change) => change.path),
   );
@@ -678,9 +714,12 @@ function porcelainFiles(
       worktreeVersion(root, change.path, change.status),
     ].join('\0'),
   }));
-  const after = run(root, ['status', '--porcelain', '-z', '--untracked-files=all']).toString(
-    'utf8',
-  );
+  const after = (yield* runSteps(root, [
+    'status',
+    '--porcelain',
+    '-z',
+    '--untracked-files=all',
+  ])).toString('utf8');
   if (after !== raw) throw unstableObservation('working tree');
   const overflowCount = changes.length - selected.length;
   return overflowCount > 0
@@ -715,12 +754,16 @@ function currentWorkingChanges(root: string): MemoryWorkingChange[] {
 }
 
 function observeWorktree(root: string): Omit<TurnWorktreeObservation, 'sessionId'> {
+  return syncGitSteps(observeWorktreeSteps(root));
+}
+
+function* observeWorktreeSteps(root: string): GitSteps<Omit<TurnWorktreeObservation, 'sessionId'>> {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
-      const branch = branchOf(root);
-      const currentHead = head(root);
-      const files = porcelainFiles(root);
-      if (branch !== branchOf(root) || currentHead !== head(root))
+      const branch = yield* branchOfSteps(root);
+      const currentHead = yield* headSteps(root);
+      const files = yield* porcelainFilesSteps(root);
+      if (branch !== (yield* branchOfSteps(root)) || currentHead !== (yield* headSteps(root)))
         throw unstableObservation('repository');
       return { branch, head: currentHead, ...files };
     } catch (error) {
@@ -735,9 +778,9 @@ function observeWorktree(root: string): Omit<TurnWorktreeObservation, 'sessionId
   throw unstableObservation('working tree');
 }
 
-function safeGit(root: string, args: string[]): string {
+function* safeGitSteps(root: string, args: string[]): GitSteps<string> {
   try {
-    return output(root, args);
+    return yield* outputSteps(root, args);
   } catch {
     return '';
   }
@@ -767,9 +810,13 @@ function finishAnnotation(details: string[]): string | undefined {
   );
 }
 
-function personaDiffersAcrossHeads(root: string, oldHead: string, newHead: string): boolean {
+function* personaDiffersAcrossHeadsSteps(
+  root: string,
+  oldHead: string,
+  newHead: string,
+): GitSteps<boolean> {
   return (
-    safeGit(root, [
+    (yield* safeGitSteps(root, [
       'diff',
       '--name-only',
       '-z',
@@ -777,18 +824,18 @@ function personaDiffersAcrossHeads(root: string, oldHead: string, newHead: strin
       newHead,
       '--',
       ...STANDING_FILES,
-    ]).replaceAll('\0', '').length > 0
+    ])).replaceAll('\0', '').length > 0
   );
 }
 
-function buildTurnChange(
+function* buildTurnChangeSteps(
   root: string,
   previous: TurnWorktreeObservation,
   current: Omit<TurnWorktreeObservation, 'sessionId'>,
-): MemoryChangeDelta | undefined {
+): GitSteps<MemoryChangeDelta | undefined> {
   if (current.branch !== previous.branch) {
     const details = [`Memory branch is now '${current.branch}' (was '${previous.branch}').`];
-    const personaChanged = personaDiffersAcrossHeads(root, previous.head, current.head);
+    const personaChanged = yield* personaDiffersAcrossHeadsSteps(root, previous.head, current.head);
     if (personaChanged) {
       details.push(PERSONA_FROZEN_SENTENCE);
     }
@@ -807,13 +854,13 @@ function buildTurnChange(
   const details: string[] = [];
   const committedNames: string[] = [];
   if (current.head !== previous.head) {
-    for (const name of safeGit(root, [
+    for (const name of (yield* safeGitSteps(root, [
       'diff',
       '--name-only',
       '-z',
       previous.head,
       current.head,
-    ]).split('\0')) {
+    ])).split('\0')) {
       if (name.length > 0) committedNames.push(name);
     }
     const shown = committedNames.slice(0, MAX_ANNOTATION_PATHS);
@@ -875,7 +922,11 @@ function buildTurnChange(
 }
 
 function validateCommit(root: string, sha: string): string {
-  const tree = output(root, ['rev-parse', '--verify', `${sha}^{tree}`]);
+  return syncGitSteps(validateCommitSteps(root, sha));
+}
+
+function* validateCommitSteps(root: string, sha: string): GitSteps<string> {
+  const tree = yield* outputSteps(root, ['rev-parse', '--verify', `${sha}^{tree}`]);
   return JSON.stringify({ gitTree: tree });
 }
 
@@ -940,6 +991,20 @@ export function createMemoryAcceptance(options: {
   const { registry, ownership, database } = options;
   const now = options.now ?? (() => new Date());
   const warn = options.warn;
+  const operations = new Set<string>();
+  const assertIdle = (botSlug: string): void => {
+    if (operations.has(botSlug))
+      throw new MemoryAcceptError('memory-conflict', 'Memory observation is in progress');
+  };
+  const runAsync = async <T>(botSlug: string, steps: GitSteps<T>): Promise<T> => {
+    assertIdle(botSlug);
+    operations.add(botSlug);
+    try {
+      return await asyncGitSteps(steps);
+    } finally {
+      operations.delete(botSlug);
+    }
+  };
   const recovery = createMemoryRecovery({
     database,
     now,
@@ -1014,19 +1079,19 @@ export function createMemoryAcceptance(options: {
     });
   };
 
-  const refreshObservation = (
+  function* refreshObservationSteps(
     botSlug: string,
     sessionId: string,
     causeKind: 'source-event' | 'turn-abort' = 'turn-abort',
     causeId = sessionId,
     beforeObservationJson?: string,
-  ): boolean => {
+  ): GitSteps<boolean> {
     try {
-      const root = repository(registry, botSlug);
-      const current = observeWorktree(root);
+      const root = yield* repositorySteps(registry, botSlug);
+      const current = yield* observeWorktreeSteps(root);
       saveObservation(botSlug, root, current);
       try {
-        recovery.capture(
+        yield* recovery.captureSteps(
           botSlug,
           root,
           {
@@ -1049,23 +1114,24 @@ export function createMemoryAcceptance(options: {
       );
       return false;
     }
-  };
+  }
 
-  const scanChanges = (botSlug: string): MemoryChangeScan => {
-    const root = repository(registry, botSlug);
-    bootstrap(botSlug, root);
+  function* scanChangesSteps(botSlug: string): GitSteps<MemoryChangeScan> {
+    const root = yield* repositorySteps(registry, botSlug);
+    yield* bootstrapSteps(botSlug, root);
     if (pendingRepair(botSlug) !== undefined) {
       throw new MemoryAcceptError(
         'memory-conflict',
         'Memory repair must finish before observation',
       );
     }
-    const current = observeWorktree(root);
+    const current = yield* observeWorktreeSteps(root);
     const previous = readObservation(botSlug, root);
-    const change = previous === undefined ? undefined : buildTurnChange(root, previous, current);
+    const change =
+      previous === undefined ? undefined : yield* buildTurnChangeSteps(root, previous, current);
     if (previous === undefined || change !== undefined) {
       try {
-        recovery.capture(botSlug, root, {
+        yield* recovery.captureSteps(botSlug, root, {
           origin: 'host-observation',
           originId: 'botharness-host',
           causeKind: 'memory-scan',
@@ -1083,6 +1149,10 @@ export function createMemoryAcceptance(options: {
       repositoryIdentity: repositoryIdentity(root),
       observationJson: JSON.stringify(current),
     };
+  }
+  const scanChanges = (botSlug: string): MemoryChangeScan => {
+    assertIdle(botSlug);
+    return syncGitSteps(scanChangesSteps(botSlug));
   };
 
   const pendingRepair = (botSlug: string): RepairRow | undefined =>
@@ -1208,14 +1278,16 @@ export function createMemoryAcceptance(options: {
     );
   };
 
-  const bootstrap = (botSlug: string, root: string): string => {
-    const branch = branchOf(root);
-    const sha = head(root);
+  function* bootstrapSteps(botSlug: string, root: string): GitSteps<string> {
+    const branch = yield* branchOfSteps(root);
+    const sha = yield* headSteps(root);
     if (acceptedHead(botSlug, branch) !== null) return sha;
     if (
       branch !== 'main' ||
-      output(root, ['rev-list', '--parents', '-n', '1', sha]).split(' ').length !== 1 ||
-      output(root, ['show', '-s', '--format=%s', sha]) !== 'Initialize memory repository'
+      (yield* outputSteps(root, ['rev-list', '--parents', '-n', '1', sha])).split(' ').length !==
+        1 ||
+      (yield* outputSteps(root, ['show', '-s', '--format=%s', sha])) !==
+        'Initialize memory repository'
     )
       return sha;
     accept(
@@ -1229,12 +1301,16 @@ export function createMemoryAcceptance(options: {
           actorId: 'botharness-bootstrap',
           causeKind: 'repository-init',
           causeId: `bootstrap:${sha}`,
-          validationResult: validateCommit(root, sha),
+          validationResult: yield* validateCommitSteps(root, sha),
         },
       ],
       null,
     );
     return sha;
+  }
+  const bootstrap = (botSlug: string, root: string): string => {
+    assertIdle(botSlug);
+    return syncGitSteps(bootstrapSteps(botSlug, root));
   };
 
   const requireOwned = (botSlug: string, sessionId: string): void => {
@@ -1261,46 +1337,60 @@ export function createMemoryAcceptance(options: {
       `).run(botSlug, branch, sha, now().toISOString());
     });
   };
-  const pendingCommits = (botSlug: string): MemoryPendingCommits => {
-    const root = repository(registry, botSlug);
-    const branch = branchOf(root);
-    const current = head(root);
+  function* pendingCommitsSteps(botSlug: string): GitSteps<MemoryPendingCommits> {
+    const root = yield* repositorySteps(registry, botSlug);
+    const branch = yield* branchOfSteps(root);
+    const current = yield* headSteps(root);
     const cursor = commitCursor(botSlug);
     if (cursor === undefined || cursor.branch !== branch || cursor.head === current)
       return { branch, head: current, commits: [] };
     let shas: string[];
     try {
-      shas = output(root, ['rev-list', '--reverse', current, `^${cursor.head}`])
+      shas = (yield* outputSteps(root, ['rev-list', '--reverse', current, `^${cursor.head}`]))
         .split('\n')
         .filter((sha) => /^[0-9a-f]{40}$/u.test(sha));
     } catch {
       return { branch, head: current, commits: [] };
     }
-    return {
-      branch,
-      head: current,
-      commits: shas.slice(-MAX_RECORDED_COMMITS).map((sha) => commitSummary(root, sha)),
-    };
+    const commits: MemoryCommitSummary[] = [];
+    for (const sha of shas.slice(-MAX_RECORDED_COMMITS))
+      commits.push(yield* commitSummarySteps(root, sha));
+    return { branch, head: current, commits };
+  }
+  const pendingCommits = (botSlug: string): MemoryPendingCommits => {
+    assertIdle(botSlug);
+    return syncGitSteps(pendingCommitsSteps(botSlug));
   };
 
-  const prepareTurn = (
+  function* prepareTurnSteps(
     botSlug: string,
     sessionId: string,
     options?: { coordinateBranchSwitch?: boolean },
-  ): MemoryChangeDelta | undefined => {
+  ): GitSteps<MemoryChangeDelta | undefined> {
     requireOwned(botSlug, sessionId);
     if (pendingRepair(botSlug) !== undefined) {
       throw new MemoryAcceptError('memory-conflict', 'Memory repair must finish before turn');
     }
-    const root = repository(registry, botSlug);
-    bootstrap(botSlug, root);
     if (inFlight.has(botSlug)) {
       throw new MemoryAcceptError('memory-conflict', 'Another Memory turn is active');
     }
+    const root = yield* repositorySteps(registry, botSlug);
+    yield* bootstrapSteps(botSlug, root);
     void options;
-    const observation = scanChanges(botSlug);
+    const observation = yield* scanChangesSteps(botSlug);
+    const observed: TurnWorktreeObservation = JSON.parse(observation.observationJson);
+    const branch = yield* branchOfSteps(root);
+    const current = yield* headSteps(root);
+    requireOwned(botSlug, sessionId);
+    if (
+      registry.memoryDirFor(botSlug) !== root ||
+      repositoryIdentity(root) !== observation.repositoryIdentity ||
+      branch !== observed.branch ||
+      current !== observed.head
+    )
+      throw unstableObservation('repository');
     try {
-      advanceCommitCursor(botSlug, branchOf(root), head(root));
+      advanceCommitCursor(botSlug, branch, current);
     } catch (error) {
       warn?.(
         `memory-commit-cursor-failed phase=prepare bot=${botSlug} reason=${error instanceof Error ? error.name : 'unknown'}`,
@@ -1308,18 +1398,26 @@ export function createMemoryAcceptance(options: {
     }
     inFlight.set(botSlug, {
       sessionId,
-      branch: JSON.parse(observation.observationJson).branch as string,
+      branch,
       observation,
     });
     return observation.change;
+  }
+  const prepareTurn = (
+    botSlug: string,
+    sessionId: string,
+    options?: { coordinateBranchSwitch?: boolean },
+  ): MemoryChangeDelta | undefined => {
+    assertIdle(botSlug);
+    return syncGitSteps(prepareTurnSteps(botSlug, sessionId, options));
   };
 
-  const reconcileTurn = (input: {
+  function* reconcileTurnSteps(input: {
     botSlug: string;
     sessionId: string;
     sourceEventId: string;
     preserveObservation?: boolean;
-  }): MemoryAcceptedCommit[] => {
+  }): GitSteps<MemoryAcceptedCommit[]> {
     requireOwned(input.botSlug, input.sessionId);
     const flight = inFlight.get(input.botSlug);
     if (flight?.sessionId !== input.sessionId) {
@@ -1372,32 +1470,47 @@ export function createMemoryAcceptance(options: {
         'Source Event does not authorize Memory observation',
       );
     }
-    const root = repository(registry, input.botSlug);
-    const branch = branchOf(root);
-    const current = head(root);
+    const root = yield* repositorySteps(registry, input.botSlug);
+    const identity = repositoryIdentity(root);
+    const branch = yield* branchOfSteps(root);
+    const current = yield* headSteps(root);
     const checkpoint = acceptedHead(input.botSlug, branch);
-    const result =
-      current === checkpoint
-        ? []
-        : accept(
-            input.botSlug,
-            branch,
-            [
-              {
-                sha: current,
-                parentSha:
-                  output(root, ['rev-list', '--parents', '-n', '1', current]).split(' ')[1] ?? null,
-                actorKind: 'system',
-                actorId: 'botharness-host',
-                causeKind: 'source-event',
-                causeId: input.sourceEventId,
-                validationResult: validateCommit(root, current),
-              },
-            ],
-            checkpoint,
-          );
+    let result: MemoryAcceptedCommit[] = [];
+    if (current !== checkpoint) {
+      const parentSha =
+        (yield* outputSteps(root, ['rev-list', '--parents', '-n', '1', current])).split(' ')[1] ??
+        null;
+      const validationResult = yield* validateCommitSteps(root, current);
+      const afterBranch = yield* branchOfSteps(root);
+      const afterHead = yield* headSteps(root);
+      requireOwned(input.botSlug, input.sessionId);
+      if (
+        inFlight.get(input.botSlug) !== flight ||
+        registry.memoryDirFor(input.botSlug) !== root ||
+        repositoryIdentity(root) !== identity ||
+        afterBranch !== branch ||
+        afterHead !== current
+      )
+        throw unstableObservation('repository');
+      result = accept(
+        input.botSlug,
+        branch,
+        [
+          {
+            sha: current,
+            parentSha,
+            actorKind: 'system',
+            actorId: 'botharness-host',
+            causeKind: 'source-event',
+            causeId: input.sourceEventId,
+            validationResult,
+          },
+        ],
+        checkpoint,
+      );
+    }
     if (!input.preserveObservation)
-      refreshObservation(
+      yield* refreshObservationSteps(
         input.botSlug,
         input.sessionId,
         'source-event',
@@ -1406,10 +1519,48 @@ export function createMemoryAcceptance(options: {
       );
     inFlight.delete(input.botSlug);
     return result;
+  }
+  const reconcileTurn = (input: {
+    botSlug: string;
+    sessionId: string;
+    sourceEventId: string;
+    preserveObservation?: boolean;
+  }): MemoryAcceptedCommit[] => {
+    assertIdle(input.botSlug);
+    return syncGitSteps(reconcileTurnSteps(input));
   };
 
+  function* abortTurnSteps(
+    botSlug: string,
+    sessionId: string,
+    preserveObservation = false,
+  ): GitSteps<void> {
+    const flight = inFlight.get(botSlug);
+    if (flight?.sessionId !== sessionId) return;
+    try {
+      if (!preserveObservation)
+        yield* refreshObservationSteps(
+          botSlug,
+          sessionId,
+          'turn-abort',
+          sessionId,
+          flight.observation?.observationJson,
+        );
+    } finally {
+      if (inFlight.get(botSlug) === flight) inFlight.delete(botSlug);
+    }
+  }
+
   return {
+    prepareTurnAsync: (botSlug, sessionId, options) =>
+      runAsync(botSlug, prepareTurnSteps(botSlug, sessionId, options)),
+    reconcileTurnAsync: (input) => runAsync(input.botSlug, reconcileTurnSteps(input)),
+    abortTurnAsync: (botSlug, sessionId, preserveObservation) =>
+      runAsync(botSlug, abortTurnSteps(botSlug, sessionId, preserveObservation)),
+    pendingCommitsAsync: (botSlug) => runAsync(botSlug, pendingCommitsSteps(botSlug)),
+    scanChangesAsync: (botSlug) => runAsync(botSlug, scanChangesSteps(botSlug)),
     continueFromCommit(input) {
+      assertIdle(input.botSlug);
       requireOwned(input.botSlug, input.sessionId);
       const flight = inFlight.get(input.botSlug);
       if (flight?.sessionId !== input.sessionId) {
@@ -1453,6 +1604,7 @@ export function createMemoryAcceptance(options: {
       return { from, to: branch, head: input.sha };
     },
     switchBranch(input) {
+      assertIdle(input.botSlug);
       requireOwned(input.botSlug, input.sessionId);
       const flight = inFlight.get(input.botSlug);
       if (flight?.sessionId !== input.sessionId) {
@@ -1488,8 +1640,12 @@ export function createMemoryAcceptance(options: {
     prepareTurn,
     scanChanges,
     pendingCommits,
-    advanceCommitCursor,
+    advanceCommitCursor: (botSlug, branch, head) => {
+      assertIdle(botSlug);
+      advanceCommitCursor(botSlug, branch, head);
+    },
     preparedObservation(botSlug, sessionId) {
+      assertIdle(botSlug);
       const flight = inFlight.get(botSlug);
       if (flight?.sessionId !== sessionId || flight.observation === undefined) {
         throw new MemoryAcceptError('memory-conflict', 'Memory turn was not prepared');
@@ -1498,19 +1654,11 @@ export function createMemoryAcceptance(options: {
     },
     reconcileTurn,
     abortTurn(botSlug, sessionId, preserveObservation = false) {
-      const flight = inFlight.get(botSlug);
-      if (flight?.sessionId !== sessionId) return;
-      inFlight.delete(botSlug);
-      if (!preserveObservation)
-        refreshObservation(
-          botSlug,
-          sessionId,
-          'turn-abort',
-          sessionId,
-          flight.observation?.observationJson,
-        );
+      assertIdle(botSlug);
+      syncGitSteps(abortTurnSteps(botSlug, sessionId, preserveObservation));
     },
     snapshot(botSlug) {
+      assertIdle(botSlug);
       const { root, repairing } = readRepository(botSlug);
       bootstrap(botSlug, root);
       return {
@@ -1524,6 +1672,7 @@ export function createMemoryAcceptance(options: {
       };
     },
     markdownImageFile(botSlug, path, source, revision, reference) {
+      assertIdle(botSlug);
       const root = graphRepository(botSlug);
       const document = readMemoryMarkdown(root, path, source, run);
       if (document.status !== 'ready')
@@ -1542,6 +1691,7 @@ export function createMemoryAcceptance(options: {
       return bytes;
     },
     imageFile(botSlug, path, source, revision) {
+      assertIdle(botSlug);
       if (!/^[0-9a-f]{64}$/u.test(revision))
         throw new MemoryImageError('memory-image-invalid', 'Invalid image content revision');
       const { image, bytes } = readMemoryImage(graphRepository(botSlug), path, source, run);
@@ -1555,6 +1705,7 @@ export function createMemoryAcceptance(options: {
       return bytes;
     },
     readAccepted(botSlug, path) {
+      assertIdle(botSlug);
       const { root } = readRepository(botSlug);
       const relative = toMemoryRelativePath(path);
       const target = resolveMemoryPath(root, relative);
@@ -1600,6 +1751,7 @@ export function createMemoryAcceptance(options: {
     },
 
     gitGraph(botSlug, offset = 0, path) {
+      assertIdle(botSlug);
       if (!Number.isInteger(offset) || offset < 0 || offset > 10_000) {
         throw new MemoryAcceptError('memory-invalid', 'Invalid Memory graph offset');
       }
@@ -1675,6 +1827,7 @@ export function createMemoryAcceptance(options: {
       };
     },
     gitCommitDiff(botSlug, sha) {
+      assertIdle(botSlug);
       if (!/^[0-9a-f]{40}$/u.test(sha)) {
         throw new MemoryAcceptError('memory-unknown-commit', 'Unknown Memory Git commit');
       }
@@ -1766,9 +1919,11 @@ export function createMemoryAcceptance(options: {
       };
     },
     workingChanges(botSlug) {
+      assertIdle(botSlug);
       return currentWorkingChanges(graphRepository(botSlug));
     },
     workingDiff(botSlug, path, kind) {
+      assertIdle(botSlug);
       if (!['staged', 'unstaged', 'untracked', 'current'].includes(kind)) {
         throw new MemoryAcceptError('memory-invalid', 'Invalid Memory change kind');
       }
@@ -1896,6 +2051,7 @@ export function createMemoryAcceptance(options: {
       return { ...change, diff, binary: false, ...(markdown === undefined ? {} : { markdown }) };
     },
     recoveryHistory(botSlug) {
+      assertIdle(botSlug);
       if (pendingRepair(botSlug) !== undefined)
         throw new MemoryAcceptError('memory-conflict', 'Memory repair must finish before recovery');
       const root = repository(registry, botSlug);
@@ -1916,6 +2072,7 @@ export function createMemoryAcceptance(options: {
       }
     },
     restoreHuman(input) {
+      assertIdle(input.botSlug);
       if (inFlight.has(input.botSlug) || pendingRepair(input.botSlug) !== undefined)
         throw new MemoryAcceptError('memory-conflict', 'Memory is busy');
       const root = repository(registry, input.botSlug);
@@ -1961,6 +2118,7 @@ export function createMemoryAcceptance(options: {
       );
     },
     history(botSlug, limit = 20) {
+      assertIdle(botSlug);
       const { root } = readRepository(botSlug);
       bootstrap(botSlug, root);
       const bounded = Math.max(1, Math.min(limit, 100));
@@ -1974,6 +2132,7 @@ export function createMemoryAcceptance(options: {
       return rows.map(rowToCommit);
     },
     diff(botSlug, sha) {
+      assertIdle(botSlug);
       const { root } = readRepository(botSlug);
       const exists = database.read(
         (db) =>
@@ -1990,6 +2149,7 @@ export function createMemoryAcceptance(options: {
       return { sha, diff: patch.toString('utf8') };
     },
     repairHuman(input) {
+      assertIdle(input.botSlug);
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u.test(input.repairId)) {
         throw new MemoryAcceptError('memory-invalid', 'Valid Memory repair identity is required');
       }
@@ -2124,6 +2284,7 @@ export function createMemoryAcceptance(options: {
       );
     },
     saveHuman(input) {
+      assertIdle(input.botSlug);
       if (pendingRepair(input.botSlug) !== undefined) {
         throw new MemoryAcceptError(
           'memory-conflict',
@@ -2210,6 +2371,7 @@ export function createMemoryAcceptance(options: {
       return accepted;
     },
     restoreCommitHuman(input) {
+      assertIdle(input.botSlug);
       if (inFlight.has(input.botSlug) || pendingRepair(input.botSlug) !== undefined)
         throw new MemoryAcceptError('memory-conflict', 'Memory is busy');
       const root = repository(registry, input.botSlug);
@@ -2308,12 +2470,15 @@ export function createMemoryAcceptance(options: {
       return { head: loaded, backup, version, saved };
     },
     versions(botSlug) {
+      assertIdle(botSlug);
       return versionList(graphRepository(botSlug));
     },
     nameVersionHuman(input) {
+      assertIdle(input.botSlug);
       return nameVersion(repository(registry, input.botSlug), input.sha, input.name);
     },
     removeVersionNameHuman(input) {
+      assertIdle(input.botSlug);
       const root = repository(registry, input.botSlug);
       try {
         run(root, ['show-ref', '--verify', '--quiet', `refs/tags/${input.tag}`]);

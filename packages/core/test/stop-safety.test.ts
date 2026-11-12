@@ -450,6 +450,7 @@ describe('Session Stop on an Assignment', () => {
       expect(f.closed).toContainEqual([sessionId]);
 
       f.live.orchestrate(async (run) => {
+        await run.assignments.unarchive!(sessionId!);
         run.assignments.request!({ sessionId: sessionId!, mode: 'next-turn', text: 'Continue' });
       });
       await f.human('Please continue the migration');

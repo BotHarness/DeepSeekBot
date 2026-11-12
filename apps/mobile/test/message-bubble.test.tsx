@@ -20,6 +20,9 @@ const native = vi.hoisted(() => ({
   shared: [] as string[],
   pick: 0,
   presses: new Map<string, () => void>(),
+  holds: new Map<string, () => void>(),
+  actions: new Map<string, (event: { nativeEvent: { actionName: string } }) => void>(),
+  layouts: new Map<string, (event: { nativeEvent: { layout: { height: number } } }) => void>(),
   dismiss: () => {},
 }));
 
@@ -34,6 +37,12 @@ vi.mock('react-native', async () => {
       const pressKey = props['accessibilityLabel'] ?? props['accessibilityHint'];
       if (typeof props['onPress'] === 'function' && typeof pressKey === 'string')
         native.presses.set(pressKey, props['onPress'] as () => void);
+      if (typeof props['onLongPress'] === 'function' && typeof pressKey === 'string')
+        native.holds.set(pressKey, props['onLongPress'] as () => void);
+      if (typeof props['onAccessibilityAction'] === 'function' && typeof pressKey === 'string')
+        native.actions.set(pressKey, props['onAccessibilityAction'] as never);
+      if (typeof props['onLayout'] === 'function' && typeof props['testID'] === 'string')
+        native.layouts.set(props['testID'], props['onLayout'] as never);
       const attributes: Record<string, string> = {};
       for (const key of [
         'accessible',
@@ -47,6 +56,10 @@ vi.mock('react-native', async () => {
         'recyclingKey',
         'cachePolicy',
         'nativeID',
+        'testID',
+        'accessibilityElementsHidden',
+        'accessibilityActions',
+        'importantForAccessibility',
       ])
         if (props[key] !== undefined)
           attributes[`data-${key.toLowerCase()}`] =
@@ -180,6 +193,9 @@ beforeEach(() => {
   native.shared.length = 0;
   native.pick = 0;
   native.presses.clear();
+  native.holds.clear();
+  native.layouts.clear();
+  native.actions.clear();
 });
 
 const human = (overrides: Partial<ConversationMessage>): ConversationMessage => ({
@@ -665,6 +681,18 @@ describe('double-tap to react', () => {
   it('leaves messages that cannot take reactions alone', () => {
     expect(doubleTap({ ...bot, delivery: 'pending' })).not.toHaveBeenCalled();
   });
+
+  it('on Android with selection, selects on a long press and no longer reacts to taps', () => {
+    native.os = 'android';
+    const onReact = vi.fn();
+    const onSelect = vi.fn();
+    renderToStaticMarkup(<MessageBubble message={bot} onReact={onReact} onSelect={onSelect} />);
+    native.presses.get(t.messageActionsHint)?.();
+    native.presses.get(t.messageActionsHint)?.();
+    expect(onReact).not.toHaveBeenCalled();
+    native.holds.get(t.messageActionsHint)?.();
+    expect(onSelect).toHaveBeenCalledWith(bot);
+  });
 });
 
 describe('the long-press menu', () => {
@@ -866,7 +894,10 @@ describe('outgoing delivery presentation through Conversation', () => {
     };
     const surface = () =>
       Array.from(container.querySelectorAll<HTMLElement>('[data-native="View"]')).findLast(
-        (node) => node.textContent === 'A quiet message',
+        (node) =>
+          node
+            .querySelector(':scope > [data-testid="message-text"]')
+            ?.textContent?.startsWith('A quiet message') === true,
       )!;
     return {
       container,
@@ -1007,9 +1038,111 @@ describe('outgoing delivery presentation through Conversation', () => {
   });
 });
 
+describe('message time', () => {
+  const time = (html: string) => {
+    const container = document.createElement('div');
+    container.innerHTML = html;
+    return container.querySelector('[data-testid="message-time"]')?.textContent;
+  };
+  const bot = (overrides: Partial<ConversationMessage>) =>
+    human({
+      id: 'bot-1',
+      author: 'bot',
+      bot: 'ada',
+      body: 'On it',
+      ...overrides,
+    });
+
+  it("shows the time inside a committed bubble, with a check after the Human's", () => {
+    expect(time(renderToStaticMarkup(<MessageBubble message={human({})} />))).toMatch(
+      /^\d{1,2}:\d{2}.*✓$/,
+    );
+    expect(time(renderToStaticMarkup(<MessageBubble message={bot({})} />))).toMatch(
+      /^\d{1,2}:\d{2}(?:\s?[AP]M)?$/,
+    );
+  });
+
+  it("puts a one-line Bot reply's time beside its text, and a longer reply's on its own line", () => {
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    const timeRow = () =>
+      container.querySelector('[data-testid="message-time"]')?.parentElement?.dataset['testid'];
+    try {
+      act(() => root.render(<MessageBubble message={bot({ body: 'On it' })} />));
+      expect(timeRow()).toBe('message-body-row');
+      act(() =>
+        native.layouts.get('message-body')!({
+          nativeEvent: { layout: { height: 22 } },
+        }),
+      );
+      expect(timeRow()).toBe('message-body-row');
+      act(() =>
+        native.layouts.get('message-body')!({
+          nativeEvent: { layout: { height: 66 } },
+        }),
+      );
+      expect(timeRow()).not.toBe('message-body-row');
+      expect(
+        container
+          .querySelector('[data-testid="message-time"]')
+          ?.previousElementSibling?.getAttribute('data-native'),
+      ).toBe('EnrichedMarkdownText');
+      act(() =>
+        root.render(<MessageBubble message={bot({ body: 'First paragraph\n\nSecond one' })} />),
+      );
+      expect(timeRow()).not.toBe('message-body-row');
+    } finally {
+      act(() => root.unmount());
+    }
+  });
+
+  it("lets the Human's text flow around its time, which a screen reader hears once", () => {
+    const container = document.createElement('div');
+    container.innerHTML = renderToStaticMarkup(<MessageBubble message={human({})} />);
+    const shown = container.querySelector('[data-testid="message-time"]')!;
+    const text = container.querySelector('[data-testid="message-text"]')!;
+    expect(text.contains(shown)).toBe(false);
+    const spacer = text.querySelector('[data-importantforaccessibility="no-hide-descendants"]');
+    expect(spacer?.getAttribute('data-accessibilityelementshidden')).toBe('true');
+    expect(spacer?.textContent).toBe(shown.textContent);
+  });
+
+  it('keeps the time row while a message is sending or failed, with the check hidden until commit', () => {
+    const committed = document.createElement('div');
+    committed.innerHTML = renderToStaticMarkup(<MessageBubble message={human({})} />);
+    const shown = committed.querySelector('[data-testid="message-time"]')!;
+    for (const message of [human({ delivery: 'pending' }), human({ delivery: 'failed' })]) {
+      const container = document.createElement('div');
+      container.innerHTML = renderToStaticMarkup(<MessageBubble message={message} />);
+      const unsent = container.querySelector('[data-testid="message-time"]')!;
+      expect(unsent.textContent).toBe(shown.textContent);
+      expect(unsent.getAttribute('data-accessibilitylabel')).toMatch(/^\d{1,2}:\d{2}/);
+      expect(unsent.getAttribute('data-accessibilitylabel')).not.toContain('✓');
+      expect(container.querySelector('[data-testid="message-time-unsent"]')?.textContent).toBe(
+        '\u00a0✓',
+      );
+    }
+    expect(committed.querySelector('[data-testid="message-time-unsent"]')).toBeNull();
+  });
+
+  it('shows no time while a reply streams', () => {
+    expect(
+      time(renderToStaticMarkup(<MessageBubble message={bot({})} streaming />)),
+    ).toBeUndefined();
+    expect(
+      time(
+        renderToStaticMarkup(
+          <DraftBubble draft={{ draftId: 'd', botSlug: 'ada', body: 'Thinking' } as never} />,
+        ),
+      ),
+    ).toBeUndefined();
+  });
+});
+
 describe('replies', () => {
-  it('quotes the replied message above the body, or says it is gone', () => {
-    const quoted = renderToStaticMarkup(
+  it('quotes the replied message in a block named for its author, or says it is gone', () => {
+    const container = document.createElement('div');
+    container.innerHTML = renderToStaticMarkup(
       <MessageBubble
         message={human({
           body: 'this one',
@@ -1019,15 +1152,74 @@ describe('replies', () => {
         botName={(id) => (id === 'ada' ? 'Ada' : id)}
       />,
     );
-    expect(quoted.indexOf('Ada')).toBeGreaterThan(-1);
-    expect(quoted.indexOf('Pick a file')).toBeLessThan(quoted.indexOf('this one'));
-    const gone = renderToStaticMarkup(
+    const quote = container.querySelector('[data-testid="reply-quote"]')!;
+    expect(container.querySelector('[data-testid="reply-quote-author"]')?.textContent).toBe('Ada');
+    expect(container.querySelector('[data-testid="reply-quote-text"]')?.textContent).toBe(
+      'Pick a file',
+    );
+    expect(
+      quote.compareDocumentPosition(container.querySelector('[data-testid="message-text"]')!) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    const gone = document.createElement('div');
+    gone.innerHTML = renderToStaticMarkup(
       <MessageBubble message={human({ replyTo: 'bot-1', replyPreview: null })} />,
     );
-    expect(gone).toContain(t.reply.unavailable);
-    expect(renderToStaticMarkup(<MessageBubble message={human({})} />)).not.toContain(
+    expect(gone.querySelector('[data-testid="reply-quote-author"]')).toBeNull();
+    expect(gone.querySelector('[data-testid="reply-quote-text"]')?.textContent).toBe(
       t.reply.unavailable,
     );
+    expect(renderToStaticMarkup(<MessageBubble message={human({})} />)).not.toContain(
+      'reply-quote',
+    );
+  });
+
+  it('jumps to the original when its quote is tapped', () => {
+    const open = vi.fn();
+    const container = document.createElement('div');
+    container.innerHTML = renderToStaticMarkup(
+      <MessageBubble
+        message={{
+          ...human({ id: 'bot-2', body: 'Done', replyTo: 'human-0' }),
+          author: 'bot',
+          bot: 'ada',
+          replyPreview: { author: { kind: 'human' }, body: 'Fix the build' },
+        }}
+        onOpenReply={open}
+      />,
+    );
+    const label = t.reply.quote(t.reply.you, 'Fix the build');
+    const button = container.querySelector(`[data-accessibilitylabel="${label}"]`);
+    expect(button?.getAttribute('data-accessibilityrole')).toBe('button');
+    expect(button?.getAttribute('data-testid')).toBe('reply-quote');
+    native.presses.get(label)!();
+    expect(open).toHaveBeenCalledWith('human-0');
+  });
+
+  it("lets a screen reader jump from a reply to its original through the bubble's actions", () => {
+    const open = vi.fn();
+    const container = document.createElement('div');
+    container.innerHTML = renderToStaticMarkup(
+      <MessageBubble
+        message={human({
+          replyTo: 'bot-1',
+          replyPreview: {
+            author: { kind: 'bot', slug: 'ada' },
+            body: 'Pick a file',
+          },
+        })}
+        onOpenReply={open}
+      />,
+    );
+    const bubble = container.querySelector(`[data-accessibilityhint="${t.messageActionsHint}"]`)!;
+    expect(JSON.parse(bubble.getAttribute('data-accessibilityactions')!)).toContainEqual({
+      name: 'reply-original',
+      label: t.reply.jumpHint,
+    });
+    native.actions.get(t.messageActionsHint)!({
+      nativeEvent: { actionName: 'reply-original' },
+    });
+    expect(open).toHaveBeenCalledWith('bot-1');
   });
 
   it('offers a swipe reply only on committed Human and Bot messages', () => {
@@ -1037,5 +1229,193 @@ describe('replies', () => {
     expect(replyable(human({ delivery: 'failed' }))).toBe(false);
     expect(replyable({ ...human({}), author: 'system' })).toBe(false);
     expect(replyable(human({ welcome: true }))).toBe(false);
+  });
+});
+
+describe('media bubbles', () => {
+  const source = { uri: 'https://host/a', headers: {} };
+  const image = (index: number) => ({
+    key: `img-${index}`,
+    kind: 'image' as const,
+    name: `photo-${index}.jpg`,
+    source,
+    local: false,
+  });
+  const render = (message: ConversationMessage, props: Record<string, unknown> = {}) => {
+    const container = document.createElement('div');
+    container.innerHTML = renderToStaticMarkup(<MessageBubble message={message} {...props} />);
+    return container;
+  };
+  const byTest = (container: Element, id: string) =>
+    container.querySelectorAll(`[data-testid="${id}"]`);
+
+  it('puts the time of an uncaptioned image on a pill over the image', () => {
+    const container = render(human({ body: '', attachments: [image(1)] }));
+    const album = byTest(container, 'message-album')[0]!;
+    expect(byTest(album, 'message-album-tile')).toHaveLength(1);
+    const pill = byTest(container, 'message-image-time')[0]!;
+    expect(album.contains(pill)).toBe(true);
+    expect(pill.querySelector('[data-testid="message-time"]')?.textContent).toMatch(/✓$/);
+    expect(byTest(container, 'message-time')).toHaveLength(1);
+  });
+
+  it('puts a caption below the image with the time after it', () => {
+    const container = render(human({ body: 'Sunset', attachments: [image(1)] }));
+    const album = byTest(container, 'message-album')[0]!;
+    const caption = byTest(container, 'message-text')[0]!;
+    expect(album.compareDocumentPosition(caption) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(byTest(container, 'message-image-time')).toHaveLength(0);
+    expect(album.querySelector('[data-testid="message-time"]')).toBeNull();
+    expect(byTest(container, 'message-time')).toHaveLength(1);
+  });
+
+  it('gathers several images into one album with +N on the last tile', () => {
+    const opened: string[] = [];
+    const images = Array.from({ length: 7 }, (_, index) => image(index + 1));
+    const container = render(human({ body: '', attachments: images }), {
+      onOpenImage: (attachment: { key: string }) => opened.push(attachment.key),
+    });
+    const albums = byTest(container, 'message-album');
+    expect(albums).toHaveLength(1);
+    expect(albums[0]!.getAttribute('data-accessibilitylabel')).toBe(t.imageCount(7));
+    const tiles = byTest(container, 'message-album-tile');
+    expect(tiles).toHaveLength(5);
+    expect(tiles[4]!.textContent).toContain('+2');
+    expect(tiles[3]!.textContent).not.toContain('+');
+    native.presses.get(t.openImage('photo-3.jpg'))!();
+    expect(opened).toEqual(['img-3']);
+  });
+
+  it('plays voice from one row with the played and total time, no title or download', () => {
+    const audio = {
+      key: 'voice-key',
+      identity: 'voice-hash',
+      kind: 'audio' as const,
+      name: 'voice-m.mp3',
+      size: 4096,
+      local: false,
+      source,
+    };
+    const container = render(
+      human({
+        author: 'bot',
+        bot: 'ada',
+        body: 'Spoken',
+        voice: { state: 'ready', audio, durationMs: 7000 },
+      }),
+    );
+    const row = byTest(container, 'voice-bar')[0]!;
+    expect(row.getAttribute('data-accessibilitylabel')).toBe(t.playVoice);
+    expect(byTest(row, 'voice-time')[0]?.textContent).toBe('0:00 / 0:07');
+    expect(row.textContent).not.toContain(t.voiceLabel);
+    expect(row.textContent).not.toContain('4 KB');
+    expect(container.querySelectorAll('[data-accessibilityrole="button"]')).toHaveLength(1);
+  });
+
+  it('shows a file as one row with a type tile, its name, and size · type', () => {
+    const container = render(
+      human({
+        author: 'bot',
+        body: '',
+        attachments: [
+          { key: 'f', kind: 'file', name: 'Q3 report.pdf', size: 3_500_000, source, local: false },
+        ],
+      }),
+    );
+    const row = byTest(container, 'message-file')[0]!;
+    expect(row.getAttribute('data-accessibilitylabel')).toBe(t.shareFile('Q3 report.pdf'));
+    expect(byTest(row, 'message-file-tile')[0]?.textContent).toBe('PDF');
+    expect(row.textContent).toContain('Q3 report.pdf');
+    expect(row.textContent).toContain('3.3 MB · PDF');
+    expect(row.querySelectorAll('[data-accessibilityrole="button"]')).toHaveLength(0);
+  });
+
+  it('hints at quoted media: a thumbnail for images, the length for voice, the name for files', () => {
+    const quote = (media: never, body = '', extra: Partial<ConversationMessage> = {}) => {
+      const container = render(
+        human({
+          body: 'this',
+          replyTo: 'm-1',
+          replyPreview: { author: { kind: 'bot', slug: 'ada' }, body, media },
+          ...extra,
+        }),
+      );
+      return {
+        text: byTest(container, 'reply-quote-text')[0]?.textContent,
+        thumb: byTest(container, 'reply-quote-thumb')[0],
+      };
+    };
+    const photo = quote({ kind: 'image', count: 1 } as never, '', {
+      replyThumbnail: { source, thumbhash: 'abc' },
+    });
+    expect(photo.text).toBe(t.reply.photo);
+    expect(photo.thumb?.getAttribute('data-native')).toBe('Image');
+    expect(quote({ kind: 'image', count: 3 } as never, 'Trip').text).toBe('Trip');
+    expect(quote({ kind: 'image', count: 3 } as never).text).toBe(t.reply.photos(3));
+    expect(quote({ kind: 'image', count: 3 } as never).thumb).toBeUndefined();
+    expect(quote({ kind: 'voice', durationMs: 7000 } as never, 'Spoken').text).toBe(
+      t.reply.voice('0:07'),
+    );
+    expect(quote({ kind: 'voice' } as never, 'Spoken').text).toBe(t.reply.voice('Spoken'));
+    expect(quote({ kind: 'file', name: 'Q3.pdf', count: 1 } as never).text).toBe(
+      t.reply.file('Q3.pdf'),
+    );
+    expect(quote({ kind: 'file', name: 'Q3.pdf', count: 1 } as never, 'See this').text).toBe(
+      'See this',
+    );
+  });
+
+  it('moves downloading and sharing attachments into the long-press menu', () => {
+    const shared: string[] = [];
+    const file = {
+      key: 'f',
+      kind: 'file' as const,
+      name: 'Q3.pdf',
+      size: 10,
+      source,
+      local: false,
+    };
+    const photo = image(1);
+    const message = human({ author: 'bot', body: '', attachments: [photo, file] });
+    renderToStaticMarkup(
+      <MessageActions
+        target={{
+          message,
+          anchor: { x: 0, y: 400, width: 200, height: 60 },
+          group: { first: true, last: true },
+        }}
+        onClose={() => {}}
+        onReact={() => {}}
+        onCopy={() => {}}
+        onShareText={() => {}}
+        onShareAttachment={(attachment) => shared.push(attachment.key)}
+      />,
+    );
+    expect(messageMenuActions(message).map((action) => action.label)).toEqual([
+      t.shareFile('photo-1.jpg'),
+      t.shareFile('Q3.pdf'),
+    ]);
+    native.presses.get(t.shareFile('Q3.pdf'))!();
+    expect(shared).toEqual([]);
+    native.dismiss();
+    expect(shared).toEqual(['f']);
+    const audio = { ...file, key: 'v', kind: 'audio' as const, name: 'voice.mp3' };
+    expect(
+      messageMenuActions(
+        human({ author: 'bot', body: 'Hi', voice: { state: 'ready', audio } }),
+      ).map((action) => action.label),
+    ).toContain(t.shareFile('voice.mp3'));
+    expect(
+      messageMenuActions(
+        human({ author: 'bot', body: '', attachments: [{ ...file, source: undefined } as never] }),
+      ),
+    ).toEqual([]);
+  });
+
+  it('keeps two images side by side in one album', () => {
+    const container = render(human({ body: '', attachments: [image(1), image(2)] }));
+    expect(byTest(container, 'message-album')).toHaveLength(1);
+    expect(byTest(container, 'message-album-tile')).toHaveLength(2);
+    expect(container.textContent).not.toContain('+');
   });
 });

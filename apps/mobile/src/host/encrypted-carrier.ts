@@ -3,9 +3,21 @@ import {
   ConnectChannel,
   CONNECT_CHANNEL_PATH,
 } from '../../../../packages/core/src/devices/noise/channel';
-import type { HostCarrier, HostResponse, HostSocket, HostSocketEvents } from './carrier';
+import type {
+  HostCarrier,
+  HostRequest,
+  HostResponse,
+  HostSocket,
+  HostSocketEvents,
+} from './carrier';
 import type { HostEncryption } from './hosts';
 import { checkRoute, isEncryptedRoute, isLanRoute, socketOrigin } from './route';
+import { APP_VERSION_HEADER } from '../../../../packages/core/src/devices/client-compat';
+
+export const HOST_KEY_REJECTIONS: ReadonlySet<string> = new Set([
+  'channel-authentication-failed',
+  'channel-handshake-rejected',
+]);
 
 export class ConnectRefused extends Error {
   constructor(readonly code: string) {
@@ -13,14 +25,14 @@ export class ConnectRefused extends Error {
   }
 }
 
-function requestUrl(input: string): URL {
+function requestUrl(input: string, privateOrigin?: string): URL {
   let url: URL;
   try {
     url = new URL(input);
   } catch {
     throw new ConnectRefused('route-invalid');
   }
-  if (!checkRoute(url.origin).ok || url.username || url.password || url.hash)
+  if (!checkRoute(url.origin, privateOrigin).ok || url.username || url.password || url.hash)
     throw new ConnectRefused('route-invalid');
   return url;
 }
@@ -96,7 +108,8 @@ export function openNoiseSocket(options: {
   message(value: Record<string, unknown>): void;
   closed(reason: string): void;
 }) {
-  if (!checkRoute(options.origin).ok) throw new ConnectRefused('route-invalid');
+  if (!checkRoute(options.origin, options.encryption.privateRelay?.origin).ok)
+    throw new ConnectRefused('route-invalid');
   const channel = new ConnectChannel({
     role: 'initiator',
     ...(noiseKeyAgreement === undefined ? {} : { keyAgreement: noiseKeyAgreement }),
@@ -129,48 +142,68 @@ export function openNoiseSocket(options: {
   const timer = setTimeout(() => fail('channel-timeout'), options.timeoutMs ?? 10_000);
   let socket: HostSocket;
   try {
-    socket = options.raw.openSocket(`${socketOrigin(options.origin)}${CONNECT_CHANNEL_PATH}`, {
-      open: () => {
-        let first: string;
-        try {
-          first = channel.start();
-        } catch {
-          fail('channel-handshake-failed:start-failed');
-          return;
-        }
-        try {
-          socket.send(first);
-        } catch (error) {
-          fail(`channel-handshake-failed:${sendFailure(error)}`);
-        }
-      },
-      message: (wire) => {
-        try {
-          const result = channel.receive(wire);
-          if (result.reply) socket.send(result.reply);
-          if (result.ready) {
-            clearTimeout(timer);
-            resolve();
+    socket = options.raw.openSocket(
+      `${socketOrigin(options.origin)}${CONNECT_CHANNEL_PATH}`,
+      {
+        open: () => {
+          let first: string;
+          try {
+            first = channel.start();
+          } catch {
+            fail('channel-handshake-failed:start-failed');
+            return;
           }
-          if (result.message !== undefined) {
-            const value: unknown = JSON.parse(result.message);
-            if (!value || typeof value !== 'object' || Array.isArray(value))
-              throw new Error('channel-message-invalid');
-            const message = value as Record<string, unknown>;
-            if (message['type'] === 'ack') {
-              const credit = message['credit'];
-              const bytes = typeof credit === 'number' ? credits.get(credit) : undefined;
-              if (bytes === undefined) throw new Error('channel-credit-invalid');
-              credits.delete(credit as number);
-              outstandingBytes -= bytes;
-            } else options.message(message);
+          try {
+            socket.send(first);
+          } catch (error) {
+            fail(`channel-handshake-failed:${sendFailure(error)}`);
           }
-        } catch {
-          fail('channel-authentication-failed');
-        }
+        },
+        message: (wire) => {
+          let result: ReturnType<ConnectChannel['receive']>;
+          try {
+            result = channel.receive(wire);
+          } catch {
+            fail('channel-authentication-failed');
+            return;
+          }
+          try {
+            if (result.reply) socket.send(result.reply);
+          } catch (error) {
+            fail(`channel-handshake-failed:${sendFailure(error)}`);
+            return;
+          }
+          try {
+            if (result.ready) {
+              clearTimeout(timer);
+              resolve();
+            }
+            if (result.message !== undefined) {
+              const value: unknown = JSON.parse(result.message);
+              if (!value || typeof value !== 'object' || Array.isArray(value))
+                throw new Error('channel-message-invalid');
+              const message = value as Record<string, unknown>;
+              if (message['type'] === 'ack') {
+                const credit = message['credit'];
+                const bytes = typeof credit === 'number' ? credits.get(credit) : undefined;
+                if (bytes === undefined) throw new Error('channel-credit-invalid');
+                credits.delete(credit as number);
+                outstandingBytes -= bytes;
+              } else options.message(message);
+            }
+          } catch {
+            fail('channel-authentication-failed');
+          }
+        },
+        closed: (reason) => fail(reason || 'channel-disconnected'),
       },
-      closed: (reason) => fail(reason || 'channel-disconnected'),
-    });
+      options.encryption.privateRelay?.origin === options.origin
+        ? {
+            Authorization: 'Bearer ' + options.encryption.privateRelay.token,
+            'X-BotHarness-Admission': options.encryption.privateRelay.token,
+          }
+        : undefined,
+    );
   } catch (error) {
     clearTimeout(timer);
     channel.close();
@@ -206,6 +239,7 @@ export function openNoiseSocket(options: {
 
 interface Session {
   ready: Promise<void>;
+  admitted: boolean;
   send(value: unknown): void;
   close(): void;
   requests: Map<string, { resolve(value: HostResponse): void; reject(error: Error): void }>;
@@ -233,6 +267,16 @@ function waitForAdmission(ready: Promise<void>, signal: AbortSignal): Promise<vo
   });
 }
 
+export const DIRECT_RETRY_MIN_MS = 3_000;
+export const DIRECT_RETRY_MAX_MS = 300_000;
+
+interface DirectRetry {
+  running: boolean;
+  blocked: boolean;
+  failures: number;
+  timer: ReturnType<typeof setTimeout> | undefined;
+}
+
 export function encryptedCarrier(options: {
   requireEncryption?: boolean;
   raw: HostCarrier;
@@ -241,12 +285,22 @@ export function encryptedCarrier(options: {
   encryption?: HostEncryption;
 }): HostCarrier {
   const sessions = new Map<string, Session>();
+  const directs = new Map<string, Session>();
+  const retries = new Map<string, DirectRetry>();
   let next = 0;
+  let closedCarrier = false;
   const session = (origin: string): Session => {
-    if (!options.encryption || options.encryption.protocol !== 'connect-noise-xk-v1')
-      throw new ConnectRefused('host-key-required');
     const existing = sessions.get(origin);
     if (existing) return existing;
+    return open(origin, options.raw, sessions);
+  };
+  const pick = (origin: string): Session => {
+    const direct = directs.get(origin);
+    return direct?.admitted ? direct : session(origin);
+  };
+  const open = (origin: string, raw: HostCarrier, registry: Map<string, Session>): Session => {
+    if (!options.encryption || options.encryption.protocol !== 'connect-noise-xk-v1')
+      throw new ConnectRefused('host-key-required');
     const requests: Session['requests'] = new Map(),
       streams: Session['streams'] = new Map();
     let resolve!: () => void, reject!: (error: Error) => void;
@@ -257,16 +311,20 @@ export function encryptedCarrier(options: {
     let settled = false;
     const socket = openNoiseSocket({
       ...options,
+      raw,
       origin,
       encryption: options.encryption,
       closed: (reason) => {
-        if (sessions.get(origin) === current) sessions.delete(origin);
+        if (registry.get(origin) === current) registry.delete(origin);
+        if (registry === directs) {
+          if (HOST_KEY_REJECTIONS.has(reason)) blockDirect(origin);
+          else retryDirect(origin);
+        }
         clearTimeout(deadline);
         clearInterval(heartbeat);
-        const error =
-          reason === 'channel-authentication-failed'
-            ? new ConnectRefused(reason)
-            : new Error(reason);
+        const error = HOST_KEY_REJECTIONS.has(reason)
+          ? new ConnectRefused(reason)
+          : new Error(reason);
         reject(error);
         for (const item of requests.values()) item.reject(error);
         for (const stream of streams.values()) stream.closed(reason);
@@ -282,8 +340,11 @@ export function encryptedCarrier(options: {
         if (!settled) {
           if (value['type'] !== 'admitted') throw new Error('channel-admission-invalid');
           settled = true;
+          current.admitted = true;
           clearTimeout(deadline);
           resolve();
+          if (registry === sessions) upgrade(origin);
+          else retryState(origin).failures = 0;
           return;
         }
         if (value['type'] === 'pong') return;
@@ -339,87 +400,172 @@ export function encryptedCarrier(options: {
     }, 20_000);
     const current: Session = {
       ready,
+      admitted: false,
       requests,
       streams,
       send: (value) => socket.send(value),
       close: socket.close,
     };
-    sessions.set(origin, current);
+    registry.set(origin, current);
     return current;
+  };
+  const retryState = (origin: string): DirectRetry => {
+    let state = retries.get(origin);
+    if (!state) {
+      state = { running: false, blocked: false, failures: 0, timer: undefined };
+      retries.set(origin, state);
+    }
+    return state;
+  };
+  const blockDirect = (origin: string) => {
+    if (closedCarrier) return;
+    const state = retryState(origin);
+    state.blocked = true;
+    clearTimeout(state.timer);
+    state.timer = undefined;
+  };
+  const retryDirect = (origin: string) => {
+    const state = retryState(origin);
+    if (state.blocked || state.timer || closedCarrier) return;
+    const delay = Math.min(DIRECT_RETRY_MAX_MS, DIRECT_RETRY_MIN_MS * 2 ** state.failures);
+    state.failures = Math.min(state.failures + 1, 16);
+    state.timer = setTimeout(() => {
+      state.timer = undefined;
+      upgrade(origin);
+    }, delay);
+  };
+  const upgrade = (origin: string) => {
+    const openDirect = options.raw.openDirect;
+    if (!openDirect || closedCarrier || isLanRoute(origin)) return;
+    const state = retryState(origin);
+    const relay = sessions.get(origin);
+    if (state.blocked || state.running || directs.has(origin) || !relay?.admitted) return;
+    clearTimeout(state.timer);
+    state.timer = undefined;
+    state.running = true;
+    void (async () => {
+      const factory = await openDirect(async (offer) => {
+        const response = await relayRequest(relay, origin + '/botharness-device/direct', {
+          method: 'POST',
+          body: JSON.stringify({ offer }),
+          signal: AbortSignal.timeout(15_000),
+        });
+        const value = JSON.parse(await response.text()) as { ok?: boolean; answer?: unknown };
+        if (!value.ok || typeof value.answer !== 'string') throw new Error('direct-refused');
+        return value.answer;
+      });
+      if (!factory) {
+        blockDirect(origin);
+        return;
+      }
+      if (closedCarrier) return;
+      const direct = open(
+        origin,
+        { ...options.raw, openSocket: (_url, events) => factory(events) },
+        directs,
+      );
+      await direct.ready;
+      if (closedCarrier) direct.close();
+    })()
+      .catch((error: unknown) => {
+        if (error instanceof ConnectRefused) blockDirect(origin);
+        else retryDirect(origin);
+      })
+      .finally(() => {
+        state.running = false;
+      });
+  };
+  const relayRequest = async (
+    current: Session,
+    url: string,
+    init: HostRequest,
+  ): Promise<HostResponse> => {
+    const parsed = requestUrl(url, options.encryption?.privateRelay?.origin);
+    await waitForAdmission(current.ready, init.signal);
+    if (init.signal.aborted) throw new Error('request-cancelled');
+    if (
+      typeof init.body !== 'string' &&
+      init.body !== undefined &&
+      init.body.size > 4 * 1024 * 1024
+    )
+      throw new Error('channel-body-too-large');
+    if (
+      typeof init.body === 'string' &&
+      new TextEncoder().encode(init.body).length > 4 * 1024 * 1024
+    )
+      throw new Error('channel-body-too-large');
+    const body =
+      typeof init.body === 'string'
+        ? init.body
+        : init.body === undefined
+          ? undefined
+          : encodeBase64(await blobBytes(init.body, init.signal));
+    if (init.signal.aborted) throw new Error('request-cancelled');
+    if (current.requests.size >= 32) throw new Error('channel-busy');
+    const id = String(++next);
+    return new Promise<HostResponse>((resolve, reject) => {
+      const abort = () => {
+        current.requests.delete(id);
+        try {
+          current.send({ type: 'cancel', id });
+        } catch {}
+        reject(new Error('request-cancelled'));
+      };
+      const cleanup = () => init.signal.removeEventListener('abort', abort);
+      init.signal.addEventListener('abort', abort, { once: true });
+      current.requests.set(id, {
+        resolve: (value) => {
+          cleanup();
+          resolve(value);
+        },
+        reject: (error) => {
+          cleanup();
+          reject(error);
+        },
+      });
+      try {
+        current.send({
+          type: 'request',
+          id,
+          path: parsed.pathname + parsed.search,
+          method: init.method,
+          ...(body === undefined ? {} : { body }),
+          encoding: typeof init.body === 'string' ? 'text' : 'base64',
+          contentType: init.headers?.['content-type'],
+          ...(init.headers?.[APP_VERSION_HEADER] === undefined
+            ? {}
+            : { appVersion: init.headers[APP_VERSION_HEADER] }),
+        });
+      } catch (error) {
+        cleanup();
+        current.requests.delete(id);
+        reject(error);
+      }
+    });
   };
   return {
     randomBytes: () => secureRandom(options.raw),
     close: () => {
+      closedCarrier = true;
+      for (const state of retries.values()) clearTimeout(state.timer);
+      retries.clear();
       for (const current of sessions.values()) current.close();
+      for (const current of directs.values()) current.close();
       sessions.clear();
+      directs.clear();
     },
     async request(url, init) {
-      const parsed = requestUrl(url);
+      const parsed = requestUrl(url, options.encryption?.privateRelay?.origin);
       if (!options.requireEncryption && !isEncryptedRoute(parsed.origin, options.encryption))
         return options.raw.request(url, init);
       if (init.signal.aborted) throw new Error('request-cancelled');
-      const current = session(parsed.origin);
-      await waitForAdmission(current.ready, init.signal);
-      if (init.signal.aborted) throw new Error('request-cancelled');
-      if (
-        typeof init.body !== 'string' &&
-        init.body !== undefined &&
-        init.body.size > 4 * 1024 * 1024
-      )
-        throw new Error('channel-body-too-large');
-      if (
-        typeof init.body === 'string' &&
-        new TextEncoder().encode(init.body).length > 4 * 1024 * 1024
-      )
-        throw new Error('channel-body-too-large');
-      const body =
-        typeof init.body === 'string'
-          ? init.body
-          : init.body === undefined
-            ? undefined
-            : encodeBase64(await blobBytes(init.body, init.signal));
-      if (init.signal.aborted) throw new Error('request-cancelled');
-      if (current.requests.size >= 32) throw new Error('channel-busy');
-      const id = String(++next);
-      return new Promise<HostResponse>((resolve, reject) => {
-        const abort = () => {
-          current.requests.delete(id);
-          try {
-            current.send({ type: 'cancel', id });
-          } catch {}
-          reject(new Error('request-cancelled'));
-        };
-        const cleanup = () => init.signal.removeEventListener('abort', abort);
-        init.signal.addEventListener('abort', abort, { once: true });
-        current.requests.set(id, {
-          resolve: (value) => {
-            cleanup();
-            resolve(value);
-          },
-          reject: (error) => {
-            cleanup();
-            reject(error);
-          },
-        });
-        try {
-          current.send({
-            type: 'request',
-            id,
-            path: parsed.pathname + parsed.search,
-            method: init.method,
-            ...(body === undefined ? {} : { body }),
-            encoding: typeof init.body === 'string' ? 'text' : 'base64',
-            contentType: init.headers?.['content-type'],
-          });
-        } catch (error) {
-          cleanup();
-          current.requests.delete(id);
-          reject(error);
-        }
-      });
+      return relayRequest(pick(parsed.origin), url, init);
     },
     openSocket(url, events, headers): HostSocket {
-      const parsed = requestUrl(url.replace(/^ws/u, 'http'));
+      const parsed = requestUrl(
+        url.replace(/^ws/u, 'http'),
+        options.encryption?.privateRelay?.origin,
+      );
       if (!options.requireEncryption && !isEncryptedRoute(parsed.origin, options.encryption))
         return options.raw.openSocket(url, events, headers);
       let current: Session | undefined,
@@ -427,7 +573,7 @@ export function encryptedCarrier(options: {
       const id = String(++next);
       void (async () => {
         try {
-          current = session(parsed.origin);
+          current = pick(parsed.origin);
           await current.ready;
           if (done) return;
           if (current.streams.size >= 4) throw new Error('channel-busy');

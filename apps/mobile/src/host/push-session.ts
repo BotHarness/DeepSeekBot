@@ -29,15 +29,21 @@ export interface PushSession {
   sync(hosts: readonly SavedHost[]): Promise<void>;
   enable(hosts: readonly SavedHost[]): Promise<void>;
   forget(host: SavedHost): Promise<void>;
-  retryFailed(): Promise<void>;
+  retryFailed(host?: SavedHost): Promise<void>;
   refreshPermission(): Promise<void>;
-  reflect(hostId: string, unresolved: ReadonlySet<string> | undefined, count: number): void;
+  reflect(
+    hostId: string,
+    unresolved: ReadonlySet<string> | undefined,
+    count: number,
+    pending?: ReadonlySet<string>,
+  ): void;
   reflectAgain(): void;
   stop(): void;
 }
 
 const TOKEN_TIMEOUT_MS = 20_000;
 const RESOLVABLE = new Set(['tool-approval', 'user-question', 'private-input']);
+const REPLIES = new Set(['channel-reply', 'channel-mention']);
 
 export function createPushSession(options: {
   notifications: NotificationsPort;
@@ -70,9 +76,10 @@ export function createPushSession(options: {
   const registerAll = async (
     hosts: readonly SavedHost[],
     resolveToken: () => Promise<string> = () => notifications.token(),
+    partial = false,
   ): Promise<void> => {
     if (stopped) return;
-    const attempt = ++generation;
+    const attempt = partial ? generation : ++generation;
     const current = () => !stopped && attempt === generation;
     if (snapshot.status === 'denied' || snapshot.status === 'off') publish({ status: 'checking' });
     try {
@@ -134,8 +141,15 @@ export function createPushSession(options: {
           });
       }),
     );
-    if (current())
-      publish({ status: 'on', failed: results.flatMap((id) => (id === undefined ? [] : [id])) });
+    if (!current()) return;
+    const kept =
+      partial && snapshot.status === 'on'
+        ? snapshot.failed.filter((id) => !hosts.some((host) => host.hostId === id))
+        : [];
+    publish({
+      status: 'on',
+      failed: [...kept, ...results.flatMap((id) => (id === undefined ? [] : [id]))],
+    });
   };
 
   const offToken = notifications.onTokenChanged((resolveToken, nativeToken) => {
@@ -205,7 +219,15 @@ export function createPushSession(options: {
         return registerAll(latest);
       return this.retryFailed();
     },
-    retryFailed() {
+    retryFailed(host) {
+      if (host !== undefined) {
+        if (snapshot.status !== 'on' || !snapshot.failed.includes(host.hostId))
+          return Promise.resolve();
+        const entry = latest.find(
+          (saved) => saved.hostId === host.hostId && saved.credential === host.credential,
+        );
+        return entry === undefined ? Promise.resolve() : registerAll([entry], undefined, true);
+      }
       if (retrying !== undefined) return retrying;
       if (snapshot.status !== 'on') return Promise.resolve();
       const failed = new Set(snapshot.failed);
@@ -216,8 +238,13 @@ export function createPushSession(options: {
       });
       return retrying;
     },
-    reflect(hostId, unresolved, count) {
-      const key = `${hostId}:${String(count)}:${[...(unresolved ?? [])].sort().join(',')}`;
+    reflect(hostId, unresolved, count, pending) {
+      const key = JSON.stringify([
+        hostId,
+        count,
+        [...(unresolved ?? [])].sort(),
+        pending === undefined ? null : [...pending].sort(),
+      ]);
       if (key === reflected) return;
       reflected = key;
       void notifications.setBadge(count).catch(() => undefined);
@@ -228,13 +255,16 @@ export function createPushSession(options: {
           Promise.all(
             shown.flatMap(({ id, data }) => {
               const target = parsePushData(data);
-              return target?.hostId === hostId &&
-                target.itemId !== undefined &&
-                target.kind !== undefined &&
-                RESOLVABLE.has(target.kind) &&
-                !unresolved.has(target.itemId)
-                ? [notifications.dismiss(id)]
-                : [];
+              if (
+                target?.hostId !== hostId ||
+                target.itemId === undefined ||
+                target.kind === undefined
+              )
+                return [];
+              const resolved =
+                (RESOLVABLE.has(target.kind) && !unresolved.has(target.itemId)) ||
+                (pending !== undefined && REPLIES.has(target.kind) && !pending.has(target.itemId));
+              return resolved ? [notifications.dismiss(id)] : [];
             }),
           ),
         )

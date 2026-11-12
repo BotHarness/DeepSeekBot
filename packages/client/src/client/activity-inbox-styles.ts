@@ -12,7 +12,7 @@ export const ACTIVITY_INBOX_CSS = `
 .bh-activity-header-actions { margin: 0; padding: 0; height: auto; min-width: 0; }
 .bh-activity-header-actions:has(.bh-search-open) { flex: 1; }
 .bh-activity-header-actions .bh-search-open { width: 100%; margin-inline: 0; }
-.bh-activity-center-header:has(.bh-search-open) h1 { display: none; }
+.bh-activity-center-header[data-bh-search-open] h1 { display: none; }
 .bh-activity-header-actions [data-active] { color: ${color.accentText}; }
 .bh-activity-section-toggle { display: flex; align-items: center; gap: ${space.x3}; width: 100%; border: 0; padding: ${space.x3} 0; background: transparent; color: inherit; font: inherit; text-align: start; cursor: pointer; }
 .bh-activity-section-toggle > span:first-of-type { flex: 1; }

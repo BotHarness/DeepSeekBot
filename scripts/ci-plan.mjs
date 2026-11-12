@@ -27,6 +27,11 @@ const related = (glob, why, docsSite = false) => ({ glob, tests: 'related', docs
 const none = (glob, why, docsSite = false) => ({ glob, tests: 'none', docsSite, why });
 
 export const RULES = [
+  full('deploy/private-relay/**', 'Private Docker relay runtime, deployment and admission tests'),
+  full(
+    'packages/client/vendor/dsh-ui-theme-022-rc2/**',
+    'Pinned official Desktop theme input and its runtime adapters',
+  ),
   full('package.json', 'Workspace manifest'),
   full('*/*/package.json', 'Package manifests'),
   full('pnpm-lock.yaml', 'Lockfile'),
@@ -38,6 +43,11 @@ export const RULES = [
   full('*/*/tsconfig.json', 'Package TypeScript configs'),
   full('tsdown*.config.ts', 'Bundle configs'),
   full('scripts/stylex-plugin.mjs', 'StyleX transform used by every test'),
+  full('scripts/genui-runtime-assets.mjs', 'Pinned GenUI browser runtime build'),
+  full(
+    'packages/core/src/channels/genui-*.ts',
+    'GenUI runtime sources are bundled into the preview runtime and the generated mobile runtime module',
+  ),
   full(WORKFLOW, 'The verify workflow itself'),
   full('.github/workflows/npm-release.yml', 'Release verification and package gates'),
   full('scripts/published-product-provider.json', 'Published Provider reuse qualification'),

@@ -79,6 +79,7 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let root: Root | undefined;
 let host: HTMLDivElement | undefined;
 afterEach(() => {
+  device.scale = 1;
   act(() => root?.unmount());
   host?.remove();
   root = undefined;
@@ -89,7 +90,15 @@ const preview = '42 — the complete preview remains available when the visible 
 const label = `${title}, ${preview}`;
 const onPress = vi.fn();
 
-function Fixture({ time = '12:39', menu = false }: { time?: string; menu?: boolean }) {
+function Fixture({
+  time = '12:39',
+  menu = false,
+  sourceLabel,
+}: {
+  time?: string;
+  menu?: boolean;
+  sourceLabel?: string | undefined;
+}) {
   const theme = useDesignTheme();
   return (
     <View style={{ width: 320, flexDirection: 'row' }}>
@@ -97,7 +106,7 @@ function Fixture({ time = '12:39', menu = false }: { time?: string; menu?: boole
         <ConversationRowFrame
           title={title}
           source="computer"
-          sourceLabel="Research"
+          sourceLabel={sourceLabel}
           label={label}
           preview={preview}
           time={time}
@@ -113,13 +122,15 @@ function Fixture({ time = '12:39', menu = false }: { time?: string; menu?: boole
   );
 }
 
-function render(time = '12:39', menu = false) {
+function render(time = '12:39', menu = false, all = true) {
   if (!root) {
     host = document.createElement('div');
     document.body.append(host);
     root = createRoot(host);
   }
-  act(() => root!.render(<Fixture time={time} menu={menu} />));
+  act(() =>
+    root!.render(<Fixture time={time} menu={menu} sourceLabel={all ? 'Research' : undefined} />),
+  );
   const text = (value: string) =>
     [...host!.querySelectorAll('span')].find((el) => el.textContent === value)!;
   return { view: host!, name: text(title), preview: text(preview), time: text(time) };
@@ -130,8 +141,41 @@ function style(element: Element): Record<string, unknown> {
 }
 
 describe.each(['android', 'ios'])('Chats row layout contract on %s', (os) => {
-  it.each([1, 1.3, 2, 3.571])(
-    'keeps two lines at scale %s, including beside an action target',
+  it.each([1, 1.3])('keeps two lines at scale %s, including beside an action target', (scale) => {
+    device.os = os;
+    device.scale = scale;
+    for (const menu of [false, true]) {
+      const row = render('12:39', menu);
+      const source = row.name.parentElement!;
+      const header = source.parentElement!;
+      const content = header.parentElement!;
+      expect(style(header)).toMatchObject({ flexDirection: 'row', alignItems: 'center' });
+      expect(style(content)).toMatchObject({ flex: 1, minWidth: 0 });
+      expect(style(source)).toMatchObject({ flex: 1, minWidth: 0 });
+      expect(style(row.name)).toMatchObject({ flex: 1, minWidth: 0 });
+      expect(source.children).toHaveLength(1);
+      expect(source.getAttribute('aria-label')).toContain(title);
+      expect(row.name.dataset.ellipsis).toBe('tail');
+      expect(row.time.parentElement).toBe(header);
+      expect(style(row.time)).toMatchObject({ flexShrink: 0 });
+      expect(content.children).toHaveLength(2);
+      expect(row.preview.parentElement).toBe(content.children[1]);
+      expect(row.preview.parentElement!.querySelector('[data-status="working"]')).not.toBeNull();
+      for (const text of [row.name, row.time, row.preview]) {
+        expect(text.dataset.lines).toBe(text === row.time ? undefined : '1');
+        expect(text.dataset.scaling).not.toBe('false');
+        expect(text.dataset.maximum).toBeUndefined();
+        expect(text.dataset.fit).not.toBe('true');
+      }
+      expect(row.view.querySelector('button')!.getAttribute('aria-label')).toBe(label);
+      const target = row.view.querySelector('[aria-label="Reserved action target"]');
+      expect(target === null).toBe(!menu);
+      if (target) expect(style(target).width).toBe(os === 'android' ? 48 : 44);
+    }
+  });
+
+  it.each([2, 3.571])(
+    'gives the name the row and moves the time to its own line at scale %s',
     (scale) => {
       device.os = os;
       device.scale = scale;
@@ -140,53 +184,63 @@ describe.each(['android', 'ios'])('Chats row layout contract on %s', (os) => {
         const source = row.name.parentElement!;
         const header = source.parentElement!;
         const content = header.parentElement!;
-        expect(style(header)).toMatchObject({ flexDirection: 'row', alignItems: 'center' });
         expect(style(content)).toMatchObject({ flex: 1, minWidth: 0 });
-        expect(style(source)).toMatchObject({ flex: 1, minWidth: 0 });
-        expect(style(row.name)).toMatchObject({ flex: 1, minWidth: 0 });
-        expect(style(source.children[1]!)).toMatchObject({ flexShrink: 0 });
-        expect(source.getAttribute('aria-label')).toContain(title);
+        expect(row.name.dataset.lines).toBe('2');
         expect(row.name.dataset.ellipsis).toBe('tail');
-        expect(row.time.parentElement).toBe(header);
-        expect(style(row.time)).toMatchObject({ flexShrink: 0 });
-        expect(content.children).toHaveLength(2);
-        expect(row.preview.parentElement).toBe(content.children[1]);
-        expect(row.preview.parentElement!.querySelector('[data-status="working"]')).not.toBeNull();
+        expect(header.children).toHaveLength(1);
+        expect(content.children).toHaveLength(3);
+        expect(row.time.parentElement).toBe(content.children[1]);
+        expect(style(content.children[1]!)).toMatchObject({
+          flexDirection: 'row',
+          flexWrap: 'wrap',
+        });
+        expect(row.preview.parentElement).toBe(content.children[2]);
+        expect(row.preview.dataset.lines).toBe('1');
         for (const text of [row.name, row.time, row.preview]) {
-          expect(text.dataset.lines).toBe(text === row.time ? undefined : '1');
           expect(text.dataset.scaling).not.toBe('false');
           expect(text.dataset.maximum).toBeUndefined();
           expect(text.dataset.fit).not.toBe('true');
         }
-        expect(row.view.querySelector('button')!.getAttribute('aria-label')).toBe(label);
-        const target = row.view.querySelector('[aria-label="Reserved action target"]');
-        expect(target === null).toBe(!menu);
-        if (target) expect(style(target).width).toBe(os === 'android' ? 48 : 44);
       }
     },
   );
 
-  it('omits the timestamp slot without adding an empty metadata line', () => {
-    device.os = os;
-    device.scale = 2;
-    const row = render('');
-    const header = row.name.parentElement!.parentElement!;
-    expect(header.children).toHaveLength(1);
-    expect(header.parentElement!.children).toHaveLength(2);
-    expect(row.preview.parentElement).toBe(header.nextElementSibling);
-    expect(row.view.textContent).not.toContain('12:39');
-    onPress.mockClear();
-    act(() => row.view.querySelector('button')!.click());
-    expect(onPress).toHaveBeenCalledOnce();
-  });
+  it.each([1, 2])(
+    'omits the timestamp slot without adding an empty metadata line at scale %s',
+    (scale) => {
+      device.os = os;
+      device.scale = scale;
+      const row = render('');
+      const header = row.name.parentElement!.parentElement!;
+      expect(header.children).toHaveLength(1);
+      expect(header.parentElement!.children).toHaveLength(2);
+      expect(row.preview.parentElement).toBe(header.nextElementSibling);
+      expect(row.view.textContent).not.toContain('12:39');
+      onPress.mockClear();
+      act(() => row.view.querySelector('button')!.click());
+      expect(onPress).toHaveBeenCalledOnce();
+    },
+  );
 });
 
-it('reserves visible heading space for the name and icon while retaining accessible source context', () => {
+it('moves the environment mark from the name to the avatar corner in the All view', () => {
   const row = render();
   const source = row.name.parentElement!;
   expect(source.getAttribute('aria-label')).toContain('Research');
-  expect(source.querySelector('i')).not.toBeNull();
+  expect(source.querySelector('i')).toBeNull();
   expect(row.view.textContent).not.toContain('Research');
+  const avatar = row.view.querySelector('button')!.children[0]!;
+  const mark = avatar.querySelector('i:not([data-status])');
+  expect(mark).not.toBeNull();
+  expect(style(mark!.parentElement!.parentElement!)).toMatchObject({
+    position: 'absolute',
+    bottom: -2,
+  });
+});
+
+it('shows no environment mark when one environment is selected', () => {
+  const row = render('12:39', false, false);
+  expect(row.view.querySelector('i:not([data-status])')).toBeNull();
 });
 
 describe.each(['android', 'ios'])('Empty conversation time on %s', (os) => {
@@ -243,6 +297,9 @@ describe.each(['android', 'ios'])('Empty conversation time on %s', (os) => {
         );
         expect(text).toBeDefined();
         expect(style(text!)).toMatchObject({ flexShrink: 0 });
+        expect(host.querySelector('button')!.getAttribute('aria-label')).toMatch(
+          new RegExp(`, ${time}$`),
+        );
         if (at !== undefined) expect(host.textContent).not.toContain(shortTime(createdAt, now));
       }
     },

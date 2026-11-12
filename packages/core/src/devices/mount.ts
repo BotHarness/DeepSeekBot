@@ -1,3 +1,6 @@
+import { createDirectPeers } from './direct.js';
+import { createPrivateConnection } from './private-relay.js';
+import { createPrivateTunnel } from './private-tunnel.js';
 import { createConnectBotBridge } from './bot-connect-bridge.js';
 import { BOT_CONNECT_PATH } from './bot-connect-channel.js';
 import { createLanBotBridge } from './bot-lan-bridge.js';
@@ -7,7 +10,7 @@ import { createLanBotControl } from './bot-lan-control.js';
 import { createActivityDelivery, type ActivityDelivery } from '../live-activity/delivery.js';
 import type { ChannelSendStatus } from '../channels/store.js';
 import { createNoiseIdentity } from './noise-identity.js';
-import { createEncryptedGateway } from './encrypted-gateway.js';
+import { createEncryptedGateway, type CallChannelDiagnostic } from './encrypted-gateway.js';
 import { CONNECT_CHANNEL_PATH } from './noise/channel.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { credentialKey, type CredentialProvider } from '@deepseek-ai/dsh-credentials';
@@ -63,6 +66,7 @@ const PUSH_SWEEP_MS = 60_000;
 export interface DevicePushOptions {
   source: PushSource;
   watch(changed: () => void): () => void;
+  held?: () => boolean;
   sender?: ExpoSender;
 }
 
@@ -313,6 +317,7 @@ export function mountDevicePairing(
       host: () => pairing.host(),
       deviceActive: (deviceId) =>
         pairing.list().some((device) => device.id === deviceId && device.revokedAt === undefined),
+      ...(watched.held === undefined ? {} : { held: watched.held }),
       record: (event) => write('push', event.phase, `push ${pushDetail(event)}`),
     });
     push = delivery;
@@ -401,6 +406,12 @@ export function mountDevicePairing(
           localVideo: ({ deviceId, command, signal }) =>
             localVideoCommand(videoOwner(), { deviceId }, command, signal),
           voiceCall: ({ deviceId, command, signal }) => voiceCall({ deviceId }, command, signal),
+          ...(process.env.BOTHARNESS_CALL_DIAGNOSTICS === '1'
+            ? {
+                callDiagnostic: (event: CallChannelDiagnostic) =>
+                  write('voice', event.phase, JSON.stringify({ module: 'call-channel', ...event })),
+              }
+            : {}),
           log: (phase) => write('device-lan', phase, `device-lan phase=${phase}`),
         }),
       ...(options.botNetwork === undefined
@@ -523,15 +534,28 @@ export function mountDevicePairing(
             ? ('negotiating' as const)
             : ('disconnected' as const),
     });
+    const directPeers = createDirectPeers({
+      port: () => webServer.port,
+      log: (phase, info) =>
+        write('device-direct', phase, `device-direct phase=${phase}${info ? ` ${info}` : ''}`),
+    });
+    webCtx.effect(() => () => directPeers.close(), 'botharness: direct device peers');
     const encrypted = createEncryptedGateway({
       pairing,
       key: identity.key,
       port: () => webServer.port,
+      direct: (input) => directPeers.answer(input),
       changed: (state) => {
         channels = state;
       },
       verifyEnrollment: (body, signature) => account.verifyOffer(body, signature),
       log: (phase) => write('device-encryption', phase, `device-encryption phase=${phase}`),
+      ...(process.env.BOTHARNESS_CALL_DIAGNOSTICS === '1'
+        ? {
+            callDiagnostic: (event: CallChannelDiagnostic) =>
+              write('voice', event.phase, JSON.stringify({ module: 'call-channel', ...event })),
+          }
+        : {}),
     });
     webCtx.effect(
       () => () => {
@@ -721,9 +745,44 @@ export function mountDevicePairing(
     });
     const publishingReady = publishing.start();
     webCtx.effect(() => () => publishing.close(), 'botharness: managed Tailscale publishing');
+    const privateConnection = createPrivateConnection({
+      credentials: options.credentials ?? (() => undefined),
+      port: () => webServer.port,
+      log: (phase) => write('private-relay', phase, 'private-relay phase=' + phase),
+    });
+    webCtx.effect(() => {
+      void privateConnection
+        .restore()
+        .catch(() =>
+          write('private-relay', 'restore-failed', 'private-relay phase=restore-failed'),
+        );
+      return () => privateConnection.close();
+    }, 'botharness: private relay');
+    const privateTunnel = createPrivateTunnel({
+      credentials: options.credentials ?? (() => undefined),
+      port: () => webServer.port,
+      cloudflaredCache: cloudflaredCacheRoot(options.dshHome),
+      ...(options.packageAnchors === undefined ? {} : { packageAnchors: options.packageAnchors }),
+      record: (phase, info) =>
+        write('private-tunnel', phase, `private-tunnel phase=${phase}${info ? ` ${info}` : ''}`),
+    });
+    webCtx.effect(() => {
+      void privateTunnel
+        .restore()
+        .catch(() =>
+          write('private-tunnel', 'restore-failed', 'private-tunnel phase=restore-failed'),
+        );
+      return () => void privateTunnel.close();
+    }, 'botharness: private tunnel');
     const routes = async () => {
       await publishingReady;
       const status = await publishing.status();
+      const privateRoute = privateTunnel.admission() ?? privateConnection.admission();
+      if (privateRoute)
+        return {
+          ...status,
+          routes: [{ url: privateRoute.origin, kind: 'private' as const, ready: true }],
+        };
       status.routes.unshift(...lan.routes());
       const tunnel = connect.route();
       if (tunnel === undefined) return status;
@@ -732,6 +791,9 @@ export function mountDevicePairing(
       return { ...status, routes: [...others, tunnel, ...loopback] };
     };
     const http = createDevicesHttp({
+      privateConnection,
+      privateTunnel,
+      direct: directPeers,
       pairing,
       encryption,
       routes,
@@ -756,6 +818,8 @@ export function mountDevicePairing(
       [`${DEVICES_PATH}/approve-key`, ['POST']],
       [`${DEVICES_PATH}/revoke`, ['POST']],
       [`${DEVICES_PATH}/connect`, ['POST']],
+      [`${DEVICES_PATH}/private`, ['POST']],
+      [`${DEVICES_PATH}/private-tunnel`, ['POST']],
       [`${DEVICES_PATH}/account-hosts`, ['GET']],
       [`${DEVICES_PATH}/account-hosts/revoke`, ['POST']],
       [`${DEVICES_PATH}/lan`, ['POST']],

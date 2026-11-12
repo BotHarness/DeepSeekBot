@@ -270,6 +270,46 @@ describe('Bot-owned DSH Subagent tools', () => {
     );
   });
 
+  it.each([false, true])(
+    'starts a child on a flat-request Host (background=%s)',
+    async (background) => {
+      const harness = createHarness();
+      await harness.install();
+      const parent = createAgent();
+      harness.startActivation.mockImplementationOnce(async (spec) => {
+        if (!('parent' in spec) || spec.parent !== parent)
+          throw new Error('flat Host requires the exact live parent');
+        expect(spec).toMatchObject({
+          agentOptions: parentOptions,
+          agentPreset: 'system-default',
+          maxDepth: 1,
+          prompt: [{ type: 'text', text: 'Calculate 37 times 41' }],
+          delivery: background ? 'parent' : 'caller',
+        });
+        return {
+          childId: CHILD_ID,
+          result: Promise.resolve({
+            stopReason: 'completed',
+            output: [{ type: 'text', text: '1517' }],
+          }),
+          dispose: async () => undefined,
+        };
+      });
+      const result = await callTool(
+        harness,
+        'bot_subagent',
+        {
+          description: 'RC2 child',
+          prompt: 'Calculate 37 times 41',
+          run_in_background: background,
+        },
+        parent,
+      );
+      expect(result).toContain(background ? `Started Subagent ${CHILD_ID}` : '1517');
+      expect(harness.startActivation).toHaveBeenCalledTimes(1);
+    },
+  );
+
   it('reads the system default at each spawn and refuses a missing registry', async () => {
     const presets = presetRegistry(['system-default', 'new-default']);
     const harness = createHarness({ presets });

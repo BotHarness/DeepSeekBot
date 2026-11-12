@@ -170,7 +170,7 @@ The one- or two-sentence statement of what an Assignment sets out to do, chosen 
 _Avoid_: purpose (historical), prompt, Assignment Request, Assignment Report
 
 **Assignment Session**:
-A PersonaBot-owned independent root Session that executes exactly one Assignment in exactly one working directory in v1, created and managed by its Orchestrator without requiring the Human to open another Conversation. A PersonaBot may have several at once, and a DSH Subagent never counts as one.
+A PersonaBot-owned independent root Session that executes exactly one Assignment in exactly one working directory in v1, created by its Orchestrator, or by the Human through a direct CLI call on its behalf, and always managed by its Orchestrator, without requiring the Human to open another Conversation. A PersonaBot may have several at once, and a DSH Subagent never counts as one.
 _Avoid_: Work Session, Worker Session, Executor Session, task Session, child Session
 
 **Assignment Agent**:
@@ -190,7 +190,7 @@ A stable PersonaBot-local key explicitly assigned to one continuing line of work
 _Avoid_: title similarity, cwd, most-recent Session, global id
 
 **Assignment Request**:
-A durable, addressed, auditable Orchestrator message to one owned Assignment Session, optionally correlated to an Inbox Admission or earlier report. Its semantic mode is `context-update`, `next-step`, or `next-turn`; Assignment Runtime maps that to DSH injection, steer, or follow-up without interrupting the current step.
+A durable, addressed, auditable Orchestrator message, or a Human's direct CLI request on its behalf, to one owned Assignment Session, optionally correlated to an Inbox Admission or earlier report. Its semantic mode is `context-update`, `next-step`, or `next-turn`; Assignment Runtime maps that to DSH injection, steer, or follow-up without interrupting the current step.
 _Avoid_: Channel message, Subagent prompt, broadcast, inferred Session
 
 **Assignment Delivery Intent**:
@@ -788,7 +788,7 @@ _Avoid_: caller-supplied author, transport metadata (bare)
 
 **Chat**:
 A Feishu/Lark conversation — group or p2p — that a PersonaBot takes part in, identified by `chat_id`.
-_Avoid_: room, channel, group (when p2p is meant too)
+_Avoid_: room, channel, group (when p2p is meant too); for the mobile screen, say Conversation screen
 
 **DM**:
 A 1:1 conversation between two Actors — a Channel of type `dm`, or its bridged equivalent. A Human–PersonaBot DM is the Human's direct conversation with one Bot; a Bot-to-Bot DM has two PersonaBot participants and may be inspected read-only by a Human without making that Human a participant.
@@ -1114,6 +1114,58 @@ The single Sessions surface (`sessions`, TextQuote icon) for inspecting existing
 
 Default-following Sessions headers omit a redundant scope label. Group scope choices live in the existing view-options menu; only an explicit member-Bot override shows `Bot · name` in the header.
 
+### Mobile screens
+
+The phone's navigation destinations. A screen is named for its job and keeps the same name on iOS and Android; how each platform draws it is decided in `apps/mobile/DESIGN.md`. Deeper pages inside a screen, such as Bot Memory or a Settings sub-page, take their plain titles and are not terms. The PersonaBot Profile and Group Profile above are mobile screens too, opened from a Conversation screen header.
+
+**Chats**:
+The tab that lists DMs and Channels, from the current Computer or cloud workspace or, under All, from every online paired Computer and available cloud workspace, and where the Human opens a Conversation screen.
+_Avoid_: home, conversation list, Chat list
+
+**Activity tab**:
+The tab that shows Activity.
+_Avoid_: notifications tab, inbox
+
+**Settings**:
+The tab for the phone's own preferences and the Human's account, models, usage and storage.
+_Avoid_: preferences page, gear menu
+
+**Workspace panel**:
+On iOS, the retained page to the left of Chats that lists paired Computers and cloud workspaces and switches between them. The Workspace drawer does the same job everywhere else.
+_Avoid_: -1 screen, sidebar, Host drawer
+
+**Workspace drawer**:
+The navigation drawer, opened from the Host chip, that lists paired Computers and cloud workspaces and switches between them.
+_Avoid_: Host drawer, sidebar, menu
+
+**Conversation screen**:
+The screen that shows one DM or Channel: a header, the Conversation Timeline and, where the Human can post, the Composer (a read-only Bot-to-Bot DM has none). Tob Mode opens this same screen.
+_Avoid_: Chat, chat page, chat detail, 聊天页
+
+**Conversation Timeline**:
+The ordered, scrolling presentation of one conversation's messages and activity rows inside the Conversation screen. It only shows Messaging's facts and keeps discardable caches; it is never a message store.
+_Avoid_: chat list, message list (alone), FlatList, Recycler
+
+**Composer**:
+The input area at the bottom of the Conversation screen where the Human writes and sends a message.
+_Avoid_: input box, text field (alone)
+
+**Computer viewer**:
+The screen that shows a Bot's Computer as live video and lets the Human watch or take control.
+_Avoid_: remote desktop, screen share
+
+**Browser viewer**:
+The screen that shows a Bot's Browser live and lets the Human watch or take control.
+_Avoid_: web view, in-app browser
+
+**Call screen**:
+The full screen for a live voice or video call with a Bot.
+_Avoid_: call page, call overlay
+
+**Pairing**:
+The flow that pairs the phone with a Computer or joins a cloud workspace.
+_Avoid_: login, setup wizard
+
 ### Native UI components
 
 The iOS workspace switcher uses application-defined retained navigation pages backed by UIKit `UIPageViewController` through an opt-in `PagerView` backend; Workspaces is left of the complete Chats tab shell, followed by the last chat and its profile. Android retains its navigation drawer. See `apps/mobile/DESIGN.md` → iOS workspace panel.
@@ -1198,11 +1250,13 @@ Counterparts by job. The Android column uses Material 3 names, the iOS column HI
 | Label or hint for an element                        | Tooltip                                                              | `TooltipBox`, `PlainTooltip`                                                    | — on iPhone (help tags are macOS and iPadOS pointer)                                   | —                                                                                                                  |
 | Scroll through a set of items horizontally          | Carousel                                                             | `HorizontalMultiBrowseCarousel`                                                 | Collection; page control for ordered pages                                             | `ScrollView(.horizontal)`, `TabView` + `.tabViewStyle(.page)` · `UICollectionView`, `UIPageControl`                |
 | Go back                                             | System Back and predictive back; top app bar navigation icon         | `BackHandler`, `PredictiveBackHandler`                                          | Back button and the interactive pop (edge or content swipe)                            | `NavigationStack` · `UINavigationController`                                                                       |
+| An ongoing call outside the app                     | Ongoing call notification (of a foreground service)                  | `Notification.CallStyle.forOngoingCall`                                         | Live Activity (Lock Screen and Dynamic Island)                                         | ActivityKit `Activity` · `expo-widgets`                                                                            |
 
 How this app pairs them today (`apps/mobile/DESIGN.md`, #3002):
 
 - Buttons: primary → filled ↔ bordered prominent (glass prominent on iOS 26); secondary and tonal → filled tonal ↔ bordered (glass); text → text button ↔ borderless; danger → filled with the Material error colours ↔ the destructive role.
 - Sheets: Android `ModalBottomSheet` ↔ iOS form sheet with detents (`presentation: 'formSheet'` through Expo Router, or SwiftUI `BottomSheet` in `@expo/ui`).
+- A Bot call outside the app: Android ongoing call notification (`Notification.CallStyle`) plus the custom call bubble over other apps ↔ iOS Live Activity (ADR-0305).
 - The Chats "-1 screen": Android `DismissibleNavigationDrawer` ↔ iOS retained navigation pages, Workspaces beside the complete Chats tab shell (`UIPageViewController` through `PagerView`).
 - Top-level navigation: Android navigation bar with a creation FAB ↔ the iOS tab island with its **+** (a custom surface, ADR-0235).
 - Activity and workspace tabs: Android primary tabs (`PrimaryTabRow`).

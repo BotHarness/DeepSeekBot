@@ -19,7 +19,10 @@ final class CallAttempt: NSObject, RTCPeerConnectionDelegate {
   private var peer: RTCPeerConnection?
   private var track: RTCAudioTrack?
   private var music = false
+  private var muted = false
+  private var admMuted = false
   private var remoteTrack: RTCAudioTrack?
+  private var voiceVolume = 1.0
   private var answered: ((Result<String, CallError>) -> Void)?
   private var settleScheduled = false
   private var sampling = false
@@ -71,6 +74,9 @@ final class CallAttempt: NSObject, RTCPeerConnectionDelegate {
         finish(.failure(CallError(code: "native-unavailable"))); return
       }
       self.peer = peer
+      // Mute silences the voice processing input and keeps the engine running, so the Bot's
+      // voice keeps the call output path and level. The privacy indicator stays on while muted.
+      _ = factory.audioDeviceModule.setMuteMode(.voiceProcessing)
       let microphone = factory.audioTrack(with: factory.audioSource(with: nil), trackId: "call-mic")
       // Echo cancellation keeps the Bot's own reply on the speaker out of the uplink.
       // A test build forces software processing so the capture hook that replaces
@@ -151,13 +157,37 @@ final class CallAttempt: NSObject, RTCPeerConnectionDelegate {
     }
     let applied = track.setAudioProcessingOptions(options)
     tap?.note("processing-options", ["music": music, "code": applied.code.rawValue, "message": applied.message])
+    applyMute()
   }
 
   func mute(_ muted: Bool) {
     queue.async { [self] in
-      track?.isEnabled = !muted
-      tap?.capture.setMuted(muted)
+      self.muted = muted
+      applyMute()
     }
+  }
+
+  /// Scales only the Bot's voice: WebRTC's remote source gain, where 1 is unity and the
+  /// call screen offers 0 to 2. Other apps' audio in music mode is not touched.
+  func setVoiceVolume(_ volume: Double) {
+    let gain = volume.isFinite ? min(max(volume, 0), 2) : 1
+    queue.async { [self] in
+      voiceVolume = gain
+      remoteTrack?.source.volume = gain
+    }
+  }
+
+  /// Disabling the track sends silence; muting the ADM stops the engine input. A restart
+  /// of recording unmutes the ADM, so the state is applied again after each change.
+  private func applyMute() {
+    guard !ended else { return }
+    track?.isEnabled = !muted
+    tap?.capture.setMuted(muted)
+    guard muted || admMuted, let adm = factory?.audioDeviceModule else { return }
+    admMuted = muted
+    guard adm.isMicrophoneMuted != muted else { return }
+    let code = adm.setMicrophoneMuted(muted)
+    tap?.note("mic", ["muted": muted, "code": code, "inputMuted": adm.isMicrophoneMuted])
   }
 
   func inject(_ samples: [Float], rate: Double) -> Bool {
@@ -241,6 +271,7 @@ final class CallAttempt: NSObject, RTCPeerConnectionDelegate {
         ])
       }
       queue.async { [self] in
+        applyMute()
         guard tap != nil, !sampling else { return }
         sampling = true
         samplePerf()
@@ -269,6 +300,7 @@ final class CallAttempt: NSObject, RTCPeerConnectionDelegate {
     queue.async { [self] in
       guard !ended, remoteTrack == nil else { return }
       remoteTrack = remote
+      remote.source.volume = voiceVolume
       if let render = tap?.render { remote.add(render) }
     }
   }

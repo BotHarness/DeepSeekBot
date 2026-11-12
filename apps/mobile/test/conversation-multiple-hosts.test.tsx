@@ -138,6 +138,11 @@ vi.mock('../src/host/native-dm-activity', () => ({ useHiddenDmActivity: () => []
 vi.mock('../src/host/native-message-display', () => ({
   useMessageDisplay: () => state.display,
 }));
+vi.mock('../src/host/native-send-jump', () => ({
+  sendJumpPreferences: {
+    getSnapshot: () => ({ enabled: false, loaded: true, storageError: false }),
+  },
+}));
 vi.mock('../src/host/native-delivery-receipts', () => ({
   useDeliveryReceiptPreferences: () => ({ enabled: false, loaded: true, storageError: false }),
 }));
@@ -414,6 +419,26 @@ it('opens B with A selected, sends through its real composer, and retains an off
     expect(field().value).toBe('Unsent B draft');
     expect(b.channel('dm-same').messages).toHaveLength(1);
     expect(view.textContent).not.toContain(t.sourceChanged);
+    await type('No too');
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
+        field(),
+        'No tool',
+      );
+      field().dispatchEvent(new Event('input', { bubbles: true }));
+      const send = view.querySelector<HTMLButtonElement>('[data-testid="composer-send"]')!;
+      send.click();
+      send.click();
+    });
+    await act(async () => {
+      await vi.waitFor(() =>
+        expect(b.channel('dm-same').messages.map((m) => m.body)).toEqual([
+          'Only B via composer',
+          'No tool',
+        ]),
+      );
+    });
+    expect(field().value).toBe('');
   } finally {
     await act(async () => {
       root.unmount();

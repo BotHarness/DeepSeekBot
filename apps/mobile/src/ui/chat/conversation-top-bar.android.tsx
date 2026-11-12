@@ -6,7 +6,7 @@ import {
   IconButton,
   RNHostView,
   Row,
-  Shape,
+  Spacer,
   Surface,
   Text,
 } from '@expo/ui/jetpack-compose';
@@ -25,6 +25,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BotAvatar } from '../bot-avatar';
 import { useDesignTheme } from '../design/theme';
+import { composeIsland } from '../design/island-compose.android';
 import { materialIconButton, radius, space } from '../design/tokens';
 import { useStrings } from '../strings';
 import type { ConversationTopBarProps } from './conversation-top-bar';
@@ -33,7 +34,6 @@ import { GroupMark } from './group-mark';
 import { HeaderBotStack } from './header-bot-stack';
 
 export function ConversationTopBar({
-  blurTarget,
   title,
   subtitle,
   bot,
@@ -44,6 +44,7 @@ export function ConversationTopBar({
   onProfile,
   onCall,
   onHeight,
+  selection,
 }: ConversationTopBarProps) {
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
@@ -55,9 +56,16 @@ export function ConversationTopBar({
     Math.ceil((theme.type.title.line + theme.type.meta.line) * theme.fontScale + space.x2 * 2),
   );
   const status = connectionLabel ?? subtitle;
-  const action = (id: string, label: string, source: number, onClick: () => void) => (
+  const action = (
+    id: string,
+    label: string,
+    source: number,
+    onClick: () => void,
+    enabled = true,
+  ) => (
     <IconButton
       onClick={onClick}
+      enabled={enabled}
       colors={{ contentColor: theme.color.fg }}
       modifiers={[
         size(islandHeight, islandHeight),
@@ -68,11 +76,7 @@ export function ConversationTopBar({
       <Icon source={source} size={materialIconButton.iconSize} />
     </IconButton>
   );
-  const island = {
-    color: theme.layer.raised.fill,
-    contentColor: theme.color.fg,
-    shape: Shape.Pill({}),
-  };
+  const { surface: island, modifiers: islandLook } = composeIsland(theme, islandHeight);
   return (
     <View
       testID="android-chat-header"
@@ -93,7 +97,6 @@ export function ConversationTopBar({
       }}
     >
       <ChatHeaderSurface
-        target={blurTarget}
         height={height || insets.top + theme.touch + space.x3}
         solid={insets.top}
       />
@@ -103,109 +106,161 @@ export function ConversationTopBar({
         seedColor={theme.color.accent}
         ignoreSafeAreaKeyboardInsets
       >
-        <Row
-          verticalAlignment="center"
-          horizontalArrangement={{ spacedBy: space.x2 }}
-          modifiers={[fillMaxWidth(), padding(space.x3, space.x2, space.x3, space.x2)]}
-        >
-          <Surface {...island}>
-            {action('chat-back', t.back, require('../../../assets/header/arrow-back.xml'), onBack)}
-          </Surface>
-          <Surface
-            {...island}
-            {...(onProfile === undefined ? {} : { onClick: onProfile })}
-            modifiers={[
-              weight(1),
-              testID('chat-identity'),
-              semantics({ contentDescription: [title, status].filter(Boolean).join(', ') }),
-            ]}
+        {selection !== undefined ? (
+          <Row
+            verticalAlignment="center"
+            horizontalArrangement={{ spacedBy: space.x2 }}
+            modifiers={[fillMaxWidth(), padding(space.x3, space.x2, space.x3, space.x2)]}
           >
-            <Row
-              verticalAlignment="center"
-              horizontalArrangement={{ spacedBy: space.x3 }}
-              modifiers={[
-                nativeHeight(islandHeight),
-                padding(space.x2, space.x2, space.x4, space.x2),
-              ]}
-            >
-              <RNHostView modifiers={[size(mark, mark)]}>
-                <View accessible={false} importantForAccessibility="no-hide-descendants">
-                  {bot === undefined ? (
-                    <GroupMark avatar={avatar} size={mark} corner={radius.round} />
-                  ) : (
-                    <BotAvatar bot={bot} size={mark} ring={false} />
-                  )}
-                </View>
-              </RNHostView>
-              <Column modifiers={[weight(1)]}>
-                <Text
-                  style={{ typography: 'titleMedium', fontWeight: 'bold' }}
-                  maxLines={1}
-                  overflow="ellipsis"
-                >
-                  {title}
-                </Text>
-                {status === undefined ? null : (
-                  <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: space.x2 }}>
-                    {activeBots.length === 0 ? null : (
-                      <RNHostView
-                        modifiers={[
-                          size(
-                            theme.type.meta.line * Math.min(3, activeBots.length) -
-                              space.x2 * (Math.min(3, activeBots.length) - 1),
-                            theme.type.meta.line,
-                          ),
-                        ]}
-                      >
-                        <HeaderBotStack bots={activeBots} size={theme.type.meta.line} />
-                      </RNHostView>
-                    )}
-                    <Text
-                      modifiers={[weight(1)]}
-                      color={theme.color.muted}
-                      style={{ typography: 'bodySmall' }}
-                      maxLines={1}
-                      overflow="ellipsis"
-                    >
-                      {status}
-                    </Text>
-                  </Row>
-                )}
-              </Column>
-              {connectionLabel === undefined ? null : (
-                <CircularProgressIndicator
-                  color={theme.color.accent}
-                  modifiers={[
-                    size(materialIconButton.iconSize, materialIconButton.iconSize),
-                    semantics({ contentDescription: connectionLabel }),
-                  ]}
-                />
+            <Surface {...island} modifiers={islandLook}>
+              {action(
+                'chat-selection-close',
+                t.messageSelection.close,
+                require('../../../assets/header/close.xml'),
+                selection.onCancel,
               )}
-            </Row>
-          </Surface>
-          {onCall === undefined && onProfile === undefined ? null : (
-            <Surface {...island} modifiers={[testID('chat-action-island')]}>
-              <Row verticalAlignment="center">
-                {onCall === undefined
-                  ? null
-                  : action(
-                      'chat-call-button',
-                      t.call.button,
-                      require('../../../assets/header/call.xml'),
-                      onCall,
-                    )}
-                {onProfile === undefined
-                  ? null
-                  : action(
-                      'chat-profile-button',
-                      t.openProfile,
-                      require('../../../assets/header/more-vert.xml'),
-                      onProfile,
-                    )}
+            </Surface>
+            <Surface {...island} modifiers={[...islandLook, testID('chat-selection-count')]}>
+              <Row
+                verticalAlignment="center"
+                modifiers={[nativeHeight(islandHeight), padding(space.x5, 0, space.x5, 0)]}
+              >
+                <Text style={{ typography: 'titleMedium', fontWeight: 'bold' }} maxLines={1}>
+                  {t.messageSelection.count(selection.count)}
+                </Text>
               </Row>
             </Surface>
-          )}
-        </Row>
+            <Spacer modifiers={[weight(1)]} />
+            <Surface {...island} modifiers={[...islandLook, testID('chat-selection-actions')]}>
+              <Row verticalAlignment="center">
+                {action(
+                  'chat-selection-copy',
+                  t.copy,
+                  require('../../../assets/row-icons/copy.xml'),
+                  selection.onCopy,
+                  selection.count > 0,
+                )}
+                {action(
+                  'chat-selection-screenshot',
+                  t.feedback.screenshot,
+                  require('../../../assets/row-icons/share.xml'),
+                  selection.onScreenshot,
+                  selection.count > 0,
+                )}
+              </Row>
+            </Surface>
+          </Row>
+        ) : (
+          <Row
+            verticalAlignment="center"
+            horizontalArrangement={{ spacedBy: space.x2 }}
+            modifiers={[fillMaxWidth(), padding(space.x3, space.x2, space.x3, space.x2)]}
+          >
+            <Surface {...island} modifiers={islandLook}>
+              {action(
+                'chat-back',
+                t.back,
+                require('../../../assets/header/arrow-back.xml'),
+                onBack,
+              )}
+            </Surface>
+            <Surface
+              {...island}
+              {...(onProfile === undefined ? {} : { onClick: onProfile })}
+              modifiers={[
+                weight(1),
+                ...islandLook,
+                testID('chat-identity'),
+                semantics({ contentDescription: [title, status].filter(Boolean).join(', ') }),
+              ]}
+            >
+              <Row
+                verticalAlignment="center"
+                horizontalArrangement={{ spacedBy: space.x3 }}
+                modifiers={[
+                  nativeHeight(islandHeight),
+                  padding(space.x2, space.x2, space.x4, space.x2),
+                ]}
+              >
+                <RNHostView modifiers={[size(mark, mark)]}>
+                  <View accessible={false} importantForAccessibility="no-hide-descendants">
+                    {bot === undefined ? (
+                      <GroupMark avatar={avatar} size={mark} corner={radius.round} />
+                    ) : (
+                      <BotAvatar bot={bot} size={mark} ring={false} />
+                    )}
+                  </View>
+                </RNHostView>
+                <Column modifiers={[weight(1)]}>
+                  <Text
+                    style={{ typography: 'titleMedium', fontWeight: 'bold' }}
+                    maxLines={1}
+                    overflow="ellipsis"
+                  >
+                    {title}
+                  </Text>
+                  {status === undefined ? null : (
+                    <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: space.x2 }}>
+                      {activeBots.length === 0 ? null : (
+                        <RNHostView
+                          modifiers={[
+                            size(
+                              theme.type.meta.line * Math.min(3, activeBots.length) -
+                                space.x2 * (Math.min(3, activeBots.length) - 1),
+                              theme.type.meta.line,
+                            ),
+                          ]}
+                        >
+                          <HeaderBotStack bots={activeBots} size={theme.type.meta.line} />
+                        </RNHostView>
+                      )}
+                      <Text
+                        modifiers={[weight(1)]}
+                        color={theme.color.muted}
+                        style={{ typography: 'bodySmall' }}
+                        maxLines={1}
+                        overflow="ellipsis"
+                      >
+                        {status}
+                      </Text>
+                    </Row>
+                  )}
+                </Column>
+                {connectionLabel === undefined ? null : (
+                  <CircularProgressIndicator
+                    color={theme.color.accent}
+                    modifiers={[
+                      size(materialIconButton.iconSize, materialIconButton.iconSize),
+                      semantics({ contentDescription: connectionLabel }),
+                    ]}
+                  />
+                )}
+              </Row>
+            </Surface>
+            {onCall === undefined && onProfile === undefined ? null : (
+              <Surface {...island} modifiers={[...islandLook, testID('chat-action-island')]}>
+                <Row verticalAlignment="center">
+                  {onCall === undefined
+                    ? null
+                    : action(
+                        'chat-call-button',
+                        t.call.button,
+                        require('../../../assets/header/call.xml'),
+                        onCall,
+                      )}
+                  {onProfile === undefined
+                    ? null
+                    : action(
+                        'chat-profile-button',
+                        t.openProfile,
+                        require('../../../assets/header/more-vert.xml'),
+                        onProfile,
+                      )}
+                </Row>
+              </Surface>
+            )}
+          </Row>
+        )}
       </Host>
     </View>
   );

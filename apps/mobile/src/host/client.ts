@@ -1,5 +1,10 @@
 import { readComputerAvailability } from './computer-availability';
-import { encryptedCarrier, encodeBase64, ConnectRefused } from './encrypted-carrier';
+import {
+  encryptedCarrier,
+  encodeBase64,
+  ConnectRefused,
+  HOST_KEY_REJECTIONS,
+} from './encrypted-carrier';
 import type { HostEncryption } from './hosts';
 import { learnedRoutes, preferredRoutes } from './learned-routes';
 import type { ConnectionTelemetry } from '../telemetry/connection';
@@ -28,6 +33,12 @@ import {
   VOICE_CALL_PATH,
 } from '../../../../packages/core/src/voice/call-contract';
 import { secretRouteRefusal } from '../../../../packages/core/src/bridge/secret-route';
+import {
+  APP_VERSION_HEADER,
+  MIN_HOST_VERSION,
+  belowMinimum,
+} from '../../../../packages/core/src/devices/client-compat';
+import { installedAppVersion } from './app-version';
 import {
   REMOTE_STREAM_MUX_PATH,
   type ActivityLiveFrame,
@@ -126,13 +137,20 @@ export interface RosterView {
   sorting?: RosterSorting;
 }
 
+export interface HostCompatibility {
+  hostVersion?: string;
+  update?: 'host' | 'app';
+}
+
 export interface HostSnapshot {
   routes?: readonly {
     url: string;
     status: 'unchecked' | 'verified' | 'unreachable';
   }[];
   computerAvailable?: boolean;
+  compatibility?: HostCompatibility;
   connection: ConnectionState;
+  disruptedSince?: number;
   activity?: readonly WireBotActivity[];
   roster?: RosterView;
 }
@@ -158,7 +176,7 @@ export interface HostClient {
   subscribe(listener: () => void): () => void;
   start(): void;
   stop(): void;
-  retryNow(trigger?: 'resume' | 'manual_retry'): void;
+  retryNow(trigger?: 'resume' | 'manual_retry', options?: { preserveConnected?: boolean }): void;
   refresh(): Promise<void>;
   call<T>(method: string, args?: Record<string, unknown>): Promise<T>;
   upload(name: string, data: Blob): Promise<AttachmentRef>;
@@ -193,14 +211,20 @@ export interface HostClientOptions {
   backoff?: (attempt: number) => number;
   timeoutMs?: number;
   localStore?: () => Promise<LocalStore | undefined>;
+  appVersion?: string;
 }
 
-export type DeviceRefusal = 'device-revoked' | 'device-unknown' | 'device-credential-missing';
+export type DeviceRefusal =
+  | 'device-revoked'
+  | 'device-unknown'
+  | 'device-credential-missing'
+  | 'host-key-changed';
 
 const REFUSALS: Record<DeviceRefusal, string> = {
   'device-revoked': 'This phone was removed from the paired devices on your computer.',
   'device-unknown': 'Your computer no longer knows this phone.',
   'device-credential-missing': 'This phone has no pairing for your computer.',
+  'host-key-changed': 'This computer no longer accepts this pairing. Remove it, then pair again.',
 };
 
 class CredentialRefused extends Error {
@@ -231,6 +255,10 @@ class Unreachable extends Error {
   }
 }
 
+function hostLacksMethod(error: unknown): boolean {
+  return error instanceof Unreachable && error.status === 404;
+}
+
 const UPLOAD_TOO_LARGE = 'The file is larger than the Host accepts.';
 const uploadTimeoutMs = 120_000;
 const OCTET_STREAM = 'application/octet-stream';
@@ -244,6 +272,10 @@ export class MethodRefused extends Error {
   }
 }
 
+function hostKeyRejected(error: unknown): error is MethodRefused {
+  return error instanceof MethodRefused && HOST_KEY_REJECTIONS.has(error.code);
+}
+
 interface Follower {
   endpoint: string;
   args: Record<string, unknown>;
@@ -252,7 +284,8 @@ interface Follower {
   reopen?: ReturnType<typeof setTimeout> | undefined;
 }
 
-export const MAX_RECONNECT_DELAY_MS = 300_000;
+export const MAX_RECONNECT_DELAY_MS = 30_000;
+export const HOST_KEY_REJECTION_LIMIT = 3;
 export const STABLE_CONNECTION_MS = 60_000;
 export const REUSE_ON_RECONNECT_MS = 600_000;
 export const defaultBackoff = (attempt: number): number =>
@@ -340,7 +373,18 @@ export function createHostClient(options: HostClientOptions): HostClient {
   let routes = preferredRoutes(options.routes);
   const routeChecks = new Map<string, 'verified' | 'unreachable'>();
   const authorization = { authorization: `Device ${options.credential}` };
-  const jsonAuthorization = { ...authorization, 'content-type': 'application/json' };
+  const appVersion = options.appVersion ?? installedAppVersion();
+  const jsonAuthorization = {
+    ...authorization,
+    'content-type': 'application/json',
+    ...(appVersion === undefined ? {} : { [APP_VERSION_HEADER]: appVersion }),
+  };
+  let compatibility: HostCompatibility | undefined;
+  const setCompatibility = (next: HostCompatibility): void => {
+    if (JSON.stringify(next) === JSON.stringify(compatibility ?? {})) return;
+    compatibility = next;
+    publish();
+  };
   let route = options.routes[0] ?? '';
   const backoff = options.backoff ?? defaultBackoff;
   const timeoutMs = options.timeoutMs ?? 10_000;
@@ -366,6 +410,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
   let running = false;
   let everConnected = false;
   let attempt = 0;
+  let rejections = 0;
   let generation = 0;
   let connectionSequence = 0;
   let socket: HostSocket | undefined;
@@ -422,6 +467,11 @@ export function createHostClient(options: HostClientOptions): HostClient {
       status: routeChecks.get(url) ?? 'unchecked',
     }));
     const roster = bots === undefined ? undefined : shareRoster(view(bots), snapshot.roster);
+    const status = (connection ?? snapshot.connection).status;
+    const disruptedSince =
+      status === 'connecting' || status === 'reconnecting' || status === 'unreachable'
+        ? (snapshot.disruptedSince ?? Date.now())
+        : undefined;
     const next: HostSnapshot = {
       routes:
         snapshot.routes !== undefined &&
@@ -429,8 +479,10 @@ export function createHostClient(options: HostClientOptions): HostClient {
           ? snapshot.routes
           : nextRoutes,
       connection: connection ?? snapshot.connection,
+      ...(disruptedSince === undefined ? {} : { disruptedSince }),
       activity: share('activity', [...rawStates.values()]),
       ...(computerAvailable === undefined ? {} : { computerAvailable }),
+      ...(compatibility === undefined ? {} : { compatibility }),
       ...(roster === undefined ? {} : { roster }),
     };
     const unchanged =
@@ -525,7 +577,10 @@ export function createHostClient(options: HostClientOptions): HostClient {
 
   const scope = options.hostId ? { scope: options.hostId } : {};
   const resource = (path: string): RemoteSource => {
-    if (checkRoute(route).ok && !isEncryptedRoute(route, options.encryption))
+    if (
+      checkRoute(route, options.encryption?.privateRelay?.origin).ok &&
+      !isEncryptedRoute(route, options.encryption)
+    )
       return { uri: absolute(path), headers: authorization, ...scope };
     const origin = route;
     return {
@@ -548,7 +603,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     };
   };
   const avatar = (path: string): { avatarUrl?: string; avatarHeaders?: Record<string, string> } => {
-    if (!checkRoute(route).ok) return {};
+    if (!checkRoute(route, options.encryption?.privateRelay?.origin).ok) return {};
     if (!isEncryptedRoute(route, options.encryption))
       return { avatarUrl: absolute(path), avatarHeaders: authorization };
     const key = route + path;
@@ -658,6 +713,11 @@ export function createHostClient(options: HostClientOptions): HostClient {
         const code = refusalOf(await response.text());
         if (code !== undefined) throw new CredentialRefused(code);
       }
+      if (response.status === 404)
+        throw new Unreachable(
+          `This computer's Tobs does not support ${name} yet. Update Tobs on the computer.`,
+          404,
+        );
       if (response.status >= 400)
         throw new Unreachable(`The Host answered ${response.status}.`, response.status);
       let envelope: Record<string, unknown>;
@@ -811,8 +871,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
 
   const unlessRefused = <T>(work: Promise<T>): Promise<T | undefined> =>
     work.catch((error: unknown) => {
-      if (error instanceof MethodRefused || (error instanceof Unreachable && error.status === 404))
-        return undefined;
+      if (error instanceof MethodRefused || hostLacksMethod(error)) return undefined;
       throw error;
     });
 
@@ -836,7 +895,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
       });
     } catch (error) {
       if (
-        error instanceof Unreachable ||
+        (error instanceof Unreachable && !hostLacksMethod(error)) ||
         error instanceof MethodRefused ||
         error instanceof CredentialRefused
       )
@@ -881,7 +940,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     fetchedArrangement = undefined;
     return call<unknown>('rosterGet')
       .then(arrangementOf, (error: unknown) => {
-        if (error instanceof MethodRefused) return undefined;
+        if (error instanceof MethodRefused || hostLacksMethod(error)) return undefined;
         throw error;
       })
       .then((value) => {
@@ -1191,12 +1250,16 @@ export function createHostClient(options: HostClientOptions): HostClient {
       clearTimeout(deadline);
     }
     if (reloading === undefined) reuseNextPass = true;
+    pingAvailable = true;
+    setCompatibility({});
+    void readCompatibility().catch(() => undefined);
     await reload();
     if (current !== generation) return;
     const stable = setTimeout(() => {
       attempt = 0;
     }, STABLE_CONNECTION_MS);
     everConnected = true;
+    rejections = 0;
     disconnectCurrent = disconnect;
     publish({ status: 'connected', route });
     const health = setInterval(() => {
@@ -1213,19 +1276,49 @@ export function createHostClient(options: HostClientOptions): HostClient {
   };
 
   let pingAvailable = true;
+  const readCompatibility = async (): Promise<unknown> => {
+    const current = generation;
+    const sequence = connectionSequence;
+    const currentRoute = route;
+    const currentSocket = liveSocket;
+    const isCurrent = () =>
+      currentSocket !== undefined &&
+      currentSocket === liveSocket &&
+      running &&
+      current === generation &&
+      sequence === connectionSequence &&
+      currentRoute === route;
+    try {
+      const answer = record(await call<unknown>('ping'));
+      if (!isCurrent()) return undefined;
+      const version = typeof answer['version'] === 'string' ? answer['version'] : undefined;
+      const minAppVersion = answer['minAppVersion'];
+      setCompatibility({
+        ...(version === undefined ? {} : { hostVersion: version }),
+        ...(version !== undefined && belowMinimum(version, MIN_HOST_VERSION)
+          ? { update: 'host' as const }
+          : typeof minAppVersion === 'string' && belowMinimum(appVersion, minAppVersion)
+            ? { update: 'app' as const }
+            : {}),
+      });
+      return answer;
+    } catch (error) {
+      if (
+        !hostLacksMethod(error) &&
+        !(error instanceof MethodRefused && error.code === 'gateway/method-not-found')
+      )
+        throw error;
+      if (!isCurrent()) return undefined;
+      pingAvailable = false;
+      setCompatibility({ update: 'host' });
+      return undefined;
+    }
+  };
   const probeHost = async (): Promise<unknown> => {
-    if (pingAvailable)
-      try {
-        return await call('ping');
-      } catch (error) {
-        if (
-          error instanceof Unreachable ||
-          error instanceof CredentialRefused ||
-          error instanceof ConnectRefused
-        )
-          throw error;
-        pingAvailable = false;
-      }
+    if (pingAvailable) {
+      const answer = await readCompatibility();
+      if (pingAvailable) return answer;
+    }
     return call('list');
   };
   const refreshConnected = async (read: () => Promise<unknown> = reload): Promise<void> => {
@@ -1298,6 +1391,11 @@ export function createHostClient(options: HostClientOptions): HostClient {
           refusedBy(error);
           return;
         }
+        rejections = hostKeyRejected(error) ? rejections + 1 : 0;
+        if (rejections >= HOST_KEY_REJECTION_LIMIT) {
+          refusedBy(new CredentialRefused('host-key-changed'));
+          return;
+        }
         attempt += 1;
         retryDelay = backoff(attempt);
         publish({
@@ -1336,8 +1434,17 @@ export function createHostClient(options: HostClientOptions): HostClient {
 
   return {
     updateRoutes(next) {
+      const previous = routes;
       routes = preferredRoutes(next);
       publish();
+      if (
+        running &&
+        snapshot.connection.status !== 'connected' &&
+        routes.some((candidate) => !previous.includes(candidate))
+      ) {
+        clearTimeout(retryTimer);
+        wake?.();
+      }
     },
     async testRoute(url) {
       if (!routes.includes(url)) return false;
@@ -1388,8 +1495,16 @@ export function createHostClient(options: HostClientOptions): HostClient {
       publish({ status: 'stopped', route });
       options.telemetry?.dispose();
     },
-    retryNow(trigger = 'manual_retry') {
+    retryNow(trigger = 'manual_retry', retryOptions) {
       if (!running) return;
+      if (
+        trigger === 'resume' &&
+        retryOptions?.preserveConnected === true &&
+        snapshot.connection.status === 'connected'
+      ) {
+        resumeRequested = false;
+        return;
+      }
       if (trigger === 'manual_retry') {
         fetchedArrangement = undefined;
         fetchedSorting = undefined;
@@ -1451,7 +1566,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     },
     resource,
     secretInputAllowed: () =>
-      checkRoute(route).ok &&
+      checkRoute(route, options.encryption?.privateRelay?.origin).ok &&
       (!isEncryptedRoute(route, options.encryption) || options.encryption !== undefined),
     onLive(listener) {
       liveListeners.add(listener);

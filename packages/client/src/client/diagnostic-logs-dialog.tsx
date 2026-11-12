@@ -160,9 +160,11 @@ async function readRows(filter: DiagnosticLogFilter, signal: AbortSignal) {
 
 export function DiagnosticLogsDialog({
   onClose,
+  onBack,
   t,
 }: {
   onClose(): void;
+  onBack?: () => void;
   t: BotHarnessTranslate;
 }): ReactElement {
   const id = useId();
@@ -265,10 +267,19 @@ export function DiagnosticLogsDialog({
             <IconCopyOutlineRegular size={16} />
             {t('diagnosticLogs.copy')}
           </Button>
-          <Button variant="primary" onClick={() => void download()} disabled={busy}>
+          <Button
+            variant={onBack === undefined ? 'primary' : 'outline'}
+            onClick={() => void download()}
+            disabled={busy}
+          >
             <IconDownloadOutlineRegular size={16} />
             {t('diagnosticLogs.export')}
           </Button>
+          {onBack === undefined ? null : (
+            <Button variant="primary" onClick={onBack} data-diagnostic-logs-back="">
+              {t('diagnosticLogs.back')}
+            </Button>
+          )}
         </>
       }
     >

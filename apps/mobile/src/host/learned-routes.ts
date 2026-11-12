@@ -15,6 +15,7 @@ export function learnedRoutes(
   host: Pick<SavedHost, 'hostId' | 'routes' | 'encryption'>,
   input: unknown,
 ): string[] {
+  if (host.encryption?.privateRelay) return host.routes;
   const value = record(input);
   if (record(value['host'])['id'] !== host.hostId) return host.routes;
   const identity = record(record(value['connect'])['encryption']);

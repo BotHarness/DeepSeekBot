@@ -28,6 +28,7 @@ function fixture(saved?: PushPreferences) {
     return {
       registered: true,
       enabled: true,
+      delivery: 'push' as const,
       quietChannelIds: [],
       preferences: { ...DEFAULT_NOTIFICATION_PREFERENCES, approval: false },
     };
@@ -45,7 +46,13 @@ function fixture(saved?: PushPreferences) {
         if (offline.has(entry.hostId)) throw new Error('offline');
         const copy = { ...DEFAULT_NOTIFICATION_PREFERENCES, ...preferences };
         copies.set(entry.credential, copy);
-        return { registered: false, enabled: true, quietChannelIds: [], preferences: copy };
+        return {
+          registered: false,
+          enabled: true,
+          delivery: 'push' as const,
+          quietChannelIds: [],
+          preferences: copy,
+        };
       }),
     },
   };
@@ -62,6 +69,7 @@ function registrationFixture(f: ReturnType<typeof fixture>) {
   const register = vi.fn<HostPush['register']>(async () => ({
     registered: true,
     enabled: true,
+    delivery: 'push' as const,
     quietChannelIds: [],
     preferences: DEFAULT_NOTIFICATION_PREFERENCES,
   }));
@@ -83,6 +91,7 @@ function registrationFixture(f: ReturnType<typeof fixture>) {
       test: async () => {},
       unregister: async () => {},
       setEnabled: f.options.push.settings,
+      setDelivery: f.options.push.settings,
       setQuiet: f.options.push.settings,
     },
     beforeRegister: () => f.prefs.ready,
@@ -109,6 +118,7 @@ describe('phone-owned notification preferences', () => {
         return {
           registered: false,
           enabled: true,
+          delivery: 'push' as const,
           quietChannelIds: [],
           preferences: { ...DEFAULT_NOTIFICATION_PREFERENCES, ...preferences },
         };
@@ -142,6 +152,7 @@ describe('phone-owned notification preferences', () => {
         return {
           registered: false,
           enabled: true,
+          delivery: 'push' as const,
           quietChannelIds: [],
           preferences: { ...DEFAULT_NOTIFICATION_PREFERENCES, ...preferences },
         };
@@ -212,7 +223,13 @@ describe('phone-owned notification preferences', () => {
       const { session, register } = registrationFixture(f);
       register.mockImplementation(async () => {
         expect(f.copies.get('a')).toEqual(f.disk());
-        return { registered: true, enabled: true, quietChannelIds: [], preferences: f.disk()! };
+        return {
+          registered: true,
+          enabled: true,
+          delivery: 'push' as const,
+          quietChannelIds: [],
+          preferences: f.disk()!,
+        };
       });
       const registering = session.sync([host('a')]);
       await flush();
@@ -376,6 +393,7 @@ describe('phone-owned notification preferences', () => {
       return {
         registered: entry.hostId === 'b',
         enabled: true,
+        delivery: 'push' as const,
         quietChannelIds: [],
         preferences: { ...DEFAULT_NOTIFICATION_PREFERENCES, approval: entry.hostId !== 'b' },
       };
@@ -519,6 +537,33 @@ describe('phone-owned notification preferences', () => {
       expect(f.copies.get('repaired')?.reply).toBe(false);
       await f.prefs.prepare(host('a', 'repaired'));
       expect(sentTo().at(-1)).toBe('a');
+    } finally {
+      f.prefs.setForeground(false);
+      vi.useRealTimers();
+    }
+  });
+  it('leaves an unreachable Host to the backoff when other Hosts reconnect or routes change', async () => {
+    vi.useFakeTimers();
+    const f = fixture(DEFAULT_NOTIFICATION_PREFERENCES);
+    const sentTo = (id: string) =>
+      f.options.push.setPreferences.mock.calls.filter(([entry]) => entry.hostId === id).length;
+    try {
+      f.prefs.setForeground(true);
+      f.offline.add('b');
+      await f.prefs.sync([host('a'), host('b')]);
+      expect(sentTo('b')).toBe(1);
+      for (let turn = 0; turn < 10; turn++) {
+        await f.prefs.sync([host('a'), host('b')]);
+        await f.prefs.retry(host('a'));
+        await vi.advanceTimersByTimeAsync(400);
+      }
+      expect(sentTo('b')).toBe(3);
+      await f.prefs.retry(host('b'));
+      expect(sentTo('b')).toBe(4);
+      f.offline.clear();
+      await f.prefs.retry();
+      expect(sentTo('b')).toBe(5);
+      expect(f.prefs.getSnapshot().failed).toEqual([]);
     } finally {
       f.prefs.setForeground(false);
       vi.useRealTimers();

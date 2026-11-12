@@ -158,6 +158,11 @@ window.__ModuleLoader__.load({
 				["path", { d: "M4 10.95V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8.05" }]
 			],
 			house: [["path", { d: "m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z" }]],
+			search: [["path", { d: "m21 21-4.34-4.34" }], ["circle", {
+				cx: "11",
+				cy: "11",
+				r: "8"
+			}]],
 			hash: [
 				["line", {
 					x1: "4",
@@ -2216,8 +2221,11 @@ window.__ModuleLoader__.load({
 		//#endregion
 		//#region packages/client/src/client/appearance-primitives.tsx
 		function Menu$1(props) {
+			const { anchorRef } = props;
+			const legacyAnchor = anchorRef === void 0 ? {} : { getAnchorRect: () => anchorRef.current?.getBoundingClientRect() ?? null };
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Menu, {
 				...props,
+				...legacyAnchor,
 				listClassName: [APPEARANCE_CLASS, props.listClassName].filter(Boolean).join(" ")
 			});
 		}

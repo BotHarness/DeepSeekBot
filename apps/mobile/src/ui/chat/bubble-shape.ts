@@ -4,9 +4,13 @@ export type BubbleGroup = { first: boolean; last: boolean; avatar?: boolean; com
 
 export const AVATAR_CORNER = radius.sm;
 
+export const SPEAKER_AVATAR = 32;
+
 export const BUBBLE_MAX = '88%';
 
 const PAD_V = space.x3 + space.x1;
+
+export const BUBBLE_PADDING = { horizontal: space.x5, vertical: PAD_V } as const;
 
 export const BADGE_HEIGHT = space.x6 + space.x2;
 
@@ -30,8 +34,12 @@ export function bubbleCorners(human: boolean, { first, last, compact = false }: 
   } as const;
 }
 
+export function oneLine(height: number, line: number, fontScale: number) {
+  return height <= line * fontScale * 1.5;
+}
+
 export function singleLine(height: number, line: number, fontScale: number) {
-  return height <= 2 * PAD_V + line * fontScale * 1.5;
+  return oneLine(height - 2 * PAD_V, line, fontScale);
 }
 
 export function bubbleShape(human: boolean, group: BubbleGroup) {
@@ -39,8 +47,8 @@ export function bubbleShape(human: boolean, group: BubbleGroup) {
     maxWidth: BUBBLE_MAX,
     alignSelf: human ? 'flex-end' : 'flex-start',
     ...bubbleCorners(human, group),
-    paddingHorizontal: space.x5,
-    paddingVertical: PAD_V,
+    paddingHorizontal: BUBBLE_PADDING.horizontal,
+    paddingVertical: BUBBLE_PADDING.vertical,
   } as const;
 }
 

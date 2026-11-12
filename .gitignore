@@ -92,6 +92,12 @@ apps/docs/src/content/docs/docs/vps-qq-tutorial.mdx
 apps/docs/src/content/docs-zh/docs/vps-qq-tutorial.mdx
 apps/docs/src/content/docs/docs/mobile-pairing.mdx
 apps/docs/src/content/docs-zh/docs/mobile-pairing.mdx
+apps/docs/src/content/docs/docs/private-connect.mdx
+apps/docs/src/content/docs-zh/docs/private-connect.mdx
+apps/docs/src/content/docs/docs/private-ingress.mdx
+apps/docs/src/content/docs-zh/docs/private-ingress.mdx
+apps/docs/src/content/docs/docs/private-relay-standard.mdx
+apps/docs/src/content/docs-zh/docs/private-relay-standard.mdx
 
 # Generated Channel sidebar guide chapter
 /apps/docs/src/content/docs/docs/channel-sidebar/
@@ -104,3 +110,5 @@ apps/docs/src/content/docs-zh/docs/mobile-pairing.mdx
 packages/deepseekbot/desktop-theme/
 packages/deepseekbot/desktop-theme-0.2.2-rc.1/
 apps/mobile/modules/**/android/build/
+
+packages/deepseekbot/desktop-theme-0.2.2-rc.2/

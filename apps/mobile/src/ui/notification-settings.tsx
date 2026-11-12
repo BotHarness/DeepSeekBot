@@ -4,6 +4,7 @@ import { AccessibilityInfo, View, type ViewInstance } from 'react-native';
 import {
   PUSH_KINDS,
   PushRequestFailed,
+  type PushDelivery,
   type PushKind,
   type PushPreferences,
   type PushSettings,
@@ -13,6 +14,7 @@ import type { DevicePreferenceSnapshot } from '../host/device-notification-prefe
 import { useMounted } from './mounted';
 import { SettingsForm } from './primitives/settings-form';
 import { SettingsRow, SettingsSection } from './primitives/settings-row';
+import { PreferenceRow } from './primitives/preference-row';
 import { errorText } from './request-parts';
 import { useStrings, t } from './strings';
 
@@ -20,6 +22,7 @@ export interface NotificationSettingsPort {
   load(): Promise<PushSettings>;
   set(preferences: Partial<PushPreferences>): Promise<PushSettings | void>;
   setEnabled(enabled: boolean): Promise<PushSettings>;
+  setDelivery(delivery: PushDelivery): Promise<PushSettings>;
   test(): Promise<void>;
 }
 
@@ -57,10 +60,13 @@ export function NotificationSettings({
     setError(message);
     AccessibilityInfo.announceForAccessibility(message);
   }, []);
-  const load = useCallback(() => {
-    setError(undefined);
-    port.load().then(setSettings, reportFailure);
-  }, [port, reportFailure]);
+  const load = useCallback(
+    (keepError = false) => {
+      if (!keepError) setError(undefined);
+      port.load().then(setSettings, reportFailure);
+    },
+    [port, reportFailure],
+  );
   const mount = useMounted<ViewInstance>(() => {
     load();
   }, [on, load]);
@@ -83,13 +89,27 @@ export function NotificationSettings({
     );
   };
 
-  const allow = (enabled: boolean) => {
+  const deliver = (mode: PushDelivery | 'off') => {
     if (settings === undefined) return;
-    setSettings({ ...settings, enabled });
-    port.setEnabled(enabled).then(setSettings, (reason: unknown) => {
-      reportFailure(reason);
-      load();
-    });
+    const enabled = mode !== 'off';
+    const delivery = mode === 'off' ? settings.delivery : mode;
+    setSettings({ ...settings, enabled, delivery });
+    const save = async () => {
+      let next = settings;
+      if (enabled && next.delivery !== delivery) next = await port.setDelivery(delivery);
+      if (next.enabled !== enabled) next = await port.setEnabled(enabled);
+      return next;
+    };
+    save().then(
+      (next) => {
+        setError(undefined);
+        setSettings(next);
+      },
+      (reason: unknown) => {
+        reportFailure(reason);
+        load(true);
+      },
+    );
   };
 
   const sendTest = () => {
@@ -172,23 +192,45 @@ export function NotificationSettings({
         {on && settings !== undefined ? (
           <SettingsSection
             on="raised"
-            footer={settings.enabled ? undefined : t.allowNotificationsOff}
+            footer={
+              !settings.enabled
+                ? t.allowNotificationsOff
+                : settings.delivery === 'in-app'
+                  ? t.deliveryInAppHint
+                  : t.deliveryPushHint
+            }
           >
-            <SettingsRow
-              on="raised"
-              title={t.allowNotifications}
-              testID="notifications-allow"
-              control={{
-                kind: 'switch',
-                testID: 'notifications-allow',
-                value: settings.enabled,
-                onChange: allow,
-                disabled: !settings.registered,
-              }}
-            />
+            {settings.registered ? (
+              <PreferenceRow
+                on="raised"
+                title={t.deliveryTitle}
+                icon="notifications"
+                testID="notifications-delivery"
+                value={settings.enabled ? settings.delivery : 'off'}
+                options={[
+                  { value: 'push', label: t.deliveryPush, icon: 'notifications' },
+                  { value: 'in-app', label: t.deliveryInApp, icon: 'system' },
+                  { value: 'off', label: t.deliveryOff, icon: 'unpair' },
+                ]}
+                onChange={deliver}
+              />
+            ) : (
+              <SettingsRow
+                on="raised"
+                title={t.deliveryTitle}
+                detail={
+                  !settings.enabled
+                    ? t.deliveryOff
+                    : settings.delivery === 'in-app'
+                      ? t.deliveryInApp
+                      : t.deliveryPush
+                }
+              />
+            )}
           </SettingsSection>
         ) : null}
-        {preference?.preferences !== undefined || (on && settings?.enabled === true) ? (
+        {(preference?.preferences !== undefined || (on && settings?.enabled === true)) &&
+        settings?.enabled !== false ? (
           <SettingsSection
             on="raised"
             title={t.notifyAbout}

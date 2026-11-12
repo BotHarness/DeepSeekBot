@@ -3,7 +3,12 @@ import type { ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { pressTint, useDesignTheme, type DesignTheme } from '../design/theme';
+import { islandHighlight, islandRim, islandShadow } from '../design/island';
 import { radius, space } from '../design/tokens';
+
+export function composerPillShadow(theme: DesignTheme): string | undefined {
+  return Platform.OS === 'android' ? islandShadow(theme.scheme) : undefined;
+}
 
 export function composerPrimary(theme: DesignTheme): { fill: string; ink: string } {
   return { fill: theme.color.accent, ink: theme.color.onAccent };
@@ -70,6 +75,12 @@ export function ComposerFieldMaterial({ cornerRadius }: { cornerRadius: number }
       style={[
         StyleSheet.absoluteFill,
         { borderRadius: cornerRadius, backgroundColor: theme.layer.raised.fill },
+        Platform.OS === 'android'
+          ? {
+              ...islandRim(theme.scheme),
+              boxShadow: islandHighlight(theme.scheme),
+            }
+          : null,
       ]}
     />
   );

@@ -1,5 +1,13 @@
 import { TextInput } from '../primitives/system-text';
-import { useState, type ComponentRef, type ReactNode, type Ref } from 'react';
+import {
+  useCallback,
+  useContext,
+  useRef,
+  useState,
+  type ComponentRef,
+  type ReactNode,
+  type Ref,
+} from 'react';
 import {
   Image,
   Platform,
@@ -23,10 +31,12 @@ import {
   ComposerCircleButton,
   ComposerFieldMaterial,
   composerBar,
+  composerPillShadow,
   composerControl,
   composerPrimary,
 } from './composer-chrome';
 import { ComposerActionButton } from './composer-action';
+import { ComposerPillContext } from './composer-pill';
 import { VoiceButton } from './voice-button';
 import { ComposerHold } from './composer-hold';
 import { DraftEditor } from './draft-editor';
@@ -165,6 +175,7 @@ export function Composer({
   onCancelDictation,
   footer,
   above,
+  inside,
   selection,
   onSelection,
   inputRef,
@@ -185,6 +196,7 @@ export function Composer({
   onCancelDictation(): void;
   footer?: ReactNode;
   above?: ReactNode;
+  inside?: ReactNode;
   selection?: { start: number; end: number } | undefined;
   onSelection?(caret: number): void;
   inputRef?: Ref<ComposerInput>;
@@ -213,8 +225,23 @@ export function Composer({
   const button = composerControl(theme);
   const inset = (bar - button) / 2;
   const corner = bar / 2;
-  const pillHeight = useSharedValue(lineHeight + 2 * inset);
+  const ownPill = useSharedValue(lineHeight + 2 * inset);
+  const sharedPill = useContext(ComposerPillContext);
+  const pillHeight = sharedPill?.height ?? ownPill;
+  const pillRest = useRef(lineHeight + 2 * inset);
+  pillRest.current = lineHeight + 2 * inset;
   const pillStyle = useAnimatedStyle(() => ({ height: pillHeight.value }));
+  const holdPill = useCallback(
+    (node: unknown) => {
+      if (node !== null && sharedPill !== undefined && sharedPill.height.value === 0)
+        sharedPill.height.value = pillRest.current;
+      return () => {
+        sharedPill?.layout(0);
+        if (sharedPill !== undefined) sharedPill.height.value = 0;
+      };
+    },
+    [sharedPill],
+  );
   const settlePill = (next: number) => {
     if (pill.height === 0) pillHeight.value = next;
     else pillHeight.value = withSpring(next, spring.spatial.default);
@@ -234,7 +261,7 @@ export function Composer({
     haptic('send');
     onSend();
   };
-  const expanded = theme.largeText || wraps;
+  const expanded = theme.largeText || (wraps && value !== '');
   const stacked = composerStacked(actions, files.length, expanded);
   const icon = theme.type.title.line;
   const leading = held ? (
@@ -395,6 +422,7 @@ export function Composer({
           value={value}
           canSend={canSend}
           showSend={actions.includes('send')}
+          pinned={inside}
           above={above}
           selection={selection}
           onSelection={onSelection}
@@ -427,7 +455,19 @@ export function Composer({
       </Text>
       <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: space.x3 }}>
         {integratedLeading ? null : leading}
-        <Animated.View style={[{ flex: 1, borderRadius: corner, overflow: 'hidden' }, pillStyle]}>
+        <Animated.View
+          ref={holdPill}
+          onLayout={(event) => sharedPill?.layout(event.nativeEvent.layout.height)}
+          style={[
+            {
+              flex: 1,
+              borderRadius: corner,
+              overflow: 'hidden',
+              boxShadow: composerPillShadow(theme),
+            },
+            pillStyle,
+          ]}
+        >
           <ComposerFieldMaterial cornerRadius={corner} />
           <View
             style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}
@@ -437,6 +477,9 @@ export function Composer({
               setPill({ width, height });
             }}
           >
+            {inside === undefined || editing ? null : (
+              <View style={{ paddingTop: space.x2 }}>{inside}</View>
+            )}
             {files.length > 0 ? (
               <ScrollView
                 horizontal

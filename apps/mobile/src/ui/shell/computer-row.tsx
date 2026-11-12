@@ -71,9 +71,10 @@ export function ComputerRowLabel({
   status: string;
   dot: string;
 }) {
+  const theme = useDesignTheme();
   return (
     <View style={{ flex: 1, minWidth: 0, gap: space.x1 }}>
-      <Text strong numberOfLines={1} ellipsizeMode="tail">
+      <Text strong numberOfLines={theme.largeText ? undefined : 1} ellipsizeMode="tail">
         {name}
       </Text>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
@@ -85,7 +86,12 @@ export function ComputerRowLabel({
             backgroundColor: dot,
           }}
         />
-        <Text variant="meta" tone="muted" numberOfLines={1} style={{ flexShrink: 1 }}>
+        <Text
+          variant="meta"
+          tone="muted"
+          numberOfLines={theme.largeText ? undefined : 1}
+          style={{ flexShrink: 1 }}
+        >
           {status}
         </Text>
       </View>
@@ -110,8 +116,15 @@ export function AccountComputerRow({
   const theme = useDesignTheme();
   const glass = useLiquidGlass();
   const name = shownHostName(look, host.name);
-  const status = host.online ? t.pairAccount.online : t.pairAccount.offline;
-  const dot = computerStatusDot(theme, host.online ? 'online' : 'offline');
+  const status = host.online
+    ? t.pairAccount.online
+    : host.waiting
+      ? t.pairAccount.waiting
+      : t.pairAccount.offline;
+  const dot = computerStatusDot(
+    theme,
+    host.online ? 'online' : host.waiting ? 'checking' : 'offline',
+  );
   const actions: MenuAction[] = [
     {
       label: t.hostCustomize,

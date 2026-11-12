@@ -42,6 +42,7 @@ async function settle(): Promise<void> {
 const registered: PushSettings = {
   registered: true,
   enabled: true,
+  delivery: 'push' as const,
   preferences: { approval: true, question: true, 'private-input': true, reply: true },
   quietChannelIds: [],
 };
@@ -54,6 +55,7 @@ function port(overrides: Partial<NotificationSettingsPort> = {}) {
       preferences: { ...registered.preferences, ...preferences },
     })),
     setEnabled: vi.fn(async (enabled: boolean) => ({ ...registered, enabled })),
+    setDelivery: vi.fn(async (delivery: 'push' | 'in-app') => ({ ...registered, delivery })),
     test: vi.fn(async () => undefined),
     ...overrides,
   };
@@ -184,32 +186,58 @@ describe('Notification settings', () => {
     expect(view.textContent).toContain(t.notificationLocalTestState.seen);
   });
 
-  it('hides the kinds while this phone does not allow notifications, and brings them back', async () => {
-    const settings = port();
-    const view = await render(
-      <NotificationSettings
-        status={{ status: 'on', failed: [] }}
-        hostName="studio"
-        port={settings}
-        onEnable={() => {}}
-        onOpenSettings={() => {}}
-      />,
-    );
-    const allow = () =>
-      view.querySelector<HTMLInputElement>(`[aria-label="${t.allowNotifications}"]`)!;
-    expect(allow().checked).toBe(true);
-    await act(async () => allow().click());
-    await settle();
-    expect(settings.setEnabled).toHaveBeenCalledWith(false);
-    expect(allow().checked).toBe(false);
-    expect(view.querySelector(`[aria-label="${t.pushKind.reply}"]`)).toBeNull();
-    expect(view.textContent).toContain(t.allowNotificationsOff);
+  it.each([
+    ['without a phone preference', undefined],
+    [
+      'with a phone preference',
+      { preferences: registered.preferences, syncing: false, failed: [] as string[] },
+    ],
+  ])(
+    'hides the kinds while delivery is off, and brings them back as in-app only, %s',
+    async (_, preference) => {
+      let host: PushSettings = registered;
+      const setEnabled = vi.fn(async (enabled: boolean) => (host = { ...host, enabled }));
+      const setDelivery = vi.fn(
+        async (delivery: 'push' | 'in-app') => (host = { ...host, delivery }),
+      );
+      const settings = port({ setEnabled, setDelivery });
+      const view = await render(
+        <NotificationSettings
+          status={{ status: 'on', failed: [] }}
+          hostName="studio"
+          port={settings}
+          {...(preference === undefined ? {} : { preference })}
+          onEnable={() => {}}
+          onOpenSettings={() => {}}
+        />,
+      );
+      const choose = async (id: string) => {
+        await act(async () =>
+          view.querySelector<HTMLElement>('[data-testid="notifications-delivery"]')!.click(),
+        );
+        await act(async () =>
+          view.querySelector<HTMLElement>(`[data-testid="notifications-delivery-${id}"]`)!.click(),
+        );
+        await settle();
+      };
+      expect(view.textContent).toContain(t.deliveryPush);
+      expect(view.textContent).toContain(t.deliveryPushHint);
+      await choose('off');
+      expect(settings.setEnabled).toHaveBeenCalledWith(false);
+      expect(settings.setDelivery).not.toHaveBeenCalled();
+      expect(view.querySelector(`[aria-label="${t.pushKind.reply}"]`)).toBeNull();
+      expect(view.textContent).toContain(t.allowNotificationsOff);
 
-    await act(async () => allow().click());
-    await settle();
-    expect(settings.setEnabled).toHaveBeenLastCalledWith(true);
-    expect(view.querySelector(`[aria-label="${t.pushKind.reply}"]`)).not.toBeNull();
-  });
+      await choose('in-app');
+      expect(settings.setDelivery).toHaveBeenCalledWith('in-app');
+      expect(settings.setEnabled).toHaveBeenLastCalledWith(true);
+      expect(setDelivery.mock.invocationCallOrder[0]!).toBeLessThan(
+        setEnabled.mock.invocationCallOrder.at(-1)!,
+      );
+      expect(view.textContent).toContain(t.deliveryInAppHint);
+      expect(view.querySelector(`[aria-label="${t.pushKind.reply}"]`)).not.toBeNull();
+    },
+  );
 
   it('explains why a test was not sent, and when the phone blocks notifications', async () => {
     const announce = vi.spyOn(AccessibilityInfo, 'announceForAccessibility');

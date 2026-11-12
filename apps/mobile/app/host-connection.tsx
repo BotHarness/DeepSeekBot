@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { createHostClient } from '../src/host/client';
+import { installedAppVersion } from '../src/host/app-version';
 import { useHostSession, useHostSnapshot } from '../src/host/host-session';
 import { nativeCarrier } from '../src/host/native-carrier';
 import { isConnectRoute, isLanRoute, isLoopbackRoute, isTailscaleRoute } from '../src/host/route';
@@ -144,6 +145,34 @@ export default function HostConnectionScreen() {
             </SettingsSection>
           );
         })}
+        {host ? (
+          <SettingsSection
+            title={copy.versions}
+            on={SHEET_GROUP}
+            {...(snapshot.compatibility?.update === 'host'
+              ? { footer: t.hostCompatibility.updateHost }
+              : snapshot.compatibility?.update === 'app'
+                ? { footer: t.hostCompatibility.updateApp }
+                : {})}
+          >
+            <SettingsRow
+              on={SHEET_GROUP}
+              icon="computer"
+              title={t.hostCompatibility.hostVersion}
+              testID="connection-host-version"
+              detail={
+                snapshot.compatibility?.hostVersion ??
+                (snapshot.compatibility?.update === 'host' ? t.hostCompatibility.olderThan170 : '—')
+              }
+            />
+            <SettingsRow
+              on={SHEET_GROUP}
+              icon="version"
+              title={t.hostCompatibility.appVersion}
+              detail={installedAppVersion() ?? '—'}
+            />
+          </SettingsSection>
+        ) : null}
       </SettingsForm>
     </SheetScreen>
   );

@@ -2,10 +2,28 @@ import ExpoModulesCore
 import Foundation
 import Network
 
-private final class LanSessionDelegate: NSObject, URLSessionTaskDelegate {
+private func lanCloseReason(_ data: Data?) -> String? {
+  guard let data, let text = String(data: data, encoding: .utf8),
+    (1...64).contains(text.utf8.count),
+    text.utf8.allSatisfy({ (97...122).contains($0) || (48...57).contains($0) || $0 == 45 })
+  else { return nil }
+  return text
+}
+
+private final class LanSessionDelegate: NSObject, URLSessionWebSocketDelegate {
+  var opened: ((URLSessionWebSocketTask) -> Void)?
+  var closed: ((URLSessionWebSocketTask, String?) -> Void)?
+  func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask,
+    didOpenWithProtocol protocol: String?) {
+    opened?(webSocketTask)
+  }
   func urlSession(_ session: URLSession, task: URLSessionTask,
     willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest,
     completionHandler: @escaping (URLRequest?) -> Void) { completionHandler(nil) }
+  func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask,
+    didCloseWith closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) {
+    closed?(webSocketTask, lanCloseReason(reason))
+  }
 }
 
 public final class LanChannelModule: Module {
@@ -26,6 +44,22 @@ public final class LanChannelModule: Module {
   public func definition() -> ModuleDefinition {
     Name("LanChannel")
     Events("channel")
+    OnCreate {
+      self.delegate.opened = { [weak self] task in
+        guard let self else { return }
+        self.lock.lock()
+        let id = self.channels.first(where: { $0.value === task })?.key
+        self.lock.unlock()
+        if let id { self.emit(id, "open") }
+      }
+      self.delegate.closed = { [weak self] task, reason in
+        guard let self else { return }
+        self.lock.lock()
+        let id = self.channels.first(where: { $0.value === task })?.key
+        self.lock.unlock()
+        if let id { self.finish(id, reason ?? "channel-disconnected") }
+      }
+    }
     Function("open") { (id: String, address: String, port: Int) in
       guard Self.privateAddress(address, port),
         let url = URL(string: "ws://\(address):\(port)/botharness-device/channel")
@@ -40,14 +74,14 @@ public final class LanChannelModule: Module {
       self.channels[id] = socket
       self.queued[id] = 0
       self.lock.unlock()
+      // "open" waits for the WebSocket upgrade, so an unreachable Computer costs no Noise handshake.
       socket.resume()
-      // send() queues until the WebSocket upgrade completes; no application data precedes Noise.
-      self.emit(id, "open")
       self.receive(id, socket)
     }
     Function("send") { (id: String, text: String) in
-      guard self.valid(text), let socket = self.socket(id) else {
-        throw NSError(domain: "channel-frame-invalid", code: 1)
+      guard self.valid(text) else { throw NSError(domain: "channel-frame-invalid", code: 1) }
+      guard let socket = self.socket(id) else {
+        throw NSError(domain: "channel-disconnected", code: 1)
       }
       self.lock.lock()
       let size = (self.queued[id] ?? 0) + text.utf8.count
@@ -128,7 +162,13 @@ public final class LanChannelModule: Module {
       case .success(.string(let text)) where self.valid(text):
         self.emit(id, "message", text)
         self.receive(id, socket)
-      case .failure(let error): self.finish(id, Self.failure("lan-unreachable", error))
+      case .failure(let error):
+        if socket.closeCode != .invalid, let reason = lanCloseReason(socket.closeReason) {
+          self.finish(id, reason)
+          return
+        }
+        let reason = Self.failure("lan-unreachable", error)
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.1) { self.finish(id, reason) }
       default: self.finish(id, "channel-frame-invalid")
       }
     }

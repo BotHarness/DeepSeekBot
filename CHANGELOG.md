@@ -6,7 +6,841 @@ Unreleased entries arrive as [change fragments](changes/README.md) and are folde
 
 ## [Unreleased]
 
-No changes since 1.6.1 yet.
+Changes under development.
+
+## [1.7.0] - 2026-11-12
+
+Tobs 1.7.0: Bot calls, phone history and search, richer documents, and connection and conversation reliability.
+
+Mobile entries describe changes to the separately versioned phone app; they do not announce an App Store or Play release.
+
+### Added
+
+- Prepare and play a Lark voice message quoted by a Bot-mentioned request in its Channel bubble: the Host decodes the Opus original to WAV only on explicit request, shows the platform duration and keeps the original downloadable ([#1023](https://github.com/BotHarness/DeepSeekBot/issues/1023)).
+
+- Prepare a checked Lark parent video in its Channel request bubble and play it manually, with platform duration and a native cover when supplied, separate original download and bounded source authorization; audio and direct media messages remain separate qualification scopes ([#1023](https://github.com/BotHarness/DeepSeekBot/issues/1023)).
+
+- A paired Lark management DM can answer native Bot questions through a private form, a quoted reply or `/answer`, with the original session staying the single authority and uncertain submissions never replayed ([#1031](https://github.com/BotHarness/DeepSeekBot/issues/1031)).
+
+- A failed Bot reply in a Bot DM now offers **Continue** on desktop, mobile and `deepseekbot channel-retry --recovery continue`: the Bot picks the turn up in the same Session with the steps it already completed, even after it sent progress messages or started Assignments, instead of starting over. The card shows how many steps finished, where the turn stopped and which calls have an unknown outcome. Network, timeout, server, rate-limit and empty-response failures continue by themselves after 60 seconds and then 180 seconds, with a countdown you can cancel, and turns interrupted by a Host restart continue on start-up instead of replaying the request ([#3308](https://github.com/BotHarness/DeepSeekBot/issues/3308)).
+
+- Tobs now keeps a local diagnostic log of actions, errors, slowdowns and Host warnings for 30 days. Open it from **Diagnostic logs** on the Workspace Control Rail and export a redacted ZIP to attach to a bug report; `deepseekbot diagnostic-logs` and `diagnostic-logs-export` do the same from the CLI ([#3317](https://github.com/BotHarness/DeepSeekBot/pull/3317)).
+
+- Activity can mark everything read without clearing it: **Mark all as read** in the Activity ⋯ menu on desktop and phone follows the current Bot or conversation filter and keeps replies and mentions listed (an unread-conversation entry goes away once read), and on the phone you can swipe an unread reply, mention or conversation to **Mark as read**. The phone's Clear button became a ⋯ menu that also holds the Clear actions. `deepseekbot channel-mark-all-read` now takes `--channel` or `--bot` to mark only one conversation or one Bot's conversations, reports only conversations that changed, and refuses an unknown conversation ([#3321](https://github.com/BotHarness/DeepSeekBot/issues/3321)).
+
+- Activity can now clear many items at once, either every item or every item of one type such as interrupted messages, on the desktop Activity menu ("Clear…") and on the phone's Activity list. Clearing marks unread conversations, replies and mentions read, so the unread badge clears too. Nothing is deleted, and cleared items can be restored from Cleared. `deepseekbot inbox-dismiss-all --confirm` does the same from the CLI ([#3322](https://github.com/BotHarness/DeepSeekBot/issues/3322)).
+
+- The diagnostic log now records each Bot turn (duration, model time, first token, tools and errors) and each incoming IM message (handled, skipped with the reason, or refused), without message content. `deepseekbot diagnostic-logs-export` can now export the log offline from `logs.db` when the desktop app or Host cannot start ([#3323](https://github.com/BotHarness/DeepSeekBot/pull/3323)).
+
+- When anonymous usage data is on, the Host now reports Web Client failures to PostHog: an `app:client_issue_report` event with only the kind and a duration band, at most once per kind per Client session. Uncaught Client errors are also sent as `$exception` with the error type, function names, line numbers and file names only. No message text, request names or page content is sent ([#3326](https://github.com/BotHarness/DeepSeekBot/pull/3326)).
+
+- Start and continue an Assignment without a model through `deepseekbot bot-tool <bot> create_assignment` and `send_assignment_request`. The Bot's Orchestrator still owns and manages it and reads a silent notice about the call in its next turn ([#3351](https://github.com/BotHarness/DeepSeekBot/issues/3351)).
+
+- Added Android's opt-in Keep connected mode for background Bot approval alerts without a cloud push token, with a persistent Stop action and shared local/cloud duplicate suppression; requires a new native build ([#3356](https://github.com/BotHarness/DeepSeekBot/issues/3356)).
+
+- Android local alerts now include questions, private-input requests and replies, with in-app attention while foreground and shared duplicate suppression across local/cloud and foreground/background delivery; current-conversation ordinary replies stay quiet, and a new native build is required ([#3357](https://github.com/BotHarness/DeepSeekBot/issues/3357)).
+
+- Android Keep connected now silently summarizes active Bots, Bots needing your attention and connected Hosts, with explicit incomplete/unavailable states instead of stale counts; requires an updated Host and rebuilt native app ([#3359](https://github.com/BotHarness/DeepSeekBot/issues/3359)).
+
+- Android notification recovery groups unseen replies and unresolved requests by Host, keeps restart-safe delivery claims, and limits each recovery batch to one sound; first enable and explicit re-enable quietly absorb old replies. Requires a rebuilt native app ([#3360](https://github.com/BotHarness/DeepSeekBot/issues/3360)).
+
+- Android notification settings separate background connection, synchronization, permission, channel and cloud registration status, offer optional battery guidance and a private local test, and remember when setup is skipped; sending a test no longer claims it was displayed. Channel diagnostics refresh when the mode or actual service state changes, without reopening settings. Requires a rebuilt native app ([#3361](https://github.com/BotHarness/DeepSeekBot/issues/3361)).
+
+- Let a Bot ask the Human to take over its Computer or Bot Browser without blocking: `takeover_request` posts a card with a title, the Bot's sentence and a Take over button that opens the live view, pushes the Human when away, and wakes the Bot through its Inbox on Done, Could not finish, cancel or expiry; the card shows the final state, the blocking `browser_takeover` tool is removed, and `deepseekbot takeovers`, `takeover-request`, `takeover-status`, `takeover-complete` and `takeover-cancel` drive the same flow ([#3379](https://github.com/BotHarness/DeepSeekBot/issues/3379)).
+
+- You can call a Bot from iPhone when the computer runs DeepSeekBot on a Mac or Windows: tap the phone button in its chat, speak, and what you say appears in the chat as your message while the Bot's spoken reply plays in the call and stays as a voice bar with text. Coughs and short noises are ignored, a busy Bot shows a hint instead of talking, mute and hang up are one tap, and recordings are never stored. Add a speech-to-text Provider for the Bot first; the call button says what is missing. Calls need the same Wi-Fi or Tailscale. The same setup is available from `deepseekbot voice-provider-add --kind asr`, `voice-asr-set`, `voice-transcribe`, and `call-simulate` tests a call with recorded audio ([#3400](https://github.com/BotHarness/DeepSeekBot/issues/3400)).
+
+- You can call a Bot from the Mac or Windows desktop app: press the phone button in its chat header and speak. The call bar in the header shows what the Bot is doing, the call time, mute and hang up, and the chat stays readable while what you say and the Bot's voice replies appear in it. If another device or window is already on the call, you're told so and that call goes on ([#3403](https://github.com/BotHarness/DeepSeekBot/issues/3403)).
+
+- You can now call a Bot from Android too, with the same call button, call screen and setup as on iPhone. The call uses the phone's echo cancellation so the Bot's reply on the speaker is not heard back as you, and if microphone access is off the call screen lets you allow it again or open Settings ([#3405](https://github.com/BotHarness/DeepSeekBot/issues/3405)).
+
+- A call with a Bot on iPhone now keeps going when you lock the phone or switch to another app. The Lock Screen and Dynamic Island show the call with its time, what the Bot is doing, and Mute and Hang Up buttons. A new Audio button on the call screen lets you pick the microphone and the output, like a meeting app. With headphones, choose the iPhone microphone to keep your music playing with better sound, or the headset microphone for call quality in noisy places; the phone remembers which. A phone call or another app pauses the call instead of ending it ([#3422](https://github.com/BotHarness/DeepSeekBot/issues/3422)).
+
+- A desktop call keeps going when you minimize the Mac or Windows window, close it to the Dock or tray, or switch to another app. While the window is hidden and notifications are allowed, a notification says you're on a call with the Bot; click it to return to the chat and its call bar. Quitting the app ends the call; sentences already sent to the chat stay there ([#3424](https://github.com/BotHarness/DeepSeekBot/issues/3424)).
+
+- Stop one running Assignment from its row in the Sessions panel. The Bot keeps answering and its other Assignments keep running. The stop does not start a new Orchestrator turn; at its next turn the Bot learns that you stopped the Assignment and does not send it out again unless you ask. The stopped Assignment keeps its history, and the Bot can resume it later with a new Assignment Request. Agents and scripts use `deepseekbot session-stop <bot> <session-id>` ([#3428](https://github.com/BotHarness/DeepSeekBot/issues/3428)).
+
+- Stop a Bot's Orchestrator from its row in the Sessions panel, just like an Assignment. It interrupts only the current turn; the next message or Assignment Report wakes it as usual. When Assignments are running, the panel asks first and can stop them too. Bot Stop stops every running Session of a Bot at once; IM `/stop` now does this, and agents use `deepseekbot bot-stop <bot>`. Every Assignment stopped by a Human, alone or by Bot Stop, can be resumed with a new Assignment Request. The stop notice names what was stopped and appears only in the conversation you stopped it from. `deepseekbot channel-bot-stop` is deprecated in favour of `bot-stop` ([#3429](https://github.com/BotHarness/DeepSeekBot/issues/3429)).
+
+- In a Group, the Sessions panel's Current channel view now starts with **Working now**: each member Bot whose Orchestrator is running gets a row with its own stop. Stopping a row stops only that Bot's Orchestrator, and the stop notice goes to this Group. The group disappears when no member Orchestrator is running, and the Group's Assignments stay below as before ([#3431](https://github.com/BotHarness/DeepSeekBot/issues/3431)).
+
+- Calls can use Soniox streaming speech-to-text: the Host sends your voice while you are still talking, so your words reach the chat sooner after you stop, and the call screen shows what it hears as you speak. Add it with `deepseekbot voice-provider-add soniox --kind asr --key-stdin` and bind it with `voice-asr-set`; `call-simulate` reports the live text and whether each sentence was streamed. Only the spoken part of a call is sent, and recordings are never stored ([#3436](https://github.com/BotHarness/DeepSeekBot/issues/3436)).
+
+- You can now minimize a call with a Bot on iPhone and Android and keep using the app: open other chats and send messages while the call keeps going. A floating bubble shows the Bot's avatar, a ring for what the call is doing (listening, thinking, speaking, muted or paused) and the call time; drag it to either side and tap it to go back to the call. On Android, Back now minimizes the call instead of hanging up ([#3468](https://github.com/BotHarness/DeepSeekBot/issues/3468)).
+
+- Turn the Bot's voice up or down during a phone call without changing your music: the call audio menu has a Voice volume slider from 0 to 200 %, remembered on this phone, on iPhone and Android ([#3478](https://github.com/BotHarness/DeepSeekBot/issues/3478)).
+
+- `deepseekbot call-status` now shows how hard a Bot call works: every 5 seconds the Host samples packets per second, kbps, loss, round-trip time and CPU in each direction, and writes the same numbers plus a whole-call summary to the logs, so a change to call performance can be measured before and after ([#3481](https://github.com/BotHarness/DeepSeekBot/issues/3481)).
+
+- A Bot DM now shows where each call began and ended: a call bubble with the start time when the call connects, and one with the call's length when it ends, on the desktop and in the mobile app. The messages between them are what was said on the call. The Bot sees these notices too: on your first typed message after a call it is told about that call and how to read it back, so "what we talked about on the phone" finds the right messages ([#3483](https://github.com/BotHarness/DeepSeekBot/issues/3483)).
+
+- Calls can share what the Human sees: a client sends keyframes from the camera or screen, and each spoken sentence reaches the Bot with one image tiled from the keyframes of that sentence (a single frame, or a 2x2, 3x3 or 4x4 grid labelled in time order). A sentence with nothing new on screen says so instead of sending the same picture again. `deepseekbot call-simulate --video` or `--screen` plays a video file or a folder of frames into a simulated call and reports the keyframe and grid timings ([#3492](https://github.com/BotHarness/DeepSeekBot/issues/3492)).
+
+- During a call with a shared camera or screen, the Bot can zoom into one tile of a grid with `call_frame` and see that keyframe at its original size, so small text on a shared screen stays readable. Originals live only in Host memory for the newest 64 tiles and are released when the call ends. `deepseekbot call-frame <message-id> <cell>` returns the same frame ([#3493](https://github.com/BotHarness/DeepSeekBot/issues/3493)).
+
+- While you share your camera or screen on a call and stay silent, every 16 keyframes are saved as a frame record in the DM without waking the Bot, and your next sentence tells the Bot which records came before, so it can follow a film or a long demo in order. Shared frames are always saved; there is no switch to keep them out of the DM ([#3494](https://github.com/BotHarness/DeepSeekBot/issues/3494)).
+
+- Desktop and Web calls can turn the camera on. A small self-preview shows under the call bar and flashes each time a keyframe goes to the Bot. If the camera is blocked, the call keeps going and the preview explains how to allow it ([#3495](https://github.com/BotHarness/DeepSeekBot/issues/3495)).
+
+- Desktop and Web calls can share a screen or a window. The call bar has a screen button, and the preview shows which window is shared. If the system stops the share, the call goes on with voice only, and the DM notes it so the Bot knows ([#3496](https://github.com/BotHarness/DeepSeekBot/issues/3496)).
+
+- iPhone calls can turn the camera on. A self-preview with a switch-camera button replaces the Bot's picture, and a counter shows how many keyframes went to the Bot. When the app goes to the background the camera pauses, the call keeps going with voice, and the DM notes both the pause and the return ([#3497](https://github.com/BotHarness/DeepSeekBot/issues/3497)).
+
+- If a Bot's model cannot read images, the call no longer fails its turn: the Bot is told a camera or screen is shared that it cannot see with this model, and the grid stays in the DM for a later model ([#3497](https://github.com/BotHarness/DeepSeekBot/issues/3497)).
+
+- Android calls can turn the camera on: a self-preview with a switch-camera button, front and back keyframes to the Bot, a keyframe counter, background pause and resume once calls can stay alive in the background ([#3423](https://github.com/BotHarness/DeepSeekBot/issues/3423)), and a `.dev` test-video path ([#3498](https://github.com/BotHarness/DeepSeekBot/issues/3498)).
+
+- The computer can now tell a phone which chats changed since it last looked, so the chat list no longer has to be downloaded in full each time. `deepseekbot channel-list-changes` shows the chats changed since a cursor ([#3553](https://github.com/BotHarness/DeepSeekBot/issues/3553)).
+
+- Android calls can choose the phone or connected headset microphone, remember the headset input preference across calls, and recover when the headset disconnects; phone input with headset output requires Android 13 or later, and microphone checkmarks reflect confirmed recording devices ([#3632](https://github.com/BotHarness/DeepSeekBot/issues/3632)).
+
+- Added a native audio-output menu for Android 12 and later calls, with speaker, phone receiver and available communication headsets; switching remains available while muted ([#3632](https://github.com/BotHarness/DeepSeekBot/issues/3632)).
+
+- Android 13 and later calls can switch between call and media playback modes without redialing; media mode follows Android's media output route ([#3632](https://github.com/BotHarness/DeepSeekBot/issues/3632)).
+
+- Added opt-in, bounded local Host scheduling evidence to correlate delivered steering, Memory scans, worker/direct command completion and admitted heartbeat processing without recording message or command contents ([#3638](https://github.com/BotHarness/BotHarness/issues/3638)).
+
+- Added a Web DM GenUI document candidate: compose self-contained HTML, charts and diagrams, preview through a direct Tool, recover registered private views through the Host, and continue or refresh through ordinary messages. Version-1 comparison reports remain readable. Hard script resource containment, performance, desktop and installed-native qualification remain open release gates ([#3685](https://github.com/BotHarness/DeepSeekBot/issues/3685), [CLI guide](docs/bot-cli.md#genui-documents-in-a-bot-dm), [ADR-0301](docs/adr/0301-genui-rich-documents-use-isolated-html.md)).
+
+- Added borderless GenUI surface defaults, eight categorical chart colors and an offline `genui_diagram` authoring Tool using pinned Pele. Agents can compile bounded Mermaid into SVG, preview a complete HTML document and explicitly publish it through the existing message owner. Web/desktop/native release and resource-isolation gates remain separate ([#3691](https://github.com/BotHarness/DeepSeekBot/issues/3691), [ADR-0302](docs/adr/0302-genui-diagrams-compile-before-publication.md)).
+
+- Ask a Bot about a moment in any earlier call with it: the Bot reads one call by its id and a time within it, such as 00:13 to 00:40 or minute 5, getting what you said, its replies and the camera or screen records in order without mixing calls. `deepseekbot call-list` lists the calls in a DM and `deepseekbot call-read` reads one the same way ([#3693](https://github.com/BotHarness/DeepSeekBot/issues/3693)).
+
+- The mobile app shows rich GenUI documents from Bots inside the conversation, beside their readable summary, in an isolated frame that follows the app's theme and text size ([#3705](https://github.com/BotHarness/DeepSeekBot/issues/3705)).
+
+- On the phone, GenUI documents now restore and save your filters, selections and other declared view choices through the same private view as the computer, with reset and conflict recovery when another device changed it first ([#3705](https://github.com/BotHarness/DeepSeekBot/issues/3705)).
+
+- In a Bot DM on the phone, Continue and Refresh document send your current view to the Bot as an ordinary message, with the same retry and delivery status as any message you send ([#3705](https://github.com/BotHarness/DeepSeekBot/issues/3705)).
+
+- Scrolling back to a GenUI document on the phone keeps it at its measured height, so messages around it no longer jump while it reloads ([#3705](https://github.com/BotHarness/DeepSeekBot/issues/3705)).
+
+- Buttons, filters and choices inside a GenUI document now respond on iPhone and in Safari, and Chinese input is saved only once the text is committed ([#3705](https://github.com/BotHarness/DeepSeekBot/issues/3705)).
+
+- Reorder the Simple-mode right column: drag any Channel subpanel by its header (clicking still collapses it) with an insertion-line indicator, or press Alt+Up/Down on the focused header. The order persists across reloads, long columns auto-scroll at the edges, and every move is announced ([#3717](https://github.com/BotHarness/DeepSeekBot/issues/3717)).
+
+- Company networks without internet: the private connection check trusts the operating system's certificates (including ones installed by device management), and phones that do not trust the certificate now see a specific message instead of a generic connection error ([#3799](https://github.com/BotHarness/DeepSeekBot/issues/3799)).
+
+- The Docker private relay serves several computers: `setup.mjs add-host <name>` creates a one-time claim key per computer, each with its own phone admission, and one computer releasing or revoking never affects another. Existing single-computer deployments keep working. The relay standard and a conformance script are documented for third-party relays ([#3798](https://github.com/BotHarness/DeepSeekBot/issues/3798)).
+
+- Bring your own proxy or tunnel: register any HTTPS origin that forwards the encrypted phone channel to the Host (ingress standard with nginx/Caddy/frp/ngrok references), with a public check before pairing, an optional LAN bind and `private-ingress-enable`/`-disable` CLI ([#3797](https://github.com/BotHarness/DeepSeekBot/issues/3797)).
+
+- Add a no-Docker private connection: the desktop Host runs its bundled cloudflared as a Quick Tunnel or your own Named Tunnel, publishes only the encrypted phone channel, and offers a pairing code only after the public address is checked. Includes `private-tunnel-enable`/`private-tunnel-disable` CLI ([#3742](https://github.com/BotHarness/DeepSeekBot/issues/3742)).
+
+- Add an opt-in Docker private connection candidate with secure first-owner claim, pinned-Host phone pairing, encrypted outbound relay and matching CLI. Setup explains the public HTTPS prerequisite; official login and relay are not required. Native external-network acceptance remains tracked separately ([#3746](https://github.com/BotHarness/DeepSeekBot/issues/3746)).
+
+- The desktop Bot mode control rail has a **Search** button above the settings gear. It opens the same quick switcher as Alt+K (conversations, messages and settings), and its tooltip shows the current shortcut ([#3770](https://github.com/BotHarness/DeepSeekBot/issues/3770)).
+
+- Added an opt-in Android native Markdown block window for controlled A/B testing; existing JavaScript windowing remains the default, and the native candidate requires a rebuilt app ([#3926](https://github.com/BotHarness/DeepSeekBot/issues/3926)).
+
+- Android Bot calls keep going with the screen off or in another app: an ongoing call notification shows the Bot, the call time, Hang up and Mute, and opens the call when tapped; another app's audio or a phone call pauses the call and it resumes on its own. With Display over other apps turned on, the call bubble also floats over other apps while you are away from the app ([#3423](https://github.com/BotHarness/DeepSeekBot/issues/3423), [#3469](https://github.com/BotHarness/DeepSeekBot/issues/3469)).
+
+- The Report a problem dialog can take a screenshot of a window or tab and mark it up before it is packed: draw a box or a line, or cover anything private. Image attachments get the same markup button, and the marked-up copy replaces the original ([#3904](https://github.com/BotHarness/DeepSeekBot/pull/3904)).
+
+- Report a problem from the diagnostic log window: describe it, paste, drop or pick screenshots and files (up to 25 MB), and Tobs packs them with the redacted diagnostic log and versions into one ZIP. "Report on GitHub" downloads the ZIP and opens a prefilled issue to drag it into; no GitHub token is stored. `deepseekbot bug-report --out report.zip` builds the same ZIP from the CLI, even when the Host is down ([#3878](https://github.com/BotHarness/DeepSeekBot/pull/3878)).
+
+- The computer now keeps a log of every change to chat messages, including edits, purges, delivery states, reactions and names, so phones and other clients can later ask only for what changed since they were last open. `deepseekbot channel-changes` shows the changes for a chat since a cursor ([#3510](https://github.com/BotHarness/DeepSeekBot/issues/3510)).
+
+- The desktop and Web message composer takes voice input. When a speech recognition (ASR) Provider is set up, the empty composer says "Hold to talk": hold the input to talk and release to finish, even after moving off it, or click the new mic next to Send to start and click the mic or the input to stop. While recording, the mic ripples and the composer border glows in the primary color. Words appear at the caret as you speak, even in a draft that already has text, through Soniox streaming or pause-by-pause pieces from the local SenseVoice service, and stay there for you to edit and send. A DM uses that Bot's ASR, other chats the Host's default ASR Provider. Audio is never stored. `deepseekbot voice-dictate` runs the same path from a WAV file ([#3467](https://github.com/BotHarness/DeepSeekBot/issues/3467)).
+
+- Settings › Voice has separate Speech synthesis (TTS) and Speech recognition (ASR) sections, each with a Host-wide default at the top. Every Bot uses the defaults unless its own Voice panel picks another service or voice, so one default ASR turns on voice input and one default TTS turns on voice messages and calls for all Bots. The first service of each kind becomes the default by itself. The model is now a list of the service's known models with a Custom… choice, and the name can stay empty: the Host picks the service name, numbered when it is taken. `deepseekbot voice-defaults` and `voice-default-set` do the same from the CLI ([#3471](https://github.com/BotHarness/DeepSeekBot/pull/3471)).
+
+- Settings › Voice has a Microphone test: a live input level meter that shows whether your microphone counts as speech, with the speech threshold as a slider and Reset to default. The threshold applies to pause-cut voice input and to speech detection in calls; Soniox live transcription finds sentence ends itself. `deepseekbot voice-vad-set` sets the same value. While you dictate, the mic button's ripple follows your voice, and files, pastes and mentions wait until dictation ends so they cannot be overwritten ([#3471](https://github.com/BotHarness/DeepSeekBot/pull/3471)).
+
+- The Microphone test also picks which microphone this browser uses, with System default first. Dictation, the test and desktop or Web calls all use it; if it is unplugged, they fall back to the system default and say so ([#3471](https://github.com/BotHarness/DeepSeekBot/pull/3471)).
+
+- Run `deepseekbot doctor` (or `npx -y @botharness/tobs doctor` when the app will not open) for one health report: versions, Host, plugin, last update and the last 24 hours of errors, with a guide for coding agents such as Codex and Claude Code. It reads the local diagnostic log directly when the Host is down, and `diagnostic-logs --offline` does the same. Tob now runs it first when you report a problem ([#3870](https://github.com/BotHarness/DeepSeekBot/pull/3870)).
+
+- A Bot can set up a free, offline speech service on your Mac or Windows PC: ask it for a local voice and it follows the new `setting-up-local-voice` skill to install SenseVoice (speech to text) and Kokoro (Chinese and English speech), registers it as the Bot's "Local speech service" voice and speech recognition (for calls) after your approval. You start and stop the service yourself; when it is off, voice messages and the Provider test say so plainly. `deepseekbot voice-local-kit` writes the service script, and Tob can now run `voice-providers`, `voice-provider-add`, `voice-provider-test`, `voice-set` and `voice-asr-set` ([#3404](https://github.com/BotHarness/DeepSeekBot/issues/3404)).
+
+- On iPhone and Android, the chat header shows how many Sessions are running after the Bot's active state, and the Bot and Group profile Work tabs start with **Working now**: each running Orchestrator or Assignment has a Stop, and each Bot has Stop all. Stop takes one tap and shows "Stopping…" until the Session ends ([#3432](https://github.com/BotHarness/DeepSeekBot/issues/3432)).
+
+- Notification settings on the phone now have a Delivery choice for each computer: Push, In app only, or Off. In app only stops pushes to that phone but keeps its badge up to date, and shows banners only while the app is open. The CLI sets it with `deepseekbot device-notifications --delivery push|in-app` ([#3885](https://github.com/BotHarness/DeepSeekBot/pull/3885)).
+
+- ([#3350](https://github.com/BotHarness/DeepSeekBot/pull/3350)) Lark pairing requests, both chat and `/pair` management, now appear in Activity Center under **Needs you**, where you can pick a Role or capabilities and approve or reject in place. The Lark guide adds a verified walkthrough for onboarding a new user with per-person limits.
+
+- The phone's Storage page shows how much space saved chat history takes for the current computer and can clear it, after confirming that nothing is deleted on the computer. Revoking or unpairing a phone also deletes its saved chat history ([#3557](https://github.com/BotHarness/DeepSeekBot/issues/3557)).
+
+- On iPhone, when iOS gives the app background time, it brings saved chats up to date from each paired computer. Chats that changed while you were away then open without waiting for the computer. It reads at most two pages per chat and skips the run in Low Power Mode or when the battery is low and unplugged. Pairings saved on the phone can now be read after the first unlock since the phone started, so this also works while the phone is locked; existing pairings switch over the next time the app opens while the phone is unlocked ([#3581](https://github.com/BotHarness/DeepSeekBot/issues/3581)).
+
+- Searching messages on the phone now also searches chats saved on the phone, in Chinese and English. Saved results show at once and work without a connection to the computer. When the computer answers, its results are merged in without duplicates. Messages deleted or purged on the computer are removed from phone search ([#3556](https://github.com/BotHarness/DeepSeekBot/issues/3556)).
+
+- Settings › Storage on the phone shows how much this phone has saved from the current computer, can delete media you have not opened for 30, 90 or 180 days or a year, and deletes media not opened for 30 days automatically (on by default; turn it off to keep everything). Clearing saved media now affects only the current computer. Nothing is deleted on the computer ([#3513](https://github.com/BotHarness/DeepSeekBot/issues/3513)).
+
+- Settings has a new "Jump to latest when sending" switch. It is off by default, so sending while reading earlier messages keeps your place ([#3933](https://github.com/BotHarness/DeepSeekBot/pull/3933)).
+
+- Updating Tobs or a BotHarness plugin from inside Tobs now shows live progress: the update reminder, Bot settings › About and Bot settings › Plugins share one panel with the steps, every package-manager command with its output and exit code, and the reason when it fails. **Stop** cancels a running install and puts the previous version back. The same run is available from `deepseekbot update-status` and `deepseekbot update-cancel`. ([#3845](https://github.com/BotHarness/DeepSeekBot/pull/3845))
+
+- Bots can send voice messages: add a TTS Provider (Fish Audio, ElevenLabs, OpenAI, or any OpenAI-compatible endpoint such as a local Kokoro) in Settings › Voice, pick a voice for each Bot in its Voice settings with a preview, and a Bot that replies with `voice: true` shows a playable voice bar above its text on desktop and iOS. Code, file paths, links and tables are not read out word for word, the text always stays, and a failed voice says why. The same steps are available from `deepseekbot voice-provider-add`, `voice-provider-test`, `voice-set` and `voice-synthesize` ([#3399](https://github.com/BotHarness/DeepSeekBot/issues/3399)).
+
+- Phones can connect to Hosts under the same Tobs Connect account without manual device approval or fingerprint comparison; unsigned and private pairing retain device approval ([#2734](https://github.com/BotHarness/DeepSeekBot/issues/2734)).
+
+- Tobs on iOS and Android supports email/password sign-in, registration with email verification, and password reset when enabled by Connect; email-code, Apple and Google sign-in remain available ([#4017](https://github.com/BotHarness/DeepSeekBot/issues/4017)).
+
+- When the phone connects to a computer with an older Tobs, or one that asks for a newer app, the chat list shows a quiet suggestion to update. It never blocks anything; tap Got it to hide it. The computer's connection details now list both versions ([#4004](https://github.com/BotHarness/DeepSeekBot/pull/4004)).
+
+### Fixed
+
+- Discord's checked receiver recognizes mentions of its own native managed role as addressing its bound PersonaBot, while unrelated roles and everyone/here remain non-addressing; role ownership is checked against the current guild and Bot member ([#1615](https://github.com/BotHarness/DeepSeekBot/issues/1615)).
+
+- Keep the latest measured chat dimensions when delayed scroll events arrive, so following a growing conversation uses its current end position ([#2477](https://github.com/BotHarness/DeepSeekBot/issues/2477)).
+
+- Android notification entry gives explicit message positioning priority over an older reading anchor, retries as the live conversation layout arrives, and restores position preservation after live-layout target visibility or a user scroll ([#2798](https://github.com/BotHarness/DeepSeekBot/issues/2798)).
+
+- Kept notification destinations pending while the phone's initial navigation state loads, while still honoring a later manual page or workspace selection ([#2798](https://github.com/BotHarness/BotHarness/issues/2798)).
+
+- Fixed automatic compaction firing on every step of a long Bot conversation and freeing only a few thousand tokens each time: one pass now compacts down to a target level, and when no pass can get under the threshold the Host skips it and logs why instead of re-summarizing the previous summary ([#2971](https://github.com/BotHarness/DeepSeekBot/issues/2971)).
+
+- Start Android screen teardown promptly during system font changes, reducing overlap with the replacement screen ([#3001](https://github.com/BotHarness/DeepSeekBot/issues/3001)).
+
+- The channel list finds each channel's latest message with one indexed lookup, even when a Bot has posted thousands of notices since; the Bot list no longer reads every message to find each Bot's latest activity, the attention summary no longer scans every Inbox Admission to find ones that need repair, and reopening timed question cards at startup no longer scans every message ([#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)).
+
+- Checking whether a pending question, tool approval, auto-rejection, private input or workspace grant request has been answered now uses an index instead of reading the whole Channel history for each card, and a Bot's activity chart in its DM reads only the requested weeks of inbox activity instead of every record the Bot has received ([#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)).
+
+- The unread badge and attention status no longer slow down as conversations grow: they read only the messages after each Channel's read position, and model usage updates no longer recompute the attention summary. Looking up a Session's child Sessions and a request's Bot replies no longer scans every row ([#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)).
+
+- Activity items now carry a summary of at most 280 characters instead of the whole message, so long Bot replies no longer make every Activity, notification and Inbox page load grow with their length. Search still matches the full message, and opening an item still shows it in full ([#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)).
+
+- The desktop client does less repeated work while Bots reply. A streamed reply now sends only the new text instead of the whole reply on every token, and the conversation no longer rebuilds its message groups, image gallery and timeline caches on every streamed frame. The Activity Center waits for a short pause before reloading, unread status reads no longer overlap, store updates that change nothing no longer re-render the sidebar or Activity Center, and the pairing-request check runs once instead of once per place it appears ([#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)).
+
+- A Bot turn no longer makes the Host recompute attention and notify every client once per database write. Attention updates and change signals are now combined over a short window, with a firm upper bound so updates are never held back for long, and the shared Bot activity snapshot is built once per change for all connected clients instead of once per client. Push and Live Activity updates keep a 2-second upper bound during sustained activity ([#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)).
+
+- Check the desktop window's startup diagnostics at most once per frame after the app has loaded, so streaming Bot replies no longer force an extra style and layout pass on every page update ([#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)).
+
+- The Host no longer slows down as a conversation grows: sending a message, looking one up, reading a page, catching up after a reconnect and checking whether a permission request was answered now read only the messages they need instead of the whole conversation history ([#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)).
+
+- A Bot listing its Inbox during a turn no longer scans its whole admission history, and usage tracking no longer walks every model request of a Session on each Session event ([#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)).
+
+- The Inbox replies list reads only Bot replies and mentions for you, and the unread list reads only unread messages, instead of every retained message; desktop notifications reload both on every unread change. Today's channel activity reads only that day's messages, and connected-app post limits, report receipts and quoted messages are found by index instead of reading a Bot's whole outbound or message history ([#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)).
+
+- On the phone, a streaming Bot reply no longer rebuilds the whole message list on every animation frame; the list changes only when a reply starts or ends ([#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)).
+
+- The phone app re-renders less while Bots work. A change in one Bot's status no longer rebuilds every Bot and group entry or re-renders every visible message in an open conversation, updates that change nothing no longer notify the screens, and the Activity count no longer re-reads the Inbox while it is still loading ([#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)).
+
+- Desktop notifications in the background now follow live attention updates instead of re-reading three Activity lists every 15 seconds, and the phone app checks that a paired Host is reachable with a small ping instead of downloading the whole Bot list every 20 seconds. Hosts without the ping keep working through the old check. The CLI gains `deepseekbot host-ping` ([#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)).
+
+- Assignment progress no longer makes every open client reload the whole Bot and conversation list. Only a new Assignment report, which the Bot activity on Home shows, refreshes the list; status changes and heartbeats of running Assignments no longer do ([#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)).
+
+- A Bot reply no longer makes every open client reload the whole Bot and conversation list. The reply's preview already updates the list, so a full reload now happens only when a slow connection had to merge a Bot reply into a later message. The phone's Inbox reloads once per burst of new messages and Bot status changes instead of once per update ([#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)).
+
+- The desktop client re-renders less: the conversation view, sidebars, Activity menu and onboarding screens now update only when the data they show changes, not on every store write such as a streamed reply. The Host also finds unanswered private input requests at startup through an index instead of reading every Bot DM's history, and the sidebar no longer re-reads attention status every 10 seconds on top of live updates ([#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)).
+
+- Unread counts stop at 99+. A long unread backlog no longer slows the unread badge, the per-conversation counts or the attention status, because the Host stops counting at 100 and finds replies to you through an index. Screen reader labels and mobile row descriptions also say 99+ instead of a cut-off number ([#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)).
+
+- Measure workspace column positions only while the Bot mode move menu is open, so streaming Bot replies no longer force a layout pass on every sidebar update ([#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)).
+
+- Fixed deleted or paused Bots appearing in the IM app creation and binding pickers; deleting a selected Bot also disables submission until a live Bot is chosen ([#3220](https://github.com/BotHarness/DeepSeekBot/issues/3220)).
+
+- Fixed notification settings reporting registration timeouts and network errors as an unsupported app build; they now ask to check the connection and restart the app. This does not change notification delivery ([#3223](https://github.com/BotHarness/BotHarness/issues/3223)).
+
+- With saved notification preferences, an unreachable paired Host no longer delays another Host's push registration or saving new notification choices. Each Host still receives the latest saved preferences before registration; initial migration from legacy Host preferences remains unchanged ([#3223](https://github.com/BotHarness/BotHarness/issues/3223)).
+
+- Fixed delayed push failures for an old notification token removing a phone's replacement registration, preferences and records of notifications already sent. Subsequent messages now keep using the replacement token ([#3223](https://github.com/BotHarness/BotHarness/issues/3223)).
+
+- Fixed repeated Android push registrations triggered by reading the device token. Token updates now reuse the supplied token, and an older registration cannot overwrite a newer token ([#3223](https://github.com/BotHarness/DeepSeekBot/issues/3223)).
+
+- Fixed restored drafts remaining locked while frequent roster updates repeatedly restarted reference validation; completed checks now use the latest roster without restarting the request ([#3224](https://github.com/BotHarness/DeepSeekBot/issues/3224)).
+
+- Android dictation requests continuous recognition and keeps completed phrases while the next phrase is recognized, including final results after release on supported recognizers ([#3233](https://github.com/BotHarness/BotHarness/issues/3233), [#3217](https://github.com/BotHarness/BotHarness/issues/3217)).
+
+- The Android composer clears input hold-to-record hints when recognition ends or cannot start, retaining the draft for manual sending; releasing stops recording and upward dragging does not lock it ([#3233](https://github.com/BotHarness/BotHarness/issues/3233)).
+
+- Chat now smoothly follows sent messages and completed Bot replies when you are at the bottom, while preserving history reading and Reduce Motion ([#3256](https://github.com/BotHarness/DeepSeekBot/issues/3256)).
+
+- Chat loading no longer waits for local history cache reads before connecting, and late cached messages cannot replace a live result ([#3257](https://github.com/BotHarness/DeepSeekBot/issues/3257)).
+
+- Loading older chat history keeps a message as the reading anchor when the leading time separator changes ([#3257](https://github.com/BotHarness/DeepSeekBot/issues/3257)).
+
+- Reopening a chat can load older history without waiting for a stale request; late requests no longer clear the current loading state ([#3257](https://github.com/BotHarness/DeepSeekBot/issues/3257)).
+
+- Android chat history keeps its reading position after a failed history load reconnects, with the retry action remaining visible below the header ([#3257](https://github.com/BotHarness/DeepSeekBot/issues/3257)).
+
+- Android chat opening retains the final positioning event before revealing history, avoiding a loading skeleton that could remain after messages arrived ([#3257](https://github.com/BotHarness/DeepSeekBot/issues/3257)).
+
+- Keep Android chat navigation available when a replaced app page finishes unmounting after a system configuration change ([#3257](https://github.com/BotHarness/DeepSeekBot/issues/3257)).
+
+- Android chat notices appear above the composer so connection changes do not push the conversation down; retry remains available ([#3257](https://github.com/BotHarness/DeepSeekBot/issues/3257)).
+
+- Chat recovery keeps the latest message above the composer when an older scroll event arrives after a layout update ([#3257](https://github.com/BotHarness/DeepSeekBot/issues/3257)).
+
+- Chat now respects Reduce Motion when returning to the latest message or settling a drag near the bottom, as well as when new messages arrive ([#3257](https://github.com/BotHarness/DeepSeekBot/issues/3257)).
+
+- Loading older messages in a long conversation no longer remounts the whole loaded history for one frame. The timeline sizes regrouped history from the messages it has already measured, so each older page mounts only the new page and what is near the screen, however much is already loaded ([#3277](https://github.com/BotHarness/DeepSeekBot/issues/3277)).
+
+- Fixed native `write` and `edit` failing with "BotHarness Session file path cannot be resolved" when the target's parent folders do not exist yet; a Bot can now write a new nested file inside its authorized workspace and the missing folders are created ([#3289](https://github.com/BotHarness/DeepSeekBot/issues/3289)).
+
+- Importing a Bot from the Bot Marketplace on Windows no longer fails with `EPERM` on a `tobs-install-review` temp folder. The review clone's read-only Git files are now cleared before removal, and a temp folder Windows still holds on to no longer fails the import ([#3343](https://github.com/BotHarness/DeepSeekBot/pull/3343)).
+
+- Fixed Bot turns failing within seconds when a serial model or gateway answers "Concurrency limit exceeded, please retry later": a Bot request now backs off and retries such refusals for up to 300 seconds, matching how long a direct DSH chat waits, so several Bots woken at once take turns instead of failing ([#3300](https://github.com/BotHarness/DeepSeekBot/issues/3300)).
+
+- Quoting a Bot's message in a group now puts `@Bot` at the start of the composer on desktop and mobile, so the quoted Bot wakes even when the group only wakes Bots on mention ([#3309](https://github.com/BotHarness/DeepSeekBot/issues/3309)).
+
+- A Bot turn that DeepSeekBot itself started (a Human message, schedule or Assignment wake) is no longer rejected with "Native Orchestrator input is unavailable" when a secondary check such as the current-Session lookup disagrees mid-turn; the mismatch is recorded in the diagnostic log instead ([#3315](https://github.com/BotHarness/DeepSeekBot/issues/3315)).
+
+- On iPhone, an approval or question card in Activity is no longer cut off at the bottom. Its Allow and option buttons are fully visible again ([#3321](https://github.com/BotHarness/DeepSeekBot/issues/3321)).
+
+- On iPhone, handling the last pending item on another device no longer clears every DeepSeekBot notification, replies included. The phone now sets the badge to 0 itself instead of letting the push do it ([#3321](https://github.com/BotHarness/DeepSeekBot/issues/3321)).
+
+- On iPhone, a notification you handled on another device (an approval, question or reply answered or read on the desktop) now disappears from the Lock Screen and Notification Center, and the app badge updates, even while the app is in the background. The Computer sends a silent push listing what was resolved. Installed development builds need a rebuild, because this adds background notifications ([#3321](https://github.com/BotHarness/DeepSeekBot/issues/3321)).
+
+- On mobile, opening a reply or mention from Activity now opens its chat at that message and marks it read, and opening an interrupted-message item clears it (restorable from Cleared), so Activity unread state and the badge go away after you look ([#3322](https://github.com/BotHarness/DeepSeekBot/issues/3322)).
+
+- The Host no longer hangs on shutdown or plugin reload when `tailscale` on PATH is a shell wrapper that starts the real binary as a child (as some macOS installs do): the tailnet watcher now runs in its own process group, stopping it also stops the real Tailscale process, and disposal no longer waits on a pipe a leftover process holds open ([#3329](https://github.com/BotHarness/DeepSeekBot/pull/3329)).
+
+- Fixed live Host updates remaining disconnected after the mobile app returns to the foreground when the old connection stops delivering without a close event. Recovery restores subscriptions and waits for in-flight requests to finish or time out without replaying them ([#3336](https://github.com/BotHarness/BotHarness/issues/3336)).
+
+- Fixed image-viewer pinch zoom throwing a `MAX_SCALE` reference error in the gesture runtime; default zoom limits are now read inside the worklet body, while double-tap and explicit canvas limits stay unchanged ([#3337](https://github.com/BotHarness/BotHarness/issues/3337)).
+
+- A PersonaBot asked from an IM conversation (QQ, WeChat, Lark and others) to use an API key or other private value can now get the Owner to configure it and use it through private references, without seeing the value. Before, a Host without `privateInputWebUrl` refused to open the input card at all, so the Owner had nowhere to enter the key and sent it in the chat instead. The card now opens in the Bot's Chat and the IM conversation gets a notice to fill it in there. A replacement card opened from a Group account's settings now also accepts the new value. When `secret_http` cannot reach the API, the Bot now gets the reason (timeout, host name not found, connection refused, certificate rejected) instead of an opaque failure, and a redirect comes back as its status and target instead of an error. Card submission and the `protected_cli`, `secret_cli` and `secret_mcp_connect` tools now also give a specific reason when they fail: the card shows a reason code when the Host did not receive the values, and a credential store read error no longer looks like a removed account. Every private input step and failure is written to the diagnostic log, without secret values, so it can be exported with a problem report ([#3340](https://github.com/BotHarness/DeepSeekBot/issues/3340)).
+
+- Installing a Bot from the Marketplace no longer fails with "args fields do not match the descriptor: unexpected 'source'"; the host install method now accepts the entry the install came from ([#3342](https://github.com/BotHarness/DeepSeekBot/issues/3342)).
+
+- Scrolling up in a chat while a Bot streams its reply now stays where you leave it, instead of being pulled back to the bottom with each new piece of text ([#3352](https://github.com/BotHarness/DeepSeekBot/issues/3352)).
+
+- Cancel delayed message searches when leaving the mobile Chats screen, and ignore results from searches that are no longer active ([#3356](https://github.com/BotHarness/DeepSeekBot/issues/3356)).
+
+- Added independent Android in-app alert controls with saved inserted or top-overlay styles and corrected safe-area ownership below inserted alerts; system notification settings remain separate ([#3357](https://github.com/BotHarness/DeepSeekBot/issues/3357)).
+
+- Both in-app styles show the originating Channel avatar or Bot portrait, with the same fallback as conversations ([#3357](https://github.com/BotHarness/DeepSeekBot/issues/3357)).
+
+- Avoid duplicate Android native-header top spacing while an inserted alert or routing notice already consumes the safe area; restore normal header spacing when it disappears ([#3357](https://github.com/BotHarness/DeepSeekBot/issues/3357)).
+
+- Keep both in-app alert styles compact with a one-line title and two-line preview; tapping the preview opens its source conversation directly ([#3357](https://github.com/BotHarness/DeepSeekBot/issues/3357)).
+
+- Default in-app notifications to the top overlay while preserving saved styles; tap to open or swipe left, right or up to dismiss, without extra buttons ([#3357](https://github.com/BotHarness/DeepSeekBot/issues/3357)).
+
+- Android keep-connected now respects each paired Host's notification opt-out, preserves foreground chat when stopped, and clears only the refused Host's alerts without restarting its revoked credential ([#3358](https://github.com/BotHarness/DeepSeekBot/issues/3358)).
+
+- Mobile clients avoid redundant updates for unchanged Bot activity while still updating independent active-Bot counts ([#3359](https://github.com/BotHarness/DeepSeekBot/issues/3359)).
+
+- Mobile cloud notification settings reread system permission when returning to the app, recover registration after permission is restored, and show checking during recovery instead of an old denied state. Healthy unchanged permission does not trigger duplicate registration ([#3361](https://github.com/BotHarness/DeepSeekBot/issues/3361)).
+
+- Stop now really stops a Bot: it also stops the Bot's working Assignments, and the Bot takes no automatic wake (other Bots' messages, Group digests, reports, schedules, retries) until a Human writes to it again (or the Host restarts). A Bot whose automatic runs fail three times in a row with a non-transient error stops instead of retrying ([#3387](https://github.com/BotHarness/DeepSeekBot/issues/3387)).
+
+- Fixed group deletion and content cleanup failing when a reply's causal parent was already purged; startup can replay previously accepted cleanup records without weakening protection against restoring deleted content ([#3446](https://github.com/BotHarness/DeepSeekBot/issues/3446)).
+
+- Settings › Voice no longer repeats a service's name in its row when the name is the service type, such as "Soniox (streaming) · Soniox (streaming)" ([#3471](https://github.com/BotHarness/DeepSeekBot/pull/3471)).
+
+- Restore an idle Assignment's authorized execution when its native background child wakes it, so it can report the result to its Orchestrator. Stopped, archived, revoked and idle direct-tool calls remain refused ([#3477](https://github.com/BotHarness/DeepSeekBot/issues/3477)).
+
+- A Bot call survives a short drop of its audio link: the computer now waits 15 seconds for the link to recover instead of 5 (the call still ends after 8 seconds without the phone's heartbeat), and `call-status` counts the drops in `perf.disconnects` ([#3481](https://github.com/BotHarness/DeepSeekBot/issues/3481)).
+
+- The phone's Connect computer list uses the relay's live tunnel status, so a sleeping or closed computer shows as offline instead of failing to pair. If the relay cannot read live status, the list falls back to whether a tunnel was registered ([#3486](https://github.com/BotHarness/DeepSeekBot/pull/3486)).
+
+- Mobile pairing retries the local network once after the iOS Local Network prompt, so allowing access no longer needs a manual retry. A Connect computer that cannot be reached now says whether it has no tunnel, timed out, or returned a server error; computers added from a Tobs account and older Tailscale links also show an error code. iOS builds report the real app version instead of 0.0.1 ([#3486](https://github.com/BotHarness/DeepSeekBot/pull/3486)).
+
+- Mobile pairing now names the real cause when it fails: network faults on Connect or Tailscale no longer read as a fingerprint mismatch, a failed local-network path falls back to the next path, iOS says when Local Network access is turned off, a computer with a new security key and an older Tobs that cannot start pairing get their own messages, every failure shows a short error code with a Copy error details button for reports, and a Local Network denial offers an Open Settings button ([#3486](https://github.com/BotHarness/DeepSeekBot/pull/3486)).
+
+- Development launches now retire completed preparation processes after verifying that no descendants remain, so a later reuse of those process IDs cannot falsely block the same development Profile ([#3519](https://github.com/BotHarness/DeepSeekBot/issues/3519)).
+
+- The iOS app no longer re-registers for push and re-sends notification preferences to every paired Host about every 2 seconds. Fetching the push token reported the same token as a change, which started the next registration; the app now re-registers only when the token really changes, saving battery and Host load ([#3524](https://github.com/BotHarness/DeepSeekBot/issues/3524)).
+
+- Removed protected Tob from Group invitation choices and explained its private-chat-only participation, preventing an invitation that always fails; ordinary Bots named Tob remain available ([#3537](https://github.com/BotHarness/BotHarness/issues/3537)).
+
+- The phone no longer re-sends its notification preferences to every paired Host on each reconnect, app resume, route change or retry of another Host, which happened about every 21 seconds during a call. It sends a copy only to a Host that does not have it yet. The Host's `push phase=sent` log line now also says how long after a request or reply was created its push went out (`ageMs`), so a late banner can be placed on the Host or after it ([#3544](https://github.com/BotHarness/DeepSeekBot/issues/3544)).
+
+- Fixed repeated authorization of the same folder creating conflicting active Grants for a Bot; upgrades retain the most recently created active Grant and revoke older duplicates without merging their write permissions ([#3562](https://github.com/BotHarness/DeepSeekBot/issues/3562)).
+
+- Fixed the credential guard rejecting literal Shell output of the DSH home path; credential-file access and parent-directory enumeration remain restricted ([#3564](https://github.com/BotHarness/DeepSeekBot/issues/3564)).
+
+- Tailscale publishing now updates its owned HTTPS address in place after a Host port change, preserves the previous route on a refused update, and reports unresponsive old addresses in Connections and the CLI without deleting unrelated services ([#3565](https://github.com/BotHarness/DeepSeekBot/issues/3565), [#3566](https://github.com/BotHarness/DeepSeekBot/issues/3566)).
+
+- Tailscale commands now run without a console window on Windows, avoiding startup stalls that made a running service appear stopped ([#3565](https://github.com/BotHarness/DeepSeekBot/issues/3565)).
+
+- Connect account diagnostics distinguish relay and sign-in service transport failures, HTTP refusals and invalid responses without recording credentials or response bodies ([#3567](https://github.com/BotHarness/BotHarness/issues/3567)).
+
+- Connect sign-in retries temporary service failures within the original authorization deadline, distinguishes unavailable local credentials from service failures, and tells users when another sign-in is required instead of promising automatic recovery ([#3567](https://github.com/BotHarness/BotHarness/issues/3567)).
+
+- Fixed channel-group creation, renaming and deletion to wait for the Host, preserve failed edits for retry and avoid duplicate submissions; a failed move after creation keeps the new group ([#3570](https://github.com/BotHarness/DeepSeekBot/issues/3570)).
+
+- Desktop zoom setup now refuses a theme whose qualified source version differs from the selected DSH Desktop release, preventing an older theme from replacing newer icon resources; disabling an existing override remains available after upgrading DSH ([#3584](https://github.com/BotHarness/BotHarness/issues/3584)).
+
+- On iPhone, when local-network pairing fails before the computer answers, the app now asks iOS whether Local Network access is blocked. A blocked permission shows the Local Network message and the Open Settings button, instead of the generic "can't reach your computer" error ([#3587](https://github.com/BotHarness/DeepSeekBot/pull/3587)).
+
+- On iPhone, connecting to your computer over the local network no longer fails right after the connection opens. Pairing showed "can't reach your computer", and already paired computers failed to load chats, even with Local Network access turned on ([#3587](https://github.com/BotHarness/DeepSeekBot/pull/3587)).
+
+- Android composer holds keep dictation active instead of losing the touch to native editing or reopening an already-granted microphone permission prompt; release still stops recording for manual review and Send ([#3592](https://github.com/BotHarness/DeepSeekBot/issues/3592)).
+
+- Scanning a pairing code that has only local-network addresses now opens the Wi-Fi pairing screen, not "Use Tailscale" ([#3596](https://github.com/BotHarness/DeepSeekBot/pull/3596)).
+
+- On a cold start, the chat list no longer flashes "Could not refresh chats" when the first connection attempt fails and the quick automatic retry succeeds ([#3596](https://github.com/BotHarness/DeepSeekBot/pull/3596)).
+
+- Mobile keeps older Hosts connected when their optional incremental chat-list endpoints are absent, using the full chat list instead of reporting the Host offline ([#3600](https://github.com/BotHarness/DeepSeekBot/issues/3600)).
+
+- Restored the visible Call icon in Android chat headers ([#3619](https://github.com/BotHarness/DeepSeekBot/issues/3619)).
+
+- Kept reaction chips visible and reachable between consecutive chat messages ([#3620](https://github.com/BotHarness/DeepSeekBot/issues/3620)).
+
+- iOS chat headers keep names and status inside their glass backgrounds at larger text sizes, with matching heights for Back, identity, Call and Profile controls ([#3621](https://github.com/BotHarness/DeepSeekBot/issues/3621)).
+
+- Phone calls allow time for reconnecting to the computer before media startup completes, avoiding premature connection timeouts after returning from microphone settings ([#3624](https://github.com/BotHarness/DeepSeekBot/issues/3624)).
+
+- Retry a Soniox utterance once after an abnormal connection loss, within the original recognition timeout and without saving audio to disk. Incomplete recognition is never sent as a successful sentence ([#3631](https://github.com/BotHarness/DeepSeekBot/issues/3631)).
+
+- Deleting a Bot now atomically clears its Group memberships and ownership; stale members are hidden on Group reads, repaired on Host restart and can be removed without a live Bot profile ([#3635](https://github.com/BotHarness/DeepSeekBot/issues/3635)).
+
+- Added a matching desktop zoom theme for DSH 0.2.2-rc.1, preserving its native icons and appearance resources while retaining the 0.2.1-rc.2 theme; setup selects the matching payload and supports switching or disabling an owned override after an upgrade ([#3639](https://github.com/BotHarness/BotHarness/issues/3639)).
+
+- iOS development reloads discard queued rendering commands whose native delegate has been destroyed, preventing a crash after clearing an input and switching apps ([#3643](https://github.com/BotHarness/DeepSeekBot/issues/3643)).
+
+- iOS chat header Bot and Channel avatars, including the active-Bot stack and default Channel mark, grow with larger text alongside the glass controls and action icons ([#3621](https://github.com/BotHarness/DeepSeekBot/issues/3621)).
+
+- Call controls keep long audio-device names within their own column at large system text sizes, with wrapping labels and controls on narrow screens ([#3646](https://github.com/BotHarness/DeepSeekBot/issues/3646)).
+
+- Answered Channel questions consistently report answered status, including questions without a timed-call ID and after a Host restart ([#3648](https://github.com/BotHarness/DeepSeekBot/issues/3648)).
+
+- Account computers on mobile now show a single-line name, a connection-status dot and explicit status, with the same local name and icon customization as paired Wi-Fi and Tailscale computers; customization is kept when pairing ([#3660](https://github.com/BotHarness/DeepSeekBot/issues/3660)).
+
+- Kept Bot mode in the full Control Rail workspace or the mobile single-column layout when resizing, and restored the workspace on DSH 0.2.2 shells without clearing saved layouts ([#3665](https://github.com/BotHarness/DeepSeekBot/issues/3665)).
+
+- Removed redundant recipient placeholders from mobile message fields so empty composers stay compact at large text sizes, while preserving accessible labels and multiline drafts; iOS now shares Android's hold-to-dictate input gesture ([#3666](https://github.com/BotHarness/DeepSeekBot/issues/3666)).
+
+- Tobs Connect settings list the account's computers and let you confirm sign-out of another computer to free a slot at the five-computer limit, with matching CLI commands. Remote sign-out requires the relay session migration and Worker rollout; older unbound computers are labelled as removal only and may reconnect ([#3672](https://github.com/BotHarness/DeepSeekBot/issues/3672)).
+
+- Activity rows now remeasure when iOS system text size changes, keeping enlarged conversation text inside its row; Activity toolbar symbols stay within their touch targets without limiting menu text ([#3673](https://github.com/BotHarness/DeepSeekBot/issues/3673)).
+
+- Fixed the phone Activity search hiding its field when the keyboard is dismissed while the query stays active, so a filtered list no longer passes for a truncated full list; closing via X still clears the query ([#3678](https://github.com/BotHarness/DeepSeekBot/issues/3678)).
+
+- GenUI Web documents follow the conversation font-size preference, retaining authored proportions and reflow without resetting private selections; default form controls stay within narrow viewports ([#3711](https://github.com/BotHarness/DeepSeekBot/issues/3711)).
+
+- Clearing message content also removes its retained GenUI private drafts and submission attempts, including views that are not open; late save responses cannot restore them ([#3711](https://github.com/BotHarness/DeepSeekBot/issues/3711)).
+
+- GenUI continuations keep the Human's readable request in the ordinary message body. Validated, bounded model context remains in the same canonical Source Event and reaches both immediate and recovered Bot turns without displaying developer JSON in new messages ([#3711](https://github.com/BotHarness/DeepSeekBot/issues/3711)).
+
+- GenUI preview refusals preserve recognized Browser startup failure kinds and report cleanup failures without discarding an earlier refusal code or exposing process output and private profile paths ([#3711](https://github.com/BotHarness/DeepSeekBot/issues/3711)).
+
+- Local Bot Browser shutdown waits for process and inherited stdio closure before releasing its profile; an unconfirmed shutdown fails explicitly and retains ownership instead of reporting success immediately after a kill signal ([#3711](https://github.com/BotHarness/DeepSeekBot/issues/3711)).
+
+- GenUI's default table style keeps words intact inside an opt-in horizontal scroll region on narrow screens; the maintained interactive example reuses row identities so selecting a row does not discard keyboard focus ([#3711](https://github.com/BotHarness/DeepSeekBot/issues/3711)).
+
+- Rich GenUI documents start faster: the trusted guest DOM defers its stylesheet parser until a document first reads a `<style>` sheet and ships one copy of its HTML entity tables, so each document no longer parses about 200 KB of unused interpreter code at startup; the execution Worker also decodes its packaged interpreter without a per-byte callback, and the document runtime and Worker validate with the tree-shakable Zod Mini API, shrinking the runtime from 1.8 MB to 1.2 MB; the fixed script-disabled document frame now starts loading while the runtime downloads, and the runtime request starts when the card renders instead of after the conversation commits ([#3711](https://github.com/BotHarness/DeepSeekBot/issues/3711)).
+
+- Asking a Bot what it saw at a moment of a call now finds the camera or screen picture that covered that moment, even when the picture began earlier or was saved later, such as a record of 00:00–00:13 for "seconds 5 to 9". What you said and its replies are still matched by when they were sent. `deepseekbot call-read` reads the same way ([#3713](https://github.com/BotHarness/DeepSeekBot/issues/3713)).
+
+- Stopping an Assignment from the phone, Sessions panel, or `session-stop` now really stops it: a further Assignment Request is refused while it stays stopped instead of silently resuming it, so in-flight Orchestrator rounds wind down instead of redispatching the stopped work. After an explicit Human instruction to continue, call `unarchive_assignment` first and then send the request again ([#3725](https://github.com/BotHarness/DeepSeekBot/issues/3725)).
+
+- Bot workbench shadows no longer black-screen the desktop when another Bot-style plugin occupies the same sidebar slot: shadow entries moved off the conventional `-100`/`-1` priorities, same-priority occupants are skipped with a warning (keeping the first entry), and fallback priorities are tried before giving up ([#3730](https://github.com/BotHarness/BotHarness/issues/3730)).
+
+- Android Tob sign-in completes when the Google/Apple login redirect lands just after the browser closes, and shows “Sign-in did not finish. Try again.” instead of silently returning to Chats when the browser is dismissed before sign-in finishes ([#3732](https://github.com/BotHarness/DeepSeekBot/issues/3732)).
+
+- Android Tob sign-in stays on the Environments page after success instead of dropping back to Chats: the OAuth callback URL is consumed by the sign-in flow and no longer routed as navigation ([#3734](https://github.com/BotHarness/DeepSeekBot/issues/3734)).
+
+- Connect retries repair a computer's DNS record after partial tunnel setup, instead of returning a connection token while account pairing remains unreachable ([#3736](https://github.com/BotHarness/DeepSeekBot/issues/3736)).
+
+- Clear a Group member action's error when it is retried, and show the error when the request itself fails, in the invite, attention, wake setting and member removal controls ([#3739](https://github.com/BotHarness/DeepSeekBot/pull/3739)).
+
+- Keep a stopped or committed Group send-review draft in its final state after the review window passes, so `channel_action` `inspect` no longer reports it as `expired` ([#3739](https://github.com/BotHarness/DeepSeekBot/pull/3739)).
+
+- Fixed a false failure warning after successfully unpairing a phone over an encrypted LAN connection, and restored workspace navigation when unpairing returns from a notification-opened page ([#3741](https://github.com/BotHarness/BotHarness/issues/3741)).
+
+- Android background badge updates no longer clear pending message and request notifications, including notifications from other computers ([#3760](https://github.com/BotHarness/DeepSeekBot/issues/3760)).
+
+- Tapping a notification from a cold start now opens it even when the phone is showing a different computer that is offline. Startup updates to the page already on screen and a source that fails its first refresh no longer cancel the tap; only a page or workspace you choose does, and a destination that still cannot open shows an error ([#3771](https://github.com/BotHarness/DeepSeekBot/issues/3771)).
+
+- At the largest accessibility text sizes on the phone, computer names in Workspaces, Bot names in Chats and the computer name in the Chats header wrap instead of shrinking to a few letters; in Chats the time and unread count move under the name so the count no longer covers the avatar. Notification settings put the switch under its label so words are not cut, and on iOS every bottom tab label keeps the same size whether selected or not ([#3773](https://github.com/BotHarness/DeepSeekBot/issues/3773)).
+
+- At accessibility text sizes, iOS settings rows with a symbol keep a wrapped subtitle under the title instead of under the icon ([#3796](https://github.com/BotHarness/DeepSeekBot/issues/3796)).
+
+- On iPhone, muting the microphone during a Bot call no longer makes the Bot's voice quieter or cuts it briefly. The microphone is silenced inside voice processing, so the orange microphone indicator stays on while muted ([#3811](https://github.com/BotHarness/DeepSeekBot/pull/3811)).
+
+- The call's Lock Screen Live Activity now counts as m:ss from the first frame instead of `<1 minute`, and at the largest text sizes the time and the Mute button no longer wrap or get clipped ([#3814](https://github.com/BotHarness/DeepSeekBot/pull/3814)).
+
+- Returning to an Android Bot call keeps its live computer connection instead of reconnecting and hanging up the call; idle and disconnected computers still use normal foreground recovery ([#3815](https://github.com/BotHarness/DeepSeekBot/issues/3815)).
+
+- Returning to an iPhone Bot call from the background no longer reconnects the computer and hangs up the call; the call keeps its live connection as on Android ([#3815](https://github.com/BotHarness/DeepSeekBot/issues/3815)).
+
+- Android keeps a Bot call connected when system text size changes, while updating native controls and React Native text to the new size ([#3820](https://github.com/BotHarness/DeepSeekBot/issues/3820)).
+
+- Device call opening uses its existing connection budget through Host checks and media startup, without an ordinary-command or connected-call heartbeat deadline cutting it short; cancellation also closes media that finishes starting late ([#3831](https://github.com/BotHarness/DeepSeekBot/issues/3831)).
+
+- Hanging up a call while the camera or screen is shared now tells the Host the share is off before the call ends, so the Host records `visual off`. The Host also turns a share off itself when a call ends with it still on, for example when the page closes ([#3785](https://github.com/BotHarness/DeepSeekBot/issues/3785)).
+
+- A Bot's proactive Feishu/Lark DM to its owner no longer fails with `send-permission-denied` once the owner has chatted with it: the private chat posts through its saved send target with a checked receipt instead of the Group-only speaking check, and an unsaved private chat is no longer listed as postable ([#3842](https://github.com/BotHarness/DeepSeekBot/issues/3842)).
+
+- In the desktop workspace rail, the Bot avatar at the top is now the same size and corner shape as the Panel buttons and turns into a matching exit button on hover, and the buttons at the bottom share one size and spacing, with the leave button in the destructive color ([#3853](https://github.com/BotHarness/DeepSeekBot/pull/3853)).
+
+- Calls no longer play an automatic "嗯" / "Mm-hm" after each sentence; everything the Bot says in a call is its own reply ([#3871](https://github.com/BotHarness/DeepSeekBot/issues/3871)).
+
+- Reduce synchronous Host log-retention work at the 50,000-row limit while preserving the same retained entries and age boundary ([#3874](https://github.com/BotHarness/DeepSeekBot/issues/3874)).
+
+- Speaking while a Bot is working no longer freezes the Host: the Human's words reach the Bot at once, and Memory edits made meanwhile follow a moment later instead of being checked first on the Host's main thread ([#3895](https://github.com/BotHarness/DeepSeekBot/issues/3895)).
+
+- The phone reconnects as soon as it learns a computer's new Connect address, a short drop no longer shows anything, and a lasting outage shows a small offline chip under the header instead of a full-width banner, in a chat and on the chat list. A newly connected computer no longer lists as offline, a signed-in computer refuses `connect-disable` instead of reconnecting a minute later, and sign-in shows the relay error instead of staying on the browser step ([#3924](https://github.com/BotHarness/DeepSeekBot/pull/3924)).
+
+- Fix blank messages in the opt-in Android RecyclerView after composer padding changes, and avoid JavaScript block measurements when that list has no Fabric content surface ([#3950](https://github.com/BotHarness/DeepSeekBot/issues/3950)).
+
+- On Android, wide code blocks and tables inside a chat message scroll sideways again instead of starting a swipe-to-reply, and a message sent with the keyboard open now lands fully above the composer instead of half behind it ([#3955](https://github.com/BotHarness/DeepSeekBot/issues/3955)).
+
+- Fix the opt-in Android RecyclerView hiding the Human's own sent message, skipping or mirroring its send flight, leaving extra blank space below it, and cutting off the reading chip below a bubble ([#3956](https://github.com/BotHarness/DeepSeekBot/issues/3956)).
+
+- Fix the Android send flight: a sent message now flies from the composer into place instead of rising from behind it while the keyboard is open ([#3957](https://github.com/BotHarness/DeepSeekBot/issues/3957)).
+
+- The Window Companion no longer re-renders on every animation frame while it walks: its movement is drawn directly, which frees about a fifth of the main-thread script time while scrolling chat history ([#3987](https://github.com/BotHarness/DeepSeekBot/pull/3987)).
+
+- Scrolling chat history no longer re-renders the whole conversation on every scroll event, which cuts main-thread script time while scrolling by about a third ([#3987](https://github.com/BotHarness/DeepSeekBot/pull/3987)).
+
+- Record bounded Android ICE gathering and answer candidate counts in synthetic-call reports to diagnose intermittent connection failures without exposing SDP or network addresses. This requires a new native build and does not change connection behavior ([#3888](https://github.com/BotHarness/DeepSeekBot/issues/3888)).
+
+- Read Android call ICE gathering state before taking its answer snapshot, and require a candidate before sending the answer. An empty answer now waits for the existing gathering deadline instead of starting a connection that cannot use it ([#3888](https://github.com/BotHarness/DeepSeekBot/issues/3888)).
+
+- Android Bot calls keep their computer connection and heartbeat when you leave the app, even with notification “Keep connected” switched off; ending the call releases its background task and restores the normal connection policy ([#3802](https://github.com/BotHarness/DeepSeekBot/issues/3802)).
+
+- On Android, the speaker button on the call screen draws its icon at the same size as the mute, camera and hang-up icons instead of a smaller one ([#3847](https://github.com/BotHarness/DeepSeekBot/pull/3847)).
+
+- The Android app no longer closes when a conversation shows a GenUI document; the document now renders in place ([#4016](https://github.com/BotHarness/DeepSeekBot/pull/4016)).
+
+- Android dictation keeps listening across sentences and retains each recognized segment. The held input shows streaming text and may resize without ending the hold; speech inserts at the active caret, or appends when no caret is active, preserving the existing draft ([#3592](https://github.com/BotHarness/DeepSeekBot/issues/3592)).
+
+- Android's fading chat header no longer paints a second background over the blurred conversation; the status bar keeps its opaque backing ([#3590](https://github.com/BotHarness/DeepSeekBot/issues/3590)).
+
+- Prevent Android chats from rendering legacy buttons inside the hidden navigation header, which could crash when opening a conversation ([#3560](https://github.com/BotHarness/DeepSeekBot/pull/3560)).
+
+- Usage and activity charts now name the weekdays in the app's language, and Settings → Message display keeps its value on one line at the default text size ([#3897](https://github.com/BotHarness/DeepSeekBot/pull/3897)).
+
+- A stale encrypted connection no longer hangs up a call after the phone resumes control on another connection. Cancelled replies to existing-call commands also preserve the call; abandoned call starts still receive cleanup ([#3913](https://github.com/BotHarness/DeepSeekBot/issues/3913)).
+
+- Windows call and video cleanup receipts now use a separate launcher control channel so busy media output cannot hide confirmed cleanup. Calls can recover after late verified cleanup; missing proof still blocks another call ([#3877](https://github.com/BotHarness/DeepSeekBot/issues/3877)).
+
+- Add opt-in, bounded Host call connection diagnostics to distinguish ICE gathering and peer connection stages after an answer is accepted. Logs contain only ordered states and candidate counts, never SDP or network addresses ([#3888](https://github.com/BotHarness/DeepSeekBot/issues/3888)).
+
+- At the largest text size, turning the camera on in a call no longer pushes the call controls off the bottom of the screen. The name and status above them scroll instead ([#3930](https://github.com/BotHarness/DeepSeekBot/pull/3930)).
+
+- A GenUI card that formats many numbers no longer fails to open when it starts from a saved view ([#3930](https://github.com/BotHarness/DeepSeekBot/pull/3930)).
+
+- The phone no longer dials a Bot while the computer is already on a call with it from another window or device: tapping Call explains that a call is active elsewhere, the same as on desktop. The call time on the phone now follows the computer's clock and starts when the call connects, and call times read the same everywhere (for example `1:05`) ([#3783](https://github.com/BotHarness/DeepSeekBot/issues/3783)).
+
+- The blocked-microphone and missing-microphone notices in a Bot call now come from a typed media code, not from the error text, so rewording an error message can no longer hide them. On the phone, the call itself now reports a blocked microphone the same way as on desktop ([#3787](https://github.com/BotHarness/DeepSeekBot/issues/3787)).
+
+- Turning on the phone camera during a Bot call now asks for camera access before the computer is told, so cancelling or denying the camera prompt no longer leaves the computer believing the camera is on. Desktop and phone now share the camera or screen the same way, and hanging up with the camera on always stops it ([#3785](https://github.com/BotHarness/DeepSeekBot/issues/3785)).
+
+- Avoid duplicate media integrity checks when starting a fresh call and stop Windows verification reads when startup is cancelled. Readiness and safe replacement checks remain intact ([#3884](https://github.com/BotHarness/DeepSeekBot/issues/3884)).
+
+- Tapping the message list while typing now closes the keyboard, including taps on a message ([#3906](https://github.com/BotHarness/DeepSeekBot/pull/3906)).
+
+- Reading a Bot's reply on one device now clears its notification on the others: the phone removes reply notifications and in-app banners you already read on the computer, and the web app closes its notices for requests and replies handled on the phone. The Host also looks through up to 200 unread replies, so an older unread reply is no longer cleared as if it had been read ([#3879](https://github.com/BotHarness/DeepSeekBot/pull/3879)).
+
+- A computer that comes back to Tobs Connect after being released now gets a new address, so phones reach it within a minute instead of waiting up to 30 minutes for networks to forget the old one. Phones signed in to the account pick up the new address on their own ([#3873](https://github.com/BotHarness/DeepSeekBot/pull/3873)).
+
+- Connect frees a computer's DNS record together with its tunnel, repairs online computers that lost their record, and removes leftover tunnels and records every minute, so the hosted tunnel pool no longer fills with computers that are offline ([#3848](https://github.com/BotHarness/DeepSeekBot/pull/3848)).
+
+- When every hosted tunnel is in use, Connect hands the slot of the longest-offline or least recently used computer to a new one, and can spread computers across several Connect domains ([#3848](https://github.com/BotHarness/DeepSeekBot/pull/3848)).
+
+- The Tobs Connect screen shows how many shared tunnels are in use, your place in line and the earliest time a tunnel frees up, and how long your own tunnel is kept. An online computer keeps a new tunnel for at least 30 minutes; an offline one can give it up sooner ([#3848](https://github.com/BotHarness/DeepSeekBot/pull/3848)).
+
+- One account can register up to 3 computers with Tobs Connect, down from 5. Each computer holds one tunnel; phones reach it through that tunnel ([#3848](https://github.com/BotHarness/DeepSeekBot/pull/3848)).
+
+- The Connect relay caches pool status, skips rescanning a full pool until a tunnel can free up, indexes the waiting queue and rate-limits status reads, so each computer's once-a-minute check stays cheap ([#3848](https://github.com/BotHarness/DeepSeekBot/pull/3848)).
+
+- A computer connecting to Tobs Connect no longer keeps failing when the relay cannot create its address on one of the shared domains; it moves to another domain with room on the next try ([#3915](https://github.com/BotHarness/DeepSeekBot/pull/3915)).
+
+- The control rail's Mobile app and Diagnostic logs buttons now show their hover tooltips, and the Bot avatar at the top of the rail morphs into the centered exit icon with a short fade and scale ([#3940](https://github.com/BotHarness/DeepSeekBot/pull/3940)).
+
+- A Bot call on the Windows desktop keeps going while the window is minimized or closed to the tray: the Host now counts the call's live audio connection as a sign the window is still there, instead of ending the call when the hidden page answers late. Clicking the call notification or any message notification brings a minimized or tray-hidden window back to the front on the right chat, and a notification you clicked or dismissed no longer reappears while the window stays hidden. `deepseekbot desktop-window-reveal` brings the window back from the command line ([#3833](https://github.com/BotHarness/DeepSeekBot/issues/3833)).
+
+- Scrolling a long chat history on desktop now keeps up with 60 Hz and gets closer to 120 Hz: each message mounts into its own fixed slot instead of the shared list, so the page no longer restyles every loaded message. On a 600-message Group, frames over 16.7 ms while wheel-scrolling dropped from about 11% to about 1% with the history loaded and from about 14% to about 1% while older pages load ([#3982](https://github.com/BotHarness/DeepSeekBot/pull/3982)).
+
+- Scrolling a long chat history on desktop is smoother: mounting messages no longer restyles the whole window, so frames over 25 ms while wheel-scrolling a 600-message Group dropped from about 22% to about 6% ([#3972](https://github.com/BotHarness/DeepSeekBot/pull/3972)).
+
+- Dictation no longer reports ready while the Bot's local speech service on the computer is stopped: it says the service is off, so the phone switches to its own speech recognition instead of failing on the first words. Calls and dictation now pick a Bot's speech Provider the same way, and `deepseekbot voice-dictate` reports not ready with `local-voice-off` ([#3786](https://github.com/BotHarness/DeepSeekBot/issues/3786)).
+
+- Dictation through a desktop speech recognizer no longer drops a short word said on its own before a pause, such as "Book" followed by a breath before "a table" ([#3902](https://github.com/BotHarness/DeepSeekBot/pull/3902)). Calls keep their stricter filter for coughs and taps.
+
+- Dictating on the phone into an existing draft now spaces words like the desktop: "Book" + "a table" becomes "Book a table", Chinese and Japanese still join without a space, and text after the cursor stays in place. Cancelling restores the draft, and the phone now says when dictation stopped at the 2-minute limit ([#3784](https://github.com/BotHarness/DeepSeekBot/issues/3784)).
+
+- On the phone app, a direct link to a Host comes back after the phone changes network (for example from Wi-Fi to a hotspot). The app keeps using the private route meanwhile and offers a new direct link a few seconds after the old one drops, or right away when the private route reconnects, backing off up to five minutes while direct keeps failing ([#3747](https://github.com/BotHarness/DeepSeekBot/issues/3747)).
+
+- A chat with several GenUI cards now starts their pages two at a time, so the cards no longer show "This document can't run here" when the chat opens ([#3942](https://github.com/BotHarness/DeepSeekBot/pull/3942)).
+
+- After the app cold-starts, GenUI cards in a chat no longer show "This document can't run here" just because their pages were still loading ([#3938](https://github.com/BotHarness/DeepSeekBot/pull/3938)).
+
+- A GenUI card now shows the choices you saved after the app restarts, even when the Bot's document listens for restored state on `document` instead of `window`. Before, the Host kept your choices but the card went back to its starting values ([#3917](https://github.com/BotHarness/DeepSeekBot/pull/3917)).
+
+- A GenUI card that draws itself only when its saved state is restored now shows that state when it opens, instead of its starting values ([#3929](https://github.com/BotHarness/DeepSeekBot/pull/3929)).
+
+- On iOS, the Chats header keeps the Host name on one line with a trailing ellipsis at the largest accessibility text sizes, instead of breaking it inside a word over several lines ([#3548](https://github.com/BotHarness/DeepSeekBot/pull/3548)).
+
+- The Host no longer freezes for seconds while it reads Bot memory activity, checks Git, admits another Bot over Tailscale or detects phone routes on Windows: those commands now start off the Host's main thread, so Bot calls keep their heartbeat, speech and playback on time ([#3895](https://github.com/BotHarness/DeepSeekBot/issues/3895)).
+
+- A phone with the new app no longer disconnects from a computer running Tobs 1.6.x every 20 seconds. Features that computer does not have now say to update Tobs on the computer instead of "The Host answered 404" ([#3998](https://github.com/BotHarness/DeepSeekBot/pull/3998)).
+
+- The phone and the computer now tell each other their Tobs versions, so a release can suggest updating the computer or the app without stopping the Human from using it ([#3998](https://github.com/BotHarness/DeepSeekBot/pull/3998)).
+
+- The environment drawer now uses the localized “All environments” label. On Android and iOS, it shows up to three overlapping environment icons using each computer's chosen appearance ([#3589](https://github.com/BotHarness/DeepSeekBot/issues/3589)).
+
+- Opening a long chat on iOS starts drawing at the newest message instead of first laying out older messages that are off screen. On an iPhone XS Max this halves main-thread text layout when opening a long conversation and removes the hitches when jumping back to the latest message ([#3974](https://github.com/BotHarness/DeepSeekBot/issues/3974)).
+
+- Signing in to Tobs Connect on iOS no longer types every code digit twice. WorkOS's sign-in page doubled each key on iOS 27 Safari, so the app now asks for your email and the 6-digit code in its own sheet, with the code suggested from Mail, and the Connect relay checks the code with WorkOS. Continue with Apple and Continue with Google go straight to Apple's or Google's sign-in page, and SSO stays under Other sign-in options. Closing that page brings you back to the sign-in sheet ([#3464](https://github.com/BotHarness/DeepSeekBot/issues/3464)).
+
+- On iOS, choosing In app only for a computer now shows a banner at the top of the app when a Bot replies or asks for approval while the app is open. Before, the iPhone never read the alerts it needed, so no banner appeared ([#3912](https://github.com/BotHarness/DeepSeekBot/pull/3912)).
+
+- On iOS, the conversation now moves together with the keyboard as it opens, closes or is dragged down, instead of being covered first and jumping into place afterwards ([#3916](https://github.com/BotHarness/DeepSeekBot/pull/3916)).
+
+- On iPhone, the app no longer runs encryption work for a saved Computer that is switched off or has moved; it starts the secure handshake only after the Computer answers, which saves CPU and battery when several old Computers are saved ([#3954](https://github.com/BotHarness/DeepSeekBot/pull/3954)).
+
+- Long Markdown replies on iOS no longer re-measure every paragraph each time the reply is laid out. On an iPhone XS Max this cuts main-thread text layout when opening a long conversation by about a quarter to a third ([#3974](https://github.com/BotHarness/DeepSeekBot/issues/3974)).
+
+- Opening a conversation on iOS does less text layout work up front: Markdown text now lays out only the parts that are needed. On an iPhone XS Max this cuts main-thread time when opening a conversation by about a quarter ([#3974](https://github.com/BotHarness/DeepSeekBot/issues/3974)).
+
+- On the local network, a Computer whose security key has changed now shows that it needs to be paired again, on both iPhone and Android ([#3952](https://github.com/BotHarness/DeepSeekBot/pull/3952)).
+
+- In conversations, a quick flick that ends at the newest message without coasting now hides the jump-to-latest arrow instead of leaving it on screen ([#3889](https://github.com/BotHarness/DeepSeekBot/pull/3889)).
+
+- Tapping a link in a Bot message while typing now only closes the keyboard, like any other tap in the conversation ([#3911](https://github.com/BotHarness/DeepSeekBot/pull/3911)).
+
+- An image or file that changes on the computer, because a Bot or another app edited it or because media was cleared to free space, now updates in an open chat on the phone and the desktop right away. The phone also deletes its saved copy of the old version. A newly sent image is ready for the phone's cache from its first appearance, and when the computer revokes the phone, its saved chats are cleared along with the media ([#3505](https://github.com/BotHarness/DeepSeekBot/issues/3505)).
+
+- When you purge messages on the computer, the phone now also deletes its saved copies: the message text in the chat cache, downloaded images and files, and copies made for sharing. A phone that was offline does this as soon as it reconnects. Removing a computer from the phone, or the computer removing the phone, deletes everything the phone saved from that computer, and other paired computers are not affected ([#3509](https://github.com/BotHarness/DeepSeekBot/issues/3509)).
+
+- Memory checks before and after a Bot reply now wait for Git without blocking the computer's call heartbeats; conflicting Memory commands report that an observation is in progress ([#3638](https://github.com/BotHarness/DeepSeekBot/issues/3638)).
+
+- Opening a conversation no longer nudges the latest message up a little once loading finishes ([#3922](https://github.com/BotHarness/DeepSeekBot/pull/3922)).
+
+- On iOS and Android, tapping send twice quickly no longer sends the same attachments a second time ([#3865](https://github.com/BotHarness/DeepSeekBot/pull/3865)).
+
+- Swiping left replies only when the gesture starts on a message bubble. Empty space beside messages remains available for opening the profile page ([#3599](https://github.com/BotHarness/DeepSeekBot/issues/3599)).
+
+- On iOS and Android, a message is sent once with all of its text even when the send button is tapped twice quickly or right after the last keystroke, and a sent message no longer comes back into the composer or reappears after restarting the app ([#3863](https://github.com/BotHarness/DeepSeekBot/pull/3863)).
+
+- On iOS, choosing Off for notification delivery now hides the "Notify me about" switches on a real phone too; before, they stayed visible because the phone's own preferences were always loaded ([#3902](https://github.com/BotHarness/DeepSeekBot/pull/3902)).
+
+- On iOS, the first dictation with the phone's own speech recognition no longer fails with "Voice input stopped" right after you allow speech recognition; it now starts listening once the permission prompt closes ([#3907](https://github.com/BotHarness/DeepSeekBot/pull/3907)).
+
+- On iPhone, opening a chat link while the Customize computer sheet was still open no longer leaves a blank screen with a "Maximum update depth exceeded" error. The chat opens over the sheet, and Back returns to the sheet ([#3615](https://github.com/BotHarness/DeepSeekBot/issues/3615)).
+
+- On iPhone and Android, opening a chat no longer leaves it stuck on the loading placeholder. The messages now appear when they arrive after the list has already settled. If the list keeps resizing and can't settle, a Retry button appears instead ([#3602](https://github.com/BotHarness/DeepSeekBot/issues/3602)).
+
+- On iPhone and Android, a paired computer that keeps failing or can't be reached no longer costs data every few seconds while the app is open. The phone waits longer between tries, up to five minutes, and tries again right away when you come back to the app or tap retry. When it reconnects, it reuses the list order and settings it read in the last ten minutes instead of downloading them again ([#3609](https://github.com/BotHarness/DeepSeekBot/issues/3609)).
+
+- Phones can load chats from computers that require JSON request headers, instead of retrying an unreachable connection after pairing ([#3695](https://github.com/BotHarness/DeepSeekBot/issues/3695)).
+
+- Leaving the phone's Chats screen while a message search is still waiting no longer sends that search to the computer afterwards ([#3585](https://github.com/BotHarness/DeepSeekBot/pull/3585)).
+
+- The mobile app hint in the Control Rail and the sessions tour are now remembered by the Host Profile, so a dismissed hint no longer comes back, and the sessions item of the getting-started checklist no longer unchecks itself, after a restart that loses browser storage, a new port or another browser. `deepseekbot acknowledge mobile-apps` and `deepseekbot acknowledge onboarding-sessions` record them ([#3921](https://github.com/BotHarness/DeepSeekBot/issues/3921)).
+
+- The "Try it" hint next to Bot mode, the getting-started intro, release notes, update notices and the telemetry notice are now remembered by the Host Profile instead of one browser origin, so they no longer come back after a restart that loses browser storage, a new port or another browser. A paused interface tour no longer reopens on every Bot mode entry. `deepseekbot acknowledgements` and `deepseekbot acknowledge` read and record these notices ([#3918](https://github.com/BotHarness/DeepSeekBot/issues/3918)).
+
+- The app no longer re-sends notification choices to an unreachable Computer each time another Computer reconnects; it now retries with backoff, saving battery and network ([#3946](https://github.com/BotHarness/DeepSeekBot/pull/3946)).
+
+- Phone push, badges and clearing read notifications work again. Since the change that clears read replies on every device, the Host asked for more unread replies than one query allows, so every push update failed before reaching any phone. Replies are now read in pages ([#3902](https://github.com/BotHarness/DeepSeekBot/pull/3902)).
+
+- While the phone app is open, new requests and replies show as an in-app banner instead of a system notification. The app also no longer alerts for a Bot reply in the chat you already have open, or from the Bot you are on a call with: the system banner, sound and in-app banner are all skipped, a waiting banner for that chat goes away when you open it, and approvals and questions still alert ([#3846](https://github.com/BotHarness/DeepSeekBot/pull/3846)).
+
+- On iOS and Android, the chip that shows which Bots are reading a message now floats over the conversation instead of adding space below the message, so the list no longer shifts or scrolls when a Bot starts or stops reading ([#3850](https://github.com/BotHarness/DeepSeekBot/pull/3850)).
+
+- The Computer list now shows "Pair again" for a Computer that no longer accepts this phone's pairing, instead of "Offline" ([#3953](https://github.com/BotHarness/DeepSeekBot/pull/3953)).
+
+- On iOS, a message you just sent now shows its text while it moves into place instead of appearing as an empty colored block, and the conversation moves down together with the message box as it shrinks after sending ([#3896](https://github.com/BotHarness/DeepSeekBot/pull/3896)).
+
+- On iOS, sending a message no longer makes the conversation jump down in steps while the message box shrinks back to one line; the newest message now stays right above the message box as it collapses ([#3894](https://github.com/BotHarness/DeepSeekBot/pull/3894)).
+
+- A message you send now shows its time right away, and the check mark appears once it is delivered, so the bubble no longer grows by a line when the send completes ([#3901](https://github.com/BotHarness/DeepSeekBot/pull/3901)).
+
+- The sticky speaker avatar's native iOS unit tests run on iOS 27 Simulators again; they no longer wait on an app host that cannot launch without a UIScene lifecycle ([#3801](https://github.com/BotHarness/DeepSeekBot/pull/3801)).
+
+- A saved Computer that keeps rejecting this phone's secure connection now shows that it needs to be paired again, instead of retrying in the background. When another Computer reconnects, the app no longer re-registers notifications with every saved Computer ([#3948](https://github.com/BotHarness/DeepSeekBot/pull/3948)).
+
+- In group chats on iOS and Android, the sender avatar that stays above the composer is positioned natively in the same frame as the scroll, so it tracks your finger while you scroll history instead of lagging a frame behind or jumping up and down ([#3801](https://github.com/BotHarness/DeepSeekBot/pull/3801)).
+
+- Include bounded control timing and terminal-state metadata in synthetic mobile call reports to distinguish control loss from media failure, without logging request bodies, credentials or network addresses ([#3638](https://github.com/BotHarness/DeepSeekBot/issues/3638)).
+
+- Desktop chat history no longer stays blank after the messages on screen are replaced or removed; the timeline re-renders the messages at your scroll position instead of waiting for you to scroll to the top ([#3312](https://github.com/BotHarness/DeepSeekBot/pull/3312)).
+
+- Fixed model pickers, session-stop panels and anchored menus on DSH 0.2.2-rc.2, and restored Bot Subagent creation across the old and new Host request formats ([#4019](https://github.com/BotHarness/DeepSeekBot/issues/4019)).
+
+- Restored optional whole-window zoom on the official DSH 0.2.2-rc.2 Desktop using its matching theme, while retaining integrity checks and refusal of unknown Desktop versions ([#4024](https://github.com/BotHarness/DeepSeekBot/issues/4024)).
+
+- On Android, swiping left on a short table in a message now replies to it instead of opening the Bot's side panel ([#4028](https://github.com/BotHarness/DeepSeekBot/pull/4028)).
+
+### Changed
+
+- The message box measures its height at most once per frame instead of on every keystroke, so typing does less layout work while Bots stream replies ([#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)).
+
+- Show a Bot that is working as a static green dot in the channel list, and drop the animated dots after the working header and the reading receipt, to reduce typing delay while Bots stream replies ([#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)).
+
+- Use an Android-specific key-agreement implementation when opening encrypted Host connections, preserving the existing protocol and Host-key checks ([#3257](https://github.com/BotHarness/DeepSeekBot/issues/3257)).
+
+- Open Android chats from the newest messages with a bounded render window, while retaining cached history and adapting pagination, keyboard gestures and long-message rendering to the latest-first list ([#3257](https://github.com/BotHarness/DeepSeekBot/issues/3257)).
+
+- Chat headers, and the iOS chat-list header, show connecting and reconnecting text alongside the progress indicator ([#3257](https://github.com/BotHarness/DeepSeekBot/issues/3257)).
+
+- Avoid rebuilding a closed recent-chat panel behind another Android chat; prepare the newest recent chat when returning to the list while retaining an opened panel and its draft across profile navigation ([#3257](https://github.com/BotHarness/DeepSeekBot/issues/3257)).
+
+- Show Android chat messages once the inverted list has valid dimensions and is at the latest position, without waiting additional stable frames ([#3257](https://github.com/BotHarness/DeepSeekBot/issues/3257)).
+
+- Start reading an existing Android conversation as its page opens, sharing the page's subscription and releasing preparation when navigation is abandoned or the Host is removed ([#3257](https://github.com/BotHarness/DeepSeekBot/issues/3257)).
+
+- Chat components reuse theme color calculations within the same appearance scope while preserving system color and text-size updates ([#3257](https://github.com/BotHarness/DeepSeekBot/issues/3257)).
+
+- Bot avatars in the conversation reuse their drawn image instead of rebuilding it each time a message group scrolls into view, and the context-window label no longer creates a number formatter on every update while a Bot streams ([#3277](https://github.com/BotHarness/DeepSeekBot/issues/3277)).
+
+- Sidebar rows for Bots and conversations skip re-rendering when their own data did not change, and a roster refresh keeps unchanged Bots and conversations as they were. While one Bot streams, the other rows and their avatars, tooltips and status glyphs no longer re-render on every update ([#3277](https://github.com/BotHarness/DeepSeekBot/issues/3277)).
+
+- Human Inbox and Activity Center now share one name, **Activity**, on desktop, phone, docs and the CLI. The CLI commands are now `activity`, `activity-watch`, `activity-status`, `activity-dismiss` and the rest of the `activity-*` set; the old `inbox-*` names still work ([#3321](https://github.com/BotHarness/DeepSeekBot/issues/3321)).
+
+- Long conversations do less style work while messages arrive: Bot name and chart colors read the conversation background once per theme change instead of on every render ([#3370](https://github.com/BotHarness/DeepSeekBot/pull/3370)).
+
+- On a Local Computer (macOS or Windows), the Bot Browser now opens as a window on the desktop instead of running hidden, so the Computer view on your phone shows it while the Bot browses. Taking control of the Computer also pauses that Bot's Browser actions, and pausing a Bot's Browser pauses its Computer actions; after you hand control back, the Bot reads the page again before acting ([#3378](https://github.com/BotHarness/DeepSeekBot/issues/3378)).
+
+- Bot calls answer sooner: a short "嗯" plays as soon as you stop talking, and the Bot starts speaking its first sentence while the rest of the reply is still being written instead of after the whole reply. A reply the Bot drops mid-way stops at once, and the voice bar kept in the chat holds exactly what you heard. `deepseekbot call-simulate` now reports `ackMs`, `firstTextMs` and per-reply timings ([#3401](https://github.com/BotHarness/DeepSeekBot/issues/3401)).
+
+- You can now cut in while a Bot talks on a call: its voice drops right away when you start speaking and stops once it is clear you are talking, and what you say goes to the chat. Coughs, knocks, short noise, a murmured "嗯" and the Bot's own voice from the speaker do not interrupt it. An interrupted reply keeps only what you heard as its voice bar. `deepseekbot call-simulate` can script a barge-in with an `"after": "playing"` step and reports `bargeIns` ([#3402](https://github.com/BotHarness/DeepSeekBot/issues/3402)).
+
+- Bots can now hand work to each other for up to 128 hops after each of your messages (was 32), so multi-step chains like you → A → B → C run without you nudging them along. You can change the limit in Settings → Messaging or with `deepseekbot settings-set botharness-client`. When a chain does run out, the sending Bot's message is refused and the Bot is told why, instead of the message landing in the colleague's Inbox without waking it ([#3409](https://github.com/BotHarness/DeepSeekBot/issues/3409)).
+
+- In mobile chats, swipe left on a message to reply; a swipe left anywhere else still opens the profile, and a swipe right is always Back, including the iOS full-screen back swipe ([#3411](https://github.com/BotHarness/DeepSeekBot/issues/3411)).
+
+- Single-line chat bubbles inside a message group keep the multi-line corner radius on their outer corners instead of turning into separate pills; a lone single-line bubble is a full pill, and on mobile the last bubble's author-side bottom corner is a small tail like the desktop/web client ([#3414](https://github.com/BotHarness/DeepSeekBot/pull/3414)).
+
+- The Messages panel header now shows how many Orchestrator and Assignment Sessions are running, one Bot's in a DM and every member Bot's in a Group. Click the count, the Bot avatar and name in a DM, or the working avatars in a Group to see the running Sessions grouped by Bot: stop one with a single click, stop all of one Bot, or open the Sessions panel. The composer no longer turns into Stop, so Send is always Send ([#3430](https://github.com/BotHarness/DeepSeekBot/issues/3430)).
+
+- Stopping a Bot is now safe at any point of its turn. A half-written reply is discarded with the "Reply interrupted and not sent" note, its held Group drafts can no longer be recovered, and an external IM send with an unknown outcome is never retried. A tool call that was still running is recorded with an unknown result, and the Bot's next turn is told to check it before redoing anything. Open approval cards of the stopped Session close as "Session stopped" on desktop and mobile. An Assignment the stopped turn was still creating is stopped too, and a stop that has not settled after 30 seconds discards the run ([#3433](https://github.com/BotHarness/DeepSeekBot/issues/3433)).
+
+- Calls with a whole-sentence speech-to-text Provider (such as Groq or a local SenseVoice service) now recognize each piece of what you say at short pauses while you keep talking, and the call screen shows those pieces as they come in. When you stop, only the last piece is left to recognize, so your words reach the chat sooner; `call-simulate` reports how many pieces each sentence used ([#3436](https://github.com/BotHarness/DeepSeekBot/issues/3436)).
+
+- Calls with Soniox now open the next connection while you are still in the call, so short sentences show live text from the first word instead of waiting for the connection to start ([#3436](https://github.com/BotHarness/DeepSeekBot/issues/3436)).
+
+- The iPhone call Live Activity now shows who the call is with: the Bot's avatar leads the Dynamic Island and the Lock Screen card, with a small app icon badge on the expanded card, and the Bot's initial on its colour when it has no avatar yet ([#3475](https://github.com/BotHarness/DeepSeekBot/issues/3475)).
+
+- Adapted Bot tool execution, model selection and tool-free approval reviews to DSH 0.2.2-rc.1 while retaining the older Host API paths and the 0.2.0 installation floor ([#3477](https://github.com/BotHarness/DeepSeekBot/issues/3477)).
+
+- Phone Bot calls do less work in the background: the Host check-in slows from every second to every 3 seconds while the app is hidden and catches up as soon as it returns, the call screen only redraws when something you can see changes, and muting now turns the microphone off instead of sending silence ([#3481](https://github.com/BotHarness/DeepSeekBot/issues/3481)).
+
+- Bot calls send far less audio traffic while nobody is talking: the phone and the computer now switch to Opus DTX in silence, which cut the phone's idle uplink from about 50 to about 6 packets a second in testing, so the phone's radio can rest between sentences ([#3481](https://github.com/BotHarness/DeepSeekBot/issues/3481)).
+
+- Camera and screen sharing in calls now pick keyframes by picture structure (a perceptual hash) instead of the average pixel change, plus a local check on screens: a single typed line or a page turn now reaches the Bot, a playing video sends one keyframe per shot instead of one every two seconds, and camera noise or a small brightness change no longer sends a picture. `node scripts/call-keyframe-eval.mjs` runs six end-to-end cases (reading, scrolling code, switching windows, a film clip, holding things up to the camera, five silent minutes) and judges each automatically ([#3499](https://github.com/BotHarness/DeepSeekBot/issues/3499)).
+
+- Android chats now have a frosted header that fades into the conversation, a taller message field with larger side buttons, and a localized hint explaining tap-to-type and hold-to-dictate. Releasing dictation still keeps the draft for manual sending ([#3590](https://github.com/BotHarness/DeepSeekBot/issues/3590)).
+
+- An Assignment whose Turn failed, was cancelled or was interrupted by a Host restart keeps its context and Continuity Key: the Orchestrator continues it with another request instead of starting over, and archiving files it away when the work is done. Sending a request to an archived Assignment unarchives it and delivers the request ([#3591](https://github.com/BotHarness/DeepSeekBot/issues/3591)).
+
+- Chats now show a single-line name above Bot status or group activity, with floating rounded Android controls and native iOS glass navigation ([#3621](https://github.com/BotHarness/DeepSeekBot/issues/3621)).
+
+- A call no longer drops camera or screen frames when the picture moves fast: each spoken sentence carries the newest 9 frames, and every older frame is saved to the DM in order as a frame record of up to 9, written before the sentence it came before. Sentences now note when they were spoken and what time range their picture covers (for example "this message 1:06–1:20, picture 0:58–1:20"), so the Bot can read back earlier frames by call time. A sentence with nothing new points at the last picture instead of sending it again. `deepseekbot call-simulate --video/--screen` reports frame records, frames per sentence and any frames dropped by the safety limit under `visual.harvest`; the old record list on call messages is removed ([#3690](https://github.com/BotHarness/DeepSeekBot/issues/3690)).
+
+- Text you type in a Bot's DM during a call with that Bot now takes the camera or screen picture with it, the same way a spoken sentence does: it carries the newest 9 frames since your last message (older ones are saved first as frame records), or points at the last picture when nothing changed, and the Bot is told when you typed it during the call. Text in other chats is unchanged. `deepseekbot call-simulate --script` takes a `{"at": ms, "text": "…"}` step to type during the call and reports where its frames went under `texts` ([#3694](https://github.com/BotHarness/DeepSeekBot/issues/3694)).
+
+- Sharing your camera or screen on a call now always saves its frames to the DM, so every grid the Bot sees stays there to look back on; delete an attachment afterwards if you do not want to keep it. The "Save frames to the chat" switch, `deepseekbot call-simulate --no-save` and `call-frame <message-id> 0` are gone, `call-frame` takes cells from 1, and a call client that still sends the old `save` setting is refused with `invalid-input` ([#3697](https://github.com/BotHarness/DeepSeekBot/issues/3697)).
+
+- `unarchive_assignment` takes an optional `message`, so after an explicit Human instruction to continue, one call revives a stopped or archived Assignment and sends it that request through the usual Assignment Request delivery; `code: "request-not-delivered"` says it was unarchived but received nothing. `deepseekbot bot-tool <bot-id> unarchive_assignment --args-stdin` accepts the same `message` ([#3739](https://github.com/BotHarness/DeepSeekBot/pull/3739)).
+
+- Settings search also finds settings grouped under a heading inside a settings page: the window zoom setup buttons, **Appearance** palette and panel look, **Voice** speech services and microphone, **Devices** connection steps and LAN Bot collaboration, **Keyboard shortcuts**, and every **Computer** plugin setting (target, auto-allow, export directory, idle stop, export and import), by title or description ([#3769](https://github.com/BotHarness/DeepSeekBot/issues/3769)).
+
+- Settings search (Alt+K and the search box in Bot settings) now reaches every Bot settings row by its title, its description and common synonyms in English and Chinese, including the window zoom, voice, prompt, connection and plugin rows; searching _tutorial_, _引导_ or _restart_ finds the Onboarding tutorial row in **Bot settings → General** ([#3769](https://github.com/BotHarness/DeepSeekBot/issues/3769)).
+
+- Call grids show each tile's number and time in a strip above the tile instead of over its top-left corner, so the label no longer hides the first lines of a shared screen or camera picture ([#3822](https://github.com/BotHarness/DeepSeekBot/issues/3822)).
+
+- On the phone app, chat and Activity rows show the environment icon only in All, where rows from several computers mix. In Chats it now sits as a small badge on the avatar's bottom-right, and the unread count on the avatar is a smaller round badge ([#3856](https://github.com/BotHarness/DeepSeekBot/pull/3856)).
+
+- On Web and desktop, a reply now opens with a tinted quote block that shows the quoted author's name in their colour, each message shows its time inside the bubble at the bottom-right, and DMs no longer show an avatar or name above the bubbles; group chats keep the Bot's name above its first bubble ([#3859](https://github.com/BotHarness/DeepSeekBot/issues/3859)).
+
+- On iOS and Android, a reply's quote is now a tinted block at the top of its bubble with the quoted author's name in their colour, and tapping it jumps to the original message. Each message also shows its time inside the bubble at the bottom-right, with a check on your own messages once your computer has them ([#3860](https://github.com/BotHarness/DeepSeekBot/issues/3860)).
+
+- On iOS and Android, images now fill their bubble edge to edge, with the time on a small pill when there is no caption, and several images form one album with "+N" on the last tile. Voice messages are a single row with play, waveform and "played / total", and files are a single row with a coloured type tile, the name and "size · type". Download and share move to the long-press menu, and quoted images, voice and files show a thumbnail, "Voice · 0:07" or the file name ([#3861](https://github.com/BotHarness/DeepSeekBot/issues/3861)).
+
+- On Web and desktop, images fill their bubble edge to edge with the time on a small dark pill, several images in one message form one album with "+N" on the last tile, a voice message is one row with a play button, waveform and played/total time, and a file is one row with a coloured type tile that opens the file when clicked; download and "open with" move to the right-click menu. Quoted images, voice and files show a thumbnail, "Voice · 0:07" or the file name, and your own messages show a check after the time ([#3861](https://github.com/BotHarness/DeepSeekBot/issues/3861)).
+
+- When you send a message while the chat is at the newest message, its text now flies from the message box into its new bubble as the chat moves up, on iOS, Android and desktop. With Reduce Motion on, the bubble simply appears. On iOS and Android, sending while you read older messages no longer pulls you to the bottom; the jump-to-latest button shows instead ([#3862](https://github.com/BotHarness/DeepSeekBot/issues/3862)).
+
+- Android chats following the newest message use a native spring to follow new rows. This requires a new native build; builds without the module retain JavaScript following ([#3868](https://github.com/BotHarness/DeepSeekBot/issues/3868)).
+
+- Tob can now run every `deepseekbot` command, not just a fixed list. Commands that only read run at once; any other command first shows you an approval card with the exact command, even with full access ([#3883](https://github.com/BotHarness/DeepSeekBot/pull/3883)).
+
+- A newer DSH no longer stops every Bot turn when it changes an optional Host API: the Bot keeps working without that feature and the diagnostic log names it. When a Bot cannot run on the installed DSH, the failure now says the Tobs version does not support it and to update Tobs, with the original error under the details ([#3898](https://github.com/BotHarness/DeepSeekBot/issues/3898)).
+
+- Android has an opt-in native text playback clock and pacing engine for device comparison; JavaScript remains the default. The candidate requires a new native build ([#3928](https://github.com/BotHarness/DeepSeekBot/issues/3928)).
+
+- Android has an opt-in native message-jump landing check based on actual row bounds; the default JavaScript path remains available ([#3934](https://github.com/BotHarness/DeepSeekBot/issues/3934)).
+
+- Android adds an opt-in RecyclerView chat-list candidate with bounded message rendering and keeps the existing FlatList default for device comparison ([#3936](https://github.com/BotHarness/DeepSeekBot/issues/3936)).
+
+- The Android chat composer floats over the messages as an island like the header's, with a fine rim and a soft shadow; the message you are replying to now shows inside it, above the text, and the bottom of the chat fades out instead of ending in a solid band ([#3955](https://github.com/BotHarness/DeepSeekBot/issues/3955)).
+
+- Android chat scrolls more smoothly: the header no longer blurs the conversation behind it on every frame. It fades into the chat background instead, and its Back, title and action islands are opaque with a fine rim and a soft shadow ([#3955](https://github.com/BotHarness/DeepSeekBot/issues/3955)).
+
+- On Android, tapping a chat message now opens its reactions and actions right next to it, and long-pressing selects it: the header shows how many are selected with Copy and Screenshot, and Reply and Feedback sit at the bottom. Double-tap no longer adds 👍 on Android ([#3955](https://github.com/BotHarness/DeepSeekBot/issues/3955)).
+
+- On Android, the ongoing call notification and the call bubble over other apps show the Bot's avatar instead of its initial; a Bot whose avatar is not ready yet still shows its initial ([#3804](https://github.com/BotHarness/DeepSeekBot/issues/3804)).
+
+- On Android, the call bubble over other apps breathes its ring while the Bot speaks or hears you, like the bubble inside the app; it stays still when system animations are off ([#3805](https://github.com/BotHarness/DeepSeekBot/issues/3805)).
+
+- Android chat scrolls more smoothly: loading older messages and jumping back to the newest message stutter much less, because the conversation list and plain text messages are now drawn natively. Tapping, long-pressing and swiping to reply work as before ([#3955](https://github.com/BotHarness/DeepSeekBot/issues/3955)).
+
+- Android chats use a native top app bar and keep attachment, microphone and send controls inside the message field. Hold the field to dictate, then release to stop and review the text before sending; upward dragging no longer locks dictation ([#3217](https://github.com/BotHarness/DeepSeekBot/issues/3217), [#3218](https://github.com/BotHarness/DeepSeekBot/issues/3218)).
+
+- On Android, tapping Allow once, Always allow or Reject on an approval notification now answers it in place without opening the app. If the decision cannot be sent, a plain notification says so and opens the request when tapped ([#3846](https://github.com/BotHarness/DeepSeekBot/pull/3846)).
+
+- A running Assignment now shows in a Bot's live activity under the title the Orchestrator gave it, instead of an auto-generated Session title that could go stale when the same Assignment took later requests. Assignments without a title keep showing the Session title ([#3541](https://github.com/BotHarness/DeepSeekBot/pull/3541)).
+
+- Screenshots in Report a problem now work like a capture session: the report steps aside and a floating toolbar stays at the bottom while you scroll or switch pages, each Screenshot opens markup, and Add to attachments puts it in the report; Done brings the report back. Markup gains text comments (under a box or anywhere you click) and a one-line note per image that goes into the report description. Toolbar thumbnails reopen a capture with its marks still editable or copy it to the clipboard, and the report can download just its images. The diagnosis button at the bottom of the control rail now shows a bug and opens Report a problem directly; the logs are one View logs click away inside it and Back to report keeps your draft. The Desktop app, which cannot share its screen, now captures the page itself instead of failing silently ([#4003](https://github.com/BotHarness/DeepSeekBot/pull/4003)).
+
+- Call grids are easier to read: the keyframes a Bot sees with each sentence on a camera or screen-share call are tiled in balanced rows of at most three (five keyframes are three over two, with the shorter row centred), so there are no empty black cells and a tile is never narrower than a third of the image. A grid holds at most 9 keyframes instead of 16, and `deepseekbot call-frame` takes cells 1 to 9 row by row ([#3689](https://github.com/BotHarness/DeepSeekBot/issues/3689)).
+
+- On iOS, when a chat is at the newest message, sending a message, a new Bot message and streamed replies now glide the view smoothly to the bottom in step with the screen, instead of trailing a few frames behind and restarting the scroll on every line ([#3850](https://github.com/BotHarness/DeepSeekBot/pull/3850)).
+
+- Tobs Connect can place computers on five more domains, raising the shared pool from about 195 to 980 tunnels. Other names on those domains stay free for private routes ([#3867](https://github.com/BotHarness/DeepSeekBot/pull/3867)).
+
+- The private connection, Docker relay, LAN and Tailscale screens use the same status blocks as Tobs Connect: one block per state with an icon, one main button, yellow when you need to act, and details folded away. Addresses and commands are chips you tap to copy ([#3854](https://github.com/BotHarness/DeepSeekBot/pull/3854)).
+
+- During a desktop call, the microphone button in the call bar ripples while you speak, with the same effect as voice input in the message box, so you can see the call is hearing you. The left control rail also shows the Bot you are calling, with a phone badge on its avatar; click it to return to that chat from any other conversation ([#3900](https://github.com/BotHarness/DeepSeekBot/pull/3900)).
+
+- On desktop, chat images load a smaller preview and the browser keeps images it has already downloaded, so reopening a chat does not download them again; the full-size image opens in the viewer. Channel files opens with the 50 most recent messages with files and loads older ones on request, instead of reading the whole history first. Images from another computer download at most three at a time. The same list is available from `deepseekbot channel-files` ([#3512](https://github.com/BotHarness/DeepSeekBot/issues/3512)).
+
+- On iOS and Android, each computer in the environment list shows its name and its online status on one line each, with the unread or Needs you count on the corner of its icon and ⋯ at the end for its settings. A computer's connection address now appears only on its Connection page; cloud rows are unchanged ([#3571](https://github.com/BotHarness/DeepSeekBot/pull/3571)).
+
+- On the phone, a GenUI document in a conversation now shows at its full height instead of scrolling inside a short frame, and dragging or tapping inside it no longer opens the message menu; tap the message's title to open the menu ([#4018](https://github.com/BotHarness/DeepSeekBot/pull/4018)).
+
+- GenUI Web documents and previews use the same bundled renderer, run local scripts in a separately supervised Worker, and keep the ordinary message summary and retry controls available when a document is refused. Previews identify the exact renderer bytes; unsupported content does not fall back to native browser script execution ([#3704](https://github.com/BotHarness/DeepSeekBot/issues/3704)).
+
+- While you are using the desktop or web app, Bot replies no longer also buzz your phone. They push to the phone only if they are still unread after you lock the screen or hide the window for a minute, or stop using it for 10 minutes. Approvals and questions still reach the phone at once. Check or test it with `deepseekbot presence-status` and `presence-report` ([#3882](https://github.com/BotHarness/DeepSeekBot/pull/3882)).
+
+- A sent message now settles into its bubble faster, in 250 ms instead of 360 ms, with a stronger ease-out so it slows down sharply as it lands ([#4009](https://github.com/BotHarness/DeepSeekBot/pull/4009)).
+
+- Images sent before this update also get small thumbnails and faster loading on the phone: the computer prepares them quietly in the background, a little at a time, and continues after a restart ([#3514](https://github.com/BotHarness/DeepSeekBot/issues/3514)).
+
+- On the phone, opening an image full screen again, sharing or opening a file again, and replaying a voice message reuse the copy already downloaded instead of fetching it again. The computer can now also send part of a file by byte range ([#3508](https://github.com/BotHarness/DeepSeekBot/issues/3508)).
+
+- Images in chats and in a Channel's media grid load faster and use less data on the phone: the Host now makes small thumbnails, shows a blurred preview while they load, and the phone keeps images it has downloaded. Editing an original replaces the cached copy with the new version ([#3507](https://github.com/BotHarness/DeepSeekBot/issues/3507)).
+
+- Mobile dictation now uses the Host's speech-to-text Provider first and falls back to the phone's own speech recognition. When neither can dictate, the reason appears in a dialog after tapping the mic instead of a banner that stays above the composer ([#3775](https://github.com/BotHarness/DeepSeekBot/pull/3775)).
+
+- When the phone connects to a computer, chats saved on the phone catch up in the background: new messages, edits and deletions made while they were closed are saved, so opening them shows everything without loading again. New messages that arrive while a chat is closed are also kept from the change sync instead of being downloaded a second time when you scroll back ([#3555](https://github.com/BotHarness/DeepSeekBot/issues/3555)).
+
+- Background catch-up of saved chats now waits while the phone is in Low Power Mode or below 20% battery and not charging, and stops before the next chat if that happens mid-sync. It continues the next time the phone connects to the computer ([#3555](https://github.com/BotHarness/DeepSeekBot/issues/3555)).
+
+- Reopening a chat on the phone shows the saved messages at once and then downloads only what changed while it was closed, such as new messages, edits, purges and reactions, instead of the latest page again. With an older computer, the phone keeps loading the latest page as before ([#3511](https://github.com/BotHarness/DeepSeekBot/issues/3511)).
+
+- The phone now keeps opened chats in a local database for each paired computer, not in temporary files the system may delete. Reopening a chat after restarting the app shows the saved messages and fetches only what changed. Chats saved by the previous version are moved over once ([#3551](https://github.com/BotHarness/DeepSeekBot/issues/3551)).
+
+- While the phone cannot reach the computer, reactions are turned off in chats, and an image that is not saved on the phone says it needs a connection to the computer instead of offering a retry that cannot work ([#3554](https://github.com/BotHarness/DeepSeekBot/issues/3554)).
+
+- When the phone cannot reach the computer, chats already saved on the phone still open, and scrolling back shows the older messages saved there. When the computer is back, changes made in the meantime are applied once ([#3554](https://github.com/BotHarness/DeepSeekBot/issues/3554)).
+
+- Scrolling back in a chat on the phone now shows older messages saved on the phone without asking the computer again. Only parts of the history the phone has never loaded are fetched, once, and then kept. Edits and deletions made on the computer also reach older saved messages ([#3552](https://github.com/BotHarness/DeepSeekBot/issues/3552)).
+
+- On iPhone and Android, opening a chat that is already up to date on the phone no longer asks the computer whether anything changed. The computer now says how far that chat's changes reach when the chat opens, and the phone only asks for changes when it is behind ([#3605](https://github.com/BotHarness/DeepSeekBot/issues/3605)).
+
+- More Bot settings pages use the status blocks from Tobs Connect: Tobs sign-in (one shared block for Connect, Profile and the marketplace), updates, backup, storage, voice services and LAN Bot collaboration. Each shows its state with an icon and one main button, turns yellow when you need to act, and shows addresses, commands and fingerprints as chips you tap to copy ([#3864](https://github.com/BotHarness/DeepSeekBot/pull/3864)).
+
+- On Android, group chats and Channels now draw Bot text messages natively, like direct messages, so scrolling a busy group is smoother; speaker names and avatars look and follow the conversation as before ([#4014](https://github.com/BotHarness/DeepSeekBot/issues/4014)).
+
+### Documentation
+
+- Prepared the Tobs 1.7.0 release highlights and folded merged changes into the bilingual ledger; the published install identity and release date remain unchanged until publication approval ([#4021](https://github.com/BotHarness/DeepSeekBot/issues/4021)).
+
+- Updated installation guides to the published Tobs 1.6.1 release and recorded its IM Provider 4.32.0-botharness.24 for reuse ([#3299](https://github.com/BotHarness/DeepSeekBot/pull/3299)).
+
+- Documented recurring DSH RC qualification, preserving the 0.2.0 admission floor, separating Windows/macOS evidence, and reusing the Tobs release and website synchronization workflows only when needed ([#3477](https://github.com/BotHarness/DeepSeekBot/issues/3477)).
+
+- Define same-artifact qualification across DSH 0.2.1 and 0.2.2 API generations, keeping legacy tool/model support and failed-call refusal separate from upgrade and release acceptance ([#3477](https://github.com/BotHarness/DeepSeekBot/issues/3477)).
+
+- Recorded the proposed machine Assignment dispatch contract, separating creation, durable delivery acceptance, processing and lifecycle; runtime implementation and protocol choices remain pending ([ADR-0297](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/adr/0297-machine-assignment-dispatch-separates-creation-delivery-and-processing.md), [#3578](https://github.com/BotHarness/DeepSeekBot/issues/3578)).
+
+- Revised the GenUI architecture target to T3 Code-style isolated HTML documents for richer visual and interactive content, preserving ordinary-message ownership and checked actions. The existing Web comparison-report candidate is not HTML or native qualification ([#3684](https://github.com/BotHarness/DeepSeekBot/issues/3684), [ADR-0301](docs/adr/0301-genui-rich-documents-use-isolated-html.md)).
+
+- The store privacy guide separates system dictation from Bot-call audio and shared camera frames, explains the password path under review, and marks prior answer files as requiring exact-candidate reconciliation before submission ([#2733](https://github.com/BotHarness/DeepSeekBot/issues/2733)).
+
+- Clarified DSH upgrade qualification with an exact npm CLI/Theme availability check that distinguishes missing versions from lookup failures and keeps Desktop evidence separate ([#4024](https://github.com/BotHarness/DeepSeekBot/issues/4024)).
+
+- Filled missing glyphs in Chinese release-page sharing previews so the text renders without boxes ([#4021](https://github.com/BotHarness/DeepSeekBot/issues/4021)).
 
 ## [1.6.1] - 2026-11-02
 

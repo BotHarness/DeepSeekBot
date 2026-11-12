@@ -26,6 +26,7 @@ import { WorkspaceContext, WORKSPACE_RAIL, WORKSPACE_CHANNELS } from './workspac
 import {
   createContext,
   useContext,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -185,7 +186,7 @@ interface ChannelInboxView {
   setOpen(open: boolean): void;
 }
 
-interface ChannelFilesView {
+export interface ChannelFilesView {
   open: boolean;
   setOpen(open: boolean): void;
   content: ReactNode;
@@ -1486,6 +1487,16 @@ export interface ChannelDockProps {
   storage?: ChannelDockStorage | undefined;
 }
 
+let workspaceDocks = 0;
+function markWorkspaceDock(): () => void {
+  workspaceDocks += 1;
+  document.documentElement.setAttribute('data-bh-workspace-dock', '');
+  return () => {
+    workspaceDocks -= 1;
+    if (workspaceDocks === 0) document.documentElement.removeAttribute('data-bh-workspace-dock');
+  };
+}
+
 export function ChannelDock({
   header,
   body,
@@ -2501,6 +2512,10 @@ export function ChannelDock({
     },
     shallowEqual,
   );
+  useLayoutEffect(() => {
+    if (!workspace) return;
+    return markWorkspaceDock();
+  }, [workspace]);
   const slots = useMemo<DockSlots>(
     () => ({ header, body, files: files?.content, rail, menu: workspaceMode ? null : menu }),
     [header, body, files?.content, rail, menu, workspaceMode],

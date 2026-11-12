@@ -3,6 +3,8 @@ import { act, Children, isValidElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 
+vi.mock('expo', () => ({ requireOptionalNativeModule: () => null }));
+
 const { copied, textBodies } = vi.hoisted(() => ({ copied: vi.fn(), textBodies: [] as string[] }));
 vi.mock('react-native', async () => {
   const shim = await import('./react-native-shim');
@@ -102,6 +104,24 @@ it('uses the supplied link owner for prose, table and native fallback blocks', a
     container.querySelector<HTMLElement>('[data-testid="native-markdown"]')!.click(),
   );
   expect(open.mock.calls).toEqual([['docs/setup.md'], ['docs/table.md'], ['docs/native.md']]);
+});
+
+it('closes an open keyboard instead of opening a native link', async () => {
+  const { Keyboard } = await import('react-native');
+  const visible = vi.spyOn(Keyboard, 'isVisible').mockReturnValue(true);
+  const dismiss = vi.spyOn(Keyboard, 'dismiss');
+  const open = vi.fn();
+  try {
+    const { container } = await render('![Image](https://example.com/image.png)', false, open);
+    await act(async () =>
+      container.querySelector<HTMLElement>('[data-testid="native-markdown"]')!.click(),
+    );
+    expect(open).not.toHaveBeenCalled();
+    expect(dismiss).toHaveBeenCalledTimes(1);
+  } finally {
+    visible.mockRestore();
+    dismiss.mockRestore();
+  }
 });
 
 it('preserves prose, entities, emoji, links, lists, quotes and exact code-copy content', async () => {

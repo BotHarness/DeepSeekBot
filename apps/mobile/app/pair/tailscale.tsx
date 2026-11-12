@@ -96,7 +96,19 @@ export default function PairTailscaleScreen() {
     }, [params.p]),
   );
 
-  if (pairing.busy) return <PairingVerification pairing={pairing} />;
+  const title =
+    params.mode === 'private'
+      ? t.pairChoice.private
+      : params.mode === 'lan'
+        ? t.pairChoice.lan
+        : t.pairChoice.tailscale;
+  if (pairing.busy)
+    return (
+      <>
+        <Stack.Screen options={{ title }} />
+        <PairingVerification pairing={pairing} />
+      </>
+    );
 
   return (
     <KeyboardFormScroll
@@ -107,10 +119,14 @@ export default function PairTailscaleScreen() {
     >
       <Stack.Screen
         options={{
-          title: params.mode === 'lan' ? t.pairChoice.lan : t.pairChoice.tailscale,
+          title,
         }}
       />
-      {params.mode === 'lan' ? null : <Text tone="muted">{t.pairChoice.tailscaleHint}</Text>}
+      {params.mode === 'lan' ? null : (
+        <Text tone="muted">
+          {params.mode === 'private' ? t.pairChoice.privateHint : t.pairChoice.tailscaleHint}
+        </Text>
+      )}
       <View
         style={{
           alignItems: 'center',
@@ -121,7 +137,13 @@ export default function PairTailscaleScreen() {
         }}
       >
         <DesktopPath
-          steps={params.mode === 'lan' ? t.pairChoice.lanPath : t.pairChoice.tailscalePath}
+          steps={
+            params.mode === 'private'
+              ? t.pairChoice.privatePath
+              : params.mode === 'lan'
+                ? t.pairChoice.lanPath
+                : t.pairChoice.tailscalePath
+          }
         />
         <View
           style={{

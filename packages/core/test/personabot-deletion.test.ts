@@ -575,12 +575,12 @@ describe('confirmed terminal PersonaBot deletion', () => {
       ...f.core,
       memory: {
         ...f.core.memory,
-        activity: () => {
+        activity: async () => {
           throw new Error('Memory repository is missing');
         },
       },
     });
-    expect(() => erased.profileActivity({ channelId: channel.id })).toThrow(
+    await expect(erased.profileActivity({ channelId: channel.id })).rejects.toThrow(
       'Memory repository is missing',
     );
     const reviewed = f.core.deletions.preview('a');
@@ -594,11 +594,11 @@ describe('confirmed terminal PersonaBot deletion', () => {
     expect(methods.sessions({ slug: 'a' })).toMatchObject({ ok: true });
     expect(methods.assignments({ slug: 'a' })).toMatchObject({ ok: true });
     expect(methods.botAttention({ slug: 'a' })).toMatchObject({ ok: true });
-    expect(methods.profileActivity({ channelId: channel.id })).toMatchObject({
+    expect(await methods.profileActivity({ channelId: channel.id })).toMatchObject({
       ok: true,
       value: { slug: 'a' },
     });
-    expect(erased.profileActivity({ channelId: channel.id })).toMatchObject({
+    expect(await erased.profileActivity({ channelId: channel.id })).toMatchObject({
       ok: true,
       value: { slug: 'a', memoryCommits: [] },
     });

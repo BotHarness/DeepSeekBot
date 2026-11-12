@@ -1,9 +1,11 @@
 import { CHANNEL_BODY_PANEL, readChannelDock, writeChannelDock } from './channel-dock-layout.js';
+import { rewriteHasSiblingRules } from './has-sibling-rewrite.js';
 import { createBotPresentation } from './bot-presentation.js';
 import { disposeClientLog, installClientLog } from './diagnostic-log.js';
 import { watchClientLogState } from './diagnostic-log-state.js';
 import { telemetrySurface } from './telemetry-surface.js';
 import { mountWindowZoomControl } from './window-zoom-control.js';
+import { mountPresenceReporter, presenceSender } from './presence-reporter.js';
 import { mountWindowZoom, type ZoomCompatibility } from './window-zoom-mount.js';
 import { Wallpaper } from './wallpaper.js';
 import { createWallpaperStore } from './wallpaper-store.js';
@@ -71,6 +73,7 @@ import {
   botSettingsSectionSource,
 } from './bot-settings.js';
 import type { QuickSwitcherSettings } from './quick-switcher.js';
+import { createQuickSwitcherLauncher } from './quick-switcher-launcher.js';
 import { searchSettings } from './settings-search.js';
 import { startConnectSignIn } from './connect-sign-in.js';
 import { DshBotSettingsItem } from './dsh-bot-settings-item.js';
@@ -91,6 +94,7 @@ import {
 } from './bot-settings-sections.js';
 import { PluginsSection } from './plugin-updates-view.js';
 import { ReleaseNotesController } from './release-notes.js';
+import { UpdateRunsController } from './update-runs.js';
 import { TelemetryNoticeController } from './telemetry-notice.js';
 import './bot-settings-slot.js';
 import { BotMain } from './bot-main.js';
@@ -104,6 +108,7 @@ import {
   subscribeBotModeSidebarViewport,
 } from './bot-mode-sidebar-viewport.js';
 import { OnboardingEnterHint, OnboardingLauncher } from './onboarding-checklist-view.js';
+import { HostAcknowledgements, installHostAcknowledgements } from './host-acknowledgements.js';
 import {
   createChannelSidebarBuiltinTabs,
   createChannelSidebarBuiltins,
@@ -397,6 +402,7 @@ export function apply(ctx: ClientContext): void {
   const quickSwitcherSettings: QuickSwitcherSettings = {
     search: (query) => searchSettings(botSettingsSections.getSnapshot(), query, t),
     open: (result) => botSettings.open(result.section, result.target),
+    launcher: createQuickSwitcherLauncher(),
   };
   ctx.slots.inject('shell.overlay', () =>
     ctx.slots.register(
@@ -410,10 +416,25 @@ export function apply(ctx: ClientContext): void {
       BotSettingsView,
     ),
   );
-  const releaseNotes = new ReleaseNotesController(call, storage);
-  const telemetryNotice = new TelemetryNoticeController(call, storage, () => {
-    botSettings.open(BOT_SETTINGS_SECTIONS.dataPrivacy);
-  });
+  const updateRuns = new UpdateRunsController(call);
+  const acknowledgements = new HostAcknowledgements(call, storage);
+  ctx.effect(() => installHostAcknowledgements(acknowledgements), 'botharness: Profile notices');
+  void acknowledgements.load();
+  const releaseNotes = new ReleaseNotesController(
+    call,
+    storage,
+    undefined,
+    updateRuns,
+    acknowledgements,
+  );
+  const telemetryNotice = new TelemetryNoticeController(
+    call,
+    storage,
+    () => {
+      botSettings.open(BOT_SETTINGS_SECTIONS.dataPrivacy);
+    },
+    acknowledgements,
+  );
   const lastView =
     typeof window === 'undefined'
       ? undefined
@@ -584,6 +605,10 @@ export function apply(ctx: ClientContext): void {
   }, 'botharness: Profile Cards');
 
   ctx.effect(installStyles, 'botharness: client styles');
+  ctx.effect(
+    () => (typeof document === 'undefined' ? () => {} : rewriteHasSiblingRules(document)),
+    'botharness: cheap :has() invalidation for host sheets',
+  );
   ctx.effect(mountDevClientRefresh, 'botharness: local development refresh');
   ctx.effect(
     () => prefs.attachSystemMotion(browserSystemMotionSource()),
@@ -713,6 +738,13 @@ export function apply(ctx: ClientContext): void {
       },
     });
   }, 'botharness: desktop notifications');
+  ctx.effect(() => {
+    if (typeof document === 'undefined' || typeof window === 'undefined') return () => {};
+    const clientId = Array.from(crypto.getRandomValues(new Uint8Array(12)), (byte) =>
+      byte.toString(16).padStart(2, '0'),
+    ).join('');
+    return mountPresenceReporter({ document, window, send: presenceSender(clientId) });
+  }, 'botharness: desktop presence');
   ctx.effect(
     () => (typeof EventSource === 'undefined' ? () => {} : mountChannelLive(store, actions)),
     'botharness: Channel live subscription',
@@ -1077,7 +1109,7 @@ export function apply(ctx: ClientContext): void {
           order: 65,
           label: () => t('botSettings.section.plugins'),
           locale: LOCALE_NS,
-          inject: () => ({ call }),
+          inject: () => ({ call, updateRuns }),
         },
         PluginsSection,
       ),

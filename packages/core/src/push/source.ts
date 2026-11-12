@@ -18,7 +18,8 @@ const KIND: Partial<Record<HumanAttentionItem['kind'], PushKind>> = {
 };
 
 const ACTION_LIMIT = 100;
-const REPLY_LIMIT = 30;
+const REPLY_LIMIT = 200;
+const PAGE_LIMIT = 100;
 const PREVIEW_LIMIT = 140;
 const PREVIEW_FIELDS = ['command', 'cmd', 'script', 'code', 'url', 'path', 'file_path'];
 
@@ -101,6 +102,22 @@ function candidate(
   ];
 }
 
+function unreadReplies(attention: Pick<HumanAttentionQuery, 'list'>): HumanAttentionItem[] {
+  const items: HumanAttentionItem[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = attention.list({
+      category: 'replies',
+      unreadOnly: true,
+      limit: Math.min(PAGE_LIMIT, REPLY_LIMIT - items.length),
+      ...(cursor === undefined ? {} : { cursor }),
+    });
+    items.push(...page.items);
+    cursor = page.nextCursor;
+  } while (cursor !== undefined && items.length < REPLY_LIMIT);
+  return items;
+}
+
 export function activityListPushSource(
   attention: Pick<HumanAttentionQuery, 'list' | 'actionCount' | 'dmReplies'>,
   botName: (slug: string) => string | undefined,
@@ -109,9 +126,7 @@ export function activityListPushSource(
   return {
     pending() {
       const action = attention.list({ category: 'action', limit: ACTION_LIMIT }).items;
-      const replies = attention
-        .list({ category: 'replies', limit: REPLY_LIMIT })
-        .items.filter((item) => item.isUnread !== false);
+      const replies = unreadReplies(attention).filter((item) => item.isUnread !== false);
       const dms = attention.dmReplies(REPLY_LIMIT);
       return {
         items: [...action, ...replies, ...dms].flatMap((item) => candidate(item, approval)),

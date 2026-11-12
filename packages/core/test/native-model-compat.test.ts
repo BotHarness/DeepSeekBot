@@ -75,4 +75,33 @@ describe('native model API generations', () => {
     expect(select).toHaveBeenCalledOnce();
     expect(installModelSelection).not.toHaveBeenCalled();
   });
+
+  it('keeps the turn running on the default model when the installer signature changed', () => {
+    const warn = vi.fn();
+    vi.mocked(installModelSelection).mockImplementation(() => {
+      throw new TypeError('selection.current is not iterable');
+    });
+    const ctx = { logger: { warn } } as unknown as Context;
+    const dispose = installNativeModelSelection(ctx, {} as Agent, {
+      current: route,
+      assembled: undefined,
+    });
+    expect(dispose()).toBeUndefined();
+    expect(warn.mock.calls[0]?.[0]).toMatch(
+      /^botharness\.host_capability\.degraded capability=legacy model selection .*selection\.current is not iterable/u,
+    );
+  });
+
+  it('propagates a legacy installer refusal', () => {
+    const refusal = new Error('model route refused');
+    vi.mocked(installModelSelection).mockImplementation(() => {
+      throw refusal;
+    });
+    expect(() =>
+      installNativeModelSelection({} as Context, {} as Agent, {
+        current: route,
+        assembled: undefined,
+      }),
+    ).toThrow(refusal);
+  });
 });

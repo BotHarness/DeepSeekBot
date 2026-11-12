@@ -683,6 +683,8 @@ describe('bridge typert service', () => {
       'messagingSend',
       'tobHome',
       'onboarding',
+      'acknowledgements',
+      'acknowledge',
       'onboardingModel',
       'telemetryEvent',
       'modelPlanInherit',
@@ -927,6 +929,8 @@ describe('bridge typert service', () => {
       'pluginUpdates',
       'pluginInstall',
       'pluginRestart',
+      'updateRun',
+      'updateCancel',
       'telemetryStatus',
       'telemetrySet',
       'gitStatus',
@@ -1081,7 +1085,10 @@ describe('bridge typert service', () => {
     ]);
     expect(parameterNames(service.channelSearch)).toEqual(['channelId', 'text', 'cursor', 'limit']);
     expect(parameterNames(service.messageSearch)).toEqual(['text', 'cursor', 'limit']);
-    expect(parameterNames(service.releaseInstall)).toEqual(['version']);
+    expect(parameterNames(service.releaseInstall)).toEqual(['version', 'requestId']);
+    expect(parameterNames(service.pluginInstall)).toEqual(['name', 'version', 'requestId']);
+    expect(parameterNames(service.updateRun)).toEqual(['id']);
+    expect(parameterNames(service.updateCancel)).toEqual(['id']);
     expect(parameterNames(service.releaseRestart)).toEqual([]);
     expect(parameterNames(service.telemetryStatus)).toEqual([]);
     expect(parameterNames(service.telemetrySet)).toEqual(['enabled']);

@@ -10,6 +10,8 @@ import { Note } from './ds/note.js';
 import { SettingsRow, SettingsSection, SettingsValue } from './ds/settings-row.js';
 import { color, radius, size, space, text } from './ds/tokens.stylex.js';
 import type { ConnectSignInCode } from './connect-sign-in.js';
+import { ConnectSignInBlock } from './connect-sign-in-block.js';
+import { StatusBlock } from './ds/status-block.js';
 import { GroupAvatarCropModal } from './group-avatar-crop.js';
 import { marketplaceError } from './marketplace.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -35,14 +37,6 @@ const styles = stylex.create({
   image: { width: '100%', height: '100%', objectFit: 'cover' },
   file: { display: 'none' },
   field: { boxSizing: 'border-box', width: '200px', maxWidth: '100%', minWidth: 0 },
-  code: {
-    fontFamily: 'var(--dsw-font-mono, ui-monospace, monospace)',
-    fontSize: text.titleSize,
-    lineHeight: text.titleLine,
-    fontWeight: text.strong,
-    letterSpacing: '0.12em',
-    userSelect: 'all',
-  },
 });
 
 export function validAccountName(name: string): boolean {
@@ -84,13 +78,19 @@ export function AccountProfileSettings({
   const composing = useRef(false);
   const pending = useRef(false);
   const mounted = useRef(false);
+  const signInEpoch = useRef(0);
+  const signingIn = useRef(false);
 
   const load = async (): Promise<void> => {
+    const epoch = signInEpoch.current;
     try {
       const account = await actions.marketplaceAccount();
-      if (mounted.current) setState({ status: 'ready', account });
+      if (!mounted.current || signingIn.current || epoch !== signInEpoch.current) return;
+      setState({ status: 'ready', account });
+      if (!account.signedIn && account.issue !== undefined) setSignIn(undefined);
     } catch (error) {
-      if (mounted.current) setState({ status: 'error', message: marketplaceError(error, t) });
+      if (mounted.current && !signingIn.current && epoch === signInEpoch.current)
+        setState({ status: 'error', message: marketplaceError(error, t) });
     }
   };
 
@@ -110,12 +110,15 @@ export function AccountProfileSettings({
   const beginSignIn = async (): Promise<void> => {
     setBusy(true);
     setSignInFailed(false);
+    signingIn.current = true;
     try {
       const code = await startSignIn();
+      signInEpoch.current += 1;
       if (mounted.current) setSignIn(code);
     } catch {
       if (mounted.current) setSignInFailed(true);
     } finally {
+      signingIn.current = false;
       if (mounted.current) setBusy(false);
     }
   };
@@ -181,51 +184,46 @@ export function AccountProfileSettings({
 
   if (state.status === 'error')
     return frame(
-      <SettingsRow
+      <StatusBlock
+        icon="info"
+        tone="warning"
         title={t('accountProfile.loadFailed')}
+        body={state.message}
         data={{ 'data-account-profile': 'error' }}
-        control={
+        action={
           <Button variant="outline" size="sm" onClick={() => void load()}>
             {t('accountProfile.retry')}
           </Button>
         }
-      >
-        <Note tone="danger">{state.message}</Note>
-      </SettingsRow>,
+      />,
     );
 
   if (!state.account.signedIn)
     return frame(
-      <SettingsRow
-        title={t('accountProfile.signInHint')}
+      <ConnectSignInBlock
+        t={t}
+        code={signIn}
+        title={t('accountProfile.signInTitle')}
+        body={t('accountProfile.signInHint')}
+        signInLabel={t('accountProfile.signIn')}
+        busy={busy}
+        {...(signInFailed || state.account.issue !== undefined
+          ? {
+              failed: t(
+                state.account.issue === 'relay-unavailable' || state.account.issue === 'relay-full'
+                  ? 'accountProfile.signInRelay'
+                  : 'accountProfile.signInFailed',
+              ),
+            }
+          : {})}
+        onSignIn={() => void beginSignIn()}
         data={{ 'data-account-profile': signIn === undefined ? 'signed-out' : 'signing-in' }}
-        control={
-          signIn === undefined ? (
-            <Button variant="outline" size="sm" disabled={busy} onClick={() => void beginSignIn()}>
-              {t('accountProfile.signIn')}
-            </Button>
-          ) : (
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => window.open(signIn.verificationUri, '_blank', 'noopener')}
-            >
-              {t('devices.connect.openPage')}
-            </Button>
-          )
-        }
+        codeMarker="data-account-sign-in-code"
       >
-        {signIn === undefined ? null : (
-          <>
-            <Note>{t('devices.connect.confirm')}</Note>
-            <span {...stylex.props(styles.code)} data-account-sign-in-code="">
-              {signIn.userCode}
-            </span>
-            <span ref={poll} hidden />
-          </>
+        {signIn === undefined && state.account.issue === undefined ? null : (
+          <span ref={poll} hidden />
         )}
-        {signInFailed ? <Note tone="danger">{t('accountProfile.signInFailed')}</Note> : null}
-      </SettingsRow>,
+      </ConnectSignInBlock>,
     );
 
   const invalid = name.length > 0 && !validAccountName(name);

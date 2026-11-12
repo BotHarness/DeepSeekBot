@@ -214,6 +214,7 @@ function Harness({ disabled = false, caret }: { disabled?: boolean; caret?: numb
             Mika
           </button>
         }
+        inside={<span data-testid="inside-quote">Replying</span>}
         disabled={disabled}
         files={[]}
         canAttach
@@ -445,6 +446,12 @@ describe('Composer dictation', () => {
     },
   );
 
+  it('draws the inside content in the field pill and the above content outside it', () => {
+    const pill = host.querySelector('[data-testid="inside-quote"]')!.parentElement!.parentElement!;
+    expect(pill.contains(field())).toBe(true);
+    expect(pill.contains(button('Pick Mika'))).toBe(false);
+  });
+
   it('shows the mic while empty and fills the field with what was heard', async () => {
     expect(button(t.dictate)).not.toBeNull();
     expect(button(t.send)).toBeNull();
@@ -519,7 +526,7 @@ describe('Composer dictation', () => {
     speech.available = false;
     await press(t.dictate);
     expect(speech.start).not.toHaveBeenCalled();
-    expect(status()).toBe('unavailable');
+    expect(status()).toBe('missing');
   });
 
   it('does not start after the Human cancelled during the permission prompt', async () => {
@@ -559,7 +566,7 @@ describe('Composer test IDs', () => {
 describe('Holding the Android input', () => {
   it.each([
     [undefined, '@Mika Hello again'],
-    [1, '@Hello againMika '],
+    [1, '@ Hello again Mika '],
   ])('inserts streaming speech into existing text at caret %s', async (caret, expected) => {
     await act(async () => root!.render(<Harness {...(caret === undefined ? {} : { caret })} />));
     await press('Pick Mika');
@@ -585,7 +592,7 @@ describe('Holding the Android input', () => {
     await act(async () => speech.gesture!['start']!());
     await emit('start');
     await emit('result', result('temporary', false));
-    expect(field().value).toBe('@temporaryMika ');
+    expect(field().value).toBe('@ temporary Mika ');
     await act(async () => speech.gesture!['stop']!());
     await press(t.cancelDictation);
     await emit('end');
@@ -798,6 +805,17 @@ describe('native compose bar', () => {
 });
 
 describe('expanded draft', () => {
+  it('keeps the inside content, such as a reply, visible above the expanded editor', async () => {
+    speech.scale = 3.571;
+    await act(async () => root!.render(<Harness />));
+    await press(t.expandDraft);
+    const quotes = host.querySelectorAll('[data-testid="inside-quote"]');
+    expect(quotes).toHaveLength(1);
+    expect(quotes[0]!.closest('[role="dialog"]')).not.toBeNull();
+    const suggestion = host.querySelector('[role="dialog"] button[aria-label="Pick Mika"]')!;
+    expect(suggestion.parentElement!.contains(quotes[0]!)).toBe(false);
+  });
+
   it('shares edits with the existing composer and sends the current draft once', async () => {
     const original = field();
     speech.scale = 3.571;
