@@ -67,6 +67,7 @@ export function MessageActions({
   onClose,
   onReact,
   onCopy,
+  onSelectCopy,
   onShareText,
   onShareAttachment,
 }: MessageActionsProps) {
@@ -102,6 +103,7 @@ export function MessageActions({
           <SheetContent
             target={shown}
             readOnly={readOnly}
+            selectCopy={onSelectCopy !== undefined}
             onReact={(emoji, active) => {
               onReact(shown.message, emoji, active);
               onClose();
@@ -111,6 +113,7 @@ export function MessageActions({
                 onFeedback: () => queue.after(() => shown.actions?.feedback()),
                 onSelect: () => queue.after(() => shown.actions?.select()),
                 onCopy,
+                onSelectCopy: (message) => queue.after(() => onSelectCopy?.(message)),
                 onShareText: (text) => queue.after(() => onShareText(text)),
                 onShareAttachment: (attachment) =>
                   queue.after(() => onShareAttachment?.(attachment)),
@@ -128,11 +131,13 @@ export function MessageActions({
 function SheetContent({
   target,
   readOnly,
+  selectCopy,
   onReact,
   onAction,
 }: {
   target: MessageMenuTarget;
   readOnly: boolean;
+  selectCopy: boolean;
   onReact(emoji: string, active: boolean): void;
   onAction(action: MessageMenuAction): void;
 }) {
@@ -198,60 +203,58 @@ function SheetContent({
           <MessageSheetText body={message.body} />
         </RNHostView>
       )}
-      {menuGroups(messageMenuActions(message, target.activity, target.actions !== undefined)).map(
-        (group) => (
-          <VStack
-            key={group.map(actionId).join()}
-            spacing={0}
-            modifiers={[
-              background(
-                theme.layer.raised.fill,
-                shapes.roundedRectangle({
-                  cornerRadius: radius.lg,
-                  roundedCornerStyle: 'continuous',
-                }),
-              ),
-            ]}
-          >
-            {group.map((action, index) => (
-              <Fragment key={actionId(action)}>
-                {index === 0 ? null : (
-                  <Divider modifiers={[padding({ leading: space.x5 + icon + space.x4 })]} />
-                )}
-                <Button
-                  onPress={() => onAction(action)}
-                  modifiers={[buttonStyle('plain'), accessibilityLabel(action.label)]}
+      {menuGroups(
+        messageMenuActions(message, target.activity, target.actions !== undefined, selectCopy),
+      ).map((group) => (
+        <VStack
+          key={group.map(actionId).join()}
+          spacing={0}
+          modifiers={[
+            background(
+              theme.layer.raised.fill,
+              shapes.roundedRectangle({
+                cornerRadius: radius.lg,
+                roundedCornerStyle: 'continuous',
+              }),
+            ),
+          ]}
+        >
+          {group.map((action, index) => (
+            <Fragment key={actionId(action)}>
+              {index === 0 ? null : (
+                <Divider modifiers={[padding({ leading: space.x5 + icon + space.x4 })]} />
+              )}
+              <Button
+                onPress={() => onAction(action)}
+                modifiers={[buttonStyle('plain'), accessibilityLabel(action.label)]}
+              >
+                <HStack
+                  spacing={space.x4}
+                  modifiers={[
+                    padding({ horizontal: space.x5, vertical: space.x4 }),
+                    frame({ minHeight: theme.touch }),
+                    contentShape(shapes.rectangle()),
+                  ]}
                 >
-                  <HStack
-                    spacing={space.x4}
+                  <Image
+                    systemName={rowSymbol(action.key === 'select-copy' ? 'copy' : action.key).ios}
                     modifiers={[
-                      padding({ horizontal: space.x5, vertical: space.x4 }),
-                      frame({ minHeight: theme.touch }),
-                      contentShape(shapes.rectangle()),
+                      font({ textStyle: 'body' }),
+                      foregroundStyle(theme.color.fg),
+                      imageScale('medium'),
+                      frame({ minWidth: icon }),
                     ]}
-                  >
-                    <Image
-                      systemName={rowSymbol(action.key === 'select-copy' ? 'copy' : action.key).ios}
-                      modifiers={[
-                        font({ textStyle: 'body' }),
-                        foregroundStyle(theme.color.fg),
-                        imageScale('medium'),
-                        frame({ minWidth: icon }),
-                      ]}
-                    />
-                    <Text
-                      modifiers={[font({ textStyle: 'body' }), foregroundStyle(theme.color.fg)]}
-                    >
-                      {action.label}
-                    </Text>
-                    <Spacer />
-                  </HStack>
-                </Button>
-              </Fragment>
-            ))}
-          </VStack>
-        ),
-      )}
+                  />
+                  <Text modifiers={[font({ textStyle: 'body' }), foregroundStyle(theme.color.fg)]}>
+                    {action.label}
+                  </Text>
+                  <Spacer />
+                </HStack>
+              </Button>
+            </Fragment>
+          ))}
+        </VStack>
+      ))}
     </VStack>
   );
 }

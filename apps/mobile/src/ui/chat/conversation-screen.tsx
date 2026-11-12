@@ -579,7 +579,7 @@ function ChatConversation({
   const selectionScope = (saved?.hostId ?? '') + ':' + (activeChannel ?? '');
   const [sourceFor, setSourceFor] = useState<{ scope: string; id: string }>();
   const sourceMessage =
-    sourceFor?.scope === selectionScope
+    focused && sourceFor?.scope === selectionScope
       ? snapshot.messages.find((message) => message.id === sourceFor.id)
       : undefined;
   const [picked, setPicked] = useState<{
@@ -2405,7 +2405,7 @@ function ChatConversation({
             onReact={(message, emoji, active) => react(message.id, emoji, active)}
             onCopy={copyMessage}
             onSelectCopy={
-              Platform.OS === 'android'
+              Platform.OS === 'android' || Platform.OS === 'ios'
                 ? (message) => setSourceFor({ scope: selectionScope, id: message.id })
                 : undefined
             }
