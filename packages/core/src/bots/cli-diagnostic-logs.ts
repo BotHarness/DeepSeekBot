@@ -5,6 +5,7 @@ import {
   DIAGNOSTIC_LOG_LIMITS,
   exportDiagnosticLogOffline,
   readDiagnosticLogOffline,
+  diagnosticExportSummary,
   type DiagnosticLogEnvironment,
   type DiagnosticLogList,
 } from '../diagnostics/diagnostic-log.js';
@@ -117,7 +118,7 @@ function exportOffline(
     bytes: exported.archive.byteLength,
     entries: Number(exported.manifest['entries'] ?? 0),
     source: 'offline',
-    completeness: exported.manifest['completeness'],
+    completeness: diagnosticExportSummary(exported.manifest),
     ...(fallback === undefined ? {} : { fallback }),
   };
 }
@@ -237,6 +238,10 @@ export async function runDiagnosticLogCommand(
       if (isOfflineFallback(error)) return exportOffline(values.out, hours, values, io, error.code);
       throw error;
     }
+    let completeness: unknown;
+    try {
+      completeness = JSON.parse(response.headers.get('x-diagnostic-log-completeness') ?? 'null');
+    } catch {}
     writeFileSync(values.out, bytes, { flag: 'wx', mode: 0o600 });
     return {
       saved: true,
@@ -244,7 +249,7 @@ export async function runDiagnosticLogCommand(
       bytes: bytes.byteLength,
       entries: Number(response.headers.get('x-diagnostic-log-entries') ?? 0),
       source: 'host',
-      completeness: response.headers.get('x-diagnostic-log-completeness') ?? 'unknown',
+      completeness: diagnosticExportSummary({ completeness }),
     };
   }
   let input: Record<string, unknown>;

@@ -9,6 +9,7 @@ import { readZip } from '../src/bots/zip-archive.js';
 import { DatabaseSync } from 'node:sqlite';
 
 import { LOG_DB_FILENAME, openLogDatabase } from '../src/logs/log-db.js';
+import { createLogHealth } from '../src/diagnostics/log-health.js';
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -24,6 +25,39 @@ const io = (stdin = '') => ({
 });
 
 describe('diagnostic log CLI', () => {
+  it('returns the same structured completeness for online and offline exports', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'diagnostic-shape-'));
+    dirs.push(home);
+    const dir = join(home, 'botharness');
+    openLogDatabase({ dir }).close();
+    createLogHealth(dir).failure('write-failed', new Error(), 3);
+    const offline = await runDiagnosticLogCommand(
+      'diagnostic-logs-export',
+      { home, offline: true, out: join(home, 'offline.zip') },
+      io() as never,
+      vi.fn() as unknown as Connect,
+    );
+    if (typeof offline !== 'object' || offline === null || !('completeness' in offline))
+      throw new Error('missing completeness');
+    const http = vi.fn(async () => ({
+      bytes: new Uint8Array([80, 75, 5, 6]),
+      response: new Response(null, {
+        headers: { 'x-diagnostic-log-completeness': JSON.stringify(offline.completeness) },
+      }),
+    }));
+    const online = await runDiagnosticLogCommand(
+      'diagnostic-logs-export',
+      { home, host: 'http://127.0.0.1:1', out: join(home, 'online.zip') },
+      io() as never,
+      (async () => ({ http })) as unknown as Connect,
+    );
+    expect(online).toMatchObject({ completeness: offline.completeness });
+    expect(offline.completeness).toMatchObject({
+      status: 'partial',
+      primary: 'available',
+      health: { lostEvents: 3 },
+    });
+  });
   it('reads filtered entries from the same route the modal uses', async () => {
     const http = vi.fn(async () => ({
       bytes: new TextEncoder().encode('{"entries":[{"code":"click"}]}'),
@@ -57,13 +91,13 @@ describe('diagnostic log CLI', () => {
         io() as never,
         connect,
       ),
-    ).toEqual({
+    ).toMatchObject({
       saved: true,
       path: out,
       bytes: 4,
       entries: 42,
       source: 'host',
-      completeness: 'unknown',
+      completeness: { status: 'unknown', primary: 'unknown', health: { evidence: 'unavailable' } },
     });
     expect(http).toHaveBeenCalledWith('/api/botharness/diagnostic-logs/export?hours=2');
     expect(readFileSync(out)).toHaveLength(4);

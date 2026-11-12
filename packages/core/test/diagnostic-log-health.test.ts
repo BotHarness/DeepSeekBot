@@ -1,4 +1,12 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+  renameSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -12,6 +20,7 @@ import {
   diagnosticEventRecorder,
   exportDiagnosticLogOffline,
   listDiagnosticLogs,
+  diagnosticExportSummary,
 } from '../src/diagnostics/diagnostic-log.js';
 import {
   createLogHealth,
@@ -42,6 +51,133 @@ const row = {
   kind: 'host.warn',
   detail: 'fixture',
 } as const;
+
+it('distinguishes exact limits, proven truncation, and an unobservable maximum boundary', () => {
+  const database = openLogDatabase({ dir: home() });
+  try {
+    database.write(row);
+    const query = { filter: 'all', since: 0, limit: 1, homes: [] };
+    expect(listDiagnosticLogs(database, query)).toMatchObject({
+      completeness: { status: 'unknown', omissions: { exportTruncated: false } },
+    });
+    database.write(row);
+    const truncated = listDiagnosticLogs(database, query);
+    expect(truncated.entries).toHaveLength(1);
+    expect(truncated).toMatchObject({
+      completeness: { status: 'partial', omissions: { exportTruncated: true } },
+    });
+    database.writeMany(Array.from({ length: 998 }, () => row));
+    expect(listDiagnosticLogs(database, { ...query, limit: 1000 })).toMatchObject({
+      completeness: { status: 'unknown', omissions: { exportTruncated: null } },
+    });
+  } finally {
+    database.close();
+  }
+});
+
+it('observes one original open error and distinguishes replacement from initial creation', () => {
+  const dir = home();
+  const events: Array<{ phase: string; error: unknown }> = [];
+  const options = {
+    dir,
+    onEvidenceGap: (phase: string, error: unknown) => events.push({ phase, error }),
+  };
+  const first = openLogDatabase(options);
+  expect(events).toHaveLength(0);
+  first.close();
+  rmSync(join(dir, 'logs.db'));
+  first.writeMany([row]);
+  expect(events.map((event) => event.phase)).toEqual(['primary-reset']);
+  first.close();
+  events.length = 0;
+  const raw = new DatabaseSync(join(dir, 'logs.db'));
+  raw.exec('DROP TABLE log_entries');
+  raw.close();
+  const recovered = openLogDatabase(options);
+  try {
+    expect(events.map((event) => event.phase)).toEqual(['open-failed', 'primary-reset']);
+    expect(events[0]?.error).toBeInstanceOf(Error);
+    expect(String(events[0]?.error)).toContain('log_entries');
+  } finally {
+    recovered.close();
+  }
+});
+
+it('refuses Client ingestion until the primary opens while partial exports remain available', async () => {
+  const dir = home();
+  mkdirSync(join(dir, 'logs.db'));
+  writeFileSync(join(dir, 'logs.db', 'fixture'), 'owned blocker');
+  let database: ReturnType<typeof openLogDatabase> | undefined;
+  const writer = createDiagnosticLogWriter({
+    writeMany(rows) {
+      if (database === undefined) throw new Error('unavailable');
+      database.writeMany(rows);
+    },
+  });
+  const http = createDiagnosticLogHttp({
+    database: () => database,
+    writer: () => writer,
+    writable: () => {
+      try {
+        database ??= openLogDatabase({ dir });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    environment,
+    homes: [],
+  });
+  const post = () =>
+    new Request('http://localhost/api/botharness/client-log', {
+      method: 'POST',
+      body: JSON.stringify({
+        version: 1,
+        session: '00000000-0000-4000-8000-000000004055',
+        entries: [{ ts: Date.now(), category: 'action', level: 'info', code: 'fixture' }],
+      }),
+    });
+  try {
+    expect((await http(post())).status).toBe(503);
+    expect(
+      (await http(new Request('http://localhost/api/botharness/diagnostic-logs/export'))).status,
+    ).toBe(200);
+    renameSync(join(dir, 'logs.db'), join(dir, 'owned-blocker'));
+    expect((await http(post())).status).toBe(200);
+    writer.flush();
+    expect(database?.query()).toHaveLength(1);
+  } finally {
+    writer.flush();
+    database?.close();
+  }
+});
+
+it('keeps export summary metadata structured and bounded independently of loss-fact volume', () => {
+  const health = createLogHealth(home());
+  for (let i = 0; i < 50; i++) {
+    health.failure('write-failed', new Error());
+    health.success();
+  }
+  const summary = diagnosticExportSummary({
+    completeness: {
+      status: 'partial',
+      primary: 'available',
+      omissions: {
+        exportTruncated: false,
+        lossFacts: Array.from({ length: 50_000 }, () => ({ id: 1 })),
+      },
+      health: health.snapshot(),
+    },
+  });
+  expect(summary).toMatchObject({
+    status: 'partial',
+    primary: 'available',
+    omissions: { lossFactCount: 50_000 },
+    health: { evidence: 'durable' },
+  });
+  expect(Buffer.byteLength(JSON.stringify(summary))).toBeLessThan(8192);
+  expect(diagnosticExportSummary({ completeness: summary })).toEqual(summary);
+});
 
 it('observes destructive schema recovery even when the primary open ultimately succeeds', () => {
   const dir = home();
@@ -111,7 +247,9 @@ it('marks real live-handle read failures unavailable instead of treating swallow
       new Request('http://localhost/api/botharness/diagnostic-logs/export'),
     );
     expect(archive.status).toBe(200);
-    expect(archive.headers.get('x-diagnostic-log-completeness')).toBe('partial');
+    expect(JSON.parse(archive.headers.get('x-diagnostic-log-completeness') ?? '{}')).toMatchObject({
+      status: 'partial',
+    });
     const bug = createBugReportHttp({
       database: () => database,
       environment,
@@ -160,7 +298,9 @@ it('observes actual open refusal and still exports the fallback through existing
     new Request('http://localhost/api/botharness/diagnostic-logs/export'),
   );
   expect(response.status).toBe(200);
-  expect(response.headers.get('x-diagnostic-log-completeness')).toBe('partial');
+  expect(JSON.parse(response.headers.get('x-diagnostic-log-completeness') ?? '{}')).toMatchObject({
+    status: 'partial',
+  });
   expect(health.snapshot().transitions.some((event) => event.phase === 'open-failed')).toBe(true);
 });
 

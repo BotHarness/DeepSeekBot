@@ -509,6 +509,7 @@ export interface DiagnosticLogEnvironment {
 }
 
 export interface DiagnosticLogHttpOptions {
+  writable?: () => boolean;
   health?: () => LogHealthSnapshot;
   database(): LogDatabase | undefined;
   writer(): DiagnosticLogWriter | undefined;
@@ -628,12 +629,16 @@ export function listDiagnosticLogs(
   let primary: 'available' | 'unavailable' = 'unavailable';
   try {
     if (database !== undefined) {
-      rows = database.query({ since, limit, ...(kinds === undefined ? {} : { kinds }) });
+      rows = database.query({
+        since,
+        limit: Math.min(limit + 1, DIAGNOSTIC_LOG_LIMITS.listMax),
+        ...(kinds === undefined ? {} : { kinds }),
+      });
       primary = 'available';
     }
   } catch {}
   const redactor = createDiagnosticRedactor({ homes: options.homes });
-  const entries = rows.map((row) => redactor.value(diagnosticLogView(row)));
+  const entries = rows.slice(0, limit).map((row) => redactor.value(diagnosticLogView(row)));
   return {
     version: DIAGNOSTIC_LOG_VERSION,
     since,
@@ -641,7 +646,12 @@ export function listDiagnosticLogs(
     entries,
     completeness: diagnosticCompleteness(entries, {
       primary,
-      truncated: rows.length >= limit,
+      truncated:
+        rows.length > limit
+          ? true
+          : rows.length === limit && limit === DIAGNOSTIC_LOG_LIMITS.listMax
+            ? null
+            : false,
       ...(options.health === undefined ? {} : { health: options.health }),
     }),
   };
@@ -791,7 +801,7 @@ export function diagnosticCompleteness(
   options: {
     health?: LogHealthSnapshot;
     primary?: 'available' | 'unavailable';
-    truncated?: boolean;
+    truncated?: boolean | null;
   },
 ): Record<string, unknown> {
   const lossFacts = views
@@ -809,9 +819,38 @@ export function diagnosticCompleteness(
         : 'unknown',
     primary: options.primary ?? 'available',
     coverage: 'unknown',
-    omissions: { exportTruncated: options.truncated ?? false, lossFacts },
+    omissions: {
+      exportTruncated: options.truncated === undefined ? false : options.truncated,
+      lossFacts,
+    },
     health: options.health ?? { evidence: 'unavailable', coverage: 'unknown' },
     note: 'Retained evidence only; absence of recorded loss does not establish complete coverage. Health counters are lower bounds across the retained observation history.',
+  };
+}
+
+export function diagnosticExportSummary(manifest: Record<string, unknown>) {
+  const completeness = record(manifest['completeness']);
+  const omissions = record(completeness?.['omissions']);
+  const count = omissions?.['lossFactCount'];
+  return {
+    status: completeness?.['status'] === 'partial' ? 'partial' : 'unknown',
+    primary:
+      completeness?.['primary'] === 'available'
+        ? 'available'
+        : completeness?.['primary'] === 'unavailable'
+          ? 'unavailable'
+          : 'unknown',
+    coverage: 'unknown',
+    omissions: {
+      exportTruncated:
+        typeof omissions?.['exportTruncated'] === 'boolean' ? omissions['exportTruncated'] : null,
+      lossFactCount: Array.isArray(omissions?.['lossFacts'])
+        ? omissions['lossFacts'].length
+        : typeof count === 'number' && Number.isSafeInteger(count) && count >= 0
+          ? count
+          : null,
+    },
+    health: record(completeness?.['health']) ?? { evidence: 'unavailable', coverage: 'unknown' },
   };
 }
 
@@ -824,7 +863,7 @@ export function createDiagnosticLogHttp(options: DiagnosticLogHttpOptions) {
       if (url.pathname === CLIENT_LOG_PATH) {
         if (request.method !== 'POST') return new Response(null, { status: 405, headers: HEADERS });
         const writer = options.writer();
-        if (writer === undefined)
+        if (writer === undefined || options.writable?.() === false)
           throw new DiagnosticLogError('persistence-unavailable', 'Diagnostic log is unavailable.');
         const body = await request.text();
         if (body.length > DIAGNOSTIC_LOG_LIMITS.bodyBytes)
@@ -897,9 +936,7 @@ export function createDiagnosticLogHttp(options: DiagnosticLogHttpOptions) {
           'content-length': String(archive.length),
           'content-disposition': `attachment; filename="deepseekbot-logs-${stamp}.zip"`,
           'x-diagnostic-log-entries': String(manifest['entries']),
-          'x-diagnostic-log-completeness': String(
-            (manifest['completeness'] as Record<string, unknown>)['status'],
-          ),
+          'x-diagnostic-log-completeness': JSON.stringify(diagnosticExportSummary(manifest)),
         },
       });
     } catch (error) {
@@ -919,6 +956,7 @@ export function mountDiagnosticLog(
 ): MountedDiagnosticLog {
   let database: LogDatabase | undefined;
   let writer: DiagnosticLogWriter | undefined;
+  let writable = () => false;
   const home = options.homes.find((entry) => entry.label === '~')?.path;
   const dir = join(options.dshHome, 'botharness');
   const health = createLogHealth(dir);
@@ -944,6 +982,14 @@ export function mountDiagnosticLog(
     try {
       open();
     } catch {}
+    writable = () => {
+      try {
+        open();
+        return true;
+      } catch {
+        return false;
+      }
+    };
     writer = createDiagnosticLogWriter(
       {
         writeMany(rows) {
@@ -965,6 +1011,7 @@ export function mountDiagnosticLog(
       writer?.flush();
       health.snapshot();
       writer = undefined;
+      writable = () => false;
       database?.close();
       database = undefined;
     };
@@ -986,6 +1033,7 @@ export function mountDiagnosticLog(
     ).connection;
     const http = createDiagnosticLogHttp({
       database: () => database,
+      writable: () => writable(),
       health: () => health.snapshot(),
       writer: () => writer,
       environment: options.environment(),

@@ -214,11 +214,17 @@ export function openLogDatabase(options: OpenLogDatabaseOptions): LogDatabase {
     );
   };
 
+  let openedBefore = false;
   const openOrRebuild = (): DatabaseSync => {
     if (options.readOnly === true) return openReadOnly();
     try {
-      if (!existsSync(path)) return rebuildEmpty();
+      if (!existsSync(path)) {
+        if (openedBefore)
+          evidenceGap('primary-reset', new LogDatabaseUnreadableError('logs.db disappeared'));
+        return rebuildEmpty();
+      }
       const database = new DatabaseSync(path);
+      let failure: unknown;
       try {
         database.exec('PRAGMA journal_mode = WAL;');
         const version = readVersion(database);
@@ -231,12 +237,12 @@ export function openLogDatabase(options: OpenLogDatabaseOptions): LogDatabase {
           return database;
         }
       } catch (error) {
-        evidenceGap('open-failed', error);
+        failure = error;
       }
       database.close();
       evidenceGap(
         'open-failed',
-        new LogDatabaseUnreadableError('logs.db schema cannot be retained'),
+        failure ?? new LogDatabaseUnreadableError('logs.db schema cannot be retained'),
       );
     } catch (error) {
       evidenceGap('open-failed', error);
@@ -255,6 +261,7 @@ export function openLogDatabase(options: OpenLogDatabaseOptions): LogDatabase {
   }
 
   let database = openOrRebuild();
+  openedBefore = true;
 
   const swap = (next: DatabaseSync): void => {
     try {
