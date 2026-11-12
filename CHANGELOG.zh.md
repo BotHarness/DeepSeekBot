@@ -10,7 +10,7 @@
 
 ## [1.7.1] - 2026-11-13
 
-Tobs 1.7.1 修复 QQ 默认设置热修复版本的升级，补齐 QQ 平台默认设置，并强化启动、更新及诊断故障的定位信息。
+Tobs 1.7.1 修复 QQ 热修复版本的升级和重启后的限时提问回答，补齐 QQ 平台默认设置，并强化故障定位信息。
 
 移动端条目描述独立版本手机应用的改动，不代表已发布 App Store 或 Play 版本。
 
@@ -23,6 +23,8 @@ Tobs 1.7.1 修复 QQ 默认设置热修复版本的升级，补齐 QQ 平台默�
 - Android 消息菜单新增「选中复制」全屏页面，支持原生选区复制 Markdown 和 GenUI HTML 原文，也可全部复制（[#4044](https://github.com/BotHarness/DeepSeekBot/issues/4044)）。
 
 ### Fixed
+
+- 修复 Host 重启后持久化限时提问无法回答的问题：原卡片恢复所属原生 Session，且不会把提问当作新的 Memory 准入来源（[#4066](https://github.com/BotHarness/DeepSeekBot/issues/4066)、[#4067](https://github.com/BotHarness/DeepSeekBot/pull/4067)）。
 
 - 修复运行过第 116 代 QQ 默认设置热修复的 Profile 升级后核心无法启动的问题：通过向前迁移补齐提问通知结构，保留已有记录和 QQ 偏好。遇到不兼容的既有结构时拒绝迁移、不替换原数据库；这不是官方 1.6.1 普遍存在的升级故障（[#4040](https://github.com/BotHarness/DeepSeekBot/issues/4040)）。
 

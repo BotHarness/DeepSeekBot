@@ -10,7 +10,7 @@ Changes under development.
 
 ## [1.7.1] - 2026-11-13
 
-Tobs 1.7.1 restores upgrades from the QQ-default hotfix, supports QQ platform defaults, and makes startup, update and diagnostic failures easier to locate.
+Tobs 1.7.1 restores QQ-hotfix upgrades and timed-question answers after restart, supports QQ platform defaults, and makes failures easier to locate.
 
 Mobile entries describe changes to the separately versioned phone app; they do not announce an App Store or Play release.
 
@@ -23,6 +23,8 @@ Mobile entries describe changes to the separately versioned phone app; they do n
 - Added an Android Select and copy page for native text selection of original Markdown and GenUI HTML, with a Copy all action ([#4044](https://github.com/BotHarness/DeepSeekBot/issues/4044)).
 
 ### Fixed
+
+- Fixed answers to durable timed questions after a Host restart: the original card resumes its owning native Session without treating the question as a new Memory admission ([#4066](https://github.com/BotHarness/DeepSeekBot/issues/4066), [#4067](https://github.com/BotHarness/DeepSeekBot/pull/4067)).
 
 - Fixed core startup after upgrading a Profile that ran the generation-116 QQ-default hotfix: a forward migration restores the missing question-notification schema while retaining existing records and QQ preferences. Incompatible existing structures refuse migration without replacing the original database; this is not a general official 1.6.1 upgrade failure ([#4040](https://github.com/BotHarness/DeepSeekBot/issues/4040)).
 
