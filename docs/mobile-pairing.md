@@ -1,11 +1,5 @@
 # Pair your phone over Tailscale
 
-## Manage linked computers
-
-On the phone's Connect account screen, sign in and choose **Manage linked computers**. No Host pairing is required. Select an online or offline computer and confirm **Unlink**. After success, the list refreshes and a slot is available for a new computer.
-
-A session-bound computer must sign in again to restore Connect. Older links without session information warn that the computer may reconnect automatically. Bots, chats, files, phone pairings and independent LAN/Tailscale access remain. This does not delete your account.
-
 The DeepSeekBot phone app connects to DeepSeek Harness (DSH) on your own computer. Bots, chat history and approvals stay on the computer; the phone is a remote client.
 
 Without an account, the phone **reaches the computer through Tailscale**: the phone and the computer sign in to the same Tailscale network (tailnet), the computer publishes DSH as `https://<computer>.<tailnet>.ts.net` with `tailscale serve`, and after you scan the code the phone connects back through that address. You need no public IP and no router changes, and it works over mobile data. If you would rather not set up Tailscale, use [DeepSeekBot Connect](#without-tailscale-deepseekbot-connect) instead.
@@ -142,3 +136,9 @@ Tailscale connects directly or through its own relays on most networks. If the n
 - A paired phone has the same authority as you on the computer, so pair only your own devices.
 - The phone keeps its credential only in the system keychain (iOS Keychain / Android Keystore); the computer keeps only its hash.
 - DSH itself still listens on the local address only. Phone requests go through the DeepSeekBot device gateway and can be revoked at any time. Details: [ADR-0199](adr/0199-paired-devices-reach-the-host-through-a-same-listener-device-gateway.md).
+
+## Manage linked computers
+
+On the phone's Connect account screen, sign in and choose **Manage linked computers**. No Host pairing is required. Select an online or offline computer and confirm **Unlink**. After success, the list refreshes and a slot is available for a new computer.
+
+A session-bound computer must sign in again to restore Connect. Older links without session information warn that the computer may reconnect automatically. Bots, chats, files, phone pairings and independent LAN/Tailscale access remain. This does not delete your account.
