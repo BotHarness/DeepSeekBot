@@ -84,7 +84,7 @@ dsh plugin --profile <your-profile> add @botharness/tobs@1.7.0
 
 Use the Profile you actually start. Enable the plugin in that Profile's Plugins page afterward.
 
-To import the same precompiled archive, download the public npm tarball with `npm pack @botharness/tobs@1.7.0`, which saves `botharness-tobs-<version>.tgz` in the current directory. In the Web interface, enter its **absolute path on the machine running DSH** in Package name or address; a path on a different browser machine is not a Host path. With the CLI you can instead use `dsh plugin --profile <your-profile> add ./botharness-tobs-<version>.tgz` from the download directory.
+To import the same precompiled archive, download the public npm tarball with `npm pack @botharness/tobs@1.7.0`, which saves `botharness-tobs-1.7.0.tgz` in the current directory. In the Web interface, enter its **absolute path on the machine running DSH** in Package name or address; a path on a different browser machine is not a Host path. With the CLI you can instead use `dsh plugin --profile <your-profile> add ./botharness-tobs-1.7.0.tgz` from the download directory.
 
 ## If installation does not finish
 
