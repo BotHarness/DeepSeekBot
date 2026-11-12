@@ -1734,6 +1734,8 @@ tobs profile-backup-restore --file environment.botharness-backup --new-home new-
 
 数据库启动会写入结构化的 `operational-database` 条目：`mount-started`、`ready`、`recovery`、`failure-cause` 和 `closed`。用 `mountId` 和 `pid` 关联同一次启动，查看 `stage`、数据库代数、耗时及有数量限制的原因链（`code`、SQLite `errcode`、`syscall` 和脱敏消息）。租约失败会区分打开锁文件、取得写锁和发布占锁信息三个阶段。`writerPid`、`writerInstanceId`、`writerAcquiredAt` 和 `writerRelation` 仅描述失败时观察到的元数据，不证明对应进程仍存活；`writerEvidence: metadata-only` 明确标识这一限制，缺少元数据则为 `unavailable`。报告不包含机器名和进程命令行。租约没有固定到期时间，诊断不会删锁或终止进程。即使业务启动失败，现有在线／离线导出和问题报告 ZIP 也会包含这些条目。
 
+Core 启动另行写入 `core-startup` 记录：`started`、`ready`、`failed`，以及最多四条 `failure-cause`。通过 `attemptId`、`mountId` 和 `pid` 关联本次构造与数据库启动；`module`、`stage`、`durationMs` 和 `stageDurationMs` 定位失败的初始化步骤。`databaseMode` 仅记录挂载模式，不替代数据库所有者。`scope: application-core` 只表示同步 Core 构造完成；数据库、Core、DSH Host/API/Client 就绪是独立事实。进程突然退出后缺少终态时，结果为未知。错误原因只保留白名单内的错误类型、OS/SQLite 错误码、SQLite 数字错误码及系统调用名；不保存消息文本、堆栈及任意抛出值，以排除路径和用户内容。现有诊断日志及错误报告的离线导出保留失败尝试，并可区分后续成功重启；诊断持久化仍为尽力记录。
+
 排查 Connect 登录失败时，查看 `device-connect` 中 `phase=account-request-error` 的条目。它们标明服务（`relay` 中继或 `identity` 登录服务）、操作和失败原因：`transport` 附带限定范围的错误码，`http` 附带 `httpStatus`，`invalid-response` 表示响应无效。不记录请求 URL、账号标识、凭证或响应正文。单凭 `relay-unavailable` 不能判定 DNS 失败；Host 的隧道 DNS 记录在创建该 Host 时配置，随机 `*.deepseekbot.dev` 子域不一定存在。
 
 Tobs 会一直在本地记录诊断日志，保存在 `$DSH_HOME/botharness/logs.db`（30 天，最多 5 万条）：Client 的操作与导航轨迹、未捕获错误和控制台警告、UI 不变量被破坏、长帧和慢的 Host 调用，以及 Host 警告和 BotHarness 生命周期日志。不会记录输入的文字、消息正文或文件内容，也不会离开这台设备。Workspace Control Rail 上的 **诊断日志** 按钮可查看最近 24 小时，并导出与 CLI 相同的 ZIP。
