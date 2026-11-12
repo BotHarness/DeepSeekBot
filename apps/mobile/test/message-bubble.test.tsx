@@ -176,6 +176,7 @@ vi.mock('react-native-enriched-markdown', () => ({
   EnrichedMarkdownText: (props: {
     markdown: string;
     selectable?: boolean;
+    enableBlockContextMenu?: boolean;
     flavor?: string;
     md4cFlags?: { latexMath?: boolean };
     onLinkPress?: unknown;
@@ -183,6 +184,7 @@ vi.mock('react-native-enriched-markdown', () => ({
     <div
       data-native="EnrichedMarkdownText"
       data-selectable={String(props.selectable)}
+      data-block-context-menu={String(props.enableBlockContextMenu)}
       data-flavor={props.flavor}
       data-latex={String(props.md4cFlags?.latexMath)}
       data-links={String(typeof props.onLinkPress === 'function')}
@@ -421,6 +423,13 @@ describe('message states', () => {
     expect(html).toContain('data-accessibilityrole="button"');
   });
 
+  it('keeps standalone selectable Markdown block menus available', async () => {
+    const { MarkdownView } = await import('../src/ui/markdown-view');
+    const html = renderToStaticMarkup(<MarkdownView source={'```ts\nconst value = 1;\n```'} />);
+    expect(html).toContain('data-selectable="true"');
+    expect(html).toContain('data-block-context-menu="true"');
+  });
+
   it('renders a Bot reply as Markdown that long-press copies whole', () => {
     const html = renderToStaticMarkup(
       <MessageBubble
@@ -433,6 +442,7 @@ describe('message states', () => {
       />,
     );
     expect(html).toContain('data-selectable="false"');
+    expect(html).toContain('data-block-context-menu="false"');
     expect(html).not.toContain('data-selectable="true"');
     expect(html).toContain(`data-accessibilityhint="${t.messageActionsHint}"`);
     expect(html).toContain(
@@ -726,6 +736,31 @@ describe('double-tap to react', () => {
     expect(native.holds.has(t.messageActionsHint)).toBe(false);
     gestures[0]?.start();
     expect(onSelect).toHaveBeenCalledExactlyOnceWith(bot);
+  });
+
+  it('keeps an iOS native hold opening message actions instead of selecting the message', async () => {
+    const measurement = await import('../src/ui/primitives/measure-message-view');
+    const measured = vi
+      .spyOn(measurement, 'measureMessageView')
+      .mockImplementation((_view, then) => {
+        then(16, 400, 200, 60);
+      });
+    const onLongPress = vi.fn();
+    const onSelect = vi.fn();
+    try {
+      renderToStaticMarkup(
+        <MessageBubble message={bot} onLongPress={onLongPress} onSelect={onSelect} />,
+      );
+      native.longPresses.find((gesture) => gesture.enabled)?.start();
+      expect(onLongPress).toHaveBeenCalledExactlyOnceWith(
+        bot,
+        { x: 16, y: 400, width: 200, height: 60 },
+        expect.anything(),
+      );
+      expect(onSelect).not.toHaveBeenCalled();
+    } finally {
+      measured.mockRestore();
+    }
   });
 });
 

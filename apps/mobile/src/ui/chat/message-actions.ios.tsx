@@ -110,7 +110,14 @@ export function MessageActions({
           ]}
         >
           <ScrollView
-            modifiers={[frame({ height: Math.min(contentHeight || available, available) })]}
+            modifiers={[
+              frame({
+                height:
+                  contentHeight === 0
+                    ? available
+                    : Math.min(contentHeight + insets.bottom, available),
+              }),
+            ]}
           >
             <SheetContent
               onHeight={setContentHeight}

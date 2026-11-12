@@ -471,7 +471,7 @@ function PressableBubble({
             open();
           };
   const tap = tapOpens && onLongPress !== undefined ? open : undefined;
-  const nativeHolding = Platform.OS === 'android' && hold !== undefined;
+  const nativeHolding = (Platform.OS === 'android' || Platform.OS === 'ios') && hold !== undefined;
   const currentHold = useRef(hold);
   currentHold.current = hold;
   const nativeHold = useMemo(

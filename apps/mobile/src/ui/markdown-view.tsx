@@ -37,6 +37,7 @@ export const MarkdownView = memo(function MarkdownView({
       markdownStyle={style}
       flavor="github"
       selectable={selectable}
+      enableBlockContextMenu={selectable}
       md4cFlags={flags}
       enableTaskListItemToggle={false}
       onLinkPress={linkPressed}
