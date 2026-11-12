@@ -25,6 +25,9 @@ it.each([
   String.raw`password="left\"right"`,
   String.raw`password='left\'right'`,
   'password="truncated fixture-password',
+  'password="left right' + '\\',
+  "password='left right" + '\\',
+  'password="left' + '\\' + '\nright"',
 ])('redacts complete quoted credentials in error text: %s', (message) => {
   const redacted = createDiagnosticRedactor({ homes: [] }).text(message);
   expect(redacted).toContain('<secret>');
