@@ -12,6 +12,10 @@ and default/intermediate/maximum system text on both platforms; record platform 
 
 The development-only `/qa/account-actions?scenario=linked-computers` route exercises the real
 mobile account owner and panel with synthetic offline and legacy targets, never a live relay.
+On iOS, tap the center and empty trailing area of each computer row as well as its label.
+Use `scenario=linked-computers-refresh-failure` to confirm a synthetic unlink, observe a failed
+list refresh with further removal disabled, then Refresh and verify recovery. Both routes retain
+the `__DEV__` and `.dev` bundle gates; do not make them visible in production.
 Source checks: `apps/mobile/test/account-panel-ios-integration.test.tsx`,
 `apps/mobile/test/account-panel.test.tsx`, `apps/mobile/test/connect-account.test.ts`.
 These checks do not establish native rendering or real-service acceptance.

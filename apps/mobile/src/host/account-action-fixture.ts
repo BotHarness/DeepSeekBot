@@ -11,12 +11,14 @@ export type AccountFixtureScenario =
   | 'expired-retry'
   | 'completion-write'
   | 'linked-computers'
+  | 'linked-computers-refresh-failure'
   | 'environments';
 
 const response = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
 export function createAccountActionFixture(scenario: AccountFixtureScenario = 'success') {
+  const linked = scenario === 'linked-computers' || scenario === 'linked-computers-refresh-failure';
   const owner: AccountOwner = {
     issuer: 'https://api.workos.com',
     relay: 'https://fixture.invalid',
@@ -111,56 +113,64 @@ export function createAccountActionFixture(scenario: AccountFixtureScenario = 's
             return response({}, 400);
           return response({ access_token: 'fixture-access', user: { id: owner.subject } });
         }
+        if (
+          scenario === 'linked-computers-refresh-failure' &&
+          url === `${owner.relay}/v1/hosts` &&
+          unlinked.size > 0 &&
+          !failed
+        ) {
+          failed = true;
+          return response({}, 502);
+        }
         if (url === `${owner.relay}/v1/hosts`)
           return response({
-            hosts:
-              scenario === 'linked-computers'
+            hosts: linked
+              ? [
+                  {
+                    id: 'hoffline',
+                    name: 'Offline laptop',
+                    hostname: 'offline.fixture.invalid',
+                    tunnel: false,
+                    sessionKnown: true,
+                  },
+                  {
+                    id: 'hlegacy',
+                    name: 'Older computer',
+                    hostname: 'legacy.fixture.invalid',
+                    tunnel: false,
+                    sessionKnown: false,
+                  },
+                ].filter((host) => !unlinked.has(host.id))
+              : scenario === 'environments'
                 ? [
                     {
-                      id: 'hoffline',
-                      name: 'Offline laptop',
-                      hostname: 'offline.fixture.invalid',
-                      tunnel: false,
-                      sessionKnown: true,
+                      id: 'studio',
+                      name: 'Studio Mac',
+                      hostname: 'studio.fixture.invalid',
+                      tunnel: true,
                     },
                     {
-                      id: 'hlegacy',
-                      name: 'Older computer',
-                      hostname: 'legacy.fixture.invalid',
-                      tunnel: false,
-                      sessionKnown: false,
+                      id: 'laptop',
+                      name: 'Travel Laptop',
+                      hostname: 'laptop.fixture.invalid',
+                      tunnel: true,
                     },
-                  ].filter((host) => !unlinked.has(host.id))
-                : scenario === 'environments'
-                  ? [
-                      {
-                        id: 'studio',
-                        name: 'Studio Mac',
-                        hostname: 'studio.fixture.invalid',
-                        tunnel: true,
-                      },
-                      {
-                        id: 'laptop',
-                        name: 'Travel Laptop',
-                        hostname: 'laptop.fixture.invalid',
-                        tunnel: true,
-                      },
-                      {
-                        id: 'owned',
-                        name: 'Home PC',
-                        hostname: 'owned.fixture.invalid',
-                        tunnel: true,
-                      },
-                      {
-                        id: 'office',
-                        name: 'Office Server',
-                        hostname: 'office.fixture.invalid',
-                        tunnel: false,
-                      },
-                    ]
-                  : [],
+                    {
+                      id: 'owned',
+                      name: 'Home PC',
+                      hostname: 'owned.fixture.invalid',
+                      tunnel: true,
+                    },
+                    {
+                      id: 'office',
+                      name: 'Office Server',
+                      hostname: 'office.fixture.invalid',
+                      tunnel: false,
+                    },
+                  ]
+                : [],
           });
-        if (scenario === 'linked-computers' && init?.method === 'POST' && url.endsWith('/revoke')) {
+        if (linked && init?.method === 'POST' && url.endsWith('/revoke')) {
           const id = new URL(url).pathname.split('/')[3]!;
           if (!['hoffline', 'hlegacy'].includes(id) || unlinked.has(id))
             return response({ error: { code: 'host-not-found' } }, 404);

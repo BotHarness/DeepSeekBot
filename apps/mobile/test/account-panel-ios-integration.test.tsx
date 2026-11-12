@@ -18,12 +18,14 @@ type NativeProps = {
 vi.mock('@expo/ui', () => ({
   Host: ({ children }: NativeProps) => <div>{children}</div>,
 }));
-vi.mock('@expo/ui/swift-ui/modifiers', () =>
-  Object.fromEntries(
+vi.mock('@expo/ui/swift-ui/modifiers', () => ({
+  shapes: { rectangle: () => ({ kind: 'rectangle' }) },
+  ...Object.fromEntries(
     [
       'accessibilityHidden',
       'accessibilityLabel',
       'buttonStyle',
+      'contentShape',
       'disabled',
       'font',
       'foregroundStyle',
@@ -35,7 +37,7 @@ vi.mock('@expo/ui/swift-ui/modifiers', () =>
       'tint',
     ].map((kind) => [kind, (value: unknown) => ({ kind, value })]),
   ),
-);
+}));
 vi.mock('@expo/ui/swift-ui', () => {
   const group = ({ children, icon }: NativeProps) => (
     <div>
@@ -445,4 +447,25 @@ it('marks iOS Environment rows with one native checkmark and pins the add action
   expect(button('account-computer-studio').textContent).toContain(t.pairAccount.pairing);
   expect(button('account-add-selected').dataset['busy']).toBe('true');
   expect(button('account-add-selected').disabled).toBe(true);
+});
+
+it('recovers the native QA scenario after unlink succeeds but refreshing the list fails', async () => {
+  await render('linked-computers-refresh-failure');
+  await click('account-manage-computers');
+  await click('account-computer-hoffline');
+  await act(async () => {
+    await confirmations[0]?.confirm();
+  });
+  expect(host.textContent).toContain(t.pairRefused['relay-unavailable']);
+  expect(button('account-computer-hlegacy').disabled).toBe(true);
+  const refresh = host.querySelector<HTMLButtonElement>(
+    `button[aria-label="${t.pairAccount.refresh}"]`,
+  );
+  expect(refresh).not.toBeNull();
+  await act(async () => {
+    refresh?.click();
+  });
+  expect(host.textContent).not.toContain(t.pairRefused['relay-unavailable']);
+  expect(button('account-computer-hlegacy').disabled).toBe(false);
+  expect(host.querySelector('[data-testid="account-computer-hoffline"]')).toBeNull();
 });

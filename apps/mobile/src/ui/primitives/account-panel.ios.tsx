@@ -15,6 +15,7 @@ import {
   accessibilityHidden,
   accessibilityLabel,
   buttonStyle,
+  contentShape,
   disabled,
   font,
   foregroundStyle,
@@ -23,6 +24,7 @@ import {
   listRowBackground,
   offset,
   scrollContentBackground,
+  shapes,
   tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { View } from 'react-native';
@@ -106,7 +108,13 @@ export function AccountPanel(props: AccountPanelProps) {
                     ),
                   ]}
                 >
-                  <HStack spacing={space.x3} modifiers={[frame({ minHeight: theme.touch })]}>
+                  <HStack
+                    spacing={space.x3}
+                    modifiers={[
+                      frame({ minHeight: theme.touch, maxWidth: Infinity, alignment: 'leading' }),
+                      contentShape(shapes.rectangle()),
+                    ]}
+                  >
                     <Image systemName="desktopcomputer" />
                     <VStack alignment="leading" spacing={space.x1}>
                       <Text modifiers={[font({ textStyle: 'body' })]}>{row.name}</Text>
