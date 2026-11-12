@@ -16,6 +16,22 @@ const original: ConversationMessage = {
   delivery: 'committed',
 };
 
+const purged: ConversationMessage = {
+  ...original,
+  body: '',
+  source: {
+    channelId: 'channel-a',
+    revision: 2,
+    message: {
+      id: original.id,
+      at: original.at,
+      author: { kind: 'human' },
+      body: '',
+      contentPurge: { actor: 'local-human' },
+    },
+  },
+};
+
 function mount() {
   const root = createRoot(document.createElement('div'));
   let scope = 'host-a:channel-a';
@@ -79,6 +95,27 @@ describe('retained message source presentation', () => {
     view.messages([original]);
     expect(view.current.message).toBeUndefined();
     expect(view.presented).toEqual([original.body]);
+    view.stop();
+  });
+
+  it('closes when cleanup retains a content-purge placeholder with the same ID', () => {
+    const view = mount();
+    act(() => view.current.select(original));
+    view.messages([purged]);
+    expect(view.current.message).toBeUndefined();
+    view.messages([original]);
+    expect(view.current.message).toBeUndefined();
+    expect(view.presented).toEqual([original.body]);
+    view.stop();
+  });
+
+  it('rejects a delayed sheet action after the message becomes a purge placeholder', () => {
+    const view = mount();
+    const deferred = view.current.select;
+    view.messages([purged]);
+    act(() => deferred(original));
+    expect(view.current.message).toBeUndefined();
+    expect(view.presented).toEqual([]);
     view.stop();
   });
 

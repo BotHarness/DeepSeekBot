@@ -1,6 +1,12 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import type { ConversationMessage } from '../../host/conversation';
 
+function retainedSource(messages: readonly ConversationMessage[], id: string) {
+  return messages.find(
+    (message) => message.id === id && message.source?.message.contentPurge === undefined,
+  );
+}
+
 export function useMessageSourceState(
   scope: string,
   focused: boolean,
@@ -10,9 +16,7 @@ export function useMessageSourceState(
   owner.current = { scope, focused, messages };
   const [selection, setSelection] = useState<{ scope: string; id: string }>();
   const message =
-    focused && selection?.scope === scope
-      ? messages.find((value) => value.id === selection.id)
-      : undefined;
+    focused && selection?.scope === scope ? retainedSource(messages, selection.id) : undefined;
   useLayoutEffect(() => {
     if (selection !== undefined && (!focused || selection.scope !== scope || message === undefined))
       setSelection(undefined);
@@ -23,7 +27,7 @@ export function useMessageSourceState(
       if (
         !current.focused ||
         current.scope !== scope ||
-        !current.messages.some((message) => message.id === value.id)
+        retainedSource(current.messages, value.id) === undefined
       )
         return;
       setSelection({ scope, id: value.id });
