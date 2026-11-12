@@ -23,6 +23,11 @@ export interface AccountPanelProps {
   busy: boolean;
   rows: AccountComputerRow[] | undefined;
   error?: string | undefined;
+  notice?: string | undefined;
+  managing?: boolean;
+  managementDisabled?: boolean;
+  onManage(): void;
+  onRevoke(id: string): void;
   selectedCount: number;
   onToggle(id: string): void;
   onAdd(): void;
@@ -82,20 +87,39 @@ export function AccountPanel(props: AccountPanelProps) {
         </SettingsSection>
         {signedIn ? (
           <SettingsSection title={t.pairAccount.computers} on="raised">
+            <SettingsRow
+              on="raised"
+              testID="account-manage-computers"
+              title={props.managing ? t.pairAccount.doneManaging : t.pairAccount.manage}
+              tone="accent"
+              onPress={locked || props.pendingDeletion ? undefined : props.onManage}
+            />
             {props.rows?.map((row) => (
               <SettingsRow
                 key={row.id}
                 on="raised"
                 testID={`account-computer-${row.id}`}
                 title={row.name}
-                detail={status(row)}
-                tone={row.disabled ? 'muted' : 'fg'}
+                detail={props.managing ? `${status(row)} · ${t.pairAccount.unlink}` : status(row)}
+                tone={props.managing ? 'danger' : row.disabled ? 'muted' : 'fg'}
                 selected={row.selected}
-                accessibilityLabel={`${row.name}, ${status(row)}${row.selected ? `, ${t.pairAccount.selected}` : ''}`}
+                accessibilityLabel={
+                  props.managing
+                    ? `${t.pairAccount.unlinkTitle(row.name)}, ${status(row)}`
+                    : `${row.name}, ${status(row)}${row.selected ? `, ${t.pairAccount.selected}` : ''}`
+                }
                 control={
                   row.pairing ? { kind: 'busy' } : row.selected ? { kind: 'check' } : undefined
                 }
-                onPress={row.disabled || locked ? undefined : () => props.onToggle(row.id)}
+                onPress={
+                  locked || props.pendingDeletion || (props.managing && props.managementDisabled)
+                    ? undefined
+                    : props.managing
+                      ? () => props.onRevoke(row.id)
+                      : row.disabled
+                        ? undefined
+                        : () => props.onToggle(row.id)
+                }
               />
             ))}
             {props.rows?.length ? null : (
@@ -119,13 +143,18 @@ export function AccountPanel(props: AccountPanelProps) {
             />
           </SettingsSection>
         ) : null}
+        {props.notice ? (
+          <Text accessibilityRole="alert" style={{ paddingHorizontal: space.x5 }}>
+            {props.notice}
+          </Text>
+        ) : null}
         {props.error ? (
           <Text accessibilityRole="alert" tone="danger" style={{ paddingHorizontal: space.x5 }}>
             {props.error}
           </Text>
         ) : null}
       </ScrollView>
-      {props.rows?.length ? (
+      {!props.managing && props.rows?.length ? (
         <StepBar
           primary={{
             testID: 'account-add-selected',

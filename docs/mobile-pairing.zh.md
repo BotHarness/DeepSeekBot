@@ -136,3 +136,9 @@ Tailscale 在大多数网络下都能直连或通过它自己的中继连通。�
 - 配对后的手机拥有和你在电脑上一样的权限，请只配对自己的设备。
 - 手机上的凭据只保存在系统钥匙串（iOS Keychain／Android Keystore）里，电脑只保存它的哈希值。
 - DSH 本身仍只监听本机地址，手机的请求经过 DeepSeekBot 的设备网关转发，并且随时可以撤销。技术细节见 [ADR-0199](adr/0199-paired-devices-reach-the-host-through-a-same-listener-device-gateway.md)。
+
+## 管理已关联电脑
+
+在手机的 Connect 账号页面登录后，选择「管理已关联电脑」。无需先配对 Host。选择在线或离线电脑，确认「解除关联」。成功后刷新列表，释放名额供新电脑关联。
+
+已绑定登录会话的电脑需要重新登录才能恢复 Connect。没有登录会话信息的旧关联会明确提示可能自动重新关联。Bot、聊天、文件、手机配对和独立的局域网/Tailscale 访问均保留，不会删除账号。

@@ -8,6 +8,22 @@ vi.mock('../src/ui/primitives/account-panel', () => ({
     <div>
       <span>{p.email ?? t.pairAccount.hint}</span>
       <span>{p.error}</span>
+      <span>{p.notice}</span>
+      <button aria-label="manage" onClick={p.onManage}>
+        Manage computers
+      </button>
+      {p.managing
+        ? p.rows?.map((row) => (
+            <button
+              key={`revoke-${row.id}`}
+              aria-label={`unlink ${row.name}`}
+              disabled={p.loading || p.busy}
+              onClick={() => p.onRevoke(row.id)}
+            >
+              Unlink
+            </button>
+          ))
+        : null}
       {p.rows?.map((row) => (
         <button
           key={row.id}
@@ -106,11 +122,56 @@ const studio: ConnectHost = {
   online: true,
 };
 
+it('confirms an offline computer by name, removes its account row and keeps the phone signed in', async () => {
+  dialogs.auto = false;
+  const laptop = { ...studio, id: 'hlaptop', name: 'Laptop', online: false, sessionKnown: true };
+  let rows = [laptop];
+  const account = {
+    email: vi.fn(async () => 'alice@example.com'),
+    actionKey: vi.fn(async () => 'session-a'),
+    pendingDeletion: vi.fn(async () => false),
+    finishLocalCleanup: vi.fn(),
+    signIn: vi.fn(),
+    signOut: vi.fn(),
+    deleteAccount: vi.fn(),
+    hosts: vi.fn(async () => ({ ok: true as const, value: rows })),
+    revokeHost: vi.fn(async () => {
+      rows = [];
+      return { ok: true as const, value: { sessionKnown: true, sessionRevoked: true } };
+    }),
+  };
+  host = document.createElement('div');
+  document.body.append(host);
+  root = createRoot(host);
+  await act(async () =>
+    root!.render(
+      <AccountHosts account={account} busy={false} saved={[]} results={{}} onPair={vi.fn()} />,
+    ),
+  );
+  await act(async () =>
+    host!.querySelector<HTMLButtonElement>('button[aria-label="manage"]')!.click(),
+  );
+  await act(async () =>
+    host!.querySelector<HTMLButtonElement>('button[aria-label="unlink Laptop"]')!.click(),
+  );
+  expect(confirmed.at(-1)).toContain('Laptop');
+  expect(account.revokeHost).not.toHaveBeenCalled();
+  await act(async () => {
+    await dialogs.callbacks.at(-1)!();
+  });
+  expect(account.revokeHost).toHaveBeenCalledWith('session-a', 'hlaptop');
+  expect(host.querySelector('button[aria-label="unlink Laptop"]')).toBeNull();
+  expect(host.textContent).toContain('alice@example.com');
+  expect(account.signOut).not.toHaveBeenCalled();
+  expect(host.textContent).toContain(t.pairAccount.unlinked);
+});
+
 it('signs in, lists the account Hosts and pairs with the chosen one', async () => {
   let email: string | null = null;
   const account = {
     pendingDeletion: vi.fn(async () => false),
     finishLocalCleanup: vi.fn(),
+    revokeHost: vi.fn(),
     actionKey: vi.fn(async () => 'session-a'),
     email: vi.fn(async () => email),
     signIn: vi.fn(async () => {
@@ -159,6 +220,7 @@ it('shows the account refusal and returns to sign-in when the session expired', 
   const account = {
     pendingDeletion: vi.fn(async () => false),
     finishLocalCleanup: vi.fn(),
+    revokeHost: vi.fn(),
     actionKey: vi.fn(async () => 'session-a'),
     email: vi.fn(async () => 'alice@example.com' as string | null | undefined),
     signIn: vi.fn(),
@@ -188,6 +250,7 @@ it('deletes the account after confirmation and shows a refusal when the relay fa
   const account = {
     pendingDeletion: vi.fn(async () => false),
     finishLocalCleanup: vi.fn(),
+    revokeHost: vi.fn(),
     actionKey: vi.fn(async () => 'session-a'),
     email: vi.fn(async () => email),
     signIn: vi.fn(),
@@ -243,6 +306,7 @@ it('disables saved and offline computers while selecting multiple available comp
   const account = {
     pendingDeletion: vi.fn(async () => false),
     finishLocalCleanup: vi.fn(),
+    revokeHost: vi.fn(),
     actionKey: vi.fn(async () => 'session-a'),
     email: async () => 'alice@example.com',
     hosts: async () => ({ ok: true as const, value: [studio, other, offline, queued, spare] }),
@@ -273,7 +337,7 @@ it('disables saved and offline computers while selecting multiple available comp
   expect(button('Studio').disabled).toBe(true);
   expect(button('Offline').disabled).toBe(true);
   expect(button('Queued').disabled).toBe(true);
-  expect(host.textContent).toContain('Waiting for a shared tunnel');
+  expect(host.textContent).toContain(t.pairAccount.waiting);
   await act(async () => {
     button('Other').click();
     button('Spare').click();
@@ -302,6 +366,7 @@ it('ignores an old account lookup after the account owner changes', async () => 
   const account = {
     pendingDeletion: vi.fn(async () => false),
     finishLocalCleanup: vi.fn(),
+    revokeHost: vi.fn(),
     actionKey: vi.fn(async () => 'session-a'),
     email: () => oldEmail,
     hosts: vi.fn(async () => ({ ok: true as const, value: [studio] })),
@@ -505,6 +570,7 @@ it('marks only the Environment being paired', async () => {
   const account = {
     pendingDeletion: vi.fn(async () => false),
     finishLocalCleanup: vi.fn(),
+    revokeHost: vi.fn(),
     actionKey: vi.fn(async () => 'session-a'),
     email: vi.fn(async () => 'alice@example.com' as string | null | undefined),
     signIn: vi.fn(),

@@ -1067,6 +1067,17 @@ const en = {
   },
   pairAccount: {
     title: `${productName.en} account`,
+    manage: 'Manage linked computers',
+    doneManaging: 'Done managing',
+    unlink: 'Unlink',
+    unlinkTitle: (name: string) => `Unlink ${name}?`,
+    unlinkMessage:
+      'This computer will lose Connect access and must sign in again to reconnect. Bots, chats and files remain. LAN and Tailscale pairings stay.',
+    legacyUnlinkMessage:
+      'This older link has no sign-in information. Removing it frees a slot, but the computer may reconnect automatically. Bots, chats and files remain.',
+    unlinked: 'Computer unlinked. You can now add another computer.',
+    alreadyUnlinked: 'This computer is already unlinked.',
+    legacyUnlinked: 'Link removed. This older computer may reconnect automatically.',
     computers: 'Environments',
     progress: (current: number, total: number) => `${current} of ${total}`,
     pairing: 'Adding…',
@@ -1145,6 +1156,11 @@ const en = {
   },
   pairRefused: {
     'lan-build-required': 'Update the phone app to use local access.',
+    'host-not-found': 'This computer is no longer linked to your account. Refresh the list.',
+    'current-host':
+      'This computer shares your sign-in. Sign in again on this phone before unlinking it.',
+    'session-unknown': 'Sign in again on this phone to manage linked computers.',
+    'invalid-host-id': 'This computer link is invalid. Refresh the list.',
     'lan-unreachable':
       'Connect this phone to your computer’s Wi-Fi, allow Local Network access and enable local access in Settings → Connections → Manage on your computer, then retry.',
     'already-paired': 'This computer is already added.',
@@ -3525,6 +3541,17 @@ const zh: typeof en = {
   },
   pairAccount: {
     computers: '环境',
+    manage: '管理已关联电脑',
+    doneManaging: '完成管理',
+    unlink: '解除关联',
+    unlinkTitle: (name: string) => `解除「${name}」的关联？`,
+    unlinkMessage:
+      '这台电脑将无法通过 Connect 连接，需要重新登录才能恢复。Bot、聊天和文件保留，局域网和 Tailscale 配对不受影响。',
+    legacyUnlinkMessage:
+      '这条旧关联没有登录信息。移除后会释放名额，但电脑可能自动重新关联。Bot、聊天和文件保留。',
+    unlinked: '已解除关联，可以添加其他电脑。',
+    alreadyUnlinked: '这台电脑已解除关联。',
+    legacyUnlinked: '已移除旧关联，这台电脑仍可能自动重新关联。',
     progress: (current: number, total: number) => `第 ${current} 个，共 ${total} 个`,
     pairing: '正在添加…',
     online: '在线',
@@ -3584,6 +3611,10 @@ const zh: typeof en = {
   },
   pairRefused: {
     'lan-build-required': '请更新手机 App 后再使用局域网连接。',
+    'host-not-found': '这台电脑已不在当前账号下，请刷新列表。',
+    'current-host': '这台电脑与手机共用登录信息，请在手机上重新登录后再解除关联。',
+    'session-unknown': '请在手机上重新登录后管理已关联电脑。',
+    'invalid-host-id': '这条电脑关联无效，请刷新列表。',
     'lan-unreachable':
       '请把手机连到电脑所在的 Wi-Fi，允许本地网络访问，并在电脑的「设置 → 连接 → 管理」中开启局域网连接，然后重试。',
     'already-paired': '这台电脑已添加。',

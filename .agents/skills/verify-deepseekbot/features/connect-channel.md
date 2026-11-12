@@ -1,5 +1,21 @@
 # Connect encrypted channel
 
+## Mobile linked-computer management (#4039)
+
+In the assigned native QA batch, sign in on the phone before pairing a Host. Use a disposable
+account with five task-owned computers, including an offline target. Choose **Manage linked
+computers**, cancel a named unlink once, then confirm it. Verify the target disappears, a new
+computer registers, and the revoked session-bound Host cannot register after restart. Other
+computers, local Bot content and phone pairings must remain intact. Check service-failure retry,
+expired phone login and legacy removal warnings separately. Check English/Chinese, light/dark,
+and default/intermediate/maximum system text on both platforms; record platform results separately.
+
+The development-only `/qa/account-actions?scenario=linked-computers` route exercises the real
+mobile account owner and panel with synthetic offline and legacy targets, never a live relay.
+Source checks: `apps/mobile/test/account-panel-ios-integration.test.tsx`,
+`apps/mobile/test/account-panel.test.tsx`, `apps/mobile/test/connect-account.test.ts`.
+These checks do not establish native rendering or real-service acceptance.
+
 ## Sub-features
 
 - Linked computers: Desktop/Web Bot settings → Connections → Manage → Tobs Connect loads the account list on entry,
