@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { expect, it } from 'vitest';
@@ -8,6 +8,8 @@ import { defineSchemaPlan } from '../src/database/schema.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createCore } from '../src/plugin.js';
 import type { QuestionDelivery } from '../src/messaging/question-messaging.js';
+import { createPersonaBotRegistry } from '../src/bots/registry.js';
+import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
 const qqHotfix = {
@@ -196,4 +198,72 @@ it('restores a missing lookup index without losing completed notification receip
       core.operationalDatabase.close();
     }
   }
+});
+
+it('retains Bot identity, Channel history, Memory and custom QQ policy revisions', async () => {
+  const dshHome = hotfixProfile(136);
+  const open = (generation: number) =>
+    trackTestOwner(
+      mountOperationalDatabase({
+        dshHome,
+        schemaPlan: defineSchemaPlan(
+          BOT_HARNESS_SCHEMA_PLAN.migrations.filter((step) => step.generation <= generation),
+        ),
+      }),
+    );
+  const previous = open(136);
+  const rootDir = join(dshHome, 'botharness', 'bots');
+  const registry = createPersonaBotRegistry({ rootDir, database: previous });
+  expect(registry.create({ slug: 'ada', displayName: 'Existing Ada' }).ok).toBe(true);
+  const identity = registry.get('ada');
+  const memoryPath = join(registry.defaultMemoryDirFor('ada'), 'retained.md');
+  writeFileSync(memoryPath, 'Existing Memory stays byte-for-byte.\n');
+  const port = attachOperationalModule(previous, 'messaging');
+  const channels = createSqliteChannelStore({
+    rootDir: join(dshHome, 'botharness', 'channels'),
+    database: port,
+  });
+  const channel = channels.getOrCreateDm('ada', 'Existing Ada');
+  if (!channel) throw new Error('Fixture DM was not created');
+  const message = {
+    id: 'retained-message',
+    at: '2026-11-01T00:00:00Z',
+    author: { kind: 'bot' as const, slug: 'ada' },
+    body: 'Existing history stays.',
+  };
+  expect(await channels.appendMessage(channel.id, message)).toMatchObject(message);
+  const policy = '{"collection":"mentions","wake":"mentions"}';
+  port.transaction((db) => {
+    db.prepare(`INSERT INTO messaging_bindings
+      (id, bot_slug, provider_id, platform, account_ref, fingerprint, created_at)
+      VALUES ('binding', 'ada', 'dsh-im/qq', 'qq', 'fixture', ?, '2026-11-01T00:00:00Z')`).run(
+      'a'.repeat(64),
+    );
+    db.exec(`INSERT INTO messaging_grants (id, binding_id, bot_slug, revision, created_at, body)
+      VALUES ('grant', 'binding', 'ada', 1, '2026-11-01T00:00:00Z', '{}')`);
+    db.prepare('INSERT INTO messaging_group_policy_revisions VALUES (?, ?, ?)').run(
+      'grant',
+      7,
+      policy,
+    );
+  });
+  previous.close();
+  const upgraded = open(BOT_HARNESS_SCHEMA_PLAN.targetGeneration);
+  expect(upgraded.mode).toBe('ready');
+  expect(createPersonaBotRegistry({ rootDir, database: upgraded }).get('ada')).toEqual(identity);
+  const after = attachOperationalModule(upgraded, 'messaging');
+  expect(
+    createSqliteChannelStore({
+      rootDir: join(dshHome, 'botharness', 'channels'),
+      database: after,
+    }).readMessages(channel.id),
+  ).toEqual([expect.objectContaining(message)]);
+  expect(readFileSync(memoryPath, 'utf8')).toBe('Existing Memory stays byte-for-byte.\n');
+  expect(
+    after.read((db) => db.prepare('SELECT * FROM messaging_group_policy_revisions').all()),
+  ).toEqual([{ grant_id: 'grant', revision: 7, body: policy }]);
+  expect(() =>
+    after.transaction((db) => db.exec("UPDATE messaging_group_policy_revisions SET body = '{}'")),
+  ).toThrow();
+  upgraded.close();
 });
