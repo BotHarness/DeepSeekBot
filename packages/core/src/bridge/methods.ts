@@ -6050,7 +6050,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
               ...(deps.externalMessaging
                 ? {
                     externals: messagingDefaultsPlatform.options
-                      .filter((platform) => platform !== 'weixin')
+                      .filter((platform) => platform !== 'weixin' && platform !== 'qq')
                       .map((platform) => ({
                         platform,
                         ...externalMemberWake(

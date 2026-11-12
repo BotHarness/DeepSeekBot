@@ -51,8 +51,8 @@ describe("built release and Development status surfaces", () => {
 
       const englishRss = built("changelog/rss.xml");
       const chineseRss = built("zh/changelog/rss.xml");
-      expect(englishRss.match(/<item>/g)).toHaveLength(16);
-      expect(chineseRss.match(/<item>/g)).toHaveLength(16);
+      expect(englishRss.match(/<item>/g)).toHaveLength(17);
+      expect(chineseRss.match(/<item>/g)).toHaveLength(17);
       expect(englishRss).toContain("/changelog/v101/");
       expect(chineseRss).toContain("/zh/changelog/v101/");
       expect(englishRss).toContain("/changelog/v102/");
@@ -83,6 +83,8 @@ describe("built release and Development status surfaces", () => {
       expect(chineseRss).toContain("/zh/changelog/v161/");
       expect(englishRss).toContain("/changelog/v170/");
       expect(chineseRss).toContain("/zh/changelog/v170/");
+      expect(englishRss).toContain("/changelog/v171/");
+      expect(chineseRss).toContain("/zh/changelog/v171/");
       expect(englishRss).toContain("/changelog/development/");
       expect(chineseRss).toContain("/zh/changelog/development/");
 
@@ -108,10 +110,10 @@ describe("built release and Development status surfaces", () => {
         existsSync(resolve(DIST, "changelog/2026-09-20-roster-storage")),
       ).toBe(false);
 
-      const previewDescription = built("zh/changelog/v170/index.html").match(
+      const previewDescription = built("zh/changelog/v171/index.html").match(
         /<meta property="og:description" content="([^"]+)"/u,
       )?.[1];
-      if (!previewDescription) throw new Error("Missing Chinese 1.7.0 OG description");
+      if (!previewDescription) throw new Error("Missing Chinese 1.7.1 OG description");
       const canvas = await CanvasKitInit({
         locateFile: (file) =>
           resolve(DOCS, "node_modules/canvaskit-wasm/bin", file),

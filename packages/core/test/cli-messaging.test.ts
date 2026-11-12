@@ -150,11 +150,11 @@ function snapshotHost(
 }
 
 describe('IM messaging commands', () => {
-  it('reads and sets messaging defaults for one platform', async () => {
-    const live = await snapshotHost(() => ({ platform: 'discord', revision: 2 }));
-    const read = await invoke(['messaging-defaults', 'discord'], live.url);
+  it.each(['discord', 'qq'])('reads and sets %s messaging defaults', async (platform) => {
+    const live = await snapshotHost(() => ({ platform: platform, revision: 2 }));
+    const read = await invoke(['messaging-defaults', platform], live.url);
     expect(read.code).toBe(0);
-    expect(read.json).toEqual({ platform: 'discord', revision: 2 });
+    expect(read.json).toEqual({ platform: platform, revision: 2 });
     const policy = {
       expectedRevision: 1,
       collection: 'mentions',
@@ -164,19 +164,19 @@ describe('IM messaging commands', () => {
       identityEnabled: true,
     };
     await invoke(
-      ['messaging-defaults-set', 'discord', '--input-stdin'],
+      ['messaging-defaults-set', platform, '--input-stdin'],
       live.url,
       JSON.stringify({ ...policy, platform: 'slack' }),
     );
     expect(live.calls).toEqual([
-      { method: 'messagingDefaults', args: { platform: 'discord' } },
-      { method: 'messagingDefaultsSet', args: { input: { ...policy, platform: 'discord' } } },
+      { method: 'messagingDefaults', args: { platform: platform } },
+      { method: 'messagingDefaultsSet', args: { input: { ...policy, platform: platform } } },
     ]);
     for (const [argv, stdin] of [
       [['messaging-defaults', 'telegram'], ''],
-      [['messaging-defaults-set', 'discord'], '{}'],
-      [['messaging-defaults-set', 'discord', '--input-stdin'], '[1]'],
-      [['messaging-defaults-set', 'discord', '--input-stdin'], 'nope'],
+      [['messaging-defaults-set', platform], '{}'],
+      [['messaging-defaults-set', platform, '--input-stdin'], '[1]'],
+      [['messaging-defaults-set', platform, '--input-stdin'], 'nope'],
     ] as const)
       expect((await invoke([...argv], live.url, stdin)).json.error.code).toBe('usage');
     expect(live.calls).toHaveLength(2);

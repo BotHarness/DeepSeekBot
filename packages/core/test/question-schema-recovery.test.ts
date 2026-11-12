@@ -7,6 +7,9 @@ import { attachOperationalModule, mountOperationalDatabase } from '../src/databa
 import { defineSchemaPlan } from '../src/database/schema.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createCore } from '../src/plugin.js';
+import { commitMessagingDefaults, messagingDefaults } from '../src/messaging/defaults.js';
+import { groupReceptionPolicy } from '../src/messaging/group-policy.js';
+import { readMessagingIdentity } from '../src/messaging/identity.js';
 import type { QuestionDelivery } from '../src/messaging/question-messaging.js';
 import { createPersonaBotRegistry } from '../src/bots/registry.js';
 import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
@@ -267,3 +270,157 @@ it('retains Bot identity, Channel history, Memory and custom QQ policy revisions
   ).toThrow();
   upgraded.close();
 });
+
+it.each([
+  { name: 'official115', generation: 115, hotfix: false },
+  { name: 'official136', generation: 136, hotfix: false },
+  { name: 'healthy137', generation: 137, hotfix: false },
+  { name: 'hotfix116', generation: 116, hotfix: true },
+  { name: 'failed136', generation: 136, hotfix: true },
+])(
+  'qualifies QQ defaults from $name without changing history or scoped overrides',
+  ({ generation, hotfix }) => {
+    const dshHome = hotfix
+      ? hotfixProfile(generation === 116 ? 116 : 136)
+      : createTempRoot('bh-qq-forward-');
+    const prior = trackTestOwner(
+      mountOperationalDatabase({
+        dshHome,
+        schemaPlan: defineSchemaPlan(
+          BOT_HARNESS_SCHEMA_PLAN.migrations.filter((step) => step.generation <= generation),
+        ),
+      }),
+    );
+    expect(prior.mode).toBe('ready');
+    const old = attachOperationalModule(prior, 'messaging').transaction((db) => {
+      for (const count of [8, 9]) {
+        const { revision, changedAt: _at, ...preferences } = messagingDefaults(db, 'discord');
+        commitMessagingDefaults(db, { ...preferences, expectedRevision: revision, count });
+      }
+      db.prepare(
+        'INSERT INTO messaging_bindings (id,bot_slug,provider_id,platform,account_ref,fingerprint,created_at,enabled,display_name,enabled_inherited) VALUES (?,?,?,?,?,?,?,?,?,?)',
+      ).run(
+        'qq-custom',
+        'ada',
+        'qq',
+        'qq',
+        'app',
+        'a'.repeat(64),
+        '2026-11-01T00:00:00Z',
+        0,
+        'QA',
+        0,
+      );
+      db.prepare(
+        'INSERT INTO messaging_grants (id,binding_id,bot_slug,body,revision,created_at) VALUES (?,?,?,?,?,?)',
+      ).run(
+        'qq-grant',
+        'qq-custom',
+        'ada',
+        JSON.stringify({ platform: 'qq', receptionInheritance: 'custom' }),
+        1,
+        '2026-11-01T00:00:00Z',
+      );
+      db.prepare(
+        'INSERT INTO messaging_group_policy_revisions (grant_id,revision,body) VALUES (?,?,?)',
+      ).run(
+        'qq-grant',
+        1,
+        JSON.stringify({
+          collection: 'mentions',
+          wake: 'silent',
+          count: 3,
+          intervalSeconds: 60,
+          inheritance: 'custom',
+          revision: 1,
+          changedAt: '2026-11-01T00:00:00Z',
+          editor: { kind: 'human' },
+        }),
+      );
+      if (hotfix)
+        db.prepare('INSERT INTO messaging_default_revisions VALUES (?,?,?)').run(
+          'qq',
+          2,
+          JSON.stringify({
+            platform: 'qq',
+            revision: 2,
+            changedAt: '2026-11-01T00:00:00Z',
+            collection: 'all',
+            wake: 'digest',
+            count: 10,
+            intervalSeconds: 600,
+            identityEnabled: true,
+            newConversations: 'auto',
+          }),
+        );
+      return db
+        .prepare('SELECT * FROM messaging_default_revisions ORDER BY platform,revision')
+        .all();
+    });
+    prior.close();
+    let owner = trackTestOwner(
+      mountOperationalDatabase({ dshHome, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
+    );
+    try {
+      expect(owner.mode).toBe('ready');
+      expect(owner.diagnostics().generation).toBe(138);
+      let port = attachOperationalModule(owner, 'messaging');
+      expect(
+        port.read((db) =>
+          db.prepare('SELECT * FROM messaging_default_revisions ORDER BY platform,revision').all(),
+        ),
+      ).toEqual(old);
+      const saved = port.transaction((db) =>
+        commitMessagingDefaults(db, {
+          platform: 'qq',
+          expectedRevision: hotfix ? 2 : 0,
+          collection: 'all',
+          wake: 'digest',
+          count: 10,
+          intervalSeconds: 600,
+          identityEnabled: true,
+          newConversations: 'auto',
+        }),
+      );
+      expect(saved.revision).toBe(hotfix ? 3 : 1);
+      expect(port.read((db) => groupReceptionPolicy(db, 'qq-grant'))).toMatchObject({
+        collection: 'mentions',
+        wake: 'silent',
+        inheritance: 'custom',
+        revision: 1,
+      });
+      expect(port.read((db) => readMessagingIdentity(db, 'qq-custom'))).toMatchObject({
+        enabled: false,
+        enabledInheritance: 'custom',
+      });
+      for (const sql of [
+        "UPDATE messaging_default_revisions SET body = '{}' WHERE platform = 'qq'",
+        "DELETE FROM messaging_default_revisions WHERE platform = 'discord'",
+        "INSERT INTO messaging_default_revisions VALUES ('unknown',1,'{}')",
+      ])
+        expect(() => port.transaction((db) => db.prepare(sql).run())).toThrow();
+      owner.close();
+      owner = trackTestOwner(
+        mountOperationalDatabase({ dshHome, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
+      );
+      port = attachOperationalModule(owner, 'messaging');
+      expect(owner.mode).toBe('ready');
+      expect(port.read((db) => messagingDefaults(db, 'qq'))).toEqual(saved);
+      expect(
+        port.read((db) =>
+          db
+            .prepare(
+              "SELECT * FROM messaging_default_revisions WHERE platform!='qq' OR revision<? ORDER BY platform,revision",
+            )
+            .all(saved.revision),
+        ),
+      ).toEqual(old);
+      expect(port.read((db) => groupReceptionPolicy(db, 'qq-grant'))).toMatchObject({
+        collection: 'mentions',
+        inheritance: 'custom',
+      });
+    } finally {
+      owner.close();
+    }
+  },
+);

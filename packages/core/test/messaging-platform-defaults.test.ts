@@ -48,7 +48,7 @@ it('exposes only qualified WeChat defaults through the public RPC', async () => 
   }
 });
 
-it.each(['slack', 'discord'] as const)(
+it.each(['slack', 'discord', 'qq'] as const)(
   '%s reads and saves qualified defaults through the public RPC without crossing platform revisions',
   async (platform) => {
     const core = createCore({ dshHome: createTempRoot('bh-platform-defaults-') });

@@ -8,6 +8,42 @@
 
 开发中的变化。
 
+## [1.7.1] - 2026-11-13
+
+Tobs 1.7.1 修复 QQ 默认设置热修复版本的升级，补齐 QQ 平台默认设置，并强化启动、更新及诊断故障的定位信息。
+
+移动端条目描述独立版本手机应用的改动，不代表已发布 App Store 或 Play 版本。
+
+### Added
+
+- 手机的 Connect 账号页面新增「管理已关联电脑」，无需先配对 Host。确认后可解除在线或离线电脑的关联并释放名额；已绑定登录会话的电脑需要重新登录，旧关联会明确提示可能自动重新关联。本地 Bot、聊天、文件和手机配对均保留（[#4039](https://github.com/BotHarness/DeepSeekBot/issues/4039)）。
+
+- 诊断日志和问题报告现在可将版本更新尝试关联到下一次观测到的 Host 启动，保留中断和重启失败的证据，且不保存安装器输出（[#4057](https://github.com/BotHarness/DeepSeekBot/issues/4057)）。
+
+- Android 消息菜单新增「选中复制」全屏页面，支持原生选区复制 Markdown 和 GenUI HTML 原文，也可全部复制（[#4044](https://github.com/BotHarness/DeepSeekBot/issues/4044)）。
+
+### Fixed
+
+- 修复运行过第 116 代 QQ 默认设置热修复的 Profile 升级后核心无法启动的问题：通过向前迁移补齐提问通知结构，保留已有记录和 QQ 偏好。遇到不兼容的既有结构时拒绝迁移、不替换原数据库；这不是官方 1.6.1 普遍存在的升级故障（[#4040](https://github.com/BotHarness/DeepSeekBot/issues/4040)）。
+
+- 同步移动端 SDK 58 的 Expo、开发客户端及 SQLite 补丁版本，使其通过兼容性检查，并保留 Android Activity 关闭修复。消息源码页同时改用统一的原生加载控件。使用更新后的原生依赖需要重新构建开发客户端（[#4050](https://github.com/BotHarness/DeepSeekBot/pull/4050)）。
+
+- 启动诊断报告现在保留数据库失败阶段、有数量限制的底层错误码及观察到的占锁实例信息，帮助区分写锁冲突、文件访问失败和迁移失败。脱敏的在线与离线导出包含可关联的启动及关闭记录；占锁元数据明确标为线索，不代表进程仍存活（[#4049](https://github.com/BotHarness/DeepSeekBot/issues/4049)）。
+
+- 诊断日志及问题报告导出现在明确标出缺失证据、丢失记录和未知覆盖范围。容量受限且仅含元数据的备用文件在自身存储可用时保留日志库故障与恢复信息；日志库无法读取时，在线与离线导出仍可生成明确标记为不完整的 ZIP（[#4055](https://github.com/BotHarness/DeepSeekBot/issues/4055)）。
+
+- 诊断导出现可定位数据库启动后失败的 Core 模块与阶段，保留有数量和长度限制的脱敏原因，并区分后续成功重启。Core 就绪与 DSH Host 就绪明确分开（[#4056](https://github.com/BotHarness/DeepSeekBot/issues/4056)）。
+
+- 诊断日志和问题报告现在保留附件迁移尝试、有界进度、安全错误码及取消结果，便于区分迁移中断与需要修复的文件（[#4058](https://github.com/BotHarness/DeepSeekBot/issues/4058)）。
+
+- 修复 Android 富内容 Bot 回复和最新消息无法打开菜单、代码块无法复制和无法长按多选的问题（[#4044](https://github.com/BotHarness/DeepSeekBot/issues/4044)）。
+
+- QQ 现在支持通过 Host API 和 CLI 配置平台默认策略，新群可继承全量收件，并保留现有自定义选择与历史热修复的默认值。配置成功仍不代表普通消息已实际投递（[#3419](https://github.com/BotHarness/DeepSeekBot/issues/3419)）。
+
+### Documentation
+
+- 安装指引已更新为验证通过的 Tobs 1.7.0 npm 正式包，列明四个已验证的 DSH 版本，并使压缩包文件名和本地导入命令与精确正式包版本保持一致（[#4021](https://github.com/BotHarness/DeepSeekBot/issues/4021)）。
+
 ## [1.7.0] - 2026-11-12
 
 Tobs 1.7.0：Bot 通话、手机历史记录与搜索、丰富文档，以及连接和对话可靠性改进。
