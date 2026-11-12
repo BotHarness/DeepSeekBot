@@ -145,7 +145,7 @@ function ActionIcon({
     <RowIcon name={action.key} color={color} size={size} />
   ) : action.key === 'open' ? (
     <ChevronRightIcon color={color} size={size} />
-  ) : action.key === 'copy' ? (
+  ) : action.key === 'copy' || action.key === 'select-copy' ? (
     <CopyIcon color={color} size={size} />
   ) : (
     <ShareIcon color={color} size={size} />
@@ -160,6 +160,7 @@ export function MessageActions({
   onCopy,
   onShareText,
   onShareAttachment,
+  onSelectCopy,
 }: MessageActionsProps) {
   const queue = useRef(dismissQueue(Platform.OS)).current;
   return (
@@ -179,6 +180,11 @@ export function MessageActions({
           onClose={onClose}
           onReact={onReact}
           onCopy={onCopy}
+          onSelectCopy={
+            onSelectCopy === undefined
+              ? undefined
+              : (message) => queue.after(() => onSelectCopy(message))
+          }
           onShareText={(text) => queue.after(() => onShareText(text))}
           onShareAttachment={(attachment) => queue.after(() => onShareAttachment?.(attachment))}
           onOpen={() => queue.after(() => target.activity?.onOpen?.())}
@@ -197,12 +203,14 @@ function MessageMenu({
   onShareText,
   onShareAttachment,
   onOpen,
+  onSelectCopy,
 }: {
   target: MessageMenuTarget;
   readOnly: boolean;
   onClose(): void;
   onReact(message: ConversationMessage, emoji: string, active: boolean): void;
   onCopy(text: string): void;
+  onSelectCopy?: ((message: ConversationMessage) => void) | undefined;
   onShareText(text: string): void;
   onShareAttachment(attachment: MessageAttachment): void;
   onOpen(): void;
@@ -219,7 +227,12 @@ function MessageMenu({
     ? { ...anchor, x: space.x4, width: screen - space.x4 * 2, height: previewHeight }
     : anchor;
   const human = message.author === 'human';
-  const actions = messageMenuActions(message, target.activity, target.actions !== undefined);
+  const actions = messageMenuActions(
+    message,
+    target.activity,
+    target.actions !== undefined,
+    onSelectCopy !== undefined,
+  );
   const reactions = menuReactions(target, readOnly);
   const sizes = menuSizes(theme, actions.length, reactions);
   const place = placeMenu({
@@ -348,6 +361,7 @@ function MessageMenu({
                   onPress={() => {
                     runAction(action, message, {
                       onCopy,
+                      onSelectCopy,
                       onShareText,
                       onShareAttachment,
                       onOpen,

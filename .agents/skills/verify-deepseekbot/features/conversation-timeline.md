@@ -47,6 +47,16 @@ For the Web document's large-text journey, use Harness Settings → General → 
 
 ## Driving it with verify-app
 
+### Android mixed native and React message rows
+
+On the assigned physical Android Release build, seed one isolated DM through `bot-tool <bot> bot_send_message --args-stdin` with ordinary text, fenced code, a table, an image attachment, a file attachment and a GenUI document. Include an existing voice reply, a quoted reply and a reacted message. Keep one plain reply as the newest message; its React row must behave like the older native text row.
+
+- Tap message prose outside embedded controls and require the message actions menu. Repeat inside a table cell and code area. Long press must enter selection. Scroll away and back, then repeat after a new reply turns the previous newest reply into history.
+- Check code Copy, table horizontal scrolling, image preview, file actions, voice play/pause, quote navigation and GenUI document opening separately. Embedded controls keep their own action, while non-control bubble space opens the message menu. Group speaker avatars remain reachable.
+- Choose **Select and copy** from the Android message menu. The full-screen page shows literal Markdown and GenUI HTML without executing it. Long-press and drag the system selection handles, copy a substring, then paste into an unsent test draft and clear it. Check Copy all, system Back, unchanged drafts, default/intermediate/maximum text sizes and both app themes. Scroll long raw source to the end. Changing the current Host or Channel, or removing the retained message, must remove the source page.
+- Compare visible message IDs and contents with the Host timeline, and preserve binary provenance and before/after evidence. Source handlers and mocked presses cannot prove native dispatch. `RecyclerTouchTargetTest` in the Android `latest-anchor` module exercises the real React Native touch-target resolver through the list and avatar layer.
+
+
 ### GenUI offline diagrams and default style (#3691)
 
 The `--faults` document journey observes actual routed Worker snapshots. Same-mount replay must explicitly refuse the affected surface without rolling back canonical state; the old lease cannot affect a remount. Window-message probes have no presentation authority in the VM policy. Save/uncertain-response retries and scoped purge retain separate visible/canonical assertions. Four document runtimes share one physical Worker and aggregate bounded WASM memory: verify simultaneous original/refreshed content, own-lease disposal and explicit sibling failure/recovery rather than passing on summary fallback. Worker-level tests do not replace these consumer journeys.

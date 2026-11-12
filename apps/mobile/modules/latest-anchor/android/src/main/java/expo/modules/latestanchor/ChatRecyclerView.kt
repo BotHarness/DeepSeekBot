@@ -13,6 +13,8 @@ import androidx.core.view.WindowInsetsAnimationCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.facebook.react.uimanager.events.NativeGestureUtil
+import com.facebook.react.uimanager.PointerEvents
+import com.facebook.react.uimanager.ReactPointerEventsView
 import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.views.ExpoView
 import expo.modules.kotlin.viewevent.EventDispatcher
@@ -120,7 +122,10 @@ class ChatRecyclerView(context: Context, app: AppContext) : ExpoView(context, ap
   private val textLayouts = mutableMapOf<String, TextBubbleLayout>()
   private val markdownSpans by lazy { MarkdownSpans(context) }
   /** Speaker avatars of group chats, one React cell per run, placed over the list by [placeAvatars]. */
-  private val avatarLayer = FrameLayout(context).apply { clipChildren = false; clipToPadding = false }
+  private val avatarLayer = object : FrameLayout(context), ReactPointerEventsView {
+    override val pointerEvents = PointerEvents.BOX_NONE
+    init { clipChildren = false; clipToPadding = false }
+  }
   private val avatars = mutableMapOf<String, ChatRecyclerCell>()
   private var speakerSlots = emptyMap<String, SpeakerSlot>()
 
