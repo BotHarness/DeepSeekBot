@@ -295,13 +295,29 @@ describe('roster database authority', () => {
     const root = home();
     const holder = mount(root);
     const warn = vi.fn();
-    const core = createCore({ dshHome: root, warn });
-    expect(core.operationalDatabase.mode).toBe('recovery');
-    expect(warn).toHaveBeenCalledWith(
-      `operational-database initiator=host-startup phase=recovery code=lease-unavailable path=${JSON.stringify(core.operationalDatabase.databasePath)} reason="Profile writer lease is held"`,
-    );
-    core.operationalDatabase.close();
-    holder.close();
+    const databaseDiagnostic = vi.fn();
+    const core = createCore({ dshHome: root, warn, databaseDiagnostic });
+    try {
+      expect(core.operationalDatabase.mode).toBe('recovery');
+      expect(warn).toHaveBeenCalledWith(
+        `operational-database initiator=host-startup phase=recovery code=lease-unavailable path=${JSON.stringify(core.operationalDatabase.databasePath)} reason="Could not acquire Profile writer lease"`,
+      );
+      expect(databaseDiagnostic).toHaveBeenCalledWith(
+        expect.objectContaining({
+          mode: 'recovery',
+          startup: expect.objectContaining({
+            stage: 'lease-lock',
+            observedWriter: expect.objectContaining({ pid: process.pid }),
+          }),
+          recovery: expect.objectContaining({
+            causes: expect.arrayContaining([expect.objectContaining({ errcode: 5 })]),
+          }),
+        }),
+      );
+    } finally {
+      core.operationalDatabase.close();
+      holder.close();
+    }
   });
 
   it('starts Core on a database with orphaned rows and logs them', () => {

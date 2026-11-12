@@ -56,6 +56,34 @@ export interface OperationalDatabaseFaultContext {
 export interface OperationalDatabaseErrorDetails {
   code: OperationalDatabaseErrorCode;
   message: string;
+  causes?: OperationalDatabaseCause[];
+}
+
+export interface OperationalDatabaseCause {
+  name: string;
+  message: string;
+  code?: string;
+  errcode?: number;
+  syscall?: string;
+}
+
+export interface OperationalDatabaseStartup {
+  instanceId: string;
+  pid: number;
+  stage:
+    | 'lease-open'
+    | 'lease-lock'
+    | 'lease-metadata'
+    | 'source-validation'
+    | 'migration'
+    | 'staged-validation'
+    | 'activation'
+    | 'active-validation'
+    | 'ready';
+  durationMs: number;
+  targetGeneration: number;
+  migrationGeneration?: number;
+  observedWriter?: ProfileWriterLeaseMetadata;
 }
 
 export class OperationalDatabaseError extends Error {
@@ -86,6 +114,7 @@ export interface OperationalDatabaseMetrics {
 
 export interface OperationalDatabaseDiagnostics {
   mode: OperationalDatabaseMode;
+  startup: OperationalDatabaseStartup;
   databasePath: string;
   generation?: number;
   recovery?: OperationalDatabaseErrorDetails;
@@ -121,6 +150,7 @@ export interface OperationalDatabaseOwnerOptions {
   instanceId?: string;
   faultInjector?: (context: OperationalDatabaseFaultContext) => void;
   onObserverError?: (error: unknown) => void;
+  onDiagnostic?: (snapshot: OperationalDatabaseDiagnostics) => void;
 }
 
 export interface OperationalDatabaseModulePort {
@@ -139,6 +169,9 @@ interface MutableMetrics {
 }
 
 interface InternalOwner {
+  startup: OperationalDatabaseStartup;
+  startedAt: number;
+  onDiagnostic?: (snapshot: OperationalDatabaseDiagnostics) => void;
   backupBarrier?: boolean;
   closeEffects: Set<() => void>;
   owner: OwnerImplementation;
@@ -192,6 +225,7 @@ class OwnerImplementation implements OperationalDatabaseOwner {
     const leaseHolder = readLeaseMetadata(internal.leaseMetadataPath);
     return {
       mode: this.mode,
+      startup: { ...internal.startup },
       databasePath: this.databasePath,
       ...(this.generation === undefined ? {} : { generation: this.generation }),
       ...(this.recovery === undefined ? {} : { recovery: this.recovery }),
@@ -234,6 +268,7 @@ class OwnerImplementation implements OperationalDatabaseOwner {
     if (metadata?.instanceId === internal.leaseMetadata.instanceId) {
       attempt(() => rmSync(internal.leaseMetadataPath, { force: true }));
     }
+    notifyDiagnostic(internal);
     if (failure !== undefined) throw failure;
   }
 }
@@ -253,6 +288,15 @@ export function mountOperationalDatabase(
     acquiredAt: now().toISOString(),
   };
   const internal: InternalOwner = {
+    startup: {
+      instanceId: leaseMetadata.instanceId,
+      pid: process.pid,
+      stage: 'lease-open',
+      durationMs: 0,
+      targetGeneration: (options.schemaPlan ?? FOUNDATION_SCHEMA_PLAN).targetGeneration,
+    },
+    startedAt: performance.now(),
+    ...(options.onDiagnostic === undefined ? {} : { onDiagnostic: options.onDiagnostic }),
     closeEffects: new Set(),
     owner,
     database: undefined,
@@ -270,14 +314,23 @@ export function mountOperationalDatabase(
     },
   };
   owners.set(owner, internal);
+  notifyDiagnostic(internal);
 
   try {
-    internal.lease = acquireWriterLease(rootDir, leaseMetadata, internal.leaseMetadataPath);
+    internal.lease = acquireWriterLease(
+      rootDir,
+      leaseMetadata,
+      internal.leaseMetadataPath,
+      internal,
+    );
   } catch (error) {
+    const observedWriter = readLeaseMetadata(internal.leaseMetadataPath);
+    if (observedWriter !== undefined) internal.startup.observedWriter = observedWriter;
     enterRecovery(
       owner,
-      toOperationalError('lease-unavailable', 'Profile writer lease is held', error),
+      toOperationalError('lease-unavailable', 'Could not acquire Profile writer lease', error),
     );
+    notifyDiagnostic(internal);
     return owner;
   }
 
@@ -288,10 +341,13 @@ export function mountOperationalDatabase(
     owner.generation = mounted.generation;
     owner.foreignKeyOrphans = summarizeOrphans(mounted.orphans);
     owner.mode = 'ready';
+    internal.startup.stage = 'ready';
     owner.recovery = undefined;
   } catch (error) {
     enterRecovery(owner, normalizeMountError(error));
   }
+
+  notifyDiagnostic(internal);
 
   return owner;
 }
@@ -473,10 +529,13 @@ function acquireWriterLease(
   rootDir: string,
   metadata: ProfileWriterLeaseMetadata,
   metadataPath: string,
+  internal: InternalOwner,
 ): DatabaseSync {
   const lease = new DatabaseSync(join(rootDir, 'botharness.writer-lock.db'), { timeout: 0 });
   try {
+    internal.startup.stage = 'lease-lock';
     lease.exec('PRAGMA busy_timeout = 0; BEGIN IMMEDIATE');
+    internal.startup.stage = 'lease-metadata';
     atomicWriteFile(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`);
     return lease;
   } catch (error) {
@@ -490,6 +549,7 @@ function prepareDatabase(
   plan: SchemaPlan,
   internal: InternalOwner,
 ): { database: DatabaseSync; generation: number; orphans: Map<string, number> } {
+  internal.startup.stage = 'source-validation';
   validateSchemaPlan(plan);
 
   let sourceGeneration = 0;
@@ -531,6 +591,7 @@ function prepareDatabase(
   }
 
   try {
+    internal.startup.stage = 'active-validation';
     const database = openDatabase(databasePath);
     configureActiveDatabase(database);
     assertPageIntegrity(database);
@@ -557,6 +618,7 @@ function migrateInStaging(
   plan: SchemaPlan,
   internal: InternalOwner,
 ): void {
+  internal.startup.stage = 'migration';
   const stagingPath = `${databasePath}.${internal.leaseMetadata.instanceId}.migrating`;
   cleanupDatabaseFiles(stagingPath);
   try {
@@ -578,6 +640,7 @@ function migrateInStaging(
       if (sourceGeneration === 0) bootstrapFoundation(staging);
       for (const migration of plan.migrations) {
         if (migration.generation <= sourceGeneration) continue;
+        internal.startup.migrationGeneration = migration.generation;
         const result = migration.migrate(staging);
         if (isThenable(result)) {
           void Promise.resolve(result).catch((error: unknown) => internal.onObserverError?.(error));
@@ -599,6 +662,7 @@ function migrateInStaging(
       closeDatabase(staging);
     }
 
+    internal.startup.stage = 'staged-validation';
     injectFault(internal, 'before-integrity-validation', stagingPath);
     let validation: DatabaseSync | undefined;
     try {
@@ -617,6 +681,7 @@ function migrateInStaging(
       closeDatabase(validation);
     }
 
+    internal.startup.stage = 'activation';
     fsyncFile(stagingPath);
     injectFault(internal, 'before-activation', stagingPath);
     cleanupSidecars(databasePath);
@@ -747,7 +812,48 @@ function requireInternal(owner: OperationalDatabaseOwner): InternalOwner {
 
 function enterRecovery(owner: OwnerImplementation, error: OperationalDatabaseError): void {
   owner.mode = 'recovery';
-  owner.recovery = { code: error.code, message: error.message };
+  const causes = errorCauses(error.cause);
+  owner.recovery = {
+    code: error.code,
+    message: error.message,
+    ...(causes.length === 0 ? {} : { causes }),
+  };
+}
+
+function errorCauses(cause: unknown): OperationalDatabaseCause[] {
+  const causes: OperationalDatabaseCause[] = [];
+  const seen = new Set<unknown>();
+  while (cause instanceof Error && causes.length < 4 && !seen.has(cause)) {
+    seen.add(cause);
+    const entry: OperationalDatabaseCause = {
+      name: typeof cause.name === 'string' ? cause.name.slice(0, 80) : 'Error',
+      message: typeof cause.message === 'string' ? cause.message.slice(0, 600) : 'Unknown error',
+    };
+    if ('code' in cause && typeof cause.code === 'string') entry.code = cause.code.slice(0, 80);
+    if ('errcode' in cause && typeof cause.errcode === 'number' && Number.isFinite(cause.errcode))
+      entry.errcode = cause.errcode;
+    if ('syscall' in cause && typeof cause.syscall === 'string')
+      entry.syscall = cause.syscall.slice(0, 80);
+    causes.push(entry);
+    cause = cause.cause;
+  }
+  return causes;
+}
+
+function notifyDiagnostic(internal: InternalOwner): void {
+  internal.startup.durationMs = Math.round(performance.now() - internal.startedAt);
+  const observerFailed = (error: unknown): void => {
+    try {
+      void Promise.resolve(internal.onObserverError?.(error)).catch(() => {});
+    } catch {}
+  };
+  try {
+    void Promise.resolve(internal.onDiagnostic?.(internal.owner.diagnostics())).catch(
+      observerFailed,
+    );
+  } catch (error) {
+    observerFailed(error);
+  }
 }
 
 function enterRecoveryAndClose(internal: InternalOwner, error: OperationalDatabaseError): void {
