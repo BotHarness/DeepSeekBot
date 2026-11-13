@@ -496,7 +496,7 @@ export function BugReportDialog({
         <CaptureDock
           source={shooting}
           shots={files.filter((entry) => shot.ids.includes(entry.id))}
-          hidden={(shot.busy && shooting.kind === 'screen') || annotating !== undefined}
+          hidden={(shot.busy && shooting.kind !== 'page') || annotating !== undefined}
           busy={shot.busy}
           notice={shot.notice}
           t={t}

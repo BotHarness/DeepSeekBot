@@ -9,12 +9,14 @@ import { voiceDrag, voiceRelease } from './dictation';
 
 export function VoiceButton({
   active,
+  disabled = false,
   onStart,
   onStop,
   onCancel,
   onHeld,
 }: {
   active: boolean;
+  disabled?: boolean;
   onStart(): void;
   onStop(): void;
   onCancel(): void;
@@ -25,8 +27,8 @@ export function VoiceButton({
   const [held, setHeld] = useState(false);
   if (held && !active) setHeld(false);
   const size = composerControl(theme);
-  const latest = useRef({ active, onStart, onStop, onCancel, onHeld });
-  latest.current = { active, onStart, onStop, onCancel, onHeld };
+  const latest = useRef({ active, disabled, onStart, onStop, onCancel, onHeld });
+  latest.current = { active, disabled, onStart, onStop, onCancel, onHeld };
   const gesture = useRef({ at: 0, startedHere: false, done: false });
   const hold = (next: boolean) => {
     setHeld(next);
@@ -34,9 +36,10 @@ export function VoiceButton({
   };
   const responder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponder: () => !latest.current.disabled,
       onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: () => {
+        if (latest.current.disabled) return;
         const startedHere = !latest.current.active;
         gesture.current = { at: Date.now(), startedHere, done: false };
         if (!startedHere) return;
@@ -70,7 +73,13 @@ export function VoiceButton({
       accessibilityRole="button"
       accessibilityLabel={active ? t.stopDictation : t.dictate}
       accessibilityHint={active ? undefined : t.dictateHint}
-      onAccessibilityTap={() => (latest.current.active ? onStop() : onStart())}
+      accessibilityState={{ disabled }}
+      onAccessibilityTap={() => {
+        if (!latest.current.disabled) {
+          if (latest.current.active) latest.current.onStop();
+          else latest.current.onStart();
+        }
+      }}
       hitSlop={space.x2}
       style={{
         width: size,
