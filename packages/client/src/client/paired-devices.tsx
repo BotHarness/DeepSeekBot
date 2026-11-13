@@ -7,7 +7,7 @@ import {
 import { noiseFingerprint } from '../../../core/src/devices/noise/xk.js';
 import { keyBytes } from '../../../../apps/mobile/src/host/encrypted-carrier.js';
 import { checkRoute, isConnectRoute, isLanRoute } from '../../../../apps/mobile/src/host/route.js';
-import { useRef, useState, type ReactElement } from 'react';
+import { useRef, useState, type ComponentProps, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
@@ -163,12 +163,30 @@ function onTailnet(): boolean {
   return location.protocol === 'https:' && location.hostname.endsWith('.ts.net');
 }
 
+function ConnectionPanel({
+  inline,
+  children,
+  ...props
+}: ComponentProps<typeof PanelDialog> & { inline?: boolean }): ReactElement {
+  return inline ? (
+    <section {...props.data} aria-label={props.title}>
+      {children}
+    </section>
+  ) : (
+    <PanelDialog {...props}>{children}</PanelDialog>
+  );
+}
+
 export function PairedDevicesSettings({
   t,
   section = 'devices',
+  standalone = false,
+  initialPairing = false,
   onClose,
 }: PropsLocale<'botharness'> & {
   section?: 'devices' | 'connect' | 'requests';
+  standalone?: boolean;
+  initialPairing?: boolean;
   onClose?: () => void;
 }): ReactElement {
   const [snapshot, setSnapshot] = useState<DevicesSnapshot>();
@@ -204,7 +222,7 @@ export function PairedDevicesSettings({
     | 'tailscale'
     | 'connect'
     | 'remote';
-  const [setup, setSetupState] = useState<Setup>('closed');
+  const [setup, setSetupState] = useState<Setup>(initialPairing ? 'method' : 'closed');
   const [tunnelStep, setTunnelStep] = useState<PrivateTunnelStep>('choose');
   const setupVersion = useRef(0);
   const setSetup = (next: Setup) => {
@@ -272,7 +290,19 @@ export function PairedDevicesSettings({
   const mount = useMountedResource<HTMLDivElement>(() => {
     mounted.current = true;
     const controller = new AbortController();
-    void load(controller.signal);
+    void load(controller.signal).then((value) => {
+      if (
+        !initialPairing ||
+        !mounted.current ||
+        controller.signal.aborted ||
+        setupVersion.current !== 0
+      )
+        return;
+      if (value && (hasPhoneRoute(value.routes) || onTailnet())) {
+        setSetup('closed');
+        void createOffer();
+      }
+    });
     const timer = setInterval(() => {
       setNow(Date.now());
       void load(controller.signal);
@@ -531,9 +561,13 @@ export function PairedDevicesSettings({
     </>
   );
 
-  return (
+  const overview = !standalone || (setup === 'closed' && !pairing && !reviewing);
+  const content = (
     <div ref={mount} data-paired-devices="">
-      {section === 'devices' ? (
+      {standalone && snapshot ? (
+        <Note>{t('connections.host', { name: snapshot.host.name })}</Note>
+      ) : null}
+      {section === 'devices' && overview ? (
         <SettingsSection>
           <SettingsRow
             title={t('connections.title')}
@@ -569,7 +603,8 @@ export function PairedDevicesSettings({
         </SettingsSection>
       ) : null}
       {reviewing && !pairing ? (
-        <PanelDialog
+        <ConnectionPanel
+          inline={standalone}
           title={t('connections.pending')}
           closeLabel={t('common.close')}
           size="small"
@@ -593,11 +628,12 @@ export function PairedDevicesSettings({
               {t('devices.connection.retry')}
             </Button>
           ) : null}
-        </PanelDialog>
+        </ConnectionPanel>
       ) : null}
       {setup === 'remote' ? <AddRemoteHostDialog t={t} onClose={() => setSetup('closed')} /> : null}
       {setup !== 'closed' && setup !== 'remote' ? (
-        <PanelDialog
+        <ConnectionPanel
+          inline={standalone}
           title={t('connections.add')}
           closeLabel={t('common.close')}
           size="small"
@@ -822,7 +858,7 @@ export function PairedDevicesSettings({
               </Button>
             ) : null}
           </div>
-        </PanelDialog>
+        </ConnectionPanel>
       ) : null}
       {readState === 'stale' && section !== 'requests' ? (
         <Callout tone="warning" data={{ 'data-device-status': 'stale' }}>
@@ -837,7 +873,7 @@ export function PairedDevicesSettings({
           </Button>
         </Callout>
       ) : null}
-      {section === 'devices' && manage ? (
+      {section === 'devices' && overview && manage ? (
         <StatusStack title={t('devices.connection.title')}>
           {snapshot?.lan ? (
             <StatusBlock
@@ -981,7 +1017,7 @@ export function PairedDevicesSettings({
           ) : null}
         </StatusStack>
       ) : null}
-      {section === 'devices' && manage ? (
+      {section === 'devices' && overview && manage ? (
         <SettingsSection title={t('devices.connection.pairStep')}>
           <SettingsRow
             title={t('devices.pair.title')}
@@ -1012,8 +1048,10 @@ export function PairedDevicesSettings({
           </SettingsRow>
         </SettingsSection>
       ) : null}
-      {section === 'devices' && manage && snapshot?.connect?.account ? connectControls : null}
-      {section === 'devices' && manage && snapshot?.lanBots ? (
+      {section === 'devices' && overview && manage && snapshot?.connect?.account
+        ? connectControls
+        : null}
+      {section === 'devices' && overview && manage && snapshot?.lanBots ? (
         <LanBotSettings
           t={t}
           snapshot={snapshot.lanBots}
@@ -1022,7 +1060,7 @@ export function PairedDevicesSettings({
         />
       ) : null}
       {section === 'connect' ? connectControls : null}
-      {section === 'devices' ? (
+      {section === 'devices' && overview ? (
         <SettingsSection title={t('devices.list.title')}>
           {devices.length === 0 ? (
             <Note>
@@ -1074,7 +1112,8 @@ export function PairedDevicesSettings({
         </SettingsSection>
       ) : null}
       {pairing ? (
-        <PanelDialog
+        <ConnectionPanel
+          inline={standalone}
           title={t('devices.pair.dialogTitle')}
           description={t('devices.pair.dialogDescription')}
           size="small"
@@ -1169,9 +1208,29 @@ export function PairedDevicesSettings({
                 </div>
               </>
             )}
+            {standalone ? (
+              <Button variant="outline" size="sm" onClick={close}>
+                {t('connections.back')}
+              </Button>
+            ) : null}
           </div>
-        </PanelDialog>
+        </ConnectionPanel>
       ) : null}
     </div>
+  );
+  return standalone && setup !== 'remote' ? (
+    <PanelDialog
+      title={t('connections.title')}
+      closeLabel={t('common.close')}
+      scroll
+      onClose={() => {
+        close();
+        onClose?.();
+      }}
+    >
+      {content}
+    </PanelDialog>
+  ) : (
+    content
   );
 }

@@ -47,7 +47,13 @@ function markMobileAppsSeen(): void {
 const noAcknowledgements = (): (() => void) => () => {};
 const noRevision = (): number => 0;
 
-export function MobileAppsEntry({ t }: { t: BotHarnessTranslate }): ReactElement {
+export function MobileAppsEntry({
+  t,
+  onPair,
+}: {
+  t: BotHarnessTranslate;
+  onPair?: (() => void) | undefined;
+}): ReactElement {
   const trigger = useRef<HTMLButtonElement>(null);
   const acks = hostAcknowledgements();
   useSyncExternalStore(acks?.subscribe ?? noAcknowledgements, acks?.getRevision ?? noRevision);
@@ -75,7 +81,7 @@ export function MobileAppsEntry({ t }: { t: BotHarnessTranslate }): ReactElement
         </button>
       </Tooltip>
       {open ? (
-        <MobileAppsPopover trigger={trigger} t={t} onClose={() => setOpen(false)} />
+        <MobileAppsPopover trigger={trigger} t={t} onClose={() => setOpen(false)} onPair={onPair} />
       ) : seen ? null : (
         <MobileAppsHint
           trigger={trigger}
@@ -167,10 +173,12 @@ function MobileAppsPopover({
   trigger,
   t,
   onClose,
+  onPair,
 }: {
   trigger: RefObject<HTMLButtonElement | null>;
   t: BotHarnessTranslate;
   onClose(): void;
+  onPair?: (() => void) | undefined;
 }): ReactElement {
   const titleId = useId();
   const [copied, setCopied] = useState(false);
@@ -225,6 +233,20 @@ function MobileAppsPopover({
           <IconCloseOutlineRegular size={16} />
         </button>
       </div>
+      {onPair ? (
+        <Button
+          variant="primary"
+          size="sm"
+          className="bh-mobile-apps-primary"
+          onClick={() => {
+            onClose();
+            trigger.current?.focus();
+            onPair();
+          }}
+        >
+          {t('mobileApps.pair')}
+        </Button>
+      ) : null}
       <section className="bh-mobile-apps-section" data-platform="ios">
         <h3>{t('mobileApps.ios')}</h3>
         <p className="bh-mobile-apps-caption">{t('mobileApps.iosHint')}</p>

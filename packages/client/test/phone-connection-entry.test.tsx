@@ -2,6 +2,7 @@
 import { act, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { ConnectionsDialog } from '../src/client/connections-dialog.js';
 import { PairedDevicesSettings } from '../src/client/paired-devices.js';
 import { zhTranslate as t } from '../src/client/locale.js';
 
@@ -223,3 +224,42 @@ it.each(['refused', 'unknown', 'superseded'])(
     expect(host.textContent).toContain(t('connections.invitationInvalid'));
   },
 );
+
+it('opens one standalone dialog and reuses an existing route without publishing another', async () => {
+  routes = [lan, loopback];
+  lanState = 'listening';
+  const onClose = vi.fn();
+  await act(async () => root.render(<ConnectionsDialog t={t} pairPhone onClose={onClose} />));
+  expect(host.querySelectorAll('[role="dialog"]')).toHaveLength(1);
+  expect(host.textContent).toContain('QA computer');
+  expect(host.querySelector('[data-pair-qr]')).not.toBeNull();
+  expect(posts.map((post) => post.url)).toEqual(['./api/botharness/devices/offer']);
+  await click(t('connections.back'));
+  expect(host.querySelector('[data-pair-qr]')).toBeNull();
+  expect(button(t('connections.add'))).toBeDefined();
+  await click(t('common.close'));
+  expect(onClose).toHaveBeenCalledOnce();
+  expect(posts.some((post) => post.url.endsWith('/lan'))).toBe(false);
+});
+
+it('shows preparation without publishing or creating an offer when no phone route exists', async () => {
+  await act(async () => root.render(<ConnectionsDialog t={t} pairPhone onClose={() => {}} />));
+  expect(host.querySelectorAll('[role="dialog"]')).toHaveLength(1);
+  expect(host.querySelector('[data-pair-qr]')).toBeNull();
+  expect(posts).toEqual([]);
+  await click('局域网');
+  await click('开启并继续');
+  expect(host.querySelectorAll('[role="dialog"]')).toHaveLength(1);
+  expect(host.querySelector('[data-pair-qr]')).not.toBeNull();
+});
+
+it('stops connection reads after the standalone dialog is removed', async () => {
+  vi.useFakeTimers();
+  routes = [lan, loopback];
+  await act(async () => root.render(<ConnectionsDialog t={t} pairPhone onClose={() => {}} />));
+  await act(async () => vi.advanceTimersByTimeAsync(3100));
+  await act(async () => root.render(null));
+  const reads = vi.mocked(fetch).mock.calls.length;
+  await act(async () => vi.advanceTimersByTimeAsync(10_000));
+  expect(vi.mocked(fetch).mock.calls).toHaveLength(reads);
+});

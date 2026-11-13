@@ -36,7 +36,8 @@ import { CompactionThresholdSetting } from './compaction-threshold-setting.js';
 import { IdleCompactionSetting } from './idle-compaction-setting.js';
 import { MessagingDefaultsSettings } from './messaging-defaults-settings.js';
 import { DefaultModelSettings, OnboardingSetting } from './onboarding-view.js';
-import { PairedDevicesSettings } from './paired-devices.js';
+import { ConnectionsDialog } from './connections-dialog.js';
+import type { BotSettingsSectionOwnerProps } from './bot-settings-slot.js';
 import { ProfileBackupSettings } from './profile-backup.js';
 import type { ReleaseNotesController } from './release-notes.js';
 import { ReleaseSettings } from './release-notes-view.js';
@@ -163,12 +164,12 @@ export function CompanionsSection({
   );
 }
 
-export function DevicesSection({ t }: PropsLocale<'botharness'>): ReactElement {
-  return (
-    <Rows>
-      <PairedDevicesSettings t={t} />
-    </Rows>
-  );
+export function DevicesSection({
+  t,
+  close,
+  pairPhone,
+}: PropsLocale<'botharness'> & BotSettingsSectionOwnerProps): ReactElement {
+  return <ConnectionsDialog t={t} onClose={close} pairPhone={pairPhone} />;
 }
 
 export function DataPrivacySection({ call, t }: SectionProps<{ call: BridgeCall }>): ReactElement {

@@ -11,4 +11,5 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 
 export interface BotSettingsSectionOwnerProps {
   close(): void;
+  pairPhone?: boolean | undefined;
 }

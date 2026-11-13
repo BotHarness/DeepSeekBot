@@ -41,6 +41,8 @@ A Human pairs the phone app with their Host by a one-time QR code, and the phone
 
 ## Sub-features
 
+- `phone-entry`: Control Rail → Get the mobile app → Start pairing opens the standalone Connections dialog. With an existing ready route, it displays the invitation directly; otherwise it shows preparation without automatically publishing. Bot settings → Connections opens the same dialog without the settings sidebar. Verify a named Host, exact-device approval and actual phone Host Feed; close/back must leave the route running. Reopen to inspect pending/paired devices. QR/offer/credential creation alone is not connection proof. Web-only fixtures do not qualify native scanning or physical connectivity (#4071).
+
 - `full-client-removed`: no settings/chat/Inbox/routine/create action opens the full Host WebView; old `/full-client` deep links cannot load it. Private input directs the Human to the Host or Tailscale browser.
 
 - `offer` creates a one-time pairing offer (5 minutes) with a QR code and a `deepseekbot://pair?p=…` link.
