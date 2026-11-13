@@ -24,7 +24,7 @@ export async function controlledBrowserPath() {
 }
 
 export function previewBrowserAppArmorProfile(binary) {
-  if (!isAbsolute(binary) || /[\p{Cc}*?\[\]{}"\\^]/u.test(binary))
+  if (!isAbsolute(binary) || /[\p{Cc}*?[\]{}"\\^]/u.test(binary))
     throw new Error('AppArmor preview selection requires one literal absolute executable path');
   return `abi <abi/4.0>,
 include <tunables/global>

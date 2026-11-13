@@ -408,7 +408,19 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: node scripts/verify-app.mjs launch --name perf --build > /dev/null
+      - id: controlled_sandbox
+        run: |
+          node scripts/perf-genui-browser-diagnostics.mjs apparmor "$RUNNER_TEMP/genui-preview.apparmor"
+          sudo install -m 644 "$RUNNER_TEMP/genui-preview.apparmor" /etc/apparmor.d/botharness-ci-genui-preview
+          sudo apparmor_parser -r /etc/apparmor.d/botharness-ci-genui-preview
+      - env:
+          SYSTEM_PREVIEW_DIAGNOSTIC: ${{ github.event_name == 'workflow_dispatch' && inputs.genui_browser_diagnostic }}
+        run: |
+          preview_args=()
+          if [ "$SYSTEM_PREVIEW_DIAGNOSTIC" != "true" ]; then
+            preview_args=(--genui-preview-browser "$(node scripts/perf-genui-browser-diagnostics.mjs path)")
+          fi
+          node scripts/verify-app.mjs launch --name perf --build "${preview_args[@]}" > /dev/null
       - run: >-
           node scripts/perf-idle-timeline.mjs --messages 600 --label ci
           --budget scripts/perf-budgets/timeline.json --out .humanlayer/perf/ci > /dev/null
@@ -426,14 +438,8 @@ jobs:
         run: node scripts/perf-genui-browser-diagnostics.mjs environment .humanlayer/perf/browser-diagnostics/environment.json
       - if: always()
         run: node scripts/verify-app.mjs stop --name perf
-      - id: controlled_sandbox
-        if: always() && github.event_name == 'workflow_dispatch' && inputs.genui_browser_diagnostic && steps.browser_environment.outcome == 'success'
-        run: |
-          node scripts/perf-genui-browser-diagnostics.mjs apparmor "$RUNNER_TEMP/genui-preview.apparmor"
-          sudo install -m 644 "$RUNNER_TEMP/genui-preview.apparmor" /etc/apparmor.d/botharness-ci-genui-preview
-          sudo apparmor_parser -r /etc/apparmor.d/botharness-ci-genui-preview
       - id: controlled_launch
-        if: always() && steps.controlled_sandbox.outcome == 'success'
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.genui_browser_diagnostic && steps.controlled_sandbox.outcome == 'success' && steps.browser_environment.outcome == 'success'
         run: >-
           node scripts/verify-app.mjs launch --name perf
           --genui-preview-browser "$(node -p 'JSON.parse(require("fs").readFileSync(".humanlayer/perf/browser-diagnostics/environment.json", "utf8")).controlled.path')" > /dev/null

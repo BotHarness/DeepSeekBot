@@ -112,6 +112,10 @@ core Plugin 的可选 `genuiPreviewBrowserPath` 可指定绝对可执行文件�
 `genui_browser_diagnostic` 输入仅用于同 runner 双浏览器对照，两臂均需通过原预算；
 普通 PR 不增加第二臂。该诊断能力不代表已修复 #4030 的原始启动原因。
 
+普通 CI 明确选择锁文件所安装的 Puppeteer 浏览器作为预览可执行文件，避免随 runner
+镜像独立更新的系统 Chrome 改变测量环境。工作流只为这个具体路径加载临时 AppArmor
+用户命名空间规则，停止自有 Host 后卸载；不关闭 Chrome 隔离，不改变原有启动与性能预算。
+
 - **独立包** `@botharness/ui`（DSH 默认是「同一包两半侧」，本仓库按 ADR-0023 显式偏离）：package.json 声明 `dsh.client = { platform: 'web', inject: [] }` 与 `exports['./client']`，并作为独立 Loader entry 挂载。
 - **产物格式**：lazy-CJS closure factory，入口 `lib/client.js`，自注册 `window.__ModuleLoader__.load({ id: '@botharness/ui', factory: (require) => { … } })`，带 sourcemap。
 - **外置基线**：只外置 shell 注入的模块表（`react`、`react/jsx-runtime`、`react-dom`、`react-dom/client`、`@deepseek-ai/cordis`、`@deepseek-ai/dsh-client-store`、`@deepseek-ai/dsh-client-ui-slots`、`@deepseek-ai/dsh-client-ui-primitives`、`@deepseek-ai/dsh-client-ui-dockkit`），以及在 `dsh.client.external` 中声明的 `@deepseek-ai/dsh-api-gateway/client`（官方流辅助类，ADR-0181）；其余依赖（含 blobatar）全部内联。

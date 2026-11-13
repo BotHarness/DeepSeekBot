@@ -15,6 +15,14 @@ runtime and refuses an invalid explicit path. `dev-instance.mjs` and `verify-app
 accept `--genui-preview-browser <absolute-executable>` and apply a Patch only to that
 isolated launch. They do not change system PATH or another Profile.
 
+Ordinary CI selects the lockfile-installed Puppeteer executable for preview too,
+so the preview no longer depends on the runner image's independently updated
+system Chrome. Its exact executable receives a temporary AppArmor profile allowing
+user namespaces; the workflow unloads it after stopping its owned Hosts. A quick
+`startup-sandbox` refusal is a separate setup error from `startup-timeout`; preserve
+Chrome sandboxing when correcting that permission. Merely setting
+`CHROME_DEVEL_SANDBOX` did not repair the controlled Ubuntu 26 runner (#4030).
+
 `genui-preview-browser-startup-timeout` means no DevTools endpoint appeared within
 the existing eight-second startup deadline, before CDP connection or document
 rendering. Inspect the retained bounded/redacted preview owner log; do not infer a
