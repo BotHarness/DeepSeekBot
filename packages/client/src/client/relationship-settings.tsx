@@ -59,7 +59,7 @@ export function RelationshipSettings({
       );
       if (!abort.current?.signal.aborted) {
         if (result.relationship.state === 'disconnected') await source.retireRelationship(item.id);
-        else remoteHosts().learnRelationshipRoutes(result.relationship.peer);
+        else await remoteHosts().learnRelationshipRoutes(result.relationship.peer);
         setItems((current) =>
           current.map((entry) => (entry.id === item.id ? result.relationship : entry)),
         );

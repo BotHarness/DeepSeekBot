@@ -1,6 +1,11 @@
 import { randomBytes } from 'node:crypto';
 import { OperationalDatabaseError, type OperationalDatabaseModulePort } from '../database/owner.js';
 import type { DevicePairing, PairingOffer } from './pairing.js';
+import {
+  relationshipAccountOriginSchema,
+  type RelationshipAccountOrigin,
+} from './relationship-contract.js';
+import { createRelationshipEnrollments } from './relationship-enrollments.js';
 
 export const RELATIONSHIP_APPROVAL_TTL_MS = 10 * 60 * 1000;
 const MAX_LIVE_RELATIONSHIPS = 32;
@@ -24,6 +29,7 @@ export interface HostRelationship {
   revocationAttempts: number;
   revocationRetryAt: number | null;
   automaticEnrollmentSuppressed: boolean;
+  accountOrigin: RelationshipAccountOrigin | null;
 }
 
 interface Row {
@@ -39,6 +45,7 @@ interface Row {
   revocation_attempts: number;
   revocation_retry_at: number | null;
   automatic_enrollment_suppressed: number;
+  account_origin: string | null;
 }
 
 export class RelationshipRefused extends Error {
@@ -63,6 +70,10 @@ function view(row: Row): HostRelationship {
     revocationAttempts: row.revocation_attempts,
     revocationRetryAt: row.revocation_retry_at,
     automaticEnrollmentSuppressed: row.automatic_enrollment_suppressed === 1,
+    accountOrigin:
+      row.account_origin == null
+        ? null
+        : relationshipAccountOriginSchema.parse(JSON.parse(row.account_origin)),
   };
 }
 
@@ -74,6 +85,7 @@ export function createHostRelationships(options: {
 }) {
   const { database, pairing } = options;
   const now = options.now ?? Date.now;
+  const enrollments = createRelationshipEnrollments({ database, pairing, now });
   const transact: OperationalDatabaseModulePort['transaction'] = (command, topics) => {
     try {
       return database.transaction(command, topics);
@@ -116,6 +128,7 @@ export function createHostRelationships(options: {
   };
   return {
     read,
+    enrollments,
     updateRoutes(id: string, peerKey: string, routes: string[]): HostRelationship {
       const relationship = authenticated(id, peerKey);
       live(relationship);
@@ -145,8 +158,12 @@ export function createHostRelationships(options: {
       direction: HostRelationship['direction'];
       expiresAt?: number;
       explicitReconnect?: boolean;
+      accountOrigin?: RelationshipAccountOrigin;
     }): HostRelationship {
       const id = input.id ?? randomBytes(24).toString('base64url');
+      const accountOrigin = input.accountOrigin
+        ? relationshipAccountOriginSchema.parse(input.accountOrigin)
+        : null;
       if (
         !/^[A-Za-z0-9_-]{32}$/u.test(id) ||
         !/^[0-9a-f]{64}$/u.test(input.peer.publicKey) ||
@@ -216,8 +233,8 @@ export function createHostRelationships(options: {
             throw new RelationshipRefused('relationship-limit');
           const date = new Date(now()).toISOString();
           db.prepare(`INSERT INTO host_relationships
-          (relationship_id, peer_host_id, peer_name, peer_key, peer_routes, direction, state, expires_at, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`).run(
+          (relationship_id, peer_host_id, peer_name, peer_key, peer_routes, direction, state, expires_at, created_at, updated_at, account_origin)
+          VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`).run(
             id,
             input.peer.id,
             input.peer.name,
@@ -227,6 +244,7 @@ export function createHostRelationships(options: {
             expiresAt,
             date,
             date,
+            accountOrigin === null ? null : JSON.stringify(accountOrigin),
           );
         },
         ['host-relationships'],
@@ -260,7 +278,7 @@ export function createHostRelationships(options: {
     enrollment(
       id: string,
       peerKey: string,
-      client: { publicKey: string; name: string },
+      client: { publicKey: string; name: string; expiresAt?: number },
     ): PairingOffer {
       const relationship = authenticated(id, peerKey);
       live(relationship);
@@ -268,6 +286,11 @@ export function createHostRelationships(options: {
         throw new RelationshipRefused('relationship-approval-required');
       if (!/^[0-9a-f]{64}$/u.test(client.publicKey))
         throw new RelationshipRefused('relationship-client-key-invalid');
+      enrollments.beginIncoming(
+        id,
+        client.publicKey,
+        client.expiresAt ?? now() + RELATIONSHIP_APPROVAL_TTL_MS,
+      );
       const offer = pairing.createOffer({ relationshipId: id, name: client.name });
       const request = pairing.requestKey({
         offer: offer.offer,

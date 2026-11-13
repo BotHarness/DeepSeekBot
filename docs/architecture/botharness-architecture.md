@@ -2,6 +2,12 @@
 
 ## 已确认目标：环境面板与双向 Host 关系（逐片交付）
 
+E6 通过现有已认证账号列表与 `/offer` 发现同账号 Host：两端各自验证本机注册与 Noise 身份，接收端使用自己的账号会话重新读取准确的来源注册；HMAC、账号、目标注册、新鲜度和包含双方身份的固定角色 transcript 一并校验。按稳定注册 ID 选唯一发起端，异步返回后复查账号代际、原有 pin 和主动断开抑制；已验证账号来源随 canonical relationship 原子写入。只有该来源的关系自动为桌面/Web Client 登记，手动关系仍需「在此 Client 使用」。每 Host 成功独立发布，扫描轮转、并发和重试有界；不切换 Environment Scope、打开的会话或 Settings Target，不借用 Bot 协作授权，也不需要部署 relay。
+
+同一关系 owner 在 Operational Database generation 142 保留单次 Client 公钥的登记状态：来源端先记 unconfirmed，目标端在原设备授权事务中检查该 intent 及十分钟截止并只兑换一次；Client 把私钥保存在原 SavedHost/CLI 私有文件后，以同一 key 幂等确认。丢确认先读回，不新造 key；未知状态在 Client 私有记录中保留并显示「正在完成连接」。取消使用准确关系与公钥，在目标同一事务保存 tombstone 并撤销匹配的派生设备；迟到 offer 和 redemption 都检查该事实，不影响其他 Client 或独立手机授权。来源端跨退出账号、重启保留待清理事实，有限重试固定 Noise 身份的减权取消；未确认到期也进入清理，八次后保留待检查。仅截止后另过六十秒的已完成取消/清理记录可回收，1,024 条满额安全拒绝，不能淘汰仍有效的 tombstone。见 [ADR-0338](../adr/0338-relationship-enrollment-keeps-issuance-and-cancellation-durable.md)。
+
+浏览器仍以原 private SavedHost 为凭据 owner；所有数组写入经同一短 IndexedDB 原生事务执行 fresh-read、准确设备/密钥/凭据代际比较及同步 localStorage 写入，不存第二份凭据或租约。自动登记另持有每 Host 的 Web Lock，锁内先重读并复用同源其他标签页已保存的 Client 授权；不同 Host 不因一条慢连接全程串行。缺 Web Locks 时在生成自动登记密钥前拒绝，HTTP LAN 的既有手动连接与线路持久化仍走 IndexedDB 短事务。原生手机 App 不导入自动消费者，仍逐 Host 登记；运行完整 owner Web Client 的手机浏览器属于 Web Client，不能凭 UA 或调用者标记声称排除了物理手机。浏览器、已安装 Desktop 和原生手机验收分别记录。
+
 E4 在关系 owner 的 Operational Database generation 141 保存离线撤销的尝试次数、下次时间与主动断开抑制；同一 Fiber 有限重试准确代际的幂等撤销，八次后仍保留 pending 供检查及手动重试，不重放普通变更。本机先拒绝关系并撤销派生设备，对方恢复后通过固定 Noise 身份确认；旧代确认不触碰新代。仅用户/对端主动断开抑制自动登记，发起失败的内部清理不抑制；新链接及批准激活新代才解除。最多保留 256 条关系并安全拒绝超量新增，不删待确认事实或身份。Client 复用 SavedHost 的非权限关系引用关闭对应来源，移除当前选择回到 All；临时 exact-Host draft guard 在主动移除前等待保存成功或放弃，取消/失败不改关系。见 [ADR-0336](../adr/0336-offline-disconnect-retries-stay-with-the-relationship-owner.md)。
 
 E2 将已批准关系复用于另一 Web Client 的具名授权：Client 显式选择关系和名称，兑换前检查目标 Host ID 与公钥，仍用现有 SavedHost 存储独立凭据；重复打开仅切换已保存目标。CLI `relationships enroll --device-name` 使用同一登记路径。取消、断开和旧关系代际不能签发迟到访问；单独撤销设备不撤销关系或其他 Client。手机仍通过每 Host 的独立配对，不能凭平台标记继承关系。

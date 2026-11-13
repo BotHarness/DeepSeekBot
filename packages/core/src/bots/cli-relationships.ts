@@ -1,17 +1,24 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { CliLiveError } from './cli-live-error.js';
 import { nodeDeviceCarrier } from '../devices/node-carrier.js';
-import { enrollRelationshipClient } from '../devices/relationship-enrollment.js';
+import {
+  enrollRelationshipClient,
+  commitRelationshipEnrollment,
+  cancelRelationshipEnrollment,
+} from '../devices/relationship-enrollment.js';
 import { serializeSavedHost } from '../../../../apps/mobile/src/host/hosts.js';
 import { revokePairing } from '../../../../apps/mobile/src/host/pairing.js';
-import { relationshipListSchema } from '../devices/relationship-contract.js';
+import {
+  relationshipListSchema,
+  accountRelationshipStatusSchema,
+} from '../devices/relationship-contract.js';
 
 export const RELATIONSHIP_COMMANDS = [
   {
     command: 'relationships',
     description:
-      'list, initiate, approve, sync, route, enroll or disconnect reciprocal Hosts; independent device keys stay in private files',
+      'list, initiate, approve, sync, route, enroll, account-discover, account-status, account-enroll or disconnect reciprocal Hosts; independent device keys stay in private files',
   },
 ] as const;
 const PATH = '/api/botharness/relationships';
@@ -38,35 +45,58 @@ export async function runRelationshipCommand(
   const [action, id, publicKey] = rest;
   if (
     !action ||
-    !['list', 'initiate', 'approve', 'sync', 'route', 'enroll', 'disconnect'].includes(action)
+    ![
+      'list',
+      'initiate',
+      'approve',
+      'sync',
+      'route',
+      'enroll',
+      'account-discover',
+      'account-status',
+      'account-enroll',
+      'enrollments',
+      'enrollment-status',
+      'commit-enrollment',
+      'cancel-enrollment',
+      'disconnect',
+    ].includes(action)
   )
     throw new CliLiveError(
       'usage',
-      'relationships takes list, initiate <public-key>, approve <id> <public-key>, sync <id>, route <id> --link-file <file>, enroll <id>, or disconnect <id>.',
+      'relationships takes list, initiate <public-key>, approve <id> <public-key>, sync <id>, route <id> --link-file <file>, enroll <id>, account-discover, account-status, account-enroll <id>, or disconnect <id>.',
     );
-  if (rest.length !== (action === 'list' ? 1 : action === 'approve' ? 3 : 2))
+  const query = ['list', 'account-discover', 'account-status', 'enrollments'].includes(action);
+  const enrollmentKey = ['enrollment-status', 'commit-enrollment', 'cancel-enrollment'].includes(
+    action,
+  );
+  const enroll = ['enroll', 'account-enroll'].includes(action);
+  if (rest.length !== (query ? 1 : action === 'approve' || enrollmentKey ? 3 : 2))
     throw new CliLiveError('usage', 'Invalid relationship arguments.');
-  if (['initiate', 'approve', 'disconnect'].includes(action) && values.confirm !== true)
+  if (
+    ['initiate', 'approve', 'disconnect', 'cancel-enrollment'].includes(action) &&
+    values.confirm !== true
+  )
     throw new CliLiveError(
       'confirm-required',
       'Confirm the named reciprocal relationship with --confirm.',
     );
-  if (action !== 'list' && action !== 'initiate' && !/^[A-Za-z0-9_-]{32}$/u.test(id!))
+  if (!query && action !== 'initiate' && !/^[A-Za-z0-9_-]{32}$/u.test(id!))
     throw new CliLiveError('usage', 'Invalid relationship ID.');
   if (
     (action === 'initiate' || action === 'approve') &&
     !/^[0-9a-f]{64}$/u.test(action === 'initiate' ? id! : publicKey!)
   )
     throw new CliLiveError('usage', 'Compare the full Host identity and supply its public key.');
+  if (enrollmentKey && !/^[a-f0-9]{64}$/u.test(publicKey ?? ''))
+    throw new CliLiveError('usage', 'Supply the exact Client enrollment public key.');
   if (['initiate', 'route'].includes(action) !== (values['link-file'] !== undefined))
     throw new CliLiveError('usage', 'Initiate and route require --link-file.');
-  if ((action === 'enroll') !== (values.out !== undefined))
+  if (enroll !== (values.out !== undefined))
     throw new CliLiveError('usage', 'Only enroll requires --out.');
   if (
     values['device-name'] !== undefined &&
-    (action !== 'enroll' ||
-      !values['device-name'].trim() ||
-      values['device-name'].trim().length > 60)
+    (!enroll || !values['device-name'].trim() || values['device-name'].trim().length > 60)
   )
     throw new CliLiveError('usage', 'Only enroll accepts --device-name (1–60 characters).');
   if (values.out && (!isAbsolute(values.out) || existsSync(values.out)))
@@ -91,10 +121,20 @@ export async function runRelationshipCommand(
     return parsed as Record<string, unknown>;
   };
   if (action === 'list') return request();
-  if (action === 'enroll') {
-    const relationship = relationshipListSchema
-      .parse(await request())
-      .relationships.find((item) => item.id === id);
+  if (action === 'account-discover') return request({ action: 'discover-account' });
+  if (action === 'account-status') return request({ action: 'account-status' });
+  if (action === 'enrollments') return request({ action: 'enrollments' });
+  if (enrollmentKey) return request({ action, id, publicKey });
+  if (enroll) {
+    const account =
+      action === 'account-enroll'
+        ? accountRelationshipStatusSchema.parse(await request({ action: 'account-status' }))
+        : undefined;
+    if (account?.state === 'signed-out')
+      throw new CliLiveError('signed-out', 'Sign in before automatic account enrollment.');
+    const relationship = (
+      account?.relationships ?? relationshipListSchema.parse(await request()).relationships
+    ).find((item) => item.id === id);
     if (!relationship || relationship.state !== 'active')
       throw new CliLiveError('relationship-inactive', 'Choose an active relationship.');
     const result = await enrollRelationshipClient({
@@ -104,9 +144,15 @@ export async function runRelationshipCommand(
       carrier: nodeDeviceCarrier(),
       request,
       ...(signal ? { signal } : {}),
+      ...(account ? { accountGeneration: account.generation } : {}),
     });
     if (!result.ok) throw new CliLiveError(result.code, 'Relationship device enrollment refused.');
     if (signal?.aborted) {
+      await cancelRelationshipEnrollment({
+        relationshipId: id!,
+        publicKey: result.enrollmentPublicKey,
+        request,
+      });
       await revokePairing({ host: result.host, carrier: nodeDeviceCarrier() });
       deadline();
     }
@@ -116,6 +162,11 @@ export async function runRelationshipCommand(
         mode: 0o600,
       });
     } catch {
+      await cancelRelationshipEnrollment({
+        relationshipId: id!,
+        publicKey: result.enrollmentPublicKey,
+        request,
+      });
       const cleanup = await revokePairing({ host: result.host, carrier: nodeDeviceCarrier() });
       throw new CliLiveError(
         'output-unavailable',
@@ -124,7 +175,36 @@ export async function runRelationshipCommand(
           : `The private file could not be written; revoke device ${result.host.deviceId} on its Host.`,
       );
     }
-    return { hostId: result.host.hostId, deviceId: result.host.deviceId, encrypted: true };
+    const confirmation = await commitRelationshipEnrollment({
+      relationshipId: id!,
+      publicKey: result.enrollmentPublicKey,
+      request,
+    });
+    if (confirmation === 'cancelled') {
+      await cancelRelationshipEnrollment({
+        relationshipId: id!,
+        publicKey: result.enrollmentPublicKey,
+        request,
+      });
+      await revokePairing({ host: result.host, carrier: nodeDeviceCarrier() });
+      unlinkSync(values.out!);
+      throw new CliLiveError(
+        'relationship-enrollment-cancelled',
+        'The enrollment expired or was cancelled; its private file was removed.',
+      );
+    }
+    if (confirmation === 'committed') {
+      const { relationshipEnrollment: _pending, ...committed } = result.host;
+      writeFileSync(values.out!, `${JSON.stringify(serializeSavedHost(committed))}\n`, {
+        mode: 0o600,
+      });
+    }
+    return {
+      hostId: result.host.hostId,
+      deviceId: result.host.deviceId,
+      encrypted: true,
+      enrollment: confirmation,
+    };
   }
   if (action === 'initiate') return request({ action, link, confirmedKey: id, confirm: true });
   if (action === 'route') return request({ action, id, link });

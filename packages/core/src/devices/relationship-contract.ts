@@ -1,5 +1,17 @@
 import { z } from 'zod';
 
+export const relationshipAccountOriginSchema = z
+  .object({
+    accountId: z.string().min(1),
+    localRegistrationId: z.string().regex(/^h[a-z2-7]{12}$/u),
+    peerRegistrationId: z.string().regex(/^h[a-z2-7]{12}$/u),
+  })
+  .strict();
+export type RelationshipAccountOrigin = z.infer<typeof relationshipAccountOriginSchema>;
+export const pendingRelationshipEnrollmentSchema = z.object({
+  relationshipEnrollment: z.object({ publicKey: z.string().regex(/^[a-f0-9]{64}$/u) }).optional(),
+});
+
 export const relationshipObservationSchema = z.object({
   state: z.enum(['unverified', 'reachable', 'unavailable', 'stale']),
   observedAt: z.number().nullable(),
@@ -13,6 +25,7 @@ export const relationshipObservationSchema = z.object({
 });
 
 export const relationshipSchema = z.object({
+  accountOrigin: relationshipAccountOriginSchema.nullable().default(null),
   id: z.string(),
   peer: z.object({
     id: z.string(),
@@ -36,6 +49,14 @@ export const relationshipSchema = z.object({
 });
 export const relationshipReplySchema = z.object({ relationship: relationshipSchema });
 export const relationshipListSchema = z.object({ relationships: z.array(relationshipSchema) });
+export const accountRelationshipStatusSchema = z.discriminatedUnion('state', [
+  z.object({ state: z.literal('signed-out'), relationships: z.array(relationshipSchema) }),
+  z.object({
+    state: z.enum(['idle', 'running', 'complete', 'unavailable']),
+    generation: z.string().min(1).max(128),
+    relationships: z.array(relationshipSchema),
+  }),
+]);
 export const relationshipInitiatedSchema = z.object({
   relationship: relationshipSchema,
   local: z.object({ publicKey: z.string().regex(/^[0-9a-f]{64}$/u) }),

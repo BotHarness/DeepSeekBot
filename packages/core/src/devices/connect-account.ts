@@ -1,6 +1,6 @@
 import { createConnectBotNetwork } from './connect-bot-network.js';
 import type { ActivityProvider } from '../live-activity/contract.js';
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { hostname as osHostname } from 'node:os';
 import { createServer, type AddressInfo } from 'node:net';
 
@@ -9,6 +9,7 @@ import { z } from 'zod';
 
 import type { DeviceConnect } from './connect.js';
 import { CONNECT_ZONES } from './routes.js';
+import { checkRoute, isConnectRoute } from '../../../../apps/mobile/src/host/route.js';
 
 type Credentials = Pick<CredentialProvider, 'readRecord' | 'modifyRecord' | 'deleteRecord'>;
 
@@ -98,12 +99,37 @@ export interface ConnectAccount {
   status(): AccountStatus;
   verifyOffer(body: string, signature: string | undefined): Promise<OfferVerification>;
   accessToken(options?: { fresh?: boolean }): Promise<string | undefined>;
+  relationshipSession(): Promise<AccountRelationshipSession | undefined>;
   start(): Promise<void>;
   signIn(): Promise<AccountResult>;
   signOut(): Promise<AccountResult>;
   connectedHosts(): Promise<ConnectedHostsResult>;
   revokeConnectedHost(hostId: string): Promise<AccountResult>;
   close(): Promise<void>;
+}
+
+const accountRelationshipOfferSchema = z.object({
+  host: z.object({ id: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/u), name: z.string().max(120) }),
+  encryption: z.object({
+    protocol: z.literal('connect-noise-xk-v1'),
+    publicKey: z.string().regex(/^[a-f0-9]{64}$/u),
+  }),
+  enrollment: z.object({ body: z.string().max(4096), signature: z.string().max(128) }),
+  hostname: z.string().max(253),
+  expiresAt: z.iso.datetime(),
+});
+export type AccountRelationshipOffer = z.infer<typeof accountRelationshipOfferSchema>;
+export interface AccountRelationshipSession {
+  generation: string;
+  accountId: string;
+  registrationId: string;
+  current(): boolean;
+  hosts(signal: AbortSignal): Promise<ConnectedHost[]>;
+  offer(
+    registrationId: string,
+    verifierHash: string,
+    signal: AbortSignal,
+  ): Promise<AccountRelationshipOffer>;
 }
 
 const relaySchema = z.string().url().brand<'ConnectRelay'>();
@@ -215,6 +241,7 @@ type RelayOperation =
   | 'revoke-host'
   | 'tunnel'
   | 'live-activity'
+  | 'relationship-offer'
   | 'delete-host';
 type IdentityOperation = 'device-authorization' | 'device-token' | 'refresh-token';
 
@@ -279,6 +306,7 @@ export function createConnectAccount(options: {
   const { connect } = options;
   let status: AccountStatus = { state: 'signed-out' };
   let attempt = 0;
+  const relationshipEpoch = randomBytes(16).toString('hex');
   let watch: ReturnType<typeof setInterval> | undefined;
   let cached: string | undefined;
   let botNetworkClosed = false;
@@ -775,6 +803,7 @@ export function createConnectAccount(options: {
     signature: string | undefined,
   ): Promise<OfferVerification> => {
     let current: AccountRecord | undefined;
+    const generation = attempt;
     if (status.state !== 'signed-in') return { ok: false };
     try {
       current = await read();
@@ -782,6 +811,8 @@ export function createConnectAccount(options: {
       return { ok: false };
     }
     if (
+      generation !== attempt ||
+      status.state !== 'signed-in' ||
       current?.relayKey === undefined ||
       current.hostId === undefined ||
       current.account === undefined ||
@@ -1014,6 +1045,105 @@ export function createConnectAccount(options: {
       return result.ok ? { ...result, status: { ...status } } : result;
     },
     verifyOffer,
+    relationshipSession: () =>
+      serial(async () => {
+        if (status.state !== 'signed-in') return undefined;
+        const generation = attempt;
+        const stored = await read();
+        if (!stored?.account || !stored.hostId || !stored.relayKey) return undefined;
+        const accountId = stored.account;
+        const registrationId = stored.hostId;
+        const current = () =>
+          generation === attempt &&
+          status.state === 'signed-in' &&
+          status.hostId === registrationId;
+        if (!current()) return undefined;
+        let token = cached ?? (await refresh(stored));
+        if (!current()) return undefined;
+        const request = async (
+          operation: RelayOperation,
+          method: string,
+          path: string,
+          signal: AbortSignal,
+          body?: unknown,
+        ) => {
+          const guard = () => {
+            if (!current() || signal.aborted) throw new AccountError('session-expired');
+          };
+          guard();
+          let reply;
+          try {
+            reply = await relayCall(operation, method, path, token, body, 10_000, signal);
+          } catch (error) {
+            if (!(error instanceof AccountError) || error.issue !== 'session-expired') throw error;
+            guard();
+            token = await serial(async () => {
+              guard();
+              const latest = await read();
+              if (!latest || latest.account !== accountId || latest.hostId !== registrationId)
+                throw new AccountError('session-expired');
+              return refresh(latest);
+            });
+            guard();
+            reply = await relayCall(operation, method, path, token, body, 10_000, signal);
+          }
+          guard();
+          return reply;
+        };
+        return {
+          accountId,
+          registrationId,
+          generation: `${relationshipEpoch}:${generation}`,
+          current,
+          async hosts(signal: AbortSignal) {
+            const reply = await request('list-hosts', 'GET', '/v1/hosts', signal);
+            if (reply.status !== 200) throw new AccountError('relay-unavailable');
+            const listed = connectedHostsSchema.parse(reply.body);
+            if (
+              listed.hosts.length > 256 ||
+              !listed.hosts.some((host) => host.id === registrationId)
+            )
+              throw new AccountError('session-revoked');
+            return listed.hosts.map(({ botNetwork, connected, ...host }) => ({
+              ...host,
+              current: host.id === registrationId,
+              ...(botNetwork === undefined ? {} : { botNetwork }),
+              ...(connected === undefined ? {} : { connected }),
+            }));
+          },
+          async offer(peerRegistrationId: string, verifierHash: string, signal: AbortSignal) {
+            if (!/^h[a-z2-7]{12}$/u.test(peerRegistrationId) || !VERIFIER_HASH.test(verifierHash))
+              throw new AccountError('relay-unavailable');
+            const reply = await request(
+              'relationship-offer',
+              'POST',
+              `/v1/hosts/${peerRegistrationId}/offer`,
+              signal,
+              { verifierHash },
+            );
+            if (reply.status !== 200) throw new AccountError('relay-unavailable');
+            const offered = accountRelationshipOfferSchema.parse(reply.body);
+            const route = checkRoute(`https://${offered.hostname}`);
+            const payload = z
+              .object({
+                hostId: z.literal(peerRegistrationId),
+                account: z.literal(accountId),
+                verifierHash: z.literal(verifierHash),
+                issuedAt: z.iso.datetime(),
+              })
+              .parse(JSON.parse(offered.enrollment.body));
+            if (
+              !route.ok ||
+              !isConnectRoute(route.origin) ||
+              new URL(route.origin).hostname !== offered.hostname ||
+              Date.parse(offered.expiresAt) <= Date.now() ||
+              Math.abs(Date.now() - Date.parse(payload.issuedAt)) > OFFER_FRESH_MS
+            )
+              throw new AccountError('relay-unavailable');
+            return offered;
+          },
+        };
+      }),
     accessToken: (options) =>
       serial(async () => {
         if (status.state !== 'signed-in') return undefined;
@@ -1071,9 +1201,9 @@ export function createConnectAccount(options: {
       void poll(run, id, deviceCode, interval, expires);
       return { ok: true, status: { ...status } };
     },
-    signOut: () =>
-      serial(async (): Promise<AccountResult> => {
-        attempt += 1;
+    signOut: () => {
+      attempt += 1;
+      return serial(async (): Promise<AccountResult> => {
         let current: AccountRecord | undefined;
         try {
           current = await read();
@@ -1101,7 +1231,8 @@ export function createConnectAccount(options: {
         status = { state: 'signed-out' };
         record('signed-out');
         return { ok: true, status: { ...status } };
-      }),
+      });
+    },
     async close() {
       botNetworkClosed = true;
       attempt += 1;

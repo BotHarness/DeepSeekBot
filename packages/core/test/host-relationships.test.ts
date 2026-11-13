@@ -43,6 +43,105 @@ function fixture() {
 }
 
 describe('Host relationship authorization', () => {
+  it('refuses a cancelled enrollment before an offer arrives and after an offer was prepared', () => {
+    const test = fixture();
+    const host = test.open();
+    const relationship = host.relationships.propose({ peer, direction: 'incoming' });
+    host.relationships.approve(relationship.id, peer.publicKey);
+    host.relationships.activate(relationship.id, peer.publicKey);
+    host.relationships.enrollments.cancelIncoming(
+      relationship.id,
+      client.publicKey,
+      relationship.expiresAt,
+    );
+    expect(() => host.relationships.enrollment(relationship.id, peer.publicKey, client)).toThrow(
+      'cancelled',
+    );
+    const other = { publicKey: 'ef'.repeat(32), name: 'Other Client' };
+    const offer = host.relationships.enrollment(relationship.id, peer.publicKey, other);
+    host.relationships.enrollments.cancelIncoming(
+      relationship.id,
+      other.publicKey,
+      relationship.expiresAt,
+    );
+    expect(host.pairing.redeem({ offer: offer.offer, publicKey: other.publicKey })).toEqual({
+      ok: false,
+      code: 'relationship-inactive',
+    });
+    expect(host.pairing.list()).toEqual([]);
+  });
+  it('revokes an issued enrollment by its exact relationship and public key when the paired reply was lost', () => {
+    const test = fixture();
+    const host = test.open();
+    const relationship = host.relationships.propose({ peer, direction: 'incoming' });
+    host.relationships.approve(relationship.id, peer.publicKey);
+    host.relationships.activate(relationship.id, peer.publicKey);
+    const first = host.relationships.enrollment(relationship.id, peer.publicKey, client);
+    const issued = host.pairing.redeem({ offer: first.offer, publicKey: client.publicKey });
+    const otherKey = 'ef'.repeat(32);
+    const second = host.relationships.enrollment(relationship.id, peer.publicKey, {
+      name: 'Keep',
+      publicKey: otherKey,
+    });
+    const keep = host.pairing.redeem({ offer: second.offer, publicKey: otherKey });
+    const independent = host.pairing.redeem({ offer: host.pairing.createOffer().offer });
+    if (!issued.ok || !keep.ok || !independent.ok) throw new Error('fixture pairing refused');
+    let closed = 0;
+    host.pairing.attachStream(issued.device.id, () => {
+      closed++;
+    });
+    expect(
+      host.relationships.enrollments.cancelIncoming(
+        relationship.id,
+        client.publicKey,
+        relationship.expiresAt,
+      ),
+    ).toEqual({ revoked: 1 });
+    expect(closed).toBe(1);
+    expect(host.pairing.admit(`Device ${issued.credential}`).ok).toBe(false);
+    expect(host.pairing.admit(`Device ${keep.credential}`).ok).toBe(true);
+    expect(host.pairing.admit(`Device ${independent.credential}`).ok).toBe(true);
+    expect(() => host.relationships.enrollment(relationship.id, peer.publicKey, client)).toThrow(
+      'cancelled',
+    );
+  });
+  it('retains unconfirmed cleanup and idempotent committed enrollment across restart', () => {
+    const test = fixture();
+    const first = test.open();
+    const relationship = first.relationships.propose({ peer, direction: 'outgoing' });
+    first.relationships.activate(relationship.id, peer.publicKey);
+    first.relationships.enrollments.beginOutgoing(relationship.id, client.publicKey);
+    const committedKey = 'ef'.repeat(32);
+    first.relationships.enrollments.beginOutgoing(relationship.id, committedKey);
+    first.relationships.enrollments.commit(relationship.id, committedKey);
+    first.owner.close();
+    test.advance(RELATIONSHIP_APPROVAL_TTL_MS + 1);
+    const restored = test.open();
+    expect(restored.relationships.enrollments.commit(relationship.id, committedKey).state).toBe(
+      'committed',
+    );
+    expect(() =>
+      restored.relationships.enrollments.commit(relationship.id, client.publicKey),
+    ).toThrow('expired');
+    expect(restored.relationships.enrollments.dueCleanup()).toMatchObject([
+      { relationshipId: relationship.id, publicKey: client.publicKey, state: 'cleanup-pending' },
+    ]);
+    expect(() =>
+      restored.relationships.enrollments.beginOutgoing(
+        relationship.id,
+        '12'.repeat(32),
+        'new-account-generation',
+      ),
+    ).toThrow('cleanup-pending');
+    for (let attempt = 1; attempt <= 8; attempt++) {
+      restored.relationships.enrollments.beginCleanupAttempt(relationship.id, client.publicKey);
+      test.advance(60_000);
+    }
+    expect(restored.relationships.enrollments.dueCleanup()).toEqual([]);
+    expect(
+      restored.relationships.enrollments.list().find((item) => item.publicKey === client.publicKey),
+    ).toMatchObject({ state: 'cleanup-pending', cleanupAttempts: 8, retryAt: null });
+  });
   it('retains offline retry budget and reconnect suppression after restart without letting a stale acknowledgement retire a new generation', () => {
     const test = fixture();
     const first = test.open();
@@ -161,7 +260,8 @@ describe('Host relationship authorization', () => {
     expect(host.pairing.admitKey(`Device ${paired.credential}`, client.publicKey).ok).toBe(true);
     const phone = host.pairing.redeem({ offer: host.pairing.createOffer().offer });
     if (!phone.ok) throw new Error(phone.code);
-    const late = host.relationships.enrollment(relationship.id, peer.publicKey, client);
+    const lateClient = { ...client, publicKey: 'ef'.repeat(32) };
+    const late = host.relationships.enrollment(relationship.id, peer.publicKey, lateClient);
     let closed = false;
     host.pairing.attachStream(paired.device.id, () => {
       closed = true;
@@ -172,7 +272,7 @@ describe('Host relationship authorization', () => {
       ok: false,
       code: 'device-revoked',
     });
-    expect(host.pairing.redeem({ offer: late.offer, publicKey: client.publicKey })).toEqual({
+    expect(host.pairing.redeem({ offer: late.offer, publicKey: lateClient.publicKey })).toEqual({
       ok: false,
       code: 'relationship-inactive',
     });

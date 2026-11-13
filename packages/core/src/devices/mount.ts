@@ -357,6 +357,7 @@ export function mountDevicePairing(
     });
     const relationshipControl = createRelationshipControl({
       relationships,
+      account: () => account,
       pairing,
       identity,
       record: (event) => write('host-relationships', event.phase, JSON.stringify(event)),

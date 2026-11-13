@@ -5,7 +5,7 @@ import {
   keyHex,
   secureRandom,
 } from '../../../../apps/mobile/src/host/encrypted-carrier.js';
-import { redeemPairing } from '../../../../apps/mobile/src/host/pairing.js';
+import { redeemPairing, revokePairing } from '../../../../apps/mobile/src/host/pairing.js';
 import { checkRoute, isEncryptedRoute } from '../../../../apps/mobile/src/host/route.js';
 import { noiseFingerprint, noisePublicKey } from './noise/xk.js';
 
@@ -23,21 +23,84 @@ const ticketSchema = z.object({
   expiresAt: z.string(),
 });
 
+const enrollmentStateSchema = z.object({
+  enrollment: z
+    .object({
+      state: z.enum(['unconfirmed', 'committed', 'cleanup-pending', 'cleaned', 'cancelled']),
+    })
+    .nullable(),
+});
+
+export async function commitRelationshipEnrollment(options: {
+  relationshipId: string;
+  publicKey: string;
+  request(body: Record<string, unknown>): Promise<unknown>;
+}): Promise<'committed' | 'pending' | 'cancelled'> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const result = enrollmentStateSchema.parse(
+        await options.request({
+          action: 'commit-enrollment',
+          id: options.relationshipId,
+          publicKey: options.publicKey,
+        }),
+      );
+      if (result.enrollment?.state === 'committed') return 'committed';
+    } catch {}
+    try {
+      const result = enrollmentStateSchema.parse(
+        await options.request({
+          action: 'enrollment-status',
+          id: options.relationshipId,
+          publicKey: options.publicKey,
+        }),
+      );
+      if (result.enrollment?.state === 'committed') return 'committed';
+      if (result.enrollment?.state !== 'unconfirmed') return 'cancelled';
+    } catch {
+      return 'pending';
+    }
+  }
+  return 'pending';
+}
+
+export async function cancelRelationshipEnrollment(options: {
+  relationshipId: string;
+  publicKey: string;
+  request(body: Record<string, unknown>): Promise<unknown>;
+}): Promise<void> {
+  try {
+    await options.request({
+      action: 'cancel-enrollment',
+      id: options.relationshipId,
+      publicKey: options.publicKey,
+    });
+  } catch {
+    /* The owning Host retains unconfirmed issuance until its cleanup deadline. */
+  }
+}
+
 export async function enrollRelationshipClient(options: {
   relationshipId: string;
   expectedPeer: { id: string; publicKey: string };
   name: string;
   carrier: HostCarrier;
   request(body: Record<string, unknown>): Promise<unknown>;
+  cleanupRequest?(body: Record<string, unknown>): Promise<unknown>;
   signal?: AbortSignal;
+  accountGeneration?: string;
 }) {
   if (options.signal?.aborted) return { ok: false as const, code: 'cancelled' as const };
   const privateKey = secureRandom(options.carrier);
+  const publicKey = keyHex(noisePublicKey(privateKey));
+  let delivered = false;
   try {
-    const publicKey = keyHex(noisePublicKey(privateKey));
     const ticket = ticketSchema.parse(
       await options.request({
-        action: 'enroll',
+        action: options.accountGeneration === undefined ? 'enroll' : 'enroll-account',
+        ...(options.accountGeneration === undefined
+          ? {}
+          : { generation: options.accountGeneration }),
         id: options.relationshipId,
         publicKey,
         name: options.name,
@@ -75,10 +138,39 @@ export async function enrollRelationshipClient(options: {
         },
       },
     });
+    if (result.ok && options.accountGeneration !== undefined) {
+      try {
+        if (options.signal?.aborted) throw new Error('cancelled');
+        await options.request({
+          action: 'check-account-enrollment',
+          id: options.relationshipId,
+          generation: options.accountGeneration,
+        });
+        if (options.signal?.aborted) throw new Error('cancelled');
+      } catch {
+        await revokePairing({ host: result.host, carrier: options.carrier });
+        return { ok: false as const, code: 'cancelled' as const };
+      }
+    }
+    delivered = result.ok;
     return result.ok
-      ? { ...result, host: { ...result.host, relationshipId: options.relationshipId } }
+      ? {
+          ...result,
+          enrollmentPublicKey: publicKey,
+          host: {
+            ...result.host,
+            relationshipId: options.relationshipId,
+            relationshipEnrollment: { publicKey },
+          },
+        }
       : result;
   } finally {
+    if (!delivered)
+      await cancelRelationshipEnrollment({
+        relationshipId: options.relationshipId,
+        publicKey,
+        request: options.cleanupRequest ?? options.request,
+      });
     privateKey.fill(0);
   }
 }
