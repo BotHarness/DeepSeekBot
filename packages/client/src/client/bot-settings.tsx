@@ -1,4 +1,4 @@
-import { SettingsSearch, searchSettings } from './settings-search.js';
+import { CLIENT_SETTINGS_INDEX, SettingsSearch, searchSettings } from './settings-search.js';
 import { useMountedResource } from './mounted-resource.js';
 import { useState, useSyncExternalStore, type ReactElement, type ReactNode } from 'react';
 
@@ -7,6 +7,7 @@ import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots';
 import type {} from './bot-settings-slot.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { SettingsDialog } from './ds/settings-dialog.js';
+import { Note } from './ds/note.js';
 import type { BotHarnessTranslate } from './locale.js';
 
 export const BOT_SETTINGS_SECTIONS = {
@@ -64,6 +65,7 @@ export interface BotSettingsSectionRow {
   readonly order: number;
   readonly label: string;
   readonly layoutAvailable?: boolean;
+  readonly clientLayoutAvailable?: boolean;
 }
 
 export interface BotSettingsTarget {
@@ -76,6 +78,7 @@ export interface BotSettingsSnapshot {
   readonly sectionId: string | undefined;
   readonly pairPhone?: boolean;
   readonly target?: BotSettingsTarget | undefined;
+  readonly clientOnly?: boolean;
 }
 
 export interface BotSettingsSectionSource {
@@ -112,7 +115,12 @@ export class BotSettings {
   };
 
   readonly select = (sectionId: string, target?: string): void => {
+    if (this.#snapshot.clientOnly && !Object.hasOwn(CLIENT_SETTINGS_INDEX, sectionId)) return;
     this.#set({ ...this.#snapshot, sectionId, pairPhone: false, target: this.#target(target) });
+  };
+
+  readonly openClientPreferences = (): void => {
+    this.#set({ open: true, sectionId: BOT_SETTINGS_SECTIONS.appearance, clientOnly: true });
   };
 
   readonly close = (): void => {
@@ -128,7 +136,8 @@ export class BotSettings {
       next.open === this.#snapshot.open &&
       next.sectionId === this.#snapshot.sectionId &&
       next.pairPhone === this.#snapshot.pairPhone &&
-      next.target === this.#snapshot.target
+      next.target === this.#snapshot.target &&
+      next.clientOnly === this.#snapshot.clientOnly
     )
       return;
     this.#snapshot = next;
@@ -189,7 +198,9 @@ export function BotSettingsView({
     [state.sectionId, target],
   );
   if (!state.open) return null;
-  const rows = [...registered].sort((a, b) => a.order - b.order);
+  const rows = registered
+    .filter((row) => !state.clientOnly || Object.hasOwn(CLIENT_SETTINGS_INDEX, row.id))
+    .sort((a, b) => a.order - b.order);
   const active =
     rows.find((row) => row.id === state.sectionId) ??
     rows.find((row) => row.id === BOT_SETTINGS_DEFAULT_SECTION) ??
@@ -213,8 +224,17 @@ export function BotSettingsView({
   }
   return (
     <SettingsDialog
-      title={t('settings.nav')}
-      navTitle={t('settings.nav')}
+      title={t(state.clientOnly ? 'environment.settings.app' : 'settings.nav')}
+      navTitle={t(state.clientOnly ? 'environment.settings.app' : 'settings.nav')}
+      caption={
+        <Note>
+          {t(
+            state.clientOnly
+              ? 'environment.settings.clientScope'
+              : 'environment.settings.legacyScope',
+          )}
+        </Note>
+      }
       sections={rows.map((row) => ({
         ...row,
         icon: <ChannelSidebarIcon name={botSettingsSectionIcon(row.id)} />,
@@ -224,8 +244,8 @@ export function BotSettingsView({
       navigationResults={
         query.trim() ? (
           <div className="bh-settings-search-results" aria-label={t('settings.results')}>
-            {searchSettings(rows, query, t).length ? (
-              searchSettings(rows, query, t).map((result) => (
+            {searchSettings(rows, query, t, state.clientOnly).length ? (
+              searchSettings(rows, query, t, state.clientOnly).map((result) => (
                 <button
                   type="button"
                   key={`${result.section}:${result.title}`}
@@ -250,15 +270,22 @@ export function BotSettingsView({
       }}
       onClose={close}
       labels={{
-        nav: t('botSettings.nav'),
+        nav: t(state.clientOnly ? 'environment.settings.app' : 'botSettings.nav'),
         close: t('common.close'),
-        picker: (section) => t('botSettings.picker', { section }),
+        picker: (section) =>
+          t(state.clientOnly ? 'environment.settings.appPicker' : 'botSettings.picker', {
+            section,
+          }),
       }}
     >
       <div ref={locate} data-settings-content={active?.id}>
         {active === undefined
           ? null
-          : (renderSlot(SECTION_SLOT, { close }, { only: active.id }) as unknown as ReactNode)}
+          : (renderSlot(
+              SECTION_SLOT,
+              { close, clientOnly: state.clientOnly === true },
+              { only: active.id },
+            ) as unknown as ReactNode)}
       </div>
     </SettingsDialog>
   );
@@ -303,6 +330,9 @@ export function botSettingsSectionSource(ctx: SectionLedger): BotSettingsSection
         rows = ctx.slots.entries(SECTION_SLOT).map(({ options }) => ({
           id: options.id ?? '',
           layoutAvailable: ctx.slots.entries('botharness.settings.layout').length > 0,
+          clientLayoutAvailable: ctx.slots
+            .entries('botharness.settings.layout')
+            .some((entry) => entry.options.id === 'workspace-layout'),
           order: options.order ?? 0,
           label: typeof options.label === 'function' ? options.label() : (options.label ?? ''),
         }));
