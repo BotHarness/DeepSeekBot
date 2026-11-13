@@ -118,6 +118,87 @@ async function host(
   };
 }
 
+it('cleans an unknown committed grant by its exact Client key after lost paired reply, source restart and route recovery', async () => {
+  let now = Date.now();
+  const clock = () => now;
+  let source = await host('A', clock);
+  const target = await host('B', clock);
+  const closed = new Set<object>();
+  const close = async (item: Awaited<ReturnType<typeof host>>) => {
+    if (closed.has(item)) return;
+    closed.add(item);
+    await item.close();
+  };
+  try {
+    const outgoing = await source.control.initiate(await target.link(), target.publicKey);
+    target.control.approve(outgoing.id, source.publicKey);
+    await source.control.sync(outgoing.id);
+    const keepKey = 'ef'.repeat(32);
+    const keepOffer = target.relationships.enrollment(outgoing.id, source.publicKey, {
+      publicKey: keepKey,
+      name: 'Keep Client',
+    });
+    const keep = target.pairing.redeem({ offer: keepOffer.offer, publicKey: keepKey });
+    const phone = target.pairing.redeem({ offer: target.pairing.createOffer().offer });
+    if (!keep.ok || !phone.ok) throw new Error('fixture pairing refused');
+    const abort = new AbortController();
+    const redeem = target.pairing.redeem.bind(target.pairing);
+    let mintedKey = '';
+    target.pairing.redeem = (input) => {
+      const result = redeem(input);
+      if (result.ok && input.publicKey !== undefined) {
+        mintedKey = input.publicKey;
+        abort.abort();
+        source.relationships.updateRoutes(outgoing.id, target.publicKey, []);
+      }
+      return result;
+    };
+    const result = await enrollRelationshipClient({
+      relationshipId: outgoing.id,
+      expectedPeer: outgoing.peer,
+      name: 'Lost reply Client',
+      carrier: nodeDeviceCarrier(),
+      signal: abort.signal,
+      request: async (body) => {
+        if (
+          body['action'] !== 'enroll' ||
+          typeof body['publicKey'] !== 'string' ||
+          typeof body['name'] !== 'string'
+        )
+          throw new Error('unexpected enrollment request');
+        return source.control.enroll(outgoing.id, body['publicKey'], body['name']);
+      },
+      cleanupRequest: async (body) => {
+        if (body['action'] !== 'cancel-enrollment' || typeof body['publicKey'] !== 'string')
+          throw new Error('unexpected cleanup request');
+        return source.control.cancelEnrollment(outgoing.id, body['publicKey']);
+      },
+    });
+    expect(result.ok).toBe(false);
+    const issued = target.pairing.list().find((device) => device.publicKey === mintedKey);
+    if (!issued) throw new Error('missing committed unknown grant');
+    expect(target.pairing.check(issued.id).ok).toBe(true);
+    expect(
+      source.relationships.enrollments.list().find((item) => item.publicKey === mintedKey),
+    ).toMatchObject({ state: 'cleanup-pending' });
+    const retained = source.retained;
+    await close(source);
+    source = await host('A', clock, { retained });
+    await source.control.recoverRoute(outgoing.id, await target.link());
+    now += 10_000;
+    await source.control.retryPending();
+    expect(
+      source.relationships.enrollments.list().find((item) => item.publicKey === mintedKey),
+    ).toMatchObject({ state: 'cleaned' });
+    expect(target.pairing.check(issued.id)).toMatchObject({ ok: false, code: 'device-revoked' });
+    expect(target.pairing.check(keep.device.id).ok).toBe(true);
+    expect(target.pairing.check(phone.device.id).ok).toBe(true);
+  } finally {
+    await close(source);
+    await close(target);
+  }
+}, 20_000);
+
 it('aborts an in-flight retirement before disposing its authority without late reads or an unhandled rejection', async () => {
   let gate: Promise<void> | undefined;
   let release = () => {};
@@ -298,7 +379,11 @@ it('establishes exact reciprocal authorization over real Noise sockets and retir
           ),
       });
       expect(grant.ok).toBe(true);
-      if (grant.ok) expect(parseSavedHost(serializeSavedHost(grant.host))).toEqual(grant.host);
+      if (grant.ok) {
+        const { relationshipEnrollment: pending, ...saved } = grant.host;
+        expect(pending.publicKey).toBe(grant.enrollmentPublicKey);
+        expect(parseSavedHost(serializeSavedHost(grant.host))).toEqual(saved);
+      }
       expect(target!.pairing.list()).toHaveLength(1);
     }
     const phone = b.pairing.redeem({ offer: b.pairing.createOffer().offer });

@@ -23,8 +23,16 @@ import {
   relationshipTransportPeerSchema,
   relationshipAdmissionForRoutes,
   type ClientRelationship,
+  pendingRelationshipEnrollmentSchema,
 } from './relationship-contract.js';
 import { noiseFingerprint, noisePublicKey } from './noise/xk.js';
+export type RelationshipSavedHost = SavedHost & z.infer<typeof pendingRelationshipEnrollmentSchema>;
+export function parseRelationshipSavedHost(input: unknown): RelationshipSavedHost | undefined {
+  const host = parseSavedHost(input);
+  if (!host) return undefined;
+  const pending = pendingRelationshipEnrollmentSchema.safeParse(input).data?.relationshipEnrollment;
+  return pending ? { ...host, relationshipEnrollment: pending } : host;
+}
 
 export function relationshipClientPublicKey(host: SavedHost): string | undefined {
   if (!host.relationshipId || !host.encryption) return undefined;
@@ -103,7 +111,7 @@ export function updateRelationshipClientRoute(options: {
   host: SavedHost;
   peer: ClientRelationship['peer'];
   privateRelay?: PrivateAdmission;
-}): { ok: true; host: SavedHost } | { ok: false; code: string } {
+}): { ok: true; host: RelationshipSavedHost } | { ok: false; code: string } {
   const { host, peer } = options;
   if (host.hostId !== peer.id || host.encryption?.hostKey !== peer.publicKey)
     return { ok: false, code: 'host-key-changed' };
@@ -118,7 +126,7 @@ export function updateRelationshipClientRoute(options: {
   if (host.routePreference && !routes.includes(host.routePreference))
     return { ok: false, code: 'relationship-route-preference-unavailable' };
   const { privateRelay: _privateRelay, loopback: _loopback, ...encryption } = host.encryption;
-  const next = parseSavedHost(
+  const next = parseRelationshipSavedHost(
     serializeSavedHost({
       ...host,
       routes,

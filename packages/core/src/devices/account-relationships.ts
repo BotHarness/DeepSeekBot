@@ -28,6 +28,7 @@ export function createAccountRelationships(options: {
     peer: RelationshipPeer,
     command: AccountRelationshipProposal | { action: 'activate'; id: string },
     signal: AbortSignal,
+    beforeSend?: () => void,
   ): Promise<Record<string, unknown>>;
   record?(event: {
     phase: string;
@@ -38,6 +39,8 @@ export function createAccountRelationships(options: {
 }) {
   const { relationships } = options;
   const running = new Set<AbortController>();
+  const waiting = new Set<() => void>();
+  let activeOperations = 0;
   let discovery: Promise<void> | undefined;
   let closed = false;
   let lastOutcome: 'idle' | 'running' | 'complete' | 'unavailable' = 'idle';
@@ -77,15 +80,46 @@ export function createAccountRelationships(options: {
     routes: [`https://${offer.hostname}`],
   });
   const operation = async <T>(work: (signal: AbortSignal) => Promise<T>): Promise<T> => {
-    if (closed || running.size >= 2) throw new RelationshipRefused('relationship-busy');
+    if (closed) throw new RelationshipRefused('relationship-owner-closed');
+    if (activeOperations >= 2 && waiting.size >= 8)
+      throw new RelationshipRefused('relationship-busy');
     const abort = new AbortController();
     const timer = setTimeout(() => abort.abort(), 10_000);
     running.add(abort);
+    let acquired = false;
     try {
+      if (activeOperations >= 2)
+        await new Promise<void>((resolve, reject) => {
+          const cancel = () => {
+            waiting.delete(ready);
+            reject(new RelationshipRefused('account-enrollment-cancelled'));
+          };
+          const ready = () => {
+            abort.signal.removeEventListener('abort', cancel);
+            if (abort.signal.aborted || closed)
+              return reject(new RelationshipRefused('account-enrollment-cancelled'));
+            activeOperations++;
+            resolve();
+          };
+          waiting.add(ready);
+          abort.signal.addEventListener('abort', cancel, { once: true });
+        });
+      else activeOperations++;
+      acquired = true;
+      if (abort.signal.aborted || closed)
+        throw new RelationshipRefused('account-enrollment-cancelled');
       return await work(abort.signal);
     } finally {
       clearTimeout(timer);
       running.delete(abort);
+      if (acquired) {
+        activeOperations--;
+        const next = waiting.values().next().value;
+        if (next) {
+          waiting.delete(next);
+          next();
+        }
+      }
     }
   };
   const originMatches = (
@@ -227,21 +261,23 @@ export function createAccountRelationships(options: {
           relationship = relationships.approve(relationship.id, peerKey);
           return { ok: true, state: relationship.state };
         });
-        options.record?.({
-          phase: 'account-approved',
-          relationshipId: command.proof.relationshipId,
-          durationMs: Date.now() - started,
-        });
+        if (!closed)
+          options.record?.({
+            phase: 'account-approved',
+            relationshipId: command.proof.relationshipId,
+            durationMs: Date.now() - started,
+          });
         return answer;
       } catch (error) {
         const refusal =
           error instanceof RelationshipRefused ? error.code : 'account-enrollment-unavailable';
-        options.record?.({
-          phase: 'account-refused',
-          relationshipId: command.proof.relationshipId,
-          durationMs: Date.now() - started,
-          refusal,
-        });
+        if (!closed)
+          options.record?.({
+            phase: 'account-refused',
+            relationshipId: command.proof.relationshipId,
+            durationMs: Date.now() - started,
+            refusal,
+          });
         throw new RelationshipRefused(refusal);
       }
     },
@@ -328,15 +364,25 @@ export function createAccountRelationships(options: {
               if (signed.host.id !== remote.id || signed.encryption.publicKey !== remote.publicKey)
                 throw new RelationshipRefused('relationship-identity-mismatch');
               eligible(remote);
+              const beforeSend = () => {
+                guard(session, signal);
+                eligible(remote);
+              };
               const answer = await options.request(
                 remote,
                 { action: 'account-propose', proof, enrollment: signed.enrollment },
                 signal,
+                beforeSend,
               );
               guard(session, signal);
               eligible(remote);
               if (answer['state'] !== 'approved' && answer['state'] !== 'active') return;
-              await options.request(remote, { action: 'activate', id: relationship.id }, signal);
+              await options.request(
+                remote,
+                { action: 'activate', id: relationship.id },
+                signal,
+                beforeSend,
+              );
               guard(session, signal);
               eligible(remote);
               relationships.activate(relationship.id, remote.publicKey);
@@ -347,6 +393,7 @@ export function createAccountRelationships(options: {
                 durationMs: Date.now() - started,
               });
             }).catch((error) => {
+              if (closed) return;
               const attempts = Math.min((retries.get(peerRegistrationId)?.attempts ?? 0) + 1, 8);
               if (retries.size < 32 || retries.has(peerRegistrationId))
                 retries.set(peerRegistrationId, {

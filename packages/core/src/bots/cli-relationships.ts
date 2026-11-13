@@ -7,9 +7,10 @@ import {
   enrollRelationshipClient,
   commitRelationshipEnrollment,
   cancelRelationshipEnrollment,
+  parseRelationshipSavedHost,
   updateRelationshipClientRoute,
 } from '../devices/relationship-enrollment.js';
-import { serializeSavedHost, parseSavedHost } from '../../../../apps/mobile/src/host/hosts.js';
+import { serializeSavedHost } from '../../../../apps/mobile/src/host/hosts.js';
 import { revokePairing, parsePairingLink } from '../../../../apps/mobile/src/host/pairing.js';
 import {
   relationshipListSchema,
@@ -219,9 +220,9 @@ export async function runRelationshipCommand(
     const result = await request({ action, id, link });
     const deviceFile = values['device-file'];
     if (!deviceFile) return result;
-    let saved: ReturnType<typeof parseSavedHost>;
+    let saved: ReturnType<typeof parseRelationshipSavedHost>;
     try {
-      saved = parseSavedHost(JSON.parse(readFileSync(deviceFile, 'utf8')));
+      saved = parseRelationshipSavedHost(JSON.parse(readFileSync(deviceFile, 'utf8')));
     } catch {
       throw new CliLiveError('input-unavailable', 'Cannot read the private device file.');
     }

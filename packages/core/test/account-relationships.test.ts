@@ -4,7 +4,11 @@ import { attachOperationalModule, mountOperationalDatabase } from '../src/databa
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createDevicePairing } from '../src/devices/pairing.js';
 import { createHostRelationships } from '../src/devices/relationships.js';
-import { createAccountRelationships } from '../src/devices/account-relationships.js';
+import {
+  createAccountRelationships,
+  type AccountRelationshipProposal,
+} from '../src/devices/account-relationships.js';
+import type { RelationshipPeer } from '../src/devices/relationships.js';
 import {
   accountRelationshipVerifier,
   type AccountRelationshipProof,
@@ -39,13 +43,15 @@ function fixture() {
     publicKey: 'cd'.repeat(32),
     routes: ['https://hbbbbbbbbbbbb.deepseekbot.dev'],
   };
+  const peers = new Map<string, RelationshipPeer>([['haaaaaaaaaaaa', source]]);
   let signedIn = true;
   const relayKey = randomBytes(32);
   const sign = (body: string) => createHmac('sha256', relayKey).update(body).digest('base64url');
   let onOffer: ((id: string, signal: AbortSignal) => Promise<void>) | undefined;
   const offer = vi.fn(async (registrationId: string, verifierHash: string, signal: AbortSignal) => {
     await onOffer?.(registrationId, signal);
-    const host = registrationId === 'hbbbbbbbbbbbb' ? local : source;
+    const host =
+      registrationId === session.registrationId ? local : (peers.get(registrationId) ?? source);
     const body = JSON.stringify({
       hostId: registrationId,
       account: 'test-account',
@@ -78,13 +84,19 @@ function fixture() {
         : { ok: false };
     },
   };
+  const request = vi.fn(
+    async (
+      _peer: RelationshipPeer,
+      _command: AccountRelationshipProposal | { action: 'activate'; id: string },
+    ): Promise<Record<string, unknown>> => {
+      throw new Error('unexpected outgoing request');
+    },
+  );
   const authority = createAccountRelationships({
     account: () => account,
     relationships,
     identity: async () => local,
-    request: async () => {
-      throw new Error('unexpected outgoing request');
-    },
+    request,
   });
   const proof: AccountRelationshipProof = {
     purpose: 'account-host-relationship-v1',
@@ -121,6 +133,8 @@ function fixture() {
     proof,
     proposal,
     offer,
+    peers,
+    request,
     signOut: () => {
       signedIn = false;
     },
@@ -129,6 +143,102 @@ function fixture() {
     },
   };
 }
+
+it('bounds all account operations to two while serving a queued receiver', async () => {
+  const test = fixture();
+  const proposal = await test.proposal();
+  let active = 0;
+  let maximum = 0;
+  test.onOffer(async () => {
+    active++;
+    maximum = Math.max(maximum, active);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    active--;
+  });
+  try {
+    const answers = await Promise.all(
+      Array.from({ length: 3 }, () => test.authority.receive(test.source.publicKey, proposal)),
+    );
+    expect(answers.every((answer) => answer.state === 'approved')).toBe(true);
+    expect(maximum).toBe(2);
+    expect(test.relationships.list()).toHaveLength(1);
+  } finally {
+    test.authority.close();
+  }
+});
+
+it('rotates discovery beyond an active and unavailable prefix larger than one batch', async () => {
+  const test = fixture();
+  test.session.registrationId = 'haaaaaaaaaaaa';
+  const alphabet = 'abcdefghijklmnopqrstuvwxyz234567';
+  const registration = (index: number) => {
+    let digits = '';
+    do {
+      digits = alphabet[index % 32] + digits;
+      index = Math.floor(index / 32);
+    } while (index > 0);
+    return `hb${digits.padStart(11, 'a')}`;
+  };
+  const hosts = Array.from({ length: 70 }, (_, index) => ({
+    id: registration(index),
+    name: `Peer ${index}`,
+    hostname: `${registration(index)}.deepseekbot.dev`,
+    createdAt: new Date().toISOString(),
+    current: false,
+    sessionKnown: true,
+  }));
+  hosts.forEach((host, index) =>
+    test.peers.set(host.id, {
+      ...test.source,
+      id: `peer-${index}`,
+      name: host.name,
+      routes: [`https://${host.hostname}`],
+    }),
+  );
+  test.session.hosts = async () => hosts;
+  for (let index = 0; index < 10; index++) {
+    const peer = test.peers.get(registration(index));
+    if (!peer) throw new Error('missing fixture peer');
+    const relation = test.relationships.propose({
+      peer,
+      direction: 'outgoing',
+      accountOrigin: {
+        accountId: test.session.accountId,
+        localRegistrationId: test.session.registrationId,
+        peerRegistrationId: registration(index),
+      },
+    });
+    test.relationships.activate(relation.id, peer.publicKey);
+  }
+  test.onOffer(async (id) => {
+    if (
+      id !== test.session.registrationId &&
+      !hosts.slice(0, 10).some((host) => host.id === id) &&
+      id !== registration(69)
+    )
+      throw new Error('unavailable peer');
+  });
+  test.request.mockImplementation(async (_peer, command) => ({
+    ok: true,
+    state: command.action === 'activate' ? 'active' : 'approved',
+  }));
+  try {
+    for (
+      let attempt = 0;
+      attempt < 4 &&
+      !test.relationships
+        .list()
+        .some((item) => item.peer.id === 'peer-69' && item.state === 'active');
+      attempt++
+    )
+      await test.authority.discover();
+    expect(test.relationships.list().find((item) => item.peer.id === 'peer-69')).toMatchObject({
+      state: 'active',
+    });
+  } finally {
+    test.authority.close();
+  }
+});
 
 it('records verified account provenance atomically and reuses the same canonical proposal', async () => {
   const test = fixture();

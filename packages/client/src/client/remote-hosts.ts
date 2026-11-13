@@ -749,7 +749,7 @@ export function createRemoteHosts(options: {
       const first = listeners.size === 0;
       listeners.add(listener);
       if (first) {
-        globalThis.window?.addEventListener('storage', storageChanged);
+        globalThis.addEventListener?.('storage', storageChanged);
         refreshCredentials();
         for (const entry of clients.values()) start(entry);
         relationshipTimer = setInterval(() => {
@@ -760,7 +760,7 @@ export function createRemoteHosts(options: {
       return () => {
         listeners.delete(listener);
         if (listeners.size > 0) return;
-        globalThis.window?.removeEventListener('storage', storageChanged);
+        globalThis.removeEventListener?.('storage', storageChanged);
         if (relationshipTimer !== undefined) clearInterval(relationshipTimer);
         relationshipTimer = undefined;
         relationshipPoll?.abort();

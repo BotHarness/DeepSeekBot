@@ -167,6 +167,7 @@ export function createRelationshipControl(options: {
     origin: string,
     timeout: number,
     parentSignal?: AbortSignal,
+    beforeSend?: () => void,
   ): Promise<Record<string, unknown>> => {
     if (closed) throw new RelationshipRefused('relationship-owner-closed');
     if (active.size >= 8) throw new RelationshipRefused('relationship-busy');
@@ -225,6 +226,7 @@ export function createRelationshipControl(options: {
         void channel.ready
           .then(() => {
             if (abort.signal.aborted) return stop();
+            beforeSend?.();
             if (!['disconnect', 'cancel-enrollment'].includes(command.action))
               checkRelationship(commandId(command), peer.publicKey);
             if (
@@ -249,6 +251,7 @@ export function createRelationshipControl(options: {
     peer: RelationshipTransportPeer,
     command: Command,
     signal?: AbortSignal,
+    beforeSend?: () => void,
   ) => {
     if (!['disconnect', 'cancel-enrollment'].includes(command.action))
       checkRelationship(
@@ -272,6 +275,7 @@ export function createRelationshipControl(options: {
                 ? 2500
                 : 10_000,
           signal,
+          beforeSend,
         );
         if (command.action === 'status') {
           const learned = peerSchema.parse(response['peer']);
@@ -777,13 +781,18 @@ export function createRelationshipControl(options: {
           accountGeneration === undefined
             ? undefined
             : await accountRelationships.authorize(relationshipId, accountGeneration);
-        const response = await request(relationship.peer, {
-          action: accountGeneration === undefined ? 'enroll' : 'account-enroll',
-          id: relationshipId,
-          publicKey,
-          name,
-          expiresAt: enrollment.expiresAt,
-        });
+        const response = await request(
+          relationship.peer,
+          {
+            action: accountGeneration === undefined ? 'enroll' : 'account-enroll',
+            id: relationshipId,
+            publicKey,
+            name,
+            expiresAt: enrollment.expiresAt,
+          },
+          undefined,
+          () => authorization?.check(),
+        );
         authorization?.check();
         if (relationships.read(relationshipId).state !== 'active')
           throw new RelationshipRefused('relationship-inactive');

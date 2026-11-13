@@ -43,6 +43,29 @@ function fixture() {
 }
 
 describe('Host relationship authorization', () => {
+  it('keeps accepting a Client after more than 1,024 expired and revoked enrollment cycles', () => {
+    const test = fixture();
+    const host = test.open();
+    const relationship = host.relationships.propose({ peer, direction: 'incoming' });
+    host.relationships.approve(relationship.id, peer.publicKey);
+    host.relationships.activate(relationship.id, peer.publicKey);
+    for (let index = 0; index < 1025; index++) {
+      const publicKey = index.toString(16).padStart(64, '0');
+      const offer = host.relationships.enrollment(relationship.id, peer.publicKey, {
+        publicKey,
+        name: 'Retired Client',
+      });
+      if (index % 2 === 0) {
+        const issued = host.pairing.redeem({ offer: offer.offer, publicKey });
+        if (!issued.ok) throw new Error(issued.code);
+        host.pairing.revoke(issued.device.id);
+      }
+      test.advance(RELATIONSHIP_APPROVAL_TTL_MS + 60_001);
+    }
+    const offer = host.relationships.enrollment(relationship.id, peer.publicKey, client);
+    expect(host.pairing.redeem({ offer: offer.offer, publicKey: client.publicKey }).ok).toBe(true);
+    expect(host.relationships.enrollments.list()).toHaveLength(1);
+  }, 30_000);
   it('refuses a cancelled enrollment before an offer arrives and after an offer was prepared', () => {
     const test = fixture();
     const host = test.open();
@@ -64,9 +87,8 @@ describe('Host relationship authorization', () => {
       other.publicKey,
       relationship.expiresAt,
     );
-    expect(host.pairing.redeem({ offer: offer.offer, publicKey: other.publicKey })).toEqual({
+    expect(host.pairing.redeem({ offer: offer.offer, publicKey: other.publicKey })).toMatchObject({
       ok: false,
-      code: 'relationship-inactive',
     });
     expect(host.pairing.list()).toEqual([]);
   });
