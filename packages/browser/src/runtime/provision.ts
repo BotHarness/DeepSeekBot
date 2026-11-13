@@ -365,22 +365,18 @@ export function diagnoseStartupExit(options: {
 }
 
 export function redactBrowserStartupText(text: string): string {
-  return (
-    text
-      // eslint-disable-next-line no-control-regex -- Startup diagnostics must strip terminal escapes.
-      .replace(/\u001b\[[0-?]*[ -/]*[@-~]/gu, '')
-      .replace(/(?:https?|wss?):\/\/[^\s"'<>]+/giu, '<url>')
-      .replace(/\b(?:Bearer|Basic)\s+[^\s,;]+/giu, '<authorization>')
-      .replace(/\b(?:sk-|gh[pousr]_|github_pat_|npm_|xox[abprs]-)[A-Za-z0-9_-]{8,}/gu, '<token>')
-      .replace(
-        /\b((?:[a-z0-9]+[_-])*(?:token|secret|password|passwd|api[_-]?key|cookie|authorization)["']?\s*[:=]\s*)(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s,;]+)/giu,
-        '$1<redacted>',
-      )
-      .replace(/\b[A-Za-z0-9_+/=-]{32,}\b/gu, '<opaque>')
-      // eslint-disable-next-line no-control-regex -- Preserve only printable diagnostic text and newlines.
-      .replace(/[\u0000-\u0008\u000b-\u001f\u007f]/gu, '')
-      .slice(-2048)
-  );
+  return text
+    .replace(/\p{Cc}\[[0-?]*[ -/]*[@-~]/gu, '')
+    .replace(/(?:https?|wss?):\/\/[^\s"'<>]+/giu, '<url>')
+    .replace(/\b(?:Bearer|Basic)\s+[^\s,;]+/giu, '<authorization>')
+    .replace(/\b(?:sk-|gh[pousr]_|github_pat_|npm_|xox[abprs]-)[A-Za-z0-9_-]{8,}/gu, '<token>')
+    .replace(
+      /\b((?:[a-z0-9]+[_-])*(?:token|secret|password|passwd|api[_-]?key|cookie|authorization)["']?\s*[:=]\s*)(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s,;]+)/giu,
+      '$1<redacted>',
+    )
+    .replace(/\b[A-Za-z0-9_+/=-]{32,}\b/gu, '<opaque>')
+    .replace(/\p{Cc}/gu, (character) => (['\n', '\r', '\t'].includes(character) ? character : ''))
+    .slice(-2048);
 }
 
 export interface BrowserStartupDiagnostic {
