@@ -420,15 +420,15 @@ it.each(['lost-reply', 'readback-failed'])(
     let creates = 0;
     let created = false;
     let readFailure = false;
-    const entry = (id: string) => ({
+    const entry = (id: string, name = 'New preset') => ({
       id,
-      name: 'New preset',
+      name,
       revision: 1,
       orchestrator: route,
       assignmentDefault: route,
     });
     const client: ModelSettingsClient = {
-      async call(method) {
+      async call(method, args = {}) {
         if (method === 'modelCatalog')
           return {
             models: [{ ...route, providerName: 'DeepSeek', modelName: 'Model' }],
@@ -439,12 +439,13 @@ it.each(['lost-reply', 'readback-failed'])(
           if (readFailure) throw Error('readback temporarily unavailable');
           return {
             presets: [
-              entry('existing-same-name'),
+              entry('existing-preset', 'Existing preset'),
               ...(created ? [entry('created-receipt-id')] : []),
             ],
           };
         }
         if (method === 'modelPresetCreate') {
+          expect(args.name).toBe('New preset');
           creates += 1;
           created = true;
           if (mode === 'lost-reply') throw Error('reply lost after commit');
