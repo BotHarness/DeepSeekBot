@@ -121,7 +121,13 @@ export function AccountPanel(props: AccountPanelProps) {
                       ]}
                     >
                       <Image systemName="desktopcomputer" />
-                      <VStack alignment="leading" spacing={space.x1}>
+                      <VStack
+                        alignment="leading"
+                        spacing={space.x1}
+                        modifiers={[
+                          frame({ minWidth: 0, maxWidth: Infinity, alignment: 'leading' }),
+                        ]}
+                      >
                         <Text modifiers={[font({ textStyle: 'body' })]}>{row.name}</Text>
                         <Text
                           modifiers={[

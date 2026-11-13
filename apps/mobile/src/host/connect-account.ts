@@ -267,6 +267,7 @@ export function createConnectAccount(options: {
     }
     const body = record(
       await response.json().catch(() => {
+        if (response.status >= 400) return {};
         throw new Refused('relay-unavailable', 'relay:invalid-response', {
           phase: requestPhase(url),
           status: response.status,
@@ -551,10 +552,14 @@ export function createConnectAccount(options: {
         if (!session.action) await save(undefined);
         throw new Refused('sign-in-required');
       }
-      throw new Refused('relay-unavailable', `relay:http-${reply.status}`, {
-        phase: 'sign-in-session',
-        status: reply.status,
-      });
+      throw new Refused(
+        'relay-unavailable',
+        reply.status === 200 ? 'relay:invalid-response' : `relay:http-${reply.status}`,
+        {
+          phase: 'sign-in-session',
+          status: reply.status,
+        },
+      );
     }
     const subject = record(reply.body['user'])['id'];
     if (session.subject && typeof subject === 'string' && subject !== session.subject)
