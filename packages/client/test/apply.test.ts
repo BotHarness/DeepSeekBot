@@ -378,14 +378,22 @@ describe('client apply', () => {
     botSettings.close();
     const companion = specs.find((spec) => spec.id === 'botharness-window-companion');
     (companion?.inject?.() as { openSettings(): void }).openSettings();
-    expect(botSettings.getSnapshot()).toEqual({ open: true, sectionId: 'companions' });
+    expect(botSettings.getSnapshot()).toEqual({
+      open: true,
+      sectionId: 'companions',
+      pairPhone: false,
+    });
 
     botSettings.close();
     const main = specs.find((spec) => spec.name === 'main' && spec.key === PANEL_ID);
     (
       main?.inject?.() as { telemetryNotice: { openSettings(): void } }
     ).telemetryNotice.openSettings();
-    expect(botSettings.getSnapshot()).toEqual({ open: true, sectionId: 'data-privacy' });
+    expect(botSettings.getSnapshot()).toEqual({
+      open: true,
+      sectionId: 'data-privacy',
+      pairPhone: false,
+    });
 
     botSettings.close();
     const native = specs.find((spec) => spec.name === 'settings.section');
