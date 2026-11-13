@@ -133,6 +133,7 @@ export function HostDetails({ remote, t }: { remote: RemoteHost; t: BotHarnessTr
   const mutationBlocked =
     busy ||
     remote.host.pendingConnection !== undefined ||
+    remote.host.connectionOwnerChanged === true ||
     remote.host.connectionOperationUnavailable === true ||
     remote.snapshot.connection.status !== 'connected';
   return (

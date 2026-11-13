@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { HostClient } from '../../../apps/mobile/src/host/client.js';
 import { FakeHost } from '../../../apps/mobile/test/fake-host.js';
-import { ConnectionHosts } from '../src/client/connection-hosts.js';
+import { ConnectionHosts, HostDetails } from '../src/client/connection-hosts.js';
 import {
   createRemoteHosts,
   REMOTE_HOSTS_STORAGE_KEY,
@@ -166,4 +166,28 @@ it('gives an actionable secure-page or owning-CLI path when safe cross-tab execu
   await click(t('connections.hosts.stop'));
   expect(host.textContent).toContain(t('connections.remote.lockUnavailable'));
   expect(api.mock.calls.every(([path]) => path === '/api/botharness/devices')).toBe(true);
+});
+
+it('keeps new-grant management disabled until the previous result is checked', async () => {
+  const remote = sources.getSnapshot().hosts[0]!;
+  await act(async () =>
+    root.render(
+      <HostDetails
+        remote={{ ...remote, host: { ...remote.host, connectionOwnerChanged: true } }}
+        t={t}
+      />,
+    ),
+  );
+  const stop = [...host.querySelectorAll('button')].find(
+    (button) => button.textContent === t('connections.hosts.stop'),
+  )!;
+  const revoke = [...host.querySelectorAll('button')].find(
+    (button) => button.textContent === t('connections.hosts.revoke'),
+  )!;
+  const readback = [...host.querySelectorAll('button')].find(
+    (button) => button.textContent === t('connections.remote.readPrevious'),
+  )!;
+  expect(stop.disabled).toBe(true);
+  expect(revoke.disabled).toBe(true);
+  expect(readback.disabled).toBe(false);
 });

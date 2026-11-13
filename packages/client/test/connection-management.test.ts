@@ -2,6 +2,7 @@ import { expect, it, vi } from 'vitest';
 import { FakeHost } from '../../../apps/mobile/test/fake-host.js';
 import type { SavedHost } from '../../../apps/mobile/src/host/hosts.js';
 import type { HostClient } from '../../../apps/mobile/src/host/client.js';
+import type { ConnectionMutation } from '../../core/src/devices/connection-operation.js';
 import {
   createRemoteHosts,
   REMOTE_HOSTS_STORAGE_KEY,
@@ -747,6 +748,143 @@ it('reports only public origins in a handover plan, excluding URL credentials an
   expect(JSON.stringify(result)).not.toContain('private-fixture');
   expect(JSON.stringify(result)).not.toContain('ticket');
 });
+
+it.each(['stop-route', 'sign-out'])(
+  'blocks a new grant from repeating an older unknown %s until canonical readback',
+  async (action) => {
+    const { sources, storage, lock } = fixture();
+    const operation: ConnectionMutation =
+      action === 'stop-route' ? { action: 'stop-route', kind: 'lan' } : { action: 'sign-out' };
+    sources.setPendingConnection('a', sources.client('a')!, {
+      generation: crypto.randomUUID(),
+      hostKey: '11'.repeat(32),
+      deviceId: 'device-a',
+      operation,
+    });
+    storage.setItem(
+      REMOTE_HOSTS_STORAGE_KEY,
+      JSON.stringify([{ ...saved('a'), deviceId: 'new-grant' }, saved('b')]),
+    );
+    const fresh = createRemoteHosts({
+      storage,
+      carrier: new FakeHost().carrier,
+      connectionOperationLock: lock,
+    });
+    const client = fresh.client('a')!;
+    vi.spyOn(client, 'getSnapshot').mockReturnValue({
+      connection: { status: 'connected', route: 'http://127.0.0.1:47001' },
+    });
+    let completed = false;
+    let writes = 0;
+    vi.spyOn(client, 'api').mockImplementation(async (path) => {
+      if (path !== '/api/botharness/devices') {
+        writes++;
+        return { status: 200, body: { ok: true } };
+      }
+      return {
+        status: 200,
+        body: {
+          host: { id: 'a', name: 'Studio' },
+          devices: [{ id: 'another-test-device', name: 'Another test device' }],
+          lan: { state: completed ? 'off' : 'listening' },
+          connect: { account: { state: completed ? 'signed-out' : 'signed-in' } },
+        },
+      };
+    });
+    const repeat = () =>
+      manageConnections(fresh, { ...operation, hostId: 'a', confirm: true }, request());
+    await expect(repeat()).rejects.toThrow('connection-management-unconfirmed');
+    await expect(
+      manageConnections(fresh, { action: 'read-previous-operation', hostId: 'a' }, request()),
+    ).resolves.toMatchObject({ outcome: 'unknown' });
+    await expect(repeat()).rejects.toThrow('connection-management-unconfirmed');
+    expect(writes).toBe(0);
+    completed = true;
+    await expect(
+      manageConnections(fresh, { action: 'read-previous-operation', hostId: 'a' }, request()),
+    ).resolves.toMatchObject({ outcome: 'completed' });
+    expect(fresh.getSnapshot().hosts[0]!.host.connectionOwnerChanged).toBeUndefined();
+    await manageConnections(
+      fresh,
+      { action: 'revoke-device', hostId: 'a', deviceId: 'another-test-device', confirm: true },
+      request(),
+    );
+    expect(writes).toBe(1);
+  },
+);
+
+it.each(['success', 'wrong-owner', 'route-changed'])(
+  'verifies handover ordering and refuses stale owner/route before writing (%s)',
+  async (mode) => {
+    const active = 'https://active.trycloudflare.com';
+    const alternate = 'https://other.ts.net';
+    const { sources } = fixture([active, alternate]);
+    const client = sources.client('a')!;
+    let currentRoute = active;
+    let preference: string | undefined;
+    let activeObserved = false;
+    const steps: string[] = [];
+    vi.spyOn(client, 'getSnapshot').mockImplementation(() => {
+      if (currentRoute === alternate && !activeObserved) {
+        activeObserved = true;
+        steps.push('active');
+      }
+      return {
+        connection: { status: 'connected', route: currentRoute },
+        ...(preference === undefined ? {} : { routePreference: preference }),
+      };
+    });
+    sources.setPendingConnection('a', client, undefined);
+    vi.spyOn(client, 'testRoute').mockImplementation(async () => {
+      steps.push('verify');
+      return true;
+    });
+    vi.spyOn(client, 'setRoutePreference').mockImplementation(async (route) => {
+      steps.push('select');
+      preference = route;
+      currentRoute = route ?? active;
+    });
+    let reads = 0;
+    const api = vi.spyOn(client, 'api').mockImplementation(async (path) => {
+      if (path !== '/api/botharness/devices') {
+        steps.push('post');
+        return { status: 200, body: { ok: true } };
+      }
+      reads++;
+      steps.push(`inspect-${reads}`);
+      if (reads === 2 && mode === 'route-changed') currentRoute = active;
+      return {
+        status: 200,
+        body: {
+          host: { id: reads === 2 && mode === 'wrong-owner' ? 'b' : 'a', name: 'Studio' },
+          devices: [],
+          privateRoutes: [{ id: 'quick', origin: active, state: 'connected' }],
+        },
+      };
+    });
+    const result = manageConnections(
+      sources,
+      {
+        action: 'stop-route',
+        hostId: 'a',
+        kind: 'private-tunnel',
+        routeId: 'quick',
+        confirm: true,
+        handover: alternate,
+      },
+      request(),
+    );
+    if (mode === 'success') {
+      await expect(result).resolves.toMatchObject({ accepted: true });
+      expect(steps).toEqual(['inspect-1', 'verify', 'select', 'active', 'inspect-2', 'post']);
+    } else {
+      await expect(result).rejects.toThrow(
+        mode === 'wrong-owner' ? 'connection-host-mismatch' : 'connection-handover-unconfirmed',
+      );
+      expect(api.mock.calls.every(([, init]) => init?.body === undefined)).toBe(true);
+    }
+  },
+);
 
 it('persists selection only for the selected browser Host and restores it through its existing store', async () => {
   const { sources, values, storage } = fixture();

@@ -294,11 +294,10 @@ export const zh = {
   'connections.hosts.revokeTitle': '撤销 {name} 的授权？',
   'connections.hosts.stopTitle': '停止 {name}？',
   'connections.remote.title': '连接',
-  'connections.remote.ownerChanged':
-    '{name} 的旧设备授权仍有未确认操作。新授权不会继承或重试该操作。',
+  'connections.remote.ownerChanged': '{name} 的旧授权操作尚未确认。请先核对结果，再更改此环境。',
   'connections.remote.readPrevious': '核对之前的操作结果',
   'connections.remote.storageUnavailable':
-    '无法读取已保存的连接操作记录。连接更改已停用；请恢复本应用存储访问，或在此环境所在电脑上管理。',
+    '连接操作记录缺失或无法读取。更改已停用；请恢复本应用记录，或在此环境所在电脑上管理。',
   'connections.remote.lockUnavailable':
     '更改连接需要支持 Web Locks 的安全页面。请在此环境所在电脑上打开，或使用其命令行管理连接。',
   'connections.remote.unknown':
@@ -5607,10 +5606,10 @@ export const en = {
   'connections.hosts.stopTitle': 'Stop {name}?',
   'connections.remote.title': 'Connections',
   'connections.remote.ownerChanged':
-    'An operation under an older device grant for {name} remains unconfirmed. This grant will not inherit or retry it.',
+    'A previous grant has an unconfirmed operation on {name}. Check its result before changing this environment.',
   'connections.remote.readPrevious': 'Check previous operation result',
   'connections.remote.storageUnavailable':
-    'Saved connection operation history cannot be read. Changes are blocked; restore this app’s storage access, or manage the environment on its computer.',
+    'Connection operation history is incomplete or cannot be read. Changes are blocked; restore this app’s history, or manage the environment on its computer.',
   'connections.remote.lockUnavailable':
     'Connection changes need a secure page with Web Locks. Open this environment on its computer, or manage its connections with its CLI.',
   'connections.remote.unknown':

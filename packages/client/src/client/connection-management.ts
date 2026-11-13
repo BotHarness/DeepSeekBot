@@ -426,7 +426,12 @@ async function executeConnections(
       outcome: completed ? ('completed' as const) : ('unknown' as const),
     };
   }
-  if (pending) throw new AppearanceError('connection-management-unconfirmed');
+  if (
+    pending ||
+    sources.getSnapshot().hosts.find((entry) => entry.host.hostId === remote.host.hostId)?.host
+      .connectionOwnerChanged
+  )
+    throw new AppearanceError('connection-management-unconfirmed');
   const parsed = connectionMutationSchema.safeParse(
     input.action === 'plan-operation' ? input.operation : input,
   );
@@ -475,10 +480,10 @@ async function executeConnections(
     throw new AppearanceError('connection-host-offline');
   const hostKey = remote.host.encryption?.hostKey;
   if (!hostKey) throw new AppearanceError('connection-host-key-required');
-  if (
-    sources.getSnapshot().hosts.find((entry) => entry.host.hostId === remote.host.hostId)?.host
-      .pendingConnection
-  )
+  const finalHost = sources
+    .getSnapshot()
+    .hosts.find((entry) => entry.host.hostId === remote.host.hostId)?.host;
+  if (finalHost?.pendingConnection || finalHost?.connectionOwnerChanged)
     throw new AppearanceError('connection-management-unconfirmed');
   let path: string;
   let body: Record<string, unknown>;

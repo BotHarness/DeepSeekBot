@@ -204,12 +204,12 @@ function operationIndex(storage: HostStorage | undefined) {
 }
 
 function oldConnectionOwner(storage: HostStorage | undefined, host: SavedHost): boolean {
-  return operationIndex(storage).some(
-    (entry) =>
-      entry.hostId === host.hostId &&
-      entry.key !== operationKey(host) &&
-      storage?.getItem(entry.key) !== null,
+  const previous = operationIndex(storage).filter(
+    (entry) => entry.hostId === host.hostId && entry.key !== operationKey(host),
   );
+  if (previous.some((entry) => storage?.getItem(entry.key) == null))
+    throw new Error('connection-operation-storage-unavailable');
+  return previous.length > 0;
 }
 
 function readPendingConnection(
@@ -218,6 +218,8 @@ function readPendingConnection(
 ): PendingConnection | undefined {
   if (!storage) throw new Error('storage-unavailable');
   const value = storage.getItem(operationKey(host));
+  if (value === null && operationIndex(storage).some((entry) => entry.key === operationKey(host)))
+    throw new Error('connection-operation-storage-unavailable');
   return value === null ? undefined : pendingConnectionSchema.parse(JSON.parse(value));
 }
 
@@ -557,7 +559,7 @@ export function createRemoteHosts(options: {
       for (const item of operationIndex(storage)) {
         if (item.hostId !== hostId || item.key === operationKey(entry.host)) continue;
         const raw = storage?.getItem(item.key);
-        if (raw == null) continue;
+        if (raw == null) throw new Error('connection-operation-storage-unavailable');
         const record = pendingConnectionSchema.parse(JSON.parse(raw));
         if (record.hostKey !== entry.host.encryption?.hostKey)
           throw new Error('connection-operation-owner-changed');
@@ -581,7 +583,7 @@ export function createRemoteHosts(options: {
       )
         throw new Error('connection-operation-changed');
       const executionKey = operationKey(owner);
-      const index = operationIndex(storage).filter((item) => storage.getItem(item.key) !== null);
+      const index = operationIndex(storage);
       if (pending) {
         if (!index.some((item) => item.key === executionKey)) {
           if (index.length >= 32) throw new Error('connection-operation-limit');
