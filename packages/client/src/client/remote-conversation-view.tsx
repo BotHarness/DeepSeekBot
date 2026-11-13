@@ -1,4 +1,5 @@
-import { useHostName } from './host-looks.js';
+import { useHostName, useHostLook } from './host-looks.js';
+import { HostGlyph } from './host-glyph.js';
 import { ChannelMessageBody } from './channel-message-body.js';
 import { RemoteMessageBody } from './remote-message-body.js';
 import { MessageHostContext, type MessageHost } from './message-host.js';
@@ -184,6 +185,7 @@ export function RemoteConversationView({
     target.hostId,
     hosts.find((entry) => entry.host.hostId === target.hostId)?.host.hostName ?? '',
   );
+  const hostLook = useHostLook(target.hostId);
   const remote = hosts.find((candidate) => candidate.host.hostId === target.hostId);
   const conversation = useMemo(
     () => sources.conversation(target),
@@ -262,7 +264,7 @@ export function RemoteConversationView({
           />
           <span {...stylex.props(styles.title)}>{target.title}</span>
           <span {...stylex.props(styles.source)}>
-            <ChannelSidebarIcon name="monitor" />
+            <HostGlyph look={hostLook} />
             {hostName}
           </span>
           <span {...stylex.props(styles.spacer)} />

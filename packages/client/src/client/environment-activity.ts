@@ -1,5 +1,12 @@
 import { ALL_HOSTS, THIS_HOST, type RemoteHostsSnapshot } from './remote-hosts.js';
 import type { ActivityListState } from './store.js';
+import type { InboxSnapshot } from '../../../../apps/mobile/src/host/inbox.js';
+
+export function environmentUnread(inbox: InboxSnapshot): number | undefined {
+  if (inbox.status !== 'ready' || inbox.stale || Object.values(inbox.cursors ?? {}).some(Boolean))
+    return undefined;
+  return Object.values(inbox.unread ?? {}).reduce((sum, count) => sum + count, 0);
+}
 
 type Attention = Pick<
   ActivityListState,

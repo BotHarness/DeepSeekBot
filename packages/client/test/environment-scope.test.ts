@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { mixedEnvironmentChannels } from '../src/client/environment-channels.js';
-import { environmentAttention } from '../src/client/environment-activity.js';
+import { environmentAttention, environmentUnread } from '../src/client/environment-activity.js';
 import type { RemoteHost, RemoteHostsSnapshot } from '../src/client/remote-hosts.js';
 import type { ChannelSummary } from '../src/client/store.js';
 
@@ -46,6 +46,16 @@ function channel(at: string): ChannelSummary {
 }
 
 describe('Environment browsing', () => {
+  it('does not present unknown, stale or paged unread coverage as a known zero', () => {
+    expect(environmentUnread({ status: 'loading' })).toBeUndefined();
+    expect(environmentUnread({ status: 'error', error: 'offline' })).toBeUndefined();
+    const inbox = host('a', '').inbox;
+    expect(environmentUnread(inbox)).toBe(3);
+    if (inbox.status !== 'ready') throw new Error('fixture unavailable');
+    expect(environmentUnread({ ...inbox, stale: 'offline' })).toBeUndefined();
+    expect(environmentUnread({ ...inbox, cursors: { unread: 'next-page' } })).toBeUndefined();
+    expect(environmentUnread({ ...inbox, unread: {} })).toBe(0);
+  });
   it('interleaves actual source Channels by latest message and retains source-qualified collisions', () => {
     const result = mixedEnvironmentChannels(
       [channel('2026-11-13T12:01:00Z')],

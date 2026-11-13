@@ -81,7 +81,7 @@ export function ActivityCenterView({
       <div className="bh-activity-sections">
         <EnvironmentFilter t={t} />
         {remote.hosts.length > 0 && (remote.tab === ALL_HOSTS || remote.tab === THIS_HOST) ? (
-          <ActivityHostHeading name={localName} t={t} />
+          <ActivityHostHeading name={localName} hostId={local.id ?? THIS_HOST} t={t} />
         ) : null}
         {(remote.tab === ALL_HOSTS || remote.tab === THIS_HOST ? feed.visible() : []).map(
           (section) => {

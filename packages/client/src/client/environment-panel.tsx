@@ -14,6 +14,8 @@ import { color, space, text } from './ds/tokens.stylex.js';
 import { useClientStore } from './use-client-store.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { DockPanel } from './dock-panels.js';
+import { environmentUnread } from './environment-activity.js';
+import { WORKSPACE_CHANNELS } from './workspace-context.js';
 
 export const ENVIRONMENT_PANEL = 'environments';
 
@@ -73,6 +75,7 @@ function EnvironmentRow({
   status,
   selected,
   onManage,
+  reconnect = false,
   t,
 }: {
   id: string;
@@ -82,6 +85,7 @@ function EnvironmentRow({
   status?: string | undefined;
   selected: boolean;
   onManage: () => void;
+  reconnect?: boolean;
   t: BotHarnessTranslate;
 }): ReactElement {
   const look = useHostLook(hostId);
@@ -99,7 +103,15 @@ function EnvironmentRow({
           {label}
           {status ? <span {...stylex.props(styles.note)}>{status}</span> : null}
         </span>
-        <span aria-label={t('environment.unread')}>{unread === undefined ? '…' : unread}</span>
+        <span
+          aria-label={
+            unread === undefined
+              ? t('environment.unavailable')
+              : t('roster.unreadCount', { count: String(unread) })
+          }
+        >
+          {unread === undefined ? '…' : unread}
+        </span>
       </button>
       <Button
         variant="ghost"
@@ -109,7 +121,7 @@ function EnvironmentRow({
       >
         <ChannelSidebarIcon name="settings" />
       </Button>
-      {status ? (
+      {reconnect ? (
         <Button
           variant="ghost"
           size="sm"
@@ -153,15 +165,23 @@ export function EnvironmentFilter({ t }: { t: BotHarnessTranslate }): ReactEleme
 
 function EnvironmentName({ hostId, name }: { hostId: string; name: string }): ReactElement {
   const label = useHostName(hostId, name);
-  return <>{label}</>;
+  const look = useHostLook(hostId);
+  return (
+    <>
+      <HostGlyph look={look} /> {label}
+    </>
+  );
 }
 
 export function EnvironmentPanel({ t }: { t: BotHarnessTranslate }): ReactElement {
   const snapshot = useRemoteHosts();
   const local = useThisHost();
   const localUnread = useClientStore((state) =>
-    Object.values(state.activityList.channelUnread).reduce((sum, count) => sum + count, 0),
+    state.activityList.attentionStatus === 'ready'
+      ? Object.values(state.activityList.channelUnread).reduce((sum, count) => sum + count, 0)
+      : undefined,
   );
+  const localStatus = useClientStore((state) => state.activityList.attentionStatus);
   const [settings, setSettings] = useState<{ hostId: string; name: string; local: boolean }>();
   const [adding, setAdding] = useState(false);
   return (
@@ -181,6 +201,11 @@ export function EnvironmentPanel({ t }: { t: BotHarnessTranslate }): ReactElemen
           hostId={local.id ?? THIS_HOST}
           name={local.name ?? t('remoteHosts.this')}
           unread={localUnread}
+          status={
+            localStatus === 'ready'
+              ? undefined
+              : t(localStatus === 'error' ? 'environment.unavailable' : 'environment.loading')
+          }
           selected={snapshot.tab === THIS_HOST}
           onManage={() =>
             setSettings({
@@ -197,17 +222,20 @@ export function EnvironmentPanel({ t }: { t: BotHarnessTranslate }): ReactElemen
             id={remote.host.hostId}
             hostId={remote.host.hostId}
             name={remote.host.hostName}
-            unread={
-              remote.inbox.status === 'ready'
-                ? Object.values(remote.inbox.unread ?? {}).reduce((sum, count) => sum + count, 0)
-                : undefined
-            }
+            unread={environmentUnread(remote.inbox)}
+            reconnect={remote.snapshot.connection.status !== 'connected'}
             selected={snapshot.tab === remote.host.hostId}
             status={
               remote.snapshot.connection.status === 'connected'
                 ? remote.inbox.status === 'ready'
-                  ? undefined
-                  : t('environment.loading')
+                  ? environmentUnread(remote.inbox) === undefined
+                    ? t('environment.partial')
+                    : undefined
+                  : t(
+                      remote.inbox.status === 'error'
+                        ? 'environment.unavailable'
+                        : 'environment.loading',
+                    )
                 : t('environment.offline')
             }
             onManage={() =>
@@ -243,7 +271,7 @@ export function createEnvironmentPanel(t: BotHarnessTranslate): DockPanel {
     icon: 'globe',
     scope: 'global',
     order: -110,
-    defaultPosition: { zone: 'left' },
+    defaultPosition: { zone: 'left', relativeTo: WORKSPACE_CHANNELS },
     component: () => <EnvironmentPanel t={t} />,
   };
 }
