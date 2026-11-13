@@ -1,3 +1,4 @@
+import { type HumanContext } from '../humans/context.js';
 import type { PersonaBotActivitySnapshot } from '../state/bot-state.js';
 import type { PurgedPlacement } from '../purge/contracts.js';
 import { channelPreviewMessage, isChannelNotice } from './channel-notice.js';
@@ -174,10 +175,11 @@ export class LiveUnavailable extends Error {
 const ROSTER_LIVE_QUEUE_LIMIT = 1024;
 
 export interface ChannelLiveHub {
-  open(request: Request): Response;
+  open(human: HumanContext, request: Request): Response;
   followRoster(signal: AbortSignal): AsyncIterable<RosterLiveFrame>;
-  followActivity(signal: AbortSignal): AsyncIterable<ActivityLiveFrame>;
+  followActivity(human: HumanContext, signal: AbortSignal): AsyncIterable<ActivityLiveFrame>;
   followChannel(
+    human: HumanContext,
     channelId: string,
     limit: number,
     signal: AbortSignal,
@@ -202,7 +204,7 @@ function parseRevision(value: string | null): number | undefined {
 }
 
 interface ActivitySource {
-  snapshot(): PersonaBotActivitySnapshot;
+  snapshot(human: HumanContext): PersonaBotActivitySnapshot;
   onChange(listener: (change?: unknown) => void): () => void;
 }
 
@@ -270,16 +272,20 @@ export function createChannelLiveHub(
   const draftRevisions = new Map<string, number>();
   const activitySubscribers = new Set<{ close(): void }>();
   let activityFrame:
-    | { change: unknown; snapshot: PersonaBotActivitySnapshot; data: string }
+    | { humanId: string; change: unknown; snapshot: PersonaBotActivitySnapshot; data: string }
     | undefined;
-  const currentActivity = (source: ActivitySource, change?: unknown) => {
-    if (change === undefined || activityFrame?.change !== change) {
-      const snapshot = source.snapshot();
-      activityFrame = { change, snapshot, data: JSON.stringify(snapshot) };
+  const currentActivity = (human: HumanContext, source: ActivitySource, change?: unknown) => {
+    if (
+      change === undefined ||
+      activityFrame?.change !== change ||
+      activityFrame?.humanId !== human.humanId
+    ) {
+      const snapshot = source.snapshot(human);
+      activityFrame = { humanId: human.humanId, change, snapshot, data: JSON.stringify(snapshot) };
     }
     return activityFrame;
   };
-  const openActivity = (): Response => {
+  const openActivity = (human: HumanContext): Response => {
     if (activity === undefined) return new Response('Activity unavailable', { status: 503 });
     const encoder = new TextEncoder();
     let cancel: (() => void) | undefined;
@@ -310,7 +316,7 @@ export function createChannelLiveHub(
             return;
           }
           pending = false;
-          const { data } = currentActivity(activity, change);
+          const { data } = currentActivity(human, activity, change);
           if (data === sent) return;
           sent = data;
           try {
@@ -361,7 +367,7 @@ export function createChannelLiveHub(
   const offAttention = watchAttention?.(() => {
     for (const subscriber of rosterSubscribers) subscriber.attention();
   });
-  const openRoster = (includeActivity = false): Response => {
+  const openRoster = (human: HumanContext, includeActivity = false): Response => {
     const encoder = new TextEncoder();
     let subscriber: RosterSubscriber | undefined;
     let heartbeat: ReturnType<typeof setInterval> | undefined;
@@ -379,7 +385,7 @@ export function createChannelLiveHub(
             return;
           }
           pendingActivity = false;
-          const { data } = currentActivity(activity, change);
+          const { data } = currentActivity(human, activity, change);
           if (data === sentActivity) return;
           sentActivity = data;
           try {
@@ -544,7 +550,10 @@ export function createChannelLiveHub(
       subscriber.close();
     }
   }
-  async function* followActivity(signal: AbortSignal): AsyncGenerator<ActivityLiveFrame> {
+  async function* followActivity(
+    human: HumanContext,
+    signal: AbortSignal,
+  ): AsyncGenerator<ActivityLiveFrame> {
     if (activity === undefined) throw new LiveUnavailable('Activity unavailable');
     let ended = signal.aborted;
     let pending = false;
@@ -570,13 +579,13 @@ export function createChannelLiveHub(
     if (!ended) activitySubscribers.add(subscriber);
     try {
       if (ended) return;
-      let sent = currentActivity(activity);
+      let sent = currentActivity(human, activity);
       yield { type: 'baseline', snapshot: sent.snapshot };
       for (;;) {
         if (ended) return;
         if (pending) {
           pending = false;
-          const next = currentActivity(activity, lastChange);
+          const next = currentActivity(human, activity, lastChange);
           if (next.data === sent.data) continue;
           sent = next;
           yield { type: 'changed', snapshot: next.snapshot };
@@ -594,6 +603,7 @@ export function createChannelLiveHub(
     }
   }
   const subscribeChannel = (
+    human: HumanContext,
     channelId: string,
     after: number,
     sink: (frame: ChannelLiveFrame) => void,
@@ -706,8 +716,8 @@ export function createChannelLiveHub(
         subscriber.pushAdmission(commit.message.id, commit.message);
     }
     if (channels.get(channelId)?.type === 'group') {
-      const position = channels.readPosition(channelId);
-      if (position !== undefined) subscriber.pushHumanRead('local-human', position.revision);
+      const position = channels.readPosition(human, channelId);
+      if (position !== undefined) subscriber.pushHumanRead(human.humanId, position.revision);
     }
     emit({
       type: 'notification',
@@ -721,6 +731,7 @@ export function createChannelLiveHub(
     return subscriber;
   };
   async function* followChannel(
+    human: HumanContext,
     channelId: string,
     limit: number,
     signal: AbortSignal,
@@ -733,7 +744,7 @@ export function createChannelLiveHub(
     if (drafts !== 'full' && drafts !== 'append')
       throw new ChannelLiveRefused('invalid', 'Invalid draft delivery');
     const after = channels.revision(channelId);
-    const read = channels.readHumanJournalPage(channelId, {
+    const read = channels.readHumanJournalPage(human, channelId, {
       through: after,
       limit: Math.max(limit, 1),
     });
@@ -748,6 +759,7 @@ export function createChannelLiveHub(
     let ended = false;
     let wake: (() => void) | undefined;
     const subscription = subscribeChannel(
+      human,
       channelId,
       after,
       (frame) => {
@@ -792,19 +804,22 @@ export function createChannelLiveHub(
     followRoster,
     followActivity,
     followChannel,
-    open(request) {
+    open(human, request) {
       const url = new URL(request.url);
       if (url.searchParams.get('roster') === '1' && url.searchParams.has('channelId')) {
         const channelUrl = new URL(url);
         channelUrl.searchParams.delete('roster');
         channelUrl.searchParams.delete('activity');
-        const response = this.open(new Request(channelUrl, { headers: request.headers }));
+        const response = this.open(human, new Request(channelUrl, { headers: request.headers }));
         if (response.status !== 200 || response.body === null) return response;
-        return combineLiveResponses(response, openRoster(url.searchParams.get('activity') === '1'));
+        return combineLiveResponses(
+          response,
+          openRoster(human, url.searchParams.get('activity') === '1'),
+        );
       }
-      if (url.searchParams.get('scope') === 'activity') return openActivity();
+      if (url.searchParams.get('scope') === 'activity') return openActivity(human);
       if (url.searchParams.get('scope') === 'roster')
-        return openRoster(url.searchParams.get('activity') === '1');
+        return openRoster(human, url.searchParams.get('activity') === '1');
       const channelId = url.searchParams.get('channelId');
       if (channelId === null || channels.get(channelId) === undefined) {
         return new Response('Unknown Channel', { status: 404 });
@@ -830,6 +845,7 @@ export function createChannelLiveHub(
       const body = new ReadableStream<Uint8Array>({
         start(controller) {
           subscription = subscribeChannel(
+            human,
             channelId,
             after,
             (frame) => controller.enqueue(encoder.encode(encodeChannelFrame(frame))),

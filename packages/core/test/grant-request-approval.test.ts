@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { realpathSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { createCore } from '../src/plugin.js';
@@ -27,8 +28,8 @@ function fixture() {
     },
   });
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
-  const channel = core.channels.getOrCreateDm('ada', 'Ada')!;
-  const methods = createBridgeMethods({ ...core });
+  const channel = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
   const payload = {
     slug: 'ada',
     channelId: channel.id,
@@ -42,7 +43,7 @@ function fixture() {
     methods,
     payload,
     request: () =>
-      core.channels.appendMessage(channel.id, {
+      core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, {
         id: 'request',
         at: new Date().toISOString(),
         author: { kind: 'bot', slug: 'ada' },
@@ -135,8 +136,8 @@ describe('Host workspace request approval', () => {
         const append = f.core.channels.appendMessageOnce.bind(f.core.channels);
         const injected = vi
           .spyOn(f.core.channels, 'appendMessageOnce')
-          .mockImplementationOnce((id, message, preview, origin, commit) =>
-            append(id, message, preview, origin, (db) => {
+          .mockImplementationOnce((human, id, message, preview, origin, commit) =>
+            append(human, id, message, preview, origin, (db) => {
               commit?.(db);
               throw new Error('injected-after-grant-before-decision');
             }),

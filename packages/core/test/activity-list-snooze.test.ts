@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createBridgeMethods } from '../src/bridge/methods.js';
@@ -31,7 +32,7 @@ function fixture() {
   const decisions = createHumanAttentionDecisions(port, now);
   const registry = createTestRegistry({ rootDir: join(home, 'bots'), now });
   registry.create({ slug: 'ada', displayName: 'Ada' });
-  const methods = createBridgeMethods({
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
     registry,
     channels,
     states: createBotStateTracker(),
@@ -40,7 +41,7 @@ function fixture() {
     humanAttention: query,
     humanAttentionDecisions: decisions,
   });
-  const dm = channels.getOrCreateDm('ada', 'Ada')!;
+  const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
   return {
     channels,
     query,
@@ -58,39 +59,45 @@ describe('Human Inbox snooze', () => {
   it('hides a snoozed item from the list and counts until its time, then brings it back', async () => {
     const f = fixture();
     for (const id of ['first', 'second'])
-      await f.channels.appendMessage(f.dm.id, {
+      await f.channels.appendMessage(OWNER_HUMAN_CONTEXT, f.dm.id, {
         id,
         at: new Date().toISOString(),
         author: { kind: 'bot', slug: 'ada' },
         body: id,
         grantRequest: true,
       });
-    const [item] = f.query.list({ category: 'action' }).items;
+    const [item] = f.query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items;
     const until = new Date(Date.now() + hour).toISOString();
     expect(
       f.methods.humanAttentionSnooze({ itemId: item!.id, sourceKey: item!.sourceEventId, until }),
     ).toEqual({ ok: true, value: { accepted: true } });
-    expect(f.query.list({ category: 'action' }).items.map((row) => row.id)).not.toContain(item!.id);
-    expect(f.query.actionCount()).toBe(1);
-    expect(f.query.list({ category: 'action', snoozed: true }).items).toEqual([
+    expect(
+      f.query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items.map((row) => row.id),
+    ).not.toContain(item!.id);
+    expect(f.query.actionCount(OWNER_HUMAN_CONTEXT)).toBe(1);
+    expect(f.query.list(OWNER_HUMAN_CONTEXT, { category: 'action', snoozed: true }).items).toEqual([
       { ...item, snoozedUntil: until },
     ]);
     f.advance(2 * hour);
-    expect(f.query.list({ category: 'action' }).items.map((row) => row.id)).toContain(item!.id);
-    expect(f.query.list({ category: 'action', snoozed: true }).items).toEqual([]);
-    expect(f.query.actionCount()).toBe(2);
+    expect(
+      f.query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items.map((row) => row.id),
+    ).toContain(item!.id);
+    expect(f.query.list(OWNER_HUMAN_CONTEXT, { category: 'action', snoozed: true }).items).toEqual(
+      [],
+    );
+    expect(f.query.actionCount(OWNER_HUMAN_CONTEXT)).toBe(2);
   });
 
   it('brings an item back early and refuses bad times, foreign keys and unread items', async () => {
     const f = fixture();
-    await f.channels.appendMessage(f.dm.id, {
+    await f.channels.appendMessage(OWNER_HUMAN_CONTEXT, f.dm.id, {
       id: 'only',
       at: new Date().toISOString(),
       author: { kind: 'bot', slug: 'ada' },
       body: 'only',
       grantRequest: true,
     });
-    const [item] = f.query.list({ category: 'action' }).items;
+    const [item] = f.query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items;
     const snooze = (until: unknown, sourceKey: unknown = item!.sourceEventId) =>
       f.methods.humanAttentionSnooze({ itemId: item!.id, sourceKey, until });
     expect(snooze(new Date(Date.now() - hour).toISOString()).ok).toBe(false);
@@ -98,10 +105,14 @@ describe('Human Inbox snooze', () => {
     expect(snooze('tomorrow').ok).toBe(false);
     expect(snooze(new Date(Date.now() + hour).toISOString(), 'foreign').ok).toBe(false);
     expect(snooze(new Date(Date.now() + hour).toISOString()).ok).toBe(true);
-    expect(f.query.list({ category: 'action' }).items).toEqual([]);
+    expect(f.query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toEqual([]);
     expect(snooze(null)).toEqual({ ok: true, value: { accepted: true } });
-    expect(f.query.list({ category: 'action' }).items.map((row) => row.id)).toEqual([item!.id]);
-    expect(f.query.list({ category: 'unread', snoozed: true }).items).toEqual([]);
+    expect(
+      f.query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items.map((row) => row.id),
+    ).toEqual([item!.id]);
+    expect(f.query.list(OWNER_HUMAN_CONTEXT, { category: 'unread', snoozed: true }).items).toEqual(
+      [],
+    );
     expect(f.methods.humanAttention({ category: 'action', snoozed: 'yes' }).ok).toBe(false);
   });
 });

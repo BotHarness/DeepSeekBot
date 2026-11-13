@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { pendingExternalReception } from './external-reception.js';
 import { effectiveDmControls } from './dm-controls.js';
 import { sourceContentPurged } from '../purge/fence.js';
@@ -460,7 +461,7 @@ export function createInboundMessaging(options: {
     if (value.platform !== 'weixin' || value.receiveScope?.kind !== 'dm' || value.dmMirror !== true)
       return;
     try {
-      const channel = options.channels?.getOrCreateDm(value.botSlug);
+      const channel = options.channels?.getOrCreateDm(OWNER_HUMAN_CONTEXT, value.botSlug);
       if (!channel) throw new MessagingError('channel-unavailable');
       const commit = transaction(
         (db) => {
@@ -495,6 +496,7 @@ export function createInboundMessaging(options: {
             sourceEventId,
           );
           return placeBridgeSource(
+            OWNER_HUMAN_CONTEXT,
             db,
             { ...mirrored, body: row.body, localChannelId: channel.id },
             value.botSlug,
@@ -606,7 +608,9 @@ export function createInboundMessaging(options: {
     if (value.bridgeRoutes) return true;
     if (!value.receiveTargetChannelId) return true;
     try {
-      database.read((db) => bridgeChannel(db, value.receiveTargetChannelId!, value.botSlug));
+      database.read((db) =>
+        bridgeChannel(OWNER_HUMAN_CONTEXT, db, value.receiveTargetChannelId!, value.botSlug),
+      );
       return true;
     } catch (error) {
       if (error instanceof MessagingError) return false;
@@ -899,7 +903,7 @@ export function createInboundMessaging(options: {
                     return false;
                   if (route.channelId) {
                     try {
-                      bridgeChannel(db, route.channelId, value.botSlug, true);
+                      bridgeChannel(OWNER_HUMAN_CONTEXT, db, route.channelId, value.botSlug, true);
                     } catch {
                       return false;
                     }
@@ -927,12 +931,18 @@ export function createInboundMessaging(options: {
                 for (const route of routes) {
                   if (route.channelId) {
                     const commit = placeBridgeSource(
+                      OWNER_HUMAN_CONTEXT,
                       db,
                       { ...source, body: event.text, localChannelId: route.channelId },
                       value.botSlug,
                     );
                     if (commit) placed.push(commit);
-                    const channel = bridgeChannel(db, route.channelId, value.botSlug);
+                    const channel = bridgeChannel(
+                      OWNER_HUMAN_CONTEXT,
+                      db,
+                      route.channelId,
+                      value.botSlug,
+                    );
                     if (
                       !event.mentionedAccount &&
                       !(event.conversation.kind === 'dm' && channel.type === 'dm')
@@ -1060,7 +1070,7 @@ export function createInboundMessaging(options: {
               signal.throwIfAborted();
               lease.controller.signal.throwIfAborted();
               if (value.receiveTargetChannelId)
-                bridgeChannel(db, value.receiveTargetChannelId, value.botSlug);
+                bridgeChannel(OWNER_HUMAN_CONTEXT, db, value.receiveTargetChannelId, value.botSlug);
               if (latest.receiveAfter && Date.parse(event.at) < Date.parse(latest.receiveAfter))
                 return undefined;
               const reception = groupReceptionPolicy(db, value.id);
@@ -1096,9 +1106,19 @@ export function createInboundMessaging(options: {
                 .get(id) as { payload_json: string };
               const source = (JSON.parse(row.payload_json) as { external: ExternalSource })
                 .external;
-              placement = placeBridgeSource(db, { ...source, body: event.text }, value.botSlug);
+              placement = placeBridgeSource(
+                OWNER_HUMAN_CONTEXT,
+                db,
+                { ...source, body: event.text },
+                value.botSlug,
+              );
               if (!event.mentionedAccount && source.localChannelId && placement) {
-                const channel = bridgeChannel(db, source.localChannelId, value.botSlug);
+                const channel = bridgeChannel(
+                  OWNER_HUMAN_CONTEXT,
+                  db,
+                  source.localChannelId,
+                  value.botSlug,
+                );
                 admitBridgeMembers(
                   db,
                   id,
@@ -1295,7 +1315,9 @@ export function createInboundMessaging(options: {
     if (grantBacked && grant(retained.grantId).botSlug !== botSlug)
       throw new MessagingError('source-unavailable');
     if (grantBacked && retained.localChannelId)
-      database.read((db) => bridgeChannel(db, retained.localChannelId!, botSlug));
+      database.read((db) =>
+        bridgeChannel(OWNER_HUMAN_CONTEXT, db, retained.localChannelId!, botSlug),
+      );
     const ownsContext = grant(retained.grantId).botSlug === botSlug;
     const { contextReads, ...sharedSource } = retained;
     const latest =
@@ -1392,7 +1414,7 @@ export function createInboundMessaging(options: {
         .all(id) as { channel_id: string }[];
       for (const placement of placements) {
         try {
-          const channel = bridgeChannel(db, placement.channel_id, botSlug);
+          const channel = bridgeChannel(OWNER_HUMAN_CONTEXT, db, placement.channel_id, botSlug);
           if (channel.type === 'group') return channel.id;
         } catch (error) {
           if (!(error instanceof MessagingError)) throw error;
@@ -1482,7 +1504,7 @@ export function createInboundMessaging(options: {
         for (const ingest of current(db)) {
           let channel: ChannelRecord;
           try {
-            channel = humanBridgeChannel(db, ingest.channelId);
+            channel = humanBridgeChannel(OWNER_HUMAN_CONTEXT, db, ingest.channelId);
           } catch (error) {
             if (!(error instanceof MessagingError)) throw error;
             continue;
@@ -1498,6 +1520,7 @@ export function createInboundMessaging(options: {
             .get(id) as { payload_json: string };
           const source = (JSON.parse(row.payload_json) as { external: ExternalSource }).external;
           const commit = placeBridgeSource(
+            OWNER_HUMAN_CONTEXT,
             db,
             { ...source, body: event.text, localChannelId: ingest.channelId },
             undefined,
@@ -2315,7 +2338,7 @@ export function createInboundMessaging(options: {
     },
     ingests(channelId) {
       return database.read((db) => {
-        humanBridgeChannel(db, channelId);
+        humanBridgeChannel(OWNER_HUMAN_CONTEXT, db, channelId);
         const bindings = (
           db
             .prepare(
@@ -2379,7 +2402,7 @@ export function createInboundMessaging(options: {
     async ingest(channelId, input) {
       transaction(
         (db) => {
-          const channel = humanBridgeChannel(db, channelId);
+          const channel = humanBridgeChannel(OWNER_HUMAN_CONTEXT, db, channelId);
           if (channel.type !== 'group') throw new MessagingError('channel-unavailable');
           if (input.kind === 'add') {
             const identity = readMessagingIdentity(db, input.bindingId);
@@ -2458,7 +2481,9 @@ export function createInboundMessaging(options: {
         (input.collection !== 'all' || input.collectionInheritance === 'inherit')
       )
         throw new MessagingError('capability-unavailable');
-      const channel = database.read((db) => bridgeChannel(db, channelId, value.botSlug, true));
+      const channel = database.read((db) =>
+        bridgeChannel(OWNER_HUMAN_CONTEXT, db, channelId, value.botSlug, true),
+      );
       const target = input.delivery === 'inbox' ? null : channelId;
       if (target === null && channel.type !== 'dm') throw new MessagingError('channel-unavailable');
       if (value.platform === 'qq' && target !== null && channel.type !== 'group')
@@ -2523,7 +2548,7 @@ export function createInboundMessaging(options: {
           const latest = grant(value.id);
           const currentRoutes = channelBridgeRoutes(latest);
           const current = currentRoutes.find((route) => route.id === configuration?.id);
-          bridgeChannel(db, channelId, latest.botSlug, true);
+          bridgeChannel(OWNER_HUMAN_CONTEXT, db, channelId, latest.botSlug, true);
           if (
             latest.revision !== input.expectedGrantRevision ||
             (input.kind !== 'add' && (!current || current.revision !== input.expectedRevision)) ||
@@ -2732,7 +2757,10 @@ export function createInboundMessaging(options: {
           )
             throw new MessagingError('grant-unavailable');
           if (value.bridgeRoutes) throw new MessagingError('bridge-stale');
-          if (channelId !== null && bridgeChannel(db, channelId, botSlug, true).type !== 'group')
+          if (
+            channelId !== null &&
+            bridgeChannel(OWNER_HUMAN_CONTEXT, db, channelId, botSlug, true).type !== 'group'
+          )
             throw new MessagingError('channel-unavailable');
           const { receiveTargetChannelId: _old, channelBridge: _bridge, ...rest } = value;
           const next: MessagingGrant = {
@@ -3095,7 +3123,7 @@ export function createInboundMessaging(options: {
           if (!service.available(botSlug, sourceEventId))
             throw new MessagingError('source-unavailable');
           if (source.localChannelId) throw new MessagingError('source-conflict');
-          const channel = bridgeChannel(db, channelId, botSlug);
+          const channel = bridgeChannel(OWNER_HUMAN_CONTEXT, db, channelId, botSlug);
           const prior = db
             .prepare(
               'SELECT channel_id, revision FROM channel_placements WHERE source_event_id = ?',
@@ -3110,7 +3138,12 @@ export function createInboundMessaging(options: {
               revision: prior.revision,
               alreadyShared: true,
             };
-          placement = placeBridgeSource(db, { ...source, localChannelId: channelId }, botSlug);
+          placement = placeBridgeSource(
+            OWNER_HUMAN_CONTEXT,
+            db,
+            { ...source, localChannelId: channelId },
+            botSlug,
+          );
           if (!placement) throw new MessagingError('source-conflict');
           admitted = admitBridgeMembers(
             db,

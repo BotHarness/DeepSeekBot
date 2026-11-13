@@ -80,6 +80,7 @@ import {
   type PickedFile,
 } from '../../host/pick-files';
 import {
+  retainHostActivity,
   useChannelConversation,
   useConversation,
   useConversationTimelineSnapshot,
@@ -1065,10 +1066,17 @@ function ChatConversation({
       .catch(() => setAttachError(true));
   };
 
-  const share = useCallback((attachment: MessageAttachment): Promise<void> => {
-    setShareError(false);
-    return shareAttachment(attachment).catch(() => setShareError(true));
-  }, []);
+  const share = useCallback(
+    (attachment: MessageAttachment): Promise<void> => {
+      setShareError(false);
+      return shareAttachment(
+        attachment,
+        undefined,
+        client === undefined ? undefined : () => retainHostActivity(client),
+      ).catch(() => setShareError(true));
+    },
+    [client],
+  );
 
   const retry = useCallback((id: string) => conversation?.retry(id), [conversation]);
 

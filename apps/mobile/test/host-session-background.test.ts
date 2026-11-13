@@ -43,9 +43,10 @@ afterEach(async () => {
   for (const host of session?.getState().hosts ?? []) await session.unpair(host.hostId);
 });
 
-it('isolates background opt-out, refusal and unpairing across two shared Host clients', async () => {
+it('isolates system sharing, background opt-out, refusal and unpairing across two shared Host clients', async () => {
   const a = new FakeHost('a');
   const b = new FakeHost('b');
+  const open = vi.spyOn(a.carrier, 'openSocket');
   remotes.set('a.tailnet.ts.net', a);
   remotes.set('b.tailnet.ts.net', b);
   const hosts = ['a', 'b'].map((hostId) => ({
@@ -66,6 +67,19 @@ it('isolates background opt-out, refusal and unpairing across two shared Host cl
   );
   const first = session.getHost('a')!.client;
   const second = session.getHost('b')!.client;
+  const states: string[] = [];
+  const unsubscribe = first.subscribe(() => states.push(first.getSnapshot().connection.status));
+  const release = module.retainHostActivity(first);
+  for (const listener of native.lifecycle) listener('background');
+  expect(first.getSnapshot().connection.status).toBe('connected');
+  expect(second.getSnapshot().connection.status).toBe('stopped');
+  release();
+  expect(first.getSnapshot().connection.status).toBe('connected');
+  for (const listener of native.lifecycle) listener('active');
+  await vi.waitFor(() => expect(second.getSnapshot().connection.status).toBe('connected'));
+  expect(states.every((status) => status === 'connected')).toBe(true);
+  expect(open).toHaveBeenCalledTimes(1);
+  unsubscribe();
   module.setHostNotificationsEnabled('a', true);
   module.setHostNotificationsEnabled('b', true);
   await session.switchTo('b');

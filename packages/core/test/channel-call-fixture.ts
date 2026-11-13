@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import type { ChannelMessage } from '../src/channels/channel.js';
 import {
   voiceCallRecordBody,
@@ -131,11 +132,12 @@ export async function setup() {
   });
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
   core.registry.create({ slug: 'bea', displayName: 'Bea' });
-  const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-  const other = core.channels.getOrCreateDm('bea', 'Bea')!;
+  const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+  const other = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'bea', 'Bea')!;
   for (const call of [CALLS[2], CALLS[0], CALLS[1]])
-    for (const message of callMessages(call)) await core.channels.appendMessage(dm.id, message);
-  await core.channels.appendMessage(dm.id, {
+    for (const message of callMessages(call))
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, message);
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
     id: 'between',
     at: '2026-11-01T00:00:00.000Z',
     author: { kind: 'human' },
@@ -145,7 +147,7 @@ export async function setup() {
     { id: OTHER_CALL, label: 'other', startedAt: '2026-11-05T00:00:00.000Z', ended: true },
     'bea',
   ))
-    await core.channels.appendMessage(other.id, message);
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, other.id, message);
   const read = async (args: Record<string, unknown>) =>
     (
       await core.runtime.runDirectBotTool!(
@@ -163,7 +165,7 @@ export async function setup() {
     await core.runtime.close();
     core.operationalDatabase.close();
   };
-  const methods = createBridgeMethods({
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
     registry: core.registry,
     states: core.states,
     channels: core.channels,

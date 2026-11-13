@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import LocalCredentialProvider from '@deepseek-ai/dsh-credentials-local';
@@ -47,8 +48,8 @@ async function fixture(
   registry.create({ slug: 'ada', displayName: 'Ada' });
   registry.create({ slug: 'bea', displayName: 'Bea' });
   const channels = createChannelStore({ rootDir: join(root, 'channels') });
-  channels.getOrCreateDm('ada', 'Ada');
-  channels.getOrCreateDm('bea', 'Bea');
+  channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
+  channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'bea', 'Bea');
   const ownership = createTestOwnership({
     'ada-session': { botSlug: 'ada', rootRole: 'orchestrator' },
     'bea-session': { botSlug: 'bea', rootRole: 'orchestrator' },
@@ -97,7 +98,10 @@ describe('private input card in the Channel the task came from', () => {
     let group = '';
     const f = await fixture(true, undefined, { askChannel: () => group });
     try {
-      group = f.channels.createGroup({ name: 'Team', members: ['ada', 'bea'] }).id;
+      group = f.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada', 'bea'],
+      }).id;
       const result = f.owner.ask(f.agent, declaration, new AbortController().signal);
       await vi.waitFor(() =>
         expect(f.channels.readMessages(group).some((message) => message.privateInputRequest)).toBe(
@@ -870,7 +874,7 @@ describe('private input native authority and reference contract', () => {
 
   it('checks the actual Remote invocation peer rather than a Client-supplied Owner', async () => {
     const f = await fixture();
-    const remote = registerBridge(f.ctx, {} as BridgeMethods, f.owner);
+    const remote = registerBridge(f.ctx, () => ({}) as BridgeMethods, f.owner);
     expect(() => remote.privateInputStatus('dm-ada', 'missing')).toThrow(/authenticated Owner/);
     const forged = Object.create(remote) as typeof remote;
     Object.defineProperty(forged, 'ctx', {

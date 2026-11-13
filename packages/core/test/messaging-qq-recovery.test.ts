@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { setImmediate as tick } from 'node:timers/promises';
 import { afterEach, expect, it, vi } from 'vitest';
 import { createCore, type BotHarnessCore } from '../src/plugin.js';
@@ -199,7 +200,10 @@ it.each(['disconnected', 'consumer-unavailable'] as const)(
     const fx = await fixture();
     await fx.bind('qq-a');
     await fx.receive('qq-a', 'first');
-    const room = fx.core.channels.createGroup({ name: 'QQ recovery', members: ['ada'] });
+    const room = fx.core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'QQ recovery',
+      members: ['ada'],
+    });
     await fx.sync('qq-a', room.id);
     const source = await fx.receive('qq-a', 'before-restart');
     expect(fx.core.channels.readMessages(room.id)).toHaveLength(1);

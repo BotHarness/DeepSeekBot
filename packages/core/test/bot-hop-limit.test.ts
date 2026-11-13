@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { describe, expect, it } from 'vitest';
@@ -41,14 +42,14 @@ async function relay(botHopLimit: number) {
   try {
     for (const slug of ['ada', 'bea', 'cea'])
       core.registry.create({ slug, displayName: slug.toUpperCase() });
-    const dm = core.channels.getOrCreateDm('ada', 'ADA')!;
-    await core.channels.appendMessage(dm.id, {
+    const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'ADA')!;
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
       id: 'human-kickoff',
       at: '2026-11-03T00:00:00.000Z',
       author: { kind: 'human' },
       body: 'Relay this along the chain',
     });
-    core.runtime.admitDmMessage({
+    core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
       channelId: dm.id,
       messageId: 'human-kickoff',
       body: 'Relay this along the chain',

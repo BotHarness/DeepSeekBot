@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { randomUUID } from 'node:crypto';
 import { cloudMessageAllowed } from '../cloud/admission.js';
 import type { DatabaseSync } from 'node:sqlite';
@@ -545,7 +546,9 @@ export function senderContextAllowed(
         )
           return false;
         try {
-          return bridgeChannel(db, ingest.channelId, botSlug, true).type === 'group';
+          return (
+            bridgeChannel(OWNER_HUMAN_CONTEXT, db, ingest.channelId, botSlug, true).type === 'group'
+          );
         } catch {
           return false;
         }

@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 
 import { createBridgeMethods } from '../src/bridge/methods.js';
@@ -25,16 +26,19 @@ describe('Human attention projection', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      await core.channels.appendMessage(group.id, {
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      });
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'human',
         at: '2026-10-01T00:00:00Z',
         author: { kind: 'human' },
         body: 'Review',
       });
       for (let i = 0; i < 35; i++)
-        await core.channels.appendMessage(group.id, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
           id: `mention-${i}`,
           at: '2026-10-01T00:01:00Z',
           author: { kind: 'bot', slug: 'ada' },
@@ -43,7 +47,7 @@ describe('Human attention projection', () => {
           humanMentions: [{ humanId: 'local-human', label: 'Human', start: 0, end: 6 }],
           replyTo: 'human',
         });
-      await core.channels.appendMessage(group.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'new-reply',
         at: '2026-10-01T00:02:00Z',
         author: { kind: 'bot', slug: 'ada' },
@@ -51,7 +55,7 @@ describe('Human attention projection', () => {
         replyTo: 'human',
       });
       for (let i = 0; i < 4; i++)
-        await core.channels.appendMessage(dm.id, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
           id: `dm-${i}`,
           at: '2026-10-01T00:03:00Z',
           author: { kind: 'bot', slug: 'ada' },
@@ -59,10 +63,10 @@ describe('Human attention projection', () => {
         });
       expect(
         core.humanAttention
-          .list({ category: 'replies', sort: 'mentions-first', limit: 30 })
+          .list(OWNER_HUMAN_CONTEXT, { category: 'replies', sort: 'mentions-first', limit: 30 })
           .items.some((item) => item.messageId === 'new-reply'),
       ).toBe(false);
-      const methods = createBridgeMethods({ ...core });
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
       const found: string[] = [];
       let cursor: string | undefined;
       do {
@@ -96,14 +100,17 @@ describe('Human attention projection', () => {
     const core = createCore({ dshHome: createTempRoot('activity-sort-'), agents: adapter() });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
-      await core.channels.appendMessage(group.id, {
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      });
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'human',
         at: '2026-10-01T00:00:00Z',
         author: { kind: 'human' },
         body: 'Review',
       });
-      await core.channels.appendMessage(group.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'mention',
         at: '2026-10-01T00:01:00Z',
         author: { kind: 'bot', slug: 'ada' },
@@ -112,20 +119,20 @@ describe('Human attention projection', () => {
         humanMentions: [{ humanId: 'local-human', label: 'Human', start: 0, end: 6 }],
         replyTo: 'human',
       });
-      await core.channels.appendMessage(group.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'reply',
         at: '2026-10-01T00:02:00Z',
         author: { kind: 'bot', slug: 'ada' },
         body: 'Review done',
         replyTo: 'human',
       });
-      const first = core.humanAttention.list({
+      const first = core.humanAttention.list(OWNER_HUMAN_CONTEXT, {
         category: 'replies',
         sort: 'mentions-first',
         limit: 1,
       });
       expect(first.items.map((x) => x.messageId)).toEqual(['mention']);
-      const second = core.humanAttention.list({
+      const second = core.humanAttention.list(OWNER_HUMAN_CONTEXT, {
         category: 'replies',
         sort: 'mentions-first',
         limit: 1,
@@ -135,21 +142,21 @@ describe('Human attention projection', () => {
       expect(second.nextCursor).toBeUndefined();
       expect(
         core.humanAttention
-          .list({ category: 'replies', sort: 'newest' })
+          .list(OWNER_HUMAN_CONTEXT, { category: 'replies', sort: 'newest' })
           .items.map((x) => x.messageId),
       ).toEqual(['reply', 'mention']);
       expect(() =>
-        core.humanAttention.list({
+        core.humanAttention.list(OWNER_HUMAN_CONTEXT, {
           category: 'replies',
           sort: 'mentions-first',
           search: 'done',
           cursor: first.nextCursor!,
         }),
       ).toThrow('cursor is invalid');
-      await core.channels.markRead(group.id, 'mention');
+      await core.channels.markRead(OWNER_HUMAN_CONTEXT, group.id, 'mention');
       expect(
         core.humanAttention
-          .list({ category: 'replies', unreadOnly: true })
+          .list(OWNER_HUMAN_CONTEXT, { category: 'replies', unreadOnly: true })
           .items.map((x) => x.messageId),
       ).toEqual(['reply']);
     } finally {
@@ -162,19 +169,22 @@ describe('Human attention projection', () => {
     const core = createCore({ dshHome: createTempRoot('activity-search-'), agents: adapter() });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Design', members: ['ada'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Design',
+        members: ['ada'],
+      });
       for (let i = 0; i < 35; i += 1)
-        await core.channels.appendMessage(group.id, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
           id: `search-${i}`,
           at: new Date(Date.UTC(2026, 9, 1, 0, 0, i)).toISOString(),
           author: { kind: 'bot', slug: 'ada' },
           body: i === 0 ? 'Needle budget ÉTUDE ПРОЕКТ' : 'Routine update',
         });
-      const methods = createBridgeMethods({ ...core });
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
       for (const search of ['ÉTUDE', 'étude', 'ПРОЕКТ', 'проект'])
-        expect(core.humanAttention.list({ category: 'unread', search }).items).toMatchObject([
-          { messageId: 'search-0' },
-        ]);
+        expect(
+          core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'unread', search }).items,
+        ).toMatchObject([{ messageId: 'search-0' }]);
       expect(
         methods.humanAttention({ category: 'unread', search: 'needle', limit: 1 }),
       ).toMatchObject({
@@ -199,36 +209,40 @@ describe('Human attention projection', () => {
     const core = createCore({ dshHome: createTempRoot('activity-summary-'), agents: adapter() });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Design', members: ['ada'] });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Design',
+        members: ['ada'],
+      });
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
       const long = `${'😀'.repeat(300)} tail-needle`;
-      await core.channels.appendMessage(group.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'human',
         at: '2026-10-01T00:00:00Z',
         author: { kind: 'human' },
         body: 'Review',
       });
-      await core.channels.appendMessage(group.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'long-reply',
         at: '2026-10-01T00:01:00Z',
         author: { kind: 'bot', slug: 'ada' },
         body: long,
         replyTo: 'human',
       });
-      await core.channels.appendMessage(dm.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'long-dm',
         at: '2026-10-01T00:02:00Z',
         author: { kind: 'bot', slug: 'ada' },
         body: long,
       });
       const expected = `${'😀'.repeat(279)}…`;
-      const replies = core.humanAttention.list({ category: 'replies' }).items;
-      const unread = core.humanAttention.list({ category: 'unread' }).items;
+      const replies = core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'replies' }).items;
+      const unread = core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'unread' }).items;
       expect(replies.map((item) => item.messageId)).toContain('long-reply');
       expect(unread.map((item) => item.messageId)).toContain('long-dm');
       for (const item of [...replies, ...unread]) expect(item.summary).toBe(expected);
       expect(
-        core.humanAttention.list({ category: 'unread', search: 'tail-needle' }).items.length,
+        core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'unread', search: 'tail-needle' })
+          .items.length,
       ).toBeGreaterThan(0);
     } finally {
       await core.runtime.close();
@@ -244,15 +258,18 @@ describe('Human attention projection', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bea', displayName: 'Bea' });
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada', 'bea'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada', 'bea'],
+      });
       for (const [index, slug] of ['ada', 'ada', 'bea'].entries())
-        await core.channels.appendMessage(group.id, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
           id: 'message-' + index,
           at: new Date(Date.UTC(2026, 8, 26, 1, 0, index)).toISOString(),
           author: { kind: 'bot', slug },
           body: 'Update ' + index,
         });
-      const methods = createBridgeMethods({ ...core });
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
       expect(methods.humanAttention({ category: 'unread', botSlug: 'ada' })).toMatchObject({
         ok: true,
         value: { items: [{ channelId: group.id, unreadCount: 2, messageId: 'message-1' }] },
@@ -261,10 +278,13 @@ describe('Human attention projection', () => {
         ok: true,
         value: { items: [{ channelId: group.id, unreadCount: 1, messageId: 'message-2' }] },
       });
-      expect(core.humanAttention.list({ category: 'unread' }).items).toMatchObject([
-        { channelId: group.id, unreadCount: 3, messageId: 'message-2' },
-      ]);
-      expect(core.humanAttention.status()).toEqual({ unreadCount: 3, hasAction: false });
+      expect(
+        core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'unread' }).items,
+      ).toMatchObject([{ channelId: group.id, unreadCount: 3, messageId: 'message-2' }]);
+      expect(core.humanAttention.status(OWNER_HUMAN_CONTEXT)).toEqual({
+        unreadCount: 3,
+        hasAction: false,
+      });
     } finally {
       await core.runtime.close();
       core.operationalDatabase.close();
@@ -276,38 +296,43 @@ describe('Human attention projection', () => {
     const core = createCore({ dshHome: home, agents: adapter() });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      await core.channels.appendMessage(group.id, {
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      });
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'own',
         at: '2026-09-26T01:00:00.000Z',
         author: { kind: 'human' },
         body: 'Start',
       });
-      await core.channels.appendMessage(group.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'first',
         at: '2026-09-26T01:01:00.000Z',
         author: { kind: 'bot', slug: 'ada' },
         body: 'First',
       });
-      await core.channels.appendMessage(group.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'second',
         at: '2026-09-26T01:02:00.000Z',
         author: { kind: 'bot', slug: 'ada' },
         body: 'Second',
       });
-      await core.channels.appendMessage(dm.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'dm-one',
         at: '2026-09-26T01:03:00.000Z',
         author: { kind: 'bot', slug: 'ada' },
         body: 'DM',
       });
-      expect(core.humanAttention.list({ category: 'unread' }).items).toMatchObject([
+      expect(
+        core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'unread' }).items,
+      ).toMatchObject([
         { kind: 'channel-unread', channelId: dm.id, unreadCount: 1, messageId: 'dm-one' },
         { kind: 'channel-unread', channelId: group.id, unreadCount: 2, messageId: 'second' },
       ]);
-      expect(core.humanAttention.status()).toMatchObject({ unreadCount: 3 });
-      const methods = createBridgeMethods({ ...core });
+      expect(core.humanAttention.status(OWNER_HUMAN_CONTEXT)).toMatchObject({ unreadCount: 3 });
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
       expect(methods.humanAttentionStatus({})).toEqual({
         ok: true,
         value: { unreadCount: 3, hasAction: false },
@@ -322,19 +347,21 @@ describe('Human attention projection', () => {
         },
       });
       expect(methods.humanAttention({ category: 'unknown' })).toMatchObject({ ok: false });
-      await core.channels.markRead(group.id, 'first');
+      await core.channels.markRead(OWNER_HUMAN_CONTEXT, group.id, 'first');
       expect(
-        core.humanAttention.list({ category: 'unread', channelId: group.id }).items,
+        core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'unread', channelId: group.id })
+          .items,
       ).toMatchObject([{ unreadCount: 1, messageId: 'second' }]);
-      await core.channels.appendMessage(group.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'third',
         at: '2026-09-26T01:04:00.000Z',
         author: { kind: 'bot', slug: 'ada' },
         body: 'Third',
       });
-      await core.channels.markRead(group.id, 'second');
+      await core.channels.markRead(OWNER_HUMAN_CONTEXT, group.id, 'second');
       expect(
-        core.humanAttention.list({ category: 'unread', channelId: group.id }).items,
+        core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'unread', channelId: group.id })
+          .items,
       ).toMatchObject([{ unreadCount: 1, messageId: 'third' }]);
     } finally {
       await core.runtime.close();
@@ -348,16 +375,19 @@ describe('Human attention projection', () => {
     try {
       const ada = core.registry.create({ slug: 'ada', displayName: 'Ada' });
       if (!ada.ok) throw new Error('Bot fixture failed');
-      const group = core.channels.createGroup({ name: 'Team', members: [] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Team', members: [] });
       groupId = group.id;
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
       const request = core.channels.requestGroupJoin({
         channelId: group.id,
         requesterBotSlug: 'ada',
         requesterBotCreatedAt: ada.record.createdAt,
       });
-      const methods = createBridgeMethods({ ...core });
-      expect(core.humanAttention.status()).toEqual({ unreadCount: 0, hasAction: true });
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
+      expect(core.humanAttention.status(OWNER_HUMAN_CONTEXT)).toEqual({
+        unreadCount: 0,
+        hasAction: true,
+      });
       expect(methods.humanAttention({ category: 'action' })).toMatchObject({
         ok: true,
         value: {
@@ -383,17 +413,21 @@ describe('Human attention projection', () => {
           accept: true,
         }),
       ).toMatchObject({ ok: true });
-      expect(core.humanAttention.list({ category: 'action' }).items).toEqual([]);
-      await core.channels.appendMessage(dm.id, {
+      expect(core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toEqual(
+        [],
+      );
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'bot-reply-1',
         at: '2026-09-26T01:00:00.000Z',
         author: { kind: 'bot', slug: 'ada' },
         body: 'Here is the report.',
       });
-      expect(core.humanAttention.list({ category: 'unread' }).items).toMatchObject([
+      expect(
+        core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'unread' }).items,
+      ).toMatchObject([
         { kind: 'channel-unread', botSlug: 'ada', channelId: dm.id, messageId: 'bot-reply-1' },
       ]);
-      expect(core.humanAttention.list({ category: 'info' }).items).toEqual([]);
+      expect(core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'info' }).items).toEqual([]);
     } finally {
       await core.runtime.close();
       core.operationalDatabase.close();
@@ -401,10 +435,16 @@ describe('Human attention projection', () => {
     const resumed = createCore({ dshHome: home, agents: adapter() });
     try {
       expect(resumed.channels.get(groupId)?.members).toContain('ada');
-      expect(resumed.humanAttention.list({ category: 'action' }).items).toEqual([]);
-      expect(resumed.humanAttention.list({ category: 'unread' }).items).toHaveLength(1);
-      await resumed.channels.markRead('dm-ada', 'bot-reply-1');
-      expect(resumed.humanAttention.list({ category: 'unread' }).items).toEqual([]);
+      expect(
+        resumed.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items,
+      ).toEqual([]);
+      expect(
+        resumed.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'unread' }).items,
+      ).toHaveLength(1);
+      await resumed.channels.markRead(OWNER_HUMAN_CONTEXT, 'dm-ada', 'bot-reply-1');
+      expect(
+        resumed.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'unread' }).items,
+      ).toEqual([]);
     } finally {
       await resumed.runtime.close();
       resumed.operationalDatabase.close();
@@ -417,34 +457,44 @@ describe('Human attention projection', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       const groups = [0, 1, 2].map((index) =>
-        core.channels.createGroup({ name: 'Team ' + index, members: ['ada'] }),
+        core.channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Team ' + index, members: ['ada'] }),
       );
       for (const [index, group] of groups.entries())
-        await core.channels.appendMessage(group.id, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
           id: 'report-' + index,
           at: new Date(Date.UTC(2026, 8, 26, 2, 0, index)).toISOString(),
           author: { kind: 'bot', slug: 'ada' },
           body: 'Report ' + index,
         });
-      const first = core.humanAttention.list({ category: 'unread', limit: 1 });
+      const first = core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'unread', limit: 1 });
       expect(first.nextCursor).toBeDefined();
-      const second = core.humanAttention.list({
+      const second = core.humanAttention.list(OWNER_HUMAN_CONTEXT, {
         category: 'unread',
         limit: 1,
         cursor: first.nextCursor!!,
       });
       expect(second.items[0]?.id).not.toBe(first.items[0]?.id);
       expect(() =>
-        core.humanAttention.list({ category: 'action', cursor: first.nextCursor!! }),
+        core.humanAttention.list(OWNER_HUMAN_CONTEXT, {
+          category: 'action',
+          cursor: first.nextCursor!!,
+        }),
       ).toThrow('Human attention cursor is invalid for these filters');
       expect(
-        core.humanAttention.list({ category: 'unread', channelId: 'group-other' }).items,
+        core.humanAttention.list(OWNER_HUMAN_CONTEXT, {
+          category: 'unread',
+          channelId: 'group-other',
+        }).items,
       ).toEqual([]);
-      const oldest = core.humanAttention.list({ category: 'unread', sort: 'oldest', limit: 1 });
+      const oldest = core.humanAttention.list(OWNER_HUMAN_CONTEXT, {
+        category: 'unread',
+        sort: 'oldest',
+        limit: 1,
+      });
       expect(oldest.items[0]?.messageId).toBe('report-0');
       expect(oldest.nextCursor).toBeDefined();
       expect(
-        core.humanAttention.list({
+        core.humanAttention.list(OWNER_HUMAN_CONTEXT, {
           category: 'unread',
           sort: 'oldest',
           limit: 1,
@@ -452,15 +502,24 @@ describe('Human attention projection', () => {
         }).items[0]?.messageId,
       ).toBe('report-1');
       expect(() =>
-        core.humanAttention.list({ category: 'unread', cursor: oldest.nextCursor! }),
+        core.humanAttention.list(OWNER_HUMAN_CONTEXT, {
+          category: 'unread',
+          cursor: oldest.nextCursor!,
+        }),
       ).toThrow('Human attention cursor is invalid for these filters');
       expect(
-        core.humanAttention.list({ category: 'unread', botSlug: 'ada', channelId: groups[0]!.id })
-          .items,
+        core.humanAttention.list(OWNER_HUMAN_CONTEXT, {
+          category: 'unread',
+          botSlug: 'ada',
+          channelId: groups[0]!.id,
+        }).items,
       ).toHaveLength(1);
       expect(
-        core.humanAttention.list({ category: 'unread', botSlug: 'bea', channelId: groups[0]!.id })
-          .items,
+        core.humanAttention.list(OWNER_HUMAN_CONTEXT, {
+          category: 'unread',
+          botSlug: 'bea',
+          channelId: groups[0]!.id,
+        }).items,
       ).toEqual([]);
     } finally {
       await core.runtime.close();
@@ -478,8 +537,8 @@ describe('Human attention projection', () => {
     const dmId = 'dm-ada';
     try {
       before.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const dm = before.channels.getOrCreateDm('ada', 'Ada')!;
-      await before.channels.appendMessage(dm.id, {
+      const dm = before.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      await before.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'question-one',
         at: '2026-09-26T03:00:00.000Z',
         author: { kind: 'bot', slug: 'ada' },
@@ -489,7 +548,9 @@ describe('Human attention projection', () => {
           questions: [{ id: 'branch', question: 'Which branch should I use?' }],
         },
       });
-      expect(before.humanAttention.list({ category: 'action' }).items).toMatchObject([
+      expect(
+        before.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items,
+      ).toMatchObject([
         {
           kind: 'user-question',
           channelId: dm.id,
@@ -498,9 +559,14 @@ describe('Human attention projection', () => {
           summary: 'Which branch should I use?',
         },
       ]);
-      expect(before.humanAttention.list({ category: 'info' }).items).toEqual([]);
+      expect(before.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'info' }).items).toEqual(
+        [],
+      );
       expect(
-        before.humanAttention.list({ category: 'action', channelId: 'group-other' }).items,
+        before.humanAttention.list(OWNER_HUMAN_CONTEXT, {
+          category: 'action',
+          channelId: 'group-other',
+        }).items,
       ).toEqual([]);
     } finally {
       await before.runtime.close();
@@ -514,8 +580,10 @@ describe('Human attention projection', () => {
       activeQuestionMessageIds: () => activeQuestions,
     });
     try {
-      expect(resumed.humanAttention.list({ category: 'action' }).items).toEqual([]);
-      await resumed.channels.appendMessage(dmId, {
+      expect(
+        resumed.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items,
+      ).toEqual([]);
+      await resumed.channels.appendMessage(OWNER_HUMAN_CONTEXT, dmId, {
         id: 'answer-one',
         at: '2026-09-26T03:01:00.000Z',
         author: { kind: 'human' },
@@ -527,9 +595,11 @@ describe('Human attention projection', () => {
           answers: [{ id: 'branch', selected: [], custom: 'main' }],
         },
       });
-      expect(resumed.humanAttention.list({ category: 'action' }).items).toEqual([]);
+      expect(
+        resumed.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items,
+      ).toEqual([]);
       activeQuestions = ['question-two'];
-      await resumed.channels.appendMessage(dmId, {
+      await resumed.channels.appendMessage(OWNER_HUMAN_CONTEXT, dmId, {
         id: 'question-two',
         at: '2026-09-26T03:02:00.000Z',
         author: { kind: 'bot', slug: 'ada' },
@@ -539,8 +609,10 @@ describe('Human attention projection', () => {
           questions: [{ id: 'continue', question: 'Should I continue?' }],
         },
       });
-      expect(resumed.humanAttention.list({ category: 'action' }).items).toHaveLength(1);
-      await resumed.channels.appendMessage(dmId, {
+      expect(
+        resumed.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items,
+      ).toHaveLength(1);
+      await resumed.channels.appendMessage(OWNER_HUMAN_CONTEXT, dmId, {
         id: 'cancel-two',
         at: '2026-09-26T03:03:00.000Z',
         author: { kind: 'bot', slug: 'ada' },
@@ -548,8 +620,12 @@ describe('Human attention projection', () => {
         replyTo: 'question-two',
         userQuestionResolution: { requestMessageId: 'question-two', state: 'cancelled' },
       });
-      expect(resumed.humanAttention.list({ category: 'action' }).items).toEqual([]);
-      expect(resumed.humanAttention.list({ category: 'info' }).items).toEqual([]);
+      expect(
+        resumed.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items,
+      ).toEqual([]);
+      expect(resumed.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'info' }).items).toEqual(
+        [],
+      );
     } finally {
       await resumed.runtime.close();
       resumed.operationalDatabase.close();
@@ -565,8 +641,8 @@ describe('Human attention projection', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      await core.channels.appendMessage(dm.id, {
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'approval-one',
         at: '2026-09-26T04:00:00.000Z',
         author: { kind: 'bot', slug: 'ada' },
@@ -580,7 +656,9 @@ describe('Human attention projection', () => {
           input: '{"command":"pwd"}',
         },
       });
-      expect(core.humanAttention.list({ category: 'action' }).items).toMatchObject([
+      expect(
+        core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items,
+      ).toMatchObject([
         {
           kind: 'tool-approval',
           botSlug: 'ada',
@@ -589,11 +667,13 @@ describe('Human attention projection', () => {
           summary: 'Request approval for bash',
         },
       ]);
-      expect(core.humanAttention.list({ category: 'info' }).items).toEqual([]);
+      expect(core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'info' }).items).toEqual([]);
       activeApprovals = [];
-      expect(core.humanAttention.list({ category: 'action' }).items).toEqual([]);
+      expect(core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toEqual(
+        [],
+      );
       activeApprovals = ['approval-one'];
-      await core.channels.appendMessage(dm.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'decision-one',
         at: '2026-09-26T04:01:00.000Z',
         author: { kind: 'human' },
@@ -601,8 +681,10 @@ describe('Human attention projection', () => {
         replyTo: 'approval-one',
         toolApprovalDecision: { requestMessageId: 'approval-one', outcome: 'allowed-once' },
       });
-      expect(core.humanAttention.list({ category: 'action' }).items).toEqual([]);
-      expect(core.humanAttention.list({ category: 'info' }).items).toEqual([]);
+      expect(core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toEqual(
+        [],
+      );
+      expect(core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'info' }).items).toEqual([]);
     } finally {
       await core.runtime.close();
       core.operationalDatabase.close();
@@ -616,9 +698,12 @@ describe('Human attention projection', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bea', displayName: 'Bea' });
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada', 'bea'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada', 'bea'],
+      });
       groupId = group.id;
-      await core.channels.appendMessage(group.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'review-1',
         at: '2026-09-26T05:00:00.000Z',
         author: { kind: 'human' },
@@ -634,7 +719,9 @@ describe('Human attention projection', () => {
           "UPDATE inbox_admissions SET attempt_state = 'needs-repair' WHERE source_event_id = ? AND bot_slug = 'ada'",
         ).run(sourceEventId);
       });
-      expect(core.humanAttention.list({ category: 'action' }).items).toMatchObject([
+      expect(
+        core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items,
+      ).toMatchObject([
         {
           id: 'repair:' + sourceEventId + ':ada',
           kind: 'bot-message-needs-repair',
@@ -646,20 +733,27 @@ describe('Human attention projection', () => {
           summary: '@Ada @Bea check the deployment',
         },
       ]);
-      expect(core.humanAttention.list({ category: 'action', botSlug: 'bea' }).items).toEqual([]);
       expect(
-        core.humanAttention.list({ category: 'action', channelId: group.id }).items,
+        core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'action', botSlug: 'bea' }).items,
+      ).toEqual([]);
+      expect(
+        core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'action', channelId: group.id })
+          .items,
       ).toHaveLength(1);
-      expect(core.humanAttention.list({ category: 'info' }).items).toEqual([]);
+      expect(core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'info' }).items).toEqual([]);
     } finally {
       await core.runtime.close();
       core.operationalDatabase.close();
     }
     const resumed = createCore({ dshHome: home, agents: adapter() });
     try {
-      expect(resumed.humanAttention.list({ category: 'action' }).items).toHaveLength(1);
+      expect(
+        resumed.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items,
+      ).toHaveLength(1);
       resumed.channels.deleteGroup(groupId);
-      expect(resumed.humanAttention.list({ category: 'action' }).items[0]).toMatchObject({
+      expect(
+        resumed.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items[0],
+      ).toMatchObject({
         channelId: groupId,
         channelName: '',
         sourceEventId,
@@ -671,7 +765,10 @@ describe('Human attention projection', () => {
           ).run(sourceEventId);
         },
       );
-      expect(resumed.humanAttention.list({ category: 'action', botSlug: 'ada' }).items).toEqual([]);
+      expect(
+        resumed.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'action', botSlug: 'ada' })
+          .items,
+      ).toEqual([]);
     } finally {
       await resumed.runtime.close();
       resumed.operationalDatabase.close();

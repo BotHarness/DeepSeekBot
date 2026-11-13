@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -18,9 +19,12 @@ describe('Group Profile activity', () => {
     const root = mkdtempSync(join(tmpdir(), 'botharness-group-profile-'));
     roots.push(root);
     const channels = createChannelStore({ rootDir: root });
-    const group = channels.createGroup({ name: 'QQ apps', members: ['ada', 'bea'] });
+    const group = channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'QQ apps',
+      members: ['ada', 'bea'],
+    });
     for (const accountRef of ['qq-a', 'qq-b']) {
-      await channels.appendMessage(group.id, {
+      await channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: accountRef,
         at: '2026-10-04T11:00:00.000Z',
         author: { kind: 'bridged', source: 'Same sender' },
@@ -48,17 +52,17 @@ describe('Group Profile activity', () => {
     const root = mkdtempSync(join(tmpdir(), 'botharness-group-profile-'));
     roots.push(root);
     const channels = createChannelStore({ rootDir: root });
-    const group = channels.createGroup({ name: 'Research', members: ['ada'] });
+    const group = channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Research', members: ['ada'] });
     const now = new Date('2026-09-30T12:00:00.000Z');
     for (let index = 0; index < MAX_MESSAGE_PAGE + 2; index += 1) {
-      await channels.appendMessage(group.id, {
+      await channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: `msg-${index}`,
         at: new Date(Date.parse('2026-09-29T12:00:00.000Z') + index * 1000).toISOString(),
         author: index % 2 === 0 ? { kind: 'human' } : { kind: 'bot', slug: 'ada' },
         body: `Message ${index}`,
       });
     }
-    await channels.appendMessage(group.id, {
+    await channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
       id: 'old-message',
       at: '2025-01-01T12:00:00.000Z',
       author: { kind: 'human' },
@@ -85,7 +89,7 @@ describe('Group Profile activity', () => {
     const root = mkdtempSync(join(tmpdir(), 'botharness-group-profile-'));
     roots.push(root);
     const channels = createChannelStore({ rootDir: root });
-    const group = channels.createGroup({ name: 'Sources', members: ['ada'] });
+    const group = channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Sources', members: ['ada'] });
     const now = new Date('2026-10-04T12:00:00.000Z');
     const sources = [
       {
@@ -114,7 +118,7 @@ describe('Group Profile activity', () => {
       },
     ];
     for (const [index, source] of sources.entries()) {
-      await channels.appendMessage(group.id, {
+      await channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: `external-${index}`,
         at: `2026-10-04T11:00:0${index}.000Z`,
         author: { kind: 'bridged', source: source.sender },
@@ -129,7 +133,7 @@ describe('Group Profile activity', () => {
         },
       });
     }
-    await channels.appendMessage(group.id, {
+    await channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
       id: 'legacy',
       at: '2026-10-04T11:01:00.000Z',
       author: { kind: 'bridged', source: 'legacy-source' },

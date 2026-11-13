@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it, vi } from 'vitest';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { ToolExecution } from '@deepseek-ai/dsh-tools';
@@ -28,10 +29,10 @@ function fixture() {
     valid ? 'qa-scope' : undefined,
   );
   core.companions.attachApprovals(broker);
-  const methods = createBridgeMethods({ ...core, toolApproval: broker });
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core, toolApproval: broker });
   const start = async (slug: string, signal?: AbortSignal) => {
     core.registry.create({ slug, displayName: slug });
-    const channel = core.channels.getOrCreateDm(slug, slug)!;
+    const channel = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, slug, slug)!;
     const sessionId = 'qa-' + slug;
     core.ownership.claim({
       sessionId,

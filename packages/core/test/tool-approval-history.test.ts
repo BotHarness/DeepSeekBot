@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it, vi } from 'vitest';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { ToolExecution } from '@deepseek-ai/dsh-tools';
@@ -20,11 +21,11 @@ describe('approval history and always-allow counts over the Host bridge', () => 
   it('lists Human answers newest first and counts each request a rule answers once', async () => {
     const core = createCore({ dshHome: createTempRoot('botharness-approval-history-'), agents });
     const broker = new ChannelToolApproval(core.channels, core.ownership, core.toolRules);
-    const methods = createBridgeMethods({ ...core, toolApproval: broker });
+    const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core, toolApproval: broker });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'grace', displayName: 'Grace' });
-      const channel = core.channels.getOrCreateDm('ada', 'Ada')!;
+      const channel = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
       core.ownership.claim({
         sessionId: 'qa-ada',
         botSlug: 'ada',

@@ -1,3 +1,4 @@
+import { type HumanContext } from '../humans/context.js';
 import type { DatabaseSync } from 'node:sqlite';
 import {
   dmChannelId,
@@ -8,7 +9,11 @@ import {
 import type { ExternalSource } from './inbound.js';
 import { MessagingError, type MessagingAttachment } from './provider.js';
 
-export function humanBridgeChannel(db: DatabaseSync, channelId: string): ChannelRecord {
+export function humanBridgeChannel(
+  human: HumanContext,
+  db: DatabaseSync,
+  channelId: string,
+): ChannelRecord {
   const row = db
     .prepare('SELECT record_json FROM channel_records WHERE channel_id = ?')
     .get(channelId) as { record_json: string } | undefined;
@@ -25,17 +30,18 @@ export function humanBridgeChannel(db: DatabaseSync, channelId: string): Channel
         .prepare(
           'SELECT 1 FROM channel_human_members WHERE channel_id = ? AND human_id = ? AND left_at IS NULL',
         )
-        .get(channelId, 'local-human'))
+        .get(channelId, human.humanId))
   )
     throw new MessagingError('channel-unavailable');
   return record;
 }
 
 export function bridgeChannel(
+  human: HumanContext,
   db: DatabaseSync,
   channelId: string,
   botSlug: string,
-  human = false,
+  requireHuman = false,
 ): ChannelRecord {
   const row = db
     .prepare('SELECT record_json FROM channel_records WHERE channel_id = ?')
@@ -49,13 +55,13 @@ export function bridgeChannel(
         record.id !== dmChannelId(record.botSlug))) ||
     record.deletedAt ||
     !record.members.includes(botSlug) ||
-    (human &&
+    (requireHuman &&
       record.type !== 'dm' &&
       !db
         .prepare(
           'SELECT 1 FROM channel_human_members WHERE channel_id = ? AND human_id = ? AND left_at IS NULL',
         )
-        .get(channelId, 'local-human'))
+        .get(channelId, human.humanId))
   )
     throw new MessagingError('channel-unavailable');
   return record;
@@ -168,13 +174,14 @@ export function projectBridgeMessage(
 }
 
 export function placeBridgeSource(
+  human: HumanContext,
   db: DatabaseSync,
   source: ExternalSource,
   botSlug: string | undefined,
 ): { channelId: string; message: ChannelMessage; revision: number } | undefined {
   if (!source.localChannelId) return;
-  if (botSlug === undefined) humanBridgeChannel(db, source.localChannelId);
-  else bridgeChannel(db, source.localChannelId, botSlug);
+  if (botSlug === undefined) humanBridgeChannel(human, db, source.localChannelId);
+  else bridgeChannel(human, db, source.localChannelId, botSlug);
   const prior = db
     .prepare(
       'SELECT channel_id FROM channel_placements WHERE source_event_id = ? AND channel_id = ?',

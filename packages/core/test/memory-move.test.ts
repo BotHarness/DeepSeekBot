@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -61,11 +62,11 @@ async function fixture(options: { refuseArchive?: boolean; unsaved?: boolean } =
   });
   const created = core.registry.create({ slug: 'ada', displayName: 'Ada' });
   if (!created.ok) throw new Error(created.reason);
-  const dm = core.channels.getOrCreateDm('ada', 'Ada');
+  const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
   if (dm === undefined) throw new Error('Missing DM');
   let sent = 0;
   const send = async () => {
-    const admission = core.runtime.admitDmMessage({
+    const admission = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
       channelId: dm.id,
       messageId: `human-${++sent}`,
       body: 'Hello',
@@ -73,7 +74,7 @@ async function fixture(options: { refuseArchive?: boolean; unsaved?: boolean } =
     if (!admission.admitted) throw new Error('Not admitted');
     await admission.settled;
   };
-  const methods = createBridgeMethods({ ...core });
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
   const close = async () => {
     await core.runtime.whenIdle();
     await core.runtime.close();

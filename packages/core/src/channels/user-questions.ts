@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { randomUUID } from 'node:crypto';
 
@@ -67,6 +68,7 @@ export interface ChannelQuestionNotice extends ChannelQuestionRequest {
 }
 
 type Pending = {
+  answeringHuman: HumanContext;
   agent: Agent | undefined;
   sessionId: string;
   botSlug: string;
@@ -197,6 +199,7 @@ export class ChannelUserQuestions {
 
     void answer.catch(() => undefined);
     const pending: Pending = {
+      answeringHuman: OWNER_HUMAN_CONTEXT,
       agent,
       sessionId: agent.session.id,
       botSlug: owner.botSlug,
@@ -232,7 +235,10 @@ export class ChannelUserQuestions {
     this.#pending.set(message.id, pending);
     request.signal?.addEventListener('abort', pending.abort, { once: true });
     try {
-      if ((await this.#channels.appendMessage(channelId, message)) === undefined) return undefined;
+      if (
+        (await this.#channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, message)) === undefined
+      )
+        return undefined;
       if (this.#pending.get(message.id) === pending) {
         pending.committed = true;
         if (this.status(pending.botSlug, message.id) === 'pending')
@@ -357,6 +363,7 @@ export class ChannelUserQuestions {
     botSlug: string,
     messageId: string,
     answer: AskUserQuestionAnswer,
+    human: HumanContext,
     external?: { actor: ToolApprovalActor; authorized(): boolean },
   ): Promise<boolean> {
     const pending = this.#pending.get(messageId);
@@ -435,7 +442,7 @@ export class ChannelUserQuestions {
         },
       };
       if (
-        (await this.#channels.appendMessage(pending.channelId, decision, undefined, () =>
+        (await this.#channels.appendMessage(human, pending.channelId, decision, undefined, () =>
           external ? this.#pending.get(messageId) === pending && external.authorized() : true,
         )) === undefined
       )
@@ -525,6 +532,7 @@ export class ChannelUserQuestions {
       )
         continue;
       this.#pending.set(card.messageId, {
+        answeringHuman: OWNER_HUMAN_CONTEXT,
         agent: undefined,
         sessionId: request.sessionId,
         botSlug,
@@ -562,20 +570,24 @@ export class ChannelUserQuestions {
       else if (native.state === 'answered' && validAnswer(pending.questions, native.answer)) {
         pending.deciding = true;
         try {
-          const saved = await this.#channels.appendMessage(pending.channelId, {
-            id: randomUUID(),
-            at: new Date().toISOString(),
-            author: { kind: 'human' },
-            body: native.answer.answers
-              .map((item) => item.custom ?? item.selected.join(', '))
-              .join('\n'),
-            replyTo: id,
-            userQuestionResolution: {
-              requestMessageId: id,
-              state: 'answered',
-              answers: native.answer.answers,
+          const saved = await this.#channels.appendMessage(
+            pending.answeringHuman,
+            pending.channelId,
+            {
+              id: randomUUID(),
+              at: new Date().toISOString(),
+              author: { kind: 'human' },
+              body: native.answer.answers
+                .map((item) => item.custom ?? item.selected.join(', '))
+                .join('\n'),
+              replyTo: id,
+              userQuestionResolution: {
+                requestMessageId: id,
+                state: 'answered',
+                answers: native.answer.answers,
+              },
             },
-          });
+          );
           if (saved !== undefined && this.#pending.get(id) === pending) {
             this.#pending.delete(id);
             this.#publishAttention(pending.botSlug);
@@ -700,7 +712,7 @@ export class ChannelUserQuestions {
       userQuestionResolution: { requestMessageId: messageId, state: 'cancelled' },
     };
 
-    void this.#channels.appendMessage(pending.channelId, resolution).then(
+    void this.#channels.appendMessage(OWNER_HUMAN_CONTEXT, pending.channelId, resolution).then(
       (saved) => {
         if (saved === undefined)
           this.#warn(`botharness.channel_question.cancel_append_failed request=${messageId}`);
