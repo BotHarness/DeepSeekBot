@@ -227,6 +227,7 @@ export function createRelationshipControl(options: {
     }
   };
   const revoke = async (relationshipId: string, manual: boolean) => {
+    if (closed) throw new RelationshipRefused('relationship-owner-closed');
     const existing = revoking.get(relationshipId);
     if (existing) return existing;
     const operation = (async () => {
@@ -239,22 +240,26 @@ export function createRelationshipControl(options: {
           id: relationshipId,
           suppressAutomaticEnrollment: relationship.automaticEnrollmentSuppressed,
         });
+        if (closed) return { ...relationship, reachability: reachability(relationshipId) };
         if (response['state'] !== 'disconnected')
           throw new RelationshipRefused('relationship-response-invalid');
         relationships.acknowledgeDisconnect(relationshipId, relationship.peer.publicKey);
       } catch {
       } finally {
-        options.record?.({
-          phase: relationships.read(relationshipId).peerRevocationPending
-            ? 'revocation-pending'
-            : 'revocation-acknowledged',
-          relationshipId,
-          durationMs: now() - started,
-          outgoing: 'disconnected',
-          incoming: 'disconnected',
-        });
+        if (!closed)
+          options.record?.({
+            phase: relationships.read(relationshipId).peerRevocationPending
+              ? 'revocation-pending'
+              : 'revocation-acknowledged',
+            relationshipId,
+            durationMs: now() - started,
+            outgoing: 'disconnected',
+            incoming: 'disconnected',
+          });
       }
-      return snapshot(relationshipId);
+      return closed
+        ? { ...relationship, reachability: reachability(relationshipId) }
+        : snapshot(relationshipId);
     })();
     revoking.set(relationshipId, operation);
     try {
