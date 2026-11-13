@@ -207,6 +207,9 @@ describe('intro modal', () => {
             .find((button) => button.textContent === label)!
             .click(),
         );
+      expect(container.querySelector('[aria-label="4 手机"]')?.getAttribute('aria-current')).toBe(
+        'step',
+      );
       expect(fetcher).not.toHaveBeenCalled();
       expect(container.querySelector('[data-phone-connection]')).toBeNull();
       await click('连接手机');

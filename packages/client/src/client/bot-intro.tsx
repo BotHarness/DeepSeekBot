@@ -468,6 +468,7 @@ export function BotIntro({
             <li key={id} {...stylex.props(styles.stepItem)}>
               <button
                 type="button"
+                aria-label={`${index + 1} ${t(`intro.step.${id}`)}`}
                 aria-current={index === intro.step ? 'step' : undefined}
                 disabled={busy}
                 onClick={() => void go(index)}
