@@ -1385,6 +1385,10 @@ Video wallpaper extends the same local media record with an original video and g
 
 Appearance recovery composes the existing local preference and media owners without a third store. Current-mode clear affects only its functional Panel map. Explicit full reset preflights both revisions, saves defaults, then deletes the atomic media record; partial media failure is reported and retryable rather than presented as a cross-store transaction. A transient resource generation invalidates previews on accepted media changes, including removal from an already-empty store (ADR-0236, #2264).
 
+### Report window capture
+
+Report screenshots may consume an optional application-defined Desktop preload `captureWindow()` capability. The Desktop main process retains application-window and top-frame authority and returns bounded, transient viewport PNG bytes; the Client retains toolbar visibility, markup and report attachments. No Host route, screenshot store or screen-sharing session is added. Native failures do not retry DOM rasterization; older Desktop releases keep their existing page capture. The companion DSH source patch and Client integration require a composed Desktop build and native timing/content acceptance before release claims (ADR-0332).
+
 ### Desktop whole-window zoom
 
 [ADR-0237](../adr/0237-desktop-window-zoom-is-client-owned.md) defines an application-owned Client
