@@ -1363,6 +1363,39 @@ describe('media bubbles', () => {
   const byTest = (container: Element, id: string) =>
     container.querySelectorAll(`[data-testid="${id}"]`);
 
+  it.each(['ios', 'android'])('routes each file row to its own attachment on %s', async (os) => {
+    native.os = os;
+    const files: ConversationMessage['attachments'] = ['first.txt', 'second.pdf', 'third.csv'].map(
+      (name, index) => ({
+        key: `multi-file:${index}`,
+        kind: 'file',
+        name,
+        source: { uri: `https://host/file-${index}`, headers: {} },
+        local: false,
+      }),
+    );
+    const shared = vi.fn(async (_attachment: ConversationMessage['attachments'][number]) => {});
+    const menu = vi.fn();
+    const select = vi.fn();
+    render(human({ body: '', attachments: files }), {
+      onShare: shared,
+      onLongPress: menu,
+      onSelect: select,
+    });
+    for (const name of ['second.pdf', 'third.csv', 'first.txt']) {
+      const press = native.presses.get(t.shareFile(name));
+      expect(press).toBeDefined();
+      await act(async () => press?.());
+    }
+    expect(shared.mock.calls.map(([attachment]) => attachment.source?.uri)).toEqual([
+      'https://host/file-1',
+      'https://host/file-2',
+      'https://host/file-0',
+    ]);
+    expect(menu).not.toHaveBeenCalled();
+    expect(select).not.toHaveBeenCalled();
+  });
+
   it('puts the time of an uncaptioned image on a pill over the image', () => {
     const container = render(human({ body: '', attachments: [image(1)] }));
     const album = byTest(container, 'message-album')[0]!;
