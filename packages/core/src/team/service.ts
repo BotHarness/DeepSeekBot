@@ -14,6 +14,7 @@ import {
   verifyPassword,
 } from './password.js';
 import { SignInRateLimit } from './rate-limit.js';
+import { memberUrls } from './member-urls.js';
 
 export interface MemberPrincipal {
   readonly kind: 'botharness-member';
@@ -175,7 +176,7 @@ export class TeamService {
       enabled: settings.enabled,
       insecureHttpAllowed: settings.insecure_http_allowed,
       ownerPasswordSet: this.hasCredential(OWNER_HUMAN_CONTEXT.humanId),
-      memberUrls: this.urls(),
+      memberUrls: memberUrls(this.urls(), settings.insecure_http_allowed),
       viewer: {
         humanId: member.humanId,
         kind: member.owner ? 'owner' : 'member',
@@ -301,14 +302,18 @@ export class TeamService {
     if (member.status !== 'active') throw new TeamError('member-suspended');
   }
 
+  private passwordAttempt(username: string, ip: string): void {
+    const retry = this.limiter.admit(username, ip);
+    if (retry) throw new TeamError('rate-limited', retry);
+  }
+
   async signIn(
     username: string,
     password: string,
     ip: string,
   ): Promise<{ token: string; member: TeamMember; peer: PeerScope }> {
     if (!this.settings().enabled) throw new TeamError('team-mode-off');
-    const retry = this.limiter.admit(username, ip);
-    if (retry) throw new TeamError('rate-limited', retry);
+    this.passwordAttempt(username, ip);
     const member = this.byUsername(username);
     const credential = member ? this.credential(member.humanId) : undefined;
     const valid = await verifyPassword(password, credential?.hash ?? DUMMY_PASSWORD_HASH);
@@ -481,6 +486,19 @@ export class TeamService {
     );
     this.invalidate();
     return null;
+  }
+
+  async changeWebPassword(
+    principal: Principal,
+    current: string,
+    next: string,
+    ip: string,
+  ): Promise<null> {
+    const human = this.resolve(principal);
+    const member = human ? this.member(human.humanId) : undefined;
+    if (!human || !member) throw new TeamError('credentials-invalid');
+    this.passwordAttempt(member.username, ip);
+    return this.changePassword(human, current, next);
   }
 
   publicChannels(human: HumanContext): PublicChannel[] {

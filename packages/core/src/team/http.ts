@@ -268,6 +268,21 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
             mustChangePassword: result.member.mustChangePassword,
           });
         }
+        if (path === `${TEAM_PATH}/password` && request.method === 'POST') {
+          if (!peer) throw new TeamError('credentials-invalid');
+          if (!passwordTransportAllowed(request, options))
+            throw new TeamError('insecure-transport');
+          const input = z
+            .object({ current: z.string().max(1024), next: z.string() })
+            .parse(await body(request));
+          await options.team.changeWebPassword(
+            peer.principal,
+            input.current,
+            input.next,
+            request.socket.remoteAddress ?? 'unknown',
+          );
+          return json(response, 200, {});
+        }
         if (path === `${TEAM_PATH}/sign-out` && request.method === 'POST') {
           if (peer?.principal.kind === 'botharness-member')
             await options.team.revoke(peer.principal.grantId);
@@ -283,7 +298,11 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
             response.end();
             return;
           }
-          if (!peer) {
+          const member =
+            peer?.principal.kind === 'botharness-member'
+              ? options.team.member(peer.principal.humanId)
+              : undefined;
+          if (!peer || member?.mustChangePassword) {
             const nonce = randomBytes(24).toString('base64');
             response.writeHead(200, {
               'content-type': 'text/html; charset=utf-8',
@@ -297,6 +316,7 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
                 hostName: options.hostName(),
                 nonce,
                 insecure: !passwordTransportAllowed(request, options),
+                ...(member ? { step: 'change-password', displayName: member.displayName } : {}),
               }),
             );
             return;
@@ -358,13 +378,19 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
         const status =
           code === 'credentials-invalid'
             ? 401
-            : code === 'rate-limited'
-              ? 429
-              : code === 'not-found'
-                ? 404
-                : code === 'internal' || code === 'member-shell-unavailable'
-                  ? 503
-                  : 403;
+            : path === `${TEAM_PATH}/password` && code === 'password-weak'
+              ? 400
+              : path === `${TEAM_PATH}/password` && code === 'password-reused'
+                ? 409
+                : path === `${TEAM_PATH}/password` && code === 'invalid-input'
+                  ? 400
+                  : code === 'rate-limited'
+                    ? 429
+                    : code === 'not-found'
+                      ? 404
+                      : code === 'internal' || code === 'member-shell-unavailable'
+                        ? 503
+                        : 403;
         json(response, status, {
           code,
           ...(error instanceof TeamError && error.retryAfterSeconds
