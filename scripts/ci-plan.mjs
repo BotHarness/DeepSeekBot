@@ -27,6 +27,10 @@ const related = (glob, why, docsSite = false) => ({ glob, tests: 'related', docs
 const none = (glob, why, docsSite = false) => ({ glob, tests: 'none', docsSite, why });
 
 export const RULES = [
+  full(
+    'docs/research/patches/dsh-desktop-window-capture.patch',
+    'Executable Desktop source patch read by the native capture regression tests',
+  ),
   full('deploy/private-relay/**', 'Private Docker relay runtime, deployment and admission tests'),
   full(
     'packages/client/vendor/dsh-ui-theme-022-rc2/**',

@@ -254,6 +254,7 @@ export function Composer({
     disabled,
     dictation,
     canDictate,
+    keepDisabledMic: Platform.OS === 'android',
   });
   const canSend = actions.includes('send') && !disabled;
   const send = () => {
@@ -382,6 +383,7 @@ export function Composer({
       <VoiceButton
         key="voice"
         active={listening}
+        disabled={disabled && !listening}
         onStart={() => {
           onDictate();
         }}

@@ -14,6 +14,12 @@ The mobile account-list path trusts the Host public key obtained from its authen
 
 No review-specific environment configuration, expiration, API route, model tool, or parallel authority store is introduced. Existing CLI device inspection and revocation apply to both automatic and manual grants. The bounded `account-device-approved` diagnostic records automatic approval without credentials. Signing out stops new account enrollment; it does not revoke existing paired devices. Revocation removes a device grant, but someone who still controls the account can enroll a fresh device, so account compromise also requires securing account access.
 
+## Accepted desktop/Web amendment — 2026-11-13
+
+The Human confirmed automatic discovery and enrollment of same-account computer environments for desktop/Web Clients, followed by actual Host Feed reads with no connect-all click or manual fingerprint comparison. This extends the trusted account-list path above, not ordinary pasted links or images. The reciprocal relationship and each Client's independent grant follow [ADR-0334](0334-host-relationships-authorize-independent-client-enrollment.md); phones still add/enroll each Host individually and do not inherit another Host through a relationship.
+
+Explicit relationship disconnection suppresses automatic account reenrollment until explicit reconnect, including while remote revocation is pending. Ordinary device-grant revocation alone retains the original distinction: account control can authorize a fresh device. Account sign-out stops discovery, new account enrollment and the official service but does not itself revoke existing device grants or independently reachable routes. Existing pin mismatch, signature, account/Host, freshness and verifier checks are unchanged. This amendment is accepted target behavior; it does not declare the desktop path implemented or accepted on a device.
+
 ## Security consequences
 
 This decision supersedes ADR-0244's independent first-key trust and new-device authorization requirements **for authenticated same-account Connect enrollment only**. Account authentication and the Connect relay are trusted enrollment authorities. A compromised account can authorize new devices, and a compromised relay can forge an enrollment or substitute a first-contact Host key. Noise transport encryption does not remove that trust. We therefore do not claim that a compromised relay cannot enroll a new device through this path.

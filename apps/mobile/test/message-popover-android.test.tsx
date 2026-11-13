@@ -21,6 +21,9 @@ vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
 }));
 vi.mock('../src/ui/chat/message-bubble', () => ({ BubbleBody: () => null }));
+vi.mock('../src/ui/chat/message-attachment-picker', () => ({
+  MessageAttachmentPicker: () => null,
+}));
 vi.mock('../src/ui/primitives/row-icon', () => ({ RowIcon: () => null }));
 vi.mock('../src/ui/shell/icons', () => ({
   ChevronRightIcon: () => null,

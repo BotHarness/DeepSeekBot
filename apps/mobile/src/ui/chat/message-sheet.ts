@@ -20,7 +20,8 @@ export type MessageMenuTarget = {
 
 export type MessageMenuAction =
   | { key: 'copy' | 'select-copy' | 'share' | 'open' | 'feedback' | 'select'; label: string }
-  | { key: 'download'; label: string; attachment: MessageAttachment };
+  | { key: 'download'; label: string; attachment: MessageAttachment }
+  | { key: 'attachments'; label: string; attachments: MessageAttachment[] };
 
 export function actionId(action: MessageMenuAction): string {
   return action.key === 'download' ? `download:${action.attachment.key}` : action.key;
@@ -45,7 +46,7 @@ export type MessageActionsProps = {
   onCopy(text: string): void;
   onSelectCopy?: ((message: ConversationMessage) => void) | undefined;
   onShareText(text: string): void;
-  onShareAttachment?: ((attachment: MessageAttachment) => void) | undefined;
+  onShareAttachment?: ((attachment: MessageAttachment) => unknown) | undefined;
 };
 
 export function messageMenuActions(
@@ -53,6 +54,7 @@ export function messageMenuActions(
   activity?: ActivityMenuLink,
   reporting = false,
   selectCopy = false,
+  groupAttachments = false,
 ): MessageMenuAction[] {
   const extra: MessageMenuAction[] =
     reporting && message.delivery === 'committed'
@@ -61,7 +63,19 @@ export function messageMenuActions(
           { key: 'select', label: t.feedback.select },
         ]
       : [];
-  const files = activity === undefined ? downloads(message) : [];
+  const availableFiles = activity === undefined ? downloads(message) : [];
+  const files: MessageMenuAction[] =
+    groupAttachments && availableFiles.length > 1
+      ? [
+          {
+            key: 'attachments',
+            label: t.downloadAttachments(availableFiles.length),
+            attachments: availableFiles.flatMap((action) =>
+              action.key === 'download' ? [action.attachment] : [],
+            ),
+          },
+        ]
+      : availableFiles;
   const source: MessageMenuAction[] =
     selectCopy && activity === undefined && messageSource(message).trim() !== ''
       ? [{ key: 'select-copy', label: t.selectCopy }]
@@ -129,9 +143,11 @@ export function runAction(
     onFeedback?: (() => void) | undefined;
     onSelect?: (() => void) | undefined;
     onShareAttachment?: ((attachment: MessageAttachment) => void) | undefined;
+    onChooseAttachments?: ((attachments: MessageAttachment[]) => void) | undefined;
   },
 ): void {
-  if (action.key === 'download') handlers.onShareAttachment?.(action.attachment);
+  if (action.key === 'attachments') handlers.onChooseAttachments?.(action.attachments);
+  else if (action.key === 'download') handlers.onShareAttachment?.(action.attachment);
   else if (action.key === 'open') handlers.onOpen();
   else if (action.key === 'copy') handlers.onCopy(message.body);
   else if (action.key === 'select-copy') handlers.onSelectCopy?.(message);
