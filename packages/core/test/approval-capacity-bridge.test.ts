@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it, vi } from 'vitest';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import type { BotRuntime } from '../src/runtime/bot-runtime.js';
@@ -10,7 +11,7 @@ import { createBotStateTracker } from '../src/state/bot-state.js';
 describe('approval capacity projection', () => {
   it('does not attach a later call’s wait to a historical approved card', () => {
     const assignmentApprovalWait = vi.fn(() => undefined);
-    const methods = createBridgeMethods({
+    const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
       registry: {} as PersonaBotRegistry,
       channels: {
         get: () => ({ id: 'dm-ada', type: 'dm', botSlug: 'ada' }),
@@ -47,7 +48,7 @@ describe('approval capacity projection', () => {
         get: () => ({ id: 'dm-ada', type: 'dm', botSlug: 'ada' }),
         message: () => ({ toolApprovalRequest: { role: 'assignment', sessionId: 'original' } }),
       } as unknown as ChannelStore;
-      const methods = createBridgeMethods({
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
         registry: {} as PersonaBotRegistry,
         channels,
         states: createBotStateTracker(),

@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 
 import { createBridgeMethods } from '../src/bridge/methods.js';
@@ -50,8 +51,14 @@ describe('Group wake policy authority and audit', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bea', displayName: 'Bea' });
-      joinedGroupId = core.channels.createGroup({ name: 'Joined', members: ['ada'] }).id;
-      otherGroupId = core.channels.createGroup({ name: 'Other', members: ['bea'] }).id;
+      joinedGroupId = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Joined',
+        members: ['ada'],
+      }).id;
+      otherGroupId = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Other',
+        members: ['bea'],
+      }).id;
       core.channels.setGroupWakePolicy(
         joinedGroupId,
         'ada',
@@ -62,7 +69,7 @@ describe('Group wake policy authority and audit', () => {
         },
         { kind: 'human' },
       );
-      await core.channels.appendMessage(joinedGroupId, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, joinedGroupId, {
         id: 'wake-ada',
         at: new Date().toISOString(),
         author: { kind: 'human' },
@@ -91,7 +98,10 @@ describe('Group wake policy authority and audit', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bea', displayName: 'Bea' });
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      });
       groupId = group.id;
       expect(core.channels.getGroupWakePolicy(group.id, 'ada')).toEqual({
         mode: 'digest',
@@ -144,7 +154,7 @@ describe('Group wake policy authority and audit', () => {
       );
 
       const appendOrdinary = async (id: string) => {
-        await core.channels.appendMessage(group.id, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
           id,
           at: new Date().toISOString(),
           author: { kind: 'human' },
@@ -154,7 +164,7 @@ describe('Group wake policy authority and audit', () => {
       };
       await appendOrdinary('before-human-edit');
       expect(
-        createBridgeMethods({ ...core }).channelGroupWakeSet({
+        createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core }).channelGroupWakeSet({
           channelId: group.id,
           botSlug: 'ada',
           mode: 'silent',

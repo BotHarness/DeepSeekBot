@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { afterEach, expect, it, vi } from 'vitest';
 import { createCore } from '../src/plugin.js';
 import type { BotAgentAdapter } from '../src/runtime/bot-runtime.js';
@@ -24,15 +25,17 @@ it('invalidates the shared carrier after canonical messages, reads, decisions an
       if (frame.type === 'attention')
         snapshots.push(
           (['action', 'replies', 'unread'] as const).flatMap((category) =>
-            core.humanAttention.list({ category }).items.map((x) => category + ':' + x.messageId),
+            core.humanAttention
+              .list(OWNER_HUMAN_CONTEXT, { category })
+              .items.map((x) => category + ':' + x.messageId),
           ),
         );
     }
   })();
   try {
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
-    const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-    await core.channels.appendMessage(dm.id, {
+    const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
       id: 'reply',
       at: new Date().toISOString(),
       author: { kind: 'bot', slug: 'ada' },
@@ -40,13 +43,13 @@ it('invalidates the shared carrier after canonical messages, reads, decisions an
     });
     await vi.advanceTimersByTimeAsync(300);
     expect(snapshots.at(-1)).toContain('unread:reply');
-    const unread = core.humanAttention.list({ category: 'unread' }).items[0]!;
+    const unread = core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'unread' }).items[0]!;
     expect(unread).toMatchObject({ channelId: dm.id, messageId: 'reply' });
     expect(unread.sourceEventId).toBeTruthy();
-    await core.channels.markRead(dm.id, 'reply');
+    await core.channels.markRead(OWNER_HUMAN_CONTEXT, dm.id, 'reply');
     await vi.advanceTimersByTimeAsync(300);
     expect(snapshots.at(-1)).not.toContain('unread:reply');
-    await core.channels.appendMessage(dm.id, {
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
       id: 'approval',
       at: new Date().toISOString(),
       author: { kind: 'bot', slug: 'ada' },
@@ -54,14 +57,18 @@ it('invalidates the shared carrier after canonical messages, reads, decisions an
       grantRequest: true,
     });
     await vi.advanceTimersByTimeAsync(300);
-    const action = core.humanAttention.list({ category: 'action' }).items[0]!;
+    const action = core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items[0]!;
     expect(snapshots.at(-1)).toContain('action:approval');
-    core.humanAttentionDecisions.snooze(action, new Date(Date.now() + 1000).toISOString());
+    core.humanAttentionDecisions.snooze(
+      OWNER_HUMAN_CONTEXT,
+      action,
+      new Date(Date.now() + 1000).toISOString(),
+    );
     await vi.advanceTimersByTimeAsync(300);
     expect(snapshots.at(-1)).not.toContain('action:approval');
     await vi.advanceTimersByTimeAsync(1_300);
     expect(snapshots.at(-1)).toContain('action:approval');
-    core.humanAttentionDecisions.dismiss(action);
+    core.humanAttentionDecisions.dismiss(OWNER_HUMAN_CONTEXT, action);
     await vi.advanceTimersByTimeAsync(300);
     expect(snapshots.at(-1)).not.toContain('action:approval');
     const count = snapshots.length;

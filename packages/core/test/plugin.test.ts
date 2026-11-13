@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -53,7 +54,7 @@ afterEach(async () => {
 });
 
 function createStubContext(): { ctx: Context; stubs: Stubs } {
-  const ctx = new Context();
+  const ctx = new Context().extend({ invocation: { peer: { principal: { kind: 'owner' } } } });
   contexts.push(ctx);
   const stubs: Stubs = {
     tools: { register: vi.fn(() => () => undefined), guard: vi.fn(() => () => undefined) },
@@ -152,19 +153,34 @@ describe('plugin entry', () => {
         const owner = tracked.mock.contexts.at(-1);
         if (!(owner instanceof ChannelToolApproval)) throw new Error('Missing approval owner');
         await vi.waitFor(() => expect(owner.requests('ada')).toHaveLength(1));
-        await owner.decide('ada', owner.requests('ada')[0]!.messageId, 'allowed-always-tool');
+        await owner.decide(
+          OWNER_HUMAN_CONTEXT,
+          'ada',
+          owner.requests('ada')[0]!.messageId,
+          'allowed-always-tool',
+        );
         expect(await first).toEqual({ kind: 'allow' });
         expect(markAuthorized).not.toHaveBeenCalled();
         expect(await run(toolName, 'repeat')).toEqual({ kind: 'allow' });
         const sibling = run(siblingName, 'sibling');
         await vi.waitFor(() => expect(owner?.requests('ada')).toHaveLength(1));
-        await owner.decide('ada', owner.requests('ada')[0]!.messageId, 'rejected');
+        await owner.decide(
+          OWNER_HUMAN_CONTEXT,
+          'ada',
+          owner.requests('ada')[0]!.messageId,
+          'rejected',
+        );
         expect(await sibling).toMatchObject({ kind: 'deny' });
         const rule = core.toolRules.list('ada').find((rule) => rule.toolName === toolName)!;
         core.toolRules.revoke('ada', rule.id);
         const revoked = run(toolName, 'revoked');
         await vi.waitFor(() => expect(owner?.requests('ada')).toHaveLength(1));
-        await owner.decide('ada', owner.requests('ada')[0]!.messageId, 'rejected');
+        await owner.decide(
+          OWNER_HUMAN_CONTEXT,
+          'ada',
+          owner.requests('ada')[0]!.messageId,
+          'rejected',
+        );
         expect(await revoked).toMatchObject({ kind: 'deny' });
         expect(markAuthorized).not.toHaveBeenCalled();
       } finally {

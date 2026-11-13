@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -226,7 +227,7 @@ it('retains Bot identity, Channel history, Memory and custom QQ policy revisions
     rootDir: join(dshHome, 'botharness', 'channels'),
     database: port,
   });
-  const channel = channels.getOrCreateDm('ada', 'Existing Ada');
+  const channel = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Existing Ada');
   if (!channel) throw new Error('Fixture DM was not created');
   const message = {
     id: 'retained-message',
@@ -234,7 +235,9 @@ it('retains Bot identity, Channel history, Memory and custom QQ policy revisions
     author: { kind: 'bot' as const, slug: 'ada' },
     body: 'Existing history stays.',
   };
-  expect(await channels.appendMessage(channel.id, message)).toMatchObject(message);
+  expect(await channels.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, message)).toMatchObject(
+    message,
+  );
   const policy = '{"collection":"mentions","wake":"mentions"}';
   port.transaction((db) => {
     db.prepare(`INSERT INTO messaging_bindings

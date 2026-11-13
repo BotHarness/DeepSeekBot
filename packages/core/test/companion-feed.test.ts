@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { afterEach, expect, it } from 'vitest';
 import { createCompanionFeed, type CompanionFeed } from '../src/companions/feed.js';
 import type { PersonaBotOutputCommitted } from '../src/channels/output.js';
@@ -47,8 +48,9 @@ it('delivers committed owned output and real Activity through the Host HTTP cont
       rootRole: 'orchestrator',
       at: FIXED_NOW().toISOString(),
     });
-    const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+    const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
     await core.channels.appendMessage(
+      OWNER_HUMAN_CONTEXT,
       dm.id,
       {
         id: 'old',
@@ -66,6 +68,7 @@ it('delivers committed owned output and real Activity through the Host HTTP cont
     await receive();
     expect(owner.getSnapshot().activity?.state).toBe('thinking');
     await core.channels.appendMessage(
+      OWNER_HUMAN_CONTEXT,
       dm.id,
       {
         id: 'new',

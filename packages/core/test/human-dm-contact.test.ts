@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -37,8 +38,8 @@ describe('Human DM selected contact context', () => {
         displayName: 'Alex',
         description: 'Reviews documentation',
       });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      const methods = createBridgeMethods({
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
         registry: core.registry,
         states: core.states,
         channels: core.channels,
@@ -141,17 +142,17 @@ describe('Human DM selected contact context', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
       const memoryDir = core.registry.memoryDirFor('ada');
       if (memoryDir === undefined) throw new Error('Memory dir missing');
       const send = async (id: string, body: string) => {
-        await core.channels.appendMessage(dm.id, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
           id,
           at: '2026-09-26T00:00:00.000Z',
           author: { kind: 'human' },
           body,
         });
-        core.runtime.admitDmMessage({ channelId: dm.id, messageId: id, body });
+        core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, { channelId: dm.id, messageId: id, body });
         await core.runtime.whenIdle();
       };
       await send('m1', 'hello');
@@ -211,14 +212,18 @@ describe('Human DM selected contact context', () => {
     };
     let core = createCore({ dshHome: home, agents });
     const send = async (id: string) => {
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      await core.channels.appendMessage(dm.id, {
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id,
         at: '2026-09-26T00:00:00.000Z',
         author: { kind: 'human' },
         body: 'hello',
       });
-      core.runtime.admitDmMessage({ channelId: dm.id, messageId: id, body: 'hello' });
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+        channelId: dm.id,
+        messageId: id,
+        body: 'hello',
+      });
       await core.runtime.whenIdle();
     };
     try {

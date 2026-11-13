@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { setImmediate as tick } from 'node:timers/promises';
 import { afterEach, expect, it, vi } from 'vitest';
 import { createCore, type BotHarnessCore } from '../src/plugin.js';
@@ -556,8 +557,14 @@ it('Discord shared placement deduplicates the existing Inbox path and preserves 
     fingerprint,
     targetDigest: target.digest,
   });
-  const shared = core.channels.createGroup({ name: 'Shared Discord', members: ['ada', 'bea'] });
-  const other = core.channels.createGroup({ name: 'Untargeted', members: ['ada'] });
+  const shared = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+    name: 'Shared Discord',
+    members: ['ada', 'bea'],
+  });
+  const other = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+    name: 'Untargeted',
+    members: ['ada'],
+  });
   await core.externalMessaging.inbound.channelBridge(shared.id, {
     kind: 'add',
     grantId: grant.id,

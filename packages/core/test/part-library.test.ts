@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 import { OperationalDatabaseError, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
@@ -52,7 +53,7 @@ describe('Part Library through the public Host bridge', () => {
   it('adds drawn parts once by content and keeps them across restarts', async () => {
     const dshHome = createTempRoot('bh-part-library-');
     await withCore(dshHome, (core) => {
-      const bridge = createBridgeMethods({ ...core });
+      const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
       expect(bridge.partLibraryList()).toEqual({ ok: true, value: { parts: [] } });
       const added = bridge.partLibraryAdd({ part: crown, name: '  Little crown  ' });
       expect(added).toMatchObject({
@@ -68,7 +69,7 @@ describe('Part Library through the public Host bridge', () => {
       expect(parts.ok && parts.value.parts).toHaveLength(1);
     });
     await withCore(dshHome, (core) => {
-      const bridge = createBridgeMethods({ ...core });
+      const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
       const parts = bridge.partLibraryList();
       expect(parts.ok && parts.value.parts.map((entry) => entry.id)).toEqual([customPartId(crown)]);
     });
@@ -85,7 +86,7 @@ describe('Part Library through the public Host bridge', () => {
           throw new OperationalDatabaseError('closed', 'closed');
         },
       };
-      const bridge = createBridgeMethods({ ...core, partLibrary: failing });
+      const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core, partLibrary: failing });
       expect(bridge.partLibraryList()).toMatchObject({
         ok: false,
         error: { code: 'storage-unavailable' },
@@ -99,7 +100,7 @@ describe('Part Library through the public Host bridge', () => {
 
   it('rejects invalid parts, names and parents', async () => {
     await withCore(createTempRoot('bh-part-library-invalid-'), (core) => {
-      const bridge = createBridgeMethods({ ...core });
+      const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
       expect(bridge.partLibraryAdd({ part: { ...crown, slot: 'mouth' }, name: '' }).ok).toBe(false);
       expect(
         bridge.partLibraryAdd({ part: { ...crown, front: [[40, 0, 'hairColor', 0]] }, name: '' })
@@ -114,7 +115,7 @@ describe('Part Library through the public Host bridge', () => {
 
   it('records an edit as a new part and never changes an applied copy', async () => {
     await withCore(createTempRoot('bh-part-library-apply-'), (core) => {
-      const bridge = createBridgeMethods({ ...core });
+      const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
       expect(core.registry.create({ slug: 'ada', displayName: 'Ada', workspaces: [] }).ok).toBe(
         true,
       );

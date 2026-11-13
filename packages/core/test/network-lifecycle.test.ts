@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { randomBytes } from 'node:crypto';
 import { expect, it } from 'vitest';
 import { createCore } from '../src/plugin.js';
@@ -118,8 +119,8 @@ it.skipIf(!aliases)(
         expect(row).toBeDefined();
         return row!.source_event_id;
       };
-      const dm = a!.channels.getOrCreateDm('bot', 'Colleague')!;
-      await a!.channels.appendMessage(dm.id, {
+      const dm = a!.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'bot', 'Colleague')!;
+      await a!.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'root',
         at: new Date().toISOString(),
         author: { kind: 'human' },

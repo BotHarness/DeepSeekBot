@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { ChannelMessage } from '../src/channels/channel.js';
@@ -52,7 +53,7 @@ async function groupScenario(input: {
       core.registry.create({ slug: bot.slug, displayName: bot.displayName });
       if (bot.paused === true) core.registry.setPaused(bot.slug, true);
     }
-    const group = core.channels.createGroup({
+    const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
       name: 'Studio',
       members: input.bots.filter((bot) => bot.member !== false).map((bot) => bot.slug),
     });
@@ -70,7 +71,7 @@ async function groupScenario(input: {
       body += `@${label} `;
     }
     body += '完成后记得 @ 总控汇报';
-    await core.channels.appendMessage(group.id, {
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
       id: 'human-kickoff',
       at: '2026-10-14T00:00:00.000Z',
       author: { kind: 'human' },

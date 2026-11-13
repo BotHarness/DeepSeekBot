@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 
 import { createBridgeMethods } from '../src/bridge/methods.js';
@@ -23,7 +24,7 @@ async function ordinary(
   channelId: string,
   id: string,
 ): Promise<void> {
-  const message = await core.channels.appendMessage(channelId, {
+  const message = await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
     id,
     at: new Date().toISOString(),
     author: { kind: 'human' },
@@ -46,7 +47,10 @@ describe('Group ordinary-message digest', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bea', displayName: 'Bea' });
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada', 'bea'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada', 'bea'],
+      });
       core.channels.setGroupWakePolicy(group.id, 'bea', {
         mode: 'mentions',
         count: 5,
@@ -110,8 +114,14 @@ describe('Group ordinary-message digest', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const inherited = core.channels.createGroup({ name: 'Inherited', members: ['ada'] });
-      const overridden = core.channels.createGroup({ name: 'Overridden', members: ['ada'] });
+      const inherited = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Inherited',
+        members: ['ada'],
+      });
+      const overridden = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Overridden',
+        members: ['ada'],
+      });
       core.channels.setGroupWakePolicy(overridden.id, 'ada', {
         mode: 'mentions',
         count: 5,
@@ -192,13 +202,16 @@ describe('Group ordinary-message digest', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      });
       core.sourcePolicy.setGroupOrdinary('ada', 'silent', 5, 30, { kind: 'human' });
       await ordinary(core, group.id, 'silent-one');
       await core.runtime.whenIdle();
       expect(runs).toHaveLength(0);
       const sendMention = async (id: string): Promise<void> => {
-        await core.channels.appendMessage(group.id, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
           id,
           at: new Date().toISOString(),
           author: { kind: 'human' },
@@ -262,8 +275,11 @@ describe('Group ordinary-message digest', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
-      const methods = createBridgeMethods({ ...core });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      });
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
       expect(
         methods.channelGroupWakeSet({
           channelId: group.id,
@@ -312,7 +328,10 @@ describe('Group ordinary-message digest', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      });
       await ordinary(core, group.id, 'before-switch');
       await core.runtime.whenIdle();
       expect(runs).toEqual([]);
@@ -353,7 +372,10 @@ describe('Group ordinary-message digest', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      });
       core.channels.setGroupWakePolicy(group.id, 'ada', {
         mode: 'digest',
         count: 2,
@@ -399,13 +421,16 @@ describe('Group ordinary-message digest', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      });
       core.channels.setGroupWakePolicy(group.id, 'ada', {
         mode: 'digest',
         count: 5,
         intervalSeconds: 3600,
       });
-      await core.channels.appendMessage(group.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'mention',
         at: new Date().toISOString(),
         author: { kind: 'human' },
@@ -432,7 +457,10 @@ describe('Group ordinary-message digest', () => {
     let groupId = '';
     try {
       before.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = before.channels.createGroup({ name: 'Team', members: ['ada'] });
+      const group = before.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      });
       groupId = group.id;
       before.channels.setGroupWakePolicy(group.id, 'ada', {
         mode: 'digest',
@@ -490,20 +518,27 @@ describe('Group ordinary-message digest', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      });
       core.channels.setGroupWakePolicy(group.id, 'ada', {
         mode: 'digest',
         count: 2,
         intervalSeconds: 3600,
       });
-      await core.channels.appendMessage(dm.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'hold',
         at: new Date().toISOString(),
         author: { kind: 'human' },
         body: 'Hold',
       });
-      core.runtime.admitDmMessage({ channelId: dm.id, messageId: 'hold', body: 'Hold' });
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+        channelId: dm.id,
+        messageId: 'hold',
+        body: 'Hold',
+      });
       await began;
       await ordinary(core, group.id, 'one');
       await ordinary(core, group.id, 'two');
@@ -532,8 +567,11 @@ describe('Group ordinary-message digest', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
-      const methods = createBridgeMethods({ ...core });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      });
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
       expect(
         methods.channelGroupWakeSet({
           channelId: group.id,
@@ -583,7 +621,10 @@ describe('Group ordinary-message digest', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      });
       core.channels.setGroupWakePolicy(group.id, 'ada', {
         mode: 'digest',
         count: 1,
@@ -619,7 +660,10 @@ describe('Group ordinary-message digest', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bea', displayName: 'Bea' });
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada', 'bea'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada', 'bea'],
+      });
       core.channels.setGroupWakePolicy(group.id, 'ada', {
         mode: 'silent',
         count: 5,
@@ -630,7 +674,7 @@ describe('Group ordinary-message digest', () => {
         count: 5,
         intervalSeconds: 60,
       });
-      const methods = createBridgeMethods({ ...core });
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
       expect(methods.pause({ slug: 'ada' })).toMatchObject({ ok: true });
       await ordinary(core, group.id, 'while-ada-paused');
       await core.runtime.whenIdle();
@@ -665,9 +709,12 @@ describe('Group ordinary-message digest', () => {
     let groupId = '';
     try {
       before.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = before.channels.createGroup({ name: 'Team', members: ['ada'] });
+      const group = before.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      });
       groupId = group.id;
-      const methods = createBridgeMethods({ ...before });
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...before });
       expect(
         methods.channelGroupWakeSet({
           channelId: group.id,
@@ -714,7 +761,7 @@ describe('Group ordinary-message digest', () => {
       await new Promise((resolve) => setTimeout(resolve, 1200));
       await after.runtime.whenIdle();
       expect(afterRuns).toEqual([]);
-      await after.channels.appendMessage(groupId, {
+      await after.channels.appendMessage(OWNER_HUMAN_CONTEXT, groupId, {
         id: 'mention-after-silent',
         at: new Date().toISOString(),
         author: { kind: 'human' },
@@ -752,7 +799,10 @@ describe('Group ordinary-message digest', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      });
       core.channels.setGroupWakePolicy(group.id, 'ada', {
         mode: 'silent',
         count: 5,
@@ -795,7 +845,10 @@ describe('Group ordinary-message digest', () => {
     const core = createCore({ dshHome: home, agents: adapter(async () => {}) });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      });
       core.channels.setGroupWakePolicy(group.id, 'ada', {
         mode: 'digest',
         count: 5,
@@ -809,7 +862,10 @@ describe('Group ordinary-message digest', () => {
           .get(),
       );
       expect(fact).toEqual({ attempt_state: 'handled' });
-      const second = core.channels.createGroup({ name: 'Another', members: ['ada'] });
+      const second = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Another',
+        members: ['ada'],
+      });
       core.channels.setGroupWakePolicy(second.id, 'ada', {
         mode: 'digest',
         count: 2,
@@ -838,21 +894,27 @@ describe('Group ordinary-message digest', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
 
-      const earlier = core.channels.createGroup({ name: 'Zebra', members: ['ada'] });
-      const later = core.channels.createGroup({ name: 'Alpha', members: ['ada'] });
+      const earlier = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Zebra',
+        members: ['ada'],
+      });
+      const later = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Alpha',
+        members: ['ada'],
+      });
       for (const group of [earlier, later])
         core.channels.setGroupWakePolicy(group.id, 'ada', {
           mode: 'digest',
           count: 1,
           intervalSeconds: 3600,
         });
-      await core.channels.appendMessage(later.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, later.id, {
         id: 'later-1',
         at: '2026-09-26T00:00:10.000Z',
         author: { kind: 'human' },
         body: 'ordinary later',
       });
-      await core.channels.appendMessage(earlier.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, earlier.id, {
         id: 'earlier-1',
         at: '2026-09-26T00:00:09.000Z',
         author: { kind: 'human' },

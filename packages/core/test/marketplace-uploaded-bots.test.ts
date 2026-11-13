@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -91,7 +92,7 @@ function fixture() {
     run: async () => ({ text: '{"findings": []}', model: 'deepseek/test' }),
   };
   const captures: [string, Record<string, unknown> | undefined][] = [];
-  const bridge = createBridgeMethods({
+  const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
     ...core,
     telemetry: {
       status: () => ({ enabled: true, preference: true }),

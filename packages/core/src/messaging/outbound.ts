@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { readIngest } from './conversation-ingest.js';
 import { isChannelNotice } from '../channels/channel-notice.js';
 import { sourceContentPurged } from '../purge/fence.js';
@@ -606,7 +607,7 @@ export function createOutboundMessaging(options: {
   const mirrorAccepted = async (accepted: StoredIntent): Promise<void> => {
     try {
       if (accepted.requestId.startsWith('web-mirror-') || !accepted.dmMirror) return;
-      const channel = options.channels?.getOrCreateDm(accepted.botSlug);
+      const channel = options.channels?.getOrCreateDm(OWNER_HUMAN_CONTEXT, accepted.botSlug);
       if (!channel) return;
       const commit = transaction(
         (db) => {
@@ -644,7 +645,7 @@ export function createOutboundMessaging(options: {
             )
               return;
           }
-          bridgeChannel(db, channel.id, value.botSlug);
+          bridgeChannel(OWNER_HUMAN_CONTEXT, db, channel.id, value.botSlug);
           if (db.prepare('SELECT 1 FROM source_events WHERE source_event_id = ?').get(sourceId))
             return;
           const message: ChannelMessage = {
@@ -2256,9 +2257,9 @@ export function createOutboundMessaging(options: {
     },
     history,
     async channelBridges(channelId) {
-      const channel = database.read((db) => humanBridgeChannel(db, channelId));
+      const channel = database.read((db) => humanBridgeChannel(OWNER_HUMAN_CONTEXT, db, channelId));
       const snapshots = await Promise.all(channel.members.map((slug) => service.snapshot(slug)));
-      const current = database.read((db) => humanBridgeChannel(db, channelId));
+      const current = database.read((db) => humanBridgeChannel(OWNER_HUMAN_CONTEXT, db, channelId));
       const grants = snapshots.flatMap((snapshot, index) =>
         current.members.includes(channel.members[index]!)
           ? snapshot.grants.filter(
@@ -2525,7 +2526,7 @@ export function createOutboundMessaging(options: {
         }[];
         return rows.flatMap(({ channel_id }) => {
           try {
-            const channel = bridgeChannel(db, channel_id, botSlug, true);
+            const channel = bridgeChannel(OWNER_HUMAN_CONTEXT, db, channel_id, botSlug, true);
             return channel.type === 'group' ? [{ id: channel.id, name: channel.name }] : [];
           } catch (error) {
             if (error instanceof MessagingError) return [];

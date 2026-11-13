@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -416,7 +417,7 @@ describe('Registry database authority', () => {
       expect(second.operationalDatabase.diagnostics().mode).toBe('recovery');
       expect(() => second.registry.create({ slug: 'denied', displayName: 'Denied' })).toThrow();
       expect(() =>
-        second.runtime.admitDmMessage({
+        second.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
           channelId: 'qa-channel',
           messageId: 'qa-message',
           body: 'must not execute',

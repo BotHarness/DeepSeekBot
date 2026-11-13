@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -468,9 +469,9 @@ describe('installedDshVersion', () => {
 
 describe('telemetryStatus bridge method', () => {
   it('reports the Host decision to the Client', () => {
-    const methods = createBridgeMethods({
+    const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
       telemetry: { status: () => ({ enabled: true, preference: true }) },
-    } as unknown as Parameters<typeof createBridgeMethods>[0]);
+    } as unknown as Parameters<typeof createBridgeMethods>[1]);
     expect(methods.telemetryStatus()).toEqual({
       ok: true,
       value: { enabled: true, preference: true },
@@ -478,7 +479,10 @@ describe('telemetryStatus bridge method', () => {
   });
 
   it('reports disabled when the Host has no telemetry', () => {
-    const methods = createBridgeMethods({} as unknown as Parameters<typeof createBridgeMethods>[0]);
+    const methods = createBridgeMethods(
+      OWNER_HUMAN_CONTEXT,
+      {} as unknown as Parameters<typeof createBridgeMethods>[1],
+    );
     expect(methods.telemetryStatus()).toEqual({
       ok: true,
       value: { enabled: false, preference: false },
@@ -495,9 +499,9 @@ describe('telemetryStatus bridge method', () => {
       dataDir: dataDir(),
       send: recordingSender().send,
     });
-    const methods = createBridgeMethods({ telemetry } as unknown as Parameters<
+    const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { telemetry } as unknown as Parameters<
       typeof createBridgeMethods
-    >[0]);
+    >[1]);
     expect(methods.telemetrySet({})).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
     expect(methods.telemetrySet({ enabled: false })).toEqual({
       ok: true,
@@ -517,9 +521,9 @@ describe('telemetryStatus bridge method', () => {
       send: recordingSender().send,
     });
     writeFileSync(join(dir, INSTALL_ID_FILE), '{}');
-    const methods = createBridgeMethods({ telemetry } as unknown as Parameters<
+    const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { telemetry } as unknown as Parameters<
       typeof createBridgeMethods
-    >[0]);
+    >[1]);
     expect(methods.telemetrySet({ enabled: false })).toMatchObject({
       ok: false,
       error: { code: 'telemetry-persist-failed' },

@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { expect, it, vi } from 'vitest';
 import { createCore } from '../src/plugin.js';
 import { createTempRoot, FIXED_NOW } from './helpers.js';
@@ -176,9 +177,10 @@ it('keeps reading progress and deduplicates recovery through the real feed into 
       rootRole: 'orchestrator',
       at: FIXED_NOW().toISOString(),
     });
-    const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+    const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
     const commit = (id: string) =>
       core.channels.appendMessage(
+        OWNER_HUMAN_CONTEXT,
         dm.id,
         { id, at: FIXED_NOW().toISOString(), author: { kind: 'bot', slug: 'ada' }, body: id },
         { sessionId: 'ada' },
@@ -236,7 +238,7 @@ it('keeps reading progress and deduplicates recovery through the real feed into 
     expect(child.getSnapshot().cards.map((card) => card.messageId)).toEqual([
       'future-after-enable',
     ]);
-    expect(core.channels.readPosition(dm.id)).toBeUndefined();
+    expect(core.channels.readPosition(OWNER_HUMAN_CONTEXT, dm.id)).toBeUndefined();
   } finally {
     owner.dispose();
     await reader?.cancel();
@@ -295,10 +297,14 @@ it('recovers bounded canonical new output in the same Host without crossing the 
       rootRole: 'orchestrator',
       at: FIXED_NOW().toISOString(),
     });
-    const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-    const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
+    const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+    const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Team',
+      members: ['ada'],
+    });
     const commit = (channelId: string, id: string) =>
       core.channels.appendMessage(
+        OWNER_HUMAN_CONTEXT,
         channelId,
         {
           id,
@@ -350,7 +356,7 @@ it('recovers bounded canonical new output in the same Host without crossing the 
     await commit(group.id, 'stale-update-must-not-restore-group');
     await commit(dm.id, 'fresh-dm');
     expect((await read(narrowed)).data.messageId).toBe('fresh-dm');
-    expect(core.channels.readPosition(dm.id)).toBeUndefined();
+    expect(core.channels.readPosition(OWNER_HUMAN_CONTEXT, dm.id)).toBeUndefined();
   } finally {
     for (const reader of readers) await reader.cancel();
     core.companions.close();

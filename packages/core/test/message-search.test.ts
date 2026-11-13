@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 
 import { createBridgeMethods } from '../src/bridge/methods.js';
@@ -10,21 +11,21 @@ async function fixture() {
   const core = createCore({ dshHome: createTempRoot('botharness-message-search-') });
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
   core.registry.create({ slug: 'bob', displayName: 'Bob' });
-  const ada = core.channels.getOrCreateDm('ada', 'Ada')!;
-  const bob = core.channels.getOrCreateDm('bob', 'Bob')!;
-  await core.channels.appendMessage(ada.id, {
+  const ada = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+  const bob = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'bob', 'Bob')!;
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, ada.id, {
     id: 'ada-one',
     at: '2026-10-14T00:00:00.000Z',
     author: { kind: 'human' },
     body: 'Where is the launch checklist? 搜索功能要上线',
   });
-  await core.channels.appendMessage(bob.id, {
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, bob.id, {
     id: 'bob-one',
     at: '2026-10-14T00:00:05.000Z',
     author: { kind: 'bot', slug: 'bob' },
     body: 'The LAUNCH moved to Friday',
   });
-  await core.channels.appendMessage(bob.id, {
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, bob.id, {
     id: 'bob-memory',
     at: '2026-10-14T00:00:06.000Z',
     author: { kind: 'bot', slug: 'bob' },
@@ -32,7 +33,7 @@ async function fixture() {
     memoryCommit: { subject: 'launch', authorName: 'Bob', files: 'notes.md', sha: 'abc' },
   } as never);
   await core.roster.attach(createFakeRosterDomain().facility);
-  const methods = createBridgeMethods({ ...core });
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
   const close = async () => {
     await core.runtime.close();
     core.operationalDatabase.close();
@@ -73,7 +74,7 @@ describe('Global message search', () => {
     const { core, ada, methods, close } = await fixture();
     try {
       for (let index = 0; index < 205; index += 1)
-        await core.channels.appendMessage(ada.id, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, ada.id, {
           id: `cap-${index}`,
           at: new Date(Date.UTC(2026, 9, 15, 0, 0, index)).toISOString(),
           author: { kind: 'human' },
@@ -100,8 +101,11 @@ describe('Global message search', () => {
       await core.roster.hiddenSet([bob.id]);
       const found = methods.messageSearch({ text: 'launch' });
       expect(found.ok && found.value.hits.map((hit) => hit.message.id)).toEqual(['ada-one']);
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
-      await core.channels.appendMessage(group.id, {
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      });
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'group-one',
         at: '2026-10-14T00:01:00.000Z',
         author: { kind: 'bot', slug: 'ada' },
@@ -128,7 +132,7 @@ describe('Global message search', () => {
   it('finds a message by its attachment file name', async () => {
     const { core, ada, methods, close } = await fixture();
     try {
-      await core.channels.appendMessage(ada.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, ada.id, {
         id: 'ada-file',
         at: '2026-10-14T00:02:00.000Z',
         author: { kind: 'bot', slug: 'ada' },
