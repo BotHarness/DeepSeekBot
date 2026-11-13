@@ -57,6 +57,10 @@ const pr = (...paths) => ({
   changes: paths.map((path) => ({ status: 'modified', path })),
 });
 
+it('runs native capture regressions for a source-patch-only change', () => {
+  expect(plan(pr('docs/research/patches/dsh-desktop-window-capture.patch')).tests).toBe('full');
+});
+
 describe('mobile verification selection', () => {
   const sources = {
     ...repo,

@@ -49,6 +49,24 @@ For the Web document's large-text journey, use Harness Settings → General → 
 
 ## Driving it with verify-app
 
+### Mobile multiple-file downloads (#4099)
+
+In one synthetic Human message and one Bot message, attach three files, including two with the
+same displayed filename and different bytes. Tap the second, third and first file in that order,
+dismissing the iOS share sheet / Android Sharesheet between actions. Each action must fetch the
+selected original and present its own file; compare saved or receiver-observed bytes rather than
+only the filename. Repeat a cached file, a failed download/retry and an unavailable attachment.
+Holding a file still opens the existing message actions; Android bubble selection and menus must
+not swallow the file tap. This downloads into App cache before presenting system sharing; it does
+not promise automatic saving to the system Downloads directory.
+
+`apps/mobile/test/message-bubble.test.tsx` checks per-file callback routing under both platform
+branches. `apps/mobile/test/message-files-download.test.tsx` drives the shared file rows through
+the real share/cache functions with controlled resource readers, file-system and OS-sharing
+adapters, checking same-name content isolation, per-file busy state and retry. These checks do
+not qualify native touch arbitration, real transport, OS sharing or physical-device acceptance;
+run the native journey above separately on each platform and retain artifact identities.
+
 ### Android mixed native and React message rows
 
 On the assigned physical Android Release build, seed one isolated DM through `bot-tool <bot> bot_send_message --args-stdin` with ordinary text, fenced code, a table, an image attachment, a file attachment and a GenUI document. Include an existing voice reply, a quoted reply and a reacted message. Keep one plain reply as the newest message; its React row must behave like the older native text row.
@@ -145,6 +163,20 @@ apps/mobile/test/message-selection.test.ts, packages/client/test/message-selecti
 
 - `BH_E2E_INSTANCE=.humanlayer/verify/<name>/instance.json node scripts/perf-idle-timeline.mjs --messages 600 --profile` seeds a 600-message Group with mixed Markdown, mounts all of it and reports idle main-thread time and typing latency. Run it with and without `--animate`. Typing must not re-render the timeline: `typing.hottest` should not contain `MessageGroupView`. See [the performance guide](../references/performance.md).
 
+### Android multiple attachment menu (#4102)
+
+In an Android message with ten available attachments (the current send limit), tap the bubble body (not a file row).
+The action card has one Download attachments (10) entry rather than ten file actions.
+Open it: a native modal bottom sheet lists only this message's available original attachments,
+including voice and image originals. Names wrap; type, size and the message-order position remain
+readable. Scroll to the final item and download it through Android Sharesheet. Compare the phone's
+locally received bytes with the final attachment, then repeat second/third/first same-name files.
+Cancel and Back dismiss the chooser without downloading; while a chosen share is pending,
+repeated taps must not launch another share. Canceling system sharing returns to the conversation.
+A one-file message keeps its direct action, and tapping a file inside the bubble remains direct.
+Repeat light/dark and default/large text; verify reaching the last row on the physical Android lane.
+iOS retains its existing native message menu in this slice.
+
 ## Gotchas
 
 - The #1023 Lark parent-video candidate needs a native `media` parent quoted by an actual Bot-mentioned Human request in a synced conversation. Open that Channel and confirm there is no video/cover request before **Prepare video**. Prepare, then manually play, pause and seek; verify advancing decoded frames rather than only a successful HTTP response. Original download is independent, and a missing/failed native cover must not block playback. Use a fresh native resource to verify stop-before-acquisition; reusing an acquired parent tests cached access instead. Native and installed-product qualification remain pending in `docs/dev/verification/lark-1023-channel-video.md`; do not fabricate a Source Event or rename an ordinary file to qualify video.
@@ -165,3 +197,7 @@ Use synthetic Chinese messages. Compare light/dark and custom yellow, green, whi
 ### Android history failure recovery (#3257)
 
 On the assigned Android Release phone, hold a numbered message at the oldest loaded boundary. Delay the older-page request, interrupt only the dedicated QA Host, then restore it. Record the same message ID and screen offset before failure and after reconnection (within 1 dp); the history Retry action must remain visible below the header. Press Retry without scrolling to reveal it: older messages appear above the same anchor, with no duplicate or missing IDs. Record transient frames separately from settled bounds. Repeat with keyboard, larger text, and a held message away from the top; verify latest-message following separately. Diagnostic delays/logs must remain outside production commits.
+
+### Native foreground connection continuity (#4103)
+
+On the assigned Android Release phone, hold an image and file message at a stable reading anchor with a draft. Open and cancel the system Sharesheet from a file row, the message attachment chooser and profile Files. Record returning frames: loaded images, message anchor, draft and microphone position stay stable. Brief background/foreground transitions preserve the healthy live carrier. Interrupt only the QA route and restore it: the microphone stays in place while disabled, connection feedback remains quiet for four seconds, and prolonged loss shows offline after fifteen seconds. Verify new messages arrive after recovery, and verify a silently suspended live socket still recovers. Credential refusal remains immediate. Record native and automated results separately.
