@@ -2,6 +2,25 @@
   "version": 1,
   "groups": [
     {
+      "id": "remote-bot-settings",
+      "description": "Exact remote Channel owner Bot settings through the existing authenticated Host owners.",
+      "scope": "Captured Host and Bot",
+      "surfaces": [
+        "setting:packages/client/src/client/remote-bot-settings.tsx:{t('remoteBotSettings.preset')}",
+        "setting:packages/client/src/client/remote-bot-settings.tsx:{grant.workspaceTitle}",
+        "setting:packages/client/src/client/remote-bot-settings.tsx:{t('autoApproval.title')}"
+      ],
+      "commands": [
+        "update",
+        "model-plan-customize",
+        "model-preset-apply",
+        "workspace-create",
+        "grant-create",
+        "grant-revoke",
+        "approval-template-set"
+      ]
+    },
+    {
       "id": "host-relationships",
       "description": "Reciprocal Host approval, independent client enrollment and relationship disconnection.",
       "scope": "Local Host",

@@ -4,6 +4,23 @@ import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots';
 export const LOCALE_NS = 'botharness';
 
 export const zh = {
+  'remoteBotSettings.open': '管理 Bot',
+  'remoteBotSettings.refresh': '刷新设置',
+  'remoteBotSettings.unsupported': '此 Host 尚不支持这项设置，需在 Bot 所在电脑上操作。',
+  'remoteBotSettings.revokeHint': '撤销 {name} 对 {path} 的访问权限。',
+  'remoteBotSettings.title': '{name} 的设置',
+  'remoteBotSettings.profile': 'Bot 资料',
+  'remoteBotSettings.name': 'Bot 名称',
+  'remoteBotSettings.workspaces': '授权文件夹',
+  'remoteBotSettings.preset': '应用模型预设',
+  'remoteBotSettings.choosePreset': '选择预设',
+  'remoteBotSettings.chooseWorkspace': '选择远端文件夹',
+  'remoteBotSettings.browse': '浏览远端文件夹',
+  'remoteBotSettings.authorize': '授权文件夹',
+  'remoteBotSettings.revoke': '撤销授权',
+  'remoteBotSettings.grantHint': '将 {path} 授权给 {name}。Bot 可在事项中读写此文件夹。',
+  'remoteBotSettings.failed': '未能完成。刷新此 Bot 的设置后再试。',
+  'remoteBotSettings.localOnly': '本机对话框和系统交互需在此 Bot 所在的电脑上操作。',
   'environment.title': '环境',
   'environment.settings.target': '设置目标环境',
   'environment.settings.saveAndSwitch': '保存并切换',
@@ -5258,6 +5275,26 @@ export function zhTranslate(key: BotHarnessKey | string, params?: Record<string,
 }
 
 export const en = {
+  'remoteBotSettings.open': 'Manage Bot',
+  'remoteBotSettings.refresh': 'Refresh settings',
+  'remoteBotSettings.unsupported':
+    'This Host does not support this setting yet. Use the Bot’s computer.',
+  'remoteBotSettings.revokeHint': 'Revoke {name}’s access to {path}.',
+  'remoteBotSettings.title': 'Settings for {name}',
+  'remoteBotSettings.profile': 'Bot profile',
+  'remoteBotSettings.name': 'Bot name',
+  'remoteBotSettings.workspaces': 'Authorized folders',
+  'remoteBotSettings.preset': 'Apply model preset',
+  'remoteBotSettings.choosePreset': 'Choose a preset',
+  'remoteBotSettings.chooseWorkspace': 'Choose a remote folder',
+  'remoteBotSettings.browse': 'Browse remote folders',
+  'remoteBotSettings.authorize': 'Authorize folder',
+  'remoteBotSettings.revoke': 'Revoke access',
+  'remoteBotSettings.grantHint':
+    'Authorize {path} for {name}. The Bot can read and write this folder in Assignments.',
+  'remoteBotSettings.failed': 'Could not finish. Refresh this Bot’s settings and try again.',
+  'remoteBotSettings.localOnly':
+    'Use this Bot’s computer for local dialogs and system interaction.',
   'environment.title': 'Environments',
   'environment.settings.target': 'Settings target environment',
   'environment.settings.saveAndSwitch': 'Save and switch',

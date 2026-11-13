@@ -1,4 +1,5 @@
 import { CHANNEL_BODY_PANEL, readChannelDock, writeChannelDock } from './channel-dock-layout.js';
+import { RemoteBotSettingsView } from './remote-bot-settings.js';
 import { rewriteHasSiblingRules } from './has-sibling-rewrite.js';
 import { createBotPresentation } from './bot-presentation.js';
 import { disposeClientLog, installClientLog } from './diagnostic-log.js';
@@ -402,6 +403,12 @@ export function apply(ctx: ClientContext): void {
     ),
   );
   const botSettingsSections = botSettingsSectionSource(ctx);
+  ctx.slots.inject('shell.overlay', () =>
+    ctx.slots.register(
+      { name: 'shell.overlay', id: 'botharness-remote-bot-settings', locale: LOCALE_NS },
+      RemoteBotSettingsView,
+    ),
+  );
   const quickSwitcherSettings: QuickSwitcherSettings = {
     search: (query) => searchSettings(botSettingsSections.getSnapshot(), query, t),
     open: (result) => botSettings.open(result.section, result.target),

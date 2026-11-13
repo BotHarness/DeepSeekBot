@@ -1,4 +1,5 @@
 import { useHostName, useHostLook } from './host-looks.js';
+import { remoteBotSettingsTarget } from './remote-bot-settings-target.js';
 import { HostGlyph } from './host-glyph.js';
 import { ChannelMessageBody } from './channel-message-body.js';
 import { RemoteMessageBody } from './remote-message-body.js';
@@ -209,6 +210,12 @@ export function RemoteConversationView({
       ? remote?.snapshot.roster?.bots.find((entry) => entry.slug === target.botSlug)
       : undefined;
   const client = sources.client(target.hostId);
+  const ownerSlug =
+    target.channelId === undefined
+      ? target.botSlug
+      : remote?.snapshot.roster?.channels.find((channel) => channel.id === target.channelId)
+          ?.ownerBotSlug;
+  const ownerBot = remote?.snapshot.roster?.bots.find((entry) => entry.slug === ownerSlug);
   const host = useMemo<MessageHost | undefined>(
     () =>
       client === undefined
@@ -268,6 +275,23 @@ export function RemoteConversationView({
             {hostName}
           </span>
           <span {...stylex.props(styles.spacer)} />
+          {ownerBot === undefined || client === undefined ? null : (
+            <IconButton
+              aria-label={t('remoteBotSettings.open')}
+              title={t('remoteBotSettings.open')}
+              onClick={() => {
+                void remoteBotSettingsTarget.open({
+                  hostId: target.hostId,
+                  hostName,
+                  slug: ownerBot.slug,
+                  name: ownerBot.displayName,
+                  client,
+                });
+              }}
+            >
+              <ChannelSidebarIcon name="settings" />
+            </IconButton>
+          )}
           {!unavailable && bot?.browserAccess ? (
             <IconButton
               aria-label={t('remoteViewer.browser')}
