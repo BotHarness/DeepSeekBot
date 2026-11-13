@@ -64,25 +64,32 @@ export function startAccountEnvironments(options: {
               const learnedGeneration = status.generation;
               const started = Date.now();
               void options.sources
-                .learnRelationshipRoutes({
-                  ...relationship.peer,
-                  routes: [...new Set([origin, ...saved.host.routes])],
-                })
+                .learnRelationshipRoutes(
+                  {
+                    ...relationship.peer,
+                    routes: [origin],
+                  },
+                  undefined,
+                  'merge-existing',
+                )
                 .then(() => {
                   if (!lifetime.signal.aborted && generation === learnedGeneration)
-                    logClient('network', 'account-route-learned', {
+                    logClient('network', 'account-route-refresh-complete', {
                       initiator: 'background',
                       durationMs: Math.max(0, Date.now() - started),
                     });
                 })
-                .catch(() => {
+                .catch((error) => {
                   if (!lifetime.signal.aborted && generation === learnedGeneration)
                     logClient(
                       'network',
                       'account-route-learning-refused',
                       {
                         initiator: 'background',
-                        refusal: 'route-update-refused',
+                        refusal:
+                          error instanceof Error && error.message === 'relationship-route-limit'
+                            ? 'relationship-route-limit'
+                            : 'route-update-refused',
                         durationMs: Math.max(0, Date.now() - started),
                       },
                       'warn',

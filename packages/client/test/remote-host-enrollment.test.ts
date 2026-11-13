@@ -68,6 +68,86 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+it('preserves independent routes committed while verified route learning waits for credential coordination', async () => {
+  const storage = memoryStorage();
+  const { relationshipEnrollment: _pending, ...saved } = grant().host;
+  storage.setItem(REMOTE_HOSTS_STORAGE_KEY, JSON.stringify([saved]));
+  const source = createRemoteHosts({ storage, carrier });
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const held = withRemoteHostStorageLock({ storage, name: 'credentials', run: () => gate });
+  const fresh = 'https://hcccccccccccc.deepseekbot.dev';
+  const learning = source.learnRelationshipRoutes(
+    { ...relationship().peer, routes: [fresh] },
+    undefined,
+    'merge-existing',
+  );
+  const concurrent = 'https://independent.ts.net';
+  storage.setItem(
+    REMOTE_HOSTS_STORAGE_KEY,
+    JSON.stringify([
+      { ...saved, routes: [...saved.routes, concurrent], routePreference: concurrent },
+    ]),
+  );
+  release();
+  await held;
+  await learning;
+  expect(source.getSnapshot().hosts[0]?.host).toMatchObject({
+    deviceId: saved.deviceId,
+    credential: saved.credential,
+    routePreference: concurrent,
+    routes: [fresh, ...saved.routes, concurrent],
+    encryption: saved.encryption,
+  });
+});
+
+it('refuses a queued route update after another writer replaces the saved Client Noise key', async () => {
+  const storage = memoryStorage();
+  const { relationshipEnrollment: _pending, ...saved } = grant().host;
+  storage.setItem(REMOTE_HOSTS_STORAGE_KEY, JSON.stringify([saved]));
+  const source = createRemoteHosts({ storage, carrier });
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const held = withRemoteHostStorageLock({ storage, name: 'credentials', run: () => gate });
+  const learning = source.learnRelationshipRoutes(
+    { ...relationship().peer, routes: ['https://hcccccccccccc.deepseekbot.dev'] },
+    undefined,
+    'merge-existing',
+  );
+  const changed = JSON.stringify([
+    { ...saved, encryption: { ...saved.encryption!, deviceKey: 'de'.repeat(32) } },
+  ]);
+  storage.setItem(REMOTE_HOSTS_STORAGE_KEY, changed);
+  const refused = expect(learning).rejects.toThrow('connection-host-changed');
+  release();
+  await held;
+  await refused;
+  expect(storage.getItem(REMOTE_HOSTS_STORAGE_KEY)).toBe(changed);
+});
+
+it('refuses additive official-route overflow without dropping existing routes, preference or credential', async () => {
+  const storage = memoryStorage();
+  const { relationshipEnrollment: _pending, ...saved } = grant().host;
+  const routes = Array.from({ length: 8 }, (_, index) => `https://independent-${index}.ts.net`);
+  const host = { ...saved, routes, routePreference: routes[0] };
+  const original = JSON.stringify([host]);
+  storage.setItem(REMOTE_HOSTS_STORAGE_KEY, original);
+  const source = createRemoteHosts({ storage, carrier });
+  await expect(
+    source.learnRelationshipRoutes(
+      { ...relationship().peer, routes: ['https://hcccccccccccc.deepseekbot.dev'] },
+      undefined,
+      'merge-existing',
+    ),
+  ).rejects.toThrow('relationship-route-limit');
+  expect(storage.getItem(REMOTE_HOSTS_STORAGE_KEY)).toBe(original);
+  expect(source.getSnapshot().hosts[0]?.host).toEqual(host);
+});
+
 it.each(['public', 'private', 'wrong-pin'] as const)(
   'learns a verified fresh official route without minting over an existing %s Client',
   async (mode) => {

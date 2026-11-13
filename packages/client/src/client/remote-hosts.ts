@@ -109,6 +109,7 @@ export interface RemoteHosts {
   learnRelationshipRoutes(
     peer: ClientRelationship['peer'],
     privateRelay?: PrivateAdmission,
+    intent?: 'merge-existing',
   ): Promise<void>;
   enrollRelationship(
     relationship: Pick<ClientRelationship, 'id' | 'peer'>,
@@ -440,6 +441,7 @@ export function createRemoteHosts(options: {
     a.deviceId === b.deviceId &&
     a.credential === b.credential &&
     a.encryption?.hostKey === b.encryption?.hostKey &&
+    a.encryption?.deviceKey === b.encryption?.deviceKey &&
     a.relationshipId === b.relationshipId;
   const persistCredential = async (
     hostId: string,
@@ -623,14 +625,21 @@ export function createRemoteHosts(options: {
       }
     },
     notifications,
-    async learnRelationshipRoutes(peer, privateRelay) {
+    async learnRelationshipRoutes(peer, privateRelay, intent) {
       const entry = clients.get(peer.id);
       if (!entry || peer.routes.length === 0) return;
       if (entry.host.encryption?.hostKey !== peer.publicKey) throw new Error('host-key-mismatch');
       await saveHostChange(peer.id, entry.client, (current) => {
+        if (intent === 'merge-existing' && current.encryption?.privateRelay) return current;
+        const learned =
+          intent === 'merge-existing'
+            ? { ...peer, routes: [...new Set([...peer.routes, ...current.routes])] }
+            : peer;
+        if (intent === 'merge-existing' && learned.routes.length > 8)
+          throw new Error('relationship-route-limit');
         const updated = updateRelationshipClientRoute({
           host: current,
-          peer,
+          peer: learned,
           ...(privateRelay ? { privateRelay } : {}),
         });
         if (!updated.ok) throw new Error(updated.code);
