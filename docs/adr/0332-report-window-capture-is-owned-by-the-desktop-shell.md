@@ -1,4 +1,4 @@
-# ADR-0327: Report window capture is owned by the Desktop shell
+# ADR-0332: Report window capture is owned by the Desktop shell
 
 Status: implemented and verified in a local composed Windows Desktop candidate; upstream Desktop release pending.
 

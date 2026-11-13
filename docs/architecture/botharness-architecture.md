@@ -1366,7 +1366,7 @@ Appearance recovery composes the existing local preference and media owners with
 
 ### Report window capture
 
-Report screenshots may consume an optional application-defined Desktop preload `captureWindow()` capability. The Desktop main process retains application-window and top-frame authority and returns bounded, transient viewport PNG bytes; the Client retains toolbar visibility, markup and report attachments. No Host route, screenshot store or screen-sharing session is added. Native failures do not retry DOM rasterization; older Desktop releases keep their existing page capture. The companion DSH source patch and Client integration require a composed Desktop build and native timing/content acceptance before release claims (ADR-0327).
+Report screenshots may consume an optional application-defined Desktop preload `captureWindow()` capability. The Desktop main process retains application-window and top-frame authority and returns bounded, transient viewport PNG bytes; the Client retains toolbar visibility, markup and report attachments. No Host route, screenshot store or screen-sharing session is added. Native failures do not retry DOM rasterization; older Desktop releases keep their existing page capture. The companion DSH source patch and Client integration require a composed Desktop build and native timing/content acceptance before release claims (ADR-0332).
 
 ### Desktop whole-window zoom
 
