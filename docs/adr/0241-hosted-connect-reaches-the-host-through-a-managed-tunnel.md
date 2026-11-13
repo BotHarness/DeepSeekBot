@@ -10,7 +10,7 @@ Issues: [#2387](https://github.com/BotHarness/DeepSeekBot/issues/2387), [#1643](
 
 LAN and Tailscale are independent optional connection preparations. Either usable route permits pairing immediately; Connect has a separate settings section. A saved Remote Host retains one device identity while its authenticated device snapshot advertises additional routes. The phone accepts those addresses only for the same Host ID and, for encrypted pairings, the same pinned key. Learning addresses never approves a new key or upgrades legacy trust.
 
-Route preference is LAN, Tailscale, then Connect. The client probes preferred routes after foreground recovery and bounded health checks, waits for in-flight unary calls/uploads, and applies a cooldown before another optimization. Normal application calls use one selected route. It does not replay uncertain writes. The environment details expose addresses, current use, and per-client test observations without a route-lock setting.
+Route preference is LAN, Tailscale, then Connect. The client probes preferred routes after foreground recovery and bounded health checks, waits for in-flight unary calls/uploads, and applies a cooldown before another optimization. Normal application calls use one selected route. It does not replay uncertain writes. The environment details expose addresses, current use, and per-client test observations with the client-local route selection described in the #4077 amendment below.
 
 An explicit Tailscale enable action persists managed intent in the existing credentials owner. Restore occurs at Host startup. Publishing keeps the Host's port and searches bounded HTTPS publishing ports, preserving unrelated Serve entries. Disable deletes only a still-matching mapping this owner created, never an adopted or edited mapping. Configuration checks cannot provide atomic coordination with an unrelated external Tailscale writer; unexpected changes refuse or preserve state. Native LAN→Tailscale→LAN and system-text qualification remain acceptance gates, distinct from Expo Web preview evidence.
 
@@ -23,6 +23,14 @@ The publishing flags follow the [Tailscale Serve reference](https://tailscale.co
 Testers must install Tailscale, sign in on both devices and run `tailscale serve` before the phone app can reach their computer ([#2385](https://github.com/BotHarness/DeepSeekBot/pull/2385)). The Human wants a T3 Connect–style option instead: sign in with the same account on the computer and on each phone, and the devices connect without Tailscale. Research and sources: [`docs/research/2026-10-20-hosted-connect.md`](../research/2026-10-20-hosted-connect.md).
 
 The Human chose this direction on 2026-10-20: **an account only discovers Hosts and brokers a one-time pairing credential. Application traffic reaches the Host through one Cloudflare Tunnel per Host that a BotHarness relay Worker provisions; it never passes through the Worker. The tunnel is one more route in the ADR-0199 route list and admits only the device gateway.**
+
+## Amendment — client-local route selection (#4077)
+
+Automatic selection remains the default. An explicit manual address is saved in that client's existing `SavedHost.routePreference`, scoped to one pinned Host identity; absence means automatic. Browser RemoteHosts and native HostSession persist before acknowledging selection, using their canonical stores. Native connection details use the session's existing HostClient rather than opening an independent inspection client.
+
+A manual choice restricts application route selection to that eligible address. Failure stays visible and retries remain bounded; it does not silently fall back. Returning to automatic considers only the existing admitted route set and preserves private-relay/operator eligibility. This does not implement the separate private/official service migration in #3756.
+
+Changing selection drains in-flight unary calls and uploads before reconnecting. Old asynchronous probes cannot overwrite a newer preference. Ordinary application traffic still has one active route per client/Host; probe reads are not mutation retries. An uncertain write is never replayed across routes. Actual current route and pending change are displayed separately from the saved preference. One client's choice does not modify another client's policy, Host publication, device grants or account ownership. A stored manual address that disappears remains unavailable until the user changes it; loading it must not silently restore automatic selection.
 
 ## Decision
 

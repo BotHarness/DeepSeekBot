@@ -991,7 +991,10 @@ deepseekbot connection-host <host-id> remove --client-id <id> --confirm
 deepseekbot connection-host <host-id> revoke-device <device-id> --client-id <id> --confirm
 deepseekbot connection-host <host-id> stop-route lan --client-id <id> --confirm
 deepseekbot connection-host <host-id> stop-route private-tunnel --client-id <id> --confirm
+deepseekbot connection-host <host-id> select-route <origin-or-automatic> --client-id <id> --confirm
 ```
+
+`select-route` persists the preference in the selected browser’s existing Host record before switching after active requests finish. A manual origin must already be eligible and never silently fails over. Pass `automatic` to restore the existing policy without widening route eligibility. `connection-hosts` reports saved preference, pending switch and actual current route separately. Only this Client/Host is affected; mobile connection details use the same HostClient behavior and their own canonical persistence owner.
 
 These commands use the existing selected-Client control channel and the same management adapter as the Connections dialog. Lists expose Host identity, name and actual route observations, never credentials or private keys. `inspect` uses that browser's paired authorization on the target Host to read devices and stoppable routes. `remove` deletes this browser connection only, preserving Host data and grants; `revoke-device` revokes the named device on the target; `stop-route` disables only that target's LAN listener or private Tunnel. Stopping the active route or revoking the current device may interrupt the reply: an unacknowledged action is not a success and needs a fresh status check. Unknown Hosts/routes/devices, stale requests and unconfirmed writes are refused. Account grouping does not rewrite sign-in/sign-out provenance or grant management permissions.
 

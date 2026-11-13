@@ -960,7 +960,10 @@ deepseekbot connection-host <host-id> remove --client-id <id> --confirm
 deepseekbot connection-host <host-id> revoke-device <device-id> --client-id <id> --confirm
 deepseekbot connection-host <host-id> stop-route lan --client-id <id> --confirm
 deepseekbot connection-host <host-id> stop-route private-tunnel --client-id <id> --confirm
+deepseekbot connection-host <host-id> select-route <origin-or-automatic> --client-id <id> --confirm
 ```
+
+`select-route` 先在所选浏览器的现有 Host 记录中保存选择，再等待进行中的请求结束后切换。手动地址必须已获准；失败不会自动换路。传入 `automatic` 恢复既有自动策略，不扩大通道资格。`connection-hosts` 分别报告保存的选择、切换是否待完成和实际当前线路。只影响这个 Client/Host；手机连接详情通过同一 HostClient 行为及手机自己的保存所有者执行。
 
 通过现有 Client 控制通道执行，与连接对话框复用同一管理适配器。列表只返回 Host 标识、名称及实际线路观察，不返回设备凭据或私钥。`inspect` 使用该浏览器对目标 Host 的配对授权读取设备与可停止线路。`remove` 仅删除此浏览器的本地连接，保留 Host 数据和设备授权；`revoke-device` 在目标 Host 撤销指定设备；`stop-route` 只关闭指定目标的局域网监听或私有 Tunnel。停止当前线路或撤销当前设备可能令响应中断，未收到确认不能视为成功，需重新检查。未知 Host、线路、设备、过期请求和未确认写入均拒绝。账号分组不改变连接的登录/退出来源或授予管理权限。
 

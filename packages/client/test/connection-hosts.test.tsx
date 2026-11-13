@@ -31,6 +31,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
     </div>
   ),
   Button: 'button',
+  IconChevronDownOutlineRegular: () => null,
   Input: 'input',
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
   relativeTime: () => ({ unit: 'minute', n: 1 }),

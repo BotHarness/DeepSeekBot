@@ -49,6 +49,18 @@ it.each([
   ['connection-host', ['target', 'inspect'], {}, { action: 'inspect-host', hostId: 'target' }],
   [
     'connection-host',
+    ['target', 'select-route', 'automatic'],
+    { confirm: true },
+    { action: 'select-route', hostId: 'target', route: 'automatic', confirm: true },
+  ],
+  [
+    'connection-host',
+    ['target', 'select-route', 'https://studio.ts.net'],
+    { confirm: true },
+    { action: 'select-route', hostId: 'target', route: 'https://studio.ts.net', confirm: true },
+  ],
+  [
+    'connection-host',
     ['target', 'remove'],
     { confirm: true },
     { action: 'forget-host', hostId: 'target', confirm: true },
@@ -114,6 +126,7 @@ it('refuses unconfirmed management and unsupported stop kinds before contacting 
     ['target', 'remove'],
     ['target', 'revoke-device', 'phone'],
     ['target', 'stop-route', 'lan'],
+    ['target', 'select-route', 'automatic'],
   ])
     await expect(
       runConnectionCommand('connection-host', rest, { 'client-id': 'client' }, {}, connect),

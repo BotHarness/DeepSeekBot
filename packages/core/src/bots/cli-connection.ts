@@ -9,7 +9,7 @@ export const CONNECTION_COMMANDS = [
   {
     command: 'connection-host',
     description:
-      '<host-id> inspect/remove/revoke-device/stop-route/test-route on --client-id; mutations require --confirm',
+      '<host-id> inspect/remove/revoke-device/stop-route/test-route/select-route on --client-id; mutations require --confirm',
   },
   { command: 'connection-clients', description: 'list online Clients for Remote Host connection' },
   {
@@ -43,14 +43,19 @@ export async function runConnectionCommand(
       'revoke-device': 'revoke-device',
       'stop-route': 'stop-route',
       'test-route': 'test-route',
+      'select-route': 'select-route',
     };
     const action = listHosts
       ? 'hosts'
       : Object.hasOwn(actions, operation ?? '')
         ? actions[operation!]
         : undefined;
-    const mutating = ['forget-host', 'revoke-device', 'stop-route'].includes(action ?? '');
-    const extra = ['revoke-device', 'stop-route', 'test-route'].includes(action ?? '');
+    const mutating = ['forget-host', 'revoke-device', 'stop-route', 'select-route'].includes(
+      action ?? '',
+    );
+    const extra = ['revoke-device', 'stop-route', 'test-route', 'select-route'].includes(
+      action ?? '',
+    );
     if (
       !values['client-id'] ||
       values['connection-id'] ||
@@ -76,7 +81,7 @@ export async function runConnectionCommand(
         ...(mutating ? { confirm: true } : {}),
         ...(action === 'revoke-device' ? { deviceId: argument } : {}),
         ...(action === 'stop-route' ? { kind: argument } : {}),
-        ...(action === 'test-route' ? { route: argument } : {}),
+        ...(['test-route', 'select-route'].includes(action) ? { route: argument } : {}),
       },
     });
     return JSON.parse(new TextDecoder().decode(result.bytes)) as unknown;

@@ -10,6 +10,7 @@ export interface HostEncryption {
 }
 
 export interface SavedHost {
+  routePreference?: string;
   accountOwner?: AccountOwner;
   connectHost?: string;
   encryption?: HostEncryption;
@@ -32,6 +33,8 @@ function record(value: unknown): Record<string, unknown> {
 
 export function parseSavedHost(input: unknown): SavedHost | undefined {
   const value = record(input);
+  if (value['routePreference'] !== undefined && typeof value['routePreference'] !== 'string')
+    return undefined;
   const privateRelay = parsePrivateAdmission(record(value['encryption'])['privateRelay']);
   if (
     privateRelay &&
@@ -64,6 +67,9 @@ export function parseSavedHost(input: unknown): SavedHost | undefined {
     typeof value['deviceId'] === 'string' &&
     typeof value['credential'] === 'string'
     ? {
+        ...(typeof value['routePreference'] === 'string'
+          ? { routePreference: value['routePreference'] }
+          : {}),
         ...(parseAccountOwner(value['accountOwner']) === undefined
           ? {}
           : { accountOwner: parseAccountOwner(value['accountOwner'])! }),
@@ -141,7 +147,15 @@ export function withHost(state: SavedHosts, host: SavedHost): SavedHosts {
 
   return {
     ...state,
-    hosts: [...state.hosts.filter((entry) => entry.hostId !== host.hostId), host],
+    hosts: [
+      ...state.hosts.filter((entry) => entry.hostId !== host.hostId),
+      {
+        ...(previous?.routePreference === undefined
+          ? {}
+          : { routePreference: previous.routePreference }),
+        ...host,
+      },
+    ],
     current: host.hostId,
   };
 }
