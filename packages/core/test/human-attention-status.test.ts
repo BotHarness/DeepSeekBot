@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
@@ -30,7 +31,7 @@ function fixture() {
     now,
   );
   const decisions = createHumanAttentionDecisions(database, now);
-  const dm = channels.getOrCreateDm('ada', 'Ada')!;
+  const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
   return {
     database,
     channels,
@@ -66,7 +67,7 @@ describe('Human attention status parity', () => {
         placement.run(current.dm.id, index, id, id);
       }
     });
-    expect(current.query.status(true)).toEqual({
+    expect(current.query.status(OWNER_HUMAN_CONTEXT, true)).toEqual({
       unreadCount: UNREAD_COUNT_LIMIT,
       hasAction: false,
       messageCounts: { replies: 0, other: UNREAD_COUNT_LIMIT },
@@ -99,7 +100,7 @@ describe('Human attention status parity', () => {
               };
       current.active.questions.push('status-card');
       current.active.approvals.push('status-card');
-      await current.channels.appendMessage(current.dm.id, {
+      await current.channels.appendMessage(OWNER_HUMAN_CONTEXT, current.dm.id, {
         id: 'status-card',
         at: '2026-11-01T00:00:00.000Z',
         author: { kind: 'bot', slug: 'ada' },
@@ -107,18 +108,21 @@ describe('Human attention status parity', () => {
         ...fields,
       });
       const verify = (hasAction: boolean) => {
-        expect(current.query.list({ category: 'action', limit: 1 }).items.length > 0).toBe(
-          hasAction,
-        );
-        expect(current.query.status().hasAction).toBe(hasAction);
+        expect(
+          current.query.list(OWNER_HUMAN_CONTEXT, { category: 'action', limit: 1 }).items.length >
+            0,
+        ).toBe(hasAction);
+        expect(current.query.status(OWNER_HUMAN_CONTEXT).hasAction).toBe(hasAction);
       };
       verify(true);
-      const item = current.query.list({ category: 'action' }).items[0]!;
-      expect(current.decisions.dismiss(item)).toBe(true);
+      const item = current.query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items[0]!;
+      expect(current.decisions.dismiss(OWNER_HUMAN_CONTEXT, item)).toBe(true);
       verify(false);
-      expect(current.decisions.restore(item)).toBe(true);
+      expect(current.decisions.restore(OWNER_HUMAN_CONTEXT, item)).toBe(true);
       verify(true);
-      expect(current.decisions.snooze(item, '2026-11-01T01:00:00.000Z')).toBe(true);
+      expect(current.decisions.snooze(OWNER_HUMAN_CONTEXT, item, '2026-11-01T01:00:00.000Z')).toBe(
+        true,
+      );
       verify(false);
       current.advance();
       verify(true);

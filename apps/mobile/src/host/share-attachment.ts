@@ -65,13 +65,19 @@ export function forgetSharedCopies(cacheKeyPrefixes: readonly string[]): void {
 export async function shareAttachment(
   attachment: MessageAttachment,
   stillAvailable: () => boolean = () => true,
+  retainConnection?: () => () => void,
 ): Promise<void> {
   if (!stillAvailable()) throw new Error('attachment-unavailable');
   if (attachment.source === undefined) throw new Error('attachment-unavailable');
   const uri = await cachedAttachmentUri(attachment);
   if (!stillAvailable()) throw new Error('attachment-unavailable');
-  await Sharing.shareAsync(uri, {
-    dialogTitle: attachment.name,
-    ...(attachment.mime === undefined ? {} : { mimeType: attachment.mime }),
-  });
+  const release = retainConnection?.();
+  try {
+    await Sharing.shareAsync(uri, {
+      dialogTitle: attachment.name,
+      ...(attachment.mime === undefined ? {} : { mimeType: attachment.mime }),
+    });
+  } finally {
+    release?.();
+  }
 }

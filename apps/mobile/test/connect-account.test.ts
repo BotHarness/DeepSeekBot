@@ -13,6 +13,7 @@ function fakeRelay(
   options: {
     offline?: boolean;
     expired?: boolean;
+    expiredText?: boolean;
     deletion?: number;
     hostname?: string;
     revoke?: { status: number; body: unknown };
@@ -39,7 +40,10 @@ function fakeRelay(
           refresh_token: 'refresh-0',
           user: { id: 'user_alice', email: 'alice@example.com' },
         });
-      if (options.expired) return Response.json({ error: 'invalid_grant' }, { status: 400 });
+      if (options.expired)
+        return options.expiredText
+          ? new Response('Unauthorized private=fixture-secret', { status: 400 })
+          : Response.json({ error: 'invalid_grant' }, { status: 400 });
       return Response.json({ access_token: 'access-1', refresh_token: 'refresh-1' });
     }
     if (url === `${RELAY}/v1/hosts`)
@@ -238,6 +242,14 @@ describe('phone Connect account', () => {
     expect(await relay.account.offer('hstudio', 'iPhone')).toEqual({
       ok: false,
       code: 'relay-unavailable',
+      detail: 'relay:invalid-response',
+      diagnostic: {
+        code: 'relay-unavailable',
+        detail: 'relay:invalid-response',
+        phase: 'pairing-offer',
+        status: 200,
+        occurredAt: expect.any(String),
+      },
     });
   });
 
@@ -248,6 +260,13 @@ describe('phone Connect account', () => {
       ok: false,
       code: 'host-offline',
       detail: 'relay:host-offline',
+      diagnostic: {
+        code: 'host-offline',
+        detail: 'relay:host-offline',
+        phase: 'pairing-offer',
+        status: 409,
+        occurredAt: expect.any(String),
+      },
     });
 
     const cancelled = fakeRelay();
@@ -257,7 +276,16 @@ describe('phone Connect account', () => {
 
     const expired = fakeRelay({ expired: true });
     await expired.account.signIn();
-    expect(await expired.account.hosts()).toEqual({ ok: false, code: 'sign-in-required' });
+    expect(await expired.account.hosts()).toEqual({
+      ok: false,
+      code: 'sign-in-required',
+      diagnostic: {
+        code: 'sign-in-required',
+        phase: 'sign-in-session',
+        status: 400,
+        occurredAt: expect.any(String),
+      },
+    });
     expect(expired.stored()).toBeNull();
 
     const forged = fakeRelay();
@@ -292,3 +320,36 @@ describe('phone Connect account', () => {
     expect(relay.stored()).toBeNull();
   });
 });
+
+it('keeps expired-session semantics and safe HTTP context when the auth response is not JSON', async () => {
+  const relay = fakeRelay({ expired: true, expiredText: true });
+  await relay.account.signIn();
+  const failure = await relay.account.hosts();
+  expect(failure).toMatchObject({
+    ok: false,
+    code: 'sign-in-required',
+    diagnostic: { phase: 'sign-in-session', status: 400 },
+  });
+  expect(JSON.stringify(failure)).not.toContain('fixture-secret');
+  expect(await relay.account.email()).toBeNull();
+});
+
+it.each(['fixture-secret', 'host-refused'])(
+  'never returns arbitrary relay code/cause text as a retained diagnostic (%s)',
+  async (code) => {
+    const relay = fakeRelay({
+      revoke: {
+        status: 502,
+        body: { error: { code, cause: 'credential-sentinel', message: 'Bearer fixture-secret' } },
+      },
+    });
+    await relay.account.signIn();
+    const key = await relay.account.actionKey();
+    const failure = await relay.account.revokeHost(key!, 'hlaptop');
+    expect(failure).toMatchObject({
+      ok: false,
+      diagnostic: { phase: 'account-action', status: 502 },
+    });
+    expect(JSON.stringify(failure)).not.toMatch(/fixture-secret|credential-sentinel|Bearer/u);
+  },
+);

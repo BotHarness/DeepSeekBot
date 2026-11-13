@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { afterEach, expect, it, vi } from 'vitest';
 import { createCore, type BotHarnessCore } from '../src/plugin.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
@@ -30,7 +31,7 @@ async function fixture() {
   const core = createCore({ dshHome, agents });
   cores.push(core);
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
-  core.channels.getOrCreateDm('ada', 'Ada');
+  core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
   let receiver: Parameters<NonNullable<DshImOutboundService['consumeInbound']>>[1] | undefined;
   let disposition: 'none' | 'known' | 'unknown' = 'none';
   let qualify = async () => {};
@@ -134,10 +135,10 @@ async function fixture() {
     capabilities: ['approve', 'reject'],
   });
   await core.externalMessaging.approvals.setRoute('ada', pairing.id, 0);
-  const api = createBridgeMethods({ ...core });
+  const api = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
   let input = 0;
   const fail = async () => {
-    const admitted = core.runtime.admitDmMessage({
+    const admitted = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
       channelId: 'dm-ada',
       messageId: `human_${++input}`,
       body: 'Start a failing task',
@@ -222,7 +223,7 @@ it('test-send is explicitly labelled and event settings are revision-checked thr
 it('ordinary failure-like output and a foreign Session do not create alerts', async () => {
   const f = await fixture();
   await f.enable();
-  await f.core.channels.appendMessage('dm-ada', {
+  await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, 'dm-ada', {
     id: 'ordinary-output',
     at: new Date().toISOString(),
     author: { kind: 'bot', slug: 'ada' },
@@ -235,7 +236,7 @@ it('ordinary failure-like output and a foreign Session do not create alerts', as
     rootRole: 'orchestrator',
     at: new Date().toISOString(),
   });
-  await f.core.channels.appendMessage('dm-ada', {
+  await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, 'dm-ada', {
     id: 'foreign-failure',
     at: new Date().toISOString(),
     author: { kind: 'bot', slug: 'ada' },
@@ -353,7 +354,10 @@ it.each(['pending', 'sending'] as const)(
     expect(f.texts).toEqual([]);
     const row = restarted.externalMessaging.failureAlerts.snapshot('ada').deliveries[0]!;
     expect(
-      await createBridgeMethods({ ...restarted }).failureAlertsRetry({ slug: 'ada', id: row.id }),
+      await createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...restarted }).failureAlertsRetry({
+        slug: 'ada',
+        id: row.id,
+      }),
     ).toMatchObject({ ok: false });
   },
 );

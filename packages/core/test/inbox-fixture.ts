@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { createCore } from '../src/plugin.js';
 import type { BotAgentAdapter, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
@@ -28,7 +29,7 @@ export async function inboxFixture(options: { triageContinuation?: boolean } = {
     triageContinuation: options.triageContinuation ?? false,
   });
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
-  const dm = core.channels.getOrCreateDm('ada', 'Ada');
+  const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
   if (dm === undefined) throw new Error('Missing DM');
   const probe = attachOperationalModule(core.operationalDatabase, 'inbox-test');
   let sequence = 0;
@@ -36,7 +37,11 @@ export async function inboxFixture(options: { triageContinuation?: boolean } = {
     hooks.push(...turns);
     sequence += 1;
     const messageId = `human-${sequence}`;
-    const admission = core.runtime.admitDmMessage({ channelId: dm!.id, messageId, body });
+    const admission = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+      channelId: dm!.id,
+      messageId,
+      body,
+    });
     if (!admission.admitted) throw new Error('Not admitted');
     await admission.settled;
     await core.runtime.whenIdle();

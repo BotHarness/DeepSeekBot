@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { randomBytes } from 'node:crypto';
 import { createServer } from 'node:http';
 import { expect, it } from 'vitest';
@@ -229,14 +230,18 @@ async function dualRouteHosts(saved?: { homes: string[]; keys: Buffer[] }) {
 }
 
 async function explicitSender(core: ReturnType<typeof createCore>, rootId = 'root') {
-  const human = core.channels.getOrCreateDm('bot', 'Developer')!;
-  await core.channels.appendMessage(human.id, {
+  const human = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'bot', 'Developer')!;
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, human.id, {
     id: rootId,
     at: new Date().toISOString(),
     author: { kind: 'human' },
     body: 'Collaborate',
   });
-  core.runtime.admitDmMessage({ channelId: human.id, messageId: rootId, body: 'Collaborate' });
+  core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+    channelId: human.id,
+    messageId: rootId,
+    body: 'Collaborate',
+  });
   const source = core.channels.humanSendStatus!(human.id, rootId)!.sourceEventId;
   return (body: string) =>
     core.runtime.runDirectBotTool!(

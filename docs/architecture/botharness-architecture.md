@@ -14,7 +14,7 @@ E6 通过现有已认证账号列表与 `/offer` 发现同账号 Host：两端�
 
 私有线路 admission 存入既有受保护 credentials owner，以准确关系和固定对端身份绑定；公开关系、CLI 结果及生命周期日志不包含 token。仅固定身份的加密控制交换学习 admission，并在已认证的登记 ticket 中交给当前 Client，沿用既有 Noise 配对。等待对端撤销确认期间保留原有引用；确认后只清理该关系引用，重启补清已确认残留。异步写入与清理按关系串行，并在 await 后重新核对 canonical 授权；已断开关系不能继续普通返回探测。Tailscale HTTPS 登记仍走固定 Noise，后续沿用既有 HostClient 线路策略。
 
-E4 在关系 owner 的 Operational Database generation 141 保存离线撤销的尝试次数、下次时间与主动断开抑制；同一 Fiber 有限重试准确代际的幂等撤销，八次后仍保留 pending 供检查及手动重试，不重放普通变更。本机先拒绝关系并撤销派生设备，对方恢复后通过固定 Noise 身份确认；旧代确认不触碰新代。仅用户/对端主动断开抑制自动登记，发起失败的内部清理不抑制；新链接及批准激活新代才解除。最多保留 256 条关系并安全拒绝超量新增，不删待确认事实或身份。Client 复用 SavedHost 的非权限关系引用关闭对应来源，移除当前选择回到 All；临时 exact-Host draft guard 在主动移除前等待保存成功或放弃，取消/失败不改关系。见 [ADR-0337](../adr/0337-offline-disconnect-retries-stay-with-the-relationship-owner.md)。
+E4 在关系 owner 的 Operational Database generation 142 保存离线撤销的尝试次数、下次时间与主动断开抑制；同一 Fiber 有限重试准确代际的幂等撤销，八次后仍保留 pending 供检查及手动重试，不重放普通变更。本机先拒绝关系并撤销派生设备，对方恢复后通过固定 Noise 身份确认；旧代确认不触碰新代。仅用户/对端主动断开抑制自动登记，发起失败的内部清理不抑制；新链接及批准激活新代才解除。最多保留 256 条关系并安全拒绝超量新增，不删待确认事实或身份。Client 复用 SavedHost 的非权限关系引用关闭对应来源，移除当前选择回到 All；临时 exact-Host draft guard 在主动移除前等待保存成功或放弃，取消/失败不改关系。见 [ADR-0337](../adr/0337-offline-disconnect-retries-stay-with-the-relationship-owner.md)。
 
 E2 将已批准关系复用于另一 Web Client 的具名授权：Client 显式选择关系和名称，兑换前检查目标 Host ID 与公钥，仍用现有 SavedHost 存储独立凭据；重复打开仅切换已保存目标。CLI `relationships enroll --device-name` 使用同一登记路径。取消、断开和旧关系代际不能签发迟到访问；单独撤销设备不撤销关系或其他 Client。手机仍通过每 Host 的独立配对，不能凭平台标记继承关系。
 
@@ -24,7 +24,7 @@ E3 在既有关系 owner 内保留缺少返回地址的已批准关系；固定 
 
 完整交互、权限边界及验收见[环境面板设计](environment-panel.zh.md)、[ADR-0334](../adr/0334-host-relationships-authorize-independent-client-enrollment.md)及 ADR-0327 的桌面修订。以下既有实现记录不代表该新目标已完成；原九切片验收也不覆盖新增双向关系。
 
-E1 将手动电脑连接接入 `host-relationships` 应用 owner：Operational Database generation 140 保存双端关系、固定对端身份及派生设备关联；现有受保护 Noise Host 密钥只用于关系控制，不能直接读取 Feed。发起端核对对端指纹、接收端核对发起端指纹并批准双向权限后，两端经加密控制通道激活关系。每个 Web/CLI Client 本地生成自己的密钥，Host 只转交绑定该公钥的短期 enrollment offer；现有 pairing owner 兑换、保存并准入独立设备，远端私钥不交给本机 Host。Client 复用 RemoteHosts、HostClient、Feed 与 Channel 路径，不建立内容镜像或第二套连接存储。
+E1 将手动电脑连接接入 `host-relationships` 应用 owner：Operational Database generation 141 保存双端关系、固定对端身份及派生设备关联；现有受保护 Noise Host 密钥只用于关系控制，不能直接读取 Feed。发起端核对对端指纹、接收端核对发起端指纹并批准双向权限后，两端经加密控制通道激活关系。每个 Web/CLI Client 本地生成自己的密钥，Host 只转交绑定该公钥的短期 enrollment offer；现有 pairing owner 兑换、保存并准入独立设备，远端私钥不交给本机 Host。Client 复用 RemoteHosts、HostClient、Feed 与 Channel 路径，不建立内容镜像或第二套连接存储。
 
 本地认证的 `/api/botharness/relationships` 与 `relationships` CLI 共用同一 owner；普通 Device Gateway 拒绝转发关系管理，手机不因已配对而继承关系。撤销先持久化关系失效，再撤销关联设备；每次设备准入也检查关系，避免清理中断继续放行。独立设备授权及 Channel 数据保留，远端未确认撤销时保留 pending 状态。E1 不实现 Environment 面板、账号自动准入、多线路恢复或离线撤销后台重试；这些仍按 hub 的后续切片交付。
 
@@ -1358,6 +1358,8 @@ The application-defined mobile conversation directory combines online paired Hos
 ### Mobile Chats environment paging (#2194)
 
 Chats shares its persisted device-local conversation filter with Activity. The native source pager derives tabs from verified Organization listings, including empty memberships and authorized guest labels, in enrolled-source order. Source/account-qualified keys preserve identity while swiping; tab selection does not switch Host management authority. Unsupported Cloud Activity has an explicit notice and no borrowed Computer badge; All discloses partial Computer-only coverage. The subsequent Chats slice (#2782) shares a concurrent paired-Host session pool with the drawer. Source-qualified rows bind navigation and actions to their owning client, independently of the selected management Host. All projects online rosters into recent-message order with a single collapsible Pinned section; individual Host scopes retain Host sections. Offline Hosts disappear from All without clearing open source-owned conversations or drafts. Activity composes each eligible Host's existing Inbox observer and paginated count reader. Source-qualified identities isolate filters, settlement, pagination and actions; one unsupported source cannot replace another source's feed or count. Notification routes retain their source Host, and foreground resume refreshes every pairing. See the Chats environment extension in [ADR-0229](../adr/0229-mobile-cloud-sessions-are-independent-of-host-pairing.md).
+
+The mobile HostSession connection lifetime also owns temporary attachment-sharing leases. Chat, profile Files and Memory image sharing retain only the originating paired Host while the system share activity is pending. A result delivered before foreground resume releases on resume, with a 1.5-second maximum handoff grace if another app remains foreground. Ordinary background notification preferences, call retention, pairing removal and credential refusal retain their existing authority. Foreground resume probes the retained carrier normally; a sharing lease does not imply that a socket is healthy. Message reply gestures stay mounted while disabled so transient connectivity does not recreate media views.
 
 ### Browser Remote Hosts and Host Feed (#2500)
 

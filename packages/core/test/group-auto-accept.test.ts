@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 
 import { createBridgeMethods } from '../src/bridge/methods.js';
@@ -18,7 +19,7 @@ function adapter(run: (input: OrchestratorAgentRun) => Promise<void>): BotAgentA
 }
 
 function bridge(core: ReturnType<typeof createCore>) {
-  return createBridgeMethods({
+  return createBridgeMethods(OWNER_HUMAN_CONTEXT, {
     registry: core.registry,
     states: core.states,
     channels: core.channels,
@@ -55,7 +56,10 @@ describe('Group invitation auto-accept', () => {
     });
     try {
       core.registry.create({ slug: 'bea', displayName: 'Bea' });
-      const group = core.channels.createGroup({ name: 'Auto team', members: [] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Auto team',
+        members: [],
+      });
       const methods = bridge(core);
       const invite = () => methods.channelGroupInvite({ channelId: group.id, botSlug: 'bea' });
       expect(invite()).toMatchObject({ ok: true, value: { channel: { members: ['bea'] } } });
@@ -107,14 +111,14 @@ describe('Group invitation auto-accept', () => {
     });
     try {
       for (const slug of ['ada', 'bea']) core.registry.create({ slug, displayName: slug });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      await core.channels.appendMessage(dm.id, {
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'invite-peer',
         at: new Date().toISOString(),
         author: { kind: 'human' },
         body: 'Invite Bea',
       });
-      core.runtime.admitDmMessage({
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'invite-peer',
         body: 'Invite Bea',
@@ -133,7 +137,10 @@ describe('Group invitation auto-accept', () => {
     const release = core.configureGroupInvitations(() => enabled);
     try {
       for (const slug of ['bea', 'cee']) core.registry.create({ slug, displayName: slug });
-      const group = core.channels.createGroup({ name: 'Live policy', members: [] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Live policy',
+        members: [],
+      });
       expect(
         bridge(core).channelGroupInvite({ channelId: group.id, botSlug: 'bea' }),
       ).toMatchObject({
@@ -162,8 +169,8 @@ describe('Group invitation auto-accept', () => {
     try {
       core.registry.create({ slug: 'bea', displayName: 'Bea' });
       const bot = core.registry.get('bea')!;
-      const dm = core.channels.getOrCreateDm('bea', 'Bea')!;
-      const group = core.channels.createGroup({ name: 'Rejoin', members: [] });
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'bea', 'Bea')!;
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Rejoin', members: [] });
       const invite = () =>
         core.channels.inviteGroupBot({
           channelId: group.id,
@@ -195,7 +202,10 @@ describe('Group invitation auto-accept', () => {
       const second = core.configureGroupInvitations(sameCallback ? firstPolicy : () => false);
       try {
         for (const slug of ['bea', 'cee']) core.registry.create({ slug, displayName: slug });
-        const group = core.channels.createGroup({ name: 'Disposal', members: [] });
+        const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+          name: 'Disposal',
+          members: [],
+        });
         first();
         expect(
           bridge(core).channelGroupInvite({ channelId: group.id, botSlug: 'bea' }),
@@ -232,8 +242,11 @@ describe('Group invitation auto-accept', () => {
       const bot = core.registry.create({ slug: 'bea', displayName: 'Bea' });
       expect(bot.ok).toBe(true);
       const record = core.registry.get('bea')!;
-      const dm = core.channels.getOrCreateDm('bea', 'Bea')!;
-      const group = core.channels.createGroup({ name: 'Decline', members: [] });
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'bea', 'Bea')!;
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Decline',
+        members: [],
+      });
       const invite = core.channels.inviteGroupBot({
         channelId: group.id,
         inviterHuman: true,
@@ -285,7 +298,7 @@ describe('Group invitation auto-accept', () => {
     const core = createCore({ dshHome: createTempRoot('botharness-invite-atomic-') });
     try {
       core.registry.create({ slug: 'bea', displayName: 'Bea' });
-      const group = core.channels.createGroup({ name: 'Atomic', members: [] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Atomic', members: [] });
       const db = attachOperationalModule(core.operationalDatabase, 'invite-fault');
       db.transaction((raw) =>
         raw.exec(`CREATE TRIGGER reject_invite BEFORE INSERT ON inbox_admissions

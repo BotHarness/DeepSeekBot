@@ -27,7 +27,7 @@ _避免使用_：已安装发布版、latest 版本、0.0.0 发布版
 ### PersonaBot（持久机器人身份）
 
 **Steward Bot**：
-一种持久的本地 PersonaBot，拥有自己的 Memory，可读取 Human 的所有 Bot 与 Channel 内容，并沿用现有审批规则帮助 Human 管理这些身份与应用设置。它是 Human 的唯一对接人：创建和管理其他 Bot，通过 Bot-to-Bot DM 把请求交给最合适的同事，调取工作进展、汇总待处理事项，并在 Human DM 中回报结果。总管身份本身不授予代批其他 Bot 操作的权限。通过对话处理待审批事项属于后续有明确范围的能力，应由原有审批 owner 接收 Human 的明确决定，而不是赋予总管自行批准一切操作的权限。
+一种持久的本地 PersonaBot，拥有自己的 Memory，可读取 Human 的所有 Bot 与 Channel 内容，并沿用现有审批规则帮助 Human 管理这些身份与应用设置。它是 Human 的唯一对接人：创建和管理其他 Bot，通过 Bot-to-Bot DM 把请求交给最合适的同事，调取工作进展、汇总待处理事项，并在 Human DM 中回报结果。总管身份本身不授予代批其他 Bot 操作的权限。通过对话处理待审批事项属于后续有明确范围的能力，应由原有审批 owner 接收 Human 的明确决定，而不是赋予总管自行批准一切操作的权限。团队模式下每个 Host Member 有自己的私有 Tob，权限不超过该成员。
 _避免使用_：全局 Orchestrator、Home 面板、Dashboard
 
 **Tob**：
@@ -513,12 +513,48 @@ _避免使用_：upload、push、submit
 _避免使用_：client、connector、bridge identity、caller-supplied sender
 
 **Human ID**：
-本地 Human 在一个 DSH Profile 内的稳定身份，跨 Channel、改名和 Human Channel nickname 保持不变。
+一个 Human 在一台 Host（DSH Profile）内的稳定身份，跨 Channel、改名和 Human Channel nickname 保持不变。Host Owner 沿用原有的 `local-human` ID，每个 Host Member 有自己的 ID（ADR-0336）。
 _避免使用_：display name、nickname、browser tab
 
 **Human display name**：
-本地 Human 在一个 DSH Profile 内可修改的默认名称。Human Channel nickname 可覆盖该名称，用于对应 Channel 的消息作者、成员列表与提及展示。
+一个 Human 在一台 Host（DSH Profile）内可修改的默认名称。Human Channel nickname 可覆盖该名称，用于对应 Channel 的消息作者、成员列表与提及展示。
 _避免使用_：Human ID、login name
+
+**Host Owner**：
+拥有一台 Host 的唯一 Human，即原来的本地 Human；不经 Host Role 即拥有全部 Host Permission。所有权可以转让，但不能删除；本机 Desktop、loopback 与 CLI 默认以 Host Owner 身份访问（ADR-0336）。
+_避免使用_：admin、root、超级用户
+
+**Host Member**：
+在某台 Host 上拥有身份的 Human，凭 Member Credential 登录并持有 Host Role。团队模式开启前，Host Owner 是唯一的 Host Member。成员不会因 Host Relationship 成为另一台 Host 的成员。
+_避免使用_：user、用户账号、租户、外部联系人
+
+**Team mode**：
+界面中文为"团队模式"。允许 Host Owner 以外的 Host Member、并要求所有非本机 Client 登录的 Host 策略开关。关闭时停用其他成员并保留其数据，不会切换数据模型。
+_避免使用_：多用户模式、企业模式、服务器模式
+
+**Member Credential**：
+Host Member 向 Host 证明身份的一种方式，与身份本身分离；首先是本地用户名和密码，以后可能接入 OIDC。登录成功后得到绑定该成员的 Paired Device 凭据。
+_避免使用_：session、账号、设备授权
+
+**Host Role**：
+分配给 Host Member 的一组具名 Host Permission，同一成员的多个角色取并集；内置 Admin 与 Member。其 Role Policy 条目指导 Bot 行为。它不同于 Channel 成员角色，也不同于外部 Chat pairing 的 Role。
+_避免使用_：group、Channel 角色、pairing Role
+
+**Host Permission**：
+团队模式权限目录中一项固定的、由 Host 强制执行的能力，例如创建 Bot、共享 Bot、授予 Workspace 根目录、批准不透明工具、查看他人私有内容。
+_避免使用_：Behavior permission item、自然语言权限、scope
+
+**Role Policy**：
+挂在 Host Role 上的 Behavior permission item，在 Bot 回应持有该角色的成员时提供给 Bot。它指导模型行为，永远不是访问控制。
+_避免使用_：权限、ACL、强制规则
+
+**Audience containment**：
+中文为"受众包含"。团队模式规则：内容只能流向受众不大于其自身受众的 Bot、Channel 或 Workspace Grant。
+_避免使用_：尽力过滤、提示词规则
+
+**Workspace root**：
+团队模式下可在其中创建 Workspace Grant 的 Host 文件夹：成员的个人根目录只能授予本人的私有 Bot；管理员创建的共享根目录授予角色或成员。
+_避免使用_：home 目录（指共享根目录时）、Workspace Grant、沙箱
 
 **Human Channel nickname**：
 本地 Human 在一个 Channel 内选择的名称，包括 DM 或 Group Channel；它在该 Channel 内覆盖 Human display name。它标记同一个 Human ID，不创建独立 Activity 或角色扮演 Persona。
@@ -742,7 +778,7 @@ _避免使用_：wake policy、inferred step state、message priority
 _避免使用_：per-event queue、wake storm、batch（单独使用）
 
 **Activity**：
-「活动」是 Human 在桌面和手机上唯一的跨 PersonaBot、跨 Channel 注意力入口：未解决的 Human 行动、提及与回复、未读 Channel 活动、信息更新及已处理历史。它引用所属权威事实，不复制 Channel 内容，也不会把每条 Bot Inbox 事件都摊成 Human 工作。桌面完整页面与 Dock 共用原位工具审批卡，运行统计不再属于此入口（#2026）。它汇总已有权威事实，不成为消息、用量或 Session 活动的另一份权威。已读、清理和延后状态存在 Host 上，任何一台设备处理过都算处理（#3321）。Human 设置免打扰的 Channel 不贡献消息注意力（含提及、回复）或全局未读提醒；真实已读位置和明确 Human 行动请求保持不变。代码中列表视图叫 `ActivityList`；Host 方法保留 `humanAttention*` 的接口名。
+「活动」是 Human 在桌面和手机上唯一的跨 PersonaBot、跨 Channel 注意力入口：未解决的 Human 行动、提及与回复、未读 Channel 活动、信息更新及已处理历史。它引用所属权威事实，不复制 Channel 内容，也不会把每条 Bot Inbox 事件都摊成 Human 工作。桌面完整页面与 Dock 共用原位工具审批卡，运行统计不再属于此入口（#2026）。它汇总已有权威事实，不成为消息、用量或 Session 活动的另一份权威。已读、清理和延后状态按 Human ID 存在 Host 上，该 Human 的任何一台设备处理过都算处理（#3321）；每个 Host Member 有自己的 Activity。Human 设置免打扰的 Channel 不贡献消息注意力（含提及、回复）或全局未读提醒；真实已读位置和明确 Human 行动请求保持不变。代码中列表视图叫 `ActivityList`；Host 方法保留 `humanAttention*` 的接口名。
 _避免使用_：活动中心、Activity Center、Human Inbox、收件箱（指此入口时）、notifications（推送通知是手机对「活动」条目的送达方式）、Bot Inbox、dashboard list
 
 Activity control rail 红点有独立的浏览器／Host 本地显示范围；隐藏或缩小红点范围不改变「活动」查询、实际未读状态或待处理 Human 请求。
@@ -1046,7 +1082,7 @@ _避免使用_：local computer、this computer、本地电脑
 _避免使用_：Computer、其它电脑、machine、server、peer
 
 **Paired Device**：
-持有某台 Host 发放的独立、可撤销凭据的客户端：一个手机 App，或一个 origin 上的一个浏览器 profile。它读取并操作那台 Host，但从不承载 PersonaBot，也不中转其它 Host。
+持有某台 Host 发放的独立、可撤销凭据的客户端：一个手机 App，或一个 origin 上的一个浏览器 profile。它以唯一一个 Human ID 的身份读取并操作那台 Host，但从不承载 PersonaBot，也不中转其它 Host。
 _避免使用_：phone（指所有设备时）、session、Host
 
 **Host Relationship**：

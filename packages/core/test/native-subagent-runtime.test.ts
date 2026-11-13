@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createChannelStore } from '../src/channels/store.js';
@@ -32,7 +33,7 @@ function fixture(holdTeardown = false) {
   const registry = createTestRegistry({ database, rootDir: join(home, 'bots') });
   registry.create({ slug: 'ada', displayName: 'Ada' });
   const channels = createChannelStore({ rootDir: join(home, 'channels') });
-  const dm = channels.getOrCreateDm('ada', 'Ada')!;
+  const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
   const ownership = createSessionOwnership(attachOperationalModule(database, 'session-ownership'));
   const at = '2026-10-25T00:00:00.000Z';
   ownership.claim({ sessionId: 'parent', botSlug: 'ada', rootRole: 'orchestrator', at });
@@ -276,7 +277,7 @@ describe('native Subagent report admission', () => {
   it('admits the first Human turn after a restart even though no native sender is present (#3315)', async () => {
     const f = fixture();
     try {
-      const dm = f.runtime.admitDmMessage({
+      const dm = f.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: f.dm.id,
         messageId: 'human-after-restart',
         body: 'First message after restart',
@@ -304,7 +305,7 @@ describe('native Subagent report admission', () => {
   it('keeps a Runtime-driven turn running when a softer fence fails mid-turn (#3315)', async () => {
     const f = fixture();
     try {
-      const dm = f.runtime.admitDmMessage({
+      const dm = f.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: f.dm.id,
         messageId: 'human-mid-turn',
         body: 'Long request',
@@ -400,7 +401,7 @@ describe('native Subagent report admission', () => {
   it('joins a racing Human turn instead of deadlocking behind it or replaying the report', async () => {
     const f = fixture();
     try {
-      const dm = f.runtime.admitDmMessage({
+      const dm = f.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: f.dm.id,
         messageId: 'human-racing',
         body: 'New request',

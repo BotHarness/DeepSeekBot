@@ -1,3 +1,5 @@
+import { Fragment } from 'react';
+import { ConnectionFailureActions } from './connection-failure-actions';
 import { Host } from '@expo/ui';
 import {
   Button,
@@ -89,68 +91,81 @@ export function AccountPanel(props: AccountPanelProps) {
                 modifiers={[disabled(locked || props.pendingDeletion === true)]}
               />
               {props.rows?.map((row) => (
-                <Button
-                  key={row.id}
-                  testID={`account-computer-${row.id}`}
-                  role={props.managing ? 'destructive' : 'default'}
-                  onPress={() => (props.managing ? props.onRevoke(row.id) : props.onToggle(row.id))}
-                  modifiers={[
-                    buttonStyle('plain'),
-                    disabled(
-                      locked ||
-                        props.pendingDeletion === true ||
-                        (props.managing ? props.managementDisabled === true : row.disabled),
-                    ),
-                    accessibilityLabel(
-                      props.managing
-                        ? `${t.pairAccount.unlinkTitle(row.name)}, ${row.detail}`
-                        : `${row.name}, ${row.pairing ? t.pairAccount.pairing : row.detail}${row.selected ? `, ${t.pairAccount.selected}` : ''}`,
-                    ),
-                  ]}
-                >
-                  <HStack
-                    spacing={space.x3}
+                <Fragment key={row.id}>
+                  <Button
+                    key={row.id}
+                    testID={`account-computer-${row.id}`}
+                    role={props.managing ? 'destructive' : 'default'}
+                    onPress={() =>
+                      props.managing ? props.onRevoke(row.id) : props.onToggle(row.id)
+                    }
                     modifiers={[
-                      frame({ minHeight: theme.touch, maxWidth: Infinity, alignment: 'leading' }),
-                      contentShape(shapes.rectangle()),
+                      buttonStyle('plain'),
+                      disabled(
+                        locked ||
+                          props.pendingDeletion === true ||
+                          (props.managing ? props.managementDisabled === true : row.disabled),
+                      ),
+                      accessibilityLabel(
+                        props.managing
+                          ? `${t.pairAccount.unlinkTitle(row.name)}, ${row.detail}`
+                          : `${row.name}, ${row.pairing ? t.pairAccount.pairing : row.detail}${row.selected ? `, ${t.pairAccount.selected}` : ''}`,
+                      ),
                     ]}
                   >
-                    <Image systemName="desktopcomputer" />
-                    <VStack alignment="leading" spacing={space.x1}>
-                      <Text modifiers={[font({ textStyle: 'body' })]}>{row.name}</Text>
-                      <Text
+                    <HStack
+                      spacing={space.x3}
+                      modifiers={[
+                        frame({ minHeight: theme.touch, maxWidth: Infinity, alignment: 'leading' }),
+                        contentShape(shapes.rectangle()),
+                      ]}
+                    >
+                      <Image systemName="desktopcomputer" />
+                      <VStack
+                        alignment="leading"
+                        spacing={space.x1}
                         modifiers={[
-                          font({ textStyle: 'caption' }),
-                          foregroundStyle({
-                            type: 'color',
-                            color: theme.color.muted,
-                          }),
+                          frame({ minWidth: 0, maxWidth: Infinity, alignment: 'leading' }),
                         ]}
                       >
-                        {props.managing
-                          ? `${row.detail} · ${t.pairAccount.unlink}`
-                          : row.pairing
-                            ? t.pairAccount.pairing
-                            : row.detail}
-                      </Text>
-                    </VStack>
-                    <Spacer />
-                    {row.pairing ? (
-                      <ProgressView />
-                    ) : row.selected ? (
-                      <Image
-                        systemName="checkmark"
-                        modifiers={[
-                          font({ textStyle: 'body', weight: 'semibold' }),
-                          foregroundStyle({
-                            type: 'color',
-                            color: theme.color.accent,
-                          }),
-                        ]}
-                      />
-                    ) : null}
-                  </HStack>
-                </Button>
+                        <Text modifiers={[font({ textStyle: 'body' })]}>{row.name}</Text>
+                        <Text
+                          modifiers={[
+                            font({ textStyle: 'caption' }),
+                            foregroundStyle({
+                              type: 'color',
+                              color: theme.color.muted,
+                            }),
+                          ]}
+                        >
+                          {props.managing
+                            ? `${row.detail} · ${t.pairAccount.unlink}`
+                            : row.pairing
+                              ? t.pairAccount.pairing
+                              : row.detail}
+                        </Text>
+                      </VStack>
+                      <Spacer />
+                      {row.pairing ? (
+                        <ProgressView />
+                      ) : row.selected ? (
+                        <Image
+                          systemName="checkmark"
+                          modifiers={[
+                            font({ textStyle: 'body', weight: 'semibold' }),
+                            foregroundStyle({
+                              type: 'color',
+                              color: theme.color.accent,
+                            }),
+                          ]}
+                        />
+                      ) : null}
+                    </HStack>
+                  </Button>
+                  {row.failure && !row.pairing && !props.managing ? (
+                    <ConnectionFailureActions failure={row.failure} id={row.id} />
+                  ) : null}
+                </Fragment>
               ))}
               {props.rows === undefined ? (
                 <Text>{props.loading ? t.loading : t.pairAccount.choose}</Text>
@@ -158,6 +173,7 @@ export function AccountPanel(props: AccountPanelProps) {
                 <Text>{t.pairAccount.empty}</Text>
               ) : null}
               <Button
+                testID="account-refresh"
                 label={t.pairAccount.refresh}
                 systemImage="arrow.clockwise"
                 onPress={props.onRefresh}
@@ -175,6 +191,9 @@ export function AccountPanel(props: AccountPanelProps) {
               <Text modifiers={[foregroundStyle({ type: 'color', color: theme.color.danger })]}>
                 {props.error}
               </Text>
+              {props.failure ? (
+                <ConnectionFailureActions failure={props.failure} id="account" />
+              ) : null}
             </Section>
           ) : null}
         </Form>

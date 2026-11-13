@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createBridgeMethods } from '../src/bridge/methods.js';
@@ -82,17 +83,21 @@ async function fixture(home = createTempRoot('bh-orchestrator-stop-')) {
       list: () => [],
     }),
   });
-  const bridge = createBridgeMethods({ ...core });
+  const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
   if (core.registry.get('ada') === undefined) {
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
     createTestWorkspaceGrants(core.operationalDatabase, home);
   }
-  const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+  const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
   let sent = 0;
   function send(body: string) {
     sent += 1;
     const messageId = `human-${Date.now()}-${sent}`;
-    const admission = core.runtime.admitDmMessage({ channelId: dm.id, messageId, body });
+    const admission = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+      channelId: dm.id,
+      messageId,
+      body,
+    });
     if (!admission.admitted) throw new Error('Not admitted');
     return admission.settled;
   }
@@ -280,7 +285,10 @@ describe('Stop notices', () => {
     const f = await fixture();
     try {
       const assignment = await f.create('Crawl every page');
-      const elsewhere = f.core.channels.createGroup({ name: 'Elsewhere', members: ['ada'] }).id;
+      const elsewhere = f.core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Elsewhere',
+        members: ['ada'],
+      }).id;
       const unrelated = await f.bridge.sessionStop({
         botSlug: 'ada',
         sessionId: assignment,

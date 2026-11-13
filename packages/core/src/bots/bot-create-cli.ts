@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import {
@@ -1570,7 +1571,7 @@ async function runMemorySave(
       join(resolveHome(values, io), 'botharness', 'bots', opened.record.slug, 'memory');
     const head = expectedHead ?? currentHead(dataDir);
     const commit = callMemory(() =>
-      opened.memory.saveHuman({
+      opened.memory.saveHuman(OWNER_HUMAN_CONTEXT, {
         botSlug: opened.record.slug,
         path,
         body: text,
@@ -1722,7 +1723,7 @@ function runHumanNameSet(
   try {
     const channels = openChannels(dshHome, owner, registry);
     try {
-      const identity = channels.setHumanDefaultName(clear ? null : name!);
+      const identity = channels.setHumanDefaultName(OWNER_HUMAN_CONTEXT, clear ? null : name!);
       io.stderr(`tobs: set the Human display name`);
       return { human: { humanId: identity.humanId, displayName: identity.displayName } };
     } catch (error) {
@@ -1758,7 +1759,7 @@ function runChannelHumanNameSet(
       throw new CliFailure('unknown-channel', `Unknown channel: ${channelId}`, 1);
     }
     try {
-      channels.setHumanNickname(channelId, clear ? null : nickname!);
+      channels.setHumanNickname(OWNER_HUMAN_CONTEXT, channelId, clear ? null : nickname!);
     } catch (error) {
       throw new CliFailure(
         'invalid-input',
@@ -1767,7 +1768,10 @@ function runChannelHumanNameSet(
       );
     }
     io.stderr(`tobs: set the Human nickname in ${channelId}`);
-    return { channel: { id: channelId }, nickname: channels.humanNickname(channelId) ?? null };
+    return {
+      channel: { id: channelId },
+      nickname: channels.humanNickname(OWNER_HUMAN_CONTEXT, channelId) ?? null,
+    };
   } finally {
     owner.close();
   }

@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
@@ -59,7 +60,7 @@ function fixture() {
     memoryDir: (slug) =>
       core.registry.get(slug) === undefined ? undefined : core.registry.memoryDirFor(slug),
   });
-  const bridge = createBridgeMethods({ ...core, shareDrafts: drafts });
+  const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core, shareDrafts: drafts });
   const created = bridge.create({ displayName: 'Helper', operationKey: 'create-helper-01' });
   if (!created.ok) throw new Error(created.error.code);
   const slug = created.value.bot.slug;

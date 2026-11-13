@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { boundModelPage, readModelContent } from '../src/runtime/channel-model-read.js';
 import { createHash, randomUUID } from 'node:crypto';
 import {
@@ -54,7 +55,7 @@ function fixture(sqlite: boolean) {
     database === undefined
       ? createChannelStore({ rootDir: join(root, 'channels'), attachments: files })
       : createSqliteChannelStore({ database, rootDir: join(root, 'channels'), attachments: files });
-  const channel = channels.createGroup({ name: 'Current files', members: [] });
+  const channel = channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Current files', members: [] });
   return {
     root,
     files,
@@ -83,9 +84,9 @@ for (const sqlite of [false, true])
           body: '',
           attachments: [first],
         };
-        await channels.appendMessageOnce(channel.id, message);
-        await channels.appendMessage(channel.id, { ...message, id: 'shared' });
-        await channels.appendMessage(channel.id, {
+        await channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, channel.id, message);
+        await channels.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, { ...message, id: 'shared' });
+        await channels.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, {
           ...message,
           id: 'independent',
           attachments: [independent],
@@ -133,7 +134,9 @@ for (const sqlite of [false, true])
               db.prepare('SELECT payload_json FROM source_events ORDER BY source_event_id').all(),
             ),
           ).toEqual(authority);
-        expect((await channels.appendMessageOnce(channel.id, message)).status).toBe('existing');
+        expect(
+          (await channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, channel.id, message)).status,
+        ).toBe('existing');
         expect(notifications).toEqual([]);
         unsubscribe?.();
         const restarted = createAttachmentStore({ rootDir: join(root, 'attachments') });
@@ -166,8 +169,8 @@ for (const sqlite of [false, true])
       it('checks message ownership, profile records, current MIME and exact identities on every action', async () => {
         const { files, channels, channel, access } = fixture(sqlite);
         const ref = await files.upload({ data: chunks('%PDF-1.7'), name: 'document.pdf' });
-        const other = channels.createGroup({ name: 'Other', members: [] });
-        await channels.appendMessage(channel.id, {
+        const other = channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Other', members: [] });
+        await channels.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, {
           id: 'file',
           at: new Date().toISOString(),
           author: { kind: 'human' },

@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { afterEach, expect, it, vi } from 'vitest';
 import { Context } from '@deepseek-ai/cordis';
 import { createBridgeMethods } from '../src/bridge/methods.js';
@@ -940,8 +941,11 @@ it('one checked account consumer handles unknown DM pairing ahead of normal Inbo
   expect(db.read((db) => db.prepare('SELECT * FROM inbox_admissions').all())).toEqual([]);
   expect(core.externalMessaging.pairing.list('ada')).toHaveLength(2);
   expect(reply).toHaveBeenCalledTimes(2);
-  const methods = createBridgeMethods({ ...core });
-  const bridge = registerBridge(new Context(), methods);
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
+  const bridge = registerBridge(
+    new Context().extend({ invocation: { peer: { principal: { kind: 'owner' } } } }),
+    () => methods,
+  );
   const pending = core.externalMessaging.pairing.list('ada').find((p) => p.actorId === 'ou_alice')!;
   const review = {
     kind: 'approve' as const,
@@ -1086,7 +1090,7 @@ it('pending pairing requests reach the action inbox until reviewed', () => {
   const attention = createHumanAttentionQuery(attachOperationalModule(f.owner, 'human-attention'));
   const actions = () =>
     attention
-      .list({ category: 'action', sort: 'newest' })
+      .list(OWNER_HUMAN_CONTEXT, { category: 'action', sort: 'newest' })
       .items.filter((item) => item.kind === 'pairing-request');
   const management = f.pairing.request('binding', event());
   const conversation = f.pairing.request('binding', event('ou_bob', 'message-2'), 'conversation');

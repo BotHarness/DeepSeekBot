@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -20,7 +21,7 @@ async function pictureSetup() {
   const fixture = await setup();
   for (const call of [PICTURE_CALLS[1], PICTURE_CALLS[0]])
     for (const message of pictureMessages(call))
-      await fixture.core.channels.appendMessage(fixture.dm.id, message);
+      await fixture.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, fixture.dm.id, message);
   return fixture;
 }
 
@@ -117,9 +118,10 @@ describe('channel_read by call returns pictures that overlap the window (#3713)'
 
   it('matches in the file store as in SQLite', async () => {
     const store = createChannelStore({ rootDir: join(createTempRoot('call-picture-file-'), 'c') });
-    const dm = store.getOrCreateDm('ada', 'Ada')!;
+    const dm = store.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
     for (const call of PICTURE_CALLS)
-      for (const message of pictureMessages(call)) await store.appendMessage(dm.id, message);
+      for (const message of pictureMessages(call))
+        await store.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, message);
     const call = PICTURE_CALLS[1];
     const query = {
       from: call.startedAt,

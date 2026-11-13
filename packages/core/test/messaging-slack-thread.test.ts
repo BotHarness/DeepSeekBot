@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { afterEach, expect, it } from 'vitest';
 import { createCore, type BotHarnessCore } from '../src/plugin.js';
 import { createDshImProvider, type DshImOutboundService } from '../src/messaging/dsh-im.js';
@@ -76,7 +77,10 @@ async function fixture(shared: boolean) {
   });
   let channelId: string | undefined;
   if (shared) {
-    channelId = core.channels.createGroup({ name: 'Topic team', members: ['ada', 'bea'] }).id;
+    channelId = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Topic team',
+      members: ['ada', 'bea'],
+    }).id;
     core.channels.setGroupWakePolicy(channelId, 'bea', {
       mode: 'silent',
       count: 7,
@@ -184,7 +188,7 @@ it.each([false, true])(
       ]);
     }
     await expect(set(0)).rejects.toThrow('thread-policy-conflict');
-    const bridge = createBridgeMethods({ ...core });
+    const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
     expect(
       await bridge.messagingThreadPolicy({
         slug: 'ada',

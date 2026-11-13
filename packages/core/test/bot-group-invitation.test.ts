@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 
 import { attachOperationalModule } from '../src/database/owner.js';
@@ -24,8 +25,11 @@ describe('Bot Group invitation tracer', () => {
     try {
       core.registry.create({ slug: 'bea', displayName: 'Bea' });
       core.registry.create({ slug: 'cee', displayName: 'Cee' });
-      const group = core.channels.createGroup({ name: 'Human team', members: [] });
-      const methods = createBridgeMethods({
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Human team',
+        members: [],
+      });
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
         registry: core.registry,
         states: core.states,
         channels: core.channels,
@@ -156,14 +160,14 @@ describe('Bot Group invitation tracer', () => {
     try {
       for (const slug of ['ada', 'bea', 'cee'])
         core.registry.create({ slug, displayName: slug.toUpperCase() });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      await core.channels.appendMessage(dm.id, {
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'human-create',
         at: '2026-09-25T00:00:00.000Z',
         author: { kind: 'human' },
         body: '创建协作群并邀请 Bea 与 Cee',
       });
-      core.runtime.admitDmMessage({
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'human-create',
         body: '创建协作群并邀请 Bea 与 Cee',
@@ -216,19 +220,19 @@ describe('Bot Group invitation tracer', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bea', displayName: 'Bea' });
-      groupId = core.channels.createGroup({
+      groupId = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
         name: 'Owner settings',
         members: ['ada', 'bea'],
         ownerBotSlug: 'ada',
       }).id;
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      await core.channels.appendMessage(dm.id, {
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'human-manage',
         at: '2026-09-25T00:00:00.000Z',
         author: { kind: 'human' },
         body: 'Manage Group settings and membership',
       });
-      core.runtime.admitDmMessage({
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'human-manage',
         body: 'Manage Group settings and membership',
@@ -258,13 +262,13 @@ describe('Bot Group invitation tracer', () => {
     try {
       for (const slug of ['ada', 'bea', 'cee'])
         core.registry.create({ slug, displayName: slug.toUpperCase() });
-      const group = core.channels.createGroup({
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
         name: 'Human control',
         members: ['ada'],
         ownerBotSlug: 'ada',
       });
-      const beaDm = core.channels.getOrCreateDm('bea', 'Bea')!;
-      const ceeDm = core.channels.getOrCreateDm('cee', 'Cee')!;
+      const beaDm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'bea', 'Bea')!;
+      const ceeDm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'cee', 'Cee')!;
       const bea = core.channels.inviteGroupBot({
         channelId: group.id,
         inviterBotSlug: 'ada',
@@ -285,7 +289,7 @@ describe('Bot Group invitation tracer', () => {
         targetBotCreatedAt: core.registry.get('bea')!.createdAt,
         accept: true,
       });
-      const methods = createBridgeMethods({
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
         registry: core.registry,
         states: core.states,
         channels: core.channels,
@@ -318,17 +322,20 @@ describe('Bot Group invitation tracer', () => {
         value: { deleted: true, messages: expect.any(Number) },
       });
       expect(disbanded.ok && disbanded.value.messages).toBeGreaterThan(0);
-      expect(core.contentPurge.history()).toEqual([]);
+      expect(core.contentPurge.history(OWNER_HUMAN_CONTEXT)).toEqual([]);
       expect(core.channels.get(group.id)).toBeUndefined();
       expect(methods.channelMessages({ channelId: group.id })).toMatchObject({ ok: false });
-      const leftover = core.channels.createGroup({ name: 'Leftover', members: [] });
+      const leftover = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Leftover',
+        members: [],
+      });
       core.channels.deleteGroup(leftover.id);
-      expect(core.contentPurge.history()).toMatchObject([{ id: leftover.id }]);
+      expect(core.contentPurge.history(OWNER_HUMAN_CONTEXT)).toMatchObject([{ id: leftover.id }]);
       expect(methods.channelGroupDelete({ channelId: leftover.id })).toEqual({
         ok: true,
         value: { deleted: true, messages: 0 },
       });
-      expect(core.contentPurge.history()).toEqual([]);
+      expect(core.contentPurge.history(OWNER_HUMAN_CONTEXT)).toEqual([]);
       expect(core.channels.list().some((channel) => channel.id === group.id)).toBe(false);
     } finally {
       await core.runtime.close();
@@ -344,12 +351,12 @@ describe('Bot Group invitation tracer', () => {
     try {
       for (const slug of ['ada', 'bea', 'cee'])
         core.registry.create({ slug, displayName: slug.toUpperCase() });
-      const group = core.channels.createGroup({
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
         name: 'Team',
         members: ['ada', 'bea'],
         ownerBotSlug: 'bea',
       });
-      const ceeDm = core.channels.getOrCreateDm('cee', 'Cee')!;
+      const ceeDm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'cee', 'Cee')!;
       const invitation = core.channels.inviteGroupBot({
         channelId: group.id,
         inviterBotSlug: 'bea',
@@ -380,13 +387,13 @@ describe('Bot Group invitation tracer', () => {
     const first = createCore({ autoAcceptGroupInvitations: () => false, dshHome: home });
     for (const slug of ['ada', 'bea', 'cee'])
       first.registry.create({ slug, displayName: slug.toUpperCase() });
-    const group = first.channels.createGroup({
+    const group = first.channels.createGroup(OWNER_HUMAN_CONTEXT, {
       name: 'Recovery',
       members: ['ada'],
       ownerBotSlug: 'ada',
     });
-    const beaDm = first.channels.getOrCreateDm('bea', 'Bea')!;
-    const ceeDm = first.channels.getOrCreateDm('cee', 'Cee')!;
+    const beaDm = first.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'bea', 'Bea')!;
+    const ceeDm = first.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'cee', 'Cee')!;
     const bea = first.channels.inviteGroupBot({
       channelId: group.id,
       inviterBotSlug: 'ada',
