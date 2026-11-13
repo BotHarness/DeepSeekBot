@@ -1,8 +1,14 @@
 import { parseAccountOwner, type AccountOwner } from './account-owner';
-import { isPrivateRoute } from './route';
+import { hasPrivateOrigin, isPrivateRoute } from './route';
+
+export interface PrivateAdmission {
+  origin: string;
+  token: string;
+  additionalOrigins?: string[];
+}
 
 export interface HostEncryption {
-  privateRelay?: { origin: string; token: string };
+  privateRelay?: PrivateAdmission;
   loopback?: 'encrypted';
   protocol: 'connect-noise-xk-v1';
   hostKey: string;
@@ -36,11 +42,16 @@ export function parseSavedHost(input: unknown): SavedHost | undefined {
   if (value['routePreference'] !== undefined && typeof value['routePreference'] !== 'string')
     return undefined;
   const privateRelay = parsePrivateAdmission(record(value['encryption'])['privateRelay']);
+  if (record(value['encryption'])['privateRelay'] !== undefined && !privateRelay) return;
   if (
     privateRelay &&
     (!Array.isArray(value['routes']) ||
-      value['routes'].length !== 1 ||
-      value['routes'][0] !== privateRelay.origin)
+      value['routes'].length === 0 ||
+      value['routes'].length > 2 ||
+      new Set(value['routes']).size !== value['routes'].length ||
+      !value['routes'].every(
+        (route) => typeof route === 'string' && hasPrivateOrigin(privateRelay, route),
+      ))
   )
     return;
   const encryptedRoutes = value['encryptedLoopbackRoutes'];
@@ -176,9 +187,7 @@ export function selectHost(state: SavedHosts, hostId: string): SavedHosts | unde
     : undefined;
 }
 
-export function parsePrivateAdmission(
-  input: unknown,
-): { origin: string; token: string } | undefined {
+export function parsePrivateAdmission(input: unknown): PrivateAdmission | undefined {
   const value = record(input);
   if (
     typeof value['origin'] !== 'string' ||
@@ -196,7 +205,33 @@ export function parsePrivateAdmission(
       url.password
     )
       return;
-    return { origin: url.origin, token: value['token'] };
+    const additional = value['additionalOrigins'];
+    if (
+      additional !== undefined &&
+      (!Array.isArray(additional) ||
+        additional.length > 1 ||
+        additional.some((origin) => {
+          if (typeof origin !== 'string' || origin === url.origin) return true;
+          try {
+            const extra = new URL(origin);
+            return (
+              extra.origin !== origin ||
+              !isPrivateRoute(origin) ||
+              extra.protocol !== 'https:' ||
+              !!extra.username ||
+              !!extra.password
+            );
+          } catch {
+            return true;
+          }
+        }))
+    )
+      return;
+    return {
+      origin: url.origin,
+      token: value['token'],
+      ...(Array.isArray(additional) && additional.length ? { additionalOrigins: additional } : {}),
+    };
   } catch {
     return;
   }

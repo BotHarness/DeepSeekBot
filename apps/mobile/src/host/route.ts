@@ -12,7 +12,23 @@ const isTailscaleHostname = (hostname: string): boolean =>
   hostname.endsWith('.ts.net') ||
   /^100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d+\.\d+$/u.test(hostname);
 
-export function checkRoute(input: string, privateOrigin?: string): RouteCheck {
+export interface PrivateOrigins {
+  origin: string;
+  additionalOrigins?: readonly string[];
+}
+
+export function hasPrivateOrigin(admission: PrivateOrigins | undefined, origin: string): boolean {
+  return (
+    admission !== undefined &&
+    (admission.origin === origin || admission.additionalOrigins?.includes(origin) === true)
+  );
+}
+
+export function privateRouteOrigins(admission: PrivateOrigins): string[] {
+  return [admission.origin, ...(admission.additionalOrigins ?? [])];
+}
+
+export function checkRoute(input: string, privateOrigin?: string | PrivateOrigins): RouteCheck {
   let url: URL;
   try {
     url = new URL(input.trim());
@@ -31,7 +47,10 @@ export function checkRoute(input: string, privateOrigin?: string): RouteCheck {
     (loopback && (url.protocol === 'http:' || url.protocol === 'https:')) ||
     ((tailnet ||
       (connect && url.port === '') ||
-      (url.origin === privateOrigin && isPrivateRoute(url.origin))) &&
+      ((typeof privateOrigin === 'string'
+        ? url.origin === privateOrigin
+        : hasPrivateOrigin(privateOrigin, url.origin)) &&
+        isPrivateRoute(url.origin))) &&
       url.protocol === 'https:');
   if (
     !allowed ||

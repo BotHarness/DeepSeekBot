@@ -7,6 +7,7 @@ import { isConnectZoneHost } from './routes.js';
 export interface PrivateRelayAdmission {
   origin: string;
   token: string;
+  additionalOrigins?: string[];
 }
 interface Configuration {
   origin: string;

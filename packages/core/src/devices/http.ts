@@ -5,6 +5,7 @@ import type {
   PrivateRelayStatus,
 } from './private-relay.js';
 import type { PrivateTunnel, PrivateTunnelStatus } from './private-tunnel.js';
+import type { PrivateRouteInput, PrivateRouteStatus } from './private-tunnel-owner.js';
 import type { EncryptionIdentity } from './noise-identity.js';
 import type { LanBotControl, LanBotSnapshot } from './bot-lan-control.js';
 import { hostId } from './bot-network-wire.js';
@@ -45,6 +46,7 @@ export interface PairingPayload {
 export interface DevicesSnapshot {
   privateRelay?: PrivateRelayStatus;
   privateTunnel?: PrivateTunnelStatus;
+  privateRoutes?: PrivateRouteStatus[];
   direct?: { open: number; devices: string[] };
   lanBots?: LanBotSnapshot;
   lan?: LanStatus;
@@ -146,6 +148,8 @@ export function createDevicesHttp(options: {
       if (typeof input['origin'] !== 'string' || typeof input['bootstrap'] !== 'string')
         return json({ code: 'private-relay-input-invalid' }, 400);
       if (!options.privateConnection) return json({ code: 'not-ready' }, 409);
+      if (options.privateTunnel?.statuses().length)
+        return json({ code: 'private-route-in-use' }, 409);
       const result = await options.privateConnection.claim(input['origin'], input['bootstrap']);
       return json(result, result.ok ? 200 : 409);
     }
@@ -153,23 +157,42 @@ export function createDevicesHttp(options: {
       const input = await body(request);
       if (input['confirm'] !== true) return json({ code: 'confirm-required' }, 400);
       if (!options.privateTunnel) return json({ code: 'not-ready' }, 409);
+      const routeId = input['routeId'];
+      if (routeId !== undefined && routeId !== 'quick' && routeId !== 'custom')
+        return json({ code: 'private-route-not-found' }, 400);
+      const action = input['action'];
+      if (action === 'start' || action === 'stop' || action === 'remove') {
+        if (routeId === undefined) return json({ code: 'private-route-id-required' }, 400);
+        if (action === 'start' && (options.privateConnection?.status().state ?? 'off') !== 'off')
+          return json({ code: 'private-route-in-use' }, 409);
+        const result = await options.privateTunnel[action](routeId);
+        return json(result, result.ok ? 200 : 409);
+      }
       if (input['action'] === 'disable') {
         const result = await options.privateTunnel.disable();
         return json(result, result.ok ? 200 : 409);
       }
       if (
-        input['action'] !== 'enable' ||
+        (action !== 'enable' && action !== 'add' && action !== 'replace') ||
         (input['mode'] !== 'quick' && input['mode'] !== 'named' && input['mode'] !== 'ingress')
       )
         return json({ code: 'private-tunnel-input-invalid' }, 400);
-      const result = await options.privateTunnel.enable({
+      const configuration: PrivateRouteInput = {
         mode: input['mode'],
         ...(typeof input['hostname'] === 'string' ? { hostname: input['hostname'] } : {}),
         ...(typeof input['token'] === 'string' ? { token: input['token'] } : {}),
         ...(typeof input['origin'] === 'string' ? { origin: input['origin'] } : {}),
         ...(input['lan'] === true ? { lan: true } : {}),
         inUse: (options.privateConnection?.status().state ?? 'off') !== 'off',
-      });
+      };
+      if (action === 'replace' && routeId === undefined)
+        return json({ code: 'private-route-id-required' }, 400);
+      if (routeId !== undefined && routeId !== (input['mode'] === 'quick' ? 'quick' : 'custom'))
+        return json({ code: 'private-route-not-found' }, 400);
+      const result =
+        action === 'replace' && routeId !== undefined
+          ? await options.privateTunnel.replace(routeId, configuration)
+          : await options.privateTunnel[action === 'add' ? 'add' : 'enable'](configuration);
       return json(result, result.ok ? 200 : 409);
     }
     if (path === `${DEVICES_PATH}/account-hosts` && request.method === 'GET') {
@@ -194,7 +217,12 @@ export function createDevicesHttp(options: {
     if (request.method === 'GET' && path === DEVICES_PATH) {
       const snapshot: DevicesSnapshot = {
         ...(options.privateConnection ? { privateRelay: options.privateConnection.status() } : {}),
-        ...(options.privateTunnel ? { privateTunnel: options.privateTunnel.status() } : {}),
+        ...(options.privateTunnel
+          ? {
+              privateTunnel: options.privateTunnel.status(),
+              privateRoutes: options.privateTunnel.statuses(),
+            }
+          : {}),
         ...(options.direct
           ? {
               direct: {
@@ -220,15 +248,41 @@ export function createDevicesHttp(options: {
     if (request.method === 'POST' && path === `${DEVICES_PATH}/offer`) {
       const input = await body(request);
       const origin = typeof input['origin'] === 'string' ? input['origin'] : undefined;
-      const routes = offeredRoutes(await options.routes(), origin).map((route) => route.url);
+      let routes = offeredRoutes(await options.routes(), origin).map((route) => route.url);
       const privateStatus = options.privateConnection?.status();
       if (privateStatus && privateStatus.state !== 'off' && privateStatus.state !== 'connected')
         return json({ code: 'private-relay-unreachable' }, 409);
       const tunnelStatus = options.privateTunnel?.status();
-      if (tunnelStatus && tunnelStatus.state !== 'off' && tunnelStatus.state !== 'connected')
-        return json({ code: 'private-tunnel-unreachable', issue: tunnelStatus.issue }, 409);
-      const privateRelay =
-        options.privateTunnel?.admission() ?? options.privateConnection?.admission();
+      const admissions = options.privateTunnel?.admissions() ?? [];
+      const requested = input['routeId'];
+      if (requested !== undefined && requested !== 'quick' && requested !== 'custom')
+        return json({ code: 'private-route-not-found' }, 400);
+      const selected =
+        requested === undefined
+          ? admissions[0]
+          : admissions.find((route) => route.id === requested);
+      if (
+        (requested !== undefined && !selected) ||
+        (!selected &&
+          tunnelStatus &&
+          tunnelStatus.state !== 'off' &&
+          tunnelStatus.state !== 'connected')
+      )
+        return json({ code: 'private-tunnel-unreachable', issue: tunnelStatus?.issue }, 409);
+      const privateRelay = selected
+        ? {
+            origin: selected.origin,
+            token: selected.token,
+            ...(requested === undefined && admissions.length > 1
+              ? {
+                  additionalOrigins: admissions
+                    .filter((route) => route.id !== selected.id)
+                    .map((route) => route.origin),
+                }
+              : {}),
+          }
+        : options.privateConnection?.admission();
+      if (privateRelay) routes = [privateRelay.origin];
       const offer = pairing.createOffer();
       const link = pairingLink({
         v: 1,
@@ -250,7 +304,9 @@ export function createDevicesHttp(options: {
         qr: qrPath(link),
         expiresAt: offer.expiresAt,
         receipt: offer.receipt,
-        routes,
+        routes: privateRelay
+          ? [privateRelay.origin, ...(privateRelay.additionalOrigins ?? [])]
+          : routes,
         reachable: routes.some((route) => {
           const kind = phoneRoute(route)?.kind;
           return !!privateRelay || kind === 'lan' || kind === 'tailscale' || kind === 'connect';

@@ -8,7 +8,11 @@ import {
 } from '../src/client/private-tunnel-settings.js';
 import { zhTranslate as t } from '../src/client/locale.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({ Button: 'button', Switch: 'input' }));
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+  Button: 'button',
+  Switch: 'input',
+  Input: 'input',
+}));
 
 let host: HTMLDivElement;
 let root: ReturnType<typeof createRoot>;
@@ -81,7 +85,8 @@ it('starts Quick Tunnel only after an explicit action and keeps other deployment
   await act(async () => start.click());
   expect(fetch).toHaveBeenCalledOnce();
   expect(JSON.parse(fetch.mock.calls[0]![1]!.body as string)).toEqual({
-    action: 'enable',
+    action: 'add',
+    routeId: 'quick',
     mode: 'quick',
     confirm: true,
   });
@@ -138,3 +143,84 @@ it.each([
     open.mockRestore();
   },
 );
+
+it('stops only the selected route and requires confirmation before removing configuration', async () => {
+  const requests: unknown[] = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (_url, init) => {
+      requests.push(JSON.parse(init.body));
+      return { ok: true };
+    }),
+  );
+  const refresh = vi.fn(async () => undefined);
+  await act(async () =>
+    root.render(
+      <PrivateTunnelSettings
+        t={t}
+        routes={[
+          {
+            id: 'quick',
+            enabled: true,
+            state: 'connected',
+            mode: 'quick',
+            origin: 'https://quick.example.com',
+          },
+          {
+            id: 'custom',
+            enabled: false,
+            state: 'off',
+            mode: 'ingress',
+            origin: 'https://custom.example.com',
+          },
+        ]}
+        refresh={refresh}
+        pair={() => undefined}
+        advanced={() => undefined}
+        step="choose"
+        setStep={() => undefined}
+      />,
+    ),
+  );
+  const button = (label: string) =>
+    [...host.querySelectorAll<HTMLButtonElement>('button')].find(
+      (item) => item.textContent === label,
+    )!;
+  await act(async () => button(t('privateTunnel.routes.stop')).click());
+  expect(requests).toEqual([{ action: 'stop', routeId: 'quick', confirm: true }]);
+  await act(async () => button(t('privateTunnel.routes.start')).click());
+  expect(requests[1]).toEqual({ action: 'start', routeId: 'custom', confirm: true });
+  await act(async () => button(t('privateTunnel.routes.remove')).click());
+  expect(requests).toHaveLength(2);
+  expect(host.textContent).toContain(t('privateTunnel.routes.removeHint'));
+  await act(async () => button(t('privateTunnel.routes.removeConfirm')).click());
+  expect(requests[2]).toEqual({ action: 'remove', routeId: 'quick', confirm: true });
+  expect(refresh).toHaveBeenCalledTimes(3);
+});
+
+it('shows an existing custom configuration as an explicit replacement form', async () => {
+  await act(async () =>
+    root.render(
+      <PrivateTunnelSettings
+        t={t}
+        routes={[
+          {
+            id: 'custom',
+            enabled: true,
+            state: 'connected',
+            mode: 'named',
+            origin: 'https://custom.example.com',
+          },
+        ]}
+        refresh={async () => undefined}
+        pair={() => undefined}
+        advanced={() => undefined}
+        step="ingress"
+        setStep={() => undefined}
+      />,
+    ),
+  );
+  expect(host.textContent).toContain(t('privateTunnel.routes.replaceHint'));
+  expect(host.textContent).toContain(t('privateTunnel.routes.replaceConfirm'));
+  expect(host.querySelector('[data-private-tunnel-setup="ingress"]')).not.toBeNull();
+});

@@ -220,3 +220,25 @@ describe('devices CLI', () => {
     expect(connect).not.toHaveBeenCalled();
   });
 });
+
+it('creates a selected-route invitation without printing its link', async () => {
+  const http = vi.fn(async () =>
+    reply({
+      link: LINK,
+      receipt: 'private-route-receipt',
+      routes: ['https://private.example.com'],
+    }),
+  );
+  const write = vi.fn();
+  const result = await runDevicesCommand(
+    'device-offer',
+    [],
+    { out: '/tmp/private-offer.txt', 'route-id': 'custom' },
+    async () => ({ http }),
+    write,
+    () => false,
+  );
+  expect(http).toHaveBeenCalledWith('/api/botharness/devices/offer', { routeId: 'custom' });
+  expect(write).toHaveBeenCalledWith('/tmp/private-offer.txt', LINK);
+  expect(JSON.stringify(result)).not.toContain(LINK);
+});

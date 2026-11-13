@@ -1831,6 +1831,25 @@ Bot 已有存活的 Orchestrator Agent 后，`bot-tools` 也会列出其注册�
 
 ## 私有连接（无需 Docker）
 
+### 独立管理私有连接
+
+使用 `device-offer --route-id quick|custom --out <新的绝对路径私有文件>` 创建单条连接的邀请，用于恢复连接或旧版手机；省略 `--route-id` 则邀请包含所有已连通的私有地址。
+
+`private-route list` 读取 Host 的公开 `privateRoutes` 状态。一台 Host 支持 `quick` 和一个 `custom` 连接（Named Tunnel 或自有 HTTPS 入口）：
+
+```bash
+deepseekbot private-route add quick --confirm
+deepseekbot private-route add custom --origin https://bot.example.com --confirm
+deepseekbot private-route stop quick --confirm
+deepseekbot private-route start quick --confirm
+deepseekbot private-route replace custom --hostname bot.example.com --token-stdin --confirm
+deepseekbot private-route remove custom --confirm
+```
+
+每条命令沿用现有 Host 连接参数。Named Tunnel 令牌只从 stdin 输入。重复添加相同配置不会创建第二条连接；修改已有配置必须使用 Replace。Stop 保留配置并记住停止状态；Host 重启仅恢复已启用的连接。Remove 只移除指定配置，不撤销手机授权。使用既有设备撤销命令可同时撤销两条通道上的访问。多条连接存在时，不指定连接 ID 的旧启停命令会拒绝歧义操作。
+
+邀请只包含已连通的私有地址。新版手机在相同 Host 身份下保存最多两个明确授权的地址，旧版手机使用主地址。Quick Tunnel 重启后地址可能变化，需要重新扫码。私有连接不会自动回退到官方服务。升级已有 Profile 前，按 [ADR-0333](adr/0333-bounded-private-route-coexistence.md) 备份受保护的完整 Profile；降级需要恢复匹配版本的备份，仅回退软件包无法读取迁移后的凭据。
+
 `private-tunnel-enable --quick --confirm` 启动 Quick Tunnel；`private-tunnel-enable --hostname <主机名> --token-stdin --confirm` 用 stdin 传入的连接器令牌运行你自己的 Named Tunnel。两者都通过 Host 内置的 cloudflared 只公开加密设备通道，并持久化开启状态，Host 重启后自动恢复。`devices` 返回 `privateTunnel`（`state`、`mode`、`origin`、`originPort`、编码的 `issue`/`probe`、`addressChanged`）。公网地址确认连到本机之前，配对邀请会以 `private-tunnel-unreachable` 拒绝。`private-tunnel-disable --confirm` 停止隧道并删除令牌和手机准入。见[私有连接](private-connect.zh.md)。
 
 ## Docker 私有连接

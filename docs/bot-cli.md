@@ -1888,6 +1888,25 @@ For several IM requests in one turn, call `ask_secret` with the existing account
 
 ## Private connection (no Docker)
 
+### Independently managed private routes
+
+Use `device-offer --route-id quick|custom --out <new-absolute-private-file>` for a single-route invitation, including recovery or older phones. Omit `--route-id` to admit all connected private routes.
+
+`private-route list` reads the Host's public `privateRoutes` projection. A Host supports `quick` plus one `custom` route (Named Tunnel or private HTTPS ingress):
+
+```bash
+deepseekbot private-route add quick --confirm
+deepseekbot private-route add custom --origin https://bot.example.com --confirm
+deepseekbot private-route stop quick --confirm
+deepseekbot private-route start quick --confirm
+deepseekbot private-route replace custom --hostname bot.example.com --token-stdin --confirm
+deepseekbot private-route remove custom --confirm
+```
+
+Use the existing Host connection arguments for every command. Named connector tokens enter through stdin only. Add retries are idempotent; changing an occupied slot requires Replace. Stop retains configuration and disabled intent; only enabled routes resume after Host restart. Remove forgets the selected configuration, without revoking paired phones. Revoke the device through the existing device command to remove its access across both routes. Legacy no-ID enable/disable refuses ambiguous multi-route operations.
+
+An invitation admits only connected private routes. Updated phones retain at most two explicitly admitted origins under the same pinned Host identity; older phones use its primary origin. A restarted Quick Tunnel may change address and require rescanning. Neither route enables an official-service fallback. Before upgrading an existing Profile, follow the protected backup and matching-version rollback instructions in [ADR-0333](adr/0333-bounded-private-route-coexistence.md); reverting packages alone cannot read the migrated credentials.
+
 `private-tunnel-enable --quick --confirm` starts a Quick Tunnel; `private-tunnel-enable --hostname <name> --token-stdin --confirm` runs your own Named Tunnel with its connector token from stdin. Both publish only the encrypted device channel through the Host's bundled cloudflared and persist the enabled state, so a restarted Host restores it. `devices` reports `privateTunnel` (`state`, `mode`, `origin`, `originPort`, coded `issue`/`probe`, `addressChanged`). A pairing offer is refused with `private-tunnel-unreachable` until the public address reaches this Host. `private-tunnel-disable --confirm` stops it and forgets the token and phone admission. See [private connection](private-connect.md).
 
 ## Docker private connectivity
