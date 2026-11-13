@@ -1069,8 +1069,16 @@ export async function runLiveCli(
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
   if (command === 'relationships') {
-    const signal = AbortSignal.timeout(timeoutMs(values.timeout));
-    return runRelationshipCommand(rest, values, () => connectLiveHost(values, io, signal), signal);
+    const duration = timeoutMs(values.timeout);
+    const expiresAt = Date.now() + duration;
+    const signal = AbortSignal.timeout(duration);
+    return runRelationshipCommand(
+      rest,
+      values,
+      () => connectLiveHost(values, io, signal),
+      signal,
+      expiresAt,
+    );
   }
   if (DEVICE_CLIENT_COMMANDS.some((entry) => entry.command === command))
     return runDeviceClientCommand(command, rest, values);
