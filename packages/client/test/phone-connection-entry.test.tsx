@@ -36,6 +36,13 @@ let lanState: 'off' | 'listening' | 'error';
 let failEnable: boolean;
 let expiresAt: string;
 let offerState: string;
+let pairedDevices: {
+  id: string;
+  name: string;
+  pairedAt: string;
+  feedReadAt?: string;
+  revokedAt?: string;
+}[];
 let host: HTMLDivElement;
 let root: ReturnType<typeof createRoot>;
 let posts: { url: string; body: unknown }[];
@@ -48,13 +55,15 @@ beforeEach(() => {
   expiresAt = new Date(Date.now() + 600_000).toISOString();
   posts = [];
   offerState = 'pending';
+  pairedDevices = [];
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string, init?: RequestInit) => {
       if (init?.method === 'POST') {
         const body = JSON.parse(String(init.body));
         posts.push({ url, body });
-        if (url.endsWith('/offer-status')) return Response.json({ state: offerState });
+        if (url.endsWith('/offer-status'))
+          return Response.json({ state: offerState, deviceId: 'intended' });
         if (url.endsWith('/lan')) {
           if (failEnable) return Response.json({ code: 'lan-listen-failed' }, { status: 409 });
           lanState = body.action === 'enable' ? 'listening' : 'off';
@@ -73,7 +82,7 @@ beforeEach(() => {
       }
       return Response.json({
         host: { id: 'h', name: 'QA computer' },
-        devices: [],
+        devices: pairedDevices,
         lan: { state: lanState },
         routes: { routes, tailscale: 'missing', serveCommand: 'tailscale serve --bg 4100' },
       });
@@ -262,4 +271,63 @@ it('stops connection reads after the standalone dialog is removed', async () => 
   const reads = vi.mocked(fetch).mock.calls.length;
   await act(async () => vi.advanceTimersByTimeAsync(10_000));
   expect(vi.mocked(fetch).mock.calls).toHaveLength(reads);
+});
+
+it('finishes onboarding only after the intended paired device reads Feed, not after approval or another device', async () => {
+  vi.useFakeTimers();
+  routes = [tail];
+  const onFeedRead = vi.fn();
+  const onDevicePaired = vi.fn();
+  await act(async () =>
+    root.render(
+      <ConnectionsDialog
+        t={t}
+        pairPhone
+        onFeedRead={onFeedRead}
+        onDevicePaired={onDevicePaired}
+        onClose={() => {}}
+      />,
+    ),
+  );
+  expect(onFeedRead).not.toHaveBeenCalled();
+  pairedDevices = [{ id: 'other', name: 'Other', pairedAt: expiresAt, feedReadAt: expiresAt }];
+  await act(async () => vi.advanceTimersByTimeAsync(3000));
+  expect(onFeedRead).not.toHaveBeenCalled();
+  pairedDevices.push({ id: 'intended', name: 'Phone', pairedAt: expiresAt });
+  offerState = 'redeemed';
+  await act(async () => vi.advanceTimersByTimeAsync(3000));
+  expect(onDevicePaired).toHaveBeenCalledWith('intended');
+  expect(onFeedRead).not.toHaveBeenCalled();
+  pairedDevices[1]!.feedReadAt = expiresAt;
+  await act(async () => vi.advanceTimersByTimeAsync(3000));
+  expect(onFeedRead).toHaveBeenCalledWith('intended');
+});
+
+it('resumes an existing paired device without creating another invitation and rejects revoked completion', async () => {
+  vi.useFakeTimers();
+  routes = [tail];
+  pairedDevices = [
+    {
+      id: 'intended',
+      name: 'Phone',
+      pairedAt: expiresAt,
+      feedReadAt: expiresAt,
+      revokedAt: expiresAt,
+    },
+  ];
+  const onFeedRead = vi.fn();
+  await act(async () =>
+    root.render(
+      <ConnectionsDialog
+        t={t}
+        pairPhone
+        pairedDeviceId="intended"
+        onFeedRead={onFeedRead}
+        onClose={() => {}}
+      />,
+    ),
+  );
+  await act(async () => vi.advanceTimersByTimeAsync(3000));
+  expect(posts).toEqual([]);
+  expect(onFeedRead).not.toHaveBeenCalled();
 });

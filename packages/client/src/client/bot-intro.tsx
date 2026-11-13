@@ -14,6 +14,7 @@ import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { IconButton } from './ds/icon-button.js';
 import { Note } from './ds/note.js';
 import { border, color, dialog, radius, size, space, text } from './ds/tokens.stylex.js';
+import { ConnectionsDialog } from './connections-dialog.js';
 import { Modal } from './modal.js';
 import { ModelPicker } from './model-picker.js';
 import { openModelsSettingsAndReturn } from './bot-settings-open.js';
@@ -365,9 +366,15 @@ export function BotIntro({
   const intro = state.intro;
   const [model, setModel] = useState<{ save(): Promise<boolean> }>();
   const [busy, setBusy] = useState(false);
+  const [phoneOpen, setPhoneOpen] = useState(false);
+  const [phoneDevice, setPhoneDevice] = useState<string>();
+  const [phoneRead, setPhoneRead] = useState(false);
   const startPicks = useState<StartPicks>(NO_PICKS);
   const close = (outcome?: IntroOutcome): Promise<void> => {
     startPicks[1](NO_PICKS);
+    setPhoneOpen(false);
+    setPhoneDevice(undefined);
+    setPhoneRead(false);
     return controller.closeIntro(outcome);
   };
   const clear =
@@ -381,6 +388,40 @@ export function BotIntro({
     root.setAttribute('data-bh-intro-see-through', '');
     return () => root.removeAttribute('data-bh-intro-see-through');
   }, [seeThrough]);
+  const phoneStatusMount = useMountedResource<HTMLDivElement>(() => {
+    if (!phoneDevice) return;
+    const abort = new AbortController();
+    let pending = false;
+    const refresh = async () => {
+      if (pending) return;
+      pending = true;
+      try {
+        const response = await fetch('./api/botharness/devices', {
+          signal: AbortSignal.any([abort.signal, AbortSignal.timeout(12_000)]),
+        });
+        if (!response.ok) throw new Error('unavailable');
+        const value = (await response.json()) as {
+          devices: { id: string; feedReadAt?: string; revokedAt?: string }[];
+        };
+        if (!abort.signal.aborted)
+          setPhoneRead(
+            value.devices.some(
+              (device) => device.id === phoneDevice && !!device.feedReadAt && !device.revokedAt,
+            ),
+          );
+      } catch {
+        if (!abort.signal.aborted) setPhoneRead(false);
+      } finally {
+        pending = false;
+      }
+    };
+    void refresh();
+    const timer = setInterval(() => void refresh(), 3000);
+    return () => {
+      abort.abort();
+      clearInterval(timer);
+    };
+  }, [phoneDevice]);
   if (!intro) return null;
   const step = INTRO_STEPS[intro.step] ?? 'welcome';
   const last = intro.step === INTRO_STEPS.length - 1;
@@ -392,6 +433,24 @@ export function BotIntro({
     }
     controller.setIntroStep(next);
   };
+  if (phoneOpen)
+    return (
+      <ConnectionsDialog
+        t={t}
+        pairPhone={!phoneRead}
+        pairedDeviceId={phoneDevice}
+        onDevicePaired={setPhoneDevice}
+        onClose={() => setPhoneOpen(false)}
+        onFeedRead={
+          phoneRead
+            ? undefined
+            : () => {
+                setPhoneRead(true);
+                setPhoneOpen(false);
+              }
+        }
+      />
+    );
   return (
     <Modal
       open={!intro.hidden}
@@ -417,7 +476,11 @@ export function BotIntro({
                 <span
                   {...stylex.props(styles.stepDot, index <= intro.step && styles.stepDotActive)}
                 >
-                  {index < intro.step ? <ChannelSidebarIcon name="check" size={14} /> : index + 1}
+                  {index < intro.step && (id !== 'phone' || phoneRead) ? (
+                    <ChannelSidebarIcon name="check" size={14} />
+                  ) : (
+                    index + 1
+                  )}
                 </span>
                 <span {...stylex.props(styles.stepLabel)}>{t(`intro.step.${id}`)}</span>
               </button>
@@ -461,6 +524,24 @@ export function BotIntro({
             hide={(hidden) => controller.hideIntro(hidden)}
           />
         ) : null}
+        {step === 'phone' ? (
+          <div ref={phoneStatusMount} {...stylex.props(styles.hero)}>
+            <ChannelSidebarIcon name="smartphone" size={48} />
+            <div {...stylex.props(styles.heroCopy)}>
+              <h2 {...stylex.props(styles.title)}>{t('intro.phone.title')}</h2>
+              <p {...stylex.props(styles.copy)} role="status">
+                {t(phoneRead ? 'intro.phone.connected' : 'intro.phone.body')}
+              </p>
+              <Button
+                variant={phoneRead ? 'outline' : 'primary'}
+                data-modal-autofocus
+                onClick={() => setPhoneOpen(true)}
+              >
+                {t('intro.phone.connect')}
+              </Button>
+            </div>
+          </div>
+        ) : null}
         {step === 'community' ? (
           <CommunityStep
             t={t}
@@ -492,7 +573,7 @@ export function BotIntro({
             total: String(INTRO_STEPS.length),
           })}
         </span>
-        {last ? null : (
+        {last || step === 'phone' ? null : (
           <Button variant="ghost" disabled={busy} onClick={() => void close({ via: 'skip' })}>
             {t('intro.skip')}
           </Button>
@@ -509,12 +590,12 @@ export function BotIntro({
         ) : null}
         {last ? null : (
           <Button
-            variant="primary"
-            data-modal-autofocus
+            variant={step === 'phone' && !phoneRead ? 'outline' : 'primary'}
+            data-modal-autofocus={step !== 'phone'}
             disabled={busy}
             onClick={() => void go(intro.step + 1)}
           >
-            {t('intro.next')}
+            {t(step === 'phone' && !phoneRead ? 'intro.phone.skip' : 'intro.next')}
           </Button>
         )}
       </div>

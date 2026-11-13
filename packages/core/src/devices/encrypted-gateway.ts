@@ -61,6 +61,7 @@ function pathAllowed(path: string): boolean {
     ].includes(name) ||
     name === '/botharness-device/push' ||
     name.startsWith('/botharness-device/push/') ||
+    name === '/botharness-device/feed-read' ||
     name === '/botharness-device/unpair' ||
     name === '/botharness-device/devices/remove'
   );

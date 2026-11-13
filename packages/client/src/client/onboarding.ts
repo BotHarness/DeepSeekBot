@@ -513,7 +513,7 @@ function introKey(profileId: string): string {
 }
 
 const controllers = new WeakMap<BridgeActions, OnboardingController>();
-export const INTRO_STEPS = ['welcome', 'theme', 'model', 'community', 'start'] as const;
+export const INTRO_STEPS = ['welcome', 'theme', 'model', 'phone', 'community', 'start'] as const;
 type IntroProfile = {
   personas?: readonly OnboardingPersona[];
   details?: readonly PersonaDetail[];

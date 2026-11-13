@@ -44,6 +44,7 @@ interface PairedDevice {
   name: string;
   pairedAt: string;
   lastSeenAt?: string;
+  feedReadAt?: string;
   revokedAt?: string;
 }
 
@@ -182,11 +183,17 @@ export function PairedDevicesSettings({
   section = 'devices',
   standalone = false,
   initialPairing = false,
+  onDevicePaired,
+  onFeedRead,
+  pairedDeviceId,
   onClose,
 }: PropsLocale<'botharness'> & {
   section?: 'devices' | 'connect' | 'requests';
   standalone?: boolean;
   initialPairing?: boolean;
+  pairedDeviceId?: string | undefined;
+  onDevicePaired?: ((deviceId: string) => void) | undefined;
+  onFeedRead?: ((deviceId: string) => void) | undefined;
   onClose?: () => void;
 }): ReactElement {
   const [snapshot, setSnapshot] = useState<DevicesSnapshot>();
@@ -248,6 +255,15 @@ export function PairedDevicesSettings({
         setReadState('fresh');
         setCheckedAt(Date.now());
         setNow(Date.now());
+        if (pairedDeviceId && pairViewRef.current.state === 'closed') {
+          const previous = value.devices.find(
+            (device) => device.id === pairedDeviceId && !device.revokedAt,
+          );
+          if (previous) {
+            updatePairing({ state: 'paired', device: previous });
+            setSetup('closed');
+          }
+        }
         const view = pairViewRef.current;
         if (view.state === 'ready') {
           const status = await json<{ state: string; deviceId?: string }>(
@@ -263,12 +279,20 @@ export function PairedDevicesSettings({
             status.state === 'redeemed'
               ? value.devices.find((device) => device.id === status.deviceId && !device.revokedAt)
               : undefined;
-          if (paired !== undefined) updatePairing({ state: 'paired', device: paired });
-          else if (['expired', 'refused', 'superseded', 'unknown'].includes(status.state))
+          if (paired !== undefined) {
+            updatePairing({ state: 'paired', device: paired });
+            onDevicePaired?.(paired.id);
+          } else if (['expired', 'refused', 'superseded', 'unknown'].includes(status.state))
             updatePairing({ state: 'invalid' });
           else if (routeKey(view.offer.routes) !== availableRouteKey(value))
             updatePairing({ state: 'changed' });
         }
+        const pairedId =
+          pairViewRef.current.state === 'paired' ? pairViewRef.current.device.id : pairedDeviceId;
+        const readDevice = value.devices.find(
+          (device) => device.id === pairedId && !device.revokedAt && device.feedReadAt,
+        );
+        if (readDevice) onFeedRead?.(readDevice.id);
         return value;
       } catch {
         if (mounted.current && !signal?.aborted) setReadState('stale');
@@ -293,6 +317,7 @@ export function PairedDevicesSettings({
     void load(controller.signal).then((value) => {
       if (
         !initialPairing ||
+        pairedDeviceId !== undefined ||
         !mounted.current ||
         controller.signal.aborted ||
         setupVersion.current !== 0

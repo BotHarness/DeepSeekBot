@@ -40,6 +40,31 @@ function fixture() {
 }
 
 describe('Device Pairing', () => {
+  it('persists only an explicit device Feed acknowledgement and keeps revocation authoritative', () => {
+    const test = fixture();
+    const first = test.open();
+    const result = first.pairing.redeem({ offer: first.pairing.createOffer().offer });
+    if (!result.ok) throw new Error(result.code);
+    expect(first.pairing.check(result.device.id)).toMatchObject({ ok: true });
+    expect(first.pairing.list()[0]?.feedReadAt).toBeUndefined();
+    const receipt = first.pairing.acknowledgeFeed(result.device.id);
+    expect(receipt).toMatchObject({ ok: true, device: { feedReadAt: '2026-10-14T08:00:00.000Z' } });
+    test.advance(1000);
+    expect(first.pairing.acknowledgeFeed(result.device.id)).toEqual(receipt);
+    first.owner.close();
+    const reopened = test.open();
+    expect(reopened.pairing.list()[0]?.feedReadAt).toBe('2026-10-14T08:00:00.000Z');
+    reopened.pairing.revoke(result.device.id);
+    expect(reopened.pairing.acknowledgeFeed(result.device.id)).toEqual({
+      ok: false,
+      code: 'device-revoked',
+    });
+    expect(reopened.pairing.acknowledgeFeed('unknown')).toEqual({
+      ok: false,
+      code: 'device-unknown',
+    });
+  });
+
   it('exposes account-host management only on demand and requires confirmation before owner calls', async () => {
     const host = fixture().open();
     let listCalls = 0;
