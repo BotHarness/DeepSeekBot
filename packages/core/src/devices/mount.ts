@@ -1,3 +1,6 @@
+import { mountTeamGateway } from '../team/mount.js';
+import type { TeamService } from '../team/service.js';
+import type { TeamHttp } from '../team/http.js';
 import { createDirectPeers } from './direct.js';
 import { createPrivateConnection } from './private-relay.js';
 import { createPrivateTunnel } from './private-tunnel.js';
@@ -127,6 +130,7 @@ function pushDetail(event: PushEvent): string {
 export function mountDevicePairing(
   ctx: Context,
   options: {
+    team?: TeamService;
     database: OperationalDatabaseOwner;
     dshHome: string;
     push?: DevicePushOptions;
@@ -852,7 +856,60 @@ export function mountDevicePairing(
       'botharness: publish phone route',
     );
 
+    let memberGateway: TeamHttp | undefined;
+    const teamService = options.team;
+    if (teamService)
+      write(
+        'team',
+        'carrier-waiting',
+        `team phase=waiting gateway=${Boolean(webCtx.get('typertGateway'))} access=${Boolean(webCtx.get('remoteAccess'))} modules=${Boolean(webCtx.get('clientModules'))}`,
+      );
+    if (teamService)
+      webCtx.inject(['typert', 'typertGateway', 'remoteAccess', 'clientModules'], (teamCtx) => {
+        try {
+          memberGateway = mountTeamGateway(
+            teamCtx,
+            teamService,
+            () => pairing.host().name,
+            (phase, facts) =>
+              write(
+                'team',
+                `carrier-${phase}`,
+                `team phase=${phase} facts=${JSON.stringify(facts)}`,
+              ),
+          );
+        } catch (error) {
+          write(
+            'team',
+            'carrier-failed',
+            `team phase=failed error=${error instanceof Error ? error.message.slice(0, 300) : 'runtime-error'}`,
+          );
+          throw error;
+        }
+        teamCtx.effect(
+          () => () => {
+            memberGateway = undefined;
+          },
+          'botharness: member carrier readiness',
+        );
+      });
+    const team = teamService
+      ? {
+          async handle(request: IncomingMessage, response: ServerResponse) {
+            if (memberGateway) return memberGateway.handle(request, response);
+            response.writeHead(503, {
+              'content-type': 'application/json',
+              'cache-control': 'no-store',
+            });
+            response.end(JSON.stringify({ code: 'member-carrier-unavailable' }));
+          },
+          async close() {
+            await memberGateway?.close();
+          },
+        }
+      : undefined;
     const gateway = createDeviceGateway({
+      ...(team ? { team } : {}),
       pairing,
       port: () => webServer.port,
       authenticatedUrl: (base) => connection.authenticatedUrl(base),

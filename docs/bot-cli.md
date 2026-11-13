@@ -1920,3 +1920,32 @@ A phone signed into the same Tobs Connect account as a Host can enroll without H
 Signing out stops new account enrollment but leaves existing grants intact. Code rollback also leaves issued grants intact. A holder of account access can enroll again after a device is revoked; secure account access when responding to compromise. Existing signature, account/Host, freshness, phone-verifier and pinned encrypted-channel checks still apply. See [ADR-0327](adr/0327-connect-account-ownership-authorizes-enrollment.md).
 
 QQ also supports `deepseekbot messaging-defaults qq` and `messaging-defaults-set qq --input-stdin` with the same input as Discord. Set `collection: "all"` and `newConversations: "auto"` for new groups to inherit all-message intake. Existing custom identities and groups retain their overrides until explicitly restored to inheritance. The preference does not prove that QQ delivers ordinary messages or unsupported media. Generation 138 preserves defaults from the historical QQ hotfix; use a complete fresh Profile backup for rollback.
+
+### Team mode and Host Members
+
+The Owner CLI also accepts private LAN IPv4 HTTPS origins with normal certificate verification. Plain LAN HTTP remains refused. A private test CA can be supplied through the machine-local `NODE_EXTRA_CA_CERTS` setting.
+
+These commands use `--host <url>` and the existing private Host token input. The local Owner is the default caller.
+
+```sh
+deepseekbot team-mode status
+deepseekbot team-mode owner-password --password-stdin < owner-password.txt
+deepseekbot team-mode on
+deepseekbot members create --username bob --display-name Bob --initial-password-file ./bob-initial.txt
+deepseekbot members list
+deepseekbot channels set-public <channel-id> on
+deepseekbot --as bob members password --password-stdin < password-change.json
+deepseekbot --as bob channels browse-public
+deepseekbot --as bob channels join-public <channel-id>
+deepseekbot --as bob channels send <channel-id> --body-stdin < message.txt
+deepseekbot --as bob channel-messages <channel-id>
+deepseekbot team-mode insecure-http on --confirm
+deepseekbot team-mode insecure-http off --confirm
+deepseekbot team-mode off
+```
+
+Owner password input is a password with an optional final newline, or JSON `{ "password": "…", "current": "…" }` when changing an existing password. Member password input is JSON `{ "current": "…", "next": "…" }`. Passwords need at least 10 characters. Keep input files private; passwords never belong in command arguments. `members create` exclusively creates a new file with mode `0600`; stdout reports `initialPasswordFile` and the member record, never the password. An existing path is refused before member creation.
+
+`--as <username>` creates a short-lived member grant on the authenticated Host, dispatches the command through that member's Peer and Gateway policy, then revokes the grant. It requires an online adapter; unsupported HTTP, streaming and maintenance commands refuse instead of using Owner authority. Team mode off, suspended members and the initial-password gate are enforced. Change the initial password before browsing Channels. The Owner's existing Host token remains required for this local verification feature.
+
+Non-loopback password sign-in requires Host-known TLS or the encrypted device gateway. The explicitly confirmed `insecure-http` exception permits plain HTTP until disabled. Forwarded protocol headers do not establish TLS. Turning Team mode off revokes member grants and closes their streams while retaining identities, passwords and Channel membership. Re-enabling requires fresh sign-in.

@@ -623,3 +623,8 @@ In #4024 both official rc.2 npm packages were absent while Desktop was available
 Optional Desktop zoom uses the product's packaged, hash-checked Theme via a local
 link, not an rc.2 npm Theme download. Do not change pins, weaken integrity checks,
 or treat the metadata probe as installation/runtime qualification.
+
+
+### Packaged member carrier checks (#4140)
+
+A bundled consumer can contain a second DSH Connection class. Its `instanceof` check then refuses the live Host's compatible service, leaving the member entry at `member-carrier-unavailable` while Owner RPC works. Check the required service capabilities at the boundary and invoke the Host's own `createPeer`, Gateway and resource APIs. Qualify the built package in an isolated Host; source tests sharing one constructor do not expose this failure. Keep the first refusal and verify the member's opening access snapshot, calls and streams before claiming shell readiness.
