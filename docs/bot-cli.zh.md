@@ -111,6 +111,8 @@ deepseekbot search <words>
 
 远端聊天中的「管理 Bot」绑定该频道所属 Bot 与 Host，浏览环境筛选不能改变它。对所属 Host 使用 `--host` 和 `--token-file`，先执行 `show <bot>`，再通过 `update <bot> --name <name> --expected-profile <profileFingerprint>` 改名。模型使用 `model-plan-customize` 或 `model-preset-apply`，传入已观察的 Bot 与预设修订。文件夹使用 `workspace-options`／`workspace-create`、`grants`、`grant-create` 和带 `--confirm` 的 `grant-revoke`；审批模板使用 `approval-template list --bot <bot>` 与 `approval-template-set`。修改后从同一 Host 读回 `show`、`model-plan`、`grants` 和所选模板，回执不确定时同样如此。这些操作不启用 Bot 协作或更改网络成员关系。Client 被移除或替换后，旧设置草稿不会借新授权重放，须关闭并重新打开 Bot 设置。本地系统对话框仍需在 Bot 所在电脑上操作。
 
+创建预设的结果尚未确认时，设置草稿不会再次发送创建请求。收到成功回执后会保留预设 ID，「检查已创建的预设」只重读同一 Host。没有回执时，先检查预设列表并放弃草稿，再选择下一步；名称相同不能证明请求成功。放弃不会撤销可能已完成的 Host 写入。
+
 `appearance-clients` 列出打开的浏览器 Client。`host-look --client-id <id> --host-id <id>` 读取该浏览器内的 Host 名称、图标、颜色和内容修订。写入时加 `--patch-stdin --expected-revision <revision>`，从 stdin 传入 JSON，例如 `{"name":"Studio","icon":{"kind":"symbol","id":"server"},"color":"teal"}`。空名称恢复 Host 原始显示名；`color: null` 清除颜色。名称去除首尾空格并限制为 40 字符，与手机共享 HostLook 规则。Host ID 可为已配对的远程 Host 或本机 Host；命令不接收或返回远程凭据。
 
 命令复用已认证的 `appearance-control` relay，直达 UI 使用的同一 Client 本地 `HostLooks`，不修改操作系统 hostname，也不同步到其他设备。浏览器须保持打开并显式选择 Client。同源标签页共同使用名为 `botharness.hostLooks.v1` 的独占 Web Lock；owner 在锁内重读持久数据、比较目标 Host 的内容 revision，再只合并该 Host。UI 字段变换也在锁内应用于当前值，不携带旧整份外观覆盖其他字段。旧 revision 返回 `host-look-revision-stale`；Web Locks 不可用时返回 `host-look-lock-unavailable`，不降级为不安全的读改写。
