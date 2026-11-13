@@ -2358,7 +2358,7 @@ export function BotSidebar({
         <div className="bh-error">{t('roster.error', { error: state.error })}</div>
       ) : null}
       {state.roster.readOnly ? <div className="bh-note">{t('roster.readOnly')}</div> : null}
-      {state.status === 'ready' && state.bots.length === 0 ? (
+      {state.status === 'ready' && state.bots.length === 0 && teamMode?.viewer.kind !== 'member' ? (
         <PanelEmptyState
           icon="hash"
           action={

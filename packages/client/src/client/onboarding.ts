@@ -1,3 +1,4 @@
+import { memberPage } from './member-page.js';
 import type { OnboardingSnapshot, TutorialAction } from '../../../core/src/onboarding/types.js';
 import type { ClientTelemetryEventName } from '../../../core/src/telemetry/events.js';
 import type { BridgeActions } from './actions.js';
@@ -69,6 +70,7 @@ export class OnboardingController {
     for (const listener of this.listeners) listener();
   }
   async enter(companion?: WindowCompanions): Promise<void> {
+    if (memberPage()) return;
     if (this.entering) return this.entering;
     this.entering = this.refresh(undefined, undefined, companion).finally(() => {
       this.entering = undefined;

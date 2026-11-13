@@ -103,6 +103,7 @@ export function PublicChannelsDialog({
       submitLabel=""
       onCancel={onClose}
       onClose={onClose}
+      showCancel={false}
       scroll
       error={error === undefined ? undefined : <Note tone="danger">{error}</Note>}
     >
@@ -125,7 +126,9 @@ export function PublicChannelsDialog({
                   <span {...stylex.props(styles.name)}>{channel.name}</span>
                   <span {...stylex.props(styles.meta)}>
                     {[
-                      t('team.channels.members', { count: String(channel.memberCount) }),
+                      channel.memberCount === 1
+                        ? t('team.channels.oneMember')
+                        : t('team.channels.members', { count: String(channel.memberCount) }),
                       channel.description,
                     ]
                       .filter((part) => part !== undefined && part.length > 0)
