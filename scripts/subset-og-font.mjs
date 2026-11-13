@@ -5,6 +5,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import subsetFont from 'subset-font';
+import { syncDocs } from './sync-docs.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const CONTENT = join(ROOT, 'apps', 'docs', 'src', 'content');
@@ -55,6 +56,7 @@ async function sourceFont() {
   return buffer;
 }
 
+syncDocs();
 const text = corpusChars();
 const han = [...text].filter((char) => /\p{Script=Han}/u.test(char));
 const subset = await subsetFont(await sourceFont(), text, { targetFormat: 'sfnt' });
