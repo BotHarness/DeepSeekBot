@@ -13,6 +13,34 @@ it('lists relationships through the authenticated owning Host', async () => {
   expect(await runRelationshipCommand(['list'], {}, connect)).toEqual(response);
   expect(http).toHaveBeenCalledWith('/api/botharness/relationships', undefined);
 });
+it('checks directions without confirmation or issuing another enrollment', async () => {
+  const { http, connect } = fixture();
+  await runRelationshipCommand(['sync', id], {}, connect);
+  expect(http).toHaveBeenCalledWith('/api/botharness/relationships', { action: 'sync', id });
+  await expect(runRelationshipCommand(['route', id], {}, connect)).rejects.toThrow('--link-file');
+});
+it('retries pending retirement through the same sync owner without replaying initiation', async () => {
+  const http = vi.fn(async () => ({
+    bytes: new TextEncoder().encode(
+      JSON.stringify({
+        relationship: {
+          id,
+          state: 'disconnected',
+          peerRevocationPending: true,
+          revocationAttempts: 1,
+          automaticEnrollmentSuppressed: true,
+        },
+      }),
+    ),
+  }));
+  expect(await runRelationshipCommand(['sync', id], {}, async () => ({ http }))).toMatchObject({
+    relationship: { state: 'disconnected', peerRevocationPending: true, revocationAttempts: 1 },
+  });
+  expect(http).toHaveBeenCalledExactlyOnceWith('/api/botharness/relationships', {
+    action: 'sync',
+    id,
+  });
+});
 it('requires exact identity and explicit reciprocal approval before contacting the Host', async () => {
   const { http, connect } = fixture();
   await expect(runRelationshipCommand(['approve', id, publicKey], {}, connect)).rejects.toThrow(
@@ -38,4 +66,18 @@ it('keeps destructive disconnect confirmation and private enrollment output mand
     id,
     confirm: true,
   });
+});
+
+it('rejects invalid Client names before connecting or creating credentials', async () => {
+  const { http, connect } = fixture();
+  for (const name of ['', ' ', 'x'.repeat(61)]) {
+    await expect(
+      runRelationshipCommand(
+        ['enroll', id],
+        { out: '/new-private-grant.json', 'device-name': name },
+        connect,
+      ),
+    ).rejects.toThrow('--device-name');
+  }
+  expect(http).not.toHaveBeenCalled();
 });

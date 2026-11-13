@@ -43,6 +43,103 @@ function fixture() {
 }
 
 describe('Host relationship authorization', () => {
+  it('retains offline retry budget and reconnect suppression after restart without letting a stale acknowledgement retire a new generation', () => {
+    const test = fixture();
+    const first = test.open();
+    const old = first.relationships.propose({ peer, direction: 'incoming' });
+    first.relationships.approve(old.id, peer.publicKey);
+    first.relationships.activate(old.id, peer.publicKey);
+    first.relationships.disconnect(old.id);
+    first.relationships.beginRevocationAttempt(old.id);
+    first.owner.close();
+    const restored = test.open();
+    expect(restored.relationships.read(old.id)).toMatchObject({
+      state: 'disconnected',
+      peerRevocationPending: true,
+      revocationAttempts: 1,
+      automaticEnrollmentSuppressed: true,
+    });
+    expect(() => restored.relationships.beginRevocationAttempt(old.id)).toThrow(
+      'relationship-retry-not-due',
+    );
+    expect(() => restored.relationships.propose({ peer, direction: 'incoming' })).toThrow(
+      'relationship-reconnect-required',
+    );
+    const fresh = restored.relationships.propose({
+      peer,
+      direction: 'incoming',
+      explicitReconnect: true,
+    });
+    restored.relationships.approve(fresh.id, peer.publicKey);
+    restored.relationships.activate(fresh.id, peer.publicKey);
+    const offer = restored.relationships.enrollment(fresh.id, peer.publicKey, client);
+    const grant = restored.pairing.redeem({ offer: offer.offer, publicKey: client.publicKey });
+    if (!grant.ok) throw new Error(grant.code);
+    restored.relationships.acknowledgeDisconnect(old.id, peer.publicKey);
+    expect(restored.relationships.read(fresh.id).state).toBe('active');
+    expect(restored.pairing.check(grant.device.id).ok).toBe(true);
+    expect(() => restored.relationships.activate(old.id, peer.publicKey)).toThrow(
+      'relationship-disconnected',
+    );
+  });
+
+  it('stops automatic retirement retries at eight attempts while keeping pending inspection and manual retry available', () => {
+    const test = fixture();
+    const host = test.open();
+    const relationship = host.relationships.propose({ peer, direction: 'incoming' });
+    host.relationships.disconnect(relationship.id);
+    for (let attempt = 1; attempt <= 8; attempt++) {
+      expect(host.relationships.beginRevocationAttempt(relationship.id).revocationAttempts).toBe(
+        attempt,
+      );
+      test.advance(60_000);
+    }
+    expect(host.relationships.read(relationship.id)).toMatchObject({
+      peerRevocationPending: true,
+      revocationRetryAt: null,
+    });
+    expect(() => host.relationships.beginRevocationAttempt(relationship.id)).toThrow(
+      'relationship-retry-not-due',
+    );
+    expect(
+      host.relationships.beginRevocationAttempt(relationship.id, true).revocationAttempts,
+    ).toBe(1);
+  });
+  it('does not suppress automatic discovery after internal failed-initiation rollback and refuses bounded history overflow', () => {
+    const host = fixture().open();
+    for (let index = 0; index < 256; index++) {
+      const relationship = host.relationships.propose({ peer, direction: 'outgoing' });
+      host.relationships.disconnect(relationship.id, undefined, false);
+      expect(host.relationships.read(relationship.id).automaticEnrollmentSuppressed).toBe(false);
+    }
+    expect(() => host.relationships.propose({ peer, direction: 'outgoing' })).toThrow(
+      'relationship-history-limit',
+    );
+    expect(host.relationships.list()).toHaveLength(256);
+  });
+  it('persists recovered routes under the same approved relationship and refuses changed identity', () => {
+    const test = fixture();
+    const first = test.open();
+    const relationship = first.relationships.propose({ peer, direction: 'incoming' });
+    first.relationships.approve(relationship.id, peer.publicKey);
+    first.relationships.activate(relationship.id, peer.publicKey);
+    expect(() =>
+      first.relationships.updateRoutes(relationship.id, 'ff'.repeat(32), [
+        'http://127.0.0.1:31003',
+      ]),
+    ).toThrow('relationship-identity-mismatch');
+    first.relationships.updateRoutes(relationship.id, peer.publicKey, ['http://127.0.0.1:31003']);
+    first.owner.close();
+    const restarted = test.open();
+    expect(restarted.relationships.list()).toMatchObject([
+      {
+        id: relationship.id,
+        state: 'active',
+        peer: { publicKey: peer.publicKey, routes: ['http://127.0.0.1:31003'] },
+      },
+    ]);
+    expect(restarted.pairing.list()).toEqual([]);
+  });
   it('requires exact approval, persists it and issues independently revocable grants through pairing', () => {
     const test = fixture();
     const first = test.open();

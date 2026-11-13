@@ -1,5 +1,17 @@
 import { z } from 'zod';
 
+export const relationshipObservationSchema = z.object({
+  state: z.enum(['unverified', 'reachable', 'unavailable', 'stale']),
+  observedAt: z.number().nullable(),
+  refusal: z
+    .enum([
+      'relationship-identity-verification-failed',
+      'relationship-route-unavailable',
+      'relationship-request-incomplete',
+    ])
+    .optional(),
+});
+
 export const relationshipSchema = z.object({
   id: z.string(),
   peer: z.object({
@@ -12,6 +24,15 @@ export const relationshipSchema = z.object({
   state: z.enum(['pending', 'approved', 'active', 'disconnected']),
   expiresAt: z.number(),
   peerRevocationPending: z.boolean(),
+  revocationAttempts: z.number().int().nonnegative().optional(),
+  revocationRetryAt: z.number().nullable().optional(),
+  automaticEnrollmentSuppressed: z.boolean().optional(),
+  reachability: z
+    .object({
+      outgoing: relationshipObservationSchema,
+      incoming: relationshipObservationSchema,
+    })
+    .optional(),
 });
 export const relationshipReplySchema = z.object({ relationship: relationshipSchema });
 export const relationshipListSchema = z.object({ relationships: z.array(relationshipSchema) });

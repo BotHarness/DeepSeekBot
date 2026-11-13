@@ -5,12 +5,13 @@ import { nodeDeviceCarrier } from '../devices/node-carrier.js';
 import { enrollRelationshipClient } from '../devices/relationship-enrollment.js';
 import { serializeSavedHost } from '../../../../apps/mobile/src/host/hosts.js';
 import { revokePairing } from '../../../../apps/mobile/src/host/pairing.js';
+import { relationshipListSchema } from '../devices/relationship-contract.js';
 
 export const RELATIONSHIP_COMMANDS = [
   {
     command: 'relationships',
     description:
-      'list, initiate, approve, sync, enroll or disconnect reciprocal Hosts; independent device keys stay in private files',
+      'list, initiate, approve, sync, route, enroll or disconnect reciprocal Hosts; independent device keys stay in private files',
   },
 ] as const;
 const PATH = '/api/botharness/relationships';
@@ -20,16 +21,28 @@ export async function runRelationshipCommand(
     confirm?: boolean;
     'link-file'?: string;
     out?: string;
+    'device-name'?: string;
   },
   connect: () => Promise<{
     http(path: string, body?: Record<string, unknown>): Promise<{ bytes: Uint8Array }>;
   }>,
+  signal?: AbortSignal,
 ) {
+  const deadline = () => {
+    if (signal?.aborted)
+      throw new CliLiveError(
+        'timeout',
+        'Relationship command deadline expired; inspect its state before retrying.',
+      );
+  };
   const [action, id, publicKey] = rest;
-  if (!action || !['list', 'initiate', 'approve', 'sync', 'enroll', 'disconnect'].includes(action))
+  if (
+    !action ||
+    !['list', 'initiate', 'approve', 'sync', 'route', 'enroll', 'disconnect'].includes(action)
+  )
     throw new CliLiveError(
       'usage',
-      'relationships takes list, initiate <public-key>, approve <id> <public-key>, sync <id>, enroll <id>, or disconnect <id>.',
+      'relationships takes list, initiate <public-key>, approve <id> <public-key>, sync <id>, route <id> --link-file <file>, enroll <id>, or disconnect <id>.',
     );
   if (rest.length !== (action === 'list' ? 1 : action === 'approve' ? 3 : 2))
     throw new CliLiveError('usage', 'Invalid relationship arguments.');
@@ -45,10 +58,17 @@ export async function runRelationshipCommand(
     !/^[0-9a-f]{64}$/u.test(action === 'initiate' ? id! : publicKey!)
   )
     throw new CliLiveError('usage', 'Compare the full Host identity and supply its public key.');
-  if ((action === 'initiate') !== (values['link-file'] !== undefined))
-    throw new CliLiveError('usage', 'Only initiate requires --link-file.');
+  if (['initiate', 'route'].includes(action) !== (values['link-file'] !== undefined))
+    throw new CliLiveError('usage', 'Initiate and route require --link-file.');
   if ((action === 'enroll') !== (values.out !== undefined))
     throw new CliLiveError('usage', 'Only enroll requires --out.');
+  if (
+    values['device-name'] !== undefined &&
+    (action !== 'enroll' ||
+      !values['device-name'].trim() ||
+      values['device-name'].trim().length > 60)
+  )
+    throw new CliLiveError('usage', 'Only enroll accepts --device-name (1–60 characters).');
   if (values.out && (!isAbsolute(values.out) || existsSync(values.out)))
     throw new CliLiveError('output-invalid', 'Choose a new absolute private --out file.');
   let link: string | undefined;
@@ -59,9 +79,12 @@ export async function runRelationshipCommand(
       throw new CliLiveError('input-unavailable', 'Cannot read the pairing link file.');
     }
   }
+  deadline();
   const host = await connect();
+  deadline();
   const request = async (body?: Record<string, unknown>): Promise<Record<string, unknown>> => {
     const response = await host.http(PATH, body);
+    deadline();
     const parsed: unknown = JSON.parse(new TextDecoder().decode(response.bytes));
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
       throw new CliLiveError('host-protocol-error', 'Expected a Host response object.');
@@ -69,13 +92,24 @@ export async function runRelationshipCommand(
   };
   if (action === 'list') return request();
   if (action === 'enroll') {
+    const relationship = relationshipListSchema
+      .parse(await request())
+      .relationships.find((item) => item.id === id);
+    if (!relationship || relationship.state !== 'active')
+      throw new CliLiveError('relationship-inactive', 'Choose an active relationship.');
     const result = await enrollRelationshipClient({
       relationshipId: id!,
-      name: 'CLI desktop',
+      expectedPeer: relationship.peer,
+      name: values['device-name']?.trim() ?? 'CLI desktop',
       carrier: nodeDeviceCarrier(),
       request,
+      ...(signal ? { signal } : {}),
     });
     if (!result.ok) throw new CliLiveError(result.code, 'Relationship device enrollment refused.');
+    if (signal?.aborted) {
+      await revokePairing({ host: result.host, carrier: nodeDeviceCarrier() });
+      deadline();
+    }
     try {
       writeFileSync(values.out!, `${JSON.stringify(serializeSavedHost(result.host))}\n`, {
         flag: 'wx',
@@ -93,6 +127,7 @@ export async function runRelationshipCommand(
     return { hostId: result.host.hostId, deviceId: result.host.deviceId, encrypted: true };
   }
   if (action === 'initiate') return request({ action, link, confirmedKey: id, confirm: true });
+  if (action === 'route') return request({ action, id, link });
   return request({
     action,
     id,

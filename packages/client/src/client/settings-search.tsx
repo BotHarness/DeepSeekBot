@@ -103,6 +103,7 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
   companions: ['companion.speechSound', 'companion.retention'],
   devices: [
     'relationships.title',
+    'relationships.prepareReturn',
     'devices.pair.title',
     'devices.list.title',
     'devices.connect.title',
@@ -138,6 +139,7 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
 };
 
 export const SETTINGS_DESCRIPTIONS: Partial<Record<BotHarnessKey, BotHarnessKey>> = {
+  'relationships.prepareReturn': 'relationships.prepareReturnHint',
   'connections.methods': 'connections.hosts.local',
   'devices.lan.title': 'devices.lan.notice',
   'connections.hosts.preference': 'connections.hosts.preferenceScope',

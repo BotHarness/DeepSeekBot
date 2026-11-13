@@ -1,7 +1,12 @@
 import { useMemo, useRef, useState } from 'react';
+import { hostSettingsDrafts } from './host-settings-drafts.js';
 import * as stylex from '@stylexjs/stylex';
 import { Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
-import { sameModel, type ModelRoute, type ModelSettingsClient } from '../../../../apps/mobile/src/host/bot-settings.js';
+import {
+  sameModel,
+  type ModelRoute,
+  type ModelSettingsClient,
+} from '../../../../apps/mobile/src/host/bot-settings.js';
 import {
   modelRoutes,
   modelScopeKey,
@@ -31,24 +36,77 @@ const styles = stylex.create({
 type HostModelScope = Exclude<ModelScope, { kind: 'bot' }>;
 
 function unsupported(error: unknown): boolean {
-  return typeof error === 'object' && error !== null && 'code' in error &&
-    (error.code === 'gateway/method-not-found' || error.code === 'not-supported' || error.code === 'method-not-found');
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error.code === 'gateway/method-not-found' ||
+      error.code === 'not-supported' ||
+      error.code === 'method-not-found')
+  );
 }
 
-export function RemoteHostModels({ client, available = true, t }: { client: ModelSettingsClient; available?: boolean; t: BotHarnessTranslate }) {
+export function RemoteHostModels({
+  hostId,
+  client,
+  available = true,
+  t,
+}: {
+  hostId: string;
+  client: ModelSettingsClient;
+  available?: boolean;
+  t: BotHarnessTranslate;
+}) {
+  const [owner, setOwner] = useState({ client, generation: 0 });
+  if (owner.client !== client) {
+    setOwner({ client, generation: owner.generation + 1 });
+    return null;
+  }
+  return (
+    <ModelSettingsSession
+      key={owner.generation}
+      hostId={hostId}
+      client={client}
+      available={available}
+      t={t}
+    />
+  );
+}
+
+function ModelSettingsSession({
+  hostId,
+  client,
+  available,
+  t,
+}: {
+  hostId: string;
+  client: ModelSettingsClient;
+  available: boolean;
+  t: BotHarnessTranslate;
+}) {
   const [scope, setScope] = useState<HostModelScope>({ kind: 'global' });
   return (
-    <Models key={modelScopeKey(scope)} client={client} available={available} scope={scope} onScope={setScope} t={t} />
+    <Models
+      key={modelScopeKey(scope)}
+      hostId={hostId}
+      client={client}
+      available={available}
+      scope={scope}
+      onScope={setScope}
+      t={t}
+    />
   );
 }
 
 function Models({
+  hostId,
   client,
   scope,
   available,
   onScope,
   t,
 }: {
+  hostId: string;
   client: ModelSettingsClient;
   scope: HostModelScope;
   available: boolean;
@@ -79,7 +137,7 @@ function Models({
     };
   }, [resource]);
   const run = async (work: () => Promise<void>, onSaved?: () => void) => {
-    if (pending.current || !available) return;
+    if (pending.current || !available) return false;
     pending.current = true;
     setBusy(true);
     setError(undefined);
@@ -91,13 +149,14 @@ function Models({
         setValue(next);
         onSaved?.();
       }
+      return generation.current === request;
     } catch (cause) {
-      // A lost response is not proof that the owning Host rejected the write.
       const observed = await resource.refresh().catch(() => undefined);
       if (generation.current === request) {
         if (observed !== undefined) setValue(observed);
         setError(unsupported(cause) ? 'unsupported' : 'failed');
       }
+      return false;
     } finally {
       pending.current = false;
       if (generation.current === request) setBusy(false);
@@ -118,6 +177,44 @@ function Models({
       () => setName(undefined),
     );
   };
+  const draft = useRef({ name, value, scope, available, run });
+  draft.current = { name, value, scope, available, run };
+  const draftMount = useMountedResource<HTMLSpanElement>(
+    () =>
+      hostSettingsDrafts.register(hostId, {
+        dirty: () =>
+          draft.current.name !== undefined &&
+          (draft.current.scope.kind === 'global'
+            ? draft.current.name !== ''
+            : draft.current.name.trim() !== draft.current.value?.preset?.name),
+        async save() {
+          const { name, value, scope, run } = draft.current;
+          if (
+            name === undefined ||
+            value === undefined ||
+            pending.current ||
+            !draft.current.available
+          )
+            return false;
+          return run(
+            async () => {
+              await saveModelPreset(client, value, name, scope.kind === 'preset');
+            },
+            () => {
+              if (draft.current.name === name) {
+                draft.current.name = undefined;
+                setName(undefined);
+              }
+            },
+          );
+        },
+        discard: () => {
+          draft.current.name = undefined;
+          setName(undefined);
+        },
+      }),
+    [hostId, client, resource],
+  );
   const routes = value === undefined ? undefined : modelRoutes(value);
   const picker = (field: 'orchestrator' | 'assignment', route: ModelRoute | undefined) =>
     value === undefined ? null : (
@@ -166,7 +263,16 @@ function Models({
     );
   return (
     <div ref={mount} {...stylex.props(styles.stack)} data-remote-models="">
-      {error ? <Note tone="danger">{t(error === 'unsupported' ? 'environment.settings.unsupported' : 'remoteHosts.settings.error')}</Note> : null}
+      <span ref={draftMount} hidden />
+      {error ? (
+        <Note tone="danger">
+          {t(
+            error === 'unsupported'
+              ? 'environment.settings.unsupported'
+              : 'remoteHosts.settings.error',
+          )}
+        </Note>
+      ) : null}
       <PillButton disabled={busy} onClick={() => void refresh()}>
         {t('onboarding.refreshModels')}
       </PillButton>
@@ -187,7 +293,11 @@ function Models({
                 ]}
                 label={t('remoteHosts.settings.models')}
                 disabled={busy}
-                onChange={(id) => onScope(id === '' ? { kind: 'global' } : { kind: 'preset', id })}
+                onChange={(id) => {
+                  void hostSettingsDrafts.prepare(hostId).then((ready) => {
+                    if (ready) onScope(id === '' ? { kind: 'global' } : { kind: 'preset', id });
+                  });
+                }}
               />
             }
           />
@@ -243,7 +353,6 @@ function Models({
             value={name ?? value.preset?.name ?? ''}
             disabled={busy}
             onChange={setName}
-            onBlur={saveName}
             onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
                 event.preventDefault();
@@ -251,10 +360,21 @@ function Models({
               }
             }}
           />
+          {scope.kind === 'preset' ? (
+            <PillButton
+              disabled={
+                busy || !available || name === undefined || name.trim() === value.preset?.name
+              }
+              onClick={saveName}
+            >
+              {t('relationships.save')}
+            </PillButton>
+          ) : null}
           {scope.kind === 'global' ? (
             <PillButton
               disabled={
-                busy || !available ||
+                busy ||
+                !available ||
                 (name ?? value.preset?.name ?? '').trim() === '' ||
                 routes?.orchestrator === undefined
               }

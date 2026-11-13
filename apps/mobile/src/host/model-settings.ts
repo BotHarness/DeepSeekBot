@@ -278,18 +278,13 @@ export async function saveModelPreset(
   const preset = state.preset;
   if (update && preset?.revision === undefined)
     throw new HostAnswerInvalid('MODEL_PRESET_REVISION_REQUIRED');
-  const value = await client.call(
-    update ? 'modelPresetUpdate' : 'modelPresetCreate',
-    {
-      ...(update && preset !== undefined
-        ? { id: preset.id, expectedRevision: preset.revision }
-        : {}),
-      name: name.trim(),
-      orchestrator,
-      assignmentDefault,
-      assignmentModels,
-    },
-  );
+  const value = await client.call(update ? 'modelPresetUpdate' : 'modelPresetCreate', {
+    ...(update && preset !== undefined ? { id: preset.id, expectedRevision: preset.revision } : {}),
+    name: name.trim(),
+    orchestrator,
+    assignmentDefault,
+    assignmentModels,
+  });
   if (typeof value !== 'object' || value === null || !('preset' in value))
     throw new HostAnswerInvalid('MODEL_PRESET_NOT_SAVED');
   const presetAnswer = value.preset;

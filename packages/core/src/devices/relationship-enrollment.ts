@@ -25,11 +25,13 @@ const ticketSchema = z.object({
 
 export async function enrollRelationshipClient(options: {
   relationshipId: string;
+  expectedPeer: { id: string; publicKey: string };
   name: string;
   carrier: HostCarrier;
   request(body: Record<string, unknown>): Promise<unknown>;
   signal?: AbortSignal;
 }) {
+  if (options.signal?.aborted) return { ok: false as const, code: 'cancelled' as const };
   const privateKey = secureRandom(options.carrier);
   try {
     const publicKey = keyHex(noisePublicKey(privateKey));
@@ -41,6 +43,12 @@ export async function enrollRelationshipClient(options: {
         name: options.name,
       }),
     );
+    if (
+      ticket.peer.id !== options.expectedPeer.id ||
+      ticket.peer.publicKey !== options.expectedPeer.publicKey
+    )
+      return { ok: false as const, code: 'host-key-changed' as const };
+    if (options.signal?.aborted) return { ok: false as const, code: 'cancelled' as const };
     const encryptedRoutes = ticket.peer.routes.filter((route) => isEncryptedRoute(route));
     const loopback =
       encryptedRoutes.length === 0 &&
@@ -67,7 +75,9 @@ export async function enrollRelationshipClient(options: {
         },
       },
     });
-    return result;
+    return result.ok
+      ? { ...result, host: { ...result.host, relationshipId: options.relationshipId } }
+      : result;
   } finally {
     privateKey.fill(0);
   }

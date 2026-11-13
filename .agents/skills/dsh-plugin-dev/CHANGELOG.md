@@ -10,6 +10,8 @@ Preparing the next DSH Skill release independently from downstream product relea
 
 ### Documentation
 
+- Documented downstream partial Host relationship direction checks and pinned route recovery; stable DSH/Cordis Context, Decision Tree and upstream provenance are unchanged ([#4112](https://github.com/BotHarness/DeepSeekBot/issues/4112)).
+
 - Prepared the downstream Tobs 1.7.0 release ledger, highlights and candidate privacy-review guidance; the independently versioned DSH Skill and its verified upstream provenance are unchanged ([#4021](https://github.com/BotHarness/DeepSeekBot/issues/4021)).
 
 - Added downstream same-artifact qualification requirements for the DSH 0.2.1 and 0.2.2 API generations; the stable Skill version and upstream verification provenance are unchanged ([#3477](https://github.com/BotHarness/DeepSeekBot/issues/3477)).

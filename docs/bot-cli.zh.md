@@ -13,16 +13,25 @@
 
 `relationships` 通过已认证的本机 Host，使用与连接界面相同的审批所有者。每次 CLI 登记创建独立设备授权，本机 Host 不共享远端设备凭据。
 
-| 命令                                                                         | 用途                                                                     |
-| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `relationships list`                                                         | 读取持久化的对端、审批状态和待确认撤销。                                 |
-| `relationships initiate <对端公钥> --link-file <私密文件绝对路径> --confirm` | 核对目标指纹后，用其现有配对链接请求双向访问。                           |
-| `relationships approve <关系ID> <对端公钥> --confirm`                        | 在接收方核对发起 Host 的指纹，批准双向访问。                             |
-| `relationships sync <关系ID>`                                                | 读取对方审批，完成已认证的双向握手。                                     |
-| `relationships enroll <关系ID> --out <新私密文件绝对路径>`                   | 为当前 CLI Client 登记并私密保存独立凭据；标准输出仅含 Host 和设备标识。 |
-| `relationships disconnect <关系ID> --confirm`                                | 撤销派生访问，保留独立手机授权及远端数据；对方未确认时保留待撤销状态。   |
+方向观测在 30 秒后过期，Host 重启后恢复为尚未验证；授权及已保存线路仍然保留。`list` 不建立网络连接。`sync` 独立验证本机出站方向，并请求已认证的对端验证其出站方向。缺少返回线路时保留已批准关系。在现有连接设置中准备 LAN、Tailscale 或隧道地址，再从可达一方执行 `sync`。恢复失效的对端地址时，用 `route` 提交对端的新链接；身份不符时保留原有固定身份。这些命令不签发新设备授权，也不启动线路进程；关闭连接设置不停止已准备线路。
 
-用现有 `--host` / `--token-file` 选定准确的本机所有者。在另一台本机 Host 上执行 `enroll`，为其 CLI Client 独立登记；`device-probe --device-file <私密文件绝对路径>` 读取该 Client 的真实远端 Feed。手机不能通过设备网关调用关系登记。发起结果不确定时先读取 `relationships list`，不要盲目重发。E1 保留待对端确认的撤销；对方恢复在线后的自动重试属于 E4。
+| 命令                                                                            | 用途                                                                     |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `relationships list`                                                            | 读取持久化的对端、审批状态和待确认撤销。                                 |
+| `relationships initiate <对端公钥> --link-file <私密文件绝对路径> --confirm`    | 核对目标指纹后，用其现有配对链接请求双向访问。                           |
+| `relationships approve <关系ID> <对端公钥> --confirm`                           | 在接收方核对发起 Host 的指纹，批准双向访问。                             |
+| `relationships sync <关系ID>`                                                   | 完成审批并独立检查两个方向，通过固定身份的加密通道交换已准备线路。       |
+| `relationships route <关系ID> --link-file <私密文件绝对路径>`                   | 核对固定身份并验证对端新链接，保存线路，无需重新批准或登记。             |
+| `relationships enroll <关系ID> --device-name <名称> --out <新私密文件绝对路径>` | 为具名 CLI Client 登记并私密保存独立凭据；标准输出仅含 Host 和设备标识。 |
+| `relationships disconnect <关系ID> --confirm`                                   | 撤销派生访问，保留独立手机授权及远端数据；对方未确认时保留待撤销状态。   |
+
+用现有 `--host` / `--token-file` 选定准确的本机所有者。在另一台本机 Host 上执行 `enroll`，为其 CLI Client 独立登记；`device-probe --device-file <私密文件绝对路径>` 读取该 Client 的真实远端 Feed。手机不能通过设备网关调用关系登记。发起结果不确定时先读取 `relationships list`，不要盲目重发。
+
+断开立即拒绝本机关系访问并撤销派生授权；对方离线时，`peerRevocationPending: true` 跨重启保留。仅针对准确关系的幂等撤销自动重试，最多八次、间隔上限一分钟，不重放普通变更。`list` 返回 `revocationAttempts`、`revocationRetryAt` 和 `automaticEnrollmentSuppressed`。达到上限后仍可检查待撤销记录；对已断开关系运行 `relationships sync <关系ID>` 可手动重试并重新开始有限自动重试。确认只作用于准确关系 ID 及固定公钥，迟到确认不能撤销新代关系；独立设备授权和远端数据保留。
+
+主动断开后持久停止自动登记。重新连接需要新链接及具名双向审批，已取消授权不会复活；发起失败的内部清理不会被误认为用户主动断开。最多保留 32 个有效关系和 256 条历史记录；达到历史上限返回 `relationship-history-limit`，不删除待撤销事实或固定身份。Web Client 移除当前 Host 后回到「全部」并关闭其远端视图；用户主动移除有未保存设置的 Host 前可选择保存、放弃或取消，保存失败及取消均保留当前 Host。
+
+验证独立 Client：使用不同的 `--device-name` 和两个新的私密文件分别登记。名称为 1–60 字符，默认 `CLI desktop`。在远端所属 Host 运行 `devices` 检查独立名称和设备 ID；用 `device-revoke <设备ID> --confirm` 撤销一个，再分别 probe 两份文件，只有该授权应失败。另保留一个独立配对设备一同验证。新关系不会恢复旧关系代际，登记前以 `relationships list` 选择准确的有效 ID。Web Client 通过「连接 → 电脑之间的连接 → 在此客户端使用」命名并取得独立授权；已登记的 Client 点击「打开频道」只切换目标，不重复签发。
 
 ### 可恢复的 Zip 上传与导入
 

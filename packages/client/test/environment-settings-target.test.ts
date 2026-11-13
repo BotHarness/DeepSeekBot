@@ -6,8 +6,11 @@ describe('Environment settings target identity', () => {
   it('resolves a local sentinel when its actual identity arrives', () => {
     const target = { hostId: THIS_HOST, name: 'This Host', local: true };
     expect(settingsTargetIdentity(target, {})).toEqual(target);
-    expect(settingsTargetIdentity(target, { id: 'actual-local-id', name: 'Studio' }))
-      .toEqual({ hostId: 'actual-local-id', name: 'Studio', local: true });
+    expect(settingsTargetIdentity(target, { id: 'actual-local-id', name: 'Studio' })).toEqual({
+      hostId: 'actual-local-id',
+      name: 'Studio',
+      local: true,
+    });
     expect(target.hostId).toBe(THIS_HOST);
   });
 

@@ -8,6 +8,7 @@ import type { HumanAttentionItem } from '../src/client/store.js';
 import { pairingLink } from '../../core/src/devices/http.js';
 import { en, zh } from '../src/client/locale.js';
 import { REMOTE_NOTIFICATION_KEY } from '../src/client/remote-notifications.js';
+import { hostSettingsDrafts, type HostDraftChoice } from '../src/client/host-settings-drafts.js';
 import {
   ALL_HOSTS,
   HOST_TAB_STORAGE_KEY,
@@ -70,6 +71,87 @@ const link = (hostId = 'host-b') =>
   });
 
 describe('remote hosts', () => {
+  it('does not let an old removal waiting for settings delete a newly enrolled Client for the same Host', async () => {
+    const relationshipId = 'a'.repeat(32);
+    const storage = memoryStorage({
+      [REMOTE_HOSTS_STORAGE_KEY]: JSON.stringify([
+        {
+          hostId: 'host-b',
+          hostName: 'Studio',
+          deviceId: 'old-device',
+          credential: 'old.secret',
+          routes: ['http://127.0.0.1:47001'],
+          relationshipId,
+        },
+      ]),
+    });
+    const { carrier } = fakeCarrier();
+    const sources = createRemoteHosts({ storage, carrier });
+    let dirty = true;
+    let choose: (value: HostDraftChoice) => void = () => {};
+    const releaseDraft = hostSettingsDrafts.register('host-b', {
+      dirty: () => dirty,
+      save: async () => false,
+      discard: () => {
+        dirty = false;
+      },
+    });
+    const releasePrompt = hostSettingsDrafts.prompt(
+      'host-b',
+      () =>
+        new Promise((resolve) => {
+          choose = resolve;
+        }),
+    );
+    try {
+      sources.select('host-b');
+      const pending = sources.remove('host-b');
+      await Promise.resolve();
+      await sources.retireRelationship(relationshipId);
+      expect(sources.getSnapshot().tab).toBe(ALL_HOSTS);
+      expect(storage.values.get(HOST_TAB_STORAGE_KEY)).toBe(ALL_HOSTS);
+      expect((await sources.pair(link(), 'New browser')).ok).toBe(true);
+      choose('discard');
+      await pending;
+      expect(sources.getSnapshot().hosts[0]?.host.deviceId).toBe('device-1');
+    } finally {
+      releasePrompt();
+      releaseDraft();
+    }
+  });
+  it('recovers relationship routes without replacing this Client grant or accepting another Host key', () => {
+    const host = {
+      hostId: 'host-b',
+      hostName: 'Studio',
+      deviceId: 'existing-device',
+      credential: 'existing.secret',
+      routes: ['http://192.168.56.1:47001'],
+      encryption: {
+        protocol: 'connect-noise-xk-v1',
+        hostKey: 'ab'.repeat(32),
+        deviceKey: 'cd'.repeat(32),
+      },
+    };
+    const storage = memoryStorage({ [REMOTE_HOSTS_STORAGE_KEY]: JSON.stringify([host]) });
+    const sources = createRemoteHosts({ storage, carrier: fakeCarrier().carrier });
+    const peer = {
+      id: host.hostId,
+      name: host.hostName,
+      publicKey: host.encryption.hostKey,
+      routes: ['http://192.168.56.1:47002'],
+    };
+    expect(() => sources.learnRelationshipRoutes({ ...peer, publicKey: 'ff'.repeat(32) })).toThrow(
+      'host-key-mismatch',
+    );
+    expect(sources.getSnapshot().hosts[0]?.host).toEqual(host);
+    sources.learnRelationshipRoutes(peer);
+    expect(sources.getSnapshot().hosts).toHaveLength(1);
+    expect(sources.getSnapshot().hosts[0]?.host).toEqual({ ...host, routes: peer.routes });
+    const restored = createRemoteHosts({ storage, carrier: fakeCarrier().carrier });
+    expect(restored.getSnapshot().hosts[0]?.host).toEqual({ ...host, routes: peer.routes });
+    sources.close();
+    restored.close();
+  });
   it('pairs another remote with this browser and remembers it in browser storage', async () => {
     const storage = memoryStorage();
     const { carrier, calls } = fakeCarrier();
