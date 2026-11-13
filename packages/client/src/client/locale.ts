@@ -4,6 +4,13 @@ import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots';
 export const LOCALE_NS = 'botharness';
 
 export const zh = {
+  'environment.title': '环境',
+  'environment.scope': '浏览环境',
+  'environment.unread': '未读消息',
+  'environment.manageNamed': '管理 {name}',
+  'environment.reconnect': '重新连接',
+  'environment.loading': '正在加载',
+  'environment.offline': '离线',
   'relationships.title': '电脑之间的连接',
   'relationships.approveOn': '请在 {name} 的连接设置中核对下方指纹，并批准双向访问。',
   'relationships.pending': '等待批准双向访问',
@@ -5216,6 +5223,13 @@ export function zhTranslate(key: BotHarnessKey | string, params?: Record<string,
 }
 
 export const en = {
+  'environment.title': 'Environments',
+  'environment.scope': 'Browse environments',
+  'environment.unread': 'Unread messages',
+  'environment.manageNamed': 'Manage {name}',
+  'environment.reconnect': 'Reconnect',
+  'environment.loading': 'Loading',
+  'environment.offline': 'Offline',
   'relationships.title': 'Computer relationships',
   'relationships.approveOn':
     'In Connections on {name}, compare this fingerprint and approve access in both directions.',

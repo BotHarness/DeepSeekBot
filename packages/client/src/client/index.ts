@@ -126,6 +126,7 @@ import { mountTabTitle } from './tab-title.js';
 import { createChannelSidebarRegistry } from './channel-sidebar.js';
 import { createDockPanelRegistry } from './dock-panels.js';
 import { createActivityCenterPanel } from './activity-center-panel.js';
+import { createEnvironmentPanel } from './environment-panel.js';
 import { createMarketPanel } from './market-panel.js';
 import { createProfileCardBuiltins } from './profile-cards-builtins.js';
 import { createGroupProfileCards } from './group-profile.js';
@@ -576,6 +577,7 @@ export function apply(ctx: ClientContext): void {
           channelSidebar.register(entry),
         ),
         dockPanels.register(createActivityCenterPanel(actions, t, dockPanels)),
+        dockPanels.register(createEnvironmentPanel(t)),
         dockPanels.register(createMarketPanel(actions, dockPanels, t)),
       ];
     };

@@ -1,6 +1,9 @@
 import { ActivityInboxHeader } from './activity-inbox-menu.js';
 import { useMemo, useSyncExternalStore, type ReactElement } from 'react';
-import { conversationKey, remoteHosts } from './remote-hosts.js';
+import { ALL_HOSTS, THIS_HOST, conversationKey, remoteHosts } from './remote-hosts.js';
+import { EnvironmentFilter } from './environment-panel.js';
+import { useThisHost } from './this-host.js';
+import { useHostName } from './host-looks.js';
 import { RemoteConversationView } from './remote-conversation-view.js';
 import { ActivityHostHeading, RemoteActivityGroup } from './remote-activity.js';
 import type { DockPanelRegistry } from './dock-panels.js';
@@ -34,6 +37,8 @@ export function ActivityCenterView({
 }): ReactElement {
   const panel = placement === 'panel';
   const sources = remoteHosts();
+  const local = useThisHost();
+  const localName = useHostName(local.id, local.name ?? t('remoteHosts.this'));
   const remote = useSyncExternalStore(sources.subscribe, sources.getSnapshot);
   const { feed, query, pages, collapsed } = useActivityFeed(actions);
   const scoped = useMemo(
@@ -74,57 +79,66 @@ export function ActivityCenterView({
         </header>
       )}
       <div className="bh-activity-sections">
-        {remote.hosts.length > 0 ? (
-          <ActivityHostHeading name={t('remoteHosts.this')} t={t} />
+        <EnvironmentFilter t={t} />
+        {remote.hosts.length > 0 && (remote.tab === ALL_HOSTS || remote.tab === THIS_HOST) ? (
+          <ActivityHostHeading name={localName} t={t} />
         ) : null}
-        {feed.visible().map((section) => {
-          const page = pages[section];
-          const count =
-            section === 'unread'
-              ? page.items.reduce((sum, item) => sum + (item.unreadCount ?? 0), 0)
-              : page.items.length;
-          const expanded = !collapsed[section];
-          return (
-            <ActivityListView
-              key={section + filterKey}
-              actions={scoped[section]}
-              t={t}
-              inboxOverride={page}
-              emptyMessage={query.search ? t('activityInbox.noResults') : undefined}
-              collapsed={!expanded}
-              sectionHeading={
-                <button
-                  type="button"
-                  className="bh-activity-section-toggle"
-                  aria-expanded={expanded}
-                  aria-label={t(titles[section])}
-                  onClick={() => feed.toggle(section)}
-                >
-                  {expanded ? <IconChevronDownOutlineMedium /> : <IconChevronRightOutlineMedium />}
-                  <span>{t(titles[section])}</span>
-                  <span
-                    className="bh-activity-section-count"
-                    data-attention={(section === 'action' && count > 0) || undefined}
+        {(remote.tab === ALL_HOSTS || remote.tab === THIS_HOST ? feed.visible() : []).map(
+          (section) => {
+            const page = pages[section];
+            const count =
+              section === 'unread'
+                ? page.items.reduce((sum, item) => sum + (item.unreadCount ?? 0), 0)
+                : page.items.length;
+            const expanded = !collapsed[section];
+            return (
+              <ActivityListView
+                key={section + filterKey}
+                actions={scoped[section]}
+                t={t}
+                inboxOverride={page}
+                emptyMessage={query.search ? t('activityInbox.noResults') : undefined}
+                collapsed={!expanded}
+                sectionHeading={
+                  <button
+                    type="button"
+                    className="bh-activity-section-toggle"
+                    aria-expanded={expanded}
+                    aria-label={t(titles[section])}
+                    onClick={() => feed.toggle(section)}
                   >
-                    {count}
-                    {page.nextCursor ? '+' : ''}
-                  </span>
-                </button>
-              }
+                    {expanded ? (
+                      <IconChevronDownOutlineMedium />
+                    ) : (
+                      <IconChevronRightOutlineMedium />
+                    )}
+                    <span>{t(titles[section])}</span>
+                    <span
+                      className="bh-activity-section-count"
+                      data-attention={(section === 'action' && count > 0) || undefined}
+                    >
+                      {count}
+                      {page.nextCursor ? '+' : ''}
+                    </span>
+                  </button>
+                }
+              />
+            );
+          },
+        )}
+        {remote.hosts
+          .filter((host) => remote.tab === ALL_HOSTS || remote.tab === host.host.hostId)
+          .map((host) => (
+            <RemoteActivityGroup
+              key={host.host.hostId}
+              host={host}
+              sources={sources}
+              avatars={remote.avatars}
+              registry={registry}
+              query={query}
+              t={t}
             />
-          );
-        })}
-        {remote.hosts.map((host) => (
-          <RemoteActivityGroup
-            key={host.host.hostId}
-            host={host}
-            sources={sources}
-            avatars={remote.avatars}
-            registry={registry}
-            query={query}
-            t={t}
-          />
-        ))}
+          ))}
       </div>
     </div>
   );

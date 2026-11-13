@@ -373,6 +373,12 @@ export function createRemoteHosts(options: {
         conversations.delete(key);
       }
     if (open?.hostId === hostId) open = undefined;
+    if (tab === hostId) {
+      tab = ALL_HOSTS;
+      try {
+        storage?.setItem(HOST_TAB_STORAGE_KEY, tab);
+      } catch {}
+    }
     save();
     publish();
   };

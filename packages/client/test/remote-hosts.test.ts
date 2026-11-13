@@ -175,6 +175,7 @@ describe('remote hosts', () => {
     expect(sources.client('host-b')).toBeUndefined();
     expect(sources.getSnapshot()).toEqual({ hosts: [], avatars: new Map(), tab: ALL_HOSTS });
     expect(storage.values.has(REMOTE_HOSTS_STORAGE_KEY)).toBe(false);
+    expect(storage.values.get(HOST_TAB_STORAGE_KEY)).toBe(ALL_HOSTS);
     expect(calls.at(-1)).toEqual({
       url: 'http://127.0.0.1:47001/botharness-device/unpair',
       body: {},
@@ -191,6 +192,28 @@ describe('remote hosts', () => {
     expect(sources.getSnapshot().tab).toBe(ALL_HOSTS);
     sources.select('local');
     expect(sources.getSnapshot().tab).toBe('local');
+  });
+
+  it('shares a persisted browsing scope without retargeting an open remote conversation or device grant', async () => {
+    const storage = memoryStorage();
+    const { carrier, calls } = fakeCarrier();
+    const sources = createRemoteHosts({ storage, carrier });
+    expect(sources.getSnapshot().tab).toBe(ALL_HOSTS);
+    await sources.pair(link(), 'Browser', 'host-a');
+    const target = { hostId: 'host-b', title: 'Ada', botSlug: 'ada' };
+    sources.open(target);
+    const client = sources.client('host-b');
+    const saved = storage.values.get(REMOTE_HOSTS_STORAGE_KEY);
+    const requests = calls.length;
+    for (const scope of ['local', ALL_HOSTS, 'host-b', 'local']) {
+      sources.select(scope);
+      expect(sources.getSnapshot().tab).toBe(scope);
+      expect(sources.getSnapshot().open).toEqual(target);
+      expect(sources.client('host-b')).toBe(client);
+      expect(storage.values.get(REMOTE_HOSTS_STORAGE_KEY)).toBe(saved);
+      expect(calls.length).toBe(requests);
+    }
+    expect(createRemoteHosts({ storage, carrier }).getSnapshot().tab).toBe('local');
   });
 
   it('permanently forgets only the removed Host notification choice across reload and re-pair', async () => {

@@ -54,6 +54,8 @@ export interface BotModeSidebarProps {
 const selectSidebarNavigation = (state: ClientState) => ({
   unreadCount: state.activityList.unreadCount,
   hasAction: state.activityList.hasAction,
+  messageCounts: state.activityList.messageCounts,
+  attentionStatus: state.activityList.attentionStatus,
   inboxCurrent: state.selection?.kind === 'inbox',
 });
 
@@ -62,10 +64,12 @@ export function BotModeSidebar(props: BotModeSidebarProps): ReactElement {
   const wide = !collapsed;
   const icon = useBotModePrefs((prefs) => prefs.botIcon);
   const navigation = useClientStore(selectSidebarNavigation, shallowEqual);
-  const unread = navigation.unreadCount;
+  const scope = useRemoteHosts();
+  const attention = environmentAttention(navigation, scope);
+  const unread = attention.unreadCount;
   const inboxNotes = [
     ...(unread > 0 ? [t('activityList.unreadCount', { count: unreadCountLabel(unread) })] : []),
-    ...(navigation.hasAction ? [t('activityList.action')] : []),
+    ...(attention.hasAction ? [t('activityList.action')] : []),
   ];
   const inboxLabel = [t('activityCenter.title'), ...inboxNotes].join(' · ');
   const inboxCurrent = navigation.inboxCurrent;
@@ -478,3 +482,5 @@ const styles = stylex.create({
     padding: 0,
   },
 });
+import { useRemoteHosts } from './host-tabs.js';
+import { environmentAttention } from './environment-activity.js';

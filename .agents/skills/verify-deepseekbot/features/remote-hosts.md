@@ -12,8 +12,10 @@ Same-machine browser qualification must distinguish transport refusal from autho
 
 ## Sub-features
 
+- `environment-panel` (E5): Control Rail → Environments uses the dockable-panel owner: Simple replaces the side panel, Advanced opens an independent column and restores the Client-local layout. All / This Host / a remote row and the Channels/Activity “Browse environments” picker share RemoteHosts' persisted scope. Choose each in both directions, reload, and remove the selected remote to verify the All fallback. Filtering must retain an already open source-bound conversation, grants, unread state and notification preferences. In All verify actual local and remote Channels interleave by latest message; equal IDs, names and timestamps stay distinct and ties are deterministic. Single Host shows only its own Sections. Change a Client-local alias/icon and compare panel, picker, rows and Activity. Disconnect the peer network after loading; rows/content stay visible with Offline and Reconnect. Verify real source-correct actions and timeline readback, both themes/languages, keyboard focus and 200% text. Separate Web proof from installed Desktop and native/mobile acceptance.
+
 - `pair`: Add remote opens the shared Connections Modal directly at Connect to another computer. Paste a pairing URL or read a local PNG/JPEG/WebP QR image, verify the full identity and approve on the target Host. After its real Feed is read, customize the saved name/icon in the same Modal; Back and Done remain in its footer. Verify the newly selected Host tab and appearance survive refresh, including the first remote tab switching the sidebar branch.
-- `tabs`: the icon strip filters All, This host and each Remote Host; tooltips name the Host, and Chinese uses 全部、本机、远程.
+- `tabs`: the Channels Environment picker filters All, This Host and each Remote Host; the Environment panel and Activity picker reflect the same scope.
 - `open`: a remote row opens a Host-scoped conversation.
 - `avatars`: remote Bot portraits and group images/member stacks appear in rows and conversation headers; Bot message authors and live drafts use the same remote portrait.
 - `activity-unread`: remote Bot rows display received activity; DM/group unread counts come from their Host Inbox.
