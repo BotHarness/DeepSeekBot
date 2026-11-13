@@ -16,7 +16,8 @@ export const usage = `Usage: node scripts/verify-app.mjs <command> [--name <inst
 Drive an isolated DeepSeekBot instance the way a user does and keep the evidence.
 
 Commands:
-  launch [--port <n>] [--build] [--dsh-version <version>]   Start an isolated DSH Host through dev-instance.mjs.
+  launch [--port <n>] [--build] [--dsh-version <version>] [--genui-preview-browser <absolute-executable>]
+                                  Start an isolated DSH Host through dev-instance.mjs.
   doctor                          Check that the recorded instance is ours, alive and authenticated.
   observe                         Save Host health and browser-reported Client diagnostics as JSON.
   rpc <namespace/method> [json]   Call one authenticated /api method with JSON args.

@@ -16,6 +16,7 @@ const runtime = vi.hoisted(() => ({
   ensure: vi.fn<() => Promise<void>>(),
   stop: vi.fn<() => Promise<void>>(),
   send: vi.fn(),
+  event: vi.fn<(detail: string) => void>(),
   rmFailure: undefined as Error | undefined,
 }));
 
@@ -41,6 +42,7 @@ vi.mock('../../browser/src/runtime/browser.js', () => ({
   }) => {
     runtime.directory = options.userDataDir;
     runtime.browserPath = options.browserPath;
+    runtime.event.mockImplementation(options.onEvent ?? (() => {}));
     return {
       ensure: async () => {
         options.onEvent?.('launch /private/browser mode=headless');
@@ -89,6 +91,27 @@ beforeEach(async () => {
 afterEach(() => vi.clearAllMocks());
 
 describe('isolated GenUI preview lifecycle', () => {
+  it('keeps Browser owner ready and stop events in their actual phases', async () => {
+    runtime.ensure.mockImplementation(async () => {
+      runtime.event('ready');
+    });
+    runtime.stop.mockImplementation(async () => {
+      runtime.event('stopped');
+    });
+    const onDiagnostic = vi.fn();
+    await previewGenuiDocument(syntheticGenuiDocument, { onDiagnostic });
+    expect(onDiagnostic).toHaveBeenCalledWith(
+      expect.objectContaining({ phase: 'ready', detail: 'ready' }),
+    );
+    expect(onDiagnostic).toHaveBeenCalledWith(
+      expect.objectContaining({ phase: 'stopped', detail: 'stopped' }),
+    );
+    expect(
+      onDiagnostic.mock.calls.some(
+        ([event]) => event.phase === 'starting' && ['ready', 'stopped'].includes(event.detail),
+      ),
+    ).toBe(false);
+  });
   it('preserves safe startup metadata through the bounded DiagnosticEvents owner', () => {
     const rows: LogEntryInput[] = [];
     const log = diagnosticEventRecorder((entries) => rows.push(...entries));

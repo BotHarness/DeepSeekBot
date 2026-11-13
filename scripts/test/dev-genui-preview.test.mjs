@@ -3,7 +3,10 @@ import { parse } from 'yaml';
 import { genuiPreviewPatch } from '../dev-genui-preview.mjs';
 import { parseArgs } from '../dev-instance.mjs';
 import { parseVerifyArgs } from '../verify-app.mjs';
-import { previewDiagnosticEvents } from '../perf-genui-browser-diagnostics.mjs';
+import {
+  previewDiagnosticEvents,
+  probeBrowserVersion,
+} from '../perf-genui-browser-diagnostics.mjs';
 
 const source = `- id: group
   config:
@@ -15,6 +18,42 @@ const source = `- id: group
 `;
 
 describe('explicit GenUI preview Profile configuration', () => {
+  it('keeps the newest bounded owner events in the API returned order', () => {
+    const events = previewDiagnosticEvents({
+      entries: Array.from({ length: 200 }, (_, index) => ({
+        source: 'genui-preview',
+        code: 'ready-detail',
+        fields: { durationMs: 1, index, text: 'observed' },
+      })),
+    });
+    expect(events).toHaveLength(128);
+    expect(events[0].index).toBe(0);
+    expect(events.at(-1).index).toBe(127);
+  });
+  it('retains a failed version probe as coded process evidence rather than a successful version', () => {
+    const failure = Object.assign(new Error('timed out'), {
+      code: 'ETIMEDOUT',
+      pid: 1234,
+      status: null,
+      signal: 'SIGTERM',
+      stderr: 'sandbox initialization token=private-value https://private.example/?token=hidden',
+      stdout: 'partial version',
+    });
+    const result = probeBrowserVersion({ path: '/opt/chrome', realpath: '/opt/chrome' }, () => {
+      throw failure;
+    });
+    expect(result).toMatchObject({
+      probe: {
+        outcome: 'failed',
+        code: 'ETIMEDOUT',
+        pid: 1234,
+        signal: 'SIGTERM',
+        stdout: 'partial version',
+      },
+    });
+    expect(result).not.toHaveProperty('version');
+    expect(JSON.stringify(result)).not.toMatch(/private-value|hidden/);
+  });
   it('patches only the selected core while preserving its existing configuration', () => {
     expect(parse(genuiPreviewPatch(source, '/opt/chrome'))).toEqual([
       {

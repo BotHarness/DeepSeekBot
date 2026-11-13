@@ -150,7 +150,18 @@ export async function previewGenuiDocument(
       browserPath: binary,
       headless: true,
       launchTimeoutMs: 8000,
-      onEvent: (detail) => record('starting', undefined, detail),
+      onEvent: (detail) =>
+        record(
+          detail.startsWith('stopped')
+            ? 'stopped'
+            : detail.startsWith('ready')
+              ? 'ready'
+              : detail.includes('outcome=error')
+                ? 'refused'
+                : 'starting',
+          undefined,
+          detail,
+        ),
       connect: async (endpoint) => {
         client = await connectCdp(endpoint);
         return client;

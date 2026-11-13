@@ -15,6 +15,35 @@ import { cookieFor } from './verify-app.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
+export function probeBrowserVersion(browser, run = execFileSync) {
+  const redactor = createDiagnosticRedactor({ homes: [] });
+  try {
+    return {
+      ...browser,
+      version: run(browser.path, ['--version'], {
+        encoding: 'utf8',
+        timeout: 8000,
+        windowsHide: true,
+        shell: false,
+      }).trim(),
+      probe: { outcome: 'success' },
+    };
+  } catch (error) {
+    return {
+      ...browser,
+      probe: {
+        outcome: 'failed',
+        code: typeof error.code === 'string' ? error.code : 'unknown',
+        pid: typeof error.pid === 'number' ? error.pid : null,
+        status: typeof error.status === 'number' ? error.status : null,
+        signal: typeof error.signal === 'string' ? error.signal : null,
+        stderr: redactor.text(String(error.stderr ?? '')).slice(-2048),
+        stdout: redactor.text(String(error.stdout ?? '')).slice(-512),
+      },
+    };
+  }
+}
+
 export function previewDiagnosticEvents(report) {
   const redactor = createDiagnosticRedactor({ homes: [] });
   const entries = Array.isArray(report?.entries) ? report.entries : [];
@@ -33,7 +62,7 @@ export function previewDiagnosticEvents(report) {
       );
       return [redactor.value({ phase: entry.code, ...fields })];
     })
-    .slice(-128);
+    .slice(0, 128);
 }
 
 async function main() {
@@ -91,12 +120,6 @@ async function main() {
   const inspect = (path) => ({
     path,
     realpath: realpathSync(path),
-    version: execFileSync(path, ['--version'], {
-      encoding: 'utf8',
-      timeout: 8000,
-      windowsHide: true,
-      shell: false,
-    }).trim(),
   });
   const result = {
     observedAt: new Date().toISOString(),
@@ -107,7 +130,16 @@ async function main() {
     controlled: inspect(await puppeteer.executablePath()),
   };
   if (existsSync(out)) throw new Error('Keep prior environment evidence; choose a new file');
-  writeFileSync(out, JSON.stringify(result, null, 2) + '\n');
+  const save = () => writeFileSync(out, JSON.stringify(result, null, 2) + '\n');
+  save();
+  let failed = false;
+  for (const key of ['system', 'controlled']) {
+    result[key] = probeBrowserVersion(result[key]);
+    failed ||= result[key].probe.outcome !== 'success';
+    save();
+  }
+  if (failed)
+    throw new Error('Browser version probe failed; bounded process evidence was retained');
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url))

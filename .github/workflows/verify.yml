@@ -409,8 +409,6 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: node scripts/verify-app.mjs launch --name perf --build > /dev/null
-      - id: browser_environment
-        run: node scripts/perf-genui-browser-diagnostics.mjs environment .humanlayer/perf/browser-diagnostics/environment.json
       - run: >-
           node scripts/perf-idle-timeline.mjs --messages 600 --label ci
           --budget scripts/perf-budgets/timeline.json --out .humanlayer/perf/ci > /dev/null
@@ -419,10 +417,13 @@ jobs:
         run: >-
           node scripts/perf-genui-opening.mjs --headless
           --out .humanlayer/perf/genui-ci > /dev/null
-      - if: always() && steps.browser_environment.outcome == 'success'
+      - if: always() && (steps.system_preview.outcome == 'success' || steps.system_preview.outcome == 'failure')
         run: >-
           node scripts/perf-genui-browser-diagnostics.mjs logs
           .humanlayer/perf/browser-diagnostics/system-log.json "$BH_E2E_INSTANCE"
+      - id: browser_environment
+        if: always() && (steps.system_preview.outcome == 'success' || steps.system_preview.outcome == 'failure')
+        run: node scripts/perf-genui-browser-diagnostics.mjs environment .humanlayer/perf/browser-diagnostics/environment.json
       - if: always()
         run: node scripts/verify-app.mjs stop --name perf
       - id: controlled_launch
