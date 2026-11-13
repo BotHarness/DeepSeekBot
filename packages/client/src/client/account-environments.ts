@@ -71,7 +71,6 @@ export function startAccountEnvironments(options: {
         }
       }
     } catch {
-      // A failed account check cannot authorize new enrollment.
     } finally {
       if (!lifetime.signal.aborted) timer = setTimeout(() => void poll(), 2500);
     }

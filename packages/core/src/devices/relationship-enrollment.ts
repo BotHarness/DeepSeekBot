@@ -104,9 +104,7 @@ export async function cancelRelationshipEnrollment(options: {
       id: options.relationshipId,
       publicKey: options.publicKey,
     });
-  } catch {
-    /* The owning Host retains unconfirmed issuance until its cleanup deadline. */
-  }
+  } catch {}
 }
 
 export function updateRelationshipClientRoute(options: {
