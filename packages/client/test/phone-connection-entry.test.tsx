@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { ConnectionsDialog } from '../src/client/connections-dialog.js';
 import { PairedDevicesSettings } from '../src/client/paired-devices.js';
 import { zhTranslate as t } from '../src/client/locale.js';
+import type { ClientRelationship } from '../../core/src/devices/relationship-contract.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Button: 'button',
@@ -58,6 +59,7 @@ let pairedDevices: {
 let host: HTMLDivElement;
 let root: ReturnType<typeof createRoot>;
 let posts: { url: string; body: unknown }[];
+let relationships: ClientRelationship[];
 
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -70,9 +72,11 @@ beforeEach(() => {
   posts = [];
   offerState = 'pending';
   pairedDevices = [];
+  relationships = [];
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.endsWith('/relationships')) return Response.json({ relationships });
       if (init?.method === 'POST') {
         const body = JSON.parse(String(init.body));
         posts.push({ url, body });
@@ -134,6 +138,39 @@ it('prepares LAN only after choosing it in Add connection, then shows the invita
   await click('局域网');
   expect(posts).toEqual([]);
   await click('开启并继续');
+  expect(host.querySelector('[data-pair-qr]')).not.toBeNull();
+  expect(posts.map((item) => item.url)).toEqual([
+    './api/botharness/devices/lan',
+    './api/botharness/devices/offer',
+  ]);
+});
+
+it('prepares an approved relationship return route without phone onboarding or another invitation', async () => {
+  relationships = [
+    {
+      id: 'r'.repeat(32),
+      peer: { id: 'peer', name: 'Peer', publicKey: 'ab'.repeat(32), routes: [tail.url] },
+      direction: 'outgoing',
+      state: 'active',
+      expiresAt: Date.now() + 60_000,
+      peerRevocationPending: false,
+    },
+  ];
+  await render(false);
+  await click(t('relationships.prepareRoute'));
+  await click(t('connections.advancedMethods'));
+  await click(t('connections.lan'));
+  await click(t('connections.enableContinue'));
+  expect(posts.map((item) => item.url)).toEqual(['./api/botharness/devices/lan']);
+  expect(host.querySelector('[data-pair-qr]')).toBeNull();
+  expect(button(t('relationships.check'))).toBeDefined();
+  await click(t('relationships.prepareRoute'));
+  await click(t('connections.lan'));
+  expect(posts.map((item) => item.url)).toEqual(['./api/botharness/devices/lan']);
+  expect(host.querySelector('[data-pair-qr]')).toBeNull();
+  await click(t('connections.add'));
+  await click(t('connections.invite'));
+  await click(t('connections.phoneApp.ready'));
   expect(host.querySelector('[data-pair-qr]')).not.toBeNull();
   expect(posts.map((item) => item.url)).toEqual([
     './api/botharness/devices/lan',
