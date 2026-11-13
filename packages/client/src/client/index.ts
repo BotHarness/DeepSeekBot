@@ -78,6 +78,7 @@ import { searchSettings } from './settings-search.js';
 import { startConnectSignIn } from './connect-sign-in.js';
 import { DshBotSettingsItem } from './dsh-bot-settings-item.js';
 import { createImApps, ImAppsSection } from './im-apps-section.js';
+import { TeamSection } from './team-settings.js';
 import {
   AboutSection,
   AdvancedSection,
@@ -1060,6 +1061,19 @@ export function apply(ctx: ClientContext): void {
           inject: () => ({ companion }),
         },
         CompanionsSection,
+      ),
+    );
+    settingsCtx.slots.inject('botharness.settings.section', () =>
+      settingsCtx.slots.register(
+        {
+          name: 'botharness.settings.section',
+          id: BOT_SETTINGS_SECTIONS.team,
+          order: 44,
+          label: () => t('botSettings.section.team'),
+          locale: LOCALE_NS,
+          inject: () => ({ call }),
+        },
+        TeamSection,
       ),
     );
     settingsCtx.slots.inject('botharness.settings.section', () =>
