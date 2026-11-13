@@ -141,6 +141,8 @@ export function createRelationshipControl(options: {
     const privateRelay = isPrivateRoute(origin)
       ? (peer.privateRelay ?? (await admissions.read(command.id)))
       : undefined;
+    checkOpen();
+    if (active.size >= 8) throw new RelationshipRefused('relationship-busy');
     if (!origin || !checkRoute(origin, privateRelay).ok)
       throw new RelationshipRefused('relationship-route-unavailable');
     const abort = new AbortController();
@@ -290,7 +292,9 @@ export function createRelationshipControl(options: {
       const relationship = relationships.beginRevocationAttempt(relationshipId, manual);
       if (!relationship.peerRevocationPending) {
         await admissions.forget(relationshipId);
-        return closed ? { ...relationship, reachability: reachability(relationshipId) } : snapshot(relationshipId);
+        return closed
+          ? { ...relationship, reachability: reachability(relationshipId) }
+          : snapshot(relationshipId);
       }
       const started = now();
       try {
@@ -407,7 +411,11 @@ export function createRelationshipControl(options: {
         if (command.action === 'activate')
           return { ok: true, state: relationships.activate(command.id, peerKey).state };
         if (command.action === 'disconnect') {
-          const disconnected = relationships.disconnect(command.id, peerKey, command.suppressAutomaticEnrollment ?? true);
+          const disconnected = relationships.disconnect(
+            command.id,
+            peerKey,
+            command.suppressAutomaticEnrollment ?? true,
+          );
           observations.delete(command.id);
           if (!disconnected.peerRevocationPending) await admissions.forget(command.id);
           return { ok: true, state: disconnected.state };

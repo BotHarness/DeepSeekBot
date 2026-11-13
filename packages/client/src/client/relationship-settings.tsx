@@ -61,11 +61,11 @@ export function RelationshipSettings({
       if (!abort.current?.signal.aborted) {
         if (result.relationship.state === 'disconnected') await source.retireRelationship(item.id);
         else {
-        const parsed = link ? parsePairingLink(link) : undefined;
-        await remoteHosts().learnRelationshipRoutes(
-          result.relationship.peer,
-          parsed?.ok ? parsed.payload.encryption?.privateRelay : undefined,
-        );
+          const parsed = link ? parsePairingLink(link) : undefined;
+          await remoteHosts().learnRelationshipRoutes(
+            result.relationship.peer,
+            parsed?.ok ? parsed.payload.encryption?.privateRelay : undefined,
+          );
         }
         setItems((current) =>
           current.map((entry) => (entry.id === item.id ? result.relationship : entry)),

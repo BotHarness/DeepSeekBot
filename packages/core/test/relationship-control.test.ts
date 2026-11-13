@@ -123,12 +123,14 @@ it('aborts an in-flight retirement before disposing its authority without late r
   let release = () => {};
   let arrived = () => {};
   const a = await host('A');
-  const b = await host('B', Date.now, { beforeReceive: async () => {
-    if (gate) {
-      arrived();
-      await gate;
-    }
-  } });
+  const b = await host('B', Date.now, {
+    beforeReceive: async () => {
+      if (gate) {
+        arrived();
+        await gate;
+      }
+    },
+  });
   try {
     const relationship = await a.control.initiate(await b.link(), b.publicKey);
     b.control.approve(relationship.id, a.publicKey);
@@ -147,6 +149,38 @@ it('aborts an in-flight retirement before disposing its authority without late r
     release();
   } finally {
     release();
+    await a.close();
+    await b.close();
+  }
+});
+
+it('acknowledges simultaneous retirements before cleaning only their admission references', async () => {
+  const deleted: [string[], string[]] = [[], []];
+  const credentials = (index: 0 | 1): RelationshipCredentialProvider => ({
+    readRecord: async () => undefined,
+    modifyRecord: async (_key, mutate) => {
+      await mutate(undefined);
+    },
+    deleteRecord: async (key) => {
+      deleted[index].push(key);
+    },
+  });
+  const a = await host('A', Date.now, { credentials: credentials(0) });
+  const b = await host('B', Date.now, { credentials: credentials(1) });
+  try {
+    const relationship = await a.control.initiate(await b.link(), b.publicKey);
+    b.control.approve(relationship.id, a.publicKey);
+    await a.control.sync(relationship.id);
+    const outcomes = await Promise.all([
+      a.control.disconnect(relationship.id),
+      b.control.disconnect(relationship.id),
+    ]);
+    expect(
+      outcomes.every((item) => item.state === 'disconnected' && !item.peerRevocationPending),
+    ).toBe(true);
+    expect(deleted.map((keys) => keys.length)).toEqual([1, 1]);
+    expect(deleted.flat().every((key) => key.includes('relationship-route-'))).toBe(true);
+  } finally {
     await a.close();
     await b.close();
   }
