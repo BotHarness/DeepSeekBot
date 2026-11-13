@@ -653,7 +653,14 @@ export function PairedDevicesSettings({
           ) : null}
         </ConnectionPanel>
       ) : null}
-      {setup === 'remote' ? <AddRemoteHostDialog t={t} onClose={() => setSetup('closed')} /> : null}
+      {setup === 'remote' ? (
+        <AddRemoteHostDialog
+          t={t}
+          inline={standalone}
+          onBack={() => setSetup('direction')}
+          onClose={() => setSetup('closed')}
+        />
+      ) : null}
       {setup !== 'closed' && setup !== 'remote' ? (
         <ConnectionPanel
           inline={standalone}
@@ -712,8 +719,17 @@ export function PairedDevicesSettings({
               </div>
             ) : setup === 'direction' ? (
               <>
-                <ChoiceButton title={t('connections.invite')} onClick={() => setSetup('app')} />
-                <ChoiceButton title={t('connections.join')} onClick={() => setSetup('remote')} />
+                <ChoiceButton
+                  leading={<ChannelSidebarIcon name="smartphone" />}
+                  title={t('connections.invite')}
+                  onClick={() => setSetup('app')}
+                />
+                <ChoiceButton
+                  leading={<ChannelSidebarIcon name="monitor" />}
+                  title={t('connections.join')}
+                  description={t('connections.joinHint')}
+                  onClick={() => setSetup('remote')}
+                />
               </>
             ) : setup === 'method' ? (
               <>
@@ -1273,7 +1289,7 @@ export function PairedDevicesSettings({
       ) : null}
     </div>
   );
-  return standalone && setup !== 'remote' ? (
+  return standalone ? (
     <PanelDialog
       title={t('connections.title')}
       closeLabel={t('common.close')}
