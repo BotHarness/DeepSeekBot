@@ -70,7 +70,6 @@ export class OnboardingController {
     for (const listener of this.listeners) listener();
   }
   async enter(companion?: WindowCompanions): Promise<void> {
-    if (memberPage()) return;
     if (this.entering) return this.entering;
     this.entering = this.refresh(undefined, undefined, companion).finally(() => {
       this.entering = undefined;
@@ -83,6 +82,7 @@ export class OnboardingController {
     companion?: WindowCompanions,
     select = false,
   ): Promise<void> {
+    if (memberPage()) return;
     try {
       const receipt = await this.actions.onboarding(slug, action);
       const first = this.state.receipt === undefined;
