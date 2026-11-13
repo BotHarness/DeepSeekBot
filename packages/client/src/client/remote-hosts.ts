@@ -172,22 +172,25 @@ function readHosts(storage: HostStorage | undefined): ManagedSavedHost[] {
       ? value.flatMap((entry: unknown) => {
           const host = parseSavedHost(entry);
           if (!host) return [];
-          try {
-            const pendingConnection = readPendingConnection(storage, host);
-            return [
-              {
-                ...host,
-                ...(pendingConnection ? { pendingConnection } : {}),
-                ...(oldConnectionOwner(storage, host) ? { connectionOwnerChanged: true } : {}),
-              },
-            ];
-          } catch {
-            return [{ ...host, connectionOperationUnavailable: true }];
-          }
+          return [readExecutionHost(storage, host)];
         })
       : [];
   } catch {
     return [];
+  }
+}
+
+function readExecutionHost(storage: HostStorage | undefined, host: SavedHost): ManagedSavedHost {
+  const saved = persistedHost(host);
+  try {
+    const pendingConnection = readPendingConnection(storage, saved);
+    return {
+      ...saved,
+      ...(pendingConnection ? { pendingConnection } : {}),
+      ...(oldConnectionOwner(storage, saved) ? { connectionOwnerChanged: true } : {}),
+    };
+  } catch {
+    return { ...saved, connectionOperationUnavailable: true };
   }
 }
 
@@ -461,6 +464,7 @@ export function createRemoteHosts(options: {
   };
 
   const attach = (host: ManagedSavedHost): void => {
+    host = readExecutionHost(storage, host);
     const client = createHostClient({
       ...host,
       onRoutesChanged: async (routes) =>

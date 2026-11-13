@@ -261,6 +261,35 @@ describe('remote hosts', () => {
     ]);
   });
 
+  it.each([false, true])(
+    'projects earlier execution history immediately when attaching a new grant (missing record: %s)',
+    async (missing) => {
+      const key = `botharness.remoteHosts.operation.v1:${JSON.stringify(['host-b', '11'.repeat(32), 'old-device'])}`;
+      const index = JSON.stringify([{ hostId: 'host-b', key }]);
+      const storage = memoryStorage({
+        'botharness.remoteHosts.operations.v1': index,
+        ...(!missing
+          ? {
+              [key]: JSON.stringify({
+                generation: crypto.randomUUID(),
+                hostKey: '11'.repeat(32),
+                deviceId: 'old-device',
+                operation: { action: 'revoke-device', deviceId: 'old-device' },
+              }),
+            }
+          : {}),
+      });
+      const sources = createRemoteHosts({ storage, carrier: fakeCarrier().carrier });
+      expect((await sources.pair(link(), 'New browser', 'host-a')).ok).toBe(true);
+      expect(sources.getSnapshot().hosts[0]?.host).toMatchObject({
+        deviceId: 'device-1',
+        ...(missing ? { connectionOperationUnavailable: true } : { connectionOwnerChanged: true }),
+      });
+      expect(storage.values.get('botharness.remoteHosts.operations.v1')).toBe(index);
+      sources.close();
+    },
+  );
+
   it('records an unreachable remote as a failed pairing', async () => {
     const record = vi.fn();
     const carrier: HostCarrier = {
