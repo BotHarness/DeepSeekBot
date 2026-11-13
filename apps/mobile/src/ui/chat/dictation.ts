@@ -15,11 +15,14 @@ export function composerActions(input: {
   disabled: boolean;
   dictation: DictationStatus;
   canDictate: boolean;
+  keepDisabledMic?: boolean;
 }): ComposerAction[] {
   if (dictating(input.dictation)) return ['stop'];
   const empty = input.text.trim() === '';
   return [
-    ...(empty && input.canDictate && !input.disabled ? (['mic'] as const) : []),
+    ...(empty && input.canDictate && (!input.disabled || input.keepDisabledMic)
+      ? (['mic'] as const)
+      : []),
     ...(!empty || input.files > 0 ? (['send'] as const) : []),
   ];
 }
