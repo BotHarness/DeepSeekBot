@@ -163,6 +163,20 @@ apps/mobile/test/message-selection.test.ts, packages/client/test/message-selecti
 
 - `BH_E2E_INSTANCE=.humanlayer/verify/<name>/instance.json node scripts/perf-idle-timeline.mjs --messages 600 --profile` seeds a 600-message Group with mixed Markdown, mounts all of it and reports idle main-thread time and typing latency. Run it with and without `--animate`. Typing must not re-render the timeline: `typing.hottest` should not contain `MessageGroupView`. See [the performance guide](../references/performance.md).
 
+### Android multiple attachment menu (#4102)
+
+In an Android message with ten available attachments (the current send limit), tap the bubble body (not a file row).
+The action card has one Download attachments (10) entry rather than ten file actions.
+Open it: a native modal bottom sheet lists only this message's available original attachments,
+including voice and image originals. Names wrap; type, size and the message-order position remain
+readable. Scroll to the final item and download it through Android Sharesheet. Compare the phone's
+locally received bytes with the final attachment, then repeat second/third/first same-name files.
+Cancel and Back dismiss the chooser without downloading; while a chosen share is pending,
+repeated taps must not launch another share. Canceling system sharing returns to the conversation.
+A one-file message keeps its direct action, and tapping a file inside the bubble remains direct.
+Repeat light/dark and default/large text; verify reaching the last row on the physical Android lane.
+iOS retains its existing native message menu in this slice.
+
 ## Gotchas
 
 - The #1023 Lark parent-video candidate needs a native `media` parent quoted by an actual Bot-mentioned Human request in a synced conversation. Open that Channel and confirm there is no video/cover request before **Prepare video**. Prepare, then manually play, pause and seek; verify advancing decoded frames rather than only a successful HTTP response. Original download is independent, and a missing/failed native cover must not block playback. Use a fresh native resource to verify stop-before-acquisition; reusing an acquired parent tests cached access instead. Native and installed-product qualification remain pending in `docs/dev/verification/lark-1023-channel-video.md`; do not fabricate a Source Event or rename an ordinary file to qualify video.
