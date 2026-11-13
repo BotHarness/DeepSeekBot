@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 
@@ -8,6 +8,7 @@ import { FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
+import { useMountedResource } from './mounted-resource.js';
 import { joinPublicChannel, loadPublicChannels, type PublicChannel } from './team-bridge.js';
 import { teamErrorText } from './team-settings.js';
 
@@ -56,7 +57,6 @@ type Load =
   | { state: 'failed' }
   | { state: 'ready'; channels: readonly PublicChannel[] };
 
-/** Lists public Channels the signed-in Human can see and joins one explicitly. */
 export function PublicChannelsDialog({
   call,
   t,
@@ -72,7 +72,7 @@ export function PublicChannelsDialog({
   const [joining, setJoining] = useState<string>();
   const [error, setError] = useState<string>();
 
-  useEffect(() => {
+  const mount = useMountedResource<HTMLDivElement>(() => {
     const controller = new AbortController();
     loadPublicChannels(call, controller.signal)
       .then((channels) => {
@@ -106,48 +106,50 @@ export function PublicChannelsDialog({
       scroll
       error={error === undefined ? undefined : <Note tone="danger">{error}</Note>}
     >
-      {load.state === 'loading' ? (
-        <Note>{t('team.channels.loading')}</Note>
-      ) : load.state === 'failed' ? (
-        <Note tone="danger">{t('team.channels.loadFailed')}</Note>
-      ) : load.channels.length === 0 ? (
-        <EmptyState title={t('team.channels.empty')} />
-      ) : (
-        <ul {...stylex.props(styles.list)} aria-label={t('team.channels.title')}>
-          {load.channels.map((channel) => (
-            <li
-              key={channel.channelId}
-              data-public-channel={channel.channelId}
-              {...stylex.props(styles.row)}
-            >
-              <span {...stylex.props(styles.body)}>
-                <span {...stylex.props(styles.name)}>{channel.name}</span>
-                <span {...stylex.props(styles.meta)}>
-                  {[
-                    t('team.channels.members', { count: String(channel.memberCount) }),
-                    channel.description,
-                  ]
-                    .filter((part) => part !== undefined && part.length > 0)
-                    .join(' · ')}
+      <div ref={mount}>
+        {load.state === 'loading' ? (
+          <Note>{t('team.channels.loading')}</Note>
+        ) : load.state === 'failed' ? (
+          <Note tone="danger">{t('team.channels.loadFailed')}</Note>
+        ) : load.channels.length === 0 ? (
+          <EmptyState title={t('team.channels.empty')} />
+        ) : (
+          <ul {...stylex.props(styles.list)} aria-label={t('team.channels.title')}>
+            {load.channels.map((channel) => (
+              <li
+                key={channel.channelId}
+                data-public-channel={channel.channelId}
+                {...stylex.props(styles.row)}
+              >
+                <span {...stylex.props(styles.body)}>
+                  <span {...stylex.props(styles.name)}>{channel.name}</span>
+                  <span {...stylex.props(styles.meta)}>
+                    {[
+                      t('team.channels.members', { count: String(channel.memberCount) }),
+                      channel.description,
+                    ]
+                      .filter((part) => part !== undefined && part.length > 0)
+                      .join(' · ')}
+                  </span>
                 </span>
-              </span>
-              {channel.joined ? (
-                <span {...stylex.props(styles.joined)}>{t('team.channels.joined')}</span>
-              ) : (
-                <Button
-                  variant="outline"
-                  disabled={joining !== undefined}
-                  aria-busy={joining === channel.channelId || undefined}
-                  aria-label={t('team.channels.joinNamed', { name: channel.name })}
-                  onClick={() => join(channel)}
-                >
-                  {t('team.channels.join')}
-                </Button>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
+                {channel.joined ? (
+                  <span {...stylex.props(styles.joined)}>{t('team.channels.joined')}</span>
+                ) : (
+                  <Button
+                    variant="outline"
+                    disabled={joining !== undefined}
+                    aria-busy={joining === channel.channelId || undefined}
+                    aria-label={t('team.channels.joinNamed', { name: channel.name })}
+                    onClick={() => join(channel)}
+                  >
+                    {t('team.channels.join')}
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </FormDialog>
   );
 }

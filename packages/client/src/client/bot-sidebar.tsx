@@ -3983,7 +3983,6 @@ export function ChannelMoveMenu({
   );
 }
 
-/** Create-menu rows a Host Member may use in M1: Channels and their own sections. */
 const MEMBER_MENU_ITEMS: ReadonlySet<string> = new Set(['channel', 'section', 'public-channels']);
 
 function botCreateSource(id: string): 'empty' | 'git' | 'zip' | undefined {

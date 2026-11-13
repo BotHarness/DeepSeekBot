@@ -20,10 +20,6 @@ function errorText(t: BotHarnessTranslate, error: unknown): string {
   }
 }
 
-/**
- * Changes the signed-in Human's own password. When `forced`, the Host refuses every other call
- * until this succeeds, so the dialog cannot be dismissed.
- */
 export function MemberPasswordDialog({
   call,
   t,

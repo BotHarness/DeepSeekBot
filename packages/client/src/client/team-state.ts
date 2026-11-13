@@ -1,12 +1,8 @@
-import { useEffect, useSyncExternalStore } from 'react';
+import { useSyncExternalStore } from 'react';
 
 import type { BridgeCall } from './bridge.js';
 import { loadTeamMode, type TeamModeView } from './team-bridge.js';
 
-/**
- * One Team mode snapshot per Bridge call, shared by the sidebar entry, the password gate and
- * Settings. The Host stays authoritative: this only decides what to show.
- */
 interface Entry {
   value: TeamModeView | undefined;
   loading: Promise<void> | undefined;
@@ -15,7 +11,6 @@ interface Entry {
 
 const entries = new WeakMap<BridgeCall, Entry>();
 
-/** The signed-in Human's kind on this page's Host, from the last Team mode snapshot. */
 let viewerKind: 'owner' | 'member' | undefined;
 const viewerListeners = new Set<() => void>();
 
@@ -28,7 +23,6 @@ function publish(current: Entry, value: TeamModeView): void {
   }
 }
 
-/** True while this page is signed in as a Host Member rather than the Owner. */
 export function useTeamMember(): boolean {
   return (
     useSyncExternalStore(
@@ -72,13 +66,11 @@ export function useTeamMode(call: BridgeCall | undefined): TeamModeView | undefi
       if (call === undefined) return () => {};
       const current = entry(call);
       current.listeners.add(listener);
+      if (current.value === undefined) void refreshTeamMode(call);
       return () => current.listeners.delete(listener);
     },
     () => (call === undefined ? undefined : entry(call).value),
     () => undefined,
   );
-  useEffect(() => {
-    if (call !== undefined && entry(call).value === undefined) void refreshTeamMode(call);
-  }, [call]);
   return value;
 }

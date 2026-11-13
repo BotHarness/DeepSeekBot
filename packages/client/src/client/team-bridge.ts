@@ -42,7 +42,6 @@ export interface PublicChannel {
   readonly joined: boolean;
 }
 
-/** Refusal codes the Host returns for Team mode calls; the UI maps each to copy. */
 export const TEAM_REFUSALS = [
   'owner-password-required',
   'password-weak',
@@ -228,7 +227,6 @@ export async function setChannelPublic(
   await unwrap(call, 'channelPublicSet', { channelId, public: open });
 }
 
-/** Usernames the Host accepts: lowercase letters, digits, dot, dash and underscore. */
 export function validUsername(value: string): boolean {
   return /^[a-z0-9][a-z0-9._-]{1,31}$/u.test(value);
 }

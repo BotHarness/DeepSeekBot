@@ -421,7 +421,6 @@ export interface HostDirectoryListing {
 }
 
 export interface BridgeActions {
-  /** Bridge call for Team mode views (members, public Channels); absent in fakes. */
   readonly teamCall?: BridgeCall;
   genuiDocumentView(
     channelId: string,

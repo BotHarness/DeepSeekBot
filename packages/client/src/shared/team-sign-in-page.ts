@@ -1,20 +1,9 @@
-/**
- * The page a Host Member sees before signing in. It is served by the Host's member web entry
- * before any Client shell or Peer exists, so it is plain HTML with inline style and script.
- *
- * The form posts `{ username, password }` as JSON to `sign-in` next to the page and reloads on
- * success; the Host then serves the member shell at the same address.
- */
-
 export type TeamSignInLanguage = 'en' | 'zh';
 
 export interface TeamSignInPageInput {
   readonly language: TeamSignInLanguage;
-  /** Host display name shown above the form. */
   readonly hostName: string;
-  /** Nonce the Host also sends in its Content-Security-Policy for the inline style and script. */
   readonly nonce: string;
-  /** Set when the Host already knows this transport refuses password sign-in. */
   readonly insecure?: boolean;
 }
 
@@ -61,7 +50,6 @@ function escapeHtml(value: string): string {
     .replaceAll("'", '&#39;');
 }
 
-/** JSON safe to embed inside an inline `<script>`. */
 function scriptJson(value: unknown): string {
   return JSON.stringify(value)
     .replaceAll('<', '\\u003c')
