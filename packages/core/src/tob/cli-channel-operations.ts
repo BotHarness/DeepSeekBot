@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import type { PersonaBotRegistry } from '../bots/registry.js';
@@ -201,7 +202,9 @@ export function createTobChannelOperations(deps: {
       const channelId = text(args.channelId);
       const expectedChannel = text(args.expectedChannel);
       if (!/^[a-f0-9]{64}$/u.test(expectedChannel)) throw new TobError('invalid-input');
-      const previous = structuredClone(owner(() => deps.management.wakePolicies(channelId)));
+      const previous = structuredClone(
+        owner(() => deps.management.wakePolicies(OWNER_HUMAN_CONTEXT, channelId)),
+      );
       if (previous.channelFingerprint !== expectedChannel) throw new TobError('stale-channel');
       const target = (slug: string, createdAt: string) => {
         if (deps.isProtectedBot(slug)) throw new TobError('protected-bot');
@@ -226,7 +229,12 @@ export function createTobChannelOperations(deps: {
         if (invitation.status !== 'pending') throw new TobError('invitation-not-pending');
         targetBot = target(invitation.targetBotSlug, invitation.targetBotCreatedAt);
         changes = { cancelInvitation: { ...invitation, targetBot }, preservesMembers: true };
-        apply = () => deps.management.cancelInvite({ channelId, invitationId, expectedChannel });
+        apply = () =>
+          deps.management.cancelInvite(OWNER_HUMAN_CONTEXT, {
+            channelId,
+            invitationId,
+            expectedChannel,
+          });
       } else {
         const requestId = text(args.requestId);
         const { accept } = args;
@@ -240,7 +248,13 @@ export function createTobChannelOperations(deps: {
           throw new TobError('join-request-not-pending');
         targetBot = target(request.requesterBotSlug, request.requesterBotCreatedAt);
         changes = { joinDecision: { ...request, accept, requester: targetBot } };
-        apply = () => deps.management.decideJoin({ channelId, requestId, accept, expectedChannel });
+        apply = () =>
+          deps.management.decideJoin(OWNER_HUMAN_CONTEXT, {
+            channelId,
+            requestId,
+            accept,
+            expectedChannel,
+          });
       }
       return {
         proposal: freeze({
@@ -252,8 +266,8 @@ export function createTobChannelOperations(deps: {
         run(guard, beforeEffect) {
           guard();
           if (
-            owner(() => deps.management.wakePolicies(channelId)).channelFingerprint !==
-            expectedChannel
+            owner(() => deps.management.wakePolicies(OWNER_HUMAN_CONTEXT, channelId))
+              .channelFingerprint !== expectedChannel
           )
             throw new TobError('stale-channel');
           if (!isDeepStrictEqual(target(targetBot.slug, targetBot.createdAt), targetBot))
@@ -289,12 +303,14 @@ export function createTobChannelOperations(deps: {
         return {
           run(guard) {
             guard();
-            return view(owner(() => deps.management.wakePolicies(channelId)));
+            return view(owner(() => deps.management.wakePolicies(OWNER_HUMAN_CONTEXT, channelId)));
           },
         };
       const expectedChannel = text(args.expectedChannel);
       if (!/^[a-f0-9]{64}$/u.test(expectedChannel)) throw new TobError('invalid-input');
-      const previous = structuredClone(owner(() => deps.management.wakePolicies(channelId)));
+      const previous = structuredClone(
+        owner(() => deps.management.wakePolicies(OWNER_HUMAN_CONTEXT, channelId)),
+      );
       if (previous.channelFingerprint !== expectedChannel) throw new TobError('stale-channel');
       const member = (slug: string, allowPaused: boolean) => {
         if (deps.isProtectedBot(slug)) throw new TobError('protected-bot');
@@ -317,14 +333,16 @@ export function createTobChannelOperations(deps: {
           const name = text(args.name);
           if (name.length > 120) throw new TobError('invalid-input');
           changes = { name };
-          apply = () => deps.management.rename({ channelId, name, expectedChannel });
+          apply = () =>
+            deps.management.rename(OWNER_HUMAN_CONTEXT, { channelId, name, expectedChannel });
           break;
         }
         case 'group-avatar-set': {
           const avatar = args.avatar;
           if (avatar !== null && !isGroupAvatar(avatar)) throw new TobError('invalid-input');
           changes = { avatar: avatar === null ? null : imageView(avatar) };
-          apply = () => deps.management.setAvatar({ channelId, avatar, expectedChannel });
+          apply = () =>
+            deps.management.setAvatar(OWNER_HUMAN_CONTEXT, { channelId, avatar, expectedChannel });
           break;
         }
         case 'group-member-remove': {
@@ -337,7 +355,12 @@ export function createTobChannelOperations(deps: {
             },
             preservesBotAndHistory: true,
           };
-          apply = () => deps.management.removeMember({ channelId, botSlug, expectedChannel });
+          apply = () =>
+            deps.management.removeMember(OWNER_HUMAN_CONTEXT, {
+              channelId,
+              botSlug,
+              expectedChannel,
+            });
           break;
         }
         case 'group-wake-set': {
@@ -366,7 +389,8 @@ export function createTobChannelOperations(deps: {
             ...(inherit === undefined ? {} : { inherit }),
           };
           changes = { wake, member: targetBot };
-          apply = () => deps.management.setWake({ channelId, ...wake, expectedChannel });
+          apply = () =>
+            deps.management.setWake(OWNER_HUMAN_CONTEXT, { channelId, ...wake, expectedChannel });
           break;
         }
         default:
@@ -382,8 +406,8 @@ export function createTobChannelOperations(deps: {
         run(guard, beforeEffect) {
           guard();
           if (
-            owner(() => deps.management.wakePolicies(channelId)).channelFingerprint !==
-            expectedChannel
+            owner(() => deps.management.wakePolicies(OWNER_HUMAN_CONTEXT, channelId))
+              .channelFingerprint !== expectedChannel
           )
             throw new TobError('stale-channel');
           if (
@@ -434,7 +458,9 @@ export function createTobChannelOperations(deps: {
           const replay = lookup();
           if (replay) return view(replay);
           beforeEffect?.();
-          return view(owner(() => deps.management.create(input, operationKey)));
+          return view(
+            owner(() => deps.management.create(OWNER_HUMAN_CONTEXT, input, operationKey)),
+          );
         },
       };
     }
@@ -476,7 +502,7 @@ export function createTobChannelOperations(deps: {
         if (owner(() => deps.management.snapshot(channelId)).channelFingerprint !== expectedChannel)
           throw new TobError('stale-channel');
         beforeEffect?.();
-        return view(owner(() => deps.management.invite(input, operationKey)));
+        return view(owner(() => deps.management.invite(OWNER_HUMAN_CONTEXT, input, operationKey)));
       },
     };
   };

@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import { join } from 'node:path';
 
@@ -20,11 +21,15 @@ describe('Group mention tracer', () => {
     const core = createCore({ dshHome: createTempRoot('botharness-all-bot-author-') });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Human shortcut only', members: ['ada'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Human shortcut only',
+        members: ['ada'],
+      });
       const preview = core.channels.previewAllBotMention(group.id);
       expect(preview.recipients).toHaveLength(1);
       await expect(
         core.channels.appendMessageOnce(
+          OWNER_HUMAN_CONTEXT,
           group.id,
           {
             id: 'bot-all-attempt',
@@ -74,7 +79,7 @@ describe('Group mention tracer', () => {
       for (const slug of ['ada', 'bea', 'outsider', 'paused'])
         core.registry.create({ slug, displayName: slug.toUpperCase() });
       core.registry.setPaused('paused', true);
-      const group = core.channels.createGroup({
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
         name: 'All Bots Runtime',
         members: ['ada', 'bea', 'paused'],
       });
@@ -85,7 +90,7 @@ describe('Group mention tracer', () => {
           { mode: 'silent', count: 10, intervalSeconds: 60 },
           { kind: 'human' },
         );
-      const methods = createBridgeMethods({ ...core });
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
       const preview = methods.channelAllBotPreview({ channelId: group.id });
       if (!preview.ok) throw new Error('Expected preview');
       const request = {
@@ -121,7 +126,9 @@ describe('Group mention tracer', () => {
       expect(core.channels.previewAllBotMention(group.id).recipients).toEqual([
         { botSlug: 'ada', label: 'ADA' },
       ]);
-      expect(await createBridgeMethods({ ...core }).channelSend(request)).toMatchObject({
+      expect(
+        await createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core }).channelSend(request),
+      ).toMatchObject({
         ok: true,
       });
       await core.runtime.whenIdle();
@@ -151,9 +158,12 @@ describe('Group mention tracer', () => {
     try {
       expect(core.registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
       expect(core.registry.create({ slug: 'bea', displayName: 'Bea' }).ok).toBe(true);
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada', 'bea'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada', 'bea'],
+      });
       const body = '@Ada @Bea 请共同核对';
-      const first = await core.channels.appendMessageOnce(group.id, {
+      const first = await core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'human-3c44062a-4083-4a74-aeaf-4ec98a4d29e1',
         at: '2026-09-25T00:00:00.000Z',
         author: { kind: 'human' },
@@ -229,8 +239,11 @@ describe('Group mention tracer', () => {
     const core = createCore({ dshHome: home, agents });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Observation', members: ['ada'] });
-      await core.channels.appendMessageOnce(group.id, {
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Observation',
+        members: ['ada'],
+      });
+      await core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'observation-1',
         at: '2026-09-25T00:00:00.000Z',
         author: { kind: 'human' },
@@ -294,14 +307,14 @@ describe('Group mention tracer', () => {
     const core = createCore({ dshHome: home, agents });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      await core.channels.appendMessage(dm.id, {
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'human-dm-observation',
         at: '2026-09-25T00:00:00.000Z',
         author: { kind: 'human' },
         body: 'Please help',
       });
-      const admission = core.runtime.admitDmMessage({
+      const admission = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'human-dm-observation',
         body: 'Please help',
@@ -352,34 +365,37 @@ describe('Group mention tracer', () => {
     const core = createCore({ dshHome: home, agents });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      const group = core.channels.createGroup({ name: 'Steer', members: ['ada'] });
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Steer',
+        members: ['ada'],
+      });
       core.channels.setGroupWakePolicy(group.id, 'ada', {
         mode: 'mentions',
         count: 5,
         intervalSeconds: 30,
       });
-      await core.channels.appendMessage(dm.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'dm-start',
         at: '2026-09-25T00:00:00.000Z',
         author: { kind: 'human' },
         body: 'Please continue working',
       });
-      const dmAdmission = core.runtime.admitDmMessage({
+      const dmAdmission = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'dm-start',
         body: 'Please continue working',
       });
       expect(dmAdmission.admitted).toBe(true);
       await started;
-      await core.channels.appendMessage(group.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'group-context',
         at: '2026-09-25T00:00:00.500Z',
         author: { kind: 'human' },
         body: 'The answer is STEER-17',
       });
       core.runtime.admitGroupMessage(group.id, 'group-context');
-      await core.channels.appendMessage(group.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'group-steer',
         at: '2026-09-25T00:00:01.000Z',
         author: { kind: 'human' },
@@ -441,9 +457,12 @@ describe('Group mention tracer', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bea', displayName: 'Bea' });
-      const group = core.channels.createGroup({ name: 'Partial', members: ['ada', 'bea'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Partial',
+        members: ['ada', 'bea'],
+      });
       const body = '@Ada @Bea work';
-      await core.channels.appendMessageOnce(group.id, {
+      await core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'human-cab241b9-2518-45a4-9eb6-5c6fc48730a2',
         at: '2026-09-25T00:00:00.000Z',
         author: { kind: 'human' },
@@ -474,8 +493,11 @@ describe('Group mention tracer', () => {
     const home = createTempRoot('botharness-group-recovery-');
     const first = createCore({ dshHome: home });
     first.registry.create({ slug: 'ada', displayName: 'Ada' });
-    const group = first.channels.createGroup({ name: 'Recovery', members: ['ada'] });
-    await first.channels.appendMessageOnce(group.id, {
+    const group = first.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Recovery',
+      members: ['ada'],
+    });
+    await first.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, group.id, {
       id: 'human-3193c842-64cd-42b4-9699-68d10bc6f89a',
       at: '2026-09-25T00:00:00.000Z',
       author: { kind: 'human' },
@@ -537,19 +559,21 @@ describe('Group mention tracer', () => {
     prior.close();
     const { createChannelStore } = await import('../src/channels/store.js');
     const legacy = createChannelStore({ rootDir: join(home, 'botharness', 'channels') });
-    legacy.getOrCreateDm('ada', 'Ada');
-    await legacy.appendMessage('dm-ada', {
+    legacy.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
+    await legacy.appendMessage(OWNER_HUMAN_CONTEXT, 'dm-ada', {
       id: 'old-message',
       at,
       author: { kind: 'human' },
       body: 'old body',
     });
-    await legacy.markRead('dm-ada', 'old-message');
+    await legacy.markRead(OWNER_HUMAN_CONTEXT, 'dm-ada', 'old-message');
     const core = createCore({ dshHome: home });
     try {
       expect(core.operationalDatabase.mode).toBe('ready');
       expect(core.channels.message('dm-ada', 'old-message')?.body).toBe('old body');
-      expect(core.channels.readPosition('dm-ada')?.messageId).toBe('old-message');
+      expect(core.channels.readPosition(OWNER_HUMAN_CONTEXT, 'dm-ada')?.messageId).toBe(
+        'old-message',
+      );
       const migrated = attachOperationalModule(core.operationalDatabase, 'upgrade-check').read(
         (db) => ({
           refs: db.prepare('PRAGMA foreign_key_check').all(),
@@ -586,7 +610,7 @@ describe('Group mention tracer', () => {
   it('treats a Memory branch-switch target as part of a retried Channel message identity', async () => {
     const core = createCore({ dshHome: createTempRoot('botharness-channel-retry-') });
     try {
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
       const first = {
         id: 'switch-message',
         at: '2026-09-25T00:00:00.000Z',
@@ -594,10 +618,12 @@ describe('Group mention tracer', () => {
         body: 'Switch branch',
         memorySwitchTarget: 'main',
       };
-      expect((await core.channels.appendMessageOnce(dm.id, first)).status).toBe('appended');
+      expect(
+        (await core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, dm.id, first)).status,
+      ).toBe('appended');
       expect(
         (
-          await core.channels.appendMessageOnce(dm.id, {
+          await core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, dm.id, {
             ...first,
             memorySwitchTarget: 'experiment',
           })
@@ -614,8 +640,8 @@ describe('Group mention tracer', () => {
     const { createChannelStore } = await import('../src/channels/store.js');
     const legacyRoot = join(home, 'botharness', 'channels');
     const legacy = createChannelStore({ rootDir: legacyRoot });
-    const group = legacy.createGroup({ name: 'Legacy', members: ['ada'] });
-    await legacy.appendMessage(group.id, {
+    const group = legacy.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Legacy', members: ['ada'] });
+    await legacy.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
       id: 'old-message',
       at: '2026-09-20T00:00:00.000Z',
       author: { kind: 'human' },
@@ -626,7 +652,7 @@ describe('Group mention tracer', () => {
       expect(core.channels.readMessages(group.id).map((message) => message.body)).toEqual([
         'earlier discussion',
       ]);
-      await core.channels.appendMessage(group.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'new-message',
         at: '2026-09-25T00:00:00.000Z',
         author: { kind: 'human' },

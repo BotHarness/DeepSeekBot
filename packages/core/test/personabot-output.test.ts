@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { Context } from '@deepseek-ai/cordis';
 import { describe, expect, it, vi } from 'vitest';
 import { createCore } from '../src/plugin.js';
@@ -188,18 +189,31 @@ describe('PersonaBot Output Committed', () => {
         rootRole: 'orchestrator',
         at: FIXED_NOW().toISOString(),
       });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada');
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
       if (dm === undefined) throw new Error('DM missing');
       const publicMessage = { ...commit().message };
       delete publicMessage.replyTo;
       expect(
-        await core.channels.appendMessageOnce(dm.id, publicMessage, undefined, origin),
+        await core.channels.appendMessageOnce(
+          OWNER_HUMAN_CONTEXT,
+          dm.id,
+          publicMessage,
+          undefined,
+          origin,
+        ),
       ).toMatchObject({ status: 'appended' });
       expect(
-        await core.channels.appendMessageOnce(dm.id, publicMessage, undefined, origin),
+        await core.channels.appendMessageOnce(
+          OWNER_HUMAN_CONTEXT,
+          dm.id,
+          publicMessage,
+          undefined,
+          origin,
+        ),
       ).toMatchObject({ status: 'existing' });
       expect(
         await core.channels.appendMessageOnce(
+          OWNER_HUMAN_CONTEXT,
           dm.id,
           { ...publicMessage, body: 'different' },
           undefined,
@@ -218,6 +232,7 @@ describe('PersonaBot Output Committed', () => {
       );
       await expect(
         core.channels.appendMessageOnce(
+          OWNER_HUMAN_CONTEXT,
           dm.id,
           { ...publicMessage, id: 'rollback-message' },
           undefined,
@@ -227,18 +242,24 @@ describe('PersonaBot Output Committed', () => {
       expect(core.channels.message(dm.id, 'rollback-message')).toBeUndefined();
       await expect(
         core.channels.appendMessage(
+          OWNER_HUMAN_CONTEXT,
           dm.id,
           { ...publicMessage, id: 'missing-reply', replyTo: 'missing' },
           origin,
         ),
       ).rejects.toThrow();
-      await core.channels.appendMessage(dm.id, { ...publicMessage, id: 'no-origin' });
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
+        ...publicMessage,
+        id: 'no-origin',
+      });
       await core.channels.appendMessage(
+        OWNER_HUMAN_CONTEXT,
         dm.id,
         { ...publicMessage, id: 'wrong-owner' },
         { sessionId: 'unknown' },
       );
       await core.channels.appendMessage(
+        OWNER_HUMAN_CONTEXT,
         dm.id,
         { ...publicMessage, id: 'human', author: { kind: 'human' } },
         origin,
@@ -276,8 +297,9 @@ describe('PersonaBot Output Committed', () => {
     const core = createCore({ dshHome: createTempRoot('botharness-output-sse-') });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      core.channels.getOrCreateDm('ada', 'Ada');
+      core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
       const response = core.live.open(
+        OWNER_HUMAN_CONTEXT,
         new Request('http://localhost/api/botharness/stream?channelId=dm-ada&after=0'),
       );
       const reader = response.body?.getReader();
@@ -285,6 +307,7 @@ describe('PersonaBot Output Committed', () => {
       await reader.read();
       await reader.read();
       await core.channels.appendMessage(
+        OWNER_HUMAN_CONTEXT,
         'dm-ada',
         {
           id: 'sse-public',
@@ -333,16 +356,19 @@ describe('PersonaBot Output Committed', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      core.channels.getOrCreateDm('ada', 'Ada');
-      groupId = core.channels.createGroup({ name: 'Output QA', members: ['ada'] }).id;
-      const human = await core.channels.appendMessage('dm-ada', {
+      core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
+      groupId = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Output QA',
+        members: ['ada'],
+      }).id;
+      const human = await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, 'dm-ada', {
         id: 'human-source',
         at: FIXED_NOW().toISOString(),
         author: { kind: 'human' },
         body: 'Please reply',
       });
       if (human === undefined) throw new Error('Human message missing');
-      const admission = core.runtime.admitDmMessage({
+      const admission = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: 'dm-ada',
         messageId: human.id,
         body: human.body,

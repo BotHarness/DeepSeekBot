@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { afterEach, expect, it } from 'vitest';
 import { createCore, type BotHarnessCore } from '../src/plugin.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
@@ -62,14 +63,14 @@ async function fixture(sideEffect = false, { unsaved = false } = {}) {
   });
   cores.push(core);
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
-  const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-  await core.channels.appendMessage(dm.id, {
+  const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
     id: 'human-request',
     at: new Date().toISOString(),
     author: { kind: 'human' },
     body: 'Hello',
   });
-  const admission = core.runtime.admitDmMessage({
+  const admission = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
     channelId: dm.id,
     messageId: 'human-request',
     body: 'Hello',
@@ -87,7 +88,7 @@ async function fixture(sideEffect = false, { unsaved = false } = {}) {
     loaded,
     archived,
     input: { channelId: dm.id, failureMessageId: failure.id },
-    methods: createBridgeMethods({ ...core }),
+    methods: createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core }),
   };
 }
 
@@ -168,13 +169,13 @@ it('queues a new message during recovery without interrupting compaction', async
       return true;
     },
   });
-  await fx.core.channels.appendMessage(fx.dm.id, {
+  await fx.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, fx.dm.id, {
     id: 'later-request',
     at: new Date().toISOString(),
     author: { kind: 'human' },
     body: 'Later',
   });
-  const next = fx.core.runtime.admitDmMessage({
+  const next = fx.core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
     channelId: fx.dm.id,
     messageId: 'later-request',
     body: 'Later',

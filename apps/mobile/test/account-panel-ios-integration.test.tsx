@@ -15,6 +15,17 @@ type NativeProps = {
   onPress?(): void;
 };
 
+vi.mock('expo-application', () => ({
+  nativeApplicationVersion: '1.7.0',
+  nativeBuildVersion: '18',
+}));
+vi.mock('expo-device', () => ({ osVersion: '27.0' }));
+vi.mock('expo-clipboard', () => ({ setStringAsync: vi.fn(async () => {}) }));
+vi.mock(
+  '../src/ui/primitives/connection-failure-actions',
+  () => import('../src/ui/primitives/connection-failure-actions.ios'),
+);
+
 vi.mock('@expo/ui', () => ({
   Host: ({ children }: NativeProps) => <div>{children}</div>,
 }));
@@ -468,4 +479,21 @@ it('recovers the native QA scenario after unlink succeeds but refreshing the lis
   expect(host.textContent).not.toContain(t.pairRefused['relay-unavailable']);
   expect(button('account-computer-hlegacy').disabled).toBe(false);
   expect(host.querySelector('[data-testid="account-computer-hoffline"]')).toBeNull();
+});
+
+it('shows a safe, copyable account-list diagnostic after refresh fails', async () => {
+  const { fixture } = await render('connection-diagnostics-list');
+  await click('account-refresh');
+  const requestsBeforeDetails = fixture.getSnapshot();
+  expect(host.textContent).toContain(t.pairRefused['relay-unavailable']);
+  expect(button('account-computer-hstudio')).toBeTruthy();
+  await click('connection-details-account');
+  expect(host.textContent).toContain('stage: environment-list');
+  expect(host.textContent).toContain('http: 503');
+  expect(host.textContent).not.toContain('fixture-refresh');
+  await click('connection-copy-account');
+  const clipboard = await import('expo-clipboard');
+  expect(clipboard.setStringAsync).toHaveBeenCalledWith(expect.stringContaining('http: 503'));
+  expect(button('connection-copy-account').textContent).toBe(t.connectionDiagnostic.copied);
+  expect(fixture.getSnapshot()).toBe(requestsBeforeDetails);
 });

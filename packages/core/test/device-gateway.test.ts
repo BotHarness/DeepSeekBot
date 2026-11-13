@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -10,7 +11,11 @@ import type { Duplex } from 'node:stream';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
+import {
+  attachOperationalModule,
+  mountOperationalDatabase,
+  type OperationalDatabaseOwner,
+} from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createDeviceGateway, DEVICE_GATEWAY_PREFIX } from '../src/devices/gateway.js';
 import { APP_VERSION_HEADER, MIN_PHONE_APP_VERSION } from '../src/devices/client-compat.js';
@@ -38,6 +43,7 @@ async function fakeDsh(
   localVideo?: Parameters<typeof createDeviceGateway>[0]['localVideo'],
   rpc?: (method: string, payload: unknown) => unknown,
   activity?: Parameters<typeof createDeviceGateway>[0]['activity'],
+  databaseOwner?: OperationalDatabaseOwner,
 ) {
   const state = {
     secret: 1,
@@ -114,10 +120,14 @@ async function fakeDsh(
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   servers.push(server);
   const port = (server.address() as AddressInfo).port;
-  const home = createTempRoot('botharness-device-gateway-');
-  const owner = trackTestOwner(
-    mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
-  );
+  const owner =
+    databaseOwner ??
+    trackTestOwner(
+      mountOperationalDatabase({
+        dshHome: createTempRoot('botharness-device-gateway-'),
+        schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
+      }),
+    );
   const pairing = createDevicePairing({
     database: attachOperationalModule(owner, 'device-pairing'),
     hostName: 'studio',
@@ -140,6 +150,68 @@ async function pair(base: string, offer: string) {
   });
   return { status: response.status, body: (await response.json()) as Record<string, string> };
 }
+
+it('retains the authenticated Owner Human on paired Client messages and refuses revoked writes', async () => {
+  const core = createCore({
+    dshHome: createTempRoot('gateway-human-context-'),
+    agents: {
+      async runOrchestrator() {},
+      async runAssignment() {},
+      async close() {},
+      requestAssignment() {
+        throw new Error('unexpected');
+      },
+    },
+  });
+  trackTestOwner(core.operationalDatabase);
+  try {
+    const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, core);
+    const created = methods.create({ displayName: 'Gateway Human', persona: 'Short replies' });
+    expect(created.ok).toBe(true);
+    const bot = core.registry.list()[0]!;
+    const channel = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, bot.slug, bot.displayName)!;
+    const live = await fakeDsh(
+      undefined,
+      undefined,
+      (method, payload) => {
+        if (method !== 'botharness/channelSend') throw new Error('unexpected method');
+        return methods.channelSend(payload);
+      },
+      undefined,
+      core.operationalDatabase,
+    );
+    const client = await pair(live.base, live.pairing.createOffer().offer);
+    const send = () =>
+      fetch(live.base + DEVICE_GATEWAY_PREFIX + '/api/botharness/channelSend', {
+        method: 'POST',
+        headers: {
+          authorization: 'Device ' + client.body.credential,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'client-request',
+          rpcId: 'human-context',
+          method: 'botharness/channelSend',
+          humanId: 'spoofed-envelope',
+          payload: {
+            args: { channelId: channel.id, body: 'Owner message', humanId: 'spoofed-payload' },
+          },
+        }),
+      });
+    expect(await (await send()).json()).toMatchObject({ result: { ok: true } });
+    const events = () =>
+      attachOperationalModule(core.operationalDatabase, 'human-context-test').read((db) =>
+        db.prepare('SELECT human_id FROM source_events WHERE channel_id = ?').all(channel.id),
+      );
+    expect(events()).toEqual([{ human_id: OWNER_HUMAN_CONTEXT.humanId }]);
+    live.pairing.revoke(client.body.deviceId!);
+    expect((await send()).status).toBe(401);
+    expect(events()).toEqual([{ human_id: OWNER_HUMAN_CONTEXT.humanId }]);
+  } finally {
+    await core.runtime.close();
+    core.operationalDatabase.close();
+  }
+});
 
 it('does not let a paired device manage or inherit Host relationships', async () => {
   const host = await fakeDsh();
@@ -782,7 +854,7 @@ describe('mobile creation recovery through device admission', () => {
         },
       });
       try {
-        const methods = createBridgeMethods(core);
+        const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, core);
         let drop = true;
         const live = await fakeDsh(undefined, undefined, async (method, payload) => {
           if (method === 'botharness/' + lookupMethod)

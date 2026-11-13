@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -81,7 +82,7 @@ export function createTobService(options: {
       if (!options.grants.list(slug).some((grant) => grant.workspaceId === workspace.id))
         await options.grants.create(slug, workspace.id);
     }
-    const channel = channels.getOrCreateDm(slug, bot.displayName);
+    const channel = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, slug, bot.displayName);
     if (!channel) throw new TobError('tob-channel-unavailable');
     return { botSlug: slug, channelId: channel.id, workspacePath };
   };

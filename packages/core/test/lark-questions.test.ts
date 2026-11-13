@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { AskUserQuestionItem } from '@deepseek-ai/dsh-user-questions/types';
@@ -29,7 +30,7 @@ async function fixture() {
   const core = createCore({ dshHome: createTempRoot('bh-lark-question-') });
   cores.push(core);
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
-  core.channels.getOrCreateDm('ada', 'Ada');
+  core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
   let receiver: Parameters<NonNullable<DshImOutboundService['consumeInbound']>>[1] | undefined;
   let fail: 'none' | 'known' | 'unknown' = 'none';
   const cards = vi.fn<NonNullable<DshImOutboundService['questionCardChecked']>>(
@@ -133,7 +134,7 @@ async function fixture() {
   const owner = new ChannelUserQuestions(core.channels, core.ownership);
   owners.push(owner);
   core.externalMessaging.questions.attach(owner, core.channels);
-  const management = createBridgeMethods({
+  const management = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
     registry: core.registry,
     states: core.states,
     channels: core.channels,
@@ -282,9 +283,14 @@ it('forged actor, receipt, shape and revoked answer authority preserve the origi
 it('Web and Lark answer races have exactly one winner', async () => {
   const f = await fixture(),
     pending = await f.start();
-  const web = f.owner.answer('ada', pending.delivery.id, {
-    answers: [{ id: 'choice', selected: ['qa'] }],
-  });
+  const web = f.owner.answer(
+    'ada',
+    pending.delivery.id,
+    {
+      answers: [{ id: 'choice', selected: ['qa'] }],
+    },
+    OWNER_HUMAN_CONTEXT,
+  );
   await f.action(pending.delivery.id);
   expect(await web).toBe(true);
   expect(await pending.answer).toEqual({ answers: [{ id: 'choice', selected: ['qa'] }] });

@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -135,9 +136,9 @@ describe('channel_read by call and time within it (#3693)', () => {
 describe('time-ordered Channel query oldest first', () => {
   it('orders and pages ascending in the file store as in SQLite', async () => {
     const store = createChannelStore({ rootDir: join(createTempRoot('call-read-file-'), 'c') });
-    const dm = store.getOrCreateDm('ada', 'Ada')!;
+    const dm = store.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
     const messages = [...callMessages(CALLS[1]), ...callMessages(CALLS[0])];
-    for (const message of messages) await store.appendMessage(dm.id, message);
+    for (const message of messages) await store.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, message);
     const window = {
       from: CALLS[0].startedAt,
       to: at(CALLS[0].startedAt, 60_000),

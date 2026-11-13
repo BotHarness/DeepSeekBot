@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
@@ -41,7 +42,7 @@ describe('Bot onboarding through the public Host bridge', () => {
   it('starts only on deliberate entry and prepares one durable Bot, Appearance, Memory without welcome messages across concurrent calls', async () => {
     await withCore(async (core) => {
       expect(core.registry.list()).toHaveLength(0);
-      const bridge = createBridgeMethods({ ...core });
+      const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
       const calls = await Promise.all(Array.from({ length: 5 }, () => bridge.onboarding({})));
       expect(calls.every((result) => result.ok)).toBe(true);
       const first = calls[0]!;
@@ -76,7 +77,7 @@ describe('Bot onboarding through the public Host bridge', () => {
     await withCore(async (core) => {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bea', displayName: 'Bea' });
-      const bridge = createBridgeMethods({ ...core });
+      const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
       const initial = await bridge.onboarding({});
       expect(initial).toMatchObject({ ok: true, value: { completed: false } });
       if (!initial.ok) throw new Error(initial.error.message);
@@ -107,11 +108,11 @@ describe('Bot onboarding through the public Host bridge', () => {
     let channelId: string;
     let profileId: string;
     try {
-      const bridge = createBridgeMethods({ ...core });
+      const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
       const first = await core.onboarding.enter(undefined, 'skip');
       channelId = first.channelId!;
       profileId = first.profileId;
-      await core.channels.appendMessage(channelId, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
         id: 'untrusted-notice',
         at: new Date().toISOString(),
         author: { kind: 'bot', slug: first.defaultBotSlug! },
@@ -153,7 +154,7 @@ describe('Bot onboarding through the public Host bridge', () => {
     let repaired = false;
     await withCore(
       async (core) => {
-        const bridge = createBridgeMethods({ ...core });
+        const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
         const first = await core.onboarding.enter();
         const channelId = first.channelId!;
         const sent = await bridge.channelSend({
@@ -201,7 +202,7 @@ describe('Bot onboarding through the public Host bridge', () => {
     await withCore(
       async (core) => {
         const first = await core.onboarding.enter();
-        const bridge = createBridgeMethods({ ...core });
+        const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
         expect(
           await bridge.channelSend({
             channelId: first.channelId!,
@@ -228,7 +229,7 @@ describe('Bot onboarding through the public Host bridge', () => {
       const first = await core.onboarding.enter();
       const slug = first.defaultBotSlug!;
       let current = { provider: 'deepseek', model: 'old' };
-      const bridge = createBridgeMethods({
+      const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
         ...core,
         modelCatalog: {
           async list() {
@@ -258,7 +259,7 @@ describe('Bot onboarding through the public Host bridge', () => {
       expect(
         await bridge.onboardingModel({ slug, expectedRevision: 0, route, globalDefault: false }),
       ).toMatchObject({ ok: false });
-      const noWriter = createBridgeMethods({
+      const noWriter = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
         ...core,
         modelCatalog: {
           async list() {
@@ -333,7 +334,10 @@ it('upgrades main generation 70 without changing qualified defaults or purge fen
 it('projects current search readiness through onboarding without persisting it as completion', async () => {
   await withCore(async (core) => {
     let available = false;
-    const bridge = createBridgeMethods({ ...core, onboardingNews: async () => available });
+    const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
+      ...core,
+      onboardingNews: async () => available,
+    });
     const first = await bridge.onboarding({});
     expect(first).toMatchObject({ ok: true, value: { newsAvailable: false, completed: false } });
     available = true;
@@ -341,7 +345,7 @@ it('projects current search readiness through onboarding without persisting it a
       ok: true,
       value: { newsAvailable: true, completed: false },
     });
-    const failed = createBridgeMethods({
+    const failed = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
       ...core,
       onboardingNews: async () => {
         throw Error('query unavailable');
@@ -362,7 +366,7 @@ it('guards the native default owner revision without modifying independent Bot p
     let current = { provider: 'official', model: 'old' };
     let revision = 5;
     let duringValidate = () => {};
-    const bridge = createBridgeMethods({
+    const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
       ...core,
       modelCatalog: { list: async () => [], validate: async () => duringValidate() },
       defaultModel: {
@@ -419,7 +423,7 @@ it.each(['stale', 'missing'] as const)(
       const other = { provider: 'official', model: 'other' };
       let current = old;
       let revision = 5;
-      const bridge = createBridgeMethods({
+      const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
         ...core,
         modelCatalog: {
           list: async () =>
@@ -522,7 +526,7 @@ it('rechecks both model preset and Bot revisions after asynchronous catalog vali
       assignmentDefault: route,
     });
     let changed = false;
-    const bridge = createBridgeMethods({
+    const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
       ...core,
       modelCatalog: {
         list: async () => [],
@@ -590,6 +594,7 @@ it('records only successful new scoped creation results and retains them through
     );
     await core.onboarding.enter(undefined, 'pause');
     const group = core.channelManagement.create(
+      OWNER_HUMAN_CONTEXT,
       { name: 'Study group', members: [created.record.slug] },
       'group-operation',
     );
@@ -644,7 +649,7 @@ it.each(['active', 'paused', 'not-started', 'skipped', 'completed'] as const)(
     const core = createCore({ dshHome, agents: adapter() });
     try {
       const home = await core.tob.ensure();
-      await core.channels.appendMessage(home.channelId, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, home.channelId, {
         id: 'tob-welcome-v1',
         at: new Date().toISOString(),
         author: { kind: 'system' },
@@ -677,6 +682,7 @@ it('recovers committed operations after a missed callback and waits for real gro
     expect((await core.onboarding.enter()).journey?.botSlug).toBe(created.record.slug);
     core.onboarding.trackCreation('group-create', 'recover-group', 'tob-session', Date.now());
     const group = core.channelManagement.create(
+      OWNER_HUMAN_CONTEXT,
       { name: 'Recovered group', members: [] },
       'recover-group',
     );

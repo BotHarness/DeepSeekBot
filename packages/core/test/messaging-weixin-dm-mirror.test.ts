@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { setImmediate as tick } from 'node:timers/promises';
 import { randomUUID } from 'node:crypto';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -98,7 +99,7 @@ async function fixture(implicit = false, optIn = true) {
   };
   core.externalMessaging.register(createDshImProvider(transport, 'weixin')!);
   const enableSync = async (grantId: string) => {
-    core.channels.getOrCreateDm('ada', 'Ada');
+    core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
     const current = (await core.externalMessaging.snapshot('ada')).grants.find(
       (g) => g.id === grantId,
     )!;
@@ -238,7 +239,7 @@ it('mirrors an accepted WeChat DM into the local DM once and mirrors accepted re
 
 it('mirrors nothing when dmMirror is off, including accepted replies', async () => {
   const { core, transport, dm, receive, runs, sources } = await fixture();
-  core.channels.getOrCreateDm('ada', 'Ada');
+  core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
   const snapshot = await core.externalMessaging.snapshot('ada');
   const row = (await core.externalMessaging.channelBridges(dm.id)).bridges[0]!;
   await core.externalMessaging.inbound.channelBridge(dm.id, {
@@ -276,16 +277,16 @@ it('forwards each web DM message once when implicit and explicit grants share th
   expect(implicitGrant.origin).toBe('implicit');
   const grant = await authorize();
   const mirrors = core.channels.readMessages(dm.id);
-  core.channels.getOrCreateDm('ada', 'Ada');
+  core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
   const humanId = randomUUID();
   const botId = randomUUID();
-  await core.channels.appendMessage(dm.id, {
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
     id: humanId,
     at: new Date().toISOString(),
     author: { kind: 'human' },
     body: 'Hello web',
   });
-  await core.channels.appendMessage(dm.id, {
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
     id: botId,
     at: new Date().toISOString(),
     author: { kind: 'bot', slug: 'ada' },
@@ -321,7 +322,7 @@ it('forwards each web DM message once when implicit and explicit grants share th
 
 it('does not forward bridged or mirrored messages and forwards nothing when the toggle is off', async () => {
   const { core, transport, dm, receive } = await fixture();
-  core.channels.getOrCreateDm('ada', 'Ada');
+  core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
   await receive('loop');
   await tick();
   await core.runtime.whenIdle();
@@ -334,13 +335,13 @@ it('does not forward bridged or mirrored messages and forwards nothing when the 
     'Mirrored answer',
   );
   expect(intent.state).toBe('provider-accepted');
-  await core.channels.appendMessage(dm.id, {
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
     id: randomUUID(),
     at: new Date().toISOString(),
     author: { kind: 'bridged', source: 'Owner' },
     body: 'Bridged body',
   });
-  await core.channels.appendMessage(dm.id, {
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
     id: 'dm-mirror-' + randomUUID(),
     at: new Date().toISOString(),
     author: { kind: 'bot', slug: 'ada' },
@@ -364,7 +365,7 @@ it('does not forward bridged or mirrored messages and forwards nothing when the 
     dmForward: false,
   });
   expect((await core.externalMessaging.channelBridges(dm.id)).bridges[0]!.dmForward).toBe(false);
-  await core.channels.appendMessage(dm.id, {
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
     id: randomUUID(),
     at: new Date().toISOString(),
     author: { kind: 'human' },
@@ -377,11 +378,11 @@ it('does not forward bridged or mirrored messages and forwards nothing when the 
 it('splits each enabled account independently without falling back across accounts', async () => {
   const { core, transport, dm, grant, authorize } = await fixture();
   const second = await authorize('weixin-second');
-  core.channels.getOrCreateDm('ada', 'Ada');
+  core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
   vi.mocked(transport.sendChecked).mockRejectedValueOnce({ code: 'send-permission-denied' });
   const messageId = randomUUID();
   const body = 'a'.repeat(3993) + '😀' + 'b'.repeat(5);
-  await core.channels.appendMessage(dm.id, {
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
     id: messageId,
     at: new Date().toISOString(),
     author: { kind: 'human' },
@@ -447,7 +448,7 @@ it('preserves checked canonical media references without copying resource keys',
 
 it('forwards an attachment-only web DM message as its file names', async () => {
   const { core, transport, dm } = await fixture();
-  core.channels.getOrCreateDm('ada', 'Ada');
+  core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
   await core.externalMessaging.forwardWebDm({
     channelId: dm.id,
     revision: 1,
@@ -467,7 +468,7 @@ it('forwards an attachment-only web DM message as its file names', async () => {
 
 it('rejects a stale dialog that would re-enable a switch another dialog turned off', async () => {
   const { core, dm } = await fixture();
-  core.channels.getOrCreateDm('ada', 'Ada');
+  core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
   const stale = (await core.externalMessaging.channelBridges(dm.id)).bridges[0]!;
   const update = (row: typeof stale, dmForward: boolean) =>
     core.externalMessaging.inbound.channelBridge(dm.id, {
@@ -491,7 +492,7 @@ it('rejects a stale dialog that would re-enable a switch another dialog turned o
 
 it('keeps reply authority for accepted messages after a sync switch changes', async () => {
   const { core, dm, receive } = await fixture();
-  core.channels.getOrCreateDm('ada', 'Ada');
+  core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
   await receive('keep');
   await tick();
   await core.runtime.whenIdle();
@@ -526,7 +527,7 @@ it('keeps reply authority for accepted messages after a sync switch changes', as
 
 it('forwards through a send-only proactive target of the paired owner', async () => {
   const { core, transport, dm, authorize } = await fixture(true);
-  core.channels.getOrCreateDm('ada', 'Ada');
+  core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
   const rows = async () => {
     const snapshot = await core.externalMessaging.channelBridges(dm.id);
     return [...snapshot.bridges, ...snapshot.sources].map((row) => row.dmForwardAvailable);
@@ -536,7 +537,7 @@ it('forwards through a send-only proactive target of the paired owner', async ()
   expect(target.receiveScope).toBeUndefined();
   expect(await rows()).toContain(true);
   const messageId = randomUUID();
-  await core.channels.appendMessage(dm.id, {
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
     id: messageId,
     at: new Date().toISOString(),
     author: { kind: 'human' },
@@ -563,7 +564,7 @@ it('forwards through a send-only proactive target of the paired owner', async ()
 
 it('purging a canonical WeChat source also removes its DM mirror body', async () => {
   const { core, grant, dm, receive } = await fixture();
-  const created = createBridgeMethods({ ...core }).channelCreate({
+  const created = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core }).channelCreate({
     name: 'Review purge source',
     members: ['ada'],
   });
@@ -595,13 +596,15 @@ it('purging a canonical WeChat source also removes its DM mirror body', async ()
     core.channels.readMessages(dm.id).some((message) => message.body === 'Reply quoting ' + secret),
   ).toBe(true);
   core.channels.deleteGroup(group.id);
-  const preview = core.contentPurge.preview(group.id, [sourceEventId]);
-  expect(core.contentPurge.confirm(group.id, preview.sourceEventIds, preview.token)).toEqual({
+  const preview = core.contentPurge.preview(OWNER_HUMAN_CONTEXT, group.id, [sourceEventId]);
+  expect(
+    core.contentPurge.confirm(OWNER_HUMAN_CONTEXT, group.id, preview.sourceEventIds, preview.token),
+  ).toEqual({
     accepted: 1,
   });
   expect(
     core.contentPurge
-      .sources(group.id)
+      .sources(OWNER_HUMAN_CONTEXT, group.id)
       .sources.find((source) => source.sourceEventId === sourceEventId)?.body,
   ).toBe('');
   expect(core.channels.readMessages(dm.id).some((message) => message.body.includes(secret))).toBe(
@@ -611,7 +614,7 @@ it('purging a canonical WeChat source also removes its DM mirror body', async ()
 
 it('disabling sync while checking the target cancels the unsent forward', async () => {
   const { core, transport, dm } = await fixture();
-  core.channels.getOrCreateDm('ada', 'Ada');
+  core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
   const row = (await core.externalMessaging.channelBridges(dm.id)).bridges[0]!;
   let release!: () => void;
   let entered!: () => void;
@@ -661,7 +664,7 @@ it('disabling sync while checking the target cancels the unsent forward', async 
 it('disabling forwarding on account A routes through enabled account B', async () => {
   const { core, transport, dm, grant, authorize } = await fixture();
   const second = await authorize('weixin-second');
-  core.channels.getOrCreateDm('ada', 'Ada');
+  core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
   const rows = await core.externalMessaging.channelBridges(dm.id);
   const row = rows.bridges.find((candidate) => candidate.grantId === grant.id)!;
   await core.externalMessaging.inbound.channelBridge(dm.id, {
@@ -717,7 +720,7 @@ async function setForwarding(core: BotHarnessCore, dmId: string, enabled: boolea
 
 it('defaults both directions off for a new grant and does not backfill when enabled', async () => {
   const { core, transport, dm, receive, sources } = await fixture(false, false);
-  core.channels.getOrCreateDm('ada', 'Ada');
+  core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
   const row = (await core.externalMessaging.channelBridges(dm.id)).bridges[0]!;
   expect(row).toMatchObject({ dmMirror: false, dmForward: false });
   const at = new Date(Date.now() + 10).toISOString();
@@ -868,7 +871,7 @@ it('shares opt-in and opt-out with a later explicit receiver in the same Binding
 
 it('keeps original connector media and reduces only the additional mirror placement', async () => {
   const { core, grant, dm, receive } = await fixture();
-  const created = createBridgeMethods({ ...core }).channelCreate({
+  const created = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core }).channelCreate({
     name: 'Media group',
     members: ['ada'],
   });
@@ -1075,7 +1078,7 @@ it('keeps structured local Bot cards out of WeChat while forwarding ordinary rep
   }
   expect(transport.sendChecked).not.toHaveBeenCalled();
   expect((await core.externalMessaging.snapshot('ada')).intents).toHaveLength(0);
-  await core.channels.appendMessage(dm.id, {
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
     id: randomUUID(),
     at: new Date().toISOString(),
     author: { kind: 'bot', slug: 'ada' },

@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -29,9 +30,9 @@ async function scene() {
     databaseOwnerReady: true,
     attachments: createAttachmentStore({ rootDir: join(home, 'botharness', 'attachments') }),
   });
-  const group = channels.createGroup({ name: 'Changes QA', members: [] });
+  const group = channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Changes QA', members: [] });
   const post = async (id: string, extra: Record<string, unknown> = {}) =>
-    channels.appendMessage(group.id, {
+    channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
       id,
       at: new Date(Date.UTC(2026, 10, 5, 0, 0, Number(id.replace(/\D/gu, '') || 0))).toISOString(),
       author: { kind: 'human' },
@@ -43,7 +44,10 @@ async function scene() {
   await post('m3');
   const since = () => channels.changeCursor!();
   const changes = (from: { epoch: string; seq: number }) =>
-    channels.readHumanChanges!(group.id, { sinceSeq: from.seq, epoch: from.epoch })!;
+    channels.readHumanChanges!(OWNER_HUMAN_CONTEXT, group.id, {
+      sinceSeq: from.seq,
+      epoch: from.epoch,
+    })!;
   const sourceOf = (messageId: string) =>
     String(
       (
@@ -83,7 +87,7 @@ describe('global change log for placed messages', () => {
   it('reports a reaction toggled on an older message (#51)', async () => {
     const { since, changes, channels, group } = await scene();
     const cursor = since();
-    channels.setHumanReaction!(group.id, 'm1', '👍', true);
+    channels.setHumanReaction!(OWNER_HUMAN_CONTEXT, group.id, 'm1', '👍', true);
     const result = changes(cursor);
     if (result.reset) throw new Error('unexpected reset');
     expect(ids(result.upserts)).toEqual(['m1']);
@@ -172,17 +176,17 @@ describe('global change log for placed messages', () => {
   it('flags read, nickname and default-name changes as Channel-level (#40-#42)', async () => {
     const { since, changes, channels, group } = await scene();
     let cursor = since();
-    await channels.markRead(group.id, 'm3');
+    await channels.markRead(OWNER_HUMAN_CONTEXT, group.id, 'm3');
     let result = changes(cursor);
     if (result.reset) throw new Error('unexpected reset');
     expect(result).toMatchObject({ readChanged: true, channelChanged: false, upserts: [] });
     cursor = since();
-    channels.setHumanNickname(group.id, 'Vee');
+    channels.setHumanNickname(OWNER_HUMAN_CONTEXT, group.id, 'Vee');
     result = changes(cursor);
     if (result.reset) throw new Error('unexpected reset');
     expect(result.channelChanged).toBe(true);
     cursor = since();
-    channels.setHumanDefaultName('Vain');
+    channels.setHumanDefaultName(OWNER_HUMAN_CONTEXT, 'Vain');
     result = changes(cursor);
     if (result.reset) throw new Error('unexpected reset');
     expect(result.channelChanged).toBe(true);
@@ -190,21 +194,21 @@ describe('global change log for placed messages', () => {
 
   it('lists the Channels whose summary changed since a cursor, for the channel list (C3)', async () => {
     const { since, channels, group, post } = await scene();
-    const other = channels.createGroup({ name: 'Quiet', members: [] });
+    const other = channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Quiet', members: [] });
     const changed = (from: { epoch: string; seq: number }) =>
       channels.readChangedChannels!({ sinceSeq: from.seq, epoch: from.epoch });
     let cursor = since();
     expect(changed(cursor)).toEqual({ channelIds: [], all: false, cursor });
     await post('m4');
-    await channels.markRead(group.id, 'm4');
-    channels.rename(other.id, 'Loud');
+    await channels.markRead(OWNER_HUMAN_CONTEXT, group.id, 'm4');
+    channels.rename(OWNER_HUMAN_CONTEXT, other.id, 'Loud');
     let result = changed(cursor);
     if (result.reset) throw new Error('unexpected reset');
     expect(result.channelIds.sort()).toEqual([group.id, other.id].sort());
     expect(result.all).toBe(false);
     expect(result.cursor).toEqual(since());
     cursor = since();
-    channels.setHumanDefaultName('Vain');
+    channels.setHumanDefaultName(OWNER_HUMAN_CONTEXT, 'Vain');
     result = changed(cursor);
     if (result.reset) throw new Error('unexpected reset');
     expect(result).toMatchObject({ channelIds: [], all: true });
@@ -239,7 +243,10 @@ describe('global change log for placed messages', () => {
     const { since, changes, channels, group, post } = await scene();
     const cursor = since();
     for (let index = 10; index < 20; index += 1) await post(`m${index}`);
-    const first = channels.readHumanChanges!(group.id, { sinceSeq: cursor.seq, limit: 4 })!;
+    const first = channels.readHumanChanges!(OWNER_HUMAN_CONTEXT, group.id, {
+      sinceSeq: cursor.seq,
+      limit: 4,
+    })!;
     if (first.reset) throw new Error('unexpected reset');
     expect(first.hasMore).toBe(true);
     expect(first.upserts).toHaveLength(4);
@@ -259,8 +266,8 @@ describe('global change log for placed messages', () => {
     const { channels, group, since } = await scene();
     const head = channels.channelChangeHead!(group.id)!;
     expect(head).toEqual(since());
-    const other = channels.createGroup({ name: 'Elsewhere', members: [] });
-    await channels.appendMessage(other.id, {
+    const other = channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Elsewhere', members: [] });
+    await channels.appendMessage(OWNER_HUMAN_CONTEXT, other.id, {
       id: 'x1',
       at: '2026-11-05T00:01:00.000Z',
       author: { kind: 'human' },
@@ -268,7 +275,7 @@ describe('global change log for placed messages', () => {
     });
     expect(since().seq).toBeGreaterThan(head.seq);
     expect(channels.channelChangeHead!(group.id)).toEqual(head);
-    channels.setHumanReaction!(group.id, 'm1', '👍', true);
+    channels.setHumanReaction!(OWNER_HUMAN_CONTEXT, group.id, 'm1', '👍', true);
     expect(channels.channelChangeHead!(group.id)).toEqual(since());
   });
 
@@ -276,7 +283,9 @@ describe('global change log for placed messages', () => {
     const { channels, group } = await scene();
     const hub = createChannelLiveHub(channels);
     const abort = new AbortController();
-    const frames = hub.followChannel(group.id, 0, abort.signal)[Symbol.asyncIterator]();
+    const frames = hub
+      .followChannel(OWNER_HUMAN_CONTEXT, group.id, 0, abort.signal)
+      [Symbol.asyncIterator]();
     const opened = (await frames.next()).value;
     abort.abort();
     expect(opened).toMatchObject({
@@ -289,7 +298,10 @@ describe('global change log for placed messages', () => {
   it('asks for a reset after a new epoch, an unknown cursor or a cursor from another epoch (#53)', async () => {
     const { since, changes, channels, group } = await scene();
     const cursor = since();
-    expect(channels.readHumanChanges!(group.id, { sinceSeq: cursor.seq + 50 })!.reset).toBe(true);
+    expect(
+      channels.readHumanChanges!(OWNER_HUMAN_CONTEXT, group.id, { sinceSeq: cursor.seq + 50 })!
+        .reset,
+    ).toBe(true);
     expect(changes({ ...cursor, epoch: 'other' }).reset).toBe(true);
     const rotated = channels.rotateChangeEpoch!();
     expect(rotated.epoch).not.toBe(cursor.epoch);
@@ -345,9 +357,15 @@ it('prunes change rows older than 30 days at startup and resets cursors below th
     databaseOwnerReady: true,
     now: () => new Date(Date.now() + 31 * 24 * 60 * 60 * 1000),
   });
-  expect(later.readHumanChanges!(group.id, { sinceSeq: 0, epoch: before.epoch })!.reset).toBe(true);
   expect(
-    later.readHumanChanges!(group.id, { sinceSeq: before.seq, epoch: before.epoch })!.reset,
+    later.readHumanChanges!(OWNER_HUMAN_CONTEXT, group.id, { sinceSeq: 0, epoch: before.epoch })!
+      .reset,
+  ).toBe(true);
+  expect(
+    later.readHumanChanges!(OWNER_HUMAN_CONTEXT, group.id, {
+      sinceSeq: before.seq,
+      epoch: before.epoch,
+    })!.reset,
   ).toBeUndefined();
   expect(later.channelChangeHead!(group.id)!.seq).toBeGreaterThanOrEqual(before.seq);
 });

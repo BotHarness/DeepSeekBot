@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { expect, it } from 'vitest';
 import { DEFAULT_BOT_HOP_LIMIT, isBotNetworkMembership } from '../src/channels/channel.js';
 import { join } from 'node:path';
@@ -94,11 +95,16 @@ it('commits a remote Bot DM to the existing Channel and recipient Inbox exactly 
       hop: 1,
     },
   };
-  expect((await channels.appendMessageOnce(dm.id, message)).status).toBe('appended');
-  expect((await channels.appendMessageOnce(dm.id, message)).status).toBe('existing');
-  expect((await channels.appendMessageOnce(dm.id, { ...message, body: 'Changed' })).status).toBe(
-    'conflict',
+  expect((await channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, dm.id, message)).status).toBe(
+    'appended',
   );
+  expect((await channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, dm.id, message)).status).toBe(
+    'existing',
+  );
+  expect(
+    (await channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, dm.id, { ...message, body: 'Changed' }))
+      .status,
+  ).toBe('conflict');
   const history = channels.readMessages(dm.id);
   expect(history).toHaveLength(1);
   expect(history[0]?.author).toEqual(message.author);
@@ -111,21 +117,21 @@ it('commits a remote Bot DM to the existing Channel and recipient Inbox exactly 
   ).toEqual(['ios', 'other']);
   expect(channels.get('dm-ios')).toBeUndefined();
   await expect(
-    channels.appendMessageOnce(dm.id, {
+    channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, dm.id, {
       ...message,
       id: 'spoofed-host',
       author: { ...message.author, hostId: 'other-host' },
     }),
   ).rejects.toThrow('does not own');
   await expect(
-    channels.appendMessageOnce(dm.id, {
+    channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, dm.id, {
       ...message,
       id: 'spoofed-bot',
       author: { ...message.author, slug: 'other-bot' },
     }),
   ).rejects.toThrow('does not own');
   expect(channels.readMessages(dm.id)).toHaveLength(1);
-  await channels.appendMessageOnce(dm.id, {
+  await channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, dm.id, {
     ...message,
     id: 'hop-limit',
     botCausation: { ...message.botCausation, hop: DEFAULT_BOT_HOP_LIMIT + 1 },

@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { expect, it, vi } from 'vitest';
 import { setImmediate as tick } from 'node:timers/promises';
 import { createCore } from '../src/plugin.js';
@@ -161,7 +162,10 @@ it.each(['qualified', 'no-generic', 'no-fence'])(
         return;
       }
       await receive('discovery');
-      const room = core.channels.createGroup({ name: 'QQ Files', members: ['ada', 'bea'] });
+      const room = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'QQ Files',
+        members: ['ada', 'bea'],
+      });
       const grant = (await core.externalMessaging.snapshot('ada')).grants[0]!;
       await core.externalMessaging.inbound.channelBridge(room.id, {
         kind: 'add',

@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 
 import { createCore } from '../src/plugin.js';
@@ -42,7 +43,7 @@ async function admitMention(
   id: string,
   body: string,
 ): Promise<void> {
-  await core.channels.appendMessageOnce(groupId, {
+  await core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, groupId, {
     id,
     at: new Date().toISOString(),
     author: { kind: 'human' },
@@ -82,7 +83,10 @@ describe('turn-time harvest', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Silent', members: ['ada'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Silent',
+        members: ['ada'],
+      });
       groupId = group.id;
       core.channels.setGroupWakePolicy(group.id, 'ada', {
         mode: 'silent',
@@ -94,7 +98,7 @@ describe('turn-time harvest', () => {
         ['silent-2', 'READ_ME second'],
         ['silent-3', 'UNREAD third'],
       ] as const) {
-        await core.channels.appendMessageOnce(group.id, {
+        await core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, group.id, {
           id,
           at: new Date().toISOString(),
           author: { kind: 'human' },
@@ -103,14 +107,14 @@ describe('turn-time harvest', () => {
         admit(core, group.id, id);
       }
       await core.runtime.whenIdle();
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      await core.channels.appendMessageOnce(dm.id, {
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      await core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'read-trigger',
         at: new Date().toISOString(),
         author: { kind: 'human' },
         body: 'Read one matching Group message',
       });
-      core.runtime.admitDmMessage({
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'read-trigger',
         body: 'Read one matching Group message',
@@ -146,28 +150,31 @@ describe('turn-time harvest', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Silent', members: ['ada'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Silent',
+        members: ['ada'],
+      });
       groupId = group.id;
       core.channels.setGroupWakePolicy(group.id, 'ada', {
         mode: 'silent',
         count: 5,
         intervalSeconds: 30,
       });
-      await core.channels.appendMessageOnce(group.id, {
+      await core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'silent-failure',
         at: new Date().toISOString(),
         author: { kind: 'human' },
         body: 'Read then fail',
       });
       admit(core, group.id, 'silent-failure');
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      await core.channels.appendMessageOnce(dm.id, {
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      await core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'failure-trigger',
         at: new Date().toISOString(),
         author: { kind: 'human' },
         body: 'Read Group history',
       });
-      core.runtime.admitDmMessage({
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'failure-trigger',
         body: 'Read Group history',
@@ -203,7 +210,10 @@ describe('turn-time harvest', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Backlog', members: ['ada'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Backlog',
+        members: ['ada'],
+      });
       core.channels.setGroupWakePolicy(group.id, 'ada', {
         mode: 'mentions',
         count: 5,
@@ -211,7 +221,7 @@ describe('turn-time harvest', () => {
       });
       for (let index = 0; index < 120; index += 1) {
         const id = `backlog-${index}`;
-        await core.channels.appendMessageOnce(group.id, {
+        await core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, group.id, {
           id,
           at: new Date(Date.now() + index).toISOString(),
           author: { kind: 'human' },
@@ -269,8 +279,8 @@ describe('turn-time harvest', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       const groups = [
-        core.channels.createGroup({ name: 'Alpha', members: ['ada'] }),
-        core.channels.createGroup({ name: 'Beta', members: ['ada'] }),
+        core.channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Alpha', members: ['ada'] }),
+        core.channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Beta', members: ['ada'] }),
       ];
       for (const group of groups) {
         core.channels.setGroupWakePolicy(group.id, 'ada', {
@@ -280,7 +290,7 @@ describe('turn-time harvest', () => {
         });
         for (let index = 0; index < 20; index += 1) {
           const id = `${group.id}-${index}`;
-          await core.channels.appendMessageOnce(group.id, {
+          await core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, group.id, {
             id,
             at: new Date(Date.now() + index).toISOString(),
             author: { kind: 'human' },
@@ -326,13 +336,16 @@ describe('turn-time harvest', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      });
       core.channels.setGroupWakePolicy(group.id, 'ada', {
         mode: 'mentions',
         count: 5,
         intervalSeconds: 30,
       });
-      await core.channels.appendMessageOnce(group.id, {
+      await core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'prior-context',
         at: new Date().toISOString(),
         author: { kind: 'human' },
@@ -371,15 +384,18 @@ describe('turn-time harvest', () => {
     const core = createCore({ dshHome: home, agents });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
-      await core.channels.appendMessageOnce(group.id, {
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      });
+      await core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'harvest-m1',
         at: new Date().toISOString(),
         author: { kind: 'human' },
         body: '@Ada first',
         mentions: [{ botSlug: 'ada', label: 'Ada', start: 0, end: 4 }],
       });
-      await core.channels.appendMessageOnce(group.id, {
+      await core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'harvest-m2',
         at: new Date().toISOString(),
         author: { kind: 'human' },
@@ -418,8 +434,11 @@ describe('turn-time harvest', () => {
     const core = createCore({ dshHome: home, agents });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
-      await core.channels.appendMessageOnce(group.id, {
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      });
+      await core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'harvest-single',
         at: new Date().toISOString(),
         author: { kind: 'human' },
@@ -455,19 +474,22 @@ describe('turn-time harvest', () => {
     const core = createCore({ dshHome: home, agents });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      });
       core.channels.setGroupWakePolicy(group.id, 'ada', {
         mode: 'digest',
         count: 1,
         intervalSeconds: 30,
       });
-      await core.channels.appendMessageOnce(group.id, {
+      await core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'harvest-o1',
         at: new Date().toISOString(),
         author: { kind: 'human' },
         body: 'ordinary chatter',
       });
-      await core.channels.appendMessageOnce(group.id, {
+      await core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'harvest-m1',
         at: new Date().toISOString(),
         author: { kind: 'human' },
@@ -511,7 +533,10 @@ describe('turn-time harvest', () => {
     const core = createCore({ dshHome: home, agents });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      });
       await admitMention(core, group.id, 'harvest-f1', '@Ada one');
       await admitMention(core, group.id, 'harvest-f2', '@Ada two');
       admit(core, group.id, 'harvest-f1');
