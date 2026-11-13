@@ -284,12 +284,29 @@ export async function manageConnections(
         Math.min(30_000, Math.max(1, Math.floor(request.expiresAt - Date.now()))),
       ),
     ]);
-    return sources.withConnectionOperation(
-      input.hostId,
-      client,
-      () => executeConnections(sources, raw, { ...request, signal }),
-      signal,
-    );
+    try {
+      return await sources.withConnectionOperation(
+        input.hostId,
+        client,
+        () => executeConnections(sources, raw, { ...request, signal }),
+        signal,
+      );
+    } catch (error) {
+      if (error instanceof AppearanceError) throw error;
+      if (
+        error instanceof Error &&
+        [
+          'connection-host-changed',
+          'connection-operation-lock-unavailable',
+          'connection-operation-limit',
+          'connection-operation-owner-changed',
+          'connection-operation-changed',
+        ].includes(error.message)
+      )
+        throw new AppearanceError(error.message);
+      if (signal.aborted) throw new AppearanceError('connection-request-stale');
+      throw new AppearanceError('connection-operation-storage-unavailable');
+    }
   }
   return executeConnections(sources, raw, request);
 }

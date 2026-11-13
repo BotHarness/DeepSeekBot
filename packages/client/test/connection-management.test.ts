@@ -379,7 +379,7 @@ it('refuses a destructive write when the uncertain-operation guard cannot be sav
       { action: 'stop-route', hostId: 'a', kind: 'lan', confirm: true },
       request(),
     ),
-  ).rejects.toThrow('disk full');
+  ).rejects.toThrow('connection-operation-storage-unavailable');
   expect(api).toHaveBeenCalledTimes(1);
 });
 

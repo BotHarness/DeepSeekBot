@@ -48,6 +48,7 @@ export function HostDetails({ remote, t }: { remote: RemoteHost; t: BotHarnessTr
   const [plan, setPlan] = useState<ConnectionPlan>();
   const [handover, setHandover] = useState('');
   const [unknown, setUnknown] = useState(false);
+  const [lockUnavailable, setLockUnavailable] = useState(false);
   const live = useRef(false);
   const abort = useRef<AbortController>();
   const source = remoteHosts();
@@ -85,12 +86,16 @@ export function HostDetails({ remote, t }: { remote: RemoteHost; t: BotHarnessTr
       const result = await run(input);
       if (live.current) {
         setUnknown('outcome' in result && result.outcome === 'unknown');
+        setLockUnavailable(false);
         setConfirm(undefined);
         if (input.action !== 'select-route') await load();
       }
-    } catch {
+    } catch (error) {
       if (live.current) {
         setFailed(true);
+        setLockUnavailable(
+          error instanceof Error && error.message === 'connection-operation-lock-unavailable',
+        );
         setConfirm(undefined);
         setUnknown(
           source
@@ -215,6 +220,8 @@ export function HostDetails({ remote, t }: { remote: RemoteHost; t: BotHarnessTr
             {t('connections.remote.readback')}
           </Button>
         </>
+      ) : lockUnavailable ? (
+        <Note tone="warning">{t('connections.remote.lockUnavailable')}</Note>
       ) : failed ? (
         <Note tone="warning">{t('connections.hosts.failed')}</Note>
       ) : null}

@@ -146,3 +146,17 @@ it('warns about the selected Host and connection loss before stopping only its s
   );
   expect(sources.getSnapshot().hosts).toHaveLength(1);
 });
+
+it('gives an actionable secure-page or owning-CLI path when safe cross-tab execution is unavailable', async () => {
+  await open();
+  vi.spyOn(sources, 'withConnectionOperation').mockRejectedValue(
+    Error('connection-operation-lock-unavailable'),
+  );
+  const stop = [...host.querySelectorAll('button')].find(
+    (button) => button.textContent === t('connections.hosts.stop'),
+  )!;
+  await act(async () => stop.click());
+  await click(t('connections.hosts.stop'));
+  expect(host.textContent).toContain(t('connections.remote.lockUnavailable'));
+  expect(api.mock.calls.every(([path]) => path === '/api/botharness/devices')).toBe(true);
+});
