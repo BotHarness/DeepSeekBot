@@ -148,6 +148,25 @@ describe('Team sign-in page', () => {
   });
 });
 
+describe('Team change-password page', () => {
+  it('asks for the one-time and new password and posts to the sibling password route', () => {
+    const html = renderTeamSignInPage({
+      language: 'en',
+      hostName: 'Office',
+      nonce: 'x',
+      step: 'change-password',
+      displayName: '<b>Bob</b>',
+    });
+    expect(html).toContain('Choose a new password');
+    expect(html).toContain('&lt;b&gt;Bob&lt;/b&gt;');
+    expect(html).toContain('name="current"');
+    expect(html).toContain('name="next"');
+    expect(html).toContain("fetch('password'");
+    expect(html).not.toContain("fetch('sign-in'");
+    expect(html).toContain('At least 10 characters.');
+  });
+});
+
 describe('member view of Bot settings', () => {
   it('keeps Host configuration sections with the Owner', () => {
     for (const id of ['account', 'general', 'appearance', 'notifications', 'shortcuts', 'team'])

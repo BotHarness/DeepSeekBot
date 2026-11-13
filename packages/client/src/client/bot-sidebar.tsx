@@ -1,6 +1,5 @@
 import { PublicChannelsDialog } from './public-channels-dialog.js';
-import { MemberPasswordDialog } from './team-password-dialog.js';
-import { refreshTeamMode, useTeamMode } from './team-state.js';
+import { useTeamMode } from './team-state.js';
 import { UnreadCount, unreadCountLabel } from './unread-count.js';
 import { useSearchOpenMark } from './search-open-mark.js';
 import { observeHumanAttention } from './messaging-defaults-live.js';
@@ -3032,17 +3031,6 @@ export function BotSidebar({
               setBatchError('failed');
             }
             return true;
-          }}
-        />
-      ) : null}
-      {teamMode?.viewer.mustChangePassword === true && actions.teamCall !== undefined ? (
-        <MemberPasswordDialog
-          call={actions.teamCall}
-          t={t}
-          forced
-          onCancel={() => {}}
-          onChanged={() => {
-            if (actions.teamCall !== undefined) void refreshTeamMode(actions.teamCall);
           }}
         />
       ) : null}
