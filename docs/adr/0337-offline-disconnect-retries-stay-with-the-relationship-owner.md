@@ -1,4 +1,4 @@
-# ADR-0336: Offline disconnect retries stay with the relationship owner
+# ADR-0337: Offline disconnect retries stay with the relationship owner
 
 Accepted for Environment E4 ([#4113](https://github.com/BotHarness/DeepSeekBot/issues/4113)). Offline revocation must survive Host restart without turning ordinary writes into replayable messages. The application-defined Host Relationship owner therefore retains the exact disconnected generation, peer pin, pending acknowledgement and bounded retry budget in its existing Operational Database rows; its Fiber owns the retry timer and encrypted requests. Device Pairing still owns device revocation, and admission checks the canonical relationship before granting access.
 
