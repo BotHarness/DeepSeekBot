@@ -49,6 +49,24 @@ For the Web document's large-text journey, use Harness Settings → General → 
 
 ## Driving it with verify-app
 
+### Mobile multiple-file downloads (#4099)
+
+In one synthetic Human message and one Bot message, attach three files, including two with the
+same displayed filename and different bytes. Tap the second, third and first file in that order,
+dismissing the iOS share sheet / Android Sharesheet between actions. Each action must fetch the
+selected original and present its own file; compare saved or receiver-observed bytes rather than
+only the filename. Repeat a cached file, a failed download/retry and an unavailable attachment.
+Holding a file still opens the existing message actions; Android bubble selection and menus must
+not swallow the file tap. This downloads into App cache before presenting system sharing; it does
+not promise automatic saving to the system Downloads directory.
+
+`apps/mobile/test/message-bubble.test.tsx` checks per-file callback routing under both platform
+branches. `apps/mobile/test/message-files-download.test.tsx` drives the shared file rows through
+the real share/cache functions with controlled resource readers, file-system and OS-sharing
+adapters, checking same-name content isolation, per-file busy state and retry. These checks do
+not qualify native touch arbitration, real transport, OS sharing or physical-device acceptance;
+run the native journey above separately on each platform and retain artifact identities.
+
 ### Android mixed native and React message rows
 
 On the assigned physical Android Release build, seed one isolated DM through `bot-tool <bot> bot_send_message --args-stdin` with ordinary text, fenced code, a table, an image attachment, a file attachment and a GenUI document. Include an existing voice reply, a quoted reply and a reacted message. Keep one plain reply as the newest message; its React row must behave like the older native text row.
