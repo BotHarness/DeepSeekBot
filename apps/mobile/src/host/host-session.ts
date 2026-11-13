@@ -68,6 +68,9 @@ export interface ConnectedHost {
 const sessions = new Map<string, { host: ConnectedHost; dispose(): void }>();
 const connectionLifetime = createConnectionLifetime(AppState.currentState === 'active');
 const callRetains = new Map<HostClient, number>();
+export function retainHostActivity(client: HostClient): () => void {
+  return connectionLifetime.retain(client, { untilForeground: true });
+}
 export function retainHostConnection(client: HostClient): () => void {
   callRetains.set(client, (callRetains.get(client) ?? 0) + 1);
   const release = connectionLifetime.retain(client);
