@@ -592,7 +592,8 @@ export function createRemoteHosts(options: {
     async forgetLocal(hostId) {
       const entry = clients.get(hostId);
       if (entry === undefined) return;
-      if (!(await hostSettingsDrafts.prepare(hostId))) return;
+      if (hostSettingsDrafts.hasDirty(hostId) && !(await hostSettingsDrafts.prepare(hostId)))
+        return;
       if (clients.get(hostId) !== entry) return;
       if (!storage) throw new Error('storage-unavailable');
       const remaining = [...clients.values()]
@@ -607,7 +608,8 @@ export function createRemoteHosts(options: {
     async remove(hostId) {
       const entry = clients.get(hostId);
       if (entry === undefined) return;
-      if (!(await hostSettingsDrafts.prepare(hostId))) return;
+      if (hostSettingsDrafts.hasDirty(hostId) && !(await hostSettingsDrafts.prepare(hostId)))
+        return;
       if (clients.get(hostId) !== entry) return;
       const releasing = releaseRemoteHostViewers(entry.client);
       forget(hostId);
