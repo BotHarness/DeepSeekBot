@@ -810,8 +810,16 @@ _避免使用_：reply mode、answer position、visibility
 ### Host（宿主）与设置
 
 **Environment**：
-移动端列出、添加和选择一个已配对 Host 时，面向用户的名称（中文为「环境」）；一个 PersonaBot 只在一个 Environment 中创建。
+桌面、Web 或移动 Client 列出和选择 Channels 与 Activity 来源时的用户概念（中文为「环境」）。一个电脑环境对应一个 Host，不因连接线路不同而改变；一个 PersonaBot 只属于一个 Environment。
 _避免使用_：computer、电脑、machine、device（Computer 已指 PersonaBot 的工作界面）
+
+**Environment Scope**：
+Client 的 Channels 与 Activity 共用的 All 或单环境筛选范围，独立于已打开的聊天及正在编辑设置的 Host。
+_避免使用_：账号归属、连接线路、Settings Target
+
+**Settings Target**：
+一次设置操作读取或修改配置的精确 Host，独立于 Client 的 Environment Scope。
+_避免使用_：未明确目标的“当前环境”、默认 Host
 
 **PersonaBot registry**：
 拥有 PersonaBot definition、archive state、binding 与 Session ownership 的 Host module；其 operational record 存储在 BotHarness operational database 中，而 Soul content 仍保存在文件中。
@@ -1040,6 +1048,14 @@ _避免使用_：Computer、其它电脑、machine、server、peer
 **Paired Device**：
 持有某台 Host 发放的独立、可撤销凭据的客户端：一个手机 App，或一个 origin 上的一个浏览器 profile。它读取并操作那台 Host，但从不承载 PersonaBot，也不中转其它 Host。
 _避免使用_：phone（指所有设备时）、session、Host
+
+**Host Relationship**：
+两个 Host 之间持久且明确授权的双向关系，支持的 Client 据此取得各自独立的设备授权。它不同于账号注册、连接线路、单个设备授权或 Bot Collaboration Network 成员资格。
+_避免使用_：共享远程凭据、Host Feed 镜像、Bot 协作准入
+
+**Host Connection Route**：
+Client 到达 Host 的一种方式，例如 LAN、Tailscale 或 Tunnel；多条线路保留同一 Host 身份，不授予账号归属或设备权限。
+_避免使用_：Environment、以 Host 指代地址、设备授权
 
 **Host Feed**：
 一台 Host 向一个已认证客户端提供的全部实时状态：名单、头像、activity、未读、Activity 和会话。每个客户端都通过同一个 Host Feed 读取每一台 Host，包括 This Host；新增要同步的状态，就是给 Host Feed 加一项。
