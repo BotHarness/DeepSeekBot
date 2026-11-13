@@ -18,6 +18,7 @@ import { Text } from '../primitives/text';
 import { ChevronRightIcon, CopyIcon, ShareIcon } from '../shell/icons';
 import { useStrings } from '../strings';
 import { BubbleBody } from './message-bubble';
+import { MessageAttachmentPicker } from './message-attachment-picker';
 import { placeMenu, type Rect } from './menu-placement';
 import {
   actionId,
@@ -141,8 +142,15 @@ function ActionIcon({
   color: string;
   size: number;
 }) {
-  return action.key === 'feedback' || action.key === 'select' || action.key === 'download' ? (
-    <RowIcon name={action.key} color={color} size={size} />
+  return action.key === 'feedback' ||
+    action.key === 'select' ||
+    action.key === 'download' ||
+    action.key === 'attachments' ? (
+    <RowIcon
+      name={action.key === 'attachments' ? 'download' : action.key}
+      color={color}
+      size={size}
+    />
   ) : action.key === 'open' ? (
     <ChevronRightIcon color={color} size={size} />
   ) : action.key === 'copy' || action.key === 'select-copy' ? (
@@ -163,34 +171,45 @@ export function MessageActions({
   onSelectCopy,
 }: MessageActionsProps) {
   const queue = useRef(dismissQueue(Platform.OS)).current;
+  const [attachments, setAttachments] = useState<MessageAttachment[]>();
   return (
-    <Modal
-      visible={target !== undefined}
-      transparent
-      animationType="fade"
-      statusBarTranslucent
-      onRequestClose={onClose}
-      onDismiss={queue.flush}
-    >
-      {target === undefined ? null : (
-        <MessageMenu
-          key={target.message.id}
-          target={target}
-          readOnly={readOnly}
-          onClose={onClose}
-          onReact={onReact}
-          onCopy={onCopy}
-          onSelectCopy={
-            onSelectCopy === undefined
-              ? undefined
-              : (message) => queue.after(() => onSelectCopy(message))
-          }
-          onShareText={(text) => queue.after(() => onShareText(text))}
-          onShareAttachment={(attachment) => queue.after(() => onShareAttachment?.(attachment))}
-          onOpen={() => queue.after(() => target.activity?.onOpen?.())}
+    <>
+      <Modal
+        visible={target !== undefined}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={onClose}
+        onDismiss={queue.flush}
+      >
+        {target === undefined ? null : (
+          <MessageMenu
+            key={target.message.id}
+            target={target}
+            readOnly={readOnly}
+            onClose={onClose}
+            onReact={onReact}
+            onCopy={onCopy}
+            onSelectCopy={
+              onSelectCopy === undefined
+                ? undefined
+                : (message) => queue.after(() => onSelectCopy(message))
+            }
+            onShareText={(text) => queue.after(() => onShareText(text))}
+            onShareAttachment={(attachment) => queue.after(() => onShareAttachment?.(attachment))}
+            onOpen={() => queue.after(() => target.activity?.onOpen?.())}
+            onChooseAttachments={(files) => queue.after(() => setAttachments(files))}
+          />
+        )}
+      </Modal>
+      {attachments === undefined ? null : (
+        <MessageAttachmentPicker
+          attachments={attachments}
+          onClose={() => setAttachments(undefined)}
+          onShare={(attachment) => onShareAttachment?.(attachment)}
         />
       )}
-    </Modal>
+    </>
   );
 }
 
@@ -204,6 +223,7 @@ function MessageMenu({
   onShareAttachment,
   onOpen,
   onSelectCopy,
+  onChooseAttachments,
 }: {
   target: MessageMenuTarget;
   readOnly: boolean;
@@ -214,6 +234,7 @@ function MessageMenu({
   onShareText(text: string): void;
   onShareAttachment(attachment: MessageAttachment): void;
   onOpen(): void;
+  onChooseAttachments(attachments: MessageAttachment[]): void;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
@@ -232,6 +253,7 @@ function MessageMenu({
     target.activity,
     target.actions !== undefined,
     onSelectCopy !== undefined,
+    Platform.OS === 'android',
   );
   const reactions = menuReactions(target, readOnly);
   const sizes = menuSizes(theme, actions.length, reactions);
@@ -364,6 +386,7 @@ function MessageMenu({
                       onSelectCopy,
                       onShareText,
                       onShareAttachment,
+                      onChooseAttachments,
                       onOpen,
                       onFeedback: target.actions?.feedback,
                       onSelect: target.actions?.select,

@@ -5,7 +5,7 @@ import { requestScreen, screenshotName } from './bug-report-annotate.js';
 export const CAPTURE_DOCK_ATTRIBUTE = 'data-bug-report-dock';
 const PAGE_CAPTURE_TIMEOUT_MS = 15_000;
 
-export type CaptureKind = 'screen' | 'page';
+export type CaptureKind = 'screen' | 'page' | 'window';
 
 export interface CaptureSource {
   readonly kind: CaptureKind;
@@ -24,11 +24,63 @@ export function prefersScreenShare(host: CaptureHost): boolean {
 }
 
 export async function openCapture(host: CaptureHost = globalThis): Promise<CaptureSource> {
+  const desktop = host.dshDesktop;
+  if (
+    typeof desktop === 'object' &&
+    desktop !== null &&
+    'protocolVersion' in desktop &&
+    desktop.protocolVersion === 1 &&
+    'captureWindow' in desktop &&
+    typeof desktop.captureWindow === 'function'
+  ) {
+    const capture = desktop.captureWindow.bind(desktop);
+    return windowCapture(() => capture());
+  }
   if (prefersScreenShare(host)) {
     const stream = await requestScreen(host.navigator).catch(() => undefined);
     if (stream !== undefined) return screenCapture(stream);
   }
   return pageCapture();
+}
+
+function windowCapture(capture: () => Promise<unknown>): CaptureSource {
+  let stopped = false;
+  return {
+    kind: 'window',
+    async grab(now = new Date()) {
+      if (stopped) throw new Error('capture-stopped');
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        const result = await Promise.race([
+          capture(),
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new Error('capture-timeout')), 3_000);
+          }),
+        ]);
+        if (stopped) throw new Error('capture-stopped');
+        if (
+          typeof result !== 'object' ||
+          result === null ||
+          !('mediaType' in result) ||
+          result.mediaType !== 'image/png' ||
+          !('bytes' in result) ||
+          !(result.bytes instanceof Uint8Array) ||
+          result.bytes.byteLength > 25 * 1024 * 1024
+        )
+          throw new Error('capture-failed');
+        const bytes = result.bytes;
+        if (![137, 80, 78, 71, 13, 10, 26, 10].every((byte, index) => bytes[index] === byte)) {
+          throw new Error('capture-failed');
+        }
+        return new File([new Uint8Array(bytes)], screenshotName(now), { type: 'image/png' });
+      } finally {
+        clearTimeout(timer);
+      }
+    },
+    stop() {
+      stopped = true;
+    },
+  };
 }
 
 function skipped(node: Node): boolean {

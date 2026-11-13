@@ -2425,7 +2425,7 @@ function ChatConversation({
               Platform.OS === 'android' || Platform.OS === 'ios' ? selectSource : undefined
             }
             onShareText={shareText}
-            onShareAttachment={(attachment) => void share(attachment)}
+            onShareAttachment={share}
           />
           {sourceMessage === undefined ? null : (
             <MessageSourcePage
