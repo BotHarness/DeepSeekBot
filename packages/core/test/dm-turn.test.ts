@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { join } from 'node:path';
 
 import { Context } from '@deepseek-ai/cordis';
@@ -40,7 +41,7 @@ interface Harness {
 
 function startHarness(): Harness {
   const dshHome = process.env['DSH_HOME'] ?? '';
-  const ctx = new Context();
+  const ctx = new Context().extend({ invocation: { peer: { principal: { kind: 'owner' } } } });
   contexts.push(ctx);
   const stored = persistedSessions.get(dshHome) ?? new Set<string>();
   persistedSessions.set(dshHome, stored);
@@ -126,13 +127,17 @@ async function admitTurn(
   messageId: string,
   body: string,
 ): Promise<void> {
-  await core.channels.appendMessage(channelId, {
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
     id: messageId,
     at: '2026-09-21T00:00:01.000Z',
     author: { kind: 'human' },
     body,
   });
-  const admission = core.runtime.admitDmMessage({ channelId, messageId, body });
+  const admission = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+    channelId,
+    messageId,
+    body,
+  });
   if (!admission.admitted) throw new Error(`admission rejected: ${admission.reason}`);
   await admission.settled;
 }
@@ -141,9 +146,10 @@ describe('DM turn end to end', () => {
   it('publishes processing before a directly admitted Human DM turn settles', async () => {
     const { core } = startHarness();
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
-    const dm = core.channels.getOrCreateDm('ada', 'Ada');
+    const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
     if (dm === undefined) throw new Error('DM channel missing');
     const response = core.live.open(
+      OWNER_HUMAN_CONTEXT,
       new Request(`http://localhost/api/botharness/stream?channelId=${dm.id}&after=0`),
     );
     const reader = response.body!.getReader();
@@ -169,7 +175,7 @@ describe('DM turn end to end', () => {
   it('runs a real Orchestrator and Assignment turn through the Host wiring', async () => {
     const { ctx, host, core, dshHome } = startHarness();
     expect(core.registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
-    const dm = core.channels.getOrCreateDm('ada', 'Ada');
+    const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
     if (dm === undefined) throw new Error('DM channel missing');
 
     await admitTurn(core, dm.id, 'human-1', '请核对发布状态');
@@ -265,7 +271,7 @@ describe('DM turn end to end', () => {
   it('reuses the owned Orchestrator root across turns and after a restart', async () => {
     const first = startHarness();
     expect(first.core.registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
-    const dm = first.core.channels.getOrCreateDm('ada', 'Ada');
+    const dm = first.core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
     if (dm === undefined) throw new Error('DM channel missing');
 
     await admitTurn(first.core, dm.id, 'human-1', '请核对发布状态');
@@ -285,7 +291,7 @@ describe('DM turn end to end', () => {
     vi.stubEnv('DSH_HOME', home);
 
     const second = startHarness();
-    const restartedDm = second.core.channels.getOrCreateDm('ada', 'Ada');
+    const restartedDm = second.core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
     if (restartedDm === undefined) throw new Error('DM channel missing after restart');
     await admitTurn(second.core, restartedDm.id, 'human-3', '第三次核对');
 

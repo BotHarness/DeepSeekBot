@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import { allBotPreview, assertAllBotPreview, type AllBotPreview } from './all-bot-mention.js';
 import { GenuiError, genuiPrivateView, parseGenuiContent } from './genui.js';
 import { projectBridgeMessage } from '../messaging/channel-target.js';
@@ -48,7 +49,6 @@ import {
   dmChannelId,
   isBotDmChannel,
   DEFAULT_BOT_HOP_LIMIT,
-  LOCAL_HUMAN_ID,
   groupChannelIdBase,
   isChannelMessage,
   isChannelMessageAuthor,
@@ -303,6 +303,14 @@ function eventPayload(message: ChannelMessage): string {
 export function createSqliteChannelStore(options: SqliteChannelStoreOptions): ChannelStore {
   const { database, rootDir } = options;
   const now = options.now ?? (() => new Date());
+  let sourceHumanIdentityCache: boolean | undefined;
+  const sourceHumanIdentity = () =>
+    (sourceHumanIdentityCache ??= database.read((db) =>
+      db
+        .prepare('PRAGMA table_info(source_events)')
+        .all()
+        .some((column) => column.name === 'human_id'),
+    ));
   const sourcePolicy = options.sourcePolicy ?? createBotSourcePolicyStore(database, now);
   const insertSourceAdmission = (
     db: DatabaseSync,
@@ -423,7 +431,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     if (known !== undefined && known !== key) throw new Error('network-host-key-conflict');
   };
 
-  const writeRecord = (record: ChannelRecord): void => {
+  const writeRecord = (human: HumanContext, record: ChannelRecord): void => {
     database.transaction(
       (db) => {
         db.prepare(`INSERT INTO channel_records (channel_id, record_json) VALUES (?, ?)
@@ -436,7 +444,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
             INSERT OR IGNORE INTO channel_human_members
               (channel_id, human_id, display_name, visible_from_revision, joined_at)
             VALUES (?, ?, 'Human', 1, ?)
-          `).run(record.id, LOCAL_HUMAN_ID, record.createdAt);
+          `).run(record.id, human.humanId, record.createdAt);
       },
       ['channel'],
     );
@@ -515,15 +523,15 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     return result;
   };
 
-  const humanIdentity = (): LocalHumanIdentity => {
+  const humanIdentity = (human: HumanContext): LocalHumanIdentity => {
     const row = database.read((db) =>
       db
         .prepare('SELECT default_display_name FROM local_human_names WHERE human_id = ?')
-        .get(LOCAL_HUMAN_ID),
+        .get(human.humanId),
     ) as { default_display_name: string | null } | undefined;
     const defaultDisplayName = row?.default_display_name ?? null;
     return {
-      humanId: LOCAL_HUMAN_ID,
+      humanId: human.humanId,
       defaultDisplayName,
       displayName: defaultDisplayName ?? 'Human',
     };
@@ -558,13 +566,13 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       read_revision: number;
     }>;
 
-  const readNickname = (id: string): string | null => {
+  const readNickname = (human: HumanContext, id: string): string | null => {
     const row = database.read((db) =>
       db
         .prepare(
           'SELECT nickname FROM channel_human_nicknames WHERE channel_id = ? AND human_id = ?',
         )
-        .get(id, LOCAL_HUMAN_ID),
+        .get(id, human.humanId),
     ) as { nickname: string } | undefined;
     return row?.nickname ?? null;
   };
@@ -625,12 +633,12 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     }
     return reactions;
   };
-  const participates = (id: string): boolean => {
+  const participates = (human: HumanContext, id: string): boolean => {
     const channel = readRecord(id);
     if (channel === undefined || channel.deletedAt !== undefined) return false;
     return channel.type === 'dm'
       ? !isBotDmChannel(channel)
-      : humanMembers(id).some((member) => member.human_id === LOCAL_HUMAN_ID);
+      : humanMembers(id).some((member) => member.human_id === human.humanId);
   };
   const normalizeHumanName = (name: string | null): string | null => {
     if (
@@ -1038,6 +1046,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
   };
 
   const append = (
+    human: HumanContext,
     id: string,
     message: ChannelMessage,
     once: boolean,
@@ -1045,6 +1054,12 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     origin?: ChannelMessageOrigin,
     canCommit?: (database?: DatabaseSync) => boolean,
   ) => {
+    if (
+      !sourceHumanIdentity() &&
+      message.author.kind === 'human' &&
+      human.humanId !== OWNER_HUMAN_CONTEXT.humanId
+    )
+      throw new Error('Source Event Human identity requires a current database schema');
     const channel = readRecord(id);
     if (channel === undefined) return once ? { status: 'missing' as const } : undefined;
     const existing = projectRows(id, placementsById(id, [message.id]))[0];
@@ -1282,8 +1297,8 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
           db.prepare(`
         INSERT INTO source_events (
           source_event_id, source_kind, bot_slug, channel_id, message_id,
-          body, created_at, payload_json
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          body, created_at, payload_json${sourceHumanIdentity() ? ', human_id' : ''}
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?${sourceHumanIdentity() ? ', ?' : ''})
       `).run(
             sourceEventId,
             sourceKind(durable),
@@ -1297,6 +1312,9 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
             durable.body,
             durable.at,
             eventPayload(durable),
+            ...(sourceHumanIdentity()
+              ? [durable.author.kind === 'human' ? human.humanId : null]
+              : []),
           );
           db.prepare(`
         INSERT INTO channel_placements (channel_id, revision, source_event_id, message_id)
@@ -1596,7 +1614,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
               INSERT OR IGNORE INTO channel_human_members
                 (channel_id, human_id, display_name, visible_from_revision, joined_at)
               VALUES (?, ?, 'Human', 1, ?)
-            `).run(record.id, LOCAL_HUMAN_ID, record.createdAt);
+            `).run(record.id, OWNER_HUMAN_CONTEXT.humanId, record.createdAt);
           for (const [index, message] of messages.entries()) {
             const existing = db
               .prepare(
@@ -1608,8 +1626,8 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
               db.prepare(`
             INSERT INTO source_events (
               source_event_id, source_kind, bot_slug, channel_id, message_id,
-              body, created_at, attempt_state, payload_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'handled', ?)
+              body, created_at, attempt_state, payload_json${sourceHumanIdentity() ? ', human_id' : ''}
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'handled', ?${sourceHumanIdentity() ? ', ?' : ''})
           `).run(
                 sourceEventId,
                 sourceKind(message),
@@ -1623,6 +1641,9 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
                 message.body,
                 message.at,
                 eventPayload(message),
+                ...(sourceHumanIdentity()
+                  ? [message.author.kind === 'human' ? OWNER_HUMAN_CONTEXT.humanId : null]
+                  : []),
               );
             else
               db.prepare('UPDATE source_events SET payload_json = ? WHERE source_event_id = ?').run(
@@ -1668,7 +1689,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
           VALUES (?, ?, ?, ?, ?)
         `).run(
               record.id,
-              LOCAL_HUMAN_ID,
+              OWNER_HUMAN_CONTEXT.humanId,
               readPosition.messageId,
               readPosition.revision,
               readPosition.readAt,
@@ -1722,7 +1743,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
 
   return {
     humanIdentity,
-    setHumanDefaultName(displayName) {
+    setHumanDefaultName(human: HumanContext, displayName) {
       const normalized = normalizeHumanName(displayName);
       database.transaction(
         (db) =>
@@ -1730,39 +1751,43 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
             .prepare(
               'INSERT INTO local_human_names (human_id, default_display_name) VALUES (?, ?) ON CONFLICT(human_id) DO UPDATE SET default_display_name = excluded.default_display_name',
             )
-            .run(LOCAL_HUMAN_ID, normalized),
+            .run(human.humanId, normalized),
         ['human-identity'],
       );
       options.onRecordChanged?.();
-      return humanIdentity();
+      return humanIdentity(human);
     },
-    humanNickname(id) {
-      return participates(id) ? readNickname(id) : undefined;
+    humanNickname(human: HumanContext, id) {
+      return participates(human, id) ? readNickname(human, id) : undefined;
     },
-    setHumanNickname(id, nickname) {
-      if (!participates(id)) throw new Error('The local Human must participate in this Channel');
+    setHumanNickname(human: HumanContext, id, nickname) {
+      if (!participates(human, id))
+        throw new Error('The local Human must participate in this Channel');
       const normalized = normalizeHumanName(nickname);
       database.transaction(
         (db) => {
           if (normalized === null)
             db.prepare(
               'DELETE FROM channel_human_nicknames WHERE channel_id = ? AND human_id = ?',
-            ).run(id, LOCAL_HUMAN_ID);
+            ).run(id, human.humanId);
           else
             db.prepare(
               'INSERT INTO channel_human_nicknames (channel_id, human_id, nickname) VALUES (?, ?, ?) ON CONFLICT(channel_id, human_id) DO UPDATE SET nickname = excluded.nickname',
-            ).run(id, LOCAL_HUMAN_ID, normalized);
+            ).run(id, human.humanId, normalized);
         },
         ['human-identity'],
       );
       options.onRecordChanged?.();
     },
-    listHumanMembers(id) {
+    listHumanMembers(human: HumanContext, id) {
       const channel = readRecord(id);
       if (channel?.type === 'dm' && !isBotDmChannel(channel)) {
-        const identity = humanIdentity();
+        const identity = humanIdentity(human);
         return [
-          { humanId: identity.humanId, displayName: readNickname(id) ?? identity.displayName },
+          {
+            humanId: identity.humanId,
+            displayName: readNickname(human, id) ?? identity.displayName,
+          },
         ];
       }
       return humanMembers(id).map((member) => ({
@@ -1783,7 +1808,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         })
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.id.localeCompare(b.id));
     },
-    getOrCreateDm(botSlug, botName) {
+    getOrCreateDm(human: HumanContext, botSlug, botName) {
       if (!isValidSlug(botSlug)) return undefined;
       const id = dmChannelId(botSlug);
       const existing = readRecord(id);
@@ -1800,7 +1825,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         createdAt: timestamp,
         updatedAt: timestamp,
       };
-      writeRecord(record);
+      writeRecord(human, record);
       return record;
     },
     remoteHostKey(host) {
@@ -1896,7 +1921,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       publishRecordChanged();
       return result;
     },
-    getOrCreateBotDm(firstBotSlug, secondBotSlug, name) {
+    getOrCreateBotDm(human: HumanContext, firstBotSlug, secondBotSlug, name) {
       if (
         !isValidSlug(firstBotSlug) ||
         !isValidSlug(secondBotSlug) ||
@@ -1924,10 +1949,10 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         createdAt: timestamp,
         updatedAt: timestamp,
       };
-      writeRecord(record);
+      writeRecord(human, record);
       return record;
     },
-    createGroup(input) {
+    createGroup(human: HumanContext, input) {
       const base = groupChannelIdBase(input.name);
       let id = input.id ?? base;
       if (
@@ -1957,7 +1982,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         createdAt: timestamp,
         updatedAt: timestamp,
       };
-      writeRecord(record);
+      writeRecord(human, record);
       return record;
     },
     inviteGroupBot(input) {
@@ -2876,7 +2901,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       );
       publishRecordChanged();
     },
-    setGroupAvatar(channelId, avatar) {
+    setGroupAvatar(human: HumanContext, channelId, avatar) {
       const channel = readRecord(channelId);
       if (channel?.type !== 'group') throw new Error('Group Channel not found');
       if (avatar !== null && !isGroupAvatar(avatar)) throw new Error('Invalid Group avatar');
@@ -2884,17 +2909,17 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       const updated: ChannelRecord = { ...channel, updatedAt: now().toISOString() };
       if (avatar === null) delete updated.avatar;
       else updated.avatar = avatar;
-      writeRecord(updated);
+      writeRecord(human, updated);
       return updated;
     },
-    rename(id, name) {
+    rename(human: HumanContext, id, name) {
       const prior = readRecord(id);
       if (prior === undefined || !name.trim()) return undefined;
       const updated = { ...prior, name: name.trim() };
-      writeRecord(updated);
+      writeRecord(human, updated);
       return updated;
     },
-    latestHumanMessageId(id) {
+    latestHumanMessageId(human: HumanContext, id) {
       const row = database.read((db) =>
         db
           .prepare(`
@@ -2907,7 +2932,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
           (json_extract(c.record_json, '$.type') = 'group' AND h.human_id IS NOT NULL AND p.revision >= h.visible_from_revision))
         ORDER BY p.revision DESC LIMIT 1
       `)
-          .get(LOCAL_HUMAN_ID, id),
+          .get(human.humanId, id),
       ) as { message_id: string } | undefined;
       return row?.message_id;
     },
@@ -3029,7 +3054,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         };
       });
     },
-    observeOutput(id, messageId) {
+    observeOutput(human: HumanContext, id, messageId) {
       const channel = readRecord(id);
       if (!channel) return undefined;
       const row = database.read((db) =>
@@ -3048,12 +3073,12 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         | undefined;
       const message = row && parseMessage(row.payload_json, row.body, row.message_id, id);
       if (!row || !message || message.id !== messageId) return undefined;
-      const member = humanMembers(id).find((entry) => entry.human_id === LOCAL_HUMAN_ID);
+      const member = humanMembers(id).find((entry) => entry.human_id === human.humanId);
       return {
         position: row.position,
         channel,
         message: { id: message.id, author: message.author, body: message.body },
-        humanParticipant: participates(id),
+        humanParticipant: participates(human, id),
         canRead:
           channel.type === 'dm' ||
           (member !== undefined && row.revision >= member.visible_from_revision),
@@ -3104,13 +3129,13 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       for (const id of attachmentMigration.pendingFiles()) hashes.add(id);
       return hashes;
     },
-    readPosition(id) {
+    readPosition(human: HumanContext, id) {
       const row = database.read((db) =>
         db
           .prepare(`
         SELECT message_id, revision, read_at FROM channel_read_positions WHERE channel_id = ? AND human_id = ?
       `)
-          .get(id, LOCAL_HUMAN_ID),
+          .get(id, human.humanId),
       ) as { message_id: string; revision: number; read_at: string } | undefined;
       return row === undefined
         ? undefined
@@ -3120,7 +3145,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
             readAt: row.read_at,
           };
     },
-    async markRead(id, messageId) {
+    async markRead(human: HumanContext, id, messageId) {
       const row = database.read((db) =>
         db
           .prepare(`
@@ -3132,7 +3157,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       ) as { revision: number; payload_json: string; body: string } | undefined;
       if (row === undefined || parseMessage(row.payload_json, row.body) === undefined)
         return undefined;
-      const previous = this.readPosition(id);
+      const previous = this.readPosition(human, id);
       if (previous !== undefined && previous.revision >= row.revision) return previous;
       const position = { messageId, revision: row.revision, readAt: now().toISOString() };
       database.transaction(
@@ -3144,21 +3169,21 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         ON CONFLICT(channel_id, human_id) DO UPDATE SET
           message_id = excluded.message_id, revision = excluded.revision, read_at = excluded.read_at
       `)
-            .run(id, LOCAL_HUMAN_ID, messageId, position.revision, position.readAt),
+            .run(id, human.humanId, messageId, position.revision, position.readAt),
         ['channel'],
       );
       if (readRecord(id)?.type === 'group') {
         try {
-          options.onHumanReadChanged?.(id, LOCAL_HUMAN_ID, position.revision);
+          options.onHumanReadChanged?.(id, human.humanId, position.revision);
         } catch (error) {
           options.warn?.('Human read notification failed: ' + String(error));
         }
       }
       return position;
     },
-    setHumanReaction(id, messageId, emoji, active) {
-      if (!participates(id)) return undefined;
-      return setReaction(id, 'human', LOCAL_HUMAN_ID, messageId, emoji, active);
+    setHumanReaction(human: HumanContext, id, messageId, emoji, active) {
+      if (!participates(human, id)) return undefined;
+      return setReaction(id, 'human', human.humanId, messageId, emoji, active);
     },
     setBotReaction(id, botSlug, messageId, emoji, active) {
       const channel = readRecord(id);
@@ -3166,8 +3191,8 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       if (!channel.members.includes(botSlug)) return undefined;
       return setReaction(id, 'bot', botSlug, messageId, emoji, active);
     },
-    async appendMessage(id, message, origin) {
-      const result = append(id, message, false, undefined, origin);
+    async appendMessage(human: HumanContext, id, message, origin) {
+      const result = append(human, id, message, false, undefined, origin);
       return result?.status === 'appended' ? result.message : undefined;
     },
     previewAllBotMention(id) {
@@ -3189,7 +3214,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       const payload = JSON.parse(row.payload_json) as ChannelMessage;
       return projectRows(channelId, placementsById(channelId, [payload.id]))[0];
     },
-    genuiView(channelId, messageId) {
+    genuiView(human: HumanContext, channelId, messageId) {
       const message = readGenuiMessage(channelId, messageId);
       const report = parseGenuiContent(message.genui);
       return database.read((db) => {
@@ -3197,7 +3222,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
           .prepare(
             'SELECT version, state_json FROM genui_private_views WHERE human_id = ? AND channel_id = ? AND message_id = ? AND snapshot_id = ?',
           )
-          .get(humanIdentity().humanId, channelId, messageId, report.snapshotId) as
+          .get(humanIdentity(human).humanId, channelId, messageId, report.snapshotId) as
           | { version: number; state_json: string }
           | undefined;
         return row === undefined
@@ -3205,7 +3230,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
           : genuiPrivateView(report, row.version, JSON.parse(row.state_json));
       });
     },
-    saveGenuiView(channelId, messageId, snapshotId, expectedVersion, value) {
+    saveGenuiView(human: HumanContext, channelId, messageId, snapshotId, expectedVersion, value) {
       try {
         return database.transaction((db) => {
           const message = readGenuiMessage(channelId, messageId);
@@ -3225,7 +3250,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
             value,
           );
           const state = view.state;
-          const humanId = humanIdentity().humanId;
+          const humanId = humanIdentity(human).humanId;
           const row = db
             .prepare(
               'SELECT version FROM genui_private_views WHERE human_id = ? AND channel_id = ? AND message_id = ?',
@@ -3255,8 +3280,8 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         throw error;
       }
     },
-    async appendMessageOnce(id, message, preview, origin, canCommit) {
-      const result = append(id, message, true, preview, origin, canCommit);
+    async appendMessageOnce(human: HumanContext, id, message, preview, origin, canCommit) {
+      const result = append(human, id, message, true, preview, origin, canCommit);
       return result ?? { status: 'missing' };
     },
     readMessages(id, readOptions) {
@@ -3439,17 +3464,17 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     readTimeline(id, request) {
       return timelinePage(id, request);
     },
-    searchHumanMessages(id, request) {
+    searchHumanMessages(human: HumanContext, id, request) {
       const channel = readRecord(id);
       if (channel === undefined) return undefined;
-      const member = humanMembers(id).find((entry) => entry.human_id === LOCAL_HUMAN_ID);
+      const member = humanMembers(id).find((entry) => entry.human_id === human.humanId);
       if (channel.type === 'group' && member === undefined) return undefined;
       return this.queryMessages(id, {
         ...request,
         visibleFrom: member?.visible_from_revision ?? 0,
       });
     },
-    searchAllHumanMessages(request) {
+    searchAllHumanMessages(human: HumanContext, request) {
       const text = request.text.trim();
       const length = Array.from(text).length;
       if (length === 0 || length > 200)
@@ -3471,10 +3496,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         notChannelNoticeSql('e.payload_json'),
         'p.channel_id NOT IN (SELECT value FROM json_each(?))',
       ];
-      const values: Array<string | number> = [
-        LOCAL_HUMAN_ID,
-        JSON.stringify(request.excludeChannelIds ?? []),
-      ];
+      const values: Array<string | number> = [JSON.stringify(request.excludeChannelIds ?? [])];
       if (cursor !== undefined) {
         where.push(
           '(e.created_at < ? OR (e.created_at = ? AND (p.channel_id < ? OR (p.channel_id = ? AND p.message_id < ?))))',
@@ -3508,7 +3530,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
            ORDER BY e.created_at DESC, p.channel_id DESC, p.message_id DESC
            LIMIT ?
         `)
-                .all(...values, limit + 1);
+                .all(human.humanId, ...values, limit + 1);
             }) as unknown as Array<{
               channel_id: string;
               message_id: string;
@@ -3549,18 +3571,18 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
             }),
       };
     },
-    readHumanTimeline(id, request) {
+    readHumanTimeline(human: HumanContext, id, request) {
       const channel = readRecord(id);
       if (channel === undefined) return undefined;
       const members = humanMembers(id);
-      const member = members.find((entry) => entry.human_id === LOCAL_HUMAN_ID);
+      const member = members.find((entry) => entry.human_id === human.humanId);
       if (channel.type === 'group' && member === undefined) return undefined;
       return timelinePage(id, request, member?.visible_from_revision ?? 0, members);
     },
-    readHumanFilesPage(id, request) {
+    readHumanFilesPage(human: HumanContext, id, request) {
       const channel = readRecord(id);
       if (channel === undefined || !isValidChannelId(id)) return undefined;
-      const member = humanMembers(id).find((entry) => entry.human_id === LOCAL_HUMAN_ID);
+      const member = humanMembers(id).find((entry) => entry.human_id === human.humanId);
       if (channel.type === 'group' && member === undefined) return undefined;
       const visibleFrom = member?.visible_from_revision ?? 0;
       const head = revisionOf(id);
@@ -3616,10 +3638,10 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         };
       });
     },
-    readHumanChanges(id, request) {
+    readHumanChanges(human: HumanContext, id, request) {
       const channel = readRecord(id);
       if (channel === undefined || !isValidChannelId(id)) return undefined;
-      const member = humanMembers(id).find((entry) => entry.human_id === LOCAL_HUMAN_ID);
+      const member = humanMembers(id).find((entry) => entry.human_id === human.humanId);
       if (channel.type === 'group' && member === undefined) return undefined;
       const visibleFrom = member?.visible_from_revision ?? 0;
       const limit = Math.min(
@@ -3718,10 +3740,10 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         ['channel-changes'],
       );
     },
-    readHumanJournalPage(id, request) {
+    readHumanJournalPage(human: HumanContext, id, request) {
       const channel = readRecord(id);
       if (channel === undefined) return undefined;
-      const member = humanMembers(id).find((entry) => entry.human_id === LOCAL_HUMAN_ID);
+      const member = humanMembers(id).find((entry) => entry.human_id === human.humanId);
       if (channel.type === 'group' && member === undefined) return undefined;
       return pageChannelJournalRange(
         id,
@@ -3803,7 +3825,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         ) as Array<{ channel_id: string; message_id: string }>
       ).map((row) => ({ channelId: row.channel_id, messageId: row.message_id }));
     },
-    latestBotActivity() {
+    latestBotActivity(human: HumanContext) {
       const rows = database.read((db) =>
         db
           .prepare(`
@@ -3836,7 +3858,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         ) AS at
           FROM slugs WHERE slug IS NOT NULL
       `)
-          .all(LOCAL_HUMAN_ID),
+          .all(human.humanId),
       ) as Array<{ slug: string; at: number }>;
       return new Map(
         rows.filter((row) => Number.isFinite(row.at)).map((row) => [row.slug, row.at]),
@@ -3905,7 +3927,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       }
       return entries;
     },
-    humanMessageCounts(from, to) {
+    humanMessageCounts(human: HumanContext, from, to) {
       const rows = database.read((db) =>
         db
           .prepare(`
@@ -3930,7 +3952,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
            AND julianday(e.created_at) >= julianday(?) AND julianday(e.created_at) < julianday(?)
          GROUP BY p.channel_id, author_json
       `)
-          .all(LOCAL_HUMAN_ID, from, to, from, to),
+          .all(human.humanId, from, to, from, to),
       ) as Array<{ channel_id: string; author_json: string; count: number }>;
       return rows.map((row) => {
         const author: unknown = JSON.parse(row.author_json);

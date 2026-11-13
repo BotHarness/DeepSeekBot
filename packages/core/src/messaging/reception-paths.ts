@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import type { DatabaseSync } from 'node:sqlite';
 import { bridgeChannel } from './channel-target.js';
 import { channelBridgeRoutes, type ChannelBridgeRoute } from './channel-bridge.js';
@@ -86,7 +87,7 @@ export function recordReceptionPath(
     routeId: route.id,
     name: route.name,
     ...(route.channelId
-      ? { channelName: bridgeChannel(db, route.channelId, grant.botSlug).name }
+      ? { channelName: bridgeChannel(OWNER_HUMAN_CONTEXT, db, route.channelId, grant.botSlug).name }
       : {}),
     grantId: grant.id,
     grantRevision: grant.revision,
@@ -134,7 +135,7 @@ export function currentReceptionPaths(
       return [];
     if (path.channelId) {
       try {
-        bridgeChannel(db, path.channelId, botSlug);
+        bridgeChannel(OWNER_HUMAN_CONTEXT, db, path.channelId, botSlug);
       } catch {
         return [];
       }

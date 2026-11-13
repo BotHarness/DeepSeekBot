@@ -27,7 +27,7 @@ _Avoid_: installed release, latest version, 0.0.0 release
 ### PersonaBots
 
 **Steward Bot**:
-A persistent local PersonaBot with its own Memory and read access to the Human's Bot and Channel content, helping the Human manage those identities and application settings under existing approval rules. It is the Human's single point of contact: it creates and manages other Bots, delegates a request to the best-suited colleague through a Bot-to-Bot DM, inspects their progress, surfaces attention items and reports results back in its Human DM. Its management role does not itself grant authority to approve other Bots' actions. Conversational handling of a pending approval is a future scoped workflow through the existing approval owner, carrying the Human's explicit decision rather than a blanket self-approval right.
+A persistent local PersonaBot with its own Memory and read access to the Human's Bot and Channel content, helping the Human manage those identities and application settings under existing approval rules. It is the Human's single point of contact: it creates and manages other Bots, delegates a request to the best-suited colleague through a Bot-to-Bot DM, inspects their progress, surfaces attention items and reports results back in its Human DM. Its management role does not itself grant authority to approve other Bots' actions. Conversational handling of a pending approval is a future scoped workflow through the existing approval owner, carrying the Human's explicit decision rather than a blanket self-approval right. In Team mode each Host Member has their own private Tob, limited to what that member may read and do.
 _Avoid_: global Orchestrator, Home panel, dashboard
 
 **Tob**:
@@ -516,12 +516,48 @@ A Human or PersonaBot that can participate in Channels and author messages; a Br
 _Avoid_: client, connector, bridge identity, caller-supplied sender
 
 **Human ID**:
-The stable identity of the local Human within one DSH Profile, retained across Channels, renaming, and Human Channel nicknames.
+The stable identity of one Human within one Host (DSH Profile), retained across Channels, renaming, and Human Channel nicknames. The Host Owner keeps the original `local-human` ID; each Host Member has their own (ADR-0336).
 _Avoid_: display name, nickname, browser tab
 
 **Human display name**:
-The editable default name of the local Human within one DSH Profile. A Human Channel nickname may replace it in that Channel's message-author, member, and mention presentation.
+The editable default name of one Human within one Host (DSH Profile). A Human Channel nickname may replace it in that Channel's message-author, member, and mention presentation.
 _Avoid_: Human ID, login name
+
+**Host Owner**:
+The one Human who owns a Host: the original local Human, holding every Host Permission without a Host Role. Ownership is transferable but never deleted; local Desktop, loopback and CLI access act as the Host Owner by default (ADR-0336).
+_Avoid_: admin, root, super user
+
+**Host Member**:
+A Human with an identity on one Host, signing in with Member Credentials and holding Host Roles. Before Team mode the Host Owner is the only Host Member. A member never becomes a member of another Host through a Host Relationship.
+_Avoid_: user, account, tenant, external person
+
+**Team mode**:
+The Host policy switch that permits Host Members besides the Host Owner and requires every non-local Client to sign in. Turning it off suspends other members while retaining their data; it never selects a different data model.
+_Avoid_: multi-user mode, enterprise mode, server mode
+
+**Member Credential**:
+One way a Host Member proves identity to a Host, separate from the identity itself; first a local username and password, later possibly OIDC. Successful sign-in yields a Paired Device grant bound to that member.
+_Avoid_: session, account, device grant
+
+**Host Role**:
+A named set of Host Permissions assigned to Host Members, with union semantics across a member's roles; Admin and Member are built in. Its Role Policy items guide Bot behavior. It is distinct from a Channel membership role and from an external Chat pairing Role.
+_Avoid_: group, Channel role, pairing Role
+
+**Host Permission**:
+One fixed, Host-enforced capability in the Team mode catalog, such as creating Bots, sharing a Bot, granting Workspace roots, approving opaque tools or viewing others' private content.
+_Avoid_: Behavior permission item, natural-language permission, scope
+
+**Role Policy**:
+The Behavior permission items attached to a Host Role and given to a Bot answering a member who holds it. It guides the model and is never access control.
+_Avoid_: permission, ACL, enforced rule
+
+**Audience containment**:
+The Team mode rule that content may flow only to a Bot, Channel or Workspace Grant whose audience is no larger than the content's own audience.
+_Avoid_: best-effort filtering, prompt rule
+
+**Workspace root**:
+A Host folder within which Workspace Grants may be made in Team mode: a member's personal root, granted only to their private Bots, or an admin-created shared root granted to roles or members.
+_Avoid_: home directory (for shared roots), Workspace Grant, sandbox
 
 **Human Channel nickname**:
 The local Human's chosen name within one Channel, including a DM or Group Channel, overriding the Human display name for that Channel. It labels the same Human ID and does not create a separate Activity or roleplay persona.
@@ -745,7 +781,7 @@ One Orchestrator turn that consumes a bounded, fair selection from the ready att
 _Avoid_: per-event queue, wake storm, batch (bare)
 
 **Activity**:
-The Human's one entry, on desktop and phone, for cross-PersonaBot and cross-Channel attention: unresolved Human actions, mentions and replies, unread Channel activity, informational updates, and handled history. It references the owning facts without copying Channel content or flattening every Bot Inbox event into Human work. The desktop page and Dock share inline Tool approval cards; operational statistics are outside this entry (#2026). It summarizes existing facts without becoming another authority for messages, usage, or Session activity. Read, clear and snooze state lives on the Host, so handling an item on any device handles it everywhere (#3321). Human-muted Channels contribute neither message attention (including mentions and replies) nor global unread reminders; their read positions and explicit Human action requests remain intact. Code names it `ActivityList` for the list view; Host methods keep their `humanAttention*` wire names.
+The Human's one entry, on desktop and phone, for cross-PersonaBot and cross-Channel attention: unresolved Human actions, mentions and replies, unread Channel activity, informational updates, and handled history. It references the owning facts without copying Channel content or flattening every Bot Inbox event into Human work. The desktop page and Dock share inline Tool approval cards; operational statistics are outside this entry (#2026). It summarizes existing facts without becoming another authority for messages, usage, or Session activity. Read, clear and snooze state lives on the Host per Human ID, so handling an item on any of that Human's devices handles it everywhere (#3321); each Host Member has their own Activity. Human-muted Channels contribute neither message attention (including mentions and replies) nor global unread reminders; their read positions and explicit Human action requests remain intact. Code names it `ActivityList` for the list view; Host methods keep their `humanAttention*` wire names.
 _Avoid_: Activity Center, Human Inbox, Activity list, notifications (push notifications are the phone's delivery of Activity items), Bot Inbox, dashboard list
 
 The Activity control-rail indicator has an independent browser/Host-local display scope. Hiding or narrowing it does not change the Activity query, actual unread state, or pending Human requests.
@@ -1049,7 +1085,7 @@ A Host that a client reaches through device pairing rather than one that serves 
 _Avoid_: Computer, other computer, machine, server, peer
 
 **Paired Device**:
-A client, a phone app or one browser profile on one origin, holding its own revocable credential from one Host. It reads and acts on that Host but never hosts PersonaBots or relays another Host.
+A client, a phone app or one browser profile on one origin, holding its own revocable credential from one Host. It reads and acts on that Host as exactly one Human ID but never hosts PersonaBots or relays another Host.
 _Avoid_: phone (for all devices), session, Host
 
 **Host Relationship**:

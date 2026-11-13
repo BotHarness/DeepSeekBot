@@ -1,3 +1,5 @@
+export { humanContext, OWNER_HUMAN_CONTEXT } from './humans/context.js';
+export type { HumanId, HumanContext } from './humans/context.js';
 export {
   apply,
   Config,

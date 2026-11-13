@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { setImmediate as tick } from 'node:timers/promises';
 import { afterEach, expect, it } from 'vitest';
 import { createCore, type BotHarnessCore } from '../src/plugin.js';
@@ -87,13 +88,13 @@ async function fixture() {
     targetDigest: target.digest,
   });
   await core.externalMessaging.inbound.setEnabled('ada', grant.id, true);
-  const created = createBridgeMethods({ ...core }).channelCreate({
+  const created = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core }).channelCreate({
     name: 'WeChat shared',
     members: ['ada', 'bea'],
   });
   if (!created.ok) throw new Error(created.error.message);
   const group = created.value.channel;
-  const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+  const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
   const query = (sql: string) =>
     attachOperationalModule(core.operationalDatabase, 'test').read((db) => db.prepare(sql).all());
   const route = async (id: string, delivery: 'channel' | 'inbox' = 'channel') => {

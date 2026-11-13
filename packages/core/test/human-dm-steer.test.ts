@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it, vi } from 'vitest';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -45,16 +46,16 @@ describe('Human DM steering', () => {
       try {
         core.registry.create({ slug: 'ada', displayName: 'Ada' });
         core.registry.setPromptSettings('ada', { limits: { 'context-message-chars': bodyLimit } });
-        const dm = core.channels.getOrCreateDm('ada', 'Ada');
+        const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
         if (!dm) throw new Error('Missing DM');
-        await core.channels.appendMessage(dm.id, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
           id: 'genui-report',
           at: new Date().toISOString(),
           author: { kind: 'bot', slug: 'ada' },
           body: 'Synthetic report',
           genui: syntheticGenuiDocument,
         });
-        const methods = createBridgeMethods({ ...core });
+        const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
         expect(
           await methods.channelSend({
             channelId: dm.id,
@@ -138,7 +139,7 @@ describe('Human DM steering', () => {
       });
       try {
         core.registry.create({ slug: 'ada', displayName: 'Ada' });
-        const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+        const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
         const schedule = core.schedules.create(
           'ada',
           {
@@ -152,13 +153,13 @@ describe('Human DM steering', () => {
         core.schedules.runNow('ada', schedule.id);
         await started;
         expect(core.runtime.canRequestPrivateInput?.(sessionId)).toBe(false);
-        await core.channels.appendMessage(dm.id, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
           id: 'steered-human',
           at: new Date().toISOString(),
           author: { kind: 'human' },
           body: 'Configure the account',
         });
-        core.runtime.admitDmMessage({
+        core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
           channelId: dm.id,
           messageId: 'steered-human',
           body: 'Configure the account',
@@ -208,15 +209,19 @@ describe('Human DM steering', () => {
       const core = createCore({ dshHome: createTempRoot('botharness-steer-memory-'), agents });
       try {
         core.registry.create({ slug: 'ada', displayName: 'Ada' });
-        const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+        const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
         const send = async (id: string) => {
-          await core.channels.appendMessage(dm.id, {
+          await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
             id,
             at: '2026-10-01T00:00:00.000Z',
             author: { kind: 'human' },
             body: id,
           });
-          return core.runtime.admitDmMessage({ channelId: dm.id, messageId: id, body: id });
+          return core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+            channelId: dm.id,
+            messageId: id,
+            body: id,
+          });
         };
         await send('first');
         await started;
@@ -318,14 +323,14 @@ describe('Human DM steering', () => {
     const core = createCore({ dshHome: home, agents });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      await core.channels.appendMessage(dm.id, {
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'dm-1',
         at: '2026-09-25T00:00:00.000Z',
         author: { kind: 'human' },
         body: 'Start the report',
       });
-      const first = core.runtime.admitDmMessage({
+      const first = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'dm-1',
         body: 'Start the report',
@@ -333,13 +338,13 @@ describe('Human DM steering', () => {
       expect(first.admitted).toBe(true);
       await started;
 
-      await core.channels.appendMessage(dm.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'dm-2',
         at: '2026-09-25T00:00:01.000Z',
         author: { kind: 'human' },
         body: 'STEER-42 use the second file',
       });
-      const second = core.runtime.admitDmMessage({
+      const second = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'dm-2',
         body: 'STEER-42 use the second file',
@@ -401,14 +406,14 @@ describe('Human DM steering', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.sourcePolicy.setImmediateDelivery('ada', 'human-dm', 'turn', { kind: 'human' });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      await core.channels.appendMessage(dm.id, {
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'dm-1',
         at: '2026-09-25T00:00:00.000Z',
         author: { kind: 'human' },
         body: 'Start the report',
       });
-      const first = core.runtime.admitDmMessage({
+      const first = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'dm-1',
         body: 'Start the report',
@@ -416,13 +421,13 @@ describe('Human DM steering', () => {
       expect(first.admitted).toBe(true);
       await started;
 
-      await core.channels.appendMessage(dm.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'dm-2',
         at: '2026-09-25T00:00:01.000Z',
         author: { kind: 'human' },
         body: 'QUEUE-42 as its own turn',
       });
-      const second = core.runtime.admitDmMessage({
+      const second = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'dm-2',
         body: 'QUEUE-42 as its own turn',
@@ -475,20 +480,20 @@ describe('Human DM steering', () => {
     const core = createCore({ dshHome: home, agents });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
       for (const [id, body] of [
         ['dm-1', 'Start the report'],
         ['dm-2', 'QUEUED-ONE'],
         ['dm-3', 'STEER-TWO'],
       ] as const) {
-        await core.channels.appendMessage(dm.id, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
           id,
           at: `2026-09-25T00:00:0${id.slice(-1)}.000Z`,
           author: { kind: 'human' },
           body,
         });
       }
-      const first = core.runtime.admitDmMessage({
+      const first = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'dm-1',
         body: 'Start the report',
@@ -496,14 +501,14 @@ describe('Human DM steering', () => {
       expect(first.admitted).toBe(true);
       await started;
 
-      const second = core.runtime.admitDmMessage({
+      const second = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'dm-2',
         body: 'QUEUED-ONE',
       });
       expect(second.admitted).toBe(true);
       allowSteer = true;
-      const third = core.runtime.admitDmMessage({
+      const third = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'dm-3',
         body: 'STEER-TWO',
@@ -556,20 +561,20 @@ describe('Human DM steering', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.setPromptSettings('ada', { limits: { 'context-message-chars': 200 } });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
       for (const [id, body] of [
         ['dm-1', 'Start the report'],
         ['dm-2', 'QUEUED-ONE ' + 'x'.repeat(400)],
         ['dm-3', 'STEER-TWO'],
       ] as const) {
-        await core.channels.appendMessage(dm.id, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
           id,
           at: `2026-09-25T00:00:0${id.slice(-1)}.000Z`,
           author: { kind: 'human' },
           body,
         });
       }
-      const first = core.runtime.admitDmMessage({
+      const first = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'dm-1',
         body: 'Start the report',
@@ -577,14 +582,14 @@ describe('Human DM steering', () => {
       expect(first.admitted).toBe(true);
       await started;
 
-      const second = core.runtime.admitDmMessage({
+      const second = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'dm-2',
         body: 'QUEUED-ONE ' + 'x'.repeat(400),
       });
       expect(second.admitted).toBe(true);
       allowSteer = true;
-      const third = core.runtime.admitDmMessage({
+      const third = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'dm-3',
         body: 'STEER-TWO',
@@ -639,14 +644,14 @@ describe('Human DM steering', () => {
     const core = createCore({ dshHome: home, agents });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      await core.channels.appendMessage(dm.id, {
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'dm-0',
         at: '2026-09-25T00:00:00.000Z',
         author: { kind: 'human' },
         body: 'Start',
       });
-      const first = core.runtime.admitDmMessage({
+      const first = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'dm-0',
         body: 'Start',
@@ -656,26 +661,33 @@ describe('Human DM steering', () => {
       for (let index = 0; index < 30; index += 1) {
         const id = `dm-burst-${index}`;
         const body = `SHORT-${index}`;
-        await core.channels.appendMessage(dm.id, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
           id,
           at: `2026-09-25T00:01:${String(index).padStart(2, '0')}.000Z`,
           author: { kind: 'human' },
           body,
         });
         expect(
-          core.runtime.admitDmMessage({ channelId: dm.id, messageId: id, body }).admitted,
+          core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+            channelId: dm.id,
+            messageId: id,
+            body,
+          }).admitted,
         ).toBe(true);
       }
       allowSteer = true;
-      await core.channels.appendMessage(dm.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'dm-trigger',
         at: '2026-09-25T00:02:00.000Z',
         author: { kind: 'human' },
         body: 'TRIGGER',
       });
       expect(
-        core.runtime.admitDmMessage({ channelId: dm.id, messageId: 'dm-trigger', body: 'TRIGGER' })
-          .admitted,
+        core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+          channelId: dm.id,
+          messageId: 'dm-trigger',
+          body: 'TRIGGER',
+        }).admitted,
       ).toBe(true);
       expect(steered).toHaveLength(1);
       expect(steered[0]).toContain('TRIGGER');

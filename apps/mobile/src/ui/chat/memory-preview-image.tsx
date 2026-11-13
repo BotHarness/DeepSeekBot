@@ -13,6 +13,7 @@ import {
 } from '../../host/memory-preview';
 import type { MemoryImage, MemoryMarkdown } from '../../host/wire';
 import { shareAttachment } from '../../host/share-attachment';
+import { retainHostActivity } from '../../host/host-session';
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { useMounted } from '../mounted';
@@ -114,7 +115,7 @@ export function MemoryPreviewImage({
         };
   const share = async (value: MessageAttachment) => {
     try {
-      await shareAttachment(value);
+      await shareAttachment(value, undefined, () => retainHostActivity(client));
     } catch {
       setFailure('memory-image-share-failed');
     }

@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import type { ZipEntry } from './zip-archive.js';
 import type { HttpsFallback } from '../memory/clone.js';
 import { createHash, randomUUID } from 'node:crypto';
@@ -211,7 +212,7 @@ export function createBotCreation(options: {
         httpsFallback = result.httpsFallback;
       }
       authorize?.();
-      const channel = channels.getOrCreateDm(record.slug, record.displayName);
+      const channel = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, record.slug, record.displayName);
       if (!channel)
         throw new BotCreationError(
           'creation-dm-unavailable',
@@ -327,7 +328,7 @@ export function createBotCreation(options: {
           );
         record = created.record;
       }
-      const channel = channels.getOrCreateDm(slug, record.displayName);
+      const channel = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, slug, record.displayName);
       if (!channel)
         throw new BotCreationError(
           'creation-dm-unavailable',

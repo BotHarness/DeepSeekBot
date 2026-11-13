@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { realpathSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { createBridgeMethods } from '../src/bridge/methods.js';
@@ -42,12 +43,12 @@ describe('Human Inbox addressed Assignment response', () => {
       list: () => [workspace],
     });
     const core = createCore({ dshHome: home, agents, workspaces });
-    const methods = createBridgeMethods({ ...core });
+    const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bea', displayName: 'Bea' });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      core.channels.getOrCreateDm('bea', 'Bea');
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'bea', 'Bea');
       const grant = await core.grants.create('ada', workspace.id);
       await methods.channelSend({ channelId: dm.id, body: 'Start research' });
       await core.runtime.whenIdle();
@@ -73,7 +74,9 @@ describe('Human Inbox addressed Assignment response', () => {
       await run.report({ state: 'progress', summary: 'Checking dependencies' });
       finish.get(sessionId)?.();
       await core.runtime.whenIdle();
-      expect(core.humanAttention.list({ category: 'action' }).items).toMatchObject([
+      expect(
+        core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items,
+      ).toMatchObject([
         { kind: 'assignment-blocked', sourceEventId, summary: 'Launch blocked without a route' },
       ]);
       const context = methods.humanAssignmentContext({ slug: 'ada', sessionId, sourceEventId });
@@ -144,10 +147,12 @@ describe('Human Inbox addressed Assignment response', () => {
         core.channels.readMessages(dm.id).filter((message) => message.assignmentReply),
       ).toHaveLength(1);
       const response = core.channels.readMessages(dm.id).find((m) => m.assignmentReply)!;
-      expect(core.humanAttention.list({ category: 'action' }).items).toMatchObject([
-        { sourceEventId },
-      ]);
-      expect(core.humanAttention.list({ category: 'handled' }).items).toEqual([]);
+      expect(
+        core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items,
+      ).toMatchObject([{ sourceEventId }]);
+      expect(core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'handled' }).items).toEqual(
+        [],
+      );
       expect(core.runtime.getAssignment('ada', sessionId)?.openAsk?.sourceEventId).toBe(
         sourceEventId,
       );
@@ -158,7 +163,9 @@ describe('Human Inbox addressed Assignment response', () => {
         answerTo: sourceEventId,
       });
       await Promise.resolve();
-      expect(core.humanAttention.list({ category: 'action' }).items).toEqual([]);
+      expect(core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toEqual(
+        [],
+      );
       expect(methods.humanAttention({ category: 'handled', channelId: dm.id })).toMatchObject({
         ok: true,
         value: {
@@ -186,19 +193,23 @@ describe('Human Inbox addressed Assignment response', () => {
       });
       const nextAsk = core.runtime.getAssignment('ada', sessionId)!.openAsk!.sourceEventId;
       expect(nextAsk).not.toBe(sourceEventId);
-      expect(core.humanAttention.list({ category: 'action' }).items).toMatchObject([
+      expect(
+        core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items,
+      ).toMatchObject([
         {
           kind: 'assignment-waiting-human',
           sourceEventId: nextAsk,
           summary: 'Choose the next rollout',
         },
       ]);
-      expect(core.humanAttention.status().hasAction).toBe(true);
-      expect(core.humanAttention.list({ category: 'handled' }).items).toMatchObject([
-        { kind: 'assignment-blocked', sourceEventId },
-      ]);
+      expect(core.humanAttention.status(OWNER_HUMAN_CONTEXT).hasAction).toBe(true);
+      expect(
+        core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'handled' }).items,
+      ).toMatchObject([{ kind: 'assignment-blocked', sourceEventId }]);
       await run.report({ state: 'completed', summary: 'Launched' });
-      expect(core.humanAttention.list({ category: 'action' }).items).toEqual([]);
+      expect(core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toEqual(
+        [],
+      );
       expect(
         await methods.channelSend({
           ...payload,
@@ -216,10 +227,12 @@ describe('Human Inbox addressed Assignment response', () => {
       expect(
         resumed.channels.readMessages('dm-ada').filter((message) => message.assignmentReply),
       ).toHaveLength(1);
-      expect(resumed.humanAttention.list({ category: 'action' }).items).toEqual([]);
-      expect(resumed.humanAttention.list({ category: 'handled' }).items).toMatchObject([
-        { kind: 'assignment-blocked', botSlug: 'ada' },
-      ]);
+      expect(
+        resumed.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items,
+      ).toEqual([]);
+      expect(
+        resumed.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'handled' }).items,
+      ).toMatchObject([{ kind: 'assignment-blocked', botSlug: 'ada' }]);
     } finally {
       await resumed.runtime.close();
       resumed.operationalDatabase.close();
