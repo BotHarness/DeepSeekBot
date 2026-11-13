@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -761,7 +762,7 @@ describe('mobile creation recovery through device admission', () => {
         },
       });
       try {
-        const methods = createBridgeMethods(core);
+        const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, core);
         let drop = true;
         const live = await fakeDsh(undefined, undefined, async (method, payload) => {
           if (method === 'botharness/' + lookupMethod)

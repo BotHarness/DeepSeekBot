@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -118,14 +119,14 @@ async function fixture(check: (f: Fixture) => Promise<void>, recipients = 0) {
       expect(core.registry.create({ slug, displayName: 'Peer ' + index }).ok).toBe(true);
       members.push(slug);
     }
-    groupId = core.channels.createGroup({ name: 'Destination', members }).id;
+    groupId = core.channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Destination', members }).id;
     image = await core.attachments.upload({ data: chunks(), name: 'visual.png' });
     const hash = 'sha256:' + createHash('sha256').update(png).digest('hex');
     const objects = join(core.attachments.rootDir, 'objects', hash.slice(7, 9));
     mkdirSync(objects, { recursive: true });
     writeFileSync(join(objects, hash.slice(7)), png);
     legacy = { hash, name: 'legacy.png', mime: 'image/png', size: png.length };
-    dmId = core.channels.getOrCreateDm('ada', 'Ada')!.id;
+    dmId = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!.id;
     const message = {
       id: 'source',
       at: new Date().toISOString(),
@@ -162,7 +163,7 @@ async function fixture(check: (f: Fixture) => Promise<void>, recipients = 0) {
             .get(sourceEventId)?.payload_json,
       ),
     ).toBe(JSON.stringify(envelope));
-    core.runtime.admitDmMessage({
+    core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
       channelId: dmId,
       messageId: 'source',
       body: 'Inspect and forward',
@@ -253,7 +254,10 @@ describe('trusted Orchestrator attachment forwarding', () => {
         ).rejects.toThrow();
         expect(f.core.channels.readMessages(f.groupId)).toEqual([]);
       }
-      const unjoined = f.core.channels.createGroup({ name: 'Private', members: [] });
+      const unjoined = f.core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Private',
+        members: [],
+      });
       await expect(
         call(f.tools, 'bot_send_message', {
           body: '',
@@ -275,7 +279,7 @@ describe('trusted Orchestrator attachment forwarding', () => {
           source_event_id: f.sourceId,
         }),
       ).rejects.toThrow();
-      await f.core.channels.appendMessage(f.groupId, {
+      await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, f.groupId, {
         id: 'group-parent',
         at: new Date().toISOString(),
         author: { kind: 'human' },

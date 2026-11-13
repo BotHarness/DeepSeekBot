@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 
 import { createBridgeMethods } from '../src/bridge/methods.js';
@@ -28,8 +29,8 @@ function setup() {
   };
   const core = createCore({ dshHome: createTempRoot('botharness-call-record-'), agents });
   core.registry.create({ slug: 'mira', displayName: 'Mira' });
-  const dm = core.channels.getOrCreateDm('mira', 'Mira')!;
-  const methods = createBridgeMethods({
+  const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'mira', 'Mira')!;
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
     registry: core.registry,
     states: core.states,
     channels: core.channels,
@@ -38,7 +39,7 @@ function setup() {
     runtime: core.runtime,
   });
   const notice = (record: ChannelVoiceCallLifecycle) =>
-    core.channels.appendMessage(dm.id, {
+    core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
       id: `voice-call-${record.state}-${record.callId}`,
       at:
         record.state === 'started'

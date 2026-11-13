@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createHash } from 'node:crypto';
 import type { SQLInputValue } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
@@ -107,7 +108,7 @@ describe('Human attention candidate indexes', () => {
     );
     const database = attachOperationalModule(owner, 'attention-index-plan');
     const channels = createSqliteChannelStore({ database, rootDir: dshHome });
-    const channel = channels.getOrCreateDm('ada', 'Ada')!;
+    const channel = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
     database.transaction((connection) => {
       const event = connection.prepare(`INSERT INTO source_events
         (source_event_id, source_kind, bot_slug, channel_id, message_id, body, created_at, payload_json)
@@ -164,7 +165,7 @@ describe('Human attention candidate indexes', () => {
         );
       },
     };
-    expect(createHumanAttentionQuery(observed).status()).toEqual({
+    expect(createHumanAttentionQuery(observed).status(OWNER_HUMAN_CONTEXT)).toEqual({
       unreadCount: UNREAD_COUNT_LIMIT,
       hasAction: false,
     });

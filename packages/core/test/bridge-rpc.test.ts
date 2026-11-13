@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createTestRosterStore } from './roster-fixture.js';
 import { createTestRegistry, registryDatabase } from './registry-fixture.js';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -48,7 +49,7 @@ function setup(
     rootDir: join(root, 'channels'),
     now: () => new Date('2026-09-19T00:00:00.000Z'),
   });
-  const methods: BridgeMethods = createBridgeMethods({
+  const methods: BridgeMethods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
     registry,
     states: createBotStateTracker(),
     channels,
@@ -58,8 +59,8 @@ function setup(
     ...extras,
     ...(sourcePolicy === undefined ? {} : { sourcePolicy }),
   });
-  const ctx = new Context();
-  const service = registerBridge(ctx, methods);
+  const ctx = new Context().extend({ invocation: { peer: { principal: { kind: 'owner' } } } });
+  const service = registerBridge(ctx, () => methods);
   return { root, registry, channels, methods, service };
 }
 
@@ -99,6 +100,7 @@ describe('bridge typert service', () => {
 
   it('refuses workspace authorization without an authenticated Owner invocation', () => {
     const { service, methods } = setup();
+    Object.defineProperty(service, 'ctx', { value: new Context() });
     const approve = vi.spyOn(methods, 'grantRequestApprove');
     expect(() => service.grantRequestApprove('ada', 'dm-ada', 'request', 'project', true)).toThrow(
       /authenticated Owner/,

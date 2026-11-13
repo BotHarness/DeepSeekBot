@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { realpathSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -29,7 +30,7 @@ async function fixture() {
     rootDir: join(home, 'botharness', 'channels'),
     attachments,
   });
-  channels.getOrCreateDm('ada', 'Ada');
+  channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
   const upload = (name: string, bytes: Buffer) =>
     attachments.upload({
       data: (async function* () {
@@ -40,7 +41,7 @@ async function fixture() {
   let sequence = 0;
   const send = (at: string, refs: NonNullable<ChannelMessage['attachments']>) => {
     sequence += 1;
-    return channels.appendMessage('dm-ada', {
+    return channels.appendMessage(OWNER_HUMAN_CONTEXT, 'dm-ada', {
       id: `m-${sequence}`,
       at,
       author: { kind: 'human' },

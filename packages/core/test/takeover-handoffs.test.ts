@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -21,8 +22,11 @@ function fixture(options: { access?: boolean; start?: number } = {}) {
     rootDir: join(root, 'channels'),
     attachments: createAttachmentStore({ rootDir: join(root, 'attachments') }),
   });
-  const dm = channels.getOrCreateDm('ada', 'Ada')!;
-  const group = channels.createGroup({ name: 'Team', members: ['ada', 'bob'] });
+  const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+  const group = channels.createGroup(OWNER_HUMAN_CONTEXT, {
+    name: 'Team',
+    members: ['ada', 'bob'],
+  });
   let clock = options.start ?? Date.parse('2026-11-03T10:00:00.000Z');
   const events: Array<{ phase: string; fields: Record<string, unknown>; bot?: string }> = [];
   const admitted: string[] = [];

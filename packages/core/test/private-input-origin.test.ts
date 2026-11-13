@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { readFile } from 'node:fs/promises';
 import { setImmediate as tick } from 'node:timers/promises';
 import { Context } from '@deepseek-ai/cordis';
@@ -57,7 +58,7 @@ async function fixture(mounted = false) {
     },
   });
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
-  core.channels.getOrCreateDm('ada', 'Ada');
+  core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
   const tools: ToolDefinition[] = [];
   let liveAgent: Agent | undefined;
   if (mounted) {
@@ -195,13 +196,13 @@ async function fixture(mounted = false) {
     },
     async local() {
       const id = 'local-' + ++next;
-      await core.channels.appendMessage('dm-ada', {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, 'dm-ada', {
         id,
         at: new Date().toISOString(),
         author: { kind: 'human' },
         body: 'Use the configured account',
       });
-      return core.runtime.admitDmMessage({
+      return core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: 'dm-ada',
         messageId: id,
         body: 'Use the configured account',
@@ -491,7 +492,9 @@ it('keeps local authority across a pending secret_cli approval and IM steering',
     await f.im();
     await f.im();
     const card = approvals.requests('ada')[0]!;
-    expect(await approvals.decide('ada', card.messageId, 'allowed-once')).toBe(true);
+    expect(await approvals.decide(OWNER_HUMAN_CONTEXT, 'ada', card.messageId, 'allowed-once')).toBe(
+      true,
+    );
     expect(await pending).toBe('allowed-once');
     await expect(
       f.privateInputs.consume(
@@ -629,8 +632,11 @@ it('uses a local Group Human admission when IM context is present and refuses ex
     const agent = { session: { id: run.sessionId } } as Agent;
     const { result } = await f.configure(agent);
     await f.nextTurn();
-    const group = f.core.channels.createGroup({ name: 'Synthetic local group', members: ['ada'] });
-    await f.core.channels.appendMessage(group.id, {
+    const group = f.core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Synthetic local group',
+      members: ['ada'],
+    });
+    await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
       id: 'local-mention',
       at: new Date().toISOString(),
       author: { kind: 'human' },
@@ -659,7 +665,7 @@ it('does not turn unaccepted local history into authority for a multi-IM batch',
     const agent = { session: { id: run.sessionId } } as Agent;
     const { result } = await f.configure(agent);
     await f.nextTurn();
-    await f.core.channels.appendMessage('dm-ada', {
+    await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, 'dm-ada', {
       id: 'history-only',
       at: new Date().toISOString(),
       author: { kind: 'human' },

@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { copyFileSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -37,8 +38,11 @@ async function ended(
   options: Partial<Parameters<typeof mountContentPurge>[0]> = {},
 ) {
   const core = mount(home, options);
-  const channel = core.channels.createGroup({ name: 'Disposable purge QA', members: [] });
-  await core.channels.appendMessage(channel.id, {
+  const channel = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+    name: 'Disposable purge QA',
+    members: [],
+  });
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, {
     id: 'qa-message',
     at: '2026-10-08T00:00:00.000Z',
     author: { kind: 'human' },
@@ -46,34 +50,48 @@ async function ended(
     attachments: [],
   });
   core.channels.deleteGroup(channel.id);
-  const source = core.purge.sources(channel.id).sources[0]!;
+  const source = core.purge.sources(OWNER_HUMAN_CONTEXT, channel.id).sources[0]!;
   return { ...core, home, channel, source };
 }
 function accept(core: Awaited<ReturnType<typeof ended>>) {
-  const preview = core.purge.preview(core.channel.id, [core.source.sourceEventId]);
-  return core.purge.confirm(core.channel.id, preview.sourceEventIds, preview.token);
+  const preview = core.purge.preview(OWNER_HUMAN_CONTEXT, core.channel.id, [
+    core.source.sourceEventId,
+  ]);
+  return core.purge.confirm(
+    OWNER_HUMAN_CONTEXT,
+    core.channel.id,
+    preview.sourceEventIds,
+    preview.token,
+  );
 }
 
 describe('owning Content Purge tracer', () => {
   it('ends participation, retains history, and a cancelled preview writes nothing', async () => {
     const core = await ended();
     expect(core.channels.get(core.channel.id)).toBeUndefined();
-    expect(core.purge.history()).toHaveLength(1);
-    const preview = core.purge.preview(core.channel.id, [core.source.sourceEventId]);
+    expect(core.purge.history(OWNER_HUMAN_CONTEXT)).toHaveLength(1);
+    const preview = core.purge.preview(OWNER_HUMAN_CONTEXT, core.channel.id, [
+      core.source.sourceEventId,
+    ]);
     expect(preview.placements).toMatchObject([{ channelId: core.channel.id }]);
     expect(core.purge.checkpoint().facts).toEqual([]);
-    expect(core.purge.sources(core.channel.id).sources[0]?.body).toBe('synthetic-secret-body');
+    expect(core.purge.sources(OWNER_HUMAN_CONTEXT, core.channel.id).sources[0]?.body).toBe(
+      'synthetic-secret-body',
+    );
     expect(
-      await core.channels.appendMessageOnce(core.channel.id, {
+      await core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, core.channel.id, {
         id: 'late',
         at: '2026-10-08T00:00:00.000Z',
         author: { kind: 'human' },
         body: 'late',
       }),
     ).toEqual({ status: 'missing' });
-    const replacement = core.channels.createGroup({ name: core.channel.name, members: [] });
+    const replacement = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: core.channel.name,
+      members: [],
+    });
     expect(replacement.id).not.toBe(core.channel.id);
-    expect(core.purge.history()).toMatchObject([{ id: core.channel.id }]);
+    expect(core.purge.history(OWNER_HUMAN_CONTEXT)).toMatchObject([{ id: core.channel.id }]);
     expect(core.channels.readMessages(replacement.id)).toEqual([]);
   });
   it('retains audit and causal tombstones across cold restart, without bodies in its real checkpoint', async () => {
@@ -89,7 +107,7 @@ describe('owning Content Purge tracer', () => {
       ),
     ).toBe(false);
     const restarted = mount(core.home);
-    expect(restarted.purge.sources(core.channel.id).sources[0]).toMatchObject({
+    expect(restarted.purge.sources(OWNER_HUMAN_CONTEXT, core.channel.id).sources[0]).toMatchObject({
       body: '',
       purgedAt: expect.any(String),
     });
@@ -98,15 +116,27 @@ describe('owning Content Purge tracer', () => {
   it('rejects expired, forged and changed-reference previews without accepting facts', async () => {
     let time = Date.parse('2026-10-08T00:00:00.000Z');
     const core = await ended(undefined, { now: () => new Date(time) });
-    const preview = core.purge.preview(core.channel.id, [core.source.sourceEventId]);
+    const preview = core.purge.preview(OWNER_HUMAN_CONTEXT, core.channel.id, [
+      core.source.sourceEventId,
+    ]);
     expect(() =>
-      core.purge.confirm(core.channel.id, preview.sourceEventIds, preview.token + 'bad'),
+      core.purge.confirm(
+        OWNER_HUMAN_CONTEXT,
+        core.channel.id,
+        preview.sourceEventIds,
+        preview.token + 'bad',
+      ),
     ).toThrow();
     time += 300_001;
     expect(() =>
-      core.purge.confirm(core.channel.id, preview.sourceEventIds, preview.token),
+      core.purge.confirm(
+        OWNER_HUMAN_CONTEXT,
+        core.channel.id,
+        preview.sourceEventIds,
+        preview.token,
+      ),
     ).toThrow('expired');
-    const fresh = core.purge.preview(core.channel.id, preview.sourceEventIds);
+    const fresh = core.purge.preview(OWNER_HUMAN_CONTEXT, core.channel.id, preview.sourceEventIds);
     core.port.transaction((db) =>
       db
         .prepare(
@@ -114,9 +144,9 @@ describe('owning Content Purge tracer', () => {
         )
         .run(core.channel.id),
     );
-    expect(() => core.purge.confirm(core.channel.id, fresh.sourceEventIds, fresh.token)).toThrow(
-      'Scope changed',
-    );
+    expect(() =>
+      core.purge.confirm(OWNER_HUMAN_CONTEXT, core.channel.id, fresh.sourceEventIds, fresh.token),
+    ).toThrow('Scope changed');
     expect(core.purge.checkpoint().facts).toEqual([]);
   });
   it.each(['after-acceptance', 'during-application'] as const)(
@@ -133,7 +163,9 @@ describe('owning Content Purge tracer', () => {
       core.database.close();
       const restarted = mount(core.home);
       expect(restarted.database.mode).toBe('ready');
-      expect(restarted.purge.sources(core.channel.id).sources[0]?.body).toBe('');
+      expect(restarted.purge.sources(OWNER_HUMAN_CONTEXT, core.channel.id).sources[0]?.body).toBe(
+        '',
+      );
       expect(restarted.purge.checkpoint().facts).toHaveLength(1);
     },
   );
@@ -143,8 +175,15 @@ describe('owning Content Purge tracer', () => {
     core.database.close();
     copyFileSync(join(core.home, 'botharness', 'botharness.db'), snapshot);
     const current = mount(core.home);
-    const preview = current.purge.preview(core.channel.id, [core.source.sourceEventId]);
-    current.purge.confirm(core.channel.id, preview.sourceEventIds, preview.token);
+    const preview = current.purge.preview(OWNER_HUMAN_CONTEXT, core.channel.id, [
+      core.source.sourceEventId,
+    ]);
+    current.purge.confirm(
+      OWNER_HUMAN_CONTEXT,
+      core.channel.id,
+      preview.sourceEventIds,
+      preview.token,
+    );
     const destination = current.purge.checkpoint();
     current.database.close();
     copyFileSync(snapshot, join(core.home, 'botharness', 'botharness.db'));
@@ -166,7 +205,7 @@ describe('owning Content Purge tracer', () => {
     };
     const restored = mount(core.home, { restoring: true, restoreCheckpoint: packageCheckpoint });
     expect(restored.database.mode).toBe('ready');
-    expect(restored.purge.sources(core.channel.id).sources[0]?.body).toBe('');
+    expect(restored.purge.sources(OWNER_HUMAN_CONTEXT, core.channel.id).sources[0]?.body).toBe('');
     expect(restored.purge.checkpoint().facts).toEqual(
       expect.arrayContaining([...destination.facts, ...packageCheckpoint.facts]),
     );
@@ -223,11 +262,14 @@ describe('owning Content Purge tracer', () => {
           .run(core.source.sourceEventId),
       ),
     ).toThrow();
-    expect(core.purge.sources(core.channel.id).sources[0]?.body).toBe('');
+    expect(core.purge.sources(OWNER_HUMAN_CONTEXT, core.channel.id).sources[0]?.body).toBe('');
   });
   it('previews all shared placements and refuses a newly live placement or managed file before acceptance', async () => {
     const core = await ended();
-    const second = core.channels.createGroup({ name: 'Shared disposable Group', members: [] });
+    const second = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Shared disposable Group',
+      members: [],
+    });
     core.channels.deleteGroup(second.id);
     core.port.transaction((db) =>
       db
@@ -236,7 +278,9 @@ describe('owning Content Purge tracer', () => {
         )
         .run(second.id, core.source.sourceEventId, core.source.messageId),
     );
-    const preview = core.purge.preview(core.channel.id, [core.source.sourceEventId]);
+    const preview = core.purge.preview(OWNER_HUMAN_CONTEXT, core.channel.id, [
+      core.source.sourceEventId,
+    ]);
     expect(preview.placements).toHaveLength(2);
     core.port.transaction((db) =>
       db
@@ -246,7 +290,12 @@ describe('owning Content Purge tracer', () => {
         .run(core.source.sourceEventId),
     );
     expect(() =>
-      core.purge.confirm(core.channel.id, preview.sourceEventIds, preview.token),
+      core.purge.confirm(
+        OWNER_HUMAN_CONTEXT,
+        core.channel.id,
+        preview.sourceEventIds,
+        preview.token,
+      ),
     ).toThrow('outside current Human read access');
     expect(core.purge.checkpoint().facts).toHaveLength(0);
   });
@@ -298,9 +347,12 @@ describe('owning Content Purge tracer', () => {
         yield Buffer.from('synthetic managed bytes');
       })(),
     });
-    const channel = core.channels.createGroup({ name: 'Shared managed file QA', members: [] });
+    const channel = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Shared managed file QA',
+      members: [],
+    });
     for (const id of ['file-message-a', 'file-message-b'])
-      await core.channels.appendMessage(channel.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, {
         id,
         at: '2026-10-08T00:00:00.000Z',
         author: { kind: 'human' },
@@ -308,11 +360,13 @@ describe('owning Content Purge tracer', () => {
         attachments: [file],
       });
     core.channels.deleteGroup(channel.id);
-    const page = core.purge.sources(channel.id);
+    const page = core.purge.sources(OWNER_HUMAN_CONTEXT, channel.id);
     expect(page.sources.every((source) => !source.refusal)).toBe(true);
-    const preview = core.purge.preview(channel.id, [page.sources[0]!.sourceEventId]);
+    const preview = core.purge.preview(OWNER_HUMAN_CONTEXT, channel.id, [
+      page.sources[0]!.sourceEventId,
+    ]);
     expect(preview.files).toMatchObject([{ identity: file.fileId, disposition: 'shared' }]);
-    core.purge.confirm(channel.id, preview.sourceEventIds, preview.token);
+    core.purge.confirm(OWNER_HUMAN_CONTEXT, channel.id, preview.sourceEventIds, preview.token);
     expect(core.purge.checkpoint().facts).toHaveLength(1);
     core.database.close();
     const restarted = mount(home);
@@ -323,10 +377,17 @@ describe('owning Content Purge tracer', () => {
   });
   it('exports a real checkpoint under its synchronous barrier and refuses reentrant acceptance', async () => {
     const core = await ended();
-    const preview = core.purge.preview(core.channel.id, [core.source.sourceEventId]);
+    const preview = core.purge.preview(OWNER_HUMAN_CONTEXT, core.channel.id, [
+      core.source.sourceEventId,
+    ]);
     const checkpoint = core.purge.withCheckpoint((current) => {
       expect(() =>
-        core.purge.confirm(core.channel.id, preview.sourceEventIds, preview.token),
+        core.purge.confirm(
+          OWNER_HUMAN_CONTEXT,
+          core.channel.id,
+          preview.sourceEventIds,
+          preview.token,
+        ),
       ).toThrow('unavailable');
       return JSON.parse(JSON.stringify(current));
     });
@@ -365,9 +426,9 @@ describe('owning Content Purge tracer', () => {
         ).run(state, '2026-10-08T00:00:00Z', state, 'provider-accepted');
       }
     });
-    expect(core.purge.preview(core.channel.id, [core.source.sourceEventId]).effects).toHaveLength(
-      3,
-    );
+    expect(
+      core.purge.preview(OWNER_HUMAN_CONTEXT, core.channel.id, [core.source.sourceEventId]).effects,
+    ).toHaveLength(3);
     core.database.close();
     const restored = mount(core.home, {
       restoring: true,

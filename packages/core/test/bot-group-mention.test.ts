@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_BOT_HOP_LIMIT } from '../src/channels/channel.js';
@@ -54,16 +55,19 @@ describe('Bot Group mention tracer', () => {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bea', displayName: 'Alex' });
       core.registry.create({ slug: 'cee', displayName: 'Alex' });
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada', 'bea', 'cee'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada', 'bea', 'cee'],
+      });
       groupId = group.id;
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      await core.channels.appendMessage(dm.id, {
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'human-start',
         at: '2026-09-25T00:00:00.000Z',
         author: { kind: 'human' },
         body: '请在 Team 群里请两位同事确认',
       });
-      core.runtime.admitDmMessage({
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'human-start',
         body: '请在 Team 群里请两位同事确认',
@@ -170,18 +174,25 @@ describe('Bot Group mention tracer', () => {
     try {
       for (const slug of ['ada', 'bea', 'cee'])
         core.registry.create({ slug, displayName: slug.toUpperCase() });
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada', 'bea'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada', 'bea'],
+      });
       groupId = group.id;
       for (const slug of ['ada', 'cee']) {
-        const dm = core.channels.getOrCreateDm(slug, slug)!;
+        const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, slug, slug)!;
         const id = 'start-' + slug;
-        await core.channels.appendMessage(dm.id, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
           id,
           at: '2026-09-25T00:00:00.000Z',
           author: { kind: 'human' },
           body: 'test',
         });
-        core.runtime.admitDmMessage({ channelId: dm.id, messageId: id, body: 'test' });
+        core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+          channelId: dm.id,
+          messageId: id,
+          body: 'test',
+        });
       }
       await core.runtime.whenIdle();
       expect(errors).toHaveLength(4);
@@ -218,25 +229,28 @@ describe('Bot Group mention tracer', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bea', displayName: 'Bea' });
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada', 'bea'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada', 'bea'],
+      });
       groupId = group.id;
-      const humanDm = core.channels.getOrCreateDm('ada', 'Ada')!;
+      const humanDm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
       const originalAppend = core.channels.appendMessageOnce.bind(core.channels);
       let failOnce = true;
-      core.channels.appendMessageOnce = (channelId, message) => {
+      core.channels.appendMessageOnce = (human, channelId, message) => {
         if (channelId === groupId && failOnce) {
           failOnce = false;
           return Promise.reject(new Error('precommit Group append failure'));
         }
-        return originalAppend(channelId, message);
+        return originalAppend(OWNER_HUMAN_CONTEXT, channelId, message);
       };
-      await core.channels.appendMessage(humanDm.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, humanDm.id, {
         id: 'human-group-retry',
         at: '2026-09-25T00:00:00.000Z',
         author: { kind: 'human' },
         body: 'Ask Bea in the Group',
       });
-      core.runtime.admitDmMessage({
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: humanDm.id,
         messageId: 'human-group-retry',
         body: 'Ask Bea in the Group',
@@ -254,7 +268,7 @@ describe('Bot Group mention tracer', () => {
       ).toEqual({ attempt_state: 'retryable' });
       expect(core.channels.readMessages(group.id)).toEqual([]);
 
-      core.runtime.admitDmMessage({
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: humanDm.id,
         messageId: 'human-group-retry',
         body: 'Ask Bea in the Group',
@@ -278,7 +292,10 @@ describe('Bot Group mention tracer', () => {
     const first = createCore({ dshHome: home });
     first.registry.create({ slug: 'ada', displayName: 'Ada' });
     first.registry.create({ slug: 'bea', displayName: 'Bea' });
-    const group = first.channels.createGroup({ name: 'Recovery', members: ['ada', 'bea'] });
+    const group = first.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Recovery',
+      members: ['ada', 'bea'],
+    });
     const root = 'original-root';
     const base = {
       at: '2026-09-25T00:00:00.000Z',
@@ -288,7 +305,7 @@ describe('Bot Group mention tracer', () => {
     };
     expect(
       (
-        await first.channels.appendMessageOnce(group.id, {
+        await first.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, group.id, {
           ...base,
           id: 'bot-pending',
           botCausation: { rootSourceEventId: root, parentSourceEventId: 'parent', hop: 1 },
@@ -310,12 +327,12 @@ describe('Bot Group mention tracer', () => {
       expect(resumed.channels.message(group.id, 'bot-pending')?.deliveries).toEqual([
         { botSlug: 'bea', state: 'handled' },
       ]);
-      await resumed.channels.appendMessageOnce(group.id, {
+      await resumed.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, group.id, {
         ...base,
         id: 'bot-repeat',
         botCausation: { rootSourceEventId: root, parentSourceEventId: 'parent-2', hop: 2 },
       });
-      await resumed.channels.appendMessageOnce(group.id, {
+      await resumed.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, group.id, {
         ...base,
         id: 'bot-over-limit',
         botCausation: {
@@ -333,7 +350,7 @@ describe('Bot Group mention tracer', () => {
       ]);
       expect(resumed.channels.message(group.id, 'bot-over-limit')?.deliveries).toBeUndefined();
       await expect(
-        resumed.channels.appendMessageOnce(group.id, {
+        resumed.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, group.id, {
           ...base,
           id: 'bot-forged',
           author: { kind: 'bot', slug: 'outsider' },

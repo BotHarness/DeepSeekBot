@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { afterEach, expect, it } from 'vitest';
 import { createCore, type BotHarnessCore } from '../src/plugin.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
@@ -41,10 +42,10 @@ async function fixture() {
   });
   cores.push(core);
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
-  const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+  const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
   let messageId = 0;
   const send = async () => {
-    const admission = core.runtime.admitDmMessage({
+    const admission = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
       channelId: dm.id,
       messageId: `message-${++messageId}`,
       body: 'Hello',
@@ -57,7 +58,7 @@ async function fixture() {
     archived,
     sessions,
     send,
-    methods: createBridgeMethods({ ...core }),
+    methods: createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core }),
     setArchiveHook: (hook: () => void) => {
       archiveHook = hook;
     },

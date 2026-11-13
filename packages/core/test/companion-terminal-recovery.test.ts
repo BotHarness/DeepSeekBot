@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { expect, it, vi } from 'vitest';
 import { createCore } from '../src/plugin.js';
 import { createTempRoot, FIXED_NOW } from './helpers.js';
@@ -67,9 +68,10 @@ it('resumes canonical unplayed replies after terminal transport failures without
       rootRole: 'orchestrator',
       at: FIXED_NOW().toISOString(),
     });
-    const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+    const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
     const commit = (id: string) =>
       core.channels.appendMessage(
+        OWNER_HUMAN_CONTEXT,
         dm.id,
         { id, at: FIXED_NOW().toISOString(), author: { kind: 'bot', slug: 'ada' }, body: id },
         { sessionId: 'ada' },
@@ -128,7 +130,7 @@ it('resumes canonical unplayed replies after terminal transport failures without
     await vi.advanceTimersByTimeAsync(60_000);
     expect(connections).toHaveLength(connectionCount);
     expect(vi.getTimerCount()).toBe(0);
-    expect(core.channels.readPosition(dm.id)).toBeUndefined();
+    expect(core.channels.readPosition(OWNER_HUMAN_CONTEXT, dm.id)).toBeUndefined();
   } finally {
     owner.dispose();
     for (const connection of connections) await connection.reader?.cancel();

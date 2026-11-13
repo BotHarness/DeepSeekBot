@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { setImmediate as tick } from 'node:timers/promises';
 import { afterEach, expect, it, vi } from 'vitest';
 import { attachOperationalModule } from '../src/database/owner.js';
@@ -137,7 +138,7 @@ async function fixture(proactive = true, media = false, allByDefault = false) {
   let core = boot();
   if (allByDefault) {
     expect(
-      await createBridgeMethods({ ...core }).messagingDefaultsSet({
+      await createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core }).messagingDefaultsSet({
         platform: 'qq',
         expectedRevision: 0,
         collection: 'all',
@@ -345,7 +346,7 @@ it.each([true, false])(
   'QQ count harvest understands local sources and posting remains independent: proactive=%s',
   async (proactive) => {
     const fx = await fixture(proactive);
-    const dm = fx.core.channels.getOrCreateDm('ada', 'Ada')!;
+    const dm = fx.core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
     const before = fx.core.channels.readMessages(dm.id);
     await fx.receive('permission-probe');
     await fx.core.externalMessaging.inbound.setPolicy('ada', fx.grant.id, policy, {

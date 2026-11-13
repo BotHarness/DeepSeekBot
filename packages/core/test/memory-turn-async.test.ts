@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createTestRegistry } from './registry-fixture.js';
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -109,9 +110,12 @@ describe('Memory turn Host responsiveness', () => {
         await gate.promise;
         return prepare(...args);
       });
-      const group = core.channels.createGroup({ name: 'Stop', members: ['atlas'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Stop',
+        members: ['atlas'],
+      });
       const send = async (id: string) => {
-        await core.channels.appendMessage(group.id, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
           id,
           at: FIXED_NOW().toISOString(),
           author: { kind: 'human' },
@@ -182,7 +186,7 @@ describe('Memory turn Host responsiveness', () => {
       'in progress',
     );
     expect(() =>
-      memory.saveHuman({
+      memory.saveHuman(OWNER_HUMAN_CONTEXT, {
         botSlug: 'atlas',
         path: 'note.md',
         body: 'busy',
@@ -271,9 +275,12 @@ describe('Memory turn Host responsiveness', () => {
       vi.spyOn(core.memory, 'reconcileTurn').mockImplementation(() => {
         throw new Error('Synchronous reconcile reached');
       });
-      const group = core.channels.createGroup({ name: 'Async', members: ['atlas'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Async',
+        members: ['atlas'],
+      });
       const send = async (id: string, mentioned = true) => {
-        await core.channels.appendMessage(group.id, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
           id,
           at: FIXED_NOW().toISOString(),
           author: { kind: 'human' },
@@ -384,9 +391,9 @@ describe('Memory turn Host responsiveness', () => {
           await scanGate.promise;
           return scan(slug);
         });
-        const dm = core.channels.getOrCreateDm('atlas', 'Atlas');
+        const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'atlas', 'Atlas');
         if (!dm) throw new Error('Missing DM');
-        const methods = createBridgeMethods({ ...core });
+        const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
         const first = await methods.channelSend({
           channelId: dm.id,
           messageId: `human-${randomUUID()}`,

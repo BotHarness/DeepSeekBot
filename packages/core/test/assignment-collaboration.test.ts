@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import type { AssignmentReportContent } from '../src/runtime/assignment-report.js';
 import { createTestRegistry, registryDatabase } from './registry-fixture.js';
 import { AssignmentInboxAcceptanceUncertainError } from '../src/runtime/assignment-delivery.js';
@@ -176,7 +177,7 @@ async function setup(
   const registry = createTestRegistry({ rootDir: join(home, 'bots'), now: FIXED_NOW });
   expect(registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
   const channels = createChannelStore({ rootDir: join(home, 'channels'), now: FIXED_NOW });
-  const dm = channels.getOrCreateDm('ada', 'Ada');
+  const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
   if (dm === undefined) throw new Error('DM missing');
   const agents = new ManualAgents();
   const grants = createTestWorkspaceGrants(owner, home);
@@ -213,7 +214,11 @@ async function setup(
     },
     dmChannelId: dm.id,
     admit: async (body: string, messageId: string) => {
-      const admission = runtime.admitDmMessage({ channelId: dm.id, messageId, body });
+      const admission = runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+        channelId: dm.id,
+        messageId,
+        body,
+      });
       if (!admission.admitted) throw new Error(`admission rejected: ${admission.reason}`);
       await admission.settled;
     },
@@ -851,7 +856,7 @@ describe('Assignment collaboration', () => {
         expect(after).toEqual(before);
         expect(recoveredAgents.started).toHaveLength(0);
         expect(recoveredAgents.inboxTurns).toHaveLength(0);
-        const reviewed = recovered.admitDmMessage({
+        const reviewed = recovered.admitDmMessage(OWNER_HUMAN_CONTEXT, {
           channelId: dmChannelId,
           messageId: 'cancel-review',
           body: 'Review cancelled work',
@@ -959,7 +964,7 @@ describe('Assignment collaboration', () => {
       ).toEqual(before);
       expect(coldAgents.allInboxTurns).toHaveLength(0);
       expect(coldAgents.started).toHaveLength(0);
-      const admission = recovered.admitDmMessage({
+      const admission = recovered.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dmChannelId,
         messageId: 'failed-semantic-review',
         body: 'Review existing facts without new work',
@@ -1043,8 +1048,8 @@ describe('Assignment collaboration', () => {
           .list({ botSlug: 'ada' })
           .items.find((i) => i.id === noticeId),
       ).toMatchObject({ state: 'pending' });
-      const dm = channels.getOrCreateDm('ada', 'Ada')!;
-      const admission = reopenedRuntime.admitDmMessage({
+      const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      const admission = reopenedRuntime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'late-review',
         body: 'Review completion',
@@ -1165,7 +1170,7 @@ describe('Assignment collaboration', () => {
       assignmentConcurrencyLimit: 1,
     });
     try {
-      const admission = reopened.admitDmMessage({
+      const admission = reopened.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dmChannelId,
         messageId: 'human-cold-resume',
         body: 'Resume',
@@ -1278,7 +1283,7 @@ describe('Assignment collaboration', () => {
         const query = createHumanAttentionQuery(
           attachOperationalModule(owner, 'answer-refusal-test'),
         );
-        expect(query.list({ category: 'action' }).items).toContainEqual(
+        expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toContainEqual(
           expect.objectContaining({ sourceEventId: before.openAsk!.sourceEventId }),
         );
         if (uncertain) {
@@ -1500,8 +1505,8 @@ describe('Assignment collaboration', () => {
         displayName: 'Bob',
       });
       const bobGrant = await grants.create('bob', 'test-workspace');
-      const dm = channels.getOrCreateDm('bob', 'Bob')!;
-      const incoming = runtime.admitDmMessage({
+      const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'bob', 'Bob')!;
+      const incoming = runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'human-bob-capacity',
         body: 'Start Bob',
@@ -2122,20 +2127,20 @@ describe('Assignment collaboration', () => {
       rootDir: join(home, 'channels'),
       now: FIXED_NOW,
     });
-    const dmChannelId = channels.getOrCreateDm('ada', 'Ada')!.id;
+    const dmChannelId = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!.id;
     createTestWorkspaceGrants(owner, home);
     try {
       const query = createHumanAttentionQuery(
         attachOperationalModule(owner, 'human-grant-attention-test'),
       );
-      await channels.appendMessage(dmChannelId, {
+      await channels.appendMessage(OWNER_HUMAN_CONTEXT, dmChannelId, {
         id: 'grant-request-1',
         at: FIXED_NOW().toISOString(),
         author: { kind: 'bot', slug: 'ada' },
         body: 'Please give me access to the project.',
         grantRequest: true,
       });
-      expect(query.list({ category: 'action' }).items).toMatchObject([
+      expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toMatchObject([
         {
           kind: 'workspace-grant-request',
           botSlug: 'ada',
@@ -2144,24 +2149,26 @@ describe('Assignment collaboration', () => {
           summary: 'Please give me access to the project.',
         },
       ]);
-      expect(query.list({ category: 'action', botSlug: 'other' }).items).toEqual([]);
-      await channels.appendMessage(dmChannelId, {
+      expect(
+        query.list(OWNER_HUMAN_CONTEXT, { category: 'action', botSlug: 'other' }).items,
+      ).toEqual([]);
+      await channels.appendMessage(OWNER_HUMAN_CONTEXT, dmChannelId, {
         id: 'human-unrelated',
         at: FIXED_NOW().toISOString(),
         author: { kind: 'human' },
         body: 'I will review this.',
         replyTo: 'grant-request-1',
       });
-      expect(query.list({ category: 'action' }).items).toHaveLength(1);
-      await channels.appendMessage(dmChannelId, {
+      expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toHaveLength(1);
+      await channels.appendMessage(OWNER_HUMAN_CONTEXT, dmChannelId, {
         id: 'human-uppercase-unvalidated',
         at: FIXED_NOW().toISOString(),
         author: { kind: 'human' },
         body: 'I AUTHORIZED WORKSPACE “Project”; please continue.',
         replyTo: 'grant-request-1',
       });
-      expect(query.list({ category: 'action' }).items).toHaveLength(1);
-      await channels.appendMessage(dmChannelId, {
+      expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toHaveLength(1);
+      await channels.appendMessage(OWNER_HUMAN_CONTEXT, dmChannelId, {
         id: 'human-approved',
         at: FIXED_NOW().toISOString(),
         author: { kind: 'human' },
@@ -2170,24 +2177,24 @@ describe('Assignment collaboration', () => {
         grantRequestResolution: { requestMessageId: 'grant-request-1', grantId: TEST_GRANT_ID },
       });
       await Promise.resolve();
-      expect(query.list({ category: 'action' }).items).toEqual([]);
+      expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toEqual([]);
 
-      await channels.appendMessage(dmChannelId, {
+      await channels.appendMessage(OWNER_HUMAN_CONTEXT, dmChannelId, {
         id: 'grant-request-legacy',
         at: FIXED_NOW().toISOString(),
         author: { kind: 'bot', slug: 'ada' },
         body: 'Please give me another folder.',
         grantRequest: true,
       });
-      expect(query.list({ category: 'action' }).items).toHaveLength(1);
-      await channels.appendMessage(dmChannelId, {
+      expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toHaveLength(1);
+      await channels.appendMessage(OWNER_HUMAN_CONTEXT, dmChannelId, {
         id: 'human-approved-legacy',
         at: FIXED_NOW().toISOString(),
         author: { kind: 'human' },
         body: '已授权工作区「Project」，请继续处理之前的事项。',
         replyTo: 'grant-request-legacy',
       });
-      expect(query.list({ category: 'action' }).items).toMatchObject([
+      expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toMatchObject([
         { messageId: 'grant-request-legacy' },
       ]);
     } finally {
@@ -2199,7 +2206,7 @@ describe('Assignment collaboration', () => {
     });
     try {
       const query = createHumanAttentionQuery(attachOperationalModule(reopened, 'grant-restart'));
-      expect(query.list({ category: 'action' }).items).toMatchObject([
+      expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toMatchObject([
         { messageId: 'grant-request-legacy' },
       ]);
     } finally {
@@ -2734,7 +2741,7 @@ describe('Assignment collaboration', () => {
           started();
           await held;
         });
-        const active = runtime.admitDmMessage({
+        const active = runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
           channelId: dmChannelId,
           messageId: 'human-2',
           body: 'Review context',
@@ -2803,7 +2810,7 @@ describe('Assignment collaboration', () => {
       const attention = createHumanAttentionQuery(
         attachOperationalModule(owner, 'assignment-human-attention-test'),
       );
-      expect(attention.list({ category: 'action' }).items).toMatchObject([
+      expect(attention.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toMatchObject([
         {
           id: 'assignment:' + sessionId,
           kind: 'assignment-waiting-human',
@@ -2812,11 +2819,13 @@ describe('Assignment collaboration', () => {
           summary: 'Should I choose A or B?',
         },
       ]);
-      expect(attention.list({ category: 'action', botSlug: 'bea' }).items).toEqual([]);
-      expect(attention.list({ category: 'action', channelId: 'dm-ada' }).items).toMatchObject([
-        { assignmentSessionId: sessionId },
-      ]);
-      expect(attention.list({ category: 'info' }).items).toEqual([]);
+      expect(
+        attention.list(OWNER_HUMAN_CONTEXT, { category: 'action', botSlug: 'bea' }).items,
+      ).toEqual([]);
+      expect(
+        attention.list(OWNER_HUMAN_CONTEXT, { category: 'action', channelId: 'dm-ada' }).items,
+      ).toMatchObject([{ assignmentSessionId: sessionId }]);
+      expect(attention.list(OWNER_HUMAN_CONTEXT, { category: 'info' }).items).toEqual([]);
 
       const askId = runtime.getAssignment('ada', sessionId)?.openAsk?.sourceEventId;
       if (askId === undefined) throw new Error('Open ask missing');
@@ -2827,7 +2836,7 @@ describe('Assignment collaboration', () => {
         answerTo: askId,
       });
       await Promise.resolve();
-      expect(attention.list({ category: 'action' }).items).toEqual([]);
+      expect(attention.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toEqual([]);
     } finally {
       await close();
     }
@@ -2847,7 +2856,8 @@ describe('Assignment collaboration', () => {
       const run = agents.started[0]!.run;
       const query = createHumanAttentionQuery(attachOperationalModule(owner, 'escalation-test'));
       await run.report({ state: 'waiting-human', summary: 'Choose route', expectsReply: true });
-      const initialSource = query.list({ category: 'action' }).items[0]?.sourceEventId;
+      const initialSource = query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items[0]
+        ?.sourceEventId;
       await run.report({
         state: 'blocked',
         summary: 'Release blocked; choose route',
@@ -2866,7 +2876,7 @@ describe('Assignment collaboration', () => {
       expect(runtime.getAssignment('ada', sessionId)?.openAsk?.sourceEventId).toBe(blockedSource);
       agents.finish(sessionId);
       await runtime.whenIdle();
-      expect(query.list({ category: 'action' }).items).toMatchObject([
+      expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toMatchObject([
         {
           kind: 'assignment-blocked',
           sourceEventId: blockedSource,
@@ -2893,7 +2903,7 @@ describe('Assignment collaboration', () => {
       ).toBe('followup');
       await Promise.resolve();
       expect(runtime.getAssignment('ada', sessionId)?.openAsk).toBeUndefined();
-      expect(query.list({ category: 'action' }).items).toEqual([]);
+      expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toEqual([]);
       expect(
         sources.list({ botSlug: 'ada' }).items.filter((i) => i.sourceKind === 'assignment-report'),
       ).toEqual(originalReports);
@@ -2923,7 +2933,7 @@ describe('Assignment collaboration', () => {
       const query = createHumanAttentionQuery(
         attachOperationalModule(owner, 'assignment-blocked-human-attention-test'),
       );
-      const first = query.list({ category: 'action' }).items;
+      const first = query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items;
       expect(first).toMatchObject([
         {
           id: 'assignment:' + sessionId,
@@ -2943,7 +2953,7 @@ describe('Assignment collaboration', () => {
       });
       agents.finish(sessionId);
       await runtime.whenIdle();
-      const revised = query.list({ category: 'action' }).items;
+      const revised = query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items;
       expect(revised).toHaveLength(1);
       expect(revised[0]).toMatchObject({
         id: 'assignment:' + sessionId,
@@ -2951,8 +2961,10 @@ describe('Assignment collaboration', () => {
         summary: 'Still blocked; need a grant',
       });
       expect(revised[0]?.sourceEventId).not.toBe(originalSource);
-      expect(query.list({ category: 'info' }).items).toEqual([]);
-      expect(query.list({ category: 'action', botSlug: 'bea' }).items).toEqual([]);
+      expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'info' }).items).toEqual([]);
+      expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'action', botSlug: 'bea' }).items).toEqual(
+        [],
+      );
 
       const answerTo = revised[0]?.sourceEventId;
       if (answerTo === undefined) throw new Error('Open blocker missing source');
@@ -2963,10 +2975,10 @@ describe('Assignment collaboration', () => {
         answerTo,
       });
       await Promise.resolve();
-      expect(query.list({ category: 'action' }).items).toEqual([]);
+      expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toEqual([]);
       agents.finish(sessionId);
       await runtime.whenIdle();
-      expect(query.list({ category: 'action' }).items).toMatchObject([
+      expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toMatchObject([
         {
           id: 'assignment:' + sessionId,
           kind: 'assignment-blocked',
@@ -2983,7 +2995,7 @@ describe('Assignment collaboration', () => {
       agents.finish(sessionId);
       await runtime.whenIdle();
       await Promise.resolve();
-      expect(query.list({ category: 'action' }).items).toEqual([]);
+      expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toEqual([]);
     } finally {
       await close();
       owner.close();
@@ -2997,7 +3009,7 @@ describe('Assignment collaboration', () => {
         attachOperationalModule(reopened, 'assignment-blocked-restart-test'),
       );
       await Promise.resolve();
-      expect(query.list({ category: 'action' }).items).toEqual([]);
+      expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toEqual([]);
     } finally {
       reopened.close();
     }
@@ -3179,7 +3191,7 @@ describe('Assignment collaboration', () => {
         ).toEqual(after);
         expect(secondAgents.inboxTurns).toHaveLength(0);
         expect(secondAgents.started).toHaveLength(0);
-        const admission = recovered.admitDmMessage({
+        const admission = recovered.admitDmMessage(OWNER_HUMAN_CONTEXT, {
           channelId: dmChannelId,
           messageId: 'explicit-replacement',
           body: 'Start replacement work',
@@ -3245,7 +3257,7 @@ describe('Assignment collaboration', () => {
     expect(resumed.getAssignment('ada', created.assignment.sessionId)?.continuityKey).toBe(
       'restart-direction',
     );
-    const admission = resumed.admitDmMessage({
+    const admission = resumed.admitDmMessage(OWNER_HUMAN_CONTEXT, {
       channelId: dmChannelId,
       messageId: 'human-after-restart',
       body: '新事项',
@@ -3422,7 +3434,7 @@ describe('Assignment collaboration', () => {
       const port = attachOperationalModule(owner, 'human-report-decision-test');
       const query = createHumanAttentionQuery(port);
       const decisions = createHumanAttentionDecisions(port, FIXED_NOW);
-      const first = query.list({ category: 'info' }).items;
+      const first = query.list(OWNER_HUMAN_CONTEXT, { category: 'info' }).items;
       expect(first).toMatchObject([
         {
           kind: 'assignment-report',
@@ -3433,9 +3445,9 @@ describe('Assignment collaboration', () => {
       ]);
       const firstReportId = first[0]?.sourceEventId;
       if (firstReportId === undefined) throw new Error('report source missing');
-      expect(decisions.ignoreAssignmentReport(firstReportId)).toBe(true);
-      expect(decisions.ignoreAssignmentReport(firstReportId)).toBe(true);
-      expect(query.list({ category: 'info' }).items).toEqual([]);
+      expect(decisions.ignoreAssignmentReport(OWNER_HUMAN_CONTEXT, firstReportId)).toBe(true);
+      expect(decisions.ignoreAssignmentReport(OWNER_HUMAN_CONTEXT, firstReportId)).toBe(true);
+      expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'info' }).items).toEqual([]);
 
       const reused = agents.access!.create({
         title: 'Assignment',
@@ -3447,7 +3459,7 @@ describe('Assignment collaboration', () => {
       await agents.started.at(-1)!.run.report({ state: 'completed', summary: 'New result' });
       agents.finish(sessionId);
       await runtime.whenIdle();
-      const next = query.list({ category: 'info' }).items;
+      const next = query.list(OWNER_HUMAN_CONTEXT, { category: 'info' }).items;
       expect(next).toMatchObject([
         {
           kind: 'assignment-report',
@@ -3457,8 +3469,10 @@ describe('Assignment collaboration', () => {
       ]);
       nextReportId = next[0]?.sourceEventId ?? '';
       expect(nextReportId).not.toBe(firstReportId);
-      expect(decisions.ignoreAssignmentReport(firstReportId)).toBe(false);
-      expect(query.list({ category: 'info', channelId: 'dm-ada' }).items).toEqual([]);
+      expect(decisions.ignoreAssignmentReport(OWNER_HUMAN_CONTEXT, firstReportId)).toBe(false);
+      expect(
+        query.list(OWNER_HUMAN_CONTEXT, { category: 'info', channelId: 'dm-ada' }).items,
+      ).toEqual([]);
     } finally {
       await close();
       owner.close();
@@ -3471,7 +3485,9 @@ describe('Assignment collaboration', () => {
       const query = createHumanAttentionQuery(
         attachOperationalModule(reopened, 'human-report-restart'),
       );
-      expect(query.list({ category: 'info' }).items[0]?.sourceEventId).toBe(nextReportId);
+      expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'info' }).items[0]?.sourceEventId).toBe(
+        nextReportId,
+      );
     } finally {
       reopened.close();
     }
@@ -3547,8 +3563,8 @@ describe('Assignment collaboration', () => {
       expect(
         attention.list({ botSlug: 'ada' }).items.find((item) => item.id === repairSourceId),
       ).toEqual(repairSource);
-      const admission = reopenedRuntime.admitDmMessage({
-        channelId: reopenedChannels.getOrCreateDm('ada', 'Ada')!.id,
+      const admission = reopenedRuntime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+        channelId: reopenedChannels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!.id,
         messageId: 'human-after-restart',
         body: 'Read the new information',
       });

@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { expect, it } from 'vitest';
 import { createCore } from '../src/plugin.js';
 import { createTempRoot, FIXED_NOW } from './helpers.js';
@@ -148,9 +149,13 @@ it('plays newly committed shared Group replies only while the Human enables Grou
       rootRole: 'orchestrator',
       at: FIXED_NOW().toISOString(),
     });
-    const group = core.channels.createGroup({ name: 'Design room', members: ['ada'] });
+    const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Design room',
+      members: ['ada'],
+    });
     const commit = (id: string) =>
       core.channels.appendMessage(
+        OWNER_HUMAN_CONTEXT,
         group.id,
         {
           id,
@@ -226,8 +231,8 @@ it('observes only the selected Bot in a Group without the Human while preserving
         at: FIXED_NOW().toISOString(),
       });
     }
-    const own = core.channels.getOrCreateDm('ada', 'Ada')!;
-    const group = core.channels.createGroup({
+    const own = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+    const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
       name: 'Bot workroom',
       members: ['ada', 'grace'],
       ownerBotSlug: 'ada',
@@ -241,11 +246,12 @@ it('observes only the selected Bot in a Group without the Human while preserving
     );
     const commit = (channelId: string, id: string, slug = 'ada') =>
       core.channels.appendMessage(
+        OWNER_HUMAN_CONTEXT,
         channelId,
         { id, at: FIXED_NOW().toISOString(), author: { kind: 'bot', slug }, body: id },
         { sessionId: slug },
       );
-    expect(core.channels.readHumanTimeline(group.id)).toBeUndefined();
+    expect(core.channels.readHumanTimeline(OWNER_HUMAN_CONTEXT, group.id)).toBeUndefined();
     await companion.start();
     companion.select('ada');
     companion.configure({ group: true });
@@ -275,10 +281,10 @@ it('observes only the selected Bot in a Group without the Human while preserving
       'Selected Bot summary',
       'next-owned-sentinel',
     ]);
-    expect(core.channels.readHumanTimeline(group.id)).toBeUndefined();
-    expect(core.channels.listHumanMembers(group.id)).toEqual([]);
+    expect(core.channels.readHumanTimeline(OWNER_HUMAN_CONTEXT, group.id)).toBeUndefined();
+    expect(core.channels.listHumanMembers(OWNER_HUMAN_CONTEXT, group.id)).toEqual([]);
     expect(core.channels.get(group.id)?.members).toEqual(['ada', 'grace']);
-    expect(core.channels.readPosition(own.id)).toBeUndefined();
+    expect(core.channels.readPosition(OWNER_HUMAN_CONTEXT, own.id)).toBeUndefined();
   } finally {
     companion.dispose();
     core.companions.close();
@@ -379,7 +385,7 @@ it('keeps Bot-to-Bot DM outside shared scope and uses its canonical author and b
       ['grace', 'Grace'],
     ] as const) {
       core.registry.create({ slug, displayName });
-      core.channels.getOrCreateDm(slug, displayName);
+      core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, slug, displayName);
       core.ownership.claim({
         sessionId: slug,
         botSlug: slug,
@@ -387,10 +393,16 @@ it('keeps Bot-to-Bot DM outside shared scope and uses its canonical author and b
         at: FIXED_NOW().toISOString(),
       });
     }
-    const own = core.channels.getOrCreateDm('ada', 'Ada')!;
-    const bots = core.channels.getOrCreateBotDm('ada', 'grace', 'Ada and Grace')!;
+    const own = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+    const bots = core.channels.getOrCreateBotDm(
+      OWNER_HUMAN_CONTEXT,
+      'ada',
+      'grace',
+      'Ada and Grace',
+    )!;
     const commit = (channelId: string, id: string, slug = 'ada') =>
       core.channels.appendMessage(
+        OWNER_HUMAN_CONTEXT,
         channelId,
         {
           id,
@@ -452,8 +464,8 @@ it('keeps Bot-to-Bot DM outside shared scope and uses its canonical author and b
     await commit(own.id, 'future-own');
     await receive();
     expect(companion.getSnapshot().cards.map((card) => card.messageId)).toEqual(['future-own']);
-    expect(core.channels.listHumanMembers(bots.id)).toEqual([]);
-    expect(core.channels.readPosition(own.id)).toBeUndefined();
+    expect(core.channels.listHumanMembers(OWNER_HUMAN_CONTEXT, bots.id)).toEqual([]);
+    expect(core.channels.readPosition(OWNER_HUMAN_CONTEXT, own.id)).toBeUndefined();
   } finally {
     companion.dispose();
     core.companions.close();

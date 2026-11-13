@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
@@ -76,8 +77,11 @@ describe('local Human Group receipts', () => {
     const core = createCore({ dshHome: home });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
-      const first = await core.channels.appendMessage(group.id, {
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      });
+      const first = await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'bot-first',
         at: '2026-09-27T00:00:00.000Z',
         author: { kind: 'bot', slug: 'ada' },
@@ -90,14 +94,14 @@ describe('local Human Group receipts', () => {
       expect(core.channels.queryMessages(group.id).messages[0]?.humanReceipts).toEqual(
         first?.humanReceipts,
       );
-      await core.channels.appendMessage(group.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'human-reply',
         at: '2026-09-27T00:01:00.000Z',
         author: { kind: 'human' },
         body: 'I will',
       });
       expect(core.channels.message(group.id, 'human-reply')?.humanReceipts).toBeUndefined();
-      await core.channels.markRead(group.id, 'human-reply');
+      await core.channels.markRead(OWNER_HUMAN_CONTEXT, group.id, 'human-reply');
       expect(core.channels.message(group.id, 'bot-first')?.humanReceipts).toEqual([
         { humanId: 'local-human', displayName: 'Human', state: 'read' },
       ]);

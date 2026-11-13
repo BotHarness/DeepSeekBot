@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createTestRosterStore } from './roster-fixture.js';
 import { createTestRegistry } from './registry-fixture.js';
 import { join } from 'node:path';
@@ -25,8 +26,8 @@ function setup() {
   const registry = createTestRegistry({ rootDir: join(root, 'bots') });
   registry.create({ slug: 'ada', displayName: 'Ada', model: 'configured-but-never-called' });
   const channels = createChannelStore({ rootDir: join(root, 'channels') });
-  const dm = channels.getOrCreateDm('ada', 'Ada')!;
-  const methods = createBridgeMethods({
+  const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
     registry,
     channels,
     ownership,
@@ -508,7 +509,7 @@ describe('observed model usage through the Profile query', () => {
 
   it('rejects a non-DM channel rather than exposing other usage', async () => {
     const { methods, channels } = setup();
-    const group = channels.createGroup({ name: 'Group', members: [] });
+    const group = channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Group', members: [] });
     expect((await methods.profileActivity({ channelId: group.id })).ok).toBe(false);
   });
 });

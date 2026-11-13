@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 import {
   MAX_PART_FILE_BYTES,
@@ -114,7 +115,7 @@ describe('Custom Part files', () => {
 describe('Part Library sharing through the public Host bridge', () => {
   it('exports single parts and the library, and imports them back merged by content', async () => {
     await withCore((core) => {
-      const bridge = createBridgeMethods({ ...core });
+      const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
       const added = bridge.partLibraryAdd({ part: crown, name: 'Crown' });
       if (!added.ok) throw new Error('add failed');
       const single = bridge.partLibraryExport({ id: added.value.entry.id });
@@ -147,7 +148,7 @@ describe('Part Library sharing through the public Host bridge', () => {
 
   it('carries worn parts through Bot export and import into the importer’s library', async () => {
     await withCore(async (core) => {
-      const bridge = createBridgeMethods({ ...core });
+      const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
       expect(core.registry.create({ slug: 'ada', displayName: 'Ada', workspaces: [] }).ok).toBe(
         true,
       );

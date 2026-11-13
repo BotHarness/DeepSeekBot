@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it, vi } from 'vitest';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import { createCore } from '../src/plugin.js';
@@ -69,9 +70,9 @@ async function fixture(options: { nativeRefusal?: Error; nativeGate?: Promise<vo
   });
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
   createTestWorkspaceGrants(core.operationalDatabase, home);
-  const dm = core.channels.getOrCreateDm('ada', 'Ada');
+  const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
   if (dm === undefined) throw new Error('Missing DM');
-  const admission = core.runtime.admitDmMessage({
+  const admission = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
     channelId: dm.id,
     messageId: 'human-start',
     body: 'Start',
@@ -272,7 +273,7 @@ describe('Orchestrator Assignment Directory query', () => {
       ]);
       await f.settle(delta);
       await f.access.archive!(delta);
-      const methods = createBridgeMethods({ ...f.core });
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core });
       expect(methods.assignments({ slug: 'ada', query: 'startup' })).toEqual({
         ok: true,
         value: { assignments: [] },
@@ -334,7 +335,7 @@ describe('Human Assignment archive from the Sessions view', () => {
   it('lists archive and report state, then archives and restores through the bridge', async () => {
     const f = await fixture();
     try {
-      const methods = createBridgeMethods({ ...f.core });
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core });
       const id = f.create('Ship the release notes');
       const run = f.live.runs.find((item) => item.sessionId === id)!;
       await run.report({ state: 'waiting-human', summary: 'Which version?' });

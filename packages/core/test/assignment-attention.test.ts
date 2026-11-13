@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it, vi } from 'vitest';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { createCore } from '../src/plugin.js';
@@ -61,12 +62,12 @@ async function fixture(home = createTempRoot('botharness-assignment-attention-')
   if (core.registry.get('ada') === undefined)
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
   createTestWorkspaceGrants(core.operationalDatabase, home);
-  const dm = core.channels.getOrCreateDm('ada', 'Ada');
+  const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
   if (dm === undefined) throw new Error('Missing DM');
   const channelId = dm.id;
-  const methods = createBridgeMethods({ ...core });
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
   async function start(state: 'waiting-human' | 'blocked' | 'completed', expectsReply = true) {
-    const admission = core.runtime.admitDmMessage({
+    const admission = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
       channelId,
       messageId: 'human-' + crypto.randomUUID(),
       body: 'Start',
@@ -125,7 +126,7 @@ describe('shared Assignment Human attention', () => {
         },
       });
       const item = f.core.humanAttention
-        .list({ category: 'action' })
+        .list(OWNER_HUMAN_CONTEXT, { category: 'action' })
         .items.find((item) => item.assignmentSessionId === waiting.run.sessionId);
       if (item?.sourceEventId === undefined) throw new Error('Missing waiting action');
       expect(
@@ -200,10 +201,12 @@ describe('shared Assignment Human attention', () => {
         if (phase === 'sync') expect(relay).toThrow('sync Inbox unavailable');
         else relay();
         await f.core.runtime.whenIdle();
-        expect(f.core.humanAttention.list({ category: 'action' }).items).toContainEqual(
-          expect.objectContaining({ sourceEventId: ask.sourceEventId }),
-        );
-        expect(f.core.humanAttention.list({ category: 'handled' }).items).toEqual([]);
+        expect(
+          f.core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items,
+        ).toContainEqual(expect.objectContaining({ sourceEventId: ask.sourceEventId }));
+        expect(
+          f.core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'handled' }).items,
+        ).toEqual([]);
         expect(
           await f.methods.humanAssignmentContext({
             slug: 'ada',
@@ -227,8 +230,12 @@ describe('shared Assignment Human attention', () => {
           answerTo: ask.sourceEventId,
         });
         await Promise.resolve();
-        expect(f.core.humanAttention.list({ category: 'action' }).items).toEqual([]);
-        expect(f.core.humanAttention.list({ category: 'handled' }).items).toHaveLength(1);
+        expect(
+          f.core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items,
+        ).toEqual([]);
+        expect(
+          f.core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'handled' }).items,
+        ).toHaveLength(1);
         expect(
           await f.methods.channelSend({ ...reply, messageId: 'human-' + crypto.randomUUID() }),
         ).toMatchObject({ ok: false });
@@ -257,10 +264,10 @@ describe('shared Assignment Human attention', () => {
         attention: { approvalCount: 0, waitingHumanCount: 1 },
       });
       const item = after.core.humanAttention
-        .list({ category: 'action' })
+        .list(OWNER_HUMAN_CONTEXT, { category: 'action' })
         .items.find((item) => item.assignmentSessionId === waiting.run.sessionId);
       if (item === undefined) throw new Error('Missing durable action');
-      expect(after.core.humanAttentionDecisions.dismiss(item)).toBe(true);
+      expect(after.core.humanAttentionDecisions.dismiss(OWNER_HUMAN_CONTEXT, item)).toBe(true);
       expect(after.core.states.snapshot('ada').attention).toBeUndefined();
       const blocked = await after.start('blocked', false);
       expect(after.core.states.snapshot('ada').attention).toBeUndefined();
@@ -289,7 +296,7 @@ describe('shared informational Assignment attention', () => {
         state: 'thinking',
         attention: { approvalCount: 0, informationalCount: 1 },
       });
-      expect(f.core.humanAttention.actionSummary().count).toBe(0);
+      expect(f.core.humanAttention.actionSummary(OWNER_HUMAN_CONTEXT).count).toBe(0);
       const revision = f.core.states.version();
       attachOperationalModule(f.core.operationalDatabase, 'information-test').transaction(
         () => undefined,
@@ -305,7 +312,7 @@ describe('shared informational Assignment attention', () => {
         waitingHumanCount: 1,
       });
       const item = f.core.humanAttention
-        .list({ category: 'info' })
+        .list(OWNER_HUMAN_CONTEXT, { category: 'info' })
         .items.find((item) => item.assignmentSessionId === completed.run.sessionId)!;
       const events: unknown[] = [];
       const stop = f.core.states.onActivity((event) => events.push(event));
@@ -326,7 +333,7 @@ describe('shared informational Assignment attention', () => {
       f.core.states.snapshot('ada');
       expect(events).toHaveLength(1);
       const remaining = f.core.humanAttention
-        .list({ category: 'info' })
+        .list(OWNER_HUMAN_CONTEXT, { category: 'info' })
         .items.find((item) => item.assignmentSessionId === second.run.sessionId)!;
       expect(
         f.methods.humanAttentionDismiss({ itemId: remaining.id, sourceKey: 'stale' }),
@@ -369,7 +376,7 @@ describe('shared informational Assignment attention', () => {
       expect(f.core.states.snapshot('ada').attention).toBeUndefined();
       expect(
         f.core.humanAttention
-          .list({ category: 'info' })
+          .list(OWNER_HUMAN_CONTEXT, { category: 'info' })
           .items.some((item) => item.assignmentSessionId === completed.run.sessionId),
       ).toBe(true);
       f.live.finish(completed.run.sessionId);
@@ -383,7 +390,8 @@ describe('shared informational Assignment attention', () => {
     before.live.finish(first.run.sessionId);
     await before.core.runtime.whenIdle();
     before.reopenReportDelivery();
-    const info = before.core.humanAttention.list({ category: 'info' }).items[0]!;
+    const info = before.core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'info' })
+      .items[0]!;
     await before.close();
     const after = await fixture(before.home);
     try {
