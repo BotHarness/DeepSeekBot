@@ -84,6 +84,9 @@ export function parseVerifyArgs(argv) {
       case '--build':
         options.build = true;
         break;
+      case '--genui-preview-browser':
+        options.genuiPreviewBrowser = value();
+        break;
       case '--bot-mode':
         options.botMode = true;
         break;
@@ -233,6 +236,8 @@ async function launch(options, paths) {
   const args = ['scripts/dev-instance.mjs', '--home', paths.home, '--port', String(port), '--json'];
   if (options.build) args.push('--build');
   if (options.dshVersion) args.push('--dsh-version', options.dshVersion);
+  if (options.genuiPreviewBrowser)
+    args.push('--genui-preview-browser', options.genuiPreviewBrowser);
   const result = spawnSync(process.execPath, args, {
     cwd: repoRoot,
     encoding: 'utf8',

@@ -1,5 +1,6 @@
 import { acquireHome, verifyStartedHost } from './dev-instance-lifecycle.mjs';
 import { developmentProfileManifest } from './dev-profile.mjs';
+import { genuiPreviewPatch } from './dev-genui-preview.mjs';
 import {
   packagedProfileManifest,
   packagedWorkspaceSettings,
@@ -27,7 +28,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
-import { basename, dirname, join, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
@@ -110,6 +111,7 @@ export function parseArgs(argv) {
         '--worktree',
         '--trusted-host',
         '--product-artifacts',
+        '--genui-preview-browser',
       ].includes(flag) &&
       (typeof next !== 'string' || next.trim() === '' || next.startsWith('--'))
     )
@@ -138,6 +140,12 @@ export function parseArgs(argv) {
         break;
       case '--build':
         options.build = true;
+        break;
+      case '--genui-preview-browser':
+        if (!isAbsolute(next))
+          throw new Error('--genui-preview-browser needs an absolute executable');
+        options.genuiPreviewBrowser = next;
+        index += 1;
         break;
       case '--trusted-host':
         if (!next) throw new Error('--trusted-host needs a host or host:port authority');
@@ -182,6 +190,7 @@ export function profileDirectory(options) {
     join(profileDir, 'package.json'),
     join(profileDir, 'pnpm-workspace.yaml'),
     join(profileDir, 'botharness-ax-model.patch.yml'),
+    join(profileDir, 'botharness-genui-preview.patch.yml'),
   ]) {
     try {
       if (lstatSync(path).isSymbolicLink())
@@ -272,6 +281,7 @@ async function launch(options) {
       '--profile',
       options.profile,
       ...(options.modelPatch ? ['--patch', options.modelPatch] : []),
+      ...(options.genuiPreviewPatch ? ['--patch', options.genuiPreviewPatch] : []),
       '--port',
       String(options.port),
       ...options.trustedHosts.flatMap((host) => ['--trusted-host', host]),
@@ -394,6 +404,22 @@ async function main() {
       }
     }
     const profileDir = await ensureProfile(options);
+    if (options.genuiPreviewBrowser) {
+      const runtime = options.runtime ?? options.worktree;
+      const [command, cli] = dshCommand(runtime);
+      const dump = await options.lease.run(
+        command,
+        [cli, '--profile', options.profile, '--dump-config'],
+        { env: { ...process.env, DSH_HOME: options.home }, cwd: runtime },
+      );
+      profileDirectory(options);
+      options.genuiPreviewPatch = join(profileDir, 'botharness-genui-preview.patch.yml');
+      writeFileSync(
+        options.genuiPreviewPatch,
+        genuiPreviewPatch(dump, options.genuiPreviewBrowser),
+        { mode: 0o600 },
+      );
+    }
     if (options.axModel) {
       const runtime = options.runtime ?? options.worktree;
       await assertInstalledGoModel(runtime, options.axModel.model);
@@ -432,6 +458,9 @@ async function main() {
       log: logPath,
       home: options.home,
       worktree: options.worktree,
+      genuiPreview: options.genuiPreviewBrowser
+        ? { selection: 'explicit', browserPath: options.genuiPreviewBrowser }
+        : { selection: 'system' },
       secret:
         options.axModel?.source ??
         secret?.source ??

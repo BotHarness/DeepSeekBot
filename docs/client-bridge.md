@@ -104,6 +104,14 @@ core 把 PersonaBot 的读模型显式定义为一组 RPC 方法；浏览器只�
 
 ## 6. 客户端包与 bundle 约束
 
+GenUI 独立预览使用 Host 的系统浏览器，与 Web 驱动的 Puppeteer 浏览器分开。
+core Plugin 的可选 `genuiPreviewBrowserPath` 可指定绝对可执行文件；空值保留系统发现，
+显式无效路径直接拒绝，不回退。隔离开发启动器的 `--genui-preview-browser` 参数通过
+本次 Profile 的 Patch 传入同一配置，不改系统 PATH。启动失败的有界脱敏 Browser
+诊断进入已有 `genui-preview` 开发者日志。verify 工作流的可选
+`genui_browser_diagnostic` 输入仅用于同 runner 双浏览器对照，两臂均需通过原预算；
+普通 PR 不增加第二臂。该诊断能力不代表已修复 #4030 的原始启动原因。
+
 - **独立包** `@botharness/ui`（DSH 默认是「同一包两半侧」，本仓库按 ADR-0023 显式偏离）：package.json 声明 `dsh.client = { platform: 'web', inject: [] }` 与 `exports['./client']`，并作为独立 Loader entry 挂载。
 - **产物格式**：lazy-CJS closure factory，入口 `lib/client.js`，自注册 `window.__ModuleLoader__.load({ id: '@botharness/ui', factory: (require) => { … } })`，带 sourcemap。
 - **外置基线**：只外置 shell 注入的模块表（`react`、`react/jsx-runtime`、`react-dom`、`react-dom/client`、`@deepseek-ai/cordis`、`@deepseek-ai/dsh-client-store`、`@deepseek-ai/dsh-client-ui-slots`、`@deepseek-ai/dsh-client-ui-primitives`、`@deepseek-ai/dsh-client-ui-dockkit`），以及在 `dsh.client.external` 中声明的 `@deepseek-ai/dsh-api-gateway/client`（官方流辅助类，ADR-0181）；其余依赖（含 blobatar）全部内联。

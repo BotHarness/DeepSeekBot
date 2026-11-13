@@ -5,6 +5,24 @@ description: Use when developing, running, or debugging BotHarness against a loc
 
 # DSH development & debugging
 
+### GenUI preview browser startup diagnostics (#4030)
+
+A passing plain timeline opens the Puppeteer driver, not the Host's separate GenUI
+preview browser. Record both executable versions and the runner image before
+comparing them. The preview uses system discovery by default; the core Plugin's
+`genuiPreviewBrowserPath` selects an absolute executable through the same Browser
+runtime and refuses an invalid explicit path. `dev-instance.mjs` and `verify-app.mjs`
+accept `--genui-preview-browser <absolute-executable>` and apply a Patch only to that
+isolated launch. They do not change system PATH or another Profile.
+
+`genui-preview-browser-startup-timeout` means no DevTools endpoint appeared within
+the existing eight-second startup deadline, before CDP connection or document
+rendering. Inspect the retained bounded/redacted preview owner log; do not infer a
+rich-document rendering regression from an empty rich sample set. The verify
+workflow's `genui_browser_diagnostic` dispatch input runs system and controlled
+browser journeys sequentially on the same runner; both outcomes remain required.
+No budget increase, product retry or incident-root-cause fix is implied.
+
 ### DSH 0.2.2-rc.1 qualification
 
 Use [the recurring RC workflow](../../../docs/agents/dsh-upgrade.md) and

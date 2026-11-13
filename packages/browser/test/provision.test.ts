@@ -19,12 +19,25 @@ import {
   parseLddMissing,
   spawnFailure,
   startupTimeoutFailure,
+  redactBrowserStartupText,
   toBrowserErrorBody,
   LINUX_CHROME_LIB_REQUIREMENTS,
   CHROME_LIB_PACKAGES,
   PROVISION_MIN_FREE_BYTES,
   BrowserProvisionError,
 } from '../src/runtime/provision.js';
+
+it('bounds startup stderr and redacts URLs, credentials and terminal control characters', () => {
+  const detail = redactBrowserStartupText(
+    'old'.repeat(3000) +
+      '\n' +
+      '\u001b[31mFailure\u001b[0m token=short-secret Authorization: Bearer abcdefghijkl\n' +
+      'https://private.example/?token=secret sk-privatekey1234567890123456\n',
+  );
+  expect(detail.length).toBeLessThanOrEqual(2048);
+  expect(detail).toContain('Failure');
+  expect(detail).not.toMatch(/short-secret|abcdefghijkl|private\.example|privatekey|\u001b/u);
+});
 
 const FULL_LDCONFIG = [...LINUX_CHROME_LIB_REQUIREMENTS]
   .map((entry) => `\t${entry.soname} (libc6,x86-64) => /lib/x86_64-linux-gnu/${entry.soname}`)

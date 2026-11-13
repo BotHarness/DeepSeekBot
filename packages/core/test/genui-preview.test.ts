@@ -12,6 +12,7 @@ vi.mock('../src/runtime/genui-runtime-source.js', () => ({
 const runtime = vi.hoisted(() => ({
   binary: '/synthetic/chrome' as string | undefined,
   directory: '',
+  browserPath: '',
   ensure: vi.fn<() => Promise<void>>(),
   stop: vi.fn<() => Promise<void>>(),
   send: vi.fn(),
@@ -34,11 +35,15 @@ vi.mock('../../browser/src/runtime/browser.js', () => ({
   connectCdp: async () => ({ send: runtime.send }),
   createBotBrowserRuntime: (options: {
     userDataDir: string;
+    browserPath: string;
+    onEvent?: (detail: string) => void;
     connect: (endpoint: string) => Promise<unknown>;
   }) => {
     runtime.directory = options.userDataDir;
+    runtime.browserPath = options.browserPath;
     return {
       ensure: async () => {
+        options.onEvent?.('launch /private/browser mode=headless');
         await runtime.ensure();
         await options.connect('ws://synthetic');
       },
@@ -79,6 +84,20 @@ beforeEach(async () => {
 afterEach(() => vi.clearAllMocks());
 
 describe('isolated GenUI preview lifecycle', () => {
+  it('uses an explicitly configured executable in the same Browser runtime', async () => {
+    await previewGenuiDocument(syntheticGenuiDocument, { browserPath: process.execPath });
+    expect(runtime.browserPath).toBe(process.execPath);
+  });
+
+  it.each(['relative/chrome', '/missing-preview-browser', import.meta.dirname])(
+    'refuses invalid explicit executable %s without system fallback',
+    async (browserPath) => {
+      await expect(
+        previewGenuiDocument(syntheticGenuiDocument, { browserPath }),
+      ).rejects.toMatchObject({ code: 'genui-preview-browser-invalid-path' });
+      expect(runtime.ensure).not.toHaveBeenCalled();
+    },
+  );
   it('refuses missing or changed runtime assets before starting a browser and releases the owner', async () => {
     packagedRuntime.load.mockRejectedValueOnce(new Error('Missing asset'));
     await expect(previewGenuiDocument(syntheticGenuiDocument)).rejects.toMatchObject({
