@@ -84,6 +84,7 @@ describe('captured remote creation owner', () => {
     const open = vi.fn();
     const owner = remoteCreationOwner({
       hostId: remote.id,
+      key: () => 'operation-1',
       client: { call, refresh },
       current: () => true,
       open,
@@ -94,6 +95,7 @@ describe('captured remote creation owner', () => {
     expect(call).toHaveBeenCalledExactlyOnceWith('channelCreate', {
       name: 'Remote only',
       members: [],
+      operationKey: 'operation-1',
     });
     expect(open).toHaveBeenCalledExactlyOnceWith({
       hostId: remote.id,
@@ -111,6 +113,7 @@ describe('captured remote creation owner', () => {
       .mockResolvedValue({ channel: { id: 'same-id', type: 'group', name: 'Remote only' } });
     const owner = remoteCreationOwner({
       hostId: remote.id,
+      key: () => 'operation-1',
       client: {
         call,
         refresh: async () => {
@@ -133,13 +136,17 @@ describe('captured remote creation owner', () => {
     const open = vi.fn();
     const owner = remoteCreationOwner({
       hostId: remote.id,
+      key: () => 'operation-1',
       client: { call, refresh: async () => {} },
       current: () => true,
       open,
     });
     await owner.bot({ displayName: 'Remote bot', persona: '', roles: [] }, 'same-section');
     expect(call.mock.calls).toEqual([
-      ['create', { displayName: 'Remote bot', persona: '', roles: [] }],
+      [
+        'create',
+        { displayName: 'Remote bot', persona: '', roles: [], operationKey: 'operation-1' },
+      ],
       ['channelDm', { slug: 'equal-bot', displayName: 'Remote bot' }],
       ['channelAssign', { channelId: 'same-id', sectionId: 'same-section', index: undefined }],
     ]);
@@ -156,6 +163,7 @@ describe('captured remote creation owner', () => {
     const refresh = vi.fn(async () => {});
     const owner = remoteCreationOwner({
       hostId: remote.id,
+      key: () => 'operation-1',
       client: { call, refresh },
       current: () => true,
       open,
@@ -170,6 +178,9 @@ describe('captured remote creation owner', () => {
     const call = vi
       .fn<HostClient['call']>()
       .mockResolvedValueOnce({
+        source: { kind: 'git', gitUrl: 'git@github.com:a/b.git', commit: 'a'.repeat(40) },
+      })
+      .mockResolvedValueOnce({
         bot: { slug: 'imported', displayName: 'Imported' },
         httpsFallback: {
           from: 'git@github.com:a/b.git',
@@ -181,6 +192,7 @@ describe('captured remote creation owner', () => {
     const open = vi.fn();
     const owner = remoteCreationOwner({
       hostId: remote.id,
+      key: () => 'operation-1',
       client: { call, refresh: async () => {} },
       current: () => true,
       open,
@@ -191,14 +203,18 @@ describe('captured remote creation owner', () => {
       roles: [],
     });
     expect(open).not.toHaveBeenCalled();
-    expect(call).toHaveBeenCalledOnce();
+    expect(call).toHaveBeenCalledTimes(2);
     await owner.openBot(created);
     expect(open).toHaveBeenCalledExactlyOnceWith({
       hostId: remote.id,
       title: 'Imported',
       botSlug: 'imported',
     });
-    expect(call.mock.calls.map(([method]) => method)).toEqual(['createFromGit', 'channelDm']);
+    expect(call.mock.calls.map(([method]) => method)).toEqual([
+      'botImportPreview',
+      'createFromGit',
+      'channelDm',
+    ]);
   });
 
   it('retries post-create synchronization without creating a second Channel', async () => {
@@ -213,6 +229,7 @@ describe('captured remote creation owner', () => {
     const committed = vi.fn();
     const owner = remoteCreationOwner({
       hostId: remote.id,
+      key: () => 'operation-1',
       client: { call, refresh },
       current: () => true,
       open,
@@ -238,6 +255,7 @@ describe('captured remote creation owner', () => {
       .mockResolvedValueOnce({});
     const owner = remoteCreationOwner({
       hostId: remote.id,
+      key: () => 'operation-1',
       client: { call, refresh: async () => {} },
       current: () => true,
       open: vi.fn(),

@@ -20,6 +20,8 @@ export function personaBotCreateError(
 ): string {
   if (error instanceof BridgeCallError) {
     switch (error.code) {
+      case 'connection-host-changed':
+        return t('environment.create.changed');
       case 'duplicate':
         return t('bot.create.error.identity');
       case 'invalid-input':
@@ -127,6 +129,7 @@ export function CreatePersonaBotModal({
   targetUnavailable = false,
   remote = false,
   committed = false,
+  submitted = false,
 }: {
   actions: BridgeActions;
   source?: 'empty' | 'git';
@@ -139,6 +142,7 @@ export function CreatePersonaBotModal({
   targetUnavailable?: boolean;
   remote?: boolean;
   committed?: boolean;
+  submitted?: boolean;
 }): ReactElement {
   const personaPresetId = useId();
   const [displayName, setDisplayName] = useState('');
@@ -157,7 +161,7 @@ export function CreatePersonaBotModal({
   const [creating, setCreating] = useState(false);
   const [cause, setCause] = useState<unknown | undefined>(undefined);
   const [fallback, setFallback] = useState<CreatedBot | undefined>(undefined);
-  const fieldsLocked = creating || committed;
+  const fieldsLocked = creating || committed || submitted;
   const chosenLocation = memoryLocation.trim();
   const locationInvalid = chosenLocation.length > 0 && !isAbsoluteHostPath(chosenLocation);
   const invalid =
@@ -279,18 +283,27 @@ export function CreatePersonaBotModal({
       submitLabel={
         committed
           ? t(creating ? 'environment.create.finishing' : 'environment.create.finish')
-          : creating
-            ? t(source === 'git' ? 'bot.create.importing' : 'bot.create.creating')
-            : t('common.create')
+          : submitted
+            ? t(creating ? 'environment.create.confirming' : 'environment.create.retry')
+            : creating
+              ? t(source === 'git' ? 'bot.create.importing' : 'bot.create.creating')
+              : t('common.create')
       }
       submitDisabled={invalid}
       busy={creating}
       error={
         cause === undefined
           ? undefined
-          : t(committed ? 'environment.create.finishFailed' : 'create.failed', {
-              error: personaBotCreateError(cause, t),
-            })
+          : t(
+              committed
+                ? 'environment.create.finishFailed'
+                : submitted
+                  ? 'environment.create.unknown'
+                  : 'create.failed',
+              {
+                error: personaBotCreateError(cause, t),
+              },
+            )
       }
       onCancel={() => {
         if (!creating) onCancel();

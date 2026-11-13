@@ -7,6 +7,7 @@ import type { HostClient } from '../../../apps/mobile/src/host/client.js';
 const fixture = vi.hoisted(() => ({
   scope: 'all',
   online: true,
+  generation: 0,
   call: vi.fn<HostClient['call']>(),
   refresh: vi.fn(async () => {}),
   open: vi.fn(),
@@ -36,7 +37,13 @@ vi.mock('../src/client/remote-hosts.js', () => {
     refresh: fixture.refresh,
     getSnapshot: () => ({ connection: { status: fixture.online ? 'connected' : 'disconnected' } }),
   };
-  return { remoteHosts: () => ({ client: () => client, open: fixture.open }) };
+  const replacement = { ...client };
+  return {
+    remoteHosts: () => ({
+      client: () => (fixture.generation === 0 ? client : replacement),
+      open: fixture.open,
+    }),
+  };
 });
 vi.mock('../src/client/ds/select.js', () => ({
   Select: (props: {
@@ -71,6 +78,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
 });
 
 import { EnvironmentCreation } from '../src/client/environment-creation.js';
+import { EnvironmentSections } from '../src/client/environment-sections.js';
 import { rememberCreationHost } from '../src/client/environment-creation-target.js';
 import { createActions } from '../src/client/actions.js';
 import { createStore } from '../src/client/store.js';
@@ -100,6 +108,7 @@ beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   fixture.scope = 'all';
   fixture.online = true;
+  fixture.generation = 0;
   vi.clearAllMocks();
   localStorage.clear();
   rememberCreationHost(localStorage, { id: 'remote-b', name: 'Remote B', online: true });
@@ -150,6 +159,7 @@ it('keeps a pending create on B when the browsing scope changes to A', async () 
   expect(fixture.call).toHaveBeenCalledExactlyOnceWith('channelCreate', {
     name: 'Only B',
     members: [],
+    operationKey: expect.any(String),
   });
   expect(localCall).not.toHaveBeenCalled();
   expect(fixture.open).toHaveBeenCalledExactlyOnceWith({
@@ -158,4 +168,40 @@ it('keeps a pending create on B when the browsing scope changes to A', async () 
     title: 'Only B',
   });
   expect(close).toHaveBeenCalledOnce();
+});
+
+const renderSections = async () =>
+  act(async () =>
+    root.render(
+      createElement(EnvironmentSections, {
+        host: { id: 'remote-b', name: 'Remote B' },
+        t: zhTranslate,
+        onClose: close,
+      }),
+    ),
+  );
+
+it('does not resend an unknown Section creation and refreshes only its original Host', async () => {
+  fixture.call.mockRejectedValueOnce(new Error('reply lost after commit'));
+  await renderSections();
+  await typeInto(fieldNamed('分组名称'), 'Only B');
+  await act(async () => buttonNamed(zhTranslate('roster.menu.createSection')).click());
+  expect(fixture.call).toHaveBeenCalledExactlyOnceWith('sectionCreate', { name: 'Only B' });
+  expect(buttonNamed(zhTranslate('roster.menu.createSection')).disabled).toBe(true);
+  await act(async () => buttonNamed(zhTranslate('roster.menu.createSection')).click());
+  await act(async () => buttonNamed(zhTranslate('environment.sections.refresh')).click());
+  expect(fixture.call).toHaveBeenCalledOnce();
+  expect(fixture.refresh).toHaveBeenCalledTimes(2);
+  expect(document.body.textContent).toContain(zhTranslate('environment.sections.unknown'));
+});
+
+it('refuses an old Section draft after the same Host gets a replacement Client', async () => {
+  await renderSections();
+  await typeInto(fieldNamed('分组名称'), 'Old draft');
+  fixture.generation = 1;
+  await renderSections();
+  expect(buttonNamed(zhTranslate('roster.menu.createSection')).disabled).toBe(true);
+  expect(document.body.textContent).toContain(zhTranslate('environment.create.changed'));
+  await act(async () => buttonNamed(zhTranslate('roster.menu.createSection')).click());
+  expect(fixture.call).not.toHaveBeenCalled();
 });

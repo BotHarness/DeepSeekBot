@@ -28,13 +28,16 @@ export function EnvironmentSections({
   const state = useRemoteHosts();
   const remote = state.hosts.find((entry) => entry.host.hostId === host.id);
   const name = useHostName(host.id, host.name);
+  const [client] = useState(() => remoteHosts().client(host.id));
+  const sameClient = client !== undefined && remoteHosts().client(host.id) === client;
   const [draft, setDraft] = useState('');
   const [renames, setRenames] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
   const [error, setError] = useState<string>();
+  const [creationUnknown, setCreationUnknown] = useState(false);
   const sections = remote?.snapshot.roster?.arrangement?.sections ?? [];
-  const online = remote?.snapshot.connection.status === 'connected';
+  const online = sameClient && remote?.snapshot.connection.status === 'connected';
   const channels = [
     ...(remote?.snapshot.roster?.bots ?? []).flatMap((bot) =>
       bot.dmChannelId ? [{ id: bot.dmChannelId, name: bot.displayName }] : [],
@@ -43,16 +46,19 @@ export function EnvironmentSections({
   ];
   const mutate = async (work: (call: BridgeCall) => Promise<unknown>): Promise<void> => {
     if (pending.current) return;
-    const client = remoteHosts().client(host.id);
     if (!online || !client) {
-      setError(t('environment.create.offline'));
+      setError(t(sameClient ? 'environment.create.offline' : 'environment.create.changed'));
       return;
     }
     pending.current = true;
     setBusy(true);
     setError(undefined);
     try {
-      await work(async (method, args) => ({ ok: true, value: await client.call(method, args) }));
+      await work(async (method, args) => {
+        if (remoteHosts().client(host.id) !== client)
+          throw new Error(t('environment.create.changed'));
+        return { ok: true, value: await client.call(method, args) };
+      });
       await client.refresh();
     } catch (cause) {
       setError(errorMessage(cause));
@@ -76,26 +82,49 @@ export function EnvironmentSections({
       <span>
         <HostMark hostId={host.id} /> {name}
       </span>
-      {!online ? <span role="status">{t('environment.create.offline')}</span> : null}
+      {!online ? (
+        <span role="status">
+          {t(sameClient ? 'environment.create.offline' : 'environment.create.changed')}
+        </span>
+      ) : null}
       <TextField
         label={t('section.name.label')}
         value={draft}
         onChange={setDraft}
-        disabled={busy || !online}
+        disabled={busy || !online || creationUnknown}
       />
       <Button
         type="button"
         variant="outline"
-        disabled={busy || !online || !draft.trim()}
+        disabled={busy || !online || creationUnknown || !draft.trim()}
         onClick={() =>
           void mutate(async (call) => {
-            await createRosterSection(call, draft.trim());
-            setDraft('');
+            try {
+              await createRosterSection(call, draft.trim());
+              setDraft('');
+            } catch (cause) {
+              setCreationUnknown(true);
+              await client?.refresh().catch(() => {});
+              throw cause;
+            }
           })
         }
       >
         {t('roster.menu.createSection')}
       </Button>
+      {creationUnknown ? (
+        <>
+          <span role="status">{t('environment.sections.unknown')}</span>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy || !online}
+            onClick={() => void mutate(async () => {})}
+          >
+            {t('environment.sections.refresh')}
+          </Button>
+        </>
+      ) : null}
       {sections.map((section, index) => (
         <section key={section.id} aria-label={section.name}>
           <TextField

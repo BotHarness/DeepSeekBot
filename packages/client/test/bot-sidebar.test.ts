@@ -584,6 +584,7 @@ function stubActions(): BridgeActions {
     })),
     send: vi.fn(async () => false),
     createBot: vi.fn(async () => BOT),
+    previewBotImport: vi.fn(async (gitUrl: string) => ({ gitUrl, commit: 'a'.repeat(40) })),
     openCreatedBot: vi.fn(async () => undefined),
     importBotZip: vi.fn(async () => BOT),
     botZipFiles: vi.fn(async () => ({ files: [], always: [] })),

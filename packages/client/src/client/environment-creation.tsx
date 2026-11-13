@@ -8,7 +8,11 @@ import { useThisHost } from './this-host.js';
 import { hostLooks, useHostName } from './host-looks.js';
 import { shownHostName } from '../../../../apps/mobile/src/ui/design/host-look.js';
 import type { HostClient } from '../../../../apps/mobile/src/host/client.js';
-import { bindBotCreationOwner, remoteCreationOwner } from './environment-creation-owner.js';
+import {
+  bindBotCreationOwner,
+  localCreationOwner,
+  remoteCreationOwner,
+} from './environment-creation-owner.js';
 import { CreatePersonaBotModal } from './persona-bot-create.js';
 import { CreateChannelModal } from './section-management.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -44,7 +48,15 @@ export function EnvironmentCreation({
   const localName = useHostName(local.id, local.name ?? t('environment.create.local'));
   const [busy, setBusy] = useState(false);
   const [committed, setCommitted] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [localOwner] = useState(() =>
+    localCreationOwner(actions, {
+      submitted: () => setSubmitted(true),
+      committed: () => setCommitted(true),
+    }),
+  );
   const continuation = useRef<BridgeActions['openCreatedBot']>(actions.openCreatedBot);
+  const localIdentity = useRef<string>();
   const capturedOwner = useRef<
     | {
         id: string;
@@ -69,6 +81,10 @@ export function EnvironmentCreation({
   const selectedId = selected?.id === local.id ? 'local' : selected?.id;
   const target = hosts.find((host) => host.id === selectedId) ?? selected;
   const online = target !== undefined && hosts.some((host) => host.id === target.id && host.online);
+  const connectionChanged =
+    submitted &&
+    capturedOwner.current !== undefined &&
+    remoteHosts().client(capturedOwner.current.id) !== capturedOwner.current.client;
   const choices =
     target && !hosts.some((host) => host.id === target.id) ? [...hosts, target] : hosts;
   const targetField = (
@@ -90,10 +106,14 @@ export function EnvironmentCreation({
                 ),
               })),
             ]}
-            disabled={entryScope !== 'all' || busy || committed}
+            disabled={entryScope !== 'all' || busy || submitted}
             onChange={(id) => setSelected(choices.find((host) => host.id === id))}
           />
-          {target && !online ? <span role="status">{t('environment.create.offline')}</span> : null}
+          {connectionChanged ? (
+            <span role="status">{t('environment.create.changed')}</span>
+          ) : target && !online ? (
+            <span role="status">{t('environment.create.offline')}</span>
+          ) : null}
         </>
       )}
     </Field>
@@ -102,6 +122,9 @@ export function EnvironmentCreation({
     if (!target || !online) throw new Error(t('environment.create.offline'));
     if (target.id === 'local') {
       if (!local.id) throw new Error(t('environment.loading'));
+      if (localIdentity.current && localIdentity.current !== local.id)
+        throw new Error(t('environment.create.changed'));
+      localIdentity.current = local.id;
       rememberCreationHost(creationStorage(), { ...target, id: local.id });
       return undefined;
     }
@@ -112,7 +135,7 @@ export function EnvironmentCreation({
     return { id: target.id, client };
   };
   const remoteOwner = ({ id, client }: { id: string; client: HostClient }) => {
-    if (committed && capturedOwner.current) return capturedOwner.current.owner;
+    if (submitted && capturedOwner.current) return capturedOwner.current.owner;
     if (capturedOwner.current?.id !== id || capturedOwner.current.client !== client) {
       capturedOwner.current = {
         id,
@@ -123,6 +146,7 @@ export function EnvironmentCreation({
           current: () => remoteHosts().client(id) === client,
           open: (target) => remoteHosts().open(target),
           committed: () => setCommitted(true),
+          submitted: () => setSubmitted(true),
         }),
       };
     }
@@ -133,15 +157,16 @@ export function EnvironmentCreation({
       <CreateChannelModal
         t={t}
         target={targetField}
-        targetUnavailable={!online}
+        targetUnavailable={!online || connectionChanged}
         sectionName={sectionName}
         committed={committed}
+        submitted={submitted}
         onCancel={onClose}
         onCreate={async (name) => {
           const remote = owner();
           setBusy(true);
           try {
-            if (!remote) await actions.createGroup(name, request.sectionId);
+            if (!remote) await localOwner.createGroup(name, request.sectionId);
             else {
               await remoteOwner(remote).channel(name, request.sectionId);
             }
@@ -160,7 +185,10 @@ export function EnvironmentCreation({
           const remote = owner();
           setBusy(true);
           try {
-            const bound = bindBotCreationOwner(actions, remote ? remoteOwner(remote) : undefined);
+            const bound = bindBotCreationOwner(
+              localOwner,
+              remote ? remoteOwner(remote) : undefined,
+            );
             continuation.current = bound.openCreatedBot;
             return await bound.createBot(input, sectionId);
           } finally {
@@ -174,9 +202,10 @@ export function EnvironmentCreation({
       {...(sectionName === undefined ? {} : { sectionName })}
       t={t}
       target={targetField}
-      targetUnavailable={!online}
+      targetUnavailable={!online || connectionChanged}
       remote={target?.id !== 'local'}
       committed={committed}
+      submitted={submitted}
       onCancel={onClose}
       onCreated={onClose}
     />

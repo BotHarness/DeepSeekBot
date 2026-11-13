@@ -9,7 +9,7 @@ import {
 } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { hasVisibleText } from '../../../core/src/channels/message-preview.js';
-import { errorMessage } from './bridge.js';
+import { BridgeCallError, errorMessage } from './bridge.js';
 import { ungroupedLabel } from './labels.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { ConfirmDialog, FormDialog, type DialogLabels } from './ds/form-dialog.js';
@@ -285,6 +285,7 @@ export function CreateSectionModal({
 
 export interface CreateChannelModalProps {
   committed?: boolean;
+  submitted?: boolean;
   target?: ReactNode;
   targetUnavailable?: boolean;
   sectionName?: string | undefined;
@@ -295,6 +296,7 @@ export interface CreateChannelModalProps {
 
 export function CreateChannelModal({
   committed = false,
+  submitted = false,
   target,
   targetUnavailable = false,
   sectionName,
@@ -319,7 +321,11 @@ export function CreateChannelModal({
       },
       (cause: unknown) => {
         pending.current = false;
-        setError(errorMessage(cause));
+        setError(
+          cause instanceof BridgeCallError && cause.code === 'connection-host-changed'
+            ? t('environment.create.changed')
+            : errorMessage(cause),
+        );
         setCreating(false);
       },
     );
@@ -332,13 +338,26 @@ export function CreateChannelModal({
           : t('channel.create.inSection', { name: sectionName })
       }
       labels={dialogLabels(t)}
-      submitLabel={t(committed ? 'environment.create.finish' : 'common.create')}
+      submitLabel={t(
+        committed
+          ? 'environment.create.finish'
+          : submitted
+            ? 'environment.create.retry'
+            : 'common.create',
+      )}
       submitDisabled={!hasVisibleText(trimmed) || targetUnavailable}
       busy={creating}
       error={
         error === undefined
           ? undefined
-          : t(committed ? 'environment.create.finishFailed' : 'create.failed', { error })
+          : t(
+              committed
+                ? 'environment.create.finishFailed'
+                : submitted
+                  ? 'environment.create.unknown'
+                  : 'create.failed',
+              { error },
+            )
       }
       onCancel={() => {
         if (!creating) onCancel();
@@ -348,7 +367,7 @@ export function CreateChannelModal({
       {target}
       <TextField
         label={t('channel.name.label')}
-        disabled={creating || committed}
+        disabled={creating || committed || submitted}
         placeholder={t('channel.name.placeholder')}
         value={draft}
         onChange={setDraft}
