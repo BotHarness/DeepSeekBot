@@ -18,6 +18,7 @@ export const zh = {
   'environment.settings.appearance': '本应用中的外观',
   'environment.settings.unsupported': '此环境暂不支持这项设置。',
   'environment.settings.defaultLocked': '此环境的默认模型由启动设置固定。',
+  'environment.settings.loadingIdentity': '正在加载此环境，稍后可设置名称和图标。',
   'environment.settings.disconnected': '已断开此环境。设置未保存到其他环境。',
   'environment.scope': '浏览环境',
   'environment.manageNamed': '管理 {name}',
@@ -5283,6 +5284,8 @@ export const en = {
   'environment.settings.unsupported': 'This setting is unavailable for this environment.',
   'environment.settings.defaultLocked':
     "This Host's default model is fixed by its launch settings.",
+  'environment.settings.loadingIdentity':
+    'Wait for this environment to load before changing its name or icon.',
   'environment.settings.disconnected':
     'This environment was disconnected. Settings were not saved elsewhere.',
   'environment.scope': 'Browse environments',

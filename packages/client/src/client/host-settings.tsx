@@ -31,6 +31,7 @@ import { localEnvironmentSettings } from './environment-settings-source.js';
 import type { HostClient } from '../../../../apps/mobile/src/host/client.js';
 
 const styles = stylex.create({
+  appearance: { borderWidth: 0, margin: 0, padding: 0, minWidth: 0 },
   identity: {
     display: 'flex',
     alignItems: 'center',
@@ -69,8 +70,11 @@ function EnvironmentSettings({
   t: BotHarnessTranslate;
 }) {
   const thisHost = useThisHost();
-  const { hostId, name, local } = settingsTargetIdentity(target, thisHost);
+  const { hostId: selectedHostId, name, local } = settingsTargetIdentity(target, thisHost);
   const localSource = localEnvironmentSettings();
+  const localSession = localSource?.resolveIdentity(thisHost.id);
+  const hostId = local ? (localSession?.hostId ?? selectedHostId) : selectedHostId;
+  const appearanceHostId = local ? localSession?.hostId : hostId;
   const sources = remoteHosts();
   const snapshot = useSyncExternalStore(
     sources.subscribe,
@@ -261,7 +265,26 @@ function EnvironmentSettings({
         />
       ) : null}
       {section === 'appearance' ? (
-        <HostLookSettings key={hostId} hostId={hostId} name={name} t={t} />
+        appearanceHostId === undefined ? (
+          <Note>{t('environment.settings.loadingIdentity')}</Note>
+        ) : (
+          <fieldset
+            {...stylex.props(styles.appearance)}
+            disabled={local && thisHost.id === undefined}
+            aria-label={t('environment.settings.appearance')}
+          >
+            {local && thisHost.id === undefined ? (
+              <Note>{t('environment.settings.loadingIdentity')}</Note>
+            ) : null}
+            <HostLookSettings
+              key={appearanceHostId}
+              hostId={appearanceHostId}
+              name={name}
+              available={!local || thisHost.id !== undefined}
+              t={t}
+            />
+          </fieldset>
+        )
       ) : section === 'notifications' ? (
         <RemoteNotificationSettings
           key={hostId}
@@ -269,8 +292,14 @@ function EnvironmentSettings({
           notifications={sources.notifications}
           t={t}
         />
-      ) : section === 'models' && local && localSource !== undefined ? (
-        <RemoteHostModels key={hostId} hostId={hostId} client={localSource.models} t={t} />
+      ) : section === 'models' && local && localSession !== undefined ? (
+        <RemoteHostModels
+          key={localSession.generation}
+          hostId={hostId}
+          client={localSession.models}
+          available={thisHost.id !== undefined}
+          t={t}
+        />
       ) : section === 'models' && !local && targetClient !== undefined ? (
         <>
           {connected ? null : (
