@@ -2361,7 +2361,7 @@ export function BotSidebar({
         <div className="bh-error">{t('roster.error', { error: state.error })}</div>
       ) : null}
       {state.roster.readOnly ? <div className="bh-note">{t('roster.readOnly')}</div> : null}
-      {state.status === 'ready' && state.bots.length === 0 && teamMode?.viewer.kind !== 'member' ? (
+      {state.status === 'ready' && state.bots.length === 0 ? (
         <PanelEmptyState
           icon="hash"
           action={
@@ -3974,7 +3974,12 @@ export function ChannelMoveMenu({
   );
 }
 
-const MEMBER_MENU_ITEMS: ReadonlySet<string> = new Set(['channel', 'section', 'public-channels']);
+const MEMBER_MENU_ITEMS: ReadonlySet<string> = new Set([
+  'bot',
+  'channel',
+  'section',
+  'public-channels',
+]);
 
 function botCreateSource(id: string): 'empty' | 'git' | 'zip' | undefined {
   if (id === 'bot' || id === 'bot:empty') return 'empty';
