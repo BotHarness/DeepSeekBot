@@ -24,6 +24,12 @@ const titles = {
   handled: 'activityList.handled',
 } as const;
 
+function LocalActivityHeading({ t }: { t: BotHarnessTranslate }): ReactElement {
+  const local = useThisHost();
+  const name = useHostName(local.id, local.name ?? t('remoteHosts.this'));
+  return <ActivityHostHeading name={name} hostId={local.id ?? THIS_HOST} t={t} />;
+}
+
 export function ActivityCenterView({
   actions,
   t = zhTranslate,
@@ -37,8 +43,6 @@ export function ActivityCenterView({
 }): ReactElement {
   const panel = placement === 'panel';
   const sources = remoteHosts();
-  const local = useThisHost();
-  const localName = useHostName(local.id, local.name ?? t('remoteHosts.this'));
   const remote = useSyncExternalStore(sources.subscribe, sources.getSnapshot);
   const { feed, query, pages, collapsed } = useActivityFeed(actions);
   const scoped = useMemo(
@@ -81,7 +85,7 @@ export function ActivityCenterView({
       <div className="bh-activity-sections">
         <EnvironmentFilter t={t} />
         {remote.hosts.length > 0 && (remote.tab === ALL_HOSTS || remote.tab === THIS_HOST) ? (
-          <ActivityHostHeading name={localName} hostId={local.id ?? THIS_HOST} t={t} />
+          <LocalActivityHeading t={t} />
         ) : null}
         {(remote.tab === ALL_HOSTS || remote.tab === THIS_HOST ? feed.visible() : []).map(
           (section) => {
