@@ -40,14 +40,14 @@ Reference: T3 Code official repository, inspected at `2d8a843e6be9ca170f3bce98cc
 
 ## Acceptance and performance
 
-| Journey | Observable result |
-| --- | --- |
-| Manual A1/A2 relationship | Both sides read and operate a real remote Channel after exact authorization |
-| Another desktop Client | Reuses the relationship with its own grant; mobile inherits no other Host |
-| Same account | Automatic verified enrollment and Channels, no extra click or manual fingerprints |
-| All/single scope | Ordering, avatar badges, Sections, Activity counts and creation target agree |
-| Remote settings | Only exact target changes; dirty switch, save failure and disconnect do not cross-write |
-| Offline disconnect | Local refusal is immediate, remote revocation remains pending until acknowledged, no automatic re-add |
-| Lost write response | No duplicate replay; readback distinguishes success/failure/unknown |
+| Journey                   | Observable result                                                                                     |
+| ------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Manual A1/A2 relationship | Both sides read and operate a real remote Channel after exact authorization                           |
+| Another desktop Client    | Reuses the relationship with its own grant; mobile inherits no other Host                             |
+| Same account              | Automatic verified enrollment and Channels, no extra click or manual fingerprints                     |
+| All/single scope          | Ordering, avatar badges, Sections, Activity counts and creation target agree                          |
+| Remote settings           | Only exact target changes; dirty switch, save failure and disconnect do not cross-write               |
+| Offline disconnect        | Local refusal is immediate, remote revocation remains pending until acknowledged, no automatic re-add |
+| Lost write response       | No duplicate replay; readback distinguishes success/failure/unknown                                   |
 
 Use existing capability/CLI tests and real isolated two-Host runs, followed by separately reported installed Desktop and mobile acceptance under device QA rules. Each cross-layer slice is a runnable tracer bullet, not a horizontal foundation. Start with the narrow reciprocal relationship journey before broadening providers/settings surfaces. Measure three interleaved real-journey runs per side, report median/range/correctness, and guard bounded discovery, probes, derived grants, retained revocations and disposal. This documentation changes no runtime and claims no measured product speedup.

@@ -55,18 +55,18 @@ After checking current PR/merge state, start E1 from current main if its prerequ
 ## Delivery map
 
 | Slice | Issue | Blocked by |
-| --- | --- | --- |
-| E1 | #4110 | None |
-| E2 | #4111 | E1 |
-| E3 | #4112 | E1 |
-| E4 | #4113 | E2, E3 |
-| E5 | #4114 | E1 |
-| E6 | #4115 | E4, E5 |
-| E7 | #4116 | E5 |
-| E8 | #4117 | E5 |
-| E9 | #4118 | E8 |
-| E10 | #4119 | E8 |
-| E11 | #4120 | E3, E4, E8 |
+| ----- | ----- | ---------- |
+| E1    | #4110 | None       |
+| E2    | #4111 | E1         |
+| E3    | #4112 | E1         |
+| E4    | #4113 | E2, E3     |
+| E5    | #4114 | E1         |
+| E6    | #4115 | E4, E5     |
+| E7    | #4116 | E5         |
+| E8    | #4117 | E5         |
+| E9    | #4118 | E8         |
+| E10   | #4119 | E8         |
+| E11   | #4120 | E3, E4, E8 |
 
 All belong to [Project #24](https://github.com/orgs/BotHarness/projects/24). Original #4069/#4070 and #4071–#4079 retain their own scope and acceptance; published new issues do not prove reciprocal authorization already exists. The panel follows Simple replacement/Advanced independent-column behavior; Client filtering and exact Settings Target are distinct. Each desktop Client has its own grant, phones inherit no relationship, and Bot collaboration is separate. Same-account automatic access uses verified enrollment, never input flags. Offline peer revocation stays pending until acknowledged, and explicit disconnect suppresses automatic reenrollment. See the [accepted design](../architecture/environment-panel.md) for the complete target.
 

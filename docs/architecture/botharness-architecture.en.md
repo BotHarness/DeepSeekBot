@@ -1,13 +1,12 @@
 # BotHarness Architecture & Data Flow
 
+<!-- Maintained source, not generated: this is the English translation of `docs/architecture/botharness-architecture.md`. Edit this file (and its `diagrams/en/*.mmd` sources), not `apps/docs`. -->
+
 ## Accepted target: Environment Panel and reciprocal Host relationships (not implemented)
 
 The Human confirmation on 2026-11-13 expands #4069 beyond Client-only pairing. The Control Rail Environment Panel replaces the current panel in Simple mode and adds a column in Advanced mode. Channels/Activity share Client-local Environment Scope; Settings Target remains explicit and all writes bind to the exact Host. Host Relationship is durable application authority at the participating Hosts, with independent Client device grants, no automatic mobile inheritance and separately authorized Bot collaboration. Directional reachability and pending peer revocation remain explicit. Account sign-out, relationship disconnect, route stop and remote data deletion retain different scopes. Reuse Device Pairing, credential, operational database and API Gateway ownership; layout state and Cordis Events are not durable authorization.
 
 See [Environment design](environment-panel.md), [ADR-0334](../adr/0334-host-relationships-authorize-independent-client-enrollment.md) and the desktop amendment to ADR-0327. Existing implementation descriptions below do not prove this new target is implemented; acceptance of the original nine slices does not cover reciprocal relationships.
-
-
-<!-- Maintained source, not generated: this is the English translation of `docs/architecture/botharness-architecture.md`. Edit this file (and its `diagrams/en/*.mmd` sources), not `apps/docs`. -->
 
 The iOS GenUI native page bridge reports only bounded input geometry bound to the current renderer mount. The conversation keeps scroll ownership, measures its actual chat input bar after keyboard presentation, and reveals the focused control. Blur, scope changes and unmount retire that geometry. These messages carry no input text and make no Host or model request; Source Event ownership, private-view CAS, HTML execution isolation and persistence boundaries remain unchanged.
 
