@@ -186,6 +186,7 @@ it('stops only the selected route and requires confirmation before removing conf
     [...host.querySelectorAll<HTMLButtonElement>('button')].find(
       (item) => item.textContent === label,
     )!;
+  expect(button(t('privateRelay.pair'))).toBeDefined();
   await act(async () => button(t('privateTunnel.routes.stop')).click());
   expect(requests).toEqual([{ action: 'stop', routeId: 'quick', confirm: true }]);
   await act(async () => button(t('privateTunnel.routes.start')).click());

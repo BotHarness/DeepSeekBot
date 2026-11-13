@@ -713,7 +713,8 @@ export function PairedDevicesSettings({
                       : 'connections.prepare',
               )}
             </Note>
-            {(setup === 'private' || setup === 'privateRelay') &&
+            {(setup === 'privateRelay' ||
+              (setup === 'private' && (snapshot?.privateRelay?.state ?? 'off') !== 'off')) &&
             ((snapshot?.privateTunnel?.state ?? 'off') !== 'off' ||
               (snapshot?.privateRelay?.state ?? 'off') !== 'off') ? (
               <Note tone="warning">{t('connections.privateReplacement')}</Note>

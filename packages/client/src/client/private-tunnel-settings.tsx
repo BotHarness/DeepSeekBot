@@ -517,6 +517,13 @@ export function PrivateTunnelSettings(
   const custom = routes.find((route) => route.id === 'custom');
   return (
     <StatusStack title={t('privateTunnel.title')}>
+      {step === 'choose' &&
+      current?.state !== 'connected' &&
+      routes.some((route) => route.state === 'connected') ? (
+        <Button variant="primary" onClick={props.pair}>
+          {t('privateRelay.pair')}
+        </Button>
+      ) : null}
       {routes.map((route) => (
         <SettingsRow
           key={route.id}

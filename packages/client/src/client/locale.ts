@@ -7,7 +7,7 @@ export const zh = {
   'connections.namedRequirements': '需要自己的 Cloudflare 账号、域名和 Tunnel 令牌。',
   'connections.ingressRequirements': '需要手机和电脑都能访问的 HTTPS 地址及受信任证书。',
   'connections.privateReplacement':
-    '当前只支持一种私有连接；更换前先关闭下方的已有连接，旧地址可能失效。Docker 中继的迁移见部署指南。',
+    'Docker 中继不能与这些私有连接同时使用。迁移前先移除已有配置，并按部署指南保留凭据和数据。',
   'connections.tailscaleVpn':
     'iOS 和 Android 通常只能运行一个 VPN。开启 Tailscale 会影响你正在使用的其他 VPN。',
   'connections.vpnGuide': '查看 VPN 限制',
@@ -5169,7 +5169,7 @@ export const en = {
   'connections.ingressRequirements':
     'Requires an HTTPS address reachable by the phone and computer, with a trusted certificate.',
   'connections.privateReplacement':
-    'Only one private connection is supported; close the existing connection below before changing methods, which can invalidate its old address. Follow the deployment guide to migrate a Docker relay.',
+    'Docker relay cannot run alongside these private connections. Remove existing configurations before migrating, and preserve credentials and data as described in the deployment guide.',
   'connections.tailscaleVpn':
     'iOS and Android normally allow one VPN at a time. Turning on Tailscale can interrupt another VPN you use.',
   'connections.vpnGuide': 'View VPN limitations',
