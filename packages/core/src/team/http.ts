@@ -56,9 +56,11 @@ export function passwordTransportAllowed(
 ): boolean {
   const ip = request.socket.remoteAddress;
   const address = ip?.startsWith('::ffff:') ? ip.slice(7) : ip;
+  const proxy = ['forwarded', 'x-forwarded-for', 'x-real-ip', 'via'].some((name) =>
+    Object.hasOwn(request.headers, name),
+  );
   return (
-    ip === '::1' ||
-    (isIPv4(address ?? '') && address?.startsWith('127.')) ||
+    (!proxy && (ip === '::1' || (isIPv4(address ?? '') && address?.startsWith('127.')))) ||
     options.tls() ||
     isConnectRequest(request) ||
     options.team.mode(OWNER_HUMAN_CONTEXT).insecureHttpAllowed

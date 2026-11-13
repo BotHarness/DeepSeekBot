@@ -1,5 +1,11 @@
-import { createServer } from 'node:http';
-import { createTeamHttp, TEAM_PATH } from '../src/team/http.js';
+import { createServer, IncomingMessage } from 'node:http';
+import { Socket } from 'node:net';
+import { createChannelLiveHub } from '../src/channels/live.js';
+import { openLiveFrames } from '../src/channels/live-frames.js';
+import { createChannelManagement } from '../src/channels/management.js';
+import { createHumanAttentionQuery } from '../src/runtime/human-attention.js';
+import { stampConnectRoute } from '../src/devices/route-context.js';
+import { createTeamHttp, passwordTransportAllowed, TEAM_PATH } from '../src/team/http.js';
 import { join } from 'node:path';
 import { Context } from '@deepseek-ai/cordis';
 import { Peer } from '@deepseek-ai/dsh-client-connection';
@@ -10,7 +16,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TeamService, TeamError } from '../src/team/service.js';
 import { ARGON2_PARAMS, hashPassword, verifyPassword } from '../src/team/password.js';
 import { SignInRateLimit } from '../src/team/rate-limit.js';
-import { memberPolicy } from '../src/team/policy.js';
+import { memberPolicy, MEMBER_GLOBAL_METHODS, MEMBER_CHANNEL_METHODS } from '../src/team/policy.js';
 import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
 import { createBridgeMethodsForHumans } from '../src/bridge/methods.js';
 import { registerBridge, resolveInvocationHuman } from '../src/bridge/rpc.js';
@@ -32,6 +38,8 @@ function teamFixture() {
   const db = registryDatabase(root);
   const database = attachOperationalModule(db, 'team');
   const channels = createSqliteChannelStore({ database, rootDir: join(root, 'channels') });
+  let placements: Array<{ sourceEventId: string; channelId: string; messageId: string }> = [];
+  const live = createChannelLiveHub(channels, undefined, () => placements);
   const team = new TeamService(database, channels, {
     now: () => Date.parse('2026-11-14T00:00:00Z'),
   });
@@ -48,6 +56,7 @@ function teamFixture() {
     urls: () => ['https://host.test/botharness-device/team/'],
   });
   closes.push(async () => {
+    live.close();
     await off();
     await ctx.fiber.dispose();
     db.close();
@@ -59,9 +68,32 @@ function teamFixture() {
     states: createBotStateTracker(),
     ownership: createTestOwnership(),
     roster: createTestRosterStore({ database: db }),
+    humanAttention: createHumanAttentionQuery(database),
+    channelManagement: createChannelManagement({
+      database,
+      registry,
+      channels,
+      isProtectedBot: () => false,
+    }),
     createBotId: () => 'ada',
   });
-  registerBridge(ctx, methods, undefined, undefined, team);
+  registerBridge(
+    ctx,
+    methods,
+    undefined,
+    {
+      followRoster: (human, signal) => live.followRoster(human, signal),
+      followActivity: (human, signal) => live.followActivity(human, signal),
+      followChannel: (human, id, limit, signal, drafts) =>
+        live.followChannel(human, id, limit, signal, drafts),
+      journalPage: (human, id, request) => channels.readHumanJournalPage(human, id, request),
+      filesPage: (human, id, request) => channels.readHumanFilesPage(human, id, request),
+      changes: (human, id, request) => channels.readHumanChanges?.(human, id, request),
+      changeCursor: () => channels.changeCursor?.(),
+      async *followCompanion() {},
+    },
+    team,
+  );
   ctx.provide('typert');
   ctx.set('typert', {
     local: { get: () => undefined, hasSeen: () => false },
@@ -71,7 +103,23 @@ function teamFixture() {
   const access = new RemoteAccessService(ctx);
   access.registerPolicy('botharness-member', memberPolicy(team));
   const gateway = new TypertGatewayService(ctx, {});
-  return { team, channels, database, db, methods, peers, ctx, gateway, access, invalidate };
+  return {
+    team,
+    channels,
+    database,
+    db,
+    methods,
+    peers,
+    ctx,
+    gateway,
+    access,
+    invalidate,
+    registry,
+    live,
+    setPlacements(value: typeof placements) {
+      placements = value;
+    },
+  };
 }
 
 async function enabledFixture() {
@@ -271,7 +319,261 @@ describe('Host members', { timeout: 60_000 }, () => {
   });
 });
 
-async function memberHttp(f: ReturnType<typeof teamFixture>, remote = false, tls = false) {
+describe('member confidentiality', { timeout: 60_000 }, () => {
+  it('scopes both roster carriers to current membership, including purges and queued frames', async () => {
+    const f = await enabledFixture();
+    const dm = f.channels.getOrCreateDm(owner, 'secret-bot', 'Owner secret DM')!;
+    const group = f.channels.createGroup(owner, { name: 'Shared public', members: [] });
+    f.team.setPublic(owner, group.id, true);
+    f.team.joinPublic(f.human, group.id);
+    const privatePlacement = {
+      sourceEventId: 'private-source',
+      channelId: dm.id,
+      messageId: 'private-message',
+    };
+    const publicPlacement = {
+      sourceEventId: 'public-source',
+      channelId: group.id,
+      messageId: 'public-message',
+    };
+    f.setPlacements([privatePlacement, publicPlacement]);
+    const abort = new AbortController();
+    const sse = openLiveFrames(
+      (request) => f.live.open(f.human, request),
+      'scope=roster',
+      '',
+      abort.signal,
+    );
+    await sse.next();
+    expect(JSON.parse((await sse.next()).value.data)).toEqual({ placements: [publicPlacement] });
+    await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
+    const login = await f.team.signIn('bob', 'member-password-1', 'ip');
+    const typed = (
+      await f.gateway.stream({
+        namespace: 'botharness',
+        method: 'followRoster',
+        args: {},
+        peer: login.peer,
+        signal: abort.signal,
+      })
+    )[Symbol.asyncIterator]();
+    expect((await typed.next()).value).toEqual({ type: 'baseline', placements: [publicPlacement] });
+    const ownerFrames = f.live.followRoster(owner, abort.signal)[Symbol.asyncIterator]();
+    expect((await ownerFrames.next()).value).toEqual({
+      type: 'baseline',
+      placements: [privatePlacement, publicPlacement],
+    });
+    const message = (id: string, body: string) => ({
+      id,
+      body,
+      at: '2026-11-14T00:00:00Z',
+      author: { kind: 'human' as const },
+    });
+    const secret = message('private-message', 'Owner DM secret body');
+    const shared = message('public-message', 'Shared public body');
+    f.live.publishCommitted({ channelId: dm.id, revision: 1, message: secret });
+    f.live.publishCommitted({ channelId: group.id, revision: 1, message: shared });
+    expect((await typed.next()).value).toEqual({
+      type: 'latest',
+      channelId: group.id,
+      message: shared,
+    });
+    expect(JSON.parse((await sse.next()).value.data)).toEqual({
+      channelId: group.id,
+      message: shared,
+    });
+    expect((await ownerFrames.next()).value).toEqual({
+      type: 'latest',
+      channelId: dm.id,
+      message: secret,
+    });
+    f.live.publishContentPurged();
+    expect((await typed.next()).value).toEqual({ type: 'purged', placements: [publicPlacement] });
+    expect(JSON.parse((await sse.next()).value.data)).toEqual({ placements: [publicPlacement] });
+    f.live.publishCommitted({ channelId: group.id, revision: 2, message: shared });
+    f.database.transaction((db) =>
+      db
+        .prepare(
+          'UPDATE channel_human_members SET left_at = ? WHERE channel_id = ? AND human_id = ?',
+        )
+        .run('2026-11-14', group.id, f.human.humanId),
+    );
+    f.live.publishRosterCommitted();
+    expect((await typed.next()).value).toEqual({ type: 'changed' });
+    abort.abort();
+    await typed.return?.();
+    await sse.return(undefined);
+    await ownerFrames.return?.();
+  });
+
+  it('audits every member-allowed method against Owner Channels and embedded results', async () => {
+    const f = await enabledFixture();
+    f.registry.create({ slug: 'owner-secret-bot', displayName: 'Owner secret Bot' });
+    f.registry.create({ slug: 'shared-bot', displayName: 'Shared Bot' });
+    const dm = f.channels.getOrCreateDm(owner, 'owner-secret-bot', 'Owner private DM')!;
+    const privateGroup = f.channels.createGroup(owner, {
+      name: 'Owner private group',
+      members: ['owner-secret-bot'],
+    });
+    const memberGroup = f.channels.createGroup(f.human, {
+      name: 'Member only',
+      members: ['shared-bot'],
+    });
+    const start = f.channels.changeCursor!();
+    f.database.transaction((db) =>
+      db
+        .prepare(
+          "UPDATE channel_records SET record_json = json_set(record_json, '$.invitations', json(?)) WHERE channel_id = ?",
+        )
+        .run(
+          JSON.stringify([
+            {
+              id: 'private-invitation',
+              targetBotSlug: 'owner-secret-bot',
+              targetBotCreatedAt: '2026-11-14',
+              inviterHuman: true,
+              status: 'pending',
+              createdAt: '2026-11-14',
+            },
+          ]),
+          memberGroup.id,
+        ),
+    );
+    f.team.setPublic(owner, memberGroup.id, true);
+    for (const channel of [dm, privateGroup, memberGroup])
+      await f.channels.appendMessage(owner, channel.id, {
+        id: `message-${channel.id}`,
+        at: '2026-11-14T00:00:00Z',
+        author: { kind: 'bot', slug: channel === memberGroup ? 'shared-bot' : 'owner-secret-bot' },
+        body:
+          channel === memberGroup ? 'visible member text' : 'Confidential Owner message body text',
+      });
+    f.database.transaction((db) => {
+      for (const channel of [dm, privateGroup, memberGroup])
+        db.prepare(
+          "UPDATE source_events SET payload_json = json_set(payload_json, '$.attachments', json(?)) WHERE source_event_id IN (SELECT source_event_id FROM channel_placements WHERE channel_id = ?)",
+        ).run(
+          JSON.stringify([
+            {
+              fileId: 'file:6a1f3c2e-1b2c-4d3e-8f40-123456789abc',
+              name: channel === memberGroup ? 'member.txt' : 'Owner private file',
+              mime: 'text/plain',
+              size: 1,
+            },
+          ]),
+          channel.id,
+        );
+    });
+    await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
+    const login = await f.team.signIn('bob', 'member-password-1', 'ip');
+    f.setPlacements([
+      { sourceEventId: 'secret-source', channelId: dm.id, messageId: `message-${dm.id}` },
+    ]);
+    const args: Record<string, Record<string, unknown>> = {
+      memberPasswordChange: { current: 'member-password-1', next: 'member-password-2' },
+      publicChannelJoin: { channelId: memberGroup.id },
+      channelListChanges: { sinceSeq: start.seq, epoch: start.epoch },
+      channelSearch: { text: 'text' },
+      channelMarkRead: { messageId: `message-${memberGroup.id}` },
+      channelReact: { messageId: `message-${memberGroup.id}`, emoji: '👍', active: true },
+      channelSend: { body: 'member test send' },
+      channelSendStatus: { messageId: `message-${memberGroup.id}` },
+      channelJournalPage: { through: f.channels.revision(memberGroup.id) },
+      channelChanges: { sinceSeq: start.seq, epoch: start.epoch },
+      followChannel: { limit: 10 },
+    };
+    const forbidden = [
+      dm.id,
+      dm.name,
+      privateGroup.id,
+      privateGroup.name,
+      'Confidential Owner message body',
+      'owner-secret-bot',
+      'Owner secret Bot',
+      'Owner private file',
+    ];
+    const streams = new Set(['followRoster', 'followChannel']);
+    const table = [...MEMBER_GLOBAL_METHODS, ...MEMBER_CHANNEL_METHODS];
+    for (const method of table) {
+      const abort = new AbortController();
+      const request = {
+        namespace: 'botharness',
+        method,
+        peer: login.peer,
+        signal: abort.signal,
+        args: {
+          ...(MEMBER_CHANNEL_METHODS.some((name) => name === method)
+            ? { channelId: memberGroup.id }
+            : {}),
+          ...args[method],
+        },
+      };
+      let result: unknown;
+      try {
+        if (streams.has(method)) {
+          const iterator = (await f.gateway.stream(request))[Symbol.asyncIterator]();
+          result = (await iterator.next()).value;
+          abort.abort();
+          await iterator.return?.();
+        } else result = await f.gateway.invoke(request);
+      } finally {
+        abort.abort();
+      }
+      const encoded = JSON.stringify(result) ?? '';
+      for (const value of forbidden)
+        expect.soft(encoded, `${method} exposed ${value}`).not.toContain(value);
+      if (
+        [
+          'channelMessages',
+          'channelTimeline',
+          'channelSearch',
+          'channelJournalPage',
+          'channelFilesPage',
+          'channelChanges',
+          'followChannel',
+        ].includes(method)
+      )
+        expect(encoded, `${method} did not exercise a nonempty member page`).toContain(
+          'visible member text',
+        );
+    }
+    for (const method of MEMBER_CHANNEL_METHODS) {
+      const request = {
+        namespace: 'botharness',
+        method,
+        peer: login.peer,
+        args: { channelId: dm.id, ...args[method] },
+      };
+      await expect(
+        streams.has(method) ? f.gateway.stream(request) : f.gateway.invoke(request),
+      ).rejects.toMatchObject({ code: 'remote-access/denied' });
+    }
+    for (const method of ['channelGet', 'channelSendStatus'])
+      await expect(
+        f.gateway.invoke({
+          namespace: 'botharness',
+          method,
+          args: { channelId: memberGroup.id },
+          peer: login.peer,
+        }),
+      ).rejects.toMatchObject({ code: 'remote-access/denied' });
+    expect(
+      await f.gateway.invoke({
+        namespace: 'botharness',
+        method: 'channelListChanges',
+        args: { sinceSeq: start.seq, epoch: start.epoch },
+        peer: new Peer(f.ctx, { principal: { kind: 'owner' } }),
+      }),
+    ).toMatchObject({ channels: expect.arrayContaining([expect.objectContaining({ id: dm.id })]) });
+  });
+});
+
+async function memberHttp(
+  f: ReturnType<typeof teamFixture>,
+  remote = false,
+  tls = false,
+  connect = false,
+) {
   const handler = createTeamHttp({
     team: f.team,
     gateway: f.gateway,
@@ -287,6 +589,7 @@ async function memberHttp(f: ReturnType<typeof teamFixture>, remote = false, tls
     },
   });
   const server = createServer((request, response) => {
+    if (connect) stampConnectRoute(request);
     if (remote)
       Object.defineProperty(request.socket, 'remoteAddress', {
         value: '192.0.2.5',
@@ -313,6 +616,44 @@ async function memberHttp(f: ReturnType<typeof teamFixture>, remote = false, tls
 }
 
 describe('member HTTP carrier', { timeout: 60_000 }, () => {
+  it('requires trusted transport for forwarding headers on IPv4, mapped IPv4 and IPv6 loopback', () => {
+    const f = teamFixture();
+    for (const address of ['127.0.0.1', '127.42.0.1', '::ffff:127.0.0.1', '::1']) {
+      const socket = new Socket();
+      Object.defineProperty(socket, 'remoteAddress', { value: address });
+      const request = new IncomingMessage(socket);
+      expect(passwordTransportAllowed(request, { team: f.team, tls: () => false })).toBe(true);
+      for (const name of ['forwarded', 'x-forwarded-for', 'x-real-ip', 'via']) {
+        request.headers = {
+          [name]: '',
+          'x-forwarded-proto': 'https',
+          'x-botharness-device-route': 'untrusted',
+        };
+        expect(
+          passwordTransportAllowed(request, { team: f.team, tls: () => false }),
+          `${address}: ${name}`,
+        ).toBe(false);
+      }
+      socket.destroy();
+    }
+  });
+  it.each(['forwarded', 'x-forwarded-for', 'x-real-ip', 'via'])(
+    'refuses an untrusted loopback proxy carrying %s but permits Host-known encrypted hops',
+    async (name) => {
+      const f = await enabledFixture();
+      const plain = await memberHttp(f);
+      const headers = { [name]: '192.0.2.5', 'x-forwarded-proto': 'https' };
+      const denied = await plain.signIn('bob', f.initialPassword, headers);
+      expect(denied.status).toBe(403);
+      expect(await denied.json()).toEqual({ code: 'insecure-transport' });
+      const tls = await memberHttp(f, false, true);
+      expect((await tls.signIn('bob', f.initialPassword, headers)).status).toBe(200);
+      const connect = await memberHttp(f, false, false, true);
+      expect((await connect.signIn('bob', f.initialPassword, headers)).status).toBe(200);
+      f.team.setInsecureHttp(owner, true);
+      expect((await plain.signIn('bob', f.initialPassword, headers)).status).toBe(200);
+    },
+  );
   it('serves the nonce-protected sign-in page and loopback member cookie, then dispatches calls as the member', async () => {
     const f = await enabledFixture();
     const http = await memberHttp(f);

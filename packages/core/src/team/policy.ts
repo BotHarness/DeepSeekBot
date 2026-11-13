@@ -21,13 +21,11 @@ export const MEMBER_GLOBAL_METHODS = [
   'ping',
 ] as const;
 export const MEMBER_CHANNEL_METHODS = [
-  'channelGet',
   'channelMessages',
   'channelTimeline',
   'channelReadPosition',
   'channelMarkRead',
   'channelSend',
-  'channelSendStatus',
   'channelReact',
   'channelSearch',
   'followChannel',

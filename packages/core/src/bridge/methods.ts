@@ -2195,6 +2195,15 @@ export function createBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps
       : undefined;
   };
   const channelView = (channel: ChannelRecord): ChannelListItem => {
+    if (human.humanId !== OWNER_HUMAN_CONTEXT.humanId) {
+      const {
+        invitations: _invitations,
+        joinRequests: _requests,
+        wakePolicies: _policies,
+        ...visible
+      } = channel;
+      channel = visible;
+    }
     if (channel.type === 'group') {
       const members = channel.members.filter((slug) => deps.registry.get(slug) !== undefined);
       const memberSlugs = new Set(members);
@@ -5573,7 +5582,15 @@ export function createBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps
               (channel) => changed.all || ids.has(channel.id) || channel.remoteBot !== undefined,
             )
             .map(listItem),
-          removed: changed.channelIds.filter((id) => !present.has(id)),
+          removed: changed.channelIds.filter(
+            (id) =>
+              !present.has(id) &&
+              (human.humanId === OWNER_HUMAN_CONTEXT.humanId ||
+                (deps.channels.get(id)?.type === 'group' &&
+                  deps.channels
+                    .listHumanMembers(human, id)
+                    .some((member) => member.humanId === human.humanId))),
+          ),
           cursor: changed.cursor,
         },
       };
@@ -7702,7 +7719,13 @@ export function createBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps
       try {
         return {
           ok: true,
-          value: { channels: deps.humanAttention?.unreadByChannel(human) ?? [] },
+          value: {
+            channels: (deps.humanAttention?.unreadByChannel(human) ?? []).filter(
+              (entry) =>
+                human.humanId === OWNER_HUMAN_CONTEXT.humanId ||
+                deps.team?.belongs(human, entry.channelId),
+            ),
+          },
         };
       } catch (error) {
         return invalidInput(String(error));

@@ -3549,24 +3549,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     invocationBridgeMethods,
     privateInputs,
     {
-      followRoster: async function* (human, signal) {
-        for await (const frame of core.live.followRoster(signal)) {
-          if (human.humanId === OWNER_HUMAN_CONTEXT.humanId) {
-            yield frame;
-            continue;
-          }
-          if (frame.type === 'latest') {
-            if (team.belongs(human, frame.channelId)) yield frame;
-          } else if (frame.type === 'baseline' || frame.type === 'purged') {
-            yield {
-              ...frame,
-              placements: frame.placements.filter((placement) =>
-                team.belongs(human, placement.channelId),
-              ),
-            };
-          } else yield frame;
-        }
-      },
+      followRoster: (human, signal) => core.live.followRoster(human, signal),
       followActivity: (human, signal) => core.live.followActivity(human, signal),
       followChannel: (human, channelId, limit, signal, drafts) =>
         core.live.followChannel(human, channelId, limit, signal, drafts),
