@@ -1239,7 +1239,7 @@ export interface BridgeMethodsDeps {
   cloudConnections?: CloudConnections;
   cloudWork?: CloudWork;
   approvalReviewer?: ApprovalReviewerSettings;
-  composerIdentity?: () => ComposerRecoveryIdentity;
+  composerIdentity?: (human: HumanContext) => ComposerRecoveryIdentity;
   warn?: (message: string) => void;
   registry: PersonaBotRegistry;
   creations?: BotCreationService;
@@ -5447,7 +5447,11 @@ export function createBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps
     composerIdentity() {
       try {
         if (deps.composerIdentity === undefined) throw new Error();
-        return { ok: true, value: deps.composerIdentity() };
+        const identity = deps.composerIdentity(human);
+        return {
+          ok: true,
+          value: { hostId: identity.hostId, profileId: identity.profileId, humanId: human.humanId },
+        };
       } catch {
         return {
           ok: false,

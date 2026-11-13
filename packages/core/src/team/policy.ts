@@ -5,36 +5,8 @@ import type {
 } from '@deepseek-ai/dsh-api-remote-access';
 import { humanContext } from '../humans/context.js';
 import type { MemberPrincipal, TeamService } from './service.js';
-
-export const MEMBER_GLOBAL_METHODS = [
-  'teamMode',
-  'memberPasswordChange',
-  'publicChannels',
-  'publicChannelJoin',
-  'channels',
-  'channelListChanges',
-  'channelUnreadCounts',
-  'list',
-  'rosterGet',
-  'followRoster',
-  'humanIdentity',
-  'ping',
-] as const;
-export const MEMBER_CHANNEL_METHODS = [
-  'channelMessages',
-  'channelTimeline',
-  'channelReadPosition',
-  'channelMarkRead',
-  'channelSend',
-  'channelReact',
-  'channelSearch',
-  'followChannel',
-  'channelJournalPage',
-  'channelFilesPage',
-  'channelChanges',
-] as const;
+import { MEMBER_CHANNEL_METHODS, MEMBER_METHODS } from './member-methods.js';
 const channelMethods = new Set<string>(MEMBER_CHANNEL_METHODS);
-const allowed = new Set<string>([...MEMBER_GLOBAL_METHODS, ...MEMBER_CHANNEL_METHODS]);
 
 export function memberPolicy(team: TeamService): RemoteAccessPolicy<MemberPrincipal> {
   return {
@@ -58,7 +30,7 @@ export function memberPolicy(team: TeamService): RemoteAccessPolicy<MemberPrinci
           role: {
             name: 'botharness-member',
             resource: 'global',
-            actions: [...allowed].map((method) => `botharness/${method}` as const),
+            actions: [...MEMBER_METHODS].map((method) => `botharness/${method}` as const),
           },
           condition,
         },
