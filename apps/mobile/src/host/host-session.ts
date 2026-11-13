@@ -574,7 +574,7 @@ export const hostSession = {
     hostId: string,
     credential: string,
     routes: string[],
-    privateRelay?: { origin: string; token: string },
+    privateRelay?: NonNullable<SavedHost['encryption']>['privateRelay'],
   ): Promise<void> {
     return serialize(async () => {
       const existing = stored.hosts.find((host) => host.hostId === hostId);

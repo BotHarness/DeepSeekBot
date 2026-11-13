@@ -7,7 +7,11 @@ import { randomBytes } from 'node:crypto';
 import { EventEmitter, once } from 'node:events';
 import type { AddressInfo } from 'node:net';
 import { PassThrough } from 'node:stream';
-import type { CredentialProvider, CredentialRecord } from '@deepseek-ai/dsh-credentials';
+import {
+  credentialKey,
+  type CredentialProvider,
+  type CredentialRecord,
+} from '@deepseek-ai/dsh-credentials';
 import { afterEach, expect, it, vi } from 'vitest';
 import { WebSocket } from 'ws';
 import {
@@ -27,6 +31,9 @@ import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 import { redeemPairing } from '../../../apps/mobile/src/host/pairing.js';
 import { encryptedCarrier } from '../../../apps/mobile/src/host/encrypted-carrier.js';
+import { createDevicesHttp, type PairingOfferView } from '../src/devices/http.js';
+import { detectPhoneRoutes } from '../src/devices/routes.js';
+import { createNoiseIdentity } from '../src/devices/noise-identity.js';
 import type { HostCarrier } from '../../../apps/mobile/src/host/carrier.js';
 
 type Credentials = Pick<CredentialProvider, 'readRecord' | 'modifyRecord' | 'deleteRecord'>;
@@ -85,6 +92,182 @@ const resolveBinary = async () => ({ binary: 'cloudflared', source: 'package' as
 const tunnels: { close(): Promise<void> }[] = [];
 afterEach(async () => {
   for (const tunnel of tunnels.splice(0)) await tunnel.close();
+});
+
+it('adds Quick and ingress independently, makes retries idempotent, and restores enabled routes only', async () => {
+  const credentials = memoryCredentials();
+  const cloudflared = fakeCloudflared();
+  let owner: ReturnType<typeof createPrivateTunnel>;
+  const options = {
+    credentials: () => credentials,
+    port: () => 1,
+    resolveBinary,
+    spawn: cloudflared.spawn,
+    probeIntervalMs: 10,
+    fetch: (async (input: string, init?: RequestInit) => {
+      const url = new URL(input);
+      const route = owner.statuses().find((route) => route.origin === url.origin);
+      if (!route?.originPort) throw new Error('missing-origin');
+      return fetch(`http://127.0.0.1:${route.originPort}${url.pathname}`, init);
+    }) as typeof fetch,
+  };
+  owner = createPrivateTunnel(options);
+  tunnels.push(owner);
+  await Promise.all([owner.add({ mode: 'quick' }), owner.add({ mode: 'quick' })]);
+  await vi.waitFor(() => expect(owner.statuses()[0]?.state).toBe('connected'));
+  const quick = owner.admission()!;
+  expect(cloudflared.runs).toHaveLength(1);
+  expect(await owner.add({ mode: 'ingress', origin: quick.origin })).toEqual({
+    ok: false,
+    code: 'private-route-origin-in-use',
+  });
+  await owner.add({ mode: 'ingress', origin: 'https://private.example.com' });
+  await vi.waitFor(() => expect(owner.admissions()).toHaveLength(2));
+  expect(new Set(owner.admissions().map((route) => route.token))).toEqual(new Set([quick.token]));
+  expect(new Set(owner.statuses().map((route) => route.originPort)).size).toBe(2);
+  const databaseOwner = trackTestOwner(
+    mountOperationalDatabase({
+      dshHome: createTempRoot('private-route-offer-'),
+      schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
+    }),
+  );
+  const pairing = createDevicePairing({
+    database: attachOperationalModule(databaseOwner, 'device-pairing'),
+    hostName: 'Route test',
+  });
+  const identity = createNoiseIdentity(() => credentials);
+  const http = createDevicesHttp({
+    pairing,
+    privateTunnel: owner,
+    routes: () => detectPhoneRoutes({ port: 4100, run: async () => '' }),
+    encryption: async () => ({ ...(await identity.publicIdentity()), state: 'encrypted' }),
+  });
+  const offer = async (routeId?: string) => {
+    const response = await http(
+      new Request('http://localhost/api/botharness/devices/offer', {
+        method: 'POST',
+        body: JSON.stringify(routeId ? { routeId } : {}),
+      }),
+    );
+    expect(response.status).toBe(200);
+    const view: PairingOfferView = await response.json();
+    return {
+      view,
+      payload: JSON.parse(
+        Buffer.from(new URL(view.link).searchParams.get('p')!, 'base64url').toString(),
+      ),
+    };
+  };
+  const combined = await offer();
+  expect(combined.view.routes).toEqual([quick.origin, 'https://private.example.com']);
+  expect(combined.payload.routes).toEqual([quick.origin]);
+  expect(combined.payload.encryption.privateRelay.additionalOrigins).toEqual([
+    'https://private.example.com',
+  ]);
+  const single = await offer('custom');
+  expect(single.view.routes).toEqual(['https://private.example.com']);
+  expect(single.payload.routes).toEqual(single.view.routes);
+  expect(single.payload.encryption.privateRelay.additionalOrigins).toBeUndefined();
+  expect(await owner.disable()).toEqual({ ok: false, code: 'private-route-id-required' });
+  expect(await owner.add({ mode: 'ingress', origin: 'https://replacement.example.com' })).toEqual({
+    ok: false,
+    code: 'private-route-replace-required',
+  });
+  expect(owner.admissions().find((route) => route.id === 'quick')?.origin).toBe(quick.origin);
+  expect(await owner.stop('quick')).toEqual({
+    ok: true,
+    routeId: 'quick',
+    status: { state: 'off' },
+  });
+  expect(owner.statuses().find((route) => route.id === 'quick')).toMatchObject({
+    state: 'off',
+    enabled: false,
+  });
+  expect(owner.admissions()).toHaveLength(1);
+  await owner.close();
+  owner = createPrivateTunnel(options);
+  tunnels.push(owner);
+  await Promise.all([owner.restore(), owner.restore()]);
+  await vi.waitFor(() => expect(owner.admissions()).toHaveLength(1));
+  expect(cloudflared.runs).toHaveLength(1);
+  expect(owner.admission()?.token).toBe(quick.token);
+  const starts = await Promise.all([owner.start('quick'), owner.start('quick')]);
+  expect(starts).toMatchObject([
+    { ok: true, routeId: 'quick', status: { state: 'starting' } },
+    { ok: true, routeId: 'quick', status: { state: 'starting' } },
+  ]);
+  await vi.waitFor(() => expect(owner.admissions()).toHaveLength(2));
+  expect(cloudflared.runs).toHaveLength(2);
+  expect(owner.statuses().find((route) => route.id === 'quick')?.addressChanged).toBe(true);
+  expect(owner.admissions().find((route) => route.id === 'custom')?.origin).toBe(
+    'https://private.example.com',
+  );
+});
+
+it('migrates singleton admission before restoring and refuses unknown versions without overwriting them', async () => {
+  const credentials = memoryCredentials();
+  const key = credentialKey('botharness-core', 'private-tunnel');
+  const token = '1'.repeat(64);
+  credentials.records.set(key, {
+    kind: 'grant',
+    payload: {
+      mode: 'quick',
+      phoneToken: token,
+      originPort: 0,
+      hostname: 'old.trycloudflare.com',
+    },
+  });
+  const cloudflared = fakeCloudflared();
+  const owner = createPrivateTunnel({
+    credentials: () => credentials,
+    port: () => 1,
+    resolveBinary,
+    spawn: cloudflared.spawn,
+    fetch: edgeFetch(cloudflared.runs),
+  });
+  tunnels.push(owner);
+  await owner.restore();
+  await vi.waitFor(() => expect(owner.admission()?.token).toBe(token));
+  expect(credentials.records.get(key)).toMatchObject({
+    kind: 'grant',
+    payload: {
+      version: 2,
+      phoneToken: token,
+      routes: [{ id: 'quick', enabled: true }],
+    },
+  });
+  await owner.close();
+  const unknown = { kind: 'grant' as const, payload: { version: 99, sentinel: 'retained' } };
+  credentials.records.set(key, unknown);
+  const next = createPrivateTunnel({
+    credentials: () => credentials,
+    port: () => 1,
+    spawn: cloudflared.spawn,
+  });
+  tunnels.push(next);
+  expect(await next.add({ mode: 'quick' })).toEqual({
+    ok: false,
+    code: 'private-tunnel-credential-invalid',
+  });
+  expect(credentials.records.get(key)).toEqual(unknown);
+  expect(cloudflared.runs).toHaveLength(1);
+});
+
+it('does not publish a route when its enabled intent cannot be persisted', async () => {
+  const credentials = memoryCredentials();
+  credentials.modifyRecord = async () => {
+    throw new Error('credential-write-failed');
+  };
+  const cloudflared = fakeCloudflared();
+  const owner = createPrivateTunnel({
+    credentials: () => credentials,
+    port: () => 1,
+    spawn: cloudflared.spawn,
+  });
+  tunnels.push(owner);
+  expect(await owner.add({ mode: 'quick' })).toEqual({ ok: false, code: 'credential-unavailable' });
+  expect(cloudflared.runs).toHaveLength(0);
+  expect(owner.admissions()).toEqual([]);
 });
 
 it('accepts only public hostnames the person owns for a Named Tunnel', () => {
@@ -192,7 +375,7 @@ it('runs a Named Tunnel from the stored connector token and refuses bad input wi
   expect(tunnel.admission()!.origin).toBe('https://bot.example.com');
 });
 
-it('pairs a phone through the tunnel origin, carries encrypted RPC, refuses strangers and enforces revoke', async () => {
+it('pairs one phone across two private origins, confines admission and revokes both without replay', async () => {
   const owner = trackTestOwner(
     mountOperationalDatabase({
       dshHome: createTempRoot('tunnel-host-'),
@@ -205,9 +388,11 @@ it('pairs a phone through the tunnel origin, carries encrypted RPC, refuses stra
   });
   const hostKey = randomBytes(32);
   let leakedAuthorization = false;
+  const received: string[] = [];
   const http = createServer(async (request, response) => {
     let text = '';
     for await (const chunk of request) text += String(chunk);
+    received.push(text);
     response.end(text);
   });
   http.listen(0, '127.0.0.1');
@@ -223,12 +408,18 @@ it('pairs a phone through the tunnel origin, carries encrypted RPC, refuses stra
     void gateway.upgrade(request, socket, head);
   });
   const cloudflared = fakeCloudflared();
+  const credentials = memoryCredentials();
   const tunnel = createPrivateTunnel({
-    credentials: () => memoryCredentials(),
+    credentials: () => credentials,
     port: () => port,
     resolveBinary,
     spawn: cloudflared.spawn,
-    fetch: edgeFetch(cloudflared.runs),
+    fetch: (async (input: string, init?: RequestInit) => {
+      const url = new URL(input);
+      const route = tunnel.statuses().find((route) => route.origin === url.origin);
+      if (!route?.originPort) throw new Error('missing-origin');
+      return fetch(`http://127.0.0.1:${route.originPort}${url.pathname}`, init);
+    }) as typeof fetch,
     probeIntervalMs: 10,
   });
   tunnels.push(tunnel);
@@ -236,7 +427,9 @@ it('pairs a phone through the tunnel origin, carries encrypted RPC, refuses stra
   try {
     await tunnel.enable({ mode: 'quick' });
     await vi.waitFor(() => expect(tunnel.status().state).toBe('connected'));
-    const admission = tunnel.admission()!;
+    await tunnel.add({ mode: 'ingress', origin: 'https://custom.example.com' });
+    await vi.waitFor(() => expect(tunnel.admissions()).toHaveLength(2));
+    const admission = { ...tunnel.admission()!, additionalOrigins: ['https://custom.example.com'] };
     const local = `ws://127.0.0.1:${String(tunnel.status().originPort)}`;
     const refused = async (
       headers?: Record<string, string>,
@@ -266,8 +459,14 @@ it('pairs a phone through the tunnel origin, carries encrypted RPC, refuses stra
         throw new Error('No plaintext requests permitted');
       },
       openSocket: (url, events, headers) => {
-        expect(url).toBe(`${admission.origin.replace('https', 'wss')}/botharness-device/channel`);
-        const socket = new WebSocket(`${local}/botharness-device/channel`, { headers });
+        const origin = new URL(url).origin.replace('wss:', 'https:');
+        const route = tunnel.statuses().find((route) => route.origin === origin);
+        expect(route).toBeDefined();
+        expect(headers?.['X-BotHarness-Admission']).toBe(admission.token);
+        const socket = new WebSocket(
+          `ws://127.0.0.1:${route!.originPort}/botharness-device/channel`,
+          { headers },
+        );
         socket.on('open', events.open);
         socket.on('message', (data) => events.message(data.toString()));
         socket.on('close', () => events.closed('closed'));
@@ -303,16 +502,39 @@ it('pairs a phone through the tunnel origin, carries encrypted RPC, refuses stra
       credential: result.host.credential,
       encryption: result.host.encryption!,
     });
-    const request = () =>
-      carrier!.request(admission.origin + '/botharness-device/api/botharness/privateInputSubmit', {
+    expect(result.host.routes).toEqual([admission.origin, 'https://custom.example.com']);
+    const request = (origin = admission.origin) =>
+      carrier!.request(origin + '/botharness-device/api/botharness/privateInputSubmit', {
         method: 'POST',
         body: 'tunnel-sentinel',
         signal: AbortSignal.timeout(3000),
       });
     expect(await (await request()).text()).toBe('tunnel-sentinel');
+    expect(await (await request('https://custom.example.com')).text()).toBe('tunnel-sentinel');
+    expect(received).toEqual(['tunnel-sentinel', 'tunnel-sentinel']);
+    await expect(request('https://unpaired.example.com')).rejects.toMatchObject({
+      code: 'route-invalid',
+    });
+    await tunnel.stop('quick');
+    expect(await (await request('https://custom.example.com')).text()).toBe('tunnel-sentinel');
     expect(leakedAuthorization).toBe(false);
     pairing.revoke(result.host.deviceId);
-    await expect(request()).rejects.toThrow();
+    await expect(request('https://custom.example.com')).rejects.toThrow();
+    await tunnel.start('quick');
+    await vi.waitFor(() => expect(tunnel.admissions()).toHaveLength(2));
+    const refreshed = tunnel.admissions().find((route) => route.id === 'quick')!;
+    carrier.close?.();
+    carrier = encryptedCarrier({
+      raw,
+      hostId: result.host.hostId,
+      credential: result.host.credential,
+      encryption: {
+        ...result.host.encryption!,
+        privateRelay: { ...admission, origin: refreshed.origin },
+      },
+    });
+    await expect(request(refreshed.origin)).rejects.toThrow();
+    expect(received).toEqual(['tunnel-sentinel', 'tunnel-sentinel', 'tunnel-sentinel']);
   } finally {
     carrier?.close?.();
     gateway.close();

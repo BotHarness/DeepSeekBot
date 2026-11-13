@@ -22,6 +22,7 @@ export default function HostConnectionScreen() {
   const { hostId } = useLocalSearchParams<{ hostId?: string }>();
   const session = useHostSession(hostId);
   const host = session.hosts.find((item) => item.hostId === (hostId ?? session.saved?.hostId));
+  const automaticHint = host?.encryption?.privateRelay ? copy.privateAutomatic : copy.automatic;
   const client = session.client;
   const snapshot = useHostSnapshot(client);
   const [busy, setBusy] = useState<string>();
@@ -117,7 +118,7 @@ export default function HostConnectionScreen() {
         {host && (routes.length > 0 || hiddenActiveLoopback) ? null : (
           <SettingsFormItem>
             <Text tone="muted" style={{ paddingHorizontal: space.x5 }}>
-              {host ? copy.automatic : t.hostLookMissing}
+              {host ? automaticHint : t.hostLookMissing}
             </Text>
           </SettingsFormItem>
         )}
@@ -160,7 +161,7 @@ export default function HostConnectionScreen() {
               title={kind}
               on={SHEET_GROUP}
               {...(index === routes.length - 1 && snapshot.routePreference === undefined
-                ? { footer: copy.automatic }
+                ? { footer: automaticHint }
                 : {})}
             >
               <SettingsRow

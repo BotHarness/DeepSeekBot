@@ -16,6 +16,7 @@ import {
 } from './route';
 import { channelFailureDetail, joinFailureDetails } from './pairing-detail';
 import { parsePrivateAdmission, SavedHostsWriteError, type HostEncryption } from './hosts';
+import { privateRouteOrigins } from './route';
 import type { HostCarrier, LocalNetworkStatus } from './carrier';
 import { checkRoute } from './route';
 import type { ConnectRefusal } from './connect-account';
@@ -30,7 +31,7 @@ export interface PairingPayload {
     protocol: 'connect-noise-xk-v1';
     publicKey: string;
     loopback?: 'encrypted';
-    privateRelay?: { origin: string; token: string };
+    privateRelay?: HostEncryption['privateRelay'];
   };
   host: { id: string; name: string };
   offer: string;
@@ -485,7 +486,7 @@ export async function updatePairedRoutes(
   try {
     for (const route of payload.routes.slice(0, 12)) {
       if (signal?.aborted) return { ok: false, code: 'unreachable' };
-      if (!checkRoute(route, privateRelay?.origin).ok) continue;
+      if (!checkRoute(route, privateRelay).ok) continue;
       try {
         const deadline = AbortSignal.timeout(8000);
         const response = await carrier.request(`${route}${DEVICE_PREFIX}/api/botharness/devices`, {
@@ -500,7 +501,14 @@ export async function updatePairedRoutes(
         )
           continue;
         if (payload.encryption.privateRelay)
-          return { ok: true, host: { ...host, encryption, routes: [route] } };
+          return {
+            ok: true,
+            host: {
+              ...host,
+              encryption,
+              routes: privateRouteOrigins(payload.encryption.privateRelay),
+            },
+          };
         const routes = learnedRoutes({ ...host, routes: [route, ...host.routes] }, snapshot);
         return { ok: true, host: { ...host, routes } };
       } catch (error) {
@@ -688,7 +696,13 @@ function redeemEncryptedRoute(
             host: {
               hostId: payload.host.id,
               hostName: payload.host.name,
-              routes: [route, ...payload.routes.filter((other) => other !== route)],
+              routes: [
+                route,
+                ...(payload.encryption?.privateRelay
+                  ? privateRouteOrigins(payload.encryption.privateRelay)
+                  : payload.routes
+                ).filter((other) => other !== route),
+              ],
               deviceId: value['deviceId'],
               credential: value['credential'],
               encryption,

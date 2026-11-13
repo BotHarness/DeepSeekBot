@@ -6,7 +6,11 @@
 
 Control Rail、Bot 设置和可跳过的新手手机步骤都打开同一个连接对话框。先确认手机已安装 App，再准备连接。Quick Tunnel 与 Tobs Connect 保留为短流程；展开**进阶方式**后，可直接选择局域网、Tailscale、自己的固定 Cloudflare Tunnel、自有 HTTPS 入口或 Docker 中继。部署指南复用[入口标准](private-ingress.zh.md)和本页 Docker 步骤，[中继标准](private-relay-standard.zh.md)仍是协议依据。
 
-返回上一步不会关闭已经准备好的 Host 路线；只有明确开启或关闭才改变所选方式。当前仅支持一种私有模式，已有连接会展示为管理状态，不会把替换伪装成添加；关闭后旧地址可能失效。Docker 迁移必须保留所有者凭据和数据卷，不提供通用重置操作。
+返回上一步不会关闭已经准备好的 Host 连接。Quick Tunnel 可与一个自定义连接共存：自己的 Cloudflare Named Tunnel 或已有 HTTPS 入口。每行分别显示状态，可单独停止或恢复。停止会保留配置，Host 重启只恢复已启用的连接。添加不会覆盖已有配置；替换自定义连接必须明确确认，Quick Tunnel 不受影响。移除连接方式需确认，会忘记该配置，但不撤销手机授权。要同时禁止手机通过所有通道访问，请单独撤销该手机。
+
+新版手机在同一 Host 身份下保存两个明确授权的私有地址，旧版手机使用邀请里的主地址。Quick Tunnel 重启后地址可能变化，重新扫码可替换保存的地址，不会新增一个 Host。某条连接停止或失败时，另一条已验证的连接仍可配对。私有连接不会自动学习官方服务的回退地址。
+
+Docker 中继仍是独立且互斥的私有部署方式，迁移时必须保留所有者凭据和数据卷，不提供通用重置操作。升级已有 Host 前，请备份受保护的完整 Profile 和凭据；旧软件包无法读取双连接凭据格式，降级必须恢复匹配的备份。见[迁移与回滚](adr/0333-bounded-private-route-coexistence.md)和 [CLI 连接命令](bot-cli.zh.md#独立管理私有连接)。
 
 Tailscale 要求手机和电脑位于可互访的同一 tailnet。iOS 和 Android 通常只能同时运行一个 VPN，开启 Tailscale 可能中断其他 VPN，详见 [Tailscale 官方说明](https://tailscale.com/docs/reference/faq/other-vpns)。局域网要求网络可达；HTTPS 入口要求 DNS、双方信任的证书、WebSocket 转发及 Host 检查通过后才显示配对码。失败时提供 DNS、证书或转发的下一步操作，不关闭证书验证，也不自动切换官方服务。
 

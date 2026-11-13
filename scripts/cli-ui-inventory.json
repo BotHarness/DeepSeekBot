@@ -75,7 +75,8 @@
         "setting:packages/client/src/client/paired-devices.tsx:{t('devices.pair.title')}",
         "setting:packages/client/src/client/paired-devices.tsx:{t('connections.title')}",
         "setting:packages/client/src/client/paired-devices.tsx:{t('connections.methods')}",
-        "setting:packages/client/src/client/paired-devices.tsx:{t('connections.pending')}"
+        "setting:packages/client/src/client/paired-devices.tsx:{t('connections.pending')}",
+        "setting:packages/client/src/client/private-tunnel-settings.tsx:{t(modeTitle(route.mode))}"
       ],
       "commands": [
         "devices",
@@ -96,7 +97,8 @@
         "private-tunnel-enable",
         "private-tunnel-disable",
         "private-ingress-enable",
-        "private-ingress-disable"
+        "private-ingress-disable",
+        "private-route"
       ]
     },
     {

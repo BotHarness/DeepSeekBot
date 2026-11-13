@@ -4,6 +4,7 @@ import { ConnectionGuide } from './connection-guide.js';
 import { PrivateRelaySettings } from './private-relay-settings.js';
 import {
   PrivateTunnelSettings,
+  type PrivateRouteView,
   type PrivateTunnelStep,
   type PrivateTunnelView,
 } from './private-tunnel-settings.js';
@@ -64,6 +65,7 @@ interface ConnectStatus {
 interface DevicesSnapshot {
   privateRelay?: { state: string; origin?: string; issue?: string };
   privateTunnel?: PrivateTunnelView;
+  privateRoutes?: PrivateRouteView[];
   lanBots?: LanBotSnapshot;
   lan?: { state: 'off' | 'listening' | 'error'; issue?: string };
   host: { id: string; name: string };
@@ -711,7 +713,8 @@ export function PairedDevicesSettings({
                       : 'connections.prepare',
               )}
             </Note>
-            {(setup === 'private' || setup === 'privateRelay') &&
+            {(setup === 'privateRelay' ||
+              (setup === 'private' && (snapshot?.privateRelay?.state ?? 'off') !== 'off')) &&
             ((snapshot?.privateTunnel?.state ?? 'off') !== 'off' ||
               (snapshot?.privateRelay?.state ?? 'off') !== 'off') ? (
               <Note tone="warning">{t('connections.privateReplacement')}</Note>
@@ -848,6 +851,7 @@ export function PairedDevicesSettings({
               <PrivateTunnelSettings
                 t={t}
                 {...(snapshot?.privateTunnel ? { status: snapshot.privateTunnel } : {})}
+                {...(snapshot?.privateRoutes ? { routes: snapshot.privateRoutes } : {})}
                 refresh={load}
                 pair={() => {
                   setSetup('closed');

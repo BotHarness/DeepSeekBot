@@ -597,7 +597,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
   const scope = options.hostId ? { scope: options.hostId } : {};
   const resource = (path: string): RemoteSource => {
     if (
-      checkRoute(route, options.encryption?.privateRelay?.origin).ok &&
+      checkRoute(route, options.encryption?.privateRelay).ok &&
       !isEncryptedRoute(route, options.encryption)
     )
       return { uri: absolute(path), headers: authorization, ...scope };
@@ -622,7 +622,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     };
   };
   const avatar = (path: string): { avatarUrl?: string; avatarHeaders?: Record<string, string> } => {
-    if (!checkRoute(route, options.encryption?.privateRelay?.origin).ok) return {};
+    if (!checkRoute(route, options.encryption?.privateRelay).ok) return {};
     if (!isEncryptedRoute(route, options.encryption))
       return { avatarUrl: absolute(path), avatarHeaders: authorization };
     const key = route + path;
@@ -1721,7 +1721,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     },
     resource,
     secretInputAllowed: () =>
-      checkRoute(route, options.encryption?.privateRelay?.origin).ok &&
+      checkRoute(route, options.encryption?.privateRelay).ok &&
       (!isEncryptedRoute(route, options.encryption) || options.encryption !== undefined),
     onLive(listener) {
       liveListeners.add(listener);

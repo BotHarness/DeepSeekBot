@@ -7,7 +7,7 @@ export const zh = {
   'connections.namedRequirements': '需要自己的 Cloudflare 账号、域名和 Tunnel 令牌。',
   'connections.ingressRequirements': '需要手机和电脑都能访问的 HTTPS 地址及受信任证书。',
   'connections.privateReplacement':
-    '当前只支持一种私有连接；更换前先关闭下方的已有连接，旧地址可能失效。Docker 中继的迁移见部署指南。',
+    'Docker 中继不能与这些私有连接同时使用。迁移前先移除已有配置，并按部署指南保留凭据和数据。',
   'connections.tailscaleVpn':
     'iOS 和 Android 通常只能运行一个 VPN。开启 Tailscale 会影响你正在使用的其他 VPN。',
   'connections.vpnGuide': '查看 VPN 限制',
@@ -24,6 +24,24 @@ export const zh = {
   'connections.recovery.busy': '已有私有连接。先管理当前连接，再更换方式。',
   'connections.recovery.generic': '检查部署指南和连接设置后重试。',
 
+  'privateTunnel.routes.originInUse': '该地址已用于另一条连接，请填写不同地址。',
+  'privateTunnel.routes.off': '已停止',
+  'privateTunnel.routes.starting': '正在启动',
+  'privateTunnel.routes.verifying': '正在检查',
+  'privateTunnel.routes.connected': '已连接',
+  'privateTunnel.routes.error': '暂时无法连接',
+  'privateTunnel.routes.stop': '停止',
+  'privateTunnel.routes.start': '恢复连接',
+  'privateTunnel.routes.remove': '移除连接方式',
+  'privateTunnel.routes.removeHint': '移除后需重新配置。已配对手机的授权不会撤销。',
+  'privateTunnel.routes.removeConfirm': '确认移除',
+  'privateTunnel.routes.cancel': '取消',
+  'privateTunnel.routes.replaceHint': '保存将替换现有固定地址的配置；Quick Tunnel 不受影响。',
+  'privateTunnel.routes.replaceConfirm': '替换并连接',
+  'privateTunnel.routes.replaceNamed': '替换为 Cloudflare 固定地址',
+  'privateTunnel.routes.addNamed': '添加 Cloudflare 固定地址',
+  'privateTunnel.routes.replaceIngress': '替换为自己的 HTTPS 地址',
+  'privateTunnel.routes.addIngress': '添加自己的 HTTPS 地址',
   'privateTunnel.title': '私有连接（推荐）',
   'privateTunnel.description': '不需要 Docker 和官方账号，这台电脑只公开加密的手机通道。',
   'privateTunnel.intro':
@@ -5151,7 +5169,7 @@ export const en = {
   'connections.ingressRequirements':
     'Requires an HTTPS address reachable by the phone and computer, with a trusted certificate.',
   'connections.privateReplacement':
-    'Only one private connection is supported; close the existing connection below before changing methods, which can invalidate its old address. Follow the deployment guide to migrate a Docker relay.',
+    'Docker relay cannot run alongside these private connections. Remove existing configurations before migrating, and preserve credentials and data as described in the deployment guide.',
   'connections.tailscaleVpn':
     'iOS and Android normally allow one VPN at a time. Turning on Tailscale can interrupt another VPN you use.',
   'connections.vpnGuide': 'View VPN limitations',
@@ -5172,6 +5190,27 @@ export const en = {
     'A private connection already exists. Manage it before changing methods.',
   'connections.recovery.generic': 'Check the deployment guide and connection settings, then retry.',
 
+  'privateTunnel.routes.originInUse':
+    'Another connection uses this address. Choose a different address.',
+  'privateTunnel.routes.off': 'Stopped',
+  'privateTunnel.routes.starting': 'Starting',
+  'privateTunnel.routes.verifying': 'Checking',
+  'privateTunnel.routes.connected': 'Connected',
+  'privateTunnel.routes.error': 'Unavailable',
+  'privateTunnel.routes.stop': 'Stop',
+  'privateTunnel.routes.start': 'Resume',
+  'privateTunnel.routes.remove': 'Remove method',
+  'privateTunnel.routes.removeHint':
+    'Setup is required to add it again. Paired phone access is not revoked.',
+  'privateTunnel.routes.removeConfirm': 'Remove method',
+  'privateTunnel.routes.cancel': 'Cancel',
+  'privateTunnel.routes.replaceHint':
+    'Saving replaces the existing custom connection. Quick Tunnel stays unchanged.',
+  'privateTunnel.routes.replaceConfirm': 'Replace and connect',
+  'privateTunnel.routes.replaceNamed': 'Replace with a Named Tunnel',
+  'privateTunnel.routes.addNamed': 'Add a Named Tunnel',
+  'privateTunnel.routes.replaceIngress': 'Replace with private HTTPS',
+  'privateTunnel.routes.addIngress': 'Add private HTTPS',
   'privateTunnel.title': 'Private connection (recommended)',
   'privateTunnel.description':
     'No Docker or official account. This computer publishes only its encrypted phone channel.',
