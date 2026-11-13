@@ -7,9 +7,10 @@
       "scope": "Local Host",
       "surfaces": [
         "route:packages/core/src/devices/mount.ts:RELATIONSHIPS_PATH",
-        "setting:packages/client/src/client/relationship-settings.tsx:{item.peer.name}"
+        "setting:packages/client/src/client/relationship-settings.tsx:{item.peer.name}",
+        "setting:packages/client/src/client/relationship-settings.tsx:{t('relationships.prepareReturn')}"
       ],
-      "commands": ["relationships", "device-probe"]
+      "commands": ["relationships", "device-probe", "device-lan"]
     },
     {
       "id": "client-preferences",

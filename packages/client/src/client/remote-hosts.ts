@@ -85,6 +85,7 @@ export interface RemotePairTrust {
 }
 
 export interface RemoteHosts {
+  learnRelationshipRoutes(peer: ClientRelationship['peer']): void;
   enrollRelationship(
     relationship: Pick<ClientRelationship, 'id' | 'peer'>,
     name: string,
@@ -383,6 +384,15 @@ export function createRemoteHosts(options: {
 
   return {
     notifications,
+    learnRelationshipRoutes(peer) {
+      const entry = clients.get(peer.id);
+      if (!entry || peer.routes.length === 0) return;
+      if (entry.host.encryption?.hostKey !== peer.publicKey) throw new Error('host-key-mismatch');
+      const routes = [...new Set(peer.routes)].slice(0, 8);
+      saveHostChange(peer.id, entry.client, (current) => ({ ...current, routes }));
+      entry.client.updateRoutes?.(routes);
+      entry.client.retryNow('manual_retry', { preserveConnected: true });
+    },
     async enrollRelationship(relationship, name, signal) {
       const target = relationship.peer.id;
       if (signal?.aborted) return { ok: false, code: 'cancelled' };

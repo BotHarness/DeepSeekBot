@@ -14,6 +14,7 @@ const command = z.discriminatedUnion('action', [
   }),
   z.object({ action: z.literal('approve'), id, confirmedKey: key, confirm: z.literal(true) }),
   z.object({ action: z.literal('sync'), id }),
+  z.object({ action: z.literal('route'), id, link: z.string().max(16_384) }),
   z.object({ action: z.literal('enroll'), id, publicKey: key, name: z.string().min(1).max(60) }),
   z.object({ action: z.literal('disconnect'), id, confirm: z.literal(true) }),
 ]);
@@ -43,6 +44,8 @@ export function createRelationshipHttp(control: RelationshipControl) {
       if (input.action === 'approve')
         return reply({ relationship: control.approve(input.id, input.confirmedKey) });
       if (input.action === 'sync') return reply({ relationship: await control.sync(input.id) });
+      if (input.action === 'route')
+        return reply({ relationship: await control.recoverRoute(input.id, input.link) });
       if (input.action === 'enroll')
         return reply(await control.enroll(input.id, input.publicKey, input.name));
       return reply({ relationship: await control.disconnect(input.id) });

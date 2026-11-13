@@ -16,6 +16,8 @@ Use a second browser context with independent local storage, authenticated to A.
 
 ## Sub-features
 
+- `partial-relationship` (E3): Start A without a published return route and B with its existing encrypted LAN route. Approve A→B once; `relationships sync` must keep the relationship active with outgoing reachable and incoming unavailable. In Connections, verify both named directions and use Prepare this address to prepare A's existing LAN/Tailscale/tunnel route. Close/reopen Connections without another subprocess, then Check both directions from A. Read A's distinct real Feed from B through an independently enrolled Client. Compare relationship ID, key and existing grants before/after. Update peer address accepts only an exact pinned Host's new link and verifies it before saving, without consuming the invitation. Query via CLI, wait 30 seconds for stale observations, restart for unverified observations with retained routes, and exercise a lost route and wrong-Host link. Record Web separately from installed Desktop, Simulator and physical-device checks; none is implied by this Web journey.
+
 - `pair`: Add remote opens the shared Connections Modal directly at Connect to another computer. Paste a pairing URL or read a local PNG/JPEG/WebP QR image, verify the full identity and approve on the target Host. After its real Feed is read, customize the saved name/icon in the same Modal; Back and Done remain in its footer. Verify the newly selected Host tab and appearance survive refresh, including the first remote tab switching the sidebar branch.
 - `tabs`: the icon strip filters All, This host and each Remote Host; tooltips name the Host, and Chinese uses 全部、本机、远程.
 - `open`: a remote row opens a Host-scoped conversation.

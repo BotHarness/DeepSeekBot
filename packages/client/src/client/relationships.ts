@@ -9,6 +9,12 @@ import { keyBytes } from '../../../../apps/mobile/src/host/encrypted-carrier.js'
 import { noiseFingerprint } from '../../../core/src/devices/noise/xk.js';
 import type { RemoteHosts, HostPairResult, RemotePairTrust } from './remote-hosts.js';
 
+export class RelationshipRequestRefused extends Error {
+  constructor(readonly code: string) {
+    super(code);
+  }
+}
+
 export async function relationshipRequest(
   body?: Record<string, unknown>,
   signal?: AbortSignal,
@@ -24,7 +30,12 @@ export async function relationshipRequest(
       : AbortSignal.timeout(15_000),
   });
   const value: unknown = await response.json();
-  if (!response.ok) throw new Error('relationship-request-refused');
+  if (!response.ok)
+    throw new RelationshipRequestRefused(
+      value && typeof value === 'object' && 'code' in value && typeof value.code === 'string'
+        ? value.code
+        : 'relationship-request-refused',
+    );
   return value;
 }
 
@@ -85,7 +96,7 @@ export async function pairReciprocalHost(
   } catch {
     return { ok: false, code: trust?.signal?.aborted ? 'cancelled' : 'unreachable' };
   } finally {
-    if (relationship && !saved)
+    if (relationship && !saved && relationship.state !== 'active')
       await relationshipRequest({ action: 'disconnect', id: relationship.id, confirm: true }).catch(
         () => {},
       );

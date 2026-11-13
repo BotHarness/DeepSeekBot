@@ -4,6 +4,8 @@
 
 E2 将已批准关系复用于另一 Web Client 的具名授权：Client 显式选择关系和名称，兑换前检查目标 Host ID 与公钥，仍用现有 SavedHost 存储独立凭据；重复打开仅切换已保存目标。CLI `relationships enroll --device-name` 使用同一登记路径。取消、断开和旧关系代际不能签发迟到访问；单独撤销设备不撤销关系或其他 Client。手机仍通过每 Host 的独立配对，不能凭平台标记继承关系。
 
+E3 在既有关系 owner 内保留缺少返回地址的已批准关系；固定 Noise 身份的状态交换学习既有线路，另一次独立对端探测验证返回方向。可达性为 30 秒有效的进程观测，重启后回到尚未验证；授权与线路仍持久化。Connections 和 CLI 共用方向检查及固定身份线路恢复；不重新批准、不新增设备授权，也不接管 LAN、Tailscale 或隧道进程。关闭线路准备窗口不停止已完成的线路。
+
 2026-11-13 的整体确认扩展了 #4069 原先仅 Client 配对的范围。Control Rail Environment 面板在 Simple 模式替换当前面板，在 Advanced 模式增加独立列；Channels 与 Activity 共用 Client 本地 Environment Scope，Settings Target 独立且写入绑定精确 Host。Host Relationship 属于双端持久应用权威，每个 Client 仍取得自己的设备凭据，手机不自动继承，Bot 协作独立授权。每个方向的可达性和离线撤销确认分别呈现，不把账号退出、断开关系、关闭线路或删除远端数据混为一谈。通过现有 Device Pairing、凭据、operational database 与 API Gateway 边界交付，不能用布局状态或 Cordis Event 代替持久授权。
 
 完整交互、权限边界及验收见[环境面板设计](environment-panel.zh.md)、[ADR-0334](../adr/0334-host-relationships-authorize-independent-client-enrollment.md)及 ADR-0327 的桌面修订。以下既有实现记录不代表该新目标已完成；原九切片验收也不覆盖新增双向关系。

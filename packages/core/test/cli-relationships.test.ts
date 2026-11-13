@@ -13,6 +13,12 @@ it('lists relationships through the authenticated owning Host', async () => {
   expect(await runRelationshipCommand(['list'], {}, connect)).toEqual(response);
   expect(http).toHaveBeenCalledWith('/api/botharness/relationships', undefined);
 });
+it('checks directions without confirmation or issuing another enrollment', async () => {
+  const { http, connect } = fixture();
+  await runRelationshipCommand(['sync', id], {}, connect);
+  expect(http).toHaveBeenCalledWith('/api/botharness/relationships', { action: 'sync', id });
+  await expect(runRelationshipCommand(['route', id], {}, connect)).rejects.toThrow('--link-file');
+});
 it('requires exact identity and explicit reciprocal approval before contacting the Host', async () => {
   const { http, connect } = fixture();
   await expect(runRelationshipCommand(['approve', id, publicKey], {}, connect)).rejects.toThrow(

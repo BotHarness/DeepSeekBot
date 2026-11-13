@@ -633,7 +633,9 @@ export function PairedDevicesSettings({
   const overview = !standalone || (setup === 'closed' && !pairing && !reviewing);
   const content = (
     <div ref={mount} data-paired-devices="">
-      {section === 'devices' && setup !== 'remote' ? <RelationshipSettings t={t} /> : null}
+      {section === 'devices' && setup !== 'remote' ? (
+        <RelationshipSettings t={t} onPrepareRoute={() => setSetup('method')} />
+      ) : null}
       {!standalone && section === 'devices' && overview ? (
         <SettingsSection>
           <SettingsRow

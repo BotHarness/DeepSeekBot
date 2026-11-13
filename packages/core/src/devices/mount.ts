@@ -359,8 +359,11 @@ export function mountDevicePairing(
       relationships,
       pairing,
       identity,
+      record: (event) => write('host-relationships', event.phase, JSON.stringify(event)),
       routes: async () =>
-        (await routes()).routes.filter((route) => route.ready).map((route) => route.url),
+        (await routes()).routes
+          .filter((route) => route.ready && route.kind !== 'loopback')
+          .map((route) => route.url),
     });
     webCtx.effect(() => () => relationshipControl.close(), 'botharness: Host relationship control');
     const lanKey = credentialKey('botharness-core', 'device-lan');

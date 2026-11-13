@@ -18,7 +18,7 @@ import { attachOperationalModule, mountOperationalDatabase } from '../src/databa
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
-async function host(name: string) {
+async function host(name: string, clock: () => number = Date.now) {
   const owner = trackTestOwner(
     mountOperationalDatabase({
       dshHome: createTempRoot('relationship-wire-'),
@@ -49,11 +49,13 @@ async function host(name: string) {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const port = (server.address() as AddressInfo).port;
   const routes = [`http://127.0.0.1:${port}`];
+  const advertisedRoutes = [...routes];
   const control = createRelationshipControl({
     relationships,
     pairing,
     identity,
-    routes: async () => routes,
+    routes: async () => advertisedRoutes,
+    now: clock,
   });
   const gateway = createEncryptedGateway({
     pairing,
@@ -69,6 +71,8 @@ async function host(name: string) {
     relationships,
     control,
     publicKey: Buffer.from(publicKey).toString('hex'),
+    routes,
+    advertisedRoutes,
     async link() {
       const offer = pairing.createOffer();
       return pairingLink({
@@ -107,6 +111,9 @@ it('establishes exact reciprocal authorization over real Noise sockets and retir
     b.control.approve(relationship.id, a.publicKey);
     expect((await a.control.sync(relationship.id)).state).toBe('active');
     expect(b.control.list()[0]?.state).toBe('active');
+    a.relationships.updateRoutes(relationship.id, b.publicKey, ['http://127.0.0.1:1', ...b.routes]);
+    expect((await a.control.sync(relationship.id)).reachability.outgoing.state).toBe('reachable');
+    expect(a.relationships.read(relationship.id).peer.routes[0]).toBe(b.routes[0]);
     for (const [source, target] of [
       [a, b],
       [b, a],
@@ -138,6 +145,62 @@ it('establishes exact reciprocal authorization over real Noise sockets and retir
     );
   } finally {
     await Promise.all([a.close(), b.close()]);
+  }
+});
+
+it('keeps an approved partial relationship and completes its real missing direction without new approval or grants', async () => {
+  let clock = Date.now();
+  const a = await host('A', () => clock);
+  const b = await host('B', () => clock);
+  const other = await host('Wrong Host');
+  try {
+    a.advertisedRoutes.length = 0;
+    const relationship = await a.control.initiate(await b.link(), b.publicKey);
+    b.control.approve(relationship.id, a.publicKey);
+    const partial = await a.control.sync(relationship.id);
+    expect(partial).toMatchObject({
+      state: 'active',
+      reachability: {
+        outgoing: { state: 'reachable' },
+        incoming: { state: 'unavailable', refusal: 'relationship-route-unavailable' },
+      },
+    });
+    expect(b.control.list()[0]?.peer.routes).toEqual([]);
+    const credential = await enrollRelationshipClient({
+      relationshipId: relationship.id,
+      name: 'Already authorized',
+      expectedPeer: relationship.peer,
+      carrier: nodeDeviceCarrier(),
+      request: async (input) =>
+        a.control.enroll(relationship.id, String(input['publicKey']), String(input['name'])),
+    });
+    expect(credential.ok).toBe(true);
+    const grants = b.pairing.list().length;
+    await expect(b.control.recoverRoute(relationship.id, await other.link())).rejects.toThrow(
+      'relationship-identity-mismatch',
+    );
+    expect(b.control.list()[0]?.peer.publicKey).toBe(a.publicKey);
+    a.advertisedRoutes.push(...a.routes);
+    const recovered = await a.control.sync(relationship.id);
+    expect(recovered).toMatchObject({
+      id: relationship.id,
+      state: 'active',
+      reachability: { outgoing: { state: 'reachable' }, incoming: { state: 'reachable' } },
+    });
+    expect(b.control.list()[0]?.peer.routes).toEqual(a.routes);
+    expect(b.pairing.list()).toHaveLength(grants);
+    expect(a.control.list()).toHaveLength(1);
+    await b.control.recoverRoute(relationship.id, await a.link());
+    expect(b.control.list()).toHaveLength(1);
+    clock += 30_001;
+    expect(a.control.list()[0]?.reachability).toMatchObject({
+      outgoing: { state: 'stale' },
+      incoming: { state: 'stale' },
+    });
+    a.advertisedRoutes.length = 0;
+    expect((await a.control.sync(relationship.id)).reachability.incoming.state).toBe('unavailable');
+  } finally {
+    await Promise.all([a.close(), b.close(), other.close()]);
   }
 });
 

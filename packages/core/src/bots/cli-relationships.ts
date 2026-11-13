@@ -11,7 +11,7 @@ export const RELATIONSHIP_COMMANDS = [
   {
     command: 'relationships',
     description:
-      'list, initiate, approve, sync, enroll or disconnect reciprocal Hosts; independent device keys stay in private files',
+      'list, initiate, approve, sync, route, enroll or disconnect reciprocal Hosts; independent device keys stay in private files',
   },
 ] as const;
 const PATH = '/api/botharness/relationships';
@@ -28,10 +28,13 @@ export async function runRelationshipCommand(
   }>,
 ) {
   const [action, id, publicKey] = rest;
-  if (!action || !['list', 'initiate', 'approve', 'sync', 'enroll', 'disconnect'].includes(action))
+  if (
+    !action ||
+    !['list', 'initiate', 'approve', 'sync', 'route', 'enroll', 'disconnect'].includes(action)
+  )
     throw new CliLiveError(
       'usage',
-      'relationships takes list, initiate <public-key>, approve <id> <public-key>, sync <id>, enroll <id>, or disconnect <id>.',
+      'relationships takes list, initiate <public-key>, approve <id> <public-key>, sync <id>, route <id> --link-file <file>, enroll <id>, or disconnect <id>.',
     );
   if (rest.length !== (action === 'list' ? 1 : action === 'approve' ? 3 : 2))
     throw new CliLiveError('usage', 'Invalid relationship arguments.');
@@ -47,8 +50,8 @@ export async function runRelationshipCommand(
     !/^[0-9a-f]{64}$/u.test(action === 'initiate' ? id! : publicKey!)
   )
     throw new CliLiveError('usage', 'Compare the full Host identity and supply its public key.');
-  if ((action === 'initiate') !== (values['link-file'] !== undefined))
-    throw new CliLiveError('usage', 'Only initiate requires --link-file.');
+  if (['initiate', 'route'].includes(action) !== (values['link-file'] !== undefined))
+    throw new CliLiveError('usage', 'Initiate and route require --link-file.');
   if ((action === 'enroll') !== (values.out !== undefined))
     throw new CliLiveError('usage', 'Only enroll requires --out.');
   if (
@@ -108,6 +111,7 @@ export async function runRelationshipCommand(
     return { hostId: result.host.hostId, deviceId: result.host.deviceId, encrypted: true };
   }
   if (action === 'initiate') return request({ action, link, confirmedKey: id, confirm: true });
+  if (action === 'route') return request({ action, id, link });
   return request({
     action,
     id,
