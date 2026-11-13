@@ -42,7 +42,8 @@ beforeEach(() => {
   posts.length = 0;
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (_url: string, init?: RequestInit) => {
+    vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.endsWith('/relationships')) return Response.json({ relationships: [] });
       if (init?.method === 'POST') {
         posts.push(JSON.parse(String(init.body)));
         return Response.json({ state: 'signing-in' });
@@ -129,7 +130,11 @@ it('accepts a slow check without overlapping polling requests', async () => {
         finish = resolve;
       }),
   );
-  vi.stubGlobal('fetch', request);
+  vi.stubGlobal('fetch', (url: string) =>
+    url.endsWith('/relationships')
+      ? Promise.resolve(Response.json({ relationships: [] }))
+      : request(),
+  );
   await mountWithTimers();
   await poll();
   await poll();
