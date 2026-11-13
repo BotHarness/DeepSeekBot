@@ -4,6 +4,14 @@
   "boundary": "All scripts/e2e-*.mjs files and all current feature-map documents, augmented by implemented Client/CLI/mobile source entry points. Behavior rows group related acceptance paths; they are not an exhaustive product behavior denominator. Planned unmerged #1954 work and packaged/restart identity promises are excluded.",
   "behaviors": [
     {
+      "id": "environment.remote-bot-settings",
+      "label": "Exact remote Channel owner Bot settings and independent browsing scope",
+      "source": "packages/client/src/client/remote-bot-settings.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/remote-bot-settings.md",
+      "task": 4118,
+      "gap": "Two-Host Web and direct CLI qualification is separate from installed Desktop, native mobile and Human acceptance."
+    },
+    {
       "id": "question.durable-recovery",
       "label": "Original timed-question answers after durable continuation and Host restart",
       "source": "packages/core/src/channels/native-timed-questions.ts",

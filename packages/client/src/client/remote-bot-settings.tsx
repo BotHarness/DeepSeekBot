@@ -88,7 +88,6 @@ function useSetting<T>(load: () => Promise<T>, available: boolean) {
       await refresh();
       return current.current.active && current.current.available;
     } catch {
-      // Observe the same owner after an uncertain result; never retry the mutation here.
       await refresh().catch(() => undefined);
       if (current.current.active) setError('failed');
       return false;
