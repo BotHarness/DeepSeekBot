@@ -131,6 +131,8 @@ export function createAccountActionFixture(scenario: AccountFixtureScenario = 's
           return response({}, 502);
         }
         if (diagnostics && url.endsWith('/offer')) {
+          if (url.endsWith('/hlaptop/offer'))
+            return response({ error: { code: 'host-offline', cause: 'fixture-secret' } }, 409);
           if (scenario === 'connection-diagnostics-network')
             throw new Error(
               'DNS lookup failed https://private.fixture.invalid?token=fixture-secret Authorization Bearer fixture-secret',
