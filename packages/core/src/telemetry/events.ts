@@ -91,7 +91,7 @@ export interface TelemetryEventSpec {
   properties: Readonly<Record<string, TelemetryPropertySpec>>;
 }
 
-const INTRO_STEPS = ['welcome', 'theme', 'model', 'community', 'start'] as const;
+const INTRO_STEPS = ['welcome', 'theme', 'model', 'phone', 'community', 'start'] as const;
 const INTRO_PERSONAS = ['engineer', 'creator', 'operator', 'learner'] as const;
 const INTRO_FEATURES = ['bot', 'group', 'schedule', 'browser', 'memory', 'im'] as const;
 const INTRO_PERSONA_DETAILS = [
