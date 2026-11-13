@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import type { AssistantStreamFrame } from '@deepseek-ai/dsh-agent';
 import type { UserMessage } from '@deepseek-ai/dsh-llm';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
@@ -90,9 +91,9 @@ function dshFixture(options: { stopSettleTimeoutMs?: number } = {}) {
       ? {}
       : { stopSettleTimeoutMs: options.stopSettleTimeoutMs }),
   });
-  const bridge = createBridgeMethods({ ...core });
+  const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
-  const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+  const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
   let sent = 0;
   return {
     core,
@@ -351,10 +352,10 @@ async function assignmentFixture(options: { stopSettleTimeoutMs?: number } = {})
       list: () => [],
     }),
   });
-  const bridge = createBridgeMethods({ ...core });
+  const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
   createTestWorkspaceGrants(core.operationalDatabase, home);
-  const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+  const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
   let sent = 0;
   return {
     core,
@@ -364,7 +365,7 @@ async function assignmentFixture(options: { stopSettleTimeoutMs?: number } = {})
     closed,
     human(body: string) {
       sent += 1;
-      const admission = core.runtime.admitDmMessage({
+      const admission = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: `human-${sent}`,
         body,

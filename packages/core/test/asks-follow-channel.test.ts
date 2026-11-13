@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it, vi } from 'vitest';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { ToolExecution } from '@deepseek-ai/dsh-tools';
@@ -56,16 +57,19 @@ describe('asks follow the Channel the task came from', () => {
       undefined,
       askChannel,
     );
-    const methods = createBridgeMethods({
+    const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
       ...core,
       userQuestions: questions,
       toolApproval: approvals,
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      await core.channels.appendMessageOnce(group.id, {
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      });
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      await core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'group-mention',
         at: '2026-09-25T00:00:00.000Z',
         author: { kind: 'human' },
@@ -144,13 +148,13 @@ describe('asks follow the Channel the task came from', () => {
           ),
       ).toBe(false);
 
-      await core.channels.appendMessage(dm.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'steered-dm',
         at: '2026-09-25T00:00:01.000Z',
         author: { kind: 'human' },
         body: 'Private task',
       });
-      core.runtime.admitDmMessage({
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'steered-dm',
         body: 'Private task',
@@ -191,14 +195,14 @@ describe('approval routing does not require a preliminary Channel message', () =
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      await core.channels.appendMessage(dm.id, {
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'dm-task',
         at: '2026-09-25T00:00:00.000Z',
         author: { kind: 'human' },
         body: 'Check the time',
       });
-      core.runtime.admitDmMessage({
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'dm-task',
         body: 'Check the time',
@@ -237,14 +241,14 @@ describe('approval routing does not require a preliminary Channel message', () =
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      await core.channels.appendMessage(dm.id, {
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'dm-task',
         at: '2026-09-25T00:00:00.000Z',
         author: { kind: 'human' },
         body: 'Check the time',
       });
-      core.runtime.admitDmMessage({
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'dm-task',
         body: 'Check the time',

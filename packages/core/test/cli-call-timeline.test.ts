@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 
 import { runCallTimelineCommand } from '../src/bots/cli-call-timeline.js';
@@ -88,7 +89,7 @@ describe('deepseekbot call-list and call-read (#3693)', () => {
     try {
       for (const call of PICTURE_CALLS)
         for (const message of pictureMessages(call))
-          await core.channels.appendMessage(dm.id, message);
+          await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, message);
       for (const call of PICTURE_CALLS) {
         const cli = (await runCallTimelineCommand(
           'call-read',

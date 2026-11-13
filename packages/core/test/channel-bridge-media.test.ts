@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { writeIngest } from '../src/messaging/conversation-ingest.js';
 import { rmSync } from 'node:fs';
 import { setImmediate as tick } from 'node:timers/promises';
@@ -140,13 +141,13 @@ async function fixture(
     fingerprint,
     targetDigest: target.digest,
   });
-  const created = createBridgeMethods({ ...core }).channelCreate({
+  const created = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core }).channelCreate({
     name: 'Media QA',
     members: ['ada'],
   });
   if (!created.ok) throw new Error(created.error.message);
   const channelId = inboxOnly
-    ? core.channels.getOrCreateDm('ada', 'Ada')!.id
+    ? core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!.id
     : created.value.channel.id;
   await core.externalMessaging.inbound.channelBridge(channelId, {
     kind: 'add',
@@ -501,7 +502,7 @@ it('a connected conversation grants Channel media only while its ingest is enabl
         },
       };
     });
-  const created = createBridgeMethods({ ...fx.core }).channelCreate({
+  const created = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...fx.core }).channelCreate({
     name: 'Connected',
     members: ['ada'],
   });
@@ -587,7 +588,7 @@ it('projects a Lark source file in its original bubble and downloads its exact o
   const result = await fx.read();
   expect(Buffer.from(await new Response(result.body).arrayBuffer())).toEqual(fx.bytes);
   expect(result.inline).toBe(false);
-  const methods = createBridgeMethods({ ...fx.core });
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...fx.core });
   const target = await methods.channelMediaTarget({
     channelId: fx.channelId,
     sourceEventId: fx.sourceEventId,
@@ -665,7 +666,7 @@ it.each([false, true])(
     });
     await expect(second.read()).rejects.toThrow('source-unavailable');
     expect(
-      await createBridgeMethods({ ...second.core }).channelMediaTarget({
+      await createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...second.core }).channelMediaTarget({
         channelId: second.channelId,
         sourceEventId: second.sourceEventId,
         attachmentId: second.attachment.id,

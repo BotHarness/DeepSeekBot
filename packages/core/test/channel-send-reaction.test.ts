@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 
 import { createCore } from '../src/plugin.js';
@@ -17,9 +18,9 @@ async function setup() {
   });
   for (const slug of ['ada', 'bea']) core.registry.create({ slug, displayName: slug });
   const channels = core.channels;
-  const dm = channels.getOrCreateDm('ada', 'Ada')!;
-  const other = channels.createGroup({ name: 'Bea only', members: ['bea'] });
-  await channels.appendMessage(dm.id, {
+  const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+  const other = channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Bea only', members: ['bea'] });
+  await channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
     id: 'trigger',
     at: new Date().toISOString(),
     author: { kind: 'human' },

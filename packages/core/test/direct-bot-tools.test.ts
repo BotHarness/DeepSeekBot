@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -35,7 +36,7 @@ function setup() {
   const registry = createTestRegistry({ rootDir: join(home, 'bots'), now: FIXED_NOW });
   expect(registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
   const channels = createChannelStore({ rootDir: join(home, 'channels'), now: FIXED_NOW });
-  const dm = channels.getOrCreateDm('ada', 'Ada')!;
+  const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
   const owner = trackTestOwner(
     mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
   );
@@ -345,7 +346,7 @@ describe('direct Bot tool runner', () => {
         ['source-event'],
       );
 
-      const admission = runtime.admitDmMessage({
+      const admission = runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'human-after-direct',
         body: 'Status?',

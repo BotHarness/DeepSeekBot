@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -100,9 +101,9 @@ describe('Memory recovery checkpoints', () => {
         expect(git(root, 'rev-parse', merge.ref)).toMatch(/^[0-9a-f]{40}$/u);
 
         writeFileSync(join(root, 'unobserved.txt'), 'must survive refusal\n');
-        expect(() => memory.restore('atlas', root, dirty.id, reset.id)).toThrow(
-          'Memory changed since recovery was opened',
-        );
+        expect(() =>
+          memory.restore(OWNER_HUMAN_CONTEXT, 'atlas', root, dirty.id, reset.id),
+        ).toThrow('Memory changed since recovery was opened');
         expect(memory.latest('atlas')?.origin).toBe('host-observation');
         expect(memory.latest('atlas')?.causeKind).toBe('memory-scan');
         expect(readFileSync(join(root, 'unobserved.txt'), 'utf8')).toBe('must survive refusal\n');
@@ -116,7 +117,7 @@ describe('Memory recovery checkpoints', () => {
         writeFileSync(join(root, '.git', 'info', 'exclude'), 'private-cache.txt\n');
         writeFileSync(join(root, 'private-cache.txt'), 'ignored backup content\n');
 
-        const result = memory.restore('atlas', root, dirty.id, current.id);
+        const result = memory.restore(OWNER_HUMAN_CONTEXT, 'atlas', root, dirty.id, current.id);
         expect(existsSync(result.archivePath)).toBe(true);
         expect(readFileSync(join(result.archivePath, 'private-cache.txt'), 'utf8')).toBe(
           'ignored backup content\n',
@@ -136,7 +137,13 @@ describe('Memory recovery checkpoints', () => {
         expect(reopened.latest('atlas')?.causeKind).toBe('human-restore');
         const firstRestoreId = reopened.latest('atlas')?.id;
         if (firstRestoreId === undefined) throw new Error('Missing restore checkpoint');
-        const repeated = reopened.restore('atlas', root, dirty.id, firstRestoreId);
+        const repeated = reopened.restore(
+          OWNER_HUMAN_CONTEXT,
+          'atlas',
+          root,
+          dirty.id,
+          firstRestoreId,
+        );
         expect(existsSync(repeated.archivePath)).toBe(true);
         expect(reopened.latest('atlas')?.id).not.toBe(firstRestoreId);
         expect(reopened.latest('atlas')?.causeKind).toBe('human-restore');

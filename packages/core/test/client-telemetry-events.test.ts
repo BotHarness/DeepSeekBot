@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { Context } from '@deepseek-ai/cordis';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -8,11 +9,11 @@ function methodsWith(capture = vi.fn(), mark = vi.fn()) {
   const onboarding = {
     enter: vi.fn(async () => ({ profileId: 'p', tutorial: 'active', completed: false })),
   };
-  const methods = createBridgeMethods({
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
     telemetry: { status: vi.fn(), setPreference: vi.fn(), capture },
     activeDay: { mark },
     onboarding,
-  } as unknown as Parameters<typeof createBridgeMethods>[0]);
+  } as unknown as Parameters<typeof createBridgeMethods>[1]);
   return { methods, capture, mark };
 }
 
@@ -111,7 +112,10 @@ describe('client telemetry events', () => {
 
   it('accepts the Web Client wire shape at the Gateway signature', () => {
     const { methods, capture } = methodsWith();
-    const service = registerBridge(new Context(), methods);
+    const service = registerBridge(
+      new Context().extend({ invocation: { peer: { principal: { kind: 'owner' } } } }),
+      () => methods,
+    );
     const source = Function.prototype.toString.call(service.telemetryEvent);
     expect(source.slice(source.indexOf('(') + 1, source.indexOf(')')).replace(/\s*=.*$/u, '')).toBe(
       'event, properties',

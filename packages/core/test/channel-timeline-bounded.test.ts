@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -60,7 +61,10 @@ function fixture() {
     rootDir: join(root, 'channels'),
     attachments: files,
   });
-  const channel = channels.createGroup({ name: 'Bounded timeline', members: ['ada'] });
+  const channel = channels.createGroup(OWNER_HUMAN_CONTEXT, {
+    name: 'Bounded timeline',
+    members: ['ada'],
+  });
   let revision = 0;
   const seed = (...entries: ChannelMessage[]) => {
     revision = channels.revision(channel.id);
@@ -128,7 +132,10 @@ describe('SQLite bounded timeline hydration', () => {
   it('keeps existence tied to placement even for fallback and shared source messages', () => {
     const current = fixture();
     current.seed(message('shared'));
-    const other = current.channels.createGroup({ name: 'Other', members: ['ada'] });
+    const other = current.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Other',
+      members: ['ada'],
+    });
     current.database.transaction((db) => {
       db.prepare('UPDATE source_events SET payload_json = ? WHERE message_id = ?').run(
         'null',
@@ -164,7 +171,11 @@ describe('SQLite bounded timeline hydration', () => {
       ] satisfies ChannelTimelineRequest[]) {
         current.metrics.reads = 0;
         current.metrics.rows = 0;
-        const page = current.channels.readHumanTimeline(current.channel.id, request);
+        const page = current.channels.readHumanTimeline(
+          OWNER_HUMAN_CONTEXT,
+          current.channel.id,
+          request,
+        );
         expect(page?.entries).toHaveLength(request.direction === 'around' ? 41 : 50);
         expect(current.metrics.reads).toBeLessThanOrEqual(65);
         expect(current.metrics.rows).toBeLessThanOrEqual(180);
@@ -232,7 +243,9 @@ describe('SQLite bounded timeline hydration', () => {
     for (const request of requests) {
       const expected = pageChannelTimeline(current.channel.id, all, request);
       expect(current.channels.readTimeline(current.channel.id, request)).toEqual(expected);
-      expect(current.channels.readHumanTimeline(current.channel.id, request)).toEqual(expected);
+      expect(
+        current.channels.readHumanTimeline(OWNER_HUMAN_CONTEXT, current.channel.id, request),
+      ).toEqual(expected);
     }
     const collected: ChannelMessage[] = [];
     let page = current.channels.readTimeline(current.channel.id)!;
@@ -280,7 +293,11 @@ describe('SQLite bounded timeline hydration', () => {
       olderLimit: 0,
       newerLimit: 2,
     } as const;
-    const page = current.channels.readHumanTimeline(current.channel.id, request)!;
+    const page = current.channels.readHumanTimeline(
+      OWNER_HUMAN_CONTEXT,
+      current.channel.id,
+      request,
+    )!;
     expect(page.hasOlder).toBe(false);
     expect(page.hasNewer).toBe(true);
     expect(page.entries[0]?.replyToPreview).toBeNull();
@@ -294,13 +311,13 @@ describe('SQLite bounded timeline hydration', () => {
       around: 'hidden-target',
     })!;
     expect(
-      current.channels.readHumanTimeline(current.channel.id, {
+      current.channels.readHumanTimeline(OWNER_HUMAN_CONTEXT, current.channel.id, {
         direction: 'newer',
         cursor: hidden.olderCursor!,
       }),
     ).toBeUndefined();
     expect(
-      current.channels.readHumanTimeline(current.channel.id, {
+      current.channels.readHumanTimeline(OWNER_HUMAN_CONTEXT, current.channel.id, {
         direction: 'around',
         around: 'hidden-target',
       }),
@@ -308,7 +325,9 @@ describe('SQLite bounded timeline hydration', () => {
     current.database.transaction((db) =>
       db.prepare('DELETE FROM channel_human_members WHERE channel_id = ?').run(current.channel.id),
     );
-    expect(current.channels.readHumanTimeline(current.channel.id)).toBeUndefined();
+    expect(
+      current.channels.readHumanTimeline(OWNER_HUMAN_CONTEXT, current.channel.id),
+    ).toBeUndefined();
   });
 
   it('keeps cursor positions stable across sparse revisions and later appends', () => {
@@ -397,7 +416,9 @@ describe('SQLite bounded timeline hydration', () => {
     });
     current.metrics.reads = 0;
     current.metrics.rows = 0;
-    const page = current.channels.readHumanTimeline(current.channel.id, { limit: 2 })!;
+    const page = current.channels.readHumanTimeline(OWNER_HUMAN_CONTEXT, current.channel.id, {
+      limit: 2,
+    })!;
     expect(page).toEqual(expected);
     expect(current.metrics.reads).toBeLessThanOrEqual(15);
     expect(current.metrics.rows).toBeLessThanOrEqual(25);
@@ -409,10 +430,10 @@ describe('SQLite bounded timeline hydration', () => {
     });
     expect(page.entries[0]?.replyToPreview?.body).toContain('...');
     expect(retained()).toEqual(envelope);
-    await current.channels.markRead(current.channel.id, 'with-file');
+    await current.channels.markRead(OWNER_HUMAN_CONTEXT, current.channel.id, 'with-file');
     expect(
-      current.channels.readHumanTimeline(current.channel.id, { limit: 2 })?.entries[0]
-        ?.humanReceipts?.[0]?.state,
+      current.channels.readHumanTimeline(OWNER_HUMAN_CONTEXT, current.channel.id, { limit: 2 })
+        ?.entries[0]?.humanReceipts?.[0]?.state,
     ).toBe('read');
   });
 
@@ -470,7 +491,7 @@ describe('SQLite bounded timeline hydration', () => {
     expect(current.channels.readTimeline(current.channel.id)).toEqual(
       pageChannelTimeline(current.channel.id, []),
     );
-    expect(current.channels.readHumanTimeline('dm-missing')).toBeUndefined();
+    expect(current.channels.readHumanTimeline(OWNER_HUMAN_CONTEXT, 'dm-missing')).toBeUndefined();
     expect(current.channels.readTimeline('../invalid')).toEqual(
       pageChannelTimeline('../invalid', []),
     );
@@ -518,7 +539,7 @@ describe('SQLite bounded timeline hydration', () => {
         ),
         measure(() =>
           expect(
-            current.channels.readHumanJournalPage(current.channel.id, {
+            current.channels.readHumanJournalPage(OWNER_HUMAN_CONTEXT, current.channel.id, {
               through: revision,
               limit: 50,
             })?.entries,
@@ -530,7 +551,7 @@ describe('SQLite bounded timeline hydration', () => {
       ]);
       current.metrics.reads = 0;
       current.metrics.rows = 0;
-      await current.channels.appendMessage(current.channel.id, {
+      await current.channels.appendMessage(OWNER_HUMAN_CONTEXT, current.channel.id, {
         id: `append-${count}`,
         at: timestamp,
         author: { kind: 'bot', slug: 'ada' },
@@ -593,11 +614,15 @@ describe('SQLite bounded timeline hydration', () => {
     const journal: ChannelMessage[] = [];
     let before: number | undefined;
     for (;;) {
-      const entries = current.channels.readHumanJournalPage(current.channel.id, {
-        through: revision,
-        limit: 37,
-        ...(before === undefined ? {} : { before }),
-      })!;
+      const entries = current.channels.readHumanJournalPage(
+        OWNER_HUMAN_CONTEXT,
+        current.channel.id,
+        {
+          through: revision,
+          limit: 37,
+          ...(before === undefined ? {} : { before }),
+        },
+      )!;
       for (const entry of entries.entries)
         expect(entry.revision).toBe(entry.message.channelRevision);
       journal.unshift(...entries.entries.map((entry) => entry.message));
@@ -611,7 +636,9 @@ describe('SQLite bounded timeline hydration', () => {
     expect(current.channels.messagesAfter(current.channel.id, revision)).toEqual([]);
     expect(current.channels.messagesAfter(current.channel.id, revision + 1)).toBeUndefined();
     expect(
-      current.channels.readHumanJournalPage(current.channel.id, { through: revision + 1 }),
+      current.channels.readHumanJournalPage(OWNER_HUMAN_CONTEXT, current.channel.id, {
+        through: revision + 1,
+      }),
     ).toBeUndefined();
     expect(current.channels.readMessages(current.channel.id, { before: 'missing' })).toEqual([]);
     expect(current.channels.message(current.channel.id, 'missing')).toBeUndefined();
@@ -623,7 +650,10 @@ describe('SQLite bounded timeline hydration', () => {
   it('resolves grant requests only from resolutions placed in the same Channel', () => {
     const current = fixture();
     current.seed(message('grant', { grantRequest: true }));
-    const other = current.channels.createGroup({ name: 'Other', members: ['ada'] });
+    const other = current.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Other',
+      members: ['ada'],
+    });
     const resolution = (id: string) =>
       message(id, {
         author: { kind: 'human' },

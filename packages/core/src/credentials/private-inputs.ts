@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { randomUUID } from 'node:crypto';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import { credentialKey, type CredentialProvider } from '@deepseek-ai/dsh-credentials';
@@ -317,7 +318,7 @@ export class PrivateInputs {
         this.#resolution(channelId, messageId) !== undefined
       )
         continue;
-      const result = await this.deps.channels.appendMessageOnce(channelId, {
+      const result = await this.deps.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, channelId, {
         id: 'private-resolution-' + messageId,
         at: new Date().toISOString(),
         author: { kind: 'human' },
@@ -532,7 +533,7 @@ export class PrivateInputs {
     signal.addEventListener('abort', pending.abort, { once: true });
     origin?.signal.addEventListener('abort', pending.abort, { once: true });
     try {
-      pending.commit = this.deps.channels.appendMessageOnce(channelId, {
+      pending.commit = this.deps.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, channelId, {
         id,
         at: new Date().toISOString(),
         author: { kind: 'bot', slug: owner.botSlug },
@@ -596,7 +597,7 @@ export class PrivateInputs {
     const channelId = pending.channelId;
     let committed = false;
     try {
-      const result = await this.deps.channels.appendMessageOnce(channelId, {
+      const result = await this.deps.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, channelId, {
         id: 'private-resolution-' + id,
         at: new Date().toISOString(),
         author: { kind: 'human' },
@@ -761,6 +762,7 @@ export class PrivateInputs {
       stopping = this.#stopUses(this.#scope(pending), 'replacement');
       try {
         await this.deps.channels.appendMessageOnce(
+          OWNER_HUMAN_CONTEXT,
           channelId,
           {
             id: 'private-resolution-' + id,
@@ -1345,7 +1347,7 @@ export class PrivateInputs {
     if (!accepted) return refused;
     const summary = await accepted.stopping;
     await this.deps.channels
-      .appendMessageOnce(channelId, {
+      .appendMessageOnce(OWNER_HUMAN_CONTEXT, channelId, {
         id: 'private-revocation-' + randomUUID(),
         at: new Date().toISOString(),
         author: { kind: 'human' },

@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createTestRegistry } from './registry-fixture.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -53,7 +54,7 @@ function fixture(members: string[] = []) {
     attachments: files,
     warn: (message) => logs.push(message),
   });
-  const channel = channels.createGroup({ name: 'Legacy files', members });
+  const channel = channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Legacy files', members });
   const body = 'Original legacy transferred bytes';
   const hash = 'sha256:' + createHash('sha256').update(body).digest('hex');
   const path = join(files.rootDir, 'objects', hash.slice(7, 9), hash.slice(7));
@@ -406,7 +407,10 @@ describe('retained legacy attachment migration', () => {
     const f = fixture();
     f.seed('first');
     f.seed('independent');
-    const shared = f.channels.createGroup({ name: 'Shared retained placement', members: [] });
+    const shared = f.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Shared retained placement',
+      members: [],
+    });
     let facts = f.facts();
     const notifications: unknown[] = [];
     const unsubscribe = f.owner.subscribe((event) => notifications.push(event));
@@ -421,7 +425,7 @@ describe('retained legacy attachment migration', () => {
     expect(a.fileId).toMatch(/^file:/);
     expect(a.hash).toBeUndefined();
     expect(a.fileId).not.toBe(b.fileId);
-    await f.channels.appendMessage(shared.id, {
+    await f.channels.appendMessage(OWNER_HUMAN_CONTEXT, shared.id, {
       id: 'explicit-shared',
       at: new Date().toISOString(),
       author: { kind: 'human' },
@@ -686,8 +690,8 @@ describe('retained legacy attachment migration', () => {
     f.seed('legacy-image', [{ hash, name: 'visual.png', mime: 'image/png', size: bytes.length }]);
     await f.channels.migrateAttachments!();
     const ref = f.channels.message(f.channel.id, 'legacy-image')!.attachments![0]!;
-    const dm = f.channels.getOrCreateDm('ada', 'Ada')!;
-    await f.channels.appendMessage(dm.id, {
+    const dm = f.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+    await f.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
       id: 'inspect',
       at: new Date().toISOString(),
       author: { kind: 'human' },
@@ -713,7 +717,10 @@ describe('retained legacy attachment migration', () => {
             'read limit',
           );
           await expect(read({ ...input, hash, messageId: 'wrong' })).rejects.toThrow('not found');
-          const privateChannel = f.channels.createGroup({ name: 'Private', members: [] });
+          const privateChannel = f.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+            name: 'Private',
+            members: [],
+          });
           await expect(read({ ...input, hash, channelId: privateChannel.id })).rejects.toThrow(
             'not a member',
           );
@@ -729,7 +736,7 @@ describe('retained legacy attachment migration', () => {
       },
     });
     try {
-      const admission = runtime.admitDmMessage({
+      const admission = runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'inspect',
         body: 'Inspect migrated image',

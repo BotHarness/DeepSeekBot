@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -47,7 +48,12 @@ describe('live frames on the native stream carrier', () => {
     );
     hubs.push(hub);
     const abort = new AbortController();
-    const frames = openLiveFrames((request) => hub.open(request), 'scope=roster', '', abort.signal);
+    const frames = openLiveFrames(
+      (request) => hub.open(OWNER_HUMAN_CONTEXT, request),
+      'scope=roster',
+      '',
+      abort.signal,
+    );
     expect((await frames.next()).value).toEqual({ event: 'open', data: '' });
     const purged = (await frames.next()).value;
     expect(purged.event).toBe('content/purged');
@@ -63,7 +69,7 @@ describe('live frames on the native stream carrier', () => {
   it('ends when the hub closes and refuses what the HTTP route refuses', async () => {
     const hub = createChannelLiveHub(createChannelStore({ rootDir: root() }));
     hubs.push(hub);
-    const open = (request: Request): Response => hub.open(request);
+    const open = (request: Request): Response => hub.open(OWNER_HUMAN_CONTEXT, request);
     const frames = openLiveFrames(open, 'scope=roster', '', new AbortController().signal);
     await frames.next();
     const closing = frames.next();
@@ -230,7 +236,12 @@ describe('live frames on the native stream carrier', () => {
     const hub = createChannelLiveHub(createChannelStore({ rootDir: root() }));
     hubs.push(hub);
     const abort = new AbortController();
-    const frames = openLiveFrames((request) => hub.open(request), 'scope=roster', '', abort.signal);
+    const frames = openLiveFrames(
+      (request) => hub.open(OWNER_HUMAN_CONTEXT, request),
+      'scope=roster',
+      '',
+      abort.signal,
+    );
     await frames.next();
     const message = {
       id: 'm1',
@@ -258,7 +269,9 @@ describe('live frames on the native stream carrier', () => {
     });
     hubs.push(hub);
     const abort = new AbortController();
-    const followers = [0, 1, 2].map(() => hub.followActivity(abort.signal)[Symbol.asyncIterator]());
+    const followers = [0, 1, 2].map(() =>
+      hub.followActivity(OWNER_HUMAN_CONTEXT, abort.signal)[Symbol.asyncIterator](),
+    );
     for (const frames of followers) await frames.next();
     snapshot.mockClear();
     revision = 1;
@@ -292,7 +305,7 @@ describe('live frames on the native stream carrier', () => {
     const hub = createChannelLiveHub(createChannelStore({ rootDir: root() }), activity);
     hubs.push(hub);
     const abort = new AbortController();
-    const frames = hub.followActivity(abort.signal)[Symbol.asyncIterator]();
+    const frames = hub.followActivity(OWNER_HUMAN_CONTEXT, abort.signal)[Symbol.asyncIterator]();
     expect((await frames.next()).value).toMatchObject({
       type: 'baseline',
       snapshot: { revision: 0 },
@@ -311,7 +324,10 @@ describe('live frames on the native stream carrier', () => {
     const missing = createChannelLiveHub(createChannelStore({ rootDir: root() }));
     hubs.push(missing);
     await expect(
-      missing.followActivity(new AbortController().signal)[Symbol.asyncIterator]().next(),
+      missing
+        .followActivity(OWNER_HUMAN_CONTEXT, new AbortController().signal)
+        [Symbol.asyncIterator]()
+        .next(),
     ).rejects.toMatchObject({ name: 'LiveUnavailable' });
   });
 
@@ -321,19 +337,22 @@ describe('live frames on the native stream carrier', () => {
       rootDir: root(),
       onCommitted: (commit) => live?.publishCommitted(commit),
     });
-    const group = store.createGroup({ name: 'Team', members: [] });
+    const group = store.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Team', members: [] });
     const text = (id: string) => ({
       id,
       at: '2026-09-21T00:00:00.000Z',
       author: { kind: 'human' as const },
       body: id,
     });
-    for (const id of ['one', 'two', 'three']) await store.appendMessage(group.id, text(id));
+    for (const id of ['one', 'two', 'three'])
+      await store.appendMessage(OWNER_HUMAN_CONTEXT, group.id, text(id));
     const hub = createChannelLiveHub(store);
     live = hub;
     hubs.push(hub);
     const abort = new AbortController();
-    const frames = hub.followChannel(group.id, 2, abort.signal)[Symbol.asyncIterator]();
+    const frames = hub
+      .followChannel(OWNER_HUMAN_CONTEXT, group.id, 2, abort.signal)
+      [Symbol.asyncIterator]();
     const opened = (await frames.next()).value;
     expect(opened).toMatchObject({ type: 'opened', cursor: 3 });
     expect(opened.page.entries.map((entry: { revision: number }) => entry.revision)).toEqual([
@@ -345,7 +364,7 @@ describe('live frames on the native stream carrier', () => {
     let baseline = (await frames.next()).value;
     while (baseline.type !== 'notification' || baseline.notification.kind !== 'draft-baseline')
       baseline = (await frames.next()).value;
-    await store.appendMessage(group.id, text('four'));
+    await store.appendMessage(OWNER_HUMAN_CONTEXT, group.id, text('four'));
     expect((await frames.next()).value).toMatchObject({
       type: 'entry',
       entry: { channelId: group.id, revision: 4, message: { id: 'four' } },
@@ -364,17 +383,28 @@ describe('live frames on the native stream carrier', () => {
     abort.abort();
     expect((await pending).done).toBe(true);
 
-    const fixed = store.readHumanJournalPage(group.id, { through: 3, limit: 2 });
+    const fixed = store.readHumanJournalPage(OWNER_HUMAN_CONTEXT, group.id, {
+      through: 3,
+      limit: 2,
+    });
     expect(fixed?.entries.map((entry) => entry.revision)).toEqual([2, 3]);
-    const older = store.readHumanJournalPage(group.id, { through: 4, before: 2, limit: 5 });
+    const older = store.readHumanJournalPage(OWNER_HUMAN_CONTEXT, group.id, {
+      through: 4,
+      before: 2,
+      limit: 5,
+    });
     expect(older?.entries.map((entry) => entry.revision)).toEqual([1]);
     expect(older?.hasOlder).toBe(false);
-    expect(store.readHumanJournalPage(group.id, { through: 99 })).toBeUndefined();
-    expect(store.readHumanJournalPage('missing', { through: 0 })).toBeUndefined();
+    expect(
+      store.readHumanJournalPage(OWNER_HUMAN_CONTEXT, group.id, { through: 99 }),
+    ).toBeUndefined();
+    expect(
+      store.readHumanJournalPage(OWNER_HUMAN_CONTEXT, 'missing', { through: 0 }),
+    ).toBeUndefined();
 
     const refused = async (channelId: string, limit: number) =>
       hub
-        .followChannel(channelId, limit, new AbortController().signal)
+        .followChannel(OWNER_HUMAN_CONTEXT, channelId, limit, new AbortController().signal)
         [Symbol.asyncIterator]()
         .next();
     await expect(refused('missing', 50)).rejects.toMatchObject({ code: 'not-found' });
@@ -390,14 +420,20 @@ describe('live frames on the native stream carrier', () => {
 
   it('streams drafts as appended text to followers that ask, rebuilding the same bodies', async () => {
     const store = createChannelStore({ rootDir: root() });
-    const dm = store.createGroup({ name: 'Team', members: [] });
+    const dm = store.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Team', members: [] });
     const hub = createChannelLiveHub(store);
     hubs.push(hub);
     const abort = new AbortController();
     const follow = (drafts?: DraftDelivery) => {
       const frames: ChannelLiveFrame[] = [];
       const done = (async () => {
-        for await (const frame of hub.followChannel(dm.id, 10, abort.signal, drafts))
+        for await (const frame of hub.followChannel(
+          OWNER_HUMAN_CONTEXT,
+          dm.id,
+          10,
+          abort.signal,
+          drafts,
+        ))
           frames.push(frame);
       })();
       return { frames, done };
@@ -498,7 +534,13 @@ describe('live frames on the native stream carrier', () => {
 
     await expect(
       hub
-        .followChannel(dm.id, 10, new AbortController().signal, 'bogus' as DraftDelivery)
+        .followChannel(
+          OWNER_HUMAN_CONTEXT,
+          dm.id,
+          10,
+          new AbortController().signal,
+          'bogus' as DraftDelivery,
+        )
         [Symbol.asyncIterator]()
         .next(),
     ).rejects.toMatchObject({ code: 'invalid' });
@@ -575,7 +617,12 @@ it('multiplexes attention invalidations on both roster carriers and bounds a slo
   hubs.push(hub);
   const abort = new AbortController();
   const typed = hub.followRoster(abort.signal)[Symbol.asyncIterator]();
-  const sse = openLiveFrames((request) => hub.open(request), 'scope=roster', '', abort.signal);
+  const sse = openLiveFrames(
+    (request) => hub.open(OWNER_HUMAN_CONTEXT, request),
+    'scope=roster',
+    '',
+    abort.signal,
+  );
   await typed.next();
   await sse.next();
   changed();

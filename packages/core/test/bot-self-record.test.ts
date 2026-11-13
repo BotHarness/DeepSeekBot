@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { botDmChannelId } from '../src/channels/channel.js';
@@ -47,7 +48,7 @@ function selfRecords(core: Core) {
 }
 
 async function mentionAda(core: Core, groupId: string): Promise<void> {
-  await core.channels.appendMessage(groupId, {
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, groupId, {
     id: 'ask-ada',
     at: AT,
     author: { kind: 'human' },
@@ -75,10 +76,13 @@ describe('Bot Self-Records for bot_send_message', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bea', displayName: 'Bea' });
-      const group = core.channels.createGroup({ name: 'Crew', members: ['ada', 'bea'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Crew',
+        members: ['ada', 'bea'],
+      });
       groupId = group.id;
-      core.channels.getOrCreateDm('ada', 'Ada');
-      const unreadBefore = core.humanAttention.status().unreadCount;
+      core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
+      const unreadBefore = core.humanAttention.status(OWNER_HUMAN_CONTEXT).unreadCount;
       await mentionAda(core, group.id);
 
       const botDm = botDmChannelId('ada', 'bea');
@@ -102,10 +106,10 @@ describe('Bot Self-Records for bot_send_message', () => {
       ]);
       expect(runs).toEqual([`ada:${group.id}`, `bea:${botDm}`]);
       expect(core.attention.list({ botSlug: 'ada', state: 'pending' }).items).toEqual([]);
-      expect(core.humanAttention.status().unreadCount).toBe(unreadBefore);
+      expect(core.humanAttention.status(OWNER_HUMAN_CONTEXT).unreadCount).toBe(unreadBefore);
       expect(
         core.humanAttention
-          .list({ category: 'unread' })
+          .list(OWNER_HUMAN_CONTEXT, { category: 'unread' })
           .items.some((item) => JSON.stringify(item).includes(notice!.id)),
       ).toBe(false);
       expect(core.channels.latestMessage(group.id)?.id).toBe('ask-ada');
@@ -126,18 +130,22 @@ describe('Bot Self-Records for bot_send_message', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bea', displayName: 'Bea' });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      await core.channels.appendMessage(dm.id, {
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'ask',
         at: AT,
         author: { kind: 'human' },
         body: '请问问 Bea',
       });
-      core.runtime.admitDmMessage({ channelId: dm.id, messageId: 'ask', body: '请问问 Bea' });
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+        channelId: dm.id,
+        messageId: 'ask',
+        body: '请问问 Bea',
+      });
       await core.runtime.whenIdle();
       expect(noticesIn(core, dm.id)).toHaveLength(1);
       expect(core.channels.latestMessage(dm.id)?.id).toBe('ask');
-      expect(core.humanAttention.status().unreadCount).toBe(0);
+      expect(core.humanAttention.status(OWNER_HUMAN_CONTEXT).unreadCount).toBe(0);
     } finally {
       await core.runtime.close();
       core.operationalDatabase.close();
@@ -161,15 +169,19 @@ describe('Bot Self-Records for bot_send_message', () => {
         ['cy', 'Cy'],
       ] as const)
         core.registry.create({ slug, displayName: name });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      core.channels.getOrCreateDm('bea', 'Bea');
-      await core.channels.appendMessage(dm.id, {
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'bea', 'Bea');
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'ask',
         at: AT,
         author: { kind: 'human' },
         body: '请协作',
       });
-      core.runtime.admitDmMessage({ channelId: dm.id, messageId: 'ask', body: '请协作' });
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+        channelId: dm.id,
+        messageId: 'ask',
+        body: '请协作',
+      });
       await core.runtime.whenIdle();
       const adaBea = botDmChannelId('ada', 'bea');
       expect(noticesIn(core, adaBea).map((item) => item.botDmAction?.recipientBotSlug)).toEqual([
@@ -198,9 +210,12 @@ describe('Bot Self-Records for bot_send_message', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bea', displayName: 'Bea' });
-      const group = core.channels.createGroup({ name: 'Crew', members: ['ada', 'bea'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Crew',
+        members: ['ada', 'bea'],
+      });
       groupId = group.id;
-      core.channels.getOrCreateDm('ada', 'Ada');
+      core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
       await mentionAda(core, group.id);
       expect(noticesIn(core, group.id)).toEqual([]);
       expect(noticesIn(core, 'dm-ada')).toHaveLength(1);
@@ -223,15 +238,19 @@ describe('Bot Self-Records for bot_send_message', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bea', displayName: 'Bea' });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      core.channels.getOrCreateDm('bea', 'Bea');
-      await core.channels.appendMessage(dm.id, {
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'bea', 'Bea');
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'ask',
         at: AT,
         author: { kind: 'human' },
         body: '去问 Bea',
       });
-      core.runtime.admitDmMessage({ channelId: dm.id, messageId: 'ask', body: '去问 Bea' });
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+        channelId: dm.id,
+        messageId: 'ask',
+        body: '去问 Bea',
+      });
       await core.runtime.whenIdle();
       expect(
         core.channels.readMessages(botDmChannelId('ada', 'bea')).map((item) => item.body),
@@ -287,16 +306,19 @@ describe('Bot Self-Records for bot_send_message', () => {
     try {
       core.registry.create({ slug: 'mira', displayName: 'Mira' });
       core.registry.create({ slug: 'nova', displayName: 'Nova' });
-      const group = core.channels.createGroup({ name: 'Crew', members: ['mira', 'nova'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Crew',
+        members: ['mira', 'nova'],
+      });
       groupId = group.id;
       core.channels.setGroupWakePolicy(group.id, 'mira', {
         mode: 'mentions',
         count: 5,
         intervalSeconds: 30,
       });
-      const miraDm = core.channels.getOrCreateDm('mira', 'Mira')!;
-      core.channels.getOrCreateDm('nova', 'Nova');
-      await core.channels.appendMessage(group.id, {
+      const miraDm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'mira', 'Mira')!;
+      core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'nova', 'Nova');
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'ask-nova',
         at: AT,
         author: { kind: 'human' },
@@ -305,13 +327,13 @@ describe('Bot Self-Records for bot_send_message', () => {
       });
       core.runtime.admitGroupMessage(group.id, 'ask-nova');
       await novaStarted;
-      await core.channels.appendMessage(miraDm.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, miraDm.id, {
         id: 'ask-mira',
         at: AT,
         author: { kind: 'human' },
         body: '去问 Nova',
       });
-      core.runtime.admitDmMessage({
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: miraDm.id,
         messageId: 'ask-mira',
         body: '去问 Nova',

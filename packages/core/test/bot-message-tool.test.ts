@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createCore } from '../src/plugin.js';
 import { createTempRoot } from './helpers.js';
 import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
@@ -30,7 +31,7 @@ async function fixture() {
     ...f,
     send: async (body: string, ...turns: TurnHook[]) => {
       sequence += 1;
-      await f.core.channels.appendMessage(f.dm.id, {
+      await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, f.dm.id, {
         id: `human-${sequence}`,
         at: new Date().toISOString(),
         author: { kind: 'human' },
@@ -379,9 +380,12 @@ it('keeps an explicitly selected Group source as causation when newer input exis
   });
   try {
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
-    const group = core.channels.createGroup({ name: 'Source QA', members: ['ada'] });
+    const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Source QA',
+      members: ['ada'],
+    });
     for (const id of ['first', 'second']) {
-      await core.channels.appendMessage(group.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id,
         at: new Date().toISOString(),
         author: { kind: 'human' },
