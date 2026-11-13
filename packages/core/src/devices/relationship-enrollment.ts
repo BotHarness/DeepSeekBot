@@ -30,7 +30,9 @@ export type RelationshipSavedHost = SavedHost & z.infer<typeof pendingRelationsh
 export function parseRelationshipSavedHost(input: unknown): RelationshipSavedHost | undefined {
   const host = parseSavedHost(input);
   if (!host) return undefined;
-  const pending = pendingRelationshipEnrollmentSchema.safeParse(input).data?.relationshipEnrollment;
+  const parsed = pendingRelationshipEnrollmentSchema.safeParse(input);
+  if (!parsed.success) return undefined;
+  const pending = parsed.data.relationshipEnrollment;
   return pending ? { ...host, relationshipEnrollment: pending } : host;
 }
 

@@ -19,7 +19,7 @@ import type {
 } from '../src/devices/connect-account.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
-function fixture() {
+function fixture(relayKey = randomBytes(32)) {
   const home = createTempRoot('account-relationships-');
   const owner = trackTestOwner(
     mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
@@ -45,7 +45,6 @@ function fixture() {
   };
   const peers = new Map<string, RelationshipPeer>([['haaaaaaaaaaaa', source]]);
   let signedIn = true;
-  const relayKey = randomBytes(32);
   const sign = (body: string) => createHmac('sha256', relayKey).update(body).digest('base64url');
   let onOffer: ((id: string, signal: AbortSignal) => Promise<void>) | undefined;
   const offer = vi.fn(async (registrationId: string, verifierHash: string, signal: AbortSignal) => {
@@ -144,6 +143,55 @@ function fixture() {
   };
 }
 
+it('lets the smaller Host discover in the background with no Client and converges both discovery directions on one relationship', async () => {
+  const key = randomBytes(32);
+  const a = fixture(key);
+  const b = fixture(key);
+  a.session.registrationId = 'haaaaaaaaaaaa';
+  b.local.publicKey = 'ef'.repeat(32);
+  a.peers.set(b.session.registrationId, b.local);
+  b.peers.set(a.session.registrationId, a.local);
+  const listed = [a, b].map((test) => ({
+    id: test.session.registrationId,
+    name: 'Host',
+    hostname: `${test.session.registrationId}.deepseekbot.dev`,
+    createdAt: new Date().toISOString(),
+    current: false,
+    sessionKnown: true,
+  }));
+  a.session.hosts = b.session.hosts = async () => listed;
+  a.request.mockImplementation(async (_peer, command) =>
+    command.action === 'account-propose'
+      ? b.authority.receive(a.local.publicKey, command)
+      : { ok: true, state: b.relationships.activate(command.id, a.local.publicKey).state },
+  );
+  try {
+    a.authority.start();
+    await b.authority.discover();
+    await vi.waitFor(() => expect(a.relationships.list()[0]?.state).toBe('active'));
+    expect(b.relationships.list()[0]?.state).toBe('active');
+    await Promise.all([a.authority.discover(), b.authority.discover()]);
+    expect(a.relationships.list()).toHaveLength(1);
+    expect(b.relationships.list()).toHaveLength(1);
+    expect(a.relationships.list()[0]?.id).toBe(b.relationships.list()[0]?.id);
+  } finally {
+    a.authority.close();
+    b.authority.close();
+  }
+});
+
+it('does not fetch offers while signed out or after the background owner closes', async () => {
+  const test = fixture();
+  test.signOut();
+  test.authority.start();
+  await new Promise<void>((resolve) => setTimeout(resolve, 10));
+  expect(test.offer).not.toHaveBeenCalled();
+  test.authority.close();
+  test.authority.start();
+  await new Promise<void>((resolve) => setTimeout(resolve, 10));
+  expect(test.offer).not.toHaveBeenCalled();
+});
+
 it('bounds all account operations to two while serving a queued receiver', async () => {
   const test = fixture();
   const proposal = await test.proposal();
@@ -235,6 +283,35 @@ it('rotates discovery beyond an active and unavailable prefix larger than one ba
     expect(test.relationships.list().find((item) => item.peer.id === 'peer-69')).toMatchObject({
       state: 'active',
     });
+  } finally {
+    test.authority.close();
+  }
+});
+
+it('refreshes a signed-in registration on the same active pinned relationship and rejects a stale origin overwrite', async () => {
+  const test = fixture();
+  try {
+    await test.authority.receive(test.source.publicKey, await test.proposal());
+    test.relationships.activate(test.proof.relationshipId, test.source.publicKey);
+    const prior = test.relationships.read(test.proof.relationshipId).accountOrigin!;
+    test.peers.delete(test.proof.source.registrationId);
+    test.proof.source.registrationId = 'haaaaaaaaabba';
+    test.peers.set(test.proof.source.registrationId, test.source);
+    expect(
+      await test.authority.receive(test.source.publicKey, await test.proposal()),
+    ).toMatchObject({ ok: true, state: 'active' });
+    const refreshed = test.relationships.read(test.proof.relationshipId);
+    expect(refreshed.accountOrigin?.peerRegistrationId).toBe('haaaaaaaaabba');
+    expect(refreshed.state).toBe('active');
+    expect(test.relationships.list()).toHaveLength(1);
+    expect(() =>
+      test.relationships.refreshAccountOrigin({
+        id: refreshed.id,
+        peer: test.source,
+        expectedOrigin: prior,
+        origin: prior,
+      }),
+    ).toThrow('origin-stale');
   } finally {
     test.authority.close();
   }

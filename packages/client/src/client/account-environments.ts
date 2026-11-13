@@ -52,6 +52,7 @@ export function startAccountEnvironments(options: {
           )
             continue;
           const abort = new AbortController();
+          const enrollmentGeneration = status.generation;
           pending.set(relationship.id, abort);
           void options.sources
             .enrollRelationship(relationship, options.clientName, abort.signal, {
@@ -60,7 +61,11 @@ export function startAccountEnvironments(options: {
             .catch(() => undefined)
             .finally(() => {
               if (pending.get(relationship.id) === abort) pending.delete(relationship.id);
-              if (!lifetime.signal.aborted && retryAt.size < 32)
+              if (
+                !lifetime.signal.aborted &&
+                generation === enrollmentGeneration &&
+                retryAt.size < 32
+              )
                 retryAt.set(relationship.id, Date.now() + 30_000);
             });
         }

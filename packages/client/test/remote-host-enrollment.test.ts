@@ -67,6 +67,42 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+it.each(['cancel', 'new-choice'] as const)(
+  'keeps Human automatic suppression when a manual enrollment ends with %s',
+  async (mode) => {
+    const storage = memoryStorage();
+    const oldChoice = {
+      kind: 'automatic-enrollment-suppressed',
+      hostId: 'b',
+      publicKey: 'ab'.repeat(32),
+      generation: 'old',
+    };
+    storage.setItem(REMOTE_HOSTS_STORAGE_KEY, JSON.stringify([oldChoice]));
+    const source = createRemoteHosts({ storage, carrier });
+    const abort = new AbortController();
+    vi.spyOn(enrollment, 'enrollRelationshipClient').mockResolvedValue(grant());
+    vi.spyOn(enrollment, 'cancelRelationshipEnrollment').mockResolvedValue(undefined);
+    vi.spyOn(pairing, 'revokePairing').mockResolvedValue('revoked');
+    const newChoice = { ...oldChoice, generation: 'new' };
+    vi.spyOn(enrollment, 'commitRelationshipEnrollment').mockImplementation(async () => {
+      if (mode === 'cancel') abort.abort();
+      else {
+        const rows: unknown[] = JSON.parse(storage.getItem(REMOTE_HOSTS_STORAGE_KEY) ?? '[]');
+        storage.setItem(REMOTE_HOSTS_STORAGE_KEY, JSON.stringify([rows[0], newChoice]));
+      }
+      return 'committed';
+    });
+    expect(await source.enrollRelationship(relationship(), 'Manual', abort.signal)).toEqual({
+      ok: false,
+      code: 'cancelled',
+    });
+    expect(source.getSnapshot().hosts).toEqual([]);
+    expect(JSON.parse(storage.getItem(REMOTE_HOSTS_STORAGE_KEY) ?? '[]')).toEqual([
+      mode === 'cancel' ? oldChoice : newChoice,
+    ]);
+  },
+);
+
 it('reuses one saved Client grant when two owners of the same storage enroll the same Host concurrently', async () => {
   const storage = memoryStorage();
   const first = createRemoteHosts({ storage, carrier });

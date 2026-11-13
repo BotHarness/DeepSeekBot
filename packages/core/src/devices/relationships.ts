@@ -129,6 +129,53 @@ export function createHostRelationships(options: {
   return {
     read,
     enrollments,
+    refreshAccountOrigin(input: {
+      id: string;
+      peer: Pick<RelationshipPeer, 'id' | 'publicKey'>;
+      origin: RelationshipAccountOrigin;
+      expectedOrigin: RelationshipAccountOrigin;
+    }): HostRelationship {
+      const origin = relationshipAccountOriginSchema.parse(input.origin);
+      transact(
+        (db) => {
+          const row = db
+            .prepare('SELECT * FROM host_relationships WHERE relationship_id = ?')
+            .get(input.id) as Row | undefined;
+          if (!row) throw new RelationshipRefused('relationship-not-found');
+          const current = view(row);
+          live(current);
+          if (
+            current.state !== 'active' ||
+            current.peer.id !== input.peer.id ||
+            current.peer.publicKey !== input.peer.publicKey ||
+            current.accountOrigin?.accountId !== origin.accountId
+          )
+            throw new RelationshipRefused('account-enrollment-origin-mismatch');
+          const same = (a: RelationshipAccountOrigin | null, b: RelationshipAccountOrigin) =>
+            a?.accountId === b.accountId &&
+            a.localRegistrationId === b.localRegistrationId &&
+            a.peerRegistrationId === b.peerRegistrationId;
+          if (
+            !same(current.accountOrigin, input.expectedOrigin) &&
+            !same(current.accountOrigin, origin)
+          )
+            throw new RelationshipRefused('account-enrollment-origin-stale');
+          if (
+            db
+              .prepare(
+                'SELECT 1 FROM host_relationships WHERE peer_host_id = ? AND automatic_enrollment_suppressed = 1',
+              )
+              .get(input.peer.id)
+          )
+            throw new RelationshipRefused('relationship-reconnect-required');
+          db.prepare(
+            'UPDATE host_relationships SET account_origin = ?, updated_at = ? WHERE relationship_id = ?',
+          ).run(JSON.stringify(origin), new Date(now()).toISOString(), input.id);
+        },
+        ['host-relationships'],
+      );
+      return read(input.id);
+    },
     check(id: string, peerKey: string): HostRelationship {
       const relationship = authenticated(id, peerKey);
       live(relationship);

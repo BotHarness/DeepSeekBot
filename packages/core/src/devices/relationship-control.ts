@@ -522,6 +522,7 @@ export function createRelationshipControl(options: {
         void retryPending();
       }, 1000);
       retryTimer.unref?.();
+      accountRelationships.start();
       void retryPending();
     },
     retryPending,

@@ -963,6 +963,34 @@ describe('Connect account sign-in', () => {
     }
   });
 
+  it('refuses newly started offer verification while sign-out is waiting for unlink', async () => {
+    const services = fakeServices({ pending: 0 });
+    const { account } = setup(services);
+    await account.signIn();
+    await settle(account);
+    const gate = deferred();
+    const original = services.fetcher.getMockImplementation()!;
+    services.fetcher.mockImplementation(async (input, init) => {
+      if (init?.method === 'DELETE') await gate.promise;
+      return original(input, init);
+    });
+    const body = JSON.stringify({
+      hostId: 'hstudioaaaaa',
+      account: 'user_alice',
+      verifierHash: Buffer.alloc(32, 3).toString('base64url'),
+      issuedAt: new Date().toISOString(),
+    });
+    const signature = createHmac('sha256', RELAY_KEY).update(body).digest('base64url');
+    const leaving = account.signOut();
+    try {
+      expect(await account.verifyOffer(body, signature)).toEqual({ ok: false });
+    } finally {
+      gate.resolve();
+      await leaving;
+      await account.close();
+    }
+  });
+
   it('accepts only fresh offers the relay signed for this Host and account', async () => {
     const { account } = setup(fakeServices({ pending: 0 }));
     const verifierHash = Buffer.alloc(32, 3).toString('base64url');

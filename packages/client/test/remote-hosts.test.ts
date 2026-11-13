@@ -9,6 +9,7 @@ import { pairingLink } from '../../core/src/devices/http.js';
 import { en, zh } from '../src/client/locale.js';
 import { REMOTE_NOTIFICATION_KEY } from '../src/client/remote-notifications.js';
 import { hostSettingsDrafts, type HostDraftChoice } from '../src/client/host-settings-drafts.js';
+import { withRemoteHostStorageLock } from '../src/client/remote-host-storage-lock.js';
 import {
   ALL_HOSTS,
   HOST_TAB_STORAGE_KEY,
@@ -71,6 +72,43 @@ const link = (hostId = 'host-b') =>
   });
 
 describe('remote hosts', () => {
+  it.each(['cancel', 'new-forget'] as const)(
+    'preserves Human intent when manual pairing waits for storage and receives %s',
+    async (mode) => {
+      const choice = {
+        kind: 'automatic-enrollment-suppressed',
+        hostId: 'host-b',
+        publicKey: null,
+        generation: 'earlier-forget',
+      };
+      const storage = memoryStorage({ [REMOTE_HOSTS_STORAGE_KEY]: JSON.stringify([choice]) });
+      const { carrier, calls } = fakeCarrier();
+      const sources = createRemoteHosts({ storage, carrier });
+      let release = () => {};
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const held = withRemoteHostStorageLock({ storage, name: 'credentials', run: () => gate });
+      const abort = new AbortController();
+      const pending = sources.pair(link(), 'Cancelled browser', undefined, {
+        signal: abort.signal,
+      });
+      await vi.waitFor(() => expect(calls.some((call) => call.url.endsWith('/pair'))).toBe(true));
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      const newerChoice = { ...choice, generation: 'newer-forget' };
+      if (mode === 'cancel') abort.abort();
+      else storage.setItem(REMOTE_HOSTS_STORAGE_KEY, JSON.stringify([newerChoice]));
+      release();
+      await held;
+      expect((await pending).ok).toBe(false);
+      expect(sources.getSnapshot().hosts).toEqual([]);
+      expect(JSON.parse(storage.getItem(REMOTE_HOSTS_STORAGE_KEY) ?? '[]')).toEqual([
+        mode === 'cancel' ? choice : newerChoice,
+      ]);
+      expect(calls.some((call) => call.url.endsWith('/unpair'))).toBe(true);
+    },
+  );
+
   it('keeps mixed saved credentials and local automatic choices separate, preserves unrelated choices and clears only an explicit manual add', async () => {
     const a = {
       hostId: 'host-a',
@@ -118,11 +156,13 @@ describe('remote hosts', () => {
     expect((await restored.pair(link(), 'Manual browser')).ok).toBe(true);
     const persisted = JSON.parse(storage.values.get(REMOTE_HOSTS_STORAGE_KEY) ?? '[]');
     expect(persisted).toContainEqual(c);
-    expect(persisted).toContainEqual({
-      kind: 'automatic-enrollment-suppressed',
-      hostId: 'host-a',
-      publicKey: null,
-    });
+    expect(persisted).toContainEqual(
+      expect.objectContaining({
+        kind: 'automatic-enrollment-suppressed',
+        hostId: 'host-a',
+        publicKey: null,
+      }),
+    );
     expect(persisted).not.toContainEqual(choice);
     expect(
       createRemoteHosts({ storage, carrier })
@@ -401,7 +441,11 @@ describe('remote hosts', () => {
     expect(sources.client('host-b')).toBeUndefined();
     expect(sources.getSnapshot()).toEqual({ hosts: [], avatars: new Map(), tab: ALL_HOSTS });
     expect(JSON.parse(storage.values.get(REMOTE_HOSTS_STORAGE_KEY) ?? '[]')).toEqual([
-      { kind: 'automatic-enrollment-suppressed', hostId: 'host-b', publicKey: null },
+      expect.objectContaining({
+        kind: 'automatic-enrollment-suppressed',
+        hostId: 'host-b',
+        publicKey: null,
+      }),
     ]);
     expect(storage.values.get(HOST_TAB_STORAGE_KEY)).toBe(ALL_HOSTS);
     expect(calls.at(-1)).toEqual({
@@ -590,7 +634,11 @@ describe('Host Feed lifecycle', () => {
         expect(sources.client(host.hostId)).toBeUndefined();
         expect(sources.getSnapshot().hosts).toEqual([]);
         expect(JSON.parse(storage.getItem(REMOTE_HOSTS_STORAGE_KEY) ?? '[]')).toEqual([
-          { kind: 'automatic-enrollment-suppressed', hostId: host.hostId, publicKey: null },
+          expect.objectContaining({
+            kind: 'automatic-enrollment-suppressed',
+            hostId: host.hostId,
+            publicKey: null,
+          }),
         ]);
         expect(sources.notifications.getSnapshot().hosts).not.toHaveProperty(host.hostId);
         expect(sources.notifications.choice('other')).toEqual(other);

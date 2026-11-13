@@ -64,6 +64,7 @@ export const automaticEnrollmentChoiceSchema = z
   .object({
     kind: z.literal('automatic-enrollment-suppressed'),
     hostId: z.string().min(1),
+    generation: z.string().min(1).optional(),
     publicKey: z
       .string()
       .regex(/^[a-f0-9]{64}$/u)
@@ -71,7 +72,13 @@ export const automaticEnrollmentChoiceSchema = z
   })
   .strict();
 export const pendingRelationshipEnrollmentSchema = z.object({
-  relationshipEnrollment: z.object({ publicKey: z.string().regex(/^[a-f0-9]{64}$/u) }).optional(),
+  relationshipEnrollment: z
+    .object({
+      publicKey: z.string().regex(/^[a-f0-9]{64}$/u),
+      clearAutomaticChoiceOnCommit: z.literal(true).optional(),
+      expectedAutomaticChoice: z.string().nullable().optional(),
+    })
+    .optional(),
 });
 
 export const relationshipObservationSchema = z.object({

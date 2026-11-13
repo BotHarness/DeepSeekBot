@@ -20,6 +20,35 @@ export interface AccountRelationshipProposal {
   enrollment: { body: string; signature: string };
 }
 
+const accountRefusals = new Set([
+  'account-enrollment-origin-stale',
+  'account-enrollment-cancelled',
+  'account-enrollment-proof-invalid',
+  'account-enrollment-origin-mismatch',
+  'account-enrollment-unavailable',
+  'relationship-identity-mismatch',
+  'relationship-identity-verification-failed',
+  'relationship-automatic-enrollment-suppressed',
+  'relationship-reconnect-required',
+  'relationship-already-exists',
+  'relationship-owner-closed',
+  'relationship-expired',
+  'relationship-history-limit',
+  'relationship-limit',
+  'relationship-busy',
+  'relationship-request-incomplete',
+  'relationship-route-unavailable',
+  'relationship-response-invalid',
+  'relationship-disconnected',
+  'relationship-inactive',
+  'relationship-state-invalid',
+  'relationship-approval-required',
+]);
+const accountRefusal = (error: unknown) =>
+  error instanceof RelationshipRefused && accountRefusals.has(error.code)
+    ? error.code
+    : 'account-enrollment-unavailable';
+
 export function createAccountRelationships(options: {
   account(): Pick<ConnectAccount, 'relationshipSession' | 'verifyOffer'> | undefined;
   relationships: HostRelationships;
@@ -47,6 +76,8 @@ export function createAccountRelationships(options: {
   const retries = new Map<string, { attempts: number; retryAt: number }>();
   let retryGeneration: string | undefined;
   let discoveryCursor = 0;
+  let timer: ReturnType<typeof setInterval> | undefined;
+  let initialTimer: ReturnType<typeof setTimeout> | undefined;
   const nonce = () => randomBytes(32).toString('base64url');
   const guard = (session: AccountRelationshipSession, signal: AbortSignal) => {
     if (closed || signal.aborted || !session.current())
@@ -167,6 +198,17 @@ export function createAccountRelationships(options: {
 
   return {
     authorize,
+    start() {
+      if (closed || timer !== undefined) return;
+      timer = setInterval(() => {
+        if (!closed) this.startDiscovery();
+      }, 30_000);
+      timer.unref?.();
+      initialTimer = setTimeout(() => {
+        if (!closed) this.startDiscovery();
+      }, 0);
+      initialTimer.unref?.();
+    },
     async status() {
       const session = await options.account()?.relationshipSession();
       if (!session?.current() || closed) return { state: 'signed-out' as const, relationships: [] };
@@ -206,6 +248,10 @@ export function createAccountRelationships(options: {
           const session = await options.account()?.relationshipSession();
           if (!session) throw new RelationshipRefused('account-enrollment-unavailable');
           const { proof } = command;
+          guard(session, signal);
+          const observedOrigin =
+            relationships.list().find((item) => item.id === proof.relationshipId)?.accountOrigin ??
+            null;
           if (
             proof.source.registrationId >= proof.target.registrationId ||
             proof.target.registrationId !== session.registrationId ||
@@ -229,6 +275,22 @@ export function createAccountRelationships(options: {
             throw new RelationshipRefused('relationship-identity-mismatch');
           eligible(source);
           const existing = relationships.list().find((item) => item.id === proof.relationshipId);
+          const refreshedOrigin = {
+            accountId: session.accountId,
+            localRegistrationId: session.registrationId,
+            peerRegistrationId: proof.source.registrationId,
+          };
+          if (existing?.state === 'active') {
+            if (!observedOrigin)
+              throw new RelationshipRefused('account-enrollment-origin-mismatch');
+            const refreshed = relationships.refreshAccountOrigin({
+              id: existing.id,
+              peer: source,
+              origin: refreshedOrigin,
+              expectedOrigin: observedOrigin,
+            });
+            return { ok: true, state: refreshed.state };
+          }
           if (
             existing &&
             !originMatches(existing.accountOrigin, session, proof.source.registrationId)
@@ -269,8 +331,7 @@ export function createAccountRelationships(options: {
           });
         return answer;
       } catch (error) {
-        const refusal =
-          error instanceof RelationshipRefused ? error.code : 'account-enrollment-unavailable';
+        const refusal = accountRefusal(error);
         if (!closed)
           options.record?.({
             phase: 'account-refused',
@@ -320,10 +381,13 @@ export function createAccountRelationships(options: {
               let existing = relationships
                 .list()
                 .find((item) => item.peer.id === remote.id && item.state !== 'disconnected');
-              if (existing && !originMatches(existing.accountOrigin, session, peerRegistrationId))
+              if (existing && existing.accountOrigin?.accountId !== session.accountId) return;
+              if (
+                existing?.state === 'active' &&
+                originMatches(existing.accountOrigin, session, peerRegistrationId)
+              )
                 return;
-              if (existing?.state === 'active') return;
-              if (existing && existing.expiresAt <= Date.now()) {
+              if (existing && existing.state !== 'active' && existing.expiresAt <= Date.now()) {
                 relationships.disconnect(existing.id, undefined, false);
                 existing = undefined;
               }
@@ -352,7 +416,8 @@ export function createAccountRelationships(options: {
                   hostId: remote.id,
                   publicKey: remote.publicKey,
                 },
-                expiresAt: relationship.expiresAt,
+                expiresAt:
+                  relationship.state === 'active' ? Date.now() + 600_000 : relationship.expiresAt,
                 nonce: nonce(),
               };
               const signed = await session.offer(
@@ -371,16 +436,37 @@ export function createAccountRelationships(options: {
               const answer = await options.request(
                 remote,
                 { action: 'account-propose', proof, enrollment: signed.enrollment },
-                signal,
+                session.signal ? AbortSignal.any([signal, session.signal]) : signal,
                 beforeSend,
               );
               guard(session, signal);
               eligible(remote);
               if (answer['state'] !== 'approved' && answer['state'] !== 'active') return;
+              if (relationship.state === 'active') {
+                if (!relationship.accountOrigin)
+                  throw new RelationshipRefused('account-enrollment-origin-mismatch');
+                relationships.refreshAccountOrigin({
+                  id: relationship.id,
+                  peer: remote,
+                  origin: {
+                    accountId: session.accountId,
+                    localRegistrationId: session.registrationId,
+                    peerRegistrationId,
+                  },
+                  expectedOrigin: relationship.accountOrigin,
+                });
+                retries.delete(peerRegistrationId);
+                options.record?.({
+                  phase: 'account-refreshed',
+                  relationshipId,
+                  durationMs: Date.now() - started,
+                });
+                return;
+              }
               await options.request(
                 remote,
                 { action: 'activate', id: relationship.id },
-                signal,
+                session.signal ? AbortSignal.any([signal, session.signal]) : signal,
                 beforeSend,
               );
               guard(session, signal);
@@ -404,10 +490,7 @@ export function createAccountRelationships(options: {
                 phase: 'account-pending',
                 relationshipId,
                 durationMs: Date.now() - started,
-                refusal:
-                  error instanceof RelationshipRefused
-                    ? error.code
-                    : 'account-enrollment-unavailable',
+                refusal: accountRefusal(error),
               });
             });
           }
@@ -419,6 +502,8 @@ export function createAccountRelationships(options: {
       return discovery;
     },
     close() {
+      if (timer !== undefined) clearInterval(timer);
+      if (initialTimer !== undefined) clearTimeout(initialTimer);
       closed = true;
       retries.clear();
       for (const abort of running) abort.abort();

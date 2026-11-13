@@ -120,6 +120,7 @@ const accountRelationshipOfferSchema = z.object({
 });
 export type AccountRelationshipOffer = z.infer<typeof accountRelationshipOfferSchema>;
 export interface AccountRelationshipSession {
+  signal?: AbortSignal;
   generation: string;
   accountId: string;
   registrationId: string;
@@ -306,10 +307,17 @@ export function createConnectAccount(options: {
   const { connect } = options;
   let status: AccountStatus = { state: 'signed-out' };
   let attempt = 0;
+  let relationshipAbort = new AbortController();
+  const advanceAttempt = () => {
+    attempt += 1;
+    relationshipAbort.abort();
+    relationshipAbort = new AbortController();
+  };
   const relationshipEpoch = randomBytes(16).toString('hex');
   let watch: ReturnType<typeof setInterval> | undefined;
   let cached: string | undefined;
   let botNetworkClosed = false;
+  let signOutRequested = false;
   let canResumeSession = true;
   let queue: Promise<unknown> = Promise.resolve();
 
@@ -562,7 +570,7 @@ export function createConnectAccount(options: {
       (error.issue !== 'session-expired' && error.issue !== 'session-revoked')
     )
       return;
-    attempt += 1;
+    advanceAttempt();
     try {
       await retireSession(current);
     } catch {
@@ -640,6 +648,7 @@ export function createConnectAccount(options: {
   const sync = (): Promise<void> =>
     serial(async () => {
       if (!canResumeSession) return;
+      const generation = attempt;
       let current: AccountRecord | undefined;
       try {
         current = await read();
@@ -669,6 +678,7 @@ export function createConnectAccount(options: {
         }
         const bound = originPort(connect);
         if (bound !== undefined && bound !== port) await requestTunnel(current, access, bound);
+        if (generation !== attempt || signOutRequested || botNetworkClosed) return;
         status = {
           state: 'signed-in',
           ...(current.email ? { email: current.email } : {}),
@@ -769,6 +779,8 @@ export function createConnectAccount(options: {
           }
           if (run !== attempt) return false;
           await save(current);
+          if (run !== attempt) return false;
+          signOutRequested = false;
           canResumeSession = true;
           return true;
         });
@@ -804,7 +816,7 @@ export function createConnectAccount(options: {
   ): Promise<OfferVerification> => {
     let current: AccountRecord | undefined;
     const generation = attempt;
-    if (status.state !== 'signed-in') return { ok: false };
+    if (signOutRequested || botNetworkClosed || status.state !== 'signed-in') return { ok: false };
     try {
       current = await read();
     } catch {
@@ -812,6 +824,8 @@ export function createConnectAccount(options: {
     }
     if (
       generation !== attempt ||
+      signOutRequested ||
+      botNetworkClosed ||
       status.state !== 'signed-in' ||
       current?.relayKey === undefined ||
       current.hostId === undefined ||
@@ -1047,13 +1061,16 @@ export function createConnectAccount(options: {
     verifyOffer,
     relationshipSession: () =>
       serial(async () => {
-        if (status.state !== 'signed-in') return undefined;
+        if (signOutRequested || botNetworkClosed || status.state !== 'signed-in') return undefined;
         const generation = attempt;
+        const generationSignal = relationshipAbort.signal;
         const stored = await read();
         if (!stored?.account || !stored.hostId || !stored.relayKey) return undefined;
         const accountId = stored.account;
         const registrationId = stored.hostId;
         const current = () =>
+          !signOutRequested &&
+          !botNetworkClosed &&
           generation === attempt &&
           status.state === 'signed-in' &&
           status.hostId === registrationId;
@@ -1067,6 +1084,7 @@ export function createConnectAccount(options: {
           signal: AbortSignal,
           body?: unknown,
         ) => {
+          signal = AbortSignal.any([signal, generationSignal]);
           const guard = () => {
             if (!current() || signal.aborted) throw new AccountError('session-expired');
           };
@@ -1092,6 +1110,7 @@ export function createConnectAccount(options: {
         };
         return {
           accountId,
+          signal: generationSignal,
           registrationId,
           generation: `${relationshipEpoch}:${generation}`,
           current,
@@ -1161,7 +1180,7 @@ export function createConnectAccount(options: {
     },
     async signIn() {
       if (options.credentials() === undefined) return { ok: false, code: 'credential-unavailable' };
-      attempt += 1;
+      advanceAttempt();
       const run = attempt;
       let id: ConnectClientId;
       let reply: Awaited<ReturnType<typeof post>>;
@@ -1202,7 +1221,8 @@ export function createConnectAccount(options: {
       return { ok: true, status: { ...status } };
     },
     signOut: () => {
-      attempt += 1;
+      signOutRequested = true;
+      advanceAttempt();
       return serial(async (): Promise<AccountResult> => {
         let current: AccountRecord | undefined;
         try {
@@ -1235,7 +1255,7 @@ export function createConnectAccount(options: {
     },
     async close() {
       botNetworkClosed = true;
-      attempt += 1;
+      advanceAttempt();
       clearInterval(watch);
       watch = undefined;
       await serial(async () => undefined);
