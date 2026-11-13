@@ -5,6 +5,7 @@ import { useState, useSyncExternalStore, type ReactElement, type ReactNode } fro
 import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots';
 
 import type {} from './bot-settings-slot.js';
+import { useTeamMember } from './team-state.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { SettingsDialog } from './ds/settings-dialog.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -31,6 +32,16 @@ export const BOT_SETTINGS_SECTIONS = {
 } as const;
 
 export const BOT_SETTINGS_DEFAULT_SECTION = BOT_SETTINGS_SECTIONS.general;
+
+/** Sections a Host Member sees; the rest configure the Host and stay with the Owner. */
+export const MEMBER_SETTINGS_SECTIONS: ReadonlySet<string> = new Set([
+  BOT_SETTINGS_SECTIONS.account,
+  BOT_SETTINGS_SECTIONS.general,
+  BOT_SETTINGS_SECTIONS.appearance,
+  BOT_SETTINGS_SECTIONS.notifications,
+  BOT_SETTINGS_SECTIONS.shortcuts,
+  BOT_SETTINGS_SECTIONS.team,
+]);
 
 const SECTION_ICONS: Readonly<Record<string, string>> = {
   [BOT_SETTINGS_SECTIONS.account]: 'user',
@@ -152,6 +163,7 @@ export function BotSettingsView({
 }: BotSettingsViewProps): ReactElement | null {
   const state = useSyncExternalStore(botSettings.subscribe, botSettings.getSnapshot);
   const registered = useSyncExternalStore(sections.subscribe, sections.getSnapshot);
+  const member = useTeamMember();
   const [query, setQuery] = useState('');
   const target = state.target;
   const locate = useMountedResource<HTMLDivElement>(
@@ -191,7 +203,9 @@ export function BotSettingsView({
     [state.sectionId, target],
   );
   if (!state.open) return null;
-  const rows = [...registered].sort((a, b) => a.order - b.order);
+  const rows = [...registered]
+    .filter((row) => !member || MEMBER_SETTINGS_SECTIONS.has(row.id))
+    .sort((a, b) => a.order - b.order);
   const active =
     rows.find((row) => row.id === state.sectionId) ??
     rows.find((row) => row.id === BOT_SETTINGS_DEFAULT_SECTION) ??

@@ -2253,7 +2253,9 @@ export function BotSidebar({
               </button>
             </Tooltip>
           }
-          items={menuItems(t, gitReady(state.git), hostTabs, teamMode?.enabled === true)}
+          items={menuItems(t, gitReady(state.git), hostTabs, teamMode?.enabled === true).filter(
+            (item) => teamMode?.viewer.kind !== 'member' || MEMBER_MENU_ITEMS.has(item.id),
+          )}
           onSelect={selectMenu}
           onClose={() => {
             setMenuOpen(false);
@@ -3980,6 +3982,9 @@ export function ChannelMoveMenu({
     </span>
   );
 }
+
+/** Create-menu rows a Host Member may use in M1: Channels and their own sections. */
+const MEMBER_MENU_ITEMS: ReadonlySet<string> = new Set(['channel', 'section', 'public-channels']);
 
 function botCreateSource(id: string): 'empty' | 'git' | 'zip' | undefined {
   if (id === 'bot' || id === 'bot:empty') return 'empty';

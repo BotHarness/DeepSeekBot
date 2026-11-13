@@ -42,7 +42,7 @@ describe('Team mode bridge', () => {
   it('surfaces Host refusal codes as typed refusals', async () => {
     const call = vi.fn(async () => ({
       ok: false as const,
-      error: { code: 'owner-password-required', message: 'set a password first' },
+      error: { code: 'owner-password-required', message: 'set a password first', details: {} },
     }));
     const failure = await setTeamMode(call, true).catch((error: unknown) => error);
     expect(failure).toBeInstanceOf(BridgeCallError);
@@ -144,5 +144,24 @@ describe('Team sign-in page', () => {
       'member-suspended',
     ])
       expect(html).toContain(`"${code}"`);
+  });
+});
+
+describe('member view of Bot settings', () => {
+  it('keeps Host configuration sections with the Owner', async () => {
+    const { MEMBER_SETTINGS_SECTIONS, BOT_SETTINGS_SECTIONS } =
+      await import('../src/client/bot-settings.js');
+    for (const id of ['account', 'general', 'appearance', 'notifications', 'shortcuts', 'team'])
+      expect(MEMBER_SETTINGS_SECTIONS.has(id)).toBe(true);
+    for (const id of [
+      BOT_SETTINGS_SECTIONS.models,
+      BOT_SETTINGS_SECTIONS.imApps,
+      BOT_SETTINGS_SECTIONS.devices,
+      BOT_SETTINGS_SECTIONS.dataPrivacy,
+      BOT_SETTINGS_SECTIONS.advanced,
+      BOT_SETTINGS_SECTIONS.plugins,
+      BOT_SETTINGS_SECTIONS.autoApproval,
+    ])
+      expect(MEMBER_SETTINGS_SECTIONS.has(id)).toBe(false);
   });
 });

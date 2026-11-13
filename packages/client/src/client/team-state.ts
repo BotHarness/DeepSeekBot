@@ -15,6 +15,33 @@ interface Entry {
 
 const entries = new WeakMap<BridgeCall, Entry>();
 
+/** The signed-in Human's kind on this page's Host, from the last Team mode snapshot. */
+let viewerKind: 'owner' | 'member' | undefined;
+const viewerListeners = new Set<() => void>();
+
+function publish(current: Entry, value: TeamModeView): void {
+  current.value = value;
+  for (const listener of current.listeners) listener();
+  if (viewerKind !== value.viewer.kind) {
+    viewerKind = value.viewer.kind;
+    for (const listener of viewerListeners) listener();
+  }
+}
+
+/** True while this page is signed in as a Host Member rather than the Owner. */
+export function useTeamMember(): boolean {
+  return (
+    useSyncExternalStore(
+      (listener) => {
+        viewerListeners.add(listener);
+        return () => viewerListeners.delete(listener);
+      },
+      () => viewerKind,
+      () => undefined,
+    ) === 'member'
+  );
+}
+
 function entry(call: BridgeCall): Entry {
   let found = entries.get(call);
   if (found === undefined) {
@@ -27,10 +54,7 @@ function entry(call: BridgeCall): Entry {
 export function refreshTeamMode(call: BridgeCall): Promise<void> {
   const current = entry(call);
   current.loading ??= loadTeamMode(call)
-    .then((value) => {
-      current.value = value;
-      for (const listener of current.listeners) listener();
-    })
+    .then((value) => publish(current, value))
     .catch(() => {})
     .finally(() => {
       current.loading = undefined;
@@ -39,9 +63,7 @@ export function refreshTeamMode(call: BridgeCall): Promise<void> {
 }
 
 export function setTeamModeSnapshot(call: BridgeCall, value: TeamModeView): void {
-  const current = entry(call);
-  current.value = value;
-  for (const listener of current.listeners) listener();
+  publish(entry(call), value);
 }
 
 export function useTeamMode(call: BridgeCall | undefined): TeamModeView | undefined {
