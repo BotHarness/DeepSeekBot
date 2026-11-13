@@ -1,4 +1,4 @@
-# ADR-0332: Phone onboarding confirms a device Feed read
+# ADR-0335: Phone onboarding confirms a device Feed read
 
 - Status: Accepted
 - Date: 2026-11-13
