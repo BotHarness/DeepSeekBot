@@ -85,7 +85,11 @@ const ROWS: readonly BotSettingsSectionRow[] = [
 
 let host: HTMLDivElement;
 let root: Root;
-let rendered: { id: string | undefined; close: (() => void) | undefined }[];
+let rendered: {
+  id: string | undefined;
+  close: (() => void) | undefined;
+  clientOnly?: boolean | undefined;
+}[];
 
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -113,8 +117,12 @@ function mount(settings: BotSettings, rows: readonly BotSettingsSectionRow[] = R
         botSettings: settings,
         sections,
         t: zhTranslate,
-        renderSlot: ((_name: string, owner: { close(): void }, options?: { only?: string }) => {
-          rendered.push({ id: options?.only, close: owner.close });
+        renderSlot: ((
+          _name: string,
+          owner: { close(): void; clientOnly?: boolean },
+          options?: { only?: string },
+        ) => {
+          rendered.push({ id: options?.only, close: owner.close, clientOnly: owner.clientOnly });
           return createElement('p', { 'data-section': options?.only }, `section:${options?.only}`);
         }) as never,
       }),
@@ -435,4 +443,32 @@ it('returns to ordinary settings after closing the standalone Connections dialog
     sectionId: 'general',
     pairPhone: false,
   });
+});
+
+it('limits App preferences navigation and section mounting to Client-local owners', () => {
+  const settings = new BotSettings();
+  const ids = [...Object.values(BOT_SETTINGS_SECTIONS), 'unclassified-plugin'];
+  mount(
+    settings,
+    ids.map((id, order) => ({ id, order, label: id })),
+  );
+  act(() => settings.openClientPreferences());
+  expect(document.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe('本应用偏好');
+  expect(navLabels()).toEqual(['appearance', 'notifications', 'shortcuts', 'companions']);
+  expect(shownSection()).toBe('appearance');
+  expect(rendered.at(-1)).toMatchObject({ id: 'appearance', clientOnly: true });
+  act(() => settings.select('models'));
+  expect(shownSection()).toBe('appearance');
+  act(() => settings.select('voice'));
+  expect(shownSection()).toBe('appearance');
+  act(() => settings.select('notifications'));
+  expect(rendered.at(-1)).toMatchObject({ id: 'notifications', clientOnly: true });
+  act(() => settings.open('models'));
+  expect(document.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe('Bot 设置');
+  expect(navLabels()).toContain('voice');
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
+    '主机选项只作用于本机 Host',
+  );
+  expect(shownSection()).toBe('models');
+  expect(rendered.at(-1)).toMatchObject({ id: 'models', clientOnly: false });
 });

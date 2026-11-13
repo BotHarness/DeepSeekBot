@@ -4,7 +4,7 @@
 
 E9 的远端频道「管理 Bot」固定捕获所属 Host、Bot 与原 HostClient，在独立 `shell.overlay` SettingsDialog 中管理资料、模型、Workspace Grant 与审批模板。Environment Scope 和后续聊天选择不改变此目标。Client 草稿只属此设置会话；共享 exact-Host draft guard 在离开前等待保存、放弃或取消，真正写入仍经过原 Host 的 Registry、模型、Workspace 和审批 owners 与既有 Device Gateway/API Gateway。每次调用前后检查原 Client 及连接状态，移除、撤销、同 Host ID 换 Client 后不把旧草稿转交新授权；关闭再打开才建立新会话。名称沿用 profile fingerprint，模型沿用 Bot／preset revision，目录检查与撤销确认沿用原 owner。无新增持久数据、代理权限层或 Bot 协作成员授权。
 
-E4 在关系 owner 的 Operational Database generation 141 保存离线撤销的尝试次数、下次时间与主动断开抑制；同一 Fiber 有限重试准确代际的幂等撤销，八次后仍保留 pending 供检查及手动重试，不重放普通变更。本机先拒绝关系并撤销派生设备，对方恢复后通过固定 Noise 身份确认；旧代确认不触碰新代。仅用户/对端主动断开抑制自动登记，发起失败的内部清理不抑制；新链接及批准激活新代才解除。最多保留 256 条关系并安全拒绝超量新增，不删待确认事实或身份。Client 复用 SavedHost 的非权限关系引用关闭对应来源，移除当前选择回到 All；临时 exact-Host draft guard 在主动移除前等待保存成功或放弃，取消/失败不改关系。见 [ADR-0336](../adr/0336-offline-disconnect-retries-stay-with-the-relationship-owner.md)。
+E4 在关系 owner 的 Operational Database generation 141 保存离线撤销的尝试次数、下次时间与主动断开抑制；同一 Fiber 有限重试准确代际的幂等撤销，八次后仍保留 pending 供检查及手动重试，不重放普通变更。本机先拒绝关系并撤销派生设备，对方恢复后通过固定 Noise 身份确认；旧代确认不触碰新代。仅用户/对端主动断开抑制自动登记，发起失败的内部清理不抑制；新链接及批准激活新代才解除。最多保留 256 条关系并安全拒绝超量新增，不删待确认事实或身份。Client 复用 SavedHost 的非权限关系引用关闭对应来源，移除当前选择回到 All；临时 exact-Host draft guard 在主动移除前等待保存成功或放弃，取消/失败不改关系。见 [ADR-0337](../adr/0337-offline-disconnect-retries-stay-with-the-relationship-owner.md)。
 
 E2 将已批准关系复用于另一 Web Client 的具名授权：Client 显式选择关系和名称，兑换前检查目标 Host ID 与公钥，仍用现有 SavedHost 存储独立凭据；重复打开仅切换已保存目标。CLI `relationships enroll --device-name` 使用同一登记路径。取消、断开和旧关系代际不能签发迟到访问；单独撤销设备不撤销关系或其他 Client。手机仍通过每 Host 的独立配对，不能凭平台标记继承关系。
 

@@ -135,7 +135,13 @@ function EnvironmentSettings({
       icon: <ChannelSidebarIcon name="paintbrush" />,
     },
     ...(local
-      ? []
+      ? [
+          {
+            id: 'more-host',
+            label: t('environment.settings.moreHost'),
+            icon: <ChannelSidebarIcon name="settings" />,
+          },
+        ]
       : [
           {
             id: 'notifications',
@@ -216,6 +222,13 @@ function EnvironmentSettings({
       sections={sections}
       activeId={section}
       onSelect={(id) => {
+        if (id === 'more-host' && local && localSource !== undefined) {
+          void leave(() => {
+            onClose();
+            localSource.openHostSettings();
+          });
+          return;
+        }
         if (id !== section) void leave(() => setSection(id));
       }}
       onClose={() => {
