@@ -10861,11 +10861,11 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'team.password.submit': 'Change password',
   'team.save': 'Save',
   'team.done': 'Done',
-  'team.channels.browse': 'Browse Channels',
-  'team.channels.title': 'Public Channels',
+  'team.channels.browse': 'Browse channels',
+  'team.channels.title': 'Public channels',
   'team.channels.loading': 'Loading…',
-  'team.channels.loadFailed': 'Could not load Channels. Try again.',
-  'team.channels.empty': 'No public Channels yet',
+  'team.channels.loadFailed': 'Could not load channels. Try again.',
+  'team.channels.empty': 'No public channels yet',
   'team.channels.members': '{count} members',
   'team.channels.join': 'Join',
   'team.channels.joinNamed': 'Join {name}',
@@ -10881,8 +10881,8 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'team.error.teamModeOff': 'Turn on Team mode first.',
   'team.error.usernameInvalid': 'Use 2–32 lowercase letters, numbers, dots, dashes or underscores.',
   'team.error.usernameTaken': 'That username is taken.',
-  'team.error.channelNotPublic': 'This Channel is no longer public.',
-  'team.error.channelNotFound': 'This Channel no longer exists.',
+  'team.error.channelNotPublic': 'This channel is no longer public.',
+  'team.error.channelNotFound': 'This channel no longer exists.',
 } satisfies Record<BotHarnessKey, string>;
 
 export type BotHarnessTranslate = TranslateNS<typeof LOCALE_NS>;
