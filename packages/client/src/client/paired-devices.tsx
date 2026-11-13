@@ -671,8 +671,16 @@ export function PairedDevicesSettings({
             ) : setup === 'method' ? (
               <>
                 <ConnectionMethod
-                  title={t('privateTunnel.title')}
-                  description={t('privateTunnel.description')}
+                  title={t(
+                    snapshot?.privateTunnel?.mode && snapshot.privateTunnel.mode !== 'quick'
+                      ? 'privateTunnel.title'
+                      : 'privateTunnel.quickEntry',
+                  )}
+                  description={t(
+                    snapshot?.privateTunnel?.mode && snapshot.privateTunnel.mode !== 'quick'
+                      ? 'privateTunnel.description'
+                      : 'privateTunnel.quickEntryDescription',
+                  )}
                   detail={t('privateTunnel.intro')}
                   disabled={!freshSnapshot}
                   onClick={() => {

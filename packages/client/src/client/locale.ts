@@ -8,6 +8,11 @@ export const zh = {
   'privateTunnel.description': '不需要 Docker 和官方账号，这台电脑只公开加密的手机通道。',
   'privateTunnel.intro':
     '这台电脑会运行内置的 cloudflared，只公开加密的手机通道；电脑管理页、文件和接口不会公开。手机仍需你在这台电脑上核对指纹并批准。',
+  'privateTunnel.quickEntry': 'Quick Tunnel（免登录）',
+  'privateTunnel.quickEntryDescription': '免费临时地址，端到端加密。重启后可能需要重新扫码。',
+  'privateTunnel.quickLifecycle':
+    '隧道重启后地址可能变化。重新扫码可更新这台电脑的地址，已有有效授权无需重复批准。',
+  'privateTunnel.otherHint': '固定域名、自有代理或 Docker 中继',
   'privateTunnel.quickTitle': '临时地址（Quick Tunnel）',
   'privateTunnel.quickDescription':
     '免费，不需要 Cloudflare 账号，适合先试用。隧道重启后地址会变，手机需要扫描新的配对码。',
@@ -40,10 +45,10 @@ export const zh = {
   'privateTunnel.addressChanged': '临时地址已变化。已配对的手机需要扫描新的配对码才能连接。',
   'privateTunnel.disable': '关闭私有连接',
   'privateTunnel.refused': '未能完成（{code}）。',
-  'privateTunnel.panel.offTitle': '通过自己的隧道从外网连到这台电脑',
+  'privateTunnel.panel.offTitle': '创建 Quick Tunnel',
   'privateTunnel.panel.offBody':
     '不需要 Docker 和 Tobs 账号。只公开加密的手机通道，设置、文件和接口都不会公开。',
-  'privateTunnel.panel.quickAction': '用临时地址开始',
+  'privateTunnel.panel.quickAction': '创建免费临时地址',
   'privateTunnel.panel.steps': '私有连接步骤',
   'privateTunnel.panel.stepStart': '启动隧道',
   'privateTunnel.panel.stepCheck': '确认地址',
@@ -5081,6 +5086,12 @@ export const en = {
     'No Docker or official account. This computer publishes only its encrypted phone channel.',
   'privateTunnel.intro':
     'This computer runs its bundled cloudflared and publishes only the encrypted phone channel; settings, files and APIs stay private. Phones still need you to compare the fingerprint and approve them here.',
+  'privateTunnel.quickEntry': 'Quick Tunnel (no sign-in)',
+  'privateTunnel.quickEntryDescription':
+    'Free temporary address, end-to-end encrypted. Scan again if it changes after a restart.',
+  'privateTunnel.quickLifecycle':
+    'The address may change when the tunnel restarts. Scan again to update this computer’s address; a valid existing authorization needs no repeat approval.',
+  'privateTunnel.otherHint': 'Fixed domain, your proxy or Docker relay',
   'privateTunnel.quickTitle': 'Temporary address (Quick Tunnel)',
   'privateTunnel.quickDescription':
     'Free, no Cloudflare account, good for trying it out. The address changes when the tunnel restarts, and phones then need a new pairing code.',
@@ -5120,10 +5131,10 @@ export const en = {
     'The temporary address changed. Paired phones need to scan a new pairing code to connect.',
   'privateTunnel.disable': 'Turn off private connection',
   'privateTunnel.refused': 'Could not finish ({code}).',
-  'privateTunnel.panel.offTitle': 'Reach this computer through your own tunnel',
+  'privateTunnel.panel.offTitle': 'Create a Quick Tunnel',
   'privateTunnel.panel.offBody':
     'No Docker or Tobs account. Only the encrypted phone channel is published; settings, files and APIs stay private.',
-  'privateTunnel.panel.quickAction': 'Start with a temporary address',
+  'privateTunnel.panel.quickAction': 'Create a free temporary address',
   'privateTunnel.panel.steps': 'Private connection steps',
   'privateTunnel.panel.stepStart': 'Start tunnel',
   'privateTunnel.panel.stepCheck': 'Check address',
