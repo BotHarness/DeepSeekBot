@@ -8,10 +8,22 @@ Create a goal to complete E1–E11 (#4110–#4120): first demonstrate real recip
 
 ## Git-based source transfer
 
-Two previously uncommitted groups now have separate remote branches:
+Two previously uncommitted groups were committed and pushed separately; both are available through GitHub:
 
 - `codex/environment-panel-design`: bilingual glossary/design/architecture, ADR-0334 and amendments to ADR-0203/0327; accepted target, not runtime implementation.
 - `codex/connection-review-polish`: follow-up to original Connections delivery: installation/advanced row alignment, fixed footer, grouped connection management, bounded preparation logs, QR image and name/icon flow, first-remote-tab form lifetime and DNS/probe responsiveness. It is based on the original stack tail #4101, not independent main history.
+
+[Design PR #4121](https://github.com/BotHarness/DeepSeekBot/pull/4121) is merged. [Connection review PR #4122](https://github.com/BotHarness/DeepSeekBot/pull/4122) carries the second group, stacked on original slice #4101. The original delivery order is #4090 → #4091 → #4093 → #4094 → #4095 → #4096 → #4097 → #4098 → #4101 → #4122. Check their current merged state before choosing an implementation base. Each integration head must pass CI; do not infer that older green checks qualify conflict-resolution commits. The original phone Feed acknowledgement decision is ADR-0335 after resolving its number collision with main's Desktop capture decision.
+
+Once that chain is merged, start E1 directly from current main in a new worktree:
+
+```bash
+git fetch origin main
+git worktree add -b codex/4110-reciprocal-host ../botharness-4110 origin/main
+cd ../botharness-4110
+```
+
+The earlier seven-file archive (handoff, T3 reference notes, two patches, source manifest, publication verification and issue map) is obsolete for source transfer. The commits and this maintained handoff replace it. Credentials, machine-local Profiles, private logs, captures and running services never belonged in a source commit and are not needed on the next machine.
 
 Existing clone:
 
