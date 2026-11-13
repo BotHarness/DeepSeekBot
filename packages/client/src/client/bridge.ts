@@ -1,3 +1,5 @@
+import { MEMBER_METHODS } from '../../../core/src/team/member-methods.js';
+import { memberPage } from './member-page.js';
 import {
   isTakeoverRequestCard,
   isTakeoverResolution,
@@ -603,7 +605,13 @@ function remoteArgs(payload: Record<string, unknown>): Record<string, unknown> {
 }
 
 export function createBridgeCall(ctx: ClientContext): BridgeCall {
+  const member = memberPage();
   return async (endpoint, payload, signal) => {
+    if (member && !MEMBER_METHODS.has(endpoint))
+      return {
+        ok: false,
+        error: { code: 'member-unavailable', message: endpoint, details: {} },
+      };
     const rpc = connectionRpc(ctx);
     if (rpc === undefined) {
       return {

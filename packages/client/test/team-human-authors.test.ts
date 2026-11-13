@@ -41,3 +41,32 @@ describe('Human authors in Team mode', () => {
     expect(memberPage({ __DSH_REMOTE_ACCESS__: { type: 'baseline', grants: [] } })).toBe(true);
   });
 });
+
+describe('member page bridge calls', () => {
+  it('sends only member-allowed methods from a member page', async () => {
+    const { createBridgeCall } = await import('../src/client/bridge.js');
+    const sent: string[] = [];
+    const ctx = {
+      connection: {
+        rpc: {
+          call: async (_channel: string, endpoint: string) => {
+            sent.push(endpoint);
+            return { ok: true as const, value: {} };
+          },
+        },
+      },
+    };
+    const scope = globalThis as Record<string, unknown>;
+    scope['__DSH_REMOTE_ACCESS__'] = { type: 'baseline', grants: [] };
+    try {
+      const call = createBridgeCall(ctx as never);
+      expect((await call('channelSend', { channelId: 'c', body: 'hi' })).ok).toBe(true);
+      const refused = await call('topReorder', {});
+      expect(refused.ok).toBe(false);
+      expect(refused.ok ? undefined : refused.error.code).toBe('member-unavailable');
+      expect(sent).toEqual(['botharness/channelSend']);
+    } finally {
+      delete scope['__DSH_REMOTE_ACCESS__'];
+    }
+  });
+});
