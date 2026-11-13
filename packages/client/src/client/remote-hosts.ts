@@ -1,4 +1,6 @@
 import { hostLooks } from './host-looks.js';
+import { browserAdmissionProtocols } from '../../../../deploy/private-relay/admission.mjs';
+import { isPrivateRoute } from '../../../../apps/mobile/src/host/route.js';
 import {
   enrollRelationshipClient,
   commitRelationshipEnrollment,
@@ -921,10 +923,30 @@ export function browserCarrier(): HostCarrier {
     },
     openSocket(url, events, headers = {}) {
       if (new URL(url).pathname === '/botharness-device/channel') {
-        const socket = new WebSocket(url);
+        const admission = headers['X-BotHarness-Admission'];
+        const target = new URL(url);
+        if (
+          admission !== undefined &&
+          (target.protocol !== 'wss:' ||
+            target.username ||
+            target.password ||
+            target.search ||
+            target.hash ||
+            !isPrivateRoute(url.replace(/^ws/u, 'http')))
+        )
+          throw new Error('private-admission-route-invalid');
+        const socket =
+          admission === undefined
+            ? new WebSocket(url)
+            : new WebSocket(url, browserAdmissionProtocols(admission));
         socket.onopen = () => events.open();
         socket.onmessage = (event) => events.message(String(event.data));
-        socket.onerror = () => events.closed('channel-disconnected');
+        socket.onerror = () =>
+          events.closed(
+            admission === undefined
+              ? 'channel-disconnected'
+              : 'private-route-browser-admission-unavailable',
+          );
         socket.onclose = (event) => events.closed(event.reason);
         return {
           get bufferedAmount() {
