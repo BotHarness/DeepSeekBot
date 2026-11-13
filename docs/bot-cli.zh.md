@@ -366,6 +366,8 @@ Human 要求等待或取消时不得使用 override。
 
 ### Bot 资料、侧边栏与部件库
 
+浏览器的[环境创建表单](environment-creation.zh.md)使用同一 Host 能力。Agent 核对时用 `--host` 和私有 `--token-file` 明确指定目标；`create`、`group-create`、`roster-section-create`、`roster-section-rename`、`roster-section-reorder` 和 `channel-assign` 对应界面操作。分别读取两台 Host 的 `list`、`channels` 和 `roster`，确认只有选定 Host 改变。Client 的上次创建目标和浏览范围不会替 CLI 改选 Host。
+
 这些命令设置 Bot 的外观和唤醒规则、整理侧边栏、管理自定义部件，走的是 Web 界面所用的同一组 Host 调用（[#1702](https://github.com/BotHarness/DeepSeekBot/issues/1702)）：
 
 ```bash

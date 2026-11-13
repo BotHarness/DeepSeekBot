@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactElement } from 'react';
+import { useRef, useState, type ReactElement, type ReactNode } from 'react';
 
 import {
   IconCheckOutlineRegular,
@@ -284,6 +284,9 @@ export function CreateSectionModal({
 }
 
 export interface CreateChannelModalProps {
+  committed?: boolean;
+  target?: ReactNode;
+  targetUnavailable?: boolean;
   sectionName?: string | undefined;
   t: BotHarnessTranslate;
   onCancel: () => void;
@@ -291,6 +294,9 @@ export interface CreateChannelModalProps {
 }
 
 export function CreateChannelModal({
+  committed = false,
+  target,
+  targetUnavailable = false,
   sectionName,
   t,
   onCancel,
@@ -298,16 +304,21 @@ export function CreateChannelModal({
 }: CreateChannelModalProps): ReactElement {
   const [draft, setDraft] = useState('');
   const [creating, setCreating] = useState(false);
+  const pending = useRef(false);
   const [error, setError] = useState<string | undefined>(undefined);
   const trimmed = draft.trim();
   const submit = (): void => {
+    if (pending.current || !hasVisibleText(trimmed) || targetUnavailable) return;
+    pending.current = true;
     setCreating(true);
     setError(undefined);
     void onCreate(trimmed).then(
       () => {
+        pending.current = false;
         setCreating(false);
       },
       (cause: unknown) => {
+        pending.current = false;
         setError(errorMessage(cause));
         setCreating(false);
       },
@@ -321,15 +332,23 @@ export function CreateChannelModal({
           : t('channel.create.inSection', { name: sectionName })
       }
       labels={dialogLabels(t)}
-      submitLabel={t('common.create')}
-      submitDisabled={!hasVisibleText(trimmed)}
+      submitLabel={t(committed ? 'environment.create.finish' : 'common.create')}
+      submitDisabled={!hasVisibleText(trimmed) || targetUnavailable}
       busy={creating}
-      error={error === undefined ? undefined : t('create.failed', { error })}
-      onCancel={onCancel}
+      error={
+        error === undefined
+          ? undefined
+          : t(committed ? 'environment.create.finishFailed' : 'create.failed', { error })
+      }
+      onCancel={() => {
+        if (!creating) onCancel();
+      }}
       onSubmit={submit}
     >
+      {target}
       <TextField
         label={t('channel.name.label')}
+        disabled={creating || committed}
         placeholder={t('channel.name.placeholder')}
         value={draft}
         onChange={setDraft}

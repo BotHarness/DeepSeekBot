@@ -382,6 +382,8 @@ the selected reason. Human requests to wait or cancel must never be overridden.
 
 ### Bot profile, roster and Part Library
 
+The browser's [environment creation form](environment-creation.md) uses these same Host owners. For agent verification, select the owning Host explicitly with `--host` and its private `--token-file`; `create`, `group-create`, `roster-section-create`, `roster-section-rename`, `roster-section-reorder` and `channel-assign` perform the corresponding operations. Read `list`, `channels` and `roster` on both Hosts to confirm only the chosen Host changed. The Client's last creation target and browsing scope do not retarget CLI commands.
+
 These commands set a Bot's look and wake rules, arrange the sidebar and manage Custom Parts through the same Host calls as the Web UI ([#1702](https://github.com/BotHarness/DeepSeekBot/issues/1702)):
 
 ```bash
