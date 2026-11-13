@@ -813,8 +813,16 @@ _Avoid_: reply mode, answer position, visibility
 ### Host and setup
 
 **Environment**:
-The user-facing name for one paired Host as the mobile app lists, adds, and chooses it (Chinese: 环境); a PersonaBot is created in exactly one Environment.
+The user-facing source of Channels and Activity that a desktop, Web or mobile Client lists and chooses (Chinese: 环境). A computer Environment corresponds to one Host, regardless of its connection routes; a PersonaBot belongs to exactly one Environment.
 _Avoid_: computer, 电脑, machine, device (Computer already names a PersonaBot's work surface)
+
+**Environment Scope**:
+The Client's shared selection of All or one Environment for its Channels and Activity views, independent of which conversation is open or which Host's settings are being edited.
+_Avoid_: account membership, connection route, Settings Target
+
+**Settings Target**:
+The exact Host whose configuration a settings operation reads or changes, independent of the Client's Environment Scope.
+_Avoid_: current environment (without an explicit target), default Host
 
 **PersonaBot registry**:
 The Host module that owns PersonaBot definitions, archive state, bindings, and Session ownership; its operational records live in the BotHarness operational database while Soul content remains in files.
@@ -1043,6 +1051,14 @@ _Avoid_: Computer, other computer, machine, server, peer
 **Paired Device**:
 A client, a phone app or one browser profile on one origin, holding its own revocable credential from one Host. It reads and acts on that Host but never hosts PersonaBots or relays another Host.
 _Avoid_: phone (for all devices), session, Host
+
+**Host Relationship**:
+A durable, explicitly authorized bidirectional relationship between two Hosts from which supported Clients obtain their own independent device grants. It is distinct from account registration, a connection route, an individual device grant and Bot Collaboration Network membership.
+_Avoid_: shared remote credential, Host Feed mirror, Bot collaboration admission
+
+**Host Connection Route**:
+One way a Client reaches a Host, such as LAN, Tailscale or a Tunnel; multiple routes retain the same Host identity and do not grant account membership or device authorization.
+_Avoid_: Environment, Host (for an address), device grant
 
 **Host Feed**:
 The whole live state one Host serves to one admitted client: roster, avatars, activity, unread state, Activity and conversations. Every client reads every Host, This Host included, through the same Host Feed; new state to sync is a new part of the Host Feed.

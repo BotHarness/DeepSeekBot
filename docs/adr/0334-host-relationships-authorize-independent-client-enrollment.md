@@ -1,0 +1,27 @@
+# ADR-0334: Host relationships authorize independent Client enrollment
+
+Status: Accepted design — Human confirmed the complete Environment design on 2026-11-13. Implementation, migration and runtime acceptance remain separate gates.
+
+## Context and trade-off
+
+A desktop/Web Client currently pairs each Remote Host independently (ADR-0242/0253). Repeating that setup in another desktop Client cannot provide the requested durable A1↔A2 experience. Copying one Client's remote credential into the serving Host or all Clients would conflate independent revocable devices; using Bot collaboration membership would grant Human Channel access through an unrelated authority.
+
+We choose an application-defined, durable **Host Relationship**, owned by the participating Hosts, from which supported desktop/Web Clients may obtain their own independently revocable device grants. The relationship is not a remote credential shared by Clients, a Host Feed mirror, a new pairing database, a transport route, or automatic Bot collaboration. This deliberately amends ADR-0242/0253's Client-only desktop enrollment boundary, while retaining those ADRs for independent pairing and Client-local credentials. It supersedes #4069's original exclusion of reciprocal grants only for the confirmed follow-up design; the original nine slices do not implement this decision.
+
+## Decision
+
+- A1 initiates manual LAN/URL/QR enrollment; A2 approves the explicitly named bidirectional relationship once, retaining the applicable Host identity verification. Discovery, a URL, or a display-name match grants nothing. Trusted same-account enrollment follows ADR-0327 without an extra connect-all action or manual fingerprints. Existing key pins cannot be silently replaced.
+- Persist relationship identity, authorization lifecycle, derived-grant references and pending revocation under one Host-owned application authority. Use the existing operational database and protected credential owners for their respective responsibilities; do not persist per-Client remote secrets as a shared Host credential. The pairing owner remains authoritative for each device grant. Schema and migration are implementation work, not prescribed by this decision.
+- Each supported desktop/Web Client obtains its own grant through verified relationship enrollment. Mobile adds/enrolls each Host independently and never automatically inherits another Host through its existing connection. Bot collaboration remains separately enabled and authorized. Existing operation-specific confirmation, revision and permission checks still apply to remote management.
+- Authorization and reachability are separate. Observe A1→A2 and A2→A1 independently. Save a relationship with a missing return path, show what is missing, and claim bidirectional-connected only after both directions verify. Multiple routes still belong to one pinned Host identity.
+- Disconnect disables local relationship access and revokes the grants derived from that relationship, preserving independent phone grants. Suppress same-account automatic reenrollment until explicit reconnect. If the peer is offline, retain a durable pending remote revocation and show it until acknowledged; never report immediate global revocation. An old acknowledgement must not retire a later relationship generation.
+- Account sign-out stops discovery, new automatic enrollment and the official service; it does not itself revoke existing device grants or independently usable routes. Relationship disconnection and account registration removal are separate actions.
+- The relationship capability has one owning application-defined Provider. UI, authenticated API Gateway adapters and CLI are Consumers of the same commands/queries. Cordis Events may announce committed transitions but are not durable relationship authority. A new endpoint must ship matching CLI, coded refusals, bounded diagnostics, cancellation and unknown-outcome readback. This ADR introduces no version-specific DSH API contract.
+
+## Verification and delivery
+
+Start with one production-shaped two-Host vertical slice: explicit reciprocal enrollment, actual remote Channel read/write, per-Client grant inspection and disconnection through the owning capability and CLI. Then verify another desktop Client can use the relationship, phones inherit none, same-account admission uses verified account trust, both directional states remain truthful, and offline revocation completes without reenrollment. Include wrong identity/account, stale approval, late grant issuance, changed pins, expired/cancelled enrollment and relationship-generation races. Distinguish Web, installed Desktop and mobile evidence.
+
+No automatic data deletion or mutation replay follows transport loss. Reverting new enrollment behavior does not revoke issued grants; rollback must explicitly inspect/revoke derived grants and retain or migrate pending revocation records. No database migration or runtime improvement is claimed here. The documentation-only change has no runtime impact; implementation slices require bounded grant/relationship lifecycle, discovery and polling guards plus before/after real-journey performance measurements.
+
+The user experience and exact acceptance matrix live in [Environment panel design](../architecture/environment-panel.md), not in a second authority in chat.
