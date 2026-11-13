@@ -16,6 +16,8 @@ E1 将手动电脑连接接入 `host-relationships` 应用 owner：Operational D
 
 本地认证的 `/api/botharness/relationships` 与 `relationships` CLI 共用同一 owner；普通 Device Gateway 拒绝转发关系管理，手机不因已配对而继承关系。撤销先持久化关系失效，再撤销关联设备；每次设备准入也检查关系，避免清理中断继续放行。独立设备授权及 Channel 数据保留，远端未确认撤销时保留 pending 状态。E1 不实现 Environment 面板、账号自动准入、多线路恢复或离线撤销后台重试；这些仍按 hub 的后续切片交付。
 
+E5 的 Environment 面板注册为现有全局 dockable panel，布局由 Client 的 Simple/Advanced owner 保存。`RemoteHosts` 继续持有独立 HostClient、凭据、Feed 和持久浏览 scope；面板、Channels 和 Activity 只消费同一 scope，不建立内容存储或授权权威。All 将来源限定的频道按最近消息与稳定键排序；单 Host 恢复自己的 Sections。离线来源保留已加载内容，重新连接仍调用原 HostClient。别名和图标继续由 Client 本地 HostLooks 管理，不修改实际 Host 名称。
+
 手机 Connect 账号管理直接使用 relay 现有的电脑列表和会话撤销接口，无需已配对或在线 Host（ADR-0241、#4039）。手机账号 owner 在串行操作中验证确认时的账号 action key 后刷新凭据并撤销目标；relay 仍是关联和撤销状态的持久权威。界面刷新列表并保留手机配对；旧关联明确提示可能自动重新关联。不改变 LAN/Tailscale 配对权限或本地 Bot 数据。
 
 Docker 私有连接的首个候选由 Host 所属生命周期维护出站 WebSocket，中继仅转发至现有 encrypted device gateway。首次认领保存在中继独立持久化卷，Host 保存中继凭据；手机配对仍由原 Host 身份、Noise 公钥与 Paired Device 凭据决定。私有地址必须在配对信息中显式绑定，配置失败不选择官方回退。公网 HTTPS 前提在设置前展示。当前实现范围是一台 Host；该候选的实测状态及真机验收限制由 [#3746](https://github.com/BotHarness/DeepSeekBot/issues/3746) 跟踪，设计提案见 [ADR-0309](../adr/0309-private-relay-keeps-host-device-authority.md)，不代表公网或大陆网络已验收通过。

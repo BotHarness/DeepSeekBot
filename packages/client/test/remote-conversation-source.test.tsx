@@ -383,7 +383,11 @@ function resourceSpies() {
   );
   const response = deferredResponse();
   const fetcher = vi.fn((_url: string, _init?: RequestInit) => response.promise);
-  vi.stubGlobal('fetch', fetcher);
+  vi.stubGlobal('fetch', (url: string, init?: RequestInit) =>
+    url === './api/botharness/devices'
+      ? Promise.resolve(Response.json({ host: { id: 'local', name: 'Local' } }))
+      : fetcher(url, init),
+  );
   return { make, release, response, fetcher };
 }
 

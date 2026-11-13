@@ -4,6 +4,14 @@ import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots';
 export const LOCALE_NS = 'botharness';
 
 export const zh = {
+  'environment.title': '环境',
+  'environment.scope': '浏览环境',
+  'environment.manageNamed': '管理 {name}',
+  'environment.reconnect': '重新连接',
+  'environment.loading': '正在加载',
+  'environment.offline': '离线',
+  'environment.partial': '未读数量尚未完整加载',
+  'environment.unavailable': '未读数量暂时不可用',
   'relationships.title': '电脑之间的连接',
   'relationships.outgoing': '本机 → {name}',
   'relationships.incoming': '{name} → 本机',
@@ -5244,6 +5252,14 @@ export function zhTranslate(key: BotHarnessKey | string, params?: Record<string,
 }
 
 export const en = {
+  'environment.title': 'Environments',
+  'environment.scope': 'Browse environments',
+  'environment.manageNamed': 'Manage {name}',
+  'environment.reconnect': 'Reconnect',
+  'environment.loading': 'Loading',
+  'environment.offline': 'Offline',
+  'environment.partial': 'Unread count is incomplete',
+  'environment.unavailable': 'Unread count unavailable',
   'relationships.title': 'Computer relationships',
   'relationships.outgoing': 'This computer → {name}',
   'relationships.incoming': '{name} → This computer',

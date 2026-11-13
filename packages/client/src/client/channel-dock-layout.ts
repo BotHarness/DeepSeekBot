@@ -536,6 +536,8 @@ export function resolveDefaultPosition(
 ): AddPanelPositionOptions {
   const zone = position?.zone ?? 'right';
   const anchor = position?.relativeTo;
+  if (zone === 'left' && anchor !== undefined && api.getPanel(anchor) !== undefined)
+    return { referencePanel: anchor, direction: 'left' };
   if (anchor !== undefined && api.getPanel(anchor) !== undefined)
     return { referencePanel: anchor, direction: zone === 'bottom' ? 'right' : 'below' };
   if (api.getPanel(WORKSPACE_RAIL) && zone === 'right') return workspaceColumn(api, panelId);

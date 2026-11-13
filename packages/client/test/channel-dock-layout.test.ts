@@ -822,6 +822,16 @@ describe('workspace default placement', () => {
     ).toEqual({ referencePanel: CHANNEL_BODY_PANEL, direction: 'right' });
   });
 
+  it('opens Environment as an independent column between Control Rail and Channels', () => {
+    expect(
+      resolveDefaultPosition(
+        dock(WORKSPACE_RAIL, WORKSPACE_CHANNELS, CHANNEL_BODY_PANEL),
+        { zone: 'left', relativeTo: WORKSPACE_CHANNELS },
+        'environments',
+      ),
+    ).toEqual({ referencePanel: WORKSPACE_CHANNELS, direction: 'left' });
+  });
+
   it('opens plugin right panels and orphaned Activity at the right edge', () => {
     const api = dock(WORKSPACE_RAIL, WORKSPACE_CHANNELS, 'market');
     expect(resolveDefaultPosition(api, { zone: 'right' }, 'vendor:panel')).toEqual({
