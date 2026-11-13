@@ -1,3 +1,6 @@
+import { Fragment } from 'react';
+import type { ConnectionDiagnostic } from '../../host/connection-diagnostic';
+import { ConnectionFailureActions } from './connection-failure-actions';
 import { ScrollView, View } from 'react-native';
 import type { PairingFailure } from '../../host/pairing';
 import { useDesignTheme } from '../design/theme';
@@ -11,6 +14,7 @@ export interface AccountComputerRow {
   id: string;
   name: string;
   detail: string;
+  failure?: ConnectionDiagnostic;
   added: boolean;
   selected: boolean;
   pairing: boolean;
@@ -23,6 +27,7 @@ export interface AccountPanelProps {
   busy: boolean;
   rows: AccountComputerRow[] | undefined;
   error?: string | undefined;
+  failure?: ConnectionDiagnostic | undefined;
   notice?: string | undefined;
   managing?: boolean;
   managementDisabled?: boolean;
@@ -95,32 +100,37 @@ export function AccountPanel(props: AccountPanelProps) {
               onPress={locked || props.pendingDeletion ? undefined : props.onManage}
             />
             {props.rows?.map((row) => (
-              <SettingsRow
-                key={row.id}
-                on="raised"
-                testID={`account-computer-${row.id}`}
-                title={row.name}
-                detail={props.managing ? `${status(row)} · ${t.pairAccount.unlink}` : status(row)}
-                tone={props.managing ? 'danger' : row.disabled ? 'muted' : 'fg'}
-                selected={row.selected}
-                accessibilityLabel={
-                  props.managing
-                    ? `${t.pairAccount.unlinkTitle(row.name)}, ${status(row)}`
-                    : `${row.name}, ${status(row)}${row.selected ? `, ${t.pairAccount.selected}` : ''}`
-                }
-                control={
-                  row.pairing ? { kind: 'busy' } : row.selected ? { kind: 'check' } : undefined
-                }
-                onPress={
-                  locked || props.pendingDeletion || (props.managing && props.managementDisabled)
-                    ? undefined
-                    : props.managing
-                      ? () => props.onRevoke(row.id)
-                      : row.disabled
-                        ? undefined
-                        : () => props.onToggle(row.id)
-                }
-              />
+              <Fragment key={row.id}>
+                <SettingsRow
+                  key={row.id}
+                  on="raised"
+                  testID={`account-computer-${row.id}`}
+                  title={row.name}
+                  detail={props.managing ? `${status(row)} · ${t.pairAccount.unlink}` : status(row)}
+                  tone={props.managing ? 'danger' : row.disabled ? 'muted' : 'fg'}
+                  selected={row.selected}
+                  accessibilityLabel={
+                    props.managing
+                      ? `${t.pairAccount.unlinkTitle(row.name)}, ${status(row)}`
+                      : `${row.name}, ${status(row)}${row.selected ? `, ${t.pairAccount.selected}` : ''}`
+                  }
+                  control={
+                    row.pairing ? { kind: 'busy' } : row.selected ? { kind: 'check' } : undefined
+                  }
+                  onPress={
+                    locked || props.pendingDeletion || (props.managing && props.managementDisabled)
+                      ? undefined
+                      : props.managing
+                        ? () => props.onRevoke(row.id)
+                        : row.disabled
+                          ? undefined
+                          : () => props.onToggle(row.id)
+                  }
+                />
+                {row.failure && !row.pairing && !props.managing ? (
+                  <ConnectionFailureActions failure={row.failure} id={row.id} />
+                ) : null}
+              </Fragment>
             ))}
             {props.rows?.length ? null : (
               <SettingsRow
@@ -148,6 +158,7 @@ export function AccountPanel(props: AccountPanelProps) {
             {props.notice}
           </Text>
         ) : null}
+        {props.failure ? <ConnectionFailureActions failure={props.failure} id="account" /> : null}
         {props.error ? (
           <Text accessibilityRole="alert" tone="danger" style={{ paddingHorizontal: space.x5 }}>
             {props.error}

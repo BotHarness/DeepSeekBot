@@ -1,3 +1,8 @@
+import {
+  connectionDiagnostic,
+  networkDiagnosticReason,
+  type ConnectionDiagnostic,
+} from '../host/connection-diagnostic';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import type { ConnectAccount, ConnectHost, ConnectResult } from '../host/connect-account';
@@ -24,7 +29,8 @@ export function AccountHosts(props: {
   pairing?: string | undefined;
   saved: readonly SavedHost[];
   results: Readonly<Record<string, AccountPairResult>>;
-  failureDetails?: Readonly<Record<string, string>>;
+  failures?: Readonly<Record<string, ConnectionDiagnostic>>;
+  onClearFailures?(): void;
   onPair(hosts: ConnectHost[]): Promise<void>;
 }) {
   const t = useStrings();
@@ -33,6 +39,7 @@ export function AccountHosts(props: {
   const [hosts, setHosts] = useState<ConnectHost[]>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
+  const [failure, setFailure] = useState<ConnectionDiagnostic>();
   const [notice, setNotice] = useState<string>();
   const [managing, setManaging] = useState(false);
   const [fresh, setFresh] = useState(false);
@@ -48,6 +55,7 @@ export function AccountHosts(props: {
     setFresh(false);
     setLoading(true);
     setError(undefined);
+    setFailure(undefined);
     const listed = await account.hosts();
     if (ticket !== generation.current) return;
     setLoading(false);
@@ -57,6 +65,14 @@ export function AccountHosts(props: {
       return listed;
     }
     setError(t.pairRefused[listed.code]);
+    setFailure(
+      listed.diagnostic ??
+        connectionDiagnostic({
+          code: listed.code,
+          phase: 'environment-list',
+          detail: listed.detail,
+        }),
+    );
     if (listed.code === 'sign-in-required') {
       setEmail(null);
       setHosts(undefined);
@@ -73,6 +89,7 @@ export function AccountHosts(props: {
       setEmail(false);
       setLoading(false);
       setError(undefined);
+      setFailure(undefined);
       setNotice(undefined);
       setManaging(false);
       setHosts(undefined);
@@ -92,11 +109,18 @@ export function AccountHosts(props: {
             if (ticket === generation.current) actionKey.current = key;
           }
         })
-        .catch(() => {
+        .catch((cause: unknown) => {
           if (ticket === generation.current) {
             setEmail(null);
             setLoading(false);
             setError(t.pairRefused['relay-unavailable']);
+            setFailure(
+              connectionDiagnostic({
+                code: 'relay-unavailable',
+                phase: 'account',
+                detail: `relay:${networkDiagnosticReason(cause)}`,
+              }),
+            );
           }
         });
       return () => {
@@ -121,6 +145,7 @@ export function AccountHosts(props: {
     const ticket = ++generation.current;
     setLoading(true);
     setError(undefined);
+    setFailure(undefined);
     setNotice(undefined);
     try {
       if (action === 'refresh') await load(ticket);
@@ -150,6 +175,14 @@ export function AccountHosts(props: {
             }
           }
           setError(t.pairRefused[result.code]);
+          setFailure(
+            result.diagnostic ??
+              connectionDiagnostic({
+                code: result.code,
+                phase: 'account-action',
+                detail: result.detail,
+              }),
+          );
           return t.pairRefused[result.code];
         }
         setSelected([]);
@@ -168,8 +201,17 @@ export function AccountHosts(props: {
           await load(ticket);
         }
       }
-    } catch {
-      if (ticket === generation.current) setError(t.pairRefused['relay-unavailable']);
+    } catch (cause: unknown) {
+      if (ticket === generation.current) {
+        setError(t.pairRefused['relay-unavailable']);
+        setFailure(
+          connectionDiagnostic({
+            code: 'relay-unavailable',
+            phase: action === 'refresh' ? 'environment-list' : 'account-action',
+            detail: `relay:${networkDiagnosticReason(cause)}`,
+          }),
+        );
+      }
       return t.pairRefused['relay-unavailable'];
     } finally {
       try {
@@ -231,6 +273,7 @@ export function AccountHosts(props: {
       loading={loading}
       busy={props.busy}
       error={error}
+      failure={failure}
       notice={notice}
       managing={managing}
       managementDisabled={!fresh || pendingDeletion}
@@ -255,7 +298,7 @@ export function AccountHosts(props: {
             : result === 'cancelled'
               ? t.pairAccount.cancelled
               : result && result !== 'added'
-                ? [t.pairRefused[result], props.failureDetails?.[host.id]]
+                ? [t.pairRefused[result], props.failures?.[host.id]?.detail]
                     .filter((part) => part !== undefined)
                     .map((part, index) => (index === 0 ? part : t.pairFailureDetail(part)))
                     .join('\n')
@@ -268,6 +311,14 @@ export function AccountHosts(props: {
           id: host.id,
           name: host.name,
           detail,
+          ...(result &&
+          result !== 'added' &&
+          result !== 'cancelled' &&
+          !isAdded &&
+          props.pairing !== host.id &&
+          props.failures?.[host.id]
+            ? { failure: props.failures[host.id] }
+            : {}),
           added: isAdded,
           disabled: isAdded || !host.online,
           selected: !isAdded && host.online && selected.includes(host.id),
@@ -284,7 +335,10 @@ export function AccountHosts(props: {
       onAdd={() => {
         if (!props.busy && !loading && chosen.length) void props.onPair(chosen);
       }}
-      onRefresh={() => void run('refresh')}
+      onRefresh={() => {
+        props.onClearFailures?.();
+        void run('refresh');
+      }}
       onSignIn={() => void run('signIn')}
       onSignOut={() => confirm(pendingDeletion ? 'finishLocalCleanup' : 'signOut')}
       onDelete={() => confirm('deleteAccount')}

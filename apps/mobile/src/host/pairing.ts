@@ -1,3 +1,4 @@
+import type { ConnectionDiagnostic } from './connection-diagnostic';
 import { noiseFingerprint, noisePublicKey } from '../../../../packages/core/src/devices/noise/xk';
 import {
   ConnectRefused,
@@ -60,7 +61,7 @@ export type PairingRefusal =
 
 export type ParsedLink =
   | { ok: true; payload: PairingPayload }
-  | { ok: false; code: PairingRefusal; detail?: string };
+  | { ok: false; code: PairingRefusal; detail?: string; diagnostic?: ConnectionDiagnostic };
 
 const SCHEMES = new Set(['deepseekbot:', 'deepseekbot-dev:']);
 
@@ -173,7 +174,7 @@ export function parsePairingLink(text: string, now = Date.now()): ParsedLink {
 
 export type Redemption =
   | { ok: true; host: SavedHost }
-  | { ok: false; code: PairingRefusal; detail?: string };
+  | { ok: false; code: PairingRefusal; detail?: string; diagnostic?: ConnectionDiagnostic };
 
 export async function redeemPairing(options: {
   payload: PairingPayload;
@@ -373,7 +374,10 @@ export async function pairHost(options: {
   confirmFingerprint?: (fingerprint: string, hostName: string) => Promise<boolean>;
   telemetry: Pick<import('../telemetry/mobile-telemetry').MobileTelemetry, 'pairing'>;
   signal?: AbortSignal;
-}): Promise<{ ok: true } | { ok: false; code: PairingFailure; detail?: string }> {
+}): Promise<
+  | { ok: true }
+  | { ok: false; code: PairingFailure; detail?: string; diagnostic?: ConnectionDiagnostic }
+> {
   const observation = options.telemetry.pairing(options.method);
   const cancelled = () => observation.finish('cancelled');
   options.signal?.addEventListener('abort', cancelled, { once: true });
