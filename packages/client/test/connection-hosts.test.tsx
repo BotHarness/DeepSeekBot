@@ -61,10 +61,16 @@ beforeEach(() => {
       routes: ['http://127.0.0.1:47001'],
       deviceId: 'browser',
       credential: fake.credential,
+      encryption: {
+        protocol: 'connect-noise-xk-v1',
+        hostKey: '11'.repeat(32),
+        deviceKey: '22'.repeat(32),
+      },
     },
   ]);
   const values = new Map([[REMOTE_HOSTS_STORAGE_KEY, stored]]);
   sources = createRemoteHosts({
+    connectionOperationLock: async (_name, run) => run(),
     carrier: fake.carrier,
     storage: {
       getItem: (key) => values.get(key) ?? null,
@@ -132,7 +138,7 @@ it('warns about the selected Host and connection loss before stopping only its s
   expect(host.querySelector('[role="dialog"]')?.textContent).toContain(
     t('connections.hosts.targetHint', { name: 'Studio' }),
   );
-  expect(api.mock.calls).toHaveLength(1);
+  expect(api.mock.calls).toHaveLength(2);
   await click(t('connections.hosts.stop'));
   expect(api).toHaveBeenCalledWith(
     '/api/botharness/devices/lan',

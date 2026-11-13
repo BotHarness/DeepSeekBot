@@ -1014,11 +1014,23 @@ deepseekbot connection-host <host-id> test-route <origin> --client-id <id>
 deepseekbot connection-host <host-id> remove --client-id <id> --confirm
 deepseekbot connection-host <host-id> revoke-device <device-id> --client-id <id> --confirm
 deepseekbot connection-host <host-id> stop-route lan --client-id <id> --confirm
-deepseekbot connection-host <host-id> stop-route private-tunnel --client-id <id> --confirm
+deepseekbot connection-host <host-id> stop-route private-tunnel --connection-route-id quick --client-id <id> --confirm
+deepseekbot connection-host <host-id> plan-stop-route lan --client-id <id>
+deepseekbot connection-host <host-id> stop-route lan --handover <trusted-origin> --client-id <id> --confirm
+deepseekbot connection-host <host-id> stop-route lan --confirm-disconnect --client-id <id> --confirm
+deepseekbot connection-host <host-id> plan-revoke-device <device-id> --client-id <id>
+deepseekbot connection-host <host-id> plan-sign-out --client-id <id>
+deepseekbot connection-host <host-id> sign-out --client-id <id> --confirm
+deepseekbot connection-host <host-id> read-operation --client-id <id>
+deepseekbot connection-host <host-id> read-previous-operation --client-id <id>
 deepseekbot connection-host <host-id> select-route <origin-or-automatic> --client-id <id> --confirm
 ```
 
 `select-route` persists the preference in the selected browser’s existing Host record before switching after active requests finish. A manual origin must already be eligible and never silently fails over. Pass `automatic` to restore the existing policy without widening route eligibility. `connection-hosts` reports saved preference, pending switch and actual current route separately. Only this Client/Host is affected; mobile connection details use the same HostClient behavior and their own canonical persistence owner.
+
+`plan-*` reads the named Host before changing anything and reports whether the operation can disconnect this Client. Choose `--handover <trusted-origin>` to verify an existing alternative, explicitly save that Client’s manual route preference, wait for its active connection and read back the exact Host before writing. Without a usable alternative, `--confirm-disconnect` acknowledges loss of access; `--confirm` remains required. Stopping a private route requires its `quick` or `custom` ID and preserves other routes. Sign-out uses that Host’s account owner; relationship disconnection and individual device revocation keep their separate effects.
+
+An uncertain write is recorded in execution-only keys under the selected Client’s existing HostStorage owner before transmission and is never replayed. Reloading retains the guard. A shared Web Lock covers preparation, one write and acknowledgement; missing Web Locks refuse dangerous writes. `read-operation` fresh-reads the guard under the same lock, uses the same authenticated Host owner and clears only the matching generation after observing completion. An unchanged or unavailable result remains unknown. Recover access through an already trusted route, then read back. `read-previous-operation` explicitly lets a new independent grant read the outcome of an older grant’s operation through the same pinned Host, without inheriting or resending it; a different Host key refuses. At most 32 unresolved execution records are retained before further writes refuse. Loaded Channels and messages stay available while offline. These Client operations do not stop foreign Tailscale mappings or unrelated Host processes.
 
 These commands use the existing selected-Client control channel and the same management adapter as the Connections dialog. Lists expose Host identity, name and actual route observations, never credentials or private keys. `inspect` uses that browser's paired authorization on the target Host to read devices and stoppable routes. `remove` deletes this browser connection only, preserving Host data and grants; `revoke-device` revokes the named device on the target; `stop-route` disables only that target's LAN listener or private Tunnel. Stopping the active route or revoking the current device may interrupt the reply: an unacknowledged action is not a success and needs a fresh status check. Unknown Hosts/routes/devices, stale requests and unconfirmed writes are refused. Account grouping does not rewrite sign-in/sign-out provenance or grant management permissions.
 

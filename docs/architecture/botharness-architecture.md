@@ -2,6 +2,8 @@
 
 ## 已确认目标：环境面板与双向 Host 关系（逐片交付）
 
+E11 在独立 Settings Target 下复用目标 Host 的设备、单条私有路由和账号 owner。计划切换先验证既有替代路由，明确保存本 Client 的手动偏好，等待实际连接切换并回读精确 Host 后才执行一次；没有替代路由则明确确认断开。Client 既有 HostStorage 所有者下的独立执行键绑定 Host 公钥、设备、操作/路由及代次，结果未知时跨重载保留，不成为 Host 配置权威，也不自动重放，其他 SavedHost 数组写入不能擦除它。共享 Web Lock 覆盖准备、保护持久化、一次写入、确认及回读 CAS；缺少 Web Locks 时拒绝危险写入。最多保留 32 条未解决事实而不自动清除。新独立授权可明确通过同一 Host 公钥核对旧操作的结果，但不继承或重发操作；公钥变化拒绝核对，清除仍按代次 CAS。退出登录、关系断开、单设备撤销和单路由停止保持独立权限和效果，不操作外部 Tailscale 映射或无关 Host 进程。
+
 E4 在关系 owner 的 Operational Database generation 141 保存离线撤销的尝试次数、下次时间与主动断开抑制；同一 Fiber 有限重试准确代际的幂等撤销，八次后仍保留 pending 供检查及手动重试，不重放普通变更。本机先拒绝关系并撤销派生设备，对方恢复后通过固定 Noise 身份确认；旧代确认不触碰新代。仅用户/对端主动断开抑制自动登记，发起失败的内部清理不抑制；新链接及批准激活新代才解除。最多保留 256 条关系并安全拒绝超量新增，不删待确认事实或身份。Client 复用 SavedHost 的非权限关系引用关闭对应来源，移除当前选择回到 All；临时 exact-Host draft guard 在主动移除前等待保存成功或放弃，取消/失败不改关系。见 [ADR-0336](../adr/0336-offline-disconnect-retries-stay-with-the-relationship-owner.md)。
 
 E2 将已批准关系复用于另一 Web Client 的具名授权：Client 显式选择关系和名称，兑换前检查目标 Host ID 与公钥，仍用现有 SavedHost 存储独立凭据；重复打开仅切换已保存目标。CLI `relationships enroll --device-name` 使用同一登记路径。取消、断开和旧关系代际不能签发迟到访问；单独撤销设备不撤销关系或其他 Client。手机仍通过每 Host 的独立配对，不能凭平台标记继承关系。

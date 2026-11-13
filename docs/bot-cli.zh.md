@@ -983,9 +983,21 @@ deepseekbot connection-host <host-id> test-route <origin> --client-id <id>
 deepseekbot connection-host <host-id> remove --client-id <id> --confirm
 deepseekbot connection-host <host-id> revoke-device <device-id> --client-id <id> --confirm
 deepseekbot connection-host <host-id> stop-route lan --client-id <id> --confirm
-deepseekbot connection-host <host-id> stop-route private-tunnel --client-id <id> --confirm
+deepseekbot connection-host <host-id> stop-route private-tunnel --connection-route-id quick --client-id <id> --confirm
+deepseekbot connection-host <host-id> plan-stop-route lan --client-id <id>
+deepseekbot connection-host <host-id> stop-route lan --handover <trusted-origin> --client-id <id> --confirm
+deepseekbot connection-host <host-id> stop-route lan --confirm-disconnect --client-id <id> --confirm
+deepseekbot connection-host <host-id> plan-revoke-device <device-id> --client-id <id>
+deepseekbot connection-host <host-id> plan-sign-out --client-id <id>
+deepseekbot connection-host <host-id> sign-out --client-id <id> --confirm
+deepseekbot connection-host <host-id> read-operation --client-id <id>
+deepseekbot connection-host <host-id> read-previous-operation --client-id <id>
 deepseekbot connection-host <host-id> select-route <origin-or-automatic> --client-id <id> --confirm
 ```
+
+`plan-*` 先读取具名 Host，报告操作是否可能断开当前 Client。`--handover <trusted-origin>` 验证已有替代路由，明确保存此 Client 的手动路由偏好，等待实际连接切换并回读同一 Host 后才提交操作。没有可用替代路由时，用 `--confirm-disconnect` 明确接受断开，仍须保留 `--confirm`。停止私有路由须指定 `quick` 或 `custom`，其他路由保留。退出登录通过目标 Host 的账号所有者执行；关系断开和单设备撤销保持独立效果。
+
+发送前，未知结果保护会写入所选 Client 已有 HostStorage 所有者下的独立执行键，重新加载后仍保留，不自动重放。共享 Web Lock 覆盖准备、一次写入和确认；缺少 Web Locks 时拒绝危险写入。`read-operation` 在同一锁内重新读取保护记录，通过同一已认证 Host 所有者回读，只在观察到完成后清除匹配代次；原值未变或无法读取仍视为未知。旧设备授权的未确认事实独立保留，不转移或重试到新授权；最多保留 32 条未解决记录，达到上限后拒绝新增写入。通过已信任路由恢复连接后再回读。离线时保留已加载的频道和消息，不停止其他所有者的 Tailscale 映射或无关 Host 进程。
 
 `select-route` 先在所选浏览器的现有 Host 记录中保存选择，再等待进行中的请求结束后切换。手动地址必须已获准；失败不会自动换路。传入 `automatic` 恢复既有自动策略，不扩大通道资格。`connection-hosts` 分别报告保存的选择、切换是否待完成和实际当前线路。只影响这个 Client/Host；手机连接详情通过同一 HostClient 行为及手机自己的保存所有者执行。
 
