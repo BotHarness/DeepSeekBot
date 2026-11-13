@@ -365,7 +365,10 @@ export function mountDevicePairing(
           .filter((route) => route.ready && route.kind !== 'loopback')
           .map((route) => route.url),
     });
-    webCtx.effect(() => () => relationshipControl.close(), 'botharness: Host relationship control');
+    webCtx.effect(() => {
+      relationshipControl.start();
+      return () => relationshipControl.close();
+    }, 'botharness: Host relationship control');
     const lanKey = credentialKey('botharness-core', 'device-lan');
     let lanDiscovery: ReturnType<typeof createLanBotDiscovery> | undefined;
     let lanBridge: ReturnType<typeof createLanBotBridge> | undefined;

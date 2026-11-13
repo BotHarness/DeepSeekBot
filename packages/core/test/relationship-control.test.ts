@@ -18,10 +18,15 @@ import { attachOperationalModule, mountOperationalDatabase } from '../src/databa
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
-async function host(name: string, clock: () => number = Date.now) {
+async function host(
+  name: string,
+  clock: () => number = Date.now,
+  retained?: { home: string; privateKey: Uint8Array; port: number },
+) {
+  const home = retained?.home ?? createTempRoot('relationship-wire-');
   const owner = trackTestOwner(
     mountOperationalDatabase({
-      dshHome: createTempRoot('relationship-wire-'),
+      dshHome: home,
       schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
     }),
   );
@@ -32,8 +37,9 @@ async function host(name: string, clock: () => number = Date.now) {
   const relationships = createHostRelationships({
     database: attachOperationalModule(owner, 'host-relationships'),
     pairing,
+    now: clock,
   });
-  const privateKey = randomBytes(32);
+  const privateKey = retained ? Buffer.from(retained.privateKey) : randomBytes(32);
   const publicKey = noisePublicKey(privateKey);
   const identity: Pick<ReturnType<typeof createNoiseIdentity>, 'key' | 'publicIdentity'> = {
     key: async () => Uint8Array.from(privateKey),
@@ -46,7 +52,7 @@ async function host(name: string, clock: () => number = Date.now) {
     }),
   };
   const server = createServer();
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  await new Promise<void>((resolve) => server.listen(retained?.port ?? 0, '127.0.0.1', resolve));
   const port = (server.address() as AddressInfo).port;
   const routes = [`http://127.0.0.1:${port}`];
   const advertisedRoutes = [...routes];
@@ -67,6 +73,7 @@ async function host(name: string, clock: () => number = Date.now) {
     void gateway.upgrade(request, socket, head);
   });
   return {
+    retained: { home, privateKey: Uint8Array.from(privateKey), port },
     pairing,
     relationships,
     control,
@@ -91,9 +98,83 @@ async function host(name: string, clock: () => number = Date.now) {
         server.close((error) => (error ? reject(error) : resolve())),
       );
       privateKey.fill(0);
+      owner.close();
     },
   };
 }
+
+it('persists offline retirement across both Host restarts and retries the exact generation through the encrypted gateway', async () => {
+  let clock = Date.now();
+  let a = await host('A', () => clock);
+  let b = await host('B', () => clock);
+  let aOpen = true;
+  let bOpen = true;
+  try {
+    const relationship = await a.control.initiate(await b.link(), b.publicKey);
+    b.control.approve(relationship.id, a.publicKey);
+    await a.control.sync(relationship.id);
+    const grant = await enrollRelationshipClient({
+      relationshipId: relationship.id,
+      expectedPeer: relationship.peer,
+      name: 'Browser',
+      carrier: nodeDeviceCarrier(),
+      request: (input) =>
+        a.control.enroll(relationship.id, String(input['publicKey']), String(input['name'])),
+    });
+    if (!grant.ok) throw new Error(grant.code);
+    const phone = b.pairing.redeem({ offer: b.pairing.createOffer().offer });
+    if (!phone.ok) throw new Error(phone.code);
+    const aState = a.retained;
+    const bState = b.retained;
+    await b.close();
+    bOpen = false;
+    expect(await a.control.disconnect(relationship.id)).toMatchObject({
+      state: 'disconnected',
+      peerRevocationPending: true,
+      revocationAttempts: 1,
+    });
+    await a.close();
+    aOpen = false;
+    a = await host('A', () => clock, aState);
+    aOpen = true;
+    expect(a.control.list()[0]).toMatchObject({
+      state: 'disconnected',
+      peerRevocationPending: true,
+      automaticEnrollmentSuppressed: true,
+      revocationAttempts: 1,
+    });
+    await expect(a.control.enroll(relationship.id, 'cd'.repeat(32), 'Late')).rejects.toThrow(
+      'relationship-inactive',
+    );
+    b = await host('B', () => clock, bState);
+    bOpen = true;
+    expect(b.pairing.check(grant.host.deviceId).ok).toBe(true);
+    clock += 3000;
+    await a.control.retryPending();
+    expect(a.control.list()[0]).toMatchObject({
+      state: 'disconnected',
+      peerRevocationPending: false,
+    });
+    expect(b.control.list()[0]).toMatchObject({
+      state: 'disconnected',
+      automaticEnrollmentSuppressed: true,
+    });
+    expect(b.pairing.check(grant.host.deviceId).ok).toBe(false);
+    expect(b.pairing.admit(`Device ${phone.credential}`).ok).toBe(true);
+    const fresh = await a.control.initiate(await b.link(), b.publicKey);
+    b.control.approve(fresh.id, a.publicKey);
+    await a.control.sync(fresh.id);
+    expect(
+      await b.control.receive(a.publicKey, { action: 'disconnect', id: relationship.id }),
+    ).toMatchObject({ ok: true, state: 'disconnected' });
+    expect(b.relationships.read(fresh.id).state).toBe('active');
+    expect(b.relationships.read(relationship.id).automaticEnrollmentSuppressed).toBe(false);
+    expect(a.relationships.read(fresh.id).state).toBe('active');
+  } finally {
+    if (aOpen) await a.close();
+    if (bOpen) await b.close();
+  }
+});
 
 it('establishes exact reciprocal authorization over real Noise sockets and retires only derived grants', async () => {
   const a = await host('A');

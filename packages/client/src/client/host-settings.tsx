@@ -1,4 +1,8 @@
-import { useMemo, useState, useSyncExternalStore } from 'react';
+import { useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useMountedResource } from './mounted-resource.js';
+import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
+import { hostSettingsDrafts, type HostDraftChoice } from './host-settings-drafts.js';
+import { FormDialog } from './ds/form-dialog.js';
 import * as stylex from '@stylexjs/stylex';
 import { HostGlyph } from './host-glyph.js';
 import { HostLookSettings } from './host-look-settings.js';
@@ -63,6 +67,29 @@ export function HostSettings({
   const look = useHostLook(hostId);
   const displayName = shownHostName(look, name);
   const [section, setSection] = useState('appearance');
+  const [draftPrompt, setDraftPrompt] = useState(false);
+  const choice = useRef<(value: HostDraftChoice) => void>();
+  const settle = (value: HostDraftChoice) => {
+    const resolve = choice.current;
+    choice.current = undefined;
+    setDraftPrompt(false);
+    resolve?.(value);
+  };
+  const mount = useMountedResource<HTMLSpanElement>(() => {
+    const release = hostSettingsDrafts.prompt(
+      hostId,
+      () =>
+        new Promise((resolve) => {
+          choice.current = resolve;
+          setDraftPrompt(true);
+        }),
+    );
+    return () => {
+      release();
+      choice.current?.('cancel');
+      choice.current = undefined;
+    };
+  }, [hostId]);
   const sections = [
     {
       id: 'appearance',
@@ -108,13 +135,33 @@ export function HostSettings({
       sections={sections}
       activeId={section}
       onSelect={setSection}
-      onClose={onClose}
+      onClose={() => {
+        void hostSettingsDrafts.prepare(hostId).then((ready) => {
+          if (ready) onClose();
+        });
+      }}
       labels={{
         nav: t('remoteHosts.settings'),
         close: t('common.close'),
         picker: (label) => label,
       }}
     >
+      <span ref={mount} hidden />
+      {draftPrompt ? (
+        <FormDialog
+          title={t('relationships.unsaved')}
+          description={t('relationships.unsavedHint')}
+          labels={{ close: t('common.close'), cancel: t('common.cancel') }}
+          submitLabel={t('relationships.save')}
+          onCancel={() => settle('cancel')}
+          onSubmit={() => settle('save')}
+          secondary={
+            <Button variant="outline" onClick={() => settle('discard')}>
+              {t('relationships.discard')}
+            </Button>
+          }
+        />
+      ) : null}
       {section === 'appearance' ? (
         <HostLookSettings hostId={hostId} name={name} t={t} />
       ) : section === 'notifications' ? (
@@ -129,25 +176,34 @@ export function HostSettings({
           )}
         </Note>
       ) : (
-        <SettingsContent key={hostId} client={client} name={displayName} section={section} t={t} />
+        <SettingsContent
+          key={hostId}
+          hostId={hostId}
+          client={client}
+          name={displayName}
+          section={section}
+          t={t}
+        />
       )}
     </SettingsDialog>
   );
 }
 
 function SettingsContent({
+  hostId,
   client,
   name,
   section,
   t,
 }: {
+  hostId: string;
   client: HostClient;
   name: string;
   section: string;
   t: BotHarnessTranslate;
 }) {
   const source = useMemo(() => remoteHostSettingsSource(client), [client]);
-  if (section === 'models') return <RemoteHostModels client={client} t={t} />;
+  if (section === 'models') return <RemoteHostModels hostId={hostId} client={client} t={t} />;
   if (section === 'storage')
     return (
       <StorageSettings

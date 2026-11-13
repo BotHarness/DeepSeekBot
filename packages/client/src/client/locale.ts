@@ -26,6 +26,13 @@ export const zh = {
   'relationships.authorized': '已授权双向访问',
   'relationships.revocationPending': '本机已断开，等待对方确认撤销',
   'relationships.disconnected': '已断开',
+  'relationships.reconnectHint': '已停止自动连接。重新连接需要新的连接链接和双方批准。',
+  'relationships.retryPaused': '自动重试已暂停，撤销仍待确认。请检查对方后重试。',
+  'relationships.retryRevocation': '重试撤销',
+  'relationships.unsaved': '保存更改？',
+  'relationships.unsavedHint': '保存或放弃此电脑的更改后再继续。',
+  'relationships.save': '保存',
+  'relationships.discard': '放弃更改',
   'relationships.review': '核对并批准',
   'relationships.approve': '批准双向访问',
   'relationships.approveHint':
@@ -5261,6 +5268,15 @@ export const en = {
   'relationships.authorized': 'Reciprocal access authorized',
   'relationships.revocationPending': 'Disconnected here; peer revocation pending',
   'relationships.disconnected': 'Disconnected',
+  'relationships.reconnectHint':
+    'Automatic connection is stopped. Reconnect with a new link and approval on both Hosts.',
+  'relationships.retryPaused':
+    'Automatic retries paused; revocation is still pending. Check the peer and retry.',
+  'relationships.retryRevocation': 'Retry revocation',
+  'relationships.unsaved': 'Save changes?',
+  'relationships.unsavedHint': 'Save or discard changes for this Host before continuing.',
+  'relationships.save': 'Save',
+  'relationships.discard': 'Discard changes',
   'relationships.review': 'Review and approve',
   'relationships.approve': 'Approve reciprocal access',
   'relationships.approveHint':

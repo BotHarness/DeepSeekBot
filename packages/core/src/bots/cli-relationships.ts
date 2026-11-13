@@ -26,7 +26,15 @@ export async function runRelationshipCommand(
   connect: () => Promise<{
     http(path: string, body?: Record<string, unknown>): Promise<{ bytes: Uint8Array }>;
   }>,
+  signal?: AbortSignal,
 ) {
+  const deadline = () => {
+    if (signal?.aborted)
+      throw new CliLiveError(
+        'timeout',
+        'Relationship command deadline expired; inspect its state before retrying.',
+      );
+  };
   const [action, id, publicKey] = rest;
   if (
     !action ||
@@ -71,9 +79,12 @@ export async function runRelationshipCommand(
       throw new CliLiveError('input-unavailable', 'Cannot read the pairing link file.');
     }
   }
+  deadline();
   const host = await connect();
+  deadline();
   const request = async (body?: Record<string, unknown>): Promise<Record<string, unknown>> => {
     const response = await host.http(PATH, body);
+    deadline();
     const parsed: unknown = JSON.parse(new TextDecoder().decode(response.bytes));
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
       throw new CliLiveError('host-protocol-error', 'Expected a Host response object.');
@@ -92,8 +103,13 @@ export async function runRelationshipCommand(
       name: values['device-name']?.trim() ?? 'CLI desktop',
       carrier: nodeDeviceCarrier(),
       request,
+      ...(signal ? { signal } : {}),
     });
     if (!result.ok) throw new CliLiveError(result.code, 'Relationship device enrollment refused.');
+    if (signal?.aborted) {
+      await revokePairing({ host: result.host, carrier: nodeDeviceCarrier() });
+      deadline();
+    }
     try {
       writeFileSync(values.out!, `${JSON.stringify(serializeSavedHost(result.host))}\n`, {
         flag: 'wx',

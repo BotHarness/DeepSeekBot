@@ -1068,10 +1068,10 @@ export async function runLiveCli(
     return runDevicesCommand(command, rest, values, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
-  if (command === 'relationships')
-    return runRelationshipCommand(rest, values, () =>
-      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
-    );
+  if (command === 'relationships') {
+    const signal = AbortSignal.timeout(timeoutMs(values.timeout));
+    return runRelationshipCommand(rest, values, () => connectLiveHost(values, io, signal), signal);
+  }
   if (DEVICE_CLIENT_COMMANDS.some((entry) => entry.command === command))
     return runDeviceClientCommand(command, rest, values);
   if (command === 'cloud-work') {

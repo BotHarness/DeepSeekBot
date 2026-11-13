@@ -4,6 +4,8 @@ import type { DevicePairing, PairingOffer } from './pairing.js';
 
 export const RELATIONSHIP_APPROVAL_TTL_MS = 10 * 60 * 1000;
 const MAX_LIVE_RELATIONSHIPS = 32;
+const MAX_RETAINED_RELATIONSHIPS = 256;
+export const MAX_REVOCATION_ATTEMPTS = 8;
 
 export interface RelationshipPeer {
   id: string;
@@ -19,6 +21,9 @@ export interface HostRelationship {
   state: 'pending' | 'approved' | 'active' | 'disconnected';
   expiresAt: number;
   peerRevocationPending: boolean;
+  revocationAttempts: number;
+  revocationRetryAt: number | null;
+  automaticEnrollmentSuppressed: boolean;
 }
 
 interface Row {
@@ -31,6 +36,9 @@ interface Row {
   state: HostRelationship['state'];
   expires_at: number;
   peer_revocation_pending: number;
+  revocation_attempts: number;
+  revocation_retry_at: number | null;
+  automatic_enrollment_suppressed: number;
 }
 
 export class RelationshipRefused extends Error {
@@ -52,6 +60,9 @@ function view(row: Row): HostRelationship {
     state: row.state,
     expiresAt: row.expires_at,
     peerRevocationPending: row.peer_revocation_pending === 1,
+    revocationAttempts: row.revocation_attempts,
+    revocationRetryAt: row.revocation_retry_at,
+    automaticEnrollmentSuppressed: row.automatic_enrollment_suppressed === 1,
   };
 }
 
@@ -133,6 +144,7 @@ export function createHostRelationships(options: {
       peer: RelationshipPeer;
       direction: HostRelationship['direction'];
       expiresAt?: number;
+      explicitReconnect?: boolean;
     }): HostRelationship {
       const id = input.id ?? randomBytes(24).toString('base64url');
       if (
@@ -167,11 +179,26 @@ export function createHostRelationships(options: {
           }
           const prior = db
             .prepare(
-              'SELECT peer_key FROM host_relationships WHERE peer_host_id = ? ORDER BY created_at DESC LIMIT 1',
+              'SELECT peer_key, state FROM host_relationships WHERE peer_host_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1',
             )
-            .get(input.peer.id) as { peer_key: string } | undefined;
+            .get(input.peer.id) as
+            | { peer_key: string; state: HostRelationship['state'] }
+            | undefined;
           if (prior && prior.peer_key !== input.peer.publicKey)
             throw new RelationshipRefused('relationship-identity-mismatch');
+          if (
+            !input.explicitReconnect &&
+            db
+              .prepare(`SELECT 1 FROM host_relationships
+            WHERE peer_host_id = ? AND automatic_enrollment_suppressed = 1`)
+              .get(input.peer.id)
+          )
+            throw new RelationshipRefused('relationship-reconnect-required');
+          const retained = db.prepare('SELECT count(*) AS total FROM host_relationships').get() as {
+            total: number;
+          };
+          if (retained.total >= MAX_RETAINED_RELATIONSHIPS)
+            throw new RelationshipRefused('relationship-history-limit');
           if (
             db
               .prepare(
@@ -219,7 +246,16 @@ export function createHostRelationships(options: {
       live(relationship);
       if (relationship.direction === 'incoming' && relationship.state === 'pending')
         throw new RelationshipRefused('relationship-approval-required');
-      return relationship.state === 'active' ? relationship : transition(id, 'active');
+      if (relationship.state !== 'active') transition(id, 'active');
+      database.transaction(
+        (db) => {
+          db.prepare(
+            'UPDATE host_relationships SET automatic_enrollment_suppressed = 0 WHERE peer_host_id = ?',
+          ).run(relationship.peer.id);
+        },
+        ['host-relationships'],
+      );
+      return read(id);
     },
     enrollment(
       id: string,
@@ -242,14 +278,19 @@ export function createHostRelationships(options: {
         throw new RelationshipRefused('relationship-enrollment-failed');
       return offer;
     },
-    disconnect(id: string, peerKey?: string): HostRelationship {
+    disconnect(id: string, peerKey?: string, suppressAutomaticEnrollment = true): HostRelationship {
       const relationship = peerKey === undefined ? read(id) : authenticated(id, peerKey);
       database.transaction(
         (db) => {
           const date = new Date(now()).toISOString();
           db.prepare(
-            "UPDATE host_relationships SET state = 'disconnected', updated_at = ?, peer_revocation_pending = ? WHERE relationship_id = ?",
-          ).run(date, peerKey === undefined ? 1 : 0, id);
+            `UPDATE host_relationships SET state = 'disconnected', updated_at = ?,
+             peer_revocation_pending = ?, revocation_attempts = 0, revocation_retry_at = ?
+             WHERE relationship_id = ? AND state != 'disconnected'`,
+          ).run(date, peerKey === undefined ? 1 : 0, peerKey === undefined ? now() : null, id);
+          if (suppressAutomaticEnrollment && relationship.state !== 'disconnected')
+            db.prepare(`UPDATE host_relationships
+            SET automatic_enrollment_suppressed = 1 WHERE relationship_id = ?`).run(id);
         },
         ['host-relationships', 'paired-devices'],
       );
@@ -262,6 +303,32 @@ export function createHostRelationships(options: {
       options.record?.({ phase: 'disconnected', relationshipId: relationship.id });
       return read(id);
     },
+    beginRevocationAttempt(id: string, manual = false): HostRelationship {
+      const relationship = read(id);
+      if (relationship.state !== 'disconnected' || !relationship.peerRevocationPending)
+        return relationship;
+      if (
+        !manual &&
+        (relationship.revocationAttempts >= MAX_REVOCATION_ATTEMPTS ||
+          (relationship.revocationRetryAt !== null && relationship.revocationRetryAt > now()))
+      )
+        throw new RelationshipRefused('relationship-retry-not-due');
+      const attempt = manual ? 1 : relationship.revocationAttempts + 1;
+      database.transaction(
+        (db) => {
+          db.prepare(`UPDATE host_relationships SET revocation_attempts = ?, revocation_retry_at = ?
+          WHERE relationship_id = ? AND state = 'disconnected' AND peer_revocation_pending = 1`).run(
+            attempt,
+            attempt >= MAX_REVOCATION_ATTEMPTS
+              ? null
+              : now() + Math.min(60_000, 1000 * 2 ** attempt),
+            id,
+          );
+        },
+        ['host-relationships'],
+      );
+      return read(id);
+    },
     acknowledgeDisconnect(id: string, peerKey: string): HostRelationship {
       const relationship = authenticated(id, peerKey);
       if (relationship.state !== 'disconnected')
@@ -269,7 +336,7 @@ export function createHostRelationships(options: {
       database.transaction(
         (db) => {
           db.prepare(
-            'UPDATE host_relationships SET peer_revocation_pending = 0 WHERE relationship_id = ?',
+            'UPDATE host_relationships SET peer_revocation_pending = 0, revocation_retry_at = NULL WHERE relationship_id = ?',
           ).run(id);
         },
         ['host-relationships'],

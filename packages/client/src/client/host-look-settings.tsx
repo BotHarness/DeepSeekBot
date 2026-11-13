@@ -1,4 +1,7 @@
-import { useState, type ReactElement } from 'react';
+import { useRef, useState, type ReactElement } from 'react';
+import { useMountedResource } from './mounted-resource.js';
+import { hostSettingsDrafts } from './host-settings-drafts.js';
+import { PillButton } from './ds/pill-button.js';
 import { ActionButton } from './ds/action-button.js';
 import * as stylex from '@stylexjs/stylex';
 import { Note } from './ds/note.js';
@@ -58,39 +61,95 @@ const styles = stylex.create({
 });
 
 function HostNameField({
+  hostId,
   name,
   saved,
   change,
   t,
 }: {
+  hostId: string;
   name: string;
   saved: string | undefined;
   change: (transform: (current: HostLook) => HostLook) => Promise<boolean>;
   t: BotHarnessTranslate;
 }) {
   const [draft, setDraft] = useState(saved ?? '');
+  const draftValue = useRef(draft);
+  const savedValue = useRef(saved ?? '');
+  const observedSaved = useRef(saved ?? '');
+  if (observedSaved.current !== (saved ?? '')) {
+    const previous = observedSaved.current;
+    observedSaved.current = saved ?? '';
+    savedValue.current = saved ?? '';
+    if (draftValue.current === previous) {
+      draftValue.current = savedValue.current;
+      setDraft(savedValue.current);
+    }
+  }
+  const pendingSave = useRef<Promise<boolean>>();
   const save = async () => {
-    if (draft === (saved ?? '')) return;
-    const name = draft;
-    if (await change((current) => withHostName(current, name)))
-      setDraft((current) => (current === name ? (hostLookName(name) ?? '') : current));
+    if (pendingSave.current) return pendingSave.current;
+    if (draftValue.current === savedValue.current) return true;
+    const name = draftValue.current;
+    const operation = (async () => {
+      if (await change((current) => withHostName(current, name))) {
+        savedValue.current = hostLookName(name) ?? '';
+        if (draftValue.current === name) {
+          draftValue.current = savedValue.current;
+          setDraft(savedValue.current);
+        }
+        return true;
+      }
+      return false;
+    })();
+    pendingSave.current = operation;
+    try {
+      return await operation;
+    } finally {
+      pendingSave.current = undefined;
+    }
   };
+  const discard = () => {
+    draftValue.current = savedValue.current;
+    setDraft(savedValue.current);
+  };
+  const current = useRef({ dirty: () => draftValue.current !== savedValue.current, save, discard });
+  current.current = { dirty: () => draftValue.current !== savedValue.current, save, discard };
+  const mount = useMountedResource<HTMLDivElement>(
+    () =>
+      hostSettingsDrafts.register(hostId, {
+        dirty: () => current.current.dirty(),
+        save: () => current.current.save(),
+        discard: () => current.current.discard(),
+      }),
+    [hostId],
+  );
   return (
-    <TextField
-      label={t('remoteHosts.look.name')}
-      value={draft}
-      onChange={setDraft}
-      placeholder={name}
-      maxLength={HOST_NAME_MAX}
-      onBlur={() => {
-        void save();
-      }}
-      onKeyDown={(event) => {
-        if (event.key !== 'Enter' || event.nativeEvent.isComposing) return;
-        event.preventDefault();
-        void save();
-      }}
-    />
+    <div ref={mount} {...stylex.props(styles.section)}>
+      <TextField
+        label={t('remoteHosts.look.name')}
+        value={draft}
+        onChange={(value) => {
+          draftValue.current = value;
+          setDraft(value);
+        }}
+        placeholder={name}
+        maxLength={HOST_NAME_MAX}
+        onKeyDown={(event) => {
+          if (event.key !== 'Enter' || event.nativeEvent.isComposing) return;
+          event.preventDefault();
+          void save();
+        }}
+      />
+      <PillButton
+        disabled={draft === (saved ?? '')}
+        onClick={() => {
+          void save();
+        }}
+      >
+        {t('relationships.save')}
+      </PillButton>
+    </div>
   );
 }
 
@@ -150,7 +209,7 @@ export function HostLookSettings({
             </ActionButton>
           </div>
         ) : null}
-        <HostNameField key={look.name ?? ''} name={name} saved={look.name} change={change} t={t} />
+        <HostNameField hostId={hostId} name={name} saved={look.name} change={change} t={t} />
         <div {...stylex.props(styles.section)}>
           <span {...stylex.props(styles.sectionName)}>{t('remoteHosts.look.symbols')}</span>
           <div
