@@ -30,6 +30,16 @@ const phaseLabels = {
   'cloudflared-download': 'connections.log.download',
   'cloudflared-installed': 'connections.log.installed',
   'cloudflared-started': 'connections.log.started',
+  'cloudflared-exited': 'connections.log.restarting',
+  'cloudflared-missing': 'connections.log.missing',
+  'origin-port-busy': 'connections.log.portBusy',
+  'account-error': 'connections.log.accountError',
+  'account-connect-error': 'connections.log.accountError',
+  'sign-in-expired': 'connections.log.signInExpired',
+  'signed-out': 'connections.log.signedOut',
+  connected: 'connections.log.verified',
+  enabled: 'connections.log.enabled',
+  disabled: 'connections.log.disabled',
   'quick-address': 'connections.log.address',
   'ingress-started': 'connections.log.ingress',
   verified: 'connections.log.verified',
@@ -161,12 +171,12 @@ export function ConnectionProgressLog({
                   : ''}
                 {Object.hasOwn(phaseLabels, row.phase)
                   ? t(phaseLabels[row.phase as keyof typeof phaseLabels])
-                  : row.phase}
+                  : t('connections.log.updated')}
                 {row.attempt !== undefined
                   ? ` · ${t('connections.log.attempt', { attempt: row.attempt, seconds: row.seconds ?? 0 })}`
                   : ''}
                 {row.probe
-                  ? ` · ${row.probe.startsWith('http-') ? row.probe : t(row.probe === 'dns' ? 'connections.log.dns' : row.probe === 'timeout' ? 'connections.log.timeout' : row.probe === 'tls' ? 'connections.log.tls' : row.probe === 'challenge-mismatch' ? 'connections.log.mismatch' : 'connections.log.network')}`
+                  ? ` · ${row.probe.startsWith('http-') ? t('connections.log.http') : t(row.probe === 'dns' ? 'connections.log.dns' : row.probe === 'timeout' ? 'connections.log.timeout' : row.probe === 'tls' ? 'connections.log.tls' : row.probe === 'challenge-mismatch' ? 'connections.log.mismatch' : 'connections.log.network')}`
                   : ''}
               </span>
             </li>

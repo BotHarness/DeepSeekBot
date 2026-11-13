@@ -97,3 +97,33 @@ it('shows only allowlisted probe details and bounded numeric progress', () => {
     },
   ]);
 });
+
+it('localizes failure phases and hides internal phase and HTTP codes', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () =>
+      Response.json({
+        entries: [
+          { ...row(1, 'private-tunnel phase=origin-port-busy'), ts: Date.now() },
+          { ...row(2, 'private-tunnel phase=future-internal-code'), ts: Date.now() },
+          { ...row(3, 'private-tunnel phase=probe-failed probe=http-503'), ts: Date.now() },
+        ],
+      }),
+    ),
+  );
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  try {
+    await act(async () => root.render(<ConnectionProgressLog t={t} source="private-tunnel" />));
+    expect(host.textContent).toContain(t('connections.log.portBusy'));
+    expect(host.textContent).toContain(t('connections.log.updated'));
+    expect(host.textContent).toContain(t('connections.log.http'));
+    expect(host.textContent).not.toContain('origin-port-busy');
+    expect(host.textContent).not.toContain('future-internal-code');
+    expect(host.textContent).not.toContain('http-503');
+  } finally {
+    await act(async () => root.unmount());
+    host.remove();
+  }
+});

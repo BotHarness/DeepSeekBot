@@ -76,7 +76,7 @@ export function ConnectAccountHosts({
 }): ReactElement | null {
   const [hosts, setHosts] = useState<ConnectedHost[]>();
   const [listState, setListState] = useState<'loading' | 'fresh' | 'stale'>('loading');
-  const [confirm, setConfirm] = useState<ConnectedHost>();
+  const [confirm, setConfirm] = useState<ConnectedHost | 'current-account'>();
   const [busy, setBusy] = useState<string>();
   const [actionError, setActionError] = useState(false);
   const busyRef = useRef(false);
@@ -115,13 +115,14 @@ export function ConnectAccountHosts({
     };
   }, [eligible, account.state, account.issue, account.hostId, load]);
 
-  const revoke = async (host: ConnectedHost) => {
-    if (busyRef.current || (host.current && !allowCurrentSignOut)) return;
+  const revoke = async (host: ConnectedHost | 'current-account') => {
+    if (busyRef.current || ((host === 'current-account' || host.current) && !allowCurrentSignOut))
+      return;
     busyRef.current = true;
-    setBusy(host.id);
+    setBusy(host === 'current-account' ? host : host.id);
     setActionError(false);
     try {
-      if (host.current) {
+      if (host === 'current-account' || host.current) {
         const result = await fetch('./api/botharness/devices/connect', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
@@ -160,6 +161,9 @@ export function ConnectAccountHosts({
     }
   };
 
+  const confirmSignOut = confirm === 'current-account' || confirm?.sessionKnown === true;
+  const confirmName =
+    confirm === 'current-account' ? t('devices.connect.thisComputer') : (confirm?.name ?? '');
   if (!eligible) return null;
   return (
     <div ref={mount}>
@@ -244,6 +248,26 @@ export function ConnectAccountHosts({
             ) : null}
           </StatusBlock>
         ))}
+        {allowCurrentSignOut && (listState !== 'fresh' || !hosts?.some((host) => host.current)) ? (
+          <SettingsRow
+            title={t('devices.connect.thisComputer')}
+            control={
+              <Button
+                variant="outline"
+                disabled={busy !== undefined}
+                aria-label={t('devices.connect.signOutNamed', {
+                  name: t('devices.connect.thisComputer'),
+                })}
+                onClick={() => {
+                  setActionError(false);
+                  setConfirm('current-account');
+                }}
+              >
+                {t('devices.connect.signOut')}
+              </Button>
+            }
+          />
+        ) : null}
         {actionError ? (
           <Note tone="danger">{t('devices.connect.computerActionFailed')}</Note>
         ) : null}
@@ -252,8 +276,8 @@ export function ConnectAccountHosts({
             size="small"
             scroll
             title={t(
-              confirm.sessionKnown ? 'devices.connect.signOutNamed' : 'devices.connect.removeNamed',
-              { name: confirm.name },
+              confirmSignOut ? 'devices.connect.signOutNamed' : 'devices.connect.removeNamed',
+              { name: confirmName },
             )}
             closeLabel={t('common.close')}
             onClose={() => {
@@ -269,23 +293,19 @@ export function ConnectAccountHosts({
                   {t('common.cancel')}
                 </Button>
                 <Button disabled={busy !== undefined} onClick={() => void revoke(confirm)}>
-                  {t(
-                    confirm.sessionKnown
-                      ? 'devices.connect.signOut'
-                      : 'devices.connect.removeComputer',
-                  )}
+                  {t(confirmSignOut ? 'devices.connect.signOut' : 'devices.connect.removeComputer')}
                 </Button>
               </>
             }
           >
             <Note>
               {t(
-                confirm.sessionKnown
+                confirmSignOut
                   ? 'devices.connect.signOutComputerConfirm'
                   : 'devices.connect.legacyComputer',
               )}
             </Note>
-            <Note>{confirm.hostname}</Note>
+            {confirm === 'current-account' ? null : <Note>{confirm.hostname}</Note>}
           </PanelDialog>
         ) : null}
       </StatusStack>
