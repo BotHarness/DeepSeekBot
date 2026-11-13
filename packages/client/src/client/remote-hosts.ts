@@ -1,5 +1,8 @@
 import { hostLooks } from './host-looks.js';
-import { enrollRelationshipClient } from '../../../core/src/devices/relationship-enrollment.js';
+import {
+  enrollRelationshipClient,
+  updateRelationshipClientRoute,
+} from '../../../core/src/devices/relationship-enrollment.js';
 import { relationshipRequest, type ClientRelationship } from './relationships.js';
 import { shownHostName } from '../../../../apps/mobile/src/ui/design/host-look.js';
 import type { HostCarrier } from '../../../../apps/mobile/src/host/carrier.js';
@@ -16,6 +19,7 @@ import {
   parseSavedHost,
   serializeSavedHost,
   type SavedHost,
+  type PrivateAdmission,
 } from '../../../../apps/mobile/src/host/hosts.js';
 import {
   createInbox,
@@ -88,7 +92,10 @@ export interface RemotePairTrust {
 
 export interface RemoteHosts {
   retireRelationship(relationshipId: string): Promise<void>;
-  learnRelationshipRoutes(peer: ClientRelationship['peer']): void;
+  learnRelationshipRoutes(
+    peer: ClientRelationship['peer'],
+    privateRelay?: PrivateAdmission,
+  ): Promise<void>;
   enrollRelationship(
     relationship: Pick<ClientRelationship, 'id' | 'peer'>,
     name: string,
@@ -434,13 +441,21 @@ export function createRemoteHosts(options: {
       }
     },
     notifications,
-    learnRelationshipRoutes(peer) {
+    async learnRelationshipRoutes(peer, privateRelay) {
       const entry = clients.get(peer.id);
       if (!entry || peer.routes.length === 0) return;
       if (entry.host.encryption?.hostKey !== peer.publicKey) throw new Error('host-key-mismatch');
-      const routes = [...new Set(peer.routes)].slice(0, 8);
-      saveHostChange(peer.id, entry.client, (current) => ({ ...current, routes }));
-      entry.client.updateRoutes?.(routes);
+      const updated = updateRelationshipClientRoute({
+        host: entry.host,
+        peer,
+        ...(privateRelay ? { privateRelay } : {}),
+      });
+      if (!updated.ok) {
+        if (!privateRelay && updated.code === 'relationship-route-admission-required') return;
+        throw new Error(updated.code);
+      }
+      await saveHostChange(peer.id, entry.client, () => updated.host);
+      entry.client.updateRoutes?.(updated.host.routes, updated.host.encryption);
       entry.client.retryNow('manual_retry', { preserveConnected: true });
     },
     async enrollRelationship(relationship, name, signal) {

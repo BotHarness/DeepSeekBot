@@ -174,7 +174,7 @@ export interface StreamHandlers {
 
 export interface HostClient {
   setRoutePreference?(route: string | undefined): Promise<void>;
-  updateRoutes?(routes: string[]): void;
+  updateRoutes?(routes: string[], encryption?: HostEncryption): void;
   testRoute?(url: string): Promise<boolean>;
   getSnapshot(): HostSnapshot;
   subscribe(listener: () => void): () => void;
@@ -1589,7 +1589,20 @@ export function createHostClient(options: HostClientOptions): HostClient {
         changingPreference = false;
       }
     },
-    updateRoutes(next) {
+    updateRoutes(next, encryption) {
+      if (encryption) {
+        const current = options.encryption;
+        if (
+          !current ||
+          current.hostKey !== encryption.hostKey ||
+          current.deviceKey !== encryption.deviceKey
+        )
+          throw new Error('host-key-mismatch');
+        if (encryption.privateRelay) current.privateRelay = encryption.privateRelay;
+        else delete current.privateRelay;
+        if (encryption.loopback) current.loopback = encryption.loopback;
+        else delete current.loopback;
+      }
       const previous = routes;
       routes = preferredRoutes(next);
       publish();
