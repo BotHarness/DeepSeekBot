@@ -4,6 +4,7 @@ import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync } from 
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { WebSocket, WebSocketServer } from 'ws';
+import { privateAdmissionFromHeaders, BROWSER_ADMISSION_PROTOCOL } from './admission.mjs';
 
 export const PROTOCOL_V1 = 'botharness-private-v1';
 export const PROTOCOL_V2 = 'botharness-private-v2';
@@ -160,6 +161,8 @@ export function createPrivateRelay({ directory, bootstrap, hostKeys = () => new 
     noServer: true,
     maxPayload: LIMIT * 2,
     perMessageDeflate: false,
+    handleProtocols: (protocols) =>
+      protocols.has(BROWSER_ADMISSION_PROTOCOL) ? BROWSER_ADMISSION_PROTOCOL : false,
   });
   const send = (socket, value) => {
     const text = typeof value === 'string' ? value : JSON.stringify(value);
@@ -179,9 +182,20 @@ export function createPrivateRelay({ directory, bootstrap, hostKeys = () => new 
     const hosting = request.url === '/host';
     const phone = request.url === '/botharness-device/channel';
     if (!hosting && !phone) return refuse(socket);
-    const token = hosting
-      ? bearer(request)
-      : (bearer(request) ?? request.headers['x-botharness-admission']);
+    const protocolHeader = request.headers['sec-websocket-protocol'];
+    const admission = phone
+      ? privateAdmissionFromHeaders(
+          request.headers.authorization,
+          request.headers['x-botharness-admission'],
+          protocolHeader,
+        )
+      : undefined;
+    if (
+      (hosting && protocolHeader !== undefined) ||
+      (phone && (!admission || request.headers.cookie !== undefined))
+    )
+      return refuse(socket);
+    const token = hosting ? bearer(request) : admission?.token;
     const name = find(hosting ? 'owner' : 'phone', token);
     const runtime = name && live.get(name);
     if (
@@ -190,6 +204,9 @@ export function createPrivateRelay({ directory, bootstrap, hostKeys = () => new 
       (phone && (runtime?.control?.readyState !== WebSocket.OPEN || runtime.phones.size >= PHONES))
     )
       return refuse(socket);
+    if (admission?.protocol) request.headers['sec-websocket-protocol'] = admission.protocol;
+    delete request.headers.authorization;
+    delete request.headers['x-botharness-admission'];
     sockets.handleUpgrade(request, socket, head, (client) => {
       client.alive = true;
       client.on('pong', () => {

@@ -17,6 +17,7 @@ export const zh = {
   'environment.settings.legacyScope': '主机选项只作用于本机 Host；设备偏好只保存在当前设备。',
   'environment.settings.appearance': '本应用中的外观',
   'environment.settings.unsupported': '此环境暂不支持这项设置。',
+  'environment.settings.defaultLocked': '此环境的默认模型由启动设置固定。',
   'environment.settings.disconnected': '已断开此环境。设置未保存到其他环境。',
   'environment.scope': '浏览环境',
   'environment.manageNamed': '管理 {name}',
@@ -5285,6 +5286,8 @@ export const en = {
     'Host controls use This Host. Device preferences stay on this device.',
   'environment.settings.appearance': 'Appearance in this app',
   'environment.settings.unsupported': 'This setting is unavailable for this environment.',
+  'environment.settings.defaultLocked':
+    "This Host's default model is fixed by its launch settings.",
   'environment.settings.disconnected':
     'This environment was disconnected. Settings were not saved elsewhere.',
   'environment.scope': 'Browse environments',
