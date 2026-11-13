@@ -421,6 +421,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
   let disconnectCurrent: ((reason: string) => void) | undefined;
   let activeRequests = 0;
   let resumeRequested = false;
+  let cancelResumeProbe: (() => void) | undefined;
   let checkingPreferred = false;
   let preferredSwitchAt = 0;
   const followers = new Set<Follower>();
@@ -1127,6 +1128,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
 
   const interruptFollowers = (reason: string): void => {
     liveSocket = undefined;
+    cancelResumeProbe?.();
     for (const follower of followers) {
       clearTimeout(follower.reopen);
       if (follower.streamId === undefined) continue;
@@ -1418,6 +1420,70 @@ export function createHostClient(options: HostClientOptions): HostClient {
     }
   };
 
+  const probeResume = (): void => {
+    if (cancelResumeProbe !== undefined) return;
+    const currentSocket = liveSocket;
+    const current = generation;
+    if (currentSocket === undefined) {
+      resumeRequested = true;
+      resumeLive();
+      return;
+    }
+    const streamId = id();
+    const currentStreams = streams;
+    const finish = (healthy: boolean): void => {
+      if (cancelResumeProbe !== cancel) return;
+      cancelResumeProbe = undefined;
+      clearTimeout(timer);
+      currentStreams.delete(streamId);
+      if (currentSocket === liveSocket) {
+        try {
+          currentSocket.send({ type: 'cancel', streamId });
+        } catch {}
+      }
+      if (healthy && running && currentSocket === liveSocket) {
+        options.telemetry?.update('connected');
+        void probeHost()
+          .then(async () => {
+            if (!running || currentSocket !== liveSocket) return;
+            await reload();
+            if (running && currentSocket === liveSocket) await recoverPreferred();
+          })
+          .catch((error: unknown) => {
+            if (!running || currentSocket !== liveSocket || current !== generation) return;
+            refusedBy(error);
+            if (running && error instanceof Unreachable) {
+              resumeRequested = true;
+              resumeLive();
+            }
+          });
+      }
+      if (!healthy && running && current === generation && currentSocket === liveSocket) {
+        resumeRequested = true;
+        resumeLive();
+      }
+    };
+    const cancel = () => finish(false);
+    const timer = setTimeout(cancel, Math.min(timeoutMs, 1_500));
+    cancelResumeProbe = cancel;
+    currentStreams.set(streamId, {
+      item: (value) => {
+        if (record(value)['type'] === 'baseline') finish(true);
+      },
+      end: () => finish(false),
+    });
+    try {
+      currentSocket.send({
+        type: 'open',
+        streamId,
+        endpoint: 'botharness/followRoster',
+        payload: { args: {} },
+      });
+    } catch {
+      finish(false);
+    }
+  };
+
   const resumeLive = (): void => {
     if (
       !resumeRequested ||
@@ -1512,8 +1578,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
       options.telemetry?.begin(trigger);
       if (snapshot.connection.status === 'connected') {
         if (trigger === 'resume') {
-          resumeRequested = true;
-          resumeLive();
+          probeResume();
           return;
         }
         void refreshConnected().then(

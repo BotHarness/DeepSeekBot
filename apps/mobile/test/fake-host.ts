@@ -330,10 +330,11 @@ export class FakeHost {
         send: (text) => {
           const frame = JSON.parse(text) as MuxClientFrame;
           if (frame.type === 'cancel') {
+            entry.streams.delete(frame.streamId);
             for (const channel of this.channels.values()) channel.cancel(frame.streamId);
             return;
           }
-          entry.streams.set(frame.endpoint, frame.streamId);
+          entry.streams.set(frame.streamId, frame.endpoint);
           queueMicrotask(() => {
             if (frame.endpoint === 'botharness/followRoster')
               this.emit(entry, frame.streamId, wire.mux.roster[0]);
@@ -530,18 +531,22 @@ export class FakeHost {
   push(endpoint: 'botharness/followRoster' | 'botharness/followActivity', value: unknown): boolean {
     let delivered = false;
     for (const entry of this.sockets) {
-      const streamId = entry.streams.get(endpoint);
-      if (streamId === undefined) continue;
-      this.emit(entry, streamId, value);
-      delivered = true;
+      for (const [streamId, target] of entry.streams) {
+        if (target !== endpoint) continue;
+        this.emit(entry, streamId, value);
+        delivered = true;
+      }
     }
     return delivered;
   }
 
   endFollower(endpoint: 'botharness/followRoster' | 'botharness/followChannel'): void {
     for (const entry of this.sockets) {
-      const streamId = entry.streams.get(endpoint);
-      if (streamId !== undefined) entry.events.message(JSON.stringify({ type: 'end', streamId }));
+      for (const [streamId, target] of entry.streams) {
+        if (target !== endpoint) continue;
+        entry.streams.delete(streamId);
+        entry.events.message(JSON.stringify({ type: 'end', streamId }));
+      }
     }
   }
 
