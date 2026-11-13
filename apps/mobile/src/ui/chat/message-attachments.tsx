@@ -106,7 +106,6 @@ function AttachmentImage({
   const longPress = useMediaLongPress();
   const [attempt, setAttempt] = useState(0);
   const [failed, setFailed] = useState(false);
-  const [displayed, setDisplayed] = useState(false);
   const source = attachment.preview ?? attachment.source;
   const tone = human ? 'onAccent' : 'muted';
   const fill = human ? over(theme.color.selected, theme.color.accent) : theme.layer.raised.inset;
@@ -126,7 +125,6 @@ function AttachmentImage({
         {...longPress}
         onPress={() => {
           setFailed(false);
-          setDisplayed(false);
           setAttempt((value) => value + 1);
         }}
         style={{
@@ -163,11 +161,8 @@ function AttachmentImage({
         recyclingKey={attachment.key}
         cachePolicy="memory-disk"
         contentFit="cover"
-        transition={displayed || onImageReady !== undefined ? 0 : 150}
-        onDisplay={() => {
-          setDisplayed(true);
-          onImageReady?.(attachment.key, true);
-        }}
+        transition={onImageReady === undefined ? 150 : 0}
+        onDisplay={() => onImageReady?.(attachment.key, true)}
         onError={() => {
           setFailed(true);
           onImageReady?.(attachment.key, false);
