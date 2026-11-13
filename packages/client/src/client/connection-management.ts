@@ -184,7 +184,6 @@ function affectsRoute(operation: ConnectionMutation, status: ManagedHost, route:
     }
   }
   const owned = status.privateRoutes.find((entry) => entry.id === operation.routeId);
-  // Missing runtime origin cannot prove that a private route is safe to stop remotely.
   return !owned?.origin || address(route) === owned.origin;
 }
 
@@ -419,7 +418,6 @@ async function executeConnections(
     )
       throw new AppearanceError('connection-operation-owner-changed');
     const completed = operationCompleted(status, pending.operation);
-    // An unchanged value cannot prove that an in-flight owner write will not finish later.
     if (completed)
       sources.setPendingConnection(remote.host.hostId, client, undefined, pending.generation);
     return {
@@ -522,7 +520,6 @@ async function executeConnections(
     throw new AppearanceError('connection-management-unconfirmed');
   }
   if (result.status < 200 || result.status >= 300) {
-    // These owner branches return before entering a mutation; other failures remain uncertain.
     if (
       [
         'confirm-required',
