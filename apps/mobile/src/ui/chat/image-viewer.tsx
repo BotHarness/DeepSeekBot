@@ -111,7 +111,6 @@ function ZoomableImage({
         }),
       );
     }
-    // Finish painting transparent before React tears down the transformed native view.
     visibility.set(
       withTiming(
         0,
