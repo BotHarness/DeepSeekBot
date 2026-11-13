@@ -110,7 +110,7 @@ export function HostDetails({ remote, t }: { remote: RemoteHost; t: BotHarnessTr
     }
   };
   const prepare = async (next: NonNullable<typeof confirm>) => {
-    if (busy || remote.host.pendingConnection) return;
+    if (busy || (remote.host.pendingConnection && next.action !== 'forget-host')) return;
     setBusy(true);
     setFailed(false);
     try {

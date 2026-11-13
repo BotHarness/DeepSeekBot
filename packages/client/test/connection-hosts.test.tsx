@@ -51,6 +51,7 @@ let sources: RemoteHosts;
 let host: HTMLDivElement;
 let root: ReturnType<typeof createRoot>;
 let api: ReturnType<typeof vi.fn<HostClient['api']>>;
+let values: Map<string, string>;
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   const fake = new FakeHost();
@@ -68,7 +69,7 @@ beforeEach(() => {
       },
     },
   ]);
-  const values = new Map([[REMOTE_HOSTS_STORAGE_KEY, stored]]);
+  values = new Map([[REMOTE_HOSTS_STORAGE_KEY, stored]]);
   sources = createRemoteHosts({
     connectionOperationLock: async (_name, run) => run(),
     carrier: fake.carrier,
@@ -133,6 +134,29 @@ it('keeps local removal separate from target device revocation and confirms the 
   await click(t('connections.hosts.remove'));
   await click(t('connections.hosts.remove'));
   expect(sources.getSnapshot().hosts).toHaveLength(0);
+  expect(api.mock.calls.every(([path]) => path === '/api/botharness/devices')).toBe(true);
+});
+
+it('allows confirmed local removal while retaining an uncertain Host operation for later readback', async () => {
+  const client = sources.client('target')!;
+  sources.setPendingConnection('target', client, {
+    generation: crypto.randomUUID(),
+    hostKey: '11'.repeat(32),
+    deviceId: 'browser',
+    operation: { action: 'revoke-device', deviceId: 'browser' },
+  });
+  const journal = [...values].filter(([key]) => key.startsWith('botharness.remoteHosts.operation'));
+  await open();
+  await click(t('connections.hosts.remove'));
+  expect(host.textContent).toContain(t('connections.hosts.removeHint'));
+  await click(t('common.cancel'));
+  expect(sources.getSnapshot().hosts).toHaveLength(1);
+  await click(t('connections.hosts.remove'));
+  await click(t('connections.hosts.remove'));
+  expect(sources.getSnapshot().hosts).toHaveLength(0);
+  expect([...values].filter(([key]) => key.startsWith('botharness.remoteHosts.operation'))).toEqual(
+    journal,
+  );
   expect(api.mock.calls.every(([path]) => path === '/api/botharness/devices')).toBe(true);
 });
 
