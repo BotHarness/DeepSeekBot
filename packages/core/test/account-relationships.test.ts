@@ -293,6 +293,10 @@ it('refreshes a signed-in registration on the same active pinned relationship an
   try {
     await test.authority.receive(test.source.publicKey, await test.proposal());
     test.relationships.activate(test.proof.relationshipId, test.source.publicKey);
+    test.relationships.updateRoutes(test.proof.relationshipId, test.source.publicKey, [
+      ...test.source.routes,
+      'https://independent.ts.net',
+    ]);
     const prior = test.relationships.read(test.proof.relationshipId).accountOrigin!;
     test.peers.delete(test.proof.source.registrationId);
     test.proof.source.registrationId = 'haaaaaaaaabba';
@@ -302,6 +306,10 @@ it('refreshes a signed-in registration on the same active pinned relationship an
     ).toMatchObject({ ok: true, state: 'active' });
     const refreshed = test.relationships.read(test.proof.relationshipId);
     expect(refreshed.accountOrigin?.peerRegistrationId).toBe('haaaaaaaaabba');
+    expect(refreshed.peer.routes).toEqual([
+      'https://haaaaaaaaabba.deepseekbot.dev',
+      'https://independent.ts.net',
+    ]);
     expect(refreshed.state).toBe('active');
     expect(test.relationships.list()).toHaveLength(1);
     expect(() =>
