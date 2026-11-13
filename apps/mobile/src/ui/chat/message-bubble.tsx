@@ -763,13 +763,12 @@ export const MessageBubble = memo(function MessageBubble({
   } as const;
   const framedContent = (
     <>
-      {onReply === undefined ? (
-        content
-      ) : (
-        <ReplySwipe enabled={!streaming && replyable(message)} onReply={() => onReply(message)}>
-          {content}
-        </ReplySwipe>
-      )}
+      <ReplySwipe
+        enabled={onReply !== undefined && !streaming && replyable(message)}
+        onReply={() => onReply?.(message)}
+      >
+        {content}
+      </ReplySwipe>
       {badged ? (
         <View
           pointerEvents="box-none"

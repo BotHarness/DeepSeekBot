@@ -108,7 +108,7 @@ export function ReplySwipe({
               backgroundColor: theme.layer.raised.fill,
             }}
           >
-            <ReplyIcon color={theme.color.muted} size={theme.type.meta.line} />
+            {enabled ? <ReplyIcon color={theme.color.muted} size={theme.type.meta.line} /> : null}
           </View>
         </Animated.View>
         <Animated.View style={moving}>
