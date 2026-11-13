@@ -176,6 +176,7 @@ export type Redemption =
   | { ok: false; code: PairingRefusal; detail?: string };
 
 export async function redeemPairing(options: {
+  deviceKey?: string;
   payload: PairingPayload;
   deviceName: string;
   carrier: HostCarrier;
@@ -546,6 +547,7 @@ function pause(ms: number, signal?: AbortSignal): Promise<boolean> {
 }
 
 async function redeemEncrypted(options: {
+  deviceKey?: string;
   payload: PairingPayload;
   deviceName: string;
   carrier: HostCarrier;
@@ -569,7 +571,7 @@ async function redeemEncrypted(options: {
     ...(advertised.loopback === 'encrypted' ? { loopback: 'encrypted' as const } : {}),
     protocol: advertised.protocol,
     hostKey: advertised.publicKey,
-    deviceKey: keyHex(secureRandom(options.carrier)),
+    deviceKey: options.deviceKey ?? keyHex(secureRandom(options.carrier)),
   };
   const lan = payload.routes.filter(isLanRoute);
   const remote = payload.routes.filter((route) => !isLanRoute(route));

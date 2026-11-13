@@ -9,6 +9,21 @@ Bot summaries from `list` also include `lastActivityAt` (epoch milliseconds) whe
 
 ## Usage
 
+### Reciprocal computer relationships
+
+`relationships` uses the authenticated local Host and the same approval owner as Connections. Each CLI enrollment creates its own device grant; no remote credential is shared through the local Host.
+
+| Command                                                                                  | Purpose                                                                                                                  |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `relationships list`                                                                     | Read persisted peers, approval state and pending peer revocation.                                                        |
+| `relationships initiate <peer-public-key> --link-file <absolute-private-file> --confirm` | Compare the target fingerprint, then request reciprocal access using its existing pairing link.                          |
+| `relationships approve <id> <peer-public-key> --confirm`                                 | On the receiving Host, compare the initiating Host fingerprint and approve both directions.                              |
+| `relationships sync <id>`                                                                | Read the peer's approval and complete the authenticated reciprocal handshake.                                            |
+| `relationships enroll <id> --out <new-absolute-private-file>`                            | Enroll this CLI Client and save its independent credential privately. Stdout contains only Host/device identifiers.      |
+| `relationships disconnect <id> --confirm`                                                | Retire derived access, keeping independent phone grants and remote data. A missing peer acknowledgement remains pending. |
+
+Use the existing `--host` / `--token-file` options to select the exact local owner. Repeat `enroll` against the other local Host for its independent CLI Client; `device-probe --device-file <absolute-private-file>` reads that Client's real remote Feed. Phones cannot invoke relationship enrollment through their device gateway. Do not retry an uncertain initiation blindly: inspect `relationships list` first. The E1 command persists pending peer revocation; automatic retry after an offline peer returns belongs to E4.
+
 ### Recoverable Zip transfer and import
 
 Use the same authenticated Host as the phone. `bot-zip-upload --from-zip <file> --upload-key <stable-key> --host <url>` returns `sha256`, `sizeBytes`, `offset`, `chunkBytes` and `expiresAt`. It uses `zipUploadBegin` and `zipUploadChunk`, resuming acknowledged chunks with the same key and exact file. Raw chunks are 256 KiB so their base64 envelopes fit the encrypted device transport's 4 MiB request limit.

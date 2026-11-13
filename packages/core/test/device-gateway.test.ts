@@ -141,6 +141,27 @@ async function pair(base: string, offer: string) {
   return { status: response.status, body: (await response.json()) as Record<string, string> };
 }
 
+it('does not let a paired device manage or inherit Host relationships', async () => {
+  const host = await fakeDsh();
+  const paired = host.pairing.redeem({ offer: host.pairing.createOffer().offer, name: 'Phone' });
+  if (!paired.ok) throw new Error(paired.code);
+  for (const endpoint of [
+    'botharness/relationships',
+    'botharness/%72elationships',
+    'botharness//relationships',
+  ]) {
+    const response = await fetch(`${host.base}/botharness-device/api/${endpoint}`, {
+      method: 'POST',
+      headers: { authorization: `Device ${paired.credential}` },
+      body: JSON.stringify({ action: 'enroll', id: 'forged', desktop: true }),
+    });
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ code: 'relationship-local-client-required' });
+  }
+  expect(host.state.seen).toEqual([]);
+  expect(host.pairing.admit(`Device ${paired.credential}`).ok).toBe(true);
+});
+
 it('attributes Feed acknowledgement to the authenticated device and refuses revoked or missing credentials', async () => {
   const host = await fakeDsh();
   const paired = host.pairing.redeem({ offer: host.pairing.createOffer().offer });

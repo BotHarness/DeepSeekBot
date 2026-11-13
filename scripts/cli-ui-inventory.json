@@ -2,6 +2,16 @@
   "version": 1,
   "groups": [
     {
+      "id": "host-relationships",
+      "description": "Reciprocal Host approval, independent client enrollment and relationship disconnection.",
+      "scope": "Local Host",
+      "surfaces": [
+        "route:packages/core/src/devices/mount.ts:RELATIONSHIPS_PATH",
+        "setting:packages/client/src/client/relationship-settings.tsx:{item.peer.name}"
+      ],
+      "commands": ["relationships", "device-probe"]
+    },
+    {
       "id": "client-preferences",
       "description": "Theme, locale, notifications, file opening and presentation preferences; native Settings fields already have generic settings CLI, but local services need a target Client.",
       "scope": "Client",

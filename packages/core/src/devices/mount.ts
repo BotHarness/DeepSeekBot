@@ -1,4 +1,7 @@
 import { createDirectPeers } from './direct.js';
+import { createHostRelationships } from './relationships.js';
+import { createRelationshipControl } from './relationship-control.js';
+import { createRelationshipHttp, RELATIONSHIPS_PATH } from './relationship-http.js';
 import { createPrivateConnection } from './private-relay.js';
 import { createPrivateTunnel } from './private-tunnel.js';
 import { createConnectBotBridge } from './bot-connect-bridge.js';
@@ -347,6 +350,19 @@ export function mountDevicePairing(
   ctx.inject(['connection', 'webServer'], (webCtx) => {
     const connection = (webCtx as unknown as { connection: ConnectionLike }).connection;
     const webServer = (webCtx as unknown as { webServer: WebServerLike }).webServer;
+    const relationships = createHostRelationships({
+      database: attachOperationalModule(options.database, 'host-relationships'),
+      pairing,
+      record: (event) => write('host-relationships', event.phase, JSON.stringify(event)),
+    });
+    const relationshipControl = createRelationshipControl({
+      relationships,
+      pairing,
+      identity,
+      routes: async () =>
+        (await routes()).routes.filter((route) => route.ready).map((route) => route.url),
+    });
+    webCtx.effect(() => () => relationshipControl.close(), 'botharness: Host relationship control');
     const lanKey = credentialKey('botharness-core', 'device-lan');
     let lanDiscovery: ReturnType<typeof createLanBotDiscovery> | undefined;
     let lanBridge: ReturnType<typeof createLanBotBridge> | undefined;
@@ -400,6 +416,7 @@ export function mountDevicePairing(
       gateway: () =>
         createEncryptedGateway({
           pairing,
+          relationship: relationshipControl.receive,
           key: identity.key,
           port: () => webServer.port,
           route: 'lan',
@@ -542,6 +559,7 @@ export function mountDevicePairing(
     webCtx.effect(() => () => directPeers.close(), 'botharness: direct device peers');
     const encrypted = createEncryptedGateway({
       pairing,
+      relationship: relationshipControl.receive,
       key: identity.key,
       port: () => webServer.port,
       direct: (input) => directPeers.answer(input),
@@ -796,6 +814,16 @@ export function mountDevicePairing(
       const others = status.routes.filter((route) => route.kind !== 'loopback');
       return { ...status, routes: [...others, tunnel, ...loopback] };
     };
+    webCtx.effect(
+      () =>
+        connection.fetch.register({
+          path: RELATIONSHIPS_PATH,
+          methods: ['GET', 'POST'],
+          requestBody: 'buffered',
+          fetch: createRelationshipHttp(relationshipControl),
+        }),
+      'botharness: local Host relationship management',
+    );
     const http = createDevicesHttp({
       privateConnection,
       privateTunnel,

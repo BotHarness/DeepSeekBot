@@ -9,6 +9,21 @@
 
 ## 用法
 
+### 电脑双向关系
+
+`relationships` 通过已认证的本机 Host，使用与连接界面相同的审批所有者。每次 CLI 登记创建独立设备授权，本机 Host 不共享远端设备凭据。
+
+| 命令                                                                         | 用途                                                                     |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `relationships list`                                                         | 读取持久化的对端、审批状态和待确认撤销。                                 |
+| `relationships initiate <对端公钥> --link-file <私密文件绝对路径> --confirm` | 核对目标指纹后，用其现有配对链接请求双向访问。                           |
+| `relationships approve <关系ID> <对端公钥> --confirm`                        | 在接收方核对发起 Host 的指纹，批准双向访问。                             |
+| `relationships sync <关系ID>`                                                | 读取对方审批，完成已认证的双向握手。                                     |
+| `relationships enroll <关系ID> --out <新私密文件绝对路径>`                   | 为当前 CLI Client 登记并私密保存独立凭据；标准输出仅含 Host 和设备标识。 |
+| `relationships disconnect <关系ID> --confirm`                                | 撤销派生访问，保留独立手机授权及远端数据；对方未确认时保留待撤销状态。   |
+
+用现有 `--host` / `--token-file` 选定准确的本机所有者。在另一台本机 Host 上执行 `enroll`，为其 CLI Client 独立登记；`device-probe --device-file <私密文件绝对路径>` 读取该 Client 的真实远端 Feed。手机不能通过设备网关调用关系登记。发起结果不确定时先读取 `relationships list`，不要盲目重发。E1 保留待对端确认的撤销；对方恢复在线后的自动重试属于 E4。
+
 ### 可恢复的 Zip 上传与导入
 
 连接手机使用的同一个已认证 Host，运行 `bot-zip-upload --from-zip <文件> --upload-key <稳定键> --host <地址>`。结果包含 `sha256`、`sizeBytes`、`offset`、`chunkBytes` 和 `expiresAt`。命令通过 `zipUploadBegin` 和 `zipUploadChunk` 上传，使用相同键和文件可继续已确认的分块。每块原始数据为 256 KiB，base64 请求封装后仍小于加密设备通道的 4 MiB 限制。

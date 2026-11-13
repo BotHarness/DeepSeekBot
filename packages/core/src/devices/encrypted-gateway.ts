@@ -120,6 +120,7 @@ export function createEncryptedGateway(options: {
     signal: AbortSignal;
   }) => Promise<VoiceCallResult>;
   verifyEnrollment?: (body: string, signature: string) => Promise<OfferVerification>;
+  relationship?: (peerKey: string, command: unknown) => Promise<Record<string, unknown>>;
 }) {
   const server = new WebSocketServer({
     noServer: true,
@@ -629,6 +630,12 @@ export function createEncryptedGateway(options: {
       const type = input['type'];
       if (!admitted) {
         const publicKey = Buffer.from(channel.peerKey()).toString('hex');
+        if (type === 'relationship') {
+          if (!options.relationship) return refuse('relationship-unavailable');
+          const result = await options.relationship(publicKey, input['command']);
+          if (!closed) send({ type: 'relationship-result', ...result });
+          return;
+        }
         if (type === 'pair') {
           let offer = field(input, 'offer');
           let accountAutoApprove = false;

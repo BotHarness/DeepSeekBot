@@ -42,7 +42,11 @@ export type OfferStatus =
   | { receipt: string; state: 'expired' | 'refused' | 'superseded'; settledAt: string }
   | { receipt: string; state: 'unknown' };
 
-export type OfferRefusal = 'offer-invalid' | 'offer-expired' | 'device-approval-required';
+export type OfferRefusal =
+  | 'offer-invalid'
+  | 'offer-expired'
+  | 'device-approval-required'
+  | 'relationship-inactive';
 export type DeviceRefusal = 'device-credential-missing' | 'device-unknown' | 'device-revoked';
 
 export type Redemption =
@@ -68,8 +72,13 @@ export interface PendingDeviceKey {
 
 export interface DevicePairing {
   host(): HostIdentity;
-  createOffer(binding?: { verifierHash: string; name?: string }): PairingOffer;
+  createOffer(binding?: {
+    verifierHash?: string;
+    name?: string;
+    relationshipId?: string;
+  }): PairingOffer;
   offerStatus(receipt: string): OfferStatus;
+  claimRelationshipOffer(offer: string): boolean;
   redeem(input: {
     offer: string;
     name?: string;
@@ -153,6 +162,7 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
       name?: string;
       publicKey?: string;
       approved?: boolean;
+      relationshipId?: string;
     }
   >();
   const settled = new Map<string, OfferStatus>();
@@ -187,7 +197,16 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
     );
 
   const active = (current: Row): Admission => {
-    if (current.revoked_at !== null) {
+    const disconnected = database.read((connection) =>
+      connection
+        .prepare(
+          `SELECT 1 FROM relationship_device_grants AS grant_ref
+       JOIN host_relationships AS relationship ON relationship.relationship_id = grant_ref.relationship_id
+       WHERE grant_ref.device_id = ? AND relationship.state != 'active'`,
+        )
+        .get(current.device_id),
+    );
+    if (current.revoked_at !== null || disconnected !== undefined) {
       record({ phase: 'device-refused', code: 'device-revoked', deviceId: current.device_id });
       return { ok: false, code: 'device-revoked' };
     }
@@ -271,6 +290,16 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
                 }),
           };
       return settled.get(receipt) ?? { receipt, state: 'unknown' };
+    },
+
+    claimRelationshipOffer(offer) {
+      sweep();
+      const key = digest(offer).toString('hex');
+      const open = offers.get(key);
+      if (!open || open.publicKey !== undefined || open.verifierHash !== undefined) return false;
+      offers.delete(key);
+      settle(open.receipt, { state: 'superseded' });
+      return true;
     },
 
     requestKey(input) {
@@ -358,15 +387,37 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
       const secret = token(32);
       const pairedAt = iso(now());
       const name = deviceName(input.name ?? open.name);
-      database.transaction(
-        (connection) =>
+      const issued = database.transaction(
+        (connection) => {
+          if (
+            open.relationshipId !== undefined &&
+            !connection
+              .prepare(
+                "SELECT 1 FROM host_relationships WHERE relationship_id = ? AND state = 'active'",
+              )
+              .get(open.relationshipId)
+          )
+            return false;
           connection
             .prepare(
               'INSERT INTO paired_devices (device_id, name, secret_hash, paired_at, public_key) VALUES (?, ?, ?, ?, ?)',
             )
-            .run(id, name, digest(secret).toString('hex'), pairedAt, input.publicKey ?? null),
+            .run(id, name, digest(secret).toString('hex'), pairedAt, input.publicKey ?? null);
+          if (open.relationshipId !== undefined)
+            connection
+              .prepare(
+                'INSERT INTO relationship_device_grants (device_id, relationship_id) VALUES (?, ?)',
+              )
+              .run(id, open.relationshipId);
+          return true;
+        },
         ['paired-devices'],
       );
+      if (!issued) {
+        settle(open.receipt, { state: 'refused' });
+        record({ phase: 'offer-refused' });
+        return { ok: false, code: 'relationship-inactive' };
+      }
       settle(open.receipt, { state: 'redeemed', deviceId: id });
       record({ phase: 'offer-redeemed', deviceId: id });
       options.onPaired?.({ id, name, pairedAt });
