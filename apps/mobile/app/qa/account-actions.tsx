@@ -102,7 +102,7 @@ function AccountScenario({
           }
         }}
       />
-      {scenario === 'environments' ? null : (
+      {scenario === 'environments' || scenario.startsWith('connection-diagnostics') ? null : (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: space.x4 }}>
           <Text>{t.accountFixture.notice}</Text>
           <Button
