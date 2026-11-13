@@ -3136,11 +3136,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       compactBot,
       compactReservedSession,
     },
-    composerIdentity: () =>
+    composerIdentity: (human) =>
       composerRecoveryIdentity(
         join(homedir(), '.config', 'botharness', 'composer-host-id'),
         join(core.rootDir, '..', 'composer-profile-id'),
-        core.channels.humanIdentity(OWNER_HUMAN_CONTEXT).humanId,
+        human.humanId,
       ),
     warn: (message) => ctx.logger.warn(message),
     registry: core.registry,

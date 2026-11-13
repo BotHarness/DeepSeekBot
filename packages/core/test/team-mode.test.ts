@@ -1,5 +1,6 @@
 import { createServer, IncomingMessage } from 'node:http';
 import { Socket } from 'node:net';
+import { readFileSync } from 'node:fs';
 import { createChannelLiveHub } from '../src/channels/live.js';
 import { openLiveFrames } from '../src/channels/live-frames.js';
 import { createChannelManagement } from '../src/channels/management.js';
@@ -13,12 +14,19 @@ import { TypertGatewayService } from '@deepseek-ai/dsh-api-gateway';
 import { RemoteAccessService } from '@deepseek-ai/dsh-api-remote-access';
 import { TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 import { TeamService, TeamError } from '../src/team/service.js';
 import { ARGON2_PARAMS, hashPassword, verifyPassword } from '../src/team/password.js';
 import { SignInRateLimit } from '../src/team/rate-limit.js';
-import { memberPolicy, MEMBER_GLOBAL_METHODS, MEMBER_CHANNEL_METHODS } from '../src/team/policy.js';
+import { memberPolicy } from '../src/team/policy.js';
+import {
+  MEMBER_GLOBAL_METHODS,
+  MEMBER_CHANNEL_METHODS,
+  MEMBER_METHODS,
+} from '../src/team/member-methods.js';
 import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
 import { createBridgeMethodsForHumans } from '../src/bridge/methods.js';
+import { composerRecoveryIdentity } from '../src/bridge/composer-recovery.js';
 import { registerBridge, resolveInvocationHuman } from '../src/bridge/rpc.js';
 import { humanContext, OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
 import { attachOperationalModule } from '../src/database/owner.js';
@@ -69,6 +77,12 @@ function teamFixture(options: { urls?: () => string[]; now?: () => number } = {}
     ownership: createTestOwnership(),
     roster: createTestRosterStore({ database: db }),
     humanAttention: createHumanAttentionQuery(database),
+    composerIdentity: (human = owner) =>
+      composerRecoveryIdentity(
+        join(root, 'composer-host-id'),
+        join(root, 'composer-profile-id'),
+        human.humanId,
+      ),
     channelManagement: createChannelManagement({
       database,
       registry,
@@ -320,6 +334,92 @@ describe('Host members', { timeout: 60_000 }, () => {
 });
 
 describe('member confidentiality', { timeout: 60_000 }, () => {
+  it('keeps the shared member-method contract dependency-free and its denials explicit', () => {
+    const source = readFileSync(new URL('../src/team/member-methods.ts', import.meta.url), 'utf8');
+    expect(source).not.toMatch(/\bimport\b/u);
+    expect([...MEMBER_METHODS]).toEqual([...MEMBER_GLOBAL_METHODS, ...MEMBER_CHANNEL_METHODS]);
+    expect(MEMBER_METHODS.has('composerIdentity')).toBe(true);
+    for (const method of [
+      'humanAttentionStatus',
+      'channelGet',
+      'channelSendStatus',
+      'followActivity',
+    ])
+      expect(MEMBER_METHODS.has(method)).toBe(false);
+  });
+  it('returns only opaque composer ids and the calling Human, never the Owner identity', async () => {
+    const f = await enabledFixture();
+    await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
+    const member = await f.team.signIn('bob', 'member-password-1', 'ip');
+    const invoke = (peer: typeof member.peer) =>
+      f.gateway.invoke({ namespace: 'botharness', method: 'composerIdentity', args: {}, peer });
+    const identitySchema = z
+      .object({ hostId: z.string(), profileId: z.string(), humanId: z.string() })
+      .strict();
+    const ownerIdentity = identitySchema.parse(
+      await invoke(new Peer(f.ctx, { principal: { kind: 'owner' } })),
+    );
+    const memberIdentity = identitySchema.parse(await invoke(member.peer));
+    expect(ownerIdentity).toEqual({
+      hostId: expect.any(String),
+      profileId: expect.any(String),
+      humanId: owner.humanId,
+    });
+    expect(memberIdentity).toEqual({
+      hostId: expect.stringMatching(/^[0-9a-f-]{36}$/u),
+      profileId: expect.stringMatching(/^[0-9a-f-]{36}$/u),
+      humanId: f.human.humanId,
+    });
+    expect(memberIdentity).toMatchObject({
+      hostId: ownerIdentity.hostId,
+      profileId: ownerIdentity.profileId,
+    });
+    expect(JSON.stringify(memberIdentity)).not.toContain('local-human');
+    expect(JSON.stringify(memberIdentity)).not.toContain(f.channels.rootDir);
+  });
+
+  it('keeps unscoped attention status denied when only the Owner has attention', async () => {
+    const f = await enabledFixture();
+    f.registry.create({ slug: 'private-attention', displayName: 'Private attention Bot' });
+    const dm = f.channels.getOrCreateDm(owner, 'private-attention', 'Private attention DM')!;
+    await f.channels.appendMessage(owner, dm.id, {
+      id: 'owner-attention-secret',
+      at: '2026-11-14T00:00:00Z',
+      author: { kind: 'bot', slug: 'private-attention' },
+      body: 'Owner-only attention body',
+      grantRequest: true,
+    });
+    await f.channels.appendMessage(owner, dm.id, {
+      id: 'owner-unread-secret',
+      at: '2026-11-14T00:00:01Z',
+      author: { kind: 'bot', slug: 'private-attention' },
+      body: 'Owner-only unread body',
+    });
+    const query = createHumanAttentionQuery(f.database);
+    const ownerStatus = query.status(owner, true);
+    expect(ownerStatus.unreadCount).toBeGreaterThan(0);
+    expect(ownerStatus.hasAction).toBe(true);
+    expect(query.status(f.human, true)).toEqual(ownerStatus);
+    expect(f.team.belongs(f.human, dm.id)).toBe(false);
+    await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
+    const member = await f.team.signIn('bob', 'member-password-1', 'ip');
+    await expect(
+      f.gateway.invoke({
+        namespace: 'botharness',
+        method: 'humanAttentionStatus',
+        args: { messageCounts: true },
+        peer: member.peer,
+      }),
+    ).rejects.toMatchObject({ code: 'remote-access/denied' });
+    await expect(
+      f.gateway.invoke({
+        namespace: 'botharness',
+        method: 'humanAttentionStatus',
+        args: { messageCounts: true },
+        peer: new Peer(f.ctx, { principal: { kind: 'owner' } }),
+      }),
+    ).resolves.toEqual(ownerStatus);
+  });
   it('scopes both roster carriers to current membership, including purges and queued frames', async () => {
     const f = await enabledFixture();
     const dm = f.channels.getOrCreateDm(owner, 'secret-bot', 'Owner secret DM')!;
