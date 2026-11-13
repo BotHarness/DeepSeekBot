@@ -198,3 +198,52 @@ it('reports an unconfirmed outcome when stopping the active route loses the repl
   ).rejects.toThrow('connection-management-unconfirmed');
   expect(sources.getSnapshot().hosts).toHaveLength(2);
 });
+
+it('persists selection only for the selected browser Host and restores it through its existing store', async () => {
+  const { sources, values, storage } = fixture();
+  await manageConnections(
+    sources,
+    {
+      action: 'select-route',
+      hostId: 'a',
+      route: 'http://127.0.0.1:47001',
+      confirm: true,
+    },
+    request(),
+  );
+  const records = JSON.parse(values.get(REMOTE_HOSTS_STORAGE_KEY)!);
+  expect(records.find((host: SavedHost) => host.hostId === 'a').routePreference).toBe(
+    'http://127.0.0.1:47001',
+  );
+  expect(records.find((host: SavedHost) => host.hostId === 'b').routePreference).toBeUndefined();
+  const restored = createRemoteHosts({ storage, carrier: new FakeHost().carrier });
+  expect(restored.client('a')!.getSnapshot().routePreference).toBe('http://127.0.0.1:47001');
+  await manageConnections(
+    sources,
+    { action: 'select-route', hostId: 'a', route: 'automatic', confirm: true },
+    request(),
+  );
+  expect(sources.client('a')!.getSnapshot().routePreference).toBeUndefined();
+  expect(JSON.parse(values.get(REMOTE_HOSTS_STORAGE_KEY)!)[0].routePreference).toBeUndefined();
+});
+
+it('keeps the prior browser policy when canonical persistence fails', async () => {
+  const { sources, storage } = fixture();
+  vi.spyOn(storage, 'setItem').mockImplementation(() => {
+    throw Error('disk full');
+  });
+  await expect(
+    manageConnections(
+      sources,
+      {
+        action: 'select-route',
+        hostId: 'a',
+        route: 'http://127.0.0.1:47001',
+        confirm: true,
+      },
+      request(),
+    ),
+  ).rejects.toThrow('connection-preference-not-saved');
+  expect(sources.client('a')!.getSnapshot().routePreference).toBeUndefined();
+  expect(sources.getSnapshot().hosts[0]!.host.routePreference).toBeUndefined();
+});

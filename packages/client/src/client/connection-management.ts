@@ -35,6 +35,11 @@ export function observedHost(remote: RemoteHost) {
     hostId: remote.host.hostId,
     name: remote.host.hostName,
     status: connection.status,
+    routePreference:
+      remote.snapshot.routePreference === undefined
+        ? 'automatic'
+        : address(remote.snapshot.routePreference),
+    routeChangePending: remote.snapshot.routeChangePending === true,
     currentRoute: address(connection.route),
     routes: (
       routes ?? remote.host.routes.map((url) => ({ url, status: 'unchecked' as const }))
@@ -51,6 +56,7 @@ const managementActions = new Set([
   'inspect-host',
   'forget-host',
   'test-route',
+  'select-route',
   'revoke-device',
   'stop-route',
 ]);
@@ -122,6 +128,17 @@ export async function manageConnections(
   const remote = sources.getSnapshot().hosts.find((entry) => entry.host.hostId === input.hostId);
   const client = remote && sources.client(remote.host.hostId);
   if (!remote || !client) throw new AppearanceError('connection-host-unknown');
+  if (input.action === 'select-route') {
+    if (input.confirm !== true) throw new AppearanceError('connection-confirmation-required');
+    if (typeof input.route !== 'string' || !client.setRoutePreference)
+      throw new AppearanceError('connection-route-unknown');
+    try {
+      await client.setRoutePreference(input.route === 'automatic' ? undefined : input.route);
+    } catch {
+      throw new AppearanceError('connection-preference-not-saved');
+    }
+    return { hostId: remote.host.hostId, preferenceSaved: true };
+  }
   if (input.action === 'inspect-host') return inspect(client, remote, request.signal);
   if (input.action === 'test-route') {
     const route = remote.snapshot.routes?.find((route) => route.url === input.route);

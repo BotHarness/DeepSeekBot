@@ -1056,6 +1056,7 @@
       "scope": "Client",
       "surfaces": [
         "setting:packages/client/src/client/connection-hosts.tsx:{device.name}",
+        "setting:packages/client/src/client/connection-hosts.tsx:{t('connections.hosts.preference')}",
         "setting:packages/client/src/client/connection-hosts.tsx:{host.name}",
         "setting:packages/client/src/client/connection-hosts.tsx:{route.address}",
         "setting:packages/client/src/client/connection-hosts.tsx:{t(kind === 'lan' ? 'connections.lan' : 'privateTunnel.title')}"

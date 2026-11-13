@@ -15,6 +15,7 @@ import { SettingsRow, SettingsSection } from './ds/settings-row.js';
 import { StatusDisclosure } from './ds/status-block.js';
 import { Note } from './ds/note.js';
 import { ConfirmDialog } from './ds/form-dialog.js';
+import { Select } from './ds/select.js';
 import { useHostLook } from './host-looks.js';
 import {
   isLanRoute,
@@ -79,7 +80,7 @@ function HostDetails({ remote, t }: { remote: RemoteHost; t: BotHarnessTranslate
       await run(input);
       if (live.current) {
         setConfirm(undefined);
-        await load();
+        if (input.action !== 'select-route') await load();
       }
     } catch {
       if (live.current) setFailed(true);
@@ -90,6 +91,43 @@ function HostDetails({ remote, t }: { remote: RemoteHost; t: BotHarnessTranslate
   const observed = observedHost(remote);
   return (
     <div ref={mount}>
+      <SettingsRow
+        title={t('connections.hosts.preference')}
+        description={t('connections.hosts.preferenceScope')}
+        control={
+          <Select
+            label={t('connections.hosts.preference')}
+            value={observed.routePreference}
+            disabled={busy}
+            options={[
+              { value: 'automatic', label: t('connections.hosts.automatic') },
+              ...[
+                ...new Set([
+                  ...observed.routes.map((route) => route.address),
+                  ...(observed.routePreference === 'automatic' ? [] : [observed.routePreference]),
+                ]),
+              ].map((route) => ({ value: route, label: `${routeLabel(route, t)} · ${route}` })),
+            ]}
+            onChange={(route) => void perform({ action: 'select-route', route, confirm: true })}
+          />
+        }
+      />
+      {observed.routeChangePending ? <Note>{t('connections.hosts.switchPending')}</Note> : null}
+      {observed.routePreference !== 'automatic' ? (
+        <>
+          <Note>{t('connections.hosts.manualHint')}</Note>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={busy}
+            onClick={() =>
+              void perform({ action: 'select-route', route: 'automatic', confirm: true })
+            }
+          >
+            {t('connections.hosts.returnAutomatic')}
+          </Button>
+        </>
+      ) : null}
       {observed.routes.map((route) => (
         <SettingsRow
           key={route.address}
