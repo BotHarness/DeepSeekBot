@@ -129,16 +129,21 @@ describe('exact remote Bot settings target', () => {
     const replacement = fixture('host-b');
     let current: HostClient | undefined = original.client;
     let resolve: (value: unknown) => void = () => {};
+    let reached: () => void = () => {};
+    const started = new Promise<void>((done) => {
+      reached = done;
+    });
     original.host.methods.set(
       'get',
       () =>
         new Promise((done) => {
           resolve = done;
+          reached();
         }),
     );
     const client = remoteBotSettingsClient(original.target, () => current);
     const pending = client.call('get', { slug: 'same-bot' });
-    await new Promise<void>((done) => setTimeout(done, 0));
+    await started;
     current = replacement.client;
     resolve({ bot: { slug: 'same-bot' } });
     await expect(pending).rejects.toThrow('remote-bot-settings-unavailable');
