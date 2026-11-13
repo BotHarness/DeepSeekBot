@@ -227,7 +227,12 @@ export function createConnectAccount(options: {
     try {
       return { ok: true, value: await serial(work) };
     } catch (error) {
-      if (!(error instanceof Refused)) return { ok: false, code: 'relay-unavailable' };
+      if (!(error instanceof Refused))
+        return {
+          ok: false,
+          code: 'relay-unavailable',
+          diagnostic: connectionDiagnostic({ code: 'relay-unavailable', phase: 'account' }),
+        };
       return {
         ok: false,
         code: error.code,
@@ -293,15 +298,21 @@ export function createConnectAccount(options: {
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     const context = { phase: requestPhase(`${relay}${path}`), status: reply.status };
+    const safeErrorDetail = (code: string, cause?: unknown) =>
+      connectionDiagnostic({
+        code: 'relay-unavailable',
+        phase: context.phase,
+        detail: relayFailureDetail(code, cause),
+      }).detail;
     const error = record(reply.body['error']);
     const code = error['code'];
     if (reply.status === 401) throw new Refused('sign-in-required', undefined, context);
     if (code === 'account-not-allowed')
       throw new Refused('account-not-allowed', undefined, context);
     if (code === 'host-offline')
-      throw new Refused('host-offline', relayFailureDetail(code, error['cause']), context);
+      throw new Refused('host-offline', safeErrorDetail(code, error['cause']), context);
     if (code === 'host-refused')
-      throw new Refused('host-refused', relayFailureDetail(code, error['cause']), context);
+      throw new Refused('host-refused', safeErrorDetail(code, error['cause']), context);
     if (reply.status === 404 && code === 'host-not-found')
       throw new Refused('host-not-found', undefined, context);
     if (reply.status === 409 && (code === 'current-host' || code === 'session-unknown'))
@@ -309,7 +320,8 @@ export function createConnectAccount(options: {
     if (reply.status !== 200)
       throw new Refused(
         'relay-unavailable',
-        relayFailureDetail(typeof code === 'string' ? code : `http-${reply.status}`),
+        safeErrorDetail(typeof code === 'string' ? code : `http-${reply.status}`) ??
+          `relay:http-${reply.status}`,
         context,
       );
     return reply.body;
@@ -550,7 +562,10 @@ export function createConnectAccount(options: {
     if (typeof token !== 'string') {
       if (reply.status >= 400 && reply.status < 500) {
         if (!session.action) await save(undefined);
-        throw new Refused('sign-in-required');
+        throw new Refused('sign-in-required', undefined, {
+          phase: 'sign-in-session',
+          status: reply.status,
+        });
       }
       throw new Refused(
         'relay-unavailable',

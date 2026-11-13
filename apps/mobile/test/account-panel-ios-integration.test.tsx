@@ -482,8 +482,9 @@ it('recovers the native QA scenario after unlink succeeds but refreshing the lis
 });
 
 it('shows a safe, copyable account-list diagnostic after refresh fails', async () => {
-  await render('connection-diagnostics-list');
+  const { fixture } = await render('connection-diagnostics-list');
   await click('account-refresh');
+  const requestsBeforeDetails = fixture.getSnapshot();
   expect(host.textContent).toContain(t.pairRefused['relay-unavailable']);
   expect(button('account-computer-hstudio')).toBeTruthy();
   await click('connection-details-account');
@@ -494,4 +495,5 @@ it('shows a safe, copyable account-list diagnostic after refresh fails', async (
   const clipboard = await import('expo-clipboard');
   expect(clipboard.setStringAsync).toHaveBeenCalledWith(expect.stringContaining('http: 503'));
   expect(button('connection-copy-account').textContent).toBe(t.connectionDiagnostic.copied);
+  expect(fixture.getSnapshot()).toBe(requestsBeforeDetails);
 });
