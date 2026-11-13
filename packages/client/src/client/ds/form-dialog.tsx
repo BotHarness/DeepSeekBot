@@ -71,6 +71,7 @@ export function FormDialog({
   showCancel = true,
   scroll = false,
   submitData,
+  inline = false,
   children,
 }: {
   readonly title: string;
@@ -89,6 +90,7 @@ export function FormDialog({
   readonly showCancel?: boolean;
   readonly scroll?: boolean;
   readonly submitData?: Readonly<Record<`data-${string}`, string>>;
+  readonly inline?: boolean;
   readonly children?: ReactNode;
 }): ReactElement {
   const formId = useId();
@@ -97,6 +99,58 @@ export function FormDialog({
     event.preventDefault();
     if (!blocked) onSubmit?.();
   };
+  const footer = (
+    <div {...stylex.props(styles.footer)}>
+      {secondary === undefined ? null : (
+        <>
+          {secondary}
+          <span {...stylex.props(styles.spacer)} />
+        </>
+      )}
+      {showCancel ? (
+        <Button type="button" variant="outline" disabled={busy} onClick={onCancel}>
+          {labels.cancel}
+        </Button>
+      ) : null}
+      {onSubmit === undefined ? null : (
+        <Button
+          {...submitData}
+          type="submit"
+          form={formId}
+          variant="primary"
+          disabled={blocked}
+          aria-busy={busy || undefined}
+          className={danger ? (stylex.props(styles.danger).className ?? '') : undefined}
+        >
+          {submitLabel}
+        </Button>
+      )}
+    </div>
+  );
+  const body = (
+    <form
+      id={formId}
+      noValidate
+      onSubmit={submit}
+      {...stylex.props(styles.form, scroll && styles.scroll)}
+    >
+      {children}
+      {error === undefined || error === null || error === false ? null : (
+        <p role="alert" {...stylex.props(styles.error)}>
+          {error}
+        </p>
+      )}
+    </form>
+  );
+  if (inline) {
+    return (
+      <section aria-label={title} {...stylex.props(styles.form)}>
+        {description === undefined ? null : <p>{description}</p>}
+        {body}
+        {footer}
+      </section>
+    );
+  }
   return (
     <Modal
       open
@@ -105,48 +159,9 @@ export function FormDialog({
       title={title}
       {...(description === undefined ? {} : { description })}
       className={stylex.props(styles[size]).className ?? ''}
-      footer={
-        <div {...stylex.props(styles.footer)}>
-          {secondary === undefined ? null : (
-            <>
-              {secondary}
-              <span {...stylex.props(styles.spacer)} />
-            </>
-          )}
-          {showCancel ? (
-            <Button type="button" variant="outline" disabled={busy} onClick={onCancel}>
-              {labels.cancel}
-            </Button>
-          ) : null}
-          {onSubmit === undefined ? null : (
-            <Button
-              {...submitData}
-              type="submit"
-              form={formId}
-              variant="primary"
-              disabled={blocked}
-              aria-busy={busy || undefined}
-              className={danger ? (stylex.props(styles.danger).className ?? '') : undefined}
-            >
-              {submitLabel}
-            </Button>
-          )}
-        </div>
-      }
+      footer={footer}
     >
-      <form
-        id={formId}
-        noValidate
-        onSubmit={submit}
-        {...stylex.props(styles.form, scroll && styles.scroll)}
-      >
-        {children}
-        {error === undefined || error === null || error === false ? null : (
-          <p role="alert" {...stylex.props(styles.error)}>
-            {error}
-          </p>
-        )}
-      </form>
+      {body}
     </Modal>
   );
 }

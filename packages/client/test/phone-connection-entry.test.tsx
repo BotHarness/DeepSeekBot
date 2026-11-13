@@ -8,6 +8,7 @@ import { zhTranslate as t } from '../src/client/locale.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Button: 'button',
+  Input: 'input',
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
   relativeTime: () => ({ unit: 'minute', n: 1 }),
 }));
@@ -112,7 +113,7 @@ it('prepares LAN only after choosing it in Add connection, then shows the invita
   await render(false);
   expect(button(t('devices.lan.enable'))).toBeUndefined();
   await click('添加连接');
-  await click('让设备连接本机');
+  await click(t('connections.invite'));
   await click(t('connections.phoneApp.ready'));
   await click('局域网');
   expect(posts).toEqual([]);
@@ -378,4 +379,23 @@ it('cannot bypass installation confirmation by going Back from the phone guide',
   expect(host.querySelector('[data-phone-app-guide]')).not.toBeNull();
   expect(posts).toEqual([]);
   expect(host.querySelector('[data-pair-qr]')).toBeNull();
+});
+
+it('keeps computer link entry inside the shared dialog and returns to both intents without publishing', async () => {
+  await act(async () => root.render(<ConnectionsDialog t={t} onClose={() => undefined} />));
+  await click(t('connections.add'));
+  expect(button(t('connections.invite')).querySelector('svg')).not.toBeNull();
+  expect(button(t('connections.join')).querySelector('svg')).not.toBeNull();
+  await click(t('connections.join'));
+  expect(host.querySelectorAll('[role="dialog"]')).toHaveLength(1);
+  expect(host.textContent).toContain(t('connections.joinHint'));
+  expect(host.querySelector('input')).not.toBeNull();
+  expect(host.querySelector('[data-phone-app-guide]')).toBeNull();
+  expect(host.querySelector('[data-remote-host-add-submit]')?.hasAttribute('disabled')).toBe(true);
+  expect(posts).toEqual([]);
+  await click(t('connections.back'));
+  expect(button(t('connections.join'))).toBeDefined();
+  await click(t('connections.invite'));
+  expect(host.querySelector('[data-phone-app-guide]')).not.toBeNull();
+  expect(posts).toEqual([]);
 });

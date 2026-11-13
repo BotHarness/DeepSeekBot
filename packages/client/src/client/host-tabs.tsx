@@ -323,9 +323,13 @@ const PAIR_ERRORS: Partial<Record<string, BotHarnessKey>> = {
 
 export function AddRemoteHostDialog({
   onClose,
+  onBack,
+  inline = false,
   t,
 }: {
   onClose: () => void;
+  onBack?: (() => void) | undefined;
+  inline?: boolean;
   t: BotHarnessTranslate;
 }): ReactElement {
   const [link, setLink] = useState('');
@@ -395,7 +399,12 @@ export function AddRemoteHostDialog({
   return (
     <FormDialog
       title={t('connections.join')}
-      labels={{ close: t('common.close'), cancel: t('common.cancel') }}
+      inline={inline}
+      description={!attempt ? t('connections.joinHint') : undefined}
+      labels={{
+        close: t('common.close'),
+        cancel: t(onBack ? 'connections.back' : 'common.cancel'),
+      }}
       submitLabel={t(
         attempt?.state === 'connected' || attempt?.saved
           ? 'connections.done'
@@ -410,7 +419,8 @@ export function AddRemoteHostDialog({
           ? t(PAIR_ERRORS[attempt.code ?? ''] ?? 'remoteHosts.error.unreachable')
           : undefined)
       }
-      onCancel={onClose}
+      onCancel={onBack ?? onClose}
+      onClose={onClose}
       onSubmit={submit}
       submitData={{ 'data-remote-host-add-submit': '' }}
     >
@@ -424,7 +434,7 @@ export function AddRemoteHostDialog({
           </div>
         ) : attempt?.state === 'approve-device' ? (
           <div role="status">
-            <p>{t('connect.pending')}</p>
+            <p>{t('connections.approveOn', { name: attempt.hostName ?? '' })}</p>
             <code>{attempt.deviceFingerprint}</code>
           </div>
         ) : attempt?.state === 'connected' ? (
