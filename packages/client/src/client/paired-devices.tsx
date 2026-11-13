@@ -1,3 +1,4 @@
+import { ConnectionHosts } from './connection-hosts.js';
 import { MobileAppDownloads } from './mobile-apps.js';
 import { PrivateRelaySettings } from './private-relay-settings.js';
 import {
@@ -606,6 +607,9 @@ export function PairedDevicesSettings({
           />
           <SettingsRow
             title={t('connections.methods')}
+            description={
+              snapshot ? t('connections.hosts.local', { name: snapshot.host.name }) : undefined
+            }
             control={
               <Button
                 variant="outline"
@@ -628,6 +632,13 @@ export function PairedDevicesSettings({
             />
           ) : null}
         </SettingsSection>
+      ) : null}
+      {standalone && section === 'devices' && overview ? (
+        <ConnectionHosts
+          key={signIn?.email ?? 'signed-out'}
+          t={t}
+          accountLinked={signIn?.state === 'signed-in' || signIn?.issue === 'host-limit'}
+        />
       ) : null}
       {reviewing && !pairing ? (
         <ConnectionPanel

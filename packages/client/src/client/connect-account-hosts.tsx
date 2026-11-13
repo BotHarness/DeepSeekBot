@@ -9,7 +9,7 @@ import { useMountedResource } from './mounted-resource.js';
 
 const PATH = './api/botharness/devices/account-hosts';
 
-function parseHosts(value: unknown): ConnectedHost[] {
+export function parseConnectedHosts(value: unknown): ConnectedHost[] {
   if (
     typeof value !== 'object' ||
     value === null ||
@@ -32,7 +32,21 @@ function parseHosts(value: unknown): ConnectedHost[] {
       (host.connected !== undefined && typeof host.connected !== 'boolean')
     )
       throw new Error('invalid-host-list');
+    const identity = host.botNetwork;
+    if (
+      identity !== undefined &&
+      (typeof identity !== 'object' ||
+        identity === null ||
+        typeof identity.hostId !== 'string' ||
+        !identity.hostId ||
+        typeof identity.publicKey !== 'string' ||
+        !/^[a-f0-9]{64}$/u.test(identity.publicKey))
+    )
+      throw new Error('invalid-host-list');
     hosts.push({
+      ...(identity === undefined
+        ? {}
+        : { botNetwork: { hostId: identity.hostId, publicKey: identity.publicKey } }),
       id: host.id,
       name: host.name,
       hostname: host.hostname,
@@ -72,7 +86,7 @@ export function ConnectAccountHosts({
         signal: AbortSignal.any([controller.signal, AbortSignal.timeout(12_000)]),
       });
       if (!response.ok) throw new Error('host-list-unavailable');
-      const next = parseHosts(await response.json());
+      const next = parseConnectedHosts(await response.json());
       if (!mounted.current || controller.signal.aborted) return;
       setHosts(next);
       setListState('fresh');

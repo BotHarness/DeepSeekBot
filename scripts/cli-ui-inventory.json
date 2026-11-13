@@ -1049,6 +1049,18 @@
         "route:packages/core/src/plugin.ts:`${MESSAGE_FEEDBACK_PATH}/${action}` in MESSAGE_FEEDBACK_ACTIONS"
       ],
       "commands": ["feedback-preview", "feedback-download", "feedback-submit"]
+    },
+    {
+      "id": "remote-connection-management",
+      "description": "One selected browser Client observes routes and uses its target Host authorization; local removal is separate from Host revocation and route stop.",
+      "scope": "Client",
+      "surfaces": [
+        "setting:packages/client/src/client/connection-hosts.tsx:{device.name}",
+        "setting:packages/client/src/client/connection-hosts.tsx:{host.name}",
+        "setting:packages/client/src/client/connection-hosts.tsx:{route.address}",
+        "setting:packages/client/src/client/connection-hosts.tsx:{t(kind === 'lan' ? 'connections.lan' : 'privateTunnel.title')}"
+      ],
+      "commands": ["connection-hosts", "connection-host", "connect-account-hosts"]
     }
   ]
 }

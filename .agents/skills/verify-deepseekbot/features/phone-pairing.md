@@ -1,5 +1,9 @@
 # Phone pairing and paired devices
 
+## Host grouping and scoped management (#4076)
+
+In the shared Connections dialog, pair two disposable Hosts. Give one Host LAN plus another existing supported route and verify a single row with current/verified/unreachable/unchecked route observations. Match account grouping using authenticated registration Host ID plus pinned key; same names or addresses and mismatched keys must not merge, and discovered unpaired entries have no management controls. Expand the selected Host, test an alternative route, and compare `connection-hosts`/`connection-host inspect` through its explicit Client ID. Confirm that client-local removal leaves the Host grant/data and the other Host intact. Separately revoke a disposable device on the selected target, then stop one owned route while preserving an alternative. Current-route interruption must remain unconfirmed until observed, never a fabricated success. Keep all credentials/private names out of published screenshots and report account-fixture versus official-service evidence separately.
+
 ## Simple phone connection choices (#4075)
 
 Enter the shared phone dialog from the Control Rail, Connections settings and optional intro step. Confirm the App is installed before any route preparation. Quick Tunnel and Tobs Connect appear first; Advanced methods reveals LAN/Tailscale. Selecting Connect must not sign in or publish until “Sign in and connect this computer” is pressed. Verify unavailable service and capacity refusals retain truthful state, show linked-computer management on a newly received account limit, and allow Quick fallback without sign-out or stopping another route. Only a ready route enables Continue; account login alone is not phone completion. Use disposable test accounts for real capacity → unlink → reconnect acceptance; isolated identity/relay fixtures do not qualify the official service or physical devices.

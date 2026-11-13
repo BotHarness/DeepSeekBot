@@ -93,6 +93,7 @@ export interface RemoteHosts {
     trust?: RemotePairTrust,
   ): Promise<HostPairResult>;
   remove(hostId: string): Promise<void>;
+  forgetLocal(hostId: string): Promise<void>;
   select(tab: string): void;
   open(target: RemoteConversationTarget): void;
   close(): void;
@@ -438,6 +439,19 @@ export function createRemoteHosts(options: {
       } finally {
         pairing.delete(parsed.payload.host.id);
       }
+    },
+    async forgetLocal(hostId) {
+      const entry = clients.get(hostId);
+      if (entry === undefined) return;
+      if (!storage) throw new Error('storage-unavailable');
+      const remaining = [...clients.values()]
+        .filter(({ host }) => host.hostId !== hostId)
+        .map(({ host }) => serializeSavedHost(host));
+      if (remaining.length === 0) storage.removeItem(REMOTE_HOSTS_STORAGE_KEY);
+      else storage.setItem(REMOTE_HOSTS_STORAGE_KEY, JSON.stringify(remaining));
+      const releasing = releaseRemoteHostViewers(entry.client);
+      forget(hostId);
+      await releasing;
     },
     async remove(hostId) {
       const entry = clients.get(hostId);

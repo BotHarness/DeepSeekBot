@@ -950,6 +950,20 @@ deepseekbot connection cancel --client-id <id> --connection-id <attempt>
 
 状态包括 `connecting`、`verify-host`、`approve-device`、`connected`、`failed` 和 `cancelled`，失败带有 `code`。同一操作 ID 和链接返回原操作状态，换链接则拒绝；每个挂载的 Client 控制会话最多保留 16 次操作。已接受操作最长等待五分钟；关闭或刷新页面、控制登记丢失都会取消未完成接入。过期命令不能启动操作。`saved: true` 后取消会保留已经保存的 Remote Host，需要时应明确移除。离线或失效目标直接拒绝，不回退到 CLI 或 Host 保存。该命令不授予 Tob 判断身份或批准设备的权限。
 
+### 管理指定浏览器中的电脑
+
+```bash
+deepseekbot connection-hosts --client-id <id>
+deepseekbot connection-host <host-id> inspect --client-id <id>
+deepseekbot connection-host <host-id> test-route <origin> --client-id <id>
+deepseekbot connection-host <host-id> remove --client-id <id> --confirm
+deepseekbot connection-host <host-id> revoke-device <device-id> --client-id <id> --confirm
+deepseekbot connection-host <host-id> stop-route lan --client-id <id> --confirm
+deepseekbot connection-host <host-id> stop-route private-tunnel --client-id <id> --confirm
+```
+
+通过现有 Client 控制通道执行，与连接对话框复用同一管理适配器。列表只返回 Host 标识、名称及实际线路观察，不返回设备凭据或私钥。`inspect` 使用该浏览器对目标 Host 的配对授权读取设备与可停止线路。`remove` 仅删除此浏览器的本地连接，保留 Host 数据和设备授权；`revoke-device` 在目标 Host 撤销指定设备；`stop-route` 只关闭指定目标的局域网监听或私有 Tunnel。停止当前线路或撤销当前设备可能令响应中断，未收到确认不能视为成功，需重新检查。未知 Host、线路、设备、过期请求和未确认写入均拒绝。账号分组不改变连接的登录/退出来源或授予管理权限。
+
 ### 模型、用量与活动
 
 ```bash
@@ -1552,7 +1566,7 @@ deepseekbot connect-account-revoke <host-id> --confirm --host <host> --token-fil
 `connect-sign-in` 用 `https://connect.botharness.ai` 上 relay 公布的 WorkOS client 发起 CLI Auth
 （设备授权流程；可用 `DEEPSEEKBOT_CONNECT_RELAY` 覆盖 relay 地址）。返回里有 `userCode` 和
 `verificationUri`；加 `--wait` 时 CLI 把它们打印到 stderr，并等 Host 完成登录。之后 Host 只把 refresh
-token 存进 DSH 凭据存储，把自己关联到账号（每个账号最多 3 台 Host），向 relay 申请隧道并像
+token 存进 DSH 凭据存储，把自己关联到账号（受服务端账号配额限制），向 relay 申请隧道并像
 `connect-enable` 一样运行，不再需要手工 token。登录期间隧道停掉时 Host 会重新向 relay 申请，所以
 Host 离线后被回收的隧道会在同一个 `<host-id>.deepseekbot.dev` 上恢复。`connect-status` 增加
 `connect.account`：`state`（`signed-out`、`signing-in`、`signed-in`、`error`）、`email`、`hostId`
@@ -1572,8 +1586,8 @@ Host 离线后被回收的隧道会在同一个 `<host-id>.deepseekbot.dev` 上�
 账号出错时，`connect.account.recovery` 区分 `automatic`（已保存的会话能自动重试注册或隧道设置）和 `sign-in`（需要再次主动登录）。所有权校验失败后不会恢复旧账号，界面提供相同的恢复指引。设备授权轮询在网络失败、没有 OAuth 错误的 HTTP 408/429/5xx 后延长间隔，仍在原授权到期时间停止；明确的 OAuth 拒绝仍会终止登录。`authorization_pending` 保留间隔，`slow_down` 增加五秒，遵循 [RFC 8628](https://www.rfc-editor.org/rfc/rfc8628.html#section-3.5)。
 
 `connect-account-hosts` 按需读取账号中的电脑；本机已关联时会标为 `current`。每行仅含
-`id`、`name`、`hostname`、`createdAt`、可选 `connected`、`current` 和 `sessionKnown`；
-缺少连接状态表示未知。它不会给 Devices 快照轮询增加 relay 请求。本机因三台限制而未关联时，
+`id`、`name`、`hostname`、`createdAt`、可选 `connected`、`current` 和 `sessionKnown`，以及可选的 `botNetwork: {hostId, publicKey}`。该公开身份来自已认证的 relay 登记，仅在 Host ID 与已固定公钥同时匹配时用于分组，不是凭据；
+缺少连接状态表示未知。它不会给 Devices 快照轮询增加 relay 请求。本机因账号配额限制而未关联时，
 仍可用已保存的账号会话读取列表。
 
 `connect-account-revoke` 必须带 `--confirm`，owner 在发请求前拒绝 `current-host`；本机退出仍用
