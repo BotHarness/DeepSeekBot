@@ -72,6 +72,38 @@ describe('Host client', () => {
     expect(acknowledgements()).toHaveLength(1);
   });
 
+  it('does not start a Feed acknowledgement after a stopped client finishes an old read', async () => {
+    const host = new FakeHost();
+    let release = () => {};
+    let reading = false;
+    let lists = 0;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    client = createHostClient({
+      routes: [ROUTE],
+      credential: host.credential,
+      timeoutMs: 500,
+      carrier: {
+        ...host.carrier,
+        request: async (url, init) => {
+          const response = await host.carrier.request(url, init);
+          if (url.endsWith('/botharness/list') && ++lists === 2) {
+            reading = true;
+            await held;
+          }
+          return response;
+        },
+      },
+    });
+    client.start();
+    await until(client, () => reading);
+    client.stop();
+    release();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(host.requests.some((request) => request.endsWith('/feed-read'))).toBe(false);
+  });
+
   it('does not acknowledge when the Host Feed cannot load', async () => {
     const host = new FakeHost();
     host.failing.add('list');

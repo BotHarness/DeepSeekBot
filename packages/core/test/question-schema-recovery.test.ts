@@ -363,7 +363,7 @@ it.each([
     );
     try {
       expect(owner.mode).toBe('ready');
-      expect(owner.diagnostics().generation).toBe(138);
+      expect(owner.diagnostics().generation).toBe(BOT_HARNESS_SCHEMA_PLAN.targetGeneration);
       let port = attachOperationalModule(owner, 'messaging');
       expect(
         port.read((db) =>

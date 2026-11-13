@@ -964,7 +964,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
   };
 
   const acknowledgeFeed = (): void => {
-    if (feedRead === 'acknowledged' || feedRead === 'unsupported' || feedAcknowledging) return;
+    if (!running || feedRead === 'acknowledged' || feedRead === 'unsupported' || feedAcknowledging)
+      return;
     feedAcknowledging = true;
     void withDeadline(async (signal) => {
       const response = await carrier.request(`${route}${DEVICE_PREFIX}/feed-read`, {
