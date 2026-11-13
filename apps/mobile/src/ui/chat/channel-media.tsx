@@ -7,8 +7,9 @@ import { useDesignTheme } from '../design/theme';
 import { channelMedia, radius, space } from '../design/tokens';
 import { ResourceImage as Image } from '../primitives/resource-image';
 import { Text } from '../primitives/text';
-import { FileIcon, PhotoIcon } from '../shell/icons';
+import { PhotoIcon } from '../shell/icons';
 import { useStrings } from '../strings';
+import { AttachmentFileTile } from './attachment-file-tile';
 
 export type ChannelFilesSegment = 'media' | 'files';
 
@@ -31,31 +32,7 @@ export function fileTypeLabel({ name, mime }: Pick<MessageAttachment, 'name' | '
 }
 
 export function FileTypeIcon({ attachment }: { attachment: MessageAttachment }) {
-  const theme = useDesignTheme();
-  const label = fileTypeLabel(attachment);
-  const Icon = attachment.kind === 'image' ? PhotoIcon : FileIcon;
-  return (
-    <View
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-      style={{
-        width: channelMedia.typeTile,
-        height: channelMedia.typeTile,
-        borderRadius: radius.sm,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: theme.layer.raised.inset,
-      }}
-    >
-      {label === '' ? (
-        <Icon color={theme.color.muted} size={theme.type.title.line} />
-      ) : (
-        <Text variant="meta" tone="muted" strong numberOfLines={1} adjustsFontSizeToFit>
-          {label}
-        </Text>
-      )}
-    </View>
-  );
+  return <AttachmentFileTile attachment={attachment} />;
 }
 
 export function MediaRow({
