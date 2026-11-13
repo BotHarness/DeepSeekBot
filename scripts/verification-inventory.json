@@ -839,6 +839,14 @@
       "gap": "Explicitly opted-in macOS0.2.1-rc.2 product composition qualified on representative input/popup/native guest paths; unknown versions/arbitrary pages are not qualified. Windows/Linux remain S3. CI and unmerged PR delivery are separate from runtime evidence."
     },
     {
+      "id": "client.team-mode",
+      "label": "Turn on Team mode, add a member with a one-time password, sign the member in and join a public channel",
+      "source": "packages/client/src/client/team-settings.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/team-mode.md",
+      "task": 4140,
+      "gap": "M1 tracer in progress: Owner UI and refusals are covered; the member browser journey over HTTPS from a second machine is verified per PR."
+    },
+    {
       "id": "client.global-search",
       "label": "Open global search with Alt/Option+K and find conversations and Bot settings by pinyin or English",
       "source": "packages/client/src/client/quick-switcher.tsx",
