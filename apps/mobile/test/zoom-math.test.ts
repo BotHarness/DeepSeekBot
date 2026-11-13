@@ -149,6 +149,13 @@ describe('image viewer zoom', () => {
     });
   });
 
+  it('keeps a long drag direction despite tiny release jitter, and follows a deliberate reverse flick', () => {
+    expect(dismissDirection(160, -20)).toBe(1);
+    expect(dismissDirection(-160, 20)).toBe(-1);
+    expect(dismissDirection(160, -1200)).toBe(-1);
+    expect(dismissDirection(-160, 1200)).toBe(1);
+  });
+
   it('closes on a long or fast vertical swipe and stays open on a short one', () => {
     expect(dismissDirection(60, 200)).toBe(0);
     expect(dismissDirection(160, 0)).toBe(1);

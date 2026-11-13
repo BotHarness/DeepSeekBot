@@ -77,5 +77,6 @@ export function settleZoom(current: Zoom, content: Size, frame: Size): Zoom {
 export function dismissDirection(distance: number, velocity: number): -1 | 0 | 1 {
   'worklet';
   if (Math.abs(distance) <= DISMISS_DISTANCE && Math.abs(velocity) <= DISMISS_VELOCITY) return 0;
-  return distance < 0 || velocity < 0 ? -1 : 1;
+  const intent = Math.abs(velocity) > DISMISS_VELOCITY ? velocity : distance;
+  return intent < 0 ? -1 : 1;
 }

@@ -1,3 +1,4 @@
+import { conversationPresentation } from './conversation-presentation';
 import type { NavigationAction, NavigationState, PartialState } from 'expo-router/react-navigation';
 import type { Stack } from 'expo-router';
 import type { ComponentProps } from 'react';
@@ -37,6 +38,7 @@ export function conversationRouteOptions({ route }: { route: { params?: object |
     title: '',
     headerShown: false,
     fullScreenGestureEnabled: true,
+    ...conversationPresentation,
     ...swipeEntryOptions(route),
   };
 }

@@ -1,5 +1,7 @@
 package expo.modules.dismissibledrawer
 
+import android.animation.ValueAnimator
+import android.view.animation.PathInterpolator
 import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Color
@@ -60,6 +62,9 @@ class EndSheetView(context: Context, appContext: AppContext) : ExpoView(context,
   private var active = true
   private var openingReported = false
   private var imeVisible = false
+  private var pageBack: ValueAnimator? = null
+  private var pageBackProgress = 0f
+  private var pageBackActive = false
   private var backCallback: OnBackInvokedCallback? = null
   var gesturesEnabled = true
   var fullWidth = false
@@ -148,13 +153,17 @@ class EndSheetView(context: Context, appContext: AppContext) : ExpoView(context,
       override fun onSlide(sheet: View, slideOffset: Float) {
         if (slideOffset > 0) reportOpening()
         updateScrim(slideOffset)
-        content.translationX = if (fullWidth) -panel.width * slideOffset else 0f
+        if (!pageBackActive) content.translationX = if (fullWidth) -panel.width * slideOffset else 0f
       }
       override fun onStateChanged(sheet: View, state: Int) {
         if (state != SideSheetBehavior.STATE_EXPANDED && state != SideSheetBehavior.STATE_HIDDEN) return
         val open = state == SideSheetBehavior.STATE_EXPANDED
         content.translationX = if (fullWidth && open) -panel.width.toFloat() else 0f
         updateScrim(if (open) 1f else 0f)
+        if (!open) {
+          pageBackActive = false
+          panel.translationX = 0f
+        }
         requestedOpen = open
         if (!open) openingReported = false
         content.importantForAccessibility = if (open) IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS else IMPORTANT_FOR_ACCESSIBILITY_AUTO
@@ -220,10 +229,40 @@ class EndSheetView(context: Context, appContext: AppContext) : ExpoView(context,
   }
 
   override fun onAttachedToWindow() { super.onAttachedToWindow(); post { syncBack() } }
-  override fun onDetachedFromWindow() { stopBack(); super.onDetachedFromWindow() }
+  override fun onDetachedFromWindow() { pageBack?.cancel(); stopBack(); super.onDetachedFromWindow() }
   private fun stopBack() {
     if (Build.VERSION.SDK_INT >= 33) backCallback?.let { findOnBackInvokedDispatcher()?.unregisterOnBackInvokedCallback(it) }
     backCallback = null
+  }
+  private fun renderPageBack(progress: Float) {
+    pageBackProgress = progress.coerceIn(0f, 1f)
+    panel.translationX = panel.width * pageBackProgress
+    content.translationX = -panel.width * (1f - pageBackProgress)
+  }
+  private fun settlePageBack(commit: Boolean) {
+    pageBack?.cancel()
+    val target = if (commit) 1f else 0f
+    pageBack = ValueAnimator.ofFloat(pageBackProgress, target).apply {
+      duration = if (ValueAnimator.areAnimatorsEnabled()) 180L else 0L
+      interpolator = PathInterpolator(0.05f, 0.7f, 0.1f, 1f)
+      addUpdateListener { renderPageBack(it.animatedValue as Float) }
+      addListener(object : android.animation.AnimatorListenerAdapter() {
+        private var cancelled = false
+        override fun onAnimationCancel(animation: android.animation.Animator) { cancelled = true }
+        override fun onAnimationEnd(animation: android.animation.Animator) {
+          if (cancelled) return
+          pageBackActive = false
+          if (commit) {
+            // Match Material's hidden layout before committing, avoiding a second settle.
+            panel.visibility = INVISIBLE
+            panel.offsetLeftAndRight(coordinator.width - panel.left)
+            panel.translationX = 0f
+            behavior.state = SideSheetBehavior.STATE_HIDDEN
+          }
+        }
+      })
+      start()
+    }
   }
   private fun syncBack() {
     if (Build.VERSION.SDK_INT < 33) return
@@ -231,15 +270,22 @@ class EndSheetView(context: Context, appContext: AppContext) : ExpoView(context,
     if (backCallback != null) return
     val callback = if (Build.VERSION.SDK_INT >= 34) object : OnBackAnimationCallback {
       override fun onBackStarted(event: BackEvent) {
-        if (fullWidth) content.translationX = 0f
-        behavior.startBackProgress(BackEventCompat(event))
+        if (fullWidth) {
+          pageBack?.cancel()
+          pageBackActive = true
+          renderPageBack(0f)
+        } else behavior.startBackProgress(BackEventCompat(event))
       }
-      override fun onBackProgressed(event: BackEvent) = behavior.updateBackProgress(BackEventCompat(event))
+      override fun onBackProgressed(event: BackEvent) {
+        if (fullWidth) renderPageBack(if (ValueAnimator.areAnimatorsEnabled()) event.progress else 0f)
+        else behavior.updateBackProgress(BackEventCompat(event))
+      }
       override fun onBackCancelled() {
-        behavior.cancelBackProgress()
-        if (fullWidth) content.translationX = -panel.width.toFloat()
+        if (fullWidth) settlePageBack(false) else behavior.cancelBackProgress()
       }
-      override fun onBackInvoked() = behavior.handleBackInvoked()
+      override fun onBackInvoked() {
+        if (fullWidth && pageBackActive) settlePageBack(true) else behavior.handleBackInvoked()
+      }
     } else OnBackInvokedCallback { setOpen(false) }
     findOnBackInvokedDispatcher()?.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_OVERLAY, callback)
     backCallback = callback
