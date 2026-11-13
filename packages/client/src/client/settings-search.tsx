@@ -103,6 +103,7 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
   companions: ['companion.speechSound', 'companion.retention'],
   devices: [
     'relationships.title',
+    'relationships.prepareReturn',
     'devices.pair.title',
     'devices.list.title',
     'devices.connect.title',
