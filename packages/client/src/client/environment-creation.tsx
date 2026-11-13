@@ -73,7 +73,6 @@ export function EnvironmentCreation({
       online: entry.snapshot.connection.status === 'connected',
     })),
   ];
-  // A dialog captures its entry scope once. Later filter changes cannot retarget it.
   const [entryScope] = useState(scope);
   const [selected, setSelected] = useState(() =>
     initialCreationHost(entryScope, hosts, lastCreationHost(creationStorage())),
