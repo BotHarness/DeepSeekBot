@@ -11,6 +11,68 @@ import { CAPTURE_DOCK_ATTRIBUTE, openCapture } from '../src/client/bug-report-ca
 afterEach(() => {
   domToBlob.mockClear();
   vi.restoreAllMocks();
+  vi.useRealTimers();
+});
+
+const png = () => new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 0]);
+
+it('uses native window pixels on capable Desktop and retains the screenshot filename', async () => {
+  const bytes = png();
+  const desktop = {
+    protocolVersion: 1,
+    captureWindow: vi.fn(async () => ({ bytes, mediaType: 'image/png' })),
+  };
+  const getDisplayMedia = vi.fn();
+  const source = await openCapture({
+    dshDesktop: desktop,
+    navigator: { mediaDevices: { getDisplayMedia } },
+  });
+  expect(source.kind).toBe('window');
+  const file = await source.grab(new Date(2026, 10, 13, 9, 5, 7));
+  expect(file.name).toBe('screenshot-20261113-090507.png');
+  expect(file.type).toBe('image/png');
+  expect(file.size).toBe(bytes.length);
+  expect(desktop.captureWindow).toHaveBeenCalledWith();
+  expect(domToBlob).not.toHaveBeenCalled();
+  expect(getDisplayMedia).not.toHaveBeenCalled();
+});
+
+it('does not rasterize the page after a native refusal or malformed PNG', async () => {
+  for (const captureWindow of [
+    async () => {
+      throw new Error('capture-refused');
+    },
+    async () => ({ bytes: new Uint8Array([1, 2]), mediaType: 'image/png' }),
+    async () => ({ bytes: png(), mediaType: 'image/jpeg' }),
+    async () => ({ bytes: new Uint8Array(25 * 1024 * 1024 + 1), mediaType: 'image/png' }),
+  ]) {
+    const source = await openCapture({ dshDesktop: { protocolVersion: 1, captureWindow } });
+    await expect(source.grab()).rejects.toThrow();
+  }
+  expect(domToBlob).not.toHaveBeenCalled();
+});
+
+it('bounds a stalled native capture and ignores pixels arriving after stop', async () => {
+  vi.useFakeTimers();
+  let resolve!: (value: unknown) => void;
+  const captureWindow = vi.fn(
+    () =>
+      new Promise<unknown>((done) => {
+        resolve = done;
+      }),
+  );
+  const source = await openCapture({ dshDesktop: { protocolVersion: 1, captureWindow } });
+  const stalled = expect(source.grab()).rejects.toThrow('capture-timeout');
+  await vi.advanceTimersByTimeAsync(3_000);
+  await stalled;
+  const stopped = expect(source.grab()).rejects.toThrow('capture-stopped');
+  source.stop();
+  resolve({ bytes: png(), mediaType: 'image/png' });
+  await stopped;
+  await expect(source.grab()).rejects.toThrow('capture-stopped');
+  expect(captureWindow).toHaveBeenCalledTimes(2);
+  expect(vi.getTimerCount()).toBe(0);
+  expect(domToBlob).not.toHaveBeenCalled();
 });
 
 function fakeStream(state: { readyState: string }) {
