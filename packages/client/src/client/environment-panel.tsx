@@ -227,7 +227,11 @@ export function EnvironmentPanel({ t }: { t: BotHarnessTranslate }): ReactElemen
             id={remote.host.hostId}
             hostId={remote.host.hostId}
             name={remote.host.hostName}
-            unread={environmentUnread(remote.inbox)}
+            unread={
+              remote.snapshot.connection.status === 'connected'
+                ? environmentUnread(remote.inbox)
+                : undefined
+            }
             reconnect={remote.snapshot.connection.status !== 'connected'}
             selected={snapshot.tab === remote.host.hostId}
             status={
