@@ -1827,3 +1827,5 @@ Bot 已有存活的 Orchestrator Agent 后，`bot-tools` 也会列出其注册�
 退出账号只停止新的账号配对，不撤销已有设备；回退代码也不删除已发出的授权。仍掌握账号访问权的人可以在设备撤销后重新配对，因此应同时保护被盗账号。签名、账号与 Host 归属、时效、手机配对证明和已固定密钥的加密通道校验继续生效。参见 [ADR-0327](adr/0327-connect-account-ownership-authorizes-enrollment.md)。
 
 QQ 同样支持 `deepseekbot messaging-defaults qq` 和 `messaging-defaults-set qq --input-stdin`，输入格式与 Discord 一致。配置 `collection: "all"` 和 `newConversations: "auto"` 后，新群继承全量收件；现有自定义身份与群保留覆盖值，直到显式恢复继承。配置成功不代表 QQ 已实际投递普通消息或未支持的媒体。第 138 代迁移保留历史 QQ 热修复的默认策略；回滚需要升级前新做的完整 Profile 备份。
+
+手机读取验收：`device-probe --device-file <私有配对文件>` 使用与手机相同的连接实现读取 Bot 和频道列表，并返回 `feedRead`。`acknowledged` 表示设备所有者已记录读取回报；旧 Host 返回 `unsupported`，回报失败返回 `unconfirmed`，均不表示新手引导完成。`devices.devices[].feedReadAt` 可读取首次成功回报时间。配对、批准或最近访问时间都不替代实际内容读取；本流程不发送消息，也不需要模型。

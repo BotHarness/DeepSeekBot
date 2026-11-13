@@ -41,7 +41,7 @@ A Human pairs the phone app with their Host by a one-time QR code, and the phone
 
 ## Sub-features
 
-- `phone-entry`: Control Rail → Get the mobile app → Start pairing opens the standalone Connections dialog. With an existing ready route, it displays the invitation directly; otherwise it shows preparation without automatically publishing. Bot settings → Connections opens the same dialog without the settings sidebar. Verify a named Host, exact-device approval and actual phone Host Feed; close/back must leave the route running. Reopen to inspect pending/paired devices. QR/offer/credential creation alone is not connection proof. Web-only fixtures do not qualify native scanning or physical connectivity (#4071).
+- `phone-entry`: Control Rail → Get the mobile app → Start pairing opens the standalone Connections dialog. Every phone entry first displays the shared iOS/Android installation guide. Only App installed, start connecting may proceed: an existing ready route then displays the invitation; otherwise preparation appears without automatically publishing. Bot settings → Connections opens the same dialog without the settings sidebar. Verify a named Host, exact-device approval and actual phone Host Feed; close/back must leave the route running. Reopen to inspect pending/paired devices. QR/offer/credential creation alone is not connection proof. Web-only fixtures do not qualify native scanning or physical connectivity (#4071).
 
 - `full-client-removed`: no settings/chat/Inbox/routine/create action opens the full Host WebView; old `/full-client` deep links cannot load it. Private input directs the Human to the Host or Tailscale browser.
 
@@ -60,7 +60,7 @@ A Human pairs the phone app with their Host by a one-time QR code, and the phone
 
 ## How to get to it (user POV)
 
-- Computer: Bot mode → settings → Connections → Add connection → Connect a device to this Host → Local network → Enable and continue. The dialog shows the QR code, full Host fingerprint and exact pending device approval. Ready routes skip preparation. Connection methods → Manage retains existing LAN, Tailscale and account controls. The paired-device list has Revoke.
+- Computer: Bot mode → settings → Connections → Add connection → Connect a device to this Host → App installed, start connecting → Local network → Enable and continue. The dialog shows the QR code, full Host fingerprint and exact pending device approval. Ready routes skip preparation. Connection methods → Manage retains existing LAN, Tailscale and account controls. The paired-device list has Revoke.
 - Phone: first use opens "Pair with your computer". From an existing session: Workspaces → Computers → Pair a new computer. Scan the code or paste the link, then tap Pair. Cloud → Join by link or QR is the separate cloud invitation path; its preview identifies organization membership versus one-channel guest access. The category tabs are the first drawer row; swipe, backdrop, Android Back and accessibility escape dismiss it.
 
 ## Driving it with verify-app
@@ -82,7 +82,7 @@ Bot settings → Connections groups pairing and connection management. Add conne
 
 ## Unified onboarding and selected Client (#2793)
 
-In two isolated Hosts, create a known empty Channel on the inviting Host. From Connections choose Add connection → Connect a device to this Host → Local network. Verify no listener was enabled before Enable and continue; verify readiness advances to the invitation. Paste its private link into the other browser's Add connection → Connect to a Remote Host. Compare the full Host fingerprint, confirm, then compare and approve the exact device fingerprint on the inviting Host. The receiver must display success only after reading the Host Feed, and its sidebar must show the known Channel. The invitation must track its own receipt, not any new device. Refused, superseded or unknown receipts remove the old QR.
+In two isolated Hosts, create a known empty Channel on the inviting Host. From Connections choose Add connection → Connect a device to this Host → App installed, start connecting → Local network. Verify no listener was enabled before Enable and continue; verify readiness advances to the invitation. Paste its private link into the other browser's Add connection → Connect to a Remote Host. Compare the full Host fingerprint, confirm, then compare and approve the exact device fingerprint on the inviting Host. The receiver must display success only after reading the Host Feed, and its sidebar must show the known Channel. The invitation must track its own receipt, not any new device. Refused, superseded or unknown receipts remove the old QR.
 
 Close the invitation and produce another pending request: the ordinary workspace's Pending requests control must appear without opening a modal or moving focus. Click it, close it without approving, then reopen; the exact request remains. Complete approval, check it disappears, and capture the request and completed views without live links/QR payloads.
 
@@ -129,4 +129,14 @@ In Connections → Add connection → Connect a device to this Host, select Dock
 
 ## Quick Tunnel entry and recovery (#4072)
 
-From Mobile app → Start pairing → Quick Tunnel (no sign-in), verify no publication before the explicit create action and show the temporary-address notice. Pair only after the existing owner verifies the public route; exclude LAN/Tailscale from this journey. Read the actual native Host roster, restart the task Host/tunnel, and scan a fresh invitation to the same pinned Host: retain the Host row and valid device authorization, update the route, then cold-reopen the App. Explicit stop must prevent restart restoration. Record coded provider failures and uncertain-operation outcomes without claiming success or replaying writes. Use existing CLI private-tunnel enable/devices/disable and existing pairing-route-update tests; preserve other routes and shared resources.
+From Mobile app → Start pairing → App installed, start connecting → Quick Tunnel (no sign-in), verify no publication before the explicit create action and show the temporary-address notice. Pair only after the existing owner verifies the public route; exclude LAN/Tailscale from this journey. Read the actual native Host roster, restart the task Host/tunnel, and scan a fresh invitation to the same pinned Host: retain the Host row and valid device authorization, update the route, then cold-reopen the App. Explicit stop must prevent restart restoration. Record coded provider failures and uncertain-operation outcomes without claiming success or replaying writes. Use existing CLI private-tunnel enable/devices/disable and existing pairing-route-update tests; preserve other routes and shared resources.
+
+## Optional intro phone step (#4073)
+
+On a fresh Profile, open the Phone step in the Desktop intro. Skip for now must advance without creating an invitation, route, listener or login. Back returns to Phone. Connect phone opens the shared Connections dialog as the only dialog; Close returns to the same intro step and permits retry.
+
+From the phone Control Rail, Connections settings and intro entries, verify the same installation guide inside the dialog, with working iOS/Android download links and no invitation before explicit App installed confirmation. Repeat with an existing ready route; Back, Close and reentry must not bypass the guide.
+
+Create a Quick Tunnel explicitly, pair the assigned Simulator through the normal encrypted enrollment and compare the full fingerprints. Approval alone and another device's Feed acknowledgement must not complete the step. Open the intended phone's Bot list: its mobile Host client loads and publishes the actual Bot/Channel roster, then reports the read through its authenticated device gateway. Verify `devices.devices[].feedReadAt` for the exact redeemed device and the Desktop success state; Continue is explicit. Reopen and Back preserve the grant and route. Revoked grants must not produce completion. `device-probe --device-file` exercises the same read/acknowledgement owner without a model; `feedRead: unsupported` or `unconfirmed` is not a successful acknowledgement.
+
+Capture EN/ZH, light/dark and constrained Desktop layouts without QR payloads, credentials or unrelated native Hosts. Record native source and build: older mobile builds do not send this acknowledgement, and deep-link Simulator enrollment does not prove physical camera scanning. Revoke/remove only this task's device and release its Host/tunnel/Metro/driver under the assigned device lane.

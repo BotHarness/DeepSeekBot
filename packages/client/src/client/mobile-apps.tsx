@@ -181,7 +181,6 @@ function MobileAppsPopover({
   onPair?: (() => void) | undefined;
 }): ReactElement {
   const titleId = useId();
-  const [copied, setCopied] = useState(false);
   const [position, attach] = usePlacement(trigger, 320);
   const close = useRef(onClose);
   close.current = onClose;
@@ -247,6 +246,16 @@ function MobileAppsPopover({
           {t('mobileApps.pair')}
         </Button>
       ) : null}
+      <MobileAppDownloads t={t} />
+    </div>,
+    document.body,
+  );
+}
+
+export function MobileAppDownloads({ t }: { t: BotHarnessTranslate }): ReactElement {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div data-mobile-app-downloads="">
       <section className="bh-mobile-apps-section" data-platform="ios">
         <h3>{t('mobileApps.ios')}</h3>
         <p className="bh-mobile-apps-caption">{t('mobileApps.iosHint')}</p>
@@ -292,7 +301,6 @@ function MobileAppsPopover({
           </Button>
         </div>
       </section>
-    </div>,
-    document.body,
+    </div>
   );
 }

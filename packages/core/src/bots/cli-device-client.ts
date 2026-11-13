@@ -106,10 +106,11 @@ export async function runDeviceClientCommand(
       );
       unsubscribe = client.subscribe(() => {
         const snapshot = client.getSnapshot();
-        if (snapshot.connection.status === 'connected' && snapshot.roster)
+        if (snapshot.connection.status === 'connected' && snapshot.roster && snapshot.feedRead)
           resolve({
             hostId: host.hostId,
             deviceId: host.deviceId,
+            feedRead: snapshot.feedRead,
             route: isLanRoute(snapshot.connection.route) ? 'lan' : 'remote',
             encrypted: isEncryptedRoute(snapshot.connection.route, host.encryption),
             bots: snapshot.roster.bots.length,

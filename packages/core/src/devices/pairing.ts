@@ -19,6 +19,7 @@ export interface PairedDevice {
   publicKey?: string;
   pairedAt: string;
   lastSeenAt?: string;
+  feedReadAt?: string;
   revokedAt?: string;
 }
 
@@ -86,6 +87,7 @@ export interface DevicePairing {
   admitKey(authorization: string | undefined, publicKey: string): Admission;
   admit(authorization: string | undefined): Admission;
   check(deviceId: string): Admission;
+  acknowledgeFeed(deviceId: string): Admission;
   list(): PairedDevice[];
   revoke(deviceId: string): { revoked: boolean; closedStreams: number };
   attachStream(deviceId: string, close: () => void): () => void;
@@ -107,6 +109,7 @@ interface Row {
   public_key: string | null;
   paired_at: string;
   last_seen_at: string | null;
+  feed_read_at: string | null;
   revoked_at: string | null;
 }
 
@@ -122,6 +125,7 @@ function device(row: Row): PairedDevice {
     pairedAt: row.paired_at,
     ...(row.public_key === null ? {} : { publicKey: row.public_key }),
     ...(row.last_seen_at === null ? {} : { lastSeenAt: row.last_seen_at }),
+    ...(row.feed_read_at == null ? {} : { feedReadAt: row.feed_read_at }),
     ...(row.revoked_at === null ? {} : { revokedAt: row.revoked_at }),
   };
 }
@@ -405,6 +409,23 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
         return { ok: false, code: 'device-unknown' };
       }
       return active(current);
+    },
+
+    acknowledgeFeed(deviceId) {
+      const current = row(deviceId);
+      if (current === undefined) return { ok: false, code: 'device-unknown' };
+      const admission = active(current);
+      if (!admission.ok || current.feed_read_at !== null) return admission;
+      database.transaction(
+        (connection) =>
+          connection
+            .prepare(
+              'UPDATE paired_devices SET feed_read_at = ? WHERE device_id = ? AND revoked_at IS NULL AND feed_read_at IS NULL',
+            )
+            .run(iso(now()), deviceId),
+        ['paired-devices'],
+      );
+      return { ok: true, device: device(row(deviceId)!) };
     },
 
     list() {

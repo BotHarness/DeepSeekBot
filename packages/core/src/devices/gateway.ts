@@ -21,6 +21,7 @@ import { connectMux } from './connect-mux.js';
 
 export const DEVICE_GATEWAY_PREFIX = '/botharness-device';
 export const DEVICE_PAIR_PATH = `${DEVICE_GATEWAY_PREFIX}/pair`;
+export const DEVICE_FEED_READ_PATH = `${DEVICE_GATEWAY_PREFIX}/feed-read`;
 export const DEVICE_UNPAIR_PATH = `${DEVICE_GATEWAY_PREFIX}/unpair`;
 export const DEVICE_REMOVE_PATH = `${DEVICE_GATEWAY_PREFIX}/devices/remove`;
 export const DEVICE_CONNECT_OFFER_PATH = `${DEVICE_GATEWAY_PREFIX}/connect/offer`;
@@ -656,6 +657,19 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
         response.setHeader('access-control-allow-origin', origin);
         response.setHeader('vary', 'origin');
         if (request.method === 'OPTIONS') return preflight(request, response);
+      }
+      if (path === DEVICE_FEED_READ_PATH) {
+        if (request.method !== 'POST') return refuse(response, 404, 'not-found');
+        const admission = pairing.admit(header(request, 'authorization'));
+        if (!admission.ok) return refuse(response, 401, admission.code);
+        const receipt = pairing.acknowledgeFeed(admission.device.id);
+        if (!receipt.ok) return refuse(response, 401, receipt.code);
+        response.writeHead(200, {
+          'content-type': 'application/json',
+          'cache-control': 'no-store',
+        });
+        response.end(JSON.stringify({ feedReadAt: receipt.device.feedReadAt }));
+        return;
       }
       if (path === DEVICE_PAIR_PATH) return pair(request, response);
       if (path === DEVICE_STREAM_TICKET_PATH) return streamTicket(request, response);

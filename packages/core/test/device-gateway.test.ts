@@ -141,6 +141,29 @@ async function pair(base: string, offer: string) {
   return { status: response.status, body: (await response.json()) as Record<string, string> };
 }
 
+it('attributes Feed acknowledgement to the authenticated device and refuses revoked or missing credentials', async () => {
+  const host = await fakeDsh();
+  const paired = host.pairing.redeem({ offer: host.pairing.createOffer().offer });
+  if (!paired.ok) throw new Error(paired.code);
+  const post = (authorization?: string) =>
+    fetch(`${host.base}/botharness-device/feed-read`, {
+      method: 'POST',
+      headers: authorization ? { authorization } : {},
+      body: JSON.stringify({ deviceId: 'forged' }),
+    });
+  expect((await post()).status).toBe(401);
+  const response = await post(`Device ${paired.credential}`);
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({ feedReadAt: expect.any(String) });
+  expect(host.pairing.list()).toHaveLength(1);
+  expect(host.pairing.list()[0]).toMatchObject({
+    id: paired.device.id,
+    feedReadAt: expect.any(String),
+  });
+  host.pairing.revoke(paired.device.id);
+  expect((await post(`Device ${paired.credential}`)).status).toBe(401);
+});
+
 describe('Local Computer video gateway admission', () => {
   it('binds direct commands to admitted identity and keeps removed web routes refused', async () => {
     const admitted: string[] = [];

@@ -3248,6 +3248,15 @@ const QQ_PLATFORM_DEFAULTS_MIGRATION: SchemaMigration = {
   },
 };
 
+const DEVICE_FEED_READ_MIGRATION: SchemaMigration = {
+  generation: 139,
+  module: 'paired-devices',
+  description: 'Retain the paired client acknowledgement of its first Host Feed read',
+  migrate(database) {
+    database.exec('ALTER TABLE paired_devices ADD COLUMN feed_read_at TEXT');
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -3386,4 +3395,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   CLIENT_ACKNOWLEDGEMENT_MIGRATION,
   QUESTION_MESSAGING_RECOVERY_MIGRATION,
   QQ_PLATFORM_DEFAULTS_MIGRATION,
+  DEVICE_FEED_READ_MIGRATION,
 ]);

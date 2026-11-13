@@ -6,10 +6,26 @@ export function ConnectionsDialog({
   t,
   onClose,
   pairPhone = false,
+  pairedDeviceId,
+  onDevicePaired,
+  onFeedRead,
 }: {
   t: BotHarnessTranslate;
   onClose(): void;
   pairPhone?: boolean | undefined;
+  pairedDeviceId?: string | undefined;
+  onDevicePaired?: ((deviceId: string) => void) | undefined;
+  onFeedRead?: ((deviceId: string) => void) | undefined;
 }): ReactElement {
-  return <PairedDevicesSettings t={t} standalone initialPairing={pairPhone} onClose={onClose} />;
+  return (
+    <PairedDevicesSettings
+      pairedDeviceId={pairedDeviceId}
+      onDevicePaired={onDevicePaired}
+      onFeedRead={onFeedRead}
+      t={t}
+      standalone
+      initialPairing={pairPhone}
+      onClose={onClose}
+    />
+  );
 }

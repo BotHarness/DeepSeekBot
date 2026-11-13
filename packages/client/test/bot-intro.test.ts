@@ -42,6 +42,24 @@ vi.mock('../src/client/appearance-material-settings.js', () => ({
   AppearanceMaterialSettings: () => createElement('div', { 'data-material-settings': '' }),
 }));
 vi.mock('../src/client/bot-icon.js', () => ({ BotIcon: () => null }));
+vi.mock('../src/client/connections-dialog.js', () => ({
+  ConnectionsDialog: ({
+    onClose,
+    onDevicePaired,
+    onFeedRead,
+  }: {
+    onClose(): void;
+    onDevicePaired?(id: string): void;
+    onFeedRead?(id: string): void;
+  }) =>
+    createElement(
+      'div',
+      { role: 'dialog', 'data-phone-connection': '' },
+      createElement('button', { onClick: onClose }, 'Close connection'),
+      createElement('button', { onClick: () => onDevicePaired?.('phone-1') }, 'Approve phone'),
+      createElement('button', { onClick: () => onFeedRead?.('phone-1') }, 'Read Feed'),
+    ),
+}));
 
 import type { OnboardingSnapshot } from '../../core/src/onboarding/types.js';
 import type { BridgeActions } from '../src/client/actions.js';
@@ -171,7 +189,47 @@ describe('intro modal', () => {
     act(() => root.unmount());
   });
 
-  it('walks the five steps and applies a theme choice right away', async () => {
+  it('skips without connection work and returns from the shared dialog before explicit Continue', async () => {
+    const fetcher = vi.fn(async () =>
+      Response.json({ devices: [{ id: 'phone-1', feedReadAt: '2026-11-13T00:00:00Z' }] }),
+    );
+    vi.stubGlobal('fetch', fetcher);
+    try {
+      const actions = actionsFor() as unknown as BridgeActions;
+      const controller = onboardingFor(actions);
+      await controller.enter();
+      controller.openIntro();
+      controller.setIntroStep(INTRO_STEPS.indexOf('phone'));
+      await act(async () => root.render(createElement(BotIntro, { actions, t: zhTranslate })));
+      const click = async (label: string) =>
+        act(async () =>
+          [...container.querySelectorAll('button')]
+            .find((button) => button.textContent === label)!
+            .click(),
+        );
+      expect(container.querySelector('[aria-label="4 手机"]')?.getAttribute('aria-current')).toBe(
+        'step',
+      );
+      expect(fetcher).not.toHaveBeenCalled();
+      expect(container.querySelector('[data-phone-connection]')).toBeNull();
+      await click('连接手机');
+      expect(container.querySelectorAll('[role="dialog"]')).toHaveLength(1);
+      await click('Close connection');
+      expect(container.querySelector('[data-intro-step="phone"]')).not.toBeNull();
+      await click('连接手机');
+      await click('Approve phone');
+      expect(container.textContent).not.toContain('手机已读到这台电脑的内容。');
+      await click('Read Feed');
+      expect(container.querySelector('[data-intro-step="phone"]')).not.toBeNull();
+      expect(container.textContent).toContain('手机已读到这台电脑的内容。');
+      await click('下一步');
+      expect(container.querySelector('[data-intro-step="community"]')).not.toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('walks the six steps and applies a theme choice right away', async () => {
     const actions = actionsFor() as unknown as BridgeActions;
     const controller = onboardingFor(actions);
     await controller.enter();
@@ -226,6 +284,8 @@ describe('intro modal', () => {
     await click('下一步');
     expect(step()).toBe('model');
     await click('下一步');
+    expect(step()).toBe('phone');
+    await click('暂时跳过');
     expect(step()).toBe('community');
     expect(dialog().querySelector('a[data-community="github"]')!.getAttribute('href')).toBe(
       'https://github.com/BotHarness/DeepSeekBot',

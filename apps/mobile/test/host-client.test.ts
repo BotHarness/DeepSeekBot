@@ -59,6 +59,86 @@ async function until(
 }
 
 describe('Host client', () => {
+  it('acknowledges the first loaded Feed once and keeps ordinary refreshes free of acknowledgement traffic', async () => {
+    const host = new FakeHost();
+    const target = connect(host);
+    await until(target, (state) => state.feedRead === 'acknowledged');
+    expect(target.getSnapshot().roster?.bots.length).toBeGreaterThan(0);
+    const acknowledgements = () =>
+      host.requests.filter((request) => request.endsWith('/feed-read'));
+    expect(acknowledgements()).toHaveLength(1);
+    await target.refresh();
+    await target.refresh();
+    expect(acknowledgements()).toHaveLength(1);
+  });
+
+  it('does not start a Feed acknowledgement after a stopped client finishes an old read', async () => {
+    const host = new FakeHost();
+    let release = () => {};
+    let reading = false;
+    let lists = 0;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    client = createHostClient({
+      routes: [ROUTE],
+      credential: host.credential,
+      timeoutMs: 500,
+      carrier: {
+        ...host.carrier,
+        request: async (url, init) => {
+          const response = await host.carrier.request(url, init);
+          if (url.endsWith('/botharness/list') && ++lists === 2) {
+            reading = true;
+            await held;
+          }
+          return response;
+        },
+      },
+    });
+    client.start();
+    await until(client, () => reading);
+    client.stop();
+    release();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(host.requests.some((request) => request.endsWith('/feed-read'))).toBe(false);
+  });
+
+  it('does not acknowledge when the Host Feed cannot load', async () => {
+    const host = new FakeHost();
+    host.failing.add('list');
+    const target = connect(host);
+    await until(
+      target,
+      (state) =>
+        state.connection.status === 'reconnecting' || state.connection.status === 'unreachable',
+    );
+    expect(host.requests.some((request) => request.endsWith('/feed-read'))).toBe(false);
+    expect(target.getSnapshot().feedRead).toBeUndefined();
+  });
+
+  it('keeps a readable Feed usable when an older Host does not support acknowledgement', async () => {
+    const host = new FakeHost();
+    client = createHostClient({
+      routes: [ROUTE],
+      credential: host.credential,
+      timeoutMs: 200,
+      carrier: {
+        ...host.carrier,
+        request: async (url, init) =>
+          url.endsWith('/feed-read')
+            ? { status: 404, text: async () => '{}', bytes: async () => new Uint8Array() }
+            : host.carrier.request(url, init),
+      },
+    });
+    client.start();
+    await until(
+      client,
+      (state) => state.connection.status === 'connected' && state.feedRead === 'unsupported',
+    );
+    expect(client.getSnapshot().roster?.bots.length).toBeGreaterThan(0);
+  });
+
   it('preserves a live call carrier and probes the same carrier after release', async () => {
     const host = new FakeHost();
     let sockets = 0;

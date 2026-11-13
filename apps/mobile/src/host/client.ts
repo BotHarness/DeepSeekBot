@@ -143,6 +143,7 @@ export interface HostCompatibility {
 }
 
 export interface HostSnapshot {
+  feedRead?: 'acknowledged' | 'unsupported' | 'unconfirmed';
   routes?: readonly {
     url: string;
     status: 'unchecked' | 'verified' | 'unreachable';
@@ -397,6 +398,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
   let computerAvailable: boolean | undefined;
   let channels = new Map<string, ChannelListItem>();
   let channelsLoaded = false;
+  let feedRead: HostSnapshot['feedRead'];
+  let feedAcknowledging = false;
   let savedBots: string | undefined;
   let states = new Map<string, WireBotActivity>();
   let rawStates = new Map<string, WireBotActivity>();
@@ -480,6 +483,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
           ? snapshot.routes
           : nextRoutes,
       connection: connection ?? snapshot.connection,
+      ...(feedRead === undefined ? {} : { feedRead }),
       ...(disruptedSince === undefined ? {} : { disruptedSince }),
       activity: share('activity', [...rawStates.values()]),
       ...(computerAvailable === undefined ? {} : { computerAvailable }),
@@ -960,6 +964,34 @@ export function createHostClient(options: HostClientOptions): HostClient {
       });
   };
 
+  const acknowledgeFeed = (): void => {
+    if (!running || feedRead === 'acknowledged' || feedRead === 'unsupported' || feedAcknowledging)
+      return;
+    feedAcknowledging = true;
+    void withDeadline(async (signal) => {
+      const response = await carrier.request(`${route}${DEVICE_PREFIX}/feed-read`, {
+        method: 'POST',
+        headers: jsonAuthorization,
+        body: '{}',
+        signal,
+      });
+      if (response.status === 404) feedRead = 'unsupported';
+      else if (
+        response.status === 200 &&
+        typeof record(JSON.parse(await response.text()))['feedReadAt'] === 'string'
+      )
+        feedRead = 'acknowledged';
+      else feedRead = 'unconfirmed';
+    })
+      .catch(() => {
+        feedRead = 'unconfirmed';
+      })
+      .finally(() => {
+        feedAcknowledging = false;
+        if (running) publish();
+      });
+  };
+
   const reloadOnce = async (reuse: boolean): Promise<void> => {
     void discoverComputer();
     void discoverRoutes();
@@ -976,6 +1008,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     arrangement = rosterArrangement;
     sorting = rosterSorting;
     publish();
+    acknowledgeFeed();
   };
 
   const reload = (): Promise<void> => {
