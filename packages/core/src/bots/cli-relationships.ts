@@ -27,9 +27,11 @@ export async function runRelationshipCommand(
     http(path: string, body?: Record<string, unknown>): Promise<{ bytes: Uint8Array }>;
   }>,
   signal?: AbortSignal,
+  expiresAt = Infinity,
 ) {
+  const expired = () => signal?.aborted === true || Date.now() >= expiresAt;
   const deadline = () => {
-    if (signal?.aborted)
+    if (expired())
       throw new CliLiveError(
         'timeout',
         'Relationship command deadline expired; inspect its state before retrying.',
@@ -106,7 +108,7 @@ export async function runRelationshipCommand(
       ...(signal ? { signal } : {}),
     });
     if (!result.ok) throw new CliLiveError(result.code, 'Relationship device enrollment refused.');
-    if (signal?.aborted) {
+    if (expired()) {
       await revokePairing({ host: result.host, carrier: nodeDeviceCarrier() });
       deadline();
     }

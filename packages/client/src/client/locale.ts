@@ -7,6 +7,8 @@ export const zh = {
   'environment.title': '环境',
   'environment.settings.target': '设置目标环境',
   'environment.settings.saveAndSwitch': '保存并切换',
+  'environment.settings.createUnknown': '创建结果尚未确认。请检查预设列表；放弃只会清除本地草稿。',
+  'environment.settings.checkCreatedPreset': '检查已创建的预设',
   'environment.settings.app': '本应用偏好',
   'environment.settings.appearance': '本应用中的外观',
   'environment.settings.unsupported': '此环境暂不支持这项设置。',
@@ -5276,6 +5278,9 @@ export const en = {
   'environment.title': 'Environments',
   'environment.settings.target': 'Settings target environment',
   'environment.settings.saveAndSwitch': 'Save and switch',
+  'environment.settings.createUnknown':
+    'Creation is unconfirmed. Check the preset list; discarding only clears this draft.',
+  'environment.settings.checkCreatedPreset': 'Check saved preset',
   'environment.settings.app': 'App preferences',
   'environment.settings.appearance': 'Appearance in this app',
   'environment.settings.unsupported': 'This setting is unavailable for this environment.',

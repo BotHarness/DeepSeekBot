@@ -141,14 +141,16 @@ function HostNameField({
           void save();
         }}
       />
-      <PillButton
-        disabled={draft === (saved ?? '')}
-        onClick={() => {
-          void save();
-        }}
-      >
-        {t('relationships.save')}
-      </PillButton>
+      <div>
+        <PillButton
+          disabled={draft === (saved ?? '')}
+          onClick={() => {
+            void save();
+          }}
+        >
+          {t('relationships.save')}
+        </PillButton>
+      </div>
     </div>
   );
 }
