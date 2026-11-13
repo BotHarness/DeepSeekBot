@@ -2,6 +2,14 @@
 
 私有连接让手机在使用流量或外部 Wi-Fi 时也能连到这台电脑，不需要官方账号、Docker 或 VPN 应用。电脑上的 Host 运行内置的 `cloudflared`，**只公开加密的手机通道**；设置、文件和接口都不会公开。手机仍然扫码配对、核对电脑指纹，并需要你在电脑上批准这台手机的确切密钥。
 
+## 连接中的进阶方式
+
+Control Rail、Bot 设置和可跳过的新手手机步骤都打开同一个连接对话框。先确认手机已安装 App，再准备连接。Quick Tunnel 与 Tobs Connect 保留为短流程；展开**进阶方式**后，可直接选择局域网、Tailscale、自己的固定 Cloudflare Tunnel、自有 HTTPS 入口或 Docker 中继。部署指南复用[入口标准](private-ingress.zh.md)和本页 Docker 步骤，[中继标准](private-relay-standard.zh.md)仍是协议依据。
+
+返回上一步不会关闭已经准备好的 Host 路线；只有明确开启或关闭才改变所选方式。当前仅支持一种私有模式，已有连接会展示为管理状态，不会把替换伪装成添加；关闭后旧地址可能失效。Docker 迁移必须保留所有者凭据和数据卷，不提供通用重置操作。
+
+Tailscale 要求手机和电脑位于可互访的同一 tailnet。iOS 和 Android 通常只能同时运行一个 VPN，开启 Tailscale 可能中断其他 VPN，详见 [Tailscale 官方说明](https://tailscale.com/docs/reference/faq/other-vpns)。局域网要求网络可达；HTTPS 入口要求 DNS、双方信任的证书、WebSocket 转发及 Host 检查通过后才显示配对码。失败时提供 DNS、证书或转发的下一步操作，不关闭证书验证，也不自动切换官方服务。
+
 ## 开启
 
 打开 **手机 App → 开始配对 → Quick Tunnel（免登录）**，阅读临时地址说明，再点击 **创建免费临时地址**。仅打开对话框不会启动隧道；其他部署方式可展开选择。Bot 设置中的「连接」打开同一个对话框。

@@ -1,5 +1,9 @@
 # Phone pairing and paired devices
 
+## Advanced connection guidance (#4078)
+
+From each phone entry, confirm App installation, then expand Advanced methods. Choose Named Tunnel or own HTTPS ingress directly, return without mutating prepared routes, and check the existing private-mode replacement notice before choosing Docker. Invalid origins, untrusted certificates and failed DNS/proxy checks must provide an actionable next step and deployment guide, never a QR before verification. Tailscale setup shows its mobile VPN limitation even when its route is ready. Use a task-owned HTTPS ingress through the existing owner, compare both fingerprints, approve exactly one Simulator device and observe real Host Feed; separately qualify LAN/Tailscale presentation. Record external edge versus Named/Docker provider coverage, preserve other routes and release owned resources.
+
 ## Host grouping and scoped management (#4076)
 
 In the shared Connections dialog, pair two disposable Hosts. Give one Host LAN plus another existing supported route and verify a single row with current/verified/unreachable/unchecked route observations. Match account grouping using authenticated registration Host ID plus pinned key; same names or addresses and mismatched keys must not merge, and discovered unpaired entries have no management controls. Expand the selected Host, test an alternative route, and compare `connection-hosts`/`connection-host inspect` through its explicit Client ID. Confirm that client-local removal leaves the Host grant/data and the other Host intact. Separately revoke a disposable device on the selected target, then stop one owned route while preserving an alternative. Current-route interruption must remain unconfirmed until observed, never a fabricated success. Keep all credentials/private names out of published screenshots and report account-fixture versus official-service evidence separately.

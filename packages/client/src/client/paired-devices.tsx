@@ -1,5 +1,6 @@
 import { ConnectionHosts } from './connection-hosts.js';
 import { MobileAppDownloads } from './mobile-apps.js';
+import { ConnectionGuide } from './connection-guide.js';
 import { PrivateRelaySettings } from './private-relay-settings.js';
 import {
   PrivateTunnelSettings,
@@ -710,6 +711,11 @@ export function PairedDevicesSettings({
                       : 'connections.prepare',
               )}
             </Note>
+            {(setup === 'private' || setup === 'privateRelay') &&
+            ((snapshot?.privateTunnel?.state ?? 'off') !== 'off' ||
+              (snapshot?.privateRelay?.state ?? 'off') !== 'off') ? (
+              <Note tone="warning">{t('connections.privateReplacement')}</Note>
+            ) : null}
             {setup === 'app' ? (
               <div data-phone-app-guide="">
                 <Note>{t('connections.phoneApp.description')}</Note>
@@ -802,15 +808,43 @@ export function PairedDevicesSettings({
                     detail={t('connections.tailscaleDetail')}
                     disabled={!freshSnapshot}
                     onClick={() => {
-                      if (tailscaleReady) {
-                        setSetup('closed');
-                        open();
-                      } else setSetup('tailscale');
+                      setSetup('tailscale');
                     }}
+                  />
+                  <ConnectionMethod
+                    title={t('privateTunnel.namedTitle')}
+                    description={t('privateTunnel.namedDescription')}
+                    detail={t('connections.namedRequirements')}
+                    disabled={!freshSnapshot}
+                    onClick={() => {
+                      setTunnelStep('named');
+                      setSetup('private');
+                    }}
+                  />
+                  <ConnectionMethod
+                    title={t('privateTunnel.ingressTitle')}
+                    description={t('privateTunnel.ingressDescription')}
+                    detail={t('connections.ingressRequirements')}
+                    disabled={!freshSnapshot}
+                    onClick={() => {
+                      setTunnelStep('ingress');
+                      setSetup('private');
+                    }}
+                  />
+                  <ConnectionMethod
+                    title={t('privateRelay.title')}
+                    description={t('privateRelay.description')}
+                    detail={t('privateRelay.requirement')}
+                    disabled={!freshSnapshot}
+                    onClick={() => setSetup('privateRelay')}
                   />
                 </StatusDisclosure>
               </>
-            ) : setup === 'private' && (snapshot?.privateRelay?.state ?? 'off') === 'off' ? (
+            ) : (setup === 'private' ||
+                (setup === 'privateRelay' &&
+                  snapshot?.privateTunnel?.state !== undefined &&
+                  snapshot.privateTunnel.state !== 'off')) &&
+              (snapshot?.privateRelay?.state ?? 'off') === 'off' ? (
               <PrivateTunnelSettings
                 t={t}
                 {...(snapshot?.privateTunnel ? { status: snapshot.privateTunnel } : {})}
@@ -872,6 +906,8 @@ export function PairedDevicesSettings({
               </StatusStack>
             ) : setup === 'tailscale' ? (
               <StatusStack title={t('devices.tailscale.title')}>
+                <Note tone="warning">{t('connections.tailscaleVpn')}</Note>
+                <ConnectionGuide t={t} method="tailscale" />
                 {tailscaleReady ? (
                   <StatusBlock
                     icon="check"
@@ -1304,6 +1340,16 @@ export function PairedDevicesSettings({
                   <Callout tone="warning">{t('devices.pair.loopbackOnly')}</Callout>
                 )}
                 <div {...stylex.props(styles.actions)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      close();
+                      setSetup('method');
+                    }}
+                  >
+                    {t('connections.methods')}
+                  </Button>
                   <Button variant="outline" size="sm" onClick={() => void copy(offer.link)}>
                     {copied ? t('devices.pair.copied') : t('devices.pair.copy')}
                   </Button>
