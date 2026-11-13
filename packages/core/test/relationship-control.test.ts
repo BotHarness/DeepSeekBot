@@ -28,6 +28,7 @@ async function host(
     credentials?: RelationshipCredentialProvider;
     privateAdmission?: () => PrivateAdmission | undefined;
     retained?: { home: string; privateKey: Uint8Array; port: number };
+    beforeReceive?: () => Promise<void>;
   } = {},
 ) {
   const retained = options.retained;
@@ -77,12 +78,16 @@ async function host(
     pairing,
     key: identity.key,
     port: () => port,
-    relationship: control.receive,
+    relationship: async (peerKey, command) => {
+      await options.beforeReceive?.();
+      return control.receive(peerKey, command);
+    },
   });
   server.on('upgrade', (request, socket, head) => {
     void gateway.upgrade(request, socket, head);
   });
   return {
+    disposeAuthority: () => owner.close(),
     retained: { home, privateKey: Uint8Array.from(privateKey), port },
     pairing,
     relationships,
@@ -112,6 +117,40 @@ async function host(
     },
   };
 }
+
+it('aborts an in-flight retirement before disposing its authority without late reads or an unhandled rejection', async () => {
+  let gate: Promise<void> | undefined;
+  let release = () => {};
+  let arrived = () => {};
+  const a = await host('A');
+  const b = await host('B', Date.now, { beforeReceive: async () => {
+    if (gate) {
+      arrived();
+      await gate;
+    }
+  } });
+  try {
+    const relationship = await a.control.initiate(await b.link(), b.publicKey);
+    b.control.approve(relationship.id, a.publicKey);
+    await a.control.sync(relationship.id);
+    gate = new Promise((resolve) => {
+      release = resolve;
+    });
+    const received = new Promise<void>((resolve) => {
+      arrived = resolve;
+    });
+    const pending = a.control.disconnect(relationship.id);
+    await received;
+    a.control.close();
+    a.disposeAuthority();
+    expect(await pending).toMatchObject({ state: 'disconnected', peerRevocationPending: true });
+    release();
+  } finally {
+    release();
+    await a.close();
+    await b.close();
+  }
+});
 
 it('persists offline retirement across both Host restarts and retries the exact generation through the encrypted gateway', async () => {
   let clock = Date.now();
