@@ -1,4 +1,4 @@
-import { OWNER_HUMAN_CONTEXT, type HumanContext } from './humans/context.js';
+import { OWNER_HUMAN_CONTEXT } from './humans/context.js';
 import { BotNetworkDeliveryError } from './runtime/bot-network.js';
 import type { AssignmentReportContent } from './runtime/assignment-report.js';
 import { createWindowZoomControl, WINDOW_ZOOM_CONTROL_PATH } from './window-zoom/control.js';
@@ -160,7 +160,7 @@ import {
   CHANNEL_ATTACHMENT_PATH,
   CHANNEL_ATTACHMENT_UPLOAD_PATH,
 } from './attachments/http.js';
-import { createBridgeMethods, type BridgeMethodsDeps } from './bridge/methods.js';
+import { createBridgeMethodsForHumans, type BridgeMethodsDeps } from './bridge/methods.js';
 import { composerRecoveryIdentity } from './bridge/composer-recovery.js';
 import { homedir } from 'node:os';
 import type { BotAgentSetupInfo } from './runtime/dsh-bot-agent-adapter.js';
@@ -3322,7 +3322,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       },
     },
   };
-  const invocationBridgeMethods = (human: HumanContext) => createBridgeMethods(human, bridgeDeps);
+  const invocationBridgeMethods = createBridgeMethodsForHumans(bridgeDeps);
   const bridgeMethods = invocationBridgeMethods(OWNER_HUMAN_CONTEXT);
   imCommandServices = {
     botDisplayName: (slug) =>

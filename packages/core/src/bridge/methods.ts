@@ -1,4 +1,4 @@
-import { type HumanContext } from '../humans/context.js';
+import { type HumanContext, type HumanId } from '../humans/context.js';
 import { createVoiceBridgeMethods, type VoiceBridgeMethods } from '../voice/bridge.js';
 import type { VoiceProviders } from '../voice/providers.js';
 import { networkBotId, type BotContact } from '../runtime/bot-contact-discovery.js';
@@ -2031,6 +2031,19 @@ function ownAttachments(
     'frames' in visual
     ? attachments.slice(0, -1)
     : attachments;
+}
+
+export function createBridgeMethodsForHumans(
+  deps: BridgeMethodsDeps,
+): (human: HumanContext) => BridgeMethods {
+  const tables = new Map<HumanId, BridgeMethods>();
+  return (human) => {
+    const existing = tables.get(human.humanId);
+    if (existing !== undefined) return existing;
+    const methods = createBridgeMethods(human, deps);
+    tables.set(human.humanId, methods);
+    return methods;
+  };
 }
 
 export function createBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps): BridgeMethods {

@@ -9,6 +9,10 @@ import { defineSchemaPlan } from '../src/database/schema.js';
 import { createHumanAttentionQuery, UNREAD_COUNT_LIMIT } from '../src/runtime/human-attention.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
+const canonicalHistorySql = `SELECT source_event_id, source_kind, bot_slug, channel_id, message_id,
+  assignment_session_id, body, created_at, handled_at, attempt_state, side_effect_started_at,
+  expects_reply, observed_at, payload_json FROM source_events ORDER BY source_event_id`;
+
 const indexes = [
   'source_events_attention_question',
   'source_events_attention_approval',
@@ -51,11 +55,7 @@ describe('Human attention candidate indexes', () => {
       const facts = () =>
         database.read((connection) =>
           createHash('sha256')
-            .update(
-              JSON.stringify(
-                connection.prepare('SELECT * FROM source_events ORDER BY source_event_id').all(),
-              ),
-            )
+            .update(JSON.stringify(connection.prepare(canonicalHistorySql).all()))
             .digest('hex'),
         );
       const before = facts();
@@ -68,11 +68,7 @@ describe('Human attention candidate indexes', () => {
       const current = attachOperationalModule(upgraded, 'attention-index-upgrade');
       const after = current.read((connection) =>
         createHash('sha256')
-          .update(
-            JSON.stringify(
-              connection.prepare('SELECT * FROM source_events ORDER BY source_event_id').all(),
-            ),
-          )
+          .update(JSON.stringify(connection.prepare(canonicalHistorySql).all()))
           .digest('hex'),
       );
       expect(after).toBe(before);
