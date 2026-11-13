@@ -1064,6 +1064,23 @@
         "setting:packages/client/src/client/connection-hosts.tsx:{t(kind === 'lan' ? 'connections.lan' : 'privateTunnel.title')}"
       ],
       "commands": ["connection-hosts", "connection-host", "connect-account-hosts"]
+    },
+    {
+      "id": "team-members",
+      "description": "Host-owned Team mode, member credentials, public Channels and local member evaluation.",
+      "scope": "Host / Human",
+      "surfaces": [
+        "route:packages/core/src/team/mount.ts:'/api/botharness/team-as'",
+        "setting:packages/client/src/client/team-settings.tsx:{member.displayName}",
+        "setting:packages/client/src/client/team-settings.tsx:{t('team.access.address')}",
+        "setting:packages/client/src/client/team-settings.tsx:{t('team.account.password')}",
+        "setting:packages/client/src/client/team-settings.tsx:{t('team.insecureHttp.title')}",
+        "setting:packages/client/src/client/team-settings.tsx:{t('team.members.title')}",
+        "setting:packages/client/src/client/team-settings.tsx:{t('team.mode.title')}",
+        "setting:packages/client/src/client/team-settings.tsx:{t('team.ownerPassword.title')}",
+        "setting:packages/client/src/client/team-settings.tsx:{view.viewer.displayName}"
+      ],
+      "commands": ["team-mode", "members", "channels"]
     }
   ]
 }

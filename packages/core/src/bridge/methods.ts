@@ -1,3 +1,6 @@
+import { createTeamBridge, type TeamBridgeMethods } from '../team/bridge.js';
+import type { TeamService } from '../team/service.js';
+import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { type HumanContext, type HumanId } from '../humans/context.js';
 import { createVoiceBridgeMethods, type VoiceBridgeMethods } from '../voice/bridge.js';
 import type { VoiceProviders } from '../voice/providers.js';
@@ -659,7 +662,7 @@ export interface MessagingAppsView {
   setups: NonNullable<MessagingSnapshot['appSetups']>;
 }
 
-export interface BridgeMethods {
+export interface BridgeMethods extends TeamBridgeMethods {
   tobHome(
     payload: unknown,
   ): Promise<BridgeResult<TobHome & { attention?: { unreadCount: number; hasAction: boolean } }>>;
@@ -1225,6 +1228,7 @@ function storageFailure(
 }
 
 export interface BridgeMethodsDeps {
+  team?: TeamService;
   voiceProviders?: VoiceProviders;
   callText?: (input: CallTextInput) => Promise<CallTextHarvest | undefined>;
   voiceLog?: (phase: string, fields: Record<string, string | number>) => void;
@@ -2228,9 +2232,12 @@ export function createBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps
   const listedChannels = async (): Promise<ChannelRecord[]> => {
     if (deps.channels.list().some((channel) => channel.remoteBot !== undefined))
       await deps.runtime?.refreshBotContacts?.();
-    for (const bot of deps.registry.list())
-      deps.channels.getOrCreateDm(human, bot.slug, bot.displayName);
-    return deps.channels.list();
+    if (human.humanId === OWNER_HUMAN_CONTEXT.humanId) {
+      for (const bot of deps.registry.list())
+        deps.channels.getOrCreateDm(human, bot.slug, bot.displayName);
+      return deps.channels.list();
+    }
+    return deps.channels.list().filter((channel) => deps.team?.belongs(human, channel.id));
   };
   const listItem = (channel: ChannelRecord): ChannelListItem => {
     const latest = deps.channels.latestMessage(channel.id);
@@ -2472,6 +2479,7 @@ export function createBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps
   };
 
   return {
+    ...createTeamBridge(human, deps.team),
     ...createVoiceBridgeMethods({
       providers: deps.voiceProviders,
       registry: deps.registry,
@@ -3847,6 +3855,7 @@ export function createBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps
       }
     },
     list(payload) {
+      if (human.humanId !== OWNER_HUMAN_CONTEXT.humanId) return { ok: true, value: { bots: [] } };
       const activity = new Map(deps.channels.latestBotActivity?.(human));
       for (const [slug, at] of deps.runtime?.latestAssignmentActivity?.() ?? [])
         activity.set(slug, Math.max(activity.get(slug) ?? 0, at));
@@ -6910,6 +6919,7 @@ export function createBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps
       if (existing !== undefined) {
         const same =
           existing.author.kind === 'human' &&
+          (existing.author.humanId ?? OWNER_HUMAN_CONTEXT.humanId) === human.humanId &&
           ((existing.body === body && existing.genuiReplyContext === genuiReplyContext) ||
             (existing.genuiReplyContext === undefined &&
               genuiReplyContext !== undefined &&
@@ -7030,7 +7040,15 @@ export function createBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps
       const message: ChannelMessage = {
         id,
         at: new Date().toISOString(),
-        author: { kind: 'human' },
+        author: {
+          kind: 'human',
+          ...(deps.team?.mode(OWNER_HUMAN_CONTEXT).enabled
+            ? {
+                humanId: human.humanId,
+                displayName: deps.channels.humanIdentity(human).displayName,
+              }
+            : {}),
+        },
         body,
         ...(sent.length === 0 ? {} : { attachments: sent }),
         ...(mentions.length === 0 ? {} : { mentions }),
@@ -9471,6 +9489,18 @@ export function createBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps
       };
     },
     rosterGet() {
+      if (human.humanId !== OWNER_HUMAN_CONTEXT.humanId)
+        return {
+          ok: true,
+          value: {
+            pins: [],
+            hidden: [],
+            muted: [],
+            sectionOrder: [],
+            sections: [],
+            topOrder: undefined,
+          },
+        };
       try {
         return { ok: true, value: deps.roster.snapshot() };
       } catch (error) {

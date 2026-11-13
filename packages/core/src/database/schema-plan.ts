@@ -3297,6 +3297,50 @@ const SOURCE_EVENT_HUMAN_MIGRATION: SchemaMigration = {
   },
 };
 
+const TEAM_MEMBERS_MIGRATION: SchemaMigration = {
+  generation: 141,
+  module: 'team',
+  description: 'Host-owned Human identities, password credentials and revocable member grants',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE humans (
+        human_id TEXT PRIMARY KEY,
+        display_name TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('active', 'suspended')),
+        created_at TEXT NOT NULL
+      );
+      INSERT INTO humans SELECT 'local-human', COALESCE(
+        (SELECT default_display_name FROM local_human_names WHERE human_id = 'local-human'),
+        'Human'), 'active', strftime('%Y-%m-%dT%H:%M:%fZ', 'now');
+      CREATE TABLE member_credentials (
+        human_id TEXT PRIMARY KEY REFERENCES humans(human_id),
+        username TEXT NOT NULL UNIQUE,
+        password_json TEXT NOT NULL,
+        history_json TEXT NOT NULL,
+        must_change INTEGER NOT NULL CHECK (must_change IN (0, 1))
+      );
+      CREATE TABLE member_grants (
+        grant_id TEXT PRIMARY KEY,
+        token_hash TEXT NOT NULL UNIQUE,
+        human_id TEXT NOT NULL REFERENCES humans(human_id),
+        created_at TEXT NOT NULL,
+        last_seen_at TEXT NOT NULL,
+        revoked_at TEXT
+      );
+      CREATE INDEX member_grants_human ON member_grants(human_id, revoked_at);
+      CREATE TABLE team_settings (
+        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+        enabled INTEGER NOT NULL DEFAULT 0 CHECK (enabled IN (0, 1)),
+        insecure_http_allowed INTEGER NOT NULL DEFAULT 0 CHECK (insecure_http_allowed IN (0, 1))
+      );
+      INSERT INTO team_settings(singleton) VALUES (1);
+      ALTER TABLE paired_devices ADD COLUMN human_id TEXT NOT NULL DEFAULT 'local-human';
+      ALTER TABLE channel_records ADD COLUMN public INTEGER NOT NULL DEFAULT 0 CHECK (public IN (0, 1));
+      CREATE INDEX public_group_channels ON channel_records(channel_id) WHERE public = 1;
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -3437,4 +3481,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   QQ_PLATFORM_DEFAULTS_MIGRATION,
   DEVICE_FEED_READ_MIGRATION,
   SOURCE_EVENT_HUMAN_MIGRATION,
+  TEAM_MEMBERS_MIGRATION,
 ]);

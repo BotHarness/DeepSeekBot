@@ -584,6 +584,16 @@ describe('plugin entry', () => {
     expect(
       remoteMethods(bridge as object).map((marker) => marker.exportName ?? marker.method),
     ).toEqual([
+      'teamMode',
+      'teamModeSet',
+      'teamOwnerPasswordSet',
+      'teamInsecureHttpSet',
+      'members',
+      'memberCreate',
+      'memberPasswordChange',
+      'publicChannels',
+      'publicChannelJoin',
+      'channelPublicSet',
       'privateInputStatus',
       'privateInputSubmit',
       'privateInputCancel',

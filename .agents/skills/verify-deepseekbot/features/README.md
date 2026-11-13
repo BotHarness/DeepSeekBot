@@ -2,6 +2,7 @@
 
 | Feature | Needs a model | Scripted journey | File |
 | --- | --- | --- | --- |
+| Team mode member sign-in, public Channels and local member CLI | no | `verify-app` two-browser path and CLI | [team-mode.md](team-mode.md) |
 | Durable timed-question answers across Host restart | yes | `verify-app` original card + `user-question-answer` | [timed-question-recovery.md](timed-question-recovery.md) |
 | Tobs channel group create, rename, delete and failure recovery | no | `verify-app` sidebar path | [channel-sections.md](channel-sections.md) |
 | Complete environment backup across versions | no | `verify-app` Settings + backup CLI | [profile-backup.md](profile-backup.md) |
