@@ -105,6 +105,11 @@ export function createHostRelationships(options: {
   };
   return {
     read,
+    check(id: string, peerKey: string): HostRelationship {
+      const relationship = authenticated(id, peerKey);
+      live(relationship);
+      return relationship;
+    },
     updateRoutes(id: string, peerKey: string, routes: string[]): HostRelationship {
       const relationship = authenticated(id, peerKey);
       live(relationship);

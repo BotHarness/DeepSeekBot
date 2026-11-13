@@ -70,7 +70,54 @@ const link = (hostId = 'host-b') =>
   });
 
 describe('remote hosts', () => {
-  it('recovers relationship routes without replacing this Client grant or accepting another Host key', () => {
+  it('stores private route recovery in the same Client grant and refuses to override a manual route', async () => {
+    const host = {
+      hostId: 'host-b',
+      hostName: 'Studio',
+      deviceId: 'existing-device',
+      credential: 'existing.secret',
+      routes: ['http://192.168.56.1:47001'],
+      encryption: {
+        protocol: 'connect-noise-xk-v1',
+        hostKey: 'ab'.repeat(32),
+        deviceKey: 'cd'.repeat(32),
+      },
+    };
+    const admission = { origin: 'https://private.example', token: 'ef'.repeat(32) };
+    const peer = {
+      id: host.hostId,
+      name: host.hostName,
+      publicKey: host.encryption.hostKey,
+      routes: [admission.origin],
+    };
+    const storage = memoryStorage({ [REMOTE_HOSTS_STORAGE_KEY]: JSON.stringify([host]) });
+    const sources = createRemoteHosts({ storage, carrier: fakeCarrier().carrier });
+    await sources.learnRelationshipRoutes(peer);
+    expect(sources.getSnapshot().hosts[0]?.host).toEqual(host);
+    await sources.learnRelationshipRoutes(peer, admission);
+    expect(sources.getSnapshot().hosts[0]?.host).toEqual({
+      ...host,
+      routes: [admission.origin],
+      encryption: { ...host.encryption, privateRelay: admission },
+    });
+    const restored = createRemoteHosts({ storage, carrier: fakeCarrier().carrier });
+    expect(restored.getSnapshot().hosts[0]?.host.deviceId).toBe(host.deviceId);
+    expect(restored.getSnapshot().hosts[0]?.host.encryption?.privateRelay).toEqual(admission);
+    const manual = createRemoteHosts({
+      storage: memoryStorage({
+        [REMOTE_HOSTS_STORAGE_KEY]: JSON.stringify([{ ...host, routePreference: host.routes[0] }]),
+      }),
+      carrier: fakeCarrier().carrier,
+    });
+    await expect(manual.learnRelationshipRoutes(peer, admission)).rejects.toThrow(
+      'relationship-route-preference-unavailable',
+    );
+    expect(manual.getSnapshot().hosts[0]?.host.routes).toEqual(host.routes);
+    sources.close();
+    restored.close();
+    manual.close();
+  });
+  it('recovers relationship routes without replacing this Client grant or accepting another Host key', async () => {
     const host = {
       hostId: 'host-b',
       hostName: 'Studio',
@@ -91,11 +138,11 @@ describe('remote hosts', () => {
       publicKey: host.encryption.hostKey,
       routes: ['http://192.168.56.1:47002'],
     };
-    expect(() => sources.learnRelationshipRoutes({ ...peer, publicKey: 'ff'.repeat(32) })).toThrow(
-      'host-key-mismatch',
-    );
+    await expect(
+      sources.learnRelationshipRoutes({ ...peer, publicKey: 'ff'.repeat(32) }),
+    ).rejects.toThrow('host-key-mismatch');
     expect(sources.getSnapshot().hosts[0]?.host).toEqual(host);
-    sources.learnRelationshipRoutes(peer);
+    await sources.learnRelationshipRoutes(peer);
     expect(sources.getSnapshot().hosts).toHaveLength(1);
     expect(sources.getSnapshot().hosts[0]?.host).toEqual({ ...host, routes: peer.routes });
     const restored = createRemoteHosts({ storage, carrier: fakeCarrier().carrier });

@@ -2,6 +2,9 @@ import { randomBytes } from 'node:crypto';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { expect, it } from 'vitest';
+import type { CredentialRecord } from '@deepseek-ai/dsh-credentials';
+import type { PrivateAdmission } from '../../../apps/mobile/src/host/hosts.js';
+import type { RelationshipCredentialProvider } from '../src/devices/relationship-admission.js';
 import { createNoiseIdentity } from '../src/devices/noise-identity.js';
 import { noiseFingerprint, noisePublicKey, NOISE_PROTOCOL } from '../src/devices/noise/xk.js';
 import { CONNECT_PROTOCOL } from '../src/devices/noise/channel.js';
@@ -18,7 +21,14 @@ import { attachOperationalModule, mountOperationalDatabase } from '../src/databa
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
-async function host(name: string, clock: () => number = Date.now) {
+async function host(
+  name: string,
+  clock: () => number = Date.now,
+  options: {
+    credentials?: RelationshipCredentialProvider;
+    privateAdmission?: () => PrivateAdmission | undefined;
+  } = {},
+) {
   const owner = trackTestOwner(
     mountOperationalDatabase({
       dshHome: createTempRoot('relationship-wire-'),
@@ -56,6 +66,8 @@ async function host(name: string, clock: () => number = Date.now) {
     identity,
     routes: async () => advertisedRoutes,
     now: clock,
+    ...(options.credentials ? { credentials: () => options.credentials } : {}),
+    ...(options.privateAdmission ? { privateAdmission: options.privateAdmission } : {}),
   });
   const gateway = createEncryptedGateway({
     pairing,
@@ -104,6 +116,9 @@ it('establishes exact reciprocal authorization over real Noise sockets and retir
       'relationship-identity-mismatch',
     );
     const relationship = await a.control.initiate(link, b.publicKey);
+    expect(
+      await b.control.receive(a.publicKey, { action: 'verify-return', id: relationship.id }),
+    ).toEqual({ ok: false, code: 'relationship-inactive' });
     expect(b.control.list()).toHaveLength(1);
     expect(a.pairing.list()).toEqual([]);
     expect(b.pairing.list()).toEqual([]);
@@ -220,6 +235,133 @@ it('retires refused initiation so a fresh verified invitation can be used', asyn
     b.control.approve(fresh.id, a.publicKey);
     expect((await a.control.sync(fresh.id)).state).toBe('active');
   } finally {
+    await Promise.all([a.close(), b.close()]);
+  }
+});
+
+it.each(['tailscale', 'private'] as const)(
+  'redeems a %s route through pinned Noise without a plaintext pairing request',
+  async (kind) => {
+    const a = await host('A');
+    const b = await host('B');
+    const origin =
+      kind === 'tailscale' ? 'https://peer.example.ts.net' : 'https://peer.private.example';
+    const privateRelay = kind === 'private' ? { origin, token: 'ab'.repeat(32) } : undefined;
+    try {
+      const relationship = await a.control.initiate(await b.link(), b.publicKey);
+      b.control.approve(relationship.id, a.publicKey);
+      await a.control.sync(relationship.id);
+      const raw = nodeDeviceCarrier();
+      let sockets = 0;
+      const result = await enrollRelationshipClient({
+        relationshipId: relationship.id,
+        expectedPeer: relationship.peer,
+        name: kind,
+        carrier: {
+          ...raw,
+          request: async () => {
+            throw new Error('plaintext-pairing-forbidden');
+          },
+          openSocket(url, events, headers) {
+            sockets++;
+            expect(url).toBe(`${origin.replace('https:', 'wss:')}/botharness-device/channel`);
+            if (privateRelay)
+              expect(headers).toMatchObject({
+                Authorization: `Bearer ${privateRelay.token}`,
+                'X-BotHarness-Admission': privateRelay.token,
+              });
+            return raw.openSocket(
+              url.replace(origin.replace('https:', 'wss:'), b.routes[0]!.replace('http:', 'ws:')),
+              events,
+            );
+          },
+        },
+        request: async (input) => {
+          const ticket = await a.control.enroll(
+            relationship.id,
+            String(input['publicKey']),
+            String(input['name']),
+          );
+          return {
+            ...ticket,
+            peer: { ...ticket.peer, routes: [origin], ...(privateRelay ? { privateRelay } : {}) },
+          };
+        },
+      });
+      expect(result.ok).toBe(true);
+      expect(sockets).toBeGreaterThan(0);
+      if (result.ok) {
+        expect(result.host.hostId).toBe(b.pairing.host().id);
+        expect(result.host.routes).toEqual([origin]);
+        expect(b.pairing.list().some((device) => device.id === result.host.deviceId)).toBe(true);
+      }
+    } finally {
+      await Promise.all([a.close(), b.close()]);
+    }
+  },
+);
+
+it('does not retain a late admission or route update after an authenticated status races with acknowledged disconnect', async () => {
+  const records = new Map<string, CredentialRecord>();
+  let release: (() => void) | undefined;
+  let entered: (() => void) | undefined;
+  const blocked = new Promise<void>((done) => {
+    release = done;
+  });
+  const started = new Promise<void>((done) => {
+    entered = done;
+  });
+  let delay = false;
+  const credentials: RelationshipCredentialProvider = {
+    readRecord: async (key) => records.get(key),
+    modifyRecord: async (key, mutate) => {
+      const next = await mutate(records.get(key));
+      if (delay) {
+        delay = false;
+        entered!();
+        await blocked;
+      }
+      if (next) records.set(key, next);
+      else records.delete(key);
+      return next;
+    },
+    deleteRecord: async (key) => {
+      records.delete(key);
+    },
+  };
+  let admission = { origin: 'https://return-a.invalid', token: 'ab'.repeat(32) };
+  const a = await host('A', Date.now, { privateAdmission: () => admission });
+  const b = await host('B', Date.now, { credentials });
+  a.advertisedRoutes.splice(0, a.advertisedRoutes.length, admission.origin);
+  try {
+    const relationship = await a.control.initiate(await b.link(), b.publicKey);
+    b.control.approve(relationship.id, a.publicKey);
+    await a.control.sync(relationship.id);
+    const priorRoutes = b.relationships.read(relationship.id).peer.routes;
+    expect(records.size).toBe(1);
+    const staleReference = [...records.entries()][0];
+    if (!staleReference) throw new Error('missing admission fixture');
+    admission = { origin: 'https://changed-a.invalid', token: 'ef'.repeat(32) };
+    a.advertisedRoutes.splice(0, a.advertisedRoutes.length, admission.origin);
+    delay = true;
+    const late = a.control.sync(relationship.id);
+    await started;
+    b.relationships.disconnect(relationship.id, a.publicKey);
+    const cleanup = b.control.cleanupAdmission(relationship.id);
+    release!();
+    await late;
+    await cleanup;
+    expect(records.size).toBe(0);
+    expect(b.relationships.read(relationship.id).peer.routes).toEqual(priorRoutes);
+    expect(
+      await b.control.receive(a.publicKey, { action: 'verify-return', id: relationship.id }),
+    ).toEqual({ ok: false, code: 'relationship-disconnected' });
+    expect(JSON.stringify(b.control.list())).not.toContain(admission.token);
+    records.set(staleReference[0], staleReference[1]);
+    expect(await b.control.cleanupAcknowledgedAdmissions()).toEqual({ cleaned: 1, failed: 0 });
+    expect(records.size).toBe(0);
+  } finally {
+    release?.();
     await Promise.all([a.close(), b.close()]);
   }
 });

@@ -2,6 +2,8 @@
 
 ## 已确认目标：环境面板与双向 Host 关系（逐片交付）
 
+私有线路 admission 存入既有受保护 credentials owner，以准确关系和固定对端身份绑定；公开关系、CLI 结果及生命周期日志不包含 token。仅固定身份的加密控制交换学习 admission，并在已认证的登记 ticket 中交给当前 Client，沿用既有 Noise 配对。等待对端撤销确认期间保留原有引用；确认后只清理该关系引用，重启补清已确认残留。异步写入与清理按关系串行，并在 await 后重新核对 canonical 授权；已断开关系不能继续普通返回探测。Tailscale HTTPS 登记仍走固定 Noise，后续沿用既有 HostClient 线路策略。
+
 E2 将已批准关系复用于另一 Web Client 的具名授权：Client 显式选择关系和名称，兑换前检查目标 Host ID 与公钥，仍用现有 SavedHost 存储独立凭据；重复打开仅切换已保存目标。CLI `relationships enroll --device-name` 使用同一登记路径。取消、断开和旧关系代际不能签发迟到访问；单独撤销设备不撤销关系或其他 Client。手机仍通过每 Host 的独立配对，不能凭平台标记继承关系。
 
 E3 在既有关系 owner 内保留缺少返回地址的已批准关系；固定 Noise 身份的状态交换学习既有线路，另一次独立对端探测验证返回方向。可达性为 30 秒有效的进程观测，重启后回到尚未验证；授权与线路仍持久化。Connections 和 CLI 共用方向检查及固定身份线路恢复；不重新批准、不新增设备授权，也不接管 LAN、Tailscale 或隧道进程。关闭线路准备窗口不停止已完成的线路。

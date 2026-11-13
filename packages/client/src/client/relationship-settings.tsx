@@ -6,6 +6,7 @@ import {
 import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives';
 import { noiseFingerprint } from '../../../core/src/devices/noise/xk.js';
 import { keyBytes } from '../../../../apps/mobile/src/host/encrypted-carrier.js';
+import { parsePairingLink } from '../../../../apps/mobile/src/host/pairing.js';
 import type { BotHarnessTranslate } from './locale.js';
 import {
   relationshipRequest,
@@ -57,7 +58,11 @@ export function RelationshipSettings({
         await relationshipRequest({ action: 'sync', id: item.id }, abort.current?.signal),
       );
       if (!abort.current?.signal.aborted) {
-        remoteHosts().learnRelationshipRoutes(result.relationship.peer);
+        const parsed = link ? parsePairingLink(link) : undefined;
+        await remoteHosts().learnRelationshipRoutes(
+          result.relationship.peer,
+          parsed?.ok ? parsed.payload.encryption?.privateRelay : undefined,
+        );
         setItems((current) =>
           current.map((entry) => (entry.id === item.id ? result.relationship : entry)),
         );
