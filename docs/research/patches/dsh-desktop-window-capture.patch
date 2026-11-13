@@ -1,0 +1,112 @@
+diff --git a/apps/desktop/src/ipc.ts b/apps/desktop/src/ipc.ts
+index a3c5f5d9..d56abab8 100644
+--- a/apps/desktop/src/ipc.ts
++++ b/apps/desktop/src/ipc.ts
+@@ -9,4 +9,5 @@ import type { DesktopFileDrag } from '@deepseek-ai/dsh-util-file-drag'
+ /** IPC channel names kept private to the desktop application bundle. */
+ export const DESKTOP_IPC = {
++  windowCapture: 'dsh-desktop:window-capture',
+   fileSave: 'dsh-desktop:file-save',
+   clipboardImageRead: 'dsh-desktop:clipboard-image-read',
+@@ -80,4 +81,6 @@ export interface DesktopUpdatePresentation {
+ /** Product documents cannot supply update versions, package URLs, or installation authorization. */
+ export interface DshDesktopProductApi {
++  /** PNG pixels of this owned application window only. No disk writes or screen sharing. */
++  captureWindow(): Promise<{ bytes: Uint8Array; mediaType: 'image/png' }>
+   readonly fileActions: DesktopFileActions
+   readonly protocolVersion: 1
+diff --git a/apps/desktop/src/main.ts b/apps/desktop/src/main.ts
+index d8d0e30c..3737d09c 100644
+--- a/apps/desktop/src/main.ts
++++ b/apps/desktop/src/main.ts
+@@ -1,3 +1,4 @@
+ import { installFileActions } from './file-actions.ts'
++import { installDesktopWindowCapture } from './window-capture.ts'
+ import type { ProductEventMap, ProductEvent } from '@deepseek-ai/dsh-client-product-analytics/types'
+ import { WINDOWS_TITLEBAR_HEIGHT } from './windows-layout.ts'
+@@ -829,4 +830,6 @@ async function main(): Promise<void> {
+   }
+   installFileActions(assertMainApplication, () => hostUrl)
++  const disposeWindowCapture = installDesktopWindowCapture(ipcMain, assertMainApplication)
++  app.on('will-quit', disposeWindowCapture)
+   ipcMain.on(PLATFORM_IPC.bootstrap, (event) => {
+     try { event.returnValue = platformView.bootstrap(event) }
+diff --git a/apps/desktop/src/preload-app.ts b/apps/desktop/src/preload-app.ts
+index 26266b4f..775c9da2 100644
+--- a/apps/desktop/src/preload-app.ts
++++ b/apps/desktop/src/preload-app.ts
+@@ -16,4 +16,6 @@ function createProductApi(): DshDesktopProductApi {
+   return {
+     protocolVersion: 1,
++    captureWindow: () => ipcRenderer.invoke(DESKTOP_IPC.windowCapture) as
++      Promise<{ bytes: Uint8Array; mediaType: 'image/png' }>,
+     fileActions: {
+       save: request => ipcRenderer.invoke(DESKTOP_IPC.fileSave, request) as Promise<FileSaveResult>,
+diff --git a/apps/desktop/src/window-capture.ts b/apps/desktop/src/window-capture.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/window-capture.ts
+@@ -0,0 +1,63 @@
++/** Native pixels for the calling application window; no window selector crosses IPC. */
++import type { BrowserWindow, IpcMain, IpcMainInvokeEvent } from 'electron'
++
++const CHANNEL = 'dsh-desktop:window-capture'
++const LIMIT = 25 * 1024 * 1024
++
++/**
++ * Install once for the application lifetime. The existing main-application
++ * authority rejects guest renderers, child frames and non-application origins.
++ */
++export function installDesktopWindowCapture(
++  ipc: Pick<IpcMain, 'handle' | 'removeHandler'>,
++  owner: (event: IpcMainInvokeEvent) => BrowserWindow,
++): () => void {
++  let busy = false
++  let disposed = false
++  ipc.handle(CHANNEL, async (event, ...args: unknown[]) => {
++    if (disposed || args.length !== 0) throw new Error('capture-invalid-request')
++    const window = owner(event)
++    const contents = window.webContents
++    const frame = event.senderFrame
++    const url = frame?.url
++    let navigated = false
++    const navigate = (_event: Electron.Event, _url: string, _inPlace: boolean, mainFrame: boolean): void => {
++      if (mainFrame) navigated = true
++    }
++    const valid = (): boolean => !disposed && !navigated && !window.isDestroyed()
++      && !contents.isDestroyed() && window.isVisible() && !window.isMinimized()
++      && event.sender === contents && frame === contents.mainFrame
++      && frame?.url === url && url !== undefined
++      && url.startsWith('dsh-app://app/')
++    if (!valid()) throw new Error('capture-window-unavailable')
++    if (busy) throw new Error('capture-busy')
++    busy = true
++    contents.on('did-start-navigation', navigate)
++    // Keep the busy lease until Chromium settles even if the caller times out.
++    const work = (async () => {
++      try {
++        const image = await contents.capturePage()
++        if (!valid() || owner(event) !== window) throw new Error('capture-window-changed')
++        if (image.isEmpty()) throw new Error('capture-empty')
++        const png = image.toPNG()
++        if (png.byteLength === 0 || png.byteLength > LIMIT) throw new Error('capture-size-limit')
++        return { bytes: Uint8Array.from(png), mediaType: 'image/png' as const }
++      } finally {
++        contents.removeListener('did-start-navigation', navigate)
++        busy = false
++      }
++    })()
++    let timer: ReturnType<typeof setTimeout> | undefined
++    try {
++      return await Promise.race([work, new Promise<never>((_, reject) => {
++        timer = setTimeout(() => { reject(new Error('capture-timeout')) }, 2_500)
++      })])
++    } finally {
++      clearTimeout(timer)
++    }
++  })
++  return () => {
++    disposed = true
++    ipc.removeHandler(CHANNEL)
++  }
++}

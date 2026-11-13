@@ -139,7 +139,7 @@ describe('Host client', () => {
     expect(client.getSnapshot().roster?.bots.length).toBeGreaterThan(0);
   });
 
-  it('preserves a live call carrier on resume, then restores ordinary recovery after release', async () => {
+  it('preserves a live call carrier and probes the same carrier after release', async () => {
     const host = new FakeHost();
     let sockets = 0;
     let closes = 0;
@@ -177,8 +177,10 @@ describe('Host client', () => {
     }
     release();
     target.retryNow('resume', { preserveConnected: lifetime.retained(target) });
-    await until(target, (state) => state.connection.status === 'connected' && sockets === 2);
-    expect(closes).toBe(1);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    expect(target.getSnapshot().connection.status).toBe('connected');
+    expect(sockets).toBe(1);
+    expect(closes).toBe(0);
   });
 
   it('recovers a disconnected retained Host and still accepts credential refusal', async () => {
@@ -301,12 +303,13 @@ describe('Host client', () => {
     const target = connect(host);
     await until(target, (s) => s.connection.status === 'connected');
     const received: unknown[] = [];
+    const interrupted = vi.fn();
     const off = target.follow(
       'botharness/followChannel',
       { channelId: channel.id, limit: 20 },
       {
         item: (item) => received.push(item),
-        interrupted() {},
+        interrupted,
         refused(error) {
           throw new Error(error.message);
         },
@@ -315,7 +318,7 @@ describe('Host client', () => {
     await until(target, () => channel.followerCount === 1);
     for (let cycle = 0; cycle < 5; cycle += 1) {
       target.retryNow('resume');
-      expect(target.getSnapshot().connection.status).toBe('reconnecting');
+      expect(target.getSnapshot().connection.status).toBe('connected');
       await until(target, (s) => s.connection.status === 'connected');
       expect(channel.followerCount).toBe(1);
       channel.append({ id: `resume-${cycle}`, body: `foreground ${cycle}` });
@@ -328,6 +331,11 @@ describe('Host client', () => {
         }),
       );
     }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    expect(interrupted).not.toHaveBeenCalled();
+    expect(channel.follows).toHaveLength(1);
+    host.push('botharness/followRoster', latest[0]);
+    expect(target.getSnapshot().roster?.bots[0]?.preview).toBe('mobile tracer probe');
     off();
     expect(channel.followerCount).toBe(0);
   });
@@ -337,9 +345,11 @@ describe('Host client', () => {
     const target = connect(host, host.credential, [ROUTE]);
     await until(target, (s) => s.connection.status === 'connected');
     host.unreachable.add(ROUTE);
+    host.kill();
     target.retryNow('resume');
     await until(target, (s) => s.connection.status === 'unreachable');
     host.unreachable.delete(ROUTE);
+    host.restart();
     await until(target, (s) => s.connection.status === 'connected');
     host.push('botharness/followRoster', latest[0]);
     expect(target.getSnapshot().roster?.bots[0]?.preview).toBe('mobile tracer probe');
@@ -384,7 +394,17 @@ describe('Host client', () => {
         },
         openSocket: (...args) => {
           sockets += 1;
-          return host.carrier.openSocket(...args);
+          const [url, events, headers] = args;
+          return host.carrier.openSocket(
+            url,
+            {
+              ...events,
+              message: (text) => {
+                if (!hold) events.message(text);
+              },
+            },
+            headers,
+          );
         },
       },
     });
@@ -453,7 +473,7 @@ describe('Host client', () => {
   });
 
   it.each(['complete', 'timeout'] as const)(
-    'defers foreground recovery until an accepted write %ss without replaying it',
+    'defers dead-carrier recovery until an accepted write %ss without replaying it',
     async (outcome) => {
       const host = new FakeHost();
       let complete!: () => void;
@@ -464,6 +484,7 @@ describe('Host client', () => {
             complete = resolve;
           }),
       );
+      let suspended = false;
       let sockets = 0;
       let closes = 0;
       client = createHostClient({
@@ -475,9 +496,18 @@ describe('Host client', () => {
           close: () => {
             closes++;
           },
-          openSocket: (...args) => {
-            sockets++;
-            return host.carrier.openSocket(...args);
+          openSocket: (url, events, headers) => {
+            const first = ++sockets === 1;
+            return host.carrier.openSocket(
+              url,
+              {
+                ...events,
+                message: (text) => {
+                  if (!first || !suspended) events.message(text);
+                },
+              },
+              headers,
+            );
           },
           request: async (url, init) => {
             const response = host.carrier.request(url, init);
@@ -501,6 +531,7 @@ describe('Host client', () => {
         () => 'timeout',
       );
       await until(target, () => typeof complete === 'function');
+      suspended = true;
       target.retryNow('resume');
       expect(closes).toBe(0);
       expect(sockets).toBe(1);

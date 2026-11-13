@@ -252,102 +252,112 @@ it('keeps the original attachment when markup is cancelled', async () => {
   expect(dialog().querySelector('[data-bug-report-file="shot.png"]')).not.toBeNull();
 });
 
-it('steps the report aside for a screenshot dock that adds several marked-up captures', async () => {
-  const texts: string[] = [];
-  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
-    new Proxy(
-      {},
-      {
-        get: (_target, key) =>
-          key === 'measureText'
-            ? () => ({ width: 40 })
-            : key === 'fillText'
-              ? (value: string) => texts.push(value)
-              : typeof key === 'string' &&
-                  !['strokeStyle', 'fillStyle', 'lineWidth', 'font'].includes(key)
-                ? () => {}
-                : undefined,
-        set: () => true,
-      },
-    ) as never,
-  );
-  vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation((done) =>
-    done(new Blob(['png'], { type: 'image/png' })),
-  );
-  vi.stubGlobal(
-    'Image',
-    class {
-      naturalWidth = 800;
-      naturalHeight = 600;
-      onload: (() => void) | null = null;
-      set src(_value: string) {
-        queueMicrotask(() => this.onload?.());
-      }
-    },
-  );
-  vi.stubGlobal('requestAnimationFrame', (next: FrameRequestCallback) => {
-    next(0);
-    return 0;
-  });
-  domToBlob.mockClear();
-  await act(async () => root.render(createElement(BugReportDialog, { onClose: () => {}, t })));
-  await act(async () => buttonNamed('截图并标注').click());
-  expect(document.querySelector('[data-bug-report="form"]')).toBeNull();
-  const dock = () => document.querySelector<HTMLElement>('[data-bug-report-dock]');
-  expect(dock()?.getAttribute('role')).toBe('toolbar');
-  expect(dock()?.textContent).toContain('已添加 0 张');
-
-  await act(async () => buttonNamed('截图').click());
-  await act(async () => {});
-  expect(domToBlob).toHaveBeenCalledTimes(1);
-  expect(document.querySelector('[data-bug-report="annotate"]')).not.toBeNull();
-  expect(dock()?.getAttribute('aria-hidden')).toBe('true');
-  const canvas = dialog().querySelector<HTMLCanvasElement>('[data-annotate-canvas]')!;
-  canvas.getBoundingClientRect = () =>
-    ({ left: 0, top: 0, width: 400, height: 300, right: 400, bottom: 300 }) as DOMRect;
-  await act(async () => buttonNamed('文字').click());
-  await act(async () => {
-    canvas.dispatchEvent(
-      Object.assign(new MouseEvent('pointerdown', { bubbles: true, clientX: 40, clientY: 30 }), {
-        pointerId: 1,
-      }),
+it.each(['page', 'window'])(
+  'adds several marked-up captures from a %s capture session',
+  async (kind) => {
+    const captureWindow = vi.fn(async () => {
+      expect(document.querySelector('[data-bug-report-dock]')?.getAttribute('aria-hidden')).toBe(
+        'true',
+      );
+      return { mediaType: 'image/png', bytes: new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]) };
+    });
+    if (kind === 'window') vi.stubGlobal('dshDesktop', { protocolVersion: 1, captureWindow });
+    const texts: string[] = [];
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
+      new Proxy(
+        {},
+        {
+          get: (_target, key) =>
+            key === 'measureText'
+              ? () => ({ width: 40 })
+              : key === 'fillText'
+                ? (value: string) => texts.push(value)
+                : typeof key === 'string' &&
+                    !['strokeStyle', 'fillStyle', 'lineWidth', 'font'].includes(key)
+                  ? () => {}
+                  : undefined,
+          set: () => true,
+        },
+      ) as never,
     );
-  });
-  const label = dialog().querySelector<HTMLInputElement>('[data-annotate-label]')!;
-  await typeInto(label, '这里一直转圈');
-  await act(async () =>
-    label.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })),
-  );
-  expect(dialog().querySelector('[data-annotate-label]')).toBeNull();
-  expect(texts).toContain('这里一直转圈');
-  await typeInto(fieldNamed('一句话说明（可选）'), '发送后卡住');
-  await act(async () => buttonNamed('添加到附件').click());
-  expect(document.querySelector('[data-bug-report="annotate"]')).toBeNull();
-  expect(dock()?.textContent).toContain('已添加 1 张');
+    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation((done) =>
+      done(new Blob(['png'], { type: 'image/png' })),
+    );
+    vi.stubGlobal(
+      'Image',
+      class {
+        naturalWidth = 800;
+        naturalHeight = 600;
+        onload: (() => void) | null = null;
+        set src(_value: string) {
+          queueMicrotask(() => this.onload?.());
+        }
+      },
+    );
+    vi.stubGlobal('requestAnimationFrame', (next: FrameRequestCallback) =>
+      setTimeout(() => next(0), 0),
+    );
+    domToBlob.mockClear();
+    await act(async () => root.render(createElement(BugReportDialog, { onClose: () => {}, t })));
+    await act(async () => buttonNamed('截图并标注').click());
+    expect(document.querySelector('[data-bug-report="form"]')).toBeNull();
+    const dock = () => document.querySelector<HTMLElement>('[data-bug-report-dock]');
+    expect(dock()?.getAttribute('role')).toBe('toolbar');
+    expect(dock()?.textContent).toContain('已添加 0 张');
 
-  const thumb = dock()!.querySelector<HTMLButtonElement>('[data-bug-report-dock-shot] button')!;
-  await act(async () => thumb.click());
-  await act(async () => {});
-  expect(buttonNamed('撤销').disabled).toBe(false);
-  expect(fieldNamed('一句话说明（可选）').value).toBe('发送后卡住');
-  await act(async () => buttonNamed('取消').click());
-  expect(dock()?.textContent).toContain('已添加 1 张');
+    await act(async () => buttonNamed('截图').click());
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 20)));
+    expect(kind === 'window' ? captureWindow : domToBlob).toHaveBeenCalledTimes(1);
+    if (kind === 'window') expect(domToBlob).not.toHaveBeenCalled();
+    expect(document.querySelector('[data-bug-report="annotate"]')).not.toBeNull();
+    expect(dock()?.getAttribute('aria-hidden')).toBe('true');
+    const canvas = dialog().querySelector<HTMLCanvasElement>('[data-annotate-canvas]')!;
+    canvas.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, width: 400, height: 300, right: 400, bottom: 300 }) as DOMRect;
+    await act(async () => buttonNamed('文字').click());
+    await act(async () => {
+      canvas.dispatchEvent(
+        Object.assign(new MouseEvent('pointerdown', { bubbles: true, clientX: 40, clientY: 30 }), {
+          pointerId: 1,
+        }),
+      );
+    });
+    const label = dialog().querySelector<HTMLInputElement>('[data-annotate-label]')!;
+    await typeInto(label, '这里一直转圈');
+    await act(async () =>
+      label.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })),
+    );
+    expect(dialog().querySelector('[data-annotate-label]')).toBeNull();
+    expect(texts).toContain('这里一直转圈');
+    await typeInto(fieldNamed('一句话说明（可选）'), '发送后卡住');
+    await act(async () => buttonNamed('添加到附件').click());
+    expect(document.querySelector('[data-bug-report="annotate"]')).toBeNull();
+    expect(dock()?.textContent).toContain('已添加 1 张');
 
-  await act(async () => buttonNamed('截图').click());
-  await act(async () => {});
-  await act(async () => buttonNamed('不要这张').click());
-  expect(dock()?.textContent).toContain('已添加 1 张');
+    const thumb = dock()!.querySelector<HTMLButtonElement>('[data-bug-report-dock-shot] button')!;
+    await act(async () => thumb.click());
+    await act(async () => {});
+    expect(buttonNamed('撤销').disabled).toBe(false);
+    expect(fieldNamed('一句话说明（可选）').value).toBe('发送后卡住');
+    await act(async () => buttonNamed('取消').click());
+    expect(dock()?.textContent).toContain('已添加 1 张');
 
-  await act(async () => buttonNamed('完成').click());
-  expect(dock()).toBeNull();
-  const names = [...dialog().querySelectorAll('[data-bug-report-file]')].map((item) =>
-    item.getAttribute('data-bug-report-file'),
-  );
-  expect(names).toHaveLength(1);
-  expect(names[0]).toMatch(/^screenshot-\d{8}-\d{6}-annotated\.png$/u);
-  expect(dialog().querySelector('[data-bug-report-note]')?.textContent).toBe('发送后卡住');
-  expect(buttonNamed('只下载截图（1）')).toBeDefined();
-});
+    await act(async () => buttonNamed('截图').click());
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 20)));
+    await act(async () => buttonNamed('不要这张').click());
+    expect(dock()?.textContent).toContain('已添加 1 张');
+
+    await act(async () => buttonNamed('完成').click());
+    expect(dock()).toBeNull();
+    const names = [...dialog().querySelectorAll('[data-bug-report-file]')].map((item) =>
+      item.getAttribute('data-bug-report-file'),
+    );
+    expect(names).toHaveLength(1);
+    expect(names[0]).toMatch(/^screenshot-\d{8}-\d{6}-annotated\.png$/u);
+    expect(dialog().querySelector('[data-bug-report-note]')?.textContent).toBe('发送后卡住');
+    expect(buttonNamed('只下载截图（1）')).toBeDefined();
+  },
+);
 
 it('keeps the dock open and says so when a capture fails', async () => {
   vi.stubGlobal('requestAnimationFrame', (next: FrameRequestCallback) => {
