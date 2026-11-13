@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { inboxFixture as fixture } from './inbox-fixture.js';
@@ -72,8 +73,11 @@ describe('Orchestrator triage continuation', () => {
   it('maps a Message ID shared by two channels to the item in this turn', async () => {
     const f = await fixture();
     try {
-      const group = f.core.channels.createGroup({ name: 'Crew', members: ['ada'] });
-      await f.core.channels.appendMessage(group.id, {
+      const group = f.core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Crew',
+        members: ['ada'],
+      });
+      await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'human-1',
         at: new Date().toISOString(),
         author: { kind: 'human' },
@@ -102,8 +106,11 @@ describe('Orchestrator triage continuation', () => {
     const f = await fixture();
     try {
       await f.send('Waiting on legal');
-      const group = f.core.channels.createGroup({ name: 'Crew', members: ['ada'] });
-      await f.core.channels.appendMessage(group.id, {
+      const group = f.core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Crew',
+        members: ['ada'],
+      });
+      await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'human-1',
         at: new Date().toISOString(),
         author: { kind: 'human' },

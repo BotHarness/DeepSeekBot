@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import type { Context } from '@deepseek-ai/cordis';
 import type { ToolApprovalActor } from './tool-approval-actor.js';
 export type { ToolApprovalActor } from './tool-approval-actor.js';
@@ -321,7 +322,9 @@ export class ChannelToolApproval {
       originChannel?.type === 'group' && originChannel.members.includes(tracked.botSlug)
         ? originChannel.id
         : dmChannelId(tracked.botSlug);
-    const channel = this.#channels.get(channelId) ?? this.#channels.getOrCreateDm(tracked.botSlug);
+    const channel =
+      this.#channels.get(channelId) ??
+      this.#channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, tracked.botSlug);
     if (channel === undefined) return 'unavailable';
     if (channel.type !== 'group' && channel.botSlug !== tracked.botSlug) return 'unavailable';
     if (
@@ -395,7 +398,7 @@ export class ChannelToolApproval {
           tracked.callId,
           request.signal ?? new AbortController().signal,
         );
-      const committed = await this.#channels.appendMessage(channelId, message);
+      const committed = await this.#channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, message);
       if (committed === undefined) return 'unavailable';
       if (this.#pending.get(message.id) === pending) {
         pending.committed = true;
@@ -573,6 +576,7 @@ export class ChannelToolApproval {
   }
 
   async decide(
+    human: HumanContext,
     botSlug: string,
     messageId: string,
     outcome: ToolApprovalDecision['outcome'],
@@ -713,7 +717,7 @@ export class ChannelToolApproval {
           ...(external ? { actor: external.actor } : {}),
         },
       };
-      if ((await this.#channels.appendMessage(pending.channelId, decision)) === undefined) {
+      if ((await this.#channels.appendMessage(human, pending.channelId, decision)) === undefined) {
         if (rule !== undefined) this.#rules?.revoke(botSlug, rule.id);
         return false;
       }
@@ -767,6 +771,7 @@ export class ChannelToolApproval {
   }
 
   async overrideRejection(
+    human: HumanContext,
     channelId: string,
     recordMessageId: string,
   ): Promise<AutoRejectionOverrideResult> {
@@ -791,7 +796,7 @@ export class ChannelToolApproval {
     };
     let appended: ChannelMessage | undefined;
     try {
-      appended = await this.#channels.appendMessage(channelId, message);
+      appended = await this.#channels.appendMessage(human, channelId, message);
     } catch {
       appended = undefined;
     }
@@ -866,7 +871,7 @@ export class ChannelToolApproval {
             AUTO_APPROVAL_SESSION_REJECTIONS +
             ' rejections. Every request posts a card until you approve one.';
     try {
-      await this.#channels.appendMessage(breaker.channelId, {
+      await this.#channels.appendMessage(OWNER_HUMAN_CONTEXT, breaker.channelId, {
         id: randomUUID(),
         at: new Date().toISOString(),
         author: { kind: 'system' },
@@ -1018,7 +1023,9 @@ export class ChannelToolApproval {
       },
     };
     try {
-      if ((await this.#channels.appendMessage(channelId, record)) === undefined) {
+      if (
+        (await this.#channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, record)) === undefined
+      ) {
         log(review.outcome, 'record-unavailable');
         return undefined;
       }

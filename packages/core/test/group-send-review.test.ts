@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createHash } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -101,11 +102,14 @@ it('revoking the initiating Group stops cross-Channel continuation but not a lat
   try {
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
     core.registry.create({ slug: 'bob', displayName: 'Bob' });
-    const group = core.channels.createGroup({ name: 'Review', members: ['ada', 'bob'] });
+    const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Review',
+      members: ['ada', 'bob'],
+    });
     groupId = group.id;
     core.runtime.groupSendReview!.configure(groupId, true);
-    core.channels.getOrCreateDm('ada', 'Ada');
-    await core.channels.appendMessage(groupId, {
+    core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, groupId, {
       id: 'request',
       at: new Date().toISOString(),
       author: { kind: 'human' },
@@ -118,13 +122,13 @@ it('revoking the initiating Group stops cross-Channel continuation but not a lat
     for (const error of outcomes)
       expect(error).toMatchObject({ code: 'group-reply-source-revoked' });
     expect(core.channels.readMessages('dm-ada')).toHaveLength(0);
-    await core.channels.appendMessage('dm-ada', {
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, 'dm-ada', {
       id: 'new-dm',
       at: new Date().toISOString(),
       author: { kind: 'human' },
       body: 'New independent request',
     });
-    const admission = core.runtime.admitDmMessage({
+    const admission = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
       channelId: 'dm-ada',
       messageId: 'new-dm',
       body: 'New independent request',
@@ -180,7 +184,10 @@ async function fixture(
   try {
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
     core.registry.create({ slug: 'bob', displayName: 'Bob' });
-    const group = core.channels.createGroup({ name: 'Review', members: ['ada', 'bob'] });
+    const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Review',
+      members: ['ada', 'bob'],
+    });
     for (const bot of group.members)
       core.channels.setGroupWakePolicy(group.id, bot, {
         mode: 'silent',
@@ -192,7 +199,7 @@ async function fixture(
       core,
       channelId: group.id,
       human: async (id, body) => {
-        await core.channels.appendMessage(group.id, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
           id,
           body,
           author: { kind: 'human' },
@@ -230,7 +237,7 @@ describe('Group send review through the same direct model tools', () => {
           yield Buffer.from('Original');
         })(),
       });
-      await core.channels.appendMessage(channelId, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
         id: 'peer-with-file',
         at: new Date().toISOString(),
         author: { kind: 'bot', slug: 'bob' },
@@ -716,8 +723,15 @@ it('refuses automatic recovery after restart or expiry and removes draft content
     const expired = new GroupSendReview(database, () => new Date(draft.expires + 1));
     expect(database.transaction((db) => expired.check(db, input))?.status).toBe('expired');
     core.channels.deleteGroup(channelId);
-    const preview = core.contentPurge.preview(channelId, [draft.sourceEventId]);
-    core.contentPurge.confirm(channelId, preview.sourceEventIds, preview.token);
+    const preview = core.contentPurge.preview(OWNER_HUMAN_CONTEXT, channelId, [
+      draft.sourceEventId,
+    ]);
+    core.contentPurge.confirm(
+      OWNER_HUMAN_CONTEXT,
+      channelId,
+      preview.sourceEventIds,
+      preview.token,
+    );
     expect(core.runtime.groupSendReview!.inspect(owner, channelId, draft.id)).toBeUndefined();
     await expect(
       tool('bot_send_message', { body: 'Private draft', draft_id: draft.id }),
@@ -791,7 +805,7 @@ describe('busy Group progress through the direct tool', () => {
           let draftId: string | undefined;
           for (let n = 0; n < 3; n++) {
             const read = JSON.parse(run.channels.readModel({ channelId: groupId }));
-            await core.channels.appendMessage(groupId, {
+            await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, groupId, {
               id: `busy-turn-${n}`,
               at: new Date().toISOString(),
               author: { kind: 'human' },
@@ -851,7 +865,10 @@ describe('busy Group progress through the direct tool', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bob', displayName: 'Bob' });
-      groupId = core.channels.createGroup({ name: 'Budget', members: ['ada', 'bob'] }).id;
+      groupId = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Budget',
+        members: ['ada', 'bob'],
+      }).id;
       core.channels.setGroupWakePolicy(groupId, 'ada', {
         mode: 'silent',
         count: 5,
@@ -864,7 +881,7 @@ describe('busy Group progress through the direct tool', () => {
       });
       core.runtime.groupSendReview!.configure(groupId, true);
       for (const id of ['initial-request', 'new-request']) {
-        await core.channels.appendMessage(groupId, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, groupId, {
           id,
           at: new Date().toISOString(),
           author: { kind: 'human' },
@@ -1073,8 +1090,15 @@ describe('busy Group progress through the direct tool', () => {
         }
         if (fault === 'purge') {
           f.core.channels.deleteGroup(f.channelId);
-          const preview = f.core.contentPurge.preview(f.channelId, [draft.sourceEventId]);
-          f.core.contentPurge.confirm(f.channelId, preview.sourceEventIds, preview.token);
+          const preview = f.core.contentPurge.preview(OWNER_HUMAN_CONTEXT, f.channelId, [
+            draft.sourceEventId,
+          ]);
+          f.core.contentPurge.confirm(
+            OWNER_HUMAN_CONTEXT,
+            f.channelId,
+            preview.sourceEventIds,
+            preview.token,
+          );
         }
         const attempt = f.tool('bot_send_message', {
           body: 'Meet at 11:00',

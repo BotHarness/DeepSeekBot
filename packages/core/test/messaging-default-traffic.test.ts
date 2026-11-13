@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { setImmediate as tick } from 'node:timers/promises';
 import { afterEach, expect, it, vi } from 'vitest';
 import { createCore, type BotHarnessCore } from '../src/plugin.js';
@@ -234,7 +235,7 @@ async function fixture(
 }
 
 async function ordinaryRole(fx: Awaited<ReturnType<typeof fixture>>) {
-  const methods = createBridgeMethods({ ...fx.core });
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...fx.core });
   expect(
     await methods.senderAccess({
       slug: 'ada',
@@ -300,7 +301,7 @@ it('Slack ordinary DM pairing only executes a fresh reviewed request and queries
   expect(fx.replies).toHaveLength(1);
   expect(fx.replies[0]!.text).not.toContain(blocked.text);
   expect((await fx.core.externalMessaging.snapshot('ada')).pairingReceivers).toHaveLength(1);
-  const methods = createBridgeMethods({ ...fx.core });
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...fx.core });
   const review = {
     kind: 'approve' as const,
     id: request.id,
@@ -342,7 +343,7 @@ it('Slack ordinary DM pairing only executes a fresh reviewed request and queries
   });
   const approved = fx.core.externalMessaging.pairing.list('ada')[0]!;
   expect(
-    await createBridgeMethods({ ...fx.core }).pairingReview({
+    await createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...fx.core }).pairingReview({
       slug: 'ada',
       input: { kind: 'revoke', id: approved.id, expectedRevision: approved.revision },
     }),
@@ -550,7 +551,7 @@ it('observations respect shared-source access and purge without treating other A
       .rows,
   ).toHaveLength(2);
   expect(fx.core.registry.create({ slug: 'grace', displayName: 'Grace' }).ok).toBe(true);
-  const group = fx.core.channels.createGroup({
+  const group = fx.core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
     name: 'Shared QA evidence',
     members: ['ada', 'grace'],
   });
@@ -565,8 +566,13 @@ it('observations respect shared-source access and purge without treating other A
     }),
   ).toThrow('directory-scope-unavailable');
   fx.core.channels.deleteGroup(group.id);
-  const preview = fx.core.contentPurge.preview(group.id, [colleague]);
-  fx.core.contentPurge.confirm(group.id, preview.sourceEventIds, preview.token);
+  const preview = fx.core.contentPurge.preview(OWNER_HUMAN_CONTEXT, group.id, [colleague]);
+  fx.core.contentPurge.confirm(
+    OWNER_HUMAN_CONTEXT,
+    group.id,
+    preview.sourceEventIds,
+    preview.token,
+  );
   expect(
     fx.core.externalMessaging.directory('ada', { kind: 'observed-people', sourceEventId: anchor })
       .rows,
@@ -613,7 +619,7 @@ it('unknown Lark requests are bounded controls; Web ordinary-role review asks ag
   expect(JSON.stringify(request)).not.toContain(blocked.text);
   expect(fx.replies).toHaveLength(1);
   expect(fx.replies[0]!.text).not.toContain(blocked.text);
-  const methods = createBridgeMethods({ ...fx.core });
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...fx.core });
   const review = {
     kind: 'approve' as const,
     id: request.id,
@@ -1925,7 +1931,10 @@ it('syncs an implicit group entry into a Channel, which then receives its later 
   const fx = await fixture();
   await fx.receive(mention('first'));
   const entry = (await fx.core.externalMessaging.snapshot('ada')).grants[0]!;
-  const room = fx.core.channels.createGroup({ name: 'Team room', members: ['ada'] });
+  const room = fx.core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+    name: 'Team room',
+    members: ['ada'],
+  });
   await fx.core.externalMessaging.inbound.channelBridge(room.id, {
     kind: 'add',
     grantId: entry.id,
@@ -1945,7 +1954,7 @@ it('syncs an implicit group entry into a Channel, which then receives its later 
   expect(routes?.map((route) => route.channelId)).toContain(room.id);
   const synced = await fx.core.externalMessaging.channelBridges(room.id);
   expect(synced.bridges.map((row) => [row.name, row.delivery])).toEqual([['Team', 'channel']]);
-  const dm = fx.core.channels.getOrCreateDm('ada', 'Ada')!;
+  const dm = fx.core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
   expect((await fx.core.externalMessaging.channelBridges(dm.id)).bridges).toEqual([]);
 });
 
@@ -1953,7 +1962,7 @@ it('QQ Channel sync rejects a Human DM and preserves Inbox-only history when a G
   const fx = await fixture('qq');
   await fx.receive(qqMention('qq-first'));
   const entry = (await fx.core.externalMessaging.snapshot('ada')).grants[0]!;
-  const dmChannel = fx.core.channels.getOrCreateDm('ada', 'Ada')!;
+  const dmChannel = fx.core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
   const input = {
     kind: 'add' as const,
     grantId: entry.id,
@@ -1967,7 +1976,10 @@ it('QQ Channel sync rejects a Human DM and preserves Inbox-only history when a G
   await expect(
     fx.core.externalMessaging.inbound.channelBridge(dmChannel.id, input),
   ).rejects.toMatchObject({ code: 'channel-unavailable' });
-  const room = fx.core.channels.createGroup({ name: 'QQ room', members: ['ada'] });
+  const room = fx.core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+    name: 'QQ room',
+    members: ['ada'],
+  });
   await fx.core.externalMessaging.inbound.channelBridge(room.id, input);
   const later = (id: string) => ({
     ...qqMention(id),
@@ -2037,9 +2049,11 @@ it('QQ keeps a conversation mute preference after the same app is unbound, resta
   expect(restored.id).not.toBe(original.id);
   expect(restored).toMatchObject({ muted: true, preferenceRevision: 1 });
   expect(fx.runs).toHaveLength(1);
-  expect(fx.core.channels.readMessages(fx.core.channels.getOrCreateDm('ada', 'Ada')!.id)).toEqual(
-    [],
-  );
+  expect(
+    fx.core.channels.readMessages(
+      fx.core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!.id,
+    ),
+  ).toEqual([]);
 });
 
 it('QQ exposes observed connection gaps after recovery without claiming a missed-message count', async () => {

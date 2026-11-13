@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import type { SQLInputValue } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
 import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
@@ -14,7 +15,7 @@ describe('Channel unread revision ranges', () => {
     );
     const database = attachOperationalModule(owner, 'channel-unread-range');
     const channels = createSqliteChannelStore({ database, rootDir: dshHome });
-    const channel = channels.getOrCreateDm('ada', 'Ada')!;
+    const channel = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
     database.transaction((connection) => {
       const event = connection.prepare(`INSERT INTO source_events
         (source_event_id, source_kind, bot_slug, channel_id, message_id, body, created_at, payload_json)
@@ -75,15 +76,19 @@ describe('Channel unread revision ranges', () => {
       },
     };
     const query = createHumanAttentionQuery(observed);
-    expect(await channels.markRead(channel.id, 'history-1999')).toMatchObject({ revision: 1999 });
-    expect(query.unreadByChannel()).toEqual([{ channelId: channel.id, unreadCount: 1 }]);
+    expect(await channels.markRead(OWNER_HUMAN_CONTEXT, channel.id, 'history-1999')).toMatchObject({
+      revision: 1999,
+    });
+    expect(query.unreadByChannel(OWNER_HUMAN_CONTEXT)).toEqual([
+      { channelId: channel.id, unreadCount: 1 },
+    ]);
     expect(plans.some((detail) => /SEARCH p .*channel_id=\? AND revision>\?/.test(detail))).toBe(
       true,
     );
     expect(plans.filter((detail) => /^SCAN p\b/.test(detail))).toEqual([]);
     plans.length = 0;
-    await channels.markRead(channel.id, 'history-2000');
-    expect(query.unreadByChannel()).toEqual([]);
+    await channels.markRead(OWNER_HUMAN_CONTEXT, channel.id, 'history-2000');
+    expect(query.unreadByChannel(OWNER_HUMAN_CONTEXT)).toEqual([]);
     expect(plans.some((detail) => /SEARCH p .*channel_id=\? AND revision>\?/.test(detail))).toBe(
       true,
     );
@@ -97,9 +102,9 @@ describe('Channel unread revision ranges', () => {
     );
     const database = attachOperationalModule(owner, 'channel-unread-visibility');
     const channels = createSqliteChannelStore({ database, rootDir: dshHome });
-    const group = channels.createGroup({ name: 'Team', members: ['ada'] });
+    const group = channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Team', members: ['ada'] });
     for (let revision = 1; revision <= 5; revision++)
-      await channels.appendMessage(group.id, {
+      await channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: `message-${revision}`,
         at: '2026-11-02T00:00:00Z',
         author: { kind: 'bot', slug: 'ada' },
@@ -115,17 +120,23 @@ describe('Channel unread revision ranges', () => {
           .run(floor, leftAt, group.id),
       );
     membership(4, null);
-    expect(query.unreadByChannel()).toEqual([{ channelId: group.id, unreadCount: 2 }]);
-    await channels.markRead(group.id, 'message-4');
-    expect(query.unreadByChannel()).toEqual([{ channelId: group.id, unreadCount: 1 }]);
+    expect(query.unreadByChannel(OWNER_HUMAN_CONTEXT)).toEqual([
+      { channelId: group.id, unreadCount: 2 },
+    ]);
+    await channels.markRead(OWNER_HUMAN_CONTEXT, group.id, 'message-4');
+    expect(query.unreadByChannel(OWNER_HUMAN_CONTEXT)).toEqual([
+      { channelId: group.id, unreadCount: 1 },
+    ]);
     membership(4, '2026-11-02T00:01:00Z');
-    expect(query.unreadByChannel()).toEqual([]);
+    expect(query.unreadByChannel(OWNER_HUMAN_CONTEXT)).toEqual([]);
     membership(6, null);
-    expect(query.unreadByChannel()).toEqual([]);
+    expect(query.unreadByChannel(OWNER_HUMAN_CONTEXT)).toEqual([]);
     membership(5, null);
-    expect(query.unreadByChannel()).toEqual([{ channelId: group.id, unreadCount: 1 }]);
+    expect(query.unreadByChannel(OWNER_HUMAN_CONTEXT)).toEqual([
+      { channelId: group.id, unreadCount: 1 },
+    ]);
     channels.deleteGroup(group.id);
-    expect(query.unreadByChannel()).toEqual([]);
+    expect(query.unreadByChannel(OWNER_HUMAN_CONTEXT)).toEqual([]);
   });
 
   it('does not count Channel notices beside eligible unread messages', async () => {
@@ -135,24 +146,26 @@ describe('Channel unread revision ranges', () => {
     );
     const database = attachOperationalModule(owner, 'channel-unread-notice');
     const channels = createSqliteChannelStore({ database, rootDir: dshHome });
-    const group = channels.createGroup({ name: 'Team', members: ['ada'] });
-    const dm = channels.getOrCreateDm('ada', 'Ada')!;
-    await channels.appendMessage(dm.id, {
+    const group = channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Team', members: ['ada'] });
+    const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+    await channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
       id: 'bot-channel-post-notice',
       at: '2026-11-02T00:00:00Z',
       author: { kind: 'bot', slug: 'ada' },
       body: '',
       botChannelPost: { channelId: group.id, messageId: 'posted-in-team' },
     });
-    await channels.appendMessage(dm.id, {
+    await channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
       id: 'bot-message',
       at: '2026-11-02T00:00:01Z',
       author: { kind: 'bot', slug: 'ada' },
       body: 'Eligible reply',
     });
     const query = createHumanAttentionQuery(database);
-    expect(query.unreadByChannel()).toEqual([{ channelId: dm.id, unreadCount: 1 }]);
-    await channels.markRead(dm.id, 'bot-message');
-    expect(query.unreadByChannel()).toEqual([]);
+    expect(query.unreadByChannel(OWNER_HUMAN_CONTEXT)).toEqual([
+      { channelId: dm.id, unreadCount: 1 },
+    ]);
+    await channels.markRead(OWNER_HUMAN_CONTEXT, dm.id, 'bot-message');
+    expect(query.unreadByChannel(OWNER_HUMAN_CONTEXT)).toEqual([]);
   });
 });

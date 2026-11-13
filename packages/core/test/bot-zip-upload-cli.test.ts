@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createServer } from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
@@ -22,7 +23,7 @@ it('uploads through bounded authenticated CLI calls, recovers a lost chunk respo
       },
     },
   });
-  const bridge = createBridgeMethods(core);
+  const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, core);
   let dropped = false;
   const server = createServer(async (request, response) => {
     if (request.method === 'GET') {

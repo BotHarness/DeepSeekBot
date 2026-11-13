@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createHash } from 'node:crypto';
 import { afterEach, expect, it, vi } from 'vitest';
 import { Context } from '@deepseek-ai/cordis';
@@ -33,7 +34,7 @@ function fixture(home = createTempRoot('zip-import-receipt-')) {
     core.operationalDatabase.close();
   };
   closes.push(close);
-  return { core, home, close, bridge: createBridgeMethods(core) };
+  return { core, home, close, bridge: createBridgeMethods(OWNER_HUMAN_CONTEXT, core) };
 }
 
 it('previews and imports uploaded Zip once, retaining its receipt after staging expiry and Host restart', async () => {
@@ -105,7 +106,10 @@ it('previews and imports uploaded Zip once, retaining its receipt after staging 
 
 it('exposes bounded Zip operations through Typert and refuses unsafe archives before creating a Bot', async () => {
   const f = fixture();
-  const service = registerBridge(new Context(), f.bridge);
+  const service = registerBridge(
+    new Context().extend({ invocation: { peer: { principal: { kind: 'owner' } } } }),
+    () => f.bridge,
+  );
   const archive = writeZip([{ path: '../outside', data: Buffer.from('unsafe') }]);
   const sha = createHash('sha256').update(archive).digest('hex');
   expect(service.zipUploadBegin('unsafe-upload-01', sha, archive.length).offset).toBe(0);

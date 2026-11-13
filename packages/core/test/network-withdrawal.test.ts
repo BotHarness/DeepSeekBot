@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { randomBytes } from 'node:crypto';
 import { createServer } from 'node:http';
 import { expect, it } from 'vitest';
@@ -160,14 +161,18 @@ it.skipIf(!aliases).each(['pending', 'started', 'alternate-network', 'connect-ro
       }
       const appendHuman = async (index: number, body: string) => {
         const core = cores[index]!;
-        const dm = core.channels.getOrCreateDm('bot', nodes[index]!.nodeId)!;
-        await core.channels.appendMessage(dm.id, {
+        const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'bot', nodes[index]!.nodeId)!;
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
           id: body,
           at: new Date().toISOString(),
           author: { kind: 'human' },
           body,
         });
-        core.runtime.admitDmMessage({ channelId: dm.id, messageId: body, body });
+        core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+          channelId: dm.id,
+          messageId: body,
+          body,
+        });
         return core.channels.humanSendStatus!(dm.id, body)!.sourceEventId;
       };
       if (phase !== 'started') {

@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import { describe, expect, it } from 'vitest';
 import { createCore } from '../src/plugin.js';
@@ -18,22 +19,22 @@ describe('Activity Center Host query', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bea', displayName: 'Bea' });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
       for (let i = 0; i < 61; i++)
-        await core.channels.appendMessage(dm.id, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
           id: 'grant-' + i,
           at: '2026-10-01T09:00:00Z',
           author: { kind: 'bot', slug: 'ada' },
           body: 'Choose workspace',
           grantRequest: true,
         });
-      await core.channels.appendMessage(dm.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'ordinary',
         at: '2026-10-01T09:00:01Z',
         author: { kind: 'bot', slug: 'ada' },
         body: 'Status update',
       });
-      const methods = createBridgeMethods({ ...core });
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
       expect(methods.activityOverview({})).toMatchObject({
         ok: true,
         value: {
@@ -44,8 +45,14 @@ describe('Activity Center Host query', () => {
           ],
         },
       });
-      expect(core.humanAttention.actionSummary()).toEqual({ count: 61, botSlugs: ['ada'] });
-      expect(core.humanAttention.status()).toEqual({ unreadCount: 62, hasAction: true });
+      expect(core.humanAttention.actionSummary(OWNER_HUMAN_CONTEXT)).toEqual({
+        count: 61,
+        botSlugs: ['ada'],
+      });
+      expect(core.humanAttention.status(OWNER_HUMAN_CONTEXT)).toEqual({
+        unreadCount: 62,
+        hasAction: true,
+      });
     } finally {
       await core.runtime.close();
       core.operationalDatabase.close();
@@ -82,7 +89,10 @@ it('shows only live executing roots and follows execution changes without revivi
     ] as const)
       core.states.setSessionState('ada', id, state);
     const live = new Set(['orch', 'assignment', 'child', 'waiting']);
-    const methods = createBridgeMethods({ ...core, runningSessionIds: () => live });
+    const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
+      ...core,
+      runningSessionIds: () => live,
+    });
     expect(methods.activityOverview({})).toMatchObject({
       ok: true,
       value: {
@@ -118,7 +128,10 @@ it('shows only live executing roots and follows execution changes without revivi
   const restored = createCore({ dshHome: home, agents });
   try {
     expect(
-      createBridgeMethods({ ...restored, runningSessionIds: () => new Set() }).activityOverview({}),
+      createBridgeMethods(OWNER_HUMAN_CONTEXT, {
+        ...restored,
+        runningSessionIds: () => new Set(),
+      }).activityOverview({}),
     ).toMatchObject({
       ok: true,
       value: {
@@ -144,7 +157,7 @@ it('keeps a real pending question in actions without replacing the canonical Ses
   const broker = new ChannelUserQuestions(core.channels, core.ownership);
   try {
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
-    core.channels.getOrCreateDm('ada', 'Ada');
+    core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
     core.ownership.claim({
       sessionId: 'orch',
       botSlug: 'ada',
@@ -158,7 +171,7 @@ it('keeps a real pending question in actions without replacing the canonical Ses
       questions: [{ id: 'route', question: 'Which route?' }],
     });
     void answer.catch(() => undefined);
-    const methods = createBridgeMethods({
+    const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
       ...core,
       userQuestions: broker,
       runningSessionIds: () => new Set(['orch']),
@@ -181,7 +194,7 @@ it('keeps a real pending question in actions without replacing the canonical Ses
       }),
     );
     broker.close();
-    await vi.waitFor(() => expect(core.humanAttention.actionCount()).toBe(0));
+    await vi.waitFor(() => expect(core.humanAttention.actionCount(OWNER_HUMAN_CONTEXT)).toBe(0));
   } finally {
     broker.close();
     await core.runtime.close();
@@ -199,7 +212,7 @@ it('keeps Overview execution identical to the Host snapshot while real native ap
   const broker = new ChannelToolApproval(core.channels, core.ownership);
   try {
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
-    core.channels.getOrCreateDm('ada', 'Ada');
+    core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
     for (const [sessionId, role, toolName, toolKind, effect] of [
       ['orch', 'orchestrator', 'browser_tabs', 'execute', 'executing'],
       ['assignment', 'assignment', 'bash', 'execute', 'executing'],
@@ -234,13 +247,13 @@ it('keeps Overview execution identical to the Host snapshot while real native ap
       token: Symbol('call'),
     } as import('@deepseek-ai/dsh-tools').ToolExecution);
     const answer = broker.ask({ agent: native, toolName: 'bash', callId: 'call-1' });
-    const methods = createBridgeMethods({
+    const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
       ...core,
       toolApproval: broker,
       runningSessionIds: () => new Set(['orch', 'assignment']),
     });
     const { vi } = await import('vitest');
-    await vi.waitFor(() => expect(core.humanAttention.actionCount()).toBe(1));
+    await vi.waitFor(() => expect(core.humanAttention.actionCount(OWNER_HUMAN_CONTEXT)).toBe(1));
     const overview = methods.activityOverview({});
     const shared = methods.activitySnapshot({});
     expect(overview).toMatchObject({
@@ -273,7 +286,7 @@ it('keeps Overview execution identical to the Host snapshot while real native ap
     const message = core.channels
       .readMessages('dm-ada')
       .find((message) => message.toolApprovalRequest !== undefined)!;
-    expect(await broker.decide('ada', message.id, 'rejected')).toBe(true);
+    expect(await broker.decide(OWNER_HUMAN_CONTEXT, 'ada', message.id, 'rejected')).toBe(true);
     await answer;
     core.states.clearSession('ada', 'assignment');
     expect(methods.activityOverview({})).toMatchObject({
@@ -295,7 +308,7 @@ it('exposes independent active state even when waiting outranks work and no disp
     core.states.onActivity((event) => activityEvents.push(event));
     core.states.setSessionState('ada', 'working-root', 'working');
     core.states.setSessionState('ada', 'approval-root', 'waiting');
-    const methods = createBridgeMethods({ ...core });
+    const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
     expect(methods.activitySnapshot({})).toMatchObject({
       ok: true,
       value: { bots: [{ slug: 'ada', state: 'waiting', active: true }] },

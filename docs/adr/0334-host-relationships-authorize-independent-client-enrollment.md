@@ -2,6 +2,8 @@
 
 Status: Accepted design — Human confirmed the complete Environment design on 2026-11-13. Implementation, migration and runtime acceptance remain separate gates.
 
+> Amended by [ADR-0336](0336-hosts-have-members.md): in Team mode, relationships and derived enrollment authorise the Host Owner's Clients only; Host Members do not inherit them and sign in to each Host they use.
+
 ## Context and trade-off
 
 A desktop/Web Client currently pairs each Remote Host independently (ADR-0242/0253). Repeating that setup in another desktop Client cannot provide the requested durable A1↔A2 experience. Copying one Client's remote credential into the serving Host or all Clients would conflate independent revocable devices; using Bot collaboration membership would grant Human Channel access through an unrelated authority.

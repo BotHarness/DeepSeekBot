@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -36,7 +37,10 @@ function fixture(home = createTempRoot('git-import-receipt-'), warn?: (message: 
     core,
     home,
     close,
-    bridge: createBridgeMethods({ ...core, ...(warn === undefined ? {} : { warn }) }),
+    bridge: createBridgeMethods(OWNER_HUMAN_CONTEXT, {
+      ...core,
+      ...(warn === undefined ? {} : { warn }),
+    }),
   };
 }
 function repository() {
@@ -178,7 +182,7 @@ it('refuses invalid or unsupported keyed import before creating an identity', as
     expect((await f.bridge.createFromGit({ ...request, ...patch })).ok).toBe(false);
   }
   const { creations: _creations, ...deps } = f.core;
-  expect(createBridgeMethods(deps).botImportLookup(request)).toMatchObject({
+  expect(createBridgeMethods(OWNER_HUMAN_CONTEXT, deps).botImportLookup(request)).toMatchObject({
     ok: false,
     error: { code: 'creation-unavailable' },
   });

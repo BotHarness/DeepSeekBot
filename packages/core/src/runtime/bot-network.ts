@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import type { BotMessageCausation, ChannelMessage } from '../channels/channel.js';
 import type { NetworkBotContact } from './bot-contact-discovery.js';
 import { isChannelMessage } from '../channels/channel.js';
@@ -72,7 +73,7 @@ export async function receiveNetworkBotDm(
     ...(sender.hostKey === undefined ? {} : { hostKey: sender.hostKey }),
     ...(sender.membership === undefined ? {} : { membership: sender.membership }),
   });
-  const result = await owners.channels.appendMessageOnce(channel.id, message);
+  const result = await owners.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, channel.id, message);
   if (result.status === 'missing' || result.status === 'conflict')
     throw new Error(`network-message-${result.status}`);
   owners.admitBotDmMessage(channel.id, message.id);

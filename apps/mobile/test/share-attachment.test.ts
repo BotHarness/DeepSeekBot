@@ -71,3 +71,28 @@ it('uses the encrypted carrier resource reader and refuses a file with no source
   const { source: _source, ...missing } = attachment;
   await expect(shareAttachment(missing)).rejects.toThrow('attachment-unavailable');
 });
+
+it.each([false, true])(
+  'retains the connection only around native sharing and releases on error=%s',
+  async (fails) => {
+    const release = vi.fn();
+    const retain = vi.fn(() => release);
+    let finish: () => void = () => {};
+    native.share.mockImplementation(
+      () =>
+        new Promise<void>((resolve, reject) => {
+          finish = () => (fails ? reject(new Error('share-failed')) : resolve());
+        }),
+    );
+    const result = shareAttachment(attachment, undefined, retain).then(
+      () => 'shared',
+      () => 'failed',
+    );
+    await vi.waitFor(() => expect(native.share).toHaveBeenCalled());
+    expect(retain).toHaveBeenCalledTimes(1);
+    expect(release).not.toHaveBeenCalled();
+    finish();
+    expect(await result).toBe(fails ? 'failed' : 'shared');
+    expect(release).toHaveBeenCalledTimes(1);
+  },
+);

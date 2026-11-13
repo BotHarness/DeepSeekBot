@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import type { TobService } from '../tob/service.js';
 import { randomUUID } from 'node:crypto';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
@@ -206,7 +207,7 @@ export function createBotOnboarding(options: {
     const channel =
       selected === undefined
         ? undefined
-        : channels.getOrCreateDm(selected.slug, selected.displayName);
+        : channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, selected.slug, selected.displayName);
     database.transaction((db) => {
       const completed =
         state!.completed_message_id === null

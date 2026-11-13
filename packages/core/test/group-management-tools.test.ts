@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -43,12 +44,13 @@ async function managementRun(
   });
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
   core.registry.create({ slug: 'bea', displayName: 'Bea' });
-  const group = core.channels.createGroup({
+  const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
     name: 'Original name',
     members: ['ada', 'bea'],
     ownerBotSlug: 'ada',
   });
   core.channels.setGroupAvatar(
+    OWNER_HUMAN_CONTEXT,
     group.id,
     `data:image/png;base64,${Buffer.concat([
       Buffer.from(
@@ -72,15 +74,15 @@ async function managementRun(
   );
   setup(core, group.id);
   const before = core.channels.get(group.id)!;
-  const dm = core.channels.getOrCreateDm(actor, actor)!;
+  const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, actor, actor)!;
   try {
-    await core.channels.appendMessage(dm.id, {
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
       id: 'human-manage',
       at: '2026-09-30T00:00:00.000Z',
       author: { kind: 'human' },
       body: 'Manage Group',
     });
-    core.runtime.admitDmMessage({
+    core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
       channelId: dm.id,
       messageId: 'human-manage',
       body: 'Manage Group',

@@ -1,3 +1,4 @@
+import { type HumanContext } from '../humans/context.js';
 import type { HumanAttentionPage, HumanAttentionQuery } from './human-attention.js';
 
 type Cursor = {
@@ -7,6 +8,7 @@ type Cursor = {
 };
 
 export function notificationAttentionPage(
+  human: HumanContext,
   attention: Pick<HumanAttentionQuery, 'list' | 'dmReplies'>,
   input: { limit?: number; cursor?: string },
 ): HumanAttentionPage {
@@ -30,7 +32,7 @@ export function notificationAttentionPage(
   const encode = (next: Cursor) =>
     Buffer.from(JSON.stringify({ version: 1, ...next })).toString('base64url');
   if (cursor.section < 2) {
-    const page = attention.list({
+    const page = attention.list(human, {
       category: cursor.section === 0 ? 'action' : 'replies',
       sort: 'newest',
       unreadOnly: true,
@@ -47,7 +49,7 @@ export function notificationAttentionPage(
       ),
     };
   }
-  const rows = attention.dmReplies(limit + 1, cursor.before);
+  const rows = attention.dmReplies(human, limit + 1, cursor.before);
   const items = rows.slice(0, limit);
   const last = items.at(-1);
   return {

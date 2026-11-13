@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Agent } from '@deepseek-ai/dsh-agent';
@@ -72,7 +73,7 @@ function fixture(
   const channels = {
     get: vi.fn((id: string) => (id === channelId ? channel : undefined)),
     getOrCreateDm: vi.fn(() => channel),
-    appendMessage: vi.fn(async (id: string, message: ChannelMessage) => {
+    appendMessage: vi.fn(async (_human: unknown, id: string, message: ChannelMessage) => {
       if (id !== channelId) return undefined;
       messages.push(message);
       return message;
@@ -143,9 +144,15 @@ describe('Full Access approval composition', () => {
     const request = state.messages[0]!;
     expect(request.toolApprovalRequest?.allowAlways).toBe(true);
     expect(state.review).not.toHaveBeenCalled();
-    expect(await state.broker.decide(botSlug, request.id, 'allowed-always-tool')).toBe(false);
-    expect(await state.broker.decide(botSlug, request.id, 'allowed-always-exact')).toBe(false);
-    expect(await state.broker.decide(botSlug, request.id, 'allowed-once')).toBe(true);
+    expect(
+      await state.broker.decide(OWNER_HUMAN_CONTEXT, botSlug, request.id, 'allowed-always-tool'),
+    ).toBe(false);
+    expect(
+      await state.broker.decide(OWNER_HUMAN_CONTEXT, botSlug, request.id, 'allowed-always-exact'),
+    ).toBe(false);
+    expect(
+      await state.broker.decide(OWNER_HUMAN_CONTEXT, botSlug, request.id, 'allowed-once'),
+    ).toBe(true);
     expect(await answer).toBe('allowed-once');
   });
 });
@@ -487,7 +494,9 @@ describe('Approval Reviewer in the tool approval gate', () => {
       const answer = state.ask();
       await vi.waitFor(() => expect(state.messages).toHaveLength(1));
       expect(state.messages[0]!.toolApprovalRequest?.toolName).toBe('todo_write');
-      expect(await state.broker.decide(botSlug, state.messages[0]!.id, 'rejected')).toBe(true);
+      expect(
+        await state.broker.decide(OWNER_HUMAN_CONTEXT, botSlug, state.messages[0]!.id, 'rejected'),
+      ).toBe(true);
       expect(await answer).toBe('rejected');
       expect(state.broker.takeReviewRejection(sessionId, 'call-1')).toBeUndefined();
     }
@@ -500,7 +509,7 @@ describe('Approval Reviewer in the tool approval gate', () => {
     await vi.waitFor(() => expect(state.messages).toHaveLength(1));
     expect(state.review).not.toHaveBeenCalled();
     expect(state.messages[0]!.toolApprovalRequest).toBeDefined();
-    await state.broker.decide(botSlug, state.messages[0]!.id, 'allowed-once');
+    await state.broker.decide(OWNER_HUMAN_CONTEXT, botSlug, state.messages[0]!.id, 'allowed-once');
     expect(await answer).toBe('allowed-once');
   });
 
@@ -522,7 +531,7 @@ describe('Approval Reviewer in the tool approval gate', () => {
       expect(state.review).not.toHaveBeenCalled();
       expect(match).toHaveBeenCalledWith(expect.objectContaining({ explicitOnly: true }));
       expect(state.messages[0]!.toolApprovalRequest?.toolName).toBe('bash');
-      await state.broker.decide(botSlug, state.messages[0]!.id, 'rejected');
+      await state.broker.decide(OWNER_HUMAN_CONTEXT, botSlug, state.messages[0]!.id, 'rejected');
       expect(await answer).toBe('rejected');
     },
   );
@@ -617,7 +626,7 @@ describe('Approval Reviewer in the tool approval gate', () => {
     await vi.waitFor(() => expect(state.messages).toHaveLength(1));
     expect(state.review.mock.calls[0]![0].template.name).toBe('cautious');
     expect(state.messages[0]!.toolApprovalRequest?.toolName).toBe('secret_cli');
-    await state.broker.decide(botSlug, state.messages[0]!.id, 'rejected');
+    await state.broker.decide(OWNER_HUMAN_CONTEXT, botSlug, state.messages[0]!.id, 'rejected');
     expect(await answer).toBe('rejected');
   });
 
