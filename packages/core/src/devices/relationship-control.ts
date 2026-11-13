@@ -17,6 +17,7 @@ import type { DevicePairing } from './pairing.js';
 import type { EncryptionIdentity } from './noise-identity.js';
 import {
   RelationshipRefused,
+  MAX_REVOCATION_ATTEMPTS,
   type HostRelationships,
   type RelationshipPeer,
 } from './relationships.js';
@@ -41,7 +42,11 @@ const commandSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('status'), id, peer: peerSchema.optional() }),
   z.object({ action: z.literal('verify-return'), id }),
   z.object({ action: z.literal('activate'), id }),
-  z.object({ action: z.literal('disconnect'), id }),
+  z.object({
+    action: z.literal('disconnect'),
+    id,
+    suppressAutomaticEnrollment: z.boolean().optional(),
+  }),
   z.object({ action: z.literal('enroll'), id, publicKey: key, name: z.string().max(60) }),
 ]);
 type Command = z.infer<typeof commandSchema>;
@@ -86,6 +91,8 @@ export function createRelationshipControl(options: {
   type Observation = z.infer<typeof relationshipObservationSchema>;
   const observations = new Map<string, { outgoing: Observation; incoming: Observation }>();
   const running = new Map<string, Promise<ReturnType<typeof snapshot>>>();
+  const revoking = new Map<string, Promise<ReturnType<typeof snapshot>>>();
+  let retryTimer: ReturnType<typeof setInterval> | undefined;
   const unknown = (): Observation => ({ state: 'unverified', observedAt: null });
   const fresh = (value: Observation): Observation =>
     value.observedAt !== null && now() - value.observedAt > 30_000
@@ -206,7 +213,7 @@ export function createRelationshipControl(options: {
           origin,
           command.action === 'verify-return'
             ? 6000
-            : command.action === 'status'
+            : command.action === 'status' || command.action === 'disconnect'
               ? Math.min(2500, 4000 / peer.routes.length)
               : command.action === 'activate'
                 ? 2500
@@ -235,7 +242,7 @@ export function createRelationshipControl(options: {
       } catch (error) {
         failure = error;
         if (
-          command.action !== 'status' ||
+          !['status', 'disconnect'].includes(command.action) ||
           (error instanceof RelationshipRefused &&
             !['relationship-request-incomplete', 'relationship-route-unavailable'].includes(
               error.code,
@@ -275,7 +282,78 @@ export function createRelationshipControl(options: {
       return value;
     }
   };
+  const revoke = async (relationshipId: string, manual: boolean) => {
+    const existing = revoking.get(relationshipId);
+    if (existing) return existing;
+    const operation = (async () => {
+      const relationship = relationships.beginRevocationAttempt(relationshipId, manual);
+      if (!relationship.peerRevocationPending) {
+        await admissions.forget(relationshipId);
+        return snapshot(relationshipId);
+      }
+      const started = now();
+      try {
+        const response = await request(relationship.peer, {
+          action: 'disconnect',
+          id: relationshipId,
+          suppressAutomaticEnrollment: relationship.automaticEnrollmentSuppressed,
+        });
+        if (response['state'] !== 'disconnected')
+          throw new RelationshipRefused('relationship-response-invalid');
+        relationships.acknowledgeDisconnect(relationshipId, relationship.peer.publicKey);
+        await admissions.forget(relationshipId);
+      } catch {
+      } finally {
+        options.record?.({
+          phase: relationships.read(relationshipId).peerRevocationPending
+            ? 'revocation-pending'
+            : 'revocation-acknowledged',
+          relationshipId,
+          durationMs: now() - started,
+          outgoing: 'disconnected',
+          incoming: 'disconnected',
+        });
+      }
+      return snapshot(relationshipId);
+    })();
+    revoking.set(relationshipId, operation);
+    try {
+      return await operation;
+    } finally {
+      revoking.delete(relationshipId);
+    }
+  };
+  let sweeping = false;
+  const retryPending = async () => {
+    if (closed || sweeping) return;
+    sweeping = true;
+    try {
+      for (const item of relationships.list()) {
+        if (closed) break;
+        if (
+          item.state !== 'disconnected' ||
+          !item.peerRevocationPending ||
+          item.revocationAttempts >= MAX_REVOCATION_ATTEMPTS ||
+          item.revocationRetryAt === null ||
+          item.revocationRetryAt > now()
+        )
+          continue;
+        await revoke(item.id, false).catch(() => {});
+      }
+    } finally {
+      sweeping = false;
+    }
+  };
   return {
+    start() {
+      if (closed || retryTimer !== undefined) return;
+      retryTimer = setInterval(() => {
+        void retryPending();
+      }, 1000);
+      retryTimer.unref?.();
+      void retryPending();
+    },
+    retryPending,
     identity: ownPeer,
     async receive(peerKey: string, input: unknown): Promise<Record<string, unknown>> {
       if (closed) return { ok: false, code: 'relationship-owner-closed' };
@@ -294,6 +372,7 @@ export function createRelationshipControl(options: {
             peer: publicPeer(command.peer),
             direction: 'incoming',
             expiresAt: command.expiresAt,
+            explicitReconnect: true,
           });
           await admissions.remember(relationship.id, command.peer);
           return { ok: true, state: checkRelationship(relationship.id, peerKey).state };
@@ -323,9 +402,9 @@ export function createRelationshipControl(options: {
         if (command.action === 'activate')
           return { ok: true, state: relationships.activate(command.id, peerKey).state };
         if (command.action === 'disconnect') {
-          const disconnected = relationships.disconnect(command.id, peerKey);
+          const disconnected = relationships.disconnect(command.id, peerKey, command.suppressAutomaticEnrollment ?? true);
           observations.delete(command.id);
-          await admissions.forget(command.id);
+          if (!disconnected.peerRevocationPending) await admissions.forget(command.id);
           return { ok: true, state: disconnected.state };
         }
         const offer = relationships.enrollment(command.id, peerKey, command);
@@ -352,6 +431,7 @@ export function createRelationshipControl(options: {
         peer: publicPeer(peer),
         direction: 'outgoing',
         expiresAt: Date.parse(parsed.payload.expiresAt),
+        explicitReconnect: true,
       });
       try {
         await admissions.remember(relationship.id, peer);
@@ -363,9 +443,13 @@ export function createRelationshipControl(options: {
           expiresAt: relationship.expiresAt,
         });
       } catch (error) {
-        relationships.disconnect(relationship.id);
+        relationships.disconnect(relationship.id, undefined, false);
         try {
-          await request(peer, { action: 'disconnect', id: relationship.id });
+          await request(peer, {
+            action: 'disconnect',
+            id: relationship.id,
+            suppressAutomaticEnrollment: false,
+          });
           relationships.acknowledgeDisconnect(relationship.id, peer.publicKey);
           await admissions.forget(relationship.id);
         } catch {}
@@ -381,8 +465,7 @@ export function createRelationshipControl(options: {
       const started = now();
       const operation = (async () => {
         const relationship = readRelationship(relationshipId);
-        if (relationship.state === 'disconnected')
-          throw new RelationshipRefused('relationship-disconnected');
+        if (relationship.state === 'disconnected') return revoke(relationshipId, true);
         let remote: Record<string, unknown>;
         try {
           remote = await request(relationship.peer, {
@@ -407,8 +490,8 @@ export function createRelationshipControl(options: {
           return snapshot(relationshipId);
         }
         if (remote['state'] === 'disconnected') {
-          relationships.disconnect(relationshipId, relationship.peer.publicKey);
           observations.delete(relationshipId);
+          relationships.disconnect(relationshipId, relationship.peer.publicKey);
           await admissions.forget(relationshipId);
           return snapshot(relationshipId);
         }
@@ -506,24 +589,10 @@ export function createRelationshipControl(options: {
       };
     },
     async disconnect(relationshipId: string) {
-      const prior = readRelationship(relationshipId);
-      if (prior.state === 'disconnected' && !prior.peerRevocationPending) {
-        await admissions.forget(relationshipId);
-        return prior;
-      }
-      const relationship = relationships.disconnect(relationshipId);
+      checkOpen();
       observations.delete(relationshipId);
-      try {
-        await request(relationship.peer, { action: 'disconnect', id: relationshipId });
-        const acknowledged = relationships.acknowledgeDisconnect(
-          relationshipId,
-          relationship.peer.publicKey,
-        );
-        await admissions.forget(relationshipId);
-        return acknowledged;
-      } catch {
-        return readRelationship(relationshipId);
-      }
+      relationships.disconnect(relationshipId);
+      return revoke(relationshipId, true);
     },
     cleanupAdmission: admissions.forget,
     async cleanupAcknowledgedAdmissions() {
@@ -557,6 +626,7 @@ export function createRelationshipControl(options: {
     },
     close() {
       closed = true;
+      if (retryTimer !== undefined) clearInterval(retryTimer);
       for (const controller of active) controller.abort();
     },
   };

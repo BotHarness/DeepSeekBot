@@ -126,7 +126,9 @@ export async function enrollRelationshipClient(options: {
         },
       },
     });
-    return result;
+    return result.ok
+      ? { ...result, host: { ...result.host, relationshipId: options.relationshipId } }
+      : result;
   } finally {
     privateKey.fill(0);
   }

@@ -42,6 +42,8 @@ import { releaseRemoteHostViewers } from './remote-host-viewer.js';
 import { browserNotificationApi } from './desktop-notifications.js';
 import { createRemoteNotifications, type RemoteNotifications } from './remote-notifications.js';
 import { en } from './locale.js';
+import { hostSettingsDrafts } from './host-settings-drafts.js';
+import { relationshipListSchema } from '../../../core/src/devices/relationship-contract.js';
 
 export const REMOTE_HOSTS_STORAGE_KEY = 'botharness.remoteHosts.v1';
 export const HOST_TAB_STORAGE_KEY = 'botharness.hostTab.v1';
@@ -89,6 +91,7 @@ export interface RemotePairTrust {
 }
 
 export interface RemoteHosts {
+  retireRelationship(relationshipId: string): Promise<void>;
   learnRelationshipRoutes(
     peer: ClientRelationship['peer'],
     privateRelay?: PrivateAdmission,
@@ -207,6 +210,38 @@ export function createRemoteHosts(options: {
   let tab = readTab(storage);
   let open: RemoteConversationTarget | undefined;
   let snapshot: RemoteHostsSnapshot = { hosts: [], avatars, tab };
+  let relationshipTimer: ReturnType<typeof setInterval> | undefined;
+  let relationshipPoll: AbortController | undefined;
+  const reconcileRelationships = async () => {
+    if (
+      relationshipPoll ||
+      listeners.size === 0 ||
+      ![...clients.values()].some((entry) => entry.host.relationshipId)
+    )
+      return;
+    const abort = new AbortController();
+    relationshipPoll = abort;
+    try {
+      const result = relationshipListSchema.parse(
+        await relationshipRequest(undefined, abort.signal),
+      );
+      if (abort.signal.aborted) return;
+      for (const entry of [...clients.values()]) {
+        if (clients.get(entry.host.hostId) !== entry) continue;
+        if (!entry.host.relationshipId) continue;
+        const relationship = result.relationships.find(
+          (item) => item.id === entry.host.relationshipId,
+        );
+        if (relationship?.state !== 'disconnected') continue;
+        const releasing = releaseRemoteHostViewers(entry.client);
+        forget(entry.host.hostId);
+        await releasing;
+      }
+    } catch {
+    } finally {
+      if (relationshipPoll === abort) relationshipPoll = undefined;
+    }
+  };
   const notifications = createRemoteNotifications({
     ...(options.hostName === undefined ? {} : { hostName: options.hostName }),
     storage,
@@ -385,11 +420,26 @@ export function createRemoteHosts(options: {
         conversations.delete(key);
       }
     if (open?.hostId === hostId) open = undefined;
+    if (tab === hostId) {
+      tab = ALL_HOSTS;
+      try {
+        storage?.setItem(HOST_TAB_STORAGE_KEY, tab);
+      } catch {}
+    }
     save();
     publish();
   };
 
   return {
+    async retireRelationship(relationshipId) {
+      for (const entry of [...clients.values()]) {
+        if (clients.get(entry.host.hostId) !== entry) continue;
+        if (entry.host.relationshipId !== relationshipId) continue;
+        const releasing = releaseRemoteHostViewers(entry.client);
+        forget(entry.host.hostId);
+        await releasing;
+      }
+    },
     notifications,
     async learnRelationshipRoutes(peer, privateRelay) {
       const entry = clients.get(peer.id);
@@ -476,10 +526,19 @@ export function createRemoteHosts(options: {
     subscribe(listener) {
       const first = listeners.size === 0;
       listeners.add(listener);
-      if (first) for (const entry of clients.values()) start(entry);
+      if (first) {
+        for (const entry of clients.values()) start(entry);
+        relationshipTimer = setInterval(() => {
+          void reconcileRelationships();
+        }, 2000);
+        void reconcileRelationships();
+      }
       return () => {
         listeners.delete(listener);
         if (listeners.size > 0) return;
+        if (relationshipTimer !== undefined) clearInterval(relationshipTimer);
+        relationshipTimer = undefined;
+        relationshipPoll?.abort();
         for (const entry of clients.values()) stop(entry);
         notifications.stop();
       };
@@ -548,6 +607,8 @@ export function createRemoteHosts(options: {
     async forgetLocal(hostId) {
       const entry = clients.get(hostId);
       if (entry === undefined) return;
+      if (!(await hostSettingsDrafts.prepare(hostId))) return;
+      if (clients.get(hostId) !== entry) return;
       if (!storage) throw new Error('storage-unavailable');
       const remaining = [...clients.values()]
         .filter(({ host }) => host.hostId !== hostId)
@@ -561,6 +622,8 @@ export function createRemoteHosts(options: {
     async remove(hostId) {
       const entry = clients.get(hostId);
       if (entry === undefined) return;
+      if (!(await hostSettingsDrafts.prepare(hostId))) return;
+      if (clients.get(hostId) !== entry) return;
       const releasing = releaseRemoteHostViewers(entry.client);
       forget(hostId);
       await releasing;
