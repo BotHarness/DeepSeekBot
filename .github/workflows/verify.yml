@@ -426,10 +426,14 @@ jobs:
         run: node scripts/perf-genui-browser-diagnostics.mjs environment .humanlayer/perf/browser-diagnostics/environment.json
       - if: always()
         run: node scripts/verify-app.mjs stop --name perf
-      - id: controlled_launch
+      - id: controlled_sandbox
         if: always() && github.event_name == 'workflow_dispatch' && inputs.genui_browser_diagnostic && steps.browser_environment.outcome == 'success'
-        env:
-          CHROME_DEVEL_SANDBOX: /opt/google/chrome/chrome-sandbox
+        run: |
+          node scripts/perf-genui-browser-diagnostics.mjs apparmor "$RUNNER_TEMP/genui-preview.apparmor"
+          sudo install -m 644 "$RUNNER_TEMP/genui-preview.apparmor" /etc/apparmor.d/botharness-ci-genui-preview
+          sudo apparmor_parser -r /etc/apparmor.d/botharness-ci-genui-preview
+      - id: controlled_launch
+        if: always() && steps.controlled_sandbox.outcome == 'success'
         run: >-
           node scripts/verify-app.mjs launch --name perf
           --genui-preview-browser "$(node -p 'JSON.parse(require("fs").readFileSync(".humanlayer/perf/browser-diagnostics/environment.json", "utf8")).controlled.path')" > /dev/null
@@ -445,6 +449,10 @@ jobs:
           .humanlayer/perf/browser-diagnostics/controlled-log.json "$BH_E2E_INSTANCE"
       - if: always() && steps.controlled_launch.outcome == 'success'
         run: node scripts/verify-app.mjs stop --name perf
+      - if: always() && steps.controlled_sandbox.outcome == 'success'
+        run: |
+          sudo apparmor_parser -R /etc/apparmor.d/botharness-ci-genui-preview
+          sudo rm /etc/apparmor.d/botharness-ci-genui-preview
       - if: always() && github.event_name == 'workflow_dispatch' && inputs.genui_browser_diagnostic
         env:
           SYSTEM_PREVIEW: ${{ steps.system_preview.outcome }}

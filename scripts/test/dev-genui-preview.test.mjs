@@ -4,6 +4,7 @@ import { genuiPreviewPatch } from '../dev-genui-preview.mjs';
 import { parseArgs } from '../dev-instance.mjs';
 import { parseVerifyArgs } from '../verify-app.mjs';
 import {
+  previewBrowserAppArmorProfile,
   previewDiagnosticEvents,
   probeBrowserVersion,
 } from '../perf-genui-browser-diagnostics.mjs';
@@ -18,6 +19,21 @@ const source = `- id: group
 `;
 
 describe('explicit GenUI preview Profile configuration', () => {
+  it('allows user namespaces for exactly the controlled executable', () => {
+    const profile = previewBrowserAppArmorProfile('/home/runner/cache/chrome');
+    expect(profile).toContain('"/home/runner/cache/chrome"');
+    expect(profile).toContain('userns,');
+    expect(profile).not.toContain('**');
+  });
+  it.each([
+    'relative',
+    '/cache/*/chrome',
+    '/cache/[ab]/chrome',
+    '/cache/"chrome',
+    '/cache/\nchrome',
+  ])('refuses AppArmor paths that could widen the permission: %j', (binary) => {
+    expect(() => previewBrowserAppArmorProfile(binary)).toThrow('literal absolute');
+  });
   it('keeps the newest bounded owner events in the API returned order', () => {
     const events = previewDiagnosticEvents({
       entries: Array.from({ length: 200 }, (_, index) => ({

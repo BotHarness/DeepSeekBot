@@ -8,12 +8,31 @@ import {
   realpathSync,
   writeFileSync,
 } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createDiagnosticRedactor } from '../packages/core/src/diagnostics/redaction.ts';
 import { cookieFor } from './verify-app.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+export async function controlledBrowserPath() {
+  const store = join(root, 'node_modules/.pnpm');
+  const entry = readdirSync(store).find((name) => name.startsWith('puppeteer@'));
+  if (!entry) throw new Error('Puppeteer dependency unavailable');
+  const puppeteer = createRequire(join(store, entry, 'node_modules/'))('puppeteer');
+  return realpathSync(await puppeteer.executablePath());
+}
+
+export function previewBrowserAppArmorProfile(binary) {
+  if (!isAbsolute(binary) || /[\p{Cc}*?\[\]{}"\\^]/u.test(binary))
+    throw new Error('AppArmor preview selection requires one literal absolute executable path');
+  return `abi <abi/4.0>,
+include <tunables/global>
+profile botharness-ci-genui-preview "${binary}" flags=(unconfined) {
+  userns,
+}
+`;
+}
 
 export function probeBrowserVersion(browser, run = execFileSync) {
   const redactor = createDiagnosticRedactor({ homes: [] });
@@ -67,9 +86,19 @@ export function previewDiagnosticEvents(report) {
 
 async function main() {
   const [action, outArg, instanceArg] = process.argv.slice(2);
+  if (action === 'path') {
+    console.log(await controlledBrowserPath());
+    return;
+  }
   if (!outArg) throw new Error('Specify environment <out> or logs <out> <instance.json>');
   const out = resolve(outArg);
   mkdirSync(dirname(out), { recursive: true });
+  if (action === 'apparmor') {
+    writeFileSync(out, previewBrowserAppArmorProfile(await controlledBrowserPath()), {
+      flag: 'wx',
+    });
+    return;
+  }
   if (action === 'logs') {
     const instance = JSON.parse(readFileSync(resolve(instanceArg), 'utf8'));
     const since = Date.parse(instance.startedAt);
@@ -114,10 +143,6 @@ async function main() {
   }
   if (action !== 'environment') throw new Error('Unknown diagnostics action');
   const { discoverBrowserBinary } = await import('../packages/browser/dist/index.mjs');
-  const store = join(root, 'node_modules/.pnpm');
-  const entry = readdirSync(store).find((name) => name.startsWith('puppeteer@'));
-  if (!entry) throw new Error('Puppeteer dependency unavailable');
-  const puppeteer = createRequire(join(store, entry, 'node_modules/'))('puppeteer');
   const system = discoverBrowserBinary();
   if (!system) throw new Error('System preview browser unavailable');
   const inspect = (path) => ({
@@ -130,7 +155,7 @@ async function main() {
     imageOS: process.env.ImageOS ?? null,
     imageVersion: process.env.ImageVersion ?? null,
     system: inspect(system),
-    controlled: inspect(await puppeteer.executablePath()),
+    controlled: inspect(await controlledBrowserPath()),
   };
   if (existsSync(out)) throw new Error('Keep prior environment evidence; choose a new file');
   const save = () => writeFileSync(out, JSON.stringify(result, null, 2) + '\n');
