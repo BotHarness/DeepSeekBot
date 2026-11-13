@@ -13,6 +13,7 @@ import { color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 import {
+  TEAM_ENTRY_PATH,
   TEAM_PASSWORD_MIN_LENGTH,
   createMember,
   loadMembers,
@@ -20,6 +21,7 @@ import {
   setInsecureHttp,
   setOwnerPassword,
   setTeamMode,
+  signOutMember,
   teamRefusal,
   validUsername,
   type CreatedMember,
@@ -178,6 +180,28 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
               </Button>
             }
           />
+          <SettingsRow
+            title={t('team.account.signOut')}
+            control={
+              <Button
+                variant="outline"
+                disabled={busy}
+                onClick={() => {
+                  setBusy(true);
+                  setRowError(undefined);
+                  signOutMember()
+                    .then(() => window.location.assign(TEAM_ENTRY_PATH))
+                    .catch(() => {
+                      setRowError(t('team.error.generic'));
+                      setBusy(false);
+                    });
+                }}
+              >
+                {t('team.account.signOutAction')}
+              </Button>
+            }
+          />
+          {rowError === undefined ? null : <Note tone="danger">{rowError}</Note>}
         </SettingsSection>
         {dialog?.kind === 'own-password' ? (
           <MemberPasswordDialog

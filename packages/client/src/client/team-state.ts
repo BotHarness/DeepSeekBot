@@ -1,3 +1,4 @@
+import { setSelfHumanId } from './self-human.js';
 import { useSyncExternalStore } from 'react';
 
 import type { BridgeCall } from './bridge.js';
@@ -16,6 +17,7 @@ const viewerListeners = new Set<() => void>();
 
 function publish(current: Entry, value: TeamModeView): void {
   current.value = value;
+  setSelfHumanId(value.viewer.humanId);
   for (const listener of current.listeners) listener();
   if (viewerKind !== value.viewer.kind) {
     viewerKind = value.viewer.kind;

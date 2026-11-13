@@ -79,6 +79,7 @@ import { startConnectSignIn } from './connect-sign-in.js';
 import { DshBotSettingsItem } from './dsh-bot-settings-item.js';
 import { createImApps, ImAppsSection } from './im-apps-section.js';
 import { TeamSection } from './team-settings.js';
+import { memberPage } from './member-page.js';
 import {
   AboutSection,
   AdvancedSection,
@@ -440,7 +441,8 @@ export function apply(ctx: ClientContext): void {
     typeof window === 'undefined'
       ? undefined
       : consumeLastView(window as unknown as Record<string, unknown>, storage);
-  let restoreBotMode = hmrView === undefined && lastView?.mode === 'bot';
+  const member = memberPage();
+  let restoreBotMode = member || (hmrView === undefined && lastView?.mode === 'bot');
   const nativeSessions = {
     refresh: () => ctx.sessions.refresh(),
     subscribe: (listener: () => void) => ctx.sessions.list.subscribe(listener),
@@ -538,7 +540,7 @@ export function apply(ctx: ClientContext): void {
           () => createElement('div', { ref: setTarget }),
         ),
       ),
-    exitBotMode: () => ctx.layout.selectPanel(null),
+    exitBotMode: member ? undefined : () => ctx.layout.selectPanel(null),
     openBotSettings: (sectionId?: string) => botSettings.open(sectionId),
     quickSwitcherSettings,
   };
@@ -1214,7 +1216,7 @@ export function apply(ctx: ClientContext): void {
           telemetryNotice,
           workspace,
           ...botModePrefsFace(prefs),
-          exitBotMode: () => ctx.layout.selectPanel(null),
+          exitBotMode: member ? undefined : () => ctx.layout.selectPanel(null),
           openBotSettings: (sectionId?: string) => botSettings.open(sectionId),
           quickSwitcherSettings,
         }),
@@ -1302,7 +1304,7 @@ export function apply(ctx: ClientContext): void {
               dockPanels,
               shortcutBindings,
               ...botModePrefsFace(prefs),
-              exitBotMode: () => ctx.layout.selectPanel(null),
+              exitBotMode: member ? undefined : () => ctx.layout.selectPanel(null),
               toggleSidebar: () => ctx.layout.toggleSidebar(),
               openBotSettings: (sectionId?: string) => botSettings.open(sectionId),
               quickSwitcherSettings,

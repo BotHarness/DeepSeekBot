@@ -923,8 +923,15 @@ function parseAuthor(value: unknown): ChannelAuthor | undefined {
   const record = asRecord(value);
   if (record === undefined) return undefined;
   switch (record['kind']) {
-    case 'human':
-      return { kind: 'human' };
+    case 'human': {
+      const humanId = record['humanId'];
+      const displayName = record['displayName'];
+      return {
+        kind: 'human',
+        ...(typeof humanId === 'string' && humanId.length > 0 ? { humanId } : {}),
+        ...(typeof displayName === 'string' && displayName.length > 0 ? { displayName } : {}),
+      };
+    }
     case 'system':
       return { kind: 'system' };
     case 'bot':

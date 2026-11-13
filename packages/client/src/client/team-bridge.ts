@@ -230,3 +230,13 @@ export async function setChannelPublic(
 export function validUsername(value: string): boolean {
   return /^[a-z0-9][a-z0-9._-]{1,31}$/u.test(value);
 }
+
+export const TEAM_ENTRY_PATH = '/botharness-device/team/';
+
+export async function signOutMember(fetcher: typeof fetch = fetch): Promise<void> {
+  const response = await fetcher(`${TEAM_ENTRY_PATH}sign-out`, {
+    method: 'POST',
+    credentials: 'same-origin',
+  });
+  if (!response.ok) throw new Error('sign-out failed');
+}
