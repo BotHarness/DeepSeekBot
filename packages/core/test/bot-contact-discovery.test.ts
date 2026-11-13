@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createTestRegistry } from './registry-fixture.js';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { describe, expect, it } from 'vitest';
@@ -60,14 +61,14 @@ async function exercise(
     core.registry.setPaused('paused', true);
     core.registry.create({ slug: 'removed', displayName: 'Removed' });
     await core.deletions.confirm('removed', core.deletions.preview('removed').token, false);
-    const dm = core.channels.getOrCreateDm('owner', 'Owner')!;
-    await core.channels.appendMessage(dm.id, {
+    const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'owner', 'Owner')!;
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
       id: 'human-start',
       at: new Date().toISOString(),
       author: { kind: 'human' },
       body: 'Find a colleague',
     });
-    core.runtime.admitDmMessage({
+    core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
       channelId: dm.id,
       messageId: 'human-start',
       body: 'Find a colleague',
@@ -133,14 +134,14 @@ describe('Orchestrator bounded contact discovery', () => {
         displayName: 'Colleague',
         description: 'Detail profile',
       });
-      const dm = core.channels.getOrCreateDm('owner', 'Owner')!;
-      await core.channels.appendMessage(dm.id, {
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'owner', 'Owner')!;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'compiled',
         at: new Date().toISOString(),
         author: { kind: 'human' },
         body: 'Find colleagues',
       });
-      core.runtime.admitDmMessage({
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'compiled',
         body: 'Find colleagues',

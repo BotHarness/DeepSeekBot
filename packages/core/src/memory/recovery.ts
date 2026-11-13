@@ -1,10 +1,10 @@
+import { type HumanContext } from '../humans/context.js';
 import { asyncGitSteps, syncGitSteps, type GitSteps } from './git-steps.js';
 import { randomUUID } from 'node:crypto';
 import { cpSync, existsSync, mkdtempSync, renameSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 
-import { LOCAL_HUMAN_ID } from '../channels/channel.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 
 export type MemoryCheckpointOrigin = 'host-observation' | 'agent-session' | 'human-command';
@@ -247,6 +247,7 @@ export function createMemoryRecovery(options: {
   const captureAsync = (...args: Parameters<typeof captureSteps>) =>
     asyncGitSteps(captureSteps(...args));
   const restore = (
+    human: HumanContext,
     botSlug: string,
     root: string,
     targetId: string,
@@ -329,7 +330,7 @@ export function createMemoryRecovery(options: {
           root,
           {
             origin: 'human-command',
-            originId: LOCAL_HUMAN_ID,
+            originId: human.humanId,
             causeKind: 'human-restore',
             causeId: targetId,
           },

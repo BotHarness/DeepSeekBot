@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { expect, it } from 'vitest';
 import { createCore } from '../src/plugin.js';
 import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
@@ -90,8 +91,8 @@ it('requires an owned admitted Source Event for a model-free remote Bot send', a
   try {
     for (const slug of ['caller', 'foreign']) {
       core.registry.create({ slug, displayName: slug });
-      const dm = core.channels.getOrCreateDm(slug, slug)!;
-      await core.channels.appendMessage(dm.id, {
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, slug, slug)!;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'human-start',
         at: new Date().toISOString(),
         author: { kind: 'human' },

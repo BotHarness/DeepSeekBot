@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { randomBytes } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 
@@ -703,13 +704,19 @@ export const LOCAL_HUMAN_RECEIPTS_MIGRATION: SchemaMigration = {
         left_at TEXT,
         PRIMARY KEY (channel_id, human_id)
       );
+    `);
+    database
+      .prepare(`
       INSERT INTO channel_human_members
         (channel_id, human_id, display_name, visible_from_revision, joined_at)
-      SELECT channel_id, 'local-human', 'Human', 1,
+      SELECT channel_id, ?, 'Human', 1,
              json_extract(record_json, '$.createdAt')
         FROM channel_records
        WHERE json_extract(record_json, '$.type') = 'group'
          AND json_extract(record_json, '$.deletedAt') IS NULL;
+    `)
+      .run(OWNER_HUMAN_CONTEXT.humanId);
+    database.exec(`
       CREATE TABLE channel_read_positions_next (
         channel_id TEXT NOT NULL REFERENCES channel_records(channel_id),
         human_id TEXT NOT NULL,
@@ -718,10 +725,16 @@ export const LOCAL_HUMAN_RECEIPTS_MIGRATION: SchemaMigration = {
         read_at TEXT NOT NULL,
         PRIMARY KEY (channel_id, human_id)
       );
+    `);
+    database
+      .prepare(`
       INSERT INTO channel_read_positions_next
         (channel_id, human_id, message_id, revision, read_at)
-      SELECT channel_id, 'local-human', message_id, revision, read_at
+      SELECT channel_id, ?, message_id, revision, read_at
         FROM channel_read_positions;
+    `)
+      .run(OWNER_HUMAN_CONTEXT.humanId);
+    database.exec(`
       DROP TABLE channel_read_positions;
       ALTER TABLE channel_read_positions_next RENAME TO channel_read_positions;
     `);
@@ -3257,6 +3270,33 @@ const DEVICE_FEED_READ_MIGRATION: SchemaMigration = {
   },
 };
 
+const SOURCE_EVENT_HUMAN_MIGRATION: SchemaMigration = {
+  generation: 140,
+  module: 'messaging',
+  description: 'Record the speaking Human on Source Events without changing message payloads',
+  migrate(database) {
+    database.exec('ALTER TABLE source_events ADD COLUMN human_id TEXT');
+    database
+      .prepare(`UPDATE source_events SET human_id = ?
+      WHERE source_kind = 'human-message'`)
+      .run(OWNER_HUMAN_CONTEXT.humanId);
+    database.exec(`CREATE TABLE human_attention_decisions_next (
+      human_id TEXT NOT NULL,
+      source_event_id TEXT NOT NULL REFERENCES source_events(source_event_id),
+      decision TEXT NOT NULL CHECK (decision IN ('ignored')),
+      decided_at TEXT NOT NULL,
+      PRIMARY KEY (human_id, source_event_id)
+    )`);
+    database
+      .prepare(`INSERT INTO human_attention_decisions_next
+      (human_id, source_event_id, decision, decided_at)
+      SELECT ?, source_event_id, decision, decided_at FROM human_attention_decisions`)
+      .run(OWNER_HUMAN_CONTEXT.humanId);
+    database.exec(`DROP TABLE human_attention_decisions;
+      ALTER TABLE human_attention_decisions_next RENAME TO human_attention_decisions`);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -3396,4 +3436,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   QUESTION_MESSAGING_RECOVERY_MIGRATION,
   QQ_PLATFORM_DEFAULTS_MIGRATION,
   DEVICE_FEED_READ_MIGRATION,
+  SOURCE_EVENT_HUMAN_MIGRATION,
 ]);

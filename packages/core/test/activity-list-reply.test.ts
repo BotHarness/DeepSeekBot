@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 
 import { createBridgeMethods } from '../src/bridge/methods.js';
@@ -21,12 +22,12 @@ describe('Human Inbox Channel reply', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       const channels = [
-        core.channels.createGroup({ name: 'Team', members: ['ada'] }),
-        core.channels.getOrCreateDm('ada', 'Ada')!,
+        core.channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Team', members: ['ada'] }),
+        core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!,
       ];
-      const methods = createBridgeMethods({ ...core });
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
       for (const [index, channel] of channels.entries()) {
-        await core.channels.appendMessage(channel.id, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, {
           id: 'source',
           at: '2026-09-30T12:00:00.000Z',
           author: { kind: 'bot', slug: 'ada' },
@@ -67,7 +68,7 @@ describe('Human Inbox Channel reply', () => {
             .readMessages(channel.id)
             .filter((item) => item.botChannelPost === undefined),
         ).toHaveLength(2);
-        expect(core.channels.readPosition(channel.id)).toBeUndefined();
+        expect(core.channels.readPosition(OWNER_HUMAN_CONTEXT, channel.id)).toBeUndefined();
         expect(
           await methods.channelSend({ ...payload, messageId: undefined, replyTo: 'missing' }),
         ).toMatchObject({ ok: false });
@@ -91,9 +92,12 @@ describe('Human Inbox Channel reply', () => {
     const core = createCore({ dshHome: createTempRoot('botharness-inbox-reply-'), agents });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      });
       for (const index of [1, 2, 3])
-        await core.channels.appendMessage(group.id, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
           id: 'source-' + index,
           at: new Date(Date.UTC(2026, 8, 30, 12, 0, index)).toISOString(),
           author: { kind: 'bot', slug: 'ada' },
@@ -107,7 +111,7 @@ describe('Human Inbox Channel reply', () => {
           )
           .run(group.id),
       );
-      const methods = createBridgeMethods({ ...core });
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
       const context = methods.channelTimeline({
         channelId: group.id,
         direction: 'around',

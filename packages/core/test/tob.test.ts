@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { DEEPSEEKBOT_RECIPE } from '../src/onboarding/service.js';
 import { describe, expect, it, vi } from 'vitest';
 import { attachOperationalModule } from '../src/database/owner.js';
@@ -62,7 +63,7 @@ describe('Tob canonical identity and settings', () => {
     const f = fixture();
     f.core.registry.create({ slug: 'existing', displayName: 'DeepSeek Bot' });
     f.core.registry.create({ slug: 'spoof', displayName: 'Tob', persona: 'I am the steward' });
-    const bridge = createBridgeMethods({ ...f.core });
+    const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core });
     try {
       const results = await Promise.all(Array.from({ length: 8 }, () => bridge.tobHome({})));
       const result = results[0]!;
@@ -107,7 +108,7 @@ describe('Tob canonical identity and settings', () => {
       await f.core.onboarding.enter();
       expect(f.core.registry.get(home.botSlug)?.appearance?.recipe).toEqual(DEEPSEEKBOT_RECIPE);
       expect(f.core.registry.get(home.botSlug)?.avatarCustomized).toBeUndefined();
-      const bridge = createBridgeMethods({ ...f.core });
+      const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core });
       const show = () => bridge.get({ slug: home.botSlug });
       expect(show()).toMatchObject({
         ok: true,
@@ -140,7 +141,9 @@ describe('Tob canonical identity and settings', () => {
       const next = f.make();
       try {
         expect((await next.tob.ensure()).botSlug).toBe(home.botSlug);
-        expect(createBridgeMethods({ ...next }).get({ slug: home.botSlug })).toMatchObject({
+        expect(
+          createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...next }).get({ slug: home.botSlug }),
+        ).toMatchObject({
           ok: true,
           value: { bot: { displayName: 'Tob', tob: { defaultName: false, defaultAvatar: false } } },
         });
@@ -173,7 +176,7 @@ describe('Tob canonical identity and settings', () => {
         },
         ['bot-registry'],
       );
-      const bridge = createBridgeMethods({ ...f.core });
+      const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core });
       expect(bridge.get({ slug: home.botSlug })).toMatchObject({
         ok: true,
         value: {
@@ -195,7 +198,7 @@ describe('Tob canonical identity and settings', () => {
     try {
       const state = await f.core.onboarding.enter();
       const slug = state.defaultBotSlug!;
-      const bridge = createBridgeMethods({ ...f.core });
+      const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core });
       expect(bridge.get({ slug })).toMatchObject({
         ok: true,
         value: { bot: { tob: { defaultAvatar: true } } },
@@ -304,7 +307,7 @@ describe('Tob canonical identity and settings', () => {
     });
     try {
       const home = await f.core.tob.ensure();
-      const bridge = createBridgeMethods({ ...f.core });
+      const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core });
       expect(
         await bridge.channelSend({
           channelId: home.channelId,
@@ -318,7 +321,7 @@ describe('Tob canonical identity and settings', () => {
         { scope: 'global', value: 3, revision: 1 },
       ]);
       f.core.registry.create({ slug: 'ordinary', displayName: 'Tob' });
-      const dm = f.core.channels.getOrCreateDm('ordinary', 'Tob')!;
+      const dm = f.core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ordinary', 'Tob')!;
       await bridge.channelSend({
         channelId: dm.id,
         messageId: 'human-' + crypto.randomUUID(),
@@ -327,12 +330,12 @@ describe('Tob canonical identity and settings', () => {
       await f.core.runtime.whenIdle();
       expect(outcomes.at(-1)).toBe('tob-authority-required');
       expect(f.core.tob.readSetting().value).toBe(3);
-      const group = f.core.channels.createGroup({
+      const group = f.core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
         name: 'Synthetic QA group',
         members: [home.botSlug],
       });
       const messageId = 'human-' + crypto.randomUUID();
-      await f.core.channels.appendMessage(group.id, {
+      await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: messageId,
         at: new Date().toISOString(),
         author: { kind: 'human' },
@@ -360,7 +363,7 @@ describe('Tob canonical identity and settings', () => {
     });
     try {
       const home = await f.core.tob.ensure();
-      const bridge = createBridgeMethods({ ...f.core });
+      const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core });
       for (const body of ['Read the limit', 'Read again']) {
         await bridge.channelSend({
           channelId: home.channelId,
@@ -395,7 +398,7 @@ describe('Tob canonical identity and settings', () => {
     });
     try {
       const home = await f.core.tob.ensure();
-      await createBridgeMethods({ ...f.core }).channelSend({
+      await createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core }).channelSend({
         channelId: home.channelId,
         messageId: 'human-' + crypto.randomUUID(),
         body: 'Set limit to 3',
@@ -431,7 +434,7 @@ describe('Tob canonical identity and settings', () => {
     );
     try {
       const home = await f.core.tob.ensure();
-      const bridge = createBridgeMethods({ ...f.core });
+      const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core });
       await bridge.channelSend({
         channelId: home.channelId,
         messageId: 'human-' + crypto.randomUUID(),
@@ -477,7 +480,7 @@ describe('Tob canonical identity and settings', () => {
     });
     try {
       const home = await f.core.tob.ensure();
-      await createBridgeMethods({ ...f.core }).channelSend({
+      await createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core }).channelSend({
         channelId: home.channelId,
         messageId: 'human-' + crypto.randomUUID(),
         body: 'Set limit to 3',
@@ -500,7 +503,7 @@ describe('Tob canonical identity and settings', () => {
     });
     try {
       const home = await f.core.tob.ensure();
-      await createBridgeMethods({ ...f.core }).channelSend({
+      await createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core }).channelSend({
         channelId: home.channelId,
         messageId: 'human-' + crypto.randomUUID(),
         body: 'Read limit',
@@ -532,7 +535,7 @@ describe('Tob canonical identity and settings', () => {
     });
     try {
       const home = await f.core.tob.ensure();
-      await createBridgeMethods({ ...f.core }).channelSend({
+      await createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core }).channelSend({
         channelId: home.channelId,
         messageId: 'human-' + crypto.randomUUID(),
         body: 'Create a group',
@@ -581,8 +584,8 @@ describe('Tob canonical identity and settings', () => {
       tobSlug = (await f.core.tob.ensure()).botSlug;
       for (const slug of ['owner', 'peer', 'another-peer'])
         f.core.registry.create({ slug, displayName: slug });
-      const dm = f.core.channels.getOrCreateDm('owner', 'owner')!;
-      await createBridgeMethods({ ...f.core }).channelSend({
+      const dm = f.core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'owner', 'owner')!;
+      await createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core }).channelSend({
         channelId: dm.id,
         messageId: 'human-' + crypto.randomUUID(),
         body: 'Create a group',

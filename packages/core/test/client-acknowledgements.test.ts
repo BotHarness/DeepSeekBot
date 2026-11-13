@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import { createCore } from '../src/plugin.js';
@@ -18,7 +19,7 @@ describe('Profile notice acknowledgements', () => {
     const dshHome = createTempRoot('bh-acks-');
     const first = createCore({ dshHome, agents });
     try {
-      const bridge = createBridgeMethods({ ...first });
+      const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...first });
       expect(bridge.acknowledgements({})).toEqual({ ok: true, value: { items: {} } });
       expect(bridge.acknowledge({ key: 'bot-mode-entered' })).toEqual({
         ok: true,
@@ -50,7 +51,7 @@ describe('Profile notice acknowledgements', () => {
     }
     const second = createCore({ dshHome, agents });
     try {
-      expect(createBridgeMethods({ ...second }).acknowledgements({})).toEqual({
+      expect(createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...second }).acknowledgements({})).toEqual({
         ok: true,
         value: {
           items: {

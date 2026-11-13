@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { afterEach, expect, it, vi } from 'vitest';
 import { createCore } from '../src/plugin.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
@@ -18,14 +19,14 @@ it('projects today committed messages and current sender names without changing 
   const core = createCore({ dshHome: createTempRoot('bh-channel-today-'), agents });
   try {
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
-    const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-    core.channels.setHumanNickname(dm.id, 'Captain');
+    const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+    core.channels.setHumanNickname(OWNER_HUMAN_CONTEXT, dm.id, 'Captain');
     for (const [id, author, body] of [
       ['human', { kind: 'human' }, 'Hello'],
       ['bot', { kind: 'bot', slug: 'ada' }, 'Ready'],
       ['system', { kind: 'system' }, 'Notice'],
     ] as const)
-      await core.channels.appendMessage(dm.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id,
         author,
         body,
@@ -40,8 +41,8 @@ it('projects today committed messages and current sender names without changing 
             }
           : {}),
       });
-    const before = core.humanAttention.status();
-    const result = createBridgeMethods({ ...core }).channelActivityToday({});
+    const before = core.humanAttention.status(OWNER_HUMAN_CONTEXT);
+    const result = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core }).channelActivityToday({});
     expect(result).toMatchObject({
       ok: true,
       value: {
@@ -63,7 +64,7 @@ it('projects today committed messages and current sender names without changing 
         ],
       },
     });
-    expect(core.humanAttention.status()).toEqual(before);
+    expect(core.humanAttention.status(OWNER_HUMAN_CONTEXT)).toEqual(before);
   } finally {
     await core.runtime.close();
     core.operationalDatabase.close();
@@ -78,18 +79,21 @@ it('uses local day bounds, counts once beyond a page, excludes inaccessible Chan
   try {
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
     core.registry.create({ slug: 'bea', displayName: 'Bea' });
-    const group = core.channels.createGroup({ name: 'Team', members: ['ada', 'bea'] });
-    const empty = core.channels.createGroup({ name: 'Empty', members: [] });
+    const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Team',
+      members: ['ada', 'bea'],
+    });
+    const empty = core.channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Empty', members: [] });
     const yesterday = new Date(2026, 9, 2).getTime() - 1;
     const tomorrow = new Date(2026, 9, 3).toISOString();
     for (let n = 0; n < 205; n++)
-      await core.channels.appendMessage(group.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'today-' + n,
         at: new Date().toISOString(),
         author: { kind: 'bot', slug: 'ada' },
         body: 'Update',
       });
-    await core.channels.appendMessageOnce(group.id, {
+    await core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, group.id, {
       id: 'many-recipients',
       at: new Date(2026, 9, 2).toISOString(),
       author: { kind: 'human' },
@@ -99,7 +103,7 @@ it('uses local day bounds, counts once beyond a page, excludes inaccessible Chan
         { botSlug: 'bea', label: 'Bea', start: 5, end: 9 },
       ],
     });
-    await core.channels.appendMessageOnce(group.id, {
+    await core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, group.id, {
       id: 'many-recipients',
       at: new Date(2026, 9, 2).toISOString(),
       author: { kind: 'human' },
@@ -113,23 +117,31 @@ it('uses local day bounds, counts once beyond a page, excludes inaccessible Chan
       ['old', new Date(yesterday).toISOString()],
       ['next', tomorrow],
     ])
-      await core.channels.appendMessage(group.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: id!,
         at: at!,
         author: { kind: 'bot', slug: 'ada' },
         body: 'Outside day',
       });
-    core.channels.getOrCreateDm('ada', 'Ada');
-    const hidden = core.channels.getOrCreateBotDm('ada', 'bea', 'Private Bots')!;
-    await core.channels.appendMessage(hidden.id, {
+    core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
+    const hidden = core.channels.getOrCreateBotDm(
+      OWNER_HUMAN_CONTEXT,
+      'ada',
+      'bea',
+      'Private Bots',
+    )!;
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, hidden.id, {
       id: 'private',
       at: new Date().toISOString(),
       author: { kind: 'bot', slug: 'ada' },
       body: 'Bot private',
       botCausation: { rootSourceEventId: 'qa-root', parentSourceEventId: 'qa-parent', hop: 1 },
     });
-    const deleted = core.channels.createGroup({ name: 'Deleted', members: [] });
-    await core.channels.appendMessage(deleted.id, {
+    const deleted = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Deleted',
+      members: [],
+    });
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, deleted.id, {
       id: 'deleted',
       at: new Date().toISOString(),
       author: { kind: 'human' },
@@ -137,7 +149,7 @@ it('uses local day bounds, counts once beyond a page, excludes inaccessible Chan
     });
     core.channels.deleteGroup(deleted.id);
     core.registry.update('ada', { displayName: 'Ada renamed' });
-    const methods = createBridgeMethods({ ...core });
+    const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
     expect(methods.channelActivityToday({})).toMatchObject({
       ok: true,
       value: {
@@ -161,12 +173,16 @@ it('uses local day bounds, counts once beyond a page, excludes inaccessible Chan
     await core.runtime.close();
     core.operationalDatabase.close();
     core = createCore({ dshHome: home, agents });
-    expect(createBridgeMethods({ ...core }).channelActivityToday({})).toMatchObject({
+    expect(
+      createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core }).channelActivityToday({}),
+    ).toMatchObject({
       ok: true,
       value: { total: 206 },
     });
     vi.setSystemTime(new Date(2026, 9, 3, 12));
-    expect(createBridgeMethods({ ...core }).channelActivityToday({})).toMatchObject({
+    expect(
+      createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core }).channelActivityToday({}),
+    ).toMatchObject({
       ok: true,
       value: { day: '2026-10-03', total: 1 },
     });
@@ -181,21 +197,24 @@ it('respects Human membership and visible revisions for current-day history', as
   const core = createCore({ dshHome: createTempRoot('bh-channel-visible-'), agents });
   try {
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
-    const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
-    const hidden = core.channels.createGroup({
+    const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Team',
+      members: ['ada'],
+    });
+    const hidden = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
       name: 'Private Group',
       members: ['ada'],
       ownerBotSlug: 'ada',
     });
     const visibleAt = Date.now() - 10000;
     for (const id of ['before-join', 'visible'])
-      await core.channels.appendMessage(group.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id,
         at: new Date(id === 'visible' ? visibleAt : visibleAt + 1000).toISOString(),
         author: { kind: 'bot', slug: 'ada' },
         body: 'Update',
       });
-    await core.channels.appendMessage(hidden.id, {
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, hidden.id, {
       id: 'private',
       at: new Date().toISOString(),
       author: { kind: 'bot', slug: 'ada' },
@@ -210,8 +229,10 @@ it('respects Human membership and visible revisions for current-day history', as
         hidden.id,
       );
     });
-    expect(core.channels.latestBotActivity?.().get('ada')).toBe(visibleAt);
-    expect(createBridgeMethods({ ...core }).channelActivityToday({})).toMatchObject({
+    expect(core.channels.latestBotActivity?.(OWNER_HUMAN_CONTEXT).get('ada')).toBe(visibleAt);
+    expect(
+      createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core }).channelActivityToday({}),
+    ).toMatchObject({
       ok: true,
       value: { total: 1, channels: [{ channelId: group.id, total: 1 }] },
     });
@@ -229,18 +250,21 @@ it('retains each Bot activity after interleaved group messages and restart, incl
   try {
     for (const slug of ['ada', 'bea', 'report-only'])
       core.registry.create({ slug, displayName: slug });
-    const group = core.channels.createGroup({ name: 'Activity', members: ['ada', 'bea'] });
+    const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Activity',
+      members: ['ada', 'bea'],
+    });
     for (const [slug, at] of [
       ['ada', adaAt],
       ['bea', beaAt],
     ] as const)
-      await core.channels.appendMessage(group.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: slug,
         author: { kind: 'bot', slug },
         body: 'Done',
         at: new Date(at).toISOString(),
       });
-    await core.channels.appendMessage(group.id, {
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
       id: 'human',
       author: { kind: 'human' },
       body: 'Thanks',
@@ -250,15 +274,15 @@ it('retains each Bot activity after interleaved group messages and restart, incl
       ['ada', adaAt],
       ['bea', beaAt],
     ]);
-    expect(core.channels.latestBotActivity?.()).toEqual(expected);
+    expect(core.channels.latestBotActivity?.(OWNER_HUMAN_CONTEXT)).toEqual(expected);
     await core.runtime.close();
     core.operationalDatabase.close();
     core = createCore({ dshHome: home, agents });
-    expect(core.channels.latestBotActivity?.()).toEqual(expected);
+    expect(core.channels.latestBotActivity?.(OWNER_HUMAN_CONTEXT)).toEqual(expected);
     const reports = vi
       .spyOn(core.runtime, 'latestAssignmentActivity')
       .mockReturnValue(new Map([['report-only', beaAt + 2000]]));
-    const result = createBridgeMethods({ ...core }).list({});
+    const result = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core }).list({});
     expect(result).toMatchObject({
       ok: true,
       value: {
@@ -271,7 +295,7 @@ it('retains each Bot activity after interleaved group messages and restart, incl
     });
     reports.mockRestore();
     core.channels.deleteGroup(group.id);
-    expect(core.channels.latestBotActivity?.()).toEqual(new Map());
+    expect(core.channels.latestBotActivity?.(OWNER_HUMAN_CONTEXT)).toEqual(new Map());
   } finally {
     await core.runtime.close();
     core.operationalDatabase.close();

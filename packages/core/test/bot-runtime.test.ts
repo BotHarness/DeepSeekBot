@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createTestRegistry } from './registry-fixture.js';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -66,7 +67,7 @@ class DeterministicAgentAdapter implements BotAgentAdapter {
 }
 
 function admit(runtime: BotRuntime, input: HandleDmMessageInput): Promise<void> {
-  const admission = runtime.admitDmMessage(input);
+  const admission = runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, input);
   if (!admission.admitted) throw new Error(`admission rejected: ${admission.reason}`);
   return admission.settled;
 }
@@ -123,7 +124,7 @@ it('publishes failed Orchestrator and Assignment turns into the owning DM', asyn
   const registry = createTestRegistry({ rootDir: join(home, 'bots'), now: FIXED_NOW });
   expect(registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
   const channels = createChannelStore({ rootDir: join(home, 'channels'), now: FIXED_NOW });
-  const dm = channels.getOrCreateDm('ada', 'Ada');
+  const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
   expect(dm).toBeDefined();
   const owner = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
   let attempts = 0;
@@ -194,7 +195,7 @@ it('tells the Human plainly when a turn fails on context overflow', async () => 
   const registry = createTestRegistry({ rootDir: join(home, 'bots'), now: FIXED_NOW });
   expect(registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
   const channels = createChannelStore({ rootDir: join(home, 'channels'), now: FIXED_NOW });
-  const dm = channels.getOrCreateDm('ada', 'Ada');
+  const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
   const owner = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
   const agents: BotAgentAdapter = {
     async runOrchestrator() {
@@ -251,10 +252,13 @@ it('reads only a joined Channel image by durable message and attachment referenc
     attachments,
     now: FIXED_NOW,
   });
-  const joined = channels.createGroup({ name: 'Joined', members: ['ada'] });
-  const privateChannel = channels.createGroup({ name: 'Private', members: [] });
-  const dm = channels.getOrCreateDm('ada', 'Ada')!;
-  await channels.appendMessage(joined.id, {
+  const joined = channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Joined', members: ['ada'] });
+  const privateChannel = channels.createGroup(OWNER_HUMAN_CONTEXT, {
+    name: 'Private',
+    members: [],
+  });
+  const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+  await channels.appendMessage(OWNER_HUMAN_CONTEXT, joined.id, {
     id: 'image-message',
     at: FIXED_NOW().toISOString(),
     author: { kind: 'human' },
@@ -262,21 +266,21 @@ it('reads only a joined Channel image by durable message and attachment referenc
     attachments: [image],
   });
   for (let index = 0; index < 201; index += 1) {
-    await channels.appendMessage(joined.id, {
+    await channels.appendMessage(OWNER_HUMAN_CONTEXT, joined.id, {
       id: `newer-${index}`,
       at: FIXED_NOW().toISOString(),
       author: { kind: 'human' },
       body: `Newer message ${index}`,
     });
   }
-  await channels.appendMessage(privateChannel.id, {
+  await channels.appendMessage(OWNER_HUMAN_CONTEXT, privateChannel.id, {
     id: 'private-image',
     at: FIXED_NOW().toISOString(),
     author: { kind: 'human' },
     body: '',
     attachments: [image],
   });
-  await channels.appendMessage(dm.id, {
+  await channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
     id: 'trigger-image-read',
     at: FIXED_NOW().toISOString(),
     author: { kind: 'human' },
@@ -395,8 +399,8 @@ describe('Bot runtime tracer bullet', () => {
       attachments,
       now: FIXED_NOW,
     });
-    const dm = channels.getOrCreateDm('ada', 'Ada')!;
-    await channels.appendMessage(dm.id, {
+    const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+    await channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
       id: 'human-attachment-request',
       at: FIXED_NOW().toISOString(),
       author: { kind: 'human' },
@@ -444,9 +448,9 @@ describe('Bot runtime tracer bullet', () => {
     const registry = createTestRegistry({ rootDir: join(home, 'bots'), now: FIXED_NOW });
     expect(registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
     const channels = createChannelStore({ rootDir: join(home, 'channels'), now: FIXED_NOW });
-    const dm = channels.getOrCreateDm('ada', 'Ada');
+    const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
     expect(dm).toBeDefined();
-    await channels.appendMessage(dm!.id, {
+    await channels.appendMessage(OWNER_HUMAN_CONTEXT, dm!.id, {
       id: 'human-invalid-reply',
       at: FIXED_NOW().toISOString(),
       author: { kind: 'human' },
@@ -509,9 +513,9 @@ describe('Bot runtime tracer bullet', () => {
     const registry = createTestRegistry({ rootDir: join(home, 'bots'), now: FIXED_NOW });
     expect(registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
     const channels = createChannelStore({ rootDir: join(home, 'channels'), now: FIXED_NOW });
-    const dm = channels.getOrCreateDm('ada', 'Ada');
+    const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
     expect(dm).toBeDefined();
-    await channels.appendMessage(dm!.id, {
+    await channels.appendMessage(OWNER_HUMAN_CONTEXT, dm!.id, {
       id: 'human-retry',
       at: FIXED_NOW().toISOString(),
       author: { kind: 'human' },
@@ -621,9 +625,9 @@ describe('Bot runtime tracer bullet', () => {
     const registry = createTestRegistry({ rootDir: join(home, 'bots'), now: FIXED_NOW });
     expect(registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
     const channels = createChannelStore({ rootDir: join(home, 'channels'), now: FIXED_NOW });
-    const dm = channels.getOrCreateDm('ada', 'Ada');
+    const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
     expect(dm).toBeDefined();
-    await channels.appendMessage(dm!.id, {
+    await channels.appendMessage(OWNER_HUMAN_CONTEXT, dm!.id, {
       id: 'human-repair',
       at: FIXED_NOW().toISOString(),
       author: { kind: 'human' },
@@ -725,11 +729,11 @@ describe('Bot runtime tracer bullet', () => {
     expect(registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
     expect(registry.create({ slug: 'bob', displayName: 'Bob' }).ok).toBe(true);
     const channels = createChannelStore({ rootDir: join(home, 'channels'), now: FIXED_NOW });
-    const adaDm = channels.getOrCreateDm('ada', 'Ada');
-    const bobDm = channels.getOrCreateDm('bob', 'Bob');
+    const adaDm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
+    const bobDm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'bob', 'Bob');
     expect(adaDm).toBeDefined();
     expect(bobDm).toBeDefined();
-    await channels.appendMessage(adaDm!.id, {
+    await channels.appendMessage(OWNER_HUMAN_CONTEXT, adaDm!.id, {
       id: 'human-1',
       at: FIXED_NOW().toISOString(),
       author: { kind: 'human' },
@@ -797,8 +801,8 @@ describe('Bot runtime tracer bullet', () => {
       createdAt: FIXED_NOW().toISOString(),
     });
     const channels = createChannelStore({ rootDir: join(home, 'channels'), now: FIXED_NOW });
-    const dm = channels.getOrCreateDm('ada', 'Ada')!;
-    await channels.appendMessage(dm.id, {
+    const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+    await channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
       id: 'human-1',
       at: FIXED_NOW().toISOString(),
       author: { kind: 'human' },
@@ -974,9 +978,9 @@ describe('Bot runtime tracer bullet', () => {
     const registry = createTestRegistry({ rootDir: join(home, 'bots'), now: FIXED_NOW });
     expect(registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
     const channels = createChannelStore({ rootDir: join(home, 'channels'), now: FIXED_NOW });
-    const dm = channels.getOrCreateDm('ada', 'Ada');
+    const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
     expect(dm).toBeDefined();
-    await channels.appendMessage(dm!.id, {
+    await channels.appendMessage(OWNER_HUMAN_CONTEXT, dm!.id, {
       id: 'human-1',
       at: FIXED_NOW().toISOString(),
       author: { kind: 'human' },
@@ -1082,7 +1086,7 @@ describe('Bot runtime tracer bullet', () => {
     const registry = createTestRegistry({ rootDir: join(home, 'bots'), now: FIXED_NOW });
     expect(registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
     const channels = createChannelStore({ rootDir: join(home, 'channels'), now: FIXED_NOW });
-    const dm = channels.getOrCreateDm('ada', 'Ada')!;
+    const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
     const owner = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
     const access = createAssignmentAccessStore(attachOperationalModule(owner, 'assignment-access'));
     access.set('ada', 'danger-full-access');
@@ -1097,7 +1101,7 @@ describe('Bot runtime tracer bullet', () => {
       now: FIXED_NOW,
       createSessionId: () => ids.shift() ?? 'unexpected-session',
     });
-    await channels.appendMessage(dm.id, {
+    await channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
       id: 'human-danger',
       at: FIXED_NOW().toISOString(),
       author: { kind: 'human' },
@@ -1111,7 +1115,7 @@ describe('Bot runtime tracer bullet', () => {
       presetRevision: 1,
     });
     access.set('ada', 'workspace-write');
-    await channels.appendMessage(dm.id, {
+    await channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
       id: 'human-safe',
       at: FIXED_NOW().toISOString(),
       author: { kind: 'human' },
@@ -1141,13 +1145,13 @@ describe('Bot runtime tracer bullet', () => {
       registry.create({ slug: 'bob', displayName: 'Bob', workspaces: ['/srv/shared'] }).ok,
     ).toBe(true);
     const channels = createChannelStore({ rootDir: join(home, 'channels'), now: FIXED_NOW });
-    const adaDm = channels.getOrCreateDm('ada', 'Ada');
-    const bobDm = channels.getOrCreateDm('bob', 'Bob');
+    const adaDm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
+    const bobDm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'bob', 'Bob');
     for (const [id, channelId] of [
       ['human-ada', adaDm!.id],
       ['human-bob', bobDm!.id],
     ] as const) {
-      await channels.appendMessage(channelId, {
+      await channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
         id,
         at: FIXED_NOW().toISOString(),
         author: { kind: 'human' },
@@ -1207,8 +1211,8 @@ describe('Bot runtime tracer bullet', () => {
     const registry = createTestRegistry({ rootDir: join(home, 'bots'), now: FIXED_NOW });
     expect(registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
     const channels = createChannelStore({ rootDir: join(home, 'channels'), now: FIXED_NOW });
-    const dm = channels.getOrCreateDm('ada', 'Ada');
-    await channels.appendMessage(dm!.id, {
+    const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
+    await channels.appendMessage(OWNER_HUMAN_CONTEXT, dm!.id, {
       id: 'human-1',
       at: FIXED_NOW().toISOString(),
       author: { kind: 'human' },
@@ -1253,8 +1257,8 @@ describe('Bot runtime tracer bullet', () => {
     const registry = createTestRegistry({ rootDir: join(home, 'bots'), now: FIXED_NOW });
     expect(registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
     const channels = createChannelStore({ rootDir: join(home, 'channels'), now: FIXED_NOW });
-    const dm = channels.getOrCreateDm('ada', 'Ada');
-    await channels.appendMessage(dm!.id, {
+    const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
+    await channels.appendMessage(OWNER_HUMAN_CONTEXT, dm!.id, {
       id: 'human-1',
       at: FIXED_NOW().toISOString(),
       author: { kind: 'human' },
@@ -1287,7 +1291,7 @@ describe('Bot runtime tracer bullet', () => {
       createSessionId: () => 'orchestrator-ada',
     });
 
-    const admission = runtime.admitDmMessage({
+    const admission = runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
       channelId: dm!.id,
       messageId: 'human-1',
       body: 'hi',
@@ -1378,10 +1382,10 @@ describe('Bot runtime tracer bullet', () => {
     const registry = createTestRegistry({ rootDir: join(home, 'bots'), now: FIXED_NOW });
     expect(registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
     const channels = createChannelStore({ rootDir: join(home, 'channels'), now: FIXED_NOW });
-    const dm = channels.getOrCreateDm('ada', 'Ada');
+    const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
     expect(dm).toBeDefined();
     for (const id of ['human-1', 'human-2']) {
-      await channels.appendMessage(dm!.id, {
+      await channels.appendMessage(OWNER_HUMAN_CONTEXT, dm!.id, {
         id,
         at: FIXED_NOW().toISOString(),
         author: { kind: 'human' },
@@ -1416,12 +1420,12 @@ describe('Bot runtime tracer bullet', () => {
       createSessionId: () => 'orchestrator-ada',
     });
 
-    const first = runtime.admitDmMessage({
+    const first = runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
       channelId: dm!.id,
       messageId: 'human-1',
       body: 'human-1',
     });
-    const second = runtime.admitDmMessage({
+    const second = runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
       channelId: dm!.id,
       messageId: 'human-2',
       body: 'human-2',
@@ -1452,8 +1456,8 @@ describe('Bot runtime tracer bullet', () => {
     const registry = createTestRegistry({ rootDir: join(home, 'bots'), now: FIXED_NOW });
     expect(registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
     const channels = createChannelStore({ rootDir: join(home, 'channels'), now: FIXED_NOW });
-    const dm = channels.getOrCreateDm('ada', 'Ada');
-    const group = channels.createGroup({ name: 'Team', members: [] });
+    const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
+    const group = channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Team', members: [] });
     const owner = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
     const runs: string[] = [];
     const runtime = createBotRuntime({
@@ -1478,25 +1482,51 @@ describe('Bot runtime tracer bullet', () => {
     });
 
     expect(
-      runtime.admitDmMessage({ channelId: 'dm-missing', messageId: 'm-1', body: 'hello' }),
+      runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+        channelId: 'dm-missing',
+        messageId: 'm-1',
+        body: 'hello',
+      }),
     ).toEqual({ admitted: false, reason: 'unknown-channel' });
     expect(
-      runtime.admitDmMessage({ channelId: group.id, messageId: 'm-2', body: 'hello' }),
+      runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+        channelId: group.id,
+        messageId: 'm-2',
+        body: 'hello',
+      }),
     ).toEqual({ admitted: false, reason: 'not-dm' });
-    expect(runtime.admitDmMessage({ channelId: dm!.id, messageId: 'm-3', body: '   ' })).toEqual({
+    expect(
+      runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+        channelId: dm!.id,
+        messageId: 'm-3',
+        body: '   ',
+      }),
+    ).toEqual({
       admitted: false,
       reason: 'blank-body',
     });
 
     registry.setPaused('ada', true);
-    expect(runtime.admitDmMessage({ channelId: dm!.id, messageId: 'm-4', body: 'hello' })).toEqual({
+    expect(
+      runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+        channelId: dm!.id,
+        messageId: 'm-4',
+        body: 'hello',
+      }),
+    ).toEqual({
       admitted: false,
       reason: 'archived-bot',
     });
     registry.setPaused('ada', false);
 
     await runtime.close();
-    expect(runtime.admitDmMessage({ channelId: dm!.id, messageId: 'm-5', body: 'hello' })).toEqual({
+    expect(
+      runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+        channelId: dm!.id,
+        messageId: 'm-5',
+        body: 'hello',
+      }),
+    ).toEqual({
       admitted: false,
       reason: 'runtime-closed',
     });
@@ -1510,7 +1540,7 @@ it('requests a folder in the DM and resumes the same Orchestrator after Human au
   const registry = createTestRegistry({ rootDir: join(home, 'bots'), now: FIXED_NOW });
   expect(registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
   const channels = createChannelStore({ rootDir: join(home, 'channels'), now: FIXED_NOW });
-  const dm = channels.getOrCreateDm('ada', 'Ada')!;
+  const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
   const owner = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
   const grants = createWorkspaceGrantStore({
     database: attachOperationalModule(owner, 'grant-request-test'),
@@ -1561,7 +1591,7 @@ it('requests a folder in the DM and resumes the same Orchestrator after Human au
     createEventId: () => `event-${++nextSession}`,
     createMessageId: () => `message-${++nextSession}`,
   });
-  await channels.appendMessage(dm.id, {
+  await channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
     id: 'human-start',
     at: FIXED_NOW().toISOString(),
     author: { kind: 'human' },
@@ -1575,7 +1605,7 @@ it('requests a folder in the DM and resumes the same Orchestrator after Human au
   });
   expect(runtime.listAssignments('ada')).toHaveLength(0);
   await grants.create('ada', 'project');
-  await channels.appendMessage(dm.id, {
+  await channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
     id: 'human-approved',
     at: FIXED_NOW().toISOString(),
     author: { kind: 'human' },
@@ -1600,7 +1630,7 @@ async function archivedMidTurn(sendFirst: boolean) {
   const registry = createTestRegistry({ rootDir: join(home, 'bots'), now: FIXED_NOW });
   expect(registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
   const channels = createChannelStore({ rootDir: join(home, 'channels'), now: FIXED_NOW });
-  const dm = channels.getOrCreateDm('ada', 'Ada')!;
+  const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
   const owner = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
   const archived = new Set<string>();
   const runs: Array<{ sessionId: string; resume: boolean }> = [];
@@ -1633,7 +1663,7 @@ async function archivedMidTurn(sendFirst: boolean) {
     createEventId: () => `event-${++nextSession}`,
     createMessageId: () => `message-${++nextSession}`,
   });
-  await channels.appendMessage(dm.id, {
+  await channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
     id: 'human-1',
     at: FIXED_NOW().toISOString(),
     author: { kind: 'human' },
@@ -1669,7 +1699,7 @@ async function misplacedOrchestrator(archiveRefused: boolean) {
   const registry = createTestRegistry({ rootDir: join(home, 'bots'), now: FIXED_NOW });
   expect(registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
   const channels = createChannelStore({ rootDir: join(home, 'channels'), now: FIXED_NOW });
-  const dm = channels.getOrCreateDm('ada', 'Ada')!;
+  const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
   const owner = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
   const archived = new Set<string>();
   const runs: Array<{ sessionId: string; resume: boolean }> = [];
@@ -1720,7 +1750,7 @@ async function misplacedOrchestrator(archiveRefused: boolean) {
     ['human-1', 'hello'],
     ['human-2', 'still there?'],
   ] as const) {
-    await channels.appendMessage(dm.id, {
+    await channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
       id,
       at: FIXED_NOW().toISOString(),
       author: { kind: 'human' },
@@ -1761,7 +1791,7 @@ it('starts a new Orchestrator Session when DSH archived the current one', async 
   const registry = createTestRegistry({ rootDir: join(home, 'bots'), now: FIXED_NOW });
   expect(registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
   const channels = createChannelStore({ rootDir: join(home, 'channels'), now: FIXED_NOW });
-  const dm = channels.getOrCreateDm('ada', 'Ada')!;
+  const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
   const owner = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
   const archived = new Set<string>();
   const runs: Array<{ sessionId: string; resume: boolean }> = [];
@@ -1793,7 +1823,7 @@ it('starts a new Orchestrator Session when DSH archived the current one', async 
     createMessageId: () => `message-${++nextSession}`,
   });
   const say = async (id: string, body: string): Promise<void> => {
-    await channels.appendMessage(dm.id, {
+    await channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
       id,
       at: FIXED_NOW().toISOString(),
       author: { kind: 'human' },

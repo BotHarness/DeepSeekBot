@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { randomBytes } from 'node:crypto';
 import { expect, it } from 'vitest';
 import { createCore } from '../src/plugin.js';
@@ -148,14 +149,14 @@ it('requires bilateral Host admission before encrypted contacts and a DM reach t
         membership: expect.objectContaining({ kind: 'lan' }),
       }),
     ]);
-    const human = cores[0]!.channels.getOrCreateDm('bot', 'Developer')!;
-    await cores[0]!.channels.appendMessage(human.id, {
+    const human = cores[0]!.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'bot', 'Developer')!;
+    await cores[0]!.channels.appendMessage(OWNER_HUMAN_CONTEXT, human.id, {
       id: 'human-request',
       at: new Date().toISOString(),
       author: { kind: 'human' },
       body: 'Collaborate',
     });
-    cores[0]!.runtime.admitDmMessage({
+    cores[0]!.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
       channelId: human.id,
       messageId: 'human-request',
       body: 'Collaborate',

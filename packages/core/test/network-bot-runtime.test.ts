@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { createBotMessageTool } from '../src/runtime/bot-message-tool.js';
@@ -139,14 +140,14 @@ it.each(['withdrawn', 'unavailable', 'returned-before-start', 'legacy-unverified
     let core = open();
     try {
       core.registry.create({ slug: 'receiver', displayName: 'Receiver' });
-      const dm = core.channels.getOrCreateDm('receiver', 'Receiver')!;
-      await core.channels.appendMessage(dm.id, {
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'receiver', 'Receiver')!;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'local-work',
         at: new Date().toISOString(),
         author: { kind: 'human' },
         body: 'Local work',
       });
-      core.runtime.admitDmMessage({
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'local-work',
         body: 'Local work',
@@ -308,14 +309,14 @@ it('uses normal Bot tools and Inbox to exchange a DM between two Host owners', a
   try {
     left.registry.create({ slug: 'caller', displayName: 'Caller' });
     right.registry.create({ slug: 'ios', displayName: 'iOS' });
-    const dm = left.channels.getOrCreateDm('caller', 'Caller')!;
-    await left.channels.appendMessage(dm.id, {
+    const dm = left.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'caller', 'Caller')!;
+    await left.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
       id: 'human-start',
       at: new Date().toISOString(),
       author: { kind: 'human' },
       body: 'Find iOS colleague',
     });
-    left.runtime.admitDmMessage({
+    left.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
       channelId: dm.id,
       messageId: 'human-start',
       body: 'Find iOS colleague',

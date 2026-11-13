@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { afterEach, expect, it } from 'vitest';
 import { createCore, type BotHarnessCore } from '../src/plugin.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
@@ -63,15 +64,15 @@ async function fixture(
   });
   cores.push(core);
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
-  const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+  const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
   const send = async (id: string, body: string) => {
-    await core.channels.appendMessage(dm.id, {
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
       id,
       at: new Date().toISOString(),
       author: { kind: 'human' },
       body,
     });
-    const admission = core.runtime.admitDmMessage({
+    const admission = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
       channelId: dm.id,
       messageId: id,
       body,
@@ -89,7 +90,7 @@ async function fixture(
     runs,
     send,
     failures,
-    methods: createBridgeMethods({ ...core }),
+    methods: createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core }),
   };
 }
 
@@ -244,14 +245,14 @@ it('re-arms a waiting automatic continuation after the Host restarts', async () 
     agents: agents(true),
   });
   first.registry.create({ slug: 'ada', displayName: 'Ada' });
-  const dm = first.channels.getOrCreateDm('ada', 'Ada')!;
-  await first.channels.appendMessage(dm.id, {
+  const dm = first.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+  await first.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
     id: 'human-request',
     at: new Date().toISOString(),
     author: { kind: 'human' },
     body: 'Long job',
   });
-  const admission = first.runtime.admitDmMessage({
+  const admission = first.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
     channelId: dm.id,
     messageId: 'human-request',
     body: 'Long job',

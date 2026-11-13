@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { spawn as spawnProcess } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -241,9 +242,9 @@ describe('folder browsing on the Host', () => {
   it('answers through the bridge with coded refusals', async () => {
     const root = home();
     mkdirSync(join(root, 'site'));
-    const methods = createBridgeMethods({
+    const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
       folders: createFolderBrowser({ home: root, platform: 'linux', read: inProcess() }),
-    } as unknown as Parameters<typeof createBridgeMethods>[0]);
+    } as unknown as Parameters<typeof createBridgeMethods>[1]);
 
     const listed = await methods.folderBrowse({});
     expect(listed.ok && listed.value.entries.map((entry) => entry.name)).toEqual(['site']);

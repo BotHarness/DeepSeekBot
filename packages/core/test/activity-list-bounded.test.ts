@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import type { DatabaseSync } from 'node:sqlite';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -65,29 +66,32 @@ function fixture() {
 describe('Human inbox history bounds', () => {
   it('marks only Bot replies to the Human and Human mentions for the replies list', async () => {
     const { database, channels, attention } = fixture();
-    const group = channels.createGroup({ name: 'Launch', members: ['ada', 'bea'] });
+    const group = channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Launch',
+      members: ['ada', 'bea'],
+    });
     const at = (minute: number) => new Date(Date.UTC(2026, 10, 1, 0, minute)).toISOString();
-    await channels.appendMessage(group.id, {
+    await channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
       id: 'human-plan',
       at: at(1),
       author: { kind: 'human' },
       body: 'Review.',
     });
-    await channels.appendMessage(group.id, {
+    await channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
       id: 'ada-reply',
       at: at(2),
       author: { kind: 'bot', slug: 'ada' },
       body: 'Reviewed.',
       replyTo: 'human-plan',
     });
-    await channels.appendMessage(group.id, {
+    await channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
       id: 'bea-reply',
       at: at(3),
       author: { kind: 'bot', slug: 'bea' },
       body: 'Agreed with Ada.',
       replyTo: 'ada-reply',
     });
-    await channels.appendMessage(group.id, {
+    await channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
       id: 'bea-mention',
       at: at(4),
       author: { kind: 'bot', slug: 'bea' },
@@ -95,7 +99,7 @@ describe('Human inbox history bounds', () => {
       humanMentions: [{ humanId: LOCAL_HUMAN_ID, label: 'Human', start: 0, end: 6 }],
       botCausation: { rootSourceEventId: 'root', parentSourceEventId: 'root', hop: 1 },
     });
-    await channels.appendMessage(group.id, {
+    await channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
       id: 'ada-plain',
       at: at(5),
       author: { kind: 'bot', slug: 'ada' },
@@ -122,7 +126,7 @@ describe('Human inbox history bounds', () => {
     });
     expect(
       attention
-        .list({ category: 'replies', limit: 20 })
+        .list(OWNER_HUMAN_CONTEXT, { category: 'replies', limit: 20 })
         .items.map((item) => item.messageId)
         .sort(),
     ).toEqual(['ada-reply', 'bea-mention']);
@@ -146,10 +150,14 @@ describe('Human inbox history bounds', () => {
 
   it('never scans message, placement or outbound history for inbox, activity and IM lookups', () => {
     const { recorded, channels, attention, statements, plan } = fixture();
-    attention.list({ category: 'replies', limit: 20 });
-    attention.list({ category: 'replies', limit: 20, unreadOnly: true });
-    attention.list({ category: 'unread', limit: 20 });
-    channels.humanMessageCounts!('2026-11-03T16:00:00.000Z', '2026-11-04T16:00:00.000Z');
+    attention.list(OWNER_HUMAN_CONTEXT, { category: 'replies', limit: 20 });
+    attention.list(OWNER_HUMAN_CONTEXT, { category: 'replies', limit: 20, unreadOnly: true });
+    attention.list(OWNER_HUMAN_CONTEXT, { category: 'unread', limit: 20 });
+    channels.humanMessageCounts!(
+      OWNER_HUMAN_CONTEXT,
+      '2026-11-03T16:00:00.000Z',
+      '2026-11-04T16:00:00.000Z',
+    );
     const grant = {
       botSlug: 'ada',
       accountRef: 'account',
@@ -204,8 +212,8 @@ describe('Human inbox history bounds', () => {
 
   it('resolves pending cards and Bot activity through indexes instead of Channel history', () => {
     const { channels, attention, statements, plan } = fixture();
-    attention.status(true);
-    attention.list({ category: 'action', limit: 20 });
+    attention.status(OWNER_HUMAN_CONTEXT, true);
+    attention.list(OWNER_HUMAN_CONTEXT, { category: 'action', limit: 20 });
     attention.openTimedQuestionCards();
     channels.admissionActivity!('ada', '2026-01-01T00:00:00.000Z');
     const details = statements.flatMap(plan);
@@ -229,7 +237,7 @@ describe('Human inbox history bounds', () => {
 
   it('counts only the requested local day from the time index', async () => {
     const { channels } = fixture();
-    const group = channels.createGroup({ name: 'Launch', members: ['ada'] });
+    const group = channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Launch', members: ['ada'] });
     const from = '2026-11-03T16:00:00.000Z';
     const to = '2026-11-04T16:00:00.000Z';
     for (const [id, at] of [
@@ -239,13 +247,13 @@ describe('Human inbox history bounds', () => {
       ['last', '2026-11-04T15:59:59.999Z'],
       ['after', to],
     ] as const)
-      await channels.appendMessage(group.id, {
+      await channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id,
         at,
         author: { kind: 'bot', slug: 'ada' },
         body: id,
       });
-    expect(channels.humanMessageCounts!(from, to)).toEqual([
+    expect(channels.humanMessageCounts!(OWNER_HUMAN_CONTEXT, from, to)).toEqual([
       { channelId: group.id, author: { kind: 'bot', slug: 'ada' }, count: 3 },
     ]);
   });
@@ -254,14 +262,14 @@ describe('Human inbox history bounds', () => {
     const home = createTempRoot('activity-list-legacy-');
     const rootDir = join(home, 'channels');
     const legacy = createChannelStore({ rootDir });
-    const group = legacy.createGroup({ name: 'Legacy', members: ['ada'] });
-    await legacy.appendMessage(group.id, {
+    const group = legacy.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Legacy', members: ['ada'] });
+    await legacy.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
       id: 'human-plan',
       at: '2026-11-01T00:00:00.000Z',
       author: { kind: 'human' },
       body: 'Review.',
     });
-    await legacy.appendMessage(group.id, {
+    await legacy.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
       id: 'ada-reply',
       at: '2026-11-01T00:01:00.000Z',
       author: { kind: 'bot', slug: 'ada' },
