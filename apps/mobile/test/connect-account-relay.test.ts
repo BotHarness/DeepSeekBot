@@ -93,6 +93,12 @@ it('releases an offline slot through the mobile owner and HTTP relay without cle
     expect(await bob.revokeHost(bobKey, old.body.host.id)).toEqual({
       ok: false,
       code: 'host-not-found',
+      diagnostic: {
+        code: 'host-not-found',
+        phase: 'account-action',
+        status: 404,
+        occurredAt: expect.any(String),
+      },
     });
     expect(await row(old.body.host.id)).not.toBeNull();
     expect(await phone.revokeHost(key, old.body.host.id)).toEqual({
