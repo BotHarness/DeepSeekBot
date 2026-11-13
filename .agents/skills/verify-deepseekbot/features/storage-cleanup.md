@@ -11,6 +11,10 @@
 - Mobile: Settings → Connections → **Storage** shows the same usage, age, type and chat choices, and **Clear…** asks for a destructive confirmation built from the preview. **This phone → Clear image cache** empties the app's image cache.
 - CLI parity: `deepseekbot storage-usage`, `storage-cleanup-preview --older-than-days <n> [--chat <id>] [--media <kind>]`, `storage-cleanup-confirm --confirmation-stdin --confirm`, `storage-messages-cleanup-preview --older-than-days <n> [--chat <id>]` and `storage-messages-cleanup-confirm --confirmation-stdin --confirm`.
 
+- Environment panel → **Manage** → select a Remote Host → **Usage** or **Storage** reads only that named Host. Usage retains unknown/partial totals, ranges, cursors and loading coverage. Storage summary has explicit loading/failure states.
+- Changing settings target, disconnecting or revoking access discards the cleanup preview. Replacing a source cannot publish a late preview or cleanup result into another Host.
+- An uncertain cleanup confirmation discards its token and reads the same Host before enabling a fresh preview. If that read fails, **Reload** must succeed first; no confirmation is replayed.
+
 ## How to get to it (user POV)
 
 Enter Bot mode, open Bot settings, choose **Data & privacy**, then **Manage…** on the **Storage** row.
@@ -24,6 +28,10 @@ Enter Bot mode, open Bot settings, choose **Data & privacy**, then **Manage…**
 5. Pipe that JSON to `deepseekbot storage-cleanup-confirm --confirmation-stdin --confirm`.
 6. Canonical proof: the message keeps its text, its `clearedAttachments` names the file, the attachment download returns 404, and the file folder under `$DSH_HOME/botharness/attachments` is gone.
 7. Old messages: `deepseekbot storage-messages-cleanup-preview --before <time>` then pipe it to `storage-messages-cleanup-confirm --confirmation-stdin --confirm`. Canonical proof: `channelMessages` returns those messages with an empty body and a `contentPurge` record, the web chat shows them as purged, newer messages are unchanged, and `storage-usage` reports a smaller `messages` part.
+
+## Remote two-Host proof
+
+Use two disposable task-owned Hosts with distinguishable Channels and storage. Capture the same selected remote Storage state at the parent and change SHA. From the local Web Client, open Environment → Manage, choose the other Host, inspect Usage/Storage, select only its disposable Channel, Preview, acknowledge and Clear. Read the owning Host with explicit CLI `--host` / private `--token-file` and inspect `channelMessages`; prove the selected attachment was cleared and the local Channel/attachment is unchanged. Repeat the old-message pair only on disposable messages. Verify a preview cannot survive target switch, disconnect or revocation. Inject a lost confirmation response, retain the failure, and verify same-owner usage readback plus a fresh preview instead of repeating the token. Read usage coverage and errors without substituting local values. Installed Desktop, native mobile and Human acceptance are separate results.
 
 ## Gotchas
 

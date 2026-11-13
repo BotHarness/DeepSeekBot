@@ -1112,6 +1112,8 @@ deepseekbot storage-cleanup-preview --older-than-days 90 [--chat <channel-id> �
   | deepseekbot storage-cleanup-confirm --confirmation-stdin --confirm
 ```
 
+远端存储的每次读取、预览和确认都要明确指定所属 Host 的 `--host` 和私密 `--token-file`。预览只用于该 Host；切换 Host 后重新预览。确认响应丢失或超时后，先从同一 Host 运行 `storage-usage` 并核对受影响频道，再创建新预览，不要重发旧确认。Environment 设置界面同样在切换目标或失去访问时丢弃当前预览；清理结果不确定时先重新读取原 Host，读取失败后必须重新加载成功才可再次预览。断开关系不会删除已有数据。这些使用 Host 授权 Cookie 的 CLI 命令不会冒用浏览器已登记的 Client。
+
 这是**设置 → 数据与隐私 → 存储空间**的 CLI 形式。`storage-usage` 返回 `totalBytes`、`parts`（`media` 是附件文件夹，`messages` 是运行数据库，`memory` 是全部 Bot 的 Memory 文件夹，`other` 是 `$DSH_HOME/botharness` 中其余内容），以及按媒体大小从大到小排列的 `chats`，其中包含每个聊天的 `messages`、`oldestAt`、`mediaBytes` 和按类型的 `media` 统计。
 
 `storage-cleanup-preview` 需要且只能传 `--before <ISO 时间>` 或 `--older-than-days <天数>` 之一，可重复传 `--chat`（默认全部聊天）和 `--media`（默认四种类型）。它返回将清理的文件数与字节数、`freedBytes`（没有其他地方再引用的文件）、按聊天和类型的统计、`kept` 计数（`bot-working`、`delivery-pending`、`memory`、`migration`），以及十分钟有效的 `token` 和规范化后的 `scope`。把这段 JSON 通过管道交给 `storage-cleanup-confirm --confirmation-stdin --confirm`；范围有变化或 token 过期时返回 `storage-preview-stale`，请重新预览。

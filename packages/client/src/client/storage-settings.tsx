@@ -26,6 +26,7 @@ import {
 } from './bridge.js';
 import { FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
+import { ReadFailure } from './ds/read-failure.js';
 import { Select } from './ds/select.js';
 import { StatusBlock } from './ds/status-block.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -171,6 +172,13 @@ function cutoff(age: Age): string {
   return new Date(age === 'all' ? Date.now() : Date.now() - Number(age) * DAY).toISOString();
 }
 
+function storageReadError(failure: unknown): BotHarnessKey {
+  return (failure instanceof BridgeCallError || failure instanceof MethodRefused) &&
+    failure.code === 'gateway/method-not-found'
+    ? 'storage.unsupported'
+    : 'storage.readError';
+}
+
 export interface StorageSettingsSource {
   usage(signal?: AbortSignal): Promise<StorageUsage>;
   previewMedia(scope: StorageCleanupScope): Promise<StorageCleanupPreview>;
@@ -229,7 +237,15 @@ function UsageSummary({
   );
 }
 
-export function StorageSettings({
+export function StorageSettings(props: StorageSettingsProps): ReactElement {
+  const identity = props.source ?? props.call;
+  const owner = useRef({ identity, version: 0 });
+  if (owner.current.identity !== identity)
+    owner.current = { identity, version: owner.current.version + 1 };
+  return <StorageSettingsView key={owner.current.version} {...props} />;
+}
+
+function StorageSettingsView({
   call,
   source,
   t,
@@ -243,18 +259,29 @@ export function StorageSettings({
       previewStorageMessages(call!, scope),
     confirmMessages: (preview: StorageMessagesPreview) => confirmStorageMessages(call!, preview),
   };
+  const active = useRef(false);
+  const request = useRef<AbortController | undefined>(undefined);
   const [open, setOpen] = useState(false);
+  const [summaryError, setSummaryError] = useState<BotHarnessKey>();
   const [usage, setUsage] = useState<StorageUsage>();
   const [summary, setSummary] = useState<StorageUsage>();
   const mount = useMountedResource<HTMLDivElement>(() => {
+    active.current = true;
     const controller = new AbortController();
+    request.current = controller;
     storage.usage(controller.signal).then(
       (value) => {
         if (!controller.signal.aborted) setSummary(value);
       },
-      () => undefined,
+      (failure: unknown) => {
+        if (!controller.signal.aborted) setSummaryError(storageReadError(failure));
+      },
     );
-    return () => controller.abort();
+    return () => {
+      active.current = false;
+      controller.abort();
+      request.current?.abort();
+    };
   }, []);
   const [target, setTarget] = useState<Target>('media');
   const [age, setAge] = useState<Age>('90');
@@ -265,20 +292,27 @@ export function StorageSettings({
   const [result, setResult] = useState<StorageCleanupResult | StorageMessagesResult>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const request = useRef<AbortController | undefined>(undefined);
   const measure = (): void => {
     request.current?.abort();
     const controller = new AbortController();
     request.current = controller;
+    setError(undefined);
     setUsage(undefined);
+    setSummary(undefined);
+    setSummaryError(undefined);
     storage.usage(controller.signal).then(
       (value) => {
         if (controller.signal.aborted) return;
         setUsage(value);
         setSummary(value);
+        setSummaryError(undefined);
       },
-      () => {
-        if (!controller.signal.aborted) setError(t('storage.error'));
+      (failure: unknown) => {
+        if (!controller.signal.aborted) {
+          const message = storageReadError(failure);
+          setSummaryError(message);
+          setError(t(message));
+        }
       },
     );
   };
@@ -319,16 +353,16 @@ export function StorageSettings({
         : { channelIds: selected.map((chat) => chat.channelId) }),
     };
     try {
-      setPreview(
-        messagesTarget
-          ? await storage.previewMessages(scope)
-          : await storage.previewMedia({ ...scope, kinds }),
-      );
+      const reviewed = messagesTarget
+        ? await storage.previewMessages(scope)
+        : await storage.previewMedia({ ...scope, kinds });
+      if (!active.current) return;
+      setPreview(reviewed);
       setAcknowledged(false);
     } catch {
-      setError(t('storage.error'));
+      if (active.current) setError(t('storage.error'));
     } finally {
-      setBusy(false);
+      if (active.current) setBusy(false);
     }
   };
   const confirm = async (): Promise<void> => {
@@ -336,22 +370,39 @@ export function StorageSettings({
     setBusy(true);
     setError(undefined);
     try {
-      setResult(
+      const completed =
         mediaPreview !== undefined
           ? await storage.confirmMedia(mediaPreview)
-          : await storage.confirmMessages(preview as StorageMessagesPreview),
-      );
+          : await storage.confirmMessages(preview as StorageMessagesPreview);
+      if (!active.current) return;
+      setResult(completed);
+      measure();
     } catch (failure) {
+      if (!active.current) return;
       setAcknowledged(false);
+      setPreview(undefined);
       if (
         (failure instanceof BridgeCallError || failure instanceof MethodRefused) &&
         failure.code === 'storage-preview-stale'
       ) {
-        setPreview(undefined);
         setError(t('storage.stale'));
-      } else setError(t('storage.error'));
+      } else {
+        setUsage(undefined);
+        setSummary(undefined);
+        setError(t('storage.unknownOutcome'));
+        try {
+          const current = await storage.usage();
+          if (!active.current) return;
+          setUsage(current);
+          setSummary(current);
+          setSummaryError(undefined);
+          setError(t('storage.outcomeReadBack'));
+        } catch (readFailure) {
+          if (active.current) setSummaryError(storageReadError(readFailure));
+        }
+      }
     } finally {
-      setBusy(false);
+      if (active.current) setBusy(false);
     }
   };
   const labels = { close: t('common.close'), cancel: t('common.cancel') };
@@ -372,7 +423,15 @@ export function StorageSettings({
           </Button>
         }
       >
-        {summary === undefined ? null : <UsageSummary usage={summary} t={t} />}
+        {summary !== undefined ? (
+          <UsageSummary usage={summary} t={t} />
+        ) : summaryError ? (
+          <ReadFailure retryLabel={t('storage.reload')} onRetry={measure}>
+            {t(summaryError ?? 'storage.readError')}
+          </ReadFailure>
+        ) : (
+          <p {...stylex.props(styles.muted)}>{t('storage.loading')}</p>
+        )}
       </StatusBlock>
       {!open ? null : result !== undefined ? (
         <FormDialog
@@ -475,7 +534,15 @@ export function StorageSettings({
           onSubmit={() => void review()}
         >
           {usage === undefined ? (
-            <p {...stylex.props(styles.plain)}>{t('storage.loading')}</p>
+            <div {...stylex.props(styles.group)}>
+              {error && !busy ? (
+                <ReadFailure retryLabel={t('storage.reload')} onRetry={measure}>
+                  {t('storage.readError')}
+                </ReadFailure>
+              ) : (
+                <p {...stylex.props(styles.plain)}>{t('storage.loading')}</p>
+              )}
+            </div>
           ) : (
             <div data-storage-usage="" {...stylex.props(styles.content)}>
               <UsageSummary usage={usage} t={t} />
