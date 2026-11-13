@@ -159,7 +159,9 @@ export default function HostConnectionScreen() {
               key={url}
               title={kind}
               on={SHEET_GROUP}
-              {...(index === routes.length - 1 ? { footer: copy.automatic } : {})}
+              {...(index === routes.length - 1 && snapshot.routePreference === undefined
+                ? { footer: copy.automatic }
+                : {})}
             >
               <SettingsRow
                 on={SHEET_GROUP}
