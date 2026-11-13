@@ -5,6 +5,11 @@ export const LOCALE_NS = 'botharness';
 
 export const zh = {
   'environment.title': '环境',
+  'environment.settings.target': '设置目标环境',
+  'environment.settings.app': '本应用偏好',
+  'environment.settings.appearance': '本应用中的外观',
+  'environment.settings.unsupported': '此环境暂不支持这项设置。',
+  'environment.settings.disconnected': '已断开此环境。设置未保存到其他环境。',
   'environment.scope': '浏览环境',
   'environment.manageNamed': '管理 {name}',
   'environment.reconnect': '重新连接',
@@ -5225,6 +5230,11 @@ export function zhTranslate(key: BotHarnessKey | string, params?: Record<string,
 
 export const en = {
   'environment.title': 'Environments',
+  'environment.settings.target': 'Settings target environment',
+  'environment.settings.app': 'App preferences',
+  'environment.settings.appearance': 'Appearance in this app',
+  'environment.settings.unsupported': 'This setting is unavailable for this environment.',
+  'environment.settings.disconnected': 'This environment was disconnected. Settings were not saved elsewhere.',
   'environment.scope': 'Browse environments',
   'environment.manageNamed': 'Manage {name}',
   'environment.reconnect': 'Reconnect',

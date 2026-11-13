@@ -251,8 +251,7 @@ export function EnvironmentPanel({ t }: { t: BotHarnessTranslate }): ReactElemen
         </Button>
       </div>
       {adding ? <ConnectionsDialog joinComputer t={t} onClose={() => setAdding(false)} /> : null}
-      {settings &&
-      (settings.local || snapshot.hosts.some(({ host }) => host.hostId === settings.hostId)) ? (
+      {settings ? (
         <HostSettings
           key={settings.hostId}
           {...settings}

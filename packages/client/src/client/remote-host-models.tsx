@@ -1,8 +1,7 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
-import type { HostClient } from '../../../../apps/mobile/src/host/client.js';
-import { sameModel, type ModelRoute } from '../../../../apps/mobile/src/host/bot-settings.js';
+import { sameModel, type ModelRoute, type ModelSettingsClient } from '../../../../apps/mobile/src/host/bot-settings.js';
 import {
   modelRoutes,
   modelScopeKey,
@@ -31,39 +30,46 @@ const styles = stylex.create({
 
 type HostModelScope = Exclude<ModelScope, { kind: 'bot' }>;
 
-export function RemoteHostModels({ client, t }: { client: HostClient; t: BotHarnessTranslate }) {
+function unsupported(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error &&
+    (error.code === 'gateway/method-not-found' || error.code === 'not-supported' || error.code === 'method-not-found');
+}
+
+export function RemoteHostModels({ client, available = true, t }: { client: ModelSettingsClient; available?: boolean; t: BotHarnessTranslate }) {
   const [scope, setScope] = useState<HostModelScope>({ kind: 'global' });
   return (
-    <Models key={modelScopeKey(scope)} client={client} scope={scope} onScope={setScope} t={t} />
+    <Models key={modelScopeKey(scope)} client={client} available={available} scope={scope} onScope={setScope} t={t} />
   );
 }
 
 function Models({
   client,
   scope,
+  available,
   onScope,
   t,
 }: {
-  client: HostClient;
+  client: ModelSettingsClient;
   scope: HostModelScope;
+  available: boolean;
   onScope: (scope: HostModelScope) => void;
   t: BotHarnessTranslate;
 }) {
-  const [resource] = useState(() => modelSettingsResource(client, scope));
+  const resource = useMemo(() => modelSettingsResource(client, scope), [client, scope]);
   const [value, setValue] = useState<ModelSettingsState>();
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<'unsupported' | 'failed'>();
   const [busy, setBusy] = useState(false);
   const [name, setName] = useState<string>();
   const generation = useRef(0);
   const pending = useRef(false);
   const refresh = async () => {
     const request = ++generation.current;
-    setError(false);
+    setError(undefined);
     try {
       const next = await resource.refresh();
       if (generation.current === request) setValue(next);
-    } catch {
-      if (generation.current === request) setError(true);
+    } catch (cause) {
+      if (generation.current === request) setError(unsupported(cause) ? 'unsupported' : 'failed');
     }
   };
   const mount = useMountedResource<HTMLDivElement>(() => {
@@ -73,10 +79,10 @@ function Models({
     };
   }, [resource]);
   const run = async (work: () => Promise<void>, onSaved?: () => void) => {
-    if (pending.current) return;
+    if (pending.current || !available) return;
     pending.current = true;
     setBusy(true);
-    setError(false);
+    setError(undefined);
     const request = ++generation.current;
     try {
       await resource.write(work);
@@ -85,8 +91,13 @@ function Models({
         setValue(next);
         onSaved?.();
       }
-    } catch {
-      if (generation.current === request) setError(true);
+    } catch (cause) {
+      // A lost response is not proof that the owning Host rejected the write.
+      const observed = await resource.refresh().catch(() => undefined);
+      if (generation.current === request) {
+        if (observed !== undefined) setValue(observed);
+        setError(unsupported(cause) ? 'unsupported' : 'failed');
+      }
     } finally {
       pending.current = false;
       if (generation.current === request) setBusy(false);
@@ -136,7 +147,7 @@ function Models({
           hint: `${entry.providerName}${entry.credential === undefined ? '' : ` · ${t('onboarding.needsKey')}`}`,
           disabled: entry.credential !== undefined,
         }))}
-        disabled={busy}
+        disabled={busy || !available}
         t={t}
         onChange={({ key, effort }) => {
           const entry = value.models.find(
@@ -155,7 +166,7 @@ function Models({
     );
   return (
     <div ref={mount} {...stylex.props(styles.stack)} data-remote-models="">
-      {error ? <Note tone="danger">{t('remoteHosts.settings.error')}</Note> : null}
+      {error ? <Note tone="danger">{t(error === 'unsupported' ? 'environment.settings.unsupported' : 'remoteHosts.settings.error')}</Note> : null}
       <PillButton disabled={busy} onClick={() => void refresh()}>
         {t('onboarding.refreshModels')}
       </PillButton>
@@ -202,7 +213,7 @@ function Models({
                   toggleLabel={t('modelPreset.showModels')}
                   placeholder={t('modelPreset.chooseModel')}
                   emptyLabel={t('modelPreset.noMatch')}
-                  disabled={busy || routes?.assignmentDefault === undefined}
+                  disabled={busy || !available || routes?.assignmentDefault === undefined}
                   onSelect={(key) => {
                     const entry = value.models.find(
                       (item) => JSON.stringify([item.provider, item.model]) === key,
@@ -216,7 +227,7 @@ function Models({
                     key={JSON.stringify([option.provider, option.model])}
                     checked
                     label={`${option.model} · ${option.provider}`}
-                    disabled={busy || sameModel(option, routes.assignmentDefault)}
+                    disabled={busy || !available || sameModel(option, routes.assignmentDefault)}
                     onChange={() => {
                       const entry = value.models.find((item) => sameModel(item, option));
                       if (entry !== undefined)
@@ -243,7 +254,7 @@ function Models({
           {scope.kind === 'global' ? (
             <PillButton
               disabled={
-                busy ||
+                busy || !available ||
                 (name ?? value.preset?.name ?? '').trim() === '' ||
                 routes?.orchestrator === undefined
               }
