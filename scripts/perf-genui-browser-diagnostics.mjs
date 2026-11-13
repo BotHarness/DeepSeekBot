@@ -95,7 +95,10 @@ async function main() {
           events,
           completeness: {
             primary: report.completeness?.primary === 'available' ? 'available' : 'unavailable',
-            truncated: report.completeness?.truncated === true,
+            truncated:
+              typeof report.completeness?.truncated === 'boolean'
+                ? report.completeness.truncated
+                : null,
           },
           rawLogPublished: false,
         },
