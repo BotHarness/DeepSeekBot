@@ -302,7 +302,11 @@ export function createPrivateTunnel(options: PrivateTunnelOptions) {
         return { ok: false, code: 'credential-unavailable' };
       }
     }
-    return { ok: true, status: status() };
+    return {
+      ok: true,
+      status: runtimes.get(selected)?.status() ?? { state: 'off' },
+      ...(id === undefined ? {} : { routeId: selected }),
+    };
   };
   return {
     status,

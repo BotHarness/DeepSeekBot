@@ -2567,6 +2567,8 @@ const en = {
     title: 'Connections',
     automatic:
       'Uses LAN first, then Tailscale, then Connect. Addresses update from your paired computer.',
+    privateAutomatic:
+      'Uses only the private addresses you paired. Scan a fresh code when an address changes.',
     lan: 'Local network',
     address: 'Host address',
     localActive: 'Connected through a local-only address',
@@ -4962,6 +4964,7 @@ const zh: typeof en = {
     scanHint: '在这台电脑打开新的配对码。原有配对会保留。',
     title: '连接详情',
     automatic: '优先使用局域网，其次是 Tailscale 和 Connect。地址会从已配对电脑自动更新。',
+    privateAutomatic: '仅使用配对时授权的私有地址。地址变化后，请重新扫码更新。',
     lan: '局域网',
     address: '电脑地址',
     localActive: '当前连接使用本地地址',

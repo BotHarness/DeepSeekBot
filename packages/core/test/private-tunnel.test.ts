@@ -174,7 +174,11 @@ it('adds Quick and ingress independently, makes retries idempotent, and restores
     code: 'private-route-replace-required',
   });
   expect(owner.admissions().find((route) => route.id === 'quick')?.origin).toBe(quick.origin);
-  await owner.stop('quick');
+  expect(await owner.stop('quick')).toEqual({
+    ok: true,
+    routeId: 'quick',
+    status: { state: 'off' },
+  });
   expect(owner.statuses().find((route) => route.id === 'quick')).toMatchObject({
     state: 'off',
     enabled: false,
@@ -187,7 +191,11 @@ it('adds Quick and ingress independently, makes retries idempotent, and restores
   await vi.waitFor(() => expect(owner.admissions()).toHaveLength(1));
   expect(cloudflared.runs).toHaveLength(1);
   expect(owner.admission()?.token).toBe(quick.token);
-  await Promise.all([owner.start('quick'), owner.start('quick')]);
+  const starts = await Promise.all([owner.start('quick'), owner.start('quick')]);
+  expect(starts).toMatchObject([
+    { ok: true, routeId: 'quick', status: { state: 'starting' } },
+    { ok: true, routeId: 'quick', status: { state: 'starting' } },
+  ]);
   await vi.waitFor(() => expect(owner.admissions()).toHaveLength(2));
   expect(cloudflared.runs).toHaveLength(2);
   expect(owner.statuses().find((route) => route.id === 'quick')?.addressChanged).toBe(true);

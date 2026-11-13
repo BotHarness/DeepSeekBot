@@ -232,3 +232,34 @@ it('groups each route as a settings section with native copy and test rows', asy
     await act(async () => root.unmount());
   }
 });
+
+it('explains private-only recovery without promising learned or official fallback addresses', async () => {
+  connection.host.encryption = {
+    protocol: 'connect-noise-xk-v1',
+    hostKey: 'aa'.repeat(32),
+    deviceKey: 'bb'.repeat(32),
+    privateRelay: {
+      origin: 'https://private.example.com',
+      additionalOrigins: ['https://second.example.com'],
+      token: 'cc'.repeat(32),
+    },
+  };
+  connection.snapshot = {
+    connection: { status: 'connected', route: 'https://private.example.com' },
+    routes: [
+      { url: 'https://private.example.com', status: 'verified' },
+      { url: 'https://second.example.com', status: 'unchecked' },
+    ],
+  };
+  const host = document.createElement('div');
+  const root = createRoot(host);
+  try {
+    await act(async () => root.render(<HostConnectionScreen />));
+    expect(host.textContent).toContain('Uses only the private addresses you paired.');
+    expect(host.textContent).toContain('Scan a fresh code when an address changes.');
+    expect(host.textContent).not.toContain('Uses LAN first');
+    expect(host.textContent).not.toContain('Addresses update from your paired computer.');
+  } finally {
+    await act(async () => root.unmount());
+  }
+});
