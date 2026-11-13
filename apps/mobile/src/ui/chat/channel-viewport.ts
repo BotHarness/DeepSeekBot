@@ -74,6 +74,7 @@ export function useChannelViewport<Row>(
     browsed: latest.browsed,
     unseen: latest.unseen,
     hold: latest.hold,
+    reveal: latest.reveal,
     jumpToLatest: latest.jumpToLatest,
     send: latest.send,
     listProps: latest.listProps,

@@ -116,6 +116,7 @@ import { runningSessionCount } from '../../host/session-stop';
 import { ConversationTopBar } from './conversation-top-bar';
 import { ChatBackdrop } from './chat-backdrop';
 import { Composer, type ComposerInput } from './composer';
+import { useGenuiInputViewport } from './genui-input-viewport';
 import { ComposerFollower, ComposerPillContext, ComposerSpacer } from './composer-pill';
 import { GroupUnavailable } from './group-unavailable';
 import { DraftSaveNotice } from './draft-save-notice';
@@ -161,11 +162,12 @@ import { useBotNames } from './use-bot-names';
 import { ImageViewer } from './image-viewer';
 import { JumpToLatest } from './jump-to-latest';
 import { DeliverySheet } from './delivery-sheet';
-import { GenuiReplies, GenuiViewHost } from './genui-view-client';
+import { GenuiInteraction, GenuiViewHost } from './genui-view-client';
 import type { GenuiDocumentReply } from '../../genui/document';
 import { ChatOffline } from './chat-offline';
 import { MessageActions, type MessageMenuTarget } from './message-actions';
 import { MessageSourcePage } from './message-source-page';
+import { useMessageSourceState } from './message-source-state';
 import {
   activeMentionQuery,
   chooseMention,
@@ -577,11 +579,11 @@ function ChatConversation({
   const [actionsFor, setActionsFor] = useState<MessageMenuTarget>();
   const [initiatedRequest, setInitiatedRequest] = useState<InitiatedActivityRequest>();
   const selectionScope = (saved?.hostId ?? '') + ':' + (activeChannel ?? '');
-  const [sourceFor, setSourceFor] = useState<{ scope: string; id: string }>();
-  const sourceMessage =
-    sourceFor?.scope === selectionScope
-      ? snapshot.messages.find((message) => message.id === sourceFor.id)
-      : undefined;
+  const {
+    message: sourceMessage,
+    select: selectSource,
+    close: closeSource,
+  } = useMessageSourceState(selectionScope, focused, snapshot.messages);
   const [picked, setPicked] = useState<{
     scope: string;
     ids: readonly string[];
@@ -597,7 +599,6 @@ function ChatConversation({
     setPicked(undefined);
     setImageSelection(undefined);
     setActionsFor(undefined);
-    setSourceFor(undefined);
   }, [selectionScope, focused]);
   const togglePicked = useCallback(
     (message: ConversationMessage) => {
@@ -750,6 +751,20 @@ function ChatConversation({
     [speakers, scroll, viewport, viewportLayout, frame, content, android, composerHeight],
   );
   const composerInput = useRef<ComposerInput>(null);
+  const genuiInputViewport = useGenuiInputViewport(
+    composerInput,
+    latest.reveal,
+    headerOverlap + headerPadding + space.x3,
+    Platform.OS === 'ios' && focused && !profileOpen && !profileOpening,
+    selectionScope,
+  );
+  const genuiInteraction = useMemo(
+    () => ({
+      send: dm && conversation !== undefined ? sendGenuiReply : undefined,
+      inputViewport: Platform.OS === 'ios' ? genuiInputViewport : undefined,
+    }),
+    [dm, conversation, sendGenuiReply, genuiInputViewport],
+  );
   const flights = useMemo(() => createSendFlights(false), []);
   const launchFly = useCallback((): SendFlight => {
     const flight: SendFlight = { from: undefined };
@@ -1405,6 +1420,7 @@ function ChatConversation({
           message={item.message}
           first={item.first}
           last={item.last}
+          onInteractionStart={latest.hold}
           onRetry={retry}
           onOpenImage={setViewing}
           onShare={share}
@@ -1431,6 +1447,7 @@ function ChatConversation({
       focused,
       conversation,
       latestMessageId,
+      latest.hold,
       client,
       slug,
       inbox,
@@ -1805,7 +1822,7 @@ function ChatConversation({
   return (
     <ChatOffline value={!online}>
       <GenuiViewHost value={client}>
-        <GenuiReplies value={dm && conversation !== undefined ? sendGenuiReply : undefined}>
+        <GenuiInteraction value={genuiInteraction}>
           {paging === undefined && presentation === undefined ? (
             <Stack.Screen
               options={{
@@ -2405,9 +2422,7 @@ function ChatConversation({
             onReact={(message, emoji, active) => react(message.id, emoji, active)}
             onCopy={copyMessage}
             onSelectCopy={
-              Platform.OS === 'android'
-                ? (message) => setSourceFor({ scope: selectionScope, id: message.id })
-                : undefined
+              Platform.OS === 'android' || Platform.OS === 'ios' ? selectSource : undefined
             }
             onShareText={shareText}
             onShareAttachment={(attachment) => void share(attachment)}
@@ -2416,7 +2431,7 @@ function ChatConversation({
             <MessageSourcePage
               key={selectionScope + ':' + sourceMessage.id}
               message={sourceMessage}
-              onClose={() => setSourceFor(undefined)}
+              onClose={closeSource}
               onCopy={copyMessage}
             />
           )}
@@ -2437,7 +2452,7 @@ function ChatConversation({
               }
             />
           )}
-        </GenuiReplies>
+        </GenuiInteraction>
       </GenuiViewHost>
     </ChatOffline>
   );

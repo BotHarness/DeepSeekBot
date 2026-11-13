@@ -11,6 +11,7 @@ Pod::Spec.new do |s|
   s.source = { git: 'https://github.com/BotHarness/DeepSeekBot.git' }
   s.static_framework = true
   s.dependency 'ExpoModulesCore'
+  s.dependency 'React-Core'
   s.source_files = '*.swift'
   s.test_spec 'Tests' do |tests|
     tests.source_files = 'Tests/**/*.swift'

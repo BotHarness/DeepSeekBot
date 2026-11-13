@@ -9,6 +9,7 @@ import { initialGenuiDocumentState } from '../src/channels/genui-document.js';
 const enabled = process.env['BH_GENUI_BROWSER_QA'] === '1';
 
 interface NativePage {
+  goto(url: string): Promise<unknown>;
   setContent(html: string): Promise<void>;
   waitForFunction(expression: string, options: { timeout: number }): Promise<unknown>;
   evaluate<T>(expression: string): Promise<T>;
@@ -40,6 +41,7 @@ describe.skipIf(!enabled)('real Chromium native-bridge GenUI page', () => {
   });
 
   async function open(html: string) {
+    await page.goto('about:blank');
     const runtime = readFileSync(new URL('../dist/genui-runtime.js', import.meta.url));
     const stub =
       '<script nonce="native-test">window.__nativeMessages = []; window.ReactNativeWebView = { postMessage: (data) => window.__nativeMessages.push(JSON.parse(data)) };</script>';
@@ -93,6 +95,36 @@ describe.skipIf(!enabled)('real Chromium native-bridge GenUI page', () => {
     expect(messages.filter((message) => message.type === 'failure')).toHaveLength(1);
     expect(['execution', 'startup']).toContain(
       messages.find((message) => message.type === 'failure')?.reason,
+    );
+  });
+
+  it('reports focused mirror input geometry and blur without copying its contents', async () => {
+    await open(syntheticGenuiDocument.html);
+    await page.waitForFunction(
+      'window.__nativeMessages.some((message) => message.type === "ready")',
+      { timeout: 10_000 },
+    );
+    const mirror = page.frames().find((frame) => frame.parentFrame() === page.mainFrame());
+    if (!mirror) throw new Error('Mirror frame unavailable');
+    await mirror.type('#filter', 'Focus fixture');
+    await page.waitForFunction(
+      'window.__nativeMessages.some((message) => message.type === "focus")',
+      { timeout: 10_000 },
+    );
+    const focus = await page.evaluate<{
+      instanceId: string;
+      type: string;
+      top: number;
+      height: number;
+    }>('window.__nativeMessages.findLast((message) => message.type === "focus")');
+    expect(Object.keys(focus).sort()).toEqual(['height', 'instanceId', 'top', 'type']);
+    expect(focus.instanceId).toBe('native-test');
+    expect(focus.top).toBeGreaterThanOrEqual(0);
+    expect(focus.height).toBeGreaterThan(0);
+    await page.evaluate('document.querySelector("iframe").contentDocument.activeElement.blur()');
+    await page.waitForFunction(
+      'window.__nativeMessages.some((message) => message.type === "blur")',
+      { timeout: 10_000 },
     );
   });
 

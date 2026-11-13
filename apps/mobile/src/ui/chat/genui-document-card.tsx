@@ -7,7 +7,7 @@ import {
   useSyncExternalStore,
   type ComponentRef,
 } from 'react';
-import { Platform, View } from 'react-native';
+import { Platform, View, type ViewInstance } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 
 import { GENUI_EXECUTION_LIMITS } from '../../../../../packages/core/src/channels/genui-execution-limits';
@@ -33,7 +33,7 @@ import { useDesignTheme } from '../design/theme';
 import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
-import { GenuiReplies, GenuiViewHost, type GenuiReplySend } from './genui-view-client';
+import { GenuiInteraction, GenuiViewHost, type GenuiReplySend } from './genui-view-client';
 
 type Status = 'loading' | 'ready' | 'failed';
 
@@ -54,6 +54,7 @@ function GenuiFrame({
   onFailure(): void;
 }) {
   const theme = useDesignTheme();
+  const inputViewport = use(GenuiInteraction)?.inputViewport;
   const t = useStrings();
   const instanceId = useMemo(() => `genui-mobile-${++mounts}`, []);
   const [initial] = useState(() => view.getSnapshot().state);
@@ -65,6 +66,7 @@ function GenuiFrame({
     () => rememberedGenuiHeight(heightKey) ?? GENUI_EXECUTION_LIMITS.mirrorMinHeight,
   );
   const web = useRef<ComponentRef<typeof WebView>>(null);
+  const frame = useRef<ViewInstance | null>(null);
   const failed = useRef(false);
   const settled = useRef(false);
   const synced = useRef(JSON.stringify(initial));
@@ -110,15 +112,18 @@ function GenuiFrame({
     }, GENUI_EXECUTION_LIMITS.startupMs * 2);
   };
   const attach = useCallback(
-    (node: unknown): void | (() => void) => {
+    (node: ViewInstance | null): void | (() => void) => {
       if (node === null) return;
+      frame.current = node;
       const unsubscribe = view.subscribe(sync);
       return () => {
+        inputViewport?.(node, undefined);
+        if (frame.current === node) frame.current = null;
         clearTimeout(startup.current);
         unsubscribe();
       };
     },
-    [view, sync],
+    [view, sync, inputViewport],
   );
   const queue = useCallback((node: unknown): void | (() => void) => {
     if (node === null) return;
@@ -145,6 +150,14 @@ function GenuiFrame({
       const visible = Math.ceil(message.height * zoom);
       rememberGenuiHeight(heightKey, visible);
       setHeight(visible);
+    } else if (message.type === 'focus' || message.type === 'blur') {
+      if (Platform.OS === 'ios' && frame.current)
+        inputViewport?.(
+          frame.current,
+          message.type === 'blur'
+            ? undefined
+            : { top: message.top * zoom, height: message.height * zoom },
+        );
     } else if (message.type === 'state') {
       const identity = JSON.stringify(message.state);
       if (identity === synced.current) return;
@@ -193,6 +206,7 @@ function GenuiFrame({
 }
 
 function ViewControls({ view, stateful }: { view: GenuiDocumentViewModel; stateful: boolean }) {
+  const theme = useDesignTheme();
   const t = useStrings();
   const snapshot = useSyncExternalStore(view.subscribe, view.getSnapshot, view.getSnapshot);
   if (!snapshot.available)
@@ -217,7 +231,7 @@ function ViewControls({ view, stateful }: { view: GenuiDocumentViewModel; statef
               : t.genuiSaved;
   const alert = status === 'save-error' || status === 'load-error' || status === 'conflict';
   return (
-    <View style={{ gap: space.x2, alignItems: 'flex-start' }}>
+    <View style={{ gap: space.x2, alignItems: theme.largeText ? 'stretch' : 'flex-start' }}>
       <Text
         variant="meta"
         tone="muted"
@@ -310,11 +324,11 @@ function Replies({
   };
   const justSent = Object.values(sent).length > 0;
   return (
-    <View style={{ gap: space.x2, alignItems: 'flex-start' }}>
+    <View style={{ gap: space.x2, alignItems: theme.largeText ? 'stretch' : 'flex-start' }}>
       <View
         style={{
-          flexDirection: theme.fontScale > 1.3 ? 'column' : 'row',
-          flexWrap: 'wrap',
+          flexDirection: theme.largeText ? 'column' : 'row',
+          flexWrap: theme.largeText ? 'nowrap' : 'wrap',
           gap: space.x2,
         }}
       >
@@ -373,14 +387,14 @@ export function GenuiDocumentCard({
   const frame = `${attempt}:${current.mount}:${look}`;
   const [readyFrame, setReadyFrame] = useState<string>();
   const ready = readyFrame === frame;
-  const send = use(GenuiReplies);
+  const send = use(GenuiInteraction)?.send;
   return (
     <View style={{ gap: space.x3 }} testID="genui-document-card">
       <Text variant="body" strong>
         {document.title}
       </Text>
       {!snapshot.available ? null : failed ? (
-        <View style={{ gap: space.x2, alignItems: 'flex-start' }}>
+        <View style={{ gap: space.x2, alignItems: theme.largeText ? 'stretch' : 'flex-start' }}>
           <Text variant="meta" tone="muted" accessibilityRole="alert">
             {t.genuiFailed}
           </Text>

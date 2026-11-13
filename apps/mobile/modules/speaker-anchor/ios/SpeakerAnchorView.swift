@@ -1,4 +1,5 @@
 import ExpoModulesCore
+import React
 import UIKit
 
 func speakerOffset(top: CGFloat, height: CGFloat, rest: CGFloat, span: CGFloat, floor: CGFloat) -> CGFloat {
@@ -7,7 +8,7 @@ func speakerOffset(top: CGFloat, height: CGFloat, rest: CGFloat, span: CGFloat, 
   return rest - lift
 }
 
-final class SpeakerAnchorView: ExpoView {
+final class SpeakerAnchorView: ExpoView, UIScrollViewDelegate {
   let host = UIView()
   var rest: CGFloat = 0
   var span: CGFloat = 0
@@ -17,7 +18,7 @@ final class SpeakerAnchorView: ExpoView {
   }
   private weak var scroller: UIScrollView?
   private weak var viewport: UIView?
-  private var observations: [NSKeyValueObservation] = []
+  private weak var scrollOwner: (UIView & RCTScrollableProtocol)?
 
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
@@ -52,8 +53,8 @@ final class SpeakerAnchorView: ExpoView {
   }
 
   private func attach() {
-    observations.forEach { $0.invalidate() }
-    observations = []
+    scrollOwner?.removeScrollListener(self)
+    scrollOwner = nil
     scroller = nil
     viewport = nil
     guard window != nil else { return }
@@ -61,12 +62,25 @@ final class SpeakerAnchorView: ExpoView {
     while let current = node, !(current is UIScrollView) { node = current.superview }
     guard let scroll = node as? UIScrollView else { return }
     scroller = scroll
-    let update: (UIScrollView) -> Void = { [weak self] _ in self?.place() }
-    observations = [
-      scroll.observe(\.contentOffset, options: []) { scroll, _ in update(scroll) },
-      scroll.observe(\.contentSize, options: []) { scroll, _ in update(scroll) },
-      scroll.observe(\.bounds, options: []) { scroll, _ in update(scroll) },
-    ]
+    node = scroll.superview
+    while let current = node {
+      if let owner = current as? (UIView & RCTScrollableProtocol) {
+        scrollOwner = owner
+        owner.addScrollListener(self)
+        break
+      }
+      node = current.superview
+    }
+  }
+
+  func scrollViewDidScroll(_ scrollView: UIScrollView) {
+    guard scrollView === scroller else { return }
+    place()
+  }
+
+  func scrollViewDidZoom(_ scrollView: UIScrollView) {
+    guard scrollView === scroller else { return }
+    place()
   }
 
   private func findViewport() -> UIView? {

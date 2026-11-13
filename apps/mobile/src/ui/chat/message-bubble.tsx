@@ -413,11 +413,13 @@ function PressableBubble({
   onLongPress,
   onDoubleTap,
   onHold,
+  onInteractionStart,
   tapOpens = false,
   onOpenReply,
   children,
 }: {
   onHold?: (() => void) | undefined;
+  onInteractionStart?: () => void;
   tapOpens?: boolean;
   onOpenReply?: (() => void) | undefined;
   human: boolean;
@@ -471,7 +473,7 @@ function PressableBubble({
             open();
           };
   const tap = tapOpens && onLongPress !== undefined ? open : undefined;
-  const nativeHolding = Platform.OS === 'android' && hold !== undefined;
+  const nativeHolding = (Platform.OS === 'android' || Platform.OS === 'ios') && hold !== undefined;
   const currentHold = useRef(hold);
   currentHold.current = hold;
   const nativeHold = useMemo(
@@ -499,6 +501,7 @@ function PressableBubble({
       ]}
     >
       <Pressable
+        {...(onInteractionStart === undefined ? {} : { onTouchStart: onInteractionStart })}
         {...(ungrouped ? { accessible: false } : {})}
         {...(pending
           ? { accessibilityState: { busy: true }, accessibilityValue: { text: t.sending } }
@@ -599,6 +602,7 @@ export const MessageBubble = memo(function MessageBubble({
   onReply,
   onOpenReply,
   onOpenDelivery,
+  onInteractionStart,
   readers = NO_READERS,
   bots = NO_BOTS,
   botName = (id) => id,
@@ -621,6 +625,7 @@ export const MessageBubble = memo(function MessageBubble({
   onReply?: ((message: ConversationMessage) => void) | undefined;
   onOpenReply?: ((messageId: string) => void) | undefined;
   onOpenDelivery?: ((message: ConversationMessage) => void) | undefined;
+  onInteractionStart?: () => void;
   readers?: readonly string[] | undefined;
   bots?: readonly RosterBot[] | undefined;
   botName?: (id: string) => string;
@@ -713,6 +718,9 @@ export const MessageBubble = memo(function MessageBubble({
         human={human}
         group={group}
         lifted={lifted}
+        {...(Platform.OS === 'ios' && message.genuiDocument !== undefined && onInteractionStart
+          ? { onInteractionStart }
+          : {})}
         pending={human && message.delivery === 'pending'}
         ungrouped={human && message.delivery === 'pending' && message.attachments.length > 0}
         {...(failed ? { accessibilityRole: 'button' as const, accessibilityLabel: label } : {})}

@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createConversation, type ConversationMessage } from '../src/host/conversation';
 import { createHostClient } from '../src/host/client';
 import { FakeHost } from './fake-host';
+import { syntheticGenuiDocument } from '../../../packages/core/test/fixtures/genui-document';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -87,6 +88,7 @@ vi.mock('react-native', async () => {
           attributes[`data-${key.toLowerCase()}`] =
             typeof props[key] === 'object' ? JSON.stringify(props[key]) : String(props[key]);
       const style = props['style'] as { opacity?: number } | undefined;
+      const touch = props['onTouchStart'];
       return (
         <div
           ref={props['ref'] as never}
@@ -94,6 +96,7 @@ vi.mock('react-native', async () => {
           {...attributes}
           style={{ opacity: style?.opacity }}
           onClick={props['onPress'] as (() => void) | undefined}
+          onTouchStart={typeof touch === 'function' ? () => touch() : undefined}
         >
           {children as never}
         </div>
@@ -159,6 +162,9 @@ vi.mock('react-native', async () => {
 });
 
 vi.mock('../src/ui/primitives/system-symbol', () => ({ SystemSymbol: () => null }));
+vi.mock('../src/ui/chat/genui-document-card', () => ({
+  GenuiDocumentCard: () => <input aria-label="GenUI note" />,
+}));
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 47, right: 0, bottom: 34, left: 0 }),
@@ -176,6 +182,7 @@ vi.mock('react-native-enriched-markdown', () => ({
   EnrichedMarkdownText: (props: {
     markdown: string;
     selectable?: boolean;
+    enableBlockContextMenu?: boolean;
     flavor?: string;
     md4cFlags?: { latexMath?: boolean };
     onLinkPress?: unknown;
@@ -183,6 +190,7 @@ vi.mock('react-native-enriched-markdown', () => ({
     <div
       data-native="EnrichedMarkdownText"
       data-selectable={String(props.selectable)}
+      data-block-context-menu={String(props.enableBlockContextMenu)}
       data-flavor={props.flavor}
       data-latex={String(props.md4cFlags?.latexMath)}
       data-links={String(typeof props.onLinkPress === 'function')}
@@ -229,6 +237,33 @@ const human = (overrides: Partial<ConversationMessage>): ConversationMessage => 
   attachments: [],
   delivery: 'committed',
   ...overrides,
+});
+
+describe('GenUI keyboard interaction', () => {
+  it.each(['ios', 'android'])(
+    'pauses following before an embedded input opens the keyboard on %s',
+    (os) => {
+      native.os = os;
+      const onInteractionStart = vi.fn();
+      const container = document.createElement('div');
+      const root = createRoot(container);
+      act(() =>
+        root.render(
+          <MessageBubble
+            {...{
+              message: human({ author: 'bot', genuiDocument: syntheticGenuiDocument }),
+              onInteractionStart,
+            }}
+          />,
+        ),
+      );
+      act(() =>
+        container.querySelector('input')!.dispatchEvent(new Event('touchstart', { bubbles: true })),
+      );
+      expect(onInteractionStart).toHaveBeenCalledTimes(os === 'ios' ? 1 : 0);
+      act(() => root.unmount());
+    },
+  );
 });
 
 describe('reply swipe touch region', () => {
@@ -421,6 +456,22 @@ describe('message states', () => {
     expect(html).toContain('data-accessibilityrole="button"');
   });
 
+  it('keeps standalone selectable Markdown block menus available', async () => {
+    const { MarkdownView } = await import('../src/ui/markdown-view');
+    const html = renderToStaticMarkup(<MarkdownView source={'```ts\nconst value = 1;\n```'} />);
+    expect(html).toContain('data-selectable="true"');
+    expect(html).toContain('data-block-context-menu="true"');
+  });
+
+  it('preserves the Android renderer block-menu default', async () => {
+    native.os = 'android';
+    const { MarkdownView } = await import('../src/ui/markdown-view');
+    const html = renderToStaticMarkup(
+      <MarkdownView source={'```ts\nconst value = 1;\n```'} selectable={false} />,
+    );
+    expect(html).toContain('data-block-context-menu="true"');
+  });
+
   it('renders a Bot reply as Markdown that long-press copies whole', () => {
     const html = renderToStaticMarkup(
       <MessageBubble
@@ -433,6 +484,7 @@ describe('message states', () => {
       />,
     );
     expect(html).toContain('data-selectable="false"');
+    expect(html).toContain('data-block-context-menu="false"');
     expect(html).not.toContain('data-selectable="true"');
     expect(html).toContain(`data-accessibilityhint="${t.messageActionsHint}"`);
     expect(html).toContain(
@@ -726,6 +778,31 @@ describe('double-tap to react', () => {
     expect(native.holds.has(t.messageActionsHint)).toBe(false);
     gestures[0]?.start();
     expect(onSelect).toHaveBeenCalledExactlyOnceWith(bot);
+  });
+
+  it('keeps an iOS native hold opening message actions instead of selecting the message', async () => {
+    const measurement = await import('../src/ui/primitives/measure-message-view');
+    const measured = vi
+      .spyOn(measurement, 'measureMessageView')
+      .mockImplementation((_view, then) => {
+        then(16, 400, 200, 60);
+      });
+    const onLongPress = vi.fn();
+    const onSelect = vi.fn();
+    try {
+      renderToStaticMarkup(
+        <MessageBubble message={bot} onLongPress={onLongPress} onSelect={onSelect} />,
+      );
+      native.longPresses.find((gesture) => gesture.enabled)?.start();
+      expect(onLongPress).toHaveBeenCalledExactlyOnceWith(
+        bot,
+        { x: 16, y: 400, width: 200, height: 60 },
+        expect.anything(),
+      );
+      expect(onSelect).not.toHaveBeenCalled();
+    } finally {
+      measured.mockRestore();
+    }
   });
 });
 

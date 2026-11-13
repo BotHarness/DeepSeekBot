@@ -160,6 +160,16 @@ export function useFollowLatest<Row>(
     setFollowing(false);
   }, [onFollowingChange]);
 
+  const reveal = useCallback(
+    (delta: number) => {
+      hold();
+      const offset = Math.max(-startInset.current, metrics.current.offset + delta);
+      metrics.current = { ...metrics.current, offset };
+      list.current?.scrollToOffset({ offset, animated: false });
+    },
+    [hold, list],
+  );
+
   const follow = useCallback(() => {
     if (!followingNow.current) onFollowingChange?.(true);
     followingNow.current = true;
@@ -408,6 +418,7 @@ export function useFollowLatest<Row>(
     browsed,
     unseen: following ? 0 : unseenSince(messages, anchor),
     hold,
+    reveal,
     jumpToLatest,
     send,
     listProps: {

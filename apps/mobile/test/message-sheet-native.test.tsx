@@ -43,6 +43,9 @@ vi.mock('expo-symbols', () => ({
   SymbolView: ({ name }: { name: { android: string } }) =>
     createElement('i', { 'data-symbol': name.android }),
 }));
+vi.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 62, bottom: 34 }),
+}));
 vi.mock('@expo/ui/swift-ui/modifiers', () => {
   const none = () => ({});
   return {
@@ -58,6 +61,7 @@ vi.mock('@expo/ui/swift-ui/modifiers', () => {
     frame: (params: { width?: number }) => ({ fixedWidth: params.width }),
     imageScale: none,
     padding: none,
+    onGeometryChange: none,
     presentationBackground: none,
     presentationDragIndicator: (visibility: string) => ({ grabber: visibility }),
     shapes: { circle: none, rectangle: none, roundedRectangle: none },

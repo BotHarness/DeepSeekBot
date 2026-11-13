@@ -127,7 +127,11 @@ vi.mock('react-native', async () => {
     },
     KeyboardAvoidingView: shim.View,
     AppState: { currentState: 'active', addEventListener: () => ({ remove() {} }) },
-    Keyboard: { dismiss() {} },
+    Keyboard: {
+      dismiss() {},
+      isVisible: () => false,
+      addListener: () => ({ remove() {} }),
+    },
     PanResponder: { create: () => ({ panHandlers: {} }) },
   };
 });
