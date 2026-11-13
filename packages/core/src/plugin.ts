@@ -168,6 +168,7 @@ import { mountClientDiagnostics } from './diagnostics/client-diagnostics.js';
 import { mountDiagnosticLog } from './diagnostics/diagnostic-log.js';
 import { createCoreStartup } from './diagnostics/core-startup.js';
 import type { DiagnosticEvents } from './diagnostics/diagnostic-log.js';
+import { recordGenuiPreviewDiagnostic } from './runtime/genui-preview.js';
 import { recordDatabaseStartup } from './diagnostics/database-startup.js';
 import { createCoreTakeoverHandoffs, mountTakeoverTools } from './takeover/mount.js';
 import { createTurnLog } from './diagnostics/turn-log.js';
@@ -1590,8 +1591,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     ...(config.genuiPreviewBrowserPath === undefined
       ? {}
       : { genuiPreviewBrowserPath: config.genuiPreviewBrowserPath }),
-    onGenuiDiagnostic: (event) =>
-      ctx.logger.info('genui-%s %j', event.component ?? 'preview', event),
+    onGenuiDiagnostic: (event) => recordGenuiPreviewDiagnostic(diagnosticEvents, event),
     genuiAttachmentContext: ctx,
     agents: ctx.agents,
     promptText: (sessionId) => core.prompts.textForSession(sessionId),

@@ -3,7 +3,7 @@ import { parse } from 'yaml';
 import { genuiPreviewPatch } from '../dev-genui-preview.mjs';
 import { parseArgs } from '../dev-instance.mjs';
 import { parseVerifyArgs } from '../verify-app.mjs';
-import { previewLogEvents } from '../perf-genui-browser-diagnostics.mjs';
+import { previewDiagnosticEvents } from '../perf-genui-browser-diagnostics.mjs';
 
 const source = `- id: group
   config:
@@ -45,15 +45,29 @@ describe('explicit GenUI preview Profile configuration', () => {
     ).toBe(process.execPath);
   });
   it('retains only bounded redacted preview owner events, never the full Host log', () => {
-    const rows = previewLogEvents(
-      [
-        'Host login https://example.com/?token=keep-private',
-        'I core genui-preview {"phase":"refused","durationMs":8001,"reason":"genui-preview-browser-startup-timeout","detail":"token=secret-value https://x.example/?token=hidden /private/user/profile"}',
-        'I core genui-preview {broken',
-      ].join('\n'),
-    );
+    const rows = previewDiagnosticEvents({
+      entries: [
+        {
+          source: 'host',
+          code: 'info',
+          fields: { text: 'Host login https://example.com/?token=keep-private' },
+        },
+        {
+          source: 'genui-preview',
+          code: 'refused-detail',
+          fields: {
+            durationMs: 8001,
+            index: 0,
+            text: 'token=secret-value https://x.example/?token=hidden /private/user/profile',
+            unrelated: 'private',
+          },
+        },
+        { source: 'genui-preview', code: 'unexpected', fields: { durationMs: 1 } },
+      ],
+    });
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ phase: 'refused', durationMs: 8001 });
+    expect(rows[0]).toMatchObject({ phase: 'refused-detail', durationMs: 8001 });
+    expect(rows[0]).not.toHaveProperty('unrelated');
     expect(JSON.stringify(rows)).not.toMatch(/keep-private|secret-value|hidden|\/private\/user/);
   });
 });

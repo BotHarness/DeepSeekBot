@@ -11,36 +11,27 @@ import {
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createDiagnosticRedactor } from '../packages/core/src/diagnostics/redaction.ts';
+import { cookieFor } from './verify-app.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-export function previewLogEvents(log) {
+export function previewDiagnosticEvents(report) {
   const redactor = createDiagnosticRedactor({ homes: [] });
-  return log
-    .split('\n')
-    .flatMap((line) => {
-      const match = /genui-preview\s+(\{.*\})/u.exec(line);
-      if (!match) return [];
-      try {
-        const event = JSON.parse(match[1]);
-        if (
-          !['starting', 'ready', 'completed', 'refused', 'stopped'].includes(event.phase) ||
-          !Number.isFinite(event.durationMs)
-        )
-          return [];
-        return [
-          redactor.value({
-            phase: event.phase,
-            durationMs: event.durationMs,
-            ...(typeof event.reason === 'string' ? { reason: event.reason } : {}),
-            ...(typeof event.detail === 'string'
-              ? { detail: redactor.text(event.detail).slice(-4096) }
-              : {}),
-          }),
-        ];
-      } catch {
+  const entries = Array.isArray(report?.entries) ? report.entries : [];
+  return entries
+    .flatMap((entry) => {
+      if (
+        entry?.source !== 'genui-preview' ||
+        !/^(?:starting|ready|completed|refused|stopped)(?:-detail)?$/u.test(entry.code) ||
+        !Number.isFinite(entry.fields?.durationMs)
+      )
         return [];
-      }
+      const fields = Object.fromEntries(
+        ['durationMs', 'reason', 'detailChunks', 'detailTruncated', 'index', 'text']
+          .filter((key) => ['string', 'number', 'boolean'].includes(typeof entry.fields[key]))
+          .map((key) => [key, entry.fields[key]]),
+      );
+      return [redactor.value({ phase: entry.code, ...fields })];
     })
     .slice(-128);
 }
@@ -52,8 +43,41 @@ async function main() {
   mkdirSync(dirname(out), { recursive: true });
   if (action === 'logs') {
     const instance = JSON.parse(readFileSync(resolve(instanceArg), 'utf8'));
-    const events = previewLogEvents(readFileSync(instance.log, 'utf8'));
-    writeFileSync(out, JSON.stringify({ events, rawLogPublished: false }, null, 2) + '\n');
+    const since = Date.parse(instance.startedAt);
+    if (!Number.isFinite(since))
+      throw new Error('Host launch timestamp is required for scoped diagnostics');
+    const url = new URL('/api/botharness/diagnostic-logs', instance.url);
+    url.search = new URLSearchParams({
+      filter: 'all',
+      limit: '1000',
+      since: String(since),
+    }).toString();
+    const response = await fetch(url, {
+      headers: { cookie: cookieFor(instance.home), connection: 'close' },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!response.ok) throw new Error('Preview owner diagnostic query failed');
+    const report = await response.json();
+    const events = previewDiagnosticEvents(report);
+    writeFileSync(
+      out,
+      JSON.stringify(
+        {
+          events,
+          completeness: {
+            primary: report.completeness?.primary === 'available' ? 'available' : 'unavailable',
+            truncated: report.completeness?.truncated === true,
+          },
+          rawLogPublished: false,
+        },
+        null,
+        2,
+      ) + '\n',
+    );
+    if (!events.length || report.completeness?.primary !== 'available')
+      throw new Error(
+        'Preview owner diagnostics are missing or unavailable; retain incomplete evidence',
+      );
     return;
   }
   if (action !== 'environment') throw new Error('Unknown diagnostics action');

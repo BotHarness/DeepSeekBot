@@ -14,6 +14,7 @@ import { buildGenuiHtmlDocument } from '../channels/genui-html.js';
 import { parseGenuiDocument } from '../channels/genui-document.js';
 import { loadGenuiRuntimeSource } from './genui-runtime-source.js';
 import { createDiagnosticRedactor } from '../diagnostics/redaction.js';
+import type { DiagnosticEvents } from '../diagnostics/diagnostic-log.js';
 import {
   BrowserProvisionError,
   isBrowserFailureKind,
@@ -25,6 +26,21 @@ export interface GenuiPreviewDiagnostic {
   durationMs: number;
   reason?: string;
   detail?: string;
+}
+
+export function recordGenuiPreviewDiagnostic(log: DiagnosticEvents, event: GenuiPreviewDiagnostic) {
+  const detail =
+    event.detail === undefined ? '' : createDiagnosticRedactor({ homes: [] }).text(event.detail);
+  const parts = (detail.match(/[\s\S]{1,240}/gu) ?? []).slice(0, 16);
+  const source = `genui-${event.component ?? 'preview'}`;
+  log.record(source, event.phase, {
+    durationMs: event.durationMs,
+    reason: event.reason,
+    detailChunks: parts.length,
+    detailTruncated: detail.length > 3840,
+  });
+  for (const [index, text] of parts.entries())
+    log.record(source, `${event.phase}-detail`, { durationMs: event.durationMs, index, text });
 }
 
 export interface GenuiPreviewResult {

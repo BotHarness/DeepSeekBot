@@ -52,7 +52,12 @@ vi.mock('../../browser/src/runtime/browser.js', () => ({
   },
 }));
 
-import { previewGenuiDocument } from '../src/runtime/genui-preview.js';
+import {
+  previewGenuiDocument,
+  recordGenuiPreviewDiagnostic,
+} from '../src/runtime/genui-preview.js';
+import { diagnosticEventRecorder } from '../src/diagnostics/diagnostic-log.js';
+import type { LogEntryInput } from '../src/logs/log-db.js';
 
 beforeEach(async () => {
   runtime.rmFailure = undefined;
@@ -84,6 +89,31 @@ beforeEach(async () => {
 afterEach(() => vi.clearAllMocks());
 
 describe('isolated GenUI preview lifecycle', () => {
+  it('preserves safe startup metadata through the bounded DiagnosticEvents owner', () => {
+    const rows: LogEntryInput[] = [];
+    const log = diagnosticEventRecorder((entries) => rows.push(...entries));
+    recordGenuiPreviewDiagnostic(log, {
+      phase: 'refused',
+      durationMs: 8000,
+      reason: 'genui-preview-browser-startup-timeout',
+      detail: JSON.stringify({
+        pid: 1234,
+        stderr:
+          'failure '.repeat(250) +
+          'final-cause token=keep-private https://example.com/?token=hidden',
+      }),
+    });
+    expect(rows[0]).toMatchObject({ plugin: 'genui-preview', kind: 'refused' });
+    const detail = rows
+      .slice(1)
+      .map((row) => JSON.parse(row.detail).text)
+      .join('');
+    expect(detail).toContain('1234');
+    expect(detail).toContain('final-cause');
+    expect(detail).not.toMatch(/keep-private|hidden/);
+    expect(rows.length).toBeLessThanOrEqual(17);
+    for (const row of rows) expect(row.detail.length).toBeLessThanOrEqual(4000);
+  });
   it('uses an explicitly configured executable in the same Browser runtime', async () => {
     await previewGenuiDocument(syntheticGenuiDocument, { browserPath: process.execPath });
     expect(runtime.browserPath).toBe(process.execPath);

@@ -454,6 +454,7 @@ async function main() {
     });
     const summary = {
       pid: child.pid,
+      startedAt: new Date().toISOString(),
       url,
       log: logPath,
       home: options.home,
