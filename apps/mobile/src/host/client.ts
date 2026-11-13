@@ -395,7 +395,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     compatibility = next;
     publish();
   };
-  let route = routePreference ?? routes[0] ?? '';
+  let route = routePreference ?? options.routes[0] ?? '';
   const backoff = options.backoff ?? defaultBackoff;
   const timeoutMs = options.timeoutMs ?? 10_000;
   const avatars = new Map<string, string>();
