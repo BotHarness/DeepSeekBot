@@ -178,3 +178,23 @@ it('refuses changed targets, stale requests and unavailable owner acknowledgemen
     manageConnections(sources, { action: 'inspect-host', hostId: 'a' }, request()),
   ).rejects.toThrow('connection-management-refused');
 });
+
+it('reports an unconfirmed outcome when stopping the active route loses the reply', async () => {
+  const { sources } = fixture();
+  vi.spyOn(sources.client('a')!, 'api').mockImplementation(async (path) => {
+    if (path === '/api/botharness/devices')
+      return {
+        status: 200,
+        body: { host: { id: 'a', name: 'Studio' }, devices: [], lan: { state: 'listening' } },
+      };
+    throw Error('connection closed');
+  });
+  await expect(
+    manageConnections(
+      sources,
+      { action: 'stop-route', hostId: 'a', kind: 'lan', confirm: true },
+      request(),
+    ),
+  ).rejects.toThrow('connection-management-unconfirmed');
+  expect(sources.getSnapshot().hosts).toHaveLength(2);
+});

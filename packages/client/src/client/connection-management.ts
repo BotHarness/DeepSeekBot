@@ -156,7 +156,12 @@ export async function manageConnections(
     path = `/api/botharness/devices/${kind}`;
     body = { action: 'disable', confirm: true };
   } else throw new AppearanceError('connection-action-unknown');
-  const result = await client.api(path, { body, signal: request.signal });
+  let result;
+  try {
+    result = await client.api(path, { body, signal: request.signal });
+  } catch {
+    throw new AppearanceError('connection-management-unconfirmed');
+  }
   if (result.status < 200 || result.status >= 300)
     throw new AppearanceError('connection-management-refused');
   return { hostId: remote.host.hostId, action: input.action, accepted: true };
