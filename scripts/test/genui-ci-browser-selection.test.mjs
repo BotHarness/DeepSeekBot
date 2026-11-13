@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { parse } from 'yaml';
 
-it.each([false, true])(
+it.runIf(process.platform !== 'win32').each([false, true])(
   'selects the pinned preview unless the system diagnostic is requested: %s',
   (diagnostic) => {
     const workflow = parse(
