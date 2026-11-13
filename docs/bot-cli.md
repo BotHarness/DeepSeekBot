@@ -11,6 +11,8 @@ Bot summaries from `list` also include `lastActivityAt` (epoch milliseconds) whe
 
 ### Reciprocal computer relationships
 
+Private tunnels also support the browser Client through the same existing route admission and pinned Noise channel. The browser sends admission as a WebSocket subprotocol, and the ingress consumes it before forwarding only a fixed public protocol. No token enters the URL. The Docker private relay needs the matching server upgrade for browser access; this feature does not deploy or update a running relay. Older servers refuse that browser handshake while native/CLI header access remains unchanged.
+
 With `route --device-file`, the authenticated Host verifies the new link before the CLI atomically replaces that private Client file. A manual route preference omitted by the new routes returns `relationship-route-preference-unavailable` and leaves the file intact. The command never prints the device credential, key or route admission.
 
 Private relay/tunnel admissions stay in the Host's protected credential owner; `list`, initiation results and CLI enrollment output never print those tokens. Pinned control exchange and the enrolling Client's authenticated ticket carry them to the existing Noise path. Pending peer revocation retains its route reference; acknowledged disconnection removes only that relationship reference. Secret storage failure is coded `relationship-route-secret-unavailable`. Tailscale HTTPS enrollment also uses pinned Noise; its subsequent Feed follows the existing Host client route policy.
