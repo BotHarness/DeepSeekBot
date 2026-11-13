@@ -109,6 +109,8 @@ deepseekbot search <words>
 
 ### 远程设置
 
+本应用偏好只列出由既有设备本地所有者保存的 Client 外观、通知、快捷键和伙伴选项，导航与搜索均不包含 Host 选项。「更多设置」保留既有组合并标明范围：动效、Bot 模式图标和原生语言设置作用于本机 Host，窗口缩放作用于当前设备。这些 Host 选项始终绑定提供当前网页的 Host。
+
 创建预设的结果尚未确认时，设置草稿不会再次发送创建请求。收到成功回执后会保留预设 ID，「检查已创建的预设」只重读同一 Host。没有回执时，先检查预设列表并放弃草稿，再选择下一步；名称相同不能证明请求成功。放弃不会撤销可能已完成的 Host 写入。
 
 `appearance-clients` 列出打开的浏览器 Client。`host-look --client-id <id> --host-id <id>` 读取该浏览器内的 Host 名称、图标、颜色和内容修订。写入时加 `--patch-stdin --expected-revision <revision>`，从 stdin 传入 JSON，例如 `{"name":"Studio","icon":{"kind":"symbol","id":"server"},"color":"teal"}`。空名称恢复 Host 原始显示名；`color: null` 清除颜色。名称去除首尾空格并限制为 40 字符，与手机共享 HostLook 规则。Host ID 可为已配对的远程 Host 或本机 Host；命令不接收或返回远程凭据。

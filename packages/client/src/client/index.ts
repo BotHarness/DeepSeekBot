@@ -367,7 +367,13 @@ export function apply(ctx: ClientContext): void {
     ),
   );
   const botSettings = new BotSettings();
-  ctx.effect(() => mountLocalEnvironmentSettings(call, () => botSettings.open()));
+  ctx.effect(() =>
+    mountLocalEnvironmentSettings(
+      call,
+      () => botSettings.openClientPreferences(),
+      () => botSettings.open(),
+    ),
+  );
   const desktopNotifications = new DesktopNotificationPrefs(storage, browserNotificationApi());
   const shortcutBindings = new ShortcutBindings(storage);
   ctx.slots.inject('shell.overlay', () =>
