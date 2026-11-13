@@ -17,8 +17,12 @@ body.driver-active .bh-mobile-apps-hint,body:has([aria-modal='true']) .bh-mobile
 .bh-mobile-apps-section h3 {margin:0;font:inherit;font-weight:${text.strong};}
 .bh-mobile-apps-section .bh-mobile-apps-caption {margin-bottom:${space.x3};}
 .bh-mobile-apps-link {display:flex;align-items:center;gap:${space.x3};min-height:36px;box-sizing:border-box;padding:${space.x2} ${space.x3};border-radius:${radius.sm};background:${actionColor.secondary};color:inherit;text-decoration:none;}
+button.bh-mobile-apps-link {width:100%;border:0;font:inherit;text-align:start;cursor:pointer;}
+button.bh-mobile-apps-link:disabled {color:${color.muted};cursor:default;}
 .bh-mobile-apps-link + .bh-mobile-apps-link {margin-top:${space.x2};}
-a.bh-mobile-apps-link:hover,a.bh-mobile-apps-link:focus-visible {background:${actionColor.hover};}
+a.bh-mobile-apps-link:hover,a.bh-mobile-apps-link:focus-visible,button.bh-mobile-apps-link:not(:disabled):hover,button.bh-mobile-apps-link:focus-visible {background:${actionColor.hover};}
+button.bh-mobile-apps-connect,button.bh-mobile-apps-connect:not(:disabled):hover,button.bh-mobile-apps-connect:focus-visible {background:${color.fg};color:${color.base};}
+button.bh-mobile-apps-connect > svg:last-child {color:inherit;}
 .bh-mobile-apps-link > span {flex:1;min-width:0;}
 .bh-mobile-apps-link > svg {flex-shrink:0;}
 .bh-mobile-apps-link > svg:last-child {color:${color.muted};}

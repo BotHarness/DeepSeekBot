@@ -16,6 +16,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { WebSocket } from 'ws';
 import {
   createPrivateTunnel,
+  createQuickTunnelLookup,
   createTrustFetch,
   privateTunnelHostname,
   probeFailure,
@@ -751,3 +752,80 @@ it.skipIf(!openssl)(
     }
   },
 );
+
+it('records safe per-attempt failures, retries a wrong challenge, and never admits it', async () => {
+  const cloudflared = fakeCloudflared();
+  const record = vi.fn();
+  let calls = 0;
+  const tunnel = createPrivateTunnel({
+    credentials: () => memoryCredentials(),
+    port: () => 1,
+    resolveBinary,
+    spawn: cloudflared.spawn,
+    record,
+    probeIntervalMs: 10,
+    probeWindowMs: 200,
+    fetch: (async (url) => {
+      calls++;
+      if (calls === 1) return new Response('wrong-host', { status: 200 });
+      return new Response(String(url).split('/').at(-1), { status: 200 });
+    }) as typeof fetch,
+  });
+  tunnels.push(tunnel);
+  await tunnel.enable({ mode: 'quick' });
+  await vi.waitFor(() => expect(tunnel.status().state).toBe('connected'));
+  expect(record).toHaveBeenCalledWith(
+    'probe-failed',
+    expect.stringMatching(/^route=quick attempt=1 elapsedMs=\d+ probe=challenge-mismatch$/u),
+  );
+  expect(record).toHaveBeenCalledWith(
+    'verified',
+    expect.stringMatching(/attempt=2 elapsedMs=\d+/u),
+  );
+  expect(JSON.stringify(record.mock.calls)).not.toContain(PROBE_PREFIX);
+});
+
+it('aborts a pending public check when its route closes', async () => {
+  const cloudflared = fakeCloudflared();
+  let signal: AbortSignal | undefined;
+  const tunnel = createPrivateTunnel({
+    credentials: () => memoryCredentials(),
+    port: () => 1,
+    resolveBinary,
+    spawn: cloudflared.spawn,
+    fetch: (async (_url, init) =>
+      new Promise((_resolve, reject) => {
+        signal = init?.signal ?? undefined;
+        signal?.addEventListener('abort', () => reject(signal?.reason), { once: true });
+      })) as typeof fetch,
+  });
+  tunnels.push(tunnel);
+  await tunnel.enable({ mode: 'quick' });
+  await vi.waitFor(() => expect(signal).toBeDefined());
+  await tunnel.close();
+  expect(signal?.aborted).toBe(true);
+  expect(tunnel.admission()).toBeUndefined();
+});
+
+it('rechecks a Quick Tunnel DNS miss against configured DNS without changing other hosts or successful answers', () => {
+  const missing = Object.assign(new Error('not found'), { code: 'ENOTFOUND' });
+  const query = vi.fn((_host, callback) => callback(null, ['192.0.2.10']));
+  const lookup = createQuickTunnelLookup(
+    (_host, _options, callback) => callback(missing, ''),
+    query,
+  );
+  const result = vi.fn();
+  lookup('new.trycloudflare.com', { all: true }, result);
+  expect(result).toHaveBeenLastCalledWith(null, [{ address: '192.0.2.10', family: 4 }], 4);
+  lookup('custom.example.com', {}, result);
+  expect(result).toHaveBeenLastCalledWith(missing, '', undefined);
+  lookup('new.trycloudflare.com', { family: 6 }, result);
+  expect(query).toHaveBeenCalledTimes(1);
+  createQuickTunnelLookup((_host, _options, callback) => callback(null, '192.0.2.20', 4), query)(
+    'new.trycloudflare.com',
+    {},
+    result,
+  );
+  expect(result).toHaveBeenLastCalledWith(null, '192.0.2.20', 4);
+  expect(query).toHaveBeenCalledTimes(1);
+});

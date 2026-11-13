@@ -52,7 +52,7 @@ assert.ok(
 );
 mkdirSync(out, { recursive: true });
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
-const git = (...args) => execFileSync('git', args, { cwd: root });
+const git = (...args) => execFileSync('git', args, { cwd: root, maxBuffer: 20e6 });
 const budgetPath = resolve(values.budget);
 const budget = readBudget(budgetPath);
 const runId = randomUUID();

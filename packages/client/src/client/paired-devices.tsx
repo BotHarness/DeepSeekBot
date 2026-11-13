@@ -1,4 +1,7 @@
-import { ConnectionHosts } from './connection-hosts.js';
+import { ConnectAccountHosts } from './connect-account-hosts.js';
+import { ConnectionProgressLog } from './connection-progress-log.js';
+import type { ConnectedHost } from '../../../core/src/devices/connect-account.js';
+import { AccountHostConnectionDetails, ConnectionHosts } from './connection-hosts.js';
 import { MobileAppDownloads } from './mobile-apps.js';
 import { ConnectionGuide } from './connection-guide.js';
 import { PrivateRelaySettings } from './private-relay-settings.js';
@@ -13,7 +16,7 @@ import { keyBytes } from '../../../../apps/mobile/src/host/encrypted-carrier.js'
 import { checkRoute, isConnectRoute, isLanRoute } from '../../../../apps/mobile/src/host/route.js';
 import { useRef, useState, type ComponentProps, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Button, Switch } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import { Callout } from './ds/callout.js';
@@ -188,6 +191,7 @@ export function PairedDevicesSettings({
   section = 'devices',
   standalone = false,
   initialPairing = false,
+  initialRemote = false,
   onDevicePaired,
   onFeedRead,
   pairedDeviceId,
@@ -196,6 +200,7 @@ export function PairedDevicesSettings({
   section?: 'devices' | 'connect' | 'requests';
   standalone?: boolean;
   initialPairing?: boolean;
+  initialRemote?: boolean;
   pairedDeviceId?: string | undefined;
   onDevicePaired?: ((deviceId: string) => void) | undefined;
   onFeedRead?: ((deviceId: string) => void) | undefined;
@@ -225,6 +230,8 @@ export function PairedDevicesSettings({
   const [showTailscale, setShowTailscale] = useState(false);
   const [advancedMethods, setAdvancedMethods] = useState(false);
   const [manage, setManage] = useState(false);
+  const [lanDetails, setLanDetails] = useState(false);
+  const [accountHosts, setAccountHosts] = useState<ConnectedHost[]>([]);
   type Setup =
     | 'app'
     | 'private'
@@ -236,7 +243,10 @@ export function PairedDevicesSettings({
     | 'tailscale'
     | 'connect'
     | 'remote';
-  const [setup, setSetupState] = useState<Setup>(initialPairing ? 'app' : 'closed');
+  const [setup, setSetupState] = useState<Setup>(
+    initialRemote ? 'remote' : initialPairing ? 'app' : 'closed',
+  );
+  const [remoteFooter, setRemoteFooter] = useState<HTMLDivElement | null>(null);
   const [tunnelStep, setTunnelStep] = useState<PrivateTunnelStep>('choose');
   const phoneAppReady = useRef(false);
   const setupVersion = useRef(0);
@@ -592,13 +602,37 @@ export function PairedDevicesSettings({
     </>
   );
 
+  const setupBack =
+    setup !== 'closed' && setup !== 'direction' ? (
+      <Button
+        variant="outline"
+        icon={<ChannelSidebarIcon name="arrow-left" size={16} />}
+        onClick={() =>
+          setup === 'private' && tunnelStep !== 'choose'
+            ? setTunnelStep('choose')
+            : setSetup(
+                setup === 'method' || setup === 'app' || setup === 'remote'
+                  ? 'direction'
+                  : 'method',
+              )
+        }
+      >
+        {t('connections.back')}
+      </Button>
+    ) : undefined;
+  const pairingBack = pairing ? (
+    <Button
+      variant="outline"
+      icon={<ChannelSidebarIcon name="arrow-left" size={16} />}
+      onClick={close}
+    >
+      {t('connections.back')}
+    </Button>
+  ) : undefined;
   const overview = !standalone || (setup === 'closed' && !pairing && !reviewing);
   const content = (
     <div ref={mount} data-paired-devices="">
-      {standalone && snapshot ? (
-        <Note>{t('connections.host', { name: snapshot.host.name })}</Note>
-      ) : null}
-      {section === 'devices' && overview ? (
+      {!standalone && section === 'devices' && overview ? (
         <SettingsSection>
           <SettingsRow
             title={t('connections.title')}
@@ -637,11 +671,135 @@ export function PairedDevicesSettings({
         </SettingsSection>
       ) : null}
       {standalone && section === 'devices' && overview ? (
-        <ConnectionHosts
-          key={signIn?.email ?? 'signed-out'}
-          t={t}
-          accountLinked={signIn?.state === 'signed-in' || signIn?.issue === 'host-limit'}
-        />
+        <StatusStack title={t('connections.manage.existing')}>
+          {snapshot ? (
+            <StatusBlock
+              icon="monitor"
+              tone="accent"
+              title={snapshot.host.name}
+              body={t('devices.connect.thisComputer')}
+            />
+          ) : null}
+          <PrivateTunnelSettings
+            t={t}
+            routes={snapshot?.privateRoutes ?? []}
+            managementOnly
+            fresh={freshSnapshot}
+            step={tunnelStep}
+            setStep={setTunnelStep}
+            refresh={load}
+            pair={open}
+            advanced={() => setSetup('privateRelay')}
+          />
+          {tailscaleReady || routes?.managed?.enabled || routes?.managed?.owned ? (
+            <StatusBlock
+              icon="shield-check"
+              tone={tailscaleReady ? 'success' : 'neutral'}
+              title="Tailscale"
+              body={
+                routes?.routes.find((route) => route.kind === 'tailscale')?.url ??
+                t('devices.tailscale.stopped')
+              }
+              action={
+                <>
+                  {routes?.managed?.enabled || routes?.managed?.owned ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!freshSnapshot || busy !== undefined}
+                      onClick={() =>
+                        void publish('disable').then((failure) => setError(failure !== undefined))
+                      }
+                    >
+                      {t('devices.tailscale.disable')}
+                    </Button>
+                  ) : null}
+                  <Button variant="outline" size="sm" onClick={() => setSetup('tailscale')}>
+                    {t('privateTunnel.panel.manage')}
+                  </Button>
+                </>
+              }
+            />
+          ) : null}
+          {snapshot?.privateRelay && snapshot.privateRelay.state !== 'off' ? (
+            <StatusBlock
+              icon="server"
+              tone="neutral"
+              title={t('privateRelay.title')}
+              body={snapshot.privateRelay.origin}
+              action={
+                <Button variant="outline" size="sm" onClick={() => setSetup('privateRelay')}>
+                  {t('privateTunnel.panel.manage')}
+                </Button>
+              }
+            />
+          ) : null}
+          {signIn && (signIn.state === 'signed-in' || signIn.issue === 'host-limit') ? (
+            <StatusStack title="Tobs Connect">
+              <Note>{signIn.email}</Note>
+              <ConnectAccountHosts
+                t={t}
+                account={signIn}
+                reloadSnapshot={load}
+                allowCurrentSignOut
+                onHostsChanged={setAccountHosts}
+                details={(host) => <AccountHostConnectionDetails host={host} t={t} />}
+              />
+            </StatusStack>
+          ) : null}
+          <ConnectionHosts
+            key={signIn?.email ?? 'signed-out'}
+            managedAccountHosts={accountHosts}
+            t={t}
+            accountLinked={signIn?.state === 'signed-in' || signIn?.issue === 'host-limit'}
+          />
+          {error ? <Note tone="danger">{t('devices.error')}</Note> : null}
+        </StatusStack>
+      ) : null}
+      {standalone && section === 'devices' && overview ? (
+        <SettingsSection title={t('connections.manage.switches')}>
+          {snapshot?.lan ? (
+            <SettingsRow
+              title={t('devices.lan.title')}
+              description={t('devices.lan.notice')}
+              control={
+                <Switch
+                  label={t('devices.lan.title')}
+                  checked={snapshot.lan.state === 'listening'}
+                  disabled={!freshSnapshot || busy !== undefined}
+                  onChange={() =>
+                    void setLan(snapshot.lan?.state === 'listening' ? 'disable' : 'enable')
+                  }
+                />
+              }
+            />
+          ) : null}
+          {snapshot?.pendingKeys?.some((item) => !item.approved) ? (
+            <SettingsRow
+              title={t('connections.pending')}
+              control={
+                <Button variant="outline" onClick={() => setReviewing(true)}>
+                  {t('connections.review')}
+                </Button>
+              }
+            />
+          ) : null}
+          {snapshot?.lanBots ? (
+            <StatusDisclosure
+              icon="house"
+              title={t('connections.manage.nearby')}
+              open={lanDetails}
+              onToggle={() => setLanDetails(!lanDetails)}
+            >
+              <LanBotSettings
+                t={t}
+                snapshot={snapshot.lanBots}
+                fresh={freshSnapshot && busy === undefined}
+                onChanged={() => void load()}
+              />
+            </StatusDisclosure>
+          ) : null}
+        </SettingsSection>
       ) : null}
       {reviewing && !pairing ? (
         <ConnectionPanel
@@ -675,6 +833,7 @@ export function PairedDevicesSettings({
         <AddRemoteHostDialog
           t={t}
           inline={standalone}
+          footerContainer={standalone ? remoteFooter : undefined}
           onBack={() => setSetup('direction')}
           onClose={() => setSetup('closed')}
         />
@@ -683,6 +842,7 @@ export function PairedDevicesSettings({
         <ConnectionPanel
           inline={standalone}
           title={t('connections.add')}
+          secondary={setupBack}
           closeLabel={t('common.close')}
           size="small"
           onClose={() => setSetup('closed')}
@@ -702,17 +862,17 @@ export function PairedDevicesSettings({
             {setup !== 'direction' && setup !== 'app' ? (
               <ConnectionProgress t={t} step={setup === 'method' ? 0 : 1} />
             ) : null}
-            <Note>
-              {t(
-                setup === 'app'
-                  ? 'connections.phoneApp.title'
-                  : setup === 'direction'
+            {setup !== 'app' ? (
+              <Note>
+                {t(
+                  setup === 'direction'
                     ? 'connections.direction'
                     : setup === 'method'
                       ? 'connections.choose'
                       : 'connections.prepare',
-              )}
-            </Note>
+                )}
+              </Note>
+            ) : null}
             {(setup === 'privateRelay' ||
               (setup === 'private' && (snapshot?.privateRelay?.state ?? 'off') !== 'off')) &&
             ((snapshot?.privateTunnel?.state ?? 'off') !== 'off' ||
@@ -721,9 +881,9 @@ export function PairedDevicesSettings({
             ) : null}
             {setup === 'app' ? (
               <div data-phone-app-guide="">
-                <Note>{t('connections.phoneApp.description')}</Note>
-                <Button
-                  variant="primary"
+                <button
+                  type="button"
+                  className="bh-mobile-apps-link bh-mobile-apps-connect"
                   data-modal-autofocus
                   disabled={!freshSnapshot || busy !== undefined}
                   onClick={() => {
@@ -737,8 +897,10 @@ export function PairedDevicesSettings({
                     } else setSetup('method');
                   }}
                 >
-                  {t('connections.phoneApp.ready')}
-                </Button>
+                  <ChannelSidebarIcon name="smartphone" size={16} />
+                  <span>{t('connections.phoneApp.ready')}</span>
+                  <ChannelSidebarIcon name="chevron-right" size={14} />
+                </button>
                 <MobileAppDownloads t={t} />
               </div>
             ) : setup === 'direction' ? (
@@ -790,6 +952,7 @@ export function PairedDevicesSettings({
                 <StatusDisclosure
                   icon="settings"
                   title={t('connections.advancedMethods')}
+                  fullWidth
                   open={advancedMethods}
                   onToggle={() => setAdvancedMethods(!advancedMethods)}
                 >
@@ -987,17 +1150,22 @@ export function PairedDevicesSettings({
                 </Button>
               </>
             )}
-            {setup !== 'direction' ? (
-              <Button
-                variant="outline"
-                onClick={() =>
-                  setup === 'private' && tunnelStep !== 'choose'
-                    ? setTunnelStep('choose')
-                    : setSetup(setup === 'method' || setup === 'app' ? 'direction' : 'method')
+            {['private', 'privateRelay', 'connect', 'tailscale', 'lan'].includes(setup) ? (
+              <ConnectionProgressLog
+                key={setup}
+                t={t}
+                source={
+                  setup === 'private'
+                    ? 'private-tunnel'
+                    : setup === 'privateRelay'
+                      ? 'private-relay'
+                      : setup === 'connect'
+                        ? 'device-connect'
+                        : setup === 'tailscale'
+                          ? 'device-tailscale'
+                          : 'device-lan'
                 }
-              >
-                {t('connections.back')}
-              </Button>
+              />
             ) : null}
           </div>
         </ConnectionPanel>
@@ -1015,7 +1183,7 @@ export function PairedDevicesSettings({
           </Button>
         </Callout>
       ) : null}
-      {section === 'devices' && overview && manage ? (
+      {!standalone && section === 'devices' && overview && manage ? (
         <StatusStack title={t('devices.connection.title')}>
           {snapshot?.lan ? (
             <StatusBlock
@@ -1159,7 +1327,7 @@ export function PairedDevicesSettings({
           ) : null}
         </StatusStack>
       ) : null}
-      {section === 'devices' && overview && manage ? (
+      {!standalone && section === 'devices' && overview && manage ? (
         <SettingsSection title={t('devices.connection.pairStep')}>
           <SettingsRow
             title={t('devices.pair.title')}
@@ -1190,10 +1358,10 @@ export function PairedDevicesSettings({
           </SettingsRow>
         </SettingsSection>
       ) : null}
-      {section === 'devices' && overview && manage && snapshot?.connect?.account
+      {!standalone && section === 'devices' && overview && manage && snapshot?.connect?.account
         ? connectControls
         : null}
-      {section === 'devices' && overview && manage && snapshot?.lanBots ? (
+      {!standalone && section === 'devices' && overview && manage && snapshot?.lanBots ? (
         <LanBotSettings
           t={t}
           snapshot={snapshot.lanBots}
@@ -1360,11 +1528,6 @@ export function PairedDevicesSettings({
                 </div>
               </>
             )}
-            {standalone ? (
-              <Button variant="outline" size="sm" onClick={close}>
-                {t('connections.back')}
-              </Button>
-            ) : null}
           </div>
         </ConnectionPanel>
       ) : null}
@@ -1373,6 +1536,37 @@ export function PairedDevicesSettings({
   return standalone ? (
     <PanelDialog
       title={t('connections.title')}
+      secondary={
+        pairingBack ??
+        setupBack ?? (
+          <Button
+            variant="outline"
+            icon={<ChannelSidebarIcon name="arrow-left" size={16} />}
+            onClick={() => {
+              if (overview) onClose?.();
+              else {
+                setReviewing(false);
+                setSetup('closed');
+              }
+            }}
+          >
+            {t('connections.back')}
+          </Button>
+        )
+      }
+      actions={
+        setup === 'remote' ? (
+          <div ref={setRemoteFooter} />
+        ) : overview ? (
+          <Button
+            variant="primary"
+            icon={<ChannelSidebarIcon name="plus" size={16} />}
+            onClick={() => setSetup('direction')}
+          >
+            {t('connections.add')}
+          </Button>
+        ) : undefined
+      }
       closeLabel={t('common.close')}
       scroll
       onClose={() => {

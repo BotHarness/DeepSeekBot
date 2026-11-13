@@ -76,7 +76,7 @@
         "setting:packages/client/src/client/paired-devices.tsx:{t('connections.title')}",
         "setting:packages/client/src/client/paired-devices.tsx:{t('connections.methods')}",
         "setting:packages/client/src/client/paired-devices.tsx:{t('connections.pending')}",
-        "setting:packages/client/src/client/private-tunnel-settings.tsx:{t(modeTitle(route.mode))}"
+        "setting:packages/client/src/client/paired-devices.tsx:{t('devices.lan.title')}"
       ],
       "commands": [
         "devices",
@@ -106,7 +106,7 @@
       "description": "Devices page hosted Connect account and tunnel state (ADR-0241).",
       "scope": "Profile",
       "surfaces": [
-        "setting:packages/client/src/client/connect-account-hosts.tsx:{host.name}",
+        "setting:packages/client/src/client/connect-account-hosts.tsx:{t('devices.connect.thisComputer')}",
         "setting:packages/client/src/client/connect-account-hosts.tsx:{t('devices.connect.computersStatus')}"
       ],
       "commands": [

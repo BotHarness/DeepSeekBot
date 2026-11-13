@@ -16,15 +16,23 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
 vi.mock('../src/client/ds/panel-dialog.js', () => ({
   PanelDialog: ({
     children,
+    secondary,
+    actions,
     closeLabel,
     onClose,
   }: {
     children: ReactNode;
+    secondary?: ReactNode;
+    actions?: ReactNode;
     closeLabel: string;
     onClose(): void;
   }) => (
     <div role="dialog">
       {children}
+      <footer>
+        {secondary}
+        {actions}
+      </footer>
       <button onClick={onClose}>{closeLabel}</button>
     </div>
   ),
@@ -254,7 +262,7 @@ it('opens one standalone dialog and reuses an existing route without publishing 
   const onClose = vi.fn();
   await act(async () => root.render(<ConnectionsDialog t={t} pairPhone onClose={onClose} />));
   expect(host.querySelectorAll('[role="dialog"]')).toHaveLength(1);
-  expect(host.textContent).toContain('QA computer');
+  expect(host.textContent).not.toContain('QA computer');
   expect(host.querySelector('[data-phone-app-guide]')).not.toBeNull();
   expect(posts).toEqual([]);
   await click(t('connections.phoneApp.ready'));
@@ -399,6 +407,8 @@ it('keeps computer link entry inside the shared dialog and returns to both inten
   await click(t('connections.join'));
   expect(host.querySelectorAll('[role="dialog"]')).toHaveLength(1);
   expect(host.textContent).toContain(t('connections.joinHint'));
+  expect(button(t('remoteHosts.add.image'))).toBeDefined();
+  expect(host.querySelector('footer [data-remote-host-add-submit]')).not.toBeNull();
   expect(host.querySelector('input')).not.toBeNull();
   expect(host.querySelector('[data-phone-app-guide]')).toBeNull();
   expect(host.querySelector('[data-remote-host-add-submit]')?.hasAttribute('disabled')).toBe(true);

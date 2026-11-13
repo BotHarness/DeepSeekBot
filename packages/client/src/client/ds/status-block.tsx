@@ -104,6 +104,7 @@ const styles = stylex.create({
     minWidth: 0,
     textAlign: 'start',
   },
+  detailsFullWidth: { width: '100%', paddingInline: 0, boxSizing: 'border-box' },
   fact: { display: 'flex', flexDirection: 'column', gap: space.x1, minWidth: 0 },
   factRow: { display: 'flex', alignItems: 'center', gap: space.x3, minWidth: 0, flexWrap: 'wrap' },
   grow: { display: 'flex', flexDirection: 'column', gap: space.x1, flexGrow: 1, minWidth: 0 },
@@ -336,6 +337,7 @@ export function StatusDisclosure({
   onToggle,
   data,
   children,
+  fullWidth = false,
 }: {
   icon: string;
   title: string;
@@ -344,6 +346,7 @@ export function StatusDisclosure({
   onToggle(): void;
   data?: Record<`data-${string}`, string>;
   children: ReactNode;
+  fullWidth?: boolean;
 }): ReactElement {
   return (
     <>
@@ -363,7 +366,11 @@ export function StatusDisclosure({
           <ChannelSidebarIcon name="chevron-right" size={16} />
         </span>
       </button>
-      {open ? <div {...stylex.props(styles.details)}>{children}</div> : null}
+      {open ? (
+        <div {...stylex.props(styles.details, fullWidth && styles.detailsFullWidth)}>
+          {children}
+        </div>
+      ) : null}
     </>
   );
 }

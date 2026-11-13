@@ -484,9 +484,11 @@ export interface PrivateRouteView extends PrivateTunnelView {
 export function PrivateTunnelSettings(
   props: ComponentProps<typeof PrivateTunnelRouteSettings> & {
     routes?: PrivateRouteView[];
+    managementOnly?: boolean;
+    fresh?: boolean;
   },
 ): ReactElement {
-  const { t, routes, step, setStep } = props;
+  const { t, routes, step, setStep, managementOnly = false, fresh = true } = props;
   const [selected, select] = useState<PrivateRouteView['id']>();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -512,12 +514,13 @@ export function PrivateTunnelSettings(
       setBusy(false);
     }
   }
-  if (!routes?.length) return <PrivateTunnelRouteSettings {...props} />;
+  if (!routes?.length) return managementOnly ? <></> : <PrivateTunnelRouteSettings {...props} />;
   const current = routes.find((route) => route.id === selected);
   const custom = routes.find((route) => route.id === 'custom');
   return (
     <StatusStack title={t('privateTunnel.title')}>
-      {step === 'choose' &&
+      {!managementOnly &&
+      step === 'choose' &&
       current?.state !== 'connected' &&
       routes.some((route) => route.state === 'connected') ? (
         <Button variant="primary" onClick={props.pair}>
@@ -525,17 +528,25 @@ export function PrivateTunnelSettings(
         </Button>
       ) : null}
       {routes.map((route) => (
-        <SettingsRow
+        <StatusBlock
           key={route.id}
           title={t(modeTitle(route.mode))}
-          description={route.origin ?? t(`privateTunnel.routes.${route.state}`)}
-          control={
+          icon={route.mode === 'quick' ? 'globe' : 'server'}
+          tone={
+            route.state === 'connected'
+              ? 'success'
+              : route.state === 'error'
+                ? 'warning'
+                : 'neutral'
+          }
+          body={route.origin ?? t(`privateTunnel.routes.${route.state}`)}
+          action={
             <>
               <span>{t(`privateTunnel.routes.${route.state}`)}</span>
               <Button
                 variant="outline"
                 size="sm"
-                disabled={busy}
+                disabled={busy || !fresh}
                 onClick={() => void change(route.enabled ? 'stop' : 'start', route.id)}
               >
                 {t(route.enabled ? 'privateTunnel.routes.stop' : 'privateTunnel.routes.start')}
@@ -543,7 +554,7 @@ export function PrivateTunnelSettings(
               <Button
                 variant="outline"
                 size="sm"
-                disabled={busy}
+                disabled={busy || !fresh}
                 onClick={() => {
                   select(selected === route.id ? undefined : route.id);
                   setStep('choose');
@@ -554,7 +565,7 @@ export function PrivateTunnelSettings(
               <Button
                 variant="outline"
                 size="sm"
-                disabled={busy}
+                disabled={busy || !fresh}
                 onClick={() => setRemove(route.id)}
               >
                 {t('privateTunnel.routes.remove')}
@@ -596,7 +607,7 @@ export function PrivateTunnelSettings(
       {current && step === 'choose' && current.state !== 'off' ? (
         <PrivateTunnelRouteSettings {...props} status={current} routeId={current.id} />
       ) : null}
-      {step !== 'choose' ? (
+      {managementOnly ? null : step !== 'choose' ? (
         <>
           {custom ? (
             <p {...stylex.props(styles.meta)}>{t('privateTunnel.routes.replaceHint')}</p>

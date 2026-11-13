@@ -1,8 +1,9 @@
-import { useCallback, useRef, useState, type ReactElement } from 'react';
+import { useCallback, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 import type { ConnectedHost } from '../../../core/src/devices/connect-account.js';
-import { SettingsRow, SettingsSection } from './ds/settings-row.js';
+import { SettingsRow } from './ds/settings-row.js';
+import { StatusBlock, StatusStack } from './ds/status-block.js';
 import { PanelDialog } from './ds/panel-dialog.js';
 import { Note } from './ds/note.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -63,13 +64,19 @@ export function ConnectAccountHosts({
   t,
   account,
   reloadSnapshot,
+  allowCurrentSignOut = false,
+  onHostsChanged,
+  details,
 }: PropsLocale<'botharness'> & {
   account: { state: string; issue?: string; hostId?: string };
   reloadSnapshot: () => Promise<unknown>;
+  allowCurrentSignOut?: boolean;
+  onHostsChanged?: (hosts: ConnectedHost[]) => void;
+  details?: (host: ConnectedHost) => ReactNode;
 }): ReactElement | null {
   const [hosts, setHosts] = useState<ConnectedHost[]>();
   const [listState, setListState] = useState<'loading' | 'fresh' | 'stale'>('loading');
-  const [confirm, setConfirm] = useState<ConnectedHost>();
+  const [confirm, setConfirm] = useState<ConnectedHost | 'current-account'>();
   const [busy, setBusy] = useState<string>();
   const [actionError, setActionError] = useState(false);
   const busyRef = useRef(false);
@@ -89,11 +96,12 @@ export function ConnectAccountHosts({
       const next = parseConnectedHosts(await response.json());
       if (!mounted.current || controller.signal.aborted) return;
       setHosts(next);
+      onHostsChanged?.(next);
       setListState('fresh');
     } catch {
       if (mounted.current && !controller.signal.aborted) setListState('stale');
     }
-  }, []);
+  }, [onHostsChanged]);
 
   const mount = useMountedResource<HTMLDivElement>(() => {
     mounted.current = true;
@@ -107,12 +115,25 @@ export function ConnectAccountHosts({
     };
   }, [eligible, account.state, account.issue, account.hostId, load]);
 
-  const revoke = async (host: ConnectedHost) => {
-    if (busyRef.current || host.current) return;
+  const revoke = async (host: ConnectedHost | 'current-account') => {
+    if (busyRef.current || ((host === 'current-account' || host.current) && !allowCurrentSignOut))
+      return;
     busyRef.current = true;
-    setBusy(host.id);
+    setBusy(host === 'current-account' ? host : host.id);
     setActionError(false);
     try {
+      if (host === 'current-account' || host.current) {
+        const result = await fetch('./api/botharness/devices/connect', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ action: 'sign-out' }),
+          signal: AbortSignal.timeout(30_000),
+        });
+        if (!result.ok) throw new Error('sign-out-unavailable');
+        if (mounted.current) setConfirm(undefined);
+        await reloadSnapshot();
+        return;
+      }
       const response = await fetch(`${PATH}/revoke`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -140,10 +161,13 @@ export function ConnectAccountHosts({
     }
   };
 
+  const confirmSignOut = confirm === 'current-account' || confirm?.sessionKnown === true;
+  const confirmName =
+    confirm === 'current-account' ? t('devices.connect.thisComputer') : (confirm?.name ?? '');
   if (!eligible) return null;
   return (
     <div ref={mount}>
-      <SettingsSection title={t('devices.connect.computers')}>
+      <StatusStack title={t('devices.connect.computers')}>
         {account.issue === 'host-limit' ? (
           <Note tone="warning">{t('devices.connect.notLinked')}</Note>
         ) : null}
@@ -168,13 +192,15 @@ export function ConnectAccountHosts({
           ) : null}
         </SettingsRow>
         {hosts?.map((host) => (
-          <SettingsRow
+          <StatusBlock
             key={host.id}
-            title={host.name}
-            description={host.hostname}
+            title={host.current ? `${host.name} · ${t('devices.connect.thisComputer')}` : host.name}
+            icon={host.current ? 'monitor' : 'server'}
+            tone={host.current ? 'accent' : 'neutral'}
+            body={host.hostname}
             data={{ 'data-account-host-current': String(host.current) }}
-            control={
-              host.current ? (
+            action={
+              host.current && !allowCurrentSignOut ? (
                 <span>{t('devices.connect.thisComputer')}</span>
               ) : (
                 <Button
@@ -216,11 +242,32 @@ export function ConnectAccountHosts({
                 when: new Date(host.createdAt).toLocaleString(),
               })}
             </Note>
+            {details?.(host)}
             {!host.sessionKnown ? (
               <Note tone="warning">{t('devices.connect.legacyComputer')}</Note>
             ) : null}
-          </SettingsRow>
+          </StatusBlock>
         ))}
+        {allowCurrentSignOut && (listState !== 'fresh' || !hosts?.some((host) => host.current)) ? (
+          <SettingsRow
+            title={t('devices.connect.thisComputer')}
+            control={
+              <Button
+                variant="outline"
+                disabled={busy !== undefined}
+                aria-label={t('devices.connect.signOutNamed', {
+                  name: t('devices.connect.thisComputer'),
+                })}
+                onClick={() => {
+                  setActionError(false);
+                  setConfirm('current-account');
+                }}
+              >
+                {t('devices.connect.signOut')}
+              </Button>
+            }
+          />
+        ) : null}
         {actionError ? (
           <Note tone="danger">{t('devices.connect.computerActionFailed')}</Note>
         ) : null}
@@ -229,8 +276,8 @@ export function ConnectAccountHosts({
             size="small"
             scroll
             title={t(
-              confirm.sessionKnown ? 'devices.connect.signOutNamed' : 'devices.connect.removeNamed',
-              { name: confirm.name },
+              confirmSignOut ? 'devices.connect.signOutNamed' : 'devices.connect.removeNamed',
+              { name: confirmName },
             )}
             closeLabel={t('common.close')}
             onClose={() => {
@@ -246,26 +293,22 @@ export function ConnectAccountHosts({
                   {t('common.cancel')}
                 </Button>
                 <Button disabled={busy !== undefined} onClick={() => void revoke(confirm)}>
-                  {t(
-                    confirm.sessionKnown
-                      ? 'devices.connect.signOut'
-                      : 'devices.connect.removeComputer',
-                  )}
+                  {t(confirmSignOut ? 'devices.connect.signOut' : 'devices.connect.removeComputer')}
                 </Button>
               </>
             }
           >
             <Note>
               {t(
-                confirm.sessionKnown
+                confirmSignOut
                   ? 'devices.connect.signOutComputerConfirm'
                   : 'devices.connect.legacyComputer',
               )}
             </Note>
-            <Note>{confirm.hostname}</Note>
+            {confirm === 'current-account' ? null : <Note>{confirm.hostname}</Note>}
           </PanelDialog>
         ) : null}
-      </SettingsSection>
+      </StatusStack>
     </div>
   );
 }

@@ -271,12 +271,38 @@ function HostRow({
   );
 }
 
+export function AccountHostConnectionDetails({
+  host,
+  t,
+}: {
+  host: ConnectedHost;
+  t: BotHarnessTranslate;
+}) {
+  const sources = remoteHosts();
+  const snapshot = useSyncExternalStore(sources.subscribe, sources.getSnapshot);
+  const [open, setOpen] = useState(false);
+  const remote = connectionRows(snapshot.hosts, [host]).account[0]?.remote;
+  if (!remote) return null;
+  return (
+    <StatusDisclosure
+      icon="plug"
+      title={t('privateTunnel.panel.manage')}
+      open={open}
+      onToggle={() => setOpen(!open)}
+    >
+      <HostDetails remote={remote} t={t} />
+    </StatusDisclosure>
+  );
+}
+
 export function ConnectionHosts({
   t,
   accountLinked,
+  managedAccountHosts,
 }: {
   t: BotHarnessTranslate;
   accountLinked: boolean;
+  managedAccountHosts?: ConnectedHost[];
 }) {
   const sources = remoteHosts();
   const snapshot = useSyncExternalStore(sources.subscribe, sources.getSnapshot);
@@ -290,7 +316,7 @@ export function ConnectionHosts({
     const request = new AbortController();
     abort.current = request;
     setFailed(false);
-    if (!accountLinked) {
+    if (!accountLinked || managedAccountHosts !== undefined) {
       setAccount([]);
       return;
     }
@@ -315,8 +341,11 @@ export function ConnectionHosts({
       mounted.current = false;
       abort.current?.abort();
     };
-  }, [accountLinked]);
-  const rows = connectionRows(snapshot.hosts, account);
+  }, [accountLinked, managedAccountHosts]);
+  const rows = connectionRows(
+    snapshot.hosts,
+    accountLinked ? (managedAccountHosts ?? account) : [],
+  );
   const row = (remote: RemoteHost) => (
     <HostRow
       key={remote.host.hostId}
@@ -328,7 +357,7 @@ export function ConnectionHosts({
   );
   return (
     <div ref={mount}>
-      {accountLinked ? (
+      {accountLinked && managedAccountHosts === undefined ? (
         <SettingsSection title={t('connections.hosts.account')}>
           {rows.account.map(({ remote }) => row(remote))}
           {rows.discovered.map((host) => (

@@ -25,6 +25,15 @@
 import { createElement, type ReactElement } from 'react';
 
 const glyphs: Record<string, readonly [string, Record<string, string | number>][]> = {
+  image: [
+    ['rect', { width: '18', height: '18', x: '3', y: '3', rx: '2', ry: '2' }],
+    ['circle', { cx: '9', cy: '9', r: '2' }],
+    ['path', { d: 'm21 15-4-4L7 21' }],
+  ],
+  'arrow-left': [
+    ['path', { d: 'm12 19-7-7 7-7' }],
+    ['path', { d: 'M19 12H5' }],
+  ],
   'chevron-right': [['path', { d: 'm9 18 6-6-6-6' }]],
   store: [
     ['path', { d: 'M15 21v-5a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v5' }],
