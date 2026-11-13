@@ -14,7 +14,14 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
   Checkbox: () => null,
 }));
-vi.mock('../src/client/model-picker.js', () => ({ ModelPicker: () => null }));
+vi.mock('../src/client/model-picker.js', () => ({
+  ModelPicker: ({ onChange }: { onChange(value: { key: string; effort: string }): void }) =>
+    createElement(
+      'button',
+      { onClick: () => onChange({ key: JSON.stringify(['deepseek', 'model']), effort: 'low' }) },
+      'Change model',
+    ),
+}));
 vi.mock('../src/client/combobox.js', () => ({ Combobox: () => null }));
 vi.mock('../src/client/ds/select.js', () => ({
   Select: ({
@@ -41,6 +48,68 @@ vi.mock('../src/client/ds/select.js', () => ({
 import { RemoteHostModels } from '../src/client/remote-host-models.js';
 import { hostSettingsDrafts, type HostDraftChoice } from '../src/client/host-settings-drafts.js';
 import { en } from '../src/client/locale.js';
+
+it('explains a launch-locked default model refusal without replaying the write', async () => {
+  const route = { provider: 'deepseek', model: 'model' };
+  let writes = 0;
+  const client: ModelSettingsClient = {
+    async call(method) {
+      if (method === 'modelCatalog')
+        return {
+          models: [{ ...route, providerName: 'DeepSeek', modelName: 'Model' }],
+          default: route,
+          defaultRevision: 0,
+        };
+      if (method === 'modelPresets') return { presets: [] };
+      if (method === 'onboardingModel') {
+        writes += 1;
+        throw Object.assign(
+          new Error(
+            'Configuration for "agent-default-model" is overridden by a home patch or command-line overlay',
+          ),
+          { code: 'invalid-input' },
+        );
+      }
+      throw Error(`Unexpected method ${method}`);
+    },
+  };
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+  try {
+    await act(async () => {
+      root.render(
+        createElement(RemoteHostModels, {
+          hostId: 'locked',
+          client,
+          t: (key) => Object.entries(en).find(([name]) => name === key)?.[1] ?? key,
+        }),
+      );
+      await flush();
+    });
+    await act(async () => {
+      Array.from(container.querySelectorAll('button'))
+        .find((button) => button.textContent === 'Change model')
+        ?.click();
+      await flush();
+    });
+    expect(writes).toBe(1);
+    expect(container.textContent).toContain(
+      "This Host's default model is fixed by its launch settings.",
+    );
+    await act(async () => {
+      Array.from(container.querySelectorAll('button'))
+        .find((button) => button.textContent === 'Refresh model list')
+        ?.click();
+      await flush();
+    });
+    expect(writes).toBe(1);
+  } finally {
+    await act(() => root.unmount());
+    container.remove();
+  }
+});
 
 it('keeps offline and refused preset drafts, never saves on blur, and saves or discards through the original owner', async () => {
   const route = { provider: 'deepseek', model: 'model' };
