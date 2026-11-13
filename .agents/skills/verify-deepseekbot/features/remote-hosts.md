@@ -68,6 +68,9 @@ For message bodies, upload an image and a text file to Host B through its attach
 
 ## Gotchas
 
+- Wait for the foreground confirmation or Save changes title before choosing an action. Host settings and its draft guard both expose Save/Close controls; scope the action to the foreground dialog. A click on the underlying control can dismiss the guard instead of committing. Correlate every disconnect with canonical relationship state before calling access retired.
+- The Tob welcome dialog may appear after the first shell mount. If it blocks enrollment or Connections, preserve the failure observation, inspect the current accessibility tree and dismiss its visible Skip control before retrying.
+
 - The workspace hides `data-panel-empty-action` descendants. Viewer reconnect must stay in its own controls; verify the button is visible and clickable inside the real workspace, not only in a standalone panel render.
 - Remote avatars consume the authenticated image cache; This Host retains its current read adapter.
 - With unread messages on both Hosts, compare each row and tab with `channelUnreadCounts`. Open the remote DM/group, verify its count clears on that Host while the other Host stays unread. Keep an active Bot running to inspect its activity indicator. Stop only the task-owned remote Host and verify cached rows/counts remain with an offline tab.
