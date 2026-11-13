@@ -434,7 +434,7 @@ jobs:
           node scripts/perf-genui-browser-diagnostics.mjs logs
           .humanlayer/perf/browser-diagnostics/system-log.json "$BH_E2E_INSTANCE"
       - id: browser_environment
-        if: always() && (steps.system_preview.outcome == 'success' || steps.system_preview.outcome == 'failure')
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.genui_browser_diagnostic && (steps.system_preview.outcome == 'success' || steps.system_preview.outcome == 'failure')
         run: node scripts/perf-genui-browser-diagnostics.mjs environment .humanlayer/perf/browser-diagnostics/environment.json
       - if: always()
         run: node scripts/verify-app.mjs stop --name perf

@@ -369,6 +369,7 @@ export function redactBrowserStartupText(text: string): string {
     .replace(/\p{Cc}\[[0-?]*[ -/]*[@-~]/gu, '')
     .replace(/(?:https?|wss?):\/\/[^\s"'<>]+/giu, '<url>')
     .replace(/\b(?:Bearer|Basic)\s+[^\s,;]+/giu, '<authorization>')
+    .replace(/\b((?:set-)?cookie["']?\s*:\s*)[^\r\n]*/giu, '$1<redacted>')
     .replace(/\b(?:sk-|gh[pousr]_|github_pat_|npm_|xox[abprs]-)[A-Za-z0-9_-]{8,}/gu, '<token>')
     .replace(
       /\b((?:[a-z0-9]+[_-])*(?:token|secret|password|passwd|api[_-]?key|cookie|authorization)["']?\s*[:=]\s*)(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s,;]+)/giu,

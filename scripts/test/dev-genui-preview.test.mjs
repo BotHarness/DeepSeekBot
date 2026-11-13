@@ -5,7 +5,7 @@ import { parseArgs } from '../dev-instance.mjs';
 import { parseVerifyArgs } from '../verify-app.mjs';
 import {
   previewBrowserAppArmorProfile,
-  previewDiagnosticEvents,
+  collectPreviewDiagnostics,
   probeBrowserVersion,
 } from '../perf-genui-browser-diagnostics.mjs';
 
@@ -19,6 +19,29 @@ const source = `- id: group
 `;
 
 describe('explicit GenUI preview Profile configuration', () => {
+  it.each([false, undefined])(
+    'reports local truncation when owner truncation is %s',
+    (truncated) => {
+      const result = collectPreviewDiagnostics({
+        entries: Array.from({ length: 200 }, () => ({
+          source: 'genui-preview',
+          code: 'ready',
+          fields: { durationMs: 1 },
+        })),
+        completeness: { primary: 'available', truncated },
+      });
+      expect(result.events).toHaveLength(128);
+      expect(result.completeness.truncated).toBe(true);
+    },
+  );
+  it.each([false, true, undefined])(
+    'preserves owner completeness without local truncation: %s',
+    (truncated) => {
+      expect(
+        collectPreviewDiagnostics({ completeness: { truncated } }).completeness.truncated,
+      ).toBe(truncated ?? null);
+    },
+  );
   it('allows user namespaces for exactly the controlled executable', () => {
     const profile = previewBrowserAppArmorProfile('/home/runner/cache/chrome');
     expect(profile).toContain('"/home/runner/cache/chrome"');
@@ -35,7 +58,7 @@ describe('explicit GenUI preview Profile configuration', () => {
     expect(() => previewBrowserAppArmorProfile(binary)).toThrow('literal absolute');
   });
   it('keeps the newest bounded owner events in the API returned order', () => {
-    const events = previewDiagnosticEvents({
+    const { events } = collectPreviewDiagnostics({
       entries: Array.from({ length: 200 }, (_, index) => ({
         source: 'genui-preview',
         code: 'ready-detail',
@@ -100,7 +123,7 @@ describe('explicit GenUI preview Profile configuration', () => {
     ).toBe(process.execPath);
   });
   it('retains only bounded redacted preview owner events, never the full Host log', () => {
-    const rows = previewDiagnosticEvents({
+    const { events: rows } = collectPreviewDiagnostics({
       entries: [
         {
           source: 'host',

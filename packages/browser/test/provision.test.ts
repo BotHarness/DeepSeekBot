@@ -27,6 +27,14 @@ import {
   BrowserProvisionError,
 } from '../src/runtime/provision.js';
 
+it('redacts every cookie in a header while preserving adjacent diagnostic lines', () => {
+  const result = redactBrowserStartupText('before\nCookie: session=alpha; refresh=beta\nafter');
+  expect(result).not.toContain('alpha');
+  expect(result).not.toContain('beta');
+  expect(result).toContain('before\n');
+  expect(result).toContain('\nafter');
+});
+
 it('bounds startup stderr and redacts URLs, credentials and terminal control characters', () => {
   const detail = redactBrowserStartupText(
     'old'.repeat(3000) +

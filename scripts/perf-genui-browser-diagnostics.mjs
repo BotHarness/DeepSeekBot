@@ -63,25 +63,36 @@ export function probeBrowserVersion(browser, run = execFileSync) {
   }
 }
 
-export function previewDiagnosticEvents(report) {
+export function collectPreviewDiagnostics(report) {
   const redactor = createDiagnosticRedactor({ homes: [] });
   const entries = Array.isArray(report?.entries) ? report.entries : [];
-  return entries
-    .flatMap((entry) => {
-      if (
-        entry?.source !== 'genui-preview' ||
-        !/^(?:starting|ready|completed|refused|stopped)(?:-detail)?$/u.test(entry.code) ||
-        !Number.isFinite(entry.fields?.durationMs)
-      )
-        return [];
-      const fields = Object.fromEntries(
-        ['durationMs', 'reason', 'detailChunks', 'detailTruncated', 'index', 'text']
-          .filter((key) => ['string', 'number', 'boolean'].includes(typeof entry.fields[key]))
-          .map((key) => [key, entry.fields[key]]),
-      );
-      return [redactor.value({ phase: entry.code, ...fields })];
-    })
-    .slice(0, 128);
+  const matching = entries.flatMap((entry) => {
+    if (
+      entry?.source !== 'genui-preview' ||
+      !/^(?:starting|ready|completed|refused|stopped)(?:-detail)?$/u.test(entry.code) ||
+      !Number.isFinite(entry.fields?.durationMs)
+    )
+      return [];
+    const fields = Object.fromEntries(
+      ['durationMs', 'reason', 'detailChunks', 'detailTruncated', 'index', 'text']
+        .filter((key) => ['string', 'number', 'boolean'].includes(typeof entry.fields[key]))
+        .map((key) => [key, entry.fields[key]]),
+    );
+    return [redactor.value({ phase: entry.code, ...fields })];
+  });
+  return {
+    events: matching.slice(0, 128),
+    completeness: {
+      primary: report?.completeness?.primary === 'available' ? 'available' : 'unavailable',
+      truncated:
+        matching.length > 128
+          ? true
+          : typeof report?.completeness?.truncated === 'boolean'
+            ? report.completeness.truncated
+            : null,
+    },
+    rawLogPublished: false,
+  };
 }
 
 async function main() {
@@ -116,26 +127,9 @@ async function main() {
     });
     if (!response.ok) throw new Error('Preview owner diagnostic query failed');
     const report = await response.json();
-    const events = previewDiagnosticEvents(report);
-    writeFileSync(
-      out,
-      JSON.stringify(
-        {
-          events,
-          completeness: {
-            primary: report.completeness?.primary === 'available' ? 'available' : 'unavailable',
-            truncated:
-              typeof report.completeness?.truncated === 'boolean'
-                ? report.completeness.truncated
-                : null,
-          },
-          rawLogPublished: false,
-        },
-        null,
-        2,
-      ) + '\n',
-    );
-    if (!events.length || report.completeness?.primary !== 'available')
+    const collected = collectPreviewDiagnostics(report);
+    writeFileSync(out, JSON.stringify(collected, null, 2) + '\n');
+    if (!collected.events.length || collected.completeness.primary !== 'available')
       throw new Error(
         'Preview owner diagnostics are missing or unavailable; retain incomplete evidence',
       );
