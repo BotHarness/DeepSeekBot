@@ -2,6 +2,15 @@ import { readFile } from 'node:fs/promises';
 import { CliLiveError } from './cli-live-error.js';
 
 export const CONNECTION_COMMANDS = [
+  {
+    command: 'connection-hosts',
+    description: 'list paired Hosts and observed routes on --client-id',
+  },
+  {
+    command: 'connection-host',
+    description:
+      '<host-id> inspect/remove/revoke-device/stop-route/test-route on --client-id; mutations require --confirm',
+  },
   { command: 'connection-clients', description: 'list online Clients for Remote Host connection' },
   {
     command: 'connection',
@@ -25,6 +34,53 @@ export async function runConnectionCommand(
     http(path: string, body?: Record<string, unknown>): Promise<{ bytes: Uint8Array }>;
   }>,
 ) {
+  if (command === 'connection-hosts' || command === 'connection-host') {
+    const listHosts = command === 'connection-hosts';
+    const [hostId, operation, argument] = rest;
+    const actions: Record<string, string> = {
+      inspect: 'inspect-host',
+      remove: 'forget-host',
+      'revoke-device': 'revoke-device',
+      'stop-route': 'stop-route',
+      'test-route': 'test-route',
+    };
+    const action = listHosts
+      ? 'hosts'
+      : Object.hasOwn(actions, operation ?? '')
+        ? actions[operation!]
+        : undefined;
+    const mutating = ['forget-host', 'revoke-device', 'stop-route'].includes(action ?? '');
+    const extra = ['revoke-device', 'stop-route', 'test-route'].includes(action ?? '');
+    if (
+      !values['client-id'] ||
+      values['connection-id'] ||
+      values['link-file'] ||
+      values.fingerprint ||
+      !action ||
+      (listHosts ? rest.length !== 0 : !hostId || rest.length !== (extra ? 3 : 2)) ||
+      (mutating ? values.confirm !== true : values.confirm === true)
+    )
+      throw new CliLiveError(
+        'usage',
+        'Select --client-id and a Host operation; mutations require --confirm.',
+      );
+    if (action === 'stop-route' && !['lan', 'private-tunnel'].includes(argument ?? ''))
+      throw new CliLiveError('usage', 'Stop route requires lan or private-tunnel.');
+    const host = await connect();
+    const result = await host.http('/api/botharness/appearance-control', {
+      action: 'request',
+      clientId: values['client-id'],
+      connection: {
+        action,
+        ...(listHosts ? {} : { hostId }),
+        ...(mutating ? { confirm: true } : {}),
+        ...(action === 'revoke-device' ? { deviceId: argument } : {}),
+        ...(action === 'stop-route' ? { kind: argument } : {}),
+        ...(action === 'test-route' ? { route: argument } : {}),
+      },
+    });
+    return JSON.parse(new TextDecoder().decode(result.bytes)) as unknown;
+  }
   const list = command === 'connection-clients';
   const action = rest[0];
   if (

@@ -271,6 +271,7 @@ describe('linked account computers', () => {
             createdAt: '2026-01-01T00:00:00Z',
             connected: true,
             sessionKnown: true,
+            botNetwork: { hostId: 'paired-host', publicKey: '11'.repeat(32) },
             account: 'private',
             session_id: 'private',
             relayKey: 'private',
@@ -301,6 +302,7 @@ describe('linked account computers', () => {
             connected: true,
             current: true,
             sessionKnown: true,
+            botNetwork: { hostId: 'paired-host', publicKey: '11'.repeat(32) },
           },
           {
             id: 'hother',

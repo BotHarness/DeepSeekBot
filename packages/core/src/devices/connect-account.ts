@@ -74,6 +74,7 @@ export type AccountResult =
   | { ok: false; code: AccountFailureCode };
 
 export interface ConnectedHost {
+  botNetwork?: { hostId: string; publicKey: string };
   id: string;
   name: string;
   hostname: string;
@@ -136,6 +137,9 @@ const connectedHostsSchema = z.object({
       createdAt: z.string(),
       connected: z.boolean().optional(),
       sessionKnown: z.boolean().default(false),
+      botNetwork: z
+        .object({ hostId: z.string().min(1), publicKey: z.string().regex(/^[a-f0-9]{64}$/u) })
+        .optional(),
     }),
   ),
 });
@@ -939,6 +943,7 @@ export function createConnectAccount(options: {
               ...(host.connected === undefined ? {} : { connected: host.connected }),
               current: current?.hostId === host.id,
               sessionKnown: host.sessionKnown,
+              ...(host.botNetwork === undefined ? {} : { botNetwork: host.botNetwork }),
             })),
           };
         } catch (error) {
