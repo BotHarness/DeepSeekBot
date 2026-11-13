@@ -11,6 +11,7 @@ import {
   validUsername,
 } from '../src/client/team-bridge.js';
 import { en, zh } from '../src/client/locale.js';
+import { MEMBER_SETTINGS_SECTIONS } from '../src/client/member-settings.js';
 import { renderTeamSignInPage } from '../src/shared/team-sign-in-page.js';
 
 const viewer = {
@@ -148,19 +149,17 @@ describe('Team sign-in page', () => {
 });
 
 describe('member view of Bot settings', () => {
-  it('keeps Host configuration sections with the Owner', async () => {
-    const { MEMBER_SETTINGS_SECTIONS, BOT_SETTINGS_SECTIONS } =
-      await import('../src/client/bot-settings.js');
+  it('keeps Host configuration sections with the Owner', () => {
     for (const id of ['account', 'general', 'appearance', 'notifications', 'shortcuts', 'team'])
       expect(MEMBER_SETTINGS_SECTIONS.has(id)).toBe(true);
     for (const id of [
-      BOT_SETTINGS_SECTIONS.models,
-      BOT_SETTINGS_SECTIONS.imApps,
-      BOT_SETTINGS_SECTIONS.devices,
-      BOT_SETTINGS_SECTIONS.dataPrivacy,
-      BOT_SETTINGS_SECTIONS.advanced,
-      BOT_SETTINGS_SECTIONS.plugins,
-      BOT_SETTINGS_SECTIONS.autoApproval,
+      'models',
+      'im-apps',
+      'devices',
+      'data-privacy',
+      'advanced',
+      'plugins',
+      'auto-approval',
     ])
       expect(MEMBER_SETTINGS_SECTIONS.has(id)).toBe(false);
   });

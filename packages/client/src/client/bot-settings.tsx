@@ -5,6 +5,7 @@ import { useState, useSyncExternalStore, type ReactElement, type ReactNode } fro
 import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots';
 
 import type {} from './bot-settings-slot.js';
+import { MEMBER_SETTINGS_SECTIONS } from './member-settings.js';
 import { useTeamMember } from './team-state.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { SettingsDialog } from './ds/settings-dialog.js';
@@ -32,16 +33,6 @@ export const BOT_SETTINGS_SECTIONS = {
 } as const;
 
 export const BOT_SETTINGS_DEFAULT_SECTION = BOT_SETTINGS_SECTIONS.general;
-
-/** Sections a Host Member sees; the rest configure the Host and stay with the Owner. */
-export const MEMBER_SETTINGS_SECTIONS: ReadonlySet<string> = new Set([
-  BOT_SETTINGS_SECTIONS.account,
-  BOT_SETTINGS_SECTIONS.general,
-  BOT_SETTINGS_SECTIONS.appearance,
-  BOT_SETTINGS_SECTIONS.notifications,
-  BOT_SETTINGS_SECTIONS.shortcuts,
-  BOT_SETTINGS_SECTIONS.team,
-]);
 
 const SECTION_ICONS: Readonly<Record<string, string>> = {
   [BOT_SETTINGS_SECTIONS.account]: 'user',
