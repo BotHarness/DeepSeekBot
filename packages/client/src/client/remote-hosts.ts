@@ -4,6 +4,7 @@ import {
   commitRelationshipEnrollment,
   cancelRelationshipEnrollment,
   relationshipClientPublicKey,
+  updateRelationshipClientRoute,
 } from '../../../core/src/devices/relationship-enrollment.js';
 import { pendingRelationshipEnrollmentSchema as pendingEnrollmentSchema } from '../../../core/src/devices/relationship-contract.js';
 import { automaticEnrollmentChoiceSchema } from '../../../core/src/devices/relationship-contract.js';
@@ -27,6 +28,7 @@ import {
   parseSavedHost,
   serializeSavedHost,
   type SavedHost,
+  type PrivateAdmission,
 } from '../../../../apps/mobile/src/host/hosts.js';
 import {
   createInbox,
@@ -101,7 +103,10 @@ export interface RemotePairTrust {
 
 export interface RemoteHosts {
   retireRelationship(relationshipId: string): Promise<void>;
-  learnRelationshipRoutes(peer: ClientRelationship['peer']): Promise<void>;
+  learnRelationshipRoutes(
+    peer: ClientRelationship['peer'],
+    privateRelay?: PrivateAdmission,
+  ): Promise<void>;
   enrollRelationship(
     relationship: Pick<ClientRelationship, 'id' | 'peer'>,
     name: string,
@@ -564,13 +569,29 @@ export function createRemoteHosts(options: {
       }
     },
     notifications,
-    async learnRelationshipRoutes(peer) {
+    async learnRelationshipRoutes(peer, privateRelay) {
       const entry = clients.get(peer.id);
       if (!entry || peer.routes.length === 0) return;
       if (entry.host.encryption?.hostKey !== peer.publicKey) throw new Error('host-key-mismatch');
-      const routes = [...new Set(peer.routes)].slice(0, 8);
-      await saveHostChange(peer.id, entry.client, (current) => ({ ...current, routes }));
-      entry.client.updateRoutes?.(routes);
+      await saveHostChange(peer.id, entry.client, (current) => {
+        const updated = updateRelationshipClientRoute({
+          host: current,
+          peer,
+          ...(privateRelay ? { privateRelay } : {}),
+        });
+        if (!updated.ok) throw new Error(updated.code);
+        const pending = pendingEnrollmentSchema.safeParse(current).data?.relationshipEnrollment;
+        return pending ? { ...updated.host, relationshipEnrollment: pending } : updated.host;
+      }).catch((error) => {
+        if (
+          !privateRelay &&
+          error instanceof Error &&
+          error.message === 'relationship-route-admission-required'
+        )
+          return;
+        throw error;
+      });
+      entry.client.updateRoutes?.(entry.host.routes, entry.host.encryption);
       entry.client.retryNow('manual_retry', { preserveConnected: true });
     },
     async enrollRelationship(relationship, name, signal, background) {
@@ -805,7 +826,8 @@ export function createRemoteHosts(options: {
     async forgetLocal(hostId) {
       const entry = clients.get(hostId);
       if (entry === undefined) return;
-      if (!(await hostSettingsDrafts.prepare(hostId))) return;
+      if (hostSettingsDrafts.hasDirty(hostId) && !(await hostSettingsDrafts.prepare(hostId)))
+        return;
       if (clients.get(hostId) !== entry) return;
       if (!storage) throw new Error('storage-unavailable');
       const releasing = releaseRemoteHostViewers(entry.client);
@@ -815,7 +837,8 @@ export function createRemoteHosts(options: {
     async remove(hostId) {
       const entry = clients.get(hostId);
       if (entry === undefined) return;
-      if (!(await hostSettingsDrafts.prepare(hostId))) return;
+      if (hostSettingsDrafts.hasDirty(hostId) && !(await hostSettingsDrafts.prepare(hostId)))
+        return;
       if (clients.get(hostId) !== entry) return;
       const releasing = releaseRemoteHostViewers(entry.client);
       await forget(hostId, true);

@@ -360,6 +360,20 @@ export function mountDevicePairing(
       account: () => account,
       pairing,
       identity,
+      credentials: options.credentials ?? (() => undefined),
+      privateAdmission: () => {
+        const admissions = privateTunnel.admissions();
+        const first = admissions[0];
+        return first
+          ? {
+              origin: first.origin,
+              token: first.token,
+              ...(admissions.length > 1
+                ? { additionalOrigins: admissions.slice(1).map((route) => route.origin) }
+                : {}),
+            }
+          : privateConnection.admission();
+      },
       record: (event) => write('host-relationships', event.phase, JSON.stringify(event)),
       routes: async () =>
         (await routes()).routes
@@ -368,8 +382,17 @@ export function mountDevicePairing(
     });
     webCtx.effect(() => {
       relationshipControl.start();
+      void relationshipControl
+        .cleanupAcknowledgedAdmissions()
+        .catch(() =>
+          write(
+            'host-relationships',
+            'route-admission-cleanup-failed',
+            'relationship-route-secret-unavailable',
+          ),
+        );
       return () => relationshipControl.close();
-    }, 'botharness: Host relationship control');
+    }, 'botharness: Host relationship control and acknowledged route cleanup');
     const lanKey = credentialKey('botharness-core', 'device-lan');
     let lanDiscovery: ReturnType<typeof createLanBotDiscovery> | undefined;
     let lanBridge: ReturnType<typeof createLanBotBridge> | undefined;

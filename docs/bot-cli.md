@@ -11,19 +11,23 @@ Bot summaries from `list` also include `lastActivityAt` (epoch milliseconds) whe
 
 ### Reciprocal computer relationships
 
+With `route --device-file`, the authenticated Host verifies the new link before the CLI atomically replaces that private Client file. A manual route preference omitted by the new routes returns `relationship-route-preference-unavailable` and leaves the file intact. The command never prints the device credential, key or route admission.
+
+Private relay/tunnel admissions stay in the Host's protected credential owner; `list`, initiation results and CLI enrollment output never print those tokens. Pinned control exchange and the enrolling Client's authenticated ticket carry them to the existing Noise path. Pending peer revocation retains its route reference; acknowledged disconnection removes only that relationship reference. Secret storage failure is coded `relationship-route-secret-unavailable`. Tailscale HTTPS enrollment also uses pinned Noise; its subsequent Feed follows the existing Host client route policy.
+
 `relationships` uses the authenticated local Host and the same approval owner as Connections. Each CLI enrollment creates its own device grant; no remote credential is shared through the local Host.
 
 Direction observations expire after 30 seconds and reset to unverified on Host restart; authorization and saved routes remain durable. `list` never opens network connections. `sync` checks the outgoing path and asks the authenticated peer to probe its own outgoing path separately. A missing return path preserves the approved relationship. Prepare a LAN, Tailscale or tunnel address in Connections, then run `sync` from the reachable side. To recover a lost peer address, use `route` with a fresh peer link; identity mismatch preserves the pin. Neither command issues a device grant or launches route subprocesses. Closing Connections leaves prepared routes under their existing owner.
 
-| Command                                                                                  | Purpose                                                                                                                   |
-| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `relationships list`                                                                     | Read persisted peers, approval state and pending peer revocation.                                                         |
-| `relationships initiate <peer-public-key> --link-file <absolute-private-file> --confirm` | Compare the target fingerprint, then request reciprocal access using its existing pairing link.                           |
-| `relationships approve <id> <peer-public-key> --confirm`                                 | On the receiving Host, compare the initiating Host fingerprint and approve both directions.                               |
-| `relationships sync <id>`                                                                | Complete approval and freshly check each direction, sharing existing prepared routes over pinned Noise.                   |
-| `relationships route <id> --link-file <absolute-private-file>`                           | Verify a peer's new connection link against its pinned Host and save its routes without repeating enrollment.             |
-| `relationships enroll <id> --device-name <name> --out <new-absolute-private-file>`       | Enroll this named CLI Client and save its independent credential privately. Stdout contains only Host/device identifiers. |
-| `relationships disconnect <id> --confirm`                                                | Retire derived access, keeping independent phone grants and remote data. A missing peer acknowledgement remains pending.  |
+| Command                                                                                                         | Purpose                                                                                                                         |
+| --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `relationships list`                                                                                            | Read persisted peers, approval state and pending peer revocation.                                                               |
+| `relationships initiate <peer-public-key> --link-file <absolute-private-file> --confirm`                        | Compare the target fingerprint, then request reciprocal access using its existing pairing link.                                 |
+| `relationships approve <id> <peer-public-key> --confirm`                                                        | On the receiving Host, compare the initiating Host fingerprint and approve both directions.                                     |
+| `relationships sync <id>`                                                                                       | Complete approval and freshly check each direction, sharing existing prepared routes over pinned Noise.                         |
+| `relationships route <id> --link-file <absolute-private-file> [--device-file <existing-absolute-private-file>]` | Verify the pinned Host's new route; optionally update an existing CLI Client while retaining its device ID, key and credential. |
+| `relationships enroll <id> --device-name <name> --out <new-absolute-private-file>`                              | Enroll this named CLI Client and save its independent credential privately. Stdout contains only Host/device identifiers.       |
+| `relationships disconnect <id> --confirm`                                                                       | Retire derived access, keeping independent phone grants and remote data. A missing peer acknowledgement remains pending.        |
 
 Same-account discovery uses the same Host owner as Environments:
 

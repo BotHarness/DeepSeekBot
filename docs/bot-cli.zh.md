@@ -11,19 +11,23 @@
 
 ### 电脑双向关系
 
+使用 `route --device-file` 时，已认证的 Host 先验证新链接，CLI 再原子替换该 Client 的私密文件。新线路不含手动选定的线路时，返回 `relationship-route-preference-unavailable`，保留原文件。命令不输出设备凭据、密钥或线路准入信息。
+
+私有 relay/隧道 admission 保存在 Host 既有受保护凭据 owner 中，`list`、发起结果及 CLI 登记输出不打印 token。固定身份的加密控制交换与当前 Client 的已认证 ticket 将其交给既有 Noise 配对路径。等待对端确认撤销时保留线路引用；确认后仅删除该关系引用。私密存储失败返回 `relationship-route-secret-unavailable`。Tailscale HTTPS 登记同样走固定 Noise，后续 Feed 沿用既有 Host client 线路策略。
+
 `relationships` 通过已认证的本机 Host，使用与连接界面相同的审批所有者。每次 CLI 登记创建独立设备授权，本机 Host 不共享远端设备凭据。
 
 方向观测在 30 秒后过期，Host 重启后恢复为尚未验证；授权及已保存线路仍然保留。`list` 不建立网络连接。`sync` 独立验证本机出站方向，并请求已认证的对端验证其出站方向。缺少返回线路时保留已批准关系。在现有连接设置中准备 LAN、Tailscale 或隧道地址，再从可达一方执行 `sync`。恢复失效的对端地址时，用 `route` 提交对端的新链接；身份不符时保留原有固定身份。这些命令不签发新设备授权，也不启动线路进程；关闭连接设置不停止已准备线路。
 
-| 命令                                                                            | 用途                                                                     |
-| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `relationships list`                                                            | 读取持久化的对端、审批状态和待确认撤销。                                 |
-| `relationships initiate <对端公钥> --link-file <私密文件绝对路径> --confirm`    | 核对目标指纹后，用其现有配对链接请求双向访问。                           |
-| `relationships approve <关系ID> <对端公钥> --confirm`                           | 在接收方核对发起 Host 的指纹，批准双向访问。                             |
-| `relationships sync <关系ID>`                                                   | 完成审批并独立检查两个方向，通过固定身份的加密通道交换已准备线路。       |
-| `relationships route <关系ID> --link-file <私密文件绝对路径>`                   | 核对固定身份并验证对端新链接，保存线路，无需重新批准或登记。             |
-| `relationships enroll <关系ID> --device-name <名称> --out <新私密文件绝对路径>` | 为具名 CLI Client 登记并私密保存独立凭据；标准输出仅含 Host 和设备标识。 |
-| `relationships disconnect <关系ID> --confirm`                                   | 撤销派生访问，保留独立手机授权及远端数据；对方未确认时保留待撤销状态。   |
+| 命令                                                                                                 | 用途                                                                     |
+| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `relationships list`                                                                                 | 读取持久化的对端、审批状态和待确认撤销。                                 |
+| `relationships initiate <对端公钥> --link-file <私密文件绝对路径> --confirm`                         | 核对目标指纹后，用其现有配对链接请求双向访问。                           |
+| `relationships approve <关系ID> <对端公钥> --confirm`                                                | 在接收方核对发起 Host 的指纹，批准双向访问。                             |
+| `relationships sync <关系ID>`                                                                        | 完成审批并独立检查两个方向，通过固定身份的加密通道交换已准备线路。       |
+| `relationships route <关系ID> --link-file <私密文件绝对路径> [--device-file <现有私密文件绝对路径>]` | 核对固定 Host 的新线路；可更新既有 CLI Client，保留设备 ID、密钥和凭据。 |
+| `relationships enroll <关系ID> --device-name <名称> --out <新私密文件绝对路径>`                      | 为具名 CLI Client 登记并私密保存独立凭据；标准输出仅含 Host 和设备标识。 |
+| `relationships disconnect <关系ID> --confirm`                                                        | 撤销派生访问，保留独立手机授权及远端数据；对方未确认时保留待撤销状态。   |
 
 同账号发现复用环境面板的 Host owner：
 

@@ -1,4 +1,5 @@
-import { existsSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, renameSync, unlinkSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { isAbsolute } from 'node:path';
 import { CliLiveError } from './cli-live-error.js';
 import { nodeDeviceCarrier } from '../devices/node-carrier.js';
@@ -6,11 +7,13 @@ import {
   enrollRelationshipClient,
   commitRelationshipEnrollment,
   cancelRelationshipEnrollment,
+  updateRelationshipClientRoute,
 } from '../devices/relationship-enrollment.js';
-import { serializeSavedHost } from '../../../../apps/mobile/src/host/hosts.js';
-import { revokePairing } from '../../../../apps/mobile/src/host/pairing.js';
+import { serializeSavedHost, parseSavedHost } from '../../../../apps/mobile/src/host/hosts.js';
+import { revokePairing, parsePairingLink } from '../../../../apps/mobile/src/host/pairing.js';
 import {
   relationshipListSchema,
+  relationshipReplySchema,
   accountRelationshipStatusSchema,
 } from '../devices/relationship-contract.js';
 
@@ -29,14 +32,17 @@ export async function runRelationshipCommand(
     'link-file'?: string;
     out?: string;
     'device-name'?: string;
+    'device-file'?: string;
   },
   connect: () => Promise<{
     http(path: string, body?: Record<string, unknown>): Promise<{ bytes: Uint8Array }>;
   }>,
   signal?: AbortSignal,
+  expiresAt = Infinity,
 ) {
+  const expired = () => signal?.aborted === true || Date.now() >= expiresAt;
   const deadline = () => {
-    if (signal?.aborted)
+    if (expired())
       throw new CliLiveError(
         'timeout',
         'Relationship command deadline expired; inspect its state before retrying.',
@@ -101,6 +107,8 @@ export async function runRelationshipCommand(
     throw new CliLiveError('usage', 'Only enroll accepts --device-name (1–60 characters).');
   if (values.out && (!isAbsolute(values.out) || existsSync(values.out)))
     throw new CliLiveError('output-invalid', 'Choose a new absolute private --out file.');
+  if (values['device-file'] && (action !== 'route' || !isAbsolute(values['device-file'])))
+    throw new CliLiveError('usage', 'Only route accepts an existing absolute --device-file.');
   let link: string | undefined;
   if (values['link-file']) {
     try {
@@ -147,7 +155,7 @@ export async function runRelationshipCommand(
       ...(account ? { accountGeneration: account.generation } : {}),
     });
     if (!result.ok) throw new CliLiveError(result.code, 'Relationship device enrollment refused.');
-    if (signal?.aborted) {
+    if (expired()) {
       await cancelRelationshipEnrollment({
         relationshipId: id!,
         publicKey: result.enrollmentPublicKey,
@@ -207,7 +215,50 @@ export async function runRelationshipCommand(
     };
   }
   if (action === 'initiate') return request({ action, link, confirmedKey: id, confirm: true });
-  if (action === 'route') return request({ action, id, link });
+  if (action === 'route') {
+    const result = await request({ action, id, link });
+    const deviceFile = values['device-file'];
+    if (!deviceFile) return result;
+    let saved: ReturnType<typeof parseSavedHost>;
+    try {
+      saved = parseSavedHost(JSON.parse(readFileSync(deviceFile, 'utf8')));
+    } catch {
+      throw new CliLiveError('input-unavailable', 'Cannot read the private device file.');
+    }
+    if (!saved) throw new CliLiveError('input-unavailable', 'The private device file is invalid.');
+    const parsed = parsePairingLink(link!);
+    if (!parsed.ok)
+      throw new CliLiveError('relationship-link-invalid', 'The new connection link is invalid.');
+    const { relationship } = relationshipReplySchema.parse(result);
+    const privateRelay = parsed.payload.encryption?.privateRelay;
+    const updated = updateRelationshipClientRoute({
+      host: saved,
+      peer: relationship.peer,
+      ...(privateRelay ? { privateRelay } : {}),
+    });
+    if (!updated.ok)
+      throw new CliLiveError(updated.code, 'The existing Client route was not changed.');
+    const temporary = `${deviceFile}.route-${randomUUID()}.tmp`;
+    try {
+      writeFileSync(temporary, `${JSON.stringify(serializeSavedHost(updated.host))}\n`, {
+        flag: 'wx',
+        mode: 0o600,
+      });
+      renameSync(temporary, deviceFile);
+    } catch {
+      try {
+        unlinkSync(temporary);
+      } catch {}
+      throw new CliLiveError(
+        'output-unavailable',
+        'The private device file was not replaced. Read back the relationship before retrying.',
+      );
+    }
+    return {
+      ...result,
+      client: { hostId: updated.host.hostId, deviceId: updated.host.deviceId, updated: true },
+    };
+  }
   return request({
     action,
     id,

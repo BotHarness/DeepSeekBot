@@ -10,6 +10,9 @@ export function createHostSettingsDrafts() {
   const prompts = new Map<string, { token: symbol; choose(): Promise<HostDraftChoice> }>();
   const pending = new Map<string, Promise<boolean>>();
   return {
+    hasDirty(hostId: string) {
+      return [...(drafts.get(hostId)?.values() ?? [])].some((draft) => draft.dirty());
+    },
     register(hostId: string, draft: HostSettingsDraft) {
       const token = Symbol();
       const entries = drafts.get(hostId) ?? new Map<symbol, HostSettingsDraft>();
