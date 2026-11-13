@@ -1,3 +1,5 @@
+import { botOwner } from '../team/bot-access.js';
+import { humanContext } from '../humans/context.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import { BotNetworkDeliveryError } from './bot-network.js';
 import { BotHopLimitReached } from '../channels/hop-limit.js';
@@ -2332,7 +2334,9 @@ class BotRuntimeImplementation implements BotRuntime {
       return { admitted: false, reason: 'not-dm' };
     }
     const bot = this.#registry.get(channel.botSlug);
-    if (bot === undefined) return { admitted: false, reason: 'unknown-bot' };
+    if (bot === undefined || botOwner(bot) !== human.humanId)
+      return { admitted: false, reason: 'unknown-bot' };
+    if (!this.#memberBotEnabled(bot)) return { admitted: false, reason: 'archived-bot' };
     if (bot.paused === true) return { admitted: false, reason: 'archived-bot' };
 
     const persistedBody = this.#channels.message(channel.id, input.messageId)?.body;
@@ -4333,9 +4337,15 @@ class BotRuntimeImplementation implements BotRuntime {
       this.#database.read((db) => {
         for (const id of accepted) {
           const event = db
-            .prepare('SELECT source_kind, channel_id FROM source_events WHERE source_event_id = ?')
+            .prepare(
+              'SELECT source_kind, channel_id, human_id FROM source_events WHERE source_event_id = ?',
+            )
             .get(id);
-          if (event?.source_kind !== 'human-message' || event.channel_id !== dm)
+          if (
+            event?.source_kind !== 'human-message' ||
+            event.channel_id !== dm ||
+            (event.human_id ?? 'local-human') !== botOwner(this.#registry.get(owner.botSlug)!)
+          )
             throw new TobError('human-dm-required');
           requireSourceEffects(db, id, owner.botSlug);
         }
@@ -6151,6 +6161,7 @@ class BotRuntimeImplementation implements BotRuntime {
     nativeSourceIds: readonly string[] = [],
     memoryObservation: 'source-event' | 'recovered-question' = 'source-event',
   ): Promise<void> {
+    if (!this.#memberBotEnabled(bot)) throw new TobError('permission-required');
     const readAdmissions = new Set<string>();
     this.#requireExecution?.(bot.slug);
     const turnSources = new Set([
@@ -6298,7 +6309,9 @@ class BotRuntimeImplementation implements BotRuntime {
           const human =
             channelId === undefined
               ? undefined
-              : this.#channels.listHumanMembers(OWNER_HUMAN_CONTEXT, channelId)[0];
+              : this.#channels
+                  .listHumanMembers(humanContext(botOwner(bot)), channelId)
+                  .find((member) => member.humanId === botOwner(bot));
           const stopped = this.#stopNotices.get(bot.slug) ?? '';
           this.#stopNotices.delete(bot.slug);
           return (
@@ -7324,6 +7337,7 @@ class BotRuntimeImplementation implements BotRuntime {
     observeReads = true,
     modelContent?: string,
   ): OrchestratorChannelAccess {
+    const actorHuman = humanContext(botOwner(this.#registry.get(botSlug)!));
     const reviewOwner = sessionId.startsWith('direct-')
       ? `direct:${botSlug}`
       : `${botSlug}:${sessionId}`;
@@ -7407,7 +7421,7 @@ class BotRuntimeImplementation implements BotRuntime {
     const humanNames = (channel: ChannelRecord): Record<string, string> =>
       Object.fromEntries(
         this.#channels
-          .listHumanMembers(OWNER_HUMAN_CONTEXT, channel.id)
+          .listHumanMembers(actorHuman, channel.id)
           .map((member) => [member.humanId, member.displayName]),
       );
     const viewOf = (
@@ -7720,7 +7734,7 @@ class BotRuntimeImplementation implements BotRuntime {
               active: member !== undefined && member.paused !== true,
             };
           }),
-          humanMembers: this.#channels.listHumanMembers(OWNER_HUMAN_CONTEXT, channel.id),
+          humanMembers: this.#channels.listHumanMembers(actorHuman, channel.id),
           ...(channel.ownerBotSlug === undefined ? {} : { ownerBotId: channel.ownerBotSlug }),
           ...(channel.type === 'group' && channel.ownerBotSlug === botSlug
             ? {
@@ -7747,7 +7761,8 @@ class BotRuntimeImplementation implements BotRuntime {
         };
       },
       contacts: async (input) => {
-        await this.refreshBotContacts();
+        const actor = this.#registry.get(botSlug);
+        if (actor && botOwner(actor) === 'local-human') await this.refreshBotContacts();
         return discoverBotContacts(this.#registry, botSlug, input, this.#botNetwork?.contacts());
       },
       createGroup: (name) => {
@@ -7757,7 +7772,7 @@ class BotRuntimeImplementation implements BotRuntime {
           throw new Error('Bot Group creator is no longer active');
         const clean = requireNonBlank(name, 'Group name').slice(0, 120);
         beforeSend();
-        return this.#channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        return this.#channels.createGroup(humanContext(botOwner(sender)), {
           name: clean,
           members: [botSlug],
           ownerBotSlug: botSlug,
@@ -7767,11 +7782,16 @@ class BotRuntimeImplementation implements BotRuntime {
         requireOrdinaryGroupActor();
         const channel = this.#channels.get(input.channelId);
         const target = this.#registry.get(input.targetBotSlug);
+        if (
+          (!target && botOwner(this.#registry.get(botSlug)!) !== 'local-human') ||
+          (target && botOwner(target) !== botOwner(this.#registry.get(botSlug)!))
+        )
+          throw new TobError('bot-not-found');
         if (this.#tob?.isTob(input.targetBotSlug)) throw new TobError('protected-bot');
         if (
           channel?.type !== 'group' ||
           channel.ownerBotSlug !== botSlug ||
-          !channel.members.includes(botSlug)
+          !this.#isMember(botSlug, channel)
         )
           throw new Error('Only the Bot Group owner may invite');
         if (target === undefined || target.paused === true || target.slug === botSlug)
@@ -7827,6 +7847,13 @@ class BotRuntimeImplementation implements BotRuntime {
           !selected?.some((ref) => ref.channelId === input.channelId)
         )
           throw new Error('group_join_request requires a selected #Group in this Human DM turn');
+        if (
+          botOwner(requester) !== 'local-human' &&
+          !this.#channels
+            .listHumanMembers(actorHuman, target.id)
+            .some((member) => member.humanId === actorHuman.humanId)
+        )
+          throw new TobError('channel-not-found');
         const owner =
           target.ownerBotSlug === undefined ? undefined : this.#registry.get(target.ownerBotSlug);
         const botCausation = this.#botCausation(sourceEventId);
@@ -7852,6 +7879,8 @@ class BotRuntimeImplementation implements BotRuntime {
         const request = target?.joinRequests?.find((item) => item.id === input.requestId);
         const requester =
           request === undefined ? undefined : this.#registry.get(request.requesterBotSlug);
+        if (requester && botOwner(requester) !== botOwner(this.#registry.get(botSlug)!))
+          throw new TobError('bot-not-found');
         if (request !== undefined && this.#tob?.isTob(request.requesterBotSlug))
           throw new TobError('protected-bot');
         if (
@@ -8017,6 +8046,12 @@ class BotRuntimeImplementation implements BotRuntime {
         }
         const sender = this.#registry.get(botSlug);
         const target = this.#registry.get(input.botSlug);
+        if (
+          sender &&
+          ((!target && botOwner(sender) !== 'local-human') ||
+            (target && botOwner(sender) !== botOwner(target)))
+        )
+          throw new TobError('bot-not-found');
         if (
           sender === undefined ||
           sender.paused === true ||
@@ -8674,6 +8709,17 @@ class BotRuntimeImplementation implements BotRuntime {
     const sender = this.#registry.get(botSlug);
     if (sender === undefined || sender.paused === true)
       throw new Error('Bot Group sender is no longer active');
+    for (const id of channel.members) {
+      const target = this.#registry.get(id);
+      if (
+        target &&
+        botOwner(target) !== botOwner(sender) &&
+        resolveBotMentionText(input.body, [
+          { botSlug: target.slug, displayName: target.displayName, eligible: true },
+        ]).botSlugs.length
+      )
+        throw new TobError('bot-not-found');
+    }
     const explicitIds = input.mentionBotIds ?? [];
     if (explicitIds.length > 20 || explicitIds.some((id) => !isValidSlug(id)))
       throw new Error('Bot Group mentions require at most 20 valid Bot IDs');
@@ -8691,6 +8737,11 @@ class BotRuntimeImplementation implements BotRuntime {
     let prefix = '';
     for (const id of ids) {
       const target = this.#registry.get(id);
+      if (
+        (!target && botOwner(sender) !== 'local-human') ||
+        (target && botOwner(target) !== botOwner(sender))
+      )
+        throw new TobError('bot-not-found');
       if (
         id === botSlug ||
         target === undefined ||
@@ -9163,6 +9214,7 @@ class BotRuntimeImplementation implements BotRuntime {
     if (input.replyTo !== undefined && !this.#channels.hasMessage(channel.id, input.replyTo))
       throw new ChannelReplyTargetError();
     const sender = this.#registry.get(botSlug);
+    if (sender && botOwner(sender) !== botOwner(recipient)) throw new TobError('bot-not-found');
     if (sender === undefined || sender.paused === true)
       throw new Error('Bot DM sender is no longer active');
     if (
@@ -9205,7 +9257,41 @@ class BotRuntimeImplementation implements BotRuntime {
     return { channelId: channel.id, message: result.message };
   }
 
+  #memberBotEnabled(bot: PersonaBotRecord): boolean {
+    if (botOwner(bot) === 'local-human') return true;
+    return (
+      this.#database.read((db) =>
+        db
+          .prepare(`SELECT 1 FROM humans h, team_settings s
+      WHERE h.human_id = ? AND h.status = 'active' AND s.singleton = 1 AND s.enabled = 1`)
+          .get(botOwner(bot)),
+      ) !== undefined
+    );
+  }
+
   #isMember(botSlug: string, channel: ChannelRecord): boolean {
+    const bot = this.#registry.get(botSlug);
+    if (bot && botOwner(bot) !== 'local-human') {
+      if (
+        channel.type === 'dm' &&
+        channel.members.some((id) => {
+          const peer = this.#registry.get(id);
+          return !peer || botOwner(peer) !== botOwner(bot);
+        })
+      )
+        return false;
+      if (
+        channel.type === 'group' &&
+        !this.#database.read((db) =>
+          db
+            .prepare(
+              'SELECT 1 FROM channel_human_members WHERE channel_id = ? AND human_id = ? AND left_at IS NULL',
+            )
+            .get(channel.id, botOwner(bot)),
+        )
+      )
+        return false;
+    }
     return (
       channel.members.includes(botSlug) &&
       (channel.type !== 'dm' || channel.botSlug === undefined || channel.botSlug === botSlug)

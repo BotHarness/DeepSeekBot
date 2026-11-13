@@ -226,7 +226,7 @@ export async function runOnlineManagement(
           command,
           rest,
           Object.fromEntries(
-            Object.entries(values).filter(([key]) => !['host', 'token-file'].includes(key)),
+            Object.entries(values).filter(([key]) => !['host', 'token-file', 'as'].includes(key)),
           ),
           io,
         )
@@ -248,7 +248,7 @@ export async function runOnlineManagement(
     AbortSignal.timeout(Math.ceil(seconds * 1000)),
   );
   if (command === 'bot-import-preview') return rpc('botImportPreview', { gitUrl: previewUrl });
-  if (command === 'list') return rpc('list', {});
+  if (command === 'list') return rpc('list', values.administration ? { administration: true } : {});
   if (command === 'show') return rpc('get', { slug });
   if (update) return rpc('update', update.args);
   if (command === 'channels') return rpc('channels', {});

@@ -213,3 +213,33 @@ describe('Team CLI', () => {
     expect(plain.status).not.toBe(0);
   });
 });
+
+describe('M2 CLI member Bot and Activity dispatch', () => {
+  it.each([
+    { argv: ['bots', 'list'], method: 'list', stdin: '' },
+    { argv: ['bots', 'list', '--administration'], method: 'list', stdin: '' },
+    { argv: ['bots', 'show', 'alice-bot'], method: 'get', stdin: '' },
+    {
+      argv: ['bots', 'create', '--name', 'Member Bot', '--operation-key', 'member-cli-0001'],
+      method: 'create',
+      stdin: '',
+    },
+    {
+      argv: ['bots', 'delete', 'alice-bot', '--confirm', '--confirmation-stdin'],
+      method: 'deletionConfirm',
+      stdin: '{"token":"reviewed-deletion-token"}',
+    },
+    { argv: ['activity', 'list'], method: 'humanAttention', stdin: '' },
+  ])('keeps $method on the member Peer without Owner fallback', async ({ argv, method, stdin }) => {
+    const f = await host();
+    const result = await run(f.url, ['--as', 'bob', ...argv], stdin);
+    expect(result.status).not.toBe(0);
+    expect(result.output).toMatchObject({ error: { code: 'remote-access/denied' } });
+    expect(f.calls).toEqual([
+      expect.objectContaining({
+        path: '/api/botharness/team-as',
+        input: expect.objectContaining({ username: 'bob', namespace: 'botharness', method }),
+      }),
+    ]);
+  });
+});

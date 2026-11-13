@@ -266,17 +266,25 @@ export function createChannelLiveHub(
   activity?: ActivitySource,
   redactions?: () => PurgedPlacement[],
   watchAttention?: (changed: () => void) => () => void,
+  ownsBot?: (human: HumanContext, slug: string) => boolean,
 ): ChannelLiveHub {
-  const visibleChannel = (human: HumanContext, channelId: string): boolean =>
-    human.humanId === OWNER_HUMAN_CONTEXT.humanId ||
-    (channels.get(channelId)?.type === 'group' &&
-      channels
-        .listHumanMembers(human, channelId)
-        .some((member) => member.humanId === human.humanId));
+  const visibleChannel = (human: HumanContext, channelId: string): boolean => {
+    if (!ownsBot && human.humanId === OWNER_HUMAN_CONTEXT.humanId) return true;
+    const channel = channels.get(channelId);
+    if (!channel || channel.deletedAt) return false;
+    if (channel.type === 'dm' && channel.remoteBot !== undefined)
+      return human.humanId === OWNER_HUMAN_CONTEXT.humanId;
+    if (channel.type === 'dm')
+      return ownsBot
+        ? channel.members.every((slug) => ownsBot(human, slug))
+        : human.humanId === OWNER_HUMAN_CONTEXT.humanId;
+    return (
+      human.humanId === OWNER_HUMAN_CONTEXT.humanId ||
+      channels.listHumanMembers(human, channelId).some((member) => member.humanId === human.humanId)
+    );
+  };
   const visiblePlacements = (human: HumanContext, placements: PurgedPlacement[]) =>
-    human.humanId === OWNER_HUMAN_CONTEXT.humanId
-      ? placements
-      : placements.filter((placement) => visibleChannel(human, placement.channelId));
+    placements.filter((placement) => visibleChannel(human, placement.channelId));
   const subscribers = new Map<string, Set<Subscriber>>();
   const drafts = new Map<string, Map<string, PublishedDraft>>();
   const draftRevisions = new Map<string, number>();

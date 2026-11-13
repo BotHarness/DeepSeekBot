@@ -531,6 +531,7 @@ const SECRET_ARGV = new Set([
 ]);
 
 const CREATE_OPTIONS = {
+  administration: { type: 'boolean' },
   name: { type: 'string' },
   persona: { type: 'string' },
   'persona-stdin': { type: 'boolean' },
@@ -2529,6 +2530,7 @@ function runSecretUnset(
 }
 
 const SEARCH_INDEX: ReadonlyArray<{ command: string; description: string }> = [
+  { command: 'bots', description: 'bots list|create|show|delete' },
   ...ZIP_UPLOAD_COMMANDS.map((command) => ({
     command,
     description: 'transfer, inspect or recover a portable Bot Zip on a chosen Host',
@@ -2631,7 +2633,20 @@ export async function runBotCreateCli(
       allowPositionals: true,
       strict: true,
     });
-    const [command, ...rest] = positionals;
+    let [command, ...rest] = positionals;
+    if (command === 'bots') {
+      const [action, ...targets] = rest;
+      const aliases: Record<string, string> = {
+        list: 'list',
+        show: 'show',
+        create: 'create',
+        delete: 'bot-delete-confirm',
+      };
+      if (!action || !aliases[action]) throw usageError('invalid-input');
+      command = aliases[action];
+      rest = targets;
+    } else if (command === 'activity' && rest[0] === 'list') rest = rest.slice(1);
+    if (values.administration && command !== 'list') throw usageError('invalid-input');
     compactOutput = values.compact === true;
     if (command === 'voice-local-kit') {
       out.stdout(
@@ -2659,6 +2674,9 @@ export async function runBotCreateCli(
       (!online ||
         (!teamChannels &&
           command !== 'channel-messages' &&
+          !ONLINE_MANAGEMENT_COMMANDS.some((entry) => entry === command) &&
+          !LIFECYCLE_COMMANDS.some((entry) => entry.command === command) &&
+          !DIAGNOSTIC_COMMANDS.some((entry) => entry.command === command) &&
           !LIVE_COMMANDS.some((entry) => entry.command === command)))
     )
       throw usageError('as-online-required');

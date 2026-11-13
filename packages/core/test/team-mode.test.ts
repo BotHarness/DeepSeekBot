@@ -21,6 +21,7 @@ import { SignInRateLimit } from '../src/team/rate-limit.js';
 import { memberPolicy } from '../src/team/policy.js';
 import {
   MEMBER_GLOBAL_METHODS,
+  MEMBER_BOT_METHODS,
   MEMBER_CHANNEL_METHODS,
   MEMBER_METHODS,
 } from '../src/team/member-methods.js';
@@ -337,14 +338,13 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
   it('keeps the shared member-method contract dependency-free and its denials explicit', () => {
     const source = readFileSync(new URL('../src/team/member-methods.ts', import.meta.url), 'utf8');
     expect(source).not.toMatch(/\bimport\b/u);
-    expect([...MEMBER_METHODS]).toEqual([...MEMBER_GLOBAL_METHODS, ...MEMBER_CHANNEL_METHODS]);
+    expect([...MEMBER_METHODS]).toEqual([
+      ...MEMBER_GLOBAL_METHODS,
+      ...MEMBER_CHANNEL_METHODS,
+      ...MEMBER_BOT_METHODS,
+    ]);
     expect(MEMBER_METHODS.has('composerIdentity')).toBe(true);
-    for (const method of [
-      'humanAttentionStatus',
-      'channelGet',
-      'channelSendStatus',
-      'followActivity',
-    ])
+    for (const method of ['dataReset', 'teamModeSet', 'members'])
       expect(MEMBER_METHODS.has(method)).toBe(false);
   });
   it('returns only opaque composer ids and the calling Human, never the Owner identity', async () => {
@@ -378,7 +378,7 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
     expect(JSON.stringify(memberIdentity)).not.toContain(f.channels.rootDir);
   });
 
-  it('keeps unscoped attention status denied when only the Owner has attention', async () => {
+  it('returns an empty member attention status when only the Owner has attention', async () => {
     const f = await enabledFixture();
     f.registry.create({ slug: 'private-attention', displayName: 'Private attention Bot' });
     const dm = f.channels.getOrCreateDm(owner, 'private-attention', 'Private attention DM')!;
@@ -399,7 +399,11 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
     const ownerStatus = query.status(owner, true);
     expect(ownerStatus.unreadCount).toBeGreaterThan(0);
     expect(ownerStatus.hasAction).toBe(true);
-    expect(query.status(f.human, true)).toEqual(ownerStatus);
+    expect(query.status(f.human, true)).toEqual({
+      unreadCount: 0,
+      hasAction: false,
+      messageCounts: { replies: 0, other: 0 },
+    });
     expect(f.team.belongs(f.human, dm.id)).toBe(false);
     await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
     const member = await f.team.signIn('bob', 'member-password-1', 'ip');
@@ -410,7 +414,11 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
         args: { messageCounts: true },
         peer: member.peer,
       }),
-    ).rejects.toMatchObject({ code: 'remote-access/denied' });
+    ).resolves.toEqual({
+      unreadCount: 0,
+      hasAction: false,
+      messageCounts: { replies: 0, other: 0 },
+    });
     await expect(
       f.gateway.invoke({
         namespace: 'botharness',
@@ -580,6 +588,8 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
       channelSendStatus: { messageId: `message-${memberGroup.id}` },
       channelJournalPage: { through: f.channels.revision(memberGroup.id) },
       channelChanges: { sinceSeq: start.seq, epoch: start.epoch },
+      create: { displayName: 'Member Bot' },
+      createLookup: { operationKey: 'audit-create-0001', displayName: 'Member Bot' },
       followChannel: { limit: 10 },
     };
     const forbidden = [
@@ -592,7 +602,7 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
       'Owner secret Bot',
       'Owner private file',
     ];
-    const streams = new Set(['followRoster', 'followChannel']);
+    const streams = new Set(['followRoster', 'followChannel', 'followActivity']);
     const table = [...MEMBER_GLOBAL_METHODS, ...MEMBER_CHANNEL_METHODS];
     for (const method of table) {
       const abort = new AbortController();
@@ -616,6 +626,15 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
           abort.abort();
           await iterator.return?.();
         } else result = await f.gateway.invoke(request);
+      } catch (error) {
+        const code = error instanceof Error && 'code' in error ? error.code : undefined;
+        expect([
+          'unavailable',
+          'creation-unavailable',
+          'storage-unavailable',
+          'invalid-input',
+        ]).toContain(code);
+        result = { code };
       } finally {
         abort.abort();
       }
@@ -648,7 +667,7 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
         streams.has(method) ? f.gateway.stream(request) : f.gateway.invoke(request),
       ).rejects.toMatchObject({ code: 'remote-access/denied' });
     }
-    for (const method of ['channelGet', 'channelSendStatus'])
+    for (const method of ['channelGroupDelete', 'channelGroupWakeSet'])
       await expect(
         f.gateway.invoke({
           namespace: 'botharness',

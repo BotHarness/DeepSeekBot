@@ -1111,8 +1111,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     );
   }
 
-  list(query?: string): { bots: PersonaBotSummary[] } {
-    return unwrap(this.methods.list({ query }));
+  list(query?: string, administration?: boolean): { bots: PersonaBotSummary[] } {
+    return unwrap(
+      this.methods.list({ query, ...(administration === undefined ? {} : { administration }) }),
+    );
   }
 
   activitySnapshot(): PersonaBotActivitySnapshot {

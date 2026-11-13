@@ -1,3 +1,4 @@
+import { pairedDeviceHuman, deviceOwnsRequest } from '../team/device-audience.js';
 import { mountTeamGateway } from '../team/mount.js';
 import type { TeamService } from '../team/service.js';
 import type { TeamHttp } from '../team/http.js';
@@ -317,6 +318,8 @@ export function mountDevicePairing(
     const delivery = createPushDelivery({
       database: attachOperationalModule(options.database, 'push'),
       source: watched.source,
+      deviceHuman: (deviceId) =>
+        pairedDeviceHuman(attachOperationalModule(options.database, 'push'), deviceId),
       sender: watched.sender ?? createExpoSender(),
       host: () => pairing.host(),
       deviceActive: (deviceId) =>
@@ -660,7 +663,16 @@ export function mountDevicePairing(
       activity = createActivityDelivery({
         database: attachOperationalModule(options.database, 'live-activity'),
         provider: account.activity,
-        request: options.requestStatus,
+        request: (channelId, messageId, deviceId) => {
+          const request = options.requestStatus?.(channelId, messageId);
+          if (!request || !deviceId) return undefined;
+          const allowed = deviceOwnsRequest(
+            attachOperationalModule(options.database, 'live-activity'),
+            deviceId,
+            request.sourceEventId,
+          );
+          return allowed ? request : undefined;
+        },
         deviceActive: (deviceId) =>
           pairing.list().some((device) => device.id === deviceId && device.revokedAt === undefined),
         record: (phase, detail) =>

@@ -74,6 +74,7 @@ export class TeamService {
   private peerFactory: ((principal: MemberPrincipal) => PeerScope) | undefined;
   private invalidate: () => void = () => {};
   private urls: () => string[] = () => [];
+  private readonly ensureTob: ((human: HumanContext) => Promise<unknown>) | undefined;
   private readonly now: () => number;
   private readonly log: (phase: string, facts: Record<string, string | number | boolean>) => void;
 
@@ -82,9 +83,11 @@ export class TeamService {
     private readonly channels: ChannelStore,
     options: {
       now?: () => number;
+      ensureTob?: (human: HumanContext) => Promise<unknown>;
       log?: (phase: string, facts: Record<string, string | number | boolean>) => void;
     } = {},
   ) {
+    this.ensureTob = options.ensureTob;
     this.now = options.now ?? Date.now;
     this.log = options.log ?? (() => {});
     this.limiter = new SignInRateLimit(this.now);
@@ -319,6 +322,7 @@ export class TeamService {
     const valid = await verifyPassword(password, credential?.hash ?? DUMMY_PASSWORD_HASH);
     if (!valid || !member || member.owner) throw new TeamError('credentials-invalid');
     this.active(member);
+    await this.ensureTob?.(humanContext(member.humanId));
     return { ...this.createGrant(member), member };
   }
 
@@ -576,11 +580,13 @@ export class TeamService {
     return (
       this.db.read((db) =>
         db
-          .prepare(`SELECT 1 FROM channel_human_members m
-      JOIN channel_records c USING(channel_id) WHERE m.channel_id = ? AND m.human_id = ?
-      AND m.left_at IS NULL AND json_extract(c.record_json, '$.type') = 'group'
-      AND json_extract(c.record_json, '$.deletedAt') IS NULL`)
-          .get(channelId, human.humanId),
+          .prepare(`SELECT 1 FROM channel_records c WHERE c.channel_id = ?
+      AND json_extract(c.record_json, '$.deletedAt') IS NULL
+      AND ((json_extract(c.record_json, '$.type') = 'group' AND EXISTS (
+        SELECT 1 FROM channel_human_members m WHERE m.channel_id = c.channel_id AND m.human_id = ? AND m.left_at IS NULL))
+        OR (json_extract(c.record_json, '$.type') = 'dm' AND EXISTS (
+          SELECT 1 FROM persona_bots b WHERE b.slug = json_extract(c.record_json, '$.botSlug') AND b.owner_human_id = ?)))`)
+          .get(channelId, human.humanId, human.humanId),
       ) !== undefined
     );
   }
