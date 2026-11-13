@@ -218,9 +218,10 @@ export function installStyles(): () => void {
 }
 
 export function apply(ctx: ClientContext): void {
+  const member = memberPage();
   ctx.effect(() => clearConversationDrafts);
   ctx.effect(() => {
-    if (typeof window === 'undefined') return () => {};
+    if (typeof window === 'undefined' || member) return () => {};
     installClientLog({ window, surface: telemetrySurface() });
     const offStore = watchClientLogState(store);
     return () => {
@@ -244,7 +245,7 @@ export function apply(ctx: ClientContext): void {
     const offColors = appearance.subscribe(refreshBotPrimaryColors);
     refreshBotPrimaryColors();
     const offWallpaper = mountWallpaper(wallpaper);
-    const offControl = mountAppearanceControl(appearance, wallpaper);
+    const offControl = member ? () => {} : mountAppearanceControl(appearance, wallpaper);
     return () => {
       offControl();
       offWallpaper();
@@ -326,6 +327,7 @@ export function apply(ctx: ClientContext): void {
     },
   });
   ctx.effect(() => {
+    if (member) return () => {};
     void companion.start();
     return () => companion.dispose();
   }, 'botharness: independent Window Companion owner');
@@ -441,7 +443,6 @@ export function apply(ctx: ClientContext): void {
     typeof window === 'undefined'
       ? undefined
       : consumeLastView(window as unknown as Record<string, unknown>, storage);
-  const member = memberPage();
   let restoreBotMode = member || (hmrView === undefined && lastView?.mode === 'bot');
   const nativeSessions = {
     refresh: () => ctx.sessions.refresh(),
@@ -742,7 +743,7 @@ export function apply(ctx: ClientContext): void {
     });
   }, 'botharness: desktop notifications');
   ctx.effect(() => {
-    if (typeof document === 'undefined' || typeof window === 'undefined') return () => {};
+    if (typeof document === 'undefined' || typeof window === 'undefined' || member) return () => {};
     const clientId = Array.from(crypto.getRandomValues(new Uint8Array(12)), (byte) =>
       byte.toString(16).padStart(2, '0'),
     ).join('');
