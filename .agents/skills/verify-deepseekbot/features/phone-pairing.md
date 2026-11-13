@@ -1,5 +1,9 @@
 # Phone pairing and paired devices
 
+## Simple phone connection choices (#4075)
+
+Enter the shared phone dialog from the Control Rail, Connections settings and optional intro step. Confirm the App is installed before any route preparation. Quick Tunnel and Tobs Connect appear first; Advanced methods reveals LAN/Tailscale. Selecting Connect must not sign in or publish until “Sign in and connect this computer” is pressed. Verify unavailable service and capacity refusals retain truthful state, show linked-computer management on a newly received account limit, and allow Quick fallback without sign-out or stopping another route. Only a ready route enables Continue; account login alone is not phone completion. Use disposable test accounts for real capacity → unlink → reconnect acceptance; isolated identity/relay fixtures do not qualify the official service or physical devices.
+
 ## Tailscale restart and stale routes (#3565, #3566)
 
 On a task-owned Host and isolated Serve fixture, enable automatic publishing, then restart the same Profile on a new Host port. The owned HTTPS port must remain unchanged and no `off` may precede publication. Refuse the publication command and require the old route and ownership record to remain; restore command access and retry. Repeat with unavailable or malformed Serve status after a successful command: report failure, retain ownership and recover on retry. An externally edited mapping must be preserved.

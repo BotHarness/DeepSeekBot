@@ -2,6 +2,7 @@
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { ConnectPanel } from '../src/client/connect-panel.js';
 import { PairedDevicesSettings } from '../src/client/paired-devices.js';
 import { zhTranslate } from '../src/client/locale.js';
 
@@ -147,14 +148,14 @@ it('explains a refused account', async () => {
   expect(button('登录')).toBeDefined();
 });
 
-it('opens the linked computers when the account already has three', async () => {
+it('opens the linked computers when the account reaches its computer limit', async () => {
   snapshot = devices({
     state: 'off',
     account: { state: 'error', issue: 'host-limit', email: 'qa@example.com' },
   });
   await render();
   expect(host.querySelector('[data-connect-issue]')?.textContent).toBe(
-    '这个账号已关联 3 台电脑，请在下方退出另一台电脑的登录。',
+    '账号关联电脑数量已达上限，请在下方管理已关联的电脑。',
   );
   expect(host.querySelector('[data-connect-manage]')?.getAttribute('aria-expanded')).toBe('true');
   expect(host.querySelector('[data-connect-email]')?.textContent).toBe('qa@example.com');
@@ -285,4 +286,36 @@ it('marks a device paired in the last day so a stranger stands out', async () =>
   expect(row('new')?.hasAttribute('data-new-device')).toBe(true);
   expect(row('new')?.textContent).toContain('新配对，不是你的设备请移除');
   expect(row('old')?.hasAttribute('data-new-device')).toBe(false);
+});
+
+it('opens management when a mounted sign-in flow reaches the account limit without another sign-in', async () => {
+  snapshot = { hosts: [] };
+  const onAccount = vi.fn();
+  const reloadSnapshot = vi.fn(async () => undefined);
+  const show = async (limited: boolean) =>
+    act(async () =>
+      root.render(
+        <ConnectPanel
+          t={zhTranslate}
+          account={
+            limited
+              ? { state: 'error', issue: 'host-limit', email: 'qa@example.com' }
+              : { state: 'signed-out' }
+          }
+          tunnel={{ state: 'off' }}
+          fresh
+          busy={undefined}
+          onAccount={onAccount}
+          reloadSnapshot={reloadSnapshot}
+        />,
+      ),
+    );
+  await show(false);
+  expect(button('登录')).toBeDefined();
+  await show(true);
+  expect(host.querySelector('[data-connect-manage]')?.getAttribute('aria-expanded')).toBe('true');
+  expect(button('登录')).toBeUndefined();
+  await act(async () => host.querySelector<HTMLButtonElement>('[data-connect-manage]')!.click());
+  expect(host.querySelector('[data-connect-manage]')?.getAttribute('aria-expanded')).toBe('false');
+  expect(onAccount).not.toHaveBeenCalled();
 });
