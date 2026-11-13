@@ -117,6 +117,7 @@ export function ConnectPanel({
   busy,
   onAccount,
   reloadSnapshot,
+  signInLabel,
 }: PropsLocale<'botharness'> & {
   account: ConnectAccountStatus;
   tunnel: ConnectTunnelStatus | undefined;
@@ -124,8 +125,10 @@ export function ConnectPanel({
   busy: string | undefined;
   onAccount(action: 'sign-in' | 'sign-out'): void;
   reloadSnapshot(): Promise<unknown>;
+  signInLabel?: string;
 }): ReactElement {
-  const [manage, setManage] = useState(account.issue === 'host-limit');
+  const [manage, setManage] = useState<boolean>();
+  const manageOpen = manage ?? account.issue === 'host-limit';
   const waiting = account.state === 'error' && account.issue === 'relay-full';
   const linked = account.state === 'signed-in' || waiting || account.issue === 'host-limit';
   const pool = account.pool;
@@ -136,7 +139,7 @@ export function ConnectPanel({
       disabled={busy === 'sign-in'}
       onClick={() => onAccount('sign-in')}
     >
-      {t('devices.connect.signIn')}
+      {signInLabel ?? t('devices.connect.signIn')}
     </Button>
   );
   const steps = (step: number) => (
@@ -194,6 +197,7 @@ export function ConnectPanel({
         }
         title={t('devices.connect.panel.offTitle')}
         body={t('devices.connect.panel.offBody')}
+        signInLabel={signInLabel ?? t('devices.connect.signIn')}
         busy={busy === 'sign-in'}
         onSignIn={() => onAccount('sign-in')}
       />
@@ -253,7 +257,11 @@ export function ConnectPanel({
         tone="warning"
         title={t('devices.connect.panel.errorTitle')}
         body={<span data-connect-issue={account.issue ?? ''}>{t(issueKey(account))}</span>}
-        action={account.recovery === 'automatic' ? undefined : signInButton}
+        action={
+          account.recovery === 'automatic' || account.issue === 'host-limit'
+            ? undefined
+            : signInButton
+        }
       />
     );
   } else {
@@ -299,8 +307,8 @@ export function ConnectPanel({
           icon="user"
           title={t('devices.connect.panel.manage')}
           hint={t('devices.connect.panel.manageHint')}
-          open={manage}
-          onToggle={() => setManage(!manage)}
+          open={manageOpen}
+          onToggle={() => setManage(!manageOpen)}
           data={{ 'data-connect-manage': '' }}
         >
           <StatusFact

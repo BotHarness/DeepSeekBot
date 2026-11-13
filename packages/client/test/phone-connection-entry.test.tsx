@@ -33,6 +33,7 @@ const lan = { url: 'http://192.168.1.5:14277', kind: 'lan', ready: true };
 const tail = { url: 'https://computer.example.ts.net', kind: 'tailscale', ready: true };
 const loopback = { url: 'http://127.0.0.1:4100', kind: 'loopback', ready: true };
 let routes: (typeof lan)[];
+let connect: Record<string, unknown> | undefined;
 let lanState: 'off' | 'listening' | 'error';
 let failEnable: boolean;
 let expiresAt: string;
@@ -51,6 +52,7 @@ let posts: { url: string; body: unknown }[];
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   routes = [loopback];
+  connect = undefined;
   lanState = 'off';
   failEnable = false;
   expiresAt = new Date(Date.now() + 600_000).toISOString();
@@ -82,6 +84,7 @@ beforeEach(() => {
           });
       }
       return Response.json({
+        connect,
         host: { id: 'h', name: 'QA computer' },
         devices: pairedDevices,
         lan: { state: lanState },
@@ -115,6 +118,7 @@ it('prepares LAN only after choosing it in Add connection, then shows the invita
   await click('添加连接');
   await click(t('connections.invite'));
   await click(t('connections.phoneApp.ready'));
+  await click(t('connections.advancedMethods'));
   await click('局域网');
   expect(posts).toEqual([]);
   await click('开启并继续');
@@ -266,6 +270,7 @@ it('shows preparation without publishing or creating an offer when no phone rout
   expect(host.querySelector('[data-pair-qr]')).toBeNull();
   expect(posts).toEqual([]);
   await click(t('connections.phoneApp.ready'));
+  await click(t('connections.advancedMethods'));
   await click('局域网');
   await click('开启并继续');
   expect(host.querySelectorAll('[role="dialog"]')).toHaveLength(1);
@@ -366,7 +371,8 @@ it.each(['phone-entry', 'settings', 'existing-route'] as const)(
       expect(posts.filter((post) => post.url.endsWith('/offer'))).toHaveLength(1);
     else {
       expect(posts).toEqual([]);
-      expect(button('局域网')).toBeDefined();
+      expect(button('Tobs Connect')).toBeDefined();
+      expect(button('局域网')).toBeUndefined();
     }
   },
 );
@@ -399,3 +405,46 @@ it('keeps computer link entry inside the shared dialog and returns to both inten
   expect(host.querySelector('[data-phone-app-guide]')).not.toBeNull();
   expect(posts).toEqual([]);
 });
+
+const openMethods = async () => {
+  await render(false);
+  await click('添加连接');
+  await click(t('connections.invite'));
+  await click(t('connections.phoneApp.ready'));
+};
+
+it('offers Quick Tunnel and Connect first and requires an explicit sign-in-and-connect action', async () => {
+  connect = { state: 'off', account: { state: 'signed-out' } };
+  await openMethods();
+  expect(button(t('privateTunnel.quickEntry'))).toBeDefined();
+  expect(button('Tobs Connect')).toBeDefined();
+  expect(button('Tailscale')).toBeUndefined();
+  expect(button('局域网')).toBeUndefined();
+  await click('Tobs Connect');
+  expect(posts).toEqual([]);
+  expect(button(t('connections.continue')).disabled).toBe(true);
+  await click(t('connections.signInConnect'));
+  expect(posts).toEqual([{ url: './api/botharness/devices/connect', body: { action: 'sign-in' } }]);
+});
+
+it.each([undefined, 'relay-full', 'relay-unavailable', 'host-limit'])(
+  'offers Quick Tunnel without signing out or claiming pairing when Connect is unavailable (%s)',
+  async (issue) => {
+    connect =
+      issue === undefined
+        ? undefined
+        : {
+            state: 'off',
+            account: { state: 'error', issue, recovery: 'automatic' },
+          };
+    await openMethods();
+    await click('Tobs Connect');
+    expect(button(t('connections.continue')).disabled).toBe(true);
+    expect(host.querySelector('[data-pair-qr]')).toBeNull();
+    await click(t('connections.useQuickTunnel'));
+    expect(button(t('privateTunnel.panel.quickAction'))).toBeDefined();
+    expect(posts).toEqual([]);
+    await click(t('connections.back'));
+    expect(button('Tobs Connect')).toBeDefined();
+  },
+);

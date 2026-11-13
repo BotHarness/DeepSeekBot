@@ -15,7 +15,7 @@ import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import { Callout } from './ds/callout.js';
 import { ConnectPanel, type ConnectAccountStatus } from './connect-panel.js';
-import { CopyChip, StatusBlock, StatusStack } from './ds/status-block.js';
+import { CopyChip, StatusBlock, StatusDisclosure, StatusStack } from './ds/status-block.js';
 import { LanBotSettings } from './lan-bot-settings.js';
 import type { LanBotSnapshot } from '../../../core/src/devices/bot-lan-control.js';
 import { ChoiceButton } from './ds/choice-button.js';
@@ -219,6 +219,7 @@ export function PairedDevicesSettings({
   const [error, setError] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showTailscale, setShowTailscale] = useState(false);
+  const [advancedMethods, setAdvancedMethods] = useState(false);
   const [manage, setManage] = useState(false);
   type Setup =
     | 'app'
@@ -534,6 +535,9 @@ export function PairedDevicesSettings({
         busy={busy}
         onAccount={(action) => void account(action)}
         reloadSnapshot={load}
+        signInLabel={t(
+          setup === 'connect' ? 'connections.signInConnect' : 'devices.connect.signIn',
+        )}
       />
     );
 
@@ -752,30 +756,6 @@ export function PairedDevicesSettings({
                   }}
                 />
                 <ConnectionMethod
-                  title={t('connections.lan')}
-                  description={t('connections.lanDescription')}
-                  detail={t('connections.lanDetail')}
-                  disabled={!freshSnapshot}
-                  onClick={() => {
-                    if (lanReady) {
-                      setSetup('closed');
-                      open();
-                    } else setSetup('lan');
-                  }}
-                />
-                <ConnectionMethod
-                  title="Tailscale"
-                  description={t('connections.tailscaleDescription')}
-                  detail={t('connections.tailscaleDetail')}
-                  disabled={!freshSnapshot}
-                  onClick={() => {
-                    if (tailscaleReady) {
-                      setSetup('closed');
-                      open();
-                    } else setSetup('tailscale');
-                  }}
-                />
-                <ConnectionMethod
                   title="Tobs Connect"
                   description={t('connections.connectDescription')}
                   detail={t('connections.connectDetail')}
@@ -787,6 +767,37 @@ export function PairedDevicesSettings({
                     } else setSetup('connect');
                   }}
                 />
+                <StatusDisclosure
+                  icon="settings"
+                  title={t('connections.advancedMethods')}
+                  open={advancedMethods}
+                  onToggle={() => setAdvancedMethods(!advancedMethods)}
+                >
+                  <ConnectionMethod
+                    title={t('connections.lan')}
+                    description={t('connections.lanDescription')}
+                    detail={t('connections.lanDetail')}
+                    disabled={!freshSnapshot}
+                    onClick={() => {
+                      if (lanReady) {
+                        setSetup('closed');
+                        open();
+                      } else setSetup('lan');
+                    }}
+                  />
+                  <ConnectionMethod
+                    title="Tailscale"
+                    description={t('connections.tailscaleDescription')}
+                    detail={t('connections.tailscaleDetail')}
+                    disabled={!freshSnapshot}
+                    onClick={() => {
+                      if (tailscaleReady) {
+                        setSetup('closed');
+                        open();
+                      } else setSetup('tailscale');
+                    }}
+                  />
+                </StatusDisclosure>
               </>
             ) : setup === 'private' && (snapshot?.privateRelay?.state ?? 'off') === 'off' ? (
               <PrivateTunnelSettings
@@ -900,7 +911,16 @@ export function PairedDevicesSettings({
               </StatusStack>
             ) : (
               <>
-                {connectControls}
+                {connectControls ?? <Note>{t('connections.connectUnavailable')}</Note>}
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setTunnelStep('choose');
+                    setSetup('private');
+                  }}
+                >
+                  {t('connections.useQuickTunnel')}
+                </Button>
                 <Button
                   variant="primary"
                   disabled={

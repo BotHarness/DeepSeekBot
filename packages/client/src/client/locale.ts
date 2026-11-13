@@ -9,7 +9,8 @@ export const zh = {
   'privateTunnel.intro':
     '这台电脑会运行内置的 cloudflared，只公开加密的手机通道；电脑管理页、文件和接口不会公开。手机仍需你在这台电脑上核对指纹并批准。',
   'privateTunnel.quickEntry': 'Quick Tunnel（免登录）',
-  'privateTunnel.quickEntryDescription': '免费临时地址，端到端加密。重启后可能需要重新扫码。',
+  'privateTunnel.quickEntryDescription':
+    '无需登录的免费临时地址，端到端加密。重启后可能需要重新扫码。',
   'privateTunnel.quickLifecycle':
     '隧道重启后地址可能变化。重新扫码可更新这台电脑的地址，已有有效授权无需重复批准。',
   'privateTunnel.otherHint': '固定域名、自有代理或 Docker 中继',
@@ -161,9 +162,13 @@ export const zh = {
   'connections.tailscaleDescription': '通过你的 Tailscale 网络跨网络加密连接。',
   'connections.tailscaleDetail':
     '两端需要接入你的 Tailscale 网络。数据优先直接传输，无法直连时经过加密中转；中转节点无法读取内容。Tailscale 网络加密之外，配对通道也在设备与本机之间端到端加密，首次连接仍需核对指纹并批准。',
-  'connections.connectDescription': '登录 Tobs，通过加密隧道从外网连接。',
+  'connections.connectDescription': '登录即可使用官方免费隧道，端到端加密，名额有限。',
   'connections.connectDetail':
     'Tobs 账号用于发现本机，数据经 Cloudflare 隧道转发。配对通道在设备与本机之间端到端加密，中转服务无法读取通道内容，但仍可见连接地址、时间和流量大小。首次连接仍需核对指纹并批准设备。',
+  'connections.advancedMethods': '进阶方式',
+  'connections.signInConnect': '登录并连接这台电脑',
+  'connections.useQuickTunnel': '使用 Quick Tunnel',
+  'connections.connectUnavailable': '当前无法使用 Tobs Connect，可以使用 Quick Tunnel。',
   'connections.enableContinue': '开启并继续',
   'connections.continue': '继续',
   'connections.back': '返回',
@@ -4829,7 +4834,7 @@ export const zh = {
   'devices.connect.copyLink': '复制登录链接',
   'devices.connect.copied': '已复制',
   'devices.connect.notAllowed': '这个账号暂时不能使用 Tobs Connect。',
-  'devices.connect.hostLimit': '这个账号已关联 3 台电脑，请在下方退出另一台电脑的登录。',
+  'devices.connect.hostLimit': '账号关联电脑数量已达上限，请在下方管理已关联的电脑。',
   'devices.connect.sessionRevoked': '这台电脑已从账号退出，请重新登录。',
   'devices.connect.computers': '账号中的电脑',
   'devices.connect.computersStatus': '已关联的电脑',
@@ -5262,9 +5267,14 @@ export const en = {
   'connections.tailscaleDescription': 'Connect securely across networks using your tailnet.',
   'connections.tailscaleDetail':
     'Both ends must join your Tailscale network. Traffic goes directly when possible, or through an encrypted relay that cannot read its content. In addition to Tailscale network encryption, the pairing channel is end-to-end encrypted between your device and this computer. Compare fingerprints and approve each new device.',
-  'connections.connectDescription': 'Connect remotely through an encrypted Tobs tunnel.',
+  'connections.connectDescription':
+    'Sign in for a free official tunnel. End-to-end encrypted; capacity is limited.',
   'connections.connectDetail':
     'Your Tobs account helps find this computer; traffic travels through a Cloudflare tunnel. The pairing channel is end-to-end encrypted between your device and this computer. Relay services cannot read its content, but can see connection addresses, timing and traffic size. Compare fingerprints and approve each new device.',
+  'connections.advancedMethods': 'Advanced methods',
+  'connections.signInConnect': 'Sign in and connect this computer',
+  'connections.useQuickTunnel': 'Use Quick Tunnel',
+  'connections.connectUnavailable': 'Tobs Connect is unavailable. You can use Quick Tunnel.',
   'connections.enableContinue': 'Enable and continue',
   'connections.continue': 'Continue',
   'connections.back': 'Back',
@@ -10225,7 +10235,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'devices.connect.copied': 'Copied',
   'devices.connect.notAllowed': 'This account cannot use Tobs Connect yet.',
   'devices.connect.hostLimit':
-    'This account already links 3 computers. Sign out another computer below.',
+    'This account has reached its computer limit. Manage linked computers below.',
   'devices.connect.sessionRevoked': 'This computer was signed out of the account. Sign in again.',
   'devices.connect.computers': 'Computers on this account',
   'devices.connect.computersStatus': 'Linked computers',
