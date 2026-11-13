@@ -1,4 +1,5 @@
 import { PublicChannelsDialog } from './public-channels-dialog.js';
+import { humanIdOf, selfHumanId } from './self-human.js';
 import { useTeamMode } from './team-state.js';
 import { UnreadCount, unreadCountLabel } from './unread-count.js';
 import { useSearchOpenMark } from './search-open-mark.js';
@@ -567,7 +568,9 @@ function channelPreview(
       t('roster.latestActivity'));
   const author =
     message.author.kind === 'human'
-      ? t('rail.you')
+      ? humanIdOf(message.author) === selfHumanId()
+        ? t('rail.you')
+        : (message.author.displayName ?? t('channelActivity.human'))
       : message.author.kind === 'bot'
         ? (bots.get(message.author.slug)?.displayName ?? message.author.slug)
         : message.author.kind === 'bridged'
