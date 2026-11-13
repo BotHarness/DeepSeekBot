@@ -3,6 +3,7 @@ import { afterEach, assert, describe, expect, it, vi } from 'vitest';
 import type { HostCarrier } from '../../../apps/mobile/src/host/carrier.js';
 import type { HumanAttentionItem as HostAttentionItem } from '../../../apps/mobile/src/host/wire.js';
 import { FakeHost } from '../../../apps/mobile/test/fake-host.js';
+import { serializeSavedHost, type SavedHost } from '../../../apps/mobile/src/host/hosts.js';
 import { connectionOperationIndexSchema } from '../../core/src/devices/connection-operation.js';
 import { manageConnections } from '../src/client/connection-management.js';
 import { createHostActivityActions } from '../src/client/host-activity-actions.js';
@@ -289,6 +290,34 @@ describe('remote hosts', () => {
       sources.close();
     },
   );
+
+  it('keeps encrypted loopback runtime routes while projecting stored execution history', async () => {
+    const host: SavedHost = {
+      hostId: 'loopback-host',
+      hostName: 'This computer',
+      routes: ['http://127.0.0.1:47001'],
+      deviceId: 'loopback-device',
+      credential: 'loopback.secret',
+      encryption: {
+        protocol: 'connect-noise-xk-v1',
+        hostKey: '11'.repeat(32),
+        deviceKey: '22'.repeat(32),
+        loopback: 'encrypted',
+      },
+    };
+    const storage = memoryStorage({
+      [REMOTE_HOSTS_STORAGE_KEY]: JSON.stringify([serializeSavedHost(host)]),
+    });
+    const sources = createRemoteHosts({ storage, carrier: fakeCarrier().carrier });
+    expect(sources.getSnapshot().hosts[0]?.host.routes).toEqual(host.routes);
+    await sources.client(host.hostId)?.setRoutePreference?.(host.routes[0]);
+    expect(sources.client(host.hostId)?.getSnapshot().routePreference).toBe(host.routes[0]);
+    expect(JSON.parse(storage.values.get(REMOTE_HOSTS_STORAGE_KEY)!)[0]).toMatchObject({
+      routes: [],
+      encryptedLoopbackRoutes: host.routes,
+    });
+    sources.close();
+  });
 
   it('records an unreachable remote as a failed pairing', async () => {
     const record = vi.fn();

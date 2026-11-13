@@ -181,7 +181,7 @@ function readHosts(storage: HostStorage | undefined): ManagedSavedHost[] {
 }
 
 function readExecutionHost(storage: HostStorage | undefined, host: SavedHost): ManagedSavedHost {
-  const saved = persistedHost(host);
+  const saved = hostConfiguration(host);
   try {
     const pendingConnection = readPendingConnection(storage, saved);
     return {
@@ -226,14 +226,18 @@ function readPendingConnection(
   return value === null ? undefined : pendingConnectionSchema.parse(JSON.parse(value));
 }
 
-function persistedHost(host: ManagedSavedHost) {
+function hostConfiguration(host: ManagedSavedHost): SavedHost {
   const {
     pendingConnection: _execution,
     connectionOwnerChanged: _previousOwner,
     connectionOperationUnavailable: _executionUnavailable,
     ...saved
   } = host;
-  return serializeSavedHost(saved);
+  return saved;
+}
+
+function persistedHost(host: ManagedSavedHost) {
+  return serializeSavedHost(hostConfiguration(host));
 }
 
 function readStorage(storage: HostStorage | undefined, key: string, oldKey: string): string | null {
