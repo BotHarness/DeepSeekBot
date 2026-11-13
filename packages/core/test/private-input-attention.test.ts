@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import LocalCredentialProvider from '@deepseek-ai/dsh-credentials-local';
@@ -56,7 +57,7 @@ async function fixture() {
   await owner.recover();
   const start = async (slug: string) => {
     core.registry.create({ slug, displayName: slug });
-    const channel = core.channels.getOrCreateDm(slug, slug)!;
+    const channel = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, slug, slug)!;
     const sessionId = 'private-' + slug;
     core.ownership.claim({
       sessionId,
@@ -122,7 +123,7 @@ describe('private input committed attention and admission', () => {
       expect(
         f.core.channels.message(a.channelId, 'private-resolution-' + a.id)?.privateInputResolution,
       ).toMatchObject({ state: 'cancelled', references: {} });
-      expect(f.core.humanAttention.actionSummary().count).toBe(0);
+      expect(f.core.humanAttention.actionSummary(OWNER_HUMAN_CONTEXT).count).toBe(0);
     } finally {
       release?.();
       await f.close();
@@ -148,7 +149,7 @@ describe('private input committed attention and admission', () => {
           ...resolved,
         })),
       ).toEqual(values);
-      expect(f.core.humanAttention.actionSummary().count).toBe(0);
+      expect(f.core.humanAttention.actionSummary(OWNER_HUMAN_CONTEXT).count).toBe(0);
     } finally {
       await f.close();
     }
@@ -161,7 +162,7 @@ describe('private input committed attention and admission', () => {
       const b = await f.start('bea');
       expect(
         f.core.humanAttention
-          .list({ category: 'action' })
+          .list(OWNER_HUMAN_CONTEXT, { category: 'action' })
           .items.sort((left, right) => right.botSlug.localeCompare(left.botSlug)),
       ).toMatchObject([
         {
@@ -177,7 +178,7 @@ describe('private input committed attention and admission', () => {
           summary: 'ada-account · Authenticate a controlled service',
         },
       ]);
-      expect(f.core.humanAttention.actionSummary().count).toBe(2);
+      expect(f.core.humanAttention.actionSummary(OWNER_HUMAN_CONTEXT).count).toBe(2);
       expect(f.core.states.snapshot('ada').attention?.privateInputCount).toBe(1);
       const accepted = await Promise.all([
         f.owner.submit(true, { channelId: a.channelId, messageId: a.id, values }),
@@ -185,14 +186,14 @@ describe('private input committed attention and admission', () => {
       ]);
       expect(accepted.sort()).toEqual([false, true]);
       expect((await a.wait).status).toBe('configured');
-      expect(f.core.humanAttention.list({ category: 'action' }).items).toMatchObject([
-        { botSlug: 'bea', messageId: b.id },
-      ]);
+      expect(
+        f.core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items,
+      ).toMatchObject([{ botSlug: 'bea', messageId: b.id }]);
       expect(f.core.states.snapshot('ada').attention?.privateInputCount).toBeUndefined();
       expect(f.core.states.snapshot('bea').attention?.privateInputCount).toBe(1);
       expect(await f.owner.cancel(true, b.channelId, b.id)).toBe(true);
       expect((await b.wait).status).toBe('cancelled');
-      expect(f.core.humanAttention.actionSummary().count).toBe(0);
+      expect(f.core.humanAttention.actionSummary(OWNER_HUMAN_CONTEXT).count).toBe(0);
       expect(f.core.states.snapshot('bea').attention?.privateInputCount).toBeUndefined();
       const rows = attachOperationalModule(f.core.operationalDatabase, 'messaging').read((db) =>
         db
@@ -234,15 +235,15 @@ describe('private input committed attention and admission', () => {
       });
       const starting = f.start('ada');
       await entry;
-      expect(f.core.humanAttention.actionSummary().count).toBe(0);
+      expect(f.core.humanAttention.actionSummary(OWNER_HUMAN_CONTEXT).count).toBe(0);
       expect(f.core.states.snapshot('ada').attention?.privateInputCount).toBeUndefined();
       release();
       const a = await starting;
-      expect(f.core.humanAttention.actionSummary().count).toBe(1);
+      expect(f.core.humanAttention.actionSummary(OWNER_HUMAN_CONTEXT).count).toBe(1);
       expect(await f.owner.cancel(true, a.channelId, a.id)).toBe(true);
       await a.wait;
       const lostId = randomUUID();
-      await f.core.channels.appendMessageOnce(a.channelId, {
+      await f.core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, a.channelId, {
         id: lostId,
         at: new Date().toISOString(),
         author: { kind: 'bot', slug: 'ada' },
@@ -255,7 +256,7 @@ describe('private input committed attention and admission', () => {
         await replacement.recover();
         expect(scanned).not.toHaveBeenCalled();
         expect(replacement.status(a.channelId, lostId)).toBe('expired');
-        expect(f.core.humanAttention.actionSummary().count).toBe(0);
+        expect(f.core.humanAttention.actionSummary(OWNER_HUMAN_CONTEXT).count).toBe(0);
         const expired = f.core.channels.message(a.channelId, 'private-resolution-' + lostId)!;
         expect(expired.privateInputResolution?.state).toBe('expired');
         expect(expired.deliveries).toBeUndefined();

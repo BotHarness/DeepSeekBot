@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 
 import { attachOperationalModule } from '../src/database/owner.js';
@@ -31,15 +32,18 @@ describe('interrupted Human DM notice', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      await core.channels.appendMessage(dm.id, {
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      });
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'human-dm-interrupted',
         at: '2026-09-25T00:00:00.000Z',
         author: { kind: 'human' },
         body: 'Write the history of bridges',
       });
-      const admission = core.runtime.admitDmMessage({
+      const admission = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'human-dm-interrupted',
         body: 'Write the history of bridges',
@@ -48,7 +52,7 @@ describe('interrupted Human DM notice', () => {
       await expect(admission.settled).rejects.toThrow('Host stopped');
 
       const mention = async (id: string): Promise<void> => {
-        await core.channels.appendMessageOnce(group.id, {
+        await core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, group.id, {
           id,
           at: '2026-09-25T00:01:00.000Z',
           author: { kind: 'human' },
@@ -72,13 +76,13 @@ describe('interrupted Human DM notice', () => {
       expect(turns[1]!.message).toContain('[Bot Inbox: direct Group mention from Human]');
       expect(turns[2]!.message).not.toContain('[Host: your earlier turn for Human DM');
 
-      await core.channels.appendMessage(dm.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'human-dm-next',
         at: '2026-09-25T00:02:00.000Z',
         author: { kind: 'human' },
         body: 'Still there?',
       });
-      const next = core.runtime.admitDmMessage({
+      const next = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'human-dm-next',
         body: 'Still there?',
@@ -101,15 +105,15 @@ describe('interrupted Human DM notice', () => {
       }),
     });
     first.registry.create({ slug: 'ada', displayName: 'Ada' });
-    const dm = first.channels.getOrCreateDm('ada', 'Ada')!;
+    const dm = first.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
     for (const id of ['human-interrupted', 'human-failed', 'human-effect']) {
-      await first.channels.appendMessage(dm.id, {
+      await first.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id,
         at: '2026-09-25T00:00:00.000Z',
         author: { kind: 'human' },
         body: 'Request ' + id,
       });
-      const admission = first.runtime.admitDmMessage({
+      const admission = first.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: id,
         body: 'Request ' + id,

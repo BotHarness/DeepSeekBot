@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { describe, expect, it, vi } from 'vitest';
@@ -50,9 +51,12 @@ async function reviewRounds(rounds: number, botHopLimit?: number) {
   try {
     core.registry.create({ slug: 'nexus', displayName: '总控 Nexus' });
     core.registry.create({ slug: 'aura', displayName: '美工 Aura' });
-    const group = core.channels.createGroup({ name: 'Studio', members: ['nexus', 'aura'] });
+    const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Studio',
+      members: ['nexus', 'aura'],
+    });
     groupId = group.id;
-    await core.channels.appendMessage(group.id, {
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
       id: 'kickoff',
       at: '2026-10-26T00:00:00.000Z',
       author: { kind: 'human' },
@@ -121,7 +125,7 @@ describe('Ordinary Group delivery throughout one Bot exchange', () => {
       core.registry.create({ slug: 'nexus', displayName: '总控 Nexus' });
       core.registry.create({ slug: 'aura', displayName: '美工 Aura' });
       core.registry.create({ slug: 'atlas', displayName: '叙事 Atlas' });
-      const group = core.channels.createGroup({
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
         name: 'Studio',
         members: ['nexus', 'aura', 'atlas'],
       });
@@ -132,7 +136,7 @@ describe('Ordinary Group delivery throughout one Bot exchange', () => {
         { mode: 'all', count: 5, intervalSeconds: 30 },
         { kind: 'human' },
       );
-      await core.channels.appendMessage(group.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'kickoff',
         at: '2026-10-26T00:00:00.000Z',
         author: { kind: 'human' },

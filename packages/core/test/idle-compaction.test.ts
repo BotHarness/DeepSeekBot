@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -421,7 +422,7 @@ describe('idle compaction settings and bridge', () => {
     const dir = profileDir();
     const settings = createIdleCompactionSettings(dir);
     const rescan = vi.fn();
-    const bridge = createBridgeMethods({
+    const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
       idleCompaction: {
         settings,
         scheduler: { describe: () => [], scheduled: () => 0 },
@@ -456,7 +457,7 @@ describe('idle compaction settings and bridge', () => {
       error: { code: 'invalid-input' },
     });
     const applyThreshold = vi.fn();
-    const thresholdBridge = createBridgeMethods({
+    const thresholdBridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
       idleCompaction: {
         settings,
         scheduler: { describe: () => [], scheduled: () => 0 },
@@ -497,7 +498,7 @@ describe('idle compaction settings and bridge', () => {
         ? { outcome: 'busy' as const, tokensBefore: null, tokensAfter: null }
         : { outcome: 'compacted' as const, tokensBefore: 400_000, tokensAfter: 30_000 },
     );
-    const bridge = createBridgeMethods({
+    const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
       registry: { get: (slug: string) => (slug === 'missing' ? undefined : { slug }) },
       idleCompaction: {
         settings: createIdleCompactionSettings(profileDir()),

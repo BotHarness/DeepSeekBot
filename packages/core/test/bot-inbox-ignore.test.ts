@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 
 import { attachOperationalModule } from '../src/database/owner.js';
@@ -17,7 +18,7 @@ function adapter(onRun: (run: OrchestratorAgentRun) => Promise<void>): BotAgentA
 }
 
 async function ordinary(core: ReturnType<typeof createCore>, channelId: string, id: string) {
-  await core.channels.appendMessage(channelId, {
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
     id,
     at: new Date().toISOString(),
     author: { kind: 'human' },
@@ -48,7 +49,10 @@ describe('explicit Bot Inbox ignore decision', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      groupId = core.channels.createGroup({ name: 'Team', members: ['ada'] }).id;
+      groupId = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      }).id;
       core.channels.setGroupWakePolicy(groupId, 'ada', {
         mode: 'digest',
         count: 2,
@@ -120,7 +124,10 @@ describe('explicit Bot Inbox ignore decision', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      groupId = core.channels.createGroup({ name: 'Team', members: ['ada'] }).id;
+      groupId = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      }).id;
       core.channels.setGroupWakePolicy(groupId, 'ada', {
         mode: 'silent',
         count: 2,
@@ -128,14 +135,18 @@ describe('explicit Bot Inbox ignore decision', () => {
       });
       await ordinary(core, groupId, 'one');
       await ordinary(core, groupId, 'two');
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      await core.channels.appendMessage(dm.id, {
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'review',
         at: new Date().toISOString(),
         author: { kind: 'human' },
         body: 'Review Group',
       });
-      core.runtime.admitDmMessage({ channelId: dm.id, messageId: 'review', body: 'Review Group' });
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+        channelId: dm.id,
+        messageId: 'review',
+        body: 'Review Group',
+      });
       await core.runtime.whenIdle();
       const groupItems = core.attention
         .list({ botSlug: 'ada' })
@@ -168,22 +179,29 @@ describe('explicit Bot Inbox ignore decision', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      groupId = core.channels.createGroup({ name: 'Team', members: ['ada'] }).id;
-      await core.channels.appendMessage(groupId, {
+      groupId = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      }).id;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, groupId, {
         id: 'mention',
         at: new Date().toISOString(),
         author: { kind: 'human' },
         body: '@Ada please check',
         mentions: [{ botSlug: 'ada', label: 'Ada', start: 0, end: 4 }],
       });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      await core.channels.appendMessage(dm.id, {
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'review',
         at: new Date().toISOString(),
         author: { kind: 'human' },
         body: 'Review Group',
       });
-      core.runtime.admitDmMessage({ channelId: dm.id, messageId: 'review', body: 'Review Group' });
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+        channelId: dm.id,
+        messageId: 'review',
+        body: 'Review Group',
+      });
       await core.runtime.whenIdle();
       expect(core.attention.list({ botSlug: 'ada', state: 'ignored' }).items).toMatchObject([
         { reason: 'group-mention', sourceMessageId: 'mention', observedAt: expect.any(String) },
@@ -206,8 +224,11 @@ describe('explicit Bot Inbox ignore decision', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      groupId = core.channels.createGroup({ name: 'Team', members: ['ada'] }).id;
-      await core.channels.appendMessage(groupId, {
+      groupId = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      }).id;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, groupId, {
         id: 'mention',
         at: new Date().toISOString(),
         author: { kind: 'human' },

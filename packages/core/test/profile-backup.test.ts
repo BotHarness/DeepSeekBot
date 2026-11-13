@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
@@ -373,14 +374,17 @@ async function scene() {
   const erased = core.deletions.preview('deleted-erased');
   expect(erased.eraseAvailable).toBe(true);
   await core.deletions.confirm(erased.slug, erased.token, true);
-  const channel = core.channels.createGroup({ name: 'Synthetic history', members: [] });
+  const channel = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+    name: 'Synthetic history',
+    members: [],
+  });
   const file = await core.attachments.upload({
     name: 'editable.txt',
     data: (async function* () {
       yield Buffer.from('original');
     })(),
   });
-  await core.channels.appendMessage(channel.id, {
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, {
     id: 'kept',
     at: '2026-10-08T00:00:00Z',
     body: 'Sensitive synthetic history',
@@ -388,7 +392,7 @@ async function scene() {
     attachments: [file],
   });
   writeFileSync(core.attachments.fileTarget(file.fileId!).path, 'current editable bytes');
-  await core.channels.appendMessage(channel.id, {
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, {
     id: 'purged',
     at: '2026-10-08T00:00:01Z',
     body: 'Synthetic erased body',
@@ -396,10 +400,17 @@ async function scene() {
   });
   core.channels.deleteGroup(channel.id);
   const selected = core.contentPurge
-    .sources(channel.id)
+    .sources(OWNER_HUMAN_CONTEXT, channel.id)
     .sources.find((item) => item.messageId === 'purged')!;
-  const preview = core.contentPurge.preview(channel.id, [selected.sourceEventId]);
-  core.contentPurge.confirm(channel.id, [selected.sourceEventId], preview.token);
+  const preview = core.contentPurge.preview(OWNER_HUMAN_CONTEXT, channel.id, [
+    selected.sourceEventId,
+  ]);
+  core.contentPurge.confirm(
+    OWNER_HUMAN_CONTEXT,
+    channel.id,
+    [selected.sourceEventId],
+    preview.token,
+  );
   return { core, home, custom, file, channel };
 }
 

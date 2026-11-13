@@ -795,7 +795,7 @@ describe('Human Inbox push source', () => {
     });
     const source = activityListPushSource(
       {
-        list: ({ category }) => ({
+        list: (human, { category }) => ({
           items:
             category === 'action'
               ? [
@@ -874,12 +874,12 @@ describe('Human Inbox push source', () => {
     const dmLimits: number[] = [];
     activityListPushSource(
       {
-        list: (query) => {
+        list: (human, query) => {
           queries.push(query);
           return { items: [] };
         },
         actionCount: () => 0,
-        dmReplies: (limit) => {
+        dmReplies: (human, limit) => {
           dmLimits.push(limit);
           return [];
         },
@@ -910,7 +910,7 @@ describe('Human Inbox push source', () => {
     const limits: number[] = [];
     const pending = activityListPushSource(
       {
-        list: ({ category, limit = 30, cursor }) => {
+        list: (human, { category, limit = 30, cursor }) => {
           if (limit < 1 || limit > 100) throw new Error('Human attention limit must be 1-100');
           if (category !== 'replies') return { items: [] };
           limits.push(limit);
@@ -933,7 +933,7 @@ describe('Human Inbox push source', () => {
   it('offers Always allow from the notification only when the Host offers it', () => {
     const source = activityListPushSource(
       {
-        list: ({ category }) => ({
+        list: (human, { category }) => ({
           items:
             category === 'action'
               ? [
@@ -963,7 +963,7 @@ describe('Human Inbox push source', () => {
     const lookup = vi.fn(() => ({ toolName: 'bash', input: '{}', allowAlways: true }));
     const source = activityListPushSource(
       {
-        list: ({ category }) => ({
+        list: (human, { category }) => ({
           items:
             category === 'action'
               ? [
@@ -1013,7 +1013,7 @@ describe('Human Inbox push source', () => {
     });
     const source = activityListPushSource(
       {
-        list: ({ category }) => ({
+        list: (human, { category }) => ({
           items:
             category === 'action'
               ? [

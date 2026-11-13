@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { describe, expect, it } from 'vitest';
 
@@ -105,18 +106,19 @@ async function roundTrip(accept: boolean) {
   });
   try {
     for (const slug of ['ada', 'bea']) core.registry.create({ slug, displayName: slug });
-    const group = core.channels.createGroup({
+    const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
       name: 'Team',
       members: ['bea'],
       ownerBotSlug: 'bea',
     });
     groupId = group.id;
-    otherId = core.channels.createGroup({
+    otherId = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
       name: 'Other',
       members: ['bea'],
       ownerBotSlug: 'bea',
     }).id;
     core.channels.setGroupAvatar(
+      OWNER_HUMAN_CONTEXT,
       groupId,
       `data:image/png;base64,${Buffer.concat([Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/ZFsAAAAASUVORK5CYII=', 'base64'), Buffer.alloc(6000)]).toString('base64')}`,
     );
@@ -126,28 +128,32 @@ async function roundTrip(accept: boolean) {
       { mode: 'silent', count: 5, intervalSeconds: 30 },
       { kind: 'human' },
     );
-    const dm = core.channels.getOrCreateDm('ada', 'ada')!;
+    const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'ada')!;
     const body = 'Join #Team';
-    await core.channels.appendMessage(dm.id, {
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
       id: 'human-selected',
       at: new Date().toISOString(),
       author: { kind: 'human' },
       body,
       channelRefs: [{ channelId: groupId, label: 'Team', start: 5, end: 10 }],
     });
-    core.runtime.admitDmMessage({ channelId: dm.id, messageId: 'human-selected', body });
+    core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+      channelId: dm.id,
+      messageId: 'human-selected',
+      body,
+    });
     await core.runtime.whenIdle();
     expect(core.channels.get(groupId)?.members).toEqual(['bea']);
     expect(core.channels.get(groupId)?.joinRequests).toHaveLength(1);
     decide = true;
-    const ownerDm = core.channels.getOrCreateDm('bea', 'bea')!;
-    await core.channels.appendMessage(ownerDm.id, {
+    const ownerDm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'bea', 'bea')!;
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, ownerDm.id, {
       id: 'human-decide',
       at: new Date().toISOString(),
       author: { kind: 'human' },
       body: 'Decide',
     });
-    core.runtime.admitDmMessage({
+    core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
       channelId: ownerDm.id,
       messageId: 'human-decide',
       body: 'Decide',
@@ -251,7 +257,7 @@ describe('registered selected-Group join Tools through the owning runtime', () =
       });
       try {
         for (const slug of ['ada', 'bea', 'cee']) core.registry.create({ slug, displayName: slug });
-        const group = core.channels.createGroup({
+        const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
           name: 'Identity',
           members: ['bea', 'cee'],
           ownerBotSlug: scenario === 'wrong-owner' ? 'cee' : 'bea',
@@ -265,14 +271,14 @@ describe('registered selected-Group join Tools through the owning runtime', () =
         }).id;
         if (scenario === 'departed-owner') core.channels.removeGroupMember(groupId, 'bea');
         if (scenario === 'cancelled') core.channels.cancelInvitationsForBot('ada');
-        const dm = core.channels.getOrCreateDm('bea', 'bea')!;
-        await core.channels.appendMessage(dm.id, {
+        const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'bea', 'bea')!;
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
           id: 'human-decide',
           at: new Date().toISOString(),
           author: { kind: 'human' },
           body: 'Decide',
         });
-        core.runtime.admitDmMessage({
+        core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
           channelId: dm.id,
           messageId: 'human-decide',
           body: 'Decide',
