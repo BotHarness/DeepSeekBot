@@ -213,29 +213,35 @@ describe('StorageSettings', () => {
     }
   });
 
-  it('states the selected Host upgrade requirement when storage methods are unsupported', async () => {
-    const source: StorageSettingsSource = {
-      usage: async () => {
-        throw new MethodRefused('gateway/method-not-found', 'unsupported');
-      },
-      previewMedia: vi.fn(),
-      confirmMedia: vi.fn(),
-      previewMessages: vi.fn(),
-      confirmMessages: vi.fn(),
-    };
-    const view = await render(source);
-    try {
-      expect(view.host.textContent).toContain('更新此 Host 后即可管理存储');
-      await view.open();
-      expect(view.host.querySelector<HTMLButtonElement>('[data-storage-review]')?.disabled).toBe(
-        true,
-      );
-      expect(source.previewMedia).not.toHaveBeenCalled();
-      expect(view.host.querySelector('[data-storage-total]')).toBeNull();
-    } finally {
-      view.dispose();
-    }
-  });
+  it.each([
+    new MethodRefused('gateway/method-not-found', 'unsupported'),
+    Object.assign(new Error('This Host does not support storageUsage yet'), { status: 404 }),
+  ])(
+    'states the selected Host upgrade requirement when storage methods are unsupported (%s)',
+    async (failure) => {
+      const source: StorageSettingsSource = {
+        usage: async () => {
+          throw failure;
+        },
+        previewMedia: vi.fn(),
+        confirmMedia: vi.fn(),
+        previewMessages: vi.fn(),
+        confirmMessages: vi.fn(),
+      };
+      const view = await render(source);
+      try {
+        expect(view.host.textContent).toContain('更新此 Host 后即可管理存储');
+        await view.open();
+        expect(view.host.querySelector<HTMLButtonElement>('[data-storage-review]')?.disabled).toBe(
+          true,
+        );
+        expect(source.previewMedia).not.toHaveBeenCalled();
+        expect(view.host.querySelector('[data-storage-total]')).toBeNull();
+      } finally {
+        view.dispose();
+      }
+    },
+  );
 
   it('blocks another cleanup until a failed outcome readback is explicitly reloaded', async () => {
     const current: Awaited<ReturnType<StorageSettingsSource['usage']>> = {

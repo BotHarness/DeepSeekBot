@@ -173,10 +173,11 @@ function cutoff(age: Age): string {
 }
 
 function storageReadError(failure: unknown): BotHarnessKey {
-  return (failure instanceof BridgeCallError || failure instanceof MethodRefused) &&
-    failure.code === 'gateway/method-not-found'
-    ? 'storage.unsupported'
-    : 'storage.readError';
+  const unsupported =
+    (failure instanceof Error && 'status' in failure && failure.status === 404) ||
+    ((failure instanceof BridgeCallError || failure instanceof MethodRefused) &&
+      failure.code === 'gateway/method-not-found');
+  return unsupported ? 'storage.unsupported' : 'storage.readError';
 }
 
 export interface StorageSettingsSource {
