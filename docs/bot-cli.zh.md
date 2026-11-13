@@ -109,6 +109,8 @@ deepseekbot search <words>
 
 ### 远程设置
 
+创建预设的结果尚未确认时，设置草稿不会再次发送创建请求。收到成功回执后会保留预设 ID，「检查已创建的预设」只重读同一 Host。没有回执时，先检查预设列表并放弃草稿，再选择下一步；名称相同不能证明请求成功。放弃不会撤销可能已完成的 Host 写入。
+
 `appearance-clients` 列出打开的浏览器 Client。`host-look --client-id <id> --host-id <id>` 读取该浏览器内的 Host 名称、图标、颜色和内容修订。写入时加 `--patch-stdin --expected-revision <revision>`，从 stdin 传入 JSON，例如 `{"name":"Studio","icon":{"kind":"symbol","id":"server"},"color":"teal"}`。空名称恢复 Host 原始显示名；`color: null` 清除颜色。名称去除首尾空格并限制为 40 字符，与手机共享 HostLook 规则。Host ID 可为已配对的远程 Host 或本机 Host；命令不接收或返回远程凭据。
 
 命令复用已认证的 `appearance-control` relay，直达 UI 使用的同一 Client 本地 `HostLooks`，不修改操作系统 hostname，也不同步到其他设备。浏览器须保持打开并显式选择 Client。同源标签页共同使用名为 `botharness.hostLooks.v1` 的独占 Web Lock；owner 在锁内重读持久数据、比较目标 Host 的内容 revision，再只合并该 Host。UI 字段变换也在锁内应用于当前值，不携带旧整份外观覆盖其他字段。旧 revision 返回 `host-look-revision-stale`；Web Locks 不可用时返回 `host-look-lock-unavailable`，不降级为不安全的读改写。

@@ -343,3 +343,117 @@ it('starts a fresh model session for replacement access to the same Host while a
     container.remove();
   }
 });
+
+it.each(['lost-reply', 'readback-failed'])(
+  'does not resend a committed preset create after %s',
+  async (mode) => {
+    const route = { provider: 'deepseek', model: 'model' };
+    let creates = 0;
+    let created = false;
+    let readFailure = false;
+    const entry = (id: string) => ({
+      id,
+      name: 'New preset',
+      revision: 1,
+      orchestrator: route,
+      assignmentDefault: route,
+    });
+    const client: ModelSettingsClient = {
+      async call(method) {
+        if (method === 'modelCatalog')
+          return {
+            models: [{ ...route, providerName: 'DeepSeek', modelName: 'Model' }],
+            default: route,
+            defaultRevision: 1,
+          };
+        if (method === 'modelPresets') {
+          if (readFailure) throw Error('readback temporarily unavailable');
+          return {
+            presets: [
+              entry('existing-same-name'),
+              ...(created ? [entry('created-receipt-id')] : []),
+            ],
+          };
+        }
+        if (method === 'modelPresetCreate') {
+          creates += 1;
+          created = true;
+          if (mode === 'lost-reply') throw Error('reply lost after commit');
+          readFailure = true;
+          return { preset: { id: 'created-receipt-id' } };
+        }
+        throw Error(`Unexpected method ${method}`);
+      },
+    };
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    const flush = async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    };
+    const button = (label: string) => {
+      const found = [...container.querySelectorAll('button')].find(
+        (item) => item.textContent === label,
+      );
+      if (!found) throw Error(`button missing: ${label}`);
+      return found;
+    };
+    const release = hostSettingsDrafts.prompt('create-target', async () => 'save');
+    try {
+      await act(async () => {
+        root.render(
+          createElement(RemoteHostModels, {
+            hostId: 'create-target',
+            client,
+            t: (key) => Object.entries(en).find(([name]) => name === key)?.[1] ?? key,
+          }),
+        );
+        await flush();
+      });
+      await act(() => {
+        const input = container.querySelector('input');
+        if (!input) throw Error('name missing');
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(
+          input,
+          'New preset',
+        );
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      await act(async () => {
+        expect(await hostSettingsDrafts.prepare('create-target')).toBe(false);
+      });
+      expect(creates).toBe(1);
+      expect(created).toBe(true);
+      expect(container.querySelector('input')?.value).toBe('New preset');
+      if (mode === 'lost-reply') {
+        expect(container.textContent).toContain('Creation is unconfirmed');
+        expect(button(en['modelPreset.saveAs']).disabled).toBe(true);
+        await act(async () => {
+          button(en['onboarding.refreshModels']).click();
+          await flush();
+        });
+        expect(await hostSettingsDrafts.prepare('create-target')).toBe(false);
+        expect(creates).toBe(1);
+      } else {
+        expect(button('Check saved preset').disabled).toBe(false);
+        await act(async () => {
+          button('Check saved preset').click();
+          await flush();
+        });
+        expect(creates).toBe(1);
+        readFailure = false;
+        await act(async () => {
+          button('Check saved preset').click();
+          await flush();
+        });
+        expect(container.querySelector('input')?.value).toBe('');
+        expect(await hostSettingsDrafts.prepare('create-target')).toBe(true);
+        expect(creates).toBe(1);
+      }
+    } finally {
+      release();
+      await act(() => root.unmount());
+      container.remove();
+    }
+  },
+);
