@@ -1,3 +1,4 @@
+import { connectionDiagnostic, type ConnectionDiagnostic } from '../../host/connection-diagnostic';
 import Constants from 'expo-constants';
 import { useNavigationContainerRef, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
@@ -45,6 +46,7 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
   const [error, setError] = useState<PairingFailure | undefined>();
   const [errorDetail, setErrorDetail] = useState<string | undefined>();
   const lastDetail = useRef<string | undefined>(undefined);
+  const lastFailure = useRef<ConnectionDiagnostic | undefined>(undefined);
   const lastMethod = useRef<PairingMethod>('paste');
   const pending = useRef<AbortController | undefined>(undefined);
   const handled = useRef<string | undefined>(undefined);
@@ -69,6 +71,7 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
     setError(undefined);
     setErrorDetail(undefined);
     lastDetail.current = undefined;
+    lastFailure.current = undefined;
     let accountPair:
       | { accountOwner: AccountOwner; sessionKey: string; routes: string[]; connectHost: string }
       | undefined;
@@ -159,6 +162,9 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
       setError(result.code);
       setErrorDetail(result.detail);
       lastDetail.current = result.detail;
+      lastFailure.current =
+        result.diagnostic ??
+        connectionDiagnostic({ code: result.code, detail: result.detail, phase: 'pairing' });
       return result.code;
     }
     if (!options.stayOnPage && !finishSetup()) router.dismissTo('/');
@@ -174,6 +180,7 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
     error,
     errorDetail,
     lastFailureDetail: () => lastDetail.current,
+    lastFailure: () => lastFailure.current,
     method: lastMethod.current,
     connectionName,
     setConnectionName,

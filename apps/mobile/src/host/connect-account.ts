@@ -1,5 +1,11 @@
+import {
+  connectionDiagnostic,
+  networkDiagnosticReason,
+  type ConnectionDiagnostic,
+  type ConnectionPhase,
+} from './connection-diagnostic';
 import type { AccountOwner } from './account-owner';
-import { reasonCode, relayFailureDetail } from './pairing-detail';
+import { relayFailureDetail } from './pairing-detail';
 import { checkRoute, isConnectRoute } from './route';
 import type { PairingPayload } from './pairing';
 
@@ -150,7 +156,7 @@ export interface ConnectHost {
 
 export type ConnectResult<T> =
   | { ok: true; value: T }
-  | { ok: false; code: ConnectRefusal; detail?: string };
+  | { ok: false; code: ConnectRefusal; detail?: string; diagnostic?: ConnectionDiagnostic };
 
 interface Session {
   clientId: string;
@@ -165,6 +171,7 @@ class Refused extends Error {
   constructor(
     readonly code: ConnectRefusal,
     readonly detail?: string,
+    readonly context?: { phase: ConnectionPhase; status?: number },
   ) {
     super(code);
   }
@@ -221,25 +228,51 @@ export function createConnectAccount(options: {
       return { ok: true, value: await serial(work) };
     } catch (error) {
       if (!(error instanceof Refused)) return { ok: false, code: 'relay-unavailable' };
-      return error.detail === undefined
-        ? { ok: false, code: error.code }
-        : { ok: false, code: error.code, detail: error.detail };
+      return {
+        ok: false,
+        code: error.code,
+        ...(error.detail === undefined ? {} : { detail: error.detail }),
+        ...(error.context === undefined
+          ? {}
+          : {
+              diagnostic: connectionDiagnostic({
+                code: error.code,
+                detail: error.detail,
+                ...error.context,
+              }),
+            }),
+      };
     }
   };
+
+  const requestPhase = (url: string): ConnectionPhase =>
+    url === TOKEN_ENDPOINT
+      ? 'sign-in-session'
+      : url === `${relay}/v1/config`
+        ? 'service-config'
+        : url === `${relay}/v1/hosts`
+          ? 'environment-list'
+          : url.endsWith('/offer')
+            ? 'pairing-offer'
+            : 'account-action';
 
   const call = async (url: string, init?: RequestInit) => {
     let response: Response;
     try {
       response = await runtime.request(url, init);
     } catch (error) {
-      throw new Refused(
-        'relay-unavailable',
-        relayFailureDetail(
-          reasonCode(error instanceof Error ? error.message : '').replace(/:.*$/u, ''),
-        ),
-      );
+      throw new Refused('relay-unavailable', relayFailureDetail(networkDiagnosticReason(error)), {
+        phase: requestPhase(url),
+      });
     }
-    const body = record(await response.json().catch(() => ({})));
+    const body = record(
+      await response.json().catch(() => {
+        throw new Refused('relay-unavailable', 'relay:invalid-response', {
+          phase: requestPhase(url),
+          status: response.status,
+        });
+      }),
+    );
     return { status: response.status, body };
   };
 
@@ -258,21 +291,25 @@ export function createConnectAccount(options: {
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
+    const context = { phase: requestPhase(`${relay}${path}`), status: reply.status };
     const error = record(reply.body['error']);
     const code = error['code'];
-    if (reply.status === 401) throw new Refused('sign-in-required');
-    if (code === 'account-not-allowed') throw new Refused('account-not-allowed');
+    if (reply.status === 401) throw new Refused('sign-in-required', undefined, context);
+    if (code === 'account-not-allowed')
+      throw new Refused('account-not-allowed', undefined, context);
     if (code === 'host-offline')
-      throw new Refused('host-offline', relayFailureDetail(code, error['cause']));
+      throw new Refused('host-offline', relayFailureDetail(code, error['cause']), context);
     if (code === 'host-refused')
-      throw new Refused('host-refused', relayFailureDetail(code, error['cause']));
-    if (reply.status === 404 && code === 'host-not-found') throw new Refused('host-not-found');
+      throw new Refused('host-refused', relayFailureDetail(code, error['cause']), context);
+    if (reply.status === 404 && code === 'host-not-found')
+      throw new Refused('host-not-found', undefined, context);
     if (reply.status === 409 && (code === 'current-host' || code === 'session-unknown'))
-      throw new Refused(code);
+      throw new Refused(code, undefined, context);
     if (reply.status !== 200)
       throw new Refused(
         'relay-unavailable',
         relayFailureDetail(typeof code === 'string' ? code : `http-${reply.status}`),
+        context,
       );
     return reply.body;
   };
@@ -514,7 +551,10 @@ export function createConnectAccount(options: {
         if (!session.action) await save(undefined);
         throw new Refused('sign-in-required');
       }
-      throw new Refused('relay-unavailable');
+      throw new Refused('relay-unavailable', `relay:http-${reply.status}`, {
+        phase: 'sign-in-session',
+        status: reply.status,
+      });
     }
     const subject = record(reply.body['user'])['id'];
     if (session.subject && typeof subject === 'string' && subject !== session.subject)
@@ -679,7 +719,10 @@ export function createConnectAccount(options: {
             typeof host['id'] !== 'string' ||
             typeof host['name'] !== 'string'
           )
-            throw new Refused('relay-unavailable');
+            throw new Refused('relay-unavailable', 'relay:invalid-response', {
+              phase: 'pairing-offer',
+              status: 200,
+            });
           return {
             accountOwner,
             sessionKey,

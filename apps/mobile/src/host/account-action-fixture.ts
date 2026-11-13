@@ -4,6 +4,11 @@ import type { AccountOwner } from './account-owner';
 import { parseSavedHosts, type SavedHost, type SavedHosts } from './hosts';
 
 export type AccountFixtureScenario =
+  | 'connection-diagnostics'
+  | 'connection-diagnostics-network'
+  | 'connection-diagnostics-session'
+  | 'connection-diagnostics-invalid'
+  | 'connection-diagnostics-list'
   | 'success'
   | 'delete-partial'
   | 'local-write'
@@ -18,6 +23,7 @@ const response = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
 export function createAccountActionFixture(scenario: AccountFixtureScenario = 'success') {
+  const diagnostics = scenario.startsWith('connection-diagnostics');
   const linked = scenario === 'linked-computers' || scenario === 'linked-computers-refresh-failure';
   const owner: AccountOwner = {
     issuer: 'https://api.workos.com',
@@ -111,6 +117,8 @@ export function createAccountActionFixture(scenario: AccountFixtureScenario = 's
           publish();
           if ((scenario === 'expired-retry' || scenario === 'completion-write') && failed)
             return response({}, 400);
+          if (scenario === 'connection-diagnostics-session' && counters.refreshes > 1)
+            return response({}, 502);
           return response({ access_token: 'fixture-access', user: { id: owner.subject } });
         }
         if (
@@ -121,6 +129,43 @@ export function createAccountActionFixture(scenario: AccountFixtureScenario = 's
         ) {
           failed = true;
           return response({}, 502);
+        }
+        if (diagnostics && url.endsWith('/offer')) {
+          if (scenario === 'connection-diagnostics-network')
+            throw new Error(
+              'DNS lookup failed https://private.fixture.invalid?token=fixture-secret Authorization Bearer fixture-secret',
+            );
+          if (scenario === 'connection-diagnostics-invalid')
+            return response({ invalid: 'fixture-secret' });
+          return response(
+            {
+              error: {
+                code: 'upstream-unavailable',
+                message: 'Authorization Bearer fixture-secret',
+              },
+            },
+            502,
+          );
+        }
+        if (diagnostics && url === `${owner.relay}/v1/hosts`) {
+          if (scenario === 'connection-diagnostics-list' && counters.refreshes > 1)
+            return response({}, 503);
+          return response({
+            hosts: [
+              {
+                id: 'hstudio',
+                name: 'Studio Mac',
+                hostname: 'studio.fixture.invalid',
+                tunnel: true,
+              },
+              {
+                id: 'hlaptop',
+                name: 'Travel Laptop',
+                hostname: 'laptop.fixture.invalid',
+                tunnel: true,
+              },
+            ],
+          });
         }
         if (url === `${owner.relay}/v1/hosts`)
           return response({

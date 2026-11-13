@@ -238,6 +238,14 @@ describe('phone Connect account', () => {
     expect(await relay.account.offer('hstudio', 'iPhone')).toEqual({
       ok: false,
       code: 'relay-unavailable',
+      detail: 'relay:invalid-response',
+      diagnostic: {
+        code: 'relay-unavailable',
+        detail: 'relay:invalid-response',
+        phase: 'pairing-offer',
+        status: 200,
+        occurredAt: expect.any(String),
+      },
     });
   });
 
@@ -248,6 +256,13 @@ describe('phone Connect account', () => {
       ok: false,
       code: 'host-offline',
       detail: 'relay:host-offline',
+      diagnostic: {
+        code: 'host-offline',
+        detail: 'relay:host-offline',
+        phase: 'pairing-offer',
+        status: 409,
+        occurredAt: expect.any(String),
+      },
     });
 
     const cancelled = fakeRelay();
