@@ -578,20 +578,20 @@ export function createRemoteHosts(options: {
           : current !== undefined
       )
         throw new Error('connection-operation-changed');
-      const key = operationKey(owner);
+      const executionKey = operationKey(owner);
       const index = operationIndex(storage).filter((item) => storage.getItem(item.key) !== null);
       if (pending) {
-        if (!index.some((item) => item.key === key)) {
+        if (!index.some((item) => item.key === executionKey)) {
           if (index.length >= 32) throw new Error('connection-operation-limit');
-          index.push({ hostId, key });
+          index.push({ hostId, key: executionKey });
         }
         storage.setItem(CONNECTION_OPERATIONS_INDEX, JSON.stringify(index));
-        storage.setItem(key, JSON.stringify(pending));
+        storage.setItem(executionKey, JSON.stringify(pending));
       } else {
-        storage.removeItem(key);
+        storage.removeItem(executionKey);
         storage.setItem(
           CONNECTION_OPERATIONS_INDEX,
-          JSON.stringify(index.filter((item) => item.key !== key)),
+          JSON.stringify(index.filter((item) => item.key !== executionKey)),
         );
       }
       const currentPending = readPendingConnection(storage, entry.host);
