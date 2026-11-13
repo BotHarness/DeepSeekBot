@@ -12,14 +12,15 @@ Deliver M0–M11 as narrow, stacked or independent PRs. Each PR must have real v
 
 The local Claude Code session is the **orchestrator and UI/UX owner**. Codex CLI is a **sub-agent for logic**.
 
-| Codex (logic) | Claude (UI/UX and integration) |
-| --- | --- |
+| Codex (logic)                                                                                                                                                                      | Claude (UI/UX and integration)                                                                                                   |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | `packages/core/**`: persistence, migrations, Host methods, API Gateway policy, auth and credentials, permissions, audience containment, approvals routing, Workspace guards, usage | `packages/client/**`: every component, layout, style, copy (en + zh), interaction, empty, loading and error state, accessibility |
-| `deepseekbot` CLI commands and their tests | Mobile screens and components in `apps/mobile/**` |
-| Non-visual mobile modules: API client, secure storage, session handling | Wiring Client views to the Host methods Codex ships |
-| Unit and integration tests for the above | Real-Host verification (`verify-deepseekbot`), screenshots, PR body (`visual-pr`) |
+| `deepseekbot` CLI commands and their tests                                                                                                                                         | Mobile screens and components in `apps/mobile/**`                                                                                |
+| Non-visual mobile modules: API client, secure storage, session handling                                                                                                            | Wiring Client views to the Host methods Codex ships                                                                              |
+| Unit and integration tests for the above                                                                                                                                           | Real-Host verification (`verify-deepseekbot`), screenshots, PR body (`visual-pr`)                                                |
 
 Rules:
+
 - Codex never edits `packages/client/**` or mobile screen and component files, and never writes user-visible copy. If logic needs a UI change, Codex reports it and Claude makes it.
 - Claude does not rewrite Codex's logic. Claude sends review findings back to Codex as a follow-up task.
 - Claude reviews every Codex diff before committing it on the slice branch. Check `git diff --stat`, and refuse any diff that touches UI paths.
@@ -34,6 +35,7 @@ codex exec --full-auto -C ../botharness-4139 "$(cat .tmp/codex-4139.md)"
 ```
 
 Put the task prompt in a file under the worktree's gitignored `.tmp/`. Each prompt includes:
+
 - the issue number and acceptance criteria
 - the agreed contract
 - the "do not touch" UI paths above
