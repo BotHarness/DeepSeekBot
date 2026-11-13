@@ -15,8 +15,24 @@ import { SettingsRow, SettingsSection } from './ds/settings-row.js';
 import { StatusDisclosure } from './ds/status-block.js';
 import { Note } from './ds/note.js';
 import { ConfirmDialog } from './ds/form-dialog.js';
+import { useHostLook } from './host-looks.js';
+import {
+  isLanRoute,
+  isTailscaleRoute,
+  isConnectRoute,
+  isLoopbackRoute,
+} from '../../../../apps/mobile/src/host/route.js';
+import { shownHostName } from '../../../../apps/mobile/src/ui/design/host-look.js';
+
+function routeLabel(route: string, t: BotHarnessTranslate) {
+  if (isLanRoute(route)) return t('connections.lan');
+  if (isTailscaleRoute(route)) return 'Tailscale';
+  if (isConnectRoute(route)) return 'Tobs Connect';
+  return t(isLoopbackRoute(route) ? 'connections.hosts.loopback' : 'connections.hosts.private');
+}
 
 function HostDetails({ remote, t }: { remote: RemoteHost; t: BotHarnessTranslate }) {
+  const name = shownHostName(useHostLook(remote.host.hostId), remote.host.hostName);
   const [managed, setManaged] = useState<ManagedHost>();
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -150,7 +166,7 @@ function HostDetails({ remote, t }: { remote: RemoteHost; t: BotHarnessTranslate
         variant="outline"
         size="sm"
         disabled={busy}
-        onClick={() => setConfirm({ action: 'forget-host', label: remote.host.hostName })}
+        onClick={() => setConfirm({ action: 'forget-host', label: name })}
       >
         {t('connections.hosts.remove')}
       </Button>
@@ -168,7 +184,7 @@ function HostDetails({ remote, t }: { remote: RemoteHost; t: BotHarnessTranslate
             confirm.action === 'forget-host'
               ? 'connections.hosts.removeHint'
               : 'connections.hosts.targetHint',
-            { name: remote.host.hostName },
+            { name },
           )}
           labels={{ close: t('common.close'), cancel: t('common.cancel') }}
           confirmLabel={t(
@@ -187,6 +203,33 @@ function HostDetails({ remote, t }: { remote: RemoteHost; t: BotHarnessTranslate
         />
       ) : null}
     </div>
+  );
+}
+
+function HostRow({
+  remote,
+  t,
+  open,
+  onToggle,
+}: {
+  remote: RemoteHost;
+  t: BotHarnessTranslate;
+  open: boolean;
+  onToggle(): void;
+}) {
+  const name = shownHostName(useHostLook(remote.host.hostId), remote.host.hostName);
+  return (
+    <StatusDisclosure
+      key={remote.host.hostId}
+      icon="monitor"
+      title={name}
+      hint={`${t(remote.snapshot.connection.status === 'connected' ? 'connections.hosts.current' : remote.snapshot.connection.status === 'unreachable' ? 'connections.hosts.unreachable' : remote.snapshot.connection.status === 'refused' ? 'connections.hosts.refused' : 'connections.hosts.unchecked')} · ${routeLabel(observedHost(remote).currentRoute, t)}`}
+      open={open}
+      onToggle={onToggle}
+      data={{ 'data-connection-host': remote.host.hostId }}
+    >
+      <HostDetails remote={remote} t={t} />
+    </StatusDisclosure>
   );
 }
 
@@ -237,17 +280,13 @@ export function ConnectionHosts({
   }, [accountLinked]);
   const rows = connectionRows(snapshot.hosts, account);
   const row = (remote: RemoteHost) => (
-    <StatusDisclosure
+    <HostRow
       key={remote.host.hostId}
-      icon="monitor"
-      title={remote.host.hostName}
-      hint={`${t(remote.snapshot.connection.status === 'connected' ? 'connections.hosts.current' : remote.snapshot.connection.status === 'unreachable' ? 'connections.hosts.unreachable' : remote.snapshot.connection.status === 'refused' ? 'connections.hosts.refused' : 'connections.hosts.unchecked')} · ${observedHost(remote).currentRoute}`}
+      remote={remote}
+      t={t}
       open={expanded === remote.host.hostId}
       onToggle={() => setExpanded(expanded === remote.host.hostId ? undefined : remote.host.hostId)}
-      data={{ 'data-connection-host': remote.host.hostId }}
-    >
-      <HostDetails remote={remote} t={t} />
-    </StatusDisclosure>
+    />
   );
   return (
     <div ref={mount}>

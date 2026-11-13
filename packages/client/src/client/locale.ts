@@ -165,6 +165,8 @@ export const zh = {
   'connections.connectDescription': '登录即可使用官方免费隧道，端到端加密，名额有限。',
   'connections.connectDetail':
     'Tobs 账号用于发现本机，数据经 Cloudflare 隧道转发。配对通道在设备与本机之间端到端加密，中转服务无法读取通道内容，但仍可见连接地址、时间和流量大小。首次连接仍需核对指纹并批准设备。',
+  'connections.hosts.loopback': '本机线路',
+  'connections.hosts.private': '私有线路',
   'connections.hosts.local': '管理这台电脑：{name}',
   'connections.hosts.account': '同一账号的电脑',
   'connections.hosts.other': '其他已配对电脑',
@@ -5293,6 +5295,8 @@ export const en = {
     'Sign in for a free official tunnel. End-to-end encrypted; capacity is limited.',
   'connections.connectDetail':
     'Your Tobs account helps find this computer; traffic travels through a Cloudflare tunnel. The pairing channel is end-to-end encrypted between your device and this computer. Relay services cannot read its content, but can see connection addresses, timing and traffic size. Compare fingerprints and approve each new device.',
+  'connections.hosts.loopback': 'Local computer route',
+  'connections.hosts.private': 'Private route',
   'connections.hosts.local': 'Manage this computer: {name}',
   'connections.hosts.account': 'Computers on this account',
   'connections.hosts.other': 'Other paired computers',
