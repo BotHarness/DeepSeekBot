@@ -4,6 +4,7 @@ import * as stylex from '@stylexjs/stylex';
 import { Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
 import {
   sameModel,
+  HostAnswerInvalid,
   type ModelRoute,
   type ModelSettingsClient,
 } from '../../../../apps/mobile/src/host/bot-settings.js';
@@ -34,6 +35,11 @@ const styles = stylex.create({
 });
 
 type HostModelScope = Exclude<ModelScope, { kind: 'bot' }>;
+type PresetCreation =
+  | { kind: 'idle' }
+  | { kind: 'pending' }
+  | { kind: 'unknown' }
+  | { kind: 'receipt'; id: string };
 
 function unsupported(error: unknown): boolean {
   return (
@@ -118,6 +124,8 @@ function Models({
   const [error, setError] = useState<'unsupported' | 'failed'>();
   const [busy, setBusy] = useState(false);
   const [name, setName] = useState<string>();
+  const [creation, setCreation] = useState<PresetCreation>({ kind: 'idle' });
+  const creationOwner = useRef<PresetCreation>(creation);
   const generation = useRef(0);
   const pending = useRef(false);
   const refresh = async () => {
@@ -136,7 +144,7 @@ function Models({
       generation.current += 1;
     };
   }, [resource]);
-  const run = async (work: () => Promise<void>, onSaved?: () => void) => {
+  const run = async (work: () => Promise<void>, onSaved?: (value: ModelSettingsState) => void) => {
     if (pending.current || !available) return false;
     pending.current = true;
     setBusy(true);
@@ -147,7 +155,7 @@ function Models({
       const next = await resource.refresh();
       if (generation.current === request) {
         setValue(next);
-        onSaved?.();
+        onSaved?.(next);
       }
       return generation.current === request;
     } catch (cause) {
@@ -162,6 +170,61 @@ function Models({
       if (generation.current === request) setBusy(false);
     }
   };
+  const savePresetDraft = async () => {
+    if (name === undefined || value === undefined || pending.current || !available) return false;
+    if (scope.kind === 'global' && creationOwner.current.kind === 'unknown') return false;
+    const request = generation.current + 1;
+    const record = (outcome: PresetCreation) => {
+      creationOwner.current = outcome;
+      if (generation.current === request) setCreation(outcome);
+    };
+    return run(
+      async () => {
+        if (scope.kind === 'preset') {
+          await saveModelPreset(client, value, name, true);
+        } else if (creationOwner.current.kind === 'idle') {
+          record({ kind: 'pending' });
+          try {
+            const id = await saveModelPreset(client, value, name, false);
+            record({ kind: 'receipt', id });
+          } catch (cause) {
+            if (
+              (cause instanceof HostAnswerInvalid && cause.message !== 'MODEL_PRESET_NOT_SAVED') ||
+              (typeof cause === 'object' &&
+                cause !== null &&
+                'code' in cause &&
+                typeof cause.code === 'string' &&
+                [
+                  'invalid-input',
+                  'stale-setting',
+                  'model-unavailable',
+                  'gateway/method-not-found',
+                  'not-supported',
+                  'forbidden',
+                ].includes(cause.code))
+            )
+              record({ kind: 'idle' });
+            else record({ kind: 'unknown' });
+            throw cause;
+          }
+        }
+      },
+      (observed) => {
+        const receipt = creationOwner.current;
+        if (
+          scope.kind === 'global' &&
+          (receipt.kind !== 'receipt' ||
+            !observed.presets.some((preset) => preset.id === receipt.id))
+        )
+          throw Error('Created preset owner readback is not yet confirmed');
+        record({ kind: 'idle' });
+        if (draft.current.name === name) {
+          setName(undefined);
+          draft.current.name = undefined;
+        }
+      },
+    );
+  };
   const saveName = () => {
     if (
       scope.kind !== 'preset' ||
@@ -170,15 +233,10 @@ function Models({
       name.trim() === value.preset.name
     )
       return;
-    void run(
-      async () => {
-        await saveModelPreset(client, value, name, true);
-      },
-      () => setName(undefined),
-    );
+    void savePresetDraft();
   };
-  const draft = useRef({ name, value, scope, available, run });
-  draft.current = { name, value, scope, available, run };
+  const draft = useRef({ name, value, scope, available, savePresetDraft });
+  draft.current = { name, value, scope, available, savePresetDraft };
   const draftMount = useMountedResource<HTMLSpanElement>(
     () =>
       hostSettingsDrafts.register(hostId, {
@@ -188,7 +246,7 @@ function Models({
             ? draft.current.name !== ''
             : draft.current.name.trim() !== draft.current.value?.preset?.name),
         async save() {
-          const { name, value, scope, run } = draft.current;
+          const { name, value, savePresetDraft } = draft.current;
           if (
             name === undefined ||
             value === undefined ||
@@ -196,17 +254,7 @@ function Models({
             !draft.current.available
           )
             return false;
-          return run(
-            async () => {
-              await saveModelPreset(client, value, name, scope.kind === 'preset');
-            },
-            () => {
-              if (draft.current.name === name) {
-                draft.current.name = undefined;
-                setName(undefined);
-              }
-            },
-          );
+          return savePresetDraft();
         },
         discard: () => {
           draft.current.name = undefined;
@@ -244,7 +292,7 @@ function Models({
           hint: `${entry.providerName}${entry.credential === undefined ? '' : ` · ${t('onboarding.needsKey')}`}`,
           disabled: entry.credential !== undefined,
         }))}
-        disabled={busy || !available}
+        disabled={busy || !available || creation.kind !== 'idle'}
         t={t}
         onChange={({ key, effort }) => {
           const entry = value.models.find(
@@ -264,7 +312,10 @@ function Models({
   return (
     <div ref={mount} {...stylex.props(styles.stack)} data-remote-models="">
       <span ref={draftMount} hidden />
-      {error ? (
+      {creation.kind === 'unknown' ? (
+        <Note tone="danger">{t('environment.settings.createUnknown')}</Note>
+      ) : null}
+      {error && creation.kind !== 'unknown' ? (
         <Note tone="danger">
           {t(
             error === 'unsupported'
@@ -351,7 +402,7 @@ function Models({
           <TextField
             label={t('modelPreset.name')}
             value={name ?? value.preset?.name ?? ''}
-            disabled={busy}
+            disabled={busy || creation.kind !== 'idle'}
             onChange={setName}
             onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
@@ -374,20 +425,20 @@ function Models({
             <PillButton
               disabled={
                 busy ||
+                creation.kind === 'unknown' ||
                 !available ||
                 (name ?? value.preset?.name ?? '').trim() === '' ||
                 routes?.orchestrator === undefined
               }
-              onClick={() =>
-                void run(
-                  async () => {
-                    await saveModelPreset(client, value, name ?? '', false);
-                  },
-                  () => setName(undefined),
-                )
-              }
+              onClick={() => {
+                void savePresetDraft();
+              }}
             >
-              {t('modelPreset.saveAs')}
+              {t(
+                creation.kind === 'receipt'
+                  ? 'environment.settings.checkCreatedPreset'
+                  : 'modelPreset.saveAs',
+              )}
             </PillButton>
           ) : null}
         </>
