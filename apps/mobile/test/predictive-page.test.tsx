@@ -6,6 +6,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({
   focused: true,
   canBack: true,
+  index: 1,
   held: false,
   reduced: false,
   goBack: vi.fn(),
@@ -16,6 +17,10 @@ vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('expo-router', () => ({
   useIsFocused: () => state.focused,
   useNavigation: () => ({ canGoBack: () => state.canBack, goBack: state.goBack }),
+}));
+vi.mock('expo-router/react-navigation', () => ({
+  useNavigationState: (select: (value: { index: number }) => unknown) =>
+    select({ index: state.index }),
 }));
 vi.mock('expo', async () => {
   const { View } = await import('./react-native-shim');
@@ -51,6 +56,7 @@ const render = async () =>
 beforeEach(() => {
   state.focused = true;
   state.canBack = true;
+  state.index = 1;
   state.held = false;
   state.reduced = false;
   state.goBack.mockClear();
@@ -82,6 +88,7 @@ it('does not intercept an unfocused page or the root', async () => {
   await render();
   expect(state.native.active).toBe(false);
   state.focused = true;
+  state.index = 0;
   state.canBack = false;
   await render();
   expect(state.native.active).toBe(false);
@@ -102,4 +109,14 @@ it('updates the native reduced-motion preference without remounting the page', a
   await render();
   expect(state.native.reducedMotion).toBe(true);
   expect(container.querySelector('input')).toBe(input);
+});
+
+it('activates from the rendered stack even while the imperative accessor sees the previous render', async () => {
+  state.canBack = false;
+  state.index = 1;
+  await render();
+  expect(state.native.active).toBe(true);
+  state.canBack = true;
+  state.native.onBack();
+  expect(state.goBack).toHaveBeenCalledTimes(1);
 });
