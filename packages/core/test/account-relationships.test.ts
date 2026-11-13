@@ -180,6 +180,192 @@ it('lets the smaller Host discover in the background with no Client and converge
   }
 });
 
+function manualActive(test: ReturnType<typeof fixture>) {
+  const item = test.relationships.propose({
+    id: test.proof.relationshipId,
+    peer: test.source,
+    direction: 'incoming',
+  });
+  test.relationships.approve(item.id, test.source.publicKey);
+  return test.relationships.activate(item.id, test.source.publicKey);
+}
+
+it('qualifies an existing manual relationship only after bilateral proof and retries a lost confirmation without replacing its grants', async () => {
+  const key = randomBytes(32);
+  const a = fixture(key);
+  const b = fixture(key);
+  a.session.registrationId = 'haaaaaaaaaaaa';
+  b.local.publicKey = 'ef'.repeat(32);
+  a.peers.set(b.session.registrationId, b.local);
+  b.peers.set(a.session.registrationId, a.local);
+  const id = a.proof.relationshipId;
+  const manualRoute = 'https://independent.ts.net';
+  const left = a.relationships.propose({
+    id,
+    peer: { ...b.local, routes: [manualRoute] },
+    direction: 'outgoing',
+  });
+  a.relationships.activate(id, b.local.publicKey);
+  b.relationships.propose({
+    id,
+    peer: { ...a.local, routes: [manualRoute] },
+    direction: 'incoming',
+  });
+  b.relationships.approve(id, a.local.publicKey);
+  b.relationships.activate(id, a.local.publicKey);
+  const priorKey = randomBytes(32).toString('hex');
+  const priorOffer = b.relationships.enrollment(id, a.local.publicKey, {
+    publicKey: priorKey,
+    name: 'Existing Client',
+  });
+  expect(b.pairing.redeem({ offer: priorOffer.offer, publicKey: priorKey }).ok).toBe(true);
+  expect(b.pairing.redeem({ offer: b.pairing.createOffer().offer }).ok).toBe(true);
+  const priorDevices = b.pairing.list();
+  const listed = [a, b].map((test) => ({
+    id: test.session.registrationId,
+    name: 'Host',
+    hostname: `${test.session.registrationId}.deepseekbot.dev`,
+    createdAt: new Date().toISOString(),
+    current: false,
+    sessionKnown: true,
+  }));
+  a.session.hosts = b.session.hosts = async () => listed;
+  let loseReply = true;
+  a.request.mockImplementation(async (_peer, command) => {
+    if (command.action !== 'account-propose')
+      throw new Error('must not reactivate manual approval');
+    const answer = await b.authority.receive(a.local.publicKey, command);
+    if (loseReply) {
+      loseReply = false;
+      throw new Error('confirmation lost');
+    }
+    return answer;
+  });
+  try {
+    expect((await a.authority.status()).relationships).toEqual([]);
+    await expect(a.authority.authorize(id)).rejects.toThrow('origin-mismatch');
+    await a.authority.discover();
+    expect(a.relationships.read(id).accountOrigin).toBeNull();
+    expect(b.relationships.read(id).accountOrigin).not.toBeNull();
+    a.session.generation = 'retry-generation';
+    await a.authority.discover();
+    for (const test of [a, b]) {
+      const qualified = test.relationships.read(id);
+      expect(qualified.state).toBe('active');
+      expect(qualified.peer.routes).toContain(manualRoute);
+      expect(qualified.automaticEnrollmentSuppressed).toBe(false);
+      expect((await test.authority.status()).relationships.map((item) => item.id)).toEqual([id]);
+      expect(test.relationships.list()).toHaveLength(1);
+      const authorization = await test.authority.authorize(id);
+      expect(authorization.check().id).toBe(id);
+    }
+    expect(a.relationships.read(id).direction).toBe(left.direction);
+    expect(b.relationships.read(id).direction).toBe('incoming');
+    expect(b.pairing.list()).toEqual(priorDevices);
+    const newKey = randomBytes(32).toString('hex');
+    const newOffer = b.relationships.enrollment(id, a.local.publicKey, {
+      publicKey: newKey,
+      name: 'New account Client',
+    });
+    expect(b.pairing.redeem({ offer: newOffer.offer, publicKey: newKey }).ok).toBe(true);
+    expect(b.pairing.list()).toHaveLength(priorDevices.length + 1);
+  } finally {
+    a.authority.close();
+    b.authority.close();
+  }
+});
+
+it.each([
+  'wrong-account',
+  'wrong-pin',
+  'expired',
+  'expires-during-lookup',
+  'sign-out',
+  'disconnect',
+  'stale-null',
+] as const)('does not qualify an existing manual relationship for %s', async (mode) => {
+  const test = fixture();
+  const previous = manualActive(test);
+  const pinned = test.source.publicKey;
+  const proposal = await test.proposal();
+  if (mode === 'wrong-account') test.session.accountId = 'different-account';
+  if (mode === 'wrong-pin') test.source.publicKey = 'ef'.repeat(32);
+  if (mode === 'expired') proposal.proof.expiresAt = Date.now() - 1;
+  let expectedOrigin = previous.accountOrigin;
+  test.onOffer(async (registrationId) => {
+    if (registrationId !== test.proof.source.registrationId) return;
+    if (mode === 'sign-out') test.signOut();
+    if (mode === 'disconnect') test.relationships.disconnect(previous.id);
+    if (mode === 'expires-during-lookup')
+      vi.spyOn(Date, 'now').mockReturnValue(proposal.proof.expiresAt + 1);
+    if (mode === 'stale-null') {
+      expectedOrigin = {
+        accountId: test.session.accountId,
+        localRegistrationId: test.session.registrationId,
+        peerRegistrationId: 'haaaaaaaaacca',
+        officialOrigin: 'https://haaaaaaaaacca.deepseekbot.dev',
+      };
+      test.relationships.refreshAccountOrigin({
+        id: previous.id,
+        peer: test.source,
+        expectedOrigin: null,
+        origin: expectedOrigin,
+      });
+    }
+  });
+  try {
+    await expect(test.authority.receive(pinned, proposal)).rejects.toThrow();
+    const after = test.relationships.read(previous.id);
+    expect(after.accountOrigin).toEqual(expectedOrigin);
+    if (mode !== 'stale-null') expect(after.peer.routes).toEqual(previous.peer.routes);
+    if (mode === 'disconnect') expect(after.automaticEnrollmentSuppressed).toBe(true);
+    expect(test.relationships.list()).toHaveLength(1);
+  } finally {
+    vi.restoreAllMocks();
+    test.authority.close();
+  }
+});
+
+it('never converts pending manual approval into automatic account approval', async () => {
+  const test = fixture();
+  const previous = test.relationships.propose({
+    id: test.proof.relationshipId,
+    peer: test.source,
+    direction: 'incoming',
+  });
+  try {
+    await expect(
+      test.authority.receive(test.source.publicKey, await test.proposal()),
+    ).rejects.toThrow('origin-mismatch');
+    expect(test.relationships.read(previous.id)).toMatchObject({
+      state: 'pending',
+      accountOrigin: null,
+    });
+    expect((await test.authority.status()).relationships).toEqual([]);
+  } finally {
+    test.authority.close();
+  }
+});
+
+it('refuses first account qualification and the new official route atomically at the route limit', async () => {
+  const test = fixture();
+  const previous = manualActive(test);
+  const routes = Array.from({ length: 8 }, (_, index) => `https://manual-${index}.ts.net`);
+  test.relationships.updateRoutes(previous.id, test.source.publicKey, routes);
+  try {
+    await expect(
+      test.authority.receive(test.source.publicKey, await test.proposal()),
+    ).rejects.toThrow('route-limit');
+    expect(test.relationships.read(previous.id)).toMatchObject({
+      state: 'active',
+      accountOrigin: null,
+      peer: { routes },
+    });
+  } finally {
+    test.authority.close();
+  }
+});
+
 it('does not fetch offers while signed out or after the background owner closes', async () => {
   const test = fixture();
   test.signOut();

@@ -86,7 +86,7 @@ export function createRelationshipControl(options: {
   pairing: DevicePairing;
   identity: { key(): Promise<Uint8Array>; publicIdentity(): Promise<EncryptionIdentity> };
   routes(): Promise<string[]>;
-  account?(): ConnectAccount | undefined;
+  account?(): Pick<ConnectAccount, 'relationshipSession' | 'verifyOffer'> | undefined;
   privateAdmission?: () => PrivateAdmission | undefined;
   credentials?: () => RelationshipCredentialProvider | undefined;
   now?: () => number;

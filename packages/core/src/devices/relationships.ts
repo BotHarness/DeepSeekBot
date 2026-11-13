@@ -133,7 +133,7 @@ export function createHostRelationships(options: {
       id: string;
       peer: Pick<RelationshipPeer, 'id' | 'publicKey'>;
       origin: RelationshipAccountOrigin;
-      expectedOrigin: RelationshipAccountOrigin;
+      expectedOrigin: RelationshipAccountOrigin | null;
     }): HostRelationship {
       const origin = relationshipAccountOriginSchema.parse(input.origin);
       transact(
@@ -148,14 +148,19 @@ export function createHostRelationships(options: {
             current.state !== 'active' ||
             current.peer.id !== input.peer.id ||
             current.peer.publicKey !== input.peer.publicKey ||
-            current.accountOrigin?.accountId !== origin.accountId
+            (current.accountOrigin !== null && current.accountOrigin.accountId !== origin.accountId)
           )
             throw new RelationshipRefused('account-enrollment-origin-mismatch');
-          const same = (a: RelationshipAccountOrigin | null, b: RelationshipAccountOrigin) =>
-            a?.accountId === b.accountId &&
-            a.localRegistrationId === b.localRegistrationId &&
-            a.peerRegistrationId === b.peerRegistrationId &&
-            a.officialOrigin === b.officialOrigin;
+          const same = (
+            a: RelationshipAccountOrigin | null,
+            b: RelationshipAccountOrigin | null,
+          ) =>
+            a === null || b === null
+              ? a === b
+              : a.accountId === b.accountId &&
+                a.localRegistrationId === b.localRegistrationId &&
+                a.peerRegistrationId === b.peerRegistrationId &&
+                a.officialOrigin === b.officialOrigin;
           if (
             !same(current.accountOrigin, input.expectedOrigin) &&
             !same(current.accountOrigin, origin)

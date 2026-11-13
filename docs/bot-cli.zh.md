@@ -43,7 +43,7 @@
 | `relationships commit-enrollment <关系ID> <Client公钥>`                                 | 幂等确认同一 intent 已私密保存，不生成另一个密钥。              |
 | `relationships cancel-enrollment <关系ID> <Client公钥> --confirm`                       | 取消准确 intent 并重试有限的待清理工作，保留其他 Client。       |
 
-`account-discover` 不把列表中的 Host 当成授权：双方独立核对账号注册、Host 身份、Noise 公钥和新鲜的已签名 transcript，保留原 pin 与主动断开抑制。手动关系仍需「在此 Client 使用」。退出账号停止发现及新自动登记，保留独立可用的授权与线路；准确公钥的减权清理仍可在退出后进行。Bot 协作独立授权。
+`account-discover` 不把列表中的 Host 当成授权：双方独立核对账号注册、Host 身份、Noise 公钥和新鲜的已签名 transcript，保留原 pin 与主动断开抑制。完整证明也可为已有手动批准的 active 关系附加账号资格，保留其 ID、审批与授权；不会绕过待处理的手动审批。尚无该验证资格的手动关系仍需「在此 Client 使用」。退出账号停止发现及新自动登记，保留独立可用的授权与线路；准确公钥的减权清理仍可在退出后进行。Bot 协作独立授权。
 
 每次新关系登记先保存来源端 unconfirmed intent；CLI 私密保存独立密钥后再确认，标准输出在 Host/设备 ID 之外报告 `enrollment: committed` 或 `pending`。待确认文件保留 `relationshipEnrollment.publicKey`，以便准确读回并重试。保留该文件，用同一 key 重试确认，不另建文件生成新 key。丢确认响应及 Host 重启后，确认仍幂等。未确认的十分钟截止后拒绝 commit，来源端保留待清理；已取消结果移除本次写入的私密文件。清理只撤销该关系及公钥对应的派生授权，也覆盖配对回复丢失的设备，并拒绝迟到 offer/redemption。跨重启最多自动重试八次，耗尽后仍可通过 `enrollments` 检查并显式重试。1,024 条生命周期记录满额安全拒绝，不淘汰未解决事实或仍有效的取消 tombstone。
 

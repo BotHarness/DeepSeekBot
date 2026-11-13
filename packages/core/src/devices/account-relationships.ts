@@ -272,6 +272,8 @@ export function createAccountRelationships(options: {
             throw new RelationshipRefused('account-enrollment-proof-invalid');
           const source = peer(await session.offer(proof.source.registrationId, nonce(), signal));
           guard(session, signal);
+          if (proof.expiresAt <= Date.now())
+            throw new RelationshipRefused('account-enrollment-proof-invalid');
           if (source.id !== proof.source.hostId || source.publicKey !== peerKey)
             throw new RelationshipRefused('relationship-identity-mismatch');
           eligible(source);
@@ -283,8 +285,6 @@ export function createAccountRelationships(options: {
             officialOrigin: source.routes[0],
           };
           if (existing?.state === 'active') {
-            if (!observedOrigin)
-              throw new RelationshipRefused('account-enrollment-origin-mismatch');
             const refreshed = relationships.refreshAccountOrigin({
               id: existing.id,
               peer: source,
@@ -384,7 +384,13 @@ export function createAccountRelationships(options: {
               let existing = relationships
                 .list()
                 .find((item) => item.peer.id === remote.id && item.state !== 'disconnected');
-              if (existing && existing.accountOrigin?.accountId !== session.accountId) return;
+              if (
+                existing &&
+                (existing.accountOrigin
+                  ? existing.accountOrigin.accountId !== session.accountId
+                  : existing.state !== 'active')
+              )
+                return;
               if (
                 existing?.state === 'active' &&
                 originMatches(existing.accountOrigin, session, peerRegistrationId) &&
@@ -449,8 +455,6 @@ export function createAccountRelationships(options: {
               eligible(remote);
               if (answer['state'] !== 'approved' && answer['state'] !== 'active') return;
               if (relationship.state === 'active') {
-                if (!relationship.accountOrigin)
-                  throw new RelationshipRefused('account-enrollment-origin-mismatch');
                 relationships.refreshAccountOrigin({
                   id: relationship.id,
                   peer: remote,
