@@ -219,10 +219,18 @@ function operationPlan(
       selfRevocation || affectsRoute(operation, status, remote.snapshot.connection.route),
     alternatives: selfRevocation
       ? []
-      : remote.host.routes.filter(
-          (route) =>
-            route !== remote.snapshot.connection.route && !affectsRoute(operation, status, route),
-        ),
+      : [
+          ...new Set(
+            remote.host.routes
+              .filter(
+                (route) =>
+                  route !== remote.snapshot.connection.route &&
+                  !affectsRoute(operation, status, route),
+              )
+              .map(address)
+              .filter(Boolean),
+          ),
+        ],
   };
 }
 

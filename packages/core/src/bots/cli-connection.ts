@@ -9,7 +9,7 @@ export const CONNECTION_COMMANDS = [
   {
     command: 'connection-host',
     description:
-      '<host-id> inspect/read-operation/remove/revoke-device/stop-route/sign-out/test-route/select-route on --client-id; plan-* previews writes; mutations require --confirm; self-disconnection requires --handover <origin> or --confirm-disconnect',
+      '<host-id> inspect/read-operation/read-previous-operation/remove/revoke-device/stop-route/sign-out/test-route/select-route on --client-id; plan-* previews writes; mutations require --confirm; self-disconnection requires --handover <origin> or --confirm-disconnect',
   },
   { command: 'connection-clients', description: 'list online Clients for Remote Host connection' },
   {

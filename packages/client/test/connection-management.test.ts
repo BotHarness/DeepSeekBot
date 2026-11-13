@@ -720,6 +720,34 @@ it('refuses offline writes even if a separate owner inspection can still return 
   expect(api.mock.calls[0]?.[1]?.body).toBeUndefined();
 });
 
+it('reports only public origins in a handover plan, excluding URL credentials and query values', async () => {
+  const active = 'https://active.trycloudflare.com';
+  const { sources } = fixture([
+    active,
+    'https://user:private-fixture@other.ts.net/path?ticket=private-fixture',
+  ]);
+  vi.spyOn(sources.client('a')!, 'api').mockResolvedValue({
+    status: 200,
+    body: {
+      host: { id: 'a', name: 'Studio' },
+      devices: [],
+      privateRoutes: [{ id: 'quick', origin: active, state: 'connected' }],
+    },
+  });
+  const result = await manageConnections(
+    sources,
+    {
+      action: 'plan-operation',
+      hostId: 'a',
+      operation: { action: 'stop-route', kind: 'private-tunnel', routeId: 'quick' },
+    },
+    request(),
+  );
+  expect(result).toMatchObject({ alternatives: ['https://other.ts.net'] });
+  expect(JSON.stringify(result)).not.toContain('private-fixture');
+  expect(JSON.stringify(result)).not.toContain('ticket');
+});
+
 it('persists selection only for the selected browser Host and restores it through its existing store', async () => {
   const { sources, values, storage } = fixture();
   await manageConnections(
