@@ -27,13 +27,14 @@ export function startAccountEnvironments(options: {
       if (lifetime.signal.aborted) return;
       const nextGeneration = status.state === 'signed-out' ? undefined : status.generation;
       if (nextGeneration !== generation) {
-        for (const abort of pending.values()) abort.abort();
+        for (const abort of pending.values()) abort.abort('account-changed');
         retryAt.clear();
         generation = nextGeneration;
       }
       if (status.state !== 'signed-out') {
         const activeIds = new Set(status.relationships.map((item) => item.id));
-        for (const [id, abort] of pending) if (!activeIds.has(id)) abort.abort();
+        for (const [id, abort] of pending)
+          if (!activeIds.has(id)) abort.abort('relationship-retired');
         for (const relationship of status.relationships) {
           if (pending.size >= 2) break;
           if (
@@ -74,7 +75,7 @@ export function startAccountEnvironments(options: {
   return () => {
     lifetime.abort();
     clearTimeout(timer);
-    for (const abort of pending.values()) abort.abort();
+    for (const abort of pending.values()) abort.abort('owner-disposed');
     pending.clear();
     retryAt.clear();
   };

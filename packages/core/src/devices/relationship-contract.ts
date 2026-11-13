@@ -8,6 +8,16 @@ export const relationshipAccountOriginSchema = z
   })
   .strict();
 export type RelationshipAccountOrigin = z.infer<typeof relationshipAccountOriginSchema>;
+export const automaticEnrollmentChoiceSchema = z
+  .object({
+    kind: z.literal('automatic-enrollment-suppressed'),
+    hostId: z.string().min(1),
+    publicKey: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/u)
+      .nullable(),
+  })
+  .strict();
 export const pendingRelationshipEnrollmentSchema = z.object({
   relationshipEnrollment: z.object({ publicKey: z.string().regex(/^[a-f0-9]{64}$/u) }).optional(),
 });

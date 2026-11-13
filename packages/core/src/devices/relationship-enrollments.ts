@@ -85,6 +85,16 @@ export function createRelationshipEnrollments(options: {
     db.prepare(
       "DELETE FROM relationship_client_enrollments WHERE state IN ('cleaned', 'cancelled') AND expires_at + ? <= ?",
     ).run(RETAIN_AFTER_EXPIRY_MS, now());
+    db.prepare(
+      "DELETE FROM relationship_client_enrollments WHERE direction = 'incoming' AND state = 'unconfirmed' AND expires_at + ? <= ?",
+    ).run(RETAIN_AFTER_EXPIRY_MS, now());
+    db.prepare(`DELETE FROM relationship_client_enrollments AS e WHERE e.direction = 'incoming' AND e.state = 'committed' AND e.expires_at + ? <= ? AND NOT EXISTS (
+        SELECT 1 FROM relationship_device_grants g JOIN paired_devices p ON p.device_id = g.device_id
+        WHERE g.relationship_id = e.relationship_id AND p.public_key = e.public_key AND p.revoked_at IS NULL
+      )`).run(RETAIN_AFTER_EXPIRY_MS, now());
+    db.prepare(`DELETE FROM relationship_client_enrollments WHERE direction = 'outgoing' AND state = 'committed' AND expires_at + ? <= ? AND EXISTS (
+        SELECT 1 FROM host_relationships r WHERE r.relationship_id = relationship_client_enrollments.relationship_id AND r.state = 'disconnected'
+      )`).run(RETAIN_AFTER_EXPIRY_MS, now());
     const count = db
       .prepare('SELECT count(*) AS total FROM relationship_client_enrollments')
       .get() as { total: number };
@@ -167,7 +177,7 @@ export function createRelationshipEnrollments(options: {
       if (
         !Number.isSafeInteger(expiresAt) ||
         expiresAt <= now() ||
-        expiresAt > now() + PAIRING_OFFER_TTL_MS
+        expiresAt > now() + PAIRING_OFFER_TTL_MS + RETAIN_AFTER_EXPIRY_MS
       )
         throw new EnrollmentRefused('relationship-enrollment-expired');
       const existing = read(id, publicKey, 'incoming');
@@ -212,7 +222,10 @@ export function createRelationshipEnrollments(options: {
     },
     cancelIncoming(id: string, publicKey: string, expiresAt: number): { revoked: number } {
       validateKey(publicKey);
-      if (!Number.isSafeInteger(expiresAt) || expiresAt > now() + PAIRING_OFFER_TTL_MS)
+      if (
+        !Number.isSafeInteger(expiresAt) ||
+        expiresAt > now() + PAIRING_OFFER_TTL_MS + RETAIN_AFTER_EXPIRY_MS
+      )
         throw new EnrollmentRefused('relationship-enrollment-expired');
       const existing = read(id, publicKey, 'incoming');
       const devices = transact(

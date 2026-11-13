@@ -177,7 +177,7 @@ export function createAccountRelationships(options: {
             proof.target.registrationId !== session.registrationId ||
             proof.source.publicKey !== peerKey ||
             proof.expiresAt <= Date.now() ||
-            proof.expiresAt > Date.now() + 600_000
+            proof.expiresAt > Date.now() + 660_000
           )
             throw new RelationshipRefused('account-enrollment-proof-invalid');
           const local = await own(session, signal);

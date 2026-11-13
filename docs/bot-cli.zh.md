@@ -25,6 +25,24 @@
 | `relationships enroll <关系ID> --device-name <名称> --out <新私密文件绝对路径>` | 为具名 CLI Client 登记并私密保存独立凭据；标准输出仅含 Host 和设备标识。 |
 | `relationships disconnect <关系ID> --confirm`                                   | 撤销派生访问，保留独立手机授权及远端数据；对方未确认时保留待撤销状态。   |
 
+同账号发现复用环境面板的 Host owner：
+
+| 命令                                                                                    | 用途                                                            |
+| --------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `relationships account-discover`                                                        | 启动有界的已验证发现，不等待所有 Host，后续可分别读取成功结果。 |
+| `relationships account-status`                                                          | 读取当前账号代际及允许自动登记 Client 的有效关系。              |
+| `relationships account-enroll <关系ID> --device-name <名称> --out <新私密文件绝对路径>` | 仅通过当前服务端已验证的账号来源，为 CLI Client 签发独立授权。  |
+| `relationships enrollments`                                                             | 检查未确认、已确认及准确公钥待清理事实、截止时间与重试次数。    |
+| `relationships enrollment-status <关系ID> <Client公钥>`                                 | 不确定响应后，读取准确的 Client intent。                        |
+| `relationships commit-enrollment <关系ID> <Client公钥>`                                 | 幂等确认同一 intent 已私密保存，不生成另一个密钥。              |
+| `relationships cancel-enrollment <关系ID> <Client公钥> --confirm`                       | 取消准确 intent 并重试有限的待清理工作，保留其他 Client。       |
+
+`account-discover` 不把列表中的 Host 当成授权：双方独立核对账号注册、Host 身份、Noise 公钥和新鲜的已签名 transcript，保留原 pin 与主动断开抑制。手动关系仍需「在此 Client 使用」。退出账号停止发现及新自动登记，保留独立可用的授权与线路；准确公钥的减权清理仍可在退出后进行。Bot 协作独立授权。
+
+每次新关系登记先保存来源端 unconfirmed intent；CLI 私密保存独立密钥后再确认，标准输出在 Host/设备 ID 之外报告 `enrollment: committed` 或 `pending`。待确认文件保留 `relationshipEnrollment.publicKey`，以便准确读回并重试。保留该文件，用同一 key 重试确认，不另建文件生成新 key。丢确认响应及 Host 重启后，确认仍幂等。未确认的十分钟截止后拒绝 commit，来源端保留待清理；已取消结果移除本次写入的私密文件。清理只撤销该关系及公钥对应的派生授权，也覆盖配对回复丢失的设备，并拒绝迟到 offer/redemption。跨重启最多自动重试八次，耗尽后仍可通过 `enrollments` 检查并显式重试。1,024 条生命周期记录满额安全拒绝，不淘汰未解决事实或仍有效的取消 tombstone。
+
+受支持的 in-harness 桌面/Web Client 自动登记已验证账号关系，不切换环境范围、当前会话或 Settings Target。同源标签页用每 Host 的 Web Lock 复用一份 Client 授权；独立浏览器 context 使用各自的私密存储和授权。自动登记需要 Web Locks，缺失时在生成 key 前拒绝；既有 HTTP LAN 手动登记及线路更新，与所有凭据数组写入统一使用短 IndexedDB 原生事务，不另存凭据或租约，并保留其他 Host 及更新的设备代际。原生手机仍需逐 Host 明确登记；运行完整 owner Web Client 的手机浏览器属于 Web Client，UA 不是授权信号。原生手机不继承仍需单独真机验证。
+
 用现有 `--host` / `--token-file` 选定准确的本机所有者。在另一台本机 Host 上执行 `enroll`，为其 CLI Client 独立登记；`device-probe --device-file <私密文件绝对路径>` 读取该 Client 的真实远端 Feed。手机不能通过设备网关调用关系登记。发起结果不确定时先读取 `relationships list`，不要盲目重发。
 
 断开立即拒绝本机关系访问并撤销派生授权；对方离线时，`peerRevocationPending: true` 跨重启保留。仅针对准确关系的幂等撤销自动重试，最多八次、间隔上限一分钟，不重放普通变更。`list` 返回 `revocationAttempts`、`revocationRetryAt` 和 `automaticEnrollmentSuppressed`。达到上限后仍可检查待撤销记录；对已断开关系运行 `relationships sync <关系ID>` 可手动重试并重新开始有限自动重试。确认只作用于准确关系 ID 及固定公钥，迟到确认不能撤销新代关系；独立设备授权和远端数据保留。

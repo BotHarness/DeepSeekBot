@@ -8,6 +8,17 @@ import {
 import { redeemPairing, revokePairing } from '../../../../apps/mobile/src/host/pairing.js';
 import { checkRoute, isEncryptedRoute } from '../../../../apps/mobile/src/host/route.js';
 import { noiseFingerprint, noisePublicKey } from './noise/xk.js';
+import type { SavedHost } from '../../../../apps/mobile/src/host/hosts.js';
+
+export function relationshipClientPublicKey(host: SavedHost): string | undefined {
+  if (!host.relationshipId || !host.encryption) return undefined;
+  const key = keyBytes(host.encryption.deviceKey);
+  try {
+    return keyHex(noisePublicKey(key));
+  } finally {
+    key.fill(0);
+  }
+}
 
 const ticketSchema = z.object({
   peer: z.object({
