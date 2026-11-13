@@ -28,10 +28,10 @@ Rules:
 
 ## Running Codex
 
-Run `codex exec --help` once to confirm the flags for the installed version. A typical non-interactive call from inside the slice worktree:
+Run `codex exec --help` once to confirm the flags for the installed version. A typical non-interactive call, pointed at the Codex sub-branch worktree (never the slice worktree Claude edits):
 
 ```bash
-codex exec --full-auto -C ../botharness-4139 "$(cat .tmp/codex-4139.md)"
+codex exec -C ../botharness-4139-logic "$(cat .tmp/codex-4139.md)"
 ```
 
 Put the task prompt in a file under the worktree's gitignored `.tmp/`. Each prompt includes:
