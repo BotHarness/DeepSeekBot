@@ -5,6 +5,7 @@ import { createServer, request as httpRequest, type IncomingMessage, type Server
 import { request as httpsRequest } from 'node:https';
 import { connect as tcpConnect, type AddressInfo, type LookupFunction } from 'node:net';
 import type { Duplex } from 'node:stream';
+import { privateAdmissionFromHeaders } from '../../../../deploy/private-relay/admission.mjs';
 import { getCACertificates } from 'node:tls';
 
 import type { CredentialProvider } from '@deepseek-ai/dsh-credentials';
@@ -195,15 +196,16 @@ export function createTunnelOrigin(options: {
     response.end(JSON.stringify({ code: 'not-found' }));
   });
   server.on('upgrade', (request: IncomingMessage, socket: Duplex, head: Buffer) => {
-    const header = request.headers['x-botharness-admission'];
-    const presented =
-      (typeof header === 'string' ? header : undefined) ??
-      request.headers.authorization?.replace(/^Bearer /u, '') ??
-      '';
+    const admission = privateAdmissionFromHeaders(
+      request.headers.authorization,
+      request.headers['x-botharness-admission'],
+      request.headers['sec-websocket-protocol'],
+    );
     if (
       request.url !== CONNECT_CHANNEL_PATH ||
       request.headers.cookie !== undefined ||
-      !timingSafeEqual(digest(presented), digest(options.phoneToken()))
+      !admission ||
+      !timingSafeEqual(digest(admission.token), digest(options.phoneToken()))
     ) {
       socket.end('HTTP/1.1 404 Not Found\r\nconnection: close\r\ncontent-length: 0\r\n\r\n');
       return;
@@ -213,6 +215,10 @@ export function createTunnelOrigin(options: {
       const name = request.rawHeaders[index] ?? '';
       const lower = name.toLowerCase();
       if (lower === 'authorization' || lower === 'x-botharness-admission') continue;
+      if (lower === 'sec-websocket-protocol') {
+        if (admission.protocol) raw += `${name}: ${admission.protocol}\r\n`;
+        continue;
+      }
       raw += `${name}: ${request.rawHeaders[index + 1] ?? ''}\r\n`;
     }
     const upstream = tcpConnect(options.port(), '127.0.0.1', () => {
