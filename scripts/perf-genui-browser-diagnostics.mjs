@@ -80,7 +80,7 @@ async function main() {
     imageOS: process.env.ImageOS ?? null,
     imageVersion: process.env.ImageVersion ?? null,
     system: inspect(system),
-    controlled: inspect(puppeteer.executablePath()),
+    controlled: inspect(await puppeteer.executablePath()),
   };
   if (existsSync(out)) throw new Error('Keep prior environment evidence; choose a new file');
   writeFileSync(out, JSON.stringify(result, null, 2) + '\n');

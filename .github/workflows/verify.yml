@@ -440,7 +440,7 @@ jobs:
         run: >-
           node scripts/perf-genui-browser-diagnostics.mjs logs
           .humanlayer/perf/browser-diagnostics/controlled-log.json "$BH_E2E_INSTANCE"
-      - if: always() && github.event_name == 'workflow_dispatch' && inputs.genui_browser_diagnostic
+      - if: always() && steps.controlled_launch.outcome == 'success'
         run: node scripts/verify-app.mjs stop --name perf
       - if: always() && github.event_name == 'workflow_dispatch' && inputs.genui_browser_diagnostic
         env:
