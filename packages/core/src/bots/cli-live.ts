@@ -1002,7 +1002,11 @@ export async function runLiveCli(
   values: LiveValues,
   io: BotCreateCliIo,
 ): Promise<unknown> {
-  if (TEAM_COMMANDS.some((entry) => entry.command === command) || command === 'channels') {
+  if (
+    TEAM_COMMANDS.some((entry) => entry.command === command) ||
+    command === 'channels' ||
+    (command === 'devices' && values.member !== undefined)
+  ) {
     const host = await connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout)));
     return runTeamCommand(command, rest, values, io, host.rpc);
   }

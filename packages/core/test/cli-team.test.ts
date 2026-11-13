@@ -36,12 +36,16 @@ async function host() {
     const input = JSON.parse(Buffer.concat(chunks).toString());
     calls.push({ path: request.url ?? '', input });
     const value =
-      input.method === 'botharness/memberCreate'
-        ? {
-            member: { username: 'bob', humanId: 'bob-id' },
-            initialPassword: 'private-initial-password',
-          }
-        : { done: true };
+      input.method === 'botharness/teamMode'
+        ? { viewer: { humanId: 'owner-id' } }
+        : input.method === 'botharness/members'
+          ? [{ username: 'bob', humanId: 'bob-id' }]
+          : input.method === 'botharness/memberCreate'
+            ? {
+                member: { username: 'bob', humanId: 'bob-id' },
+                initialPassword: 'private-initial-password',
+              }
+            : { done: true };
     response.setHeader('content-type', 'application/json');
     if (request.url === '/api/botharness/team-as')
       response.end(
@@ -90,6 +94,24 @@ describe('Team CLI', () => {
     [['team-mode', 'off'], 'teamModeSet', { enabled: false }],
     [['team-mode', 'insecure-http', 'on', '--confirm'], 'teamInsecureHttpSet', { allowed: true }],
     [['members', 'list'], 'members', {}],
+    [['roles', 'list'], 'roles', {}],
+    [['roles', 'catalog'], 'permissionCatalog', {}],
+    [
+      ['roles', 'create', '--name', 'Reviewers', '--permissions', 'audit.view,usage.view'],
+      'roleCreate',
+      { name: 'Reviewers', permissions: ['audit.view', 'usage.view'] },
+    ],
+    [
+      ['roles', 'update', 'reviewers', '--permissions', ''],
+      'roleUpdate',
+      { roleId: 'reviewers', permissions: [] },
+    ],
+    [
+      ['roles', 'update', 'reviewers', '--name', 'Operators'],
+      'roleUpdate',
+      { roleId: 'reviewers', name: 'Operators' },
+    ],
+    [['roles', 'delete', 'reviewers'], 'roleDelete', { roleId: 'reviewers' }],
     [['channels', 'browse-public'], 'publicChannels', {}],
     [['channels', 'join-public', 'group-1'], 'publicChannelJoin', { channelId: 'group-1' }],
     [
@@ -193,6 +215,66 @@ describe('Team CLI', () => {
       },
     });
   });
+  it.each([
+    [
+      ['members', 'roles', 'bob', '--set', 'member,reviewers'],
+      'memberRolesSet',
+      { humanId: 'bob-id', roleIds: ['member', 'reviewers'] },
+    ],
+    [['devices', '--member', 'bob'], 'memberDevices', { humanId: 'bob-id' }],
+    [
+      ['devices', '--member', 'bob', '--revoke', 'browser-grant'],
+      'memberDeviceRevoke',
+      { humanId: 'bob-id', grantId: 'browser-grant' },
+    ],
+    [
+      ['team-mode', 'transfer-owner', 'bob', '--password-stdin', '--confirm'],
+      'ownerTransfer',
+      { humanId: 'bob-id', password: 'private-owner-password' },
+    ],
+  ] as const)('resolves usernames and dispatches %j', async (args, method, payload) => {
+    const f = await host();
+    const result = await run(f.url, [...args], 'private-owner-password\n');
+    expect(result.status).toBe(0);
+    expect(f.calls.map((call) => call.path)).toEqual([
+      '/api/botharness/teamMode',
+      '/api/botharness/members',
+      `/api/botharness/${method}`,
+    ]);
+    expect(f.calls[2]?.input).toMatchObject({ payload: { args: payload } });
+    expect(result.text + result.errorText).not.toContain('private-owner-password');
+  });
+
+  it.each([
+    ['team-mode', 'transfer-owner', 'bob', '--password-stdin'],
+    ['team-mode', 'transfer-owner', 'bob', '--confirm'],
+    ['roles', 'create', '--name', 'No permissions'],
+    ['devices', '--member', 'bob', '--member', 'alice'],
+  ])('refuses incomplete or ambiguous M3 commands %j without mutation', async (...args) => {
+    const f = await host();
+    expect((await run(f.url, args, 'private-owner-password')).status).not.toBe(0);
+    expect(f.calls).toEqual([]);
+  });
+
+  it.each([
+    ['roles', 'list'],
+    ['roles', 'catalog'],
+    ['roles', 'create', '--name', 'Audit', '--permissions', 'audit.view'],
+    ['roles', 'update', 'audit', '--permissions', ''],
+    ['roles', 'delete', 'audit'],
+    ['members', 'roles', 'alice', '--set', 'member'],
+    ['devices', '--member', 'bob'],
+    ['devices', '--member', 'bob', '--revoke', 'grant'],
+    ['team-mode', 'transfer-owner', 'alice', '--password-stdin', '--confirm'],
+  ])('keeps --as on the member carrier for M3 %j', async (...args) => {
+    const f = await host();
+    const result = await run(f.url, ['--as', 'bob', ...args], 'private-owner-password');
+    expect(result.output).toMatchObject({ error: { code: 'remote-access/denied' } });
+    expect(f.calls).toHaveLength(1);
+    expect(f.calls[0]?.path).toBe('/api/botharness/team-as');
+    expect(result.text).not.toContain('private-owner-password');
+  });
+
   it('admits certificate-verified private LAN HTTPS for the local Owner CLI', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const url = new URL(String(input));
