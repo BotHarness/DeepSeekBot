@@ -108,8 +108,8 @@ class PredictivePageView(context: Context, appContext: AppContext) : ExpoView(co
       override fun onBackCancelled() = settle(false)
       override fun onBackInvoked() { if (tracking) settle(true) else commit() }
     }
-    // The profile's overlay-priority callback and IME own Back above this route callback.
-    findOnBackInvokedDispatcher()?.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, next)
+    // JS suspends this surface for local Back owners; native IME insets suspend it too.
+    findOnBackInvokedDispatcher()?.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_OVERLAY, next)
     callback = next
   }
 }

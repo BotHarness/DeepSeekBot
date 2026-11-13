@@ -22,6 +22,7 @@ export function PredictivePage({ children }: { children: ReactNode }) {
   const theme = useDesignTheme();
   return (
     <NativePage
+      testID="predictive-conversation-page"
       style={{ flex: 1 }}
       active={focused && !held && navigation.canGoBack()}
       reducedMotion={reducedMotion}
