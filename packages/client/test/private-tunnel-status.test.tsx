@@ -67,3 +67,44 @@ it('asks the user to forward a fixed address to this computer until the check pa
   expect(block?.textContent).toContain('http://127.0.0.1:4100');
   expect(host.textContent).not.toContain(t('privateRelay.pair'));
 });
+
+it('starts Quick Tunnel only after an explicit action and keeps other deployments collapsed', async () => {
+  const fetch = vi.fn<typeof globalThis.fetch>(async () => Response.json({ ok: true }));
+  vi.stubGlobal('fetch', fetch);
+  await render({ state: 'off' });
+  expect(fetch).not.toHaveBeenCalled();
+  expect(host.textContent).toContain(t('privateTunnel.quickDescription'));
+  expect(host.textContent).not.toContain(t('privateTunnel.namedDescription'));
+  const start = [...host.querySelectorAll<HTMLButtonElement>('button')].find(
+    (button) => button.textContent === t('privateTunnel.panel.quickAction'),
+  )!;
+  await act(async () => start.click());
+  expect(fetch).toHaveBeenCalledOnce();
+  expect(JSON.parse(fetch.mock.calls[0]![1]!.body as string)).toEqual({
+    action: 'enable',
+    mode: 'quick',
+    confirm: true,
+  });
+});
+
+it.each(['starting', 'verifying', 'error'] as const)(
+  'withholds pairing while the public route is %s',
+  async (state) => {
+    await render({ state, mode: 'quick', issue: 'dns', probe: 'dns' });
+    expect(host.textContent).not.toContain(t('privateRelay.pair'));
+  },
+);
+
+it('keeps address-change recovery visible beside the verified Quick route', async () => {
+  await render({
+    state: 'connected',
+    mode: 'quick',
+    origin: 'https://calm.trycloudflare.com',
+    addressChanged: true,
+  });
+  expect(host.textContent).toContain(t('privateTunnel.quickLifecycle'));
+  expect(host.querySelector('[data-private-tunnel-changed]')?.textContent).toContain(
+    t('privateTunnel.addressChanged'),
+  );
+  expect(host.textContent).toContain(t('privateRelay.pair'));
+});

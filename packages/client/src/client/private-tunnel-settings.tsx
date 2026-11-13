@@ -11,7 +11,6 @@ import {
   StatusBlock,
   StatusDisclosure,
   StatusFact,
-  StatusHeading,
   StatusStack,
 } from './ds/status-block.js';
 import { StepProgress } from './ds/step-progress.js';
@@ -86,6 +85,7 @@ export function PrivateTunnelSettings({
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string>();
   const [details, setDetails] = useState(false);
+  const [otherMethods, setOtherMethods] = useState(false);
   async function send(body: Record<string, unknown>): Promise<void> {
     setBusy(true);
     setFailure(undefined);
@@ -142,6 +142,9 @@ export function PrivateTunnelSettings({
           data={{ 'data-private-tunnel': 'connected' }}
         >
           {status.origin ? chip(t, status.origin, 'data-private-tunnel-origin') : null}
+          {status.mode === 'quick' ? (
+            <p {...stylex.props(styles.meta)}>{t('privateTunnel.quickLifecycle')}</p>
+          ) : null}
         </StatusBlock>
       );
     } else if (forward) {
@@ -394,28 +397,35 @@ export function PrivateTunnelSettings({
         <p {...stylex.props(styles.meta)}>{t('privateTunnel.quickDescription')}</p>
       </StatusBlock>
       {failed}
-      <StatusHeading>{t('privateTunnel.panel.other')}</StatusHeading>
-      <ChoiceButton
-        title={t('privateTunnel.namedTitle')}
-        description={t('privateTunnel.namedDescription')}
-        leading={<StatusBadge icon="globe" tone="neutral" />}
-        disabled={busy}
-        onClick={() => setStep('named')}
-      />
-      <ChoiceButton
-        title={t('privateTunnel.ingressTitle')}
-        description={t('privateTunnel.ingressDescription')}
-        leading={<StatusBadge icon="server" tone="neutral" />}
-        disabled={busy}
-        onClick={() => setStep('ingress')}
-      />
-      <ChoiceButton
-        title={t('privateTunnel.advancedTitle')}
-        description={t('privateTunnel.advancedDescription')}
-        leading={<StatusBadge icon="package" tone="neutral" />}
-        disabled={busy}
-        onClick={advanced}
-      />
+      <StatusDisclosure
+        icon="settings"
+        title={t('privateTunnel.panel.other')}
+        hint={t('privateTunnel.otherHint')}
+        open={otherMethods}
+        onToggle={() => setOtherMethods(!otherMethods)}
+      >
+        <ChoiceButton
+          title={t('privateTunnel.namedTitle')}
+          description={t('privateTunnel.namedDescription')}
+          leading={<StatusBadge icon="globe" tone="neutral" />}
+          disabled={busy}
+          onClick={() => setStep('named')}
+        />
+        <ChoiceButton
+          title={t('privateTunnel.ingressTitle')}
+          description={t('privateTunnel.ingressDescription')}
+          leading={<StatusBadge icon="server" tone="neutral" />}
+          disabled={busy}
+          onClick={() => setStep('ingress')}
+        />
+        <ChoiceButton
+          title={t('privateTunnel.advancedTitle')}
+          description={t('privateTunnel.advancedDescription')}
+          leading={<StatusBadge icon="package" tone="neutral" />}
+          disabled={busy}
+          onClick={advanced}
+        />
+      </StatusDisclosure>
     </StatusStack>
   );
 }
