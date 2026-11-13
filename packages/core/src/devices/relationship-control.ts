@@ -468,7 +468,19 @@ export function createRelationshipControl(options: {
           ? { privateRelay: parsed.payload.encryption.privateRelay }
           : {}),
       });
-      await request(peer, { action: 'status', id: relationshipId, peer: await wirePeer() });
+      const response = await request(peer, {
+        action: 'status',
+        id: relationshipId,
+        peer: await wirePeer(),
+      });
+      if (response['state'] === 'disconnected') {
+        checkOpen();
+        relationships.disconnect(relationshipId, relationship.peer.publicKey);
+        observations.delete(relationshipId);
+        await admissions.forget(relationshipId);
+        throw new RelationshipRefused('relationship-disconnected');
+      }
+      activeRelationship(relationshipId, relationship.peer.publicKey);
       observe(relationshipId, 'outgoing', { state: 'reachable', observedAt: now() });
       return snapshot(relationshipId);
     },

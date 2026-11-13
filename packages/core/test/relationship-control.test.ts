@@ -163,6 +163,29 @@ it('establishes exact reciprocal authorization over real Noise sockets and retir
   }
 });
 
+it('refuses route recovery after authenticated peer retirement instead of reporting a recovered active relationship', async () => {
+  const a = await host('A');
+  const b = await host('B');
+  try {
+    const relationship = await a.control.initiate(await b.link(), b.publicKey);
+    b.control.approve(relationship.id, a.publicKey);
+    await a.control.sync(relationship.id);
+    b.relationships.disconnect(relationship.id);
+    await expect(a.control.recoverRoute(relationship.id, await b.link())).rejects.toThrow(
+      'relationship-disconnected',
+    );
+    expect(a.control.list()[0]).toMatchObject({
+      state: 'disconnected',
+      peerRevocationPending: false,
+      reachability: { outgoing: { state: 'unverified' }, incoming: { state: 'unverified' } },
+    });
+    expect(a.pairing.list()).toEqual([]);
+    expect(b.pairing.list()).toEqual([]);
+  } finally {
+    await Promise.all([a.close(), b.close()]);
+  }
+});
+
 it('keeps an approved partial relationship and completes its real missing direction without new approval or grants', async () => {
   let clock = Date.now();
   const a = await host('A', () => clock);

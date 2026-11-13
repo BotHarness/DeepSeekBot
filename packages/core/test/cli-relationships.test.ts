@@ -131,4 +131,18 @@ it('recovers an existing private Client file without printing its admission or r
     ),
   ).rejects.toMatchObject({ code: 'relationship-route-preference-unavailable' });
   expect(JSON.parse(readFileSync(deviceFile, 'utf8')).routePreference).toBe(saved.routes[0]);
+  const beforeRefusal = readFileSync(deviceFile, 'utf8');
+  const disconnected = async () => ({
+    http: async () => {
+      throw new Error('relationship-disconnected');
+    },
+  });
+  await expect(
+    runRelationshipCommand(
+      ['route', id],
+      { 'link-file': linkFile, 'device-file': deviceFile },
+      disconnected,
+    ),
+  ).rejects.toThrow('relationship-disconnected');
+  expect(readFileSync(deviceFile, 'utf8')).toBe(beforeRefusal);
 });
