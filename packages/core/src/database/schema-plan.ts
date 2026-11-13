@@ -3343,7 +3343,7 @@ const HOST_RELATIONSHIP_REVOCATION_MIGRATION: SchemaMigration = {
 };
 
 const HOST_RELATIONSHIP_ACCOUNT_MIGRATION: SchemaMigration = {
-  generation: 142,
+  generation: 143,
   module: 'host-relationships',
   description: 'Retain verified same-account relationship provenance',
   migrate(database) {

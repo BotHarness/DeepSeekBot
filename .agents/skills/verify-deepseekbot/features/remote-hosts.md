@@ -73,6 +73,8 @@ For message bodies, upload an image and a text file to Host B through its attach
 
 ## Gotchas
 
+For Human Connect login, generate the official device-flow URI through the actual owning Host and keep its expiry and a private local InternetShortcut. A fresh bare local URL can require native Host authentication. A headless or DevTools `bringToFront` result does not establish that the Human can see that window; use a verified visible browser surface or the private official-login shortcut. Never publish the URI, code, account identity, real Host name or Connect origin. Use a fresh canonical Human140/relationship141/offline142/account143 Profile for E6; unpublished pre-main Environment forks are closed archives, not upgrade inputs.
+
 - Wait for the foreground confirmation or Save changes title before choosing an action. Host settings and its draft guard both expose Save/Close controls; scope the action to the foreground dialog. A click on the underlying control can dismiss the guard instead of committing. Correlate every disconnect with canonical relationship state before calling access retired.
 - The Tob welcome dialog may appear after the first shell mount. If it blocks enrollment or Connections, preserve the failure observation, inspect the current accessibility tree and dismiss its visible Skip control before retrying.
 

@@ -8,6 +8,7 @@ import {
   type HostStorage,
 } from '../src/client/remote-hosts.js';
 import { withRemoteHostStorageLock } from '../src/client/remote-host-storage-lock.js';
+import { startAccountEnvironments } from '../src/client/account-environments.js';
 
 function memoryStorage(): HostStorage & { values: Map<string, string> } {
   const values = new Map<string, string>();
@@ -66,6 +67,72 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
+
+it.each(['public', 'private', 'wrong-pin'] as const)(
+  'learns a verified fresh official route without minting over an existing %s Client',
+  async (mode) => {
+    const storage = memoryStorage();
+    const { relationshipEnrollment: _pending, ...saved } = grant().host;
+    const independent = 'https://independent.ts.net';
+    const fresh = 'https://hcccccccccccc.deepseekbot.dev';
+    const privateRelay = { origin: 'https://private.trycloudflare.com', token: 'af'.repeat(32) };
+    const host = {
+      ...saved,
+      routes: mode === 'private' ? [privateRelay.origin] : [...saved.routes, independent],
+      routePreference: mode === 'private' ? privateRelay.origin : independent,
+      encryption: { ...saved.encryption!, ...(mode === 'private' ? { privateRelay } : {}) },
+    };
+    storage.setItem(REMOTE_HOSTS_STORAGE_KEY, JSON.stringify([host]));
+    const source = createRemoteHosts({ storage, carrier });
+    source.select('local');
+    const issue = vi.spyOn(enrollment, 'enrollRelationshipClient');
+    const learn = vi.spyOn(source, 'learnRelationshipRoutes');
+    const request = vi.fn(async () => ({
+      state: 'complete',
+      generation: 'current-account',
+      relationships: [
+        {
+          ...relationship(),
+          peer: {
+            ...relationship().peer,
+            routes: [fresh],
+            publicKey: mode === 'wrong-pin' ? 'ef'.repeat(32) : saved.encryption!.hostKey,
+          },
+          state: 'active',
+          direction: 'incoming',
+          expiresAt: Date.now() + 60_000,
+          peerRevocationPending: false,
+          accountOrigin: {
+            accountId: 'account',
+            localRegistrationId: 'haaaaaaaaaaaa',
+            peerRegistrationId: 'hcccccccccccc',
+            officialOrigin: fresh,
+          },
+        },
+      ],
+    }));
+    const stop = startAccountEnvironments({ sources: source, clientName: 'Desktop', request });
+    try {
+      await vi.waitFor(() => expect(request).toHaveBeenCalled());
+      if (mode === 'public')
+        await vi.waitFor(() => expect(source.getSnapshot().hosts[0]?.host.routes).toContain(fresh));
+      else await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(issue).not.toHaveBeenCalled();
+      expect(learn).toHaveBeenCalledTimes(mode === 'public' ? 1 : 0);
+      const actual = source.getSnapshot();
+      expect(actual.tab).toBe('local');
+      expect(actual.open).toBeUndefined();
+      expect(actual.hosts[0]?.host).toMatchObject({
+        deviceId: host.deviceId,
+        credential: host.credential,
+        routePreference: host.routePreference,
+        encryption: { hostKey: host.encryption.hostKey, deviceKey: host.encryption.deviceKey },
+      });
+    } finally {
+      stop();
+    }
+  },
+);
 
 it.each(['cancel', 'new-choice'] as const)(
   'keeps Human automatic suppression when a manual enrollment ends with %s',

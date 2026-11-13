@@ -325,6 +325,45 @@ it('refreshes a signed-in registration on the same active pinned relationship an
   }
 });
 
+it.each(['wrong-account', 'wrong-pin', 'expired', 'stale-proof'] as const)(
+  'does not replace an active official route for %s',
+  async (mode) => {
+    const test = fixture();
+    const pinned = test.source.publicKey;
+    try {
+      await test.authority.receive(pinned, await test.proposal());
+      test.relationships.activate(test.proof.relationshipId, pinned);
+      const previous = test.relationships.read(test.proof.relationshipId);
+      test.proof.source.registrationId = 'haaaaaaaaabba';
+      test.peers.set(test.proof.source.registrationId, test.source);
+      if (mode === 'wrong-account') test.session.accountId = 'different-account';
+      if (mode === 'wrong-pin') test.source.publicKey = 'ef'.repeat(32);
+      if (mode === 'expired') test.proof.expiresAt = Date.now() - 1;
+      let expectedRoutes = previous.peer.routes;
+      if (mode === 'stale-proof')
+        test.onOffer(async (id) => {
+          if (id !== test.proof.source.registrationId) return;
+          const officialOrigin = 'https://haaaaaaaaacca.deepseekbot.dev';
+          const refreshed = test.relationships.refreshAccountOrigin({
+            id: previous.id,
+            peer: test.source,
+            expectedOrigin: previous.accountOrigin!,
+            origin: {
+              ...previous.accountOrigin!,
+              peerRegistrationId: 'haaaaaaaaacca',
+              officialOrigin,
+            },
+          });
+          expectedRoutes = refreshed.peer.routes;
+        });
+      await expect(test.authority.receive(pinned, await test.proposal())).rejects.toThrow();
+      expect(test.relationships.read(previous.id).peer.routes).toEqual(expectedRoutes);
+    } finally {
+      test.authority.close();
+    }
+  },
+);
+
 it('records verified account provenance atomically and reuses the same canonical proposal', async () => {
   const test = fixture();
   try {
@@ -342,6 +381,7 @@ it('records verified account provenance atomically and reuses the same canonical
       accountId: 'test-account',
       localRegistrationId: 'hbbbbbbbbbbbb',
       peerRegistrationId: 'haaaaaaaaaaaa',
+      officialOrigin: 'https://haaaaaaaaaaaa.deepseekbot.dev',
     });
     expect(test.offer.mock.calls.some(([id]) => id === 'haaaaaaaaaaaa')).toBe(true);
     expect(test.pairing.list()).toEqual([]);

@@ -1,6 +1,7 @@
 import { accountRelationshipStatusSchema } from '../../../core/src/devices/relationship-contract.js';
 import type { RemoteHosts } from './remote-hosts.js';
 import { relationshipRequest } from './relationships.js';
+import { logClient } from './diagnostic-log.js';
 
 export function startAccountEnvironments(options: {
   sources: RemoteHosts;
@@ -10,6 +11,7 @@ export function startAccountEnvironments(options: {
   const request = options.request ?? relationshipRequest;
   const lifetime = new AbortController();
   const pending = new Map<string, AbortController>();
+  const learning = new Set<string>();
   const retryAt = new Map<string, number>();
   let generation: string | undefined;
   let nextDiscovery = 0;
@@ -36,7 +38,7 @@ export function startAccountEnvironments(options: {
         for (const [id, abort] of pending)
           if (!activeIds.has(id)) abort.abort('relationship-retired');
         for (const relationship of status.relationships) {
-          if (pending.size >= 2) break;
+          if (pending.size + learning.size >= 2) break;
           if (
             relationship.state !== 'active' ||
             !relationship.accountOrigin ||
@@ -45,12 +47,59 @@ export function startAccountEnvironments(options: {
             (retryAt.get(relationship.id) ?? 0) > Date.now()
           )
             continue;
-          if (
-            options.sources
-              .getSnapshot()
-              .hosts.some((item) => item.host.hostId === relationship.peer.id)
-          )
+          const saved = options.sources
+            .getSnapshot()
+            .hosts.find((item) => item.host.hostId === relationship.peer.id);
+          if (saved) {
+            const origin = relationship.accountOrigin.officialOrigin;
+            if (
+              origin &&
+              relationship.peer.routes.includes(origin) &&
+              !saved.host.routes.includes(origin) &&
+              saved.host.encryption?.hostKey === relationship.peer.publicKey &&
+              !saved.host.encryption.privateRelay &&
+              !learning.has(relationship.id)
+            ) {
+              learning.add(relationship.id);
+              const learnedGeneration = status.generation;
+              const started = Date.now();
+              void options.sources
+                .learnRelationshipRoutes({
+                  ...relationship.peer,
+                  routes: [...new Set([origin, ...saved.host.routes])],
+                })
+                .then(() => {
+                  if (!lifetime.signal.aborted && generation === learnedGeneration)
+                    logClient('network', 'account-route-learned', {
+                      initiator: 'background',
+                      durationMs: Math.max(0, Date.now() - started),
+                    });
+                })
+                .catch(() => {
+                  if (!lifetime.signal.aborted && generation === learnedGeneration)
+                    logClient(
+                      'network',
+                      'account-route-learning-refused',
+                      {
+                        initiator: 'background',
+                        refusal: 'route-update-refused',
+                        durationMs: Math.max(0, Date.now() - started),
+                      },
+                      'warn',
+                    );
+                })
+                .finally(() => {
+                  learning.delete(relationship.id);
+                  if (
+                    !lifetime.signal.aborted &&
+                    generation === learnedGeneration &&
+                    retryAt.size < 32
+                  )
+                    retryAt.set(relationship.id, Date.now() + 30_000);
+                });
+            }
             continue;
+          }
           const abort = new AbortController();
           const enrollmentGeneration = status.generation;
           pending.set(relationship.id, abort);
@@ -81,6 +130,7 @@ export function startAccountEnvironments(options: {
     clearTimeout(timer);
     for (const abort of pending.values()) abort.abort('owner-disposed');
     pending.clear();
+    learning.clear();
     retryAt.clear();
   };
 }

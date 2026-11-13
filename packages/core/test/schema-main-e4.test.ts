@@ -39,7 +39,12 @@ it('upgrades canonical Human140/E1 141 pending retirement and preserves Human da
   let retryAt: number | null = null;
   for (let restart = 0; restart < 2; restart++) {
     const owner = trackTestOwner(
-      mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
+      mountOperationalDatabase({
+        dshHome: home,
+        schemaPlan: defineSchemaPlan(
+          BOT_HARNESS_SCHEMA_PLAN.migrations.filter((migration) => migration.generation <= 142),
+        ),
+      }),
     );
     expect(owner.mode).toBe('ready');
     expect(owner.generation).toBe(142);

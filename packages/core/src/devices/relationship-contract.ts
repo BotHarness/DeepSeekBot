@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CONNECT_HOSTNAME } from './connect-zones.js';
 import {
   checkRoute,
   isPrivateRoute,
@@ -57,6 +58,19 @@ export const relationshipAccountOriginSchema = z
     accountId: z.string().min(1),
     localRegistrationId: z.string().regex(/^h[a-z2-7]{12}$/u),
     peerRegistrationId: z.string().regex(/^h[a-z2-7]{12}$/u),
+    officialOrigin: z
+      .string()
+      .url()
+      .refine((value) => {
+        const checked = checkRoute(value);
+        return (
+          checked.ok &&
+          checked.origin === value &&
+          value.startsWith('https:') &&
+          CONNECT_HOSTNAME.test(new URL(checked.origin).hostname)
+        );
+      })
+      .optional(),
   })
   .strict();
 export type RelationshipAccountOrigin = z.infer<typeof relationshipAccountOriginSchema>;

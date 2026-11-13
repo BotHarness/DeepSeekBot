@@ -154,7 +154,8 @@ export function createHostRelationships(options: {
           const same = (a: RelationshipAccountOrigin | null, b: RelationshipAccountOrigin) =>
             a?.accountId === b.accountId &&
             a.localRegistrationId === b.localRegistrationId &&
-            a.peerRegistrationId === b.peerRegistrationId;
+            a.peerRegistrationId === b.peerRegistrationId &&
+            a.officialOrigin === b.officialOrigin;
           if (
             !same(current.accountOrigin, input.expectedOrigin) &&
             !same(current.accountOrigin, origin)
@@ -168,9 +169,25 @@ export function createHostRelationships(options: {
               .get(input.peer.id)
           )
             throw new RelationshipRefused('relationship-reconnect-required');
+          const routes = origin.officialOrigin
+            ? [
+                ...new Set([
+                  origin.officialOrigin,
+                  ...current.peer.routes.filter(
+                    (route) => route !== current.accountOrigin?.officialOrigin,
+                  ),
+                ]),
+              ]
+            : current.peer.routes;
+          if (routes.length > 8) throw new RelationshipRefused('relationship-route-limit');
           db.prepare(
-            'UPDATE host_relationships SET account_origin = ?, updated_at = ? WHERE relationship_id = ?',
-          ).run(JSON.stringify(origin), new Date(now()).toISOString(), input.id);
+            'UPDATE host_relationships SET account_origin = ?, peer_routes = ?, updated_at = ? WHERE relationship_id = ?',
+          ).run(
+            JSON.stringify(origin),
+            JSON.stringify(routes),
+            new Date(now()).toISOString(),
+            input.id,
+          );
         },
         ['host-relationships'],
       );

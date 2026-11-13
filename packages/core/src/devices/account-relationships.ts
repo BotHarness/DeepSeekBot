@@ -38,6 +38,7 @@ const accountRefusals = new Set([
   'relationship-busy',
   'relationship-request-incomplete',
   'relationship-route-unavailable',
+  'relationship-route-limit',
   'relationship-response-invalid',
   'relationship-disconnected',
   'relationship-inactive',
@@ -279,6 +280,7 @@ export function createAccountRelationships(options: {
             accountId: session.accountId,
             localRegistrationId: session.registrationId,
             peerRegistrationId: proof.source.registrationId,
+            officialOrigin: source.routes[0],
           };
           if (existing?.state === 'active') {
             if (!observedOrigin)
@@ -316,6 +318,7 @@ export function createAccountRelationships(options: {
               accountId: session.accountId,
               localRegistrationId: session.registrationId,
               peerRegistrationId: proof.source.registrationId,
+              officialOrigin: source.routes[0],
             },
           });
           guard(session, signal);
@@ -384,7 +387,9 @@ export function createAccountRelationships(options: {
               if (existing && existing.accountOrigin?.accountId !== session.accountId) return;
               if (
                 existing?.state === 'active' &&
-                originMatches(existing.accountOrigin, session, peerRegistrationId)
+                originMatches(existing.accountOrigin, session, peerRegistrationId) &&
+                existing.accountOrigin?.officialOrigin === remote.routes[0] &&
+                existing.peer.routes.includes(remote.routes[0]!)
               )
                 return;
               if (existing && existing.state !== 'active' && existing.expiresAt <= Date.now()) {
@@ -400,6 +405,7 @@ export function createAccountRelationships(options: {
                     accountId: session.accountId,
                     localRegistrationId: session.registrationId,
                     peerRegistrationId,
+                    officialOrigin: remote.routes[0],
                   },
                 });
               relationshipId = relationship.id;
@@ -452,6 +458,7 @@ export function createAccountRelationships(options: {
                     accountId: session.accountId,
                     localRegistrationId: session.registrationId,
                     peerRegistrationId,
+                    officialOrigin: remote.routes[0],
                   },
                   expectedOrigin: relationship.accountOrigin,
                 });
