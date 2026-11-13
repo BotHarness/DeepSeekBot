@@ -1,21 +1,24 @@
 import { useState, type ReactNode } from 'react';
 import { ResourceImage as Image } from '../primitives/resource-image';
-import { Modal, Pressable, useWindowDimensions, View } from 'react-native';
+import { Modal, Pressable, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
-  runOnJS,
+  cancelAnimation,
+  ReduceMotion,
   useAnimatedStyle,
   useSharedValue,
   withDecay,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
+import { useSystemReducedMotion } from '../primitives/use-system-reduced-motion';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { MessageAttachment } from '../../host/conversation';
 import { decelerateCurve, spring } from '../design/motion';
-import { radius, space } from '../design/tokens';
+import { imageViewerMotion, radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { Text } from '../primitives/text';
 import { CloseIcon, ShareIcon } from '../shell/icons';
@@ -79,6 +82,7 @@ function ZoomableImage({
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const frame = useWindowDimensions();
+  const reducedMotion = useSystemReducedMotion();
   const [chrome, setChrome] = useState(true);
   const [natural, setNatural] = useState({ width: 0, height: 0 });
   const fitted = fitContain(natural, frame);
@@ -87,8 +91,41 @@ function ZoomableImage({
   const x = useSharedValue(0);
   const y = useSharedValue(0);
   const dismiss = useSharedValue(0);
+  const dragStart = useSharedValue(0);
+  const closing = useSharedValue(false);
+  const visibility = useSharedValue(0);
   const start = useSharedValue({ scale: 1, x: 0, y: 0, focalX: 0, focalY: 0 });
 
+  const close = (direction = 0, velocity = 0) => {
+    'worklet';
+    if (closing.get()) return;
+    closing.set(true);
+    cancelAnimation(dismiss);
+    if (!reducedMotion && direction !== 0) {
+      dismiss.set(
+        withSpring((direction * (frame.height + fitted.height)) / 2, {
+          ...SPRING,
+          velocity,
+          overshootClamping: true,
+          reduceMotion: ReduceMotion.Never,
+        }),
+      );
+    }
+    // Finish painting transparent before React tears down the transformed native view.
+    visibility.set(
+      withTiming(
+        0,
+        {
+          duration: reducedMotion ? imageViewerMotion.reduced : imageViewerMotion.exit,
+          easing: Easing.bezier(...decelerateCurve),
+          reduceMotion: ReduceMotion.Never,
+        },
+        (finished) => {
+          if (finished === true) scheduleOnRN(onClose);
+        },
+      ),
+    );
+  };
   const animateTo = (target: Zoom) => {
     'worklet';
     scale.value = withSpring(target.scale, SPRING);
@@ -102,6 +139,9 @@ function ZoomableImage({
 
   const pinch = Gesture.Pinch()
     .onStart((event) => {
+      if (closing.get()) return;
+      cancelAnimation(dismiss);
+      dismiss.set(0);
       const focal = center(event.focalX, event.focalY);
       start.value = {
         scale: scale.value,
@@ -112,27 +152,36 @@ function ZoomableImage({
       };
     })
     .onUpdate((event) => {
+      if (closing.get()) return;
       const next = pinchZoom(start.value, center(event.focalX, event.focalY), event.scale);
       scale.value = next.scale;
       x.value = next.x;
       y.value = next.y;
     })
     .onEnd(() => {
+      if (closing.get()) return;
       animateTo(settleZoom({ scale: scale.value, x: x.value, y: y.value }, fitted, frame));
     });
 
   const pan = Gesture.Pan()
     .maxPointers(1)
     .onStart(() => {
+      if (closing.get()) return;
+      cancelAnimation(dismiss);
+      cancelAnimation(x);
+      cancelAnimation(y);
+      dragStart.set(dismiss.get());
       start.value = { ...start.value, x: x.value, y: y.value };
     })
     .onUpdate((event) => {
+      if (closing.get()) return;
       if (scale.value > 1.01) {
         x.value = start.value.x + event.translationX;
         y.value = start.value.y + event.translationY;
-      } else dismiss.value = event.translationY;
+      } else dismiss.value = dragStart.get() + event.translationY;
     })
-    .onEnd((event) => {
+    .onEnd((event, success) => {
+      if (!success || closing.get()) return;
       if (scale.value > 1.01) {
         const limit = panBounds(fitted, frame, scale.value);
         x.value =
@@ -146,21 +195,18 @@ function ZoomableImage({
         return;
       }
       const direction = dismissDirection(dismiss.value, event.velocityY);
-      if (direction !== 0) {
-        dismiss.value = withTiming(
-          direction * frame.height,
-          { duration: 180, easing: Easing.bezier(...decelerateCurve) },
-          (finished) => {
-            if (finished === true) runOnJS(onClose)();
-          },
-        );
-      } else dismiss.value = withSpring(0, SPRING);
+      if (direction !== 0) close(direction, event.velocityY);
+      else dismiss.value = withSpring(0, { ...SPRING, velocity: event.velocityY });
+    })
+    .onFinalize((_event, success) => {
+      if (!success && !closing.get()) dismiss.value = withSpring(0, SPRING);
     });
 
   const doubleTap = Gesture.Tap()
     .numberOfTaps(2)
     .maxDistance(TAP_SLOP)
-    .onEnd((event) => {
+    .onEnd((event, success) => {
+      if (!success || closing.get()) return;
       animateTo(
         doubleTapZoom(
           { scale: scale.value, x: x.value, y: y.value },
@@ -173,13 +219,16 @@ function ZoomableImage({
 
   const singleTap = Gesture.Tap()
     .maxDistance(TAP_SLOP)
-    .onEnd(() => runOnJS(setChrome)(!chrome));
+    .onEnd((_event, success) => {
+      if (success && !closing.get()) scheduleOnRN(setChrome, !chrome);
+    });
 
   const gesture = Gesture.Simultaneous(
     Gesture.Simultaneous(pinch, pan),
     Gesture.Exclusive(doubleTap, singleTap),
   );
 
+  const visibilityStyle = useAnimatedStyle(() => ({ opacity: visibility.get() }));
   const imageStyle = useAnimatedStyle(() => {
     const drag = Math.min(1, Math.abs(dismiss.value) / frame.height);
     return {
@@ -198,79 +247,101 @@ function ZoomableImage({
   }));
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <View
-        accessibilityViewIsModal
-        onAccessibilityEscape={onClose}
-        style={{ flex: 1, overflow: 'hidden' }}
-      >
+    <Modal
+      visible
+      transparent
+      animationType="none"
+      statusBarTranslucent
+      onRequestClose={() => close()}
+      onShow={() => {
+        if (!closing.get())
+          visibility.set(
+            withTiming(1, {
+              duration: reducedMotion ? imageViewerMotion.reduced : imageViewerMotion.enter,
+              reduceMotion: ReduceMotion.Never,
+            }),
+          );
+      }}
+    >
+      <GestureHandlerRootView style={{ flex: 1 }}>
         <Animated.View
-          style={[
-            {
-              position: 'absolute',
-              top: 0,
-              right: 0,
-              bottom: 0,
-              left: 0,
-              backgroundColor: theme.color.base,
-            },
-            backdropStyle,
-          ]}
-        />
-        <GestureDetector gesture={gesture}>
-          <Animated.View
-            style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
-            collapsable={false}
-          >
-            {attachment.source === undefined ? null : (
-              <Animated.View style={imageStyle}>
-                <Image
-                  source={attachment.source}
-                  recyclingKey={attachment.key}
-                  cachePolicy={cachePolicy}
-                  contentFit="contain"
-                  accessibilityLabel={attachment.name}
-                  accessibilityHint={t.viewerHint}
-                  onLoad={({ source }) =>
-                    setNatural({ width: source.width, height: source.height })
-                  }
-                  style={{ width: fitted.width, height: fitted.height }}
-                />
-              </Animated.View>
-            )}
-          </Animated.View>
-        </GestureDetector>
-        {chrome ? (
+          accessibilityViewIsModal
+          onAccessibilityEscape={() => close()}
+          testID="image-viewer"
+          style={[{ flex: 1, overflow: 'hidden' }, visibilityStyle]}
+        >
           <Animated.View
             style={[
               {
                 position: 'absolute',
-                top: insets.top + space.x3,
-                left: space.x5,
-                right: space.x5,
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: space.x4,
+                top: 0,
+                right: 0,
+                bottom: 0,
+                left: 0,
+                backgroundColor: theme.color.base,
               },
-              chromeStyle,
+              backdropStyle,
             ]}
-          >
-            <RoundButton label={t.closeViewer} onPress={onClose}>
-              <CloseIcon color={theme.color.fg} size={theme.type.title.line} />
-            </RoundButton>
-            <Text numberOfLines={1} ellipsizeMode="middle" style={{ flex: 1, textAlign: 'center' }}>
-              {attachment.name}
-            </Text>
-            <RoundButton
-              label={t.shareFile(attachment.name)}
-              onPress={() => void onShare(attachment)}
+          />
+          <GestureDetector gesture={gesture}>
+            <Animated.View
+              style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
+              collapsable={false}
             >
-              <ShareIcon color={theme.color.fg} size={theme.type.title.line} />
-            </RoundButton>
-          </Animated.View>
-        ) : null}
-      </View>
-    </GestureHandlerRootView>
+              {attachment.source === undefined ? null : (
+                <Animated.View style={imageStyle}>
+                  <Image
+                    source={attachment.source}
+                    recyclingKey={attachment.key}
+                    cachePolicy={cachePolicy}
+                    contentFit="contain"
+                    accessibilityLabel={attachment.name}
+                    accessibilityHint={t.viewerHint}
+                    onLoad={({ source }) =>
+                      setNatural({ width: source.width, height: source.height })
+                    }
+                    style={{ width: fitted.width, height: fitted.height }}
+                  />
+                </Animated.View>
+              )}
+            </Animated.View>
+          </GestureDetector>
+          {chrome ? (
+            <Animated.View
+              style={[
+                {
+                  position: 'absolute',
+                  top: insets.top + space.x3,
+                  left: space.x5,
+                  right: space.x5,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: space.x4,
+                },
+                chromeStyle,
+              ]}
+            >
+              <RoundButton label={t.closeViewer} onPress={() => close()}>
+                <CloseIcon color={theme.color.fg} size={theme.type.title.line} />
+              </RoundButton>
+              <Text
+                numberOfLines={1}
+                ellipsizeMode="middle"
+                style={{ flex: 1, textAlign: 'center' }}
+              >
+                {attachment.name}
+              </Text>
+              <RoundButton
+                label={t.shareFile(attachment.name)}
+                onPress={() => void onShare(attachment)}
+              >
+                <ShareIcon color={theme.color.fg} size={theme.type.title.line} />
+              </RoundButton>
+            </Animated.View>
+          ) : null}
+        </Animated.View>
+      </GestureHandlerRootView>
+    </Modal>
   );
 }
 
@@ -285,23 +356,13 @@ export function ImageViewer({
   onClose(): void;
   onShare(attachment: MessageAttachment): Promise<void>;
 }) {
-  return (
-    <Modal
-      visible={attachment !== undefined}
-      transparent
-      animationType="fade"
-      statusBarTranslucent
-      onRequestClose={onClose}
-    >
-      {attachment === undefined ? null : (
-        <ZoomableImage
-          key={attachment.key}
-          attachment={attachment}
-          onClose={onClose}
-          onShare={onShare}
-          cachePolicy={cachePolicy}
-        />
-      )}
-    </Modal>
+  return attachment === undefined ? null : (
+    <ZoomableImage
+      key={attachment.key}
+      attachment={attachment}
+      onClose={onClose}
+      onShare={onShare}
+      cachePolicy={cachePolicy}
+    />
   );
 }

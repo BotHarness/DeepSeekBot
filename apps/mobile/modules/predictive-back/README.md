@@ -10,3 +10,7 @@ shows the preview.
 
 It reads React Native's private field by reflection and does nothing when the field is
 missing. Remove it once react-native#59292 (`BackHandler.setInterceptEnabled`) ships.
+
+## Conversation route preview
+
+`PredictivePageView` adapts Android 14+ Back progress to a horizontal page translation. Conversation routes use transparent native-stack presentation with an opaque child so the actual preceding route remains drawable. The native view handles progress/cancel/settle; only its completion event asks the existing navigation stack to pop. It has no screenshot cache or route history. IME visibility and local Back owners suspend this callback; profile panels retain overlay priority. Reduced Motion skips translation. Android 13 and older keep the existing navigation Back path. This native source change requires a fresh app binary.

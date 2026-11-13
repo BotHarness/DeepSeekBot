@@ -258,6 +258,8 @@ export const computerClickRipple = {
   expansion: 0.65,
 } as const;
 
+export const imageViewerMotion = { enter: 150, exit: 180, reduced: 100 } as const;
+
 export const motion = {
   drawer: 250,
   lift: 500,
