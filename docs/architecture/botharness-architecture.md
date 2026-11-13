@@ -1,5 +1,12 @@
 # BotHarness 架构与数据流
 
+## 已确认目标：环境面板与双向 Host 关系（尚未实现）
+
+2026-11-13 的整体确认扩展了 #4069 原先仅 Client 配对的范围。Control Rail Environment 面板在 Simple 模式替换当前面板，在 Advanced 模式增加独立列；Channels 与 Activity 共用 Client 本地 Environment Scope，Settings Target 独立且写入绑定精确 Host。Host Relationship 属于双端持久应用权威，每个 Client 仍取得自己的设备凭据，手机不自动继承，Bot 协作独立授权。每个方向的可达性和离线撤销确认分别呈现，不把账号退出、断开关系、关闭线路或删除远端数据混为一谈。通过现有 Device Pairing、凭据、operational database 与 API Gateway 边界交付，不能用布局状态或 Cordis Event 代替持久授权。
+
+完整交互、权限边界及验收见[环境面板设计](environment-panel.zh.md)、[ADR-0334](../adr/0334-host-relationships-authorize-independent-client-enrollment.md)及 ADR-0327 的桌面修订。以下既有实现记录不代表该新目标已完成；原九切片验收也不覆盖新增双向关系。
+
+
 手机 Connect 账号管理直接使用 relay 现有的电脑列表和会话撤销接口，无需已配对或在线 Host（ADR-0241、#4039）。手机账号 owner 在串行操作中验证确认时的账号 action key 后刷新凭据并撤销目标；relay 仍是关联和撤销状态的持久权威。界面刷新列表并保留手机配对；旧关联明确提示可能自动重新关联。不改变 LAN/Tailscale 配对权限或本地 Bot 数据。
 
 Docker 私有连接的首个候选由 Host 所属生命周期维护出站 WebSocket，中继仅转发至现有 encrypted device gateway。首次认领保存在中继独立持久化卷，Host 保存中继凭据；手机配对仍由原 Host 身份、Noise 公钥与 Paired Device 凭据决定。私有地址必须在配对信息中显式绑定，配置失败不选择官方回退。公网 HTTPS 前提在设置前展示。当前实现范围是一台 Host；该候选的实测状态及真机验收限制由 [#3746](https://github.com/BotHarness/DeepSeekBot/issues/3746) 跟踪，设计提案见 [ADR-0309](../adr/0309-private-relay-keeps-host-device-authority.md)，不代表公网或大陆网络已验收通过。
