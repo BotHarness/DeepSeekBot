@@ -32,7 +32,13 @@ describe('Environment settings local owner adapter', () => {
             : { presets: [] },
       };
     };
-    releases.push(mountLocalEnvironmentSettings(call, () => {}));
+    releases.push(
+      mountLocalEnvironmentSettings(
+        call,
+        () => {},
+        () => {},
+      ),
+    );
     const source = localEnvironmentSettings();
     expect(source).toBeDefined();
     if (source === undefined) return;
@@ -54,7 +60,13 @@ describe('Environment settings local owner adapter', () => {
       ok: false,
       error: { code: 'not-supported', message: 'Unavailable', details: {} },
     });
-    releases.push(mountLocalEnvironmentSettings(call, () => {}));
+    releases.push(
+      mountLocalEnvironmentSettings(
+        call,
+        () => {},
+        () => {},
+      ),
+    );
     await expect(
       localEnvironmentSettings()?.models.call('modelPresetUpdate', { id: 'remote' }),
     ).rejects.toMatchObject({ code: 'not-supported', message: 'Unavailable' });
@@ -62,8 +74,16 @@ describe('Environment settings local owner adapter', () => {
 
   it('releases only its own mounted adapter', () => {
     const call: BridgeCall = async () => ({ ok: true, value: {} });
-    const first = mountLocalEnvironmentSettings(call, () => {});
-    const second = mountLocalEnvironmentSettings(call, () => {});
+    const first = mountLocalEnvironmentSettings(
+      call,
+      () => {},
+      () => {},
+    );
+    const second = mountLocalEnvironmentSettings(
+      call,
+      () => {},
+      () => {},
+    );
     releases.push(first, second);
     const current = localEnvironmentSettings();
     first();

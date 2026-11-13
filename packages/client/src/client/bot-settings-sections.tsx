@@ -76,13 +76,17 @@ export function AccountSection(
 export function GeneralSection(props: SectionProps<GeneralSectionFace>): ReactElement {
   return (
     <Rows>
-      <WindowZoomSettings surface={props.zoomSurface} t={props.t} />
-      <WindowZoomSetup surface={props.zoomSurface} t={props.t} />
-      <OnboardingSetting
-        actions={props.actions}
-        closeBotSettings={props.closeBotSettings}
-        t={props.t}
-      />
+      <SettingsSection title={props.t('environment.settings.device')}>
+        <WindowZoomSettings surface={props.zoomSurface} t={props.t} />
+        <WindowZoomSetup surface={props.zoomSurface} t={props.t} />
+      </SettingsSection>
+      <SettingsSection title={props.t('remoteHosts.this')}>
+        <OnboardingSetting
+          actions={props.actions}
+          closeBotSettings={props.closeBotSettings}
+          t={props.t}
+        />
+      </SettingsSection>
     </Rows>
   );
 }

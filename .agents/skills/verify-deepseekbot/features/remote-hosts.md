@@ -69,6 +69,8 @@ For E8, leave the browsing filter on This Host, open Manage for B and verify the
 
 For preset creation, commit the request on the real owner and drop only its reply. Readback may show both an existing same-name preset and the newly created preset; neither name proves which request created it. The draft must report an unconfirmed creation and must not resend through Save as or Save and switch. Separately return a successful create receipt, then fail subsequent reads: the receipt ID must survive, and Check saved preset retries only owner reads until that exact ID appears. Count `modelPresetCreate` calls; each run sends it once. Discard abandons the draft without undoing or replaying the possible owner write.
 
+App preference ownership regression: from a remote settings target open App preferences. Only Client appearance, desktop notifications, shortcuts and companion choices appear in navigation and search; Host model, native language and Host-backed motion/icon controls stay out. Change a Client theme and compare its browser storage with unchanged model/preset owners on both Hosts. In More settings, inspect the explicit This device and This Host groups; native window zoom retains its separate platform checks. The App appearance layout renderer admits only the audited `workspace-layout` contribution, not unclassified plugin sections.
+
 ## Gotchas
 
 - The workspace hides `data-panel-empty-action` descendants. Viewer reconnect must stay in its own controls; verify the button is visible and clickable inside the real workspace, not only in a standalone panel render.
