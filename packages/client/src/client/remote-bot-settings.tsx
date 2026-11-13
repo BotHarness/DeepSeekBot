@@ -40,6 +40,13 @@ const styles = stylex.create({
   stack: { display: 'flex', flexDirection: 'column', gap: space.x4, minWidth: 0 },
 });
 
+function targetName(target: RemoteBotSettingsTarget): string {
+  return (
+    target.client.getSnapshot().roster?.bots.find((bot) => bot.slug === target.slug)?.displayName ??
+    target.name
+  );
+}
+
 function useSetting<T>(load: () => Promise<T>, available: boolean) {
   const [value, setValue] = useState<T>();
   const [error, setError] = useState<'unsupported' | 'failed'>();
@@ -176,8 +183,8 @@ function RemoteBotSettings({
   ];
   return (
     <SettingsDialog
-      title={t('remoteBotSettings.title', { name: target.name })}
-      caption={`${target.hostName} · ${target.name}`}
+      title={t('remoteBotSettings.title', { name: targetName(target) })}
+      caption={`${target.hostName} · ${targetName(target)}`}
       sections={sections}
       activeId={section}
       onSelect={(id) => {
@@ -281,13 +288,14 @@ function Profile({ target, client, available, t }: SettingProps) {
       name.trim() === ''
     )
       return false;
-    const saved = await state.run(() =>
-      client.call('update', {
+    const saved = await state.run(async () => {
+      await client.call('update', {
         slug: target.slug,
         patch: { displayName: name.trim() },
         expectedProfile: value.profileFingerprint,
-      }),
-    );
+      });
+      await client.refresh().catch(() => undefined);
+    });
     if (saved) {
       draft.current.name = undefined;
       setName(undefined);
@@ -512,11 +520,11 @@ function Workspaces({ target, client, available, t }: SettingProps) {
           description={
             confirm.kind === 'grant'
               ? t('remoteBotSettings.grantHint', {
-                  name: target.name,
+                  name: targetName(target),
                   path: confirm.workspace.path,
                 })
               : t('remoteBotSettings.revokeHint', {
-                  name: target.name,
+                  name: targetName(target),
                   path: confirm.grant.workspacePath,
                 })
           }

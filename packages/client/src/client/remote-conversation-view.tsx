@@ -211,11 +211,12 @@ export function RemoteConversationView({
       : undefined;
   const client = sources.client(target.hostId);
   const ownerSlug =
-    target.channelId === undefined
-      ? target.botSlug
-      : remote?.snapshot.roster?.channels.find((channel) => channel.id === target.channelId)
-          ?.ownerBotSlug;
+    target.botSlug ??
+    remote?.snapshot.roster?.channels.find((channel) => channel.id === target.channelId)
+      ?.ownerBotSlug;
   const ownerBot = remote?.snapshot.roster?.bots.find((entry) => entry.slug === ownerSlug);
+  const title =
+    target.botSlug === undefined ? target.title : (ownerBot?.displayName ?? target.title);
   const host = useMemo<MessageHost | undefined>(
     () =>
       client === undefined
@@ -258,7 +259,7 @@ export function RemoteConversationView({
     <MessageHostContext.Provider value={host}>
       <section
         {...stylex.props(styles.root)}
-        aria-label={target.title}
+        aria-label={title}
         data-remote-conversation={target.hostId}
       >
         <header {...stylex.props(styles.header)}>
@@ -269,7 +270,7 @@ export function RemoteConversationView({
             size={34}
             t={t}
           />
-          <span {...stylex.props(styles.title)}>{target.title}</span>
+          <span {...stylex.props(styles.title)}>{title}</span>
           <span {...stylex.props(styles.source)}>
             <HostGlyph look={hostLook} />
             {hostName}
@@ -425,14 +426,12 @@ export function RemoteConversationView({
             >
               <textarea
                 {...stylex.props(styles.input)}
-                aria-label={t('remoteHosts.composer', { name: target.title })}
+                aria-label={t('remoteHosts.composer', { name: title })}
                 data-remote-composer=""
                 rows={1}
                 value={draft}
                 disabled={!reachable}
-                placeholder={
-                  reachable ? t('remoteHosts.composer', { name: target.title }) : undefined
-                }
+                placeholder={reachable ? t('remoteHosts.composer', { name: title }) : undefined}
                 onChange={(event) => setDraft(event.currentTarget.value)}
                 onKeyDown={(event) => {
                   if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing)
