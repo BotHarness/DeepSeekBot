@@ -5,7 +5,6 @@ import { createRequire, stripTypeScriptTypes } from 'node:module';
 import { EventEmitter } from 'node:events';
 import { afterAll, afterEach, expect, it, vi } from 'vitest';
 
-// Exercise the actual source carried in the upstream patch, not a second implementation.
 const patch = readFileSync(
   new URL('../../docs/research/patches/dsh-desktop-window-capture.patch', import.meta.url),
   'utf8',

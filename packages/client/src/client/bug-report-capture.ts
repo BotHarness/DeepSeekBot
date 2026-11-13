@@ -43,8 +43,6 @@ export async function openCapture(host: CaptureHost = globalThis): Promise<Captu
   return pageCapture();
 }
 
-// Optional native capability: older Desktop releases retain their existing page capture.
-// Once selected, a native failure stays a failure rather than retrying DOM rasterization.
 function windowCapture(capture: () => Promise<unknown>): CaptureSource {
   let stopped = false;
   return {

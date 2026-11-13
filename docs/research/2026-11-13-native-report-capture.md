@@ -78,4 +78,4 @@ Standards and Spec code review found and corrected registration before the main-
 
 ## Delivery boundary
 
-The Client and executable upstream patch are delivered together. The source candidate was built without modifying an installed ASAR or injecting a renderer bridge. Existing Desktop releases still lack the capability: updating only the Tobs npm package retains their page-capture path. Upstream integration, a distributed Desktop release and the broader release matrix above are separate from the verified local implementation. No release or public PR was created by this task.
+The Client and executable upstream patch are delivered together in [PR #4106](https://github.com/BotHarness/DeepSeekBot/pull/4106). The source candidate was built without modifying an installed ASAR or injecting a renderer bridge. Existing Desktop releases still lack the capability: updating only the Tobs npm package retains their page-capture path. Upstream integration, a distributed Desktop release and the broader release matrix above are separate from the verified local implementation. No release was created by this task.

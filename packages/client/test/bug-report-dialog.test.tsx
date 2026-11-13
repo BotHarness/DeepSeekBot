@@ -294,8 +294,6 @@ it.each(['page', 'window'])(
         }
       },
     );
-    // A native capture observes painted DOM. Synchronous rAF would run the provider
-    // inside the click before React can commit the toolbar's hidden state.
     vi.stubGlobal('requestAnimationFrame', (next: FrameRequestCallback) =>
       setTimeout(() => next(0), 0),
     );
