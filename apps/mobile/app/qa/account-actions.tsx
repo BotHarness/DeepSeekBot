@@ -23,7 +23,6 @@ export default function AccountActionsFixtureRoute() {
 }
 
 function AccountActionsFixture() {
-  const t = useStrings();
   const params = useLocalSearchParams<{ scenario?: string; pairing?: string }>();
   const scenarios: AccountFixtureScenario[] = [
     'connection-diagnostics',
@@ -42,6 +41,17 @@ function AccountActionsFixture() {
     'linked-computers-refresh-failure',
   ];
   const scenario = scenarios.find((value) => value === params.scenario) ?? 'success';
+  return <AccountScenario key={scenario} scenario={scenario} pairing={params.pairing} />;
+}
+
+function AccountScenario({
+  scenario,
+  pairing,
+}: {
+  scenario: AccountFixtureScenario;
+  pairing?: string | undefined;
+}) {
+  const t = useStrings();
   const [results, setResults] = useState<Record<string, AccountPairResult>>({});
   const [failures, setFailures] = useState<Record<string, ConnectionDiagnostic>>({});
   const [busy, setBusy] = useState(false);
@@ -58,8 +68,8 @@ function AccountActionsFixture() {
       <AccountHosts
         key={scenario}
         account={fixture.account}
-        busy={busy || params.pairing !== undefined}
-        pairing={params.pairing}
+        busy={busy || pairing !== undefined}
+        pairing={pairing}
         saved={fixture.saved()}
         results={results}
         failures={failures}
@@ -98,7 +108,11 @@ function AccountActionsFixture() {
           <Button
             testID="account-fixture-reset"
             label={t.accountFixture.reset}
-            onPress={() => setReset((value) => value + 1)}
+            onPress={() => {
+              setResults({});
+              setFailures({});
+              setReset((value) => value + 1);
+            }}
           />
           <Text testID="account-fixture-result" selectable>
             {snapshot}
