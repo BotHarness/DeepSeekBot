@@ -2,6 +2,7 @@ import { useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { Button, Switch } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
+import { ConnectionGuide } from './connection-guide.js';
 import { ChoiceButton } from './ds/choice-button.js';
 import { FieldStack, TextField } from './ds/field.js';
 import { SettingsRow } from './ds/settings-row.js';
@@ -62,6 +63,18 @@ function modeTitle(mode: PrivateTunnelView['mode']) {
       : 'privateTunnel.quickTitle';
 }
 
+function recoveryKey(reason: string | undefined) {
+  if (reason === 'private-ingress-origin-invalid') return 'connections.recovery.address';
+  if (reason === 'private-tunnel-hostname-invalid' || reason === 'private-tunnel-token-invalid')
+    return 'connections.recovery.token';
+  if (reason === 'private-route-in-use') return 'connections.recovery.busy';
+  if (reason === 'dns') return 'connections.recovery.dns';
+  if (reason === 'tls') return 'connections.recovery.tls';
+  if (reason === 'timeout' || reason === 'tunnel-unreachable' || reason?.startsWith('http-'))
+    return 'connections.recovery.forward';
+  return 'connections.recovery.generic';
+}
+
 export function PrivateTunnelSettings({
   t,
   status,
@@ -114,7 +127,7 @@ export function PrivateTunnelSettings({
       icon="info"
       tone="warning"
       title={t('privateTunnel.panel.failedTitle')}
-      body={t('privateTunnel.refused', { code: failure })}
+      body={t(recoveryKey(failure))}
       data={{ 'data-private-tunnel-failure': failure }}
     />
   ) : null;
@@ -165,7 +178,7 @@ export function PrivateTunnelSettings({
           {status.mode === 'ingress' && status.lan ? null : chip(t, local!)}
           <p {...stylex.props(styles.meta)}>
             {status.state === 'error'
-              ? t('privateTunnel.error', { issue: status.issue ?? 'unknown' })
+              ? t(recoveryKey(status.probe ?? status.issue))
               : t('privateTunnel.verifying')}
           </p>
         </StatusBlock>
@@ -176,7 +189,7 @@ export function PrivateTunnelSettings({
           icon="info"
           tone="warning"
           title={t('privateTunnel.panel.errorTitle')}
-          body={t('privateTunnel.error', { issue: status.issue ?? 'unknown' })}
+          body={t(recoveryKey(status.probe ?? status.issue))}
           data={{ 'data-private-tunnel': 'error' }}
         >
           {status.probe ? (
@@ -212,6 +225,7 @@ export function PrivateTunnelSettings({
     return (
       <StatusStack title={t('privateTunnel.title')}>
         {block}
+        <ConnectionGuide t={t} method={status.mode === 'ingress' ? 'ingress' : 'named'} />
         {status.addressChanged ? (
           <StatusBlock
             icon="alarm-clock"
@@ -271,7 +285,7 @@ export function PrivateTunnelSettings({
           icon="server"
           tone="accent"
           title={t('privateTunnel.ingressTitle')}
-          body={t('privateTunnel.ingressHelp')}
+          body={t('connections.ingressRequirements')}
           data={{ 'data-private-tunnel-setup': 'ingress' }}
         >
           <StepProgress
@@ -314,6 +328,7 @@ export function PrivateTunnelSettings({
           </div>
         </StatusBlock>
         {failed}
+        <ConnectionGuide t={t} method="ingress" />
       </StatusStack>
     );
 
@@ -324,7 +339,7 @@ export function PrivateTunnelSettings({
           icon="globe"
           tone="accent"
           title={t('privateTunnel.namedTitle')}
-          body={t('privateTunnel.namedHelp')}
+          body={t('connections.namedRequirements')}
           data={{ 'data-private-tunnel-setup': 'named' }}
         >
           <StepProgress
@@ -363,6 +378,7 @@ export function PrivateTunnelSettings({
           </div>
         </StatusBlock>
         {failed}
+        <ConnectionGuide t={t} method="named" />
       </StatusStack>
     );
 

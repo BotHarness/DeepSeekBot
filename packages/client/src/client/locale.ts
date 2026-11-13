@@ -4,6 +4,26 @@ import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots';
 export const LOCALE_NS = 'botharness';
 
 export const zh = {
+  'connections.namedRequirements': '需要自己的 Cloudflare 账号、域名和 Tunnel 令牌。',
+  'connections.ingressRequirements': '需要手机和电脑都能访问的 HTTPS 地址及受信任证书。',
+  'connections.privateReplacement':
+    '当前只支持一种私有连接；更换前先关闭下方的已有连接，旧地址可能失效。Docker 中继的迁移见部署指南。',
+  'connections.tailscaleVpn':
+    'iOS 和 Android 通常只能运行一个 VPN。开启 Tailscale 会影响你正在使用的其他 VPN。',
+  'connections.vpnGuide': '查看 VPN 限制',
+  'connections.deploymentGuide': '查看部署指南',
+  'connections.privateGuideUrl': 'https://botharness.ai/zh/docs/private-connect',
+  'connections.ingressGuideUrl': 'https://botharness.ai/zh/docs/private-ingress',
+  'connections.relayGuideUrl': 'https://botharness.ai/zh/docs/private-connect#部署',
+  'connections.recovery.address':
+    '填写完整 HTTPS 地址，不带路径、账号或查询参数。Tailscale 地址使用 Tailscale 入口。',
+  'connections.recovery.token': '检查 Cloudflare 主机名和 Tunnel 令牌后重试。',
+  'connections.recovery.dns': '检查域名能否在这台电脑和手机上解析。修好后会自动重新检查。',
+  'connections.recovery.tls': '检查证书是否有效，并已被电脑和手机信任。不要关闭证书验证。',
+  'connections.recovery.forward': '检查代理转发、WebSocket 升级和防火墙；修好后会自动重新检查。',
+  'connections.recovery.busy': '已有私有连接。先管理当前连接，再更换方式。',
+  'connections.recovery.generic': '检查部署指南和连接设置后重试。',
+
   'privateTunnel.title': '私有连接（推荐）',
   'privateTunnel.description': '不需要 Docker 和官方账号，这台电脑只公开加密的手机通道。',
   'privateTunnel.intro':
@@ -5127,6 +5147,31 @@ export function zhTranslate(key: BotHarnessKey | string, params?: Record<string,
 }
 
 export const en = {
+  'connections.namedRequirements': 'Requires your Cloudflare account, domain and Tunnel token.',
+  'connections.ingressRequirements':
+    'Requires an HTTPS address reachable by the phone and computer, with a trusted certificate.',
+  'connections.privateReplacement':
+    'Only one private connection is supported; close the existing connection below before changing methods, which can invalidate its old address. Follow the deployment guide to migrate a Docker relay.',
+  'connections.tailscaleVpn':
+    'iOS and Android normally allow one VPN at a time. Turning on Tailscale can interrupt another VPN you use.',
+  'connections.vpnGuide': 'View VPN limitations',
+  'connections.deploymentGuide': 'View deployment guide',
+  'connections.privateGuideUrl': 'https://botharness.ai/docs/private-connect',
+  'connections.ingressGuideUrl': 'https://botharness.ai/docs/private-ingress',
+  'connections.relayGuideUrl': 'https://botharness.ai/docs/private-connect#prepare-the-server',
+  'connections.recovery.address':
+    'Enter an HTTPS origin without a path, credentials or query. Use the Tailscale option for a Tailscale address.',
+  'connections.recovery.token': 'Check the Cloudflare hostname and Tunnel token, then retry.',
+  'connections.recovery.dns':
+    'Check that the domain resolves on this computer and phone. Checks resume automatically.',
+  'connections.recovery.tls':
+    'Check that the certificate is valid and trusted by the computer and phone. Keep certificate validation on.',
+  'connections.recovery.forward':
+    'Check proxy forwarding, WebSocket upgrades and the firewall. Checks resume automatically.',
+  'connections.recovery.busy':
+    'A private connection already exists. Manage it before changing methods.',
+  'connections.recovery.generic': 'Check the deployment guide and connection settings, then retry.',
+
   'privateTunnel.title': 'Private connection (recommended)',
   'privateTunnel.description':
     'No Docker or official account. This computer publishes only its encrypted phone channel.',

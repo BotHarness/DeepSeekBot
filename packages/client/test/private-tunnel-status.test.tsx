@@ -108,3 +108,33 @@ it('keeps address-change recovery visible beside the verified Quick route', asyn
   );
   expect(host.textContent).toContain(t('privateRelay.pair'));
 });
+
+it.each([
+  ['dns', 'connections.recovery.dns'],
+  ['tls', 'connections.recovery.tls'],
+  ['http-502', 'connections.recovery.forward'],
+] as const)(
+  'gives actionable %s ingress recovery while withholding pairing',
+  async (probe, key) => {
+    await render({
+      state: 'error',
+      mode: 'ingress',
+      originPort: 4100,
+      probe,
+      issue: 'tunnel-unreachable',
+    });
+    expect(host.textContent).toContain(t(key));
+    expect(host.textContent).not.toContain(t('privateRelay.pair'));
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null);
+    const guide = [...host.querySelectorAll<HTMLButtonElement>('button')].find(
+      (b) => b.textContent === t('connections.deploymentGuide'),
+    )!;
+    await act(async () => guide.click());
+    expect(open).toHaveBeenCalledWith(
+      t('connections.ingressGuideUrl'),
+      '_blank',
+      'noopener,noreferrer',
+    );
+    open.mockRestore();
+  },
+);

@@ -2,6 +2,7 @@ import { useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
+import { ConnectionGuide } from './connection-guide.js';
 import { FieldStack, TextField } from './ds/field.js';
 import { CopyChip, StatusBlock, StatusStack } from './ds/status-block.js';
 import { StepProgress } from './ds/step-progress.js';
@@ -79,6 +80,7 @@ export function PrivateRelaySettings({
     const state = status.state;
     return (
       <StatusStack title={t('privateRelay.title')}>
+        <ConnectionGuide t={t} method="relay" />
         {state === 'connected' ? (
           <StatusBlock
             icon="check"
@@ -122,6 +124,7 @@ export function PrivateRelaySettings({
 
   return (
     <StatusStack title={t('privateRelay.title')}>
+      <ConnectionGuide t={t} method="relay" />
       <StatusBlock
         icon="server"
         tone="accent"
