@@ -121,8 +121,10 @@ describe.each(['browser', 'computer'] as const)('remove a Host during %s takeove
       const removing = h.sources.remove(h.host.hostId);
       await h.viewer.send({ kind: 'type', text: 'after-remove' });
       expect(h.events).toEqual(['takeover:true']);
-      expect(h.sources.getSnapshot().hosts).toHaveLength(0);
-      expect(h.values.has(REMOTE_HOSTS_STORAGE_KEY)).toBe(false);
+      await vi.waitFor(() => expect(h.sources.getSnapshot().hosts).toHaveLength(0));
+      expect(JSON.parse(h.values.get(REMOTE_HOSTS_STORAGE_KEY) ?? '[]')).toEqual([
+        expect.objectContaining({ kind: 'automatic-enrollment-suppressed', hostId: h.host.hostId }),
+      ]);
       const stale = createRemoteHostViewer(h.client, kind, 'ada');
       const stopStale = stale.subscribe(() => {});
       await stale.setControl(true);

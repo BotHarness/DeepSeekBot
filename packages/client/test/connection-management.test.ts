@@ -95,7 +95,10 @@ it('removes only the selected browser connection, persists first and never revok
     manageConnections(sources, { action: 'forget-host', hostId: 'a', confirm: true }, request()),
   ).resolves.toEqual({ hostId: 'a', removedLocally: true });
   expect(sources.getSnapshot().hosts.map((x) => x.host.hostId)).toEqual(['b']);
-  expect(JSON.parse(values.get(REMOTE_HOSTS_STORAGE_KEY)!)).toHaveLength(1);
+  expect(JSON.parse(values.get(REMOTE_HOSTS_STORAGE_KEY)!)).toEqual([
+    expect.objectContaining({ hostId: 'b', credential: expect.any(String) }),
+    expect.objectContaining({ kind: 'automatic-enrollment-suppressed', hostId: 'a' }),
+  ]);
   expect(first).not.toHaveBeenCalled();
   expect(second).not.toHaveBeenCalled();
 });
