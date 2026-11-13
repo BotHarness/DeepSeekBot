@@ -1,3 +1,4 @@
+import { MobileAppDownloads } from './mobile-apps.js';
 import { PrivateRelaySettings } from './private-relay-settings.js';
 import {
   PrivateTunnelSettings,
@@ -220,6 +221,7 @@ export function PairedDevicesSettings({
   const [showTailscale, setShowTailscale] = useState(false);
   const [manage, setManage] = useState(false);
   type Setup =
+    | 'app'
     | 'private'
     | 'privateRelay'
     | 'closed'
@@ -229,8 +231,9 @@ export function PairedDevicesSettings({
     | 'tailscale'
     | 'connect'
     | 'remote';
-  const [setup, setSetupState] = useState<Setup>(initialPairing ? 'method' : 'closed');
+  const [setup, setSetupState] = useState<Setup>(initialPairing ? 'app' : 'closed');
   const [tunnelStep, setTunnelStep] = useState<PrivateTunnelStep>('choose');
+  const phoneAppReady = useRef(false);
   const setupVersion = useRef(0);
   const setSetup = (next: Setup) => {
     setupVersion.current += 1;
@@ -255,7 +258,11 @@ export function PairedDevicesSettings({
         setReadState('fresh');
         setCheckedAt(Date.now());
         setNow(Date.now());
-        if (pairedDeviceId && pairViewRef.current.state === 'closed') {
+        if (
+          pairedDeviceId &&
+          (!initialPairing || phoneAppReady.current) &&
+          pairViewRef.current.state === 'closed'
+        ) {
           const previous = value.devices.find(
             (device) => device.id === pairedDeviceId && !device.revokedAt,
           );
@@ -292,7 +299,7 @@ export function PairedDevicesSettings({
         const readDevice = value.devices.find(
           (device) => device.id === pairedId && !device.revokedAt && device.feedReadAt,
         );
-        if (readDevice) onFeedRead?.(readDevice.id);
+        if (readDevice && (!initialPairing || phoneAppReady.current)) onFeedRead?.(readDevice.id);
         return value;
       } catch {
         if (mounted.current && !signal?.aborted) setReadState('stale');
@@ -314,20 +321,7 @@ export function PairedDevicesSettings({
   const mount = useMountedResource<HTMLDivElement>(() => {
     mounted.current = true;
     const controller = new AbortController();
-    void load(controller.signal).then((value) => {
-      if (
-        !initialPairing ||
-        pairedDeviceId !== undefined ||
-        !mounted.current ||
-        controller.signal.aborted ||
-        setupVersion.current !== 0
-      )
-        return;
-      if (value && (hasPhoneRoute(value.routes) || onTailnet())) {
-        setSetup('closed');
-        void createOffer();
-      }
-    });
+    void load(controller.signal);
     const timer = setInterval(() => {
       setNow(Date.now());
       void load(controller.signal);
@@ -374,6 +368,10 @@ export function PairedDevicesSettings({
   };
 
   const createOffer = async (): Promise<void> => {
+    if (!phoneAppReady.current) {
+      setSetup('app');
+      return;
+    }
     const request = ++offerRequest.current;
     offerAbort.current?.abort();
     const controller = new AbortController();
@@ -676,21 +674,45 @@ export function PairedDevicesSettings({
                 </Button>
               </>
             ) : null}
-            {setup !== 'direction' ? (
+            {setup !== 'direction' && setup !== 'app' ? (
               <ConnectionProgress t={t} step={setup === 'method' ? 0 : 1} />
             ) : null}
             <Note>
               {t(
-                setup === 'direction'
-                  ? 'connections.direction'
-                  : setup === 'method'
-                    ? 'connections.choose'
-                    : 'connections.prepare',
+                setup === 'app'
+                  ? 'connections.phoneApp.title'
+                  : setup === 'direction'
+                    ? 'connections.direction'
+                    : setup === 'method'
+                      ? 'connections.choose'
+                      : 'connections.prepare',
               )}
             </Note>
-            {setup === 'direction' ? (
+            {setup === 'app' ? (
+              <div data-phone-app-guide="">
+                <Note>{t('connections.phoneApp.description')}</Note>
+                <Button
+                  variant="primary"
+                  data-modal-autofocus
+                  disabled={!freshSnapshot || busy !== undefined}
+                  onClick={() => {
+                    phoneAppReady.current = true;
+                    if (pairedDeviceId) {
+                      setSetup('closed');
+                      void load();
+                    } else if (snapshot && (hasPhoneRoute(snapshot.routes) || onTailnet())) {
+                      setSetup('closed');
+                      void createOffer();
+                    } else setSetup('method');
+                  }}
+                >
+                  {t('connections.phoneApp.ready')}
+                </Button>
+                <MobileAppDownloads t={t} />
+              </div>
+            ) : setup === 'direction' ? (
               <>
-                <ChoiceButton title={t('connections.invite')} onClick={() => setSetup('method')} />
+                <ChoiceButton title={t('connections.invite')} onClick={() => setSetup('app')} />
                 <ChoiceButton title={t('connections.join')} onClick={() => setSetup('remote')} />
               </>
             ) : setup === 'method' ? (
@@ -884,7 +906,7 @@ export function PairedDevicesSettings({
                 onClick={() =>
                   setup === 'private' && tunnelStep !== 'choose'
                     ? setTunnelStep('choose')
-                    : setSetup(setup === 'method' ? 'direction' : 'method')
+                    : setSetup(setup === 'method' || setup === 'app' ? 'direction' : 'method')
                 }
               >
                 {t('connections.back')}

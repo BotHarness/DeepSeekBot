@@ -8,6 +8,8 @@
 
 The optional Desktop intro phone step opens the existing Connections dialog. It creates no listener, route, login or invitation until the person chooses to connect. Closing returns to the same step; skipping continues the intro.
 
+Every phone entry, including the Control Rail, Connections settings and intro, first shows the same installation guide inside Connections. It reuses the existing iOS and Android download instructions. The person explicitly selects “App installed, start connecting” before route preparation or invitation creation, even when a usable route already exists. Desktop does not infer installation on another device. This confirmation belongs to the current dialog journey, not a durable installation flag; Back and a fresh entry cannot bypass it.
+
 Pairing approval is not a successful content read. The application-defined mobile Host client reports its first successfully loaded Bot and Channel roster through the existing authenticated device gateway after publishing that roster. The device-pairing owner stores `feed_read_at` in its existing operational database record. The gateway derives the device identity from admission, never from a submitted device ID. The first timestamp is idempotent; revoked grants cannot acknowledge. This is an authenticated client acknowledgement, not proof that a Human saw a screen.
 
 The Connections dialog correlates its invitation receipt to the redeemed device, then checks that exact non-revoked device's acknowledgement through its existing bounded status poll. Unrelated devices and mere admission timestamps never complete the intro. Returning to the phone step reads the owner again. Continue remains explicit; Back and Skip do not revoke grants or stop routes.

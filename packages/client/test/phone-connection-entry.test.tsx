@@ -113,6 +113,7 @@ it('prepares LAN only after choosing it in Add connection, then shows the invita
   expect(button(t('devices.lan.enable'))).toBeUndefined();
   await click('添加连接');
   await click('让设备连接本机');
+  await click(t('connections.phoneApp.ready'));
   await click('局域网');
   expect(posts).toEqual([]);
   await click('开启并继续');
@@ -144,6 +145,7 @@ it('enables LAN explicitly, pairs without Tailscale and disables it through the 
   expect(button(t('devices.pair.open')).disabled).toBe(false);
   expect(host.querySelector('[data-pair-route-steps]')).toBeNull();
   await click(t('devices.pair.open'));
+  await click(t('connections.phoneApp.ready'));
   expect(host.querySelector('[data-pair-qr]')).not.toBeNull();
   expect(host.querySelector('[role="dialog"]')?.textContent).toContain(t('devices.lan.title'));
   expect(host.querySelector('[role="dialog"]')?.textContent).not.toContain(
@@ -163,6 +165,7 @@ it.each([{ available: [tail] }, { available: [lan, tail] }])(
     lanState = available.includes(lan) ? 'listening' : 'off';
     await render();
     await click(t('devices.pair.open'));
+    await click(t('connections.phoneApp.ready'));
     const dialog = host.querySelector('[role="dialog"]')!;
     expect(dialog.textContent).toContain(t('devices.tailscale.title'));
     expect(dialog.textContent?.includes(t('devices.lan.title'))).toBe(available.includes(lan));
@@ -211,6 +214,7 @@ it('replaces an expired code with a fresh offer', async () => {
   expiresAt = new Date(Date.now() - 1000).toISOString();
   await render();
   await click(t('devices.pair.open'));
+  await click(t('connections.phoneApp.ready'));
   expect(host.querySelector('[data-pair-qr]')).toBeNull();
   expect(host.textContent).toContain(t('devices.pair.expired'));
   expiresAt = new Date(Date.now() + 600_000).toISOString();
@@ -226,6 +230,7 @@ it.each(['refused', 'unknown', 'superseded'])(
     routes = [lan, loopback];
     await render();
     await click(t('devices.pair.open'));
+    await click(t('connections.phoneApp.ready'));
     expect(host.querySelector('[data-pair-qr]')).not.toBeNull();
     offerState = state;
     await act(async () => vi.advanceTimersByTimeAsync(3100));
@@ -241,6 +246,9 @@ it('opens one standalone dialog and reuses an existing route without publishing 
   await act(async () => root.render(<ConnectionsDialog t={t} pairPhone onClose={onClose} />));
   expect(host.querySelectorAll('[role="dialog"]')).toHaveLength(1);
   expect(host.textContent).toContain('QA computer');
+  expect(host.querySelector('[data-phone-app-guide]')).not.toBeNull();
+  expect(posts).toEqual([]);
+  await click(t('connections.phoneApp.ready'));
   expect(host.querySelector('[data-pair-qr]')).not.toBeNull();
   expect(posts.map((post) => post.url)).toEqual(['./api/botharness/devices/offer']);
   await click(t('connections.back'));
@@ -256,6 +264,7 @@ it('shows preparation without publishing or creating an offer when no phone rout
   expect(host.querySelectorAll('[role="dialog"]')).toHaveLength(1);
   expect(host.querySelector('[data-pair-qr]')).toBeNull();
   expect(posts).toEqual([]);
+  await click(t('connections.phoneApp.ready'));
   await click('局域网');
   await click('开启并继续');
   expect(host.querySelectorAll('[role="dialog"]')).toHaveLength(1);
@@ -290,6 +299,7 @@ it('finishes onboarding only after the intended paired device reads Feed, not af
     ),
   );
   expect(onFeedRead).not.toHaveBeenCalled();
+  await click(t('connections.phoneApp.ready'));
   pairedDevices = [{ id: 'other', name: 'Other', pairedAt: expiresAt, feedReadAt: expiresAt }];
   await act(async () => vi.advanceTimersByTimeAsync(3000));
   expect(onFeedRead).not.toHaveBeenCalled();
@@ -330,4 +340,42 @@ it('resumes an existing paired device without creating another invitation and re
   await act(async () => vi.advanceTimersByTimeAsync(3000));
   expect(posts).toEqual([]);
   expect(onFeedRead).not.toHaveBeenCalled();
+});
+
+it.each(['phone-entry', 'settings', 'existing-route'] as const)(
+  'keeps installation guidance inside the dialog before any offer or route write: %s',
+  async (entry) => {
+    if (entry === 'existing-route') routes = [tail];
+    if (entry === 'settings') {
+      await render(false);
+      await click(t('connections.add'));
+      await click(t('connections.invite'));
+    } else
+      await act(async () => root.render(<ConnectionsDialog t={t} pairPhone onClose={() => {}} />));
+    expect(host.querySelector('[data-phone-app-guide]')).not.toBeNull();
+    expect(host.querySelector('[data-platform="ios"] a')?.getAttribute('href')).toBe(
+      'https://testflight.apple.com/join/sA9EznXr',
+    );
+    expect(host.querySelector('[data-platform="android"] a')).not.toBeNull();
+    expect(host.querySelector('[data-pair-qr]')).toBeNull();
+    expect(posts).toEqual([]);
+    await click(t('connections.phoneApp.ready'));
+    expect(host.querySelector('[data-phone-app-guide]')).toBeNull();
+    if (entry === 'existing-route')
+      expect(posts.filter((post) => post.url.endsWith('/offer'))).toHaveLength(1);
+    else {
+      expect(posts).toEqual([]);
+      expect(button('局域网')).toBeDefined();
+    }
+  },
+);
+
+it('cannot bypass installation confirmation by going Back from the phone guide', async () => {
+  await act(async () => root.render(<ConnectionsDialog t={t} pairPhone onClose={() => {}} />));
+  await click(t('connections.back'));
+  expect(button('局域网')).toBeUndefined();
+  await click(t('connections.invite'));
+  expect(host.querySelector('[data-phone-app-guide]')).not.toBeNull();
+  expect(posts).toEqual([]);
+  expect(host.querySelector('[data-pair-qr]')).toBeNull();
 });
